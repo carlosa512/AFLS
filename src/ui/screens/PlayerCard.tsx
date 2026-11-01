@@ -16,7 +16,7 @@ import {
 import { formNote } from '../../engine/quirks';
 import { pron } from '../../engine/pronouns';
 import { FOCUS_LABEL, FOCUS_OF, ROLE_LABEL, staffName } from '../../engine/staff';
-import { editPlayerIdentity, identityProblem, slotOf } from '../../engine/roster';
+import { editPlayerGear, editPlayerIdentity, identityProblem, slotOf } from '../../engine/roster';
 import { careerLine, passerRating } from '../../engine/stats';
 import { consensusRank } from '../../engine/offseason/draft';
 import {
@@ -32,15 +32,17 @@ import {
 } from '../../engine/training';
 import { targetsFor } from '../../engine/familiarity';
 import { tradeContext } from '../../engine/trade/context';
-import type { League, Player, Position, StatLine } from '../../engine/types';
+import type { Gear, GearColor, GearSide, League, Player, Position, SleeveLength, StatLine } from '../../engine/types';
 import { OFFSEASON_PHASES } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { chairNoun, playerCoachLine } from '../coaching';
-import { Dialog, Exact, PlayerAvatar, Section, Sheet, TipPill } from '../components';
+import { Dialog, Exact, isRookie, PlayerAvatar, Section, Sheet, TipPill } from '../components';
 import { moraleView } from '../../engine/morale';
 import { MoodPill } from '../morale';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
+import { ownGear } from '../playerGear';
+import { CaptainPatch, captainStreak } from '../captainPatch';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
 import { band, heightFt } from '../format';
@@ -247,8 +249,29 @@ function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Play
   );
 }
 
-/** Rename or renumber a player. Cosmetic, so any player can be edited (a roster mod does the same in bulk). */
-function IdentityEditor({ league, player: p, onDone }: { league: League; player: Player; onDone: () => void }) {
+/** What the gear editor holds: the gear shown, and whether it's yours (false: his own, as the avatar picks it). */
+export interface GearDraft {
+  gear: Gear;
+  custom: boolean;
+}
+
+/**
+ * Rename, renumber or re-dress a player. Cosmetic, so any player can be edited (a roster mod does the same in bulk);
+ * the card's avatar shows the gear as you change it.
+ */
+function IdentityEditor({
+  league,
+  player: p,
+  draft,
+  onDraft,
+  onDone,
+}: {
+  league: League;
+  player: Player;
+  draft: GearDraft;
+  onDraft: (d: GearDraft) => void;
+  onDone: () => void;
+}) {
   const [firstName, setFirst] = useState(p.firstName);
   const [lastName, setLast] = useState(p.lastName);
   const [jersey, setJersey] = useState(String(p.jersey));
@@ -259,11 +282,14 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
   return (
     <form
       className="identity-edit"
-      aria-label="Edit name and number"
+      aria-label="Edit name, number and gear"
       onSubmit={(e) => {
         e.preventDefault();
         if (problem) return;
-        store.mutate((l) => editPlayerIdentity(l, p.id, edit));
+        store.mutate((l) => {
+          editPlayerIdentity(l, p.id, edit);
+          editPlayerGear(l, p.id, draft.custom ? draft.gear : null);
+        });
         onDone();
       }}
     >
@@ -291,6 +317,12 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
           onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))}
         />
       </label>
+      <GearEditor
+        gear={draft.gear}
+        custom={draft.custom}
+        onChange={(gear) => onDraft({ gear, custom: true })}
+        onReset={() => onDraft({ gear: ownGear(p), custom: false })}
+      />
       <div className="row" style={{ gap: 8, alignSelf: 'end' }}>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onDone}>
           Cancel
@@ -305,6 +337,195 @@ function IdentityEditor({ league, player: p, onDone }: { league: League; player:
         </p>
       )}
     </form>
+  );
+}
+
+const COLOR_LABEL: Record<GearColor, string> = {
+  black: 'Black',
+  white: 'White',
+  primary: 'Team colour',
+  secondary: 'Second colour',
+};
+const SIDE_LABEL: Record<GearSide, string> = { both: 'Both arms', left: 'Left arm', right: 'Right arm' };
+const SLEEVE_LABEL: Record<SleeveLength, string> = {
+  full: 'Full',
+  threeQuarter: 'Three-quarter',
+  half: 'Half',
+  forearm: 'Forearm',
+  shooter: 'Shooter',
+};
+
+/** One labelled dropdown of the gear editor. */
+function GearSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Record<T, string>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <label>
+      <span className="eyebrow">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {(Object.keys(options) as T[]).map((k) => (
+          <option key={k} value={k}>
+            {options[k]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * His arm gear, one row a piece: a sleeve (or an undershirt sleeve), a band, elbow pads, a shoulder brace. Anything
+ * goes, whatever his position; "Back to his own" returns him to what the avatar picks. A cold game still pulls
+ * full sleeves on (`gearOf`).
+ */
+function GearEditor({
+  gear,
+  custom,
+  onChange,
+  onReset,
+}: {
+  gear: Gear;
+  custom: boolean;
+  onChange: (g: Gear) => void;
+  onReset: () => void;
+}) {
+  const set = (patch: Partial<Gear>, drop: (keyof Gear)[] = []) => {
+    const next: Gear = { ...gear, ...patch };
+    for (const k of drop) delete next[k];
+    onChange(next);
+  };
+  const sleeveKind = gear.sleeve?.length ?? (gear.undershirt ? 'undershirt' : 'none');
+  const sleeveColor = gear.sleeve?.color ?? gear.undershirt ?? 'black';
+  return (
+    <fieldset className="gear-edit">
+      <legend className="eyebrow">Gear</legend>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Sleeve"
+          value={sleeveKind}
+          options={{ none: 'None', undershirt: 'Undershirt', ...SLEEVE_LABEL }}
+          onChange={(v) =>
+            v === 'none'
+              ? set({}, ['sleeve', 'undershirt'])
+              : v === 'undershirt'
+                ? set({ undershirt: sleeveColor }, ['sleeve'])
+                : set({ sleeve: { length: v, color: sleeveColor, side: gear.sleeve?.side ?? 'both' } }, ['undershirt'])
+          }
+        />
+        {gear.sleeve && (
+          <GearSelect
+            label="Arm"
+            value={gear.sleeve.side}
+            options={SIDE_LABEL}
+            onChange={(side) => set({ sleeve: { ...gear.sleeve!, side } })}
+          />
+        )}
+        {sleeveKind !== 'none' && (
+          <GearSelect
+            label="Colour"
+            value={sleeveColor}
+            options={COLOR_LABEL}
+            onChange={(color) =>
+              gear.sleeve ? set({ sleeve: { ...gear.sleeve, color } }) : set({ undershirt: color })
+            }
+          />
+        )}
+      </div>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Band"
+          value={gear.band?.at ?? 'none'}
+          options={{ none: 'None', biceps: 'Biceps', forearm: 'Forearm' }}
+          onChange={(v) =>
+            v === 'none'
+              ? set({}, ['band'])
+              : set({
+                  band: {
+                    at: v,
+                    color: gear.band?.color ?? 'white',
+                    side: gear.band?.side ?? (v === 'biceps' ? 'both' : 'left'),
+                  },
+                })
+          }
+        />
+        {gear.band && (
+          <>
+            <GearSelect
+              label="Arm"
+              value={gear.band.side}
+              options={SIDE_LABEL}
+              onChange={(side) => set({ band: { ...gear.band!, side } })}
+            />
+            <GearSelect
+              label="Colour"
+              value={gear.band.color}
+              options={COLOR_LABEL}
+              onChange={(color) => set({ band: { ...gear.band!, color } })}
+            />
+          </>
+        )}
+      </div>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Elbow pads"
+          value={gear.elbowPads ? 'on' : 'none'}
+          options={{ none: 'None', on: 'On' }}
+          onChange={(v) =>
+            v === 'none' ? set({}, ['elbowPads']) : set({ elbowPads: { color: 'black', side: 'both' } })
+          }
+        />
+        {gear.elbowPads && (
+          <>
+            <GearSelect
+              label="Arm"
+              value={gear.elbowPads.side}
+              options={SIDE_LABEL}
+              onChange={(side) => set({ elbowPads: { ...gear.elbowPads!, side } })}
+            />
+            <GearSelect
+              label="Colour"
+              value={gear.elbowPads.color}
+              options={COLOR_LABEL}
+              onChange={(color) => set({ elbowPads: { ...gear.elbowPads!, color } })}
+            />
+          </>
+        )}
+      </div>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Shoulder brace"
+          value={gear.shoulderBrace?.side ?? 'none'}
+          options={{ none: 'None', left: 'Left shoulder', right: 'Right shoulder' }}
+          onChange={(v) =>
+            v === 'none'
+              ? set({}, ['shoulderBrace'])
+              : set({ shoulderBrace: { side: v, strap: gear.shoulderBrace?.strap ?? 'primary' } })
+          }
+        />
+        {gear.shoulderBrace && (
+          <GearSelect
+            label="Strap"
+            value={gear.shoulderBrace.strap}
+            options={{ primary: 'Team colour', secondary: 'Second colour' }}
+            onChange={(strap) => set({ shoulderBrace: { ...gear.shoulderBrace!, strap } })}
+          />
+        )}
+      </div>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onReset} disabled={!custom}>
+          Back to his own
+        </button>
+        <span className="small muted">{custom ? 'Your pick.' : 'His own, as the game picked it.'}</span>
+      </div>
+    </fieldset>
   );
 }
 
@@ -649,6 +870,17 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
     .sort((a, b) => b - a);
 
   const [editing, setEditing] = useState(false);
+  // the gear editor's pick while the editor is open: the card's avatar wears it as you change it
+  const [gearDraft, setGearDraft] = useState<GearDraft | null>(null);
+  const toggleEditing = () => {
+    setEditing((v) => !v);
+    setGearDraft((d) => (d ? null : { gear: p.gear ?? ownGear(p), custom: !!p.gear }));
+  };
+  const stopEditing = () => {
+    setEditing(false);
+    setGearDraft(null);
+  };
+  const streak = captainStreak(league, p);
   // His starting spot in his team's schemes (LT, SLOT, NT…), if he starts.
   const slot = slotOf(league, p);
   const spot = team ? spotsFor(teamScheme(league, team.id), slot)[team.depthChart[slot].indexOf(p.id)] : undefined;
@@ -671,7 +903,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
       onClose={onClose}
       head={
         <>
-          <PlayerAvatar player={p} team={team} size={128} />
+          <PlayerAvatar player={gearDraft ? { ...p, gear: gearDraft.gear } : p} team={team} size={128} />
           <div style={{ minWidth: 0 }}>
             <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
               {spot ? `${spot} · ` : ''}
@@ -686,25 +918,35 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                       ? ' · On waivers'
                       : ' · Free agent'}
             </span>
+            {isRookie(p) && <span className="rookie-pill">Rookie</span>}
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}
             </h2>
           </div>
+          {streak > 0 && team && (
+            <CaptainPatch
+              streak={streak}
+              colors={{ primary: team.colors[0], secondary: team.colors[1] }}
+              background={team.colors[0]}
+            />
+          )}
         </>
       }
       actions={
         <button
           className="edit-x"
-          onClick={() => setEditing((v) => !v)}
-          aria-label="Edit name and number"
+          onClick={toggleEditing}
+          aria-label="Edit name, number and gear"
           aria-pressed={editing}
-          title="Edit name and number"
+          title="Edit name, number and gear"
         >
           ✎
         </button>
       }
     >
-      {editing && <IdentityEditor league={league} player={p} onDone={() => setEditing(false)} />}
+      {editing && gearDraft && (
+        <IdentityEditor league={league} player={p} draft={gearDraft} onDraft={setGearDraft} onDone={stopEditing} />
+      )}
       <div className="facts">
         <span className="fact">
           <span className="eyebrow">{view.exact ? 'Overall' : 'Overall (scouted)'}</span>

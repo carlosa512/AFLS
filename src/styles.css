@@ -1794,6 +1794,10 @@ select {
     width: 96px;
     height: 96px;
   }
+  .sheet-head .captain-patch {
+    height: 48px;
+    width: 38px;
+  }
 }
 .player-link,
 .staff-link {
@@ -3496,6 +3500,52 @@ details.more > summary {
 }
 .jersey-input {
   max-width: 6ch;
+}
+/* the gear rows under name and number: a piece, then its arm and colour when it has them */
+.gear-edit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.gear-edit legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.gear-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gear-edit-row label {
+  display: grid;
+  gap: 2px;
+  min-width: 130px;
+}
+/* a first-year pro, beside his position and club on his card (the avatars carry a red "R") */
+.rookie-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #dc2626;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  color: #fff;
+  font-size: var(--step--2);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+/* a captain's patch, close up, at the right of his card's header */
+.sheet-head .captain-patch {
+  flex: none;
+  margin-left: auto;
+  margin-right: 8px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 .team-tag {
   display: inline-block;

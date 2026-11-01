@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Position } from '../engine/types';
 import { POSITIONS } from '../engine/types';
-import { GEAR_MAX, GEAR_RATES, gearOf, type Gear } from './playerGear';
+import { createLeague } from '../engine/generate';
+import { editPlayerGear } from '../engine/roster';
+import { GEAR_MAX, GEAR_RATES, gearOf, ownGear, type Gear } from './playerGear';
 
 const N = 3000;
 const players = (position: Position) => Array.from({ length: N }, (_, i) => ({ id: i + 1, position }));
@@ -106,12 +108,34 @@ describe('gearOf', () => {
     expect(share('DT', full, true)).toBeCloseTo(0.5, 1);
     // the offensive line keeps whatever it wears and pulls nothing on for the cold
     for (const p of players('OL')) expect(gearOf(p, true)).toEqual(gearOf(p));
-    // the cold changes nothing else he wears
+    // under the sleeves a brace and bands stay on; the undershirt sleeve and elbow pads come off
     for (const p of players('TE').slice(0, 500)) {
       const [warm, cold] = [gearOf(p), gearOf(p, true)];
-      expect(cold.elbowPads).toEqual(warm.elbowPads);
+      if (!full(cold)) continue;
       expect(cold.band).toEqual(warm.band);
       expect(cold.shoulderBrace).toEqual(warm.shoulderBrace);
+      expect(cold.elbowPads ?? cold.undershirt).toBeUndefined();
     }
+  });
+  it('dresses a player in the gear you chose, whatever his position, and gives him back his own', () => {
+    const l = createLeague({ seed: 'gear-edit' });
+    const p = Object.values(l.players).find((x) => x.position === 'K')!;
+    const mine: Gear = {
+      elbowPads: { color: 'white', side: 'both' },
+      band: { at: 'biceps', color: 'secondary', side: 'both' },
+      shoulderBrace: { side: 'left', strap: 'primary' },
+    };
+    editPlayerGear(l, p.id, mine);
+    expect(gearOf(p)).toEqual(mine);
+    // the cold still pulls sleeves on, and keeps his brace and bands
+    const cold = Array.from({ length: 50 }, (_, i) => gearOf({ ...p, id: p.id + i * 7919 }, true)).find(
+      (g) => g.sleeve?.length === 'full',
+    )!;
+    expect(cold.shoulderBrace).toEqual(mine.shoulderBrace);
+    expect(cold.band).toEqual(mine.band);
+    expect(cold.elbowPads).toBeUndefined();
+    editPlayerGear(l, p.id, null);
+    expect(p.gear).toBeUndefined();
+    expect(gearOf(p)).toEqual(ownGear(p));
   });
 });

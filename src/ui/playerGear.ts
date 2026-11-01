@@ -1,5 +1,5 @@
 import { gamesInWeek } from '../engine/league';
-import type { Game, League, Player, Position } from '../engine/types';
+import type { Game, Gear, GearColor, GearSide as Side, League, Player, Position, SleeveLength } from '../engine/types';
 import { gameWeather } from '../engine/weather';
 import { pick } from './staffLook';
 
@@ -9,22 +9,7 @@ import { pick } from './staffLook';
 // shoulder brace now and then, and sleeves on a lineman now and then (edge rushers most, then tackles, then the
 // offensive line), though the offensive line never pulls them on for the cold. The pictures are in `gearArt.tsx`.
 
-export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
-/** Seen from behind: his left arm is on the viewer's left. */
-export type Side = 'left' | 'right' | 'both';
-/** A shooter sleeve starts partway down the upper arm, bare skin above it, and runs to the wrist. */
-export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter';
-
-export interface Gear {
-  sleeve?: { length: SleeveLength; color: GearColor; side: Side };
-  /** A short, solid sleeve under the jersey's (the jersey keeps its stripes). */
-  undershirt?: GearColor;
-  /** Bands go on both biceps; a single band goes on the forearm. */
-  band?: { at: 'biceps' | 'forearm'; color: GearColor; side: Side };
-  elbowPads?: { color: GearColor; side: Side };
-  /** Black neoprene with a strap in the team's colour, on one shoulder. */
-  shoulderBrace?: { side: 'left' | 'right'; strap: 'primary' | 'secondary' };
-}
+export type { Gear, GearColor, GearSide as Side, SleeveLength } from '../engine/types';
 
 /** How often each position wears each piece (0 to 1), before the two-piece limit. */
 interface Rates {
@@ -142,10 +127,33 @@ function weighted<T>(id: number, salt: string, options: readonly (readonly [T, n
 const oneSide = (id: number, salt: string): 'left' | 'right' => (roll(id, salt) < 0.5 ? 'left' : 'right');
 
 /**
- * What `player` wears on his arms: a brace first (rare, and needed), then elbow pads, a sleeve or an undershirt
- * sleeve, then bands (rarely over a sleeve), two pieces at most. Each piece has its own draw, so a cold game's sleeves change nothing else.
+ * What `player` wears on his arms: the gear you chose for him (the card's pencil), or his own (`ownGear`). In a cold
+ * game most players pull on full sleeves and wear them alone, but for a shoulder brace or bands: the undershirt
+ * sleeve and elbow pads come off. The offensive line dresses the same in any weather.
  */
-export function gearOf(player: Pick<Player, 'id' | 'position'>, cold = false): Gear {
+export function gearOf(player: Pick<Player, 'id' | 'position' | 'gear'>, cold = false): Gear {
+  const { id, position } = player;
+  const base = player.gear ?? ownGear(player);
+  const r = GEAR_RATES[position];
+  if (!cold || !r.cold || roll(id, 'cold') >= r.cold) return base;
+  const gear: Gear = {
+    // full sleeves on both arms, in the colour he'd pick anyway
+    sleeve: {
+      length: 'full',
+      color: base.sleeve?.color ?? base.undershirt ?? weighted(id, 'sleeveColor', SLEEVE_COLORS),
+      side: 'both',
+    },
+  };
+  if (base.band) gear.band = base.band;
+  if (base.shoulderBrace) gear.shoulderBrace = base.shoulderBrace;
+  return gear;
+}
+
+/**
+ * The gear the avatar picks for `player` by his position: a brace first (rare, and needed), then elbow pads, a sleeve
+ * or an undershirt sleeve, then bands (rarely over a sleeve), two pieces at most. Each piece has its own draw.
+ */
+export function ownGear(player: Pick<Player, 'id' | 'position'>): Gear {
   const { id, position } = player;
   const r = GEAR_RATES[position];
   const gear: Gear = {};
@@ -182,15 +190,6 @@ export function gearOf(player: Pick<Player, 'id' | 'position'>, cold = false): G
     } else if (r.forearm && roll(id, 'forearm') < r.forearm * layered) {
       gear.band = { at: 'forearm', color: weighted(id, 'bandColor', BAND_COLORS), side: oneSide(id, 'bandSide') };
     }
-  }
-  // a cold game: full sleeves on both arms in the colour he'd pick anyway, over whatever sleeve he wore
-  if (cold && r.cold && roll(id, 'cold') < r.cold) {
-    gear.sleeve = {
-      length: 'full',
-      color: gear.sleeve?.color ?? weighted(id, 'sleeveColor', SLEEVE_COLORS),
-      side: 'both',
-    };
-    delete gear.undershirt;
   }
   return gear;
 }

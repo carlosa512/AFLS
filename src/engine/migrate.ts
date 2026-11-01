@@ -271,6 +271,19 @@ export function migrateLeague(league: League): League | null {
   // (`FieldScheme.offense`), for All-22. Optional: in older games every snap shows the defense's base call, and each
   // offense moves before the snap at the league's rate.
   if (league.version < 73) league.version = 73;
+  // v74: the gear you chose for a player's avatar (`Player.gear`, optional: none chosen yet) and each captain's
+  // seasons (`Player.captainSeasons`): this season's captains get this season; earlier ones were never kept.
+  if (league.version < 74) {
+    for (const team of league.teams) {
+      const c = team.captains;
+      if (c?.season !== league.season) continue;
+      for (const id of [c.offense, c.defense, c.specialTeams]) {
+        const p = league.players[id];
+        if (p && !p.captainSeasons?.length) p.captainSeasons = [c.season];
+      }
+    }
+    league.version = 74;
+  }
   return league;
 }
 

@@ -204,7 +204,8 @@ const DEFENSE: readonly Position[] = ['DT', 'EDGE', 'LB', 'CB', 'S'];
 /**
  * Camp opens: each club names three captains, the men its staff think the room follows (their read of leadership,
  * times standing): a starter on offense, one on defense, and one for the kicking game from the kicker, the punter or
- * a player who starts on neither side. A story and the top of the Leaders list; captaincy itself does nothing.
+ * a player who starts on neither side. A story and the top of the Leaders list; captaincy itself does nothing. Each
+ * captain's seasons are kept (`Player.captainSeasons`) for his avatar's patch: its stars count the seasons in a row.
  */
 export function nameCaptains(league: League): void {
   for (const team of league.teams) {
@@ -218,6 +219,10 @@ export function nameCaptains(league: League): void {
     const kicking = best(activeRoster(league, team.id).filter((p) => !starting.has(p.id)));
     if (!offense || !defense || !kicking) continue;
     team.captains = { season: league.season, offense: offense.id, defense: defense.id, specialTeams: kicking.id };
+    for (const p of [offense, defense, kicking]) {
+      const seasons = (p.captainSeasons ??= []);
+      if (seasons[seasons.length - 1] !== league.season) seasons.push(league.season);
+    }
   }
 }
 
