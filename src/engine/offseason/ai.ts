@@ -339,6 +339,12 @@ export function resignCall(
   return { call: tag ? 'tag' : 'keep', reason, ahead };
 }
 
+/**
+ * The pay tier (`payTier`, 0–1 across his position's market) a keeper must sit at for his club to tag him; a win-now GM
+ * tags a quarter of the way further down. NFL clubs tagged 10, 8, 6 and 9 players in 2021–24 (Sharp Football).
+ */
+export const TAG_TIER = 0.75;
+
 /** Restructures a GM makes in one re-sign window to keep his core: one for the most cautious, four for the boldest. */
 const restructuresFor = (team: Team) => 1 + Math.round(3 * team.gm.capAggression);
 
@@ -388,7 +394,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
   const made = { restructures: 0 };
   for (const p of expiringPlayers(league, team.id)) {
-    const { call, ahead } = resignCall(league, team.id, p, depth, wn);
+    const { call, ahead, reason } = resignCall(league, team.id, p, depth, wn);
     if (call === 'walk') continue;
     const mine = depth[p.position];
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
@@ -409,10 +415,19 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       continue;
     }
     const tier = payTier(p.position, positionRank(market, p));
-    if (!team.taggedId && tier >= 0.75 && p.age - ageShift(p.position) <= 30 && rng.chance(0.35)) {
+    // The GM's call, not a coin: a starter in his plans who won't sign, young enough for his position's clock, gets
+    // the tag when its charge fits once room is made (a win-now GM tags further down the roster).
+    if (
+      !team.taggedId &&
+      reason === 'starter' &&
+      tier >= TAG_TIER - 0.25 * wn &&
+      p.age - ageShift(p.position) <= 30 &&
+      !tagBlocker(league, p)
+    ) {
       // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
       const value =
         tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
+      if (value > budget()) makeRoom(league, team, value - budget(), p, made);
       if (value <= budget()) applyFranchiseTag(league, p);
     }
   }

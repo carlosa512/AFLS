@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { capHit } from '../finance/contract';
-import { releasePlayer } from '../finance/cap';
-import { leagueMarket, marketApy, minSalary } from '../finance/market';
+import { capSpace, releasePlayer } from '../finance/cap';
+import { leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
+import { ageShift } from '../aging';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, spendable } from './ai';
+import { aiFreeAgencyDay, aiResignWindow, expiringPlayers, resignCall, spendable, TAG_TIER } from './ai';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
 
@@ -136,4 +137,54 @@ describe('a GM upgrades by cutting', () => {
       for (const c of cut) expect(signed.some((s) => playerOvr(s) > playerOvr(c))).toBe(true);
     }
   }, 300_000);
+});
+
+describe('the tag keeps a star who’d walk', () => {
+  /** The re-sign window after one season, with an AI club's best expiring starter on top pay, room to spare. */
+  const windowLeague = (() => {
+    const l = createLeague({ seed: 'front-office-tag' });
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    return JSON.stringify(l);
+  })();
+  const setUp = (ageOver?: number) => {
+    const l: League = JSON.parse(windowLeague);
+    const market = leagueMarket(l);
+    const pick = l.teams
+      .filter((t) => t.id !== l.userTeamId && !t.taggedId)
+      .flatMap((t) => expiringPlayers(l, t.id).map((p) => ({ t, p })))
+      .filter(({ t, p }) => {
+        const c = resignCall(l, t.id, p);
+        return c.call !== 'walk' && c.reason === 'starter' && payTier(p.position, positionRank(market, p)) >= TAG_TIER;
+      })
+      .filter(({ p }) => p.age - ageShift(p.position) <= 30)[0];
+    const { t, p } = pick;
+    p.personality.loyalty = 0;
+    if (ageOver !== undefined) p.age = ageShift(p.position) + ageOver;
+    t.deadMoney.push({ season: l.season, amount: -200_000, playerId: -1, note: 'test room' });
+    return { l, t, p };
+  };
+
+  it('tags a starter it can’t sign when the tag fits, whenever he isn’t re-signed', () => {
+    let tests = 0;
+    for (let i = 0; i < 20; i++) {
+      const { l, t, p } = setUp();
+      aiResignWindow(l, t, new Rng(`tag-${i}`));
+      const s = l.players[p.id];
+      if (s.teamId === t.id && s.contract!.kind !== 'tag' && s.contract!.signedSeason === l.season) continue;
+      tests++;
+      expect(s.contract?.kind).toBe('tag');
+      expect(t.taggedId).toBe(p.id);
+      expect(capSpace(l, t.id)).toBeGreaterThanOrEqual(0);
+    }
+    expect(tests).toBeGreaterThan(0);
+  }, 180_000);
+
+  it('never tags one past his age line', () => {
+    for (let i = 0; i < 10; i++) {
+      const { l, t, p } = setUp(31);
+      aiResignWindow(l, t, new Rng(`tag-${i}`));
+      expect(l.players[p.id].contract?.kind).not.toBe('tag');
+    }
+  }, 120_000);
 });
