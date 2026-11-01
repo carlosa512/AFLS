@@ -4,10 +4,10 @@ import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
-import type { League } from '../types';
+import type { League, Player } from '../types';
 import { aiFreeAgencyDay, fitOffer, spendable } from './ai';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
-import { demand, freeAgents, OFFSEASON_ROSTER_MAX } from './negotiation';
+import { demand, freeAgents, OFFSEASON_ROSTER_MAX, offerValue } from './negotiation';
 import { activeRoster } from '../roster';
 import { releasePlayer } from '../finance/cap';
 
@@ -40,14 +40,21 @@ describe('the late market: a club offers what it can fit', () => {
       freeAgents(l)
         .filter((p) => !p.injury && p.age <= 29)
         .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
-    const setUp = (clubId: number, room: (walkAway: number, market: number) => number) => {
+    // What a one-year deal must pay at a club to clear his walk-away there (his valuation is linear in the pay).
+    const floorPay = (l: League, p: Player, teamId: number) => {
+      const unit = offerValue(l, p, teamId, { years: 1, apy: 1_000, bonusPct: 0, gtdPct: 0.5, voidYears: 0 }) / 1_000;
+      return demand(l, p, teamId).walkAway / unit;
+    };
+    const setUp = (clubId: number, room: (floor: number, market: number) => number) => {
       const l: League = JSON.parse(lastDay);
       const p = pick(l);
+      // He's the only one left on the market, so the club's room is his (a club spends it on the best it wants first).
+      for (const q of freeAgents(l)) if (q.id !== p.id) q.retired = true;
       for (const t of l.teams) {
         if (t.id === l.userTeamId) continue;
         const d = demand(l, p, t.id);
         // Far enough under for the rest that no single cut could cover a deal.
-        const want = t.id === clubId ? room(d.walkAway, d.market) : -100_000;
+        const want = t.id === clubId ? room(floorPay(l, p, t.id), d.market) : -100_000;
         t.deadMoney.push({
           season: l.season,
           amount: Math.round(spendable(l, t.id) - want),
@@ -62,12 +69,14 @@ describe('the late market: a club offers what it can fit', () => {
     let signed = false;
     for (const t of l.teams) {
       if (t.id === l.userTeamId) continue;
-      const got = setUp(t.id, (walkAway, market) => Math.min(walkAway / 0.88, market * 0.84));
+      // Room clear of his floor at this club but under his market price; a club where no such room exists can't test it.
+      if (floorPay(l, pick(l), t.id) * 1.03 > demand(l, pick(l), t.id).market * 0.84) continue;
+      const got = setUp(t.id, (floor) => floor * 1.03);
       if (got.teamId !== t.id) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
       // Room short of his walk-away: never a deal below it (the club may cut a lesser player to pay it).
-      const short = setUp(t.id, (walkAway) => walkAway * 0.8);
+      const short = setUp(t.id, (floor) => floor * 0.8);
       if (short.teamId !== null) {
         const l2: League = JSON.parse(lastDay);
         expect(capHit(short.contract!, l2.season)).toBeGreaterThanOrEqual(0.9 * demand(l2, pick(l2), t.id).walkAway);

@@ -8,7 +8,7 @@ import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { League, Player } from '../types';
-import { aiResignWindow, expiringPlayers, inPlans, resignCall, spendable } from './ai';
+import { aiCapCompliance, aiResignWindow, expiringPlayers, inPlans, resignCall, spendable } from './ai';
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
 
@@ -129,5 +129,25 @@ describe('the bill comes later, within next year’s books', () => {
     });
     aiResignWindow(l, team, new Rng('room'));
     expect(books() + others).toBeLessThanOrEqual(ceiling + 1);
+  });
+});
+
+describe('a club over the cap gets under it the way it makes room', () => {
+  it('restructures only players it plans to keep, then cuts the one it can best spare', () => {
+    // A bold GM over the cap, his biggest deal on a washed-up veteran: the cap is the law, but the money it pushes
+    // forward goes on players it keeps, never on one it would cut (the old pass restructured the biggest deal first).
+    const { l, team } = squeezed(0, 1);
+    const biggest = teamPlayers(l, team.id)
+      .filter((x) => x.contract && !isExpired(x.contract, l.season))
+      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)[0];
+    biggest.age = ageShift(biggest.position) + 34;
+    for (const k of Object.keys(biggest.ratings) as (keyof typeof biggest.ratings)[]) biggest.ratings[k] = 4;
+    const before = biggest.contract!.bonuses.length;
+    const over = capSpace(l, team.id) + 0.03 * l.caps[l.season];
+    team.deadMoney.push({ season: l.season, amount: Math.round(over), playerId: -1, note: 'test' });
+    expect(capSpace(l, team.id)).toBeLessThan(0);
+    aiCapCompliance(l, team);
+    expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
+    expect(biggest.teamId === team.id ? biggest.contract!.bonuses.length : before).toBe(before);
   });
 });

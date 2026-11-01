@@ -382,6 +382,23 @@ export function inPlans(league: League, team: Team, p: Player): boolean {
  * climbing league-wide). Returns the room made.
  */
 function makeRoom(league: League, team: Team, need: number, keeper: Player): number {
+  let gained = restructureRoom(league, team, need, keeper);
+  if (gained < need) {
+    const cut = capCut(league, team);
+    if (cut && playerOvr(cut) < playerOvr(keeper)) {
+      gained += releasePreview(league, cut).savings;
+      releasePlayer(league, cut);
+    }
+  }
+  return gained;
+}
+
+/**
+ * Restructure up to `need` of room this league year, as a GM does: the biggest deals of players it plans to keep
+ * starting (`inPlans`), converting only what it needs and no more than next year's books can carry as this GM keeps
+ * them (`nextYearCeiling`). Returns the room made.
+ */
+function restructureRoom(league: League, team: Team, need: number, keeper?: Player): number {
   let gained = 0;
   for (let guard = 0; guard < 12 && gained < need; guard++) {
     const best = teamPlayers(league, team.id)
@@ -405,13 +422,6 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player): num
     const saved = restructurePlayer(league, best.p, amount);
     if (saved <= 0) break;
     gained += saved;
-  }
-  if (gained < need) {
-    const cut = capCut(league, team);
-    if (cut && playerOvr(cut) < playerOvr(keeper)) {
-      gained += releasePreview(league, cut).savings;
-      releasePlayer(league, cut);
-    }
   }
   return gained;
 }
@@ -489,28 +499,31 @@ export function aiExtendArrival(league: League, team: Team, p: Player): boolean 
 // ───────── cap compliance ─────────
 
 /**
- * Get under the cap (or to `target` room): cap-aggressive GMs restructure stars, the rest cut the
- * worst value per dollar. Deep in the red, anyone restructures and only starters are protected.
+ * Get under the cap (or to `target` room), as the league year demands, the way a GM makes room: restructure the deals
+ * of players it plans to keep, only what it needs and within next year's books as it keeps them (`restructureRoom`),
+ * then cut the player it can best spare; deep in the red only starters are protected. Only when neither is left does
+ * it restructure anyone (no team plays over the cap). The old pass converted the biggest deals whole, whoever held
+ * them: aging veterans restructured, then cut or traded, put the league's dead money past 6% of a median cap.
  */
 export function aiCapCompliance(league: League, team: Team, target = 0): void {
-  for (let guard = 0; guard < 40 && capSpace(league, team.id) < target; guard++) {
-    const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
-    const desperate = capSpace(league, team.id) < target - league.caps[league.season] * 0.04;
-    // With no gentler move left (every position at its minimum, say, after camp's fills), any GM restructures,
-    // then cuts down to his starters: no team opens a season over the cap.
-    const gentle = capCut(league, team, desperate);
-    if (team.gm.capAggression >= 0.35 || desperate || !gentle) {
-      const candidate = roster
-        .filter((p) => canRestructure(league, p) && restructureOptions(league, p).savings > 1_000)
-        .sort((a, b) => restructureOptions(league, b).savings - restructureOptions(league, a).savings)[0];
-      if (candidate) {
-        restructurePlayer(league, candidate);
-        continue;
-      }
+  const short = () => target - capSpace(league, team.id);
+  if (short() <= 0) return;
+  restructureRoom(league, team, short());
+  for (let guard = 0; guard < 40 && short() > 0; guard++) {
+    const desperate = short() > league.caps[league.season] * 0.04;
+    const cut = capCut(league, team, desperate) ?? capCut(league, team, true);
+    if (cut) {
+      releasePlayer(league, cut);
+      continue;
     }
-    const cut = gentle ?? capCut(league, team, true);
-    if (!cut) break;
-    releasePlayer(league, cut);
+    // Nothing left to cut: the cap is the law, so any deal that can be converted is.
+    const any = teamPlayers(league, team.id)
+      .filter((p) => p.contract && !isExpired(p.contract, league.season) && canRestructure(league, p))
+      .map((p) => ({ p, savings: restructureOptions(league, p).savings }))
+      .filter((x) => x.savings > 1_000)
+      .sort((a, b) => b.savings - a.savings)[0];
+    if (!any) break;
+    restructurePlayer(league, any.p);
   }
 }
 
