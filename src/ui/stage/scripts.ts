@@ -143,6 +143,13 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number, recei
   if (e.kind === 'kickoff') {
     const a = segs.findIndex((sg) => sg.peak > 0);
     if (a < 0) return segs;
+    if (/kicks off out of bounds/.test(e.text)) {
+      // Out of bounds: the kick hooks over a sideline deep in the receiving half (the ball's placed at the 40 after).
+      const tee = { x: segs[a].x0, y: segs[a].y0 };
+      const side = (e.from ?? 0) % 2 === 0 ? -1.5 : FIELD_W + 1.5;
+      const out = { ...segs[a], x1: Math.max(-5, Math.min(105, tee.x + dir * 52)), y1: side, dur: 3.4 };
+      return [hold(tee, KICK_RUN_UP), out];
+    }
     // On the tee while the kicker runs up, then the hang time, then the return.
     const tee = { x: segs[a].x0, y: segs[a].y0 };
     const flight = { ...segs[a], dur: Math.max(3.2, Math.min(4, len(segs[a]) / 17)) };

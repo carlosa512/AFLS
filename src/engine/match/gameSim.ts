@@ -694,6 +694,7 @@ class GameSim {
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
     if (options.keepPlays) {
       const scheme = (l: Lineup) => ({
+        offense: l.scheme.offense.id,
         personnel: l.scheme.offense.personnel,
         front: l.scheme.front.id,
         coverage: l.scheme.coverage?.id ?? null,

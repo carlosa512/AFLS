@@ -168,7 +168,7 @@ export type StatLine = Partial<Record<StatKey, number>>;
 /** Stats where season/career totals take the max rather than the sum. */
 export const MAX_STATS: ReadonlySet<StatKey> = new Set(['rushLong', 'recLong', 'fgLong']);
 
-import type { CoachScheme, CoverageId, FrontId, Personnel } from './schemes';
+import type { CoachScheme, CoverageId, FrontId, OffSchemeId, Personnel } from './schemes';
 
 export interface Player {
   id: number;
@@ -1586,6 +1586,8 @@ export interface FieldUnits {
 
 /** What each side's coordinators ran: how All-22 lines a side up. */
 export interface FieldScheme {
+  /** The offense it runs (how much it moves before the snap, in All-22). Games before 0.2.32 have none. */
+  offense?: OffSchemeId;
   personnel: Personnel;
   front: FrontId;
   coverage: CoverageId | null;

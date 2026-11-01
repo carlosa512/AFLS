@@ -81,13 +81,13 @@ export function foulersOn(
   home: readonly boolean[],
   fouls: readonly FoulCall[],
   abbrev: { home: string; away: string },
-): { id: number | null; phase: FoulPhase }[] {
+): { id: number | null; phase: FoulPhase; label: string }[] {
   return fouls.map((f) => {
     const k = ids.findIndex((id, i) => {
       const p = league.players[id];
       return !!p && `${p.firstName[0]}.${p.lastName}` === f.name && (home[i] ? abbrev.home : abbrev.away) === f.team;
     });
-    return { id: k < 0 ? null : ids[k], phase: f.phase };
+    return { id: k < 0 ? null : ids[k], phase: f.phase, label: f.label };
   });
 }
 

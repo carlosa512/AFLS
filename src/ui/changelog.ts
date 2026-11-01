@@ -15,16 +15,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.32',
     date: '2026-11-01',
-    title: 'Fouls, calls and the chase',
+    title: 'Before the snap, fouls and the chase',
     text:
-      'In All-22 each foul is now shown where and when it happened, by the player who committed it: on a false start ' +
-      'one lineman moves early while everyone else holds, an offside defender is across the line at the snap, a late ' +
-      'hit lands at the whistle. The nearest official throws the flag on him (two flags when fouls offset), and he is ' +
-      "ringed. The defense now plays the engine's call on each snap: a blitz sends a linebacker or a defensive back, " +
-      'run defense puts a safety in the box, and zone defenders drop to their coverage (Tampa 2, Cover 3, Quarters). ' +
-      'Offenses sometimes send a man in motion before the snap. On long gains, defenders chase from behind, miss ' +
-      'tackles or fall off the play instead of running alongside the carrier, and nobody moves faster than a player ' +
-      'can. The quarterback is ringed only while the play is his.',
+      'All-22 now shows the seconds before the snap. The quarterback points out the middle linebacker, the line sinks ' +
+      'into its stance, and about half of snaps have motion (more for offenses built on it): jets, orbits, shifts. ' +
+      'The defense answers by its scheme: a man defender travels with the motion while a zone bumps over, safeties ' +
+      'show one shell and rotate at the snap, linebackers walk up to show a blitz and bail, or creep up late to time ' +
+      "a real one. Now and then there's a hard count. The defense plays the engine's call on each snap: a blitz " +
+      'sends a linebacker or a defensive back, run defense puts a safety in the box, and zone defenders drop to their ' +
+      'coverage. Every foul is acted out where and when it happened, by the player who committed it: a false start ' +
+      'is one lineman moving early, offside a man across at the snap, a hold a blocker hanging on to his man, a late ' +
+      'hit at the whistle, a kickoff out of bounds sailing over the sideline. The nearest official throws the flag on ' +
+      'him (two flags when fouls offset). On long gains, defenders chase from behind, miss tackles or fall off the ' +
+      'play instead of running alongside the carrier, and the quarterback is ringed only while the play is his.',
   },
   {
     version: '0.2.31',

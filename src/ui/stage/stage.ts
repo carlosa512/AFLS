@@ -5,8 +5,9 @@
  */
 import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import { Rng } from '../../engine/rng';
-import type { FieldRecord, PlayLogEntry } from '../../engine/types';
-import { FIELD_W, MID, offenseSide } from './ballPath';
+import type { DefenseCall } from '../../engine/match/coach';
+import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
+import { MID, offenseSide } from './ballPath';
 import type { Role } from './cast';
 import { castFor } from './cast';
 import { blitzersFor, lineUp } from './formations';
@@ -58,11 +59,11 @@ export interface StagedPlay {
   release: number;
   /** When a pass or a kick comes down (null for anything else). */
   arrive: number | null;
-  /**
-   * A man in motion before the snap: he sets at `from` and moves to his spot over the last `dur` seconds before it
-   * (`across`: from the far side of the formation, behind the line). Presentation only: the engine has no motion.
-   */
-  motion?: { id: number; from: Pt; dur: number; across: boolean };
+  /** The defense's call on the snap, and the men its blitz sends (`blitzersFor`). */
+  call: DefenseCall;
+  blitz: number[];
+  /** What each side runs, for the moments before the snap (`presnap.ts`). */
+  schemes: { offense: FieldScheme; defense: FieldScheme };
 }
 
 /** The play as it ran: a flagged snap's own path (`PlayLogEntry.ran`), else the entry itself. */
@@ -180,7 +181,9 @@ export function stagePlay(args: {
     dir,
     kind: e.kind,
     release: Number.isFinite(release) ? release : total,
-    ...motionFor(e, cast, start, off, ballY, carrier, args.seed),
+    call,
+    blitz: [...blitz],
+    schemes: { offense: off, defense: def },
     arrive:
       catchAt ??
       ((e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') && segs.length >= 3
@@ -203,54 +206,26 @@ export function returned(e: PlayLogEntry): PlayLogEntry {
   return { ...e, to };
 }
 
-/** How often an offense sends a man in motion: most snaps out of two tight ends, fewer spread out, few in a hurry. */
-const MOTION_RATE = { heavy: 0.45, base: 0.35, hurry: 0.1 };
-const MOTION_KINDS: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
-
-/**
- * A man in motion before the snap (`StagedPlay.motion`): a receiver carrying a run is a jet sweep, coming across at
- * speed; otherwise, now and then, a receiver or tight end shifts a few yards or comes across the formation. Seeded on
- * its own stream: it never moves anyone else.
- */
-function motionFor(
-  e: PlayLogEntry,
-  cast: ReturnType<typeof castFor>,
-  start: ReadonlyMap<number, Pt>,
-  off: { personnel: string },
-  ballY: number,
-  carrier: number | null,
-  seed: string,
-): { motion: NonNullable<StagedPlay['motion']> } | Record<string, never> {
-  if (!e.kind || !MOTION_KINDS.has(e.kind)) return {};
-  const rng = new Rng(`${seed}:motion`);
-  const jet = e.kind === 'run' && cast.offense.find((m) => m.id === carrier)?.role === 'WR';
-  const hurry = (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120;
-  const rate = hurry ? MOTION_RATE.hurry : off.personnel.startsWith('1') ? MOTION_RATE.base : MOTION_RATE.heavy;
-  if (!jet && rng.next() >= rate) return {};
-  const movers = cast.offense.filter((m) => m.role === 'WR' || m.role === 'TE');
-  const mover = jet ? carrier! : movers[Math.floor(rng.next() * movers.length)]?.id;
-  if (mover === undefined) return {};
-  const spot = start.get(mover)!;
-  const out = Math.sign(spot.y - ballY) || 1;
-  const across = jet || rng.next() < 0.4;
-  const y = across ? ballY - (spot.y - ballY) * 0.8 : spot.y + out * (rng.next() < 0.5 ? 6 : -5);
-  const from = { x: spot.x, y: Math.max(3, Math.min(FIELD_W - 3, y)) };
-  // Not on top of a teammate's spot.
-  for (const m of cast.offense)
-    if (m.id !== mover && Math.hypot(start.get(m.id)!.x - from.x, start.get(m.id)!.y - from.y) < 1.5) return {};
-  const dur = Math.max(1, Math.min(2.2, Math.abs(from.y - spot.y) / (jet ? 8 : 6.5)));
-  return { motion: { id: mover, from, dur, across } };
-}
-
 /** A punter roughed: how far the punt would have gone, for the picture (the flag wiped it out before it was measured). */
 const ROUGHED_PUNT = 42;
 
-/** "T.Harrison punts. PENALTY on CLE (J.Clemons): Roughing the kicker": a punt to stage the hit on, or undefined. */
+/**
+ * A kick a flag wiped out before the log could give it a path: "T.Harrison punts. PENALTY on CLE (J.Clemons):
+ * Roughing the kicker" (a punt as it would have gone), "P.Peterson 21-yard field goal is good. PENALTY on NYK" (the kick
+ * from the holder's spot, as the engine logs one). The kick to stage the foul on, or undefined.
+ */
 function roughedPunt(e: PlayLogEntry, homeId: number): PlayLogEntry | undefined {
-  if (e.kind !== 'penalty' || e.from === undefined || !/punts\. PENALTY/.test(e.text)) return undefined;
+  if (e.kind !== 'penalty' || e.from === undefined) return undefined;
   const dir = offenseSide(e, homeId) === 0 ? 1 : -1;
-  const air = Math.max(-5, Math.min(105, e.from + dir * ROUGHED_PUNT));
-  return { ...e, kind: 'punt', air, to: air };
+  if (/punts\. PENALTY/.test(e.text)) {
+    const air = Math.max(-5, Math.min(105, e.from + dir * ROUGHED_PUNT));
+    return { ...e, kind: 'punt', air, to: air };
+  }
+  if (/field goal is (?:good|no good)\. PENALTY/.test(e.text)) {
+    const posts = dir > 0 ? 110 : -10;
+    return { ...e, kind: 'fg', from: e.from - dir * 7, air: posts, to: posts };
+  }
+  return undefined;
 }
 
 /** The tackler's top closing speed (yards a second): the last stretch into the carrier is never quicker than this. */

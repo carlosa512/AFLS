@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import type { PlayLogEntry } from '../../engine/types';
-import { snapYFor } from './ballPath';
+import { FIELD_W, snapYFor } from './ballPath';
 import { foulersOn, foulsIn, type FoulPhase } from './calls';
 import { stageFouls, type FouledPlay } from './fouls';
 import { stagePlay, type StagedPlay } from './stage';
@@ -116,9 +116,10 @@ describe('a foul, acted out', () => {
   });
 
   it('every flag lands by the man it is on, and acting a foul out never makes a man jump a frame', () => {
-    for (const { e, p, base } of flagged)
-      for (const f of p.fouls) {
-        if (f.id === null) continue;
+    for (const { e, p, base, phases } of flagged)
+      for (const [i, f] of p.fouls.entries()) {
+        // A kick out of bounds is flagged where it went out, not on the kicker.
+        if (f.id === null || phases[i] === 'out') continue;
         const k = p.ids.indexOf(f.id);
         expect(near(f.spot, at(p, stepOf(p, f.at), k)), e.text).toBeLessThan(1.5);
         let was = 0;
@@ -127,5 +128,35 @@ describe('a foul, acted out', () => {
         for (let st = 1; st < p.steps; st++)
           expect(near(at(p, st, k), at(p, st - 1, k)), e.text).toBeLessThanOrEqual(Math.max(0.551, was + 0.01));
       }
+  });
+  it('leaves no flag hanging: every foul is acted out by its man when the flag flies', () => {
+    const hanging: string[] = [];
+    const acted: Record<string, number> = {};
+    for (const { e, p, phases, base } of flagged)
+      phases.forEach((phase, i) => {
+        const f = p.fouls[i];
+        if (phase === 'out') {
+          // The kick out of bounds: the flag goes down where it went out.
+          if (f.spot.y > 0 && f.spot.y < FIELD_W) hanging.push(`out: ${e.text}`);
+          else acted[phase] = (acted[phase] ?? 0) + 1;
+          return;
+        }
+        if (f.id === null) return;
+        const k = p.ids.indexOf(f.id);
+        const st = stepOf(p, f.at);
+        const me = at(p, st, k);
+        const onSomeone = p.ids.some((_, j) => p.offense[j] !== p.offense[k] && near(at(p, st, j), me) < 1.9);
+        const ok =
+          phase === 'early'
+            ? p.kind !== 'penalty' || p.ids.some((_, j) => j === k && near(at(p, 12, k), at(p, 0, k)) > 0.5)
+            : phase === 'snap'
+              ? near(at(p, 0, k), at(base, 0, k)) > 0.5
+              : onSomeone;
+        if (ok) acted[phase] = (acted[phase] ?? 0) + 1;
+        else hanging.push(`${phase}: ${e.text}`);
+      });
+    expect(hanging, hanging.slice(0, 5).join('\n')).toEqual([]);
+    for (const phase of ['early', 'snap', 'during', 'ball', 'afterThrow', 'whistle'] as const)
+      expect(acted[phase], phase).toBeGreaterThan(5);
   });
 });

@@ -662,22 +662,6 @@ describe('the call', () => {
       expect(mean(three)).toBeGreaterThan(mean(two) + 3);
     } else expect(three.length + two.length).toBeGreaterThan(0);
   });
-
-  it('sends a man in motion now and then, a jet across on a receiver run, never onto a teammate', () => {
-    const moved = plays.filter((x) => x.p.motion);
-    expect(moved.length / plays.length).toBeGreaterThan(0.15);
-    expect(moved.length / plays.length).toBeLessThan(0.6);
-    for (const { p, e } of plays) {
-      const c = p.carrier === null ? -1 : p.ids.indexOf(p.carrier);
-      if (e.kind === 'run' && c >= 0 && p.roles[c] === 'WR' && p.motion) expect(p.motion.id).toBe(p.carrier);
-      if (!p.motion) continue;
-      const k = p.ids.indexOf(p.motion.id);
-      expect(['WR', 'TE']).toContain(p.roles[k]);
-      for (let j = 0; j < p.ids.length; j++)
-        if (j !== k && p.offense[j])
-          expect(Math.hypot(at(p, 0, j).x - p.motion.from.x, at(p, 0, j).y - p.motion.from.y)).toBeGreaterThan(1.4);
-    }
-  });
 });
 
 describe('special teams', () => {
