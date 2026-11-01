@@ -8,7 +8,8 @@ import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { League, Player } from '../types';
-import { aiResignWindow, expiringPlayers, resignCall, spendable } from './ai';
+import { aiResignWindow, expiringPlayers, inPlans, resignCall, spendable } from './ai';
+import { ageShift } from '../aging';
 import { beginOffseason } from './index';
 
 /** A league at its re-sign window, after one season. */
@@ -81,6 +82,31 @@ describe('GMs make room to keep their core', () => {
       .map((id) => l.players[id])
       .filter((x) => x.teamId === null && x.left?.some((d) => d.how === 'cut'));
     for (const x of cut) expect(playerOvr(x)).toBeLessThan(playerOvr(p));
+  });
+
+  it('restructures only a player it plans to keep starting', () => {
+    // The club's biggest restructure, washed up (a 34-year-old past his position's clock, rated like a backup): where
+    // he's headed he no longer starts, so the money pushed forward would land as dead money when he goes. The GM leaves
+    // his deal alone. (An old starter with nobody behind him still starts, and stays in its plans.)
+    const { l, team } = squeezed(0, 1);
+    const biggest = teamPlayers(l, team.id)
+      .filter((x) => x.contract && !isExpired(x.contract, l.season))
+      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)[0];
+    biggest.age = ageShift(biggest.position) + 34;
+    for (const k of Object.keys(biggest.ratings) as (keyof typeof biggest.ratings)[]) biggest.ratings[k] = 4;
+    expect(inPlans(l, team, biggest)).toBe(false);
+    const before = biggest.contract!.bonuses.length;
+    aiResignWindow(l, team, new Rng('room'));
+    expect(biggest.contract?.bonuses.length ?? before).toBe(before);
+  });
+
+  it('reads a club’s own starters as in its plans', () => {
+    const l: League = JSON.parse(window);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const qb = team.depthChart.QB.map((id) => l.players[id]).find(
+      (x) => x.contract && !isExpired(x.contract, l.season),
+    )!;
+    expect(inPlans(l, team, qb)).toBe(true);
   });
 });
 

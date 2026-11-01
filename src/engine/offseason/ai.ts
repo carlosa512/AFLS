@@ -363,6 +363,18 @@ export function cutWorth(
 }
 
 /**
+ * Whether a club plans to keep a player starting: where he's headed (its three-season read, `teamOutlook`) he's still
+ * one of its starters at his position. A GM restructures only such a player: the money pushed forward lands as dead
+ * money if he goes before it's paid (aging veterans restructured and then cut or traded a year on carried most of the
+ * league's dead money).
+ */
+export function inPlans(league: League, team: Team, p: Player): boolean {
+  const room = depthOutlooks(league, team)[p.position];
+  const line = room[STARTERS[p.position] - 1] ?? -Infinity;
+  return teamOutlook(league, team.id, p, winNow(league, team)) >= line - 1e-9;
+}
+
+/**
  * Make `need` of room this league year to keep `keeper`, as an NFL front office does: restructure its biggest deals,
  * converting only what it needs and no more than next year's books can carry as this GM keeps them (`nextYearCeiling`),
  * then cut the veteran it can best spare, never one better than the keeper. The bill comes later, on next years' caps; uncapped,
@@ -373,7 +385,14 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player): num
   let gained = 0;
   for (let guard = 0; guard < 12 && gained < need; guard++) {
     const best = teamPlayers(league, team.id)
-      .filter((p) => p !== keeper && p.contract && !isExpired(p.contract, league.season) && canRestructure(league, p))
+      .filter(
+        (p) =>
+          p !== keeper &&
+          p.contract &&
+          !isExpired(p.contract, league.season) &&
+          canRestructure(league, p) &&
+          inPlans(league, team, p),
+      )
       .map((p) => ({ p, o: restructureOptions(league, p) }))
       .filter((x) => x.o.savings > 1_000)
       .sort((a, b) => b.o.savings - a.o.savings)[0];
