@@ -136,6 +136,23 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
 
+## Follow-up: what the front-office work left (0.2.27)
+
+Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
+being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
+
+- [ ] **Starters leave football more as a league ages.** About 3% of last season's starters are unsigned or retired
+      at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
+      retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
+      shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
+      the bottom of a roster.
+- [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
+      Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
+      ours don't.
+- [ ] **Tags spike when a big class of stars comes due at once** (20 in one season, 11–13 in others, against the NFL's
+      6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
+      has run out.
+
 ## Follow-up: coaching trees run at the floor of their NFL bands
 
 - [x] **Make coaching pedigree drive hiring, so trees form the way the NFL's do.** Every tree number sits at or near
