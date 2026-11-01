@@ -552,8 +552,18 @@ export function aiFreeAgencyDay(
   // Each front office bids on what its own scouts see; the player's price is still his real market.
   const read = viewCache(league);
   let signings = 0;
-  // A club cuts at most one player a pass to make room for a better free agent (a cut man is back in the pool).
-  const cutThisPass = new Set<number>();
+  // A club makes one upgrade cut an offseason at most (a cut man is back in the pool): any release since the re-sign
+  // window counts. One a pass, and the dead money each left, ran the league's dead money from 2% to 8–9% of the cap.
+  const cutThisPass = new Set<number>(
+    league.transactions
+      .filter(
+        (m) =>
+          m.kind === 'release' &&
+          m.season === league.season &&
+          (m.phase === 'freeAgency' || m.phase === 'draft' || m.phase === 'preseason'),
+      )
+      .flatMap((m) => m.teamIds),
+  );
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
@@ -590,7 +600,10 @@ export function aiFreeAgencyDay(
             teamOutlook(league, team.id, spare, winNow(league, team)) >= ahead
           )
             continue;
-          const refit = fitOffer(offer, budget.get(team.id)! + releasePreview(league, spare).savings, minimum);
+          // Not for a release that leaves big dead money: no more than half of what it saves.
+          const release = releasePreview(league, spare);
+          if (release.thisYear + release.nextYear > 0.5 * release.savings) continue;
+          const refit = fitOffer(offer, budget.get(team.id)! + release.savings, minimum);
           if (!fits(refit)) continue;
           offer = refit;
           cut = spare;

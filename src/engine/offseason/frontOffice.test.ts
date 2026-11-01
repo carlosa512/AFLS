@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { capHit } from '../finance/contract';
-import { capSpace, releasePlayer } from '../finance/cap';
+import { capSpace, releasePlayer, releasePreview } from '../finance/cap';
 import { leagueMarket, marketApy, minSalary, payTier, positionRank } from '../finance/market';
 import { ageShift } from '../aging';
 import { createLeague } from '../generate';
@@ -187,4 +187,41 @@ describe('the tag keeps a star who’d walk', () => {
       expect(l.players[p.id].contract?.kind).not.toBe('tag');
     }
   }, 120_000);
+});
+
+describe('an upgrade cut is a rare call', () => {
+  it('cuts at most once an offseason, never with dead money past half of what the cut saves', () => {
+    const l0: League = JSON.parse(afterFreeAgency);
+    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 6)) {
+      const { l } = lateVeteran(t.id, 0.5);
+      const released = () =>
+        l.transactions.filter((m) => m.kind === 'release' && m.season === l.season && m.teamIds.includes(t.id)).length;
+      const before = released();
+      const dead: number[] = [];
+      const saves: number[] = [];
+      for (const pass of [{ rosterMax: OFFSEASON_ROSTER_MAX }, { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true }]) {
+        // Another good starter loose before each pass, so the club wants one every time.
+        const next = Object.values(l.players).find(
+          (x) =>
+            x.teamId !== null &&
+            x.teamId !== t.id &&
+            x.teamId !== l.userTeamId &&
+            x.contract &&
+            playerOvr(x) >= 12.5 &&
+            x.age <= 29,
+        )!;
+        releasePlayer(l, next);
+        const spare = Object.values(l.players).filter((x) => x.teamId === t.id && x.contract);
+        const previews = new Map(spare.map((x) => [x.id, releasePreview(l, x)]));
+        aiFreeAgencyDay(l, new Rng('rare'), pass);
+        for (const x of spare)
+          if (l.players[x.id].teamId === null) {
+            dead.push(previews.get(x.id)!.thisYear + previews.get(x.id)!.nextYear);
+            saves.push(previews.get(x.id)!.savings);
+          }
+      }
+      expect(released() - before).toBeLessThanOrEqual(1);
+      dead.forEach((d, i) => expect(d).toBeLessThanOrEqual(0.5 * saves[i] + 1));
+    }
+  }, 300_000);
 });
