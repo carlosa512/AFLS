@@ -18,7 +18,9 @@ import { gameWeather, type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
 import { useNav } from './nav';
-import { playerLook } from './playerLook';
+import { GearLayer } from './gearArt';
+import { coldGame, gearOf } from './playerGear';
+import { BUILD_MIN_PX, playerLook } from './playerLook';
 import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
@@ -72,8 +74,11 @@ export function PlayerAvatar({
   const url = (part: string) => `url(#${id}${part})`;
   const colors = team ? { primary: team.colors[0], secondary: team.colors[1] } : FREE_AGENT;
   const { primary } = colors;
-  const { jersey, ink, trim, accent } = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
+  const kit = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
+  const { jersey, ink, trim, accent } = kit;
   const { figure: f, head, transform } = playerLook(player, size);
+  // his gear from 32px, like his build: sleeves in a cold game follow the kit's game
+  const gear = size >= BUILD_MIN_PX ? gearOf(player, team !== null && coldGame(store.get(), team.id, game)) : null;
   const plate = player.lastName.toUpperCase();
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, f.plateMax / (plate.length * PLATE_EM));
@@ -108,12 +113,30 @@ export function PlayerAvatar({
           <stop offset="0" stopColor={tint(jersey, 0.14)} />
           <stop offset="1" stopColor={shade(jersey, 0.22)} />
         </linearGradient>
+        {f.pants && (
+          // the pants' sheen: light over each side of the seat, darker at the seam and where they turn away
+          <linearGradient
+            id={`${id}p`}
+            x1={50 - f.pants.halfWidth}
+            y1="0"
+            x2={50 + f.pants.halfWidth}
+            y2="0"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0" stopColor={shade(kit.pants, 0.32)} />
+            <stop offset="0.24" stopColor={tint(kit.pants, 0.12)} />
+            <stop offset="0.5" stopColor={shade(kit.pants, 0.16)} />
+            <stop offset="0.76" stopColor={tint(kit.pants, 0.12)} />
+            <stop offset="1" stopColor={shade(kit.pants, 0.32)} />
+          </linearGradient>
+        )}
       </defs>
       <circle cx="50" cy="50" r="45" fill={url('bg')} />
       <g clipPath={url('c')}>
         <g transform={transform}>
           <path d={f.armL} fill={url('arm')} />
           <path d={f.armR} fill={url('arm')} />
+          {gear && <GearLayer id={id} figure={f} gear={gear} colors={colors} />}
           <path d={f.neck} fill={url('sk')} />
           <path d={f.neckSides} fill="#000" fillOpacity={0.08} />
           <path d={f.neckShade} fill="#000" fillOpacity={0.16} />
@@ -132,6 +155,24 @@ export function PlayerAvatar({
           <ellipse cx="50" cy={f.shadow.cy} rx={f.shadow.rx} ry="2.4" fill="#000" fillOpacity={0.16} />
           <path d={f.padShelf} fill="#000" fillOpacity={0.1} />
           <path d={f.folds} fill="#000" fillOpacity={0.14} />
+          {f.pants && (
+            <>
+              <path
+                d={f.pants.pants}
+                fill={url('p')}
+                stroke="#0F172A"
+                strokeOpacity={0.35}
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
+              <path d={f.pants.stripes} fill={kit.stripe} />
+              <path d={f.pants.stripesThin} fill={kit.stripeThin} />
+              <path d={f.pants.seam} stroke="#000" strokeOpacity={0.18} strokeWidth={0.6} />
+              <path d={f.pants.belt} fill={kit.belt} />
+              <path d={f.pants.tuck} fill={url('j')} />
+              <path d={f.pants.tuck} fill="#000" fillOpacity={0.12} />
+            </>
+          )}
           <path
             d={f.padGloss}
             stroke="#FFFFFF"

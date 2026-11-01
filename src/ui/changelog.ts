@@ -13,6 +13,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.34',
+    date: '2026-11-01',
+    title: 'Gear',
+    text:
+      'Players wear their own gear in their pictures: arm sleeves of every length and shooter sleeves, undershirt sleeves, biceps and ' +
+      'forearm bands, elbow pads and the odd shoulder brace, each the way his position dresses, receivers and corners ' +
+      'in sleeves and bands, linemen in elbow pads and now and then a sleeve. A player keeps his look for his career, ' +
+      'and in a cold or snowy game most pull on full sleeves, except the offensive line.',
+  },
+  {
+    version: '0.2.33',
+    date: '2026-11-01',
+    title: 'Better-drawn players',
+    text:
+      'Player pictures have new arms: they hang straight instead of bowing out, with more muscle the heavier the ' +
+      'player. The picture is framed a little wider, the jersey runs down to football pants at the hips, white at ' +
+      'home and in the team colour with the white jersey, striped down the side. Receivers and corners no longer ' +
+      'look pinched at the waist, and on the player card a short player looks compact and a tall one rangy, at the ' +
+      'same weight.',
+  },
+  {
     version: '0.2.32',
     date: '2026-11-01',
     title: 'Before the snap, fouls and the chase',
