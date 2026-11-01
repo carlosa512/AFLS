@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.31',
+    date: '2026-11-01',
+    title: 'Flags, injuries and the final whistle',
+    text:
+      'All-22 now has officials on the field for every snap: the nearest one throws the flag when there is a foul, ' +
+      'play stops while the crew confers, and the call goes up on a banner. A flag that wipes out a play shows the ' +
+      'play first. When a player is hurt, play stops: the others back off, the trainers run out, and he walks off, is ' +
+      'helped off or is carted off. A game won on its last play brings the whole sideline onto the field while the ' +
+      'losers walk off; a title ends in confetti. Each field now looks like its stadium: grass or turf, end zones in ' +
+      "the teams' colors, yard numbers and goalposts. Field goal results wait until you have seen the kick, and " +
+      'All-22 now plays at up to 4×.',
+  },
+  {
     version: '0.2.30',
     date: '2026-10-31',
     title: 'Watch from above',
