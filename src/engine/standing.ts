@@ -9,7 +9,7 @@
  */
 import { ROOM_OF } from './coaching';
 import { leadFactor } from './mentoring';
-import { actualRole, isCaptain, type MoraleContext } from './morale';
+import { actualRole, isCaptain, viewContext, type MoraleContext } from './morale';
 import { activeRoster, starters } from './roster';
 import { seasonRole } from './scouting';
 import { temperamentOf, TRAIT_MEAN } from './traits';
@@ -69,11 +69,15 @@ const ROLE_STEP = { starter: 2, rotation: 1, backup: 0 } as const;
 /** How far his word carries in the room. True traits, as mentoring reads them; a screen only ever sees words. */
 export function weightOf(league: League, p: Player, ctx: MoraleContext): number {
   if (p.teamId === null) return 0;
-  // The role morale's grievance reads; hurt in season (null), last season's role.
+  // The role morale's grievance reads; hurt in season (null), last season's role; with no snaps to read at all (a new
+  // league, a rookie), the depth chart.
+  const team = league.teams[p.teamId];
   const last = seasonRole(league, p, ctx.season - 1);
-  const role = actualRole(league, p, ctx) ?? (last ? ROLE_STEP[last.role] : 0);
+  const role =
+    actualRole(league, p, ctx) ??
+    (last ? ROLE_STEP[last.role] : starters(league, team, p.position).some((s) => s.id === p.id) ? 2 : 0);
   let stature = ctx.honoured.has(p.id) ? 1.2 : 1;
-  if (p.position === 'QB' && starters(league, league.teams[p.teamId], 'QB')[0]?.id === p.id) stature *= 1.15;
+  if (p.position === 'QB' && starters(league, team, 'QB')[0]?.id === p.id) stature *= 1.15;
   return leadFactor(p.traits.leads) * FIELD[role] * seniority(p.experience, isNewcomer(league, p)) * stature;
 }
 
@@ -171,3 +175,19 @@ export function friendLean(league: League, p: Player, ctx: MoraleContext): numbe
   }
   return out;
 }
+
+// ───────── who the room follows ─────────
+
+function byTier(league: League, teamId: number, want: Tier): Player[] {
+  const ctx = viewContext(league);
+  return activeRoster(league, teamId)
+    .map((p) => ({ p, w: weightOf(league, p, ctx) }))
+    .filter((x) => tierOf(league, x.p, x.w) === want && !(want === 'leader' && isCaptain(league, x.p)))
+    .sort((a, b) => b.w - a.w || a.p.id - b.p.id)
+    .map((x) => x.p);
+}
+
+/** The leaders past the captains, heaviest first. */
+export const leadersOf = (league: League, teamId: number): Player[] => byTier(league, teamId, 'leader');
+/** The voices, heaviest first. */
+export const voicesOf = (league: League, teamId: number): Player[] => byTier(league, teamId, 'voice');

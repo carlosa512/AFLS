@@ -2,7 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleContext } from './morale';
 import { starters } from './roster';
-import { isNewcomer, seniority, sideOf, soundOf, tierOf, toneOf, unitOf, weightOf, type VoiceRef } from './standing';
+import { nameCaptains } from './personality';
+import {
+  isNewcomer,
+  leadersOf,
+  voicesOf,
+  seniority,
+  sideOf,
+  soundOf,
+  tierOf,
+  toneOf,
+  unitOf,
+  weightOf,
+  type VoiceRef,
+} from './standing';
 import { activeRoster } from './roster';
 import type { League } from './types';
 
@@ -139,5 +152,20 @@ describe('standing: tone', () => {
     ctx.voices.set(`${p.teamId}:WR`, [{ id: p.id, weight: 2, sound: null }]);
     ctx.sideCaptains = new Map();
     expect(toneOf(p, ctx)).toBe(0);
+  });
+});
+
+describe('standing: who the room follows', () => {
+  it('leadersOf leaves out the captains; voicesOf holds only voices', () => {
+    const l = fresh();
+    nameCaptains(l);
+    const ctx = moraleContext(l);
+    const c = l.teams[0].captains!;
+    for (const p of leadersOf(l, 0)) {
+      expect([c.offense, c.defense, c.specialTeams]).not.toContain(p.id);
+      expect(tierOf(l, p, weightOf(l, p, ctx))).toBe('leader');
+    }
+    expect(voicesOf(l, 0).length).toBeGreaterThan(0);
+    for (const p of voicesOf(l, 0)) expect(tierOf(l, p, weightOf(l, p, ctx))).toBe('voice');
   });
 });

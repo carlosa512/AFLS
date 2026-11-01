@@ -6,7 +6,8 @@
  * letters used, so an upgraded save never hears the same news twice. Never asks anything of you.
  */
 import { betterMentor, mentorStatus } from './mentoring';
-import { personalityOf, personalityRead, personalityTone, trueCharacter, leadersOf } from './personality';
+import { personalityOf, personalityRead, personalityTone, trueCharacter } from './personality';
+import { leadersOf } from './standing';
 import {
   CAPTAIN_WHY,
   FRICTION,

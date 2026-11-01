@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
+import { starters } from './roster';
 import {
   characterLine,
-  leadersOf,
   nameCaptains,
   personalityOf,
   personalityTone,
@@ -137,16 +137,16 @@ describe('personality', () => {
     expect(l.players[c.offense].captainSeasons).toEqual([l.season]);
   });
 
-  it("lists up to five more men the room follows, captains aside, by the staff's read", () => {
-    const l = createLeague({ seed: 'captains' });
+  it('names the veteran over a younger starter with a slightly better read', () => {
+    const l = createLeague({ seed: 'captains-weight' });
+    const side = (['QB', 'RB', 'WR', 'TE', 'OL'] as const).flatMap((pos) => starters(l, l.teams[0], pos));
+    for (const p of side) p.traits.leads = 1;
+    const [vet, kid] = side.filter((p) => p.position === 'OL');
+    vet.experience = 10;
+    vet.traits.leads = 12;
+    kid.experience = 1;
+    kid.traits.leads = 13;
     nameCaptains(l);
-    const c = l.teams[0].captains!;
-    const more = leadersOf(l, 0);
-    expect(more.length).toBeLessThanOrEqual(5);
-    for (const p of more) {
-      expect([c.offense, c.defense, c.specialTeams]).not.toContain(p.id);
-      expect(p.teamId).toBe(0);
-      expect(p.traits.leads).toBeGreaterThanOrEqual(12);
-    }
+    expect(l.teams[0].captains!.offense).toBe(vet.id);
   });
 });

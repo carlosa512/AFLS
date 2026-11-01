@@ -1,5 +1,5 @@
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
-import { leadersOf } from '../../engine/personality';
+import { leadersOf } from '../../engine/standing';
 import { activeRoster } from '../../engine/roster';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITION_NAMES } from '../../engine/positions';
