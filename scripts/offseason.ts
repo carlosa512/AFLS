@@ -516,7 +516,10 @@ for (let s = 0; s < seasons; s++) {
   // seasons 1-3 are judged at <= 30% and index 4+ at <= 20%. Before the generated league was paid like a settled one
   // (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters opened as low as 62% committed and a hoarder banked the rest.
   // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 6.2-17.3% at 0.1.10; 6.0-19.3% at 0.1.3, all seeds then
-  // 6.5-22.7), median at most 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
+  // 6.5-22.7), median at most 3.1%. The max's ceiling is the NFL's worst modern season, a rebuild clearing its books:
+  // the 2024 Broncos carried $89.1M of a $255.4M cap, about 35% (Wilson's release 20.5% of it; ESPN). 30% until 0.2.27,
+  // when a rebuilding club releasing its 34-year-old quarterback read 32.5% (owner's call, 2026-11-01). A front office
+  // that cuts stars wholesale still shows up past it.
   // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; 252 → 443, +74 at 0.1.10; all seeds then
   // 99); it keeps rising until about season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650
   // and the floor 100 (a dried-up market). One league's pool moves a lot in a single step: re-read at 0.2.5 over four
@@ -531,7 +534,7 @@ for (let s = 0; s < seasons; s++) {
   const restructuring =
     (100 * new Set(moves.filter((m) => m.kind === 'restructure').flatMap((m) => m.teamIds)).size) / league.teams.length;
   console.log(
-    `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 35, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
 
   // League talent (mean starter OVR at kickoff): 12.89, 12.92, 13.02, 13.09, 13.18, 13.20 (all seeds then 12.69-13.12),
