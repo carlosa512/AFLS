@@ -10,7 +10,7 @@
 import { ROOM_OF } from './coaching';
 import { leadFactor } from './mentoring';
 import { actualRole, isCaptain, type MoraleContext } from './morale';
-import { starters } from './roster';
+import { activeRoster, starters } from './roster';
 import { seasonRole } from './scouting';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { CoachRoom, League, Player, Position } from './types';
@@ -88,4 +88,86 @@ export function soundOf(p: Player): Sound | null {
   if (z(p.traits.controversy) >= 1) return 'stirs';
   if (z(p.traits.leads) >= 1 && z(temperamentOf(p)) >= 0.5) return 'steadies';
   return null;
+}
+
+// ───────── a voice's mood rubs off on his unit ─────────
+
+/** A leader or voice as one pass of the league reads him. */
+export interface VoiceRef {
+  id: number;
+  weight: number;
+  sound: Sound | null;
+}
+
+/** The pull's size (spec §2.1): its share of the room score, the floor under the weights, friends' moods. */
+export const TONE = { weight: 0.5, floor: 2.0, friend: 0.15, friends: 2 };
+
+/** Each club's leaders and voices by unit, and each side's captain, for one pass over the league. */
+export function roomVoices(
+  league: League,
+  ctx: MoraleContext,
+): { voices: Map<string, VoiceRef[]>; sideCaptains: Map<string, VoiceRef> } {
+  const voices = new Map<string, VoiceRef[]>();
+  const sideCaptains = new Map<string, VoiceRef>();
+  for (const team of league.teams) {
+    const c = team.captains?.season === league.season ? team.captains : undefined;
+    const captainOf = new Map<number, Side>(
+      c
+        ? [
+            [c.offense, 'offense'],
+            [c.defense, 'defense'],
+            [c.specialTeams, 'specialTeams'],
+          ]
+        : [],
+    );
+    for (const p of activeRoster(league, team.id)) {
+      const weight = weightOf(league, p, ctx);
+      if (!tierOf(league, p, weight)) continue;
+      const ref: VoiceRef = { id: p.id, weight, sound: soundOf(p) };
+      const key = `${team.id}:${unitOf(p.position)}`;
+      (voices.get(key) ?? voices.set(key, []).get(key)!).push(ref);
+      const side = captainOf.get(p.id);
+      if (side) sideCaptains.set(`${team.id}:${side}`, ref);
+    }
+  }
+  return { voices, sideCaptains };
+}
+
+/** How far his mood travels: a stirrer's bad mood half again as far and his good one a quarter less; a steady man's bad mood half as far. */
+export function loudness(sound: Sound | null, lean: number): number {
+  if (sound === 'stirs') return lean < 0 ? 1.5 : 0.75;
+  if (sound === 'steadies' && lean < 0) return 0.5;
+  return 1;
+}
+
+/** The pull of the voices around him on his room: his unit's leaders and voices and his side's captain, never himself. */
+export function toneOf(p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const unit = unitOf(p.position);
+  const around = [...(ctx.voices.get(`${p.teamId}:${unit}`) ?? [])];
+  const captain = ctx.sideCaptains.get(`${p.teamId}:${sideOf(unit)}`);
+  if (captain && !around.some((v) => v.id === captain.id)) around.push(captain);
+  let sum = 0;
+  let weights = 0;
+  for (const v of around) {
+    if (v.id === p.id) continue;
+    const lean = ctx.leans.get(v.id) ?? 0;
+    sum += v.weight * loudness(v.sound, lean) * lean;
+    weights += v.weight;
+  }
+  if (!weights) return 0;
+  return Math.max(-1, Math.min(1, sum / Math.max(weights, TONE.floor)));
+}
+
+/** A friend's mood rubs off too: his first two friends at the club. */
+export function friendLean(league: League, p: Player, ctx: MoraleContext): number {
+  let out = 0;
+  let n = 0;
+  for (const t of p.ties ?? []) {
+    if (n >= TONE.friends) break;
+    if (t.kind !== 'friend' || league.players[t.with]?.teamId !== p.teamId) continue;
+    out += TONE.friend * (ctx.leans.get(t.with) ?? 0);
+    n++;
+  }
+  return out;
 }

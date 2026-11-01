@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleContext } from './morale';
 import { starters } from './roster';
-import { isNewcomer, seniority, sideOf, soundOf, tierOf, unitOf, weightOf } from './standing';
+import { isNewcomer, seniority, sideOf, soundOf, tierOf, toneOf, unitOf, weightOf, type VoiceRef } from './standing';
+import { activeRoster } from './roster';
 import type { League } from './types';
 
 const base = createLeague({ seed: 'standing' });
@@ -90,5 +91,53 @@ describe('standing: tiers and sound', () => {
     expect(sideOf('OL')).toBe('offense');
     expect(sideOf('DB')).toBe('defense');
     expect(sideOf('ST')).toBe('specialTeams');
+  });
+});
+
+describe('standing: tone', () => {
+  const setup = () => {
+    const l = fresh();
+    return { l, ctx: moraleContext(l), p: wrOf(l) };
+  };
+
+  it('is zero with no voices around him', () => {
+    const { ctx, p } = setup();
+    ctx.voices = new Map();
+    ctx.sideCaptains = new Map();
+    expect(toneOf(p, ctx)).toBe(0);
+  });
+
+  it('stays inside −1…1 when the whole league is miserable', () => {
+    const { ctx, p } = setup();
+    for (const id of ctx.leans.keys()) ctx.leans.set(id, -1);
+    expect(Math.abs(toneOf(p, ctx))).toBeLessThanOrEqual(1);
+  });
+
+  it('a voice who stirs pulls half again as hard when he is down', () => {
+    const { ctx, p } = setup();
+    const v: VoiceRef = { id: -7, weight: 1, sound: null };
+    ctx.voices.set(`${p.teamId}:WR`, [v]);
+    ctx.sideCaptains = new Map();
+    ctx.leans.set(v.id, -1);
+    const even = toneOf(p, ctx);
+    v.sound = 'stirs';
+    expect(toneOf(p, ctx) / even).toBeCloseTo(1.5);
+  });
+
+  it('a quiet unit-mate never counts', () => {
+    const { l, ctx, p } = setup();
+    const before = toneOf(p, ctx);
+    const quiet = activeRoster(l, p.teamId!).find(
+      (q) => unitOf(q.position) === 'WR' && q.id !== p.id && !tierOf(l, q, weightOf(l, q, ctx)),
+    )!;
+    ctx.leans.set(quiet.id, -1);
+    expect(toneOf(p, ctx)).toBe(before);
+  });
+
+  it('his own mood never feeds his own tone', () => {
+    const { ctx, p } = setup();
+    ctx.voices.set(`${p.teamId}:WR`, [{ id: p.id, weight: 2, sound: null }]);
+    ctx.sideCaptains = new Map();
+    expect(toneOf(p, ctx)).toBe(0);
   });
 });
