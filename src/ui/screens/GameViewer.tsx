@@ -433,8 +433,9 @@ export function HighlightSwitch({ value, onChange }: { value: HighlightLevel; on
 export type ViewKind = 'broadcast' | 'all22';
 const VIEWS: readonly ViewKind[] = ['broadcast', 'all22'];
 /** All-22's speeds: faster than 2× it can't be read. */
-const ALL22_SPEEDS = [1, 2];
-export const allSpeed = (speed: number): 1 | 2 => (speed > 1 ? 2 : 1);
+const ALL22_SPEEDS = [1, 2, 4];
+/** All-22 plays at 1×, 2× or 4×: a faster pick from the broadcast view (8×) drops to 4×. */
+export const allSpeed = (speed: number): 1 | 2 | 4 => (speed >= 4 ? 4 : speed > 1 ? 2 : 1);
 
 /** Broadcast | All-22: shown only for games that kept who was on the field. */
 export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {

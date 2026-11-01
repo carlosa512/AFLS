@@ -22,7 +22,7 @@ const entry = (text: string, o: Partial<PlayLogEntry> = {}): PlayLogEntry => ({
 describe('the calls on the banner', () => {
   it('reads a flag: what, on whom, how far, and whether it wiped the play out', () => {
     expect(flagCall(entry('PENALTY on BUF (B.Bennett): False start, 5 yards.'))).toBe(
-      'False start · BUF B.Bennett · 5 yards',
+      'False start · BUF B.Bennett · 5 yds',
     );
     expect(
       flagCall(
@@ -30,7 +30,7 @@ describe('the calls on the banner', () => {
           'J.Largo rush right end for 9 yards (N.Gaoa). PENALTY on BAL (J.Murphy): Offensive holding, 10 yards. No play.',
         ),
       ),
-    ).toBe('Offensive holding · BAL J.Murphy · 10 yards, no play');
+    ).toBe('Offensive holding · BAL J.Murphy · 10 yds, no play');
     expect(flagCall(entry('K.Williams rush right end for 6 yards (C.Neal). Offside on BAL (D.Miller), declined'))).toBe(
       'Offside · BAL D.Miller · declined',
     );

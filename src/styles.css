@@ -5145,9 +5145,11 @@ button.tip-pill {
   box-shadow: var(--shadow);
   font-size: var(--step--1);
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Two lines at most on a phone, never cut off. */
+  width: max-content;
+  text-align: center;
+  line-height: 1.25;
+  border-radius: 14px;
   pointer-events: none;
   transition: opacity 0.3s ease;
   border-left: 6px solid #ffd400;

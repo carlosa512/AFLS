@@ -64,7 +64,7 @@ export function LiveGame({ league }: { league: League }) {
   const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
   const record = s.sim.field();
   const all22 = viewPick === 'all22' && !!record;
-  const speeds = all22 ? [1, 2] : SPEEDS;
+  const speeds = all22 ? [1, 2, 4] : SPEEDS;
   const speed = all22 ? allSpeed(s.speed) : s.speed;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 

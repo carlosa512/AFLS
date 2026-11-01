@@ -13,7 +13,7 @@ export function flagCall(e: PlayLogEntry): string | null {
   if (taken) {
     const [, team, by, foul, yards] = taken;
     const noPlay = /No play\./.test(e.text) ? ', no play' : '';
-    return `${foul} · ${team}${by ? ` ${by}` : ''} · ${yards} yard${yards === '1' ? '' : 's'}${noPlay}`;
+    return `${foul} · ${team}${by ? ` ${by}` : ''} · ${yards} yd${yards === '1' ? '' : 's'}${noPlay}`;
   }
   const declined = /(?:^|\.\s)([A-Z][^.,]*?) on (\S+?)(?: \(([^)]+)\))?, declined/.exec(e.text);
   if (declined) {

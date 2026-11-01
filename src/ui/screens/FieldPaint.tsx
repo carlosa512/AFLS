@@ -16,6 +16,8 @@ const GREENS: Record<Surface, { field: string; stripe: string; apron: string; ev
   turf: { field: '#2f9150', stripe: '#2c884b', apron: '#22573a', every: 10 },
 };
 
+/** Between the uprights: 18 feet 6 inches, in yards. */
+const POSTS = 6.17;
 /** The team area along each sideline: between the 32-yard lines, where the men off the field stand. */
 const TEAM_AREA = [32, 68] as const;
 
@@ -66,12 +68,12 @@ export function FieldPaint({ home, away }: { home: Team; away: Team }) {
           {n}
         </text>
         {toward !== 0 && (
-          <path
-            d={
+          <polygon
+            points={
               // Rotated with the number, so it points the same way on the field from either sideline.
               turn === 180
-                ? `M ${x - toward * 3.1} ${y} l ${toward * 0.9} -0.55 v 1.1 z`
-                : `M ${x + toward * 3.1} ${y} l ${-toward * 0.9} -0.55 v 1.1 z`
+                ? `${x - toward * 3.1},${y} ${x - toward * 2.2},${y - 0.55} ${x - toward * 2.2},${y + 0.55}`
+                : `${x + toward * 3.1},${y} ${x + toward * 2.2},${y - 0.55} ${x + toward * 2.2},${y + 0.55}`
             }
             fill="#fff"
           />
@@ -150,6 +152,19 @@ export function FieldPaint({ home, away }: { home: Team; away: Team }) {
         </text>
       </g>
       <rect x={-10} y={0} width={120} height={FIELD_W} fill="none" stroke="#fff" strokeWidth={0.35} />
+      {/* The goalposts over each end line: the crossbar and uprights, and the gooseneck back to the base. */}
+      {[-10, 110].map((x) => {
+        const back = x < 50 ? -1 : 1;
+        return (
+          <g key={x} stroke="#ffd21f" strokeLinecap="round">
+            <line x1={x + back * 2.2} y1={MID} x2={x} y2={MID} strokeWidth={0.45} />
+            <line x1={x} y1={MID - POSTS / 2} x2={x} y2={MID + POSTS / 2} strokeWidth={0.5} />
+            <circle cx={x} cy={MID - POSTS / 2} r={0.45} fill="#ffd21f" strokeWidth={0} />
+            <circle cx={x} cy={MID + POSTS / 2} r={0.45} fill="#ffd21f" strokeWidth={0} />
+            <circle cx={x + back * 2.2} cy={MID} r={0.55} fill="#c9a300" strokeWidth={0} />
+          </g>
+        );
+      })}
     </g>
   );
 }
