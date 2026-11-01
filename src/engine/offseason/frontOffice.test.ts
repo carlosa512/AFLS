@@ -7,6 +7,7 @@ import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
+import { teamPlayers } from '../roster';
 import type { League, Player } from '../types';
 import {
   aiFreeAgencyDay,
@@ -152,6 +153,46 @@ describe('a GM restructures to sign a free agent he can’t fit', () => {
       break;
     }
     expect(found).toBe(true);
+  }, 300_000);
+
+  it('makes no room for a free agent whose own deal next year wouldn’t fit', () => {
+    // Next year has room after its needs, but less than his price: his multi-year deal lands there too.
+    const l0: League = JSON.parse(afterFreeAgency);
+    for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId).slice(0, 8)) {
+      const { l, p } = withNextYear(t.id, () => 0);
+      // He's the only one left on the market (a club may borrow for a cheaper one).
+      for (const q of Object.values(l.players)) if (q.teamId === null && q !== p && !q.retired) q.retired = true;
+      const market = marketApy(leagueMarket(l), p);
+      l.teams[t.id].deadMoney.push({
+        season: l.season + 1,
+        amount: -Math.round(0.5 * market),
+        playerId: -1,
+        note: 'test',
+      });
+      const before = restructuresBy(l, t.id);
+      aiFreeAgencyDay(l, new Rng('room'), { rosterMax: OFFSEASON_ROSTER_MAX });
+      expect(restructuresBy(l, t.id)).toBe(before);
+    }
+  }, 300_000);
+
+  it('never restructures for a free agent who signs elsewhere', () => {
+    // Every AI club with next year's room: whoever restructured in the pass signed someone in it.
+    const l: League = JSON.parse(afterFreeAgency);
+    for (const t of l.teams)
+      if (t.id !== l.userTeamId)
+        t.deadMoney.push({
+          season: l.season + 1,
+          amount: -Math.round(0.15 * capFor(l, l.season + 1)),
+          playerId: -1,
+          note: 'test',
+        });
+    const restructured = new Map(l.teams.map((t) => [t.id, restructuresBy(l, t.id)]));
+    const roster = new Map(l.teams.map((t) => [t.id, new Set(teamPlayers(l, t.id).map((x) => x.id))]));
+    aiFreeAgencyDay(l, new Rng('room'), { rosterMax: OFFSEASON_ROSTER_MAX });
+    for (const t of l.teams) {
+      if (restructuresBy(l, t.id) === restructured.get(t.id)) continue;
+      expect(teamPlayers(l, t.id).some((x) => !roster.get(t.id)!.has(x.id))).toBe(true);
+    }
   }, 300_000);
 
   it('makes no room for a free agent when next year’s needs fill next year', () => {

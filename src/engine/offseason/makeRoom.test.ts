@@ -16,6 +16,7 @@ import {
   nextYearCeiling,
   nextYearNeeds,
   resignCall,
+  restructurePlan,
   spendable,
   winNow,
 } from './ai';
@@ -66,10 +67,10 @@ const restructures = (l: League, teamId: number) =>
 describe('GMs make room to keep their core', () => {
   it('restructures to re-sign a keeper it can’t fit, and stays under the cap', () => {
     const { l, team, p } = squeezed(0, 0.6);
-    // Next year with room to borrow against, its own needs counted.
+    // Next year with room to borrow against, its own needs and his new deal counted.
     team.deadMoney.push({
       season: l.season + 1,
-      amount: -Math.round(0.2 * capFor(l, l.season + 1)),
+      amount: -Math.round(0.4 * capFor(l, l.season + 1)),
       playerId: -1,
       note: 'test',
     });
@@ -83,6 +84,14 @@ describe('GMs make room to keep their core', () => {
   it('pushes more into next year for a bold GM than a cautious one', () => {
     const cautious = squeezed(-0.6, 0);
     const bold = squeezed(-0.6, 1);
+    // Next year with room for both to borrow against (each GM's ceiling is what differs).
+    for (const x of [cautious, bold])
+      x.team.deadMoney.push({
+        season: x.l.season + 1,
+        amount: -Math.round(0.4 * capFor(x.l, x.l.season + 1)),
+        playerId: -1,
+        note: 'test',
+      });
     aiResignWindow(cautious.l, cautious.team, new Rng('room'));
     aiResignWindow(bold.l, bold.team, new Rng('room'));
     // Caution is next year's headroom: a cautious GM leaves more of it free than a bold one.
@@ -232,6 +241,60 @@ describe('GMs plan next year first', () => {
     expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
     // Next year owes its own keepers: the room comes from a cut this year, not from next year's books.
     expect(restructures(l, team.id)).toBe(0);
+  });
+});
+
+describe('a GM makes the room he plans, or none', () => {
+  /** `squeezed`'s keeper the only deal running out, next year set `room` (a share of his market) under the ceiling. */
+  const alone = (room: number) => {
+    const x = squeezed(0, 1);
+    const { l, team, p } = x;
+    for (const e of expiringPlayers(l, team.id)) if (e !== p) e.teamId = null;
+    const cap = capFor(l, l.season + 1);
+    const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * cap;
+    const used = capSheet(l, team.id, l.season + 1).used;
+    const market = marketApy(leagueMarket(l), p);
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: Math.round(ceiling - used - nextYearNeeds(l, team) - room * market),
+      playerId: -1,
+      note: 'test',
+    });
+    return { ...x, ceiling, market };
+  };
+  const cutBy = (l: League, teamId: number) =>
+    Object.values(l.players).filter((x) =>
+      x.left?.some((d) => d.teamId === teamId && d.how === 'cut' && d.season === l.season),
+    ).length;
+
+  it('plans exactly the room it makes', () => {
+    const { l, team } = squeezed(0, 1);
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: -Math.round(0.2 * capFor(l, l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
+    const plan = restructurePlan(l, team, 0.05 * l.caps[l.season]);
+    expect(plan.steps.length).toBeGreaterThan(0);
+    const before = capSpace(l, team.id);
+    aiCapCompliance(l, team, before + plan.saved);
+    expect(capSpace(l, team.id) - before).toBeCloseTo(plan.saved, -1);
+  });
+
+  it('borrows nothing for a keeper whose own new deal next year wouldn’t fit', () => {
+    // Next year has half his price of room after its needs: making room now would push his new deal past the ceiling.
+    const { l, team } = alone(0.5);
+    aiResignWindow(l, team, new Rng('room'));
+    expect(restructures(l, team.id)).toBe(0);
+  });
+
+  it('cuts nobody when the cut can’t close the gap', () => {
+    // No room to borrow next year: a cut alone would have to cover his whole price, and a lesser veteran's doesn't.
+    const { l, team } = alone(-1);
+    const before = cutBy(l, team.id);
+    aiResignWindow(l, team, new Rng('room'));
+    expect(cutBy(l, team.id)).toBe(before);
   });
 });
 
