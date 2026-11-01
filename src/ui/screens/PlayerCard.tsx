@@ -36,7 +36,7 @@ import type { Gear, GearColor, GearSide, League, Player, Position, SleeveLength,
 import { OFFSEASON_PHASES } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { chairNoun, playerCoachLine } from '../coaching';
-import { Dialog, Exact, isRookie, PlayerAvatar, Section, Sheet, TipPill } from '../components';
+import { Dialog, Exact, isRookie, PlayerAvatar, RookieMark, Section, Sheet, TipPill } from '../components';
 import { moraleView } from '../../engine/morale';
 import { MoodPill } from '../morale';
 import { LinkedText, type Who } from '../moves';
@@ -918,9 +918,9 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                       ? ' · On waivers'
                       : ' · Free agent'}
             </span>
-            {isRookie(p) && <span className="rookie-pill">Rookie</span>}
             <h2 style={{ fontSize: 'var(--step-3)' }}>
               {p.firstName} {p.lastName}
+              {isRookie(p) && <RookieMark />}
             </h2>
           </div>
           {streak > 0 && team && (

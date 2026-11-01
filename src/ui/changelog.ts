@@ -19,9 +19,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     text:
       "The pencil on a player's card now edits his gear too: pick his sleeve, band, elbow pads and shoulder brace, " +
       'which arm and what colour, and watch his picture change; "Back to his own" undoes it. Captains wear their ' +
-      'patch on their card, a star for each season in a row as captain and solid gold after five. Rookies wear a red ' +
-      '"R" on their picture everywhere, and in a cold game most players now wear their sleeves with only a brace or ' +
-      'bands over them.',
+      'patch on their card, a star for each season in a row as captain and solid gold after five. Rookies have a red ' +
+      '"R" beside their name in depth charts, lists and on their card, and in a cold game most players now wear ' +
+      'their sleeves with only a brace or bands over them.',
   },
   {
     version: '0.2.34',

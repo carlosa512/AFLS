@@ -120,9 +120,10 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   under it, one lit for each season in a row he's been a captain (`Player.captainSeasons`, kept when captains are
   named at camp), and the whole patch gold from the fifth (`GOLD_AFTER`). Hover or a screen reader says "Captain · 3
   seasons in a row".
-- **Rookies** (a first-year pro, drafted or signed, never a prospect: `isRookie`) wear a red "R" on the lower right of
-  the avatar's ring at every size, so they stand out down a depth chart or a market list, and their card says
-  "Rookie" in a red pill beside the position and club.
+- **Rookies** (a first-year pro, drafted or signed, never a prospect: `isRookie`) get a small red "R" on the line of
+  their name (`RookieMark`): in every list that shows the player's picture (`PlayerLink` with an avatar: depth charts,
+  the market, rosters), so they stand out at a glance, and beside the name on their card. Never inside a sentence, and
+  never on the picture itself.
 - **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
   brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
   band wouldn't show.

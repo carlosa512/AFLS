@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../engine/generate';
 import { nameCaptains } from '../engine/personality';
 import { CaptainPatch, captainStreak, GOLD_AFTER, patchText } from './captainPatch';
-import { isRookie, PlayerAvatar } from './components';
+import { isRookie, PlayerAvatar, PlayerLink } from './components';
+import { NavContext, type Nav } from './nav';
+
+const nav = { openPlayer: () => {}, openTeam: () => {} } as unknown as Nav;
 
 describe('captain patch', () => {
   const league = () => {
@@ -47,11 +50,17 @@ describe('rookies', () => {
     expect(isRookie(rookie)).toBe(true);
     expect(isRookie(vet)).toBe(false);
     for (const p of all.filter((x) => x.scouting && !x.draft && x.teamId === null)) expect(isRookie(p)).toBe(false);
+    // a red "R" beside his name in a list (with his picture), never in a sentence, never on the picture itself
+    const link = (p: typeof rookie, avatar?: number) =>
+      renderToStaticMarkup(
+        <NavContext.Provider value={nav}>
+          <PlayerLink league={l} player={p} avatar={avatar} />
+        </NavContext.Provider>,
+      );
+    expect(link(rookie, 32)).toContain('rookie-mark');
+    expect(link(rookie)).not.toContain('rookie-mark');
+    expect(link(vet, 32)).not.toContain('rookie-mark');
     const team = l.teams[rookie.teamId!];
-    const mark = (p: typeof rookie, size: number) =>
-      renderToStaticMarkup(<PlayerAvatar player={p} team={team} size={size} />).includes('#DC2626');
-    expect(mark(rookie, 24)).toBe(true);
-    expect(mark(rookie, 128)).toBe(true);
-    expect(mark(vet, 128)).toBe(false);
+    expect(renderToStaticMarkup(<PlayerAvatar player={rookie} team={team} size={32} />)).not.toContain('#DC2626');
   });
 });

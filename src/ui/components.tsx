@@ -51,10 +51,18 @@ export function wearsWhite(league: League | null, teamId: number, game?: Game): 
   return (g.homeId === teamId) === homeInWhite;
 }
 
-/** A first-year pro (drafted or signed, never a prospect): his avatar wears a red "R" and his card says so. */
+/** A first-year pro (drafted or signed, never a prospect): a red "R" sits beside his name in lists and on his card. */
 export const isRookie = (p: Player) => p.experience === 0 && !p.retired && !isProspect(p);
-/** The rookie mark's red, readable under white at any size. */
-const ROOKIE_RED = '#DC2626';
+
+/** The rookie's red "R", on the line of his name; a screen reader hears "rookie". */
+export function RookieMark() {
+  return (
+    <span className="rookie-mark" title="Rookie">
+      <span aria-hidden="true">R</span>
+      <span className="visually-hidden">rookie</span>
+    </span>
+  );
+}
 
 /**
  * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`), it draws him
@@ -231,31 +239,6 @@ export function PlayerAvatar({
       </g>
       <circle cx="50" cy="50" r="46.5" fill="none" stroke={shade(primary, 0.35)} strokeWidth={5} />
       <circle cx="50" cy="50" r="43.6" fill="none" stroke={tint(primary, 0.45)} strokeWidth={0.6} strokeOpacity={0.8} />
-      {isRookie(player) && (
-        // a red "R" on the ring's lower right, so rookies stand out down a depth chart or a market list; bigger in
-        // the box at list sizes, where it has to be seen at a glance
-        <g>
-          <circle
-            cx={size < 64 ? 78 : 83}
-            cy={size < 64 ? 78 : 83}
-            r={size < 64 ? 22 : 14}
-            fill={ROOKIE_RED}
-            stroke="#FFFFFF"
-            strokeWidth={size < 64 ? 5 : 3.5}
-          />
-          <text
-            x={size < 64 ? 78 : 83}
-            y={size < 64 ? 79 : 83.6}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize={size < 64 ? 30 : 18}
-            fontWeight={900}
-            fill="#FFFFFF"
-          >
-            R
-          </text>
-        </g>
-      )}
     </svg>
   );
 }
@@ -299,6 +282,8 @@ export function PlayerLink({
         {pos ? `${player.position} ` : ''}
         {surname ? player.lastName : short ? shortName(player) : playerName(player)}
       </span>
+      {/* in a list (with his picture), a rookie's "R" on the line of his name; never in a sentence */}
+      {avatar && isRookie(player) ? <RookieMark /> : null}
     </button>
   );
 }

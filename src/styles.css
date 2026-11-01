@@ -3525,20 +3525,31 @@ details.more > summary {
   gap: 2px;
   min-width: 130px;
 }
-/* a first-year pro, beside his position and club on his card (the avatars carry a red "R") */
-.rookie-pill {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 8px;
-  border-radius: 999px;
+/* a first-year pro: a red "R" on the line of his name, in lists and on his card */
+.rookie-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  margin-left: 6px;
+  border-radius: 50%;
   background: #dc2626;
-  border: 1px solid rgba(255, 255, 255, 0.85);
   color: #fff;
-  font-size: var(--step--2);
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  vertical-align: 1px;
+  font-size: 0.72em;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: 0.1em;
+}
+.player-link .rookie-mark {
+  margin-left: -2px;
+}
+.sheet-head .rookie-mark {
+  font-size: 0.42em;
+  margin-left: 12px;
+  vertical-align: 0.35em;
+  box-shadow: 0 0 0 2px #fff;
 }
 /* a captain's patch, close up, at the right of his card's header */
 .sheet-head .captain-patch {
