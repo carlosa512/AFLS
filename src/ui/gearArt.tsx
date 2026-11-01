@@ -20,6 +20,7 @@ const SLEEVE: Record<SleeveLength, [number, number]> = {
   threeQuarter: [55, 93],
   full: [55, 140],
   forearm: [80, 140],
+  shooter: [71, 140],
 };
 const UNDERSHIRT: [number, number] = [55, 73.6];
 const BICEPS: [number, number] = [74.6, 77.4];
@@ -73,7 +74,14 @@ export function GearLayer({
   if (gear.sleeve) {
     const [y0, y1] = SLEEVE[gear.sleeve.length];
     for (const arm of armsOf(gear.sleeve.side))
-      piece(`sleeve${arm}`, arm, [y0, y1], paint(gear.sleeve.color), y1 < 140 ? hem(y1) : undefined);
+      piece(
+        `sleeve${arm}`,
+        arm,
+        [y0, y1],
+        paint(gear.sleeve.color),
+        // a cuff where a sleeve ends on the arm: below a short one, above one that starts partway down
+        y1 < 140 ? hem(y1) : y0 > 60 ? hem(y0 + 1) : undefined,
+      );
   }
   if (gear.undershirt)
     for (const arm of armsOf('both')) piece(`under${arm}`, arm, UNDERSHIRT, paint(gear.undershirt), hem(UNDERSHIRT[1]));

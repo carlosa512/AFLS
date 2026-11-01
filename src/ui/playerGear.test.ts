@@ -55,6 +55,23 @@ describe('gearOf', () => {
     expect(biceps.filter((b) => b.side === 'both').length / biceps.length).toBeGreaterThan(0.75);
     for (const b of bands.filter((x) => x.at === 'forearm')) expect(b.side).not.toBe('both');
   });
+  it('makes shooter sleeves usual for quarterbacks, receivers and the secondary, on both arms mostly in the secondary', () => {
+    const shooters = (position: Position) => {
+      const sleeves = players(position)
+        .map((p) => gearOf(p).sleeve)
+        .filter((s) => s !== undefined);
+      const all = sleeves.filter((s) => s.length === 'shooter');
+      return { share: all.length / sleeves.length, both: all.filter((s) => s.side === 'both').length / all.length };
+    };
+    for (const position of ['QB', 'WR', 'CB', 'S'] as const)
+      expect(shooters(position).share, position).toBeGreaterThan(0.2);
+    expect(shooters('QB').both).toBeLessThan(0.1);
+    expect(shooters('WR').both).toBeLessThan(0.25);
+    expect(shooters('CB').both).toBeGreaterThan(0.4);
+    expect(shooters('S').both).toBeGreaterThan(0.4);
+    // rarer elsewhere
+    expect(shooters('LB').share).toBeLessThan(0.15);
+  });
   it("hangs a quarterback's single sleeve on his throwing arm", () => {
     const single = players('QB')
       .map((p) => gearOf(p).sleeve)

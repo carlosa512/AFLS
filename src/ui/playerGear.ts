@@ -12,7 +12,8 @@ import { pick } from './staffLook';
 export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
 /** Seen from behind: his left arm is on the viewer's left. */
 export type Side = 'left' | 'right' | 'both';
-export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm';
+/** A shooter sleeve starts partway down the upper arm, bare skin above it, and runs to the wrist. */
+export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter';
 
 export interface Gear {
   sleeve?: { length: SleeveLength; color: GearColor; side: Side };
@@ -30,6 +31,10 @@ interface Rates {
   sleeve?: number;
   /** Of those in a sleeve, how many wear one on both arms. */
   bothArms?: number;
+  /** How likely a sleeve is a shooter sleeve, against the other lengths' weights (35 full, 25 half…; default 10). */
+  shooter?: number;
+  /** Of those in shooter sleeves, how many wear them on both arms: mostly the secondary (default 0.2). */
+  shooterBoth?: number;
   undershirt?: number;
   biceps?: number;
   forearm?: number;
@@ -39,7 +44,16 @@ interface Rates {
   cold?: number;
 }
 export const GEAR_RATES: Record<Position, Rates> = {
-  QB: { sleeve: 0.35, bothArms: 0.6, undershirt: 0.15, biceps: 0.05, forearm: 0.12, cold: 0.85 },
+  QB: {
+    sleeve: 0.4,
+    bothArms: 0.6,
+    shooter: 45,
+    shooterBoth: 0.05,
+    undershirt: 0.15,
+    biceps: 0.05,
+    forearm: 0.12,
+    cold: 0.85,
+  },
   RB: {
     sleeve: 0.45,
     bothArms: 0.6,
@@ -50,14 +64,41 @@ export const GEAR_RATES: Record<Position, Rates> = {
     brace: 0.04,
     cold: 0.85,
   },
-  WR: { sleeve: 0.6, bothArms: 0.7, undershirt: 0.15, biceps: 0.35, forearm: 0.15, cold: 0.85 },
+  WR: {
+    sleeve: 0.6,
+    bothArms: 0.7,
+    shooter: 35,
+    shooterBoth: 0.15,
+    undershirt: 0.15,
+    biceps: 0.35,
+    forearm: 0.15,
+    cold: 0.85,
+  },
   TE: { sleeve: 0.25, bothArms: 0.5, undershirt: 0.25, biceps: 0.1, elbowPads: 0.35, brace: 0.08, cold: 0.85 },
   OL: { sleeve: 0.1, bothArms: 0.5, undershirt: 0.08, elbowPads: 0.4, brace: 0.12 },
   DT: { sleeve: 0.15, bothArms: 0.5, undershirt: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.5 },
   EDGE: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.2, elbowPads: 0.4, brace: 0.1, cold: 0.85 },
   LB: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.3, biceps: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.85 },
-  CB: { sleeve: 0.55, bothArms: 0.7, undershirt: 0.2, biceps: 0.3, forearm: 0.15, cold: 0.85 },
-  S: { sleeve: 0.45, bothArms: 0.65, undershirt: 0.2, biceps: 0.2, forearm: 0.15, cold: 0.85 },
+  CB: {
+    sleeve: 0.55,
+    bothArms: 0.7,
+    shooter: 35,
+    shooterBoth: 0.5,
+    undershirt: 0.2,
+    biceps: 0.3,
+    forearm: 0.15,
+    cold: 0.85,
+  },
+  S: {
+    sleeve: 0.45,
+    bothArms: 0.65,
+    shooter: 30,
+    shooterBoth: 0.5,
+    undershirt: 0.2,
+    biceps: 0.2,
+    forearm: 0.15,
+    cold: 0.85,
+  },
   K: { sleeve: 0.1, bothArms: 0.3, undershirt: 0.2, cold: 0.85 },
   P: { sleeve: 0.1, bothArms: 0.3, undershirt: 0.2, cold: 0.85 },
 };
@@ -117,15 +158,15 @@ export function gearOf(player: Pick<Player, 'id' | 'position'>, cold = false): G
     gear.elbowPads = { color: weighted(id, 'padsColor', PAD_COLORS), side };
     pieces++;
   }
-  // a quarterback's single sleeve is on his throwing arm (the right: no handedness yet)
-  const sleeveSide = (): Side =>
-    roll(id, 'sleeveBoth') < (r.bothArms ?? 0.5) ? 'both' : position === 'QB' ? 'right' : oneSide(id, 'sleeveSide');
+  // a quarterback's single sleeve is on his throwing arm (the right: no handedness yet); shooter sleeves on both
+  // arms are mostly the secondary's
+  const sleeveSide = (length: SleeveLength): Side => {
+    const both = length === 'shooter' ? (r.shooterBoth ?? 0.2) : (r.bothArms ?? 0.5);
+    return roll(id, 'sleeveBoth') < both ? 'both' : position === 'QB' ? 'right' : oneSide(id, 'sleeveSide');
+  };
   if (r.sleeve && room() && roll(id, 'sleeve') < r.sleeve) {
-    gear.sleeve = {
-      length: weighted(id, 'length', LENGTHS),
-      color: weighted(id, 'sleeveColor', SLEEVE_COLORS),
-      side: sleeveSide(),
-    };
+    const length = weighted(id, 'length', [...LENGTHS, ['shooter', r.shooter ?? 10] as const]);
+    gear.sleeve = { length, color: weighted(id, 'sleeveColor', SLEEVE_COLORS), side: sleeveSide(length) };
     pieces++;
   } else if (r.undershirt && room() && roll(id, 'undershirt') < r.undershirt) {
     gear.undershirt = weighted(id, 'sleeveColor', SLEEVE_COLORS);

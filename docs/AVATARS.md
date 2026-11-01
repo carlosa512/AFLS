@@ -86,13 +86,15 @@ From 32px each player wears his own gear on his arms, picked once from his id an
 look is his for a career. Nothing is saved and nothing reads ratings. Each choice was picked from rendered options
 (four rounds); don't undo one without a reason.
 
-- **Pieces:** sleeves (full, three-quarter, half, or the forearm only), a short solid undershirt sleeve (the
+- **Pieces:** sleeves (full, three-quarter, half, the forearm only, or a shooter sleeve: from partway down the
+  upper arm to the wrist, bare skin above it; common for quarterbacks, receivers and the secondary, on one arm for
+  nearly every quarterback and most receivers, on both for about half the corners and safeties), a short solid undershirt sleeve (the
   jersey keeps its stripes), biceps bands (on both arms; a single band goes on the forearm), elbow pads, and a
   black shoulder brace with a strap in the team's colour (bulkier than the arm, a diagonal strap and a D-ring, so it
   doesn't read as a sleeve). Two pieces at most. Colours: black, white or the primary; bands also the secondary.
 - **By position** (`GEAR_RATES`): skill players in light sleeves and bands (a sleeve on about 60% of receivers,
-  55% of corners, 45% of backs and safeties), a third of quarterbacks in one (on both arms more often than not,
-  otherwise the throwing arm), the trenches in elbow pads (40% of the offensive line and edge rushers, 30% of
+  55% of corners, 45% of backs and safeties), 40% of quarterbacks in one (often a shooter sleeve; a single sleeve
+  goes on the throwing arm), the trenches in elbow pads (40% of the offensive line and edge rushers, 30% of
   tackles) and now and then a sleeve (a quarter of edge rushers, 15% of tackles, 10% of the offensive line), a
   shoulder brace on about one lineman or edge rusher in ten, kickers and punters nearly bare. Linemen
   take most of their contact through the elbows, and most NFL arm injuries are theirs
