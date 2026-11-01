@@ -468,12 +468,14 @@ for (let s = 0; s < seasons; s++) {
   // them 43 and one team a season in 8 of 24 seed-seasons, the old known issues).
   // Holes / below keep-min / bad depth spots 0: a roster missing a starter's position, or a depth chart that names a
   // player who retired or left, breaks games (obs 0 everywhere).
+  // Tags: a club keeping the star it would otherwise lose. NFL clubs tagged 10, 8, 6 and 9 players in 2021–24 (Sharp
+  // Football; 2 and 4 the two offseasons since).
   // Starters out of football: last kickoff's starters unsigned or retired at this one, counted as nflverse counts it
   // (owner's call, 2026-10-31): of a season's regular starters, 3.2% and 2.9% were on no club's week-1 roster the next
   // season in 2022–24 (another 1.5–2.1% were on one, hurt or on a reserve list). Before the late market (a club
   // offering what it can fit, shopping past day 5) the sim's read about 9.6%.
   console.log(
-    `  checks ${year} roster: ${check('starters out of football %', outOfFootball, 2.5, 4.5, 1)} · ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
+    `  checks ${year} roster: ${check('starters out of football %', outOfFootball, 2.5, 4.5, 1)} · ${check('tags', count('tag'), 4, 10, 0)} · ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
   );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
