@@ -141,6 +141,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
 being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
+- [ ] **Leagues grow older than the NFL's (start here: it likely explains the next items).** NFL starters average 26.6,
+      12% of them 31 or older (*nflverse* snap counts and birth dates, 2021–24). A new league matches (26.8, 12%), but by
+      season 10 its starters average 28.0 with 28% aged 31+ (main: 27.75 and 24%, so it predates 0.2.27). The oldest
+      gaps are at QB and TE (+2.4 years), punter (+2.1), WR and OL (+1.5), where ratings hold their peak longest. Look
+      at who coaches start (a young player with upside against a veteran barely better), when players retire, and how
+      ready draftees are; the league's talent sliding after year three (13.22 to 12.7 over 16 seasons) likely follows.
 - [ ] **Starters leave football more as a league ages.** About 3% of last season's starters are unsigned or retired
       at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
       retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
