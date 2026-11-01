@@ -43,12 +43,16 @@ export interface Confetti extends Pt {
 
 export interface FinaleScene {
   duration: number;
+  /** Where the winners gather (the camera's mark). */
+  centre: Pt;
   at(id: number, t: number): Figure | null;
   confetti(t: number): Confetti[];
 }
 
 const SPRINT = 7;
 const WALK = 2.2;
+/** A walk-off this close to the end zone is mobbed where it ended; further out, they run for the end zone. */
+const RED_ZONE = 20;
 /** On a walk-off the losers stand a moment before they go. */
 const STUNNED = 1.4;
 /** A man walking off is out of the picture after this long, whatever's left of his walk. */
@@ -84,8 +88,14 @@ export function finaleScene(opts: {
   const rng = new Rng(opts.seed);
   const { kind, spots, winnersHome } = opts;
   const celebrate = kind === 'walkoff' || (kind === 'win' && opts.playoff);
-  // Where the winners gather: round the hero on a walk-off, else round the ball, where the handshakes are.
-  const centre = kind === 'walkoff' && opts.hero !== undefined ? (spots.get(opts.hero) ?? opts.at) : opts.at;
+  // Where the winners gather. A walk-off: round the hero where it ended if that's inside the 20 (or in the end zone,
+  // on a score there); from further out he breaks for the end zone they were attacking and they chase him into it.
+  // Any other finish: round the ball, where the handshakes are.
+  const heroAt = opts.hero !== undefined ? spots.get(opts.hero) : undefined;
+  const goalLine = winnersHome ? 100 : 0;
+  const inside = Math.abs(goalLine - opts.at.x) <= RED_ZONE;
+  const endZone = { x: goalLine + (winnersHome ? 1 : -1) * 4, y: Math.max(12, Math.min(FIELD_W - 12, opts.at.y)) };
+  const centre = kind !== 'walkoff' ? opts.at : inside ? (heroAt ?? opts.at) : endZone;
   const middle = { x: centre.x, y: Math.max(6, Math.min(FIELD_W - 6, centre.y)) };
   type Plan = { from: Pt; to: Pt; start: number; pace: number; off?: Pt; offAt?: number; bounce: boolean };
   const plan = new Map<number, Plan>();
@@ -107,7 +117,8 @@ export function finaleScene(opts: {
     const from = { x: m.x, y: m.y };
     const winner = winnersHome !== null && m.home === winnersHome;
     if (id === opts.hero && kind === 'walkoff') {
-      plan.set(id, { from, to: from, start: 0, pace: SPRINT, bounce: true });
+      // He's off first, a step quicker than anyone, to where they'll mob him.
+      plan.set(id, { from, to: inside ? from : middle, start: 0, pace: SPRINT * 1.1, bounce: true });
       continue;
     }
     if (winner && celebrate) {
@@ -189,6 +200,7 @@ export function finaleScene(opts: {
 
   return {
     duration,
+    centre: middle,
     at(id, t) {
       const p = plan.get(id);
       if (!p) return null;

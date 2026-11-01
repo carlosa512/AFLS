@@ -58,7 +58,30 @@ describe('the final whistle', () => {
   );
   const sideline = Array.from({ length: 12 }, (_, i) => 100 + i);
 
-  it('on a walk-off, the winners mob the hero and the losers walk off', () => {
+  it('a walk-off inside the 20 is mobbed where it ended', () => {
+    const near = new Map(spots);
+    near.set(3, mark(86, 20));
+    const scene = finaleScene({
+      kind: 'walkoff',
+      spots: near,
+      winnersHome: true,
+      at: { x: 86, y: 20 },
+      hero: 3,
+      sideline,
+      playoff: false,
+      title: false,
+      colors: ['#123456', '#abcdef'],
+      seed: 'n',
+    });
+    const end = scene.at(3, scene.duration)!;
+    expect(Math.hypot(end.x - 86, end.y - 20)).toBeLessThan(0.5);
+    for (const id of sideline) {
+      const f = scene.at(id, scene.duration)!;
+      expect(Math.hypot(f.x - 86, f.y - 20), `${id}`).toBeLessThan(7);
+    }
+  });
+
+  it('on a walk-off from further out, the hero breaks for the end zone and they mob him in it; the losers walk off', () => {
     const scene = finaleScene({
       kind: 'walkoff',
       spots,
@@ -71,7 +94,9 @@ describe('the final whistle', () => {
       colors: ['#123456', '#abcdef'],
       seed: 'w',
     });
-    const hero = spots.get(3)!;
+    // From the 28 out (home attacks toward 100): into the end zone.
+    const hero = scene.at(3, scene.duration)!;
+    expect(hero.x).toBeGreaterThan(100);
     for (const id of [...spots.keys()].filter((id) => id < 11).concat(sideline)) {
       const f = scene.at(id, scene.duration)!;
       expect(Math.hypot(f.x - hero.x, f.y - hero.y), `${id}`).toBeLessThan(7);

@@ -583,7 +583,12 @@ export function TopDownField({
           kind: ending,
           spots: new Map(mem.spots),
           winnersHome,
-          at: { x: s.ball[last * 3], y: s.ball[last * 3 + 1] },
+          // Where it ended: the carrier's spot; for a kick at the posts, where it was kicked from (the ball's own end
+          // is beyond the uprights).
+          at:
+            ran?.kind === 'fg' || ran?.kind === 'xp'
+              ? { x: s.ball[0], y: s.ball[1] }
+              : { x: s.ball[last * 3], y: s.ball[last * 3 + 1] },
           hero: ending === 'walkoff' ? (s.carrier ?? kicker) : undefined,
           sideline,
           playoff: !!game.playoffRound,
@@ -600,6 +605,8 @@ export function TopDownField({
         const f = scene.at(id, t);
         if (!f) continue;
         drawDot(id, f.x, f.y, f.opacity, f.scale);
+        // Remembered as it goes: when the viewer re-renders at the end, nobody snaps back to where the play ended.
+        mem.spots.set(id, { x: f.x, y: f.y, home: mem.spots.get(id)!.home });
         if (f.opacity > 0.5 && winnersHome !== null && mem.spots.get(id)!.home === winnersHome) {
           sx += f.x;
           n2++;
@@ -619,6 +626,7 @@ export function TopDownField({
         el.setAttribute('opacity', '1');
       });
       if (n2) camera(sx / n2, seconds);
+      mem.cx = view.cx;
       return t >= scene.duration;
     };
 
