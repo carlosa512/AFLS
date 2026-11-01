@@ -22,8 +22,11 @@ import { downLines } from './GameViewer';
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
-/** The official walking the ball to its new spot, in yards a second. */
-const CARRY = 6;
+/** The umpire after the ball: running to it, and walking it to its spot (yards a second). */
+const UMP_RUN = 6;
+const UMP_CARRY = 5;
+/** Past this far (yards) from its next spot, a dead ball stays where it is and a fresh one comes in from the sideline. */
+const FRESH_BALL = 20;
 /** How far through a play a flag comes out (a flag before the snap comes out at once). */
 const FLAG_AT = 0.4;
 /** A play a flag was thrown on: accepted, declined or offsetting (a flag before the snap is its own play, `penalty`). */
@@ -243,6 +246,7 @@ export function TopDownField({
   const hurtRingRef = useRef<SVGCircleElement>(null);
   const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
+  const oldBallRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const fresh = (): Memory => ({
     game: game.id,
@@ -413,6 +417,9 @@ export function TopDownField({
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
+    /** The last play's ball is in the net behind the posts (a field goal or an extra point, good or not). */
+    const lastKind = index > 0 ? asRan(plays[index - 1]).kind : undefined;
+    const deadBall = lastKind === 'fg' || lastKind === 'xp';
     /** A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away. */
     const rings = (t: number) =>
       s.keys.forEach((id, i) => ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] ? '1' : '0'));
@@ -500,32 +507,61 @@ export function TopDownField({
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
-      // An official picks the ball up after the whistle, walks it to the new spot, sets it down and steps away.
+      // The ball between plays. Close by, the umpire runs to it where it died, picks it up and walks it to its spot.
+      // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
+      // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
       const tb = Math.max(0, t - g.beat);
-      const dist = ballFrom ? Math.hypot(s.ball[0] - ballFrom.x, s.ball[1] - ballFrom.y) : 0;
-      const carry = Math.min(Math.max(0.5, dist / CARRY), Math.max(0.5, (g.duration - g.beat - 1.5) * 0.8));
-      const k = ballFrom ? Math.min(1, tb / carry) : 1;
-      const bx = ballFrom ? ballFrom.x + (s.ball[0] - ballFrom.x) * k : s.ball[0];
-      const by = ballFrom ? ballFrom.y + (s.ball[1] - ballFrom.y) * k : s.ball[1];
-      drawBall(bx, by, 0);
-      camera(bx, seconds);
-      // The crew walks to its spots for the next snap; the umpire is the one carrying the ball, then takes his.
+      const spot = { x: s.ball[0], y: s.ball[1] };
+      const umpFrom = crewFrom[UMPIRE] ?? plan.start[UMPIRE];
+      const fresh = !ballFrom || deadBall || Math.hypot(spot.x - ballFrom.x, spot.y - ballFrom.y) > FRESH_BALL;
+      const pick = fresh ? { x: spot.x, y: spot.y < MID ? -0.8 : FIELD_W + 0.8 } : ballFrom!;
+      let fetch = Math.hypot(pick.x - umpFrom.x, pick.y - umpFrom.y) / UMP_RUN;
+      let carry = Math.hypot(spot.x - pick.x, spot.y - pick.y) / UMP_CARRY;
+      // He gets it there before the formation sets, hurrying if he has to.
+      const room = Math.max(1, g.duration - g.beat - 1.2);
+      if (fetch + carry > room) {
+        const k = room / (fetch + carry);
+        fetch *= k;
+        carry *= k;
+      }
+      const carried = Math.min(1, Math.max(0, (tb - fetch) / Math.max(0.2, carry)));
+      const ball =
+        tb < fetch ? pick : { x: pick.x + (spot.x - pick.x) * carried, y: pick.y + (spot.y - pick.y) * carried };
+      // The new ball shows once it's in his hands; the old one lies where it died, fading.
+      if (fresh && tb < fetch) {
+        ballRef.current?.setAttribute('opacity', '0');
+        shadowRef.current?.setAttribute('opacity', '0');
+      } else {
+        ballRef.current?.setAttribute('opacity', '1');
+        drawBall(ball.x, ball.y, 0);
+      }
+      if (fresh && ballFrom) {
+        const [ox, oy] = toScreen(view, ballFrom.x, ballFrom.y);
+        oldBallRef.current?.setAttribute('transform', `translate(${ox.toFixed(2)} ${oy.toFixed(2)})`);
+        oldBallRef.current?.setAttribute('opacity', Math.max(0, 1 - Math.max(0, tb - 0.4) / 1.2).toFixed(2));
+      } else oldBallRef.current?.setAttribute('opacity', '0');
+      camera(tb < fetch && fresh ? spot.x : ball.x, seconds);
+      // The crew walks to its spots for the next snap; the umpire fetches the ball, brings it, then takes his.
       const walkTime = Math.max(1, g.duration - g.beat - 0.8);
-      const kWalk = Math.min(1, Math.max(0, (t - g.beat) / walkTime));
+      const kWalk = Math.min(1, Math.max(0, tb / walkTime));
       const ease = kWalk * kWalk * (3 - 2 * kWalk);
+      const hand = { x: -dir * 0.6, y: (spot.y > MID ? 1 : -1) * 0.9 };
       plan.start.forEach((to, i) => {
         const from = crewFrom[i] ?? to;
         let p = { x: from.x + (to.x - from.x) * ease, y: from.y + (to.y - from.y) * ease };
-        if (i === UMPIRE && ballFrom) {
-          const side = by > MID ? 1 : -1;
-          const spot = { x: bx - dir * 0.6, y: by + side * 0.9 };
-          if (tb < carry) {
-            // To the ball, then with it: alongside as he walks it to its spot.
-            const fetch = Math.min(1, t / Math.max(0.4, g.beat));
-            p = { x: from.x + (spot.x - from.x) * fetch, y: from.y + (spot.y - from.y) * fetch };
-          } else {
-            const k2 = Math.min(1, (tb - carry) / Math.max(0.8, walkTime - carry));
-            p = { x: spot.x + (to.x - spot.x) * k2, y: spot.y + (to.y - spot.y) * k2 };
+        if (i === UMPIRE) {
+          const at = { x: pick.x + hand.x, y: pick.y + hand.y };
+          if (tb < fetch) {
+            // To the ball (or the sideline for a fresh one) at a run.
+            const k = fetch > 0 ? tb / fetch : 1;
+            const e = k * k * (3 - 2 * k);
+            p = { x: from.x + (at.x - from.x) * e, y: from.y + (at.y - from.y) * e };
+          } else if (tb < fetch + carry) p = { x: ball.x + hand.x, y: ball.y + hand.y };
+          else {
+            const left = Math.max(0.6, walkTime - fetch - carry);
+            const k = Math.min(1, (tb - fetch - carry) / left);
+            const set = { x: spot.x + hand.x, y: spot.y + hand.y };
+            p = { x: set.x + (to.x - set.x) * k, y: set.y + (to.y - set.y) * k };
           }
         }
         figure(officialRefs.current[i], { ...p, opacity: 1 });
@@ -550,6 +586,8 @@ export function TopDownField({
         drawDot(s.ids[k], x, y);
         mem.spots.set(s.ids[k], { x, y, home: s.home[k] });
       }
+      ballRef.current?.setAttribute('opacity', '1');
+      oldBallRef.current?.setAttribute('opacity', '0');
       drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
       mem.phi = turnTo;
@@ -935,6 +973,8 @@ export function TopDownField({
           </>
         )}
         <ellipse ref={shadowRef} rx={0.55} ry={0.32} fill="rgba(0,0,0,0.45)" />
+        {/* A dead ball left where it lay (in the net behind the posts) while a fresh one comes in. */}
+        <ellipse ref={oldBallRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} opacity={0} />
         <ellipse ref={ballRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} />
         {ending && game.playoffRound === 'FINAL' && winnersHome !== null && (
           <g>
