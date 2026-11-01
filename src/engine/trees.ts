@@ -192,8 +192,13 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
     return !known.length || share.get(Math.max(...known))! >= 0.5;
   };
   const established = seasons.filter((x) => ran.has(x - 1) && winning(x));
-  // A founding disciple was already established in his club before the league began.
-  if (last === -Infinity && isActiveHead(c)) established.push(-Infinity, league.season);
+  // A founding disciple was already established in his club before the league began, and that history stays once he's
+  // let go (his first season in the league was as a head coach): losing one man once unmade a founding tree while the
+  // other still ran a club.
+  if (last === -Infinity && (isActiveHead(c) || c.career?.[0]?.role === 'headCoach')) {
+    established.push(-Infinity);
+    if (isActiveHead(c)) established.push(league.season);
+  }
   return established;
 }
 

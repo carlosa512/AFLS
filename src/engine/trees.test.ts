@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
+import { simToEndOfSeason } from './league';
 import {
   disciplesOf,
   hasTree,
@@ -281,6 +282,19 @@ describe('founding trees', () => {
     const up = migrateLeague(b)!;
     expect(shape(up)).toEqual(shape(a));
   });
+
+  it('stays born when one of its men loses his job, and lives while another runs a club', () => {
+    // A tree born before the league began stays born: firing one founding disciple once unmade it, even with the other
+    // still in charge (a careers league read 0 founding trees alive by its second season).
+    const l = createLeague({ seed: 'founding' });
+    simToEndOfSeason(l);
+    const tree = liveTrees(l).find((t) => t.activeHeadCoaches.length >= 2)!;
+    const [gone, stays] = tree.activeHeadCoaches.map((id) => l.coaches[id]);
+    gone.teamId = null;
+    expect(hasTree(l, tree.rootId)).toBe(true);
+    expect(treeOf(l, tree.rootId)!.activeHeadCoaches).toContain(stays.id);
+    expect(treeOf(l, tree.rootId)!.activeHeadCoaches).not.toContain(gone.id);
+  }, 120_000);
 
   it('seeds nothing twice', () => {
     const l = createLeague({ seed: 'founding-3' });
