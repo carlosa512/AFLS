@@ -38,7 +38,8 @@ describe('All-22', () => {
       />,
     );
     expect(html.match(/class="dot"/g)).toHaveLength(22);
-    const numbers = [...html.matchAll(/<text[^>]*>(\d+)<\/text>/g)].map((m) => m[1]);
+    // The players' numbers (the field's own yard numbers are painted on it, outside the dots).
+    const numbers = [...html.matchAll(/class="dot"[^]*?<text[^>]*>(\d*)<\/text>/g)].map((m) => m[1]);
     expect(numbers).toHaveLength(22);
     expect(html).toContain('stroke="#ffd43b"');
     expect(html).toContain('aria-label="All-22: the play from above"');
@@ -99,9 +100,9 @@ describe('the view switch', () => {
     }
   });
 
-  it('drops 4× and 8× to 2× in All-22', () => {
-    expect(allSpeed(8)).toBe(2);
-    expect(allSpeed(4)).toBe(2);
+  it('plays All-22 at 1×, 2× or 4×: 8× drops to 4×', () => {
+    expect(allSpeed(8)).toBe(4);
+    expect(allSpeed(4)).toBe(4);
     expect(allSpeed(2)).toBe(2);
     expect(allSpeed(1)).toBe(1);
   });

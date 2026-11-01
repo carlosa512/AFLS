@@ -1549,6 +1549,11 @@ export interface PlayLogEntry {
   /** Who the play was about (All-22 stages it), packed: read it with `actorsIn` (`playActors.ts`). Games before v71
    * and kicks have none. */
   who?: PackedActors;
+  /**
+   * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
+   * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
+   */
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who'>;
 }
 
 /** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */

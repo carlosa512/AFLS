@@ -25,6 +25,8 @@
   --font-display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif;
   --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-data: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Painted on the field in All-22: the yard numbers and the end zones' names. */
+  --font-field: 'Graduate', 'Rockwell', 'Roboto Slab', Georgia, serif;
 
   --step--1: 0.8125rem;
   --step-0: 0.9375rem;
@@ -5128,6 +5130,36 @@ button.tip-pill {
   white-space: nowrap;
   pointer-events: none;
   transition: opacity 0.3s ease;
+}
+/* The call on a play: a flag (what, on whom, how far) or an injury stoppage. */
+.td-call {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  font-weight: 700;
+  /* Two lines at most on a phone, never cut off. */
+  width: max-content;
+  text-align: center;
+  line-height: 1.25;
+  border-radius: 14px;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  border-left: 6px solid #ffd400;
+}
+.td-call-final {
+  border-left-color: var(--accent, #2e7d32);
+  font-size: var(--step-0);
+}
+.td-call-injury {
+  border-left-color: #d32f2f;
 }
 .td-card-x {
   border: 0;

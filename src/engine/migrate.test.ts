@@ -14,7 +14,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(71);
+    expect(SAVE_VERSION).toBe(72);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -139,9 +139,28 @@ describe('save v71', () => {
     const plays = l.games.find((g) => g.result?.plays?.length)!.result!.plays!.length;
     l.version = 70;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(71);
+    expect(up.version).toBe(SAVE_VERSION);
     const game = up.games.find((g) => g.result?.plays?.length)!;
     expect(game.result!.field).toBeUndefined();
     expect(game.result!.plays!.length).toBe(plays);
+  });
+});
+
+describe('save v72', () => {
+  it('loads a v71 save: its flagged plays keep the walk-off without the play as it ran', () => {
+    const l = createLeague({ seed: 'v72' });
+    playWeek(l);
+    let flagged = 0;
+    for (const g of l.games)
+      for (const e of g.result?.plays ?? [])
+        if (e.ran) {
+          flagged++;
+          delete e.ran;
+        }
+    expect(flagged).toBeGreaterThan(0);
+    l.version = 71;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(72);
+    expect(up.games.some((g) => g.result?.plays?.some((e) => e.kind === 'penalty' && !e.ran))).toBe(true);
   });
 });

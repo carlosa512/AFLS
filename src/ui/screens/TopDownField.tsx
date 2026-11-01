@@ -4,25 +4,37 @@
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §4.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { FieldRecord, Game, League, PlayLogEntry, Team } from '../../engine/types';
+import type { FieldRecord, FieldUnits, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
-import { FIELD_W, HASH_HI, HASH_LO, MID, offenseSide, snapYFor } from '../stage/ballPath';
+import { FIELD_W, MID, offenseSide, snapYFor } from '../stage/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
-import { stagePlay, type StagedPlay } from '../stage/stage';
+import { exitFor, flagCall, hurtOnField, injuryBanner, injuryCall, type Exit } from '../stage/calls';
+import { finaleBanner, finaleKind, finaleScene, type FinaleScene } from '../stage/finale';
+import { injuryScene } from '../stage/injury';
+import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UMPIRE } from '../stage/officials';
+import { asRan, stagePlay, type StagedPlay } from '../stage/stage';
 import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
+import { FieldPaint } from './FieldPaint';
 import { downLines } from './GameViewer';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
-/** The official walking the ball to its new spot, in yards a second. */
-const CARRY = 6;
-/** How far through a play a flag comes out. */
+/** The umpire after the ball: running to it, and walking it to its spot (yards a second). */
+const UMP_RUN = 6;
+const UMP_CARRY = 5;
+/** Past this far (yards) from its next spot, a dead ball stays where it is and a fresh one comes in from the sideline. */
+const FRESH_BALL = 20;
+/** How far through a play a flag comes out (a flag before the snap comes out at once). */
 const FLAG_AT = 0.4;
-/** A play a flag was thrown on, accepted or declined (a flag before the snap is its own play, `penalty`). */
-const FLAGGED = /PENALTY|declined/;
+/** A play a flag was thrown on: accepted, declined or offsetting (a flag before the snap is its own play, `penalty`). */
+const FLAGGED = /PENALTY|declined|Offsetting/;
+/** Fouls called at the line (the flag lands there): before the snap, or by the blockers. */
+const AT_LINE = /False start|Offside|Encroachment|Neutral zone|holding|formation|Delay of game/i;
+/** After a flag: the officials confer and the call goes up, before the walk-off (seconds). */
+const BREAK = 2.6;
 
 /** Field (x, y) to the picture: sideways like the broadcast view, or upright with the offense attacking up. */
 interface View {
@@ -61,21 +73,6 @@ const turnFor = (dir: 1 | -1) => (dir === 1 ? 0 : Math.PI);
 const DIP = 0.25;
 
 /**
- * The officials on a kickoff, from the ball on the kicking 35: a pair on the sidelines at the kicking team's line
- * (the receiving 40), a pair at the receiving 20, and one deep on the receiving goal line.
- */
-function crew(ballX: number, dir: 1 | -1): [number, number][] {
-  const at = (yards: number) => ballX + dir * yards;
-  return [
-    [at(25), -1.2],
-    [at(25), FIELD_W + 1.2],
-    [at(45), -1.2],
-    [at(45), FIELD_W + 1.2],
-    [at(65), MID + 9],
-  ];
-}
-
-/**
  * Whether the ball changed hands on the way to the play at `index` (not counting a kick, which has its own
  * change-over), and how: the words on the banner while the units change over.
  */
@@ -91,6 +88,51 @@ export function handoverFor(plays: readonly PlayLogEntry[], index: number, homeI
   if (prev.kind === 'fg') return 'Missed field goal';
   if (prev.down === 4) return 'Turnover on downs';
   return 'Change of possession';
+}
+
+/** Every man a side put on the field in the game (its units and every change to them). */
+function squad(record: FieldRecord, side: 0 | 1): number[] {
+  const ids = new Set<number>();
+  const add = (u: FieldUnits) => {
+    for (const id of [u.qb, u.rb, u.rb2, u.k, u.p, u.kr, u.pr]) if (id !== undefined) ids.add(id);
+    for (const list of [u.ol, u.wr, u.te, u.dt, u.edge, u.lb, u.cb, u.s, u.st, u.fg])
+      for (const id of list) ids.add(id);
+    for (const [id] of u.rot) ids.add(id);
+  };
+  add(record.units[side]);
+  for (const [, s, u] of record.changes) if (s === side) add(u);
+  return [...ids];
+}
+
+/** A trainer: white, with the medical staff's red cross. */
+function Trainer({ r }: { r: number }) {
+  return (
+    <>
+      <circle r={r} fill="#fff" stroke="#c62828" strokeWidth={0.15} />
+      <rect x={-r * 0.18} y={-r * 0.6} width={r * 0.36} height={r * 1.2} fill="#d32f2f" />
+      <rect x={-r * 0.6} y={-r * 0.18} width={r * 1.2} height={r * 0.36} fill="#d32f2f" />
+    </>
+  );
+}
+
+/** The medical cart: a white cart with the red cross. */
+function Cart({ r }: { r: number }) {
+  return (
+    <>
+      <rect
+        x={-r * 1.5}
+        y={-r}
+        width={r * 3}
+        height={r * 2}
+        rx={r * 0.35}
+        fill="#fafafa"
+        stroke="#555"
+        strokeWidth={0.15}
+      />
+      <rect x={-r * 0.2} y={-r * 0.65} width={r * 0.4} height={r * 1.3} fill="#d32f2f" />
+      <rect x={-r * 0.65} y={-r * 0.2} width={r * 1.3} height={r * 0.4} fill="#d32f2f" />
+    </>
+  );
 }
 
 /** An official: white with black stripes, a touch smaller than a player. */
@@ -110,6 +152,9 @@ function Official({ r }: { r: number }) {
  */
 export function holdAfter(e: PlayLogEntry | undefined): number {
   if (!e) return 1600;
+  // An injury stoppage has had its moment on the field; a flag gets the time to read the call.
+  if (injuryCall(e)) return 900;
+  if (flagCall(e)) return 1400;
   const big =
     e.scoring ||
     e.kind === 'kickoff' ||
@@ -134,6 +179,8 @@ const HUDDLED: ReadonlySet<string> = new Set([
 ]);
 
 interface Memory {
+  /** The game this memory is of: another game starts fresh. */
+  game: number;
   /** Where each man on the field was last drawn, and which kit he wears. */
   spots: Map<number, Mark>;
   ballX: number | null;
@@ -141,6 +188,8 @@ interface Memory {
   cx: number;
   /** The upright field's turn as last drawn. */
   phi: number | null;
+  /** Where the officials last stood. */
+  crew: { x: number; y: number }[] | null;
   /** Where the last play shown ended and whose man had the ball: a big one is celebrated there. */
   ended: { index: number; at: Mark | null } | null;
 }
@@ -156,8 +205,10 @@ export function TopDownField({
   animKey,
   speed,
   still = false,
+  final = false,
   fallback,
   onDone,
+  onSnap,
 }: {
   league: League;
   /** Who was on the field: the result's for a replay, the running game's for a live one. */
@@ -170,9 +221,13 @@ export function TopDownField({
   animKey: string;
   speed: number;
   still?: boolean;
+  /** The game's last play: the final whistle follows it (the celebration, the handshakes, the walk off). */
+  final?: boolean;
   /** Shown if a play can't be staged: the broadcast field. */
   fallback?: ReactNode;
   onDone: () => void;
+  /** The ball is snapped (the jog and huddle are over): the viewer clears the last play's result then. */
+  onSnap?: () => void;
 }) {
   const entry = plays[index];
   const box = useRef<HTMLDivElement>(null);
@@ -180,15 +235,36 @@ export function TopDownField({
   const fieldRef = useRef<SVGGElement>(null);
   const dotRefs = useRef(new Map<number, SVGGElement>());
   const ringRefs = useRef(new Map<number, SVGCircleElement>());
-  const crewRef = useRef<SVGGElement>(null);
+  const officialRefs = useRef<(SVGGElement | null)[]>([]);
   const bannerRef = useRef<HTMLDivElement>(null);
-  const spotterRef = useRef<SVGGElement>(null);
+  const callRef = useRef<HTMLDivElement>(null);
+  const trainerRefs = useRef<(SVGGElement | null)[]>([]);
+  const cartRef = useRef<SVGGElement>(null);
+  const extraRefs = useRef(new Map<number, SVGGElement>());
+  const confettiRefs = useRef<(SVGRectElement | null)[]>([]);
+  const finaleRef = useRef<HTMLDivElement>(null);
+  const hurtRingRef = useRef<SVGCircleElement>(null);
   const flagRef = useRef<SVGGElement>(null);
   const ballRef = useRef<SVGEllipseElement>(null);
+  const oldBallRef = useRef<SVGEllipseElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
-  const memory = useRef<Memory>({ spots: new Map(), ballX: null, ballY: MID, cx: 50, phi: null, ended: null });
+  const fresh = (): Memory => ({
+    game: game.id,
+    spots: new Map(),
+    ballX: null,
+    ballY: MID,
+    cx: 50,
+    phi: null,
+    crew: null,
+    ended: null,
+  });
+  const memory = useRef<Memory>(fresh());
+  // Another game in the same viewer: nothing carries over from the last one (its men would linger, numberless).
+  if (memory.current.game !== game.id) memory.current = fresh();
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  const snapRef = useRef(onSnap);
+  snapRef.current = onSnap;
   const [layout, setLayout] = useState<Layout>('wide');
   const [card, setCard] = useState<number | null>(null);
   // A new play closes the card: its player may not even be on the field for it.
@@ -236,8 +312,10 @@ export function TopDownField({
       (entry.offense === home.id ? entry.homeScore - entry.awayScore : entry.awayScore - entry.homeScore) < 0;
     return twoMinute || (entry.quarter >= 4 && entry.clock <= 300 && behind);
   };
+  /** The play as it ran: a snap a flag wiped out still huddled and ran like any other. */
+  const ran = entry ? asRan(entry) : undefined;
   const huddleFor = (s: StagedPlay): Huddle | undefined => {
-    if (!entry?.kind || !HUDDLED.has(entry.kind)) return undefined;
+    if (!ran?.kind || !HUDDLED.has(ran.kind)) return undefined;
     if (twoMinute) return undefined; // no-huddle
     const bx = s.ball[0];
     const by = s.ball[1];
@@ -259,6 +337,56 @@ export function TopDownField({
     ['kickoff', 'punt'].includes([...plays.slice(0, index)].reverse().find((p) => !!p.kind)?.kind ?? '');
   const span = cameraSpan(entry);
   const lines = downLines(entry, home.id);
+  // The calls on the banner: a flag on this play, or a man hurt on the last one (who, from the men on the field).
+  const flag = entry ? flagCall(entry) : null;
+  const hurtCall = entry && !entry.kind ? injuryCall(entry) : null;
+  const hurtId = hurtCall
+    ? hurtOnField(league, memory.current.spots, hurtCall, { home: home.abbrev, away: away.abbrev })
+    : undefined;
+  const exit: Exit | null =
+    hurtCall && hurtId !== undefined ? exitFor(league, hurtId, hurtCall.label, game.result?.injuries) : null;
+  // The flag's yellow bar says it's a flag; an injury says so in words.
+  const callText = flag ?? (hurtCall ? `Injury · ${injuryBanner(hurtCall, exit ?? 'walk')}` : null);
+  /** A flag before the snap (a false start, an offside the play never ran with): out at once. Interference, as the
+   * ball arrives; anything else partway through. */
+  const preSnap = entry?.kind === 'penalty' && !entry.ran;
+  const flagged = !!entry && (entry.kind === 'penalty' || FLAGGED.test(entry.text));
+  const flagFrac = preSnap ? 0.05 : entry && /interference/i.test(entry.text) ? 0.8 : FLAG_AT;
+  /** The crew for this snap: where each official stands, how he moves with the play, and the flag one throws. */
+  const crewPlan = useMemo(() => {
+    if (!staged || !entry) return null;
+    const e = asRan(entry);
+    const land = e.kind === 'punt' && e.air !== undefined ? { x: e.air, y: staged.ball[1] } : undefined;
+    const start = crewSpots(e, staged.ball[0], staged.ball[1], dir, land);
+    const track = crewTrack(start, staged.ball, staged.steps, staged.dt, dir);
+    const playTime = (staged.steps - 1) * staged.dt;
+    const thrown = flagged
+      ? flagThrow(track, staged.ball, staged.steps, staged.dt, flagFrac * playTime, preSnap || AT_LINE.test(entry.text))
+      : null;
+    return { start, track, thrown };
+    // Staged once per play shown, like the play itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staged]);
+  // The final whistle: who won, how, and the winners' men off the field who run on to celebrate.
+  const ending = final && entry && record && staged ? finaleKind(plays, index) : null;
+  const winnersHome = !ending || ending === 'tie' ? null : entry.homeScore > entry.awayScore;
+  const winners = winnersHome === null ? null : winnersHome ? home : away;
+  const sideline =
+    winnersHome === null || !record || !staged
+      ? []
+      : squad(record, winnersHome ? 0 : 1)
+          .filter((id) => !staged.ids.includes(id))
+          .slice(0, 20);
+  const finaleText = ending
+    ? finaleBanner({
+        kind: ending,
+        winner: winners?.abbrev,
+        score: `${away.abbrev} ${entry.awayScore} – ${home.abbrev} ${entry.homeScore}`,
+        how: entry.kind === 'fg' ? 'field goal' : /TOUCHDOWN/.test(entry.text) ? 'touchdown' : undefined,
+        playoff: !!game.playoffRound,
+        title: game.playoffRound === 'FINAL',
+      })
+    : null;
 
   useEffect(() => {
     if (!staged || !svg.current) return;
@@ -289,6 +417,9 @@ export function TopDownField({
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
+    /** The last play's ball is in the net behind the posts (a field goal or an extra point, good or not). */
+    const lastKind = index > 0 ? asRan(plays[index - 1]).kind : undefined;
+    const deadBall = lastKind === 'fg' || lastKind === 'xp';
     /** A key man's ring, only once his moment is about to come (`t` seconds from the snap): nothing gives the play away. */
     const rings = (t: number) =>
       s.keys.forEach((id, i) => ringRefs.current.get(id)?.setAttribute('opacity', t >= s.reveal[i] ? '1' : '0'));
@@ -299,11 +430,13 @@ export function TopDownField({
       fieldRef.current?.setAttribute('transform', fieldTransform(view));
       svg.current?.setAttribute('viewBox', viewBox(view));
     };
-    const drawDot = (id: number, x: number, y: number, opacity = 1) => {
-      const el = dotRefs.current.get(id);
+    const drawDot = (id: number, x: number, y: number, opacity = 1, scale = 1, el = dotRefs.current.get(id)) => {
       if (!el) return;
       const [sx, sy] = toScreen(view, x, y);
-      el.setAttribute('transform', `translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+      el.setAttribute(
+        'transform',
+        `translate(${sx.toFixed(2)} ${sy.toFixed(2)})${scale !== 1 ? ` scale(${scale.toFixed(2)})` : ''}`,
+      );
       el.setAttribute('opacity', opacity.toFixed(2));
     };
     const drawBall = (x: number, y: number, h: number) => {
@@ -322,6 +455,36 @@ export function TopDownField({
       mem.ballY = y;
     };
 
+    /** A figure drawn at a field spot (an official, a trainer, the cart), or hidden. */
+    const figure = (el: Element | null | undefined, f: { x: number; y: number; opacity: number } | null) => {
+      if (!el) return;
+      if (!f) return el.setAttribute('opacity', '0');
+      const [sx, sy] = toScreen(view, f.x, f.y);
+      el.setAttribute('transform', `translate(${sx.toFixed(2)} ${sy.toFixed(2)})`);
+      el.setAttribute('opacity', f.opacity.toFixed(2));
+    };
+    const plan = crewPlan!;
+    const crewAt = (step: number) =>
+      CREW.map((_, k) => ({
+        x: plan.track[(step * CREW.length + k) * 2],
+        y: plan.track[(step * CREW.length + k) * 2 + 1],
+      }));
+    const drawCrew = (spots: readonly { x: number; y: number }[]) =>
+      spots.forEach((p, k) => figure(officialRefs.current[k], { ...p, opacity: 1 }));
+    /** The flag: in the air with its height, on the ground, or not out. */
+    const drawFlag = (f: { x: number; y: number; h: number } | null) => {
+      const el = flagRef.current;
+      if (!el) return;
+      if (!f) return el.setAttribute('opacity', '0');
+      const [sx, sy] = toScreen(view, f.x, f.y);
+      el.setAttribute(
+        'transform',
+        `translate(${sx.toFixed(2)} ${(sy - f.h * 0.3).toFixed(2)}) scale(${(1 + f.h / 5).toFixed(2)})`,
+      );
+      el.setAttribute('opacity', '1');
+    };
+    const crewFrom = mem.crew ?? plan.start;
+
     /** The jog between plays, `t` seconds in. */
     const jog = (t: number, seconds: number) => {
       const g = gap!;
@@ -337,32 +500,72 @@ export function TopDownField({
       const shown = t > g.beat && t < g.duration - 1.2 ? 1 : 0;
       bannerRef.current?.style.setProperty('opacity', String(shown));
       rings(-1);
-      // The officials walk out to their spots for a kickoff while the units change over.
-      crewRef.current?.setAttribute('opacity', Math.min(1, t / 2).toFixed(2));
-      flagRef.current?.setAttribute('opacity', '0');
+      drawFlag(null);
+      callRef.current?.style.setProperty('opacity', '0');
       for (const m of g.moves) {
         const p = g.at(m, t);
         drawDot(m.id, p.x, p.y, p.opacity);
         if (!m.leave) mem.spots.set(m.id, { x: p.x, y: p.y, home: m.home });
       }
-      // An official picks the ball up after the whistle, walks it to the new spot, sets it down and steps away.
+      // The ball between plays. Close by, the umpire runs to it where it died, picks it up and walks it to its spot.
+      // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
+      // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
       const tb = Math.max(0, t - g.beat);
-      const dist = ballFrom ? Math.hypot(s.ball[0] - ballFrom.x, s.ball[1] - ballFrom.y) : 0;
-      const carry = Math.min(Math.max(0.5, dist / CARRY), Math.max(0.5, (g.duration - g.beat - 1.5) * 0.8));
-      const k = ballFrom ? Math.min(1, tb / carry) : 1;
-      const bx = ballFrom ? ballFrom.x + (s.ball[0] - ballFrom.x) * k : s.ball[0];
-      const by = ballFrom ? ballFrom.y + (s.ball[1] - ballFrom.y) * k : s.ball[1];
-      drawBall(bx, by, 0);
-      camera(bx, seconds);
-      const away = Math.min(1, Math.max(0, (tb - carry) / 1.2));
-      const side = by > MID ? 1 : -1;
-      const [ox, oy] = toScreen(view, bx - dir * 0.6, by + side * (0.9 + away * 5));
-      const el = spotterRef.current;
-      el?.setAttribute('transform', `translate(${ox.toFixed(2)} ${oy.toFixed(2)})`);
-      el?.setAttribute(
-        'opacity',
-        (ballFrom ? Math.min(1, t / 0.4) * (1 - Math.max(0, away - 0.4) / 0.6) : 0).toFixed(2),
-      );
+      const spot = { x: s.ball[0], y: s.ball[1] };
+      const umpFrom = crewFrom[UMPIRE] ?? plan.start[UMPIRE];
+      const fresh = !ballFrom || deadBall || Math.hypot(spot.x - ballFrom.x, spot.y - ballFrom.y) > FRESH_BALL;
+      const pick = fresh ? { x: spot.x, y: spot.y < MID ? -0.8 : FIELD_W + 0.8 } : ballFrom!;
+      let fetch = Math.hypot(pick.x - umpFrom.x, pick.y - umpFrom.y) / UMP_RUN;
+      let carry = Math.hypot(spot.x - pick.x, spot.y - pick.y) / UMP_CARRY;
+      // He gets it there before the formation sets, hurrying if he has to.
+      const room = Math.max(1, g.duration - g.beat - 1.2);
+      if (fetch + carry > room) {
+        const k = room / (fetch + carry);
+        fetch *= k;
+        carry *= k;
+      }
+      const carried = Math.min(1, Math.max(0, (tb - fetch) / Math.max(0.2, carry)));
+      const ball =
+        tb < fetch ? pick : { x: pick.x + (spot.x - pick.x) * carried, y: pick.y + (spot.y - pick.y) * carried };
+      // The new ball shows once it's in his hands; the old one lies where it died, fading.
+      if (fresh && tb < fetch) {
+        ballRef.current?.setAttribute('opacity', '0');
+        shadowRef.current?.setAttribute('opacity', '0');
+      } else {
+        ballRef.current?.setAttribute('opacity', '1');
+        drawBall(ball.x, ball.y, 0);
+      }
+      if (fresh && ballFrom) {
+        const [ox, oy] = toScreen(view, ballFrom.x, ballFrom.y);
+        oldBallRef.current?.setAttribute('transform', `translate(${ox.toFixed(2)} ${oy.toFixed(2)})`);
+        oldBallRef.current?.setAttribute('opacity', Math.max(0, 1 - Math.max(0, tb - 0.4) / 1.2).toFixed(2));
+      } else oldBallRef.current?.setAttribute('opacity', '0');
+      camera(tb < fetch && fresh ? spot.x : ball.x, seconds);
+      // The crew walks to its spots for the next snap; the umpire fetches the ball, brings it, then takes his.
+      const walkTime = Math.max(1, g.duration - g.beat - 0.8);
+      const kWalk = Math.min(1, Math.max(0, tb / walkTime));
+      const ease = kWalk * kWalk * (3 - 2 * kWalk);
+      const hand = { x: -dir * 0.6, y: (spot.y > MID ? 1 : -1) * 0.9 };
+      plan.start.forEach((to, i) => {
+        const from = crewFrom[i] ?? to;
+        let p = { x: from.x + (to.x - from.x) * ease, y: from.y + (to.y - from.y) * ease };
+        if (i === UMPIRE) {
+          const at = { x: pick.x + hand.x, y: pick.y + hand.y };
+          if (tb < fetch) {
+            // To the ball (or the sideline for a fresh one) at a run.
+            const k = fetch > 0 ? tb / fetch : 1;
+            const e = k * k * (3 - 2 * k);
+            p = { x: from.x + (at.x - from.x) * e, y: from.y + (at.y - from.y) * e };
+          } else if (tb < fetch + carry) p = { x: ball.x + hand.x, y: ball.y + hand.y };
+          else {
+            const left = Math.max(0.6, walkTime - fetch - carry);
+            const k = Math.min(1, (tb - fetch - carry) / left);
+            const set = { x: spot.x + hand.x, y: spot.y + hand.y };
+            p = { x: set.x + (to.x - set.x) * k, y: set.y + (to.y - set.y) * k };
+          }
+        }
+        figure(officialRefs.current[i], { ...p, opacity: 1 });
+      });
     };
 
     /** The play itself, at `step`. */
@@ -372,16 +575,19 @@ export function TopDownField({
       camera(s.ball[step * 3], seconds);
       rings(step === last ? Infinity : step * s.dt);
       bannerRef.current?.style.setProperty('opacity', '0');
-      spotterRef.current?.setAttribute('opacity', '0');
-      crewRef.current?.setAttribute('opacity', '1');
-      // A flag on the play: thrown partway through, from the official's spot near the line.
-      flagRef.current?.setAttribute('opacity', step === last || step * s.dt >= FLAG_AT * last * s.dt ? '1' : '0');
+      // The crew with the play; the flag, thrown by the official nearest the foul; the call once it's over.
+      drawCrew(crewAt(step));
+      drawFlag(plan.thrown ? flagIn(plan.thrown, step * s.dt) : null);
+      callRef.current?.style.setProperty('opacity', step === last ? '1' : '0');
+      if (step === last) mem.crew = crewAt(last);
       for (let k = 0; k < n; k++) {
         const x = s.pos[(step * n + k) * 2];
         const y = s.pos[(step * n + k) * 2 + 1];
         drawDot(s.ids[k], x, y);
         mem.spots.set(s.ids[k], { x, y, home: s.home[k] });
       }
+      ballRef.current?.setAttribute('opacity', '1');
+      oldBallRef.current?.setAttribute('opacity', '0');
       drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
       mem.phi = turnTo;
@@ -399,17 +605,143 @@ export function TopDownField({
       const c = s.carrier === null ? -1 : s.ids.indexOf(s.carrier);
       return c < 0 ? null : { x, y, home: s.home[c] };
     };
-    /** The men who came off are gone once the play starts. */
+    /** The men who came off are gone once the play starts, and so is anyone drawn for a play no longer shown. */
     const clearBench = () => {
       for (const id of [...mem.spots.keys()]) if (!s.ids.includes(id)) mem.spots.delete(id);
-      for (const id of gap?.moves.filter((m) => m.leave).map((m) => m.id) ?? []) drawDot(id, 0, -20, 0);
+      for (const id of dotRefs.current.keys()) if (!s.ids.includes(id)) drawDot(id, 0, -20, 0);
+    };
+
+    /** The final whistle, `t` seconds after it: the celebration (or the handshakes), the walk off, the confetti. */
+    let scene: FinaleScene | null = null;
+    const finaleFrame = (t: number, seconds: number): boolean => {
+      if (!ending) return true;
+      if (!scene) {
+        const kicker = s.ids.find((_, k) => s.offense[k] && s.roles[k] === 'K');
+        scene = finaleScene({
+          kind: ending,
+          spots: new Map(mem.spots),
+          winnersHome,
+          // Where it ended: the carrier's spot; for a kick at the posts, where it was kicked from (the ball's own end
+          // is beyond the uprights).
+          at:
+            ran?.kind === 'fg' || ran?.kind === 'xp'
+              ? { x: s.ball[0], y: s.ball[1] }
+              : { x: s.ball[last * 3], y: s.ball[last * 3 + 1] },
+          hero: ending === 'walkoff' ? (s.carrier ?? kicker) : undefined,
+          sideline,
+          playoff: !!game.playoffRound,
+          title: game.playoffRound === 'FINAL',
+          colors: winners ? [winners.colors[0], winners.colors[1]] : [],
+          seed: `${league.seed}:${game.id}:final`,
+        });
+      }
+      finaleRef.current?.style.setProperty('opacity', t > 0.6 ? '1' : '0');
+      callRef.current?.style.setProperty('opacity', '0');
+      let sx = 0;
+      let n2 = 0;
+      for (const id of mem.spots.keys()) {
+        const f = scene.at(id, t);
+        if (!f) continue;
+        drawDot(id, f.x, f.y, f.opacity, f.scale);
+        // Remembered as it goes: when the viewer re-renders at the end, nobody snaps back to where the play ended.
+        mem.spots.set(id, { x: f.x, y: f.y, home: mem.spots.get(id)!.home });
+        if (f.opacity > 0.5 && winnersHome !== null && mem.spots.get(id)!.home === winnersHome) {
+          sx += f.x;
+          n2++;
+        }
+      }
+      for (const id of sideline) {
+        const f = scene.at(id, t);
+        if (f) drawDot(id, f.x, f.y, f.opacity, f.scale, extraRefs.current.get(id));
+      }
+      scene.confetti(t).forEach((c, i) => {
+        const el = confettiRefs.current[i];
+        if (!el) return;
+        const [cx, cy] = toScreen(view, c.x, c.y);
+        el.setAttribute('x', (cx - 0.25).toFixed(2));
+        el.setAttribute('y', (cy - c.h * 0.3 - 0.15).toFixed(2));
+        el.setAttribute('fill', c.color);
+        el.setAttribute('opacity', '1');
+      });
+      if (n2) camera(sx / n2, seconds);
+      mem.cx = view.cx;
+      return t >= scene.duration;
     };
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // A man hurt on the last play: the stoppage on the field, from where that play left everyone.
+    if (hurtId !== undefined && exit && following && !still && !reduced && mem.spots.has(hurtId)) {
+      const scene = injuryScene(mem.spots, hurtId, exit, `${league.seed}:${game.id}:hurt:${index}`);
+      const others = [...mem.spots.keys()].filter((id) => id !== hurtId);
+      // Men in this entry's cast who weren't on the field for the last play stay out of sight until the next snap.
+      for (const id of s.ids) if (!mem.spots.has(id)) drawDot(id, 0, -20, 0);
+      const ball = { x: mem.ballX ?? s.ball[0], y: mem.ballY };
+      drawFlag(null);
+      let raf = 0;
+      let t0 = 0;
+      let prev = 0;
+      const tick = (now: number) => {
+        if (!t0) t0 = prev = now;
+        const t = ((now - t0) / 1000) * speed;
+        const frame = ((now - prev) / 1000) * speed;
+        prev = now;
+        view.phi = mem.phi ?? turnTo;
+        const h = scene.hurt(Math.min(t, scene.duration));
+        camera(h.opacity > 0.05 ? h.x : ball.x, frame);
+        callRef.current?.style.setProperty('opacity', t > 0.4 ? '1' : '0');
+        for (const id of others) {
+          const p = scene.at(id, t);
+          if (p) drawDot(id, p.x, p.y, p.opacity);
+        }
+        drawDot(hurtId, h.x, h.y, h.opacity);
+        // A red ring round the man down until he's up and off.
+        const ring = hurtRingRef.current;
+        if (ring) {
+          const [rx, ry] = toScreen(view, h.x, h.y);
+          ring.setAttribute('cx', rx.toFixed(2));
+          ring.setAttribute('cy', ry.toFixed(2));
+          ring.setAttribute('opacity', (h.opacity > 0.5 ? h.opacity : 0).toFixed(2));
+        }
+        scene.trainers(t).forEach((f, i) => figure(trainerRefs.current[i], f));
+        figure(cartRef.current, scene.cart(t));
+        drawBall(ball.x, ball.y, 0);
+        // The officials hold where they were while the trainers work.
+        drawCrew(crewFrom);
+        if (t >= scene.duration) {
+          // Everyone where the stoppage left him; the man hurt is gone, and the next snap's jog starts from here.
+          mem.spots = new Map(scene.after);
+          mem.cx = view.cx;
+          mem.ended = { index, at: null };
+          drawDot(hurtId, 0, -20, 0);
+          hurtRingRef.current?.setAttribute('opacity', '0');
+          doneRef.current();
+          return;
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }
     if (still || reduced) {
       // Nothing moves, so the window jumps straight to where the play ended.
       clearBench();
       place(last, Infinity);
+      if (plan.thrown) drawFlag({ ...plan.thrown.to, h: 0 });
+      if (ending && !reduced) {
+        // A skipped batch that lands on the last play still gets its final whistle.
+        let raf = 0;
+        let t0 = 0;
+        let prev = 0;
+        const tick = (now: number) => {
+          if (!t0) t0 = prev = now;
+          const frame = ((now - prev) / 1000) * speed;
+          prev = now;
+          if (finaleFrame(((now - t0) / 1000) * speed, frame)) return doneRef.current();
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+      }
       const t = setTimeout(() => doneRef.current(), 450 / speed);
       return () => clearTimeout(t);
     }
@@ -418,6 +750,8 @@ export function TopDownField({
     let prev = 0;
     // Starting set: the last play's men are gone at once.
     let cleared = !gap;
+    let stopped = false;
+    let snappedYet = false;
     if (!gap) clearBench();
     const playTime = last * s.dt;
     const tick = (now: number) => {
@@ -432,10 +766,41 @@ export function TopDownField({
           clearBench();
           cleared = true;
         }
+        if (!snappedYet) {
+          snappedYet = true;
+          snapRef.current?.();
+        }
         place(Math.min(last, Math.floor((t - pre) / s.dt)), frame);
+      } else if (plan.thrown && t - pre - playTime < BREAK) {
+        // The break after a flag: play stopped, the crew comes together round it, and the call goes up.
+        if (!stopped) {
+          clearBench();
+          place(last, frame);
+          stopped = true;
+        }
+        const k = Math.min(1, (t - pre - playTime) / (BREAK * 0.6));
+        const e2 = k * k * (3 - 2 * k);
+        const end = crewAt(last);
+        const huddle = conference(end, plan.thrown.to);
+        const now = end.map((p, i) => ({ x: p.x + (huddle[i].x - p.x) * e2, y: p.y + (huddle[i].y - p.y) * e2 }));
+        drawCrew(now);
+        mem.crew = now;
+        camera(plan.thrown.to.x, frame);
+      } else if (ending) {
+        if (!stopped) {
+          clearBench();
+          place(last, frame);
+          stopped = true;
+        }
+        if (finaleFrame(t - pre - playTime - (plan.thrown ? BREAK : 0), frame)) {
+          doneRef.current();
+          return;
+        }
       } else {
-        clearBench();
-        place(last, frame);
+        if (!stopped) {
+          clearBench();
+          place(last, frame);
+        }
         doneRef.current();
         return;
       }
@@ -495,60 +860,9 @@ export function TopDownField({
         onPointerDown={onTap}
       >
         <g ref={fieldRef} transform={fieldTransform(view)}>
-          <rect x={-12} y={-5} width={124} height={FIELD_W + 10} fill="#255f37" />
-          <rect x={-10} y={0} width={120} height={FIELD_W} fill="#2f7a46" />
-          {Array.from({ length: 10 }, (_, i) => i * 10)
-            .filter((x) => (x / 10) % 2 === 0)
-            .map((x) => (
-              <rect key={x} x={x} y={0} width={10} height={FIELD_W} fill="#2b7141" />
-            ))}
-          <rect x={-10} y={0} width={10} height={FIELD_W} fill={home.colors[0]} />
-          <rect x={100} y={0} width={10} height={FIELD_W} fill={away.colors[0]} />
-          {Array.from({ length: 21 }, (_, i) => i * 5).map((x) => (
-            <line
-              key={x}
-              x1={x}
-              y1={0}
-              x2={x}
-              y2={FIELD_W}
-              stroke="rgba(255,255,255,0.7)"
-              strokeWidth={x % 10 ? 0.12 : 0.2}
-            />
-          ))}
-          {Array.from({ length: 99 }, (_, i) => i + 1)
-            .filter((x) => x % 5)
-            .map((x) => (
-              <g key={x} stroke="rgba(255,255,255,0.5)" strokeWidth={0.1}>
-                <line x1={x} y1={HASH_LO - 0.4} x2={x} y2={HASH_LO + 0.4} />
-                <line x1={x} y1={HASH_HI - 0.4} x2={x} y2={HASH_HI + 0.4} />
-              </g>
-            ))}
-          <rect x={-10} y={0} width={120} height={FIELD_W} fill="none" stroke="#fff" strokeWidth={0.3} />
+          <FieldPaint home={home} away={away} />
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
-          {entry.kind === 'kickoff' && (
-            <g ref={crewRef} opacity={0}>
-              {crew(staged.ball[0], dir).map(([x, y], i) => (
-                <g key={i} transform={`translate(${x} ${y})`}>
-                  <Official r={dot * 0.8} />
-                </g>
-              ))}
-            </g>
-          )}
-          {(entry.kind === 'penalty' || FLAGGED.test(entry.text)) && (
-            <g ref={flagRef} opacity={0} transform={`translate(${staged.ball[0] + dir * 1.5} ${staged.ball[1] + 3})`}>
-              <rect
-                x={-0.55}
-                y={-0.4}
-                width={1.1}
-                height={0.8}
-                rx={0.15}
-                fill="#ffd400"
-                stroke="#7a5d00"
-                strokeWidth={0.1}
-              />
-            </g>
-          )}
         </g>
         {leaving.map(([id, m]) => {
           const k2 = m.home ? homeKit : awayKit;
@@ -607,12 +921,114 @@ export function TopDownField({
             </g>
           );
         })}
-        <g ref={spotterRef} opacity={0}>
-          <Official r={dot * 0.85} />
-        </g>
+        {/* The winners' men off the field, who run on at the final whistle. */}
+        {sideline.map((id) => {
+          const k2 = winnersHome ? homeKit : awayKit;
+          return (
+            <g
+              key={`side:${id}`}
+              className="dot"
+              ref={(el) => {
+                if (el) extraRefs.current.set(id, el);
+                else extraRefs.current.delete(id);
+              }}
+              opacity={0}
+            >
+              <circle r={dot} fill={k2.jersey} stroke={k2.trim} strokeWidth={0.18} />
+              <text y={dot * 0.37} textAnchor="middle" fontSize={dot * 1.05} fontWeight={700} fill={k2.ink}>
+                {record.jerseys[id] ?? ''}
+              </text>
+            </g>
+          );
+        })}
+        {/* The crew, drawn under the ball; the flag on top of everything once it's thrown. */}
+        {CREW.map((role, i) => (
+          <g
+            key={role}
+            ref={(el) => {
+              officialRefs.current[i] = el;
+            }}
+            opacity={0}
+          >
+            <Official r={dot * 0.82} />
+          </g>
+        ))}
+        {hurtCall && (
+          <>
+            <circle ref={hurtRingRef} r={dot + 0.55} fill="none" stroke="#e53935" strokeWidth={0.3} opacity={0} />
+            {[0, 1].map((i) => (
+              <g
+                key={i}
+                ref={(el) => {
+                  trainerRefs.current[i] = el;
+                }}
+                opacity={0}
+              >
+                <Trainer r={dot * 0.85} />
+              </g>
+            ))}
+            <g ref={cartRef} opacity={0}>
+              <Cart r={dot} />
+            </g>
+          </>
+        )}
         <ellipse ref={shadowRef} rx={0.55} ry={0.32} fill="rgba(0,0,0,0.45)" />
+        {/* A dead ball left where it lay (in the net behind the posts) while a fresh one comes in. */}
+        <ellipse ref={oldBallRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} opacity={0} />
         <ellipse ref={ballRef} rx={0.55} ry={0.34} fill="#7a3f1d" stroke="#fff" strokeWidth={0.1} />
+        {ending && game.playoffRound === 'FINAL' && winnersHome !== null && (
+          <g>
+            {Array.from({ length: 140 }, (_, i) => (
+              <rect
+                key={i}
+                ref={(el) => {
+                  confettiRefs.current[i] = el;
+                }}
+                width={0.5}
+                height={0.3}
+                opacity={0}
+              />
+            ))}
+          </g>
+        )}
+        {flagged && (
+          <g ref={flagRef} opacity={0}>
+            <rect
+              x={-0.6}
+              y={-0.42}
+              width={1.2}
+              height={0.84}
+              rx={0.15}
+              fill="#ffd400"
+              stroke="#7a5d00"
+              strokeWidth={0.1}
+            />
+          </g>
+        )}
       </svg>
+      {finaleText && (
+        <div
+          ref={finaleRef}
+          key={`final:${index}`}
+          className="td-call td-call-final"
+          style={{ opacity: 0 }}
+          aria-live="polite"
+        >
+          {finaleText}
+        </div>
+      )}
+      {callText && (
+        <div
+          // A new element for each play: the last play's call never carries over, shown, onto this one.
+          key={index}
+          ref={callRef}
+          className={`td-call ${hurtCall ? 'td-call-injury' : 'td-call-flag'}`}
+          style={{ opacity: 0 }}
+          aria-live="polite"
+        >
+          {callText}
+        </div>
+      )}
       {handover && (
         <div ref={bannerRef} className="td-banner" style={{ opacity: 0 }} aria-live="polite">
           {handover} · {(entry.offense === home.id ? home : away).abbrev} ball

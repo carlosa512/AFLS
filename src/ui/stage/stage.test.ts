@@ -8,7 +8,7 @@ import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
 import { sample, script, stagedPath } from './scripts';
-import { stagePlay, type StagedPlay } from './stage';
+import { asRan, stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -265,9 +265,20 @@ describe('the staged play', () => {
     }
   });
 
-  it('ends the ball where the ball path ends', () => {
+  it('stages a snap a flag wiped out as it ran: the run or the pass, not just the walk-off', () => {
+    let n = 0;
+    for (const { e, p } of staged) {
+      if (e.kind !== 'penalty' || !e.ran?.kind) continue;
+      // Its keys are the men the snap was about, and the ball travels (unless it was an incomplete pass's).
+      expect(p.keys.length, e.text).toBeGreaterThan(0);
+      n++;
+    }
+    expect(n).toBeGreaterThan(50);
+  });
+
+  it('ends the ball where the ball path ends (a snap a flag wiped out, where it ran)', () => {
     for (const { e, p, homeId, snapY } of staged) {
-      const segs = stagedPath(e, homeId, snapY);
+      const segs = stagedPath(asRan(e), homeId, snapY);
       if (!segs.length) continue;
       const end = pointAt(segs[segs.length - 1], 1);
       const last = (p.steps - 1) * 3;

@@ -112,8 +112,13 @@ describe('celebrations', () => {
     const at = (id: number, t: number) => party.at(party.moves.find((m) => m.id === id)!, t);
     const gathered = at(2, party.celebrate);
     expect(Math.hypot(gathered.x - 100, gathered.y - 20)).toBeLessThan(3);
-    expect(Math.hypot(at(3, party.celebrate).x - 40, at(3, party.celebrate).y - 30)).toBeLessThan(1); // too far to join
-    expect(Math.hypot(at(4, party.celebrate).x - 95, at(4, party.celebrate).y - 22)).toBeLessThan(1); // not his team
+    // Too far to join, and not his team: they don't wait on the moment, they're already on their way.
+    expect(Math.hypot(at(3, party.celebrate).x - 40, at(3, party.celebrate).y - 30)).toBeGreaterThan(1);
+    expect(Math.hypot(at(4, party.celebrate).x - 95, at(4, party.celebrate).y - 22)).toBeGreaterThan(1);
+    // And never toward him: the defender heads for his spot, not the party.
+    expect(Math.hypot(at(4, party.celebrate).x - 100, at(4, party.celebrate).y - 20)).toBeGreaterThan(
+      Math.hypot(95 - 100, 22 - 20),
+    );
     for (const id of [1, 2, 3, 4]) {
       const end = at(id, party.duration);
       const k = next.ids.indexOf(id);
@@ -282,7 +287,7 @@ describe('the change-over before a kickoff', () => {
   it('brings the kick units on as the field clears, each in his own time, and sets them at their spots', () => {
     const on = ids.filter((id) => id >= 30).map(move);
     const starts = on.map((m) => m.start);
-    expect(Math.min(...starts)).toBeGreaterThan(1);
+    expect(Math.min(...starts)).toBeGreaterThan(0.7);
     expect(Math.max(...starts) - Math.min(...starts)).toBeGreaterThan(0.5);
     for (const m of tr.moves.filter((x) => !x.leave)) {
       const end = tr.at(m, tr.duration);

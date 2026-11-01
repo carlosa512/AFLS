@@ -8,6 +8,7 @@ import { gameClock, weekLabel } from '../format';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { asRan } from '../stage/stage';
 import { holdAfter, TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
@@ -339,9 +340,25 @@ export function Field({
 }
 
 // ───────── viewer screen ─────────
-/** Plays from scrimmage, whose result waits until it's been seen; a kick, a flag or a timeout is told at once. */
-const IN_PLAY: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
-export const inPlay = (e: PlayLogEntry | undefined): boolean => !!e?.kind && IN_PLAY.has(e.kind);
+/** Plays whose result waits until it's been seen (from scrimmage, and at the posts); a kickoff, a punt, a flag or a
+ * timeout is told at once. */
+const IN_PLAY: ReadonlySet<string> = new Set([
+  'run',
+  'pass',
+  'incomplete',
+  'int',
+  'sack',
+  'scramble',
+  // A kick at the posts, and a two-point try: good or not waits until you've seen it.
+  'fg',
+  'xp',
+  'two',
+]);
+export const inPlay = (e: PlayLogEntry | undefined): boolean => {
+  // A snap a flag wiped out ran like any other: its result waits too.
+  const kind = e ? asRan(e).kind : undefined;
+  return !!kind && IN_PLAY.has(kind);
+};
 
 export function playLabel(e: PlayLogEntry, homeId: number): string {
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';
@@ -428,8 +445,9 @@ export function HighlightSwitch({ value, onChange }: { value: HighlightLevel; on
 export type ViewKind = 'broadcast' | 'all22';
 const VIEWS: readonly ViewKind[] = ['broadcast', 'all22'];
 /** All-22's speeds: faster than 2× it can't be read. */
-const ALL22_SPEEDS = [1, 2];
-export const allSpeed = (speed: number): 1 | 2 => (speed > 1 ? 2 : 1);
+const ALL22_SPEEDS = [1, 2, 4];
+/** All-22 plays at 1×, 2× or 4×: a faster pick from the broadcast view (8×) drops to 4×. */
+export const allSpeed = (speed: number): 1 | 2 | 4 => (speed >= 4 ? 4 : speed > 1 ? 2 : 1);
 
 /** Broadcast | All-22: shown only for games that kept who was on the field. */
 export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {
@@ -539,6 +557,8 @@ export function GameViewer({
   // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
   // put up stay hidden, so the words never get ahead of the picture.
   const [seen, setSeen] = useState(false);
+  // Whether the play shown has been snapped (All-22): until then the last play's result stays up.
+  const [snapped, setSnapped] = useState(true);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -573,6 +593,7 @@ export function GameViewer({
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
     setStill(skipped);
     setSeen(false);
+    setSnapped(false);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
   };
@@ -609,6 +630,13 @@ export function GameViewer({
   // Every play up to this one, newest first: nothing past the current play (nor the current one, until it's been
   // seen), so the log never spoils it.
   const told = seen || !inPlay(entry);
+  // The result on the bar: this play's once it's been seen; before that (All-22's jog and huddle) the last play's
+  // stays up until the snap.
+  const tag = told
+    ? playLabel(entry, home.id)
+    : all22 && !snapped && index > 0
+      ? playLabel(plays[index - 1], home.id)
+      : '';
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
   /** The score on the board: the last play's until this one has been seen. */
   const board = told ? entry : (plays[index - 1] ?? { homeScore: 0, awayScore: 0 });
@@ -669,7 +697,9 @@ export function GameViewer({
             animKey={`${index}:${run}`}
             speed={shownSpeed}
             still={still}
+            final={index === plays.length - 1}
             onDone={onDone}
+            onSnap={() => setSnapped(true)}
             fallback={broadcast}
           />
         ) : (
@@ -678,7 +708,7 @@ export function GameViewer({
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{told ? playLabel(entry, home.id) : ''}</span>
+          <span className="viewer-tag">{tag}</span>
         </div>
 
         <div className="viewer-controls">

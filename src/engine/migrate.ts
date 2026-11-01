@@ -264,6 +264,9 @@ export function migrateLeague(league: League): League | null {
   // v71: All-22's play actors (`PlayLogEntry.who`) and who was on the field (`GameResult.field`). Both are optional:
   // games played before simply have none, and their replays offer the broadcast view only.
   if (league.version < 71) league.version = 71;
+  // v72: a snap a flag wiped out keeps the play as it ran (`PlayLogEntry.ran`), for All-22. Optional: older games'
+  // flagged plays show the walk-off alone.
+  if (league.version < 72) league.version = 72;
   return league;
 }
 

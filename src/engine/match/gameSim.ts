@@ -138,7 +138,7 @@ function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
   return [lean(qbs[0]), lean(qbs[1])];
 }
 
-type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who'>;
+type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran'>;
 
 /**
  * Who a scrimmage play was about, read off what the engine already chose: its stat lines, the man in coverage, the
@@ -1104,9 +1104,54 @@ class GameSim {
   }
 
   private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PackedActors) {
-    this.anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
-    if (air !== undefined) this.anim.air = this.fieldX(side, air);
-    if (who) this.anim.who = who;
+    this.anim = this.animOf(side, kind, from, to, air, lane, who);
+  }
+
+  private animOf(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PackedActors) {
+    const anim: Anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
+    if (air !== undefined) anim.air = this.fieldX(side, air);
+    if (who) anim.who = who;
+    return anim;
+  }
+
+  /** Who a scrimmage play was about, packed for the log (`actorsOf`). */
+  private actorsFor(result: PlayResult): PackedActors | undefined {
+    return packActors(
+      actorsOf({
+        entries: result.stats.entries,
+        defender: result.defender,
+        // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
+        rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
+        beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
+        take: result.turnover?.by,
+      }),
+    );
+  }
+
+  /**
+   * A snap as it ran, for the log, whether it stands or a flag wipes it out: its kind, where it started and ended,
+   * where the ball came down and who it was about (offense's yards; `animOf` turns them into the field's).
+   */
+  private ranAnim(result: PlayResult, start: number, airAt: number | undefined, who?: PackedActors): Anim {
+    const side = this.offense;
+    if (result.turnover) {
+      const { spot, returnYds } = result.turnover;
+      const isInt = result.turnover.kind === 'int';
+      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
+      return this.animOf(
+        side,
+        isInt ? 'int' : result.kind,
+        start,
+        end,
+        isInt ? Math.min(spot, 108) : airAt,
+        result.lane,
+        who,
+      );
+    }
+    const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
+    const ran = start + result.yards;
+    const end = kind === 'incomplete' ? start : ran >= 100 ? 102 : Math.max(-4, ran);
+    return this.animOf(side, kind, start, end, airAt, result.lane, who);
   }
 
   private takeSnapshot(down = this.down) {
@@ -3017,10 +3062,11 @@ class GameSim {
     const fouls = this.playFouls(result);
     const warning = this.playTime(result.duration);
     this.driveSnaps++;
+    const who = this.actorsFor(result);
 
     let late: { yardLine: number; text: string } | undefined;
     if (fouls.length) {
-      const call = this.callFouls(result, fouls);
+      const call = this.callFouls(result, fouls, this.ranAnim(result, startYardLine, airAt, who));
       // Taken (or offsetting): the play never happened, though the snap still wore the defense down.
       if (call === true) return;
       text += call.note;
@@ -3029,16 +3075,6 @@ class GameSim {
     ts.plays++;
 
     this.credit(result.stats);
-    const who = packActors(
-      actorsOf({
-        entries: result.stats.entries,
-        defender: result.defender,
-        // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
-        rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
-        beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
-        take: result.turnover?.by,
-      }),
-    );
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {
@@ -3257,6 +3293,8 @@ class GameSim {
   private callFouls(
     result: PlayResult,
     fouls: LiveFoul[],
+    /** The snap as it ran: logged with a play the flags wipe out, so All-22 shows it before the walk-off. */
+    ran: Anim,
   ): true | { note: string; late?: { yardLine: number; text: string } } {
     const offSide = this.offense;
     const defSide = this.def;
@@ -3270,6 +3308,12 @@ class GameSim {
       for (const f of fouls) this.flag(sideOf(f), f.foul, f.by, 'offset');
       this.clockRunning = false;
       this.setAnim(offSide, 'penalty', at.yardLine, at.yardLine, undefined, result.lane);
+      this.anim!.ran = {
+        kind: ran.kind,
+        to: ran.to,
+        ...(ran.air !== undefined ? { air: ran.air } : {}),
+        ...(ran.who ? { who: ran.who } : {}),
+      };
       this.log(`${result.text}. Offsetting penalties: ${fouls.map(named).join(', ')}. Replay the down.`);
       return true;
     }
@@ -3325,6 +3369,12 @@ class GameSim {
     // A defensive foul on the last play of a half: the offense gets one more snap.
     if (side === defSide && this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
     this.setAnim(offSide, 'penalty', at.yardLine, this.yardLine, undefined, result.lane);
+    this.anim!.ran = {
+      kind: ran.kind,
+      to: ran.to,
+      ...(ran.air !== undefined ? { air: ran.air } : {}),
+      ...(ran.who ? { who: ran.who } : {}),
+    };
     const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';
     this.log(`${result.text}${note}. ${called}${what}${this.untimed ? ' Untimed down.' : ''}`);
     return true;

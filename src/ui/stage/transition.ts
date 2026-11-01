@@ -42,7 +42,7 @@ const BIG_SCORE = 20;
 /** Before a kickoff: off the field at a run, a moment on the sideline, and the kick units on (yards a second). */
 const CHANGE = 6;
 /** A man coming off stands on the sideline this long (a range) before a man in both units goes back on. */
-const SIDELINE = [0.6, 1.4] as const;
+const SIDELINE = [0.3, 0.9] as const;
 
 /**
  * Whether the play at `index` earns a celebration: a touchdown from 20 yards or more, any return score, an
@@ -308,7 +308,7 @@ export function transition(
     // not all at once; a man in both units goes straight to his new spot (no trip to the sideline and back to wait on).
     const staying = moves.filter((m) => !m.leave);
     const setOff = (m: Move) =>
-      m.enter ? 1.2 + rng.next() * 1.8 : SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
+      m.enter ? 0.8 + rng.next() * 1.0 : SIDELINE[0] + rng.next() * (SIDELINE[1] - SIDELINE[0]);
     if (huddle) {
       // An offense huddles first: each man runs from where he is (the sideline, for the men coming on) into the
       // huddle in his own time, and it breaks once everyone's in.
@@ -352,14 +352,17 @@ export function transition(
     moves,
     at(m, t) {
       t = Math.max(0, t - beat);
-      if (t < celebrate) {
+      // The men celebrating, and the subs on the sideline, wait for the moment to pass; everyone else on the field
+      // heads for the next play straight away.
+      const waits = m.enter || m.joins > 0;
+      if (waits && t < celebrate) {
         // Running to him, then a moment together.
         const g = m.joins > 0 ? smooth(Math.min(1, t / m.joins)) : 0;
         const x = m.from.x + (m.mid.x - m.from.x) * g;
         const y = m.from.y + (m.mid.y - m.from.y) * g;
-        return { x, y, opacity: m.enter ? 0.2 : 1 };
+        return { x, y, opacity: 1 };
       }
-      t -= celebrate;
+      if (waits) t -= celebrate;
       if (t < m.start) {
         // Into the huddle (or off to the sideline), then the call (or his turn to go back on).
         const g = m.gather > 0 ? smooth(Math.min(1, Math.max(0, (t - m.gdelay) / m.gather))) : 1;

@@ -39,6 +39,8 @@ export function LiveGame({ league }: { league: League }) {
   const [viewPick, setViewPick] = useViewPick();
   // The play whose finish has been shown: until then its result, its line in the log and its points stay hidden.
   const [toldKey, setToldKey] = useState('');
+  // The play whose snap All-22 has shown: until then the last play's result stays up.
+  const [snapKey, setSnapKey] = useState('');
   if (!s || !game) {
     return (
       <section className="panel stack">
@@ -64,7 +66,7 @@ export function LiveGame({ league }: { league: League }) {
   const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
   const record = s.sim.field();
   const all22 = viewPick === 'all22' && !!record;
-  const speeds = all22 ? [1, 2] : SPEEDS;
+  const speeds = all22 ? [1, 2, 4] : SPEEDS;
   const speed = all22 ? allSpeed(s.speed) : s.speed;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
@@ -158,7 +160,9 @@ export function LiveGame({ league }: { league: League }) {
             animKey={`live:${s.gameId}:${s.current}`}
             speed={speed}
             still={s.still}
+            final={s.sim.over && s.current === s.plays.length - 1}
             onDone={onDone}
+            onSnap={() => setSnapKey(playKey)}
             fallback={broadcast}
           />
         ) : (
@@ -167,7 +171,13 @@ export function LiveGame({ league }: { league: League }) {
 
         <div className="viewer-sit">
           <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{told ? playLabel(entry, home.id) : ''}</span>
+          <span className="viewer-tag">
+            {told
+              ? playLabel(entry, home.id)
+              : all22 && snapKey !== playKey && s.current > 0
+                ? playLabel(s.plays[s.current - 1], home.id)
+                : ''}
+          </span>
         </div>
 
         {!s.finished && (
