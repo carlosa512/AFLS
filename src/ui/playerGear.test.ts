@@ -25,18 +25,20 @@ describe('gearOf', () => {
     expect(share('WR', (g) => pieces(g) > 0)).toBeGreaterThan(0.6);
     expect(share('QB', (g) => pieces(g) > 0)).toBeLessThan(0.6);
     expect(share('K', (g) => pieces(g) > 0)).toBeLessThan(0.4);
+    // sleeves in the trenches: edge rushers most, then tackles, then the offensive line
+    const sleeved = (position: Position) => share(position, (g) => !!g.sleeve);
+    expect(sleeved('EDGE')).toBeGreaterThan(sleeved('DT'));
+    expect(sleeved('DT')).toBeGreaterThan(sleeved('OL'));
+    expect(sleeved('OL')).toBeGreaterThan(0);
   });
   it('never dresses a position in what it would not wear', () => {
-    for (const p of players('OL')) {
-      const g = gearOf(p, true);
-      expect(g.sleeve ?? g.undershirt ?? g.band).toBeUndefined();
-    }
+    for (const position of ['OL', 'DT', 'EDGE'] as const)
+      for (const p of players(position)) expect(gearOf(p).band).toBeUndefined();
     for (const position of ['QB', 'WR', 'CB', 'S', 'K', 'P'] as const)
       for (const p of players(position)) {
         const g = gearOf(p);
         expect(g.elbowPads ?? g.shoulderBrace).toBeUndefined();
       }
-    for (const p of players('DT')) expect(gearOf(p).sleeve).toBeUndefined();
   });
   it('wears two pieces at most, and a cold game adds only its sleeves', () => {
     for (const position of POSITIONS)
@@ -65,7 +67,8 @@ describe('gearOf', () => {
     expect(share('WR', full, true)).toBeGreaterThan(0.8);
     expect(share('LB', full, true)).toBeGreaterThan(0.8);
     expect(share('DT', full, true)).toBeCloseTo(0.5, 1);
-    expect(share('OL', full, true)).toBe(0);
+    // the offensive line keeps whatever it wears and pulls nothing on for the cold
+    for (const p of players('OL')) expect(gearOf(p, true)).toEqual(gearOf(p));
     // the cold changes nothing else he wears
     for (const p of players('TE').slice(0, 500)) {
       const [warm, cold] = [gearOf(p), gearOf(p, true)];

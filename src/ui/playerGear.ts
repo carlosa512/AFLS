@@ -6,7 +6,8 @@ import { pick } from './staffLook';
 // What a player wears on his arms in his avatar: picked once from his id and position, so his look is his for a
 // career, plus sleeves in a cold game. Nothing is saved and nothing reads ratings. The rates come from how players
 // dress by position (`docs/AVATARS.md`): skill players in light sleeves and bands, the trenches in elbow pads, a
-// shoulder brace now and then, the offensive line bare-armed even in the cold. The pictures are in `gearArt.tsx`.
+// shoulder brace now and then, and sleeves on a lineman now and then (edge rushers most, then tackles, then the
+// offensive line), though the offensive line never pulls them on for the cold. The pictures are in `gearArt.tsx`.
 
 export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
 /** Seen from behind: his left arm is on the viewer's left. */
@@ -34,7 +35,7 @@ interface Rates {
   forearm?: number;
   elbowPads?: number;
   brace?: number;
-  /** Of those in cold-game sleeves: most players, half the tackles, never the offensive line. */
+  /** Who pulls full sleeves on in a cold game: most players, half the tackles, never the offensive line. */
   cold?: number;
 }
 export const GEAR_RATES: Record<Position, Rates> = {
@@ -51,9 +52,9 @@ export const GEAR_RATES: Record<Position, Rates> = {
   },
   WR: { sleeve: 0.6, bothArms: 0.7, undershirt: 0.15, biceps: 0.35, forearm: 0.15, cold: 0.85 },
   TE: { sleeve: 0.25, bothArms: 0.5, undershirt: 0.25, biceps: 0.1, elbowPads: 0.35, brace: 0.08, cold: 0.85 },
-  OL: { elbowPads: 0.6, brace: 0.12 },
-  DT: { undershirt: 0.15, elbowPads: 0.45, brace: 0.08, cold: 0.5 },
-  EDGE: { sleeve: 0.1, bothArms: 0.5, undershirt: 0.2, elbowPads: 0.4, brace: 0.1, cold: 0.85 },
+  OL: { sleeve: 0.1, bothArms: 0.5, undershirt: 0.08, elbowPads: 0.4, brace: 0.12 },
+  DT: { sleeve: 0.15, bothArms: 0.5, undershirt: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.5 },
+  EDGE: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.2, elbowPads: 0.4, brace: 0.1, cold: 0.85 },
   LB: { sleeve: 0.25, bothArms: 0.6, undershirt: 0.3, biceps: 0.15, elbowPads: 0.3, brace: 0.08, cold: 0.85 },
   CB: { sleeve: 0.55, bothArms: 0.7, undershirt: 0.2, biceps: 0.3, forearm: 0.15, cold: 0.85 },
   S: { sleeve: 0.45, bothArms: 0.65, undershirt: 0.2, biceps: 0.2, forearm: 0.15, cold: 0.85 },

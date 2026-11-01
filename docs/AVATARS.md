@@ -92,8 +92,9 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   doesn't read as a sleeve). Two pieces at most. Colours: black, white or the primary; bands also the secondary.
 - **By position** (`GEAR_RATES`): skill players in light sleeves and bands (a sleeve on about 60% of receivers,
   55% of corners, 45% of backs and safeties), a third of quarterbacks in one (on both arms more often than not,
-  otherwise the throwing arm), the trenches in elbow pads (60% of the offensive line, 45% of tackles, 40% of edge
-  rushers), a shoulder brace on about one lineman or edge rusher in ten, kickers and punters nearly bare. Linemen
+  otherwise the throwing arm), the trenches in elbow pads (40% of the offensive line and edge rushers, 30% of
+  tackles) and now and then a sleeve (a quarter of edge rushers, 15% of tackles, 10% of the offensive line), a
+  shoulder brace on about one lineman or edge rusher in ten, kickers and punters nearly bare. Linemen
   take most of their contact through the elbows, and most NFL arm injuries are theirs
   ([WashU](https://source.washu.edu/2008/08/researchers-track-common-arm-injuries-among-nfl-players/)); skill players
   wear the lighter gear ([Dick's](https://www.dickssportinggoods.com/protips/sports-and-activities/football/choose-football-arm-protection));
@@ -101,8 +102,9 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   ([study](https://pmc.ncbi.nlm.nih.gov/articles/PMC5140042/)).
 - **Cold games** (`coldGame`): open air at 35°F or colder at kickoff (`COLD_KICKOFF_F`), snow, or heavy rain, and
   about 85% of players pull on full sleeves in the colour they'd pick anyway, half the tackles, never the offensive
-  line, which goes bare-armed in any weather ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It
-  follows the kit's game, like the hot-day white jerseys; nothing else he wears changes.
+  line: a lineman who wears sleeves keeps them, but the line doesn't dress for the cold
+  ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It follows the kit's game, like the hot-day white
+  jerseys; nothing else he wears changes.
 - **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
   brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
   band wouldn't show.
