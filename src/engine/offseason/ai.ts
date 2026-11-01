@@ -537,10 +537,15 @@ export function aiFreeAgencyDay(
   // Each front office bids on what its own scouts see; the player's price is still his real market.
   const read = viewCache(league);
   let signings = 0;
+  // A club cuts at most one player a pass to make room for a better free agent (a cut man is back in the pool).
+  const cutThisPass = new Set<number>();
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
-    let best: { team: Team; offer: Offer; value: number } | null = null;
+    let best: { team: Team; offer: Offer; value: number; cut?: Player } | null = null;
+    const minimum = minSalary(p.experience, league.caps[league.season]);
+    // What he signs for: his walk-away, or on the last call anything from his minimum up.
+    const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
     for (const team of teams) {
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
@@ -553,11 +558,28 @@ export function aiFreeAgencyDay(
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
         (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
+      let cut: Player | undefined;
       if (yearOne > budget.get(team.id)!) {
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
-        const fitted = fitOffer(offer, budget.get(team.id)!, minSalary(p.experience, league.caps[league.season]));
-        if (!fitted || gain < upgradeBar(league, team, fitted.apy)) continue;
-        offer = fitted;
+        const fits = (o: Offer | null): o is Offer =>
+          !!o && gain >= upgradeBar(league, team, o.apy) && offerValue(league, p, team.id, o) >= floorAt(team.id);
+        const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
+        if (fits(fitted)) offer = fitted;
+        else {
+          // Still short: the GM cuts the player it can best spare, if he's worse than this one today and where it's
+          // headed, and his release makes the deal fit (an NFL club cutting a pricier veteran for a better, cheaper one).
+          const spare = cutThisPass.has(team.id) ? null : capCut(league, team);
+          if (
+            !spare ||
+            playerOvr(spare) >= playerOvr(p) ||
+            teamOutlook(league, team.id, spare, winNow(league, team)) >= ahead
+          )
+            continue;
+          const refit = fitOffer(offer, budget.get(team.id)! + releasePreview(league, spare).savings, minimum);
+          if (!fits(refit)) continue;
+          offer = refit;
+          cut = spare;
+        }
       }
       if (
         offer.years > 1 &&
@@ -566,13 +588,15 @@ export function aiFreeAgencyDay(
       )
         continue;
       const value = offerValue(league, p, team.id, offer);
-      if (!best || value > best.value) best = { team, offer, value };
+      if (!best || value > best.value) best = { team, offer, value, cut };
     }
-    if (!best) continue;
-    const floor = opts.lastCall
-      ? minSalary(p.experience, league.caps[league.season])
-      : demand(league, p, best.team.id).walkAway;
-    if (best.value < floor) continue;
+    if (!best || best.value < floorAt(best.team.id)) continue;
+    if (best.cut) {
+      budget.set(best.team.id, budget.get(best.team.id)! + releasePreview(league, best.cut).savings);
+      releasePlayer(league, best.cut);
+      cutThisPass.add(best.team.id);
+      room.set(best.team.id, room.get(best.team.id)! + 1);
+    }
     const before = capSpace(league, best.team.id);
     signPlayer(league, p, best.team.id, best.offer);
     signings++;
