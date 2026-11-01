@@ -191,7 +191,16 @@ describe('the tag keeps a star who’d walk', () => {
 
 describe('caution is next year’s headroom, not a quota', () => {
   it('leaves a cautious GM more of next year’s cap free than a bold one', () => {
-    expect(nextYearCeiling({ capAggression: 0 } as never)).toBeLessThan(nextYearCeiling({ capAggression: 1 } as never));
-    expect(nextYearCeiling({ capAggression: 1 } as never)).toBeCloseTo(NEXT_YEAR_CEILING, 9);
+    expect(nextYearCeiling({ capAggression: 0 } as never, 1)).toBeLessThan(
+      nextYearCeiling({ capAggression: 1 } as never, 1),
+    );
+    expect(nextYearCeiling({ capAggression: 1 } as never, 1)).toBeCloseTo(NEXT_YEAR_CEILING, 9);
+  });
+
+  it('leaves a rebuilding club more of next year’s cap free than a contender', () => {
+    for (const capAggression of [0, 0.5, 1])
+      expect(nextYearCeiling({ capAggression } as never, 0)).toBeLessThan(
+        nextYearCeiling({ capAggression } as never, 1),
+      );
   });
 });

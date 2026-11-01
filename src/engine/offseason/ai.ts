@@ -159,7 +159,7 @@ export function needGain(depth: Record<Position, number[]>, player: Player, ovr 
 }
 
 /** Effective contention focus: the GM's temperament nudged by where the roster actually is. */
-const winNow = (league: League, team: Team) =>
+export const winNow = (league: League, team: Team) =>
   clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
 /** 0 when a team is near the cap, 1 when it has a third of the cap or more to spend. Rich teams overpay. */
@@ -340,11 +340,19 @@ export function resignCall(
 }
 
 /**
- * How much of next year's cap a GM will commit when he pushes money forward: a bold one runs to the ceiling an opening
- * roster may (`NEXT_YEAR_CEILING`), a cautious one keeps seven points of it free.
+ * How much less of next year a rebuilding club commits early than an all-in contender, as a share of next year's cap. A
+ * club playing for later keeps next year's room (unused cap carries over): 78% of NFL playoff teams restructure, and
+ * about 45% of all clubs restructure nobody in a year (Over the Cap). Sized to that share in the offseason check.
  */
-export const nextYearCeiling = (gm: Pick<GmTraits, 'capAggression'>) =>
-  NEXT_YEAR_CEILING - 0.07 * (1 - gm.capAggression);
+export const REBUILD_CAUTION = 0.1;
+
+/**
+ * How much of next year's cap a GM will commit when he pushes money forward: a bold one at a contender runs to the
+ * ceiling an opening roster may (`NEXT_YEAR_CEILING`); a cautious one keeps seven points of it free, and a club playing
+ * for later (`winNow`) keeps more.
+ */
+export const nextYearCeiling = (gm: Pick<GmTraits, 'capAggression'>, winNow: number) =>
+  NEXT_YEAR_CEILING - 0.07 * (1 - gm.capAggression) - REBUILD_CAUTION * (1 - winNow);
 
 /**
  * Whether a club plans to keep a player starting: where he's headed (its three-season read, `teamOutlook`) he's still
@@ -406,6 +414,8 @@ function restructureRoom(league: League, team: Team, need: number, keeper?: Play
   let gained = 0;
   // Next year's own keepers, draft class and cushion come first: only what's left under the ceiling is borrowed.
   const owed = nextYearNeeds(league, team);
+  // A contender borrows to its GM's ceiling; a club playing for later keeps more of next year free.
+  const wn = winNow(league, team);
   for (let guard = 0; guard < 12 && gained < need; guard++) {
     const best = teamPlayers(league, team.id)
       .filter(
@@ -422,7 +432,7 @@ function restructureRoom(league: League, team: Team, need: number, keeper?: Play
     if (!best) break;
     // Converting x adds x / years to each later year's cap: keep next year's, its needs counted, under its ceiling.
     const nextRoom =
-      nextYearCeiling(team.gm) * capFor(league, league.season + 1) -
+      nextYearCeiling(team.gm, wn) * capFor(league, league.season + 1) -
       capSheet(league, team.id, league.season + 1).used -
       owed;
     const amount = Math.min(Math.ceil((need - gained) / (1 - 1 / best.o.years)), Math.floor(nextRoom * best.o.years));

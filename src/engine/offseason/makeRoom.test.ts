@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { capFor, capSheet, capSpace, restructureOptions } from '../finance/cap';
 import { capHit, isExpired, lastSeason } from '../finance/contract';
 import { marketApy, leagueMarket } from '../finance/market';
-import { createLeague, NEXT_YEAR_CEILING } from '../generate';
+import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
@@ -18,6 +18,7 @@ import {
   nextYearNeeds,
   resignCall,
   spendable,
+  winNow,
 } from './ai';
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
@@ -132,7 +133,7 @@ describe('the bill comes later, within next year’s books', () => {
     // Under the cap (so the window's own compliance pass has nothing to do), with next year's books half a million
     // under their ceiling: the deals already running and next year's dead money, new deals signed in the window aside.
     const { l, team } = squeezed(0, 1);
-    const ceiling = NEXT_YEAR_CEILING * capFor(l, l.season + 1);
+    const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * capFor(l, l.season + 1);
     const running = teamPlayers(l, team.id).filter((x) => x.contract && !isExpired(x.contract, l.season));
     const books = () =>
       running.filter((x) => x.teamId === team.id).reduce((a, x) => a + capHit(x.contract!, l.season + 1), 0) +
@@ -180,7 +181,7 @@ describe('GMs plan next year first', () => {
   const fullNextYear = () => {
     const x = squeezed(0, 1);
     const { l, team } = x;
-    const ceiling = nextYearCeiling(team.gm) * capFor(l, l.season + 1);
+    const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * capFor(l, l.season + 1);
     const used = capSheet(l, team.id, l.season + 1).used;
     team.deadMoney.push({
       season: l.season + 1,
@@ -219,6 +220,42 @@ describe('GMs plan next year first', () => {
     expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
     // Next year owes its own keepers: the room comes from a cut this year, not from next year's books.
     expect(restructures(l, team.id)).toBe(0);
+  });
+});
+
+describe('contenders borrow, rebuilders keep next year’s room', () => {
+  /** `squeezed` with next year's room to borrow against, the GM all-in (1) or rebuilding (0). */
+  const club = (wn: number) => {
+    const x = squeezed(-0.6, 1);
+    x.team.gm.winNow = wn;
+    x.team.deadMoney.push({
+      season: x.l.season + 1,
+      amount: -Math.round(0.2 * capFor(x.l, x.l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
+    return x;
+  };
+
+  it('a rebuilding club borrows less of next year than a contender', () => {
+    const rebuild = club(0);
+    const contend = club(1);
+    aiResignWindow(rebuild.l, rebuild.team, new Rng('room'));
+    aiResignWindow(contend.l, contend.team, new Rng('room'));
+    // Restructures, not next year's books: a win-now GM also pays more in his re-signs.
+    expect(restructures(rebuild.l, rebuild.team.id)).toBeLessThan(restructures(contend.l, contend.team.id));
+  });
+
+  it('a rebuilding club over the cap still gets under it', () => {
+    const { l, team } = club(0);
+    team.deadMoney.push({
+      season: l.season,
+      amount: Math.round(capSpace(l, team.id) + 0.03 * l.caps[l.season]),
+      playerId: -1,
+      note: 'test',
+    });
+    aiCapCompliance(l, team);
+    expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
   });
 });
 
