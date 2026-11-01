@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { capSpace, restructureOptions } from '../finance/cap';
-import { isExpired } from '../finance/contract';
+import { capFor, capSheet, capSpace, restructureOptions } from '../finance/cap';
+import { capHit, isExpired } from '../finance/contract';
 import { marketApy, leagueMarket } from '../finance/market';
-import { createLeague } from '../generate';
+import { createLeague, NEXT_YEAR_CEILING } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
@@ -79,5 +79,27 @@ describe('GMs make room to keep their core', () => {
       .map((id) => l.players[id])
       .filter((x) => x.teamId === null && x.left?.some((d) => d.how === 'cut'));
     for (const x of cut) expect(playerOvr(x)).toBeLessThan(playerOvr(p));
+  });
+});
+
+describe('the bill comes later, within next year’s books', () => {
+  it('never restructures next year’s books past their ceiling', () => {
+    // Under the cap (so the window's own compliance pass has nothing to do), with next year's books half a million
+    // under their ceiling: the deals already running and next year's dead money, new deals signed in the window aside.
+    const { l, team } = squeezed(0, 1);
+    const ceiling = NEXT_YEAR_CEILING * capFor(l, l.season + 1);
+    const running = teamPlayers(l, team.id).filter((x) => x.contract && !isExpired(x.contract, l.season));
+    const books = () =>
+      running.filter((x) => x.teamId === team.id).reduce((a, x) => a + capHit(x.contract!, l.season + 1), 0) +
+      team.deadMoney.filter((d) => d.season === l.season + 1).reduce((a, d) => a + d.amount, 0);
+    const others = capSheet(l, team.id, l.season + 1).used - books();
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: Math.round(ceiling - others - books() - 500),
+      playerId: -1,
+      note: 'test',
+    });
+    aiResignWindow(l, team, new Rng('room'));
+    expect(books() + others).toBeLessThanOrEqual(ceiling + 1);
   });
 });

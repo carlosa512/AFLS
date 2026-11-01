@@ -428,7 +428,7 @@ function rookieExtension(market: Market, player: Player, season: number, gm: GmT
 /** The most `fitPayroll` scales a roster's pay above the minimum: past it, what's missing comes as raises. */
 const MAX_SCALE = 1.5;
 /** The most of next year's cap an opening roster's restructures may commit. */
-const NEXT_YEAR_CEILING = 0.97;
+export const NEXT_YEAR_CEILING = 0.97;
 /**
  * The most a last-year deal is raised to, as a multiple of its player's market. A settled league's kickoffs pay their
  * last-year deals 1.13-1.55 times their market in all; 1.55 a deal left a new league's at 1.16 (the position's top

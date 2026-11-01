@@ -32,7 +32,7 @@ import {
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
-import { generatePlayer } from '../generate';
+import { generatePlayer, NEXT_YEAR_CEILING } from '../generate';
 import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
@@ -345,8 +345,10 @@ const restructuresFor = (team: Team) => 1 + Math.round(3 * team.gm.capAggression
 /**
  * Make `need` of room this league year to keep `keeper`, as an NFL front office does: restructure its biggest deals,
  * converting only what it needs (as many as its GM's appetite for pushing money forward allows across the window,
- * `made`), then cut the veteran it can best spare, never one better than the keeper. The bill comes later: the
- * restructured money lands on next years' caps. Returns the room made.
+ * `made`) and no more than next year's books can carry (`NEXT_YEAR_CEILING`, as an opening roster's), then cut the
+ * veteran it can best spare, never one better than the keeper. The bill comes later, on next years' caps; uncapped,
+ * contenders kept their core a year and hit cap hell two later (record carryover −0.09 at three seasons, dead money
+ * climbing league-wide). Returns the room made.
  */
 function makeRoom(league: League, team: Team, need: number, keeper: Player, made: { restructures: number }): number {
   let gained = 0;
@@ -357,7 +359,12 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, made
       .filter((x) => x.o.savings > 1_000)
       .sort((a, b) => b.o.savings - a.o.savings)[0];
     if (!best) break;
-    gained += restructurePlayer(league, best.p, Math.ceil((need - gained) / (1 - 1 / best.o.years)));
+    // Converting x adds x / years to each later year's cap: keep next year's under its ceiling.
+    const nextRoom =
+      NEXT_YEAR_CEILING * capFor(league, league.season + 1) - capSheet(league, team.id, league.season + 1).used;
+    const amount = Math.min(Math.ceil((need - gained) / (1 - 1 / best.o.years)), Math.floor(nextRoom * best.o.years));
+    if (amount <= 0) break;
+    gained += restructurePlayer(league, best.p, amount);
     made.restructures++;
   }
   if (gained < need) {
