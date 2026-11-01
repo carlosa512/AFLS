@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { capFor, capSheet, capSpace, restructureOptions } from '../finance/cap';
-import { capHit, isExpired } from '../finance/contract';
+import { capHit, isExpired, lastSeason } from '../finance/contract';
 import { marketApy, leagueMarket } from '../finance/market';
 import { createLeague, NEXT_YEAR_CEILING } from '../generate';
 import { simToEndOfSeason } from '../league';
@@ -8,7 +8,17 @@ import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { teamPlayers } from '../roster';
 import type { League, Player } from '../types';
-import { aiCapCompliance, aiResignWindow, expiringPlayers, inPlans, resignCall, spendable } from './ai';
+import {
+  aiCapCompliance,
+  aiResignWindow,
+  expiringPlayers,
+  IN_SEASON_RESERVE,
+  inPlans,
+  nextYearCeiling,
+  nextYearNeeds,
+  resignCall,
+  spendable,
+} from './ai';
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
 
@@ -56,6 +66,13 @@ const restructures = (l: League, teamId: number) =>
 describe('GMs make room to keep their core', () => {
   it('restructures to re-sign a keeper it can’t fit, and stays under the cap', () => {
     const { l, team, p } = squeezed(0, 0.6);
+    // Next year with room to borrow against, its own needs counted.
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: -Math.round(0.2 * capFor(l, l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
     aiResignWindow(l, team, new Rng('room'));
     expect(p.teamId).toBe(team.id);
     expect(isExpired(p.contract!, l.season)).toBe(false);
@@ -129,6 +146,79 @@ describe('the bill comes later, within next year’s books', () => {
     });
     aiResignWindow(l, team, new Rng('room'));
     expect(books() + others).toBeLessThanOrEqual(ceiling + 1);
+  });
+});
+
+describe('GMs plan next year first', () => {
+  /** An AI club's players whose deals end after this league year and that it plans to keep. */
+  const nextKeepers = (l: League, teamId: number) =>
+    teamPlayers(l, teamId).filter(
+      (x) => x.contract && lastSeason(x.contract) === l.season && inPlans(l, l.teams[teamId], x),
+    );
+
+  it('counts next year’s planned keepers, next year’s draft class and the cushion', () => {
+    const l: League = JSON.parse(window);
+    const team = l.teams.find((t) => t.id !== l.userTeamId && nextKeepers(l, t.id).length)!;
+    const market = leagueMarket(l);
+    const cushion = capFor(l, l.season + 1) * IN_SEASON_RESERVE * (1.5 - team.gm.capAggression);
+    const keepers = nextKeepers(l, team.id);
+    const base = nextYearNeeds(l, team);
+    expect(base).toBeGreaterThanOrEqual(keepers.reduce((a, x) => a + marketApy(market, x), 0) + cushion - 1);
+    // Another club's pick for next year, now his: next year's class costs more.
+    const pick = l.draftPicks.find((d) => d.season === l.season + 1 && d.ownerId !== team.id)!;
+    pick.ownerId = team.id;
+    const withPick = nextYearNeeds(l, team);
+    expect(withPick).toBeGreaterThan(base);
+    // A keeper whose deal runs a year past next year's window isn't a need yet.
+    const k = keepers[0];
+    const last = k.contract!.years.find((y) => y.season === l.season)!;
+    k.contract!.years.push({ ...last, season: l.season + 1 });
+    expect(nextYearNeeds(l, team)).toBeCloseTo(withPick - marketApy(market, k), 0);
+  });
+
+  /** `squeezed`, with next year's books plus next year's needs set right at the GM's ceiling. */
+  const fullNextYear = () => {
+    const x = squeezed(0, 1);
+    const { l, team } = x;
+    const ceiling = nextYearCeiling(team.gm) * capFor(l, l.season + 1);
+    const used = capSheet(l, team.id, l.season + 1).used;
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: Math.round(ceiling - used - nextYearNeeds(l, team)),
+      playerId: -1,
+      note: 'test',
+    });
+    return x;
+  };
+
+  it('borrows less when next year’s keepers already fill next year', () => {
+    // The same club, next year roomy or full once its needs are counted. (Full, it may still cut a lesser veteran, which
+    // frees next year too, and borrow against that.)
+    const full = fullNextYear();
+    const roomy = squeezed(0, 1);
+    roomy.team.deadMoney.push({
+      season: roomy.l.season + 1,
+      amount: -Math.round(0.2 * capFor(roomy.l, roomy.l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
+    aiResignWindow(full.l, full.team, new Rng('room'));
+    aiResignWindow(roomy.l, roomy.team, new Rng('room'));
+    expect(restructures(full.l, full.team.id)).toBeLessThan(restructures(roomy.l, roomy.team.id));
+  });
+
+  it('stays legal when next year’s needs leave no room, cutting rather than borrowing', () => {
+    const { l, team } = fullNextYear();
+    team.deadMoney.push({
+      season: l.season,
+      amount: Math.round(capSpace(l, team.id) + 0.03 * l.caps[l.season]),
+      playerId: -1,
+      note: 'test',
+    });
+    aiCapCompliance(l, team);
+    expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
+    // Next year owes its own keepers: the room comes from a cut this year, not from next year's books.
+    expect(restructures(l, team.id)).toBe(0);
   });
 });
 

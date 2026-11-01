@@ -32,7 +32,7 @@ import {
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
-import { generatePlayer, NEXT_YEAR_CEILING } from '../generate';
+import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
 import { clamp, Rng } from '../rng';
 import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
@@ -378,12 +378,34 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player): num
 }
 
 /**
+ * What next year will need before anything is borrowed against it: the players whose deals end after this league year
+ * that the club plans to keep (`inPlans`), at their market price; next year's draft class (the picks it owns for next
+ * season, a pick's slot read from its round until the order is set); and the cushion it holds for in-season injuries at
+ * next year's cap. A GM who borrowed without these was short again the next spring and borrowed more: room made for
+ * keepers ran 86, 98, 137 and 167 restructures in seasons 1-4.
+ */
+export function nextYearNeeds(league: League, team: Team): number {
+  const season = league.season + 1;
+  const cap = capFor(league, season);
+  const market = leagueMarket(league);
+  const keepers = teamPlayers(league, team.id)
+    .filter((p) => p.contract && lastSeason(p.contract) === league.season && inPlans(league, team, p))
+    .reduce((sum, p) => sum + marketApy(market, p), 0);
+  const draft = league.draftPicks
+    .filter((d) => d.season === season && d.ownerId === team.id && d.playerId === undefined)
+    .reduce((sum, d) => sum + capHit(rookieContract(d.overall ?? (d.round - 1) * 32 + 16, season, cap), season), 0);
+  return keepers + draft + cap * IN_SEASON_RESERVE * (1.5 - team.gm.capAggression);
+}
+
+/**
  * Restructure up to `need` of room this league year, as a GM does: the biggest deals of players it plans to keep
  * starting (`inPlans`), converting only what it needs and no more than next year's books can carry as this GM keeps
- * them (`nextYearCeiling`). Returns the room made.
+ * them (`nextYearCeiling`), next year's own needs counted first (`nextYearNeeds`). Returns the room made.
  */
 function restructureRoom(league: League, team: Team, need: number, keeper?: Player): number {
   let gained = 0;
+  // Next year's own keepers, draft class and cushion come first: only what's left under the ceiling is borrowed.
+  const owed = nextYearNeeds(league, team);
   for (let guard = 0; guard < 12 && gained < need; guard++) {
     const best = teamPlayers(league, team.id)
       .filter(
@@ -398,11 +420,14 @@ function restructureRoom(league: League, team: Team, need: number, keeper?: Play
       .filter((x) => x.o.savings > 1_000)
       .sort((a, b) => b.o.savings - a.o.savings)[0];
     if (!best) break;
-    // Converting x adds x / years to each later year's cap: keep next year's under its ceiling.
+    // Converting x adds x / years to each later year's cap: keep next year's, its needs counted, under its ceiling.
     const nextRoom =
-      nextYearCeiling(team.gm) * capFor(league, league.season + 1) - capSheet(league, team.id, league.season + 1).used;
+      nextYearCeiling(team.gm) * capFor(league, league.season + 1) -
+      capSheet(league, team.id, league.season + 1).used -
+      owed;
     const amount = Math.min(Math.ceil((need - gained) / (1 - 1 / best.o.years)), Math.floor(nextRoom * best.o.years));
-    if (amount <= 0) break;
+    // Too little to be worth converting (the candidates are deals that would save over $1K).
+    if (amount < 1_000) break;
     const saved = restructurePlayer(league, best.p, amount);
     if (saved <= 0) break;
     gained += saved;
