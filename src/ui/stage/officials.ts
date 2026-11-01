@@ -124,19 +124,11 @@ export interface FlagThrow {
 const FLIGHT = 0.55;
 
 /**
- * The flag on a play: where it lands (at the line for a foul before the snap or by the blockers, else where the ball
- * is when it comes out) and who throws it, the official nearest that spot when it does.
+ * A flag on a play: it lands where the foul was (`fouls.ts`), thrown `thrownAt` seconds from the snap by the official
+ * nearest that spot then.
  */
-export function flagThrow(
-  crew: Float32Array,
-  ball: Float32Array,
-  steps: number,
-  dt: number,
-  thrownAt: number,
-  atLine: boolean,
-): FlagThrow {
-  const st = Math.min(steps - 1, Math.round(thrownAt / dt));
-  const to = atLine ? { x: ball[0], y: ball[1] + 2 } : { x: ball[st * 3] + 1.2, y: ball[st * 3 + 1] + 1.5 };
+export function flagThrow(crew: Float32Array, steps: number, dt: number, thrownAt: number, to: Pt): FlagThrow {
+  const st = Math.max(0, Math.min(steps - 1, Math.round(thrownAt / dt)));
   let by = 0;
   let best = Infinity;
   for (let k = 0; k < CREW.length; k++) {

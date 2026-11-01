@@ -5,6 +5,7 @@ import { migrateLeague } from './migrate';
 import { moraleAdvance, moraleContext, moraleFactors, moraleTarget } from './morale';
 import { nameCaptains } from './personality';
 import { playWeek } from './league';
+import { defenseCallAt } from './playActors';
 import type { InboxMessage } from './types';
 
 describe('save v65 and v66', () => {
@@ -14,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(72);
+    expect(SAVE_VERSION).toBe(73);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -160,7 +161,22 @@ describe('save v72', () => {
     expect(flagged).toBeGreaterThan(0);
     l.version = 71;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(72);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.games.some((g) => g.result?.plays?.some((e) => e.kind === 'penalty' && !e.ran))).toBe(true);
+  });
+});
+
+describe('save v73', () => {
+  it("loads a v72 save: its kept games have no defensive calls, and every snap reads as the defense's base call", () => {
+    const l = createLeague({ seed: 'v73' });
+    playWeek(l);
+    const kept = l.games.filter((g) => g.result?.field);
+    expect(kept.some((g) => g.result!.field!.calls)).toBe(true);
+    for (const g of kept) delete g.result!.field!.calls;
+    l.version = 72;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    const game = up.games.find((g) => g.result?.field)!;
+    expect(game.result!.plays!.every((_, i) => defenseCallAt(game.result!.field!, i) === 'base')).toBe(true);
   });
 });

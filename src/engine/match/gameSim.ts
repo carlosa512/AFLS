@@ -65,7 +65,7 @@ import type {
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
-import { packActors } from '../playActors';
+import { CALL_CHAR, packActors } from '../playActors';
 import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
 import {
   gameWeather,
@@ -514,6 +514,8 @@ class GameSim {
   private endZoneShot = false;
   private disguise = false;
   private preventShell = false;
+  /** The defense's call on the snap being played, until its log entry is written (`FieldRecord.calls`). */
+  private callNow: DefenseCall | null = null;
   private habits(side: Side, role: Coach['role']): ReadonlySet<CoachQuirkId> {
     return this.gameHabits[side].get(role) ?? this.noHabits;
   }
@@ -692,6 +694,7 @@ class GameSim {
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
     if (options.keepPlays) {
       const scheme = (l: Lineup) => ({
+        offense: l.scheme.offense.id,
         personnel: l.scheme.offense.personnel,
         front: l.scheme.front.id,
         coverage: l.scheme.coverage?.id ?? null,
@@ -1094,7 +1097,14 @@ class GameSim {
     if (scoring) entry.scoring = true;
     if (this.anim) Object.assign(entry, this.anim);
     this.anim = null;
-    if (this.options.keepPlays || scoring) this.plays.push(entry);
+    if (this.options.keepPlays || scoring) {
+      this.plays.push(entry);
+      // The defense's call on this snap, for All-22 (recorded only: the play is already played).
+      if (this.fieldRecord && this.callNow && this.callNow !== 'base')
+        this.fieldRecord.calls =
+          (this.fieldRecord.calls ?? '').padEnd(this.plays.length - 1, '.') + CALL_CHAR[this.callNow];
+    }
+    this.callNow = null;
     this.snapshot = null;
   }
 
@@ -1974,6 +1984,7 @@ class GameSim {
     // A prevent shell most snaps, not every one: the frustration is that it shows up when it shouldn't.
     this.preventShell = calls.preventShell && this.habitRng.chance(0.6);
     if (this.preventShell) defCall = 'passD';
+    this.callNow = defCall;
     if (calls.prevent) this.evidence(this.def, 'defCoord', 'playsPrevent', this.preventShell, this.preventShell);
     this.disguise = calls.disguise;
     if (calls.obvious) this.evidence(this.def, 'defCoord', 'disguisesCoverages', calls.disguise, calls.disguise);
