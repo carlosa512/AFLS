@@ -265,6 +265,12 @@ describe('migration and collection', () => {
       for (const key of ['dropbacks', 'epa', 'successes', 'rushSnaps'] as const) delete line[key];
       if (!Object.keys(line).length) delete c.playerStats[Number(id)];
     }
+    // Who each kept play was about (All-22, 0.2.29) and a wiped-out snap as it ran (0.2.31) are recorded, never
+    // drawn: they play nothing.
+    for (const e of c.plays ?? []) {
+      delete e.who;
+      delete e.ran;
+    }
     return c;
   };
   it('leaves unrelated seeded generation and match results unchanged', () => {
@@ -288,7 +294,7 @@ describe('migration and collection', () => {
     // the game-day edge moves play; the stream, players, games and charts still match, so it costs no draw. `result`
     // again with coaches' character (0.2.25): an adaptable coordinator bends his plan to his head coach's and a head
     // coach's discipline scales flags; the stream, players, games and charts still match. Everything again with parity
-    // (0.2.27): a franchise's record lifts its starters only, backups roll deeper and a team's starter-roll luck is
+    // (0.2.36): a franchise's record lifts its starters only, backups roll deeper and a team's starter-roll luck is
     // dealt back, and a player's ratings draw by his quality, so the stream, players, schedule and charts move with
     // them; the passing game's shape and a team's day move the result.
     expect({

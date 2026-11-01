@@ -5,7 +5,7 @@ import { skill } from './attributes';
 import { slotOvr } from './familiarity';
 import { STARTERS } from './positions';
 import { sizeEdge, typicalAt } from './size';
-import type { Coach, DepthChart, Injury, League, Player, PlayingAt, Position, Team } from './types';
+import type { Coach, DepthChart, Gear, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
 import type { RosterList } from './personnel/types';
 
@@ -325,6 +325,13 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   p.firstName = firstName;
   p.lastName = lastName;
   p.jersey = edit.jersey;
+}
+
+/** Dress a player's avatar in `gear`, or `null` to give him back his own. Cosmetic, like a rename: any player. */
+export function editPlayerGear(league: League, playerId: number, gear: Gear | null): void {
+  const p = league.players[playerId];
+  if (gear) p.gear = JSON.parse(JSON.stringify(gear)) as Gear;
+  else delete p.gear;
 }
 
 /**

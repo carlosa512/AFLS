@@ -13,8 +13,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.27',
-    date: '2026-10-31',
+    version: '0.2.36',
+    date: '2026-11-01',
     title: 'Any given Sunday',
     text:
       'Teams now have good days and bad ones, so upsets come about as often as in the real league, and a new league ' +
@@ -23,6 +23,113 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'more, so some offenses throw far more than others, and a great passer’s accuracy counts in full. Front offices ' +
       'act like real ones: they plan next year’s cap before they borrow, contenders spend and rebuilders save, they ' +
       'tag the star they’d otherwise lose, and good veterans find a club by camp.',
+  },
+  {
+    version: '0.2.35',
+    date: '2026-11-01',
+    title: 'Your gear, captains and rookies',
+    text:
+      "The pencil on a player's card now edits his gear too: pick his sleeve, band, elbow pads and shoulder brace, " +
+      'which arm and what colour, and watch his picture change; "Back to his own" undoes it. Captains wear their ' +
+      'patch on their card, a star for each season in a row as captain and solid gold after five. Rookies have a red ' +
+      '"R" beside their name in depth charts, lists and on their card, and in a cold game most players now wear ' +
+      'their sleeves with only a brace or bands over them.',
+  },
+  {
+    version: '0.2.34',
+    date: '2026-11-01',
+    title: 'Gear',
+    text:
+      'Players wear their own gear in their pictures: arm sleeves of every length and shooter sleeves, undershirt sleeves, biceps and ' +
+      'forearm bands, elbow pads and the odd shoulder brace, each the way his position dresses, receivers and corners ' +
+      'in sleeves and bands, linemen in elbow pads and now and then a sleeve. A player keeps his look for his career, ' +
+      'and in a cold or snowy game most pull on full sleeves, except the offensive line.',
+  },
+  {
+    version: '0.2.33',
+    date: '2026-11-01',
+    title: 'Better-drawn players',
+    text:
+      'Player pictures have new arms: they hang straight instead of bowing out, with more muscle the heavier the ' +
+      'player. The picture is framed a little wider, the jersey runs down to football pants at the hips, white at ' +
+      'home and in the team colour with the white jersey, striped down the side. Receivers and corners no longer ' +
+      'look pinched at the waist, and on the player card a short player looks compact and a tall one rangy, at the ' +
+      'same weight.',
+  },
+  {
+    version: '0.2.32',
+    date: '2026-11-01',
+    title: 'Before the snap, fouls and the chase',
+    text:
+      'All-22 now shows the seconds before the snap. The line sinks into its stance, and about half of snaps have ' +
+      'motion (more for offenses built on it): jets, orbits, shifts. ' +
+      'The defense answers by its scheme: a man defender travels with the motion while a zone bumps over, safeties ' +
+      'show one shell and rotate at the snap, linebackers walk up to show a blitz and bail, or creep up late to time ' +
+      'a real one. The quarterback barks to send the motion and to call for the ball (a ripple from him), and now ' +
+      "and then tries a hard count, which an offside man jumps. The defense plays the engine's call on each snap: a blitz " +
+      'sends a linebacker or a defensive back, run defense puts a safety in the box, and zone defenders drop to their ' +
+      'coverage. Every foul is acted out where and when it happened, by the player who committed it: a false start ' +
+      'is one lineman moving early, offside a man across at the snap, a hold a blocker hanging on to his man, a late ' +
+      'hit at the whistle, a kickoff out of bounds sailing over the sideline. The nearest official throws the flag on ' +
+      'him (two flags when fouls offset). On long gains, defenders chase from behind, miss tackles or fall off the ' +
+      'play instead of running alongside the carrier, and the quarterback is ringed only while the play is his.',
+  },
+  {
+    version: '0.2.31',
+    date: '2026-11-01',
+    title: 'Flags, injuries and the final whistle',
+    text:
+      'All-22 now has officials on the field for every snap: the nearest one throws the flag when there is a foul, ' +
+      'play stops while the crew confers, and the call goes up on a banner. A flag that wipes out a play shows the ' +
+      'play first. When a player is hurt, play stops: the others back off, the trainers run out, and he walks off, is ' +
+      'helped off or is carted off. A game won on its last play brings the whole sideline onto the field while the ' +
+      'losers walk off; a title ends in confetti. Each field now looks like its stadium: grass or turf, end zones in ' +
+      "the teams' colors, yard numbers and goalposts. Field goal results wait until you have seen the kick, and " +
+      'All-22 now plays at up to 4×.',
+  },
+  {
+    version: '0.2.30',
+    date: '2026-10-31',
+    title: 'Watch from above',
+    text:
+      'Replays and live games have a new All-22 view: the play from above, all 22 players as numbered dots in their ' +
+      'kits. The line blocks, receivers run their routes, the back blocks or leaks out, the defense reads and pursues, ' +
+      'and the tackler plays his part, then runs the carrier down (on a long return he can miss and come again). Kicks ' +
+      "are staged with real formations: field goals, punts, and kickoffs under today's rules. After the whistle an " +
+      'official walks the ball to the spot, both sides huddle, everyone jogs to his spot in his own time, subs come ' +
+      'and go, the units change over before a kickoff with the officials out, and a big play gets a short ' +
+      'celebration. The players a play is about are ringed only as their moment comes, and in both views the result ' +
+      'and the score wait until you have seen the play. Tap a dot to see who it is. On a phone held upright the field ' +
+      'runs up the screen and follows the ball. Switch between Broadcast and All-22 beside the highlights; All-22 ' +
+      'plays at 1× or 2×.',
+  },
+  {
+    version: '0.2.29',
+    date: '2026-10-31',
+    title: 'Every snap is on file',
+    text:
+      'Games you play from now on remember who was on the field and who each play was about: the passer, the target, ' +
+      'the man in coverage, the tackler, the rusher who got home. Nothing changes on screen yet, and no result moves. ' +
+      'It is what the coming top-down All-22 view will show. Games played before this keep their replays as they are.',
+  },
+  {
+    version: '0.2.28',
+    date: '2026-10-31',
+    title: 'Watch the highlights',
+    text:
+      'Replays and live games now have Key, Ext and Full beside the speed button. Key shows the plays that decide a ' +
+      'game: scores, turnovers, big gains, fourth downs and a close finish. Ext adds third downs, goal-line snaps, ' +
+      'sacks and the drive before half. The plays in between still land in the log and on the scoreboard, so you ' +
+      'never miss a result. Your pick is remembered on this device.',
+  },
+  {
+    version: '0.2.27',
+    date: '2026-10-31',
+    title: 'Every body is different',
+    text:
+      'Players now look like their builds. A slot receiver is lean, a lineman is big and wide, and a corner who weighs ' +
+      'like a safety looks like one. Each player has one of three head shapes for life, and on his card a tall player ' +
+      'for his position stands a little taller and a short one a little lower. List icons stay as they were.',
   },
   {
     version: '0.2.26',

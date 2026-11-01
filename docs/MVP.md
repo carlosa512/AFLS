@@ -12,7 +12,7 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       14-team bracket to a champion (`season/playoffs.ts`).
 - [x] **2. Match engine with box scores** · **Done**: a play-by-play engine (`match/gameSim.ts`) with box scores and
       a replay viewer (`BoxScore.tsx`, `GameViewer.tsx`). Games as uncertain as the NFL's (a team's day, new
-      leagues as even as lived-in ones) and a passing game shaped like today's, checked against nflverse (0.2.27).
+      leagues as even as lived-in ones) and a passing game shaped like today's, checked against nflverse (0.2.36).
 - [x] **3. Rosters and depth charts** · **Done**: 53-man rosters, a drag-to-reorder depth chart and scheme spots
       (`roster.ts`, `Roster.tsx`).
 - [x] **4. Injuries that matter** · **Done**: snap and collision injuries with layoffs and IR (`injuries.ts`).
@@ -136,14 +136,14 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
 
-## Follow-up: what the front-office work left (0.2.27)
+## Follow-up: what the front-office work left (0.2.36)
 
 Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
 being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
 - [ ] **Leagues grow older than the NFL's (start here: it likely explains the next items).** NFL starters average 26.6,
       12% of them 31 or older (*nflverse* snap counts and birth dates, 2021–24). A new league matches (26.8, 12%), but by
-      season 10 its starters average 28.0 with 28% aged 31+ (main: 27.75 and 24%, so it predates 0.2.27). The oldest
+      season 10 its starters average 28.0 with 28% aged 31+ (main: 27.75 and 24%, so it predates 0.2.36). The oldest
       gaps are at QB and TE (+2.4 years), punter (+2.1), WR and OL (+1.5), where ratings hold their peak longest. Look
       at who coaches start (a young player with upside against a veteran barely better), when players retire, and how
       ready draftees are; the league's talent sliding after year three (13.22 to 12.7 over 16 seasons) likely follows.
@@ -214,7 +214,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       year, year-to-year win correlation 0.335. The price premium stayed as it was: the budget wasn't what kept a winner's
       men out (they were outscored).
 
-      **Front offices (0.2.27,** `docs/superpowers/specs/2026-11-01-front-offices-design.md`**):** a good team didn't
+      **Front offices (0.2.36,** `docs/superpowers/specs/2026-11-01-front-offices-design.md`**):** a good team didn't
       stay good, so few coaches lasted as winners. Now good veterans find a club by camp (the late market and the last
       call); a GM plans next year's cap before he borrows, restructures only players he plans to keep (for his own and
       for a free agent he wants), contends or rebuilds by his win-now; the tag goes to a star the club values near its

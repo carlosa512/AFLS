@@ -153,7 +153,7 @@ function soft(
   return `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (${range})${out ? ' ⚠' : ''}`;
 }
 
-// Known issues the front-office work (0.2.27) left, each a follow-up in docs/MVP.md:
+// Known issues the front-office work (0.2.36) left, each a follow-up in docs/MVP.md:
 const OUT_OF_FOOTBALL =
   'starters out of football climb as a league ages (about 3% early, 5-8% by season 6 in every world: retirements and faded veterans no club has room for)';
 const TAGS = 'tags a season spike past the NFL band when a big class of stars comes due at once';
@@ -517,7 +517,7 @@ for (let s = 0; s < seasons; s++) {
   // (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters opened as low as 62% committed and a hoarder banked the rest.
   // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 6.2-17.3% at 0.1.10; 6.0-19.3% at 0.1.3, all seeds then
   // 6.5-22.7), median at most 3.1%. The max's ceiling is the NFL's worst modern season, a rebuild clearing its books:
-  // the 2024 Broncos carried $89.1M of a $255.4M cap, about 35% (Wilson's release 20.5% of it; ESPN). 30% until 0.2.27,
+  // the 2024 Broncos carried $89.1M of a $255.4M cap, about 35% (Wilson's release 20.5% of it; ESPN). 30% until 0.2.36,
   // when a rebuilding club releasing its 34-year-old quarterback read 32.5% (owner's call, 2026-11-01). A front office
   // that cuts stars wholesale still shows up past it.
   // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; 252 → 443, +74 at 0.1.10; all seeds then

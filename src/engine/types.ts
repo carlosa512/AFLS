@@ -168,7 +168,24 @@ export type StatLine = Partial<Record<StatKey, number>>;
 /** Stats where season/career totals take the max rather than the sum. */
 export const MAX_STATS: ReadonlySet<StatKey> = new Set(['rushLong', 'recLong', 'fgLong']);
 
-import type { CoachScheme } from './schemes';
+import type { CoachScheme, CoverageId, FrontId, OffSchemeId, Personnel } from './schemes';
+
+/** The avatar's arm gear (`ui/playerGear.ts` picks it, `ui/gearArt.tsx` draws it). Cosmetic: never read by play. */
+export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
+/** Seen from behind: his left arm is on the viewer's left. */
+export type GearSide = 'left' | 'right' | 'both';
+/** A shooter sleeve starts partway down the upper arm, bare skin above it, and runs to the wrist. */
+export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter';
+export interface Gear {
+  sleeve?: { length: SleeveLength; color: GearColor; side: GearSide };
+  /** A short, solid sleeve under the jersey's (the jersey keeps its stripes). */
+  undershirt?: GearColor;
+  /** Bands go on both biceps; a single band goes on the forearm. */
+  band?: { at: 'biceps' | 'forearm'; color: GearColor; side: GearSide };
+  elbowPads?: { color: GearColor; side: GearSide };
+  /** Black neoprene with a strap in the team's colour, on one shoulder. */
+  shoulderBrace?: { side: 'left' | 'right'; strap: 'primary' | 'secondary' };
+}
 
 export interface Player {
   id: number;
@@ -255,6 +272,10 @@ export interface Player {
   cflSeasons?: number;
   /** Optional picture URL (or data: URI) supplied by a roster mod; the UI shows a placeholder otherwise. */
   portrait?: string;
+  /** The gear you chose for his avatar (the card's pencil); without it the avatar picks his own. Never read by play. */
+  gear?: Gear;
+  /** The league years he was named a captain, oldest first (his avatar's patch counts the ones in a row). */
+  captainSeasons?: number[];
   /** What he is hurt with right now, if anything (see `injuries.ts`). */
   injury?: Injury;
   /** Every injury that cost him time, oldest first. Public: the league's injury reports. */
@@ -1546,7 +1567,87 @@ export interface PlayLogEntry {
   to?: number;
   /** Direction across the field from the offense's view: -1 left … 1 right. */
   lane?: number;
+  /** Who the play was about (All-22 stages it), packed: read it with `actorsIn` (`playActors.ts`). Games before v71
+   * and kicks have none. */
+  who?: PackedActors;
+  /**
+   * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
+   * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
+   */
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who'>;
 }
+
+/** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */
+export interface FieldUnits {
+  qb: number;
+  /** LT, LG, C, RG, RT. */
+  ol: number[];
+  rb: number;
+  /** The second back, who spells the lead back on the plays he's part of. */
+  rb2?: number;
+  /** The receivers on the field for the personnel. */
+  wr: number[];
+  te: number[];
+  dt: number[];
+  edge: number[];
+  lb: number[];
+  cb: number[];
+  s: number[];
+  /** The rotation that spells the front on passing downs, by the spot each man takes. */
+  rot: [number, 'EDGE' | 'DT'][];
+  k: number;
+  p: number;
+  kr: number;
+  pr: number;
+  /** The ten around the kicker, punter or returner. */
+  st: number[];
+  /** The field goal unit's blockers. */
+  fg: number[];
+}
+
+/** What each side's coordinators ran: how All-22 lines a side up. */
+export interface FieldScheme {
+  /** The offense it runs (how much it moves before the snap, in All-22). Games before 0.2.32 have none. */
+  offense?: OffSchemeId;
+  personnel: Personnel;
+  front: FrontId;
+  coverage: CoverageId | null;
+}
+
+/** Who was on the field in a kept game (All-22). Index 0 is home, 1 away, as in the engine. */
+export interface FieldRecord {
+  /** At kickoff. */
+  units: [FieldUnits, FieldUnits];
+  scheme: [FieldScheme, FieldScheme];
+  /** Jersey numbers as they were, so a later trade or a new number can't change an old game. */
+  jerseys: Record<number, number>;
+  /** [index of the first play these units are on the field for, side, units]: injuries rebuild a lineup. */
+  changes: [number, 0 | 1, FieldUnits][];
+  /**
+   * The defense's call on each kept play, a character a play ('r' run defense, 'p' pass defense, 'b' blitz, '.' its
+   * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.32 have none.
+   */
+  calls?: string;
+}
+
+/** Who a play was about, by player id: what All-22 stages. Recorded only, never drawn: the sim already chose them. */
+export interface PlayActors {
+  /** The target or the ball carrier. */
+  ball?: number;
+  /** The man in coverage on a pass. */
+  cover?: number;
+  /** The first tackler. */
+  tackle?: number;
+  /** Who got home: the sack, or the pressure without one. */
+  rush?: number;
+  /** The blocker he beat, when the engine charged one. */
+  beat?: number;
+  /** The interceptor or fumble recoverer. */
+  take?: number;
+}
+
+/** `PlayActors` as a save keeps it: ball, tackle, cover, rush, beat, take, in that order (see `playActors.ts`). */
+export type PackedActors = (number | null)[];
 
 export interface GameResult {
   /** Event-time coaching evidence; independent of replay retention. */
@@ -1561,6 +1662,8 @@ export interface GameResult {
   /** Player id → team id at kickoff, so box scores survive trades and retirements. */
   playerTeams: Record<number, number>;
   plays?: PlayLogEntry[];
+  /** Who was on the field, for All-22; kept and pruned with `plays`. Games before v71 have none. */
+  field?: FieldRecord;
   /** Players hurt in the game, in the order it happened, with the doctor's word at the time. */
   injuries?: GameInjury[];
   /**

@@ -314,7 +314,7 @@ for (const r of runs)
 // The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
 // Judged on the leagues' average path, so one league's luck doesn't decide it. The ceiling sits 0.35 over a lived-in
 // league's level (its seasons 7-10): 12.85 + 0.35 = 13.2 while about a tenth of last season's starters fell out of
-// football; once good veterans stay (0.2.27, the late market and front offices) a lived-in league holds 12.94, so 13.3
+// football; once good veterans stay (0.2.36, the late market and front offices) a lived-in league holds 12.94, so 13.3
 // (owner's call, 2026-11-01). A new league's young starters growing into their prime peak it at 13.22 in year three.
 const STARTER_OVR_CEILING = 13.3;
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));

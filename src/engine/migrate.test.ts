@@ -5,6 +5,7 @@ import { migrateLeague } from './migrate';
 import { moraleAdvance, moraleContext, moraleFactors, moraleTarget } from './morale';
 import { nameCaptains } from './personality';
 import { playWeek } from './league';
+import { defenseCallAt } from './playActors';
 import type { InboxMessage } from './types';
 
 describe('save v65 and v66', () => {
@@ -14,8 +15,8 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(70);
-    expect(up.version).toBe(70);
+    expect(SAVE_VERSION).toBe(74);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
 });
@@ -27,7 +28,7 @@ describe('save v67', () => {
     delete l.moraleAt;
     l.version = 66;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     const ctx = moraleContext(up);
     for (const p of Object.values(up.players)) {
       if (p.teamId === null) {
@@ -66,7 +67,7 @@ describe('save v68', () => {
     const before = JSON.stringify(Object.values(l.players).map((p) => p.morale ?? null));
     l.version = 67;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(Object.values(up.players).map((p) => p.morale ?? null))).toBe(before);
   });
 });
@@ -79,7 +80,7 @@ describe('save v69', () => {
     const before = JSON.stringify(Object.values(l.players).map((x) => x.dev ?? null));
     l.version = 68;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(70);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(Object.values(up.players).map((x) => x.dev ?? null))).toBe(before);
   });
 });
@@ -124,5 +125,79 @@ describe('the new letters read back', () => {
     expect(mailSubject(m('staffNotes:2028:4'))).toEqual({ kind: 'staffNotes', season: 2028, week: 4 });
     expect(mailSubject(m('positions:2028:regular:1'))).toEqual({ kind: 'positionMoves', season: 2028 });
     expect(mailSubject(m('feud:2028:1:2'))?.kind).toBe('locker');
+  });
+});
+
+describe('save v71', () => {
+  it('loads a v70 save; its games have no field record and keep their plays', () => {
+    const l = createLeague({ seed: 'v71' });
+    playWeek(l);
+    for (const g of l.games) {
+      if (!g.result) continue;
+      delete g.result.field;
+      for (const e of g.result.plays ?? []) delete e.who;
+    }
+    const plays = l.games.find((g) => g.result?.plays?.length)!.result!.plays!.length;
+    l.version = 70;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    const game = up.games.find((g) => g.result?.plays?.length)!;
+    expect(game.result!.field).toBeUndefined();
+    expect(game.result!.plays!.length).toBe(plays);
+  });
+});
+
+describe('save v72', () => {
+  it('loads a v71 save: its flagged plays keep the walk-off without the play as it ran', () => {
+    const l = createLeague({ seed: 'v72' });
+    playWeek(l);
+    let flagged = 0;
+    for (const g of l.games)
+      for (const e of g.result?.plays ?? [])
+        if (e.ran) {
+          flagged++;
+          delete e.ran;
+        }
+    expect(flagged).toBeGreaterThan(0);
+    l.version = 71;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(up.games.some((g) => g.result?.plays?.some((e) => e.kind === 'penalty' && !e.ran))).toBe(true);
+  });
+});
+
+describe('save v73', () => {
+  it("loads a v72 save: its kept games have no defensive calls, and every snap reads as the defense's base call", () => {
+    const l = createLeague({ seed: 'v73' });
+    playWeek(l);
+    const kept = l.games.filter((g) => g.result?.field);
+    expect(kept.some((g) => g.result!.field!.calls)).toBe(true);
+    for (const g of kept) delete g.result!.field!.calls;
+    l.version = 72;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    const game = up.games.find((g) => g.result?.field)!;
+    expect(game.result!.plays!.every((_, i) => defenseCallAt(game.result!.field!, i) === 'base')).toBe(true);
+  });
+});
+
+describe('save v74', () => {
+  it("loads a v73 save: no gear chosen yet, and this season's captains get this season as their first", () => {
+    const l = createLeague({ seed: 'v74' });
+    const team = l.teams[0];
+    const [offense, defense, specialTeams] = Object.values(l.players)
+      .filter((p) => p.teamId === team.id)
+      .slice(0, 3);
+    team.captains = { season: l.season, offense: offense.id, defense: defense.id, specialTeams: specialTeams.id };
+    for (const p of Object.values(l.players)) {
+      delete p.captainSeasons;
+      delete p.gear;
+    }
+    l.version = 73;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(up.players[offense.id].captainSeasons).toEqual([l.season]);
+    expect(up.players[specialTeams.id].captainSeasons).toEqual([l.season]);
+    expect(Object.values(up.players).some((p) => p.gear)).toBe(false);
   });
 });
