@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.38',
+    date: '2026-11-02',
+    title: 'Helmets on',
+    text:
+      'Every player now wears his club’s helmet, each club in its own design and each player in one of eight shells, ' +
+      'linemen in their wider cage. The back carries the US flag, a Pathway player’s country under it, and the green ' +
+      'dot on the quarterback and the defence’s play-caller. Quarterbacks can wear a padded sleeve and a play-call ' +
+      'wristband, and you can pick any player’s helmet and wristband from the pencil on his card.',
+  },
+  {
     version: '0.2.37',
     date: '2026-11-02',
     title: 'Fewer sulkers',
