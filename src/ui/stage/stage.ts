@@ -13,7 +13,9 @@ import { pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
 import { castFor } from './cast';
 import { blitzersFor, lineUp } from './formations';
-import { ballTrack, script, stagedPath, throwWindow } from './scripts';
+import { ballTrack, catchSpot, passFlight, script, stagedPath, throwWindow, type Pattern } from './scripts';
+import { assign, conceptFor, spotOf, type ConceptId } from './concepts';
+import { routeFor, routeTime, type RouteId } from './routes';
 import { SPEED, steer } from './steer';
 import type { Pt } from './formations';
 import { COVERAGES } from '../../engine/schemes';
@@ -26,6 +28,8 @@ const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sa
 const STILL = 0.5;
 /** A flag before the snap: the line-up held long enough to see who moved (`fouls.ts`). */
 const PRE_SNAP = 1.6;
+/** The man in coverage's distance from the target as the ball arrives: a catch, a miss (mean, least, most), a pick. */
+const SEPARATION = { catch: [4, 2.5, 6.5], miss: [2.6, 1.2, 4], pick: 0.8 } as const;
 /** A key man's ring shows this long before his moment. */
 const REVEAL_LEAD = 0.4;
 
@@ -53,6 +57,8 @@ export interface StagedPlay {
   carrier: number | null;
   /** A dropback's drop and pocket (`pocket.ts`); null on anything else. */
   pocket: PocketPlan | null;
+  /** A pass's concept and the target's route (`concepts.ts`, `routes.ts`); absent on anything else. */
+  pattern?: { concept: ConceptId; route: RouteId };
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -123,6 +129,48 @@ export function stagePlay(args: {
   const start = lineUp(look, cast, off, def, ballX, ballY, dir, rng, { call, blitz });
   const who = actorsIn(e);
   const receiverAt = who.ball === undefined ? undefined : start.get(who.ball);
+  // A pass's pattern: the target's route from his catch, the concept around it, everyone's assignment (own stream).
+  let pattern: Pattern | undefined;
+  let routeNeed = 0;
+  const land = catchSpot(e, homeId, args.snapY);
+  if (land && who.ball !== undefined && receiverAt) {
+    const inwardOf = (p: Pt): 1 | -1 => (Math.sign(ballY - p.y) || 1) as 1 | -1;
+    const roleOf = (id: number) => cast.offense.find((m) => m.id === id)?.role ?? 'WR';
+    const spot = spotOf(roleOf(who.ball), receiverAt, ballY);
+    const prng = new Rng(`${args.seed}:pattern`);
+    const route = routeFor(
+      { air: (land.x - ballX) * dir, across: (land.y - receiverAt.y) * inwardOf(receiverAt), spot },
+      prng,
+    );
+    const concept = conceptFor({ spot, route }, off.offense, /^Designed shot:/.test(e.text), prng);
+    // The play side is the target's, or for the back, the side the ball went.
+    const side = Math.sign((spot === 'RB' ? land.y : receiverAt.y) - ballY) || 1;
+    const others = cast.offense.filter(
+      (m) => (m.role === 'WR' || m.role === 'TE' || m.role === 'RB') && m.id !== who.ball && start.has(m.id),
+    );
+    const men = others.map((m) => {
+      const p = start.get(m.id)!;
+      return { id: m.id, spot: spotOf(m.role, p, ballY), playSide: (Math.sign(p.y - ballY) || side) === side };
+    });
+    const everyone = [...others.map((m) => m.id), who.ball];
+    pattern = {
+      route,
+      concept,
+      assigned: assign(concept, men),
+      inward: new Map(everyone.map((id) => [id, inwardOf(start.get(id)!)])),
+      top: new Map(everyone.map((id) => [id, SPEED[roleOf(id)]])),
+      // Open on a catch, contested on a miss, on him on a pick (NGS 2024: 3.1 yards at the target, all throws).
+      separation:
+        e.kind === 'pass'
+          ? Math.max(SEPARATION.catch[1], Math.min(SEPARATION.catch[2], prng.normal(SEPARATION.catch[0], 0.9)))
+          : e.kind === 'incomplete'
+            ? Math.max(SEPARATION.miss[1], Math.min(SEPARATION.miss[2], prng.normal(SEPARATION.miss[0], 0.6)))
+            : SEPARATION.pick,
+    };
+    // The ball can go once the route will get him there with it: his route's time at his speed, less the flight.
+    const flight = passFlight(Math.hypot(land.x - (ballX - dir * 6), land.y - ballY));
+    routeNeed = routeTime(route, receiverAt, land, dir, inwardOf(receiverAt), SPEED[roleOf(who.ball)]) - flight;
+  }
   // A dropback: his drop and pocket (`pocket.ts`), on its own stream.
   const qbId = cast.offense.find((m) => m.role === 'QB')?.id;
   const backId = cast.offense.find((m) => m.role === 'RB')?.id;
@@ -141,7 +189,7 @@ export function stagePlay(args: {
         hurry: (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120,
         air: e.air !== undefined && e.kind !== 'sack' && e.kind !== 'scramble' ? (e.air - e.from) * dir : null,
         rusher: rusherAt && rusherRole ? { role: rusherRole, across: Math.abs(rusherAt.y - ballY) } : undefined,
-        minThrow: throwWindow(e, homeId, args.snapY, receiverAt),
+        minThrow: pattern ? Math.max(0, routeNeed) : throwWindow(e, homeId, args.snapY, receiverAt),
         blitz: call === 'blitz',
       },
       new Rng(`${args.seed}:pocket`),
@@ -156,14 +204,8 @@ export function stagePlay(args: {
     });
   }
   const segs = stagedPath(e, homeId, args.snapY, receiverAt, qbPath);
-  const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = script(
-    e,
-    cast,
-    start,
-    segs,
-    dir,
-    pocket,
-  );
+  const scripted = script(e, cast, start, segs, dir, pocket, pattern);
+  const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || (e.kind === 'penalty' ? PRE_SNAP : STILL);
@@ -194,6 +236,19 @@ export function stagePlay(args: {
     rush: who.rush ?? null,
     beat: who.beat ?? null,
     maxProtect: /^Designed shot:/.test(e.text),
+    settle: scripted.settle,
+    stalk: scripted.stalk,
+    target: pattern ? who.ball : null,
+    // A screen to the back or the tight end: the line leads it (a bubble out wide is the receivers' to block).
+    screen:
+      pattern?.route === 'screen' &&
+      land &&
+      who.ball !== undefined &&
+      cast.offense.some((m) => m.id === who.ball && (m.role === 'RB' || m.role === 'TE'))
+        ? land
+        : null,
+    arrive: passArrives(e, segs),
+    separation: pattern?.separation,
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
     // Man coverage behind a blitz, as the engine plays it.
@@ -238,6 +293,7 @@ export function stagePlay(args: {
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
     pocket,
+    ...(pattern ? { pattern: { concept: pattern.concept.id, route: pattern.route } } : {}),
     keys: [...moments.keys()],
     reveal: [...moments.values()].map((t) => Math.max(0, t - REVEAL_LEAD)),
     until: [...moments.keys()].map((id) => until.get(id) ?? Infinity),

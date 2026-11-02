@@ -14,6 +14,9 @@ import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
 import { snapYFor } from '../src/ui/stage/ballPath';
 import type { Drop } from '../src/ui/stage/pocket';
+import type { Role } from '../src/ui/stage/cast';
+import type { RouteId } from '../src/ui/stage/routes';
+import { SPEED } from '../src/ui/stage/steer';
 import { asRan, stagePlay, type StagedPlay } from '../src/ui/stage/stage';
 
 const GAMES = Number(process.argv[2] ?? 200);
@@ -62,6 +65,12 @@ interface Seen {
   left: number | null;
   /** The deepest he set before the throw (or the sack, the scramble), in yards behind the ball. */
   setDepth: number;
+  /** The nearest defender to the target as the ball gets there (a throw to a receiver). */
+  separation: number | null;
+  /** Each wide receiver's nearest defender at the snap. */
+  cushions: number[];
+  /** Every dot's top speed on the play, by role, the ball carrier after the catch aside (yards a second). */
+  speeds: [string, number][];
 }
 
 function measure(e: PlayLogEntry, p: StagedPlay): Seen {
@@ -94,9 +103,49 @@ function measure(e: PlayLogEntry, p: StagedPlay): Seen {
     setDepth = Math.max(setDepth, depth(st));
     if (left === null && (Math.abs(q.y - ball.y) > BOX || (q.x - ball.x) * p.dir > 0)) left = st * p.dt;
   }
+  // The target at the ball's arrival, and the nearest man on the other side to him.
+  let separation: number | null = null;
+  const target = who.ball === undefined ? -1 : p.ids.indexOf(who.ball);
+  if (throws && target >= 0 && p.arrive !== null) {
+    const st = Math.min(p.steps - 1, Math.round(p.arrive / p.dt));
+    const t = at(target, st);
+    separation = Math.min(
+      ...p.ids.map((_, k) => (p.offense[k] ? Infinity : Math.hypot(at(k, st).x - t.x, at(k, st).y - t.y))),
+    );
+  }
+  const cushions = p.ids.flatMap((_, k) => {
+    if (!p.offense[k] || p.roles[k] !== 'WR' || Math.abs(at(k, 0).y - ball.y) < 12) return [];
+    const r = at(k, 0);
+    return [
+      Math.min(...p.ids.map((_, j) => (p.offense[j] ? Infinity : Math.hypot(at(j, 0).x - r.x, at(j, 0).y - r.y)))),
+    ];
+  });
+  /** A man's quickest half-second on the play. */
+  const top = (k: number) => {
+    let best = 0;
+    for (let st = half; st < p.steps; st++) {
+      const a = at(k, st);
+      const b = at(k, st - half);
+      best = Math.max(best, Math.hypot(a.x - b.x, a.y - b.y) / (half * p.dt));
+    }
+    return best;
+  };
+  // Top speeds: each man's quickest half-second, on his feet (not the man carrying the ball after the catch, who rides
+  // the engine's run).
+  const half = Math.round(0.5 / p.dt);
+  const speeds: [string, number][] = p.ids.flatMap((id, k) => {
+    // The carrier after the catch rides the engine's run; the tackler's chase to the tackle is the open field's
+    // (Pass B), reported apart.
+    if (id === p.carrier && throws) return [];
+    if (id === who.tackle) return [[`tackler`, top(k)]];
+    return [[p.roles[k], top(k)]];
+  });
   return {
     e,
     p,
+    separation,
+    cushions,
+    speeds,
     gun: depth(0) > 3,
     air: throws && e.air !== undefined && e.from !== undefined ? (e.air - e.from) * p.dir : null,
     pressured: throws && who.rush !== undefined,
@@ -225,6 +274,71 @@ for (const drop of [1, 3, 5, 7] as const) {
     );
   }
 }
+
+// ───────── receivers and coverage (§6) ─────────
+
+console.log('\nReceivers and coverage');
+const sepOf = (kind: string) =>
+  thrown.filter((s) => s.e.kind === kind && s.separation !== null).map((s) => s.separation!);
+const allSep = thrown.filter((s) => s.separation !== null && s.e.kind !== 'int').map((s) => s.separation!);
+check('separation at the target (yd)', mean(allSep), [2.6, 3.6], '3.10 (NGS 2024)');
+check('  catches minus misses (yd)', mean(sepOf('pass')) - mean(sepOf('incomplete')), [0.5, 3], 'catches wider');
+check('  picks (yd)', mean(sepOf('int')), [0, 1], 'on him');
+check('cushion at the snap (yd)', mean(seen.flatMap((s) => s.cushions)), [5, 7], '6.1 (NGS 2024)');
+const BY_ROUTE: readonly [RouteId, number, number][] = [
+  ['screen', -2.8, 3],
+  ['slant', 6.1, 3],
+  ['curl', 7.4, 3],
+  ['out', 7.3, 3],
+  ['dig', 10.6, 3],
+  ['post', 21, 5],
+  ['corner', 21.3, 5],
+  ['go', 23.4, 5],
+];
+const onRoute = (r: RouteId) => thrown.filter((s) => s.p.pattern?.route === r && s.air !== null);
+for (const [r, nfl, within] of BY_ROUTE)
+  check(`  air yards, ${r}`, mean(onRoute(r).map((s) => s.air!)), [nfl - within, nfl + within], `${nfl} (2022)`, 1);
+const ttRoute = (r: RouteId) => tt(onRoute(r));
+const order = [
+  ttRoute('screen'),
+  ttRoute('slant'),
+  Math.max(ttRoute('curl'), ttRoute('out')),
+  Math.min(ttRoute('dig'), ttRoute('post'), ttRoute('corner')),
+];
+check(
+  'time to throw rises screen < slant < curl, out < dig, post, corner',
+  order.every((x, i) => i === 0 || x > order[i - 1]) ? 1 : 0,
+  [1, 1],
+  'screen 1.91, slant 2.14, curl 2.68, dig 3.12',
+  0,
+);
+const concepts = new Map<string, number>();
+for (const s of thrown)
+  if (s.p.pattern) concepts.set(s.p.pattern.concept, (concepts.get(s.p.pattern.concept) ?? 0) + 1);
+info(
+  'concepts',
+  [...concepts]
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `${c} ${Math.round((100 * n) / thrown.length)}%`)
+    .join(', '),
+  'ours',
+);
+
+console.log('\nSpeed');
+const tops = new Map<string, number[]>();
+for (const s of seen) for (const [role, v] of s.speeds) tops.set(role, [...(tops.get(role) ?? []), v]);
+for (const role of ['WR', 'CB', 'S', 'RB', 'LB', 'TE', 'QB', 'EDGE', 'DT', 'OL'])
+  check(
+    `  ${role}: top speed, 99th percentile (yd/s)`,
+    pct(tops.get(role) ?? [], 0.99),
+    [0, Math.min(10.5, SPEED[role as Role] + 1)],
+    `${SPEED[role as Role]} (steer)`,
+  );
+info(
+  'the tackler, his run to the tackle (99th pct)',
+  pct(tops.get('tackler') ?? [], 0.99).toFixed(2),
+  'the open field: Pass B',
+);
 
 // ───────── reported only: the engine decides these ─────────
 
