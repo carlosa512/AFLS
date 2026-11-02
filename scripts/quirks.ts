@@ -7,10 +7,15 @@
  * 2. Effects (`--effects`): for each quirk, give it to every player at its positions (and nobody
  *    anything else), replay the same games, and check its stat moves the way the registry says.
  *
+ * The effects are judged in worker processes, one per core, while the churn runs (`QUIRKS_WORKERS` sets how many).
+ *
  *   npm run quirks                        # churn, 10 seasons
  *   npm run quirks -- --effects           # also the effects, 3 seasons per quirk (9 for close calls, 18 for the closest)
  *   npm run quirks -- --effects --only=gunslinger,anchor
  */
+import { fork } from 'node:child_process';
+import { availableParallelism } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import {
@@ -135,7 +140,8 @@ const ps = (r: GameResult, side: 0 | 1, key: StatKey, league: League, teams: [nu
   return s;
 };
 
-function effectAudit() {
+/** The judge of one quirk's effect, with the untouched league's games read once a process (the first time it's asked). */
+function effectJudge(): (q: QuirkId) => { line: string; flag: boolean } {
   let league: League;
   let teams: [number, number] = [0, 0];
   const team = (r: GameResult, side: 0 | 1) => (side === 0 ? r.home : r.away);
@@ -319,15 +325,14 @@ function effectAudit() {
   };
 
   const merge = (a: Rows, b: Rows): Rows => Object.fromEntries(Object.entries(a).map(([k, v]) => [k, [...v, ...b[k]]]));
-  console.log(
-    `\nQuirk effects: each quirk on every player at its positions, ${seasons} season(s) (${seasons * 3} for close calls, ${seasons * 6} for the closest)\n`,
-  );
-  const baseLeague = make(null);
-  const base = run(baseLeague, 0, seasons);
+  // Only these three replays ever play the untouched league, always in this order, so every process reads the same.
+  let baseLeague: League | null = null;
+  let base: Rows | null = null;
   let wideBase: Rows | null = null;
   let widerBase: Rows | null = null;
-  const flagged: string[] = [];
-  for (const q of QUIRK_IDS.filter((id) => !only || only.includes(id))) {
+  return (q) => {
+    baseLeague ??= make(null);
+    base ??= run(baseLeague, 0, seasons);
     const [metric, dir] = EXPECT[q];
     const l = make(q);
     let test = run(l, 0, seasons);
@@ -345,18 +350,67 @@ function effectAudit() {
     }
     const verdict =
       m.z * dir >= 3 ? 'moves play' : m.z * dir >= 2 ? 'weak' : m.z * dir <= -2 ? 'WRONG WAY' : 'NO EFFECT';
-    if (verdict === 'NO EFFECT' || verdict === 'WRONG WAY') flagged.push(q);
-    console.log(
-      `${q.padEnd(20)} ${metric.padEnd(13)} ${(m.delta >= 0 ? '+' : '') + m.delta.toFixed(2)}`.padEnd(44) +
+    return {
+      line:
+        `${q.padEnd(20)} ${metric.padEnd(13)} ${(m.delta >= 0 ? '+' : '') + m.delta.toFixed(2)}`.padEnd(44) +
         `z ${m.z.toFixed(1).padStart(5)}  ${verdict}`,
-    );
-  }
-  if (flagged.length) {
-    failed = true;
-    console.log(`\nNeeds attention: ${flagged.join(', ')}`);
-  } else console.log('\nEvery quirk moves its stat the right way.');
+      flag: verdict === 'NO EFFECT' || verdict === 'WRONG WAY',
+    };
+  };
 }
 
-churn();
-if (effects) effectAudit();
-if (failed) process.exitCode = 1;
+const quirkList = QUIRK_IDS.filter((id) => !only || only.includes(id));
+
+/**
+ * Every quirk's effect, judged in worker processes (each quirk replays its own league: on one core the effects and the
+ * churn took 13 minutes on CI, against a 20-minute limit). They're dealt out in turn before the churn runs here, since
+ * the churn holds this process until it's done. A game's only carry-over is what `run` resets, so a worker's verdicts
+ * are the ones one process would print.
+ */
+function effectsInWorkers(): Promise<{ line: string; flag: boolean }[]> {
+  const rows: { line: string; flag: boolean }[] = new Array(quirkList.length);
+  const workers = Math.min(quirkList.length, Math.max(1, Number(process.env.QUIRKS_WORKERS ?? availableParallelism())));
+  let done = 0;
+  return new Promise((resolve, reject) => {
+    for (let w = 0; w < workers; w++) {
+      const jobs = quirkList.map((_, i) => i).filter((i) => i % workers === w);
+      const child = fork(fileURLToPath(import.meta.url), args, { env: { ...process.env, QUIRKS_WORKER: '1' } });
+      let left = jobs.length;
+      child.on('message', ({ i, line, flag }: { i: number; line: string; flag: boolean }) => {
+        rows[i] = { line, flag };
+        if (--left === 0) child.kill();
+        if (++done === quirkList.length) resolve(rows);
+      });
+      child.once('error', reject);
+      // A worker that dies with quirks still out fails the run by name.
+      child.once('exit', (code, signal) => {
+        if (left > 0) reject(new Error(`quirks worker exited (${signal ?? code}) with ${left} quirk(s) still out`));
+      });
+      child.send({ jobs });
+    }
+  });
+}
+
+if (process.env.QUIRKS_WORKER) {
+  const judge = effectJudge();
+  process.on('message', ({ jobs }: { jobs: number[] }) => {
+    for (const i of jobs) process.send!({ i, ...judge(quirkList[i]) });
+  });
+} else {
+  // The workers start first and play while the churn runs here.
+  const effectRows = effects && quirkList.length ? effectsInWorkers() : null;
+  churn();
+  if (effects) {
+    console.log(
+      `\nQuirk effects: each quirk on every player at its positions, ${seasons} season(s) (${seasons * 3} for close calls, ${seasons * 6} for the closest)\n`,
+    );
+    const rows = (await effectRows) ?? [];
+    for (const r of rows) console.log(r.line);
+    const flagged = quirkList.filter((_, i) => rows[i].flag);
+    if (flagged.length) {
+      failed = true;
+      console.log(`\nNeeds attention: ${flagged.join(', ')}`);
+    } else console.log('\nEvery quirk moves its stat the right way.');
+  }
+  if (failed) process.exitCode = 1;
+}
