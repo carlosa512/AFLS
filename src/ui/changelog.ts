@@ -20,7 +20,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Players are happier with deals that pay them close to their worth: only a man paid well under his market ' +
       'complains, and a backup feels it less than a starter. A star still on his rookie deal wants his extension but ' +
       'doesn’t turn bitter over it. And a player you’ve moved into the starting job no longer complains about snaps ' +
-      'before the season has even started.',
+      'before the season has even started. And a front office that couldn’t make room for a player’s new deal no ' +
+      'longer borrows against next year to tag him instead: next year he’s owed his price either way.',
   },
   {
     version: '0.2.36',

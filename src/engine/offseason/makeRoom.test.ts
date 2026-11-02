@@ -63,6 +63,12 @@ function squeezed(room: number, capAggression: number) {
 }
 const restructures = (l: League, teamId: number) =>
   l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(teamId) && m.season === l.season).length;
+/** What a club's restructures this league year add to next year's cap: each converted amount's share of a later year. */
+const borrowed = (l: League, teamId: number) =>
+  teamPlayers(l, teamId)
+    .flatMap((x) => x.contract?.bonuses ?? [])
+    .filter((b) => b.source === 'restructure' && b.start === l.season)
+    .reduce((a, b) => a + b.amount / b.years, 0);
 
 describe('GMs make room to keep their core', () => {
   it('restructures to re-sign a keeper it can’t fit, and stays under the cap', () => {
@@ -283,7 +289,8 @@ describe('a GM makes the room he plans, or none', () => {
   });
 
   it('borrows nothing for a keeper whose own new deal next year wouldn’t fit', () => {
-    // Next year has half his price of room after its needs: making room now would push his new deal past the ceiling.
+    // Next year has half his price of room after its needs: making room now would push what next year owes him past the
+    // ceiling, his new deal or, tagged, his price again.
     const { l, team } = alone(0.5);
     aiResignWindow(l, team, new Rng('room'));
     expect(restructures(l, team.id)).toBe(0);
@@ -317,8 +324,9 @@ describe('contenders borrow, rebuilders keep next year’s room', () => {
     const contend = club(1);
     aiResignWindow(rebuild.l, rebuild.team, new Rng('room'));
     aiResignWindow(contend.l, contend.team, new Rng('room'));
-    // Restructures, not next year's books: a win-now GM also pays more in his re-signs.
-    expect(restructures(rebuild.l, rebuild.team.id)).toBeLessThan(restructures(contend.l, contend.team.id));
+    // What its restructures push onto next year, not next year's books (a win-now GM also pays more in his re-signs) or
+    // how many it makes (several small ones can borrow less than a few big ones).
+    expect(borrowed(rebuild.l, rebuild.team.id)).toBeLessThan(borrowed(contend.l, contend.team.id));
   });
 
   it('a rebuilding club over the cap still gets under it', () => {

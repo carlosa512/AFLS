@@ -706,7 +706,11 @@ describe('special teams', () => {
     x: p.pos[(st * 22 + k) * 2],
     y: p.pos[(st * 22 + k) * 2 + 1],
   });
-  const returned = (e: PlayLogEntry) => e.air !== undefined && e.to !== undefined && Math.abs(e.to - e.air) > 0.5;
+  /** A kick run back, as the stage draws it: to where the return ended, not where a flag's walk-off put the ball. */
+  const ranBack = (x: PlayLogEntry) => {
+    const e = returned(x);
+    return e.air !== undefined && e.to !== undefined && Math.abs(e.to - e.air) > 0.5;
+  };
   const kickoffs = kicks('kickoff');
   const punts = kicks('punt');
 
@@ -719,7 +723,7 @@ describe('special teams', () => {
   it('puts the returner under the ball when it comes down, and the tackler on him at the whistle', () => {
     let n = 0;
     for (const { e, segs, p } of [...kickoffs, ...punts]) {
-      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text)) continue;
+      if (!ranBack(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text)) continue;
       const ret = p.roles.indexOf('RET');
       const air = segs.findIndex((s) => s.peak > 0);
       const land = segs.slice(0, air + 1).reduce((t, s) => t + s.dur, 0);
@@ -802,7 +806,7 @@ describe('special teams', () => {
     let n = 0;
     let moving = 0;
     for (const { e, p } of [...kickoffs, ...punts]) {
-      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text) || p.carrier === null) continue;
+      if (!ranBack(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text) || p.carrier === null) continue;
       const last = p.steps - 1;
       const c = p.ids.indexOf(p.carrier);
       const end = at(p, last, c);

@@ -104,16 +104,25 @@ describe('offers to you', () => {
       // with years left on his deal: the bug is a young starter priced in firsts, so prime-age players only (30 or
       // under, as the price audit's quality starters).
       .filter((p) => p.position !== 'K' && p.position !== 'P' && p.age <= 30)
-      .sort((a, b) => playerOvr(b) - playerOvr(a))
-      .slice(0, 3);
+      .sort((a, b) => playerOvr(b) - playerOvr(a));
+    let tested = 0;
     for (const star of shop) {
+      if (tested === 3) break;
       const x = fresh();
       setTradeStatus(x, star.id, 'listed');
       const before = x.market!.nextOfferId;
-      for (let w = 0; w < 2; w++) playWeek(x);
+      let hurt = false;
+      for (let w = 0; w < 2; w++) {
+        playWeek(x);
+        hurt ||= playerTradeBlocker(x, x.players[star.id]) !== null;
+      }
       const named = x.market!.offers.filter((o) => o.id >= before && o.sides[1].players.includes(star.id));
+      // Hurt while he was listed, he'd fail the physical, and the rules take him off the market: the next one down.
+      if (hurt && !named.length) continue;
+      tested++;
       expect(named.length, `${star.position} ${star.age}`).toBeGreaterThan(0);
     }
+    expect(tested).toBe(3);
   });
 
   it('bids for your player from a team short of room, with you keeping what it can’t fit, and pays for it', () => {
