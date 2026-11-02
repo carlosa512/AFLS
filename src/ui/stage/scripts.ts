@@ -9,7 +9,7 @@ import type { PlayLogEntry } from '../../engine/types';
 import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type Seg } from './ballPath';
 import type { Cast } from './cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
-import { FAKE, type PocketPlan } from './pocket';
+import { FAKE, PRESSURE_REACT, type PocketPlan } from './pocket';
 import { runnable, SPEED } from './speed';
 import { decoyEnd, type Assignment, type Concept } from './concepts';
 import { routeKeys, routeTime, type RouteId } from './routes';
@@ -94,6 +94,8 @@ const MESH = 0.8;
 const ROUTE_PACE = 8.5;
 /** The engine's beaten block is acted out when the two lined up within this many yards of each other across the field. */
 export const BEAT_ACROSS = 6;
+/** A rusher's get-off: at his man this long after the snap, before he fights him and wins. */
+const ENGAGE = 0.45;
 /** A throwaway lands this far past the line, out of bounds. */
 const THROWAWAY_DOWNFIELD = 12;
 /** A sack's last stagger to the spot, yards a second at most. */
@@ -542,29 +544,56 @@ export function script(
         const out = Math.sign(s0.y - ballY) || 1;
         const shift = (p: Pt, across: number, back: number): Pt => ({ x: p.x - dir * back, y: p.y + out * across });
         const edge = pocket?.pressure === 'edge';
-        // Off the edge, a yard deeper than the quarterback and outside him as he starts to climb: the loop is the
-        // picture, so the beat comes as early as the loop needs it (and goes, if even that can't be run in time).
-        const set0 = qbAt(outT - 0.7);
-        const loop = shift(set0, 2.5, 1);
+        // His man beaten just as the quarterback feels it (`PRESSURE_REACT` before the throw); then after him. Off the
+        // edge he loops in from beside and behind where the quarterback set, chasing him up the pocket; up the middle
+        // he comes through to where the quarterback was and closes on where he's slid to. On him as the ball comes out.
+        const feel = Math.max(0.6, outT - PRESSURE_REACT);
         const pace = topOf(who.rush);
+        // Round the corner his momentum carries him past where the quarterback set, outside and behind it; then a
+        // straight sprint at him where he's climbed to. A quarterback who rolls out escapes him: he's on him (a step
+        // and a half off) as the quarterback breaks out of the pocket, then after him.
+        const roll = pocket?.roll === true;
+        const loopAt = feel + (roll ? 0.15 : 0.3);
+        const wide = shift(qbAt(feel), 3, 1.5);
+        const loop = roll ? toward(qbAt(loopAt), edge ? wide : s0, 1.4) : wide;
         const outside = beat ? shift(beat, 1.5, 0.8) : undefined;
         const beatAt = edge
           ? outside
-            ? Math.min(outT * 0.55, outT - 0.7 - Math.hypot(loop.x - outside.x, loop.y - outside.y) / pace)
+            ? Math.min(outT * 0.55, loopAt - Math.hypot(loop.x - outside.x, loop.y - outside.y) / pace)
             : 0
-          : Math.min(outT * 0.55, outT - 1.2);
+          : Math.min(outT * 0.55, feel - 0.1);
         const reach = (p: Pt) => Math.hypot(p.x - s0.x, p.y - s0.y) / pace;
         const mid: Keyframe[] =
           beat && beatAt > 0.3 && (!edge || beatAt >= reach(outside!))
             ? [at(beatAt, edge ? outside! : toward(beat, qbAt(beatAt), 1))]
             : [];
-        setRun(who.rush, [
-          ...mid,
-          ...(edge ? [at(outT - 0.7, loop)] : [at(outT - 0.3, toward(qbAt(outT - 0.3), s0, 1.8))]),
-          at(outT, edge ? shift(qbAt(outT), 0.7, 0.7) : toward(qbAt(outT), s0, 1)),
-          at(outT + 0.35, edge ? shift(qbAt(outT), 0.5, 0.4) : toward(qbAt(outT), s0, 0.7)),
-        ]);
-        free.set(who.rush, outT + 0.35);
+        const chase = edge || roll ? [at(loopAt, loop)] : [at(feel + 0.3, toward(qbAt(feel), s0, 2))];
+        // Off the ball into the man he'll beat, and a beat of hand fighting on him before he wins.
+        const engage: Keyframe[] = [];
+        if (beat && mid.length) {
+          const contact = toward(beat, s0, 0.9);
+          if (mid[0].t > ENGAGE + 0.3 && reach(contact) <= ENGAGE) {
+            engage.push(at(ENGAGE, contact));
+            engage.push(at(mid[0].t - 0.25, toward(beat, s0, 0.6)));
+          }
+        }
+        const hit = edge ? shift(qbAt(outT), 0.6, 0.8) : toward(qbAt(outT), qbAt(feel), 0.9);
+        const way = runnable({ ...s0, t: 0 }, [...engage, ...mid, ...chase], pace);
+        const last = way[way.length - 1] ?? { t: 0, ...s0 };
+        const room = pace * Math.max(0, outT - last.t);
+        if (Math.hypot(hit.x - last.x, hit.y - last.y) <= room) {
+          // The hit as he lets it go: the quarterback knocked a step and a half on, away from the man who got there,
+          // and the rusher driving through him, still on him.
+          const knocked = toward(qbAt(outT), hit, -1.5);
+          const knock = { x: knocked.x, y: Math.max(1, Math.min(FIELD_W - 1, knocked.y)) };
+          setRun(who.rush, [...way, at(outT, hit), at(outT + 0.4, toward(knock, hit, 0.8))]);
+          free.set(who.rush, outT + 0.55);
+          keys.set(qb!, [...qbKeys.filter((k) => k.t <= outT + 1e-6), at(outT + 0.4, knock)]);
+        } else {
+          // Out of his reach (a quarterback who's rolled away from him): flat out after him as he throws, a step short.
+          setRun(who.rush, [...way, at(outT, toward(last, hit, room))]);
+          free.set(who.rush, outT + 0.2);
+        }
         moment(who.rush, outT - 0.3);
       }
       // The throw is his; once it arrives the play is the receiver's (or the man who picked it off).
