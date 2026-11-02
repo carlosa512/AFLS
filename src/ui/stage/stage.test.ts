@@ -53,6 +53,19 @@ describe('who is on the field for a play', () => {
     expect(checked).toBeGreaterThan(0);
   });
 
+  it('puts both backs on the field when the spelling back gets the ball and the starter is in the play too', () => {
+    const { g, r } = games[0];
+    const i = r.plays!.findIndex((e) => e.down && e.who);
+    const [home, away] = unitsAt(r.field!, i);
+    const off = r.playerTeams[home.qb] === r.plays![i].offense ? home : away;
+    // The spelling back has the ball; the starter was the blocker who got beat.
+    const plays = r.plays!.map((e, k) => (k === i ? { ...e, who: [off.rb2!, null, null, null, off.rb] } : e));
+    const ids = castFor(r.field!, plays, i, g.homeId).offense.map((m) => m.id);
+    expect(ids).toContain(off.rb2);
+    expect(ids).toContain(off.rb);
+    expect(new Set(ids).size).toBe(11);
+  });
+
   it('puts every player a scrimmage play was about on the field, swapping in a spelling back or a rotation rusher', () => {
     let swaps = 0;
     for (const { g, r } of games)

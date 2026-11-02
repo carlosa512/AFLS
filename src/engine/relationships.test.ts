@@ -83,16 +83,21 @@ describe('rapport, homecomings and grudges, read off history', () => {
     }
   }, 240_000);
 
-  /** A player who started both seasons on one club, and the head coach there both seasons. */
+  /**
+   * A player who started both seasons on one club and is still there with no departures behind him (the tests write
+   * his `left` themselves, and the caches key on how many he has), under the head coach there both seasons, still in
+   * the chair.
+   */
   const twoYearStarter = () => {
     const [a, b] = [l.season - 2, l.season - 1];
     for (const p of Object.values(l.players)) {
       const t = p.statTeams?.[a]?.at(-1);
-      if (t === undefined || p.statTeams?.[b]?.at(-1) !== t) continue;
+      if (t === undefined || p.statTeams?.[b]?.at(-1) !== t || p.teamId !== t || p.left?.length) continue;
       if (seasonRole(l, p, a)?.role !== 'starter' || seasonRole(l, p, b)?.role !== 'starter') continue;
       const hc = Object.values(l.coaches).find(
         (c) =>
           c.role === 'headCoach' &&
+          c.teamId === t &&
           [a, b].every((s) => c.career?.some((r) => r.season === s && r.teamId === t && r.role === 'headCoach')),
       );
       if (hc) return { p, hc, teamId: t };
