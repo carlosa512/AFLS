@@ -168,15 +168,18 @@ export const winNow = (league: League, team: Team) =>
 const richness = (league: League, team: Team) =>
   clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
-/** A GM's offer to a player, shaped by need, ambition and cap style. */
-export function aiOffer(league: League, team: Team, player: Player, rng: Rng, gain: number): Offer {
+/** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
+export function aiOffer(
+  league: League,
+  team: Team,
+  player: Player,
+  rng: Rng,
+  gain: number,
+  rich = richness(league, team),
+): Offer {
   const d = demand(league, player, team.id);
   const eager = clamp(
-    0.93 +
-      0.02 * Math.min(gain, 4) +
-      0.06 * winNow(league, team) +
-      0.07 * richness(league, team) +
-      rng.float(-0.04, 0.04),
+    0.93 + 0.02 * Math.min(gain, 4) + 0.06 * winNow(league, team) + 0.07 * rich + rng.float(-0.04, 0.04),
     0.85,
     1.12,
   );
@@ -623,15 +626,15 @@ const PRICEY = 0.03;
 const PRICE_GAIN = 6;
 
 /** The least upgrade (`needGain`) a team bids for at all: a rich one takes a flyer on depth. */
-const minGainFor = (league: League, team: Team) => 0.3 - richness(league, team) * 0.2;
+const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
 
 /**
  * The upgrade a free agent at `apy` has to buy: a big contract is an investment, not a swap of
  * numbers, so the more of the cap it takes, the bigger the step it must be on where the room is
  * headed (no $80M a year for a quarterback level with the young one already there).
  */
-export const upgradeBar = (league: League, team: Team, apy: number) =>
-  minGainFor(league, team) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
+export const upgradeBar = (league: League, team: Team, apy: number, rich = richness(league, team)) =>
+  minGainFor(league, team, rich) + PRICE_GAIN * Math.max(0, apy / league.caps[league.season] - PRICEY);
 
 /** One day of free agency: every AI team bids on the players it needs; each player takes his best offer if it's good enough. */
 /**
@@ -655,8 +658,11 @@ export function aiFreeAgencyDay(
   const nextCap = capFor(league, league.season + 1) * 0.92;
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
   const signedToday = new Map<number, number>();
-  const dailyLimit = new Map(teams.map((t) => [t.id, 4 + Math.round(richness(league, t) * 5)]));
-  const minGain = new Map(teams.map((t) => [t.id, minGainFor(league, t)]));
+  // Each club's room to spend, read once a pass and again when it signs: a club's cap is read off every player in the
+  // league, and reading it for each bid was most of a free-agency day (70% of a careers league).
+  const rich = new Map(teams.map((t) => [t.id, richness(league, t)]));
+  const dailyLimit = new Map(teams.map((t) => [t.id, 4 + Math.round(rich.get(t.id)! * 5)]));
+  const minGain = new Map(teams.map((t) => [t.id, minGainFor(league, t, rich.get(t.id))]));
   const market = leagueMarket(league);
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
@@ -683,8 +689,8 @@ export function aiFreeAgencyDay(
       const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
       const gain = needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p));
       if (gain < minGain.get(team.id)!) continue;
-      let offer = aiOffer(league, team, p, rng, gain);
-      if (gain < upgradeBar(league, team, offer.apy)) continue;
+      let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
+      if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id))) continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
@@ -715,7 +721,7 @@ export function aiFreeAgencyDay(
         const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
         if (
           !fitted ||
-          gain < upgradeBar(league, team, fitted.apy) ||
+          gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) ||
           offerValue(league, p, team.id, fitted) < floorAt(team.id)
         )
           continue;
@@ -747,6 +753,7 @@ export function aiFreeAgencyDay(
     room.set(best.team.id, room.get(best.team.id)! - 1);
     // Next year's books as they stand now: his deal and any restructure made for it.
     committedNext.set(best.team.id, capSheet(league, best.team.id, league.season + 1).used);
+    rich.set(best.team.id, richness(league, best.team));
     rooms.delete(best.team.id);
     signedToday.set(best.team.id, (signedToday.get(best.team.id) ?? 0) + 1);
     const d = depth.get(best.team.id)![p.position];
