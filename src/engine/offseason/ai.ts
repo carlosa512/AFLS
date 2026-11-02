@@ -11,6 +11,7 @@ import {
   capFor,
   capSheet,
   capSpace,
+  isOffseason,
   logTransaction,
   releasePlayer,
   releasePreview,
@@ -462,6 +463,9 @@ export function restructurePlan(
   need: number,
   opts: { keeper?: Player; nextOwed?: number; room?: ClubRoom } = {},
 ): RestructurePlan {
+  // Restructures happen in the offseason: in season there's nothing to plan (a club over the cap mid-season read its
+  // whole room each week, which cost a careers run its time limit).
+  if (!isOffseason(league.phase)) return { steps: [], saved: 0 };
   const room = opts.room ?? clubRoom(league, team);
   let nextRoom = room.nextRoom - (opts.nextOwed ?? 0);
   const deals = room.deals.filter((x) => x.p !== opts.keeper);
