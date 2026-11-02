@@ -100,10 +100,69 @@ export function lineUp(
   else if (e.kind === 'fg' || e.kind === 'xp') fieldGoal(cast, put, face);
   else {
     scrimmage(e, cast, off, def, put, face, strong, look);
+    if (isVictory(e)) victory(cast, put, face, (id) => Math.sign((spots.get(id)?.y ?? ballY) - ballY) * dir || 1);
     coverTheTarget(e, cast, spots);
     tacklerNear(e, cast, spots, ballY, dir);
+    jetSweep(e, cast, spots, ballX, ballY, dir);
   }
   return spots;
+}
+
+/** The victory formation's kneel (not fourth down's roll-out, which runs the clock out on his feet). */
+export const isVictory = (e: PlayLogEntry) => e.kind === 'kneel' && /kneels\./.test(e.text);
+
+/**
+ * The victory formation, with the men on the field: the quarterback under center, the line, the two men at its ends
+ * tight, two up-backs a step behind the quarterback either side, one man deep against a fumble; nobody split wide.
+ * The defense crowds the line: corners over the ends, the safeties shallow.
+ */
+function victory(cast: Cast, put: Put, face: Put, sideOf: (id: number) => number) {
+  const rest = cast.offense.filter((m) => m.role !== 'QB' && m.role !== 'OL');
+  // The deep man: a back if there is one; the ends: tight ends first; the up-backs: whoever's left.
+  const deep = rest.find((m) => m.role === 'RB') ?? rest[rest.length - 1];
+  const others = rest.filter((m) => m !== deep).sort((a, b) => Number(b.role === 'TE') - Number(a.role === 'TE'));
+  const ends = others.slice(0, 2);
+  const ups = others.slice(2);
+  ends.forEach((m, i) => put(m.id, 0.8, (i % 2 === 0 ? 1 : -1) * 6));
+  ups.forEach((m, i) => put(m.id, 3.6, (i % 2 === 0 ? 1 : -1) * (2.2 + Math.floor(i / 2) * 1.5)));
+  if (deep) put(deep.id, 9, 0);
+  // Each keeps his side (a left corner stays the left corner); a second man on a side lines up behind the first.
+  const onSide = new Map<number, number>();
+  for (const m of cast.defense) {
+    if (m.role !== 'CB' && m.role !== 'S') continue;
+    const side = sideOf(m.id);
+    const key = side * (m.role === 'CB' ? 1 : 2);
+    const n = onSide.get(key) ?? 0;
+    onSide.set(key, n + 1);
+    if (m.role === 'CB') face(m.id, 3 + n * 2.5, side * 7.5);
+    else face(m.id, 7 + n * 2, side * 4);
+  }
+}
+
+/** A jet sweep's runner at the snap: this far across from the ball on the side away from the run, and this far off the line. */
+const JET_ACROSS = 6;
+const JET_BACK = 1.2;
+
+/**
+ * A receiver who carries a run is a jet sweep: in motion across the formation (`presnap.ts`), he's at the snap a few
+ * yards from the ball on the far side from the run, running at it, so he's at the mesh as the ball gets there. Lined up
+ * out wide instead, he could never be. Whoever the formation put on that spot takes his.
+ */
+function jetSweep(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>, ballX: number, ballY: number, dir: 1 | -1) {
+  const runner = actorsIn(e).ball;
+  const role = cast.offense.find((m) => m.id === runner)?.role;
+  if (e.kind !== 'run' || runner === undefined || (role !== 'WR' && role !== 'TE') || !spots.has(runner)) return;
+  const side = (e.lane ?? 0) < 0 ? -1 : 1;
+  const jet = {
+    x: ballX - dir * JET_BACK,
+    y: Math.max(EDGE, Math.min(FIELD_W - EDGE, ballY - dir * side * JET_ACROSS)),
+  };
+  const was = spots.get(runner)!;
+  for (const m of cast.offense) {
+    const p = spots.get(m.id);
+    if (m.id !== runner && p && Math.hypot(p.x - jet.x, p.y - jet.y) < 1.5) spots.set(m.id, was);
+  }
+  spots.set(runner, jet);
 }
 
 /**
@@ -182,7 +241,10 @@ function scrimmage(
     const m = of(o, 'OL')[i];
     if (m) put(m.id, 0.8, across);
   });
-  const gun = !underCenter(e) || off.personnel === '10';
+  // The victory formation and the spike are under center whatever the personnel: the kneel (a yard back) and the
+  // spike happen right there.
+  const kneel = e.kind === 'kneel' || e.kind === 'spike';
+  const gun = !kneel && (!underCenter(e) || off.personnel === '10');
   for (const m of of(o, 'QB')) put(m.id, gun ? 5 : 2, 0);
   for (const m of of(o, 'RB')) put(m.id, gun ? 5 : 6.5, gun ? -s * 1.5 : 0);
 

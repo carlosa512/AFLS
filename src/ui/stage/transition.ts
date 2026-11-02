@@ -64,12 +64,27 @@ export function celebrates(plays: readonly PlayLogEntry[], index: number, homeId
 
 export interface Mark extends Pt {
   home: boolean;
+  /** His velocity at the whistle (yards a second): a man at full tilt pulls up over a few steps, not on the spot. */
+  vx?: number;
+  vy?: number;
+}
+
+/** Pulling up after the whistle: from his speed to a stop over this long (seconds), inside the beat. */
+const PULL_UP = 0.6;
+
+/** Where a man pulling up is `t` seconds after the whistle: braking evenly from `v` to a stop over `PULL_UP`. */
+function pulledUp(m: Mark, t: number): Pt {
+  const T = Math.min(t, PULL_UP);
+  const g = T - (T * T) / (2 * PULL_UP);
+  return { x: m.x + (m.vx ?? 0) * g, y: m.y + (m.vy ?? 0) * g };
 }
 
 export interface Move {
   id: number;
   home: boolean;
   from: Pt;
+  /** Where the whistle caught him, moving: he pulls up from there to `from` during the beat. */
+  whistle?: Mark;
   /** Where he celebrates (his `from` when he doesn't), and when he gets there (seconds into the celebration). */
   mid: Pt;
   joins: number;
@@ -195,7 +210,9 @@ export function transition(
   const onNext = new Set(next.ids);
   next.ids.forEach((id, k) => {
     const to = { x: next.pos[k * 2], y: next.pos[k * 2 + 1] };
-    const was = prev.get(id);
+    const caught = prev.get(id);
+    // Moving at the whistle (and no celebration to run to): he pulls up first, and everything after starts there.
+    const was = caught && !party && (caught.vx || caught.vy) ? { ...caught, ...pulledUp(caught, PULL_UP) } : caught;
     const from = was ?? {
       // From the bench: on a change-over the kick units come from the team area, otherwise level with his spot.
       x: benchAt(to.x, rng),
@@ -217,11 +234,13 @@ export function transition(
       enter: !was,
       leave: false,
       start: 0,
+      ...(was !== caught ? { whistle: caught } : {}),
       ...way,
     });
   });
-  for (const [id, was] of prev)
+  for (const [id, caught] of prev)
     if (!onNext.has(id)) {
+      const was = !party && (caught.vx || caught.vy) ? { ...caught, ...pulledUp(caught, PULL_UP) } : caught;
       const { pace, ...way } = style();
       paceOf.set(id, pace);
       // Off toward his bench area (between the 30s), each by his own line, not straight across in a row.
@@ -241,6 +260,7 @@ export function transition(
         gather: 0,
         to: { x: benchX, y: benchY(was.home) },
         arrive: 0,
+        ...(was !== caught ? { whistle: caught } : {}),
         enter: false,
         leave: true,
         start: 0,
@@ -357,6 +377,7 @@ export function transition(
     huddle: huddleTime,
     moves,
     at(m, t) {
+      if (m.whistle && t < beat) return { ...pulledUp(m.whistle, t), opacity: 1 };
       t = Math.max(0, t - beat);
       // The men celebrating, and the subs on the sideline, wait for the moment to pass; everyone else on the field
       // heads for the next play straight away.

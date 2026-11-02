@@ -10,7 +10,8 @@ import { castFor, unitsAt } from './cast';
 import { fumbleIn } from './fumble';
 import { lineUp } from './formations';
 import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
-import { asRan, returned, stagePlay, type StagedPlay } from './stage';
+import { asRan, returned, SPRINT, stagePlay, type StagedPlay } from './stage';
+import { SPEED } from './speed';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -287,6 +288,48 @@ describe('the staged play', () => {
     y: p.pos[(step * p.ids.length + k) * 2 + 1],
   });
 
+  /** A man's quickest quarter-second on the play, yards a second, and when it ends. */
+  const quickest = (p: StagedPlay, k: number) => {
+    const w = Math.round(0.25 / p.dt);
+    let best = 0;
+    let when = 0;
+    for (let st = w; st < p.steps; st++) {
+      const a = pos(p, st, k);
+      const b = pos(p, st - w, k);
+      const v = Math.hypot(a.x - b.x, a.y - b.y) / (w * p.dt);
+      if (v > best) [best, when] = [v, st * p.dt];
+    }
+    return { v: best, t: when };
+  };
+  /**
+   * As quick as a man gets: his top speed and the pursuit edge, and a little for a shove (a carrier running into a man
+   * moves him, `steer`'s floor) and for rounding.
+   */
+  const legs = (role: string) => SPEED[role as keyof typeof SPEED] + 0.6 + 0.5;
+
+  it('never has anyone faster than his legs, on any play: nobody teleports, the tackler included', () => {
+    const fast: string[] = [];
+    for (const { e, p } of staged) {
+      const end = p.steps - 1;
+      const c = p.carrier === null ? -1 : p.ids.indexOf(p.carrier);
+      p.ids.forEach((_, k) => {
+        const q = quickest(p, k);
+        // Running a carrier down, the man who brings him down may sprint his last stretch: on him at the whistle,
+        // within the last two seconds, and never past the NFL's fastest.
+        const onHim =
+          c >= 0 &&
+          k !== c &&
+          Math.hypot(pos(p, end, k).x - pos(p, end, c).x, pos(p, end, k).y - pos(p, end, c).y) < 1.5;
+        const closing = onHim && q.t >= end * p.dt - 2;
+        const most = closing
+          ? Math.max(legs(p.roles[k]), Math.min(SPRINT, legs(p.roles[k]) + 1) + 0.4)
+          : legs(p.roles[k]);
+        if (q.v > most) fast.push(`${p.roles[k]} ${q.v.toFixed(1)} at ${q.t.toFixed(2)}: ${e.text}`);
+      });
+    }
+    expect(fast.slice(0, 5)).toEqual([]);
+  });
+
   it('stages every entry of 40 games without throwing, 22 ids each', () => {
     expect(staged.length).toBeGreaterThan(5000);
     for (const { p } of staged) {
@@ -363,8 +406,9 @@ describe('the staged play', () => {
       const c = p.ids.indexOf(p.carrier);
       // From when he has it: the throw or the handoff, a pick as he makes it, or a fumble's recovery (before, the man who
       // ends up with it may have been in coverage).
-      const from = Math.round(
-        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt,
+      // (The first step he has it: until then a receiver is on his route, and his man may be as close as he can get.)
+      const from = Math.ceil(
+        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt - 1e-9,
       );
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).

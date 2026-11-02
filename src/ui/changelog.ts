@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.1',
+    date: '2026-11-02',
+    title: 'Nobody teleports',
+    text:
+      'In All-22, nobody moves faster than his own legs any more. Tacklers take an angle on the ball carrier, or run ' +
+      'him down from behind with a closing sprint no quicker than the fastest NFL players, and a man who misses ' +
+      'carries on past and goes down instead of freezing. Players pull up after the whistle. Kickoff coverage waits ' +
+      'for the ball to land. The victory formation looks like one: the quarterback under center, two up-backs, a man ' +
+      'deep, and a real kneel. Highlight rings show at the moment, so they no longer give away who makes the tackle.',
+  },
+  {
     version: '0.3.0',
     date: '2026-11-02',
     title: 'Trade requests',

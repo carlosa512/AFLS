@@ -15,7 +15,7 @@
  *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
- *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`,
+ *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
  *
@@ -229,6 +229,8 @@ const FILM: Record<string, (e: PlayLogEntry) => number> = {
       : 0,
   int: (e) => (e.kind === 'int' ? 1 : 0),
   throwaway: (e) => (/throws it away/.test(e.text) ? 1 : 0),
+  kneel: (e) => (e.kind === 'kneel' && /kneels\./.test(e.text) ? 1 : 0),
+  long: (e) => (e.kind === 'run' && !/TOUCHDOWN/.test(e.text) && Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 20 ? 1 : 0),
 };
 /** Long enough for the line-up, the moments at the line, the play and its hold. */
 const CLIP_MS = 12_000;
