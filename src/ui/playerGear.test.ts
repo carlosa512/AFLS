@@ -3,7 +3,16 @@ import type { Position } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { createLeague } from '../engine/generate';
 import { editPlayerGear } from '../engine/roster';
-import { GEAR_MAX, GEAR_RATES, gearOf, ownGear, type Gear } from './playerGear';
+import {
+  GEAR_MAX,
+  GEAR_RATES,
+  gearOf,
+  ownGear,
+  PADDED_BOTH,
+  WRISTBAND_QB,
+  WRISTBAND_RIGHT,
+  type Gear,
+} from './playerGear';
 
 const N = 3000;
 const players = (position: Position) => Array.from({ length: N }, (_, i) => ({ id: i + 1, position }));
@@ -94,10 +103,11 @@ describe('gearOf', () => {
     // rarer elsewhere
     expect(shooters('LB').share).toBeLessThan(0.15);
   });
-  it("hangs a quarterback's single sleeve on his throwing arm", () => {
+  it("hangs a quarterback's single plain sleeve on his throwing arm", () => {
+    // a padded sleeve goes on either arm (below); the plain ones keep the throwing arm
     const single = players('QB')
       .map((p) => gearOf(p).sleeve)
-      .filter((s) => s && s.side !== 'both');
+      .filter((s) => s && s.side !== 'both' && s.length !== 'padded' && s.length !== 'paddedElbow');
     expect(single.length).toBeGreaterThan(0);
     for (const s of single) expect(s!.side).toBe('right');
   });
@@ -137,5 +147,68 @@ describe('gearOf', () => {
     editPlayerGear(l, p.id, null);
     expect(p.gear).toBeUndefined();
     expect(gearOf(p)).toEqual(ownGear(p));
+  });
+  it('gives quarterbacks padded sleeves inside their usual sleeve mix, mostly on one arm, either one', () => {
+    const qbs = players('QB').map((p) => gearOf(p));
+    const sleeved = qbs.filter((g) => g.sleeve);
+    expect(sleeved.length / N).toBeCloseTo(GEAR_RATES.QB.sleeve!, 1); // unchanged: 40%
+    const padded = sleeved.filter((g) => g.sleeve!.length === 'padded' || g.sleeve!.length === 'paddedElbow');
+    expect(padded.length / sleeved.length).toBeCloseTo(60 / 205, 1);
+    const both = padded.filter((g) => g.sleeve!.side === 'both').length / padded.length;
+    expect(both).toBeCloseTo(PADDED_BOTH, 1);
+    const left = padded.filter((g) => g.sleeve!.side === 'left').length;
+    const right = padded.filter((g) => g.sleeve!.side === 'right').length;
+    expect(Math.abs(left - right) / padded.length).toBeLessThan(0.08);
+    for (const position of POSITIONS.filter((x) => x !== 'QB'))
+      expect(
+        share(position, (g) => g.sleeve?.length === 'padded' || g.sleeve?.length === 'paddedElbow'),
+        position,
+      ).toBe(0);
+  });
+  it('puts a play-call wristband on 60% of quarterbacks, on one wrist, the left for most', () => {
+    expect(share('QB', (g) => !!g.wristband)).toBeCloseTo(WRISTBAND_QB, 1);
+    const bands = players('QB')
+      .map((p) => gearOf(p).wristband)
+      .filter(Boolean);
+    expect(bands.filter((b) => b!.side === 'right').length / bands.length).toBeCloseTo(WRISTBAND_RIGHT, 1);
+    for (const position of POSITIONS.filter((x) => x !== 'QB'))
+      expect(
+        share(position, (g) => !!g.wristband),
+        position,
+      ).toBe(0);
+  });
+  it('never puts the wristband on an arm with a padded sleeve, for a clean look', () => {
+    const padded = (g: Gear) => g.sleeve?.length === 'padded' || g.sleeve?.length === 'paddedElbow';
+    const qbs = players('QB')
+      .map((p) => gearOf(p))
+      .filter(padded);
+    expect(qbs.length).toBeGreaterThan(0);
+    for (const g of qbs) {
+      if (!g.wristband) continue;
+      expect(g.sleeve!.side).not.toBe('both');
+      expect(g.wristband.side).not.toBe(g.sleeve!.side);
+    }
+    // a padded sleeve on one arm moves the band to the other wrist rather than dropping it
+    expect(qbs.filter((g) => g.sleeve!.side !== 'both' && g.wristband).length).toBeGreaterThan(0);
+  });
+  it('never puts the wristband on the same wrist as a forearm band', () => {
+    for (const p of players('QB')) {
+      const g = gearOf(p);
+      if (g.wristband && g.band?.at === 'forearm') expect(g.band.side).not.toBe(g.wristband.side);
+    }
+  });
+  it('dresses a quarterback in plain long sleeves in the cold, and keeps his wristband on', () => {
+    for (const p of players('QB')) {
+      const warm = gearOf(p);
+      const cold = gearOf(p, true);
+      // the 85% who dress for the cold wear plain full sleeves; the rest keep their usual gear, padded sleeve included
+      if (JSON.stringify(cold) !== JSON.stringify(warm))
+        expect(cold.sleeve).toMatchObject({ length: 'full', side: 'both' });
+      expect(cold.wristband).toEqual(warm.wristband);
+    }
+  });
+  it('keeps gear you chose before the wristband existed as you chose it', () => {
+    const gear: Gear = { band: { at: 'biceps', color: 'white', side: 'both' } };
+    expect(gearOf({ id: 5, position: 'QB', gear }).wristband).toBeUndefined();
   });
 });

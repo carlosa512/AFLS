@@ -20,6 +20,9 @@ interface Rates {
   shooter?: number;
   /** Of those in shooter sleeves, how many wear them on both arms: mostly the secondary (default 0.2). */
   shooterBoth?: number;
+  /** Quarterbacks: the padded sleeves' weights among his sleeve lengths, beside the others (absent: never). */
+  padded?: number;
+  paddedElbow?: number;
   undershirt?: number;
   biceps?: number;
   forearm?: number;
@@ -34,6 +37,8 @@ export const GEAR_RATES: Record<Position, Rates> = {
     bothArms: 0.6,
     shooter: 45,
     shooterBoth: 0.05,
+    padded: 40,
+    paddedElbow: 20,
     undershirt: 0.15,
     biceps: 0.05,
     forearm: 0.12,
@@ -91,6 +96,17 @@ export const GEAR_RATES: Record<Position, Rates> = {
 export const BANDS_OVER_SLEEVE = 0.15;
 /** Pieces a player wears at most in normal weather; a cold game's sleeves can make it three. */
 export const GEAR_MAX = 2;
+/** Of the padded sleeves, how many go on both arms; the rest go on one arm, the left as often as the right. */
+export const PADDED_BOTH = 0.15;
+/** How many quarterbacks wear a play-call wristband (an AFLS estimate, tune), and how many of those on the right wrist. */
+export const WRISTBAND_QB = 0.6;
+export const WRISTBAND_RIGHT = 0.25;
+const WRIST_COLORS: readonly (readonly [GearColor, number])[] = [
+  ['white', 40],
+  ['black', 30],
+  ['primary', 15],
+  ['secondary', 15],
+];
 /** Open air at this or colder at kickoff, or snow, or heavy rain: most players pull sleeves on (tune). */
 export const COLD_KICKOFF_F = 35;
 
@@ -146,6 +162,7 @@ export function gearOf(player: Pick<Player, 'id' | 'position' | 'gear'>, cold = 
   };
   if (base.band) gear.band = base.band;
   if (base.shoulderBrace) gear.shoulderBrace = base.shoulderBrace;
+  if (base.wristband) gear.wristband = base.wristband;
   return gear;
 }
 
@@ -171,11 +188,19 @@ export function ownGear(player: Pick<Player, 'id' | 'position'>): Gear {
   // a quarterback's single sleeve is on his throwing arm (the right: no handedness yet); shooter sleeves on both
   // arms are mostly the secondary's
   const sleeveSide = (length: SleeveLength): Side => {
+    // a padded sleeve is a flavour, not the throwing arm's: either arm as often, now and then both
+    if (length === 'padded' || length === 'paddedElbow')
+      return roll(id, 'paddedBoth') < PADDED_BOTH ? 'both' : oneSide(id, 'paddedSide');
     const both = length === 'shooter' ? (r.shooterBoth ?? 0.2) : (r.bothArms ?? 0.5);
     return roll(id, 'sleeveBoth') < both ? 'both' : position === 'QB' ? 'right' : oneSide(id, 'sleeveSide');
   };
   if (r.sleeve && room() && roll(id, 'sleeve') < r.sleeve) {
-    const length = weighted(id, 'length', [...LENGTHS, ['shooter', r.shooter ?? 10] as const]);
+    const length = weighted(id, 'length', [
+      ...LENGTHS,
+      ['shooter', r.shooter ?? 10] as const,
+      ...(r.padded ? [['padded', r.padded] as const] : []),
+      ...(r.paddedElbow ? [['paddedElbow', r.paddedElbow] as const] : []),
+    ]);
     gear.sleeve = { length, color: weighted(id, 'sleeveColor', SLEEVE_COLORS), side: sleeveSide(length) };
     pieces++;
   } else if (r.undershirt && room() && roll(id, 'undershirt') < r.undershirt) {
@@ -190,6 +215,24 @@ export function ownGear(player: Pick<Player, 'id' | 'position'>): Gear {
     } else if (r.forearm && roll(id, 'forearm') < r.forearm * layered) {
       gear.band = { at: 'forearm', color: weighted(id, 'bandColor', BAND_COLORS), side: oneSide(id, 'bandSide') };
     }
+  }
+  // the quarterback's play-call wristband: one wrist, outside the two-piece limit (it's his, not arm gear). Never on an
+  // arm in a padded sleeve, for a clean look: it moves to the other wrist, or stays off when neither is free.
+  if (position === 'QB' && roll(id, 'wristband') < WRISTBAND_QB) {
+    const padded = gear.sleeve?.length === 'padded' || gear.sleeve?.length === 'paddedElbow';
+    // nor on a wrist with a forearm band, which would sit over it
+    const busy = (side: 'left' | 'right') =>
+      (padded && (gear.sleeve!.side === side || gear.sleeve!.side === 'both')) ||
+      (gear.band?.at === 'forearm' && gear.band.side === side);
+    const want = roll(id, 'wristSide') < WRISTBAND_RIGHT ? 'right' : 'left';
+    const side = !busy(want)
+      ? want
+      : !busy(want === 'left' ? 'right' : 'left')
+        ? want === 'left'
+          ? 'right'
+          : 'left'
+        : null;
+    if (side) gear.wristband = { side, color: weighted(id, 'wristColor', WRIST_COLORS) };
   }
   return gear;
 }

@@ -285,6 +285,16 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 74;
   }
+  // v75: helmets. Each default club gets its design from its seed, matched by abbreviation (`Team.helmet`); a club
+  // no seed matches (a mod's) keeps none and wears the fallback built from its colours. `Gear.helmet`,
+  // `Gear.wristband` and the padded sleeve lengths are optional or additive: nothing to rewrite.
+  if (league.version < 75) {
+    for (const team of league.teams) {
+      const seed = TEAM_SEEDS.find((s) => s.abbrev === team.abbrev);
+      if (!team.helmet && seed?.helmet) team.helmet = structuredClone(seed.helmet);
+    }
+    league.version = 75;
+  }
   return league;
 }
 

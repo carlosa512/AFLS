@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.38',
+    version: '0.2.39',
     date: '2026-11-02',
     title: 'Who runs the room',
     text:
@@ -23,6 +23,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'The Locker Room has a card for each room with its mood, what stands out, who it follows, its mentoring and its ' +
       'feuds. The head coach covers the rooms at the start and end of the season, a position coach writes when his ' +
       'guys turn, and a yellow Negotiate button opens contract talks from a room, a player’s card or his letter.',
+  },
+  {
+    version: '0.2.38',
+    date: '2026-11-02',
+    title: 'Helmets on',
+    text:
+      'Every player now wears his club’s helmet, each club in its own design and each player in one of eight shells, ' +
+      'linemen in their wider cage. The back carries the US flag, a Pathway player’s country under it, and the green ' +
+      'dot on the quarterback and the defence’s play-caller. Quarterbacks can wear a padded sleeve and a play-call ' +
+      'wristband, and you can pick any player’s helmet and wristband from the pencil on his card.',
   },
   {
     version: '0.2.37',

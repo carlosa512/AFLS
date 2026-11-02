@@ -298,7 +298,7 @@ describe('migration and collection', () => {
     // dealt back, and a player's ratings draw by his quality, so the stream, players, schedule and charts move with
     // them; the passing game's shape and a team's day move the result. `result` again
     // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean. `result` again with the
-    // locker room's voices (0.2.38): a voice's mood rubs off on his room and a new league's moods settle together, so
+    // locker room's voices (0.2.39): a voice's mood rubs off on his room and a new league's moods settle together, so
     // the game-day edge moves; the stream, players, games and charts still match.
     expect({
       players: hash(l.players),

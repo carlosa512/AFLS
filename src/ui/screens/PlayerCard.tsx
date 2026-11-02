@@ -32,7 +32,17 @@ import {
 } from '../../engine/training';
 import { targetsFor } from '../../engine/familiarity';
 import { tradeContext } from '../../engine/trade/context';
-import type { Gear, GearColor, GearSide, League, Player, Position, SleeveLength, StatLine } from '../../engine/types';
+import type {
+  Gear,
+  GearColor,
+  GearSide,
+  HelmetModel,
+  League,
+  Player,
+  Position,
+  SleeveLength,
+  StatLine,
+} from '../../engine/types';
 import { OFFSEASON_PHASES } from '../../engine/types';
 import { MAX_COMPARE, useNav } from '../App';
 import { chairNoun, playerCoachLine } from '../coaching';
@@ -42,6 +52,7 @@ import { MoodPill } from '../morale';
 import { LinkedText, type Who } from '../moves';
 import { store } from '../store';
 import { ownGear } from '../playerGear';
+import { HELMET_LABEL, helmetModelOf } from '../helmet';
 import { CaptainPatch, captainStreak } from '../captainPatch';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
@@ -321,6 +332,7 @@ function IdentityEditor({
       <GearEditor
         gear={draft.gear}
         custom={draft.custom}
+        ownHelmet={helmetModelOf({ ...p, gear: undefined })}
         onChange={(gear) => onDraft({ gear, custom: true })}
         onReset={() => onDraft({ gear: ownGear(p), custom: false })}
       />
@@ -354,6 +366,8 @@ const SLEEVE_LABEL: Record<SleeveLength, string> = {
   half: 'Half',
   forearm: 'Forearm',
   shooter: 'Shooter',
+  padded: 'Padded',
+  paddedElbow: 'Padded elbow',
 };
 
 /** One labelled dropdown of the gear editor. */
@@ -383,18 +397,21 @@ function GearSelect<T extends string>({
 }
 
 /**
- * His arm gear, one row a piece: a sleeve (or an undershirt sleeve), a band, elbow pads, a shoulder brace. Anything
- * goes, whatever his position; "Back to his own" returns him to what the avatar picks. A cold game still pulls
- * full sleeves on (`gearOf`).
+ * His gear, one row a piece: his helmet, a sleeve (or an undershirt sleeve), a play-call wristband, a band, elbow pads,
+ * a shoulder brace. Anything goes, whatever his position; "Back to his own" returns him to what the avatar picks. A
+ * cold game still pulls full sleeves on (`gearOf`).
  */
-function GearEditor({
+export function GearEditor({
   gear,
   custom,
+  ownHelmet,
   onChange,
   onReset,
 }: {
   gear: Gear;
   custom: boolean;
+  /** The shell the game picks for him, named in the "His own" option. */
+  ownHelmet: HelmetModel;
   onChange: (g: Gear) => void;
   onReset: () => void;
 }) {
@@ -408,6 +425,14 @@ function GearEditor({
   return (
     <fieldset className="gear-edit">
       <legend className="eyebrow">Gear</legend>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Helmet"
+          value={gear.helmet ?? 'own'}
+          options={{ own: `His own (${HELMET_LABEL[ownHelmet]})`, ...HELMET_LABEL }}
+          onChange={(v) => (v === 'own' ? set({}, ['helmet']) : set({ helmet: v }))}
+        />
+      </div>
       <div className="gear-edit-row">
         <GearSelect
           label="Sleeve"
@@ -437,6 +462,26 @@ function GearEditor({
             onChange={(color) =>
               gear.sleeve ? set({ sleeve: { ...gear.sleeve, color } }) : set({ undershirt: color })
             }
+          />
+        )}
+      </div>
+      <div className="gear-edit-row">
+        <GearSelect
+          label="Wristband"
+          value={gear.wristband?.side ?? 'none'}
+          options={{ none: 'None', left: 'Left wrist', right: 'Right wrist' }}
+          onChange={(v) =>
+            v === 'none'
+              ? set({}, ['wristband'])
+              : set({ wristband: { side: v, color: gear.wristband?.color ?? 'white' } })
+          }
+        />
+        {gear.wristband && (
+          <GearSelect
+            label="Colour"
+            value={gear.wristband.color}
+            options={COLOR_LABEL}
+            onChange={(color) => set({ wristband: { ...gear.wristband!, color } })}
           />
         )}
       </div>
