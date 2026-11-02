@@ -3,7 +3,7 @@ import { MOOD_ACTS, rustKnock } from './disputeRead';
 import { createLeague } from './generate';
 import { migrateLeague } from './migrate';
 import { moraleAdvance } from './morale';
-import { activeRoster, isAvailable, rosterList } from './roster';
+import { activeRoster, isAvailable, rosterList, setTeam } from './roster';
 import type { League, Player } from './types';
 
 afterEach(() => {
@@ -60,18 +60,18 @@ describe('disputes: the lists and the readers (G4)', () => {
   });
 });
 
-describe('save v71', () => {
-  it('upgrades a v70 save with talks open and steps it without starting anything', () => {
-    const { l, p } = base('v71');
+describe('save v77', () => {
+  it('upgrades a v76 save with talks open and steps it without starting anything', () => {
+    const { l, p } = base('v77');
     const clock = l.moraleAt!;
     p.morale!.talk = {
       club: p.teamId!,
       answered: { reply: 'firm', at: clock, ask: clock },
       promise: { kind: 'deal', made: clock, due: clock + 20 },
     };
-    l.version = 70;
+    l.version = 76;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(71);
+    expect(up.version).toBe(77);
     expect(() => moraleAdvance(up, clock + 1)).not.toThrow();
     expect(Object.values(up.players).some((x) => x.morale?.dispute)).toBe(false);
   });
@@ -80,6 +80,7 @@ describe('save v71', () => {
 const { disputeStep, disputeKind, RUN_STEPS } = await import('./disputes');
 const { moraleContext, moraleFactors } = await import('./morale');
 const { yearsLeft } = await import('./finance/contract');
+const { marketApy } = await import('./finance/market');
 const { answerTalk } = await import('./playerTalks');
 
 const YEAR = 32;
@@ -90,6 +91,18 @@ const YEAR = 32;
  */
 function souredDeal(l: League, teamId = 1, run = RUN_STEPS - 1, nth = 0): Player {
   const ctx = moraleContext(l);
+  // The grievance is made, not found: how many men a world leaves this underpaid moves with every change to pay or
+  // moods (fewer sulkers left a club with none). Paid half his market and minding money, a starter's deal is his worst.
+  const underpaid = (x: Player) => {
+    const was = { apy: x.contract!.apy, greed: x.personality.greed };
+    x.contract!.apy = Math.round(0.5 * marketApy(ctx.market, x));
+    x.personality.greed = 1;
+    const f = moraleFactors(l, x, ctx);
+    if (f.contract < -0.75 && f.contract <= Math.min(f.role, f.team, f.room, f.rest)) return true;
+    Object.assign(x.personality, { greed: was.greed });
+    x.contract!.apy = was.apy;
+    return false;
+  };
   const p = activeRoster(l, teamId)
     .filter(
       (x) =>
@@ -98,11 +111,10 @@ function souredDeal(l: League, teamId = 1, run = RUN_STEPS - 1, nth = 0): Player
         x.contract &&
         x.contract.kind !== 'rookie' &&
         yearsLeft(x.contract, l.season) <= 2 &&
-        yearsLeft(x.contract, l.season) >= 1,
+        yearsLeft(x.contract, l.season) >= 1 &&
+        !x.morale.talk?.sour,
     )
-    .map((x) => ({ x, f: moraleFactors(l, x, ctx) }))
-    .filter(({ f }) => f.contract < -0.75 && f.contract <= Math.min(f.role, f.team, f.room, f.rest))
-    .sort((a, b) => a.f.contract - b.f.contract)[nth].x;
+    .filter(underpaid)[nth];
   p.morale = { level: -5, talk: { club: teamId, sour: { cause: 'deal', at: l.season * YEAR - 10, run } } };
   return p;
 }
@@ -285,8 +297,8 @@ describe('disputes: a holdout runs and ends (G4)', () => {
     const c = holdingOut(l, 3);
     run(l, 7, 9);
     a.morale!.jolts = [{ kind: 'paid', size: 3, at: at(l, 10) }];
-    b.teamId = 5;
-    c.teamId = null;
+    setTeam(l, b, 5);
+    setTeam(l, c, null);
     run(l, 10, 10);
     expect(a.morale!.disputeEnd?.how).toBe('signed');
     expect(b.morale!.disputeEnd?.how).toBe('traded');
