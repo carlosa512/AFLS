@@ -105,12 +105,24 @@ export const inSeasonReserve = (league: League, teamId: number) =>
  * walk read as nearly full, spent their replacements' room on re-signs, and paid for 22 minimum deals at camp out of
  * the room it planned to carry into the season).
  */
-function openSpots(league: League, teamId: number): number {
+function openSpots(league: League, teamId: number, without?: Player): number {
   const picks = league.draftPicks.filter(
     (p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined,
   ).length;
-  const signed = activeRoster(league, teamId).filter((p) => p.contract && !isExpired(p.contract, league.season));
+  const signed = activeRoster(league, teamId).filter(
+    (p) => p !== without && p.contract && !isExpired(p.contract, league.season),
+  );
   return Math.max(0, ROSTER_MAX - signed.length - picks);
+}
+
+/**
+ * What cutting `cut` frees this league year: the cap he saves, less the minimum deal his spot then has to be kept at
+ * while the 53 has room for one (`fillReserve`). Counted as savings alone, a cut saving $1.3M opened a spot kept at
+ * $1.5M: a club cut two veterans for a keeper, still couldn't fit him, and ended the window short.
+ */
+export function cutRoom(league: League, teamId: number, cut: Player): number {
+  const opened = openSpots(league, teamId, cut) - openSpots(league, teamId);
+  return releasePreview(league, cut).savings - opened * topMinimum(league.caps[league.season]);
 }
 
 /**
@@ -408,8 +420,8 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, next
   if (plan.saved >= need) return restructureRoom(league, team, plan);
   const cut = capCut(league, team);
   if (!cut || playerOvr(cut) >= playerOvr(keeper)) return 0;
-  const savings = releasePreview(league, cut).savings;
-  if (plan.saved + savings < need) return 0;
+  const savings = cutRoom(league, team.id, cut);
+  if (savings <= 0 || plan.saved + savings < need) return 0;
   const gained = restructureRoom(league, team, plan) + savings;
   releasePlayer(league, cut);
   return gained;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { capFor, capSheet, capSpace, restructureOptions } from '../finance/cap';
+import { capFor, capSheet, capSpace, releasePreview, restructureOptions } from '../finance/cap';
 import { capHit, isExpired, lastSeason } from '../finance/contract';
-import { marketApy, leagueMarket } from '../finance/market';
+import { marketApy, leagueMarket, topMinimum } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -11,6 +11,7 @@ import type { League, Player } from '../types';
 import {
   aiCapCompliance,
   aiResignWindow,
+  cutRoom,
   expiringPlayers,
   inPlans,
   nextYearCeiling,
@@ -370,5 +371,30 @@ describe('a club over the cap gets under it the way it makes room', () => {
     aiCapCompliance(l, team);
     expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
     expect(biggest.teamId === team.id ? biggest.contract!.bonuses.length : before).toBe(before);
+  });
+});
+
+describe('what a cut frees', () => {
+  /** An AI club at the window and one of its veterans under contract this year. */
+  const setup = () => {
+    const l: League = JSON.parse(window);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cut = teamPlayers(l, team.id).find((p) => p.contract && !isExpired(p.contract, l.season))!;
+    return { l, team, cut };
+  };
+
+  it('is his savings less the minimum deal his open spot then needs', () => {
+    // A cut that saved $1.3M opened a spot kept at $1.5M: the club cut two veterans for a keeper and lost room.
+    const { l, team, cut } = setup();
+    const savings = releasePreview(l, cut).savings;
+    expect(cutRoom(l, team.id, cut)).toBeCloseTo(savings - topMinimum(l.caps[l.season]), 6);
+  });
+
+  it('is his whole savings when the 53 has no spot to keep for him', () => {
+    const { l, team, cut } = setup();
+    // Enough of this year's picks to fill the 53 on their own: no spot is kept open for a minimum deal.
+    for (let i = 0; i < 60; i++)
+      l.draftPicks.push({ id: -1 - i, season: l.season, round: 7, ownerId: team.id, originalTeamId: team.id });
+    expect(cutRoom(l, team.id, cut)).toBeCloseTo(releasePreview(l, cut).savings, 6);
   });
 });
