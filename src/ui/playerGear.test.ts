@@ -191,6 +191,12 @@ describe('gearOf', () => {
     // a padded sleeve on one arm moves the band to the other wrist rather than dropping it
     expect(qbs.filter((g) => g.sleeve!.side !== 'both' && g.wristband).length).toBeGreaterThan(0);
   });
+  it('never puts the wristband on the same wrist as a forearm band', () => {
+    for (const p of players('QB')) {
+      const g = gearOf(p);
+      if (g.wristband && g.band?.at === 'forearm') expect(g.band.side).not.toBe(g.wristband.side);
+    }
+  });
   it('dresses a quarterback in plain long sleeves in the cold, and keeps his wristband on', () => {
     for (const p of players('QB')) {
       const warm = gearOf(p);

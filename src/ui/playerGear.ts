@@ -217,10 +217,13 @@ export function ownGear(player: Pick<Player, 'id' | 'position'>): Gear {
     }
   }
   // the quarterback's play-call wristband: one wrist, outside the two-piece limit (it's his, not arm gear). Never on an
-  // arm in a padded sleeve, for a clean look: it moves to the other wrist, or stays off when both arms are padded.
+  // arm in a padded sleeve, for a clean look: it moves to the other wrist, or stays off when neither is free.
   if (position === 'QB' && roll(id, 'wristband') < WRISTBAND_QB) {
     const padded = gear.sleeve?.length === 'padded' || gear.sleeve?.length === 'paddedElbow';
-    const busy = (side: 'left' | 'right') => padded && (gear.sleeve!.side === side || gear.sleeve!.side === 'both');
+    // nor on a wrist with a forearm band, which would sit over it
+    const busy = (side: 'left' | 'right') =>
+      (padded && (gear.sleeve!.side === side || gear.sleeve!.side === 'both')) ||
+      (gear.band?.at === 'forearm' && gear.band.side === side);
     const want = roll(id, 'wristSide') < WRISTBAND_RIGHT ? 'right' : 'left';
     const side = !busy(want)
       ? want
