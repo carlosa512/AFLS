@@ -10,6 +10,7 @@ import { COLD_KICKOFF_F, lookOf, StaffAvatar, StaffFigure, staffDay } from './st
 import { BUILDS, buildOf, growOf, headOf, PLAYER_HEADS, playerLook } from './playerLook';
 import { pick, STAFF_FAMILY, staffLook } from './staffLook';
 import { SIZE } from '../engine/size';
+import { ORIGINS, PATHWAY_ORIGINS } from '../engine/data/origins';
 import { gameWeather } from '../engine/weather';
 
 const BLUE = { id: 0, colors: ['#1D4ED8', '#FFFFFF'] } as Team;
@@ -248,7 +249,8 @@ describe('playerLook', () => {
     const plain = renderToStaticMarkup(<PlayerAvatar player={pearson} team={BLUE} size={24} />);
     const heavy = renderToStaticMarkup(<PlayerAvatar player={{ ...pearson, weightLb: 330 }} team={BLUE} size={24} />);
     expect(heavy).toBe(plain);
-    expect(plain).not.toContain('transform');
+    // the figure isn't zoomed or built; only the helmet is placed on it
+    expect(plain).not.toContain('scale(0.79)');
   });
 });
 
@@ -423,5 +425,34 @@ describe('StaffAvatar', () => {
     } as const;
     const html = renderToStaticMarkup(<StaffAvatar person={scout} size={56} />);
     expect(html).toContain(`stroke="${shade(FREE_AGENT.primary, 0.35)}"`); // the ring
+  });
+});
+
+describe('helmet on the avatar', () => {
+  it('puts a helmet on a player with a club at every size, and keeps the bare head without one', () => {
+    for (const size of [24, 32, 56, 96, 128]) {
+      const svg = html(size);
+      expect(svg, String(size)).toContain('class="helmet"');
+      expect(svg).not.toContain('NaN');
+    }
+    const at = (p: Player, team: Team | null) =>
+      renderToStaticMarkup(<PlayerAvatar player={p} team={team} size={128} />);
+    expect(at({ ...pearson, teamId: null }, null)).not.toContain('class="helmet"');
+    expect(at({ ...pearson, retired: true }, BLUE)).not.toContain('class="helmet"');
+    expect(at({ ...pearson, teamId: null, scouting: {} } as unknown as Player, null)).not.toContain('class="helmet"');
+    // drafted: his club's helmet from then on
+    expect(at({ ...pearson, teamId: 0, scouting: {}, draft: {} } as unknown as Player, BLUE)).toContain(
+      'class="helmet"',
+    );
+  });
+  it('keeps decals off small avatars and flies a Pathway flag on the card', () => {
+    expect(html(32)).not.toContain('#B22234');
+    expect(html(128)).toContain('#B22234');
+    const japan = PATHWAY_ORIGINS.find((i) => ORIGINS[i].name === 'Japan')!;
+    expect(html(128, { ...pearson, origin: japan })).toContain('#BC002D');
+  });
+  it("gives a club without a design its colours' helmet", () => {
+    expect(html(128)).toMatch(/id="[^"]*hs"[^>]*>(<stop[^>]*>)*/); // the shell's gradient
+    expect(html(128)).toContain('stop-color="#1D4ED8"'); // BLUE has no `helmet`: its primary is the shell
   });
 });
