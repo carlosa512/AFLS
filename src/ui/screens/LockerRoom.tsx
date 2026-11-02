@@ -1,7 +1,17 @@
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { whyFact } from '../../engine/roomFacts';
 import { STANDING_WHY, standsOut } from '../../engine/roomVoice';
-import { captainsNow, roomView, standingView, unitOf, UNITS, type UnitWord } from '../../engine/standing';
+import {
+  captainsNow,
+  roomReasons,
+  roomView,
+  standingView,
+  unitOf,
+  UNITS,
+  WANTS_DEAL,
+  type UnitWord,
+} from '../../engine/standing';
+import { TalkContractButton } from '../negotiation';
 import { ROOM_LABEL } from '../../engine/coaching';
 import { say } from '../../engine/voice';
 import { activeRoster } from '../../engine/roster';
@@ -9,7 +19,14 @@ import type { League, Player } from '../../engine/types';
 import { PlayerLink, Section } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
-import { DOWN_REASONS, MORALE_WORDS, moraleStepOf, moraleView, TEMPERAMENT_REASONS } from '../../engine/morale';
+import {
+  DOWN_REASONS,
+  MORALE_WORDS,
+  moraleStepOf,
+  moraleView,
+  TEMPERAMENT_REASONS,
+  viewContext,
+} from '../../engine/morale';
 import { MoodCell, MoodFace, ReasonChip } from '../morale';
 
 /**
@@ -20,7 +37,8 @@ export function LockerRoom({ league }: { league: League }) {
   const team = league.teams[league.userTeamId];
   const roster = activeRoster(league, team.id);
   const captains = team.captains?.season === league.season ? team.captains : undefined;
-  const room = roomView(league);
+  const ctx = viewContext(league);
+  const room = roomView(league, ctx);
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
@@ -48,11 +66,16 @@ export function LockerRoom({ league }: { league: League }) {
       view,
       trouble: !!view && (view.word === 'Split' || view.word === 'Down' || view.word === 'Restless'),
       follows: followers.filter(inRoom),
+      // Men in this room who want a new deal and can be talked to now: the button opens talks right here.
+      deal: roster.filter((p) => inRoom(p) && roomReasons(league, p, ctx).includes(WANTS_DEAL)),
       young: young.filter(inRoom),
+      struggling: young.filter(
+        (p) => inRoom(p) && p.mentor !== undefined && /not taking|bad habits/.test(mentorStatus(league, p)),
+      ).length,
       ties,
     };
   })
-    .filter((c) => c.view || c.follows.length || c.young.length || c.ties.length)
+    .filter((c) => c.view || c.follows.length || c.deal.length || c.young.length || c.ties.length)
     .sort(
       (a, b) =>
         (a.view ? READ_ORDER[a.view.word] : 9) - (b.view ? READ_ORDER[b.view.word] : 9) ||
@@ -305,9 +328,27 @@ export function LockerRoom({ league }: { league: League }) {
                   </ul>
                 </div>
               )}
-              {c.young.length > 0 && (
+              {c.deal.length > 0 && (
                 <div>
-                  <h4>Mentoring</h4>
+                  <h4>Wants a new deal</h4>
+                  <ul className="plain-list">
+                    {c.deal.map((p) => (
+                      <li key={p.id} className="room-deal">
+                        <span className="mood-word">
+                          <MoodCell league={league} player={p} /> <PlayerLink league={league} player={p} pos />
+                        </span>
+                        <TalkContractButton league={league} player={p} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {c.young.length > 0 && (
+                <details className="room-fold">
+                  <summary>
+                    Mentoring · {c.young.length} young {c.young.length === 1 ? 'player' : 'players'}
+                    {c.struggling > 0 && <span className="muted"> · {c.struggling} not going well</span>}
+                  </summary>
                   <ul className="plain-list room-mentoring">
                     {c.young.map((y) => {
                       const options = roster.filter(
@@ -339,7 +380,7 @@ export function LockerRoom({ league }: { league: League }) {
                       );
                     })}
                   </ul>
-                </div>
+                </details>
               )}
               {c.ties.length > 0 && (
                 <div>

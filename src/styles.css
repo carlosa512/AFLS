@@ -5283,3 +5283,19 @@ button.tip-pill {
   background: var(--danger);
   color: #fff;
 }
+
+.room-deal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.room-fold > summary {
+  cursor: pointer;
+  font-size: var(--step--1);
+  font-weight: 700;
+  padding: 4px 0;
+}
+.room-fold[open] > summary {
+  margin-bottom: 4px;
+}

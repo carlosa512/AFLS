@@ -23,6 +23,7 @@ import {
 } from './morale';
 import { activeRoster, starters } from './roster';
 import { seasonRole } from './scouting';
+import { talksOpen } from './offseason/negotiation';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { CoachRoom, League, Player, Position } from './types';
 
@@ -353,14 +354,26 @@ export interface RoomView {
   team: { size: number; reasons: { text: string; count: number }[] };
 }
 
+/** He wants a new deal, and you can talk with him now: the room's deal talk is only about men you can act on. */
+export const WANTS_DEAL = 'Wants a new deal';
+
+/**
+ * What one of your men brings to his room's talk: his mood board reasons less his makeup, and "wants a new deal" only
+ * when his contract is open to talks (`talksOpen`), so a room never counts a grievance you can't act on yet.
+ */
+export function roomReasons(league: League, p: Player, ctx: MoraleContext): string[] {
+  return (moraleView(league, p, ctx)?.reasons ?? []).filter(
+    (text) => !TEMPERAMENT_REASONS.has(text) && (text !== WANTS_DEAL || talksOpen(league, p)),
+  );
+}
+
 /** Your room as your staff see it: every read unit, who it follows, and its shape. Words and ids only. */
 export function roomView(league: League, ctx = viewContext(league)): RoomView {
   const teamId = league.userTeamId;
   const units = unitReads(league, teamId, ctx).map((r): UnitView => {
     const counts = new Map<string, number>();
     for (const id of r.members)
-      for (const text of moraleView(league, league.players[id], ctx)?.reasons ?? [])
-        if (!TEMPERAMENT_REASONS.has(text)) counts.set(text, (counts.get(text) ?? 0) + 1);
+      for (const text of roomReasons(league, league.players[id], ctx)) counts.set(text, (counts.get(text) ?? 0) + 1);
     const reasons = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([text, count]) => ({ text, count }));
@@ -379,9 +392,7 @@ export function roomView(league: League, ctx = viewContext(league)): RoomView {
   };
   const roster = activeRoster(league, teamId);
   const all = new Map<string, number>();
-  for (const p of roster)
-    for (const text of moraleView(league, p, ctx)?.reasons ?? [])
-      if (!TEMPERAMENT_REASONS.has(text)) all.set(text, (all.get(text) ?? 0) + 1);
+  for (const p of roster) for (const text of roomReasons(league, p, ctx)) all.set(text, (all.get(text) ?? 0) + 1);
   const vets = roster.filter((p) => p.experience >= 6);
   const young = roster.filter((p) => p.experience <= 2);
   let apart: RoomView['apart'] = null;

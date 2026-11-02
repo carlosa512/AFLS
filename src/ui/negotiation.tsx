@@ -8,11 +8,13 @@ import { capHit, isExpired, prorationIn, totalGuaranteed } from '../engine/finan
 import { minSalary } from '../engine/finance/market';
 import {
   askOffer,
+  contractTalkBlocker,
   demand,
   makeOffer,
   negotiationFor,
   offerProblem,
   prospectiveContract,
+  talksOpen,
   type Offer,
 } from '../engine/offseason/negotiation';
 import { careerOutlook } from '../engine/scouting';
@@ -261,5 +263,29 @@ export function NegotiationDialog({
       </div>
       {problem && <p className="callout callout-bad">{problem}</p>}
     </Dialog>
+  );
+}
+
+/**
+ * Contract talks from wherever you are (the Locker Room, a player's card): the yellow Negotiate button opens the
+ * negotiation screen in place. Shown only to an eligible player of yours (`talksOpen`); greyed with the reason while
+ * the calendar keeps talks shut.
+ */
+export function TalkContractButton({ league, player }: { league: League; player: Player }) {
+  const [open, setOpen] = useState(false);
+  if (!talksOpen(league, player)) return null;
+  const shut = contractTalkBlocker(league, player);
+  return (
+    <>
+      <button
+        className="btn btn-primary btn-sm"
+        disabled={!!shut}
+        title={shut ?? `Open contract talks with ${player.lastName}`}
+        onClick={() => setOpen(true)}
+      >
+        Negotiate
+      </button>
+      {open && <NegotiationDialog league={league} player={player} onClose={() => setOpen(false)} />}
+    </>
   );
 }
