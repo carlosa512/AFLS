@@ -82,6 +82,7 @@ import type {
 } from './types';
 import { POSITIONS } from './types';
 import { computeRecords } from './season/standings';
+import { startHeadCoach } from './meetings/credibility';
 
 export const COACH_ROOMS: CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 export const ROOM_OF: Record<Position, CoachRoom | null> = {
@@ -956,6 +957,8 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   touch();
   // What he asks this club, read before he joins it: staying with his own is the loyal man's discount (`coachAskTo`).
   const salary = coachAskTo(league, c, years, teamId);
+  // A head coach new to the club (hired, or promoted into the chair: `promoteInto`) starts with a new voice (L2).
+  if (c.role === 'headCoach' && c.teamId !== teamId) startHeadCoach(c);
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
   c.contract = { salary, through: league.season + years - 1 };
@@ -1164,6 +1167,7 @@ function promoteInto(league: League, teamId: number, c: Coach, years: number): v
   const team = league.teams[teamId];
   Object.assign(c, asPromoted(league, c, chair));
   delete c.room;
+  if (chair.role === 'headCoach' && from === teamId) startHeadCoach(c);
   if (from !== teamId) {
     c.teamId = null;
     delete c.since;
