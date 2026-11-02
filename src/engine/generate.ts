@@ -141,6 +141,8 @@ interface PlayerSpec {
   age: number;
   teamId: number | null;
   jerseysUsed: Set<number>;
+  /** A founding player (`createLeague`): his build stays inside the real rosters' extremes. Everyone later is an arrival. */
+  founding?: boolean;
 }
 
 export function generatePersonality(rng: Rng): Personality {
@@ -162,7 +164,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
 
   const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
   // Drawn where the old flat rolls were, so names and jerseys keep their draws.
-  const build = rollSize(rng, position);
+  const build = rollSize(rng, position, spec.founding ? 'founding' : 'arrival');
   const player: Player = {
     id: spec.id,
     firstName,
@@ -860,6 +862,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           age: slotAge(probe, slot < STARTERS[position]),
           teamId: team.id,
           jerseysUsed: probeJerseys,
+          founding: true,
         });
       }
     const dealt = evenDeal(
@@ -883,6 +886,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           age: slotAge(rng, isStarter),
           teamId: team.id,
           jerseysUsed,
+          founding: true,
         });
         recordRatings(player, season);
         roster.push(player);

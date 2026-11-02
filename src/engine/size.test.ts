@@ -132,6 +132,25 @@ describe('generation', () => {
     });
   const corners = Array.from({ length: 2_000 }, (_, i) => make('CB', i));
 
+  it("a new league's players sit inside the founding bounds", () => {
+    const l = createLeague({ seed: 'real-heights' });
+    for (const p of Object.values(l.players)) {
+      const lim = sizeLimits(p.position, 'founding');
+      expect(p.heightIn, p.position).toBeGreaterThanOrEqual(lim.h[0]);
+      expect(p.heightIn, p.position).toBeLessThanOrEqual(lim.h[1]);
+      expect(p.weightLb, p.position).toBeGreaterThanOrEqual(lim.w[0]);
+      expect(p.weightLb, p.position).toBeLessThanOrEqual(lim.w[1]);
+    }
+  });
+
+  it('a player generated after the league rolls on the arrival tier', () => {
+    const wrs = Array.from({ length: 5_000 }, (_, i) => make('WR', i));
+    const wide = sizeLimits('WR', 'arrival');
+    const tight = sizeLimits('WR', 'founding');
+    expect(wrs.every((p) => p.heightIn >= wide.h[0] && p.heightIn <= wide.h[1])).toBe(true);
+    expect(wrs.some((p) => p.heightIn < tight.h[0] || p.heightIn > tight.h[1])).toBe(true);
+  });
+
   it('rolls new players from the bell curve', () => {
     const short = corners.filter((p) => p.heightIn <= 69).length / corners.length;
     expect(short).toBeGreaterThan(0.05);
