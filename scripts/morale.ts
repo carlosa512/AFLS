@@ -185,7 +185,6 @@ let requests = 0;
 const requestKeys = new Set<string>();
 const requestPublic = new Set<string>();
 const requestEnds = new Map<string, string>();
-const requestAnswers: Record<string, string> = {};
 function disputes(clock: number) {
   const bump = (m: Map<number, number>, season: number) => m.set(season, (m.get(season) ?? 0) + 1);
   for (const p of rostered(league)) {
@@ -201,22 +200,6 @@ function disputes(clock: number) {
         if (x.kind === 'holdOut') bump(holdouts, Math.floor(x.since / 32));
       }
     if (m.dispute?.kind === 'trade' && m.dispute.public !== undefined) requestPublic.add(`${p.id}:${m.dispute.since}`);
-    if (process.env.DEBUG_REQUESTS && m.dispute?.kind === 'trade') {
-      const k = `${p.id}:${m.dispute.since}`;
-      const w = (c?: number) => (c === undefined ? '-' : String(c - league.season * 32));
-      const was = requestAnswers[k] ?? `${m.dispute.cause} s${w(m.dispute.since)}`;
-      const pub = m.dispute.public !== undefined && !was.includes(' pub') ? ` pub${w(m.dispute.public)}` : '';
-      const shop = m.dispute.answered?.choice === 'shop' && !was.includes(' shop') ? ` shop${w(clock)}` : '';
-      requestAnswers[k] = was + pub + shop;
-    }
-    if (
-      process.env.DEBUG_REQUESTS &&
-      m.disputeEnd?.kind === 'trade' &&
-      requestAnswers[`${p.id}:${m.disputeEnd.since}`] &&
-      !requestAnswers[`${p.id}:${m.disputeEnd.since}`].includes(' end')
-    )
-      requestAnswers[`${p.id}:${m.disputeEnd.since}`] +=
-        ` end${m.disputeEnd.at - league.season * 32}:${m.disputeEnd.how}@${league.phase}`;
     const e = m.disputeEnd;
     if (e?.kind === 'trade' && requestKeys.has(`${p.id}:${e.since}`)) requestEnds.set(`${p.id}:${e.since}`, e.how);
     // Your club's are answered, and thought over, by the AI's rules.
@@ -383,11 +366,6 @@ check(
   [0.4, 0.9],
 );
 const resolved = [...requestEnds.values()];
-if (process.env.DEBUG_REQUESTS) {
-  const tally = (xs: string[]) => xs.reduce<Record<string, number>>((o, x) => ((o[x] = (o[x] ?? 0) + 1), o), {});
-  console.log('ENDS', JSON.stringify(tally(resolved)));
-  console.log('ANSWERS', JSON.stringify(requestAnswers));
-}
 check(
   `Trade requests resolved by a trade (n=${resolved.length})`,
   resolved.filter((h) => h === 'traded').length / Math.max(1, resolved.length),
