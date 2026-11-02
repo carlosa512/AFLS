@@ -9,6 +9,7 @@ import type { DefenseCall } from '../../engine/match/coach';
 import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
 import { MID, offenseSide } from './ballPath';
 import type { Role } from './cast';
+import type { PocketPlan } from './pocket';
 import { castFor } from './cast';
 import { blitzersFor, lineUp } from './formations';
 import { ballTrack, script, stagedPath } from './scripts';
@@ -49,6 +50,8 @@ export interface StagedPlay {
   until: number[];
   /** Who has the ball at the whistle. */
   carrier: number | null;
+  /** A dropback's drop and pocket (`pocket.ts`); null on anything else. */
+  pocket: PocketPlan | null;
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -189,6 +192,7 @@ export function stagePlay(args: {
     ball: ball.subarray(0, steps * 3),
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
+    pocket: null,
     keys: [...moments.keys()],
     reveal: [...moments.values()].map((t) => Math.max(0, t - REVEAL_LEAD)),
     until: [...moments.keys()].map((id) => until.get(id) ?? Infinity),

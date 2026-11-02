@@ -1,0 +1,267 @@
+/**
+ * All-22 against the NFL's tracking numbers (spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-design.md
+ * §6). Stages every dropback from simulated games, measures what a viewer would see (when the ball leaves the
+ * quarterback, how deep he sets, when the rush gets to him, whether he leaves the pocket) and holds it to the NFL's
+ * ranges. Measured off the dots, not the staging's own plan, wherever the dots can say it.
+ *
+ *   npm run film [-- <games>]     (200 by default; 50 is enough to see which way a change moves)
+ *
+ * Each ✓/✗ line is one number against its range; the last line counts the misses, and any miss fails the run.
+ */
+import { createLeague } from '../src/engine/generate';
+import { simulateGame } from '../src/engine/match/gameSim';
+import { actorsIn } from '../src/engine/playActors';
+import type { PlayLogEntry } from '../src/engine/types';
+import { snapYFor } from '../src/ui/stage/ballPath';
+import type { Drop } from '../src/ui/stage/pocket';
+import { asRan, stagePlay, type StagedPlay } from '../src/ui/stage/stage';
+
+const GAMES = Number(process.argv[2] ?? 200);
+const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);
+const THROWS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int']);
+/** Out of the pocket: this far across the field from the ball (past where the tackles set). */
+const BOX = 4.5;
+/** The rush has got to him: this close (pressure), or on him (a sack). */
+const PRESSURE_AT = 2;
+const SACK_AT = 1.2;
+
+let misses = 0;
+const check = (label: string, value: number, [lo, hi]: readonly [number, number], nfl: string, digits = 2) => {
+  const ok = Number.isFinite(value) && value >= lo && value <= hi;
+  if (!ok) misses++;
+  const shown = Number.isFinite(value) ? value.toFixed(digits) : 'none';
+  const range = [lo, hi].map((x) => (Number.isInteger(x) ? String(x) : x.toFixed(2))).join('–');
+  console.log(
+    `${ok ? '✓' : '✗'} ${label.padEnd(40)} ${shown.padStart(7)}   ${range.padEnd(11)} NFL ${nfl}${ok ? '' : !Number.isFinite(value) ? '  ✗ NOT MEASURED' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+  );
+};
+const info = (label: string, value: string, nfl: string) =>
+  console.log(`  ${label.padEnd(40)} ${value.padStart(7)}   NFL ${nfl}`);
+const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
+const pct = (xs: readonly number[], q: number) => {
+  if (!xs.length) return NaN;
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.floor(q * s.length))];
+};
+const share = (n: number, of: number) => (of ? n / of : NaN);
+
+// ───────── measuring a staged dropback ─────────
+
+interface Seen {
+  e: PlayLogEntry;
+  p: StagedPlay;
+  gun: boolean;
+  /** Air yards past the line (throws that have them). */
+  air: number | null;
+  pressured: boolean;
+  /** When the ball left him (a throw), or null. */
+  release: number | null;
+  /** When the named rusher got within `PRESSURE_AT` (a pressured throw) or `SACK_AT` (a sack) of him. */
+  rushAt: number | null;
+  /** When he left the pocket, or null. */
+  left: number | null;
+  /** The deepest he set before the throw (or the sack, the scramble), in yards behind the ball. */
+  setDepth: number;
+}
+
+function measure(e: PlayLogEntry, p: StagedPlay): Seen {
+  const n = p.ids.length;
+  const qb = p.roles.findIndex((r, k) => r === 'QB' && p.offense[k]);
+  const at = (k: number, step: number) => ({ x: p.pos[(step * n + k) * 2], y: p.pos[(step * n + k) * 2 + 1] });
+  const ball = { x: p.ball[0], y: p.ball[1] };
+  const depth = (step: number) => (ball.x - at(qb, step).x) * p.dir;
+  const who = actorsIn(e);
+  const throws = THROWS.has(e.kind ?? '');
+  const release = throws ? p.release : null;
+  const until = Math.min(p.steps - 1, Math.round((release ?? (p.steps - 1) * p.dt) / p.dt));
+  const rusher = who.rush === undefined ? -1 : p.ids.indexOf(who.rush);
+  let rushAt: number | null = null;
+  if (rusher >= 0 && (e.kind === 'sack' || throws)) {
+    const near = e.kind === 'sack' ? SACK_AT : PRESSURE_AT;
+    for (let st = 0; st < p.steps; st++) {
+      const a = at(qb, st);
+      const b = at(rusher, st);
+      if (Math.hypot(a.x - b.x, a.y - b.y) < near) {
+        rushAt = st * p.dt;
+        break;
+      }
+    }
+  }
+  let left: number | null = null;
+  let setDepth = 0;
+  for (let st = 0; st <= until; st++) {
+    const q = at(qb, st);
+    setDepth = Math.max(setDepth, depth(st));
+    if (left === null && (Math.abs(q.y - ball.y) > BOX || (q.x - ball.x) * p.dir > 0)) left = st * p.dt;
+  }
+  return {
+    e,
+    p,
+    gun: depth(0) > 3,
+    air: throws && e.air !== undefined && e.from !== undefined ? (e.air - e.from) * p.dir : null,
+    pressured: throws && who.rush !== undefined,
+    release,
+    rushAt,
+    left,
+    setDepth,
+  };
+}
+
+// ───────── stage the games ─────────
+
+const league = createLeague({ seed: 'film' });
+const seen: Seen[] = [];
+const started = Date.now();
+for (let i = 0; i < GAMES; i++) {
+  const g = league.games[i % league.games.length];
+  const r = simulateGame(league, g, { keepPlays: true, seed: `film-${i}` });
+  let lastY = 26.65;
+  r.plays!.forEach((raw, index) => {
+    const e = asRan(raw);
+    const snapY = snapYFor(raw, lastY);
+    if (raw.down > 0 && DROPBACKS.has(e.kind ?? '')) {
+      const p = stagePlay({
+        plays: r.plays!,
+        index,
+        record: r.field!,
+        homeId: g.homeId,
+        seed: `film:${i}:${index}`,
+        snapY,
+      });
+      seen.push(measure(e, p));
+      lastY = p.ball[(p.steps - 1) * 3 + 1];
+    } else if (raw.kind) lastY = 26.65;
+  });
+}
+const secs = (Date.now() - started) / 1000;
+
+// ───────── the quarterback (§6) ─────────
+
+const thrown = seen.filter((s) => s.release !== null);
+const tt = (xs: readonly Seen[]) => mean(xs.map((s) => s.release!));
+console.log(`All-22 film: ${GAMES} games, ${seen.length} dropbacks staged, ${secs.toFixed(0)}s\n\nThe quarterback`);
+check('time to throw (s)', tt(thrown), [2.45, 2.95], '2.82 (NGS 2024); 2.63 a play');
+check(
+  'under center minus shotgun (s)',
+  tt(thrown.filter((s) => !s.gun)) - tt(thrown.filter((s) => s.gun)),
+  [0.25, 1],
+  '3.05 − 2.55',
+);
+check(
+  'pressured minus clean (s)',
+  tt(thrown.filter((s) => s.pressured)) - tt(thrown.filter((s) => !s.pressured)),
+  [0.5, 1.5],
+  '3.27 − 2.42',
+);
+const AIR: readonly [string, number, number, number][] = [
+  ['behind the line', -Infinity, 0, 2.19],
+  ['0–4 air yards', 0, 5, 2.62],
+  ['5–9 air yards', 5, 10, 2.58],
+  ['10–19 air yards', 10, 20, 3.12],
+  ['20+ air yards', 20, Infinity, 3.37],
+];
+for (const [label, lo, hi, nfl] of AIR) {
+  const xs = thrown.filter((s) => s.air !== null && s.air >= lo && s.air < hi);
+  check(`  time to throw, ${label} (s)`, tt(xs), [nfl - 0.35, nfl + 0.35], `${nfl} (2022)`);
+}
+const pressured = thrown.filter((s) => s.pressured);
+check(
+  'time to pressure (s)',
+  mean(pressured.filter((s) => s.rushAt !== null).map((s) => s.rushAt!)),
+  [2.4, 3.3],
+  '2.9 (NGS 2023)',
+);
+check(
+  'pressured throws the rush reaches (share)',
+  share(pressured.filter((s) => s.rushAt !== null).length, pressured.length),
+  [0.8, 1],
+  'every one',
+  2,
+);
+const sacks = seen.filter((s) => s.e.kind === 'sack' && s.rushAt !== null).map((s) => s.rushAt!);
+check('time to sack, mean (s)', mean(sacks), [3.0, 3.7], '3.35 (2023–25)');
+check('time to sack, 10th percentile (s)', pct(sacks, 0.1), [1.5, 2.4], '2.1');
+check('time to sack, 90th percentile (s)', pct(sacks, 0.9), [4.5, 6.5], '5.3');
+const openless = seen.filter((s) => s.e.kind === 'scramble' && actorsIn(s.e).rush === undefined && s.left !== null);
+check(
+  'a scramble with nothing open leaves at (s)',
+  mean(openless.map((s) => s.left!)),
+  [3.5, 5.0],
+  'about 4.4 (2023–25)',
+);
+check(
+  'dropbacks leaving the pocket (share)',
+  share(seen.filter((s) => s.left !== null).length, seen.length),
+  [0.14, 0.24],
+  '17–21% (FTN 2023–25)',
+);
+const early = seen.filter((s) => s.e.down <= 2);
+const pa = (xs: readonly Seen[]) => share(xs.filter((s) => s.p.pocket?.playAction).length, xs.length);
+check('play action (share of dropbacks)', pa(seen), [0.17, 0.27], '22% (FTN 2023–25)');
+check('  on first and second down', pa(early), [0.24, 0.35], '30%');
+const SET: Record<Drop, readonly [number, number]> = { 1: [1.5, 6], 3: [4, 6.5], 5: [6.5, 8.5], 7: [8.5, 11] };
+const AIR_BY_DROP: Record<Drop, readonly [number, number]> = {
+  1: [3.2, 4.9],
+  3: [8.3, 9.4],
+  5: [11.5, 12.3],
+  7: [13.3, 15.1],
+};
+for (const drop of [1, 3, 5, 7] as const) {
+  const xs = thrown.filter((s) => s.p.pocket?.drop === drop);
+  check(
+    `  ${drop}-step drop: set depth (yd)`,
+    mean(xs.map((s) => s.setDepth)),
+    SET[drop],
+    `${SET[drop][0]}–${SET[drop][1]} (PFF)`,
+  );
+  for (const gun of [false, true]) {
+    const nfl = AIR_BY_DROP[drop][gun ? 1 : 0];
+    const air = xs.filter((s) => s.gun === gun && s.air !== null).map((s) => s.air!);
+    check(
+      `  ${drop}-step drop: air yards, ${gun ? 'shotgun' : 'under center'}`,
+      mean(air),
+      [nfl - 2.5, nfl + 2.5],
+      `${nfl} (2018–19)`,
+    );
+  }
+}
+
+// ───────── reported only: the engine decides these ─────────
+
+console.log('\nThe engine decides (reported)');
+const drops = seen.length;
+const rate = (f: (s: Seen) => boolean) => `${((100 * seen.filter(f).length) / drops).toFixed(1)}%`;
+info(
+  'pressured',
+  rate((s) => s.pressured || s.e.kind === 'sack'),
+  '26–31% of dropbacks',
+);
+info(
+  'sacks',
+  rate((s) => s.e.kind === 'sack'),
+  '6.4–6.8%',
+);
+info(
+  'scrambles',
+  rate((s) => s.e.kind === 'scramble'),
+  '4.5–5.5%',
+);
+info(
+  'screens (thrown behind the line)',
+  rate((s) => s.air !== null && s.air < 0),
+  '8–10%',
+);
+info(
+  'throwaways',
+  rate((s) => /throws it away/.test(s.e.text)),
+  '3.5%',
+);
+const rushers = (s: Seen) => 4 + s.p.blitz.length;
+info(
+  'four rushers',
+  rate((s) => rushers(s) === 4),
+  '64–69%',
+);
+
+console.log(`\n${misses} number(s) outside target range`);
+process.exit(misses ? 1 : 0);
