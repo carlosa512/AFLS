@@ -112,7 +112,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       learns a new position faster, and an unhappy one asks his own club up to 10% more with less patience; the Locker
       Room and the coach's report say who it's costing. Being heard (0.2.26): a promise eases three quarters of the
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
-      reminds you of open promises when the season ends. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      reminds you of open promises when the season ends. Fewer sulkers (0.2.37): paid 80% of his market or more a man has
+      no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
+      games a man the depth chart starts reads as a starter. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,
@@ -158,6 +160,12 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [ ] **Tags spike when a big class of stars comes due at once** (20 in one season, 11–13 in others, against the NFL's
       6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
       has run out.
+- [ ] **Room made for a tag or a one-year deal forgets next year.** The re-sign window counts a keeper's new deal against
+      next year before it borrows, but the tag path (and a one-year deal) counts nothing: a GM that just made no room
+      for a keeper's new deal can then restructure to tag him, though next spring he's owed his price again, as
+      `nextYearNeeds` counts him once tagged. Counting his market price there (`inPlans` keepers only) fixes it, but
+      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1) and
+      `trades`' draft-day deals with a future pick (2.6 against 3–9). Measure both before it ships.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands
 
