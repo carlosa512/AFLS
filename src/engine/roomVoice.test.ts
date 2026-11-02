@@ -12,6 +12,7 @@ import {
   STANDING_WHY,
   UNIT_NOTE,
   UNIT_TURN,
+  type StandingFact,
   type UnitFact,
 } from './roomVoice';
 import { roomView, type UnitWord } from './standing';
@@ -36,6 +37,7 @@ const unit = (o: Partial<UnitFact> = {}): UnitFact => ({
   noVoice: false,
   goneLeader: null,
   nearVoice: null,
+  was: null,
   ...o,
 });
 const WORDS: UnitWord[] = ['Tight', 'Settled', 'Restless', 'Down', 'Split'];
@@ -175,4 +177,70 @@ describe('the room in words', () => {
     simToEndOfSeason(l);
     for (const v of roomView(l).units) clean(say(UNIT_NOTE, unitFact(l, v, null, null), { key: 'k', slot: v.unit }));
   }, 60_000);
+});
+
+describe('the room in words: read by eye', () => {
+  const standing = (o: Partial<StandingFact> = {}): StandingFact => ({
+    name: 'Owens',
+    now: 'voice',
+    was: null,
+    experience: 5,
+    newcomer: false,
+    starts: true,
+    captain: false,
+    benched: false,
+    stirs: false,
+    warn: false,
+    unit: 'the line',
+    ...o,
+  });
+
+  it('never writes "Owens\'s" for "Owens is" or "Owens has"', () => {
+    for (const k of ['a', 'b', 'c', 'd', 'e'])
+      for (const o of [{}, { stirs: true, warn: true }, { now: 'leader' as const }, { now: null, benched: true }])
+        expect(say(STANDING_NOTE, standing(o), { key: k, slot: 's' })).not.toMatch(/Owens's/);
+    for (const sound of [null, 'stirs', 'steadies'] as const)
+      for (const word of WORDS)
+        expect(
+          say(UNIT_NOTE, unit({ word, setter: 'James', setterSound: sound, pulling: 'down', cause: 'deal' }), {
+            key: 'k',
+            slot: word,
+          }),
+        ).not.toMatch(/James's/);
+  });
+
+  it("says a following isn't all good only when our read shows a man who stirs", () => {
+    for (const k of ['a', 'b', 'c'])
+      expect(say(STANDING_NOTE, standing({ stirs: true, warn: false }), { key: k, slot: 's' })).not.toMatch(
+        /Not all of it/,
+      );
+    expect(say(STANDING_NOTE, standing({ stirs: true, warn: true }), { key: 'k', slot: 's' })).toMatch(/Not all of it/);
+  });
+
+  it('a unit that cooled from Tight is not "back on an even keel"', () => {
+    for (const k of ['a', 'b', 'c'])
+      expect(say(UNIT_NOTE, unit({ word: 'Settled', turned: true, was: 'Tight' }), { key: k, slot: 'u' })).not.toMatch(
+        /even keel|back/i,
+      );
+    expect(say(UNIT_NOTE, unit({ word: 'Settled', turned: true, was: 'Split' }), { key: 'k', slot: 'u' })).toMatch(
+      /back|even keel/i,
+    );
+  });
+
+  it('the verdict never calls the rest of the room fine while a unit is split or down', () => {
+    const fact: VerdictFact = {
+      checkin: 'deadline',
+      newFeuds: 0,
+      standing: 'Hilliard and Smith',
+      lost: 0,
+      lostName: null,
+      struggling: 0,
+      friends: 0,
+      grew: 0,
+      unhappy: 0,
+    };
+    for (const k of ['a', 'b', 'c', 'd', 'e', 'f'])
+      for (const room of [{ split: ['the quarterbacks'] }, { down: ['the line'] }])
+        expect(say(VERDICT, { ...fact, ...room }, { key: k, slot: 'v' })).not.toMatch(/rest of the room is fine/i);
+  });
 });

@@ -4,6 +4,7 @@
  * with morale's clock, so the two speak from one memory.
  */
 import { isCaptain, moraleLevel, moraleStepOf, viewContext } from './morale';
+import { personalityRead, personalityTone } from './personality';
 import { starters } from './roster';
 import {
   causeOf,
@@ -114,6 +115,7 @@ export function unitFact(
     word: view.word,
     still: !!last && last.word === view.word,
     turned: !!last && last.word !== view.word,
+    was: last?.word ?? null,
     setter: setter?.lastName ?? null,
     setterCaptain: !!setter && isCaptain(league, setter),
     setterSound: setter ? soundOf(setter) : null,
@@ -148,6 +150,10 @@ export function standingFact(
     captain: isCaptain(league, p),
     benched: !!p.morale?.jolts?.some((j) => j.kind === 'benched'),
     stirs: soundOf(p) === 'stirs',
+    warn: (() => {
+      const read = personalityRead(league, league.userTeamId, p);
+      return !!read && personalityTone(read.name) === 'warn';
+    })(),
     unit: phraseOf(unitOf(p.position)),
   };
 }

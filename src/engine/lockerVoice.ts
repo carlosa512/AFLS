@@ -113,7 +113,7 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
     text: (f) => `${f.standing} still aren't speaking. It hasn't cost us a snap, and I'm keeping it that way.`,
   },
   {
-    when: (f) => !!f.standing && f.newFeuds === 0,
+    when: (f) => !!f.standing && f.newFeuds === 0 && !f.split?.length && !f.down?.length,
     reads: 3,
     text: (f) => `Same as last time with ${f.standing}: cold, but professional. The rest of the room is fine.`,
   },

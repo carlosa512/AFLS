@@ -205,7 +205,13 @@ export const voicesOf = (league: League, teamId: number): Player[] => byTier(lea
 
 export type UnitWord = 'Tight' | 'Settled' | 'Restless' | 'Down' | 'Split';
 /** A unit is split when this share of its weight sits at Good or better and this share at Poor or worse. */
-export const SPLIT_SHARE = 0.3;
+export const SPLIT_SHARE = 0.25;
+/**
+ * The read off a unit's weighted mean mood. A unit's mean runs far narrower than a man's mood (its tenth worst reads
+ * only Poor), so the words sit where a unit's spread puts them, calibrated in `npm run morale`: Down at Poor or worse,
+ * Restless just above it, Tight well into Good.
+ */
+export const READ_AT = { tight: 1.5, restless: -0.5, down: -1 };
 /** Fewer men than this and a room has no read of its own (a two-man quarterback room). */
 export const READ_MIN = 3;
 /** A quiet man still counts in his unit's read. */
@@ -252,17 +258,17 @@ export function unitRead(league: League, teamId: number, unit: Unit, ctx: Morale
   const noVoice = !setter;
   const captain = ctx.sideCaptains.get(`${teamId}:${sideOf(unit)}`);
   const lead = setter?.p ?? (captain ? league.players[captain.id] : undefined);
-  const mean = moraleStepOf(sum / total);
+  const mean = sum / total;
   const word: UnitWord =
     up / total >= SPLIT_SHARE && down / total >= SPLIT_SHARE
       ? 'Split'
-      : mean >= 5
+      : mean >= READ_AT.tight
         ? 'Tight'
-        : mean === 4
-          ? 'Settled'
-          : mean === 3
+        : mean <= READ_AT.down
+          ? 'Down'
+          : mean <= READ_AT.restless
             ? 'Restless'
-            : 'Down';
+            : 'Settled';
   return {
     teamId,
     unit,

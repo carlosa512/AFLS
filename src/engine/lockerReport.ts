@@ -181,7 +181,8 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       const now = tiers.get(id) ?? null;
       const before = was.get(id) ?? null;
       const p = league.players[id];
-      if (now === before || !p || !active.has(id)) continue;
+      // A captain named in this report is told as captain, not twice.
+      if (now === before || !p || !active.has(id) || follows.some((r) => r.playerId === id)) continue;
       follows.push({
         playerId: id,
         cells: [
@@ -203,8 +204,14 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   for (const u of room.units) {
     covered.push(`unit:${clock}:${u.unit}:${u.word}`);
     const last = memory.units.get(u.unit) ?? null;
+    // What matters: Split or Down, a room that came together, or one back from trouble. A room that only cooled from
+    // Tight, or went a little restless, waits until it's news.
     const notable = u.word === 'Split' || u.word === 'Down';
-    if (!(notable || (last && last.word !== u.word))) continue;
+    const turned =
+      !!last &&
+      last.word !== u.word &&
+      (u.word === 'Tight' || last.word === 'Split' || last.word === 'Down' || last.word === 'Restless');
+    if (!notable && !turned) continue;
     // A leader of this unit at the last report who is off the club now (hurt or not, a man on IR is still ours).
     const gone = u.noVoice
       ? [...(memory.standing?.tiers ?? [])]

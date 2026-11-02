@@ -306,6 +306,8 @@ describe('the locker room report', () => {
       delete p.ties;
       p.morale = { level: 0, jolts: [] };
     }
+    // Nothing told about the rooms either, so no room is coming back from anything.
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
     at(l, 'regular', 1);
     deliverMail(l);
     const [m] = reports(l);
@@ -460,6 +462,29 @@ describe('the locker room report: the room', () => {
     deliverMail(l);
     const again = section(reports(l).at(-1)!, 'The room')!.rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
     expect(again.note).toMatch(/still/i);
+  });
+
+  it('lists a captain once, as captain, even when his place in the room changed', () => {
+    const l = camp();
+    const c = l.teams[l.userTeamId].captains!;
+    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l) - 1}:${c.offense}:voice`]: 1 };
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'Who the room follows')!.rows;
+    expect(rows.filter((r) => r.playerId === c.offense)).toHaveLength(1);
+  });
+
+  it('leaves out a unit that only cooled from Tight to Settled', () => {
+    const l = camp();
+    // Only this memory of the line: the template filed reads of its own.
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 1}:OL:Tight`]: 1 };
+    for (const p of ours(l).filter((x) => unitOf(x.position) === 'OL' && x.morale)) {
+      p.morale!.level = 0;
+      delete p.morale!.jolts;
+    }
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'The room')?.rows ?? [];
+    expect(rows.find((r) => r.cells[0] === ROOM_LABEL.OL)).toBeUndefined();
   });
 
   it('a leader on injured reserve has not left', () => {

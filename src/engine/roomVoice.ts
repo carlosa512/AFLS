@@ -112,6 +112,8 @@ export interface UnitFact {
   still: boolean;
   /** The read changed since it was last told. */
   turned: boolean;
+  /** The read last told, when there was one. */
+  was: UnitWord | null;
   /** Who sets the tone, by last name. */
   setter: string | null;
   setterCaptain: boolean;
@@ -145,6 +147,8 @@ export interface StandingFact {
   /** Still stung by a benching. */
   benched: boolean;
   stirs: boolean;
+  /** Our read of him is a name that warns (a Locker-Room Lawyer, a Diva…): the room can see he stirs. */
+  warn: boolean;
   unit: string;
 }
 
@@ -164,6 +168,9 @@ const U = (f: { unit: string; still?: boolean }) => `${cap(f.unit)} ${isAre(f.un
 const looks = (unit: string) => (SINGULAR.has(unit) ? 'looks' : 'look');
 const listens = (unit: string) => (SINGULAR.has(unit) ? 'listens' : 'listen');
 const it = (unit: string) => (SINGULAR.has(unit) ? 'it' : 'them');
+/** "Hill's" for "Hill is", but "Owens is": a contraction after a name ending in s doesn't read. */
+const isOf = (name: string | null) => (/s$/.test(name ?? '') ? `${name} is` : `${name}'s`);
+const hasOf = (name: string | null) => (/s$/.test(name ?? '') ? `${name} has` : `${name}'s`);
 const yearsIn = (n: number) => `${cap(inWords(n))} years`;
 const ordinal = (experience: number) => ORDINAL[experience] ?? 'Another';
 const feel = (f: UnitFact) => (f.cause ? `${feelFor(f.cause, f.causeCount ?? 'some of them')}.` : '');
@@ -192,7 +199,7 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
       f.upYoung,
     reads: 5,
     text: (f) =>
-      `${U(f)} split. ${f.setter} thinks ${f.rival} took his job, and he isn't keeping it to himself. ${f.rival}'s got the younger guys.`,
+      `${U(f)} split. ${f.setter} thinks ${f.rival} took his job, and he isn't keeping it to himself. ${hasOf(f.rival)} got the younger guys.`,
   },
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.pulling === 'down' && f.cause === 'snaps' && !!f.rival,
@@ -202,7 +209,7 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.setterSound === 'stirs' && !!f.cause,
     reads: 3,
-    text: (f) => `${U(f)} split, and ${f.setter}'s doing the talking. It's about ${TOPIC[f.cause!]}.`,
+    text: (f) => `${U(f)} split, and ${isOf(f.setter)} doing the talking. It's about ${TOPIC[f.cause!]}.`,
   },
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.setterSound === 'steadies' && f.pulling !== 'down',
@@ -212,7 +219,7 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.pulling === 'down',
     reads: 2,
-    text: (f) => `${U(f)} split. ${f.setter}'s on one side of it.`,
+    text: (f) => `${U(f)} split. ${isOf(f.setter)} on one side of it.`,
   },
   {
     when: (f) => f.word === 'Split' && !!f.cause,
@@ -290,7 +297,16 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   { when: word('Restless'), text: (f) => `Some grumbling from ${f.unit}. Nothing I'd call trouble yet.` },
 
   // Settled
-  { when: (f) => f.word === 'Settled' && f.turned, reads: 1, text: (f) => `${U(f)} back on an even keel.` },
+  {
+    when: (f) => f.word === 'Settled' && f.turned && (f.was === 'Split' || f.was === 'Down' || f.was === 'Restless'),
+    reads: 1,
+    text: (f) => `${U(f)} back on an even keel.`,
+  },
+  {
+    when: (f) => f.word === 'Settled' && f.turned && f.was === 'Tight',
+    reads: 1,
+    text: (f) => `${U(f)} steady. Not as tight as it was, but nothing wrong.`,
+  },
   { when: word('Settled'), text: (f) => `${U(f)} steady. Nothing to report.` },
   { when: word('Settled'), text: (f) => `Nothing new from ${f.unit}. Steady.` },
 
@@ -351,7 +367,7 @@ export const UNIT_TURN: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Tight' && !!f.setter && f.pulling === 'up',
     reads: 2,
-    text: (f) => `Good week in my room. ${f.setter}'s got them right.`,
+    text: (f) => `Good week in my room. ${hasOf(f.setter)} got them right.`,
   },
   { when: word('Tight'), text: () => "Good week in my room. They're a tight group right now." },
   { when: word('Tight'), text: () => "My guys are in a good place. Thought you'd want the good ones too." },
@@ -377,19 +393,19 @@ export const STANDING_NOTE: readonly Line<StandingFact>[] = [
       `${ordinal(f.experience)} year, starting, and ${f.unit} ${listens(f.unit)}. That came quicker than I expected.`,
   },
   {
-    when: (f) => f.now === 'voice' && f.was === null && f.stirs,
+    when: (f) => f.now === 'voice' && f.was === null && f.stirs && f.warn,
     reads: 3,
-    text: (f) => `${f.name}'s got a following now. Not all of it's good.`,
+    text: (f) => `${hasOf(f.name)} got a following now. Not all of it's good.`,
   },
   {
     when: (f) => f.now === null && f.benched,
     reads: 3,
-    text: (f) => `Since the benching, ${f.name}'s not the voice he was.`,
+    text: (f) => `Since the benching, ${isOf(f.name)} not the voice he was.`,
   },
   {
     when: (f) => f.now === 'leader',
     reads: 2,
-    text: (f) => `${f.name}'s become one of the guys the room goes to.`,
+    text: (f) => `${hasOf(f.name)} become one of the guys the room goes to.`,
   },
   { when: (f) => f.now === 'leader', reads: 2, text: (f) => `${f.name} has the room now. They go to him.` },
   {
@@ -400,12 +416,12 @@ export const STANDING_NOTE: readonly Line<StandingFact>[] = [
   {
     when: (f) => f.now === null && !f.starts,
     reads: 2,
-    text: (f) => `${f.name}'s gone quiet. Happens when you're not on the field as much.`,
+    text: (f) => `${hasOf(f.name)} gone quiet. Happens when you're not on the field as much.`,
   },
   {
     when: (f) => f.now === 'voice',
     reads: 1,
-    text: (f) => `${f.name}'s found his voice. ${cap(f.unit)} ${listens(f.unit)} when he talks.`,
+    text: (f) => `${hasOf(f.name)} found his voice. ${cap(f.unit)} ${listens(f.unit)} when he talks.`,
   },
   {
     when: (f) => f.now === null,

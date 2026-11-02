@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.36',
+    date: '2026-11-02',
+    title: 'Who runs the room',
+    text:
+      'Your locker room now has a shape. Some players are leaders and some have a voice, from their makeup, whether ' +
+      'they start, their years in the league and here, and what they have won, and veterans wear the C more often. ' +
+      'A voice’s mood rubs off on his position group: a stirrer spreads a bad week, a steady leader keeps one to ' +
+      'himself. The Locker Room shows who the room follows and how each group is feeling (tight, settled, restless, ' +
+      'down or split) and why, the head coach’s report says which rooms have turned, and a position coach writes ' +
+      'when his guys go one way or the other.',
+  },
+  {
     version: '0.2.35',
     date: '2026-11-01',
     title: 'Your gear, captains and rookies',

@@ -66,6 +66,9 @@ describe('the staff-notes letter', () => {
     expect(notes(l)).toHaveLength(1);
     const quiet = copy(template);
     quiet.phase = 'regular';
+    // A quiet room too: every mood level and nothing told about the rooms, so no position coach has news.
+    for (const p of teamPlayers(quiet, quiet.userTeamId)) if (p.morale) p.morale = { level: 0 };
+    for (const k of Object.keys(quiet.mailTold ?? {})) if (k.startsWith('unit:')) delete quiet.mailTold![k];
     deliverMail(quiet);
     expect(notes(quiet)).toHaveLength(0);
   });
@@ -183,7 +186,7 @@ describe('staff notes: the position coach on his unit', () => {
 
   it('ignores Settled to Restless', () => {
     const l = inSeason();
-    setUnit(l, 'WR', -2);
+    setUnit(l, 'WR', -0.7);
     expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 

@@ -35,6 +35,9 @@ import {
 } from '../src/engine/morale';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { computeRecords } from '../src/engine/season/standings';
+import { activeRoster } from '../src/engine/roster';
+import { isCaptain, moraleStepOf as stepOf } from '../src/engine/morale';
+import { tierOf, TONE, toneOf, unitOf, unitReads, weightOf, type Sound, type UnitWord } from '../src/engine/standing';
 import type { League, Phase, Player } from '../src/engine/types';
 
 const arg = (name: string, fallback: string) => {
@@ -64,8 +67,62 @@ const means: number[] = [];
 const roomGap: number[] = [];
 let outOfRange = 0;
 
+// 8: the room (L1): standing per club, unit reads, rooms, and the voices' pull, read as the engine reads them.
+const leadersPer: number[] = [];
+const voicesPer: number[] = [];
+const noLeader: number[] = [];
+const reads: UnitWord[] = [];
+const poorRooms: number[] = [];
+const stirGap: number[] = [];
+const steadyGap: number[] = [];
+const pullSize: number[] = [];
+function sampleRoom(ctx: ReturnType<typeof moraleContext>) {
+  for (const t of league.teams) {
+    const roster = activeRoster(league, t.id);
+    let leaders = 0;
+    let past = 0;
+    let voices = 0;
+    let total = 0;
+    let sum = 0;
+    for (const p of roster) {
+      const w = weightOf(league, p, ctx);
+      const tier = tierOf(league, p, w);
+      if (tier === 'leader') {
+        leaders++;
+        if (!isCaptain(league, p)) past++;
+      } else if (tier === 'voice') voices++;
+      total += Math.max(w, 0.3);
+      sum += Math.max(w, 0.3) * moraleLevel(league, p);
+      pullSize.push(Math.abs(TONE.weight * toneOf(p, ctx)));
+    }
+    leadersPer.push(leaders);
+    voicesPer.push(voices);
+    noLeader.push(past ? 0 : 1);
+    poorRooms.push(total && stepOf(sum / total) <= 3 ? 1 : 0);
+    for (const r of unitReads(league, t.id, ctx)) reads.push(r.word);
+    // Like against like: the pull a down voice puts on his unit-mates as he sounds, against the same voice even.
+    for (const [key, list] of ctx.voices) {
+      if (!key.startsWith(`${t.id}:`)) continue;
+      for (const v of list) {
+        if (!v.sound || (ctx.leans.get(v.id) ?? 0) > -0.17) continue;
+        const mates = roster.filter((p) => p.id !== v.id && `${t.id}:${unitOf(p.position)}` === key);
+        for (const m of mates) {
+          const as = toneOf(m, ctx);
+          const sound: Sound = v.sound;
+          v.sound = null;
+          const even = toneOf(m, ctx);
+          v.sound = sound;
+          if (sound === 'stirs') stirGap.push(TONE.weight * (even - as));
+          else steadyGap.push(TONE.weight * (as - even));
+        }
+      }
+    }
+  }
+}
+
 function sample(atEnd: boolean) {
   const ctx = moraleContext(league);
+  sampleRoom(ctx);
   // Built, not read from `leagueMarket`: filling that cache would change the AI's pay reads, and so the league.
   const market = buildMarket(league);
   const levels = new Map<number, number[]>();
@@ -250,6 +307,19 @@ check(
   [0.04, 0.2],
   3,
 );
+
+const shareOf = (w: UnitWord) => reads.filter((r) => r === w).length / Math.max(1, reads.length);
+check(`Leaders per club, captains included (n=${leadersPer.length})`, mean(leadersPer), [3, 6]);
+check('Voices per club', mean(voicesPer), [6, 12]);
+check('Clubs with no leader past the captains', mean(noLeader), [0.1, 0.3]);
+check(`Unit reads: Split (n=${reads.length})`, shareOf('Split'), [0.05, 0.15]);
+check('Unit reads: Down', shareOf('Down'), [0.05, 0.2]);
+check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
+// The ceiling is the point (spec §8: rooms cluster but don't run away); a club room averaging Poor is rare (2–5%).
+check('Club rooms at Poor or worse (ceiling)', mean(poorRooms), [0, 0.25]);
+check(`A stirrer's mates minus an even voice's (n=${stirGap.length})`, mean(stirGap), [0.01, 10], 3);
+check(`A steadier's mates minus an even voice's (n=${steadyGap.length})`, mean(steadyGap), [0.01, 10], 3);
+check("Voices' pull on a room factor (mean size)", mean(pullSize), [0.05, 0.4], 3);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);
