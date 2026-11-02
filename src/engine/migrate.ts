@@ -295,6 +295,13 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 75;
   }
+  // v76: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
+  // middle (`Coach.credibility`). `MoraleJolt` gains `meeting` and `League.lockerBeats` is optional: nothing to rewrite.
+  if (league.version < 76) {
+    for (const team of league.teams) team.meetings ??= { log: [], open: [] };
+    for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
+    league.version = 76;
+  }
   return league;
 }
 

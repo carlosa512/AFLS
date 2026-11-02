@@ -351,10 +351,87 @@ export type MoraleJolt =
   | 'broken'
   | 'reassured'
   | 'firm'
-  | 'ignored';
+  | 'ignored'
+  // L2: a team meeting landing or bristling (`meetings/react.ts`).
+  | 'meeting';
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+// ───────── team meetings (L2, `meetings/`) ─────────
+
+/** A meeting's room, or the whole team. */
+export type MeetingScope = CoachRoom | 'team';
+/** What the meeting is about and who says it: the coach's five, then the GM address's three. */
+export type Approach = 'leader' | 'straight' | 'callout' | 'losing' | 'standard' | 'ownIt' | 'raiseBar' | 'freshStart';
+/** What's put behind it: a commitment, or words only. */
+export type Backing = 'snaps' | 'talks' | 'feud' | 'move' | 'jobs' | 'words';
+/** When a trouble meeting is held (a moment sets its own). */
+export type Timing = 'afterGame' | 'monday' | 'wednesday';
+export type MeetingKind = 'moment' | 'trouble' | 'gm';
+/** The calendar's fixed points that always bring a suggestion. */
+export type Moment = 'camp' | 'newCoach' | 'deadline' | 'push' | 'final' | 'end';
+/** How one man took it. */
+export type Outcome = 'lands' | 'shrug' | 'bristles';
+
+/** A promise to the room, judged at each step until `closes` (a clock). */
+export interface Commitment {
+  backing: Exclude<Backing, 'words'>;
+  scope: MeetingScope;
+  opened: number;
+  closes: number;
+  /** The men it names (snaps: him; talks: those who want a deal; feud: the two). */
+  named: number[];
+  /** Who it landed with: they feel it kept or broken. */
+  boughtIn: number[];
+  by: 'coach' | 'gm';
+  /** What each man who bought in got from the meeting: a broken one costs him more than that. */
+  lift?: Record<number, number>;
+  /** The starters when it opened (`jobs`, `move`): kept when they change. */
+  starters?: number[];
+}
+
+/** A meeting held, this season. */
+export interface MeetingRecord {
+  clock: number;
+  scope: MeetingScope;
+  kind: MeetingKind;
+  approach: Approach;
+  backing: Backing;
+  timing: Timing;
+  outcomes: Record<number, Outcome>;
+  /** The leader who said it, or the man called out. */
+  speaker?: number;
+  moment?: Moment;
+}
+
+/** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */
+export interface MeetingSuggestion {
+  clock: number;
+  scope: MeetingScope;
+  kind: MeetingKind;
+  moment?: Moment;
+  topic: TalkCause | 'none';
+  approaches: Approach[];
+  backings: Backing[];
+  /** Empty for a moment: it sets its own. */
+  timings: Timing[];
+  named: number[];
+  /** The man driving it (a stirring voice). */
+  driver?: number;
+  /** The leader who could say it. */
+  leader?: number;
+}
+
+/** A club's meetings: this season's log, open commitments, the one waiting on you. */
+export interface TeamMeetings {
+  log: MeetingRecord[];
+  open: Commitment[];
+  pending?: MeetingSuggestion;
+  gmAddressSeason?: number;
+  /** Your club: the head coach holds them himself. */
+  byCoach?: boolean;
+}
+
 /** How a club answers him. */
 export type TalkReply = 'promise' | 'reassure' | 'firm';
 
@@ -798,6 +875,10 @@ export interface Coach {
   actingAs?: 'offCoord' | 'defCoord';
   /** A head coach runs a side whose coordinator chair is empty, unless his team switched it off for that side. */
   coverOff?: ('offCoord' | 'defCoord')[];
+  /** Head coaches: his word with the room, −1…1, hidden (`meetings/credibility.ts`); unset reads as 0. */
+  credibility?: number;
+  /** A new head coach's first meetings land a little easier while this counts down. */
+  newVoice?: number;
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
   interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */
@@ -941,6 +1022,8 @@ export interface Team {
    * a team on the line doesn't flip between buying and selling from one week to the next.
    */
   stance?: { mode: Stance; since: number };
+  /** Team meetings (L2, `meetings/`). */
+  meetings?: TeamMeetings;
 }
 
 /** Contend, bubble, retool or rebuild: it decides who buys and who sells. */
@@ -1784,6 +1867,8 @@ export interface League {
   moraleAt?: number;
   /** Clubs that clinched a playoff place this season, so the playoffs jolt lands once (`morale.ts`). */
   moraleClinched?: { season: number; teams: number[] };
+  /** The week's locker-room stories SNN can tell (L2): a room lost or won back, a coach struggling, a GM address. */
+  lockerBeats?: { season: number; week: number; teamId: number; kind: 'lost' | 'won' | 'struggling' | 'address' }[];
   userTeamId: number;
   /** The user's persistent identity; does not change when a different team is viewed or managed. */
   userGmId: number;

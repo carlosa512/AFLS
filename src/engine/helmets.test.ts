@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEAM_SEEDS } from './data/teams';
-import { createLeague } from './generate';
+import { createLeague, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 
 describe('club helmet designs', () => {
@@ -20,7 +20,7 @@ describe('club helmet designs', () => {
     league.teams[3].abbrev = 'XYZ';
     league.version = 74;
     const out = migrateLeague(league)!;
-    expect(out.version).toBe(75);
+    expect(out.version).toBe(SAVE_VERSION);
     expect(out.teams[0].helmet).toEqual(TEAM_SEEDS[0].helmet);
     expect(out.teams[0].helmet).not.toBe(TEAM_SEEDS[0].helmet);
     expect(out.teams[3].helmet).toBeUndefined();
