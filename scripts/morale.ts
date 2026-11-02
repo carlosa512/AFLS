@@ -292,7 +292,9 @@ check(`Leaders per club, captains included (n=${leadersPer.length})`, mean(leade
 check('Voices per club', mean(voicesPer), [6, 12]);
 check('Clubs with no leader past the captains', mean(noLeader), [0.1, 0.3]);
 check(`Unit reads: Split (n=${reads.length})`, shareOf('Split'), [0.05, 0.15]);
-check('Unit reads: Down', shareOf('Down'), [0.05, 0.2]);
+// Down means a room reads Poor or worse, the word the screen shows: rare in a happy league, so only its ceiling counts
+// (the owner's call, Nov 2, 2026).
+check('Unit reads: Down (ceiling)', shareOf('Down'), [0, 0.2]);
 check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
 // The ceiling is the point (spec §8: rooms cluster but don't run away); a club room averaging Poor is rare (about 2%),
 // so there is no floor (the owner's call, Nov 2, 2026).

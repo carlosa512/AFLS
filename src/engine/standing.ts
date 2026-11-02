@@ -144,10 +144,10 @@ export type UnitWord = 'Tight' | 'Settled' | 'Restless' | 'Down' | 'Split';
 export const SPLIT_SHARE = 0.2;
 /**
  * The read off a unit's weighted mean mood. A unit's mean runs far narrower than a man's mood (its tenth worst reads
- * a little below Okay), so the words sit where a unit's spread puts them, calibrated in `npm run morale`: Down in its
- * bottom tenth, Restless just above it, Tight well into Good.
+ * a little below Okay), so the words sit where a unit's spread puts them, calibrated in `npm run morale`: Down when it
+ * reads Poor or worse (the word the screen shows; rare in a happy league), Restless just above, Tight well into Good.
  */
-export const READ_AT = { tight: 1.5, restless: -0.25, down: -0.55 };
+export const READ_AT = { tight: 1.5, restless: -0.25, down: -1 };
 /** Fewer men than this and a room has no read of its own (a two-man quarterback room). */
 export const READ_MIN = 3;
 /** A quiet man still counts in his unit's read. */

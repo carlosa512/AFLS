@@ -146,11 +146,11 @@ voice counts for more but a quiet man still counts:
 
 | Read | When |
 | --- | --- |
-| **Split** | at least 25% of the unit's weight sits at Good or better and at least 25% at Poor or worse (this overrides the rest) |
+| **Split** | at least 20% of the unit's weight sits at Good or better and at least 20% at Poor or worse (this overrides the rest) |
 | **Tight** | the weighted mean level is 1.5 or more (well into Good) |
 | **Settled** | between Restless and Tight |
-| **Restless** | the weighted mean level is −0.5 or less |
-| **Down** | the weighted mean level is −1 or less (Poor or worse) |
+| **Restless** | the weighted mean level is −0.25 or less |
+| **Down** | the weighted mean reads Poor or worse (level −1 or less): the word the screen shows |
 
 A unit's mean runs far narrower than one man's mood (its tenth worst reads only Poor), so the words sit where a
 unit's spread puts them, calibrated in `npm run morale` (`READ_AT`, `SPLIT_SHARE` in `standing.ts`), not on the
@@ -164,7 +164,7 @@ Each read also carries:
 - **No voice:** a flag when the unit has no leader or voice of its own and its side's captain isn't in it.
 
 **Targets to calibrate** (design targets; a read that is always "Settled" says nothing): Split 5–15% of unit-weeks,
-Down 5–20%, Tight 15–35%.
+Down at most 20% (ceiling only, the owner's call: in a happy league a room reading Poor is rare), Tight 15–35%.
 
 ## 3. The room as a whole
 
@@ -369,7 +369,7 @@ Nothing stored. Worked out on the spot:
 
 - **Standing per club, in season:** leaders (captains included) 3–6 on average; voices 6–12; no leader past the
   captains in 10–30% of club-weeks.
-- **Unit reads league-wide:** Split 5–15% of unit-weeks, Down 5–20%, Tight 15–35%.
+- **Unit reads league-wide:** Split 5–15% of unit-weeks, Down at most 20%, Tight 15–35%.
 - **Room moods cluster but don't run away:** club rooms at Poor or worse in at most 25% of club-weeks (0–25%,
   approved by the owner on Nov 2, 2026: the first draft's 5% floor was a guess, and played leagues sit near 2%).
 - **Existing checks hold:** band shares, underpaid final-year starters, a benching's dip and recovery, winning rooms

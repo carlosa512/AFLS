@@ -193,7 +193,7 @@ describe('staff notes: the position coach on his unit', () => {
 
   it('ignores Settled to Restless', () => {
     const l = inSeason();
-    setUnit(l, 'WR', -0.7);
+    setUnit(l, 'WR', -0.5); // Restless: below Okay's middle, above Poor
     expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 
