@@ -406,8 +406,9 @@ describe('the staged play', () => {
       const c = p.ids.indexOf(p.carrier);
       // From when he has it: the throw or the handoff, a pick as he makes it, or a fumble's recovery (before, the man who
       // ends up with it may have been in coverage).
-      const from = Math.round(
-        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt,
+      // (The first step he has it: until then a receiver is on his route, and his man may be as close as he can get.)
+      const from = Math.ceil(
+        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt - 1e-9,
       );
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).

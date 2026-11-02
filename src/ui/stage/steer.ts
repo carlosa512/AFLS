@@ -19,6 +19,8 @@ const ACCEL = 6;
 /** Men closer than this push apart, a little each step (a shove, not a jolt). */
 const ROOM = 1;
 const ROOM_PUSH = 0.12;
+/** Where a steered man may aim, end line to end line (yards), short of the edge he's kept inside so he can pull up. */
+const GOAL_X: readonly [number, number] = [-9, 109];
 /** No one moves further than this in a step (yards: 11 a second), however he's pushed or knocked off. */
 const MAX_STEP = 0.55;
 /** A push can take a man this far past his own top speed (yards a second): a shove, never a sprint he hasn't got. */
@@ -28,6 +30,8 @@ const RING = 1.2;
 /** A chaser who gets there first whiffs: this long (seconds) at this share of his speed, finding his feet. */
 const WHIFF = 1;
 const STUMBLE = 0.35;
+/** A man going down after a miss sheds his speed this quickly (yards a second, each second): a dive, not a freeze. */
+const FALL = 12;
 /** A chaser this close and level with a running carrier (not ahead of him) lunges at him, and misses. */
 const LUNGE = 2;
 /** However he's pushed, no chaser is ever closer than this to the man with the ball before the tackler. */
@@ -751,17 +755,29 @@ export function steer(a: SteerArgs): Float32Array {
           if (!convergers) convergers = nearestTo(a.loose.at, 2);
           if (convergers.has(k)) goal = toward(a.loose.at, { x: px[k], y: py[k] }, 1.5);
         }
+        // Just made to miss: he isn't after the carrier for that moment, he's carried on the way he was going while he
+        // goes down (aimed at the carrier, he'd run in place against him).
+        if (t < whiffed[k] && k !== pk && Math.hypot(vx[k], vy[k]) > 0.5) goal = { x: px[k] + vx[k], y: py[k] + vy[k] };
+        // Never aim past the end lines or the sidelines (a deep zone near the goal line, a chase to the back of the end
+        // zone): a goal out there runs him into the edge of the field and stops him dead on it.
+        goal = {
+          x: Math.max(GOAL_X[0], Math.min(GOAL_X[1], goal.x)),
+          y: Math.max(-0.5, Math.min(FIELD_W + 0.5, goal.y)),
+        };
         const gx = goal.x - px[k];
         const gy = goal.y - py[k];
         const dist = Math.hypot(gx, gy);
-        // Easing off inside a yard, except the tackler closing on the carrier: he runs through the hit.
-        const speed = closing && t >= missUntil ? top : top * Math.min(1, dist);
+        // Braking in time to stop on his spot (no quicker than he can pull up, `ACCEL`), not a dead stop at it; except
+        // the tackler closing on the carrier, who runs through the hit.
+        const speed =
+          closing && t >= missUntil ? top : Math.min(top, Math.sqrt(2 * ACCEL * dist), top * Math.max(dist, 0.6) * 4);
         const wx = dist > 0 ? (gx / dist) * speed : 0;
         const wy = (dist > 0 ? (gy / dist) * speed : 0) + (a.rng.next() * 2 - 1) * WOBBLE;
         const dvx = wx - vx[k];
         const dvy = wy - vy[k];
         const dv = Math.hypot(dvx, dvy);
-        const cap = ACCEL * a.dt;
+        // A man who's just missed goes down: he sheds his speed quicker than a runner pulls up.
+        const cap = (t < whiffed[k] ? FALL : ACCEL) * a.dt;
         const f = dv > cap ? cap / dv : 1;
         vx[k] += dvx * f;
         vy[k] += dvy * f;
@@ -833,6 +849,9 @@ export function steer(a: SteerArgs): Float32Array {
           const dx = px[k] - px[r];
           const dy = py[k] - py[r];
           const d = Math.hypot(dx, dy);
+          // A man who's just missed is going down where he is: the carrier runs on past him (the floor below still
+          // keeps him a yard off), not held at the ring and carried along at the carrier's side.
+          if (d < RING && t < whiffed[k]) continue;
           if (d < RING) {
             // He's there too soon (the tackle is the tackler's): he whiffs. Knocked off to the side the carrier is
             // passing him on, not shoved along in front of him, and his momentum gone, so he falls off the play.
@@ -852,13 +871,13 @@ export function steer(a: SteerArgs): Float32Array {
               ux = (-my / m) * side;
               uy = (mx / m) * side;
             }
-            px[k] = px[r] + ux * RING;
-            py[k] = py[r] + uy * RING;
-            if (running) {
-              vx[k] = 0;
-              vy[k] = 0;
-              // He missed: a stumble, and the play goes on without him for a moment.
-              whiffed[k] = t + WHIFF;
+            // He missed: his momentum carries him on past as he goes down (braking hard, `FALL`), the carrier slipping
+            // him to the side (the floor below), and the play goes on without him for a moment. A carrier slowing into
+            // the tackle is the tackler's: the chaser holds the ring.
+            if (running) whiffed[k] = t + WHIFF;
+            else {
+              px[k] = px[r] + ux * RING;
+              py[k] = py[r] + uy * RING;
             }
           } else if (
             d < LUNGE &&
@@ -869,11 +888,7 @@ export function steer(a: SteerArgs): Float32Array {
             // Level with him and close, running with the play: he lunges and misses. No escort at the carrier's elbow.
             const mx = px[r] - lastX[r];
             const my = py[r] - lastY[r];
-            if (((px[r] - px[k]) * mx + (py[r] - py[k]) * my) / Math.hypot(mx, my) > -1) {
-              whiffed[k] = t + WHIFF;
-              vx[k] *= 0.4;
-              vy[k] *= 0.4;
-            }
+            if (((px[r] - px[k]) * mx + (py[r] - py[k]) * my) / Math.hypot(mx, my) > -1) whiffed[k] = t + WHIFF;
           } else if (d > RING * 2) ringSide[k] = 0;
         }
       }
@@ -901,14 +916,30 @@ export function steer(a: SteerArgs): Float32Array {
           const dy = py[k] - py[r];
           const d = Math.hypot(dx, dy);
           if (d < FLOOR && d > 0) {
-            // Out to the floor on the side he came from: the least step there is (out from where the step left him
-            // would drag him round the carrier, quicker than he runs).
-            const lx = lastX[k] - px[r];
-            const ly = lastY[k] - py[r];
-            const ld = Math.hypot(lx, ly);
-            const [ux, uy] = ld > 0 ? [lx / ld, ly / ld] : [dx / d, dy / d];
-            px[k] = px[r] + ux * FLOOR;
-            py[k] = py[r] + uy * FLOOR;
+            const mx = px[r] - lastX[r];
+            const my = py[r] - lastY[r];
+            const ml = Math.hypot(mx, my);
+            if (t < whiffed[k] && ml > 0) {
+              // Made to miss: the carrier slips him, so he's out of the way to the side, his run carrying on past
+              // (pushed back the way he came, he'd stop dead against the carrier).
+              const hx = mx / ml;
+              const hy = my / ml;
+              const along = dx * hx + dy * hy;
+              const across = -dx * hy + dy * hx;
+              const side = Math.sign(across) || 1;
+              const out = Math.sqrt(Math.max(0, FLOOR * FLOOR - along * along));
+              px[k] = px[r] + hx * along - hy * side * out;
+              py[k] = py[r] + hy * along + hx * side * out;
+            } else {
+              // Out to the floor on the side he came from: the least step there is (out from where the step left him
+              // would drag him round the carrier, quicker than he runs).
+              const lx = lastX[k] - px[r];
+              const ly = lastY[k] - py[r];
+              const ld = Math.hypot(lx, ly);
+              const [ux, uy] = ld > 0 ? [lx / ld, ly / ld] : [dx / d, dy / d];
+              px[k] = px[r] + ux * FLOOR;
+              py[k] = py[r] + uy * FLOOR;
+            }
           }
         }
       }
