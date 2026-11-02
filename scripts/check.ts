@@ -220,9 +220,10 @@ const RULES: [RegExp, Name[]][] = [
   // Crews: their tendencies and rotation, the penalty rolls they multiply, and what builds the leagues and schedules.
   [/^src\/engine\/(?!.*\.test\.ts$)(officials|match\/|generate|season\/schedule|offseason\/index)/, ['crews']],
   [/^scripts\/crews\.ts$/, ['crews']],
-  // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches).
+  // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches),
+  // and trade requests (G4b: a public one lowers his club's floor and draws calls).
   [
-    /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate)/,
+    /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate|disputes|disputeRead)/,
     ['trades'],
   ],
   [/^scripts\/trades(-prices)?\.ts$/, ['trades']],

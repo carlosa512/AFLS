@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-11-02',
+    title: 'Trade requests',
+    text:
+      'An unhappy player can now ask to be traded: over playing time, the losing, a feud with a teammate, or a deal ' +
+      'he never got after holding in or out. He tells his club first, and your head coach writes to you: shop him, ' +
+      'refuse, or promise him the snaps or the deal he wants. It stays private for a while, sooner with an outspoken ' +
+      'man, until it leaks; then every club knows, calls come in, and the offers come in low. Refused and still ' +
+      'unhappy at the next camp, he may hold in instead. Other clubs face the same, and you can buy their unhappy ' +
+      'players for less once the word is out. This finishes morale and holdouts on the road to alpha.',
+  },
+  {
     version: '0.2.45',
     date: '2026-11-02',
     title: 'Hold-ins and holdouts',
