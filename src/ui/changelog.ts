@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.2',
+    date: '2026-11-02',
+    title: "The young players' review",
+    text:
+      'When your season ends, the director of scouting sends one letter on the young players instead of a letter ' +
+      'for each: who looks better than we graded him, which rookies are who we thought, and who is behind where we ' +
+      "had him. The words follow his year, so a rookie is never written off: it's early, and his ceiling has two " +
+      'more seasons to settle. The letter files in the week your season ends, with the rest of that week’s mail.',
+  },
+  {
     version: '0.3.1',
     date: '2026-11-02',
     title: 'Nobody teleports',
