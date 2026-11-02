@@ -73,6 +73,8 @@ export interface Kit {
   ink: string;
   /** The number's outline, like tackle twill. */
   trim: string;
+  /** The outline's width, in viewBox units. */
+  outline: number;
   /** The lower sleeve band: the team's other colour, even when it can't carry the number. */
   accent: string;
   /** The pants, their wide and thin side stripes, and the belt. */
@@ -91,13 +93,22 @@ const PANTS_SILVER = '#B9C2CC';
  * Pants: white at home (silver under a jersey too light to stand off white), the primary away, so a white
  * jersey never meets white pants; striped down the side in the team's colours, like the sleeves.
  */
+/**
+ * Every number's outline: the club's second colour, a little heavier, where it stands off both the jersey and the
+ * number; otherwise a dark or light edge, whichever stands off the number more, so the number always reads.
+ */
+export function numberOutline(jersey: string, ink: string, secondary: string): { color: string; width: number } {
+  if (contrast(secondary, jersey) >= 1.5 && contrast(secondary, ink) >= 1.5) return { color: secondary, width: 2.4 };
+  return { color: contrast(ink, DARK) >= contrast(ink, LIGHT) ? DARK : LIGHT, width: 2 };
+}
+
 export function kitFor({ primary, secondary }: TeamColors, away = false): Kit {
   const jersey = away ? '#FFFFFF' : primary;
   const ink = readableOn(jersey, away ? primary : secondary);
-  const trim = secondary !== ink && contrast(ink, secondary) >= 3 ? secondary : shade(jersey, 0.45);
+  const { color: trim, width: outline } = numberOutline(jersey, ink, secondary);
   const pants = away ? primary : contrast(jersey, PANTS_WHITE) >= 1.6 ? PANTS_WHITE : PANTS_SILVER;
   const stripe = away ? LIGHT : contrast(pants, primary) >= 1.5 ? primary : DARK;
   const stripeThin = secondary !== stripe && contrast(pants, secondary) >= 1.3 ? secondary : stripe;
   const belt = shade(primary, away ? 0.55 : 0.3);
-  return { jersey, ink, trim, accent: secondary, pants, stripe, stripeThin, belt };
+  return { jersey, ink, trim, outline, accent: secondary, pants, stripe, stripeThin, belt };
 }

@@ -11,11 +11,10 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { gamesInWeek } from '../engine/league';
 import type { Game, League, Player, Position, Team } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { isProspect } from '../engine/scouting';
-import { gameWeather, type Forecast, type Weather } from '../engine/weather';
+import { type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
 import { useNav } from './nav';
@@ -34,26 +33,8 @@ const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
 export const DECALS_MIN_PX = 56;
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
-/** Kickoff this hot in the open air, the home team takes white and leaves the visitors the dark jerseys (tune). */
-export const HOT_KICKOFF_F = 85;
-
-/**
- * Whether a team takes the field in white. The league's rule: the home team picks, the visitors wear the
- * other jersey. Home teams wear their colours, except on a hot open-air day (Miami, Tampa and Jacksonville
- * in September, mostly), about one game in fifty. It follows this week's game, or `game` for one already
- * played (weather is a pure function of the game, so it comes out the same); with no game (a bye, the
- * offseason) everyone is in home colours.
- */
-export function wearsWhite(league: League | null, teamId: number, game?: Game): boolean {
-  const inSeason = league?.phase === 'regular' || league?.phase === 'playoffs';
-  const g =
-    game ??
-    (league && inSeason ? gamesInWeek(league).find((x) => x.homeId === teamId || x.awayId === teamId) : undefined);
-  if (!league || !g || (g.homeId !== teamId && g.awayId !== teamId)) return false;
-  const w = gameWeather(league, g);
-  const homeInWhite = (w.roof === 'outdoors' || w.roof === 'open') && w.tempF >= HOT_KICKOFF_F;
-  return (g.homeId === teamId) === homeInWhite;
-}
+import { wearsWhite } from './uniform';
+export { HOT_KICKOFF_F, wearsWhite } from './uniform';
 
 /** A first-year pro (drafted or signed, never a prospect): a red "R" sits beside his name in lists and on his card. */
 export const isRookie = (p: Player) => p.experience === 0 && !p.retired && !isProspect(p);
