@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TEAM_SEEDS } from '../engine/data/teams';
 import { createLeague } from '../engine/generate';
 import { gamesInWeek } from '../engine/league';
-import type { League, Player, Team } from '../engine/types';
+import type { Game, League, Player, Team } from '../engine/types';
 import { contrast, kitFor, mix, readableOn, shade } from './color';
 import { FREE_AGENT, PlayerAvatar, wearsWhite } from './components';
 import { COLD_KICKOFF_F, lookOf, StaffAvatar, StaffFigure, staffDay } from './staffAvatar';
@@ -454,5 +454,44 @@ describe('helmet on the avatar', () => {
   it("gives a club without a design its colours' helmet", () => {
     expect(html(128)).toMatch(/id="[^"]*hs"[^>]*>(<stop[^>]*>)*/); // the shell's gradient
     expect(html(128)).toContain('stop-color="#1D4ED8"'); // BLUE has no `helmet`: its primary is the shell
+  });
+});
+
+describe('special uniforms on the avatar', () => {
+  const league = createLeague({ seed: 'dress-avatar' });
+  const teamOf = (abbrev: string) => league.teams.find((t) => t.abbrev === abbrev)!;
+  const gameOf = (t: Team, uniform?: Game['uniform']) => {
+    const g = { ...league.games.find((x) => x.homeId === t.id && !x.playoffRound && x.week <= 17)! };
+    if (uniform) g.uniform = uniform;
+    else delete g.uniform;
+    return g;
+  };
+  const draw = (abbrev: string, uniform: Game['uniform'] | undefined, size = 128, p = pearson) => {
+    const t = teamOf(abbrev);
+    return renderToStaticMarkup(
+      <PlayerAvatar player={{ ...p, teamId: t.id }} team={t} size={size} game={gameOf(t, uniform)} />,
+    );
+  };
+  it('draws each set at every size with no NaN', () => {
+    for (const uniform of ['rush', 'blackout', 'classic'] as const)
+      for (const size of [24, 32, 56, 128]) {
+        const svg = draw('PIT', uniform, size);
+        expect(svg, `${uniform} ${size}`).not.toContain('NaN');
+        expect(svg).toContain('class="helmet"');
+      }
+  });
+  it("draws the classic's three sleeve stripes and its slab numbers", () => {
+    const svg = draw('KC', 'classic');
+    expect(svg).toContain('Bitter');
+    expect((svg.match(/translate\(0 1\.5\)/g) ?? []).length).toBe(1); // the classic's middle stripe
+  });
+  it("draws a club's own number font", () => {
+    const svg = draw('MIN', undefined);
+    expect(svg).toContain('Anton');
+    expect(svg).toContain(`font-size="${32 * 0.91}"`);
+  });
+  it("wears the blackout's black helmet in a blackout game only", () => {
+    expect(draw('PIT', 'blackout')).toContain('#1b1d22');
+    expect(draw('PIT', undefined)).not.toContain('#1b1d22');
   });
 });

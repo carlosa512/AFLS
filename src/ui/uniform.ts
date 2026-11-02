@@ -123,7 +123,7 @@ export function uniformFor(league: League | null, team: Team, game?: Game): Dres
     font: u.font,
     helmet: helmetDesignOf(team),
   });
-  if (league && g?.uniform && !g.playoffRound) {
+  if (g?.uniform && !g.playoffRound) {
     if (g.homeId === team.id) {
       const set = special(u, g.uniform);
       return {
@@ -134,8 +134,9 @@ export function uniformFor(league: League | null, team: Team, game?: Game): Dres
         helmet: set.helmet ?? helmetDesignOf(team),
       };
     }
-    const home = special(clubUniforms(league.teams[g.homeId]), g.uniform);
-    return plain(!light(home.jersey));
+    // the visitors need the home club's set to know whether it's a whiteout
+    const homeTeam = league?.teams[g.homeId];
+    if (homeTeam) return plain(!light(special(clubUniforms(homeTeam), g.uniform).jersey));
   }
   return plain(wearsWhite(league, team.id, g));
 }
