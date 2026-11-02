@@ -141,7 +141,7 @@ function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
   return [lean(qbs[0]), lean(qbs[1])];
 }
 
-type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran'>;
+type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran' | 'loose'>;
 
 /**
  * Who a scrimmage play was about, read off what the engine already chose: its stat lines, the man in coverage, the
@@ -1195,7 +1195,7 @@ class GameSim {
       const { spot, returnYds } = result.turnover;
       const isInt = result.turnover.kind === 'int';
       const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
-      return this.animOf(
+      const anim = this.animOf(
         side,
         isInt ? 'int' : result.kind,
         start,
@@ -1204,6 +1204,9 @@ class GameSim {
         result.lane,
         who,
       );
+      // Where the ball came out: the log's `to` is where the return ended, so without it All-22 can't drop the ball.
+      if (!isInt) anim.loose = this.fieldX(side, spot);
+      return anim;
     }
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const ran = start + result.yards;
@@ -3162,17 +3165,7 @@ class GameSim {
     if (result.turnover) {
       ts.turnovers++;
       const { spot, returnYds, by } = result.turnover;
-      const isInt = result.turnover.kind === 'int';
-      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
-      this.setAnim(
-        offSide,
-        isInt ? 'int' : result.kind,
-        startYardLine,
-        end,
-        isInt ? Math.min(spot, 108) : airAt,
-        result.lane,
-        who,
-      );
+      this.anim = this.ranAnim(result, startYardLine, airAt, who);
       this.log(text);
       if (spot >= 100 && result.turnover.kind === 'int') {
         this.changePossession(20);
@@ -3379,6 +3372,7 @@ class GameSim {
         kind: ran.kind,
         to: ran.to,
         ...(ran.air !== undefined ? { air: ran.air } : {}),
+        ...(ran.loose !== undefined ? { loose: ran.loose } : {}),
         ...(ran.who ? { who: ran.who } : {}),
       };
       this.log(`${result.text}. Offsetting penalties: ${fouls.map(named).join(', ')}. Replay the down.`);
@@ -3440,6 +3434,7 @@ class GameSim {
       kind: ran.kind,
       to: ran.to,
       ...(ran.air !== undefined ? { air: ran.air } : {}),
+      ...(ran.loose !== undefined ? { loose: ran.loose } : {}),
       ...(ran.who ? { who: ran.who } : {}),
     };
     const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';

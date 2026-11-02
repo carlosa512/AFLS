@@ -313,6 +313,8 @@ export function migrateLeague(league: League): League | null {
   // v77: numbers by the players' own choices (`jerseys.ts`). `Player.numberEdited` is optional, and nobody's number
   // changes on load: players move to their favourites as they come free, at each new league year.
   if (league.version < 77) league.version = 77;
+  // v78: where a lost fumble came out (`PlayLogEntry.loose`, for All-22). Optional: older games keep their plays.
+  if (league.version < 78) league.version = 78;
   return league;
 }
 

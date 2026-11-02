@@ -15,6 +15,9 @@
  *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
+ *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`,
+ *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
+ *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
  *
  * Playwright and Chromium are not project dependencies: they come from the machine (a global install,
  * found through NODE_PATH, or a local one). The server and the browser are closed when the run ends.
@@ -23,7 +26,11 @@ import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join, resolve } from 'node:path';
+import { renameSync } from 'node:fs';
 import { createServer } from 'vite';
+import { actorsIn } from '../src/engine/playActors';
+import type { PlayLogEntry } from '../src/engine/types';
+import { fumbleIn } from '../src/ui/stage/fumble';
 
 // ───────── the slice of Playwright's API this script uses (it isn't a project dependency, so no types) ─────────
 
@@ -45,11 +52,14 @@ interface Page {
   setViewportSize(size: { width: number; height: number }): Promise<void>;
   screenshot(options: { path: string; fullPage?: boolean }): Promise<unknown>;
   keyboard: { press(key: string): Promise<void> };
+  waitForTimeout(ms: number): Promise<void>;
+  video(): { path(): Promise<string> } | null;
   on(event: 'pageerror', handler: (error: Error) => void): void;
   on(event: 'console', handler: (msg: { type(): string; text(): string }) => void): void;
 }
 interface Context {
   newPage(): Promise<Page>;
+  close(): Promise<void>;
   addInitScript<A>(fn: (arg: A) => void, arg: A): Promise<void>;
 }
 interface Browser {
@@ -59,6 +69,7 @@ interface Browser {
     isMobile?: boolean;
     hasTouch?: boolean;
     colorScheme?: 'light' | 'dark';
+    recordVideo?: { dir: string; size: { width: number; height: number } };
   }): Promise<Context>;
   close(): Promise<void>;
 }
@@ -80,6 +91,10 @@ const outOption = option('out');
 const teamAbbrev = option('team');
 const theme = flag('dark') ? 'dark' : 'light';
 const mailPrefixes = option('mail')
+  ?.split(',')
+  .map((x) => x.trim())
+  .filter(Boolean);
+const filmKinds = option('film')
   ?.split(',')
   .map((x) => x.trim())
   .filter(Boolean);
@@ -195,6 +210,29 @@ async function closeCard(page: Page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+// ───────── All-22 recordings ─────────
+
+/** What each `--film` kind looks for in a kept game's plays (a lost fumble with a return first, if there is one). */
+const FILM: Record<string, (e: PlayLogEntry) => number> = {
+  fumble: (e) => {
+    const f = fumbleIn(e);
+    return !f ? 0 : f.lost && e.loose !== undefined && Math.abs((e.to ?? 0) - e.loose) > 3 ? 2 : 1;
+  },
+  sack: (e) => (e.kind === 'sack' ? (fumbleIn(e) ? 2 : 1) : 0),
+  pressure: (e) => (e.kind === 'pass' && actorsIn(e).rush !== undefined ? 1 : 0),
+  deep: (e) => (e.kind === 'pass' && e.air !== undefined && Math.abs(e.air - (e.from ?? 0)) >= 20 ? 1 : 0),
+  screen: (e) =>
+    e.kind === 'pass' &&
+    e.air !== undefined &&
+    (e.air - (e.from ?? 0)) * Math.sign((e.to ?? 0) - (e.from ?? 0) || 1) < 0
+      ? 1
+      : 0,
+  int: (e) => (e.kind === 'int' ? 1 : 0),
+  throwaway: (e) => (/throws it away/.test(e.text) ? 1 : 0),
+};
+/** Long enough for the line-up, the moments at the line, the play and its hold. */
+const CLIP_MS = 12_000;
+
 // ───────── run ─────────
 
 async function main() {
@@ -252,8 +290,68 @@ async function main() {
     return page;
   };
 
+  /** One play in All-22, in a context of its own so the recording holds that play alone. */
+  const film = async (kind: string, gameId: number, index: number, viewport: typeof DESKTOP, phone: boolean) => {
+    const dir = join(outDir, '.video');
+    const context = await browser.newContext({
+      viewport,
+      colorScheme: theme,
+      recordVideo: { dir, size: viewport },
+      ...(phone ? { deviceScaleFactor: 2, isMobile: true, hasTouch: true } : {}),
+    });
+    await context.addInitScript((t: string) => {
+      localStorage.setItem('afls-theme', t);
+      localStorage.setItem('afls-viewer-view', 'all22');
+    }, theme);
+    // The save goes in from a first page; the recording is the second's, which opens straight on the replay.
+    const loader = await context.newPage();
+    await loadSaveIntoApp(loader, url, raw);
+    const page = await context.newPage();
+    page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
+    await page.goto(`${url}#/watch/${gameId}`, { waitUntil: 'load' });
+    await page.locator('#viewer-scrub').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await settle(page);
+    // The scrubber is a React range input: set its value the way a drag would, so the play animates from its snap.
+    await page.evaluate((i: number) => {
+      const el = document.getElementById('viewer-scrub') as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, String(i));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, index);
+    await page.waitForTimeout(CLIP_MS);
+    const video = page.video();
+    await context.close();
+    if (!video) return;
+    const path = join(outDir, `${kind}-${phone ? 'phone' : 'desktop'}.webm`);
+    renameSync(await video.path(), path);
+    written.push(path);
+  };
+
   try {
-    if (mailPrefixes) {
+    if (filmKinds) {
+      const games = (
+        save as unknown as { games: { id: number; result?: { plays?: PlayLogEntry[]; field?: unknown } }[] }
+      ).games.filter((g) => g.result?.plays && g.result.field);
+      for (const kind of filmKinds) {
+        const score = FILM[kind];
+        if (!score) {
+          console.warn(`No film kind "${kind}": ${Object.keys(FILM).join(', ')}`);
+          continue;
+        }
+        let best: { gameId: number; index: number; s: number } | null = null;
+        for (const g of games)
+          g.result!.plays!.forEach((e, index) => {
+            const s = e.down > 0 ? score(e) : 0;
+            if (s > (best?.s ?? 0)) best = { gameId: g.id, index, s };
+          });
+        if (!best) {
+          console.warn(`No ${kind} play in the save's kept games`);
+          continue;
+        }
+        const { gameId, index } = best;
+        await film(kind, gameId, index, DESKTOP, false);
+        await film(kind, gameId, index, PHONE, true);
+      }
+    } else if (mailPrefixes) {
       const page = await newPage(DESKTOP, false);
       const phone = await newPage(PHONE, true);
       // Mail the GM can read now: not deleted, and his own club's (a former club's letters stay with it).

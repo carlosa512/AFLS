@@ -92,6 +92,8 @@ export interface SteerArgs {
   kick: 'kickoff' | 'punt' | 'fg' | null;
   land: Pt | null;
   catchAt: number;
+  /** A fumble: from when the ball comes out to when it settles, and where; the nearest from each side go for it. */
+  loose?: { from: number; to: number; at: Pt };
   dir: 1 | -1;
   dt: number;
   steps: number;
@@ -153,6 +155,24 @@ export function steer(a: SteerArgs): Float32Array {
   /** Which way across the field the play goes (from the offense's start to where the ball ends): the flow. */
   const side = Math.sign(a.ball[(a.steps - 1) * 3 + 1] - ballY0) || 1;
   const ballX0 = a.ball[0];
+  /** The men who go for a loose ball: picked once, as they stand when it comes out (`nearestTo`). */
+  let convergers: Set<number> | null = null;
+  /** The `per` steered men of each side nearest a spot. */
+  const nearestTo = (p: Pt, per: number) => {
+    const by = (k: number) => Math.hypot(px[k] - p.x, py[k] - p.y);
+    const side = (o: boolean) =>
+      members
+        .map((_, k) => k)
+        .filter((k) => steered[k] && offense[k] === o)
+        .sort((i, j) => by(i) - by(j))
+        .slice(0, per);
+    return new Set([...side(true), ...side(false)]);
+  };
+  /** A point `d` yards from `p` toward `q`. */
+  const toward = (p: Pt, q: Pt, d: number): Pt => {
+    const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    return { x: p.x + ((q.x - p.x) / len) * d, y: p.y + ((q.y - p.y) / len) * d };
+  };
 
   // Decoy routes for receivers not in the play, man assignments for corners.
   const routes = new Map<number, Route>();
@@ -587,6 +607,12 @@ export function steer(a: SteerArgs): Float32Array {
           }
         }
         // Steer: toward the goal at top speed, easing off inside a yard, within the acceleration limit.
+        // A loose ball: the nearest two of each side go for it, pulling up a step and a half short (the man who
+        // recovers it is scripted to get there).
+        if (a.loose && t >= a.loose.from && t < a.loose.to) {
+          if (!convergers) convergers = nearestTo(a.loose.at, 2);
+          if (convergers.has(k)) goal = toward(a.loose.at, { x: px[k], y: py[k] }, 1.5);
+        }
         const gx = goal.x - px[k];
         const gy = goal.y - py[k];
         const dist = Math.hypot(gx, gy);

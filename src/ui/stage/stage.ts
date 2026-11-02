@@ -49,6 +49,8 @@ export interface StagedPlay {
   until: number[];
   /** Who has the ball at the whistle. */
   carrier: number | null;
+  /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
+  loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
   roles: Role[];
   /** Which way the offense (the kicking team on a kick) is going. */
@@ -70,6 +72,12 @@ export interface StagedPlay {
 export function asRan(e: PlayLogEntry): PlayLogEntry {
   return e.kind === 'penalty' && e.ran?.kind ? { ...e, ...e.ran } : e;
 }
+
+/** Where the ball is at `t` (seconds from the snap), off its track: a loose ball where it settles. */
+const settledAt = (ball: Float32Array, t: number): Pt => {
+  const k = Math.min(ball.length / 3 - 1, Math.max(0, Math.round(t / STEP)));
+  return { x: ball[k * 3], y: ball[k * 3 + 1] };
+};
 
 export function stagePlay(args: {
   plays: readonly PlayLogEntry[];
@@ -104,7 +112,13 @@ export function stagePlay(args: {
   const start = lineUp(look, cast, off, def, ballX, ballY, dir, rng, { call, blitz });
   const target = actorsIn(e).ball;
   const segs = stagedPath(e, homeId, args.snapY, target === undefined ? undefined : start.get(target));
-  const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free } = script(e, cast, start, segs, dir);
+  const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = script(
+    e,
+    cast,
+    start,
+    segs,
+    dir,
+  );
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || (e.kind === 'penalty' ? PRE_SNAP : STILL);
@@ -143,6 +157,7 @@ export function stagePlay(args: {
     kick: segs.length ? kick : null,
     land: flight ? { x: flight.x1, y: flight.y1 } : null,
     catchAt: catchAt ?? Infinity,
+    loose: loose ? { from: loose.t, to: loose.settle, at: settledAt(ball, loose.settle) } : undefined,
     dir,
     dt: STEP,
     steps,
@@ -173,6 +188,7 @@ export function stagePlay(args: {
     pos,
     ball: ball.subarray(0, steps * 3),
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
+    ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
     keys: [...moments.keys()],
     reveal: [...moments.values()].map((t) => Math.max(0, t - REVEAL_LEAD)),
     until: [...moments.keys()].map((id) => until.get(id) ?? Infinity),
