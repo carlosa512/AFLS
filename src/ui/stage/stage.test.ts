@@ -9,7 +9,7 @@ import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { fumbleIn } from './fumble';
 import { lineUp } from './formations';
-import { sample, script, stagedPath } from './scripts';
+import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
 import { asRan, returned, stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'stage' });
@@ -494,21 +494,25 @@ describe('off the ball', () => {
       const dir = p.home[0] ? 1 : -1; // the offense attacks toward 100 when it is the home side
       p.ids.forEach((id, k) => {
         if (!p.offense[k] || p.keys.includes(id) || p.roles[k] !== 'WR') return;
-        // Until the ball comes out on a strip-sack: then the routes are over and everyone goes for it.
-        const until = p.loose ? Math.round(p.loose.t / p.dt) : undefined;
-        expect(moved(p, k, until).downfield * dir, `${e.text}`).toBeGreaterThan(5);
+        // As far as his route took him before the rush got home (a strip-sack: before the ball came out, when
+        // everyone goes for it), not where he drifted to while the quarterback went down.
+        const until = p.loose ? Math.round(p.loose.t / p.dt) : p.steps - 1;
+        let furthest = 0;
+        for (let st = 1; st <= until; st++) furthest = Math.max(furthest, moved(p, k, st).downfield * dir);
+        expect(furthest, `${e.text}`).toBeGreaterThan(5);
         routes++;
       });
     }
     expect(routes).toBeGreaterThan(40);
   });
 
-  it('holds the pocket: blocked rushers stay off the quarterback for the first second and a half', () => {
+  it('holds the pocket: blocked rushers stay off the quarterback for the first second and a half he has it', () => {
     let rushers = 0;
     for (const kind of ['pass', 'incomplete', 'sack'])
       for (const { p } of picks(kind)) {
         const qb = p.roles.indexOf('QB');
-        const early = Math.min(p.steps - 1, Math.round(1.5 / p.dt));
+        // While he has the ball: a quick throw is gone before the first second and a half is up.
+        const early = Math.min(p.steps - 1, Math.round(Math.min(1.5, p.release) / p.dt));
         p.ids.forEach((id, k) => {
           if (p.offense[k] || p.keys.includes(id) || (p.roles[k] !== 'DT' && p.roles[k] !== 'EDGE')) return;
           for (let st = 0; st <= early; st++) {
@@ -1008,5 +1012,121 @@ describe('the loose ball', () => {
     const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
     expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);
     expect(p.carrier).toBe(actorsIn(old).take);
+  });
+});
+
+describe('the pocket', () => {
+  const drops = games.slice(0, 20).flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      if (raw.down <= 0 || !['pass', 'incomplete', 'int', 'sack', 'scramble'].includes(e.kind ?? '')) return [];
+      return [
+        {
+          e,
+          p: stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `pk${i}`, snapY: 26 }),
+        },
+      ];
+    }),
+  );
+  const P = (p: StagedPlay, k: number, st: number) => ({
+    x: p.pos[(st * 22 + k) * 2],
+    y: p.pos[(st * 22 + k) * 2 + 1],
+  });
+  const qbOf = (p: StagedPlay) => p.roles.findIndex((r, k) => r === 'QB' && p.offense[k]);
+  const stepAt = (p: StagedPlay, t: number) => Math.min(p.steps - 1, Math.max(0, Math.round(t / p.dt)));
+  const throws = drops.filter(({ e }) => e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int');
+
+  it('plans every dropback, and never has the quarterback past the line before he throws', () => {
+    expect(throws.length).toBeGreaterThan(1000);
+    for (const { e, p } of drops) {
+      expect(p.pocket, e.text).not.toBeNull();
+      const qb = qbOf(p);
+      const until = stepAt(p, e.kind === 'scramble' ? p.release : p.release);
+      for (let st = 0; st <= until; st++) expect((P(p, qb, st).x - p.ball[0]) * p.dir, e.text).toBeLessThan(0);
+    }
+  });
+
+  it('steps up into the throw from a deep drop in a clean pocket', () => {
+    let n = 0;
+    let up = 0;
+    for (const { p } of throws) {
+      const plan = p.pocket!;
+      if (plan.pressure !== 'none' || plan.bootleg || plan.drop < 5) continue;
+      const qb = qbOf(p);
+      const deepest = Math.min(
+        ...Array.from({ length: stepAt(p, p.release) + 1 }, (_, st) => (P(p, qb, st).x - p.ball[0]) * p.dir),
+      );
+      const atThrow = (P(p, qb, stepAt(p, p.release)).x - p.ball[0]) * p.dir;
+      if (atThrow > deepest + 0.7) up++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(50);
+    expect(up / n).toBeGreaterThan(0.9);
+  });
+
+  it('moves away from the rush that gets there, as the ball comes out', () => {
+    let n = 0;
+    let away = 0;
+    for (const { e, p } of throws) {
+      const rush = actorsIn(e).rush;
+      if (rush === undefined || p.pocket!.pressure === 'none') continue;
+      const qb = qbOf(p);
+      const r = p.ids.indexOf(rush);
+      const a = stepAt(p, p.release - 0.7);
+      const b = stepAt(p, p.release);
+      // His move takes him away from where the rusher was as he started it (the rusher still gets to him: the hit).
+      const d = (q: { x: number; y: number }) => Math.hypot(q.x - P(p, r, a).x, q.y - P(p, r, a).y);
+      if (d(P(p, qb, b)) > d(P(p, qb, a))) away++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(100);
+    expect(away / n).toBeGreaterThan(0.85);
+  });
+
+  it('forms a cup: in a clean pocket the quarterback is between his tackles and behind his line as he throws', () => {
+    let n = 0;
+    let inside = 0;
+    for (const { p } of throws) {
+      const plan = p.pocket!;
+      if (plan.pressure !== 'none' || plan.bootleg || plan.roll) continue;
+      const qb = qbOf(p);
+      const st = stepAt(p, p.release);
+      const line = p.ids.map((_, k) => k).filter((k) => p.offense[k] && p.roles[k] === 'OL');
+      const ys = line.map((k) => P(p, k, st).y);
+      const q = P(p, qb, st);
+      const behind = line.every((k) => (q.x - P(p, k, st).x) * p.dir < 0);
+      if (q.y > Math.min(...ys) - 0.5 && q.y < Math.max(...ys) + 0.5 && behind) inside++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(500);
+    expect(inside / n).toBeGreaterThan(0.9);
+  });
+
+  it('brings the sacker past the blocker the engine names, and down with the quarterback on the sack spot', () => {
+    let n = 0;
+    for (const { e, p } of drops) {
+      if (e.kind !== 'sack' || p.loose) continue;
+      const who = actorsIn(e);
+      if (who.rush === undefined) continue;
+      const r = p.ids.indexOf(who.rush);
+      const qb = qbOf(p);
+      const last = p.steps - 1;
+      const end = { x: p.ball[last * 3], y: p.ball[last * 3 + 1] };
+      expect(Math.hypot(P(p, qb, last).x - end.x, P(p, qb, last).y - end.y), e.text).toBeLessThan(0.5);
+      expect(Math.hypot(P(p, r, last).x - end.x, P(p, r, last).y - end.y), e.text).toBeLessThan(1.2);
+      // The engine's beaten block, when the formation lined the two up near enough to act it out (`BEAT_ACROSS`).
+      const lined = (k: number) => P(p, k, 0).y;
+      if (who.beat !== undefined && Math.abs(lined(p.ids.indexOf(who.beat)) - lined(r)) <= BEAT_ACROSS) {
+        const b = p.ids.indexOf(who.beat);
+        let passed = false;
+        for (let st = 0; st <= last; st++)
+          if (Math.hypot(P(p, r, st).x - P(p, b, st).x, P(p, r, st).y - P(p, b, st).y) < 2) passed = true;
+        expect(passed, e.text).toBe(true);
+        const dq = (k: number) => Math.hypot(P(p, k, last).x - P(p, qb, last).x, P(p, k, last).y - P(p, qb, last).y);
+        expect(dq(r)).toBeLessThan(dq(b));
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(20);
   });
 });

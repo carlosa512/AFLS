@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.44',
+    date: '2026-11-02',
+    title: 'The pocket',
+    text:
+      'Quarterbacks now play the pocket in All-22. They drop deeper for deeper throws, fake to the back on about ' +
+      'three early downs in ten, roll out on bootlegs, step up into a clean pocket, and climb or slide away when the ' +
+      'rush gets there. The line forms a cup around them, and the rusher who got home loops around the man he beat. ' +
+      'Sacks take as long as the NFL’s, from quick ones to coverage sacks after five seconds, and the sacker takes ' +
+      'the quarterback down where the sack lands. Throws leave on the NFL’s timing, and a deep ball hangs in the ' +
+      'air. Play labels now say when a fumble was lost or kept, and when a fourth down turned the ball over.',
+  },
+  {
     version: '0.2.43',
     date: '2026-11-02',
     title: 'Fumbles you can see',

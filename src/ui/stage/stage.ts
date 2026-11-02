@@ -9,9 +9,11 @@ import type { DefenseCall } from '../../engine/match/coach';
 import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
 import { MID, offenseSide } from './ballPath';
 import type { Role } from './cast';
+import { pocketPath, pocketPlan, type PocketPlan } from './pocket';
+import { HOP_PEAK } from './fumble';
 import { castFor } from './cast';
 import { blitzersFor, lineUp } from './formations';
-import { ballTrack, script, stagedPath } from './scripts';
+import { ballTrack, script, stagedPath, throwWindow } from './scripts';
 import { SPEED, steer } from './steer';
 import type { Pt } from './formations';
 import { COVERAGES } from '../../engine/schemes';
@@ -49,6 +51,8 @@ export interface StagedPlay {
   until: number[];
   /** Who has the ball at the whistle. */
   carrier: number | null;
+  /** A dropback's drop and pocket (`pocket.ts`); null on anything else. */
+  pocket: PocketPlan | null;
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -72,6 +76,13 @@ export interface StagedPlay {
 export function asRan(e: PlayLogEntry): PlayLogEntry {
   return e.kind === 'penalty' && e.ran?.kind ? { ...e, ...e.ran } : e;
 }
+
+/** When a pass gets there: the end of its flight, the first leg that flies (a fumble's hops never do). */
+const passArrives = (e: PlayLogEntry, segs: readonly { peak: number; dur: number }[]): number | null => {
+  if (e.kind !== 'pass' && e.kind !== 'incomplete' && e.kind !== 'int') return null;
+  const a = segs.findIndex((sg) => sg.peak > HOP_PEAK);
+  return a < 0 ? null : segs.slice(0, a + 1).reduce((t, sg) => t + sg.dur, 0);
+};
 
 /** Where the ball is at `t` (seconds from the snap), off its track: a loose ball where it settles. */
 const settledAt = (ball: Float32Array, t: number): Pt => {
@@ -110,14 +121,48 @@ export function stagePlay(args: {
   const call = defenseCallAt(record, index);
   const blitz = blitzersFor(e, cast, call, rng);
   const start = lineUp(look, cast, off, def, ballX, ballY, dir, rng, { call, blitz });
-  const target = actorsIn(e).ball;
-  const segs = stagedPath(e, homeId, args.snapY, target === undefined ? undefined : start.get(target));
+  const who = actorsIn(e);
+  const receiverAt = who.ball === undefined ? undefined : start.get(who.ball);
+  // A dropback: his drop and pocket (`pocket.ts`), on its own stream.
+  const qbId = cast.offense.find((m) => m.role === 'QB')?.id;
+  const backId = cast.offense.find((m) => m.role === 'RB')?.id;
+  let pocket: PocketPlan | null = null;
+  let qbPath: ReturnType<typeof pocketPath> | undefined;
+  if (e.kind && DROPBACKS.has(e.kind) && qbId !== undefined && start.has(qbId) && e.from !== undefined) {
+    const qbAt = start.get(qbId)!;
+    const rusherAt = who.rush === undefined ? undefined : start.get(who.rush);
+    const rusherRole = who.rush === undefined ? undefined : cast.defense.find((m) => m.id === who.rush)?.role;
+    pocket = pocketPlan(
+      e,
+      {
+        gun: (ballX - qbAt.x) * dir > 3,
+        scheme: off.offense,
+        // The two-minute drill: no time for a fake.
+        hurry: (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120,
+        air: e.air !== undefined && e.kind !== 'sack' && e.kind !== 'scramble' ? (e.air - e.from) * dir : null,
+        rusher: rusherAt && rusherRole ? { role: rusherRole, across: Math.abs(rusherAt.y - ballY) } : undefined,
+        minThrow: throwWindow(e, homeId, args.snapY, receiverAt),
+        blitz: call === 'blitz',
+      },
+      new Rng(`${args.seed}:pocket`),
+    );
+    qbPath = pocketPath(pocket, {
+      ball: { x: ballX, y: ballY },
+      qb: qbAt,
+      dir,
+      rusher: rusherAt,
+      through: who.beat === undefined ? undefined : start.get(who.beat),
+      back: backId === undefined ? undefined : start.get(backId),
+    });
+  }
+  const segs = stagedPath(e, homeId, args.snapY, receiverAt, qbPath);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = script(
     e,
     cast,
     start,
     segs,
     dir,
+    pocket,
   );
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
@@ -146,6 +191,9 @@ export function stagePlay(args: {
     tackler,
     pursuer,
     holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
+    rush: who.rush ?? null,
+    beat: who.beat ?? null,
+    maxProtect: /^Designed shot:/.test(e.text),
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
     // Man coverage behind a blitz, as the engine plays it.
@@ -189,6 +237,7 @@ export function stagePlay(args: {
     ball: ball.subarray(0, steps * 3),
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
+    pocket,
     keys: [...moments.keys()],
     reveal: [...moments.values()].map((t) => Math.max(0, t - REVEAL_LEAD)),
     until: [...moments.keys()].map((id) => until.get(id) ?? Infinity),
@@ -200,11 +249,7 @@ export function stagePlay(args: {
     call,
     blitz: [...blitz],
     schemes: { offense: off, defense: def },
-    arrive:
-      catchAt ??
-      ((e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') && segs.length >= 3
-        ? segs[0].dur + segs[1].dur + segs[2].dur
-        : null),
+    arrive: catchAt ?? passArrives(e, segs),
   };
 }
 
