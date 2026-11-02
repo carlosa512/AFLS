@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { teamCoaches } from './coaching';
+import { releaseCoach, ROOM_LABEL, teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
-import { teamPlayers } from './roster';
+import { moraleClock } from './morale';
+import { activeRoster, teamPlayers } from './roster';
+import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
+import { unitTurnFor } from './staffNotes';
+import { toldKeys } from './voice';
+import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ATTRIBUTES, type League } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
@@ -62,6 +67,9 @@ describe('the staff-notes letter', () => {
     expect(notes(l)).toHaveLength(1);
     const quiet = copy(template);
     quiet.phase = 'regular';
+    // A quiet room too: every mood level and nothing told about the rooms, so no position coach has news.
+    for (const p of teamPlayers(quiet, quiet.userTeamId)) if (p.morale) p.morale = { level: 0 };
+    for (const k of Object.keys(quiet.mailTold ?? {})) if (k.startsWith('unit:')) delete quiet.mailTold![k];
     deliverMail(quiet);
     expect(notes(quiet)).toHaveLength(0);
   });
@@ -111,5 +119,133 @@ describe('the staff-notes letter', () => {
     note(l.week);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
+  });
+});
+
+describe('staff notes: the position coach on his unit', () => {
+  const men = (l: League, unit: Unit) =>
+    activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === unit && p.morale);
+  const setUnit = (l: League, unit: Unit, level: number) =>
+    men(l, unit).forEach((p) => {
+      p.morale!.level = level;
+      delete p.morale!.jolts;
+    });
+  const splitUnit = (l: League, unit: Unit) =>
+    men(l, unit).forEach((p, i) => {
+      p.morale!.level = i % 2 ? 2 : -2;
+      delete p.morale!.jolts;
+    });
+  const told = (l: League, unit: Unit, word: UnitWord, ago: number) => {
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) + ago}:${l.userTeamId}:${unit}:${word}`]: 1 };
+  };
+  /** Week 6, every unit Okay and told Settled five steps ago. */
+  const inSeason = () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    l.week = 6;
+    for (const u of UNITS) {
+      if (u === 'ST') continue;
+      setUnit(l, u, 0);
+      told(l, u, 'Settled', -5);
+    }
+    // This stretch's locker report is already in: the week is the staff notes' alone.
+    const filed = { season: l.season, phase: 'regular' as const, week: 1, from: 'x', subject: '', body: '' };
+    l.inbox = [
+      ...(l.inbox ?? []),
+      { ...filed, id: `locker:${l.season}:cutdown`, category: 'staff', read: true, actions: [] },
+    ];
+    return l;
+  };
+  const fireRoomCoach = (l: League, unit: Unit) => {
+    const c = teamCoaches(l, l.userTeamId).find((x) => x.role === 'positionCoach' && x.room === unit);
+    // Coaching moves open in the re-sign window: step into it to let him go, then back to the season.
+    if (!c) return;
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, c.id);
+    l.phase = 'regular';
+  };
+
+  it('the position coach writes when his unit turns Split', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    const turn = unitTurnFor(l, toldKeys(l))!;
+    expect(turn.unit).toBe('WR');
+    expect(turn.word).toBe('Split');
+    expect(turn.key).toBe(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
+  });
+
+  it('files it in the week’s notes, in his words, and remembers it', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const m = notes(l).at(-1)!;
+    const row = m.sections![0].rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    expect(row.note).toMatch(/\b(my|I|I'm)\b/i);
+    expect(row.note).not.toMatch(BANNED);
+    expect(m.covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
+  });
+
+  it('says nothing about a unit told within three weeks', () => {
+    const l = inSeason();
+    told(l, 'WR', 'Split', -2);
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+  });
+
+  it('ignores Settled to Restless', () => {
+    const l = inSeason();
+    setUnit(l, 'WR', -0.5); // Restless: below Okay's middle, above Poor
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
+  });
+
+  it('no note when a room only goes from Settled to Tight: the report tells that', () => {
+    const l = inSeason();
+    setUnit(l, 'WR', 2);
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
+  });
+
+  it('good news waits three weeks after the last word on any room; bad news does not', () => {
+    const l = inSeason();
+    told(l, 'WR', 'Split', -4);
+    told(l, 'QB', 'Settled', -1);
+    setUnit(l, 'WR', 0); // the receivers are back, but a room was told about last week
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+    splitUnit(l, 'OL'); // the line splitting is news this week all the same
+    expect(unitTurnFor(l, toldKeys(l))?.unit).toBe('OL');
+  });
+
+  it('says nothing about a room nobody has reported on yet (a new GM, a new game)', () => {
+    const l = inSeason();
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
+    splitUnit(l, 'WR');
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+  });
+
+  it('still writes on deadline day: that report leaves the rooms to him', () => {
+    const l = inSeason();
+    l.week = TRADE_DEADLINE_WEEK;
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
+    expect(report.sections?.find((s) => s.title === 'The room')).toBeUndefined();
+    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(true);
+  });
+
+  it("leaves a turn to the season's first report when it goes out the same day", () => {
+    const l = inSeason();
+    l.inbox = l.inbox!.filter((m) => m.id !== `locker:${l.season}:cutdown`);
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const report = l.inbox!.find((m) => m.id === `locker:${l.season}:cutdown`)!;
+    expect(report.sections!.find((s) => s.title === 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(
+      true,
+    );
+    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(false);
+  });
+
+  it('stays quiet when the room has no position coach', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    fireRoomCoach(l, 'WR');
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 });

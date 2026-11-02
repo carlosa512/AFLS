@@ -36,15 +36,21 @@ describe('the late market: a club offers what it can fit', () => {
   it('signs a wanted free agent on the room left when it beats his walk-away, and not when it doesn’t', () => {
     // The best young free agent left; every AI club but one with no room, and that one with room under his market
     // price (so no market-priced deal fits) but clear of what he'll walk away from, or (in a copy) short of it.
-    const pick = (l: League) =>
-      freeAgents(l)
-        .filter((p) => !p.injury && p.age <= 29)
-        .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
     // What a one-year deal must pay at a club to clear his walk-away there (his valuation is linear in the pay).
     const floorPay = (l: League, p: Player, teamId: number) => {
       const unit = offerValue(l, p, teamId, { years: 1, apy: 1_000, bonusPct: 0, gtdPct: 0.5, voidYears: 0 }) / 1_000;
       return demand(l, p, teamId).walkAway / unit;
     };
+    // A club where room clear of his floor is still under his market price: the case this test needs.
+    const testable = (l: League, p: Player, teamId: number) =>
+      floorPay(l, p, teamId) * 1.03 <= demand(l, p, teamId).market * 0.84;
+    // The best young free agent left that some club can test (his walk-away sits near the cut-off at every club, so
+    // which one it is depends on the world a season of play leaves).
+    const pick = (l: League) =>
+      freeAgents(l)
+        .filter((p) => !p.injury && p.age <= 29)
+        .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id)
+        .find((p) => l.teams.some((t) => t.id !== l.userTeamId && testable(l, p, t.id)))!;
     const setUp = (clubId: number, room: (floor: number, market: number) => number) => {
       const l: League = JSON.parse(lastDay);
       const p = pick(l);
@@ -70,7 +76,7 @@ describe('the late market: a club offers what it can fit', () => {
     for (const t of l.teams) {
       if (t.id === l.userTeamId) continue;
       // Room clear of his floor at this club but under his market price; a club where no such room exists can't test it.
-      if (floorPay(l, pick(l), t.id) * 1.03 > demand(l, pick(l), t.id).market * 0.84) continue;
+      if (!testable(l, pick(l), t.id)) continue;
       const got = setUp(t.id, (floor) => floor * 1.03);
       if (got.teamId !== t.id) continue;
       signed = true;

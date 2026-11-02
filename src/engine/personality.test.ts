@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import {
   characterLine,
-  leadersOf,
   nameCaptains,
   personalityOf,
   personalityTone,
@@ -135,18 +134,5 @@ describe('personality', () => {
     nameCaptains(l);
     const c = l.teams[0].captains!;
     expect(l.players[c.offense].captainSeasons).toEqual([l.season]);
-  });
-
-  it("lists up to five more men the room follows, captains aside, by the staff's read", () => {
-    const l = createLeague({ seed: 'captains' });
-    nameCaptains(l);
-    const c = l.teams[0].captains!;
-    const more = leadersOf(l, 0);
-    expect(more.length).toBeLessThanOrEqual(5);
-    for (const p of more) {
-      expect([c.offense, c.defense, c.specialTeams]).not.toContain(p.id);
-      expect(p.teamId).toBe(0);
-      expect(p.traits.leads).toBeGreaterThanOrEqual(12);
-    }
   });
 });

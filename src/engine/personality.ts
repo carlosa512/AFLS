@@ -225,16 +225,3 @@ export function nameCaptains(league: League): void {
     }
   }
 }
-
-/** Beyond the captains, up to five more men the staff read as leaders of the room (the Leaders list). */
-export function leadersOf(league: League, teamId: number): Player[] {
-  const c = league.teams[teamId].captains;
-  const captains = c?.season === league.season ? [c.offense, c.defense, c.specialTeams] : [];
-  return activeRoster(league, teamId)
-    .filter((p) => !captains.includes(p.id))
-    .map((p) => ({ p, leads: characterRead(league, teamId, p)?.leads ?? TRAIT_MEAN }))
-    .filter((x) => x.leads >= 14)
-    .sort((a, b) => b.leads - a.leads || a.p.id - b.p.id)
-    .slice(0, 5)
-    .map((x) => x.p);
-}
