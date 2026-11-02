@@ -9,7 +9,7 @@ and always accompany a linked name. GM cards and the directory use the same iden
 > **Status.** Built: `PlayerAvatar` in `src/ui/components.tsx` draws every player from behind in his
 > team's jersey (pure SVG, no images, no new dependencies), the colour rules and kits in `src/ui/color.ts`,
 > home and away jerseys by the league's rule, and each player's build, head and height (`src/ui/playerLook.ts`,
-> [section 2a](#2a-builds-heads-and-height)). Tested in `src/ui/avatar.test.tsx`. A roster mod's
+> [section 2a](#2a-builds-heads-and-height)), and his club's helmet ([section 2d](#2d-helmets)). Tested in `src/ui/avatar.test.tsx`. A roster mod's
 > `player.portrait` still replaces the drawing. Staff (coaches, scouts, medical staff) have their own
 > avatar facing you, dressed for the job and the week: see [section 8](#8-staff-avatars).
 
@@ -29,7 +29,8 @@ picked from rendered options; don't undo one without a reason.
 - **Pads are a tall, wide shelf whose edges overhang the arms**, the arms tucked underneath (chosen over
   epaulet caps, a high arch and a hard shell).
 - **The neck sinks into the pads**, so the head sits low between the shoulders, as players look in full gear.
-- **The head is blocky** (square jaw corners, both ears), sized to balance the pads.
+- **The head is blocky** (square jaw corners, both ears), sized to balance the pads. A player with a club wears his
+  club's helmet over it ([section 2d](#2d-helmets)); the bare head is for free agents, prospects and retired players.
 
 The artwork is plain path strings at the top of `src/ui/playerLook.ts`: tweaking the figure means editing
 those, not the logic. Layers, back to front, all clipped to the circle: a spotlight backdrop in the team's
@@ -108,8 +109,20 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   line: a lineman who wears sleeves keeps them, but the line doesn't dress for the cold
   ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It follows the kit's game, like the hot-day white
   jerseys. Under full sleeves a shoulder brace and bands stay on; the undershirt sleeve and elbow pads come off.
-- **Your pick** (the card's pencil): name, number and gear in one editor, a row a piece (sleeve or undershirt
-  sleeve, band, elbow pads, shoulder brace) with its arm and colour, the card's avatar wearing it as you change it.
+- **The quarterback's padded sleeves** (`padded`, a full sleeve, and `paddedElbow`, a short one around the elbow): a
+  honeycomb pad over the point of the elbow, turned 62° toward the outside of the arm (mirrored on the left), so it
+  squeezes and wraps the edge as it turns away; a shade of the sleeve's colour. They're two more lengths in a
+  quarterback's usual sleeve mix (weights 40 and 20 in `GEAR_RATES.QB`; his 40% chance of a sleeve is unchanged), so
+  about one quarterback in eight wears one: on one arm mostly, the left as often as the right, both for about one in
+  six (`PADDED_BOTH`). A flavour, not cold-weather gear: in the cold he pulls on plain full sleeves like everyone else.
+- **The play-call wristband** (`Gear.wristband`): 60% of quarterbacks (`WRISTBAND_QB`), one wrist, the right for one
+  in four (`WRISTBAND_RIGHT`); white, black, the primary or the secondary. A solid band a little above the wrist, so
+  more of it stays inside the ring, the play card behind its window turned 75° toward the outside of the wrist, where
+  he flips it up to read. Never on an arm in a padded sleeve (it moves to the other wrist, or stays off when both arms
+  are padded); outside the two-piece limit; kept on in the cold.
+- **Your pick** (the card's pencil): name, number and gear in one editor, a row a piece (helmet, sleeve or undershirt
+  sleeve, wristband, band, elbow pads, shoulder brace) with its arm and colour, the card's avatar wearing it as you
+  change it.
   Anything goes, whatever his position (cosmetic, like a rename); it's kept on the player (`Player.gear`,
   `editPlayerGear`) and "Back to his own" drops it. A cold game still dresses him as above.
 
@@ -125,15 +138,47 @@ look is his for a career. Nothing is saved and nothing reads ratings. Each choic
   the market, rosters), so they stand out at a glance, and beside the name on their card. Never inside a sentence, and
   never on the picture itself.
 - **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
-  brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
-  band wouldn't show.
+  brace (read as a sleeve). The ring crops above the wrist, so wristbands and gloves wouldn't show; the quarterback's
+  play-call band sits a little higher for that reason (section 2b).
+
+## 2d. Helmets
+
+> **Status.** Built: the rules in `src/ui/helmet.ts`, the drawing in `src/ui/helmetArt.tsx` and `src/ui/flags.tsx`,
+> each club's design on its seed (`data/teams.ts`, `Team.helmet`). Tested in `src/ui/helmet.test.ts`,
+> `src/ui/helmetArt.test.tsx` and `src/ui/avatar.test.tsx`. Spec, with eleven rounds of mockups:
+> `docs/superpowers/specs/2026-11-02-helmets-qb-gear-design.md`.
+
+Every player with a club wears its helmet; free agents, draft prospects until they're drafted and retired players
+keep the bare head (`wearsHelmet`). Nothing is saved but your pick, and nothing reads ratings. Each choice was picked
+from rendered options; don't undo one without a reason.
+
+- **Size and fit:** 85% of the first mockup shell (`HELMET_SCALE`), about 1.16× the bare head's width, scaled about
+  the middle of the head. Its lowest point sits a little above the collar (`HELMET_NECK_Y`, 38.8) and rides higher on
+  heavier builds (`HELMET_NECK_PER_TRAP`, 0.5 per step of `Build.traps`), so linemen keep some neck. The tallest,
+  heaviest players' crowns can tuck under the ring's edge on the card, as in a tight photo crop.
+- **Eight shells**, by our own names (never a maker's or a model's), each drawn from a rear photo of a real helmet or
+  mixing their parts: Modern, Modern smooth, Plated, Classic, Pod, Pod wide (the lineman's), Ridgeback and Retro.
+  The model is the player's, picked once from his id by his position (`HELMET_WEIGHTS`: the wide pod up front and in
+  the middle, the older shapes for kickers); the design is the club's. The same helmet home and away.
+- **Details** (from 32px): vents and ledges, a plate or bumper (the number moves onto a dark plate), black chin-strap
+  clips with a white tip, and the facemask's lower corners, drawn before the neck so only the corners show: one bar
+  for skill players and quarterbacks, two for linebackers, edge rushers and tight ends, the full cage for linemen, a
+  thin bar for kickers (`maskOf`).
+- **Club designs** (`HelmetDesign`): shell colour and finish (gloss, matte, or metallic for the silver and gold
+  clubs), stripes, the number on the back or not, bumper and mask colour. A club without one (a mod's) wears its
+  primary with a stripe in its secondary (`helmetDesignOf`). Dark shells get a rim of light so they hold their shape
+  against dark jerseys (`isDarkShell`).
+- **Decals** (from 56px): the US flag on every helmet, as on every NFL helmet; a Pathway player's country stacked
+  under it all season (the NFL's Heritage Program; the game knows a country only through the Pathway, and a CFL
+  arrival's league isn't where he's from); the green dot, the helmet with the coach's radio, on the starting
+  quarterback and the defence's play-caller (the first linebacker, or a safety): `flagsOf`, `greenDotOf`.
 
 ## 3. Detail by size
 
 | Size | Shows | Used in |
 | --- | --- | --- |
-| under 32px | ring, figure, jersey: the same plain figure for everyone | list rows (trades, medical, stats, cap, front office): the name sits beside it |
-| 32 to 95px | adds his build and head, his gear, the sleeve bands and the number | depth chart (32), player of the game, inbox, negotiation |
+| under 32px | ring, figure, jersey, the club's helmet shell: the same plain figure for everyone | list rows (trades, medical, stats, cap, front office): the name sits beside it |
+| 32 to 95px | adds his build, his gear, the helmet's details and number, the sleeve bands and the number; from 56px the helmet's flags and green dot | depth chart (32), player of the game, inbox, negotiation |
 | 96px and up | adds the surname and his height | the player card (128; 96 on phones) |
 
 It is decorative (`aria-hidden`): every placement shows the player's name next to it.
@@ -179,14 +224,19 @@ with the secondary as trim.
 In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM`
 (0.79), `DROP` (-4), `PANTS_TOP` (104), `PANTS_DIP` (4), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2),
 `ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4) and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
-`src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
-(4.5) and `HOT_KICKOFF_F` (85).
+`src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `DECALS_MIN_PX` (56), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
+(4.5) and `HOT_KICKOFF_F` (85). In `src/ui/helmet.ts`: `HELMET_SCALE` (0.85), `HELMET_NECK_Y` (38.8),
+`HELMET_NECK_PER_TRAP` (0.5) and `HELMET_WEIGHTS`. In `src/ui/playerGear.ts`: `PADDED_BOTH` (0.15), `WRISTBAND_QB`
+(0.6) and `WRISTBAND_RIGHT` (0.25).
 
 ## 7. Not yet
 
 - Alternate and throwback uniforms, colour-on-colour specials, club traditions (a team that always
   wears white at home), and each club's own pants colour (gold, silver…): today's pants follow the rule in section 4.
-- Hair from behind (no helmet in the picture): buzz, fade, braids, locs, a bun.
+- Alternate helmets, with alternate jerseys and throwbacks: one per club, worn in its primetime games, fixed when
+  the schedule is made so a flex doesn't change it (mocked for six clubs).
+- Hair under the helmet (locs, braids, the flow, a ponytail, curls; mocked, held for now).
+- A SpeedFlex-style shell (no straight-on rear reference yet); wristbands for defensive play-callers.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.
 - Validating mod-supplied colours (arrives with league import).
