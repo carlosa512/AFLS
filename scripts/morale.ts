@@ -15,10 +15,11 @@
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
  *
- * 9. Disputes (G4): started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2, and none past
- *    the limit he gives in at (yours answered by the AI's rule, as for talks).
+ * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
+ *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 4–15 a
+ *    season, 40–90% going public, 25–75% of those resolved ending in a trade.
  *
- *   npm run morale                        # 4 seasons, seed morale-check
+ *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
 import { yearsLeft } from '../src/engine/finance/contract';
@@ -49,7 +50,8 @@ const arg = (name: string, fallback: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
-const SEASONS = Number(arg('seasons', '4'));
+// Eight seasons: four left trade requests' outcomes to about ten cases (G4b).
+const SEASONS = Number(arg('seasons', '8'));
 const SEED = arg('seed', 'morale-check');
 
 let misses = 0;
@@ -179,6 +181,11 @@ const started = new Map<number, number>();
 const holdouts = new Map<number, number>();
 const outAfterWeek1 = new Map<number, number>();
 let pastLimit = 0;
+// Trade requests (G4b): how many start, how many go public, how the ones that end, end.
+let requests = 0;
+const requestKeys = new Set<string>();
+const requestPublic = new Set<string>();
+const requestEnds = new Map<string, string>();
 function disputes(clock: number) {
   const bump = (m: Map<number, number>, season: number) => m.set(season, (m.get(season) ?? 0) + 1);
   for (const p of rostered(league)) {
@@ -187,9 +194,15 @@ function disputes(clock: number) {
     for (const x of [m.dispute, m.disputeEnd])
       if (x && x.since === clock && !disputeSeen.has(`${p.id}:${x.since}`)) {
         disputeSeen.add(`${p.id}:${x.since}`);
-        bump(started, Math.floor(x.since / 32));
+        if (x.kind === 'trade') {
+          requests++;
+          requestKeys.add(`${p.id}:${x.since}`);
+        } else bump(started, Math.floor(x.since / 32));
         if (x.kind === 'holdOut') bump(holdouts, Math.floor(x.since / 32));
       }
+    if (m.dispute?.kind === 'trade' && m.dispute.public !== undefined) requestPublic.add(`${p.id}:${m.dispute.since}`);
+    const e = m.disputeEnd;
+    if (e?.kind === 'trade' && requestKeys.has(`${p.id}:${e.since}`)) requestEnds.set(`${p.id}:${e.since}`, e.how);
     // Your club's are answered, and thought over, by the AI's rules.
     if (m.dispute && p.teamId === league.userTeamId) {
       if (!m.dispute.answered) aiAnswerDispute(league, p, clock);
@@ -331,7 +344,9 @@ check(
 const shareOf = (w: UnitWord) => reads.filter((r) => r === w).length / Math.max(1, reads.length);
 check(`Leaders per club, captains included (n=${leadersPer.length})`, mean(leadersPer), [3, 6]);
 check('Voices per club', mean(voicesPer), [6, 12]);
-check('Clubs with no leader past the captains', mean(noLeader), [0.1, 0.3]);
+// 0.1 until G4b (the owner, 2026-11-02): main itself read 0.09 over eight seasons; the line only sets how often the report
+// says nobody past the captains steps up (L1 moves no moods).
+check('Clubs with no leader past the captains', mean(noLeader), [0.05, 0.3]);
 check(`Unit reads: Split (n=${reads.length})`, shareOf('Split'), [0.05, 0.15]);
 // Down means a room reads Poor or worse, the word the screen shows: rare in a happy league, so only its ceiling counts
 // (the owner's call, Nov 2, 2026).
@@ -342,10 +357,23 @@ check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
 check('Club rooms at Poor or worse (ceiling)', mean(poorRooms), [0, 0.25]);
 
 const perWindow = (m: Map<number, number>) => mean(windows.map((s) => m.get(s) ?? 0));
-check(`Disputes started a season (${windows.length} windows)`, perWindow(started), [3, 12]);
+check(`Contract disputes started a season (${windows.length} windows)`, perWindow(started), [3, 12]);
 check('Holdouts a season', perWindow(holdouts), [0.5, 5]);
 check('Holdouts still out after week 1, a season', perWindow(outAfterWeek1), [0, 2]);
 check('Holdouts past the limit he gives in at', pastLimit, [0, 0], 0);
+// The NFL: about 5-10 public trade requests a year, roughly half traded within the year (spec Part 2).
+check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [4, 15]);
+check(
+  `Trade requests gone public (n=${requestKeys.size})`,
+  requestPublic.size / Math.max(1, requestKeys.size),
+  [0.4, 0.9],
+);
+const resolved = [...requestEnds.values()];
+check(
+  `Trade requests resolved by a trade (n=${resolved.length})`,
+  resolved.filter((h) => h === 'traded').length / Math.max(1, resolved.length),
+  [0.25, 0.75],
+);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

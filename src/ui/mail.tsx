@@ -183,8 +183,8 @@ export function MailCards({ league, message }: { league: League; message: InboxM
         <TalkCards league={league} s={{ clock: s.clock, playerId: s.playerId }} />
       );
     case 'dispute':
-      // The start letter carries your answer; the end letter is the coach's word alone.
-      return s.end ? null : <DisputeCards league={league} s={{ since: s.since, playerId: s.playerId }} />;
+      // The start letter carries your answer; the leak and the end are the coach's word alone.
+      return s.end || s.leak ? null : <DisputeCards league={league} s={{ since: s.since, playerId: s.playerId }} />;
     case 'retirement':
       return <RetirementCards league={league} s={s} />;
     case 'combine':
@@ -668,6 +668,19 @@ export function answerDisputeLetter(league: League, playerId: number, choice: Di
 }
 
 /** A hold-in or holdout's letter (G4): your four answers while it's open, what you said once you've answered. */
+/** A dispute letter's buttons, in words (a promise's own label below). */
+const DISPUTE_BUTTON: Record<Exclude<DisputeChoice, 'promise'>, string> = {
+  negotiate: 'Negotiate',
+  firm: 'Hold firm',
+  shop: 'Shop him',
+  refuse: 'Refuse',
+};
+const PROMISE_LABEL = { deal: 'Promise a deal', snaps: 'Promise him snaps' } as const;
+const PROMISE_TITLE = {
+  deal: 'A new deal by week 1 (two weeks on in season)',
+  snaps: 'The snaps he wants, over his next four games',
+} as const;
+
 function DisputeCards({ league, s }: { league: League; s: { since: number; playerId: number } }) {
   const card = disputeCard(league, s);
   const p = league.players[s.playerId];
@@ -703,23 +716,23 @@ function DisputeCards({ league, s }: { league: League; s: { since: number; playe
         </p>
       )}
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn btn-sm" onClick={() => answer('negotiate')}>
-          Negotiate
-        </button>
-        <button
-          className="btn btn-sm"
-          disabled={!card.trust}
-          title={card.trust ? 'A new deal by week 1 (two weeks on in season)' : undefined}
-          onClick={() => answer('promise')}
-        >
-          {card.trust ? 'Promise a deal' : 'He won’t take your word'}
-        </button>
-        <button className="btn btn-sm" onClick={() => answer('firm')}>
-          Hold firm
-        </button>
-        <button className="btn btn-sm" onClick={() => answer('shop')}>
-          Shop him
-        </button>
+        {card.choices?.map((c) =>
+          c === 'promise' ? (
+            <button
+              key={c}
+              className="btn btn-sm"
+              disabled={!card.trust}
+              title={card.trust ? PROMISE_TITLE[card.promise ?? 'deal'] : undefined}
+              onClick={() => answer(c)}
+            >
+              {card.trust ? PROMISE_LABEL[card.promise ?? 'deal'] : 'He won’t take your word'}
+            </button>
+          ) : (
+            <button key={c} className="btn btn-sm" onClick={() => answer(c)}>
+              {DISPUTE_BUTTON[c]}
+            </button>
+          ),
+        )}
       </div>
     </Card>
   );

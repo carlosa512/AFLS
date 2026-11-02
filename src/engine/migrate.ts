@@ -319,6 +319,8 @@ export function migrateLeague(league: League): League | null {
   // `ContractYear.withheld`, `Player.lostAccrual` and `Morale.reported` are all optional and absent to start; a save from
   // before them has no dispute and nothing soured.
   if (league.version < 79) league.version = 79;
+  // v80: trade requests (G4b): `Dispute.calm` and the market's `wantsOut` rumors are optional and absent to start.
+  if (league.version < 80) league.version = 80;
   return league;
 }
 

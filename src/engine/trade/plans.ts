@@ -4,6 +4,7 @@
  * (interest). Everything is read on the team's own scouting, never the truth about another club's
  * players, and the head coach's job security and the GM's temperament both lean on it.
  */
+import { disputeOf, wantsOut } from '../disputeRead';
 import { ageShift } from '../aging';
 import { chairHolder, hotSeat, ownerTrigger, teamCoaches } from '../coaching';
 import { isExpired, yearsLeft } from '../finance/contract';
@@ -255,7 +256,7 @@ export function scoutedNeeds(ctx: TradeContext, viewerId: number, team: Team): {
 export interface BlockEntry {
   playerId: number;
   /** Why: an AI team's own reasons, or (for yours) whether you've put him on the block. */
-  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'tagged' | 'listed' | 'available';
+  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'tagged' | 'listed' | 'available' | 'wantsOut';
   /** 0 … 1: how keen the team is to move him. */
   keenness: number;
 }
@@ -304,6 +305,9 @@ const NEAR_LINE = 2;
 const OVERPAID = 100;
 
 /** Who a team would move and how keenly, on its own exact read of its roster. */
+/** How keen a club is to move a man it's shopping because he asked out: past the bar for pitching him to you. */
+const WANTS_OUT_KEEN = 0.75;
+
 export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const memo = (ctx.blocks ??= new Map()).get(team.id);
   if (memo) return memo;
@@ -329,6 +333,11 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const out: BlockEntry[] = [];
   const keep = untouchables(ctx, team);
   for (const p of roster) {
+    // He's asked out, the league knows and his club is shopping him (G4b): on the block, whoever he is.
+    if (wantsOut(p) === 'public' && disputeOf(p)?.answered?.choice === 'shop') {
+      out.push({ playerId: p.id, reason: 'wantsOut', keenness: WANTS_OUT_KEEN });
+      continue;
+    }
     if (keep.has(p.id)) continue;
     const r = rank.get(p.id)!;
     const S = STARTERS[p.position];

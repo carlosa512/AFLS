@@ -114,3 +114,80 @@ describe('dispute letters (G4)', () => {
     expect(disputeCard(traded.l, { since: at(traded.l, 1), playerId: traded.p.id }).state).toBe('closed');
   });
 });
+
+const { disputeView } = await import('./disputes');
+
+/** Your man asking to be traded over `cause` since the step before, his letter not yet filed. */
+function yourRequest(cause: 'snaps' | 'losing' | 'deal', seed = 'request-mail') {
+  const l = createLeague({ seed });
+  l.moraleAt = at(l, 10);
+  const p = activeRoster(l, l.userTeamId).find((x) => x.morale && !x.injury && x.contract)!;
+  p.morale = { level: -5, jolts: [] };
+  p.morale.dispute = { kind: 'trade', cause, since: at(l, 9), club: l.userTeamId };
+  return { l, p };
+}
+const requestId = (l: League, p: Player) => `dispute:${l.season}:${at(l, 9)}:${p.id}`;
+
+describe('trade request letters (G4b)', () => {
+  it('files a letter when he asks, offering shop, refuse and the promise his cause allows', () => {
+    const snaps = yourRequest('snaps');
+    deliverMail(snaps.l);
+    deliverMail(snaps.l);
+    const letter = letters(snaps.l, requestId(snaps.l, snaps.p));
+    expect(letter).toHaveLength(1);
+    expect(letter[0].subject).toContain(snaps.p.lastName);
+    expect(needsYou(snaps.l, letter[0])).toBe(true);
+    const card = disputeCard(snaps.l, { since: at(snaps.l, 9), playerId: snaps.p.id });
+    expect(card).toMatchObject({
+      state: 'open',
+      kind: 'trade',
+      choices: ['shop', 'refuse', 'promise'],
+      promise: 'snaps',
+    });
+    const losing = yourRequest('losing');
+    expect(disputeCard(losing.l, { since: at(losing.l, 9), playerId: losing.p.id }).choices).toEqual([
+      'shop',
+      'refuse',
+    ]);
+    const deal = yourRequest('deal');
+    expect(disputeCard(deal.l, { since: at(deal.l, 9), playerId: deal.p.id }).promise).toBe('deal');
+  });
+
+  it('a promise of snaps ends it and holds him to the games; refusing is on file', () => {
+    const { l, p } = yourRequest('snaps');
+    expect(answerDispute(l, p.id, 'promise')).toBe(true);
+    expect(p.morale!.dispute).toBeUndefined();
+    expect(p.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'promise' });
+    expect(p.morale!.talk!.promise).toMatchObject({ kind: 'snaps', dispute: 'trade', left: 4 });
+    const refused = yourRequest('losing');
+    expect(answerDispute(refused.l, refused.p.id, 'promise')).toBe(false);
+    expect(answerDispute(refused.l, refused.p.id, 'refuse')).toBe(true);
+    expect(refused.p.morale!.dispute!.refused).toBe(true);
+    expect(disputeCard(refused.l, { since: at(refused.l, 9), playerId: refused.p.id }).said).toMatch(/refused/i);
+  });
+
+  it('files one letter when it leaks and one when it ends', () => {
+    const { l, p } = yourRequest('snaps');
+    deliverMail(l);
+    p.morale!.dispute!.public = at(l, 10);
+    deliverMail(l);
+    deliverMail(l);
+    expect(letters(l, `dispute-leak:${l.season}:${at(l, 9)}:${p.id}`)).toHaveLength(1);
+    endDispute(l, p, 'withdrawn', at(l, 11));
+    deliverMail(l);
+    deliverMail(l);
+    const end = letters(l, `dispute-end:${l.season}:${at(l, 9)}:${p.id}`);
+    expect(end).toHaveLength(1);
+    expect(end[0].body).toContain(p.lastName);
+  });
+
+  it("shows Wants a trade on another club's player only once it's public; his own club sees it private", () => {
+    const { l, p } = yourRequest('snaps');
+    expect(disputeView(l, p)?.label).toBe('Wants a trade');
+    const theirs = activeRoster(l, (l.userTeamId + 1) % 32).find((x) => x.morale)!;
+    theirs.morale!.dispute = { kind: 'trade', cause: 'snaps', since: at(l, 9), club: theirs.teamId! };
+    expect(disputeView(l, theirs)).toBeNull();
+    theirs.morale!.dispute.public = at(l, 10);
+    expect(disputeView(l, theirs)).toMatchObject({ kind: 'trade', label: 'Wants a trade' });
+  });
+});

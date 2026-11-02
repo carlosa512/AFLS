@@ -32,27 +32,34 @@ import { LEADER_TARGETS, overRecordAllowed } from './leaders';
 
 const seasons = Number(process.argv[2] ?? 16);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
+/**
+ * Four more leagues, read for one line only: work ethic's lean on ceiling shifts is a small gap between two noisy means,
+ * and over four leagues it swung 0.10-0.19 from one change to the next with nothing touching it (the owner's call,
+ * 2026-11-02: pool it over eight). They play once the first four are done, so no more run at once.
+ */
+const ETHIC_SEEDS = ['careers-audit-5', 'careers-audit-6', 'careers-audit-7', 'careers-audit-8'];
+/** One league in its own process, reporting its run. */
+const play = (seed: string): Promise<LeagueRun> =>
+  new Promise((resolve, reject) => {
+    const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], {
+      env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) },
+    });
+    let done = false;
+    child.once('message', (run) => {
+      done = true;
+      resolve(run as LeagueRun);
+      child.kill();
+    });
+    child.once('error', reject);
+    // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
+    child.once(
+      'exit',
+      (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
+    );
+  });
 // Part 2's leagues start first, each in its own process, and play while Part 1 runs here.
-const leagues: Promise<LeagueRun>[] = SEEDS.map(
-  (seed) =>
-    new Promise((resolve, reject) => {
-      const child = fork(new URL('./careers-league.ts', import.meta.url).pathname, [], {
-        env: { ...process.env, CAREERS_SEED: seed, CAREERS_SEASONS: String(seasons) },
-      });
-      let done = false;
-      child.once('message', (run) => {
-        done = true;
-        resolve(run as LeagueRun);
-        child.kill();
-      });
-      child.once('error', reject);
-      // A worker that dies before reporting (a crash, or the OOM killer's signal) fails the audit by name.
-      child.once(
-        'exit',
-        (code, signal) => done || reject(new Error(`league ${seed} exited (${signal ?? code}) before reporting`)),
-      );
-    }),
-);
+const leagues: Promise<LeagueRun>[] = SEEDS.map(play);
+const ethicLeagues: Promise<LeagueRun[]> = Promise.all(leagues).then(() => Promise.all(ETHIC_SEEDS.map(play)));
 const COHORT = 1200;
 let misses = 0;
 
@@ -354,7 +361,8 @@ const firsts = drafts.filter((d) => d.round === 1);
 const day3 = drafts.filter((d) => d.round >= 4);
 const shifts = pool((r) => r.shifts);
 const swing = (year: number) => mean(shifts.filter((s) => s.year === year).map((s) => Math.abs(s.shift)));
-const byEthic = [...shifts].sort((a, b) => a.workEthic - b.workEthic);
+const ethicShifts = [...shifts, ...(await ethicLeagues).flatMap((r) => r.shifts)];
+const byEthic = [...ethicShifts].sort((a, b) => a.workEthic - b.workEthic);
 const third = Math.floor(byEthic.length / 3);
 const ethicGap = mean(byEthic.slice(-third).map((s) => s.shift)) - mean(byEthic.slice(0, third).map((s) => s.shift));
 const shrinking = swing(0) > swing(1) && swing(1) > swing(2) ? 1 : 0;
@@ -362,7 +370,7 @@ console.log(
   `draft: ${check('first-round busts (never a high-end starter) %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
 );
 console.log(
-  `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check('work ethic top vs bottom third, mean shift', ethicGap, 0.1, 0.6)}`,
+  `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check(`work ethic top vs bottom third, mean shift (${SEEDS.length + ETHIC_SEEDS.length} leagues)`, ethicGap, 0.1, 0.6)}`,
 );
 console.log(
   `${check('QB1s aged 35+ %', mean(steady.qb35), 4, 22, 1)} · ${check('RB1s aged 30+ %', mean(steady.rb30), 0, 8, 1)} · ${check('K/P starters aged 38+ (of 64)', mean(steady.k38), 1, 8, 1)}`,
