@@ -160,6 +160,12 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [ ] **Tags spike when a big class of stars comes due at once** (20 in one season, 11–13 in others, against the NFL's
       6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
       has run out.
+- [ ] **Room made for a tag or a one-year deal forgets next year.** The re-sign window counts a keeper's new deal against
+      next year before it borrows, but the tag path (and a one-year deal) counts nothing: a GM that just made no room
+      for a keeper's new deal can then restructure to tag him, though next spring he's owed his price again, as
+      `nextYearNeeds` counts him once tagged. Counting his market price there (`inPlans` keepers only) fixes it, but
+      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1) and
+      `trades`' draft-day deals with a future pick (2.6 against 3–9). Measure both before it ships.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands
 

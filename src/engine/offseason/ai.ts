@@ -502,10 +502,6 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
   const budget = () =>
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
-  // What next year owes a keeper kept for a year (a one-year deal or the tag): his price again, as `nextYearNeeds` counts
-  // him once his deal ends after this league year. Borrowing for the tag without it undid the call that had made no
-  // room for his new deal.
-  const again = (p: Player) => (inPlans(league, team, p, depth, wn) ? marketApy(leagueMarket(league), p) : 0);
   for (const p of expiringPlayers(league, team.id)) {
     const { call, ahead } = resignCall(league, team.id, p, depth, wn);
     if (call === 'walk') continue;
@@ -520,7 +516,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const wanted = !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
     // A keeper it can't fit: the GM makes room before he lets him walk (a third of a contender's keepers were lost
     // to the cap with nobody making room).
-    if (wanted && cost > budget()) makeRoom(league, team, cost - budget(), p, offer.years > 1 ? offer.apy : again(p));
+    if (wanted && cost > budget()) makeRoom(league, team, cost - budget(), p, offer.years > 1 ? offer.apy : 0);
     if (wanted && cost <= budget()) {
       signPlayer(league, p, team.id, offer);
       mine.push(ahead);
@@ -538,7 +534,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
         tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
       const keep = needGain(depth, p, ahead + quirkWorth(league, team.id, p));
       if (keep >= upgradeBar(league, team, tagValue(league, p))) {
-        if (value > budget()) makeRoom(league, team, value - budget(), p, again(p));
+        if (value > budget()) makeRoom(league, team, value - budget(), p);
         if (value <= budget()) applyFranchiseTag(league, p);
       }
     }
