@@ -62,21 +62,23 @@ out) carries it too. Nothing is drawn: the engine already has the spot.
 
 **The drop, by the throw's depth** (air yards past the line; numbers in §6):
 
-| Throw                     | Under center                  | Shotgun (starts 5 yards deep)        |
-| ------------------------- | ----------------------------- | ------------------------------------ |
-| Quick (under ~6 air yards) | 3 steps, about 5 yards deep   | catch and throw, a step at most      |
-| Intermediate (6–19)        | 5 steps, about 7 yards        | 2–3 steps back                       |
-| Deep (20+), designed shot  | 7 steps or 5 and a hitch      | 3 steps and a hitch                  |
+| Throw (air yards)                  | Under center                    | Shotgun (lined up about 5 yards deep) |
+| ---------------------------------- | ------------------------------- | ------------------------------------- |
+| Quick (under about 5)              | 1 step, or 3 (set 4–6 yards)    | catch and throw, a step at most       |
+| Short to intermediate (about 5–12) | 3 or 5 steps, set 5–8 yards     | 1–3 steps                             |
+| Intermediate (about 10–18)         | 5 steps, set 7–8 yards          | 3 steps                               |
+| Deep (about 16+), a designed shot  | 7 steps (9+ yards), or 5 and a hitch | 5 steps, or 3 and a hitch        |
 
-Under center or shotgun stays as `formations.ts` sets it today.
+The bands overlap on purpose (a seeded pick within them): NFL quarterbacks throw 8 air yards on average off a 3-step
+drop and 13 off a 7-step one, not one depth per drop (§6). Under center or shotgun stays as `formations.ts` sets it today.
 
 **In the pocket:**
 
 - **Clean** (no rusher named): drop, a hitch, then a step up of a yard or two into the throw. The hold before the throw
   stays sized to the target's route (`stagedPath`), now with the drop's own length.
-- **Pressured** (a rusher named, no sack): the pressure comes from that rusher's side. An edge rusher (or a man who
-  beat a tackle) and the quarterback **climbs**, two or three yards up into the pocket; an interior rusher and he
-  **slides** or rolls away from him. He throws from where he ends up, and the rusher arrives as the ball leaves (a hit
+- **Pressured** (a rusher named, no sack): the pressure comes from that rusher's side. Against an edge rusher (or a
+  man who beat a tackle) the quarterback **climbs**, two or three yards up into the pocket; against an interior
+  rusher he **slides** or rolls away from him. He throws from where he ends up, and the rusher arrives as the ball leaves (a hit
   on the throw, never a sack the engine didn't call).
 - **Throwaway:** pressured, rolling toward the sideline, the ball sails past the nearest receiver and out of bounds
   (the broadcast view already throws an air-less incompletion at the sideline).
@@ -84,9 +86,11 @@ Under center or shotgun stays as `formations.ts` sets it today.
   rush), then he breaks out to the engine's `to`.
 - **Scramble, nothing open** (no rusher named): he holds longer than a throw would, with a hitch or two, then runs
   through the lane the play went (`lane`).
-- **Play action:** on first and second down, a fake to the back before the drop, more often for the offenses built
-  on it (`OffenseScheme.playAction`) and never in a hurry-up; the back carries the fake into the line, then blocks or
-  leaks out. Cosmetic and seeded.
+- **Play action:** a fake to the back before the drop on about three early-down dropbacks in ten and almost never on
+  third down (§6), more often for the offenses built on it (`OffenseScheme.playAction`) and never in a hurry-up; the
+  back carries the fake into the line, then blocks or leaks out. Some play-action throws are **bootlegs**: the
+  quarterback rolls out of the pocket the other way. With pressured rolls and scrambles, about one dropback in five
+  leaves the pocket, as in the NFL. Cosmetic and seeded.
 - **Never past the line before a pass:** an illegal forward pass is a foul the engine didn't call.
 
 **Protection** (steered):
@@ -111,13 +115,16 @@ Under center or shotgun stays as `formations.ts` sets it today.
 **The target's route fits his catch.** From where he lined up, where the ball is caught (`air`, its side from `lane`)
 and how deep, the view picks his route:
 
-| Catch (past the line, relative to his alignment) | Routes                                                     |
-| ------------------------------------------------ | ---------------------------------------------------------- |
-| Behind the line                                  | bubble or tunnel screen (receivers), swing or screen (back) |
-| 0–4 yards                                        | flat, quick out (outside), drag or shallow (across), hitch  |
-| 5–12 yards                                       | out or comeback (outside), curl or hitch (on his line), slant (inside, short), stick |
-| 10–19 yards                                      | dig or in (inside), corner (outside), seam                  |
-| 20+ yards                                        | go or fade (on his line), post (inside), corner (outside), wheel (back or slot) |
+| Catch (air yards; side relative to his alignment) | Routes (the NFL's average air yards at the target, §6)                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| Behind the line                                   | bubble or tunnel screen (−3), flat or swing for a back (about 0)         |
+| 0–4 yards                                         | flat or quick out (outside), drag or shallow (across), hitch             |
+| 3–9 yards, inside                                 | slant (6)                                                                |
+| 4–14 yards                                        | hitch or curl (7), out (7, outside), stick, a crosser underneath (7)     |
+| 10–18 yards                                       | dig or in (11, inside), comeback (outside), a deep crosser, wheel (14)   |
+| 14 yards and more                                 | corner (21, outside), post (21, inside), go or fade (23, on his line)    |
+
+Where bands overlap the pick is seeded, leaning on the route whose average is nearest the catch.
 
 **The rest of the pattern fits around it.** A small book of concepts, each a route for every receiving spot (X, Z,
 slot, tight end, back), seeded per play and leaned by the offense's scheme. The pick must contain the target's route
@@ -152,15 +159,17 @@ ball does:
 - **Man:** the defender mirrors his receiver from his alignment and is a beat late out of each break, then closes.
 - **Zone:** defenders sit at their landmarks (`steer.ts` today) and drive on the ball from the throw.
 - **At the catch,** the cover man's distance follows the play: trailing on a completion, contested on an incompletion,
-  jumping the route (leaving his spot as the ball is thrown) on an interception. Distances in §6.
+  jumping the route (leaving his spot as the ball is thrown) on an interception. Today's staging puts him 1.5 yards off a
+  catch and 0.7 off an incompletion, well inside the NFL's 3.1 yards of separation at the target (§6): a completion
+  gets about three and a half, an incompletion about two, an interception under one.
 
 **Screens:** the line sets for a beat, then two or three linemen release downfield toward the screen's side to lead
 the catch while the rush runs past; a bubble's other receivers stalk the nearest defensive backs.
 
 ## 4. Who runs where, and how fast
 
-- **Top speeds and acceleration by position** come from the tracking data (§6), replacing `SPEED` and `ACCEL` in
-  `steer.ts` where they differ.
+- **Top speeds and acceleration by position:** `SPEED` and `ACCEL` in `steer.ts` already sit inside the tracking
+  data's ranges (§6) and stay.
 - **Scripted paths obey them too.** Keyframes stay straight lines between points (`sample`); a route's stem, plant
   and break are separate keyframes, so the slowdown at the break and the turn read without curves in the sampler.
 - **No dot ever exceeds his position's top speed**, scripted or steered, outside a ball in the air.
@@ -173,16 +182,66 @@ the catch while the rush runs past; a bubble's other receivers stalk the nearest
   sides converge on it.
 - **The recovery:** the engine's recoverer (`who.take`) falls on it or scoops it. If the play ends somewhere else
   (`to ≠ loose`), he returns it to `to`; the nearest offensive player brings him down unless it's a touchdown.
-- **Kept by the offense:** the same bounce, and the nearest offensive man falls on it at `to` (the engine names
-  no one, so the view picks him the same way every time).
+- **Kept by the offense:** the same bounce, and the nearest offensive man (often the one who fumbled) falls on it at
+  `to` (the engine names no one, so the view picks him the same way every time).
 - **The man who fumbled** goes down at the hit with his tackler: no running on.
 - **The broadcast view** shares the fix through `buildPath`: carried to the fumble spot, the bounce, then the return.
 
 ## 6. The numbers (from the NFL's tracking data)
 
-Filled from the research (sources listed at the end of this section): time to throw, time to pressure, time to sack,
-drop depths, separation at the target, route break timing and speed, top speeds and acceleration by position, play
-action and pressure rates, fumble bounce distance.
+What the staging aims at, and the range `npm run film` holds it to. Where no public number exists, the target is ours
+and says so. Sources are the bracketed keys below the tables; "computed" means worked out from nflverse's public files
+(Next Gen Stats, play-by-play with participation, FTN charting).
+
+**The quarterback**
+
+| Measure                                   | NFL                                                                  | Film range                 |
+| ----------------------------------------- | -------------------------------------------------------------------- | -------------------------- |
+| Time to throw, snap to release            | 2.82 s (NGS, 2024); per play 2.63 mean, 2.5 median, 1.6–3.9 p10–p90 [N][P] | mean 2.45–2.95 s      |
+| Shotgun against under center              | 2.55 against 3.05 s (2024) [P]                                       | under center 0.25 s+ longer |
+| Clean against pressured                   | 2.42 against 3.27 s (2024) [P]                                       | pressured 0.5 s+ longer    |
+| By air yards: behind, 0–4, 5–9, 10–19, 20+ | 2.19, 2.62, 2.58, 3.12, 3.37 s (2022) [P]                           | each within 0.35 s         |
+| Time to pressure                          | 2.9 s average (NGS, 2023) [PP]                                       | 2.4–3.3 s                  |
+| Time to sack                              | mean 3.35, median 2.9, p10 2.1, p90 5.3 s (2023–25, computed) [P]    | mean 3.0–3.7; p10 ≤ 2.4; p90 ≥ 4.5 |
+| A scramble with nothing open              | leaves the pocket about 4.4 s after the snap (2023–25; the field's definition is uncertain) [P] | 3.5–5.0 s |
+| Dropbacks leaving the pocket              | 17–21% (FTN, 2023–25, computed) [F]                                  | 14–24%                     |
+| Play action                               | 22% of dropbacks; 30% on first and second down, 4–5% on third and fourth (FTN, 2023–25, computed) [F] | 17–27%; early downs 24–35% |
+| Set depth by drop                         | 3 steps 4–6 yd, 5 steps 7–8, 7 steps 9+ (PFF) [D]                    | each within its band       |
+| Air yards by drop, under center / gun     | 1 step 3.2 / 4.9; 3 steps 8.3 / 9.4; 5 steps 11.5 / 12.3; 7 steps 13.3 / 15.1 (2018–19) [SFA] | each within 2.5 yd |
+
+**Receivers and coverage**
+
+| Measure                                   | NFL                                                                  | Film range                 |
+| ----------------------------------------- | -------------------------------------------------------------------- | -------------------------- |
+| Separation at the target (catch or miss)  | 3.10 yd (WR 2.97, TE 3.53; NGS 2024, computed) [N]                   | mean 2.6–3.6; catches wider than misses; picks ≤ 1 |
+| Cushion at the snap                       | 6.1 yd (p10–p90 5.3–6.9; NGS 2024) [N]                               | corners' mean 5–7 yd       |
+| Air yards at the target, by route         | screen −2.8, flat −0.5, slant 6.1, curl 7.4, out 7.3, cross 6.9, dig 10.6, wheel 13.8, post 21.0, corner 21.3, go 23.4 (2022) [P] | each within 3 yd (5 for post, corner, go) |
+| Time to throw, by route                   | screen 1.91, slant 2.14, curl 2.68, out 2.73, go 2.84, post 3.05, dig 3.12, corner 3.25 s (2022) [P] | screen < slant < curl, out < dig, post, corner |
+| The break                                 | no public number                                                     | ours: a plant at 50–70% of stem speed for 0.15–0.25 s, about 0.4–0.7 s before the throw on a timing route |
+
+**Speed and the rush**
+
+| Measure                                   | NFL                                                                  | Film range                 |
+| ----------------------------------------- | -------------------------------------------------------------------- | -------------------------- |
+| Top speeds                                | fastest ball carriers 21–22.4 mph, 10.2–10.9 yd/s (NGS lists, 2022–24) [NBC][FOX]; all-star GPS: OL 12.6 mph, DL 15–19, LB 20, CB 19.5–21, RB 21 [SB] | position caps as `steer.ts` (OL 6.5 yd/s … DB, WR 9); nobody past 10.5 |
+| Acceleration                              | skill players about 5 yd/s² at most (all-star GPS; a weak source) [SH] | ≤ 6 yd/s² (`ACCEL`); a plant may stop harder |
+| Rushers                                   | 4 on 64–69% of dropbacks, 5 on about 20%, 6+ on 5–6% (2022, 2024, computed) [P] | reported (the engine's blitz call decides) |
+| Pressure, sacks, scrambles, screens, throwaways | pressured 26–31%, sacks 6.4–6.8%, scrambles 4.5–5.5%, screens 8–10%, throwaways 3.5% of dropbacks [P][B][F] | reported only: the engine decides these |
+
+**The loose ball**
+
+| Measure                                   | NFL                                                                  | Film range                 |
+| ----------------------------------------- | -------------------------------------------------------------------- | -------------------------- |
+| Who recovers, returns                     | offense 51% (runs 56%, catches 46%, sacks 48%); 29% of defensive recoveries returned, 14.8 yd average (2022–25, computed) [B] | reported only: the engine decides |
+| How far it bounces                        | no public number                                                     | ours: 2–6 yards over about a second |
+
+**Sources:** [N] nflverse Next Gen Stats (github.com/nflverse/nflverse-data, release `nextgen_stats`); [P] nflverse
+play-by-play with participation (release `pbp_participation`); [B] nflverse play-by-play (release `pbp`); [F] FTN
+charting via nflverse (release `ftn_charting`); [PP] NFL.com, "Next Gen Stats: introduction to pressure probability";
+[D] PFF, "QBs in focus: drop-back depth"; [SFA] Sharp Football Analysis, "How drop depth affects our view of
+quarterbacks"; [NBC] NBC Sports Bay Area, fastest players of 2022 by Next Gen Stats; [FOX] FOX Sports, fastest NFL
+players of 2023; [SB] Seahawks Draft Blog, Senior Bowl GPS speeds; [SH] a Shrine Game GPS note (weak; the acceleration
+cap is ours to keep).
 
 ## 7. Testing
 
@@ -193,8 +252,8 @@ does today):
   its spot.
 - **Routes:** the target's route ends at the catch; its family fits the catch (§3's table, so a 25-yard catch is never a
   curl); routes in one concept don't finish within two yards of each other.
-- **The quarterback:** under pressure his distance from the named rusher grows until the throw; in a clean pocket he
-  steps up before it; he never crosses the line before a pass.
+- **The quarterback:** under pressure his distance from the named rusher grows until the throw; in a clean pocket
+  (not a bootleg) he steps up before it; he never crosses the line before a pass.
 - **Protection:** the line forms a cup around the quarterback by the time of the throw; on a sack the sacker comes
   past the blocker the engine named.
 - **Fumbles:** the ball is at `loose` at the hit; the recoverer has it at the end; the man who fumbled never goes past
