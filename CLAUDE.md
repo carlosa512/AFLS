@@ -58,7 +58,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
 - `npm run careers` — age a draft class of every position and play four 16-season leagues in
-  parallel child processes (about 3 minutes on 4 cores, slower with fewer); checks peaks, declines,
+  parallel child processes, then four more for work ethic's lean on ceilings (about 6 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
   or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap

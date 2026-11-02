@@ -70,7 +70,7 @@ const CHECKS = {
   careers: {
     cmd: ['npm', 'run', 'careers'],
     cores: 4,
-    secs: 180,
+    secs: 360,
     slow: true,
     summary: /\d+ number\(s\) outside target range/,
   },
