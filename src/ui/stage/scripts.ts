@@ -6,8 +6,9 @@
  */
 import { actorsIn } from '../../engine/playActors';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath, FIELD_W, ground, offenseSide, pointAt, type Seg } from './ballPath';
+import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type Seg } from './ballPath';
 import type { Cast } from './cast';
+import { fumbleIn, HOP_PEAK } from './fumble';
 import type { Pt } from './formations';
 
 /** A spot at a time: seconds from the snap. */
@@ -101,9 +102,15 @@ const carry = (sg: Seg, caught = false): Seg => {
 };
 
 export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number, receiverAt?: Pt): Seg[] {
+  // A fumble: the play staged as carried to where the ball came out, then the loose ball (`loosen`), its legs run at a
+  // ball carrier's pace (a tackled one's: someone brings the returner down, or he scores).
+  return loosen(e, stageCarried(carried(e), homeId, snapY, receiverAt), (sg) => carry(sg, true));
+}
+
+function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, receiverAt?: Pt): Seg[] {
   // A flag before the snap: no play, nothing moves (the walk-off is the official's, between plays).
   if (e.kind === 'penalty') return [];
-  const segs = buildPath(e, homeId, snapY);
+  const segs = basePath(e, homeId, snapY);
   if (!segs.length || e.from === undefined || e.to === undefined) return segs;
   const dir = offenseSide(e, homeId) === 0 ? 1 : -1;
   const caught = !/TOUCHDOWN/.test(e.text);
@@ -243,6 +250,8 @@ export interface Scripted {
   until: Map<number, number>;
   /** Scripted men let go after their part (`SteerArgs.free`): the cover man on a catch, from the catch. */
   free: Map<number, number>;
+  /** A fumble: when and where the ball came out, when it settled, and who recovered it. */
+  loose?: { t: number; x: number; y: number; settle: number; by: number };
 }
 
 export function script(
@@ -382,20 +391,80 @@ export function script(
     }
   }
 
+  // A fumble: the man with the ball goes down where it comes out, with the man who hit him; the ball bounces to the man
+  // who recovers it (the engine's on a lost one; on a kept one he falls on it himself), and a lost one is returned.
+  const f = fumbleIn(e);
+  let loose: Scripted['loose'];
+  let returned = false;
+  const first = segs.findIndex((sg) => sg.peak > 0 && sg.peak <= HOP_PEAK);
+  if (f && carrier !== undefined && first > 0) {
+    let lastHop = first;
+    while (lastHop + 1 < segs.length && segs[lastHop + 1].peak > 0) lastHop++;
+    const [tHit] = ts[first];
+    const tSettle = ts[lastHop][1];
+    const hit = pointAt(segs[first], 0);
+    const settle = pointAt(segs[lastHop], 1);
+    const fumbler = carrier;
+    const upTo = (id: number, t: number) => (keys.get(id) ?? [from(id)]).filter((k) => k.t < t);
+    // Whoever hit him: the tackler on a run or a catch, the sacker on a strip-sack. He's on the move from the
+    // release (or his own part), and meets him as the ball comes out.
+    const hitter = e.kind === 'sack' ? who.rush : who.tackle;
+    const release = e.kind === 'run' ? ts[0][1] : e.kind === 'sack' ? 0 : (ts[1]?.[1] ?? 0);
+    const onTheMove = (id: number, t: number): Keyframe[] =>
+      keys.has(id) ? upTo(id, t) : [from(id), at(Math.min(release, t - 0.3), start.get(id)!)];
+    if (hitter !== undefined && hitter !== fumbler && start.has(hitter)) {
+      keys.set(hitter, [
+        ...onTheMove(hitter, tHit),
+        at(tHit, toward(hit, start.get(hitter)!, 0.6)),
+        at(total, toward(hit, start.get(hitter)!, 0.6)),
+      ]);
+      moment(hitter, tHit);
+    }
+    const by = f.lost ? who.take : fumbler;
+    if (by !== undefined && start.has(by)) {
+      const back = f.lost ? ride(segs, lastHop + 1, segs.length - 1) : [];
+      if (by === fumbler) keys.set(by, [...upTo(by, tHit), at(tHit, hit), at(tSettle, settle), ...back]);
+      else {
+        // Already the hitter: he goes from the hit to the ball. Else he comes in from the play as the ball settles.
+        const s0 = start.get(by)!;
+        const lead =
+          by === hitter
+            ? keys.get(by)!.filter((k) => k.t <= tHit)
+            : [...onTheMove(by, tHit), at(tHit, toward(hit, s0, 2.5))];
+        keys.set(by, [...lead, at(tSettle, settle), ...back]);
+        // The man who fumbled stays down where it came out.
+        keys.set(fumbler, [...upTo(fumbler, tHit), at(tHit, hit), at(total, hit)]);
+      }
+      moment(by, tSettle);
+      carrier = by;
+      returned = back.length > 0;
+      loose = { t: tHit, x: hit.x, y: hit.y, settle: tSettle, by };
+    }
+  }
+
   // The tackler meets the carrier at the whistle, from the side he came.
   let tacklerId: number | null = null;
   let pursuer: number | null = null;
   const kickReturn = catchAt !== undefined;
+  // A fumble's tackle was the hit: only a lost one's return is run down, and not into the end zone.
+  const scores = e.to !== undefined && (e.to < 0 || e.to > 100);
   if (
     carrier !== undefined &&
     !touchdown &&
-    (TACKLED.has(e.kind ?? '') || kickReturn || (e.kind === 'int' && who.tackle !== undefined))
+    (loose
+      ? returned && !scores
+      : TACKLED.has(e.kind ?? '') || kickReturn || (e.kind === 'int' && who.tackle !== undefined))
   ) {
-    // The coverage tackles a returner; the offense tackles a man who picked it off.
+    // The coverage tackles a returner; the offense tackles a man who picked it off or picked a fumble up.
     const side =
-      e.kind === 'int' || kickReturn ? cast.offense.filter((m) => m.role !== 'K' && m.role !== 'P') : cast.defense;
-    let tackler = who.tackle !== undefined && start.has(who.tackle) && who.tackle !== carrier ? who.tackle : undefined;
-    if (tackler === undefined && (e.kind !== 'int' || kickReturn)) {
+      e.kind === 'int' || kickReturn || loose
+        ? cast.offense.filter(
+            (m) => m.role !== 'K' && m.role !== 'P' && m.id !== who.ball && keys.get(m.id) === undefined,
+          )
+        : cast.defense;
+    let tackler =
+      !loose && who.tackle !== undefined && start.has(who.tackle) && who.tackle !== carrier ? who.tackle : undefined;
+    if (tackler === undefined && (e.kind !== 'int' || kickReturn || loose)) {
       let best = Infinity;
       for (const m of side) {
         const p = start.get(m.id)!;
@@ -425,15 +494,17 @@ export function script(
   // When the defense reads the ball out: the handoff, the throw (after the pocket), the scramble breaking out. A sack
   // never releases: the rush is on the quarterback and the coverage stays on the routes the whole play.
   const release =
-    kickAt !== undefined
-      ? kickAt
-      : e.kind === 'run'
-        ? ts[0][1]
-        : e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' || e.kind === 'scramble'
-          ? (ts[1]?.[1] ?? 0)
-          : e.kind === 'sack'
-            ? Infinity
-            : 0;
+    loose && e.kind === 'sack'
+      ? loose.t
+      : kickAt !== undefined
+        ? kickAt
+        : e.kind === 'run'
+          ? ts[0][1]
+          : e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int' || e.kind === 'scramble'
+            ? (ts[1]?.[1] ?? 0)
+            : e.kind === 'sack'
+              ? Infinity
+              : 0;
   return {
     keys,
     carrier: carrier ?? null,
@@ -444,5 +515,6 @@ export function script(
     until,
     free,
     ...(catchAt !== undefined ? { catchAt } : {}),
+    ...(loose ? { loose } : {}),
   };
 }

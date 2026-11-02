@@ -46,7 +46,19 @@ export const SNAPPED = new Set([
   'fg',
 ]);
 
+/** The ball's path for a play, in both views: the play as it was carried, then any fumble (`loosen`). */
 export function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
+  return loosen(e, basePath(carried(e), homeId, snapY));
+}
+
+/** A lost fumble's play up to where the ball came out: its logged end (`to`) is where the return ended. */
+export function carried(e: PlayLogEntry): PlayLogEntry {
+  const f = fumbleIn(e);
+  return f?.lost && e.to !== f.x ? { ...e, to: f.x } : e;
+}
+
+/** The path of the play as logged, by its kind, with no fumble. */
+export function basePath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   if (e.from === undefined || e.to === undefined || !e.kind) return [];
   const { from, to } = e;
   const dir = e.offense === homeId ? 1 : -1;
@@ -98,14 +110,18 @@ export function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[]
     default:
       segs.push(ground(from, snapY, to, snapY, e.kind === 'penalty' ? 1.6 : 1));
   }
-  return loosen(e, segs);
+  return segs;
 }
 
+/** A ground leg timed as the broadcast view runs the ball along (`ground`). */
+const groundPace = (s: Seg): Seg => ({ ...s, dur: ground(s.x0, s.y0, s.x1, s.y1).dur });
+
 /**
- * A fumble: the carry stops where the ball comes out, it bounces to where it's recovered (`fumble.ts`), and a lost one
- * is returned to where the play ended. Without one, the path as it was.
+ * A fumble on a play carried to where it came out (`carried`): the carry stops where the ball comes out, it bounces to
+ * where it's recovered (`fumble.ts`), and a lost one is returned to where the play ended. `pace` times the legs men
+ * run (All-22 runs them at a runner's pace). Without a fumble, the path as it was.
  */
-function loosen(e: PlayLogEntry, segs: Seg[]): Seg[] {
+export function loosen(e: PlayLogEntry, segs: Seg[], pace: (s: Seg) => Seg = groundPace): Seg[] {
   const f = fumbleIn(e);
   if (!f || !segs.length) return segs;
   const last = segs[segs.length - 1];
@@ -115,15 +131,13 @@ function loosen(e: PlayLogEntry, segs: Seg[]): Seg[] {
   const out = { x: hops[0].x0, y: hops[0].y0 };
   // The carry ends where it came out; after a catch with no run logged (the throw ends it), he runs on to it.
   const carry =
-    last.peak > 0
-      ? [last, ground(last.x1, last.y1, out.x, out.y)]
-      : [ground(last.x0, last.y0, out.x, out.y, last.dur / ground(last.x0, last.y0, last.x1, last.y1).dur)];
+    last.peak > 0 ? [last, pace(ground(last.x1, last.y1, out.x, out.y))] : [pace({ ...last, x1: out.x, y1: out.y })];
   const back = f.lost && e.to !== undefined && Math.abs(e.to - f.x) > 0.5;
   return [
     ...segs.slice(0, -1),
     ...carry,
     ...hops,
-    ...(back ? [ground(at.x, at.y, e.to!, clampY(at.y + (MID - at.y) * 0.2))] : []),
+    ...(back ? [pace(ground(at.x, at.y, e.to!, clampY(at.y + (MID - at.y) * 0.2)))] : []),
   ];
 }
 

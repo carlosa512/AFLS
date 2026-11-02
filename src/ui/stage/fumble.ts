@@ -32,6 +32,8 @@ export function fumbleIn(e: PlayLogEntry): Fumble | null {
 const PATH = [2, 6] as const;
 const TIME = [0.8, 1.3] as const;
 const PEAK = [0.3, 0.6] as const;
+/** No hop goes higher: anything above it on a play's path is a throw or a kick, not the loose ball. */
+export const HOP_PEAK = PEAK[1];
 /** It squirts mostly sideways: where it came out is at most this far up or down the field from where it's recovered. */
 const DRIFT = 1.5;
 const IN_BOUNDS = [0.5, 52.8] as const;

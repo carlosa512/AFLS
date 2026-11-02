@@ -7,6 +7,7 @@ import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
+import { fumbleIn } from './fumble';
 import { lineUp } from './formations';
 import { sample, script, stagedPath } from './scripts';
 import { asRan, returned, stagePlay, type StagedPlay } from './stage';
@@ -210,8 +211,15 @@ describe('scripts', () => {
     for (const { e, keys, end, total, who, cast } of all) {
       if (!end) continue;
       const qb = cast.offense.find((m) => m.role === 'QB')!.id;
-      const holder =
-        e.kind === 'int'
+      // A fumble ends with the man who recovered it: the engine's on a lost one, the man who fumbled on a kept one.
+      const f = fumbleIn(e);
+      const holder = f
+        ? f.lost
+          ? who.take
+          : e.kind === 'sack'
+            ? qb
+            : (who.ball ?? qb)
+        : e.kind === 'int'
           ? who.take
           : e.kind === 'pass' || e.kind === 'run'
             ? who.ball
@@ -235,7 +243,9 @@ describe('scripts', () => {
         e.kind === 'incomplete' ||
         e.kind === 'int' ||
         e.kind === 'kneel' ||
-        e.kind === 'spike'
+        e.kind === 'spike' ||
+        // A fumble's hit comes when the ball comes out, not at the whistle (the loose ball's own tests, below).
+        fumbleIn(e)
       )
         continue;
       const tackler = [...keys.keys()].find((id) => id === who.tackle) ?? (e.kind === 'sack' ? who.rush : undefined);
@@ -291,7 +301,8 @@ describe('the staged play', () => {
     let passes = 0;
     for (const { e, p } of staged) {
       const qb = p.ids[p.roles.indexOf('QB')];
-      if (e.kind === 'run' && p.carrier !== qb) {
+      // A handoff: someone else ran it (who ends with the ball can be a man who recovered a fumble).
+      if (e.kind === 'run' && actorsIn(e).ball !== qb && p.carrier !== qb) {
         expect(p.keys).not.toContain(qb);
         expect(p.keys).toContain(p.carrier);
         runs++;
@@ -463,8 +474,9 @@ describe('off the ball', () => {
           : [],
       ),
     );
-  const moved = (p: StagedPlay, k: number) => {
-    const last = p.steps - 1;
+  /** How far a man got by the end of the play (or by `until`, a step). */
+  const moved = (p: StagedPlay, k: number, until = p.steps - 1) => {
+    const last = until;
     const x0 = p.pos[k * 2];
     const x1 = p.pos[(last * 22 + k) * 2];
     return { downfield: x1 - x0, dist: Math.hypot(x1 - x0, p.pos[(last * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]) };
@@ -482,7 +494,9 @@ describe('off the ball', () => {
       const dir = p.home[0] ? 1 : -1; // the offense attacks toward 100 when it is the home side
       p.ids.forEach((id, k) => {
         if (!p.offense[k] || p.keys.includes(id) || p.roles[k] !== 'WR') return;
-        expect(moved(p, k).downfield * dir, `${e.text}`).toBeGreaterThan(5);
+        // Until the ball comes out on a strip-sack: then the routes are over and everyone goes for it.
+        const until = p.loose ? Math.round(p.loose.t / p.dt) : undefined;
+        expect(moved(p, k, until).downfield * dir, `${e.text}`).toBeGreaterThan(5);
         routes++;
       });
     }
@@ -869,5 +883,130 @@ describe('special teams', () => {
         });
       }
     expect(n).toBeGreaterThan(300);
+  });
+});
+
+describe('the loose ball', () => {
+  const stage = (g: Game, plays: PlayLogEntry[], i: number) =>
+    stagePlay({
+      plays,
+      index: i,
+      record: games.find((x) => x.g === g)!.r.field!,
+      homeId: g.homeId,
+      seed: `f${i}`,
+      snapY: 26,
+    });
+  const fumbles = games.flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      const f = fumbleIn(e);
+      return f && raw.down > 0 ? [{ e, f, g, i, plays: r.plays!, p: stage(g, r.plays!, i) }] : [];
+    }),
+  );
+  /** The man who had the ball when it came out. */
+  const fumbler = (e: PlayLogEntry, p: StagedPlay) => {
+    const qb = p.ids[p.roles.findIndex((r, k) => r === 'QB' && p.offense[k])];
+    return e.kind === 'sack' ? qb : (actorsIn(e).ball ?? qb);
+  };
+  const ballAt = (p: StagedPlay, step: number) => ({ x: p.ball[step * 3], y: p.ball[step * 3 + 1] });
+  const at = (p: StagedPlay, id: number, step: number) => {
+    const k = p.ids.indexOf(id);
+    return { x: p.pos[(step * p.ids.length + k) * 2], y: p.pos[(step * p.ids.length + k) * 2 + 1] };
+  };
+  const last = (p: StagedPlay) => p.steps - 1;
+
+  it('finds fumbles of both kinds in 40 games', () => {
+    expect(fumbles.filter((x) => x.f.lost).length).toBeGreaterThan(10);
+    expect(fumbles.filter((x) => !x.f.lost).length).toBeGreaterThan(5);
+  });
+
+  it('has the ball loose where the engine says, at the hit, and settled where it was recovered', () => {
+    for (const { e, f, p } of fumbles) {
+      expect(p.loose, e.text).toBeDefined();
+      const hit = Math.round(p.loose!.t / p.dt);
+      const b = ballAt(p, hit);
+      expect(Math.hypot(b.x - p.loose!.x, b.y - p.loose!.y), e.text).toBeLessThan(0.5);
+      expect(Math.abs(p.loose!.x - f.x)).toBeLessThanOrEqual(1.51);
+      // Lost and not returned, or kept: the ball's last spot is where the play ended.
+      if (!f.lost || Math.abs(e.to! - f.x) <= 0.5)
+        expect(Math.abs(ballAt(p, last(p)).x - e.to!), e.text).toBeLessThan(0.5);
+    }
+  });
+
+  it("gives the ball to the man who recovered it: the engine's on a lost one, the man who fumbled on a kept one", () => {
+    for (const { e, f, p } of fumbles) {
+      expect(p.carrier, e.text).toBe(f.lost ? actorsIn(e).take : fumbler(e, p));
+      expect(p.loose!.by).toBe(p.carrier);
+      const b = ballAt(p, last(p));
+      const c = at(p, p.carrier!, last(p));
+      expect(Math.hypot(b.x - c.x, b.y - c.y), e.text).toBeLessThan(1);
+    }
+  });
+
+  it('puts the man who fumbled down where it came out: no running on', () => {
+    let n = 0;
+    for (const { e, f, p } of fumbles) {
+      if (!f.lost) continue;
+      const id = fumbler(e, p);
+      for (let st = Math.round(p.loose!.t / p.dt) + 1; st <= last(p); st++) {
+        const q = at(p, id, st);
+        expect(Math.hypot(q.x - p.loose!.x, q.y - p.loose!.y), e.text).toBeLessThan(1.5);
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(10);
+  });
+
+  it("returns a lost one to the play's end, run down by the offense unless he scores", () => {
+    let n = 0;
+    for (const { e, f, p } of fumbles) {
+      if (!f.lost || Math.abs(e.to! - f.x) <= 0.5) continue;
+      const end = ballAt(p, last(p));
+      expect(Math.abs(end.x - e.to!), e.text).toBeLessThan(0.5);
+      const c = at(p, p.carrier!, last(p));
+      const near = p.ids.some(
+        (id, k) => p.offense[k] && Math.hypot(at(p, id, last(p)).x - c.x, at(p, id, last(p)).y - c.y) < 1.5,
+      );
+      expect(near, e.text).toBe(e.to! > 0 && e.to! < 100);
+      n++;
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it("stages a wiped snap's fumble from ran.loose", () => {
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    const wiped: PlayLogEntry = {
+      ...plays[i],
+      kind: 'penalty',
+      to: e.from,
+      loose: undefined,
+      ran: { kind: e.kind, to: e.to, air: e.air, who: e.who, loose: e.loose },
+    };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: wiped }), i);
+    expect(p.loose).toBeDefined();
+    expect(Math.abs(p.loose!.x - e.loose!)).toBeLessThanOrEqual(1.51);
+  });
+
+  it('ends a fumble returned for a touchdown in the end zone, untackled', () => {
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run')!;
+    const p0 = stage(g, plays, i);
+    // The fumbling offense's own end zone: behind it, the way it was driving.
+    const td: PlayLogEntry = { ...plays[i], to: p0.dir === 1 ? -3 : 103 };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: td }), i);
+    const end = ballAt(p, last(p));
+    expect(Math.abs(end.x - td.to!)).toBeLessThan(0.5);
+    const c = at(p, p.carrier!, last(p));
+    expect(
+      p.ids.some((id, k) => p.offense[k] && Math.hypot(at(p, id, last(p)).x - c.x, at(p, id, last(p)).y - c.y) < 1.2),
+    ).toBe(false);
+    expect(e.kind).toBe('run');
+  });
+
+  it('stages a fumble from a game before the spot was kept (v78): the ball ends where the play did', () => {
+    const { g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    const old: PlayLogEntry = { ...plays[i], loose: undefined };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
+    expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);
+    expect(p.carrier).toBe(actorsIn(old).take);
   });
 });
