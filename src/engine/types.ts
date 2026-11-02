@@ -191,6 +191,33 @@ export interface Gear {
   wristband?: { side: 'left' | 'right'; color: GearColor };
 }
 
+/** The number font a club's jerseys use (`ui/uniform.ts` maps each to a face); every classic uses `slab`. */
+export type NumberFont = 'standard' | 'tall' | 'wide' | 'squared' | 'slab';
+/** The stripes on the shoulder pads' outer face: today's two, three thin (the classics), one wide band. */
+export type SleeveStyle = 'two' | 'three' | 'wide';
+/** One special uniform. Colours are "#RRGGBB". */
+export interface UniformSet {
+  jersey: string;
+  pants: string;
+  /** The number and nameplate. */
+  ink: string;
+  /** The number's outline when the design names one; absent, the outline rule picks it (`ui/uniform.ts`). */
+  outline?: { color: string; width: number };
+  sleeves: SleeveStyle;
+  /** The sleeve stripes' second colour (the wide band's fill). */
+  accent: string;
+  pantsStripe: string;
+  /** Its own helmet (the blackout's, a classic's); absent, the club's usual one. */
+  helmet?: HelmetDesign;
+}
+/** A club's special uniforms: a colour rush, a blackout for some, a classic; and its number font. */
+export interface ClubUniforms {
+  font: NumberFont;
+  rush: UniformSet;
+  blackout?: UniformSet;
+  classic: UniformSet;
+}
+
 /** The helmet shells the avatar draws, by our own names (never a maker's or a model's). */
 export type HelmetModel = 'modern' | 'modernSmooth' | 'plated' | 'classic' | 'pod' | 'podWide' | 'ridgeback' | 'retro';
 
@@ -875,6 +902,8 @@ export interface Team {
   colors: [string, string];
   /** The club's helmet, copied from its seed; absent (a mod's club), the avatar builds one from `colors`. */
   helmet?: HelmetDesign;
+  /** Its special uniforms, copied from `data/uniforms.ts`; absent (a mod's club), built from `colors`. */
+  uniforms?: ClubUniforms;
   depthChart: DepthChart;
   /** The kick and punt returners the user picked (player ids); unset, the lineup picks the best backup. */
   returners?: { kr?: number; pr?: number };
@@ -1744,6 +1773,8 @@ export interface Game {
   kickoff?: Kickoff;
   /** The slot it was first scheduled in, once the league has flexed it (`season/flex.ts`). */
   flexed?: Kickoff;
+  /** The home team's special uniform, stamped when the schedule is made (`season/uniforms.ts`); a flex never changes it. */
+  uniform?: 'rush' | 'blackout' | 'classic';
   result?: GameResult;
   /** In-flight attribution, consumed when the result is committed to career records. */
   management?: GameManagement;
