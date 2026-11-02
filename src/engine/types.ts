@@ -175,7 +175,7 @@ export type GearColor = 'black' | 'white' | 'primary' | 'secondary';
 /** Seen from behind: his left arm is on the viewer's left. */
 export type GearSide = 'left' | 'right' | 'both';
 /** A shooter sleeve starts partway down the upper arm, bare skin above it, and runs to the wrist. */
-export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter';
+export type SleeveLength = 'half' | 'threeQuarter' | 'full' | 'forearm' | 'shooter' | 'padded' | 'paddedElbow';
 export interface Gear {
   sleeve?: { length: SleeveLength; color: GearColor; side: GearSide };
   /** A short, solid sleeve under the jersey's (the jersey keeps its stripes). */

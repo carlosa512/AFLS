@@ -21,6 +21,9 @@ const SLEEVE: Record<SleeveLength, [number, number]> = {
   full: [55, 140],
   forearm: [80, 140],
   shooter: [71, 140],
+  // the quarterback's padded sleeves: a full one, and a short one around the elbow (the pad is drawn over either)
+  padded: [55, 140],
+  paddedElbow: [71.5, 97],
 };
 const UNDERSHIRT: [number, number] = [55, 73.6];
 const BICEPS: [number, number] = [74.6, 77.4];

@@ -353,6 +353,8 @@ const SLEEVE_LABEL: Record<SleeveLength, string> = {
   half: 'Half',
   forearm: 'Forearm',
   shooter: 'Shooter',
+  padded: 'Padded',
+  paddedElbow: 'Padded elbow',
 };
 
 /** One labelled dropdown of the gear editor. */
