@@ -1631,7 +1631,12 @@ export interface PlayLogEntry {
    * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
    * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
    */
-  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who'>;
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose'>;
+  /**
+   * Where the ball came out on a fumble the defense recovered (field yards, as `from` and `to`): `to` is where its
+   * return ended. Games before v78 have none.
+   */
+  loose?: number;
 }
 
 /** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */

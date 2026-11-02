@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(77);
+    expect(SAVE_VERSION).toBe(78);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -208,7 +208,18 @@ describe('save v77', () => {
     l.version = 76;
     const before = Object.fromEntries(Object.values(l.players).map((p) => [p.id, p.jersey]));
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(77);
+    expect(up.version).toBe(SAVE_VERSION);
     for (const p of Object.values(up.players)) expect(p.jersey).toBe(before[p.id]);
+  });
+});
+
+describe('save v78', () => {
+  it("a v77 save loads at 78 with its games as they were (a fumble's spot is new and optional)", () => {
+    const l = createLeague({ seed: 'v78' });
+    l.version = 77;
+    const before = JSON.stringify(l.games);
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(78);
+    expect(JSON.stringify(up.games)).toBe(before);
   });
 });
