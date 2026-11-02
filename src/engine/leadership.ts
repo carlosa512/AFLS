@@ -23,6 +23,7 @@ import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ensureStaffed, promoteScoutToDirector, staffValue, teamStaff } from './staff';
+import { leaveClub } from './meetings';
 import type {
   Coach,
   GeneralManager,
@@ -421,6 +422,8 @@ export function acceptGmOffer(l: League, teamId: number): void {
     } else if (sitting?.appointments.at(-1)?.interim) endGmAppointment(l, sitting.id, 'expired');
     appointGm(l, teamId, user.id, { through: offer.through });
   }
+  // What was waiting on you at your old club lapses there (L2).
+  if (changingClub) leaveClub(l, l.userTeamId);
   l.userTeamId = teamId;
   const terms = gmOfferTerms(l, offer);
   user.appointments.at(-1)!.terms = JSON.parse(JSON.stringify(terms));

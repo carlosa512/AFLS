@@ -178,10 +178,27 @@ function lastTrouble(league: League, team: Team, scope: MeetingScope): number | 
   return hits.length ? Math.max(...hits.map((r) => r.clock)) : null;
 }
 
-/** It's been long enough since this room (or the team) last met about trouble. */
+/**
+ * It's been long enough since this room (or the team) last met about trouble, or was last offered a meeting about it
+ * (saying no spends the turn too, or the coach would ask every week).
+ */
 export function offCooldown(league: League, teamId: number, scope: MeetingScope): boolean {
-  const last = lastTrouble(league, league.teams[teamId], scope);
-  return last === null || stepClock(league) - last >= (scope === 'team' ? COOLDOWN.team : COOLDOWN.room);
+  const team = league.teams[teamId];
+  const offered = meetingsOf(team).offeredAt?.[scope];
+  const last = Math.max(
+    lastTrouble(league, team, scope) ?? -Infinity,
+    offered !== undefined && seasonOf(offered) === league.season ? offered : -Infinity,
+  );
+  return last === -Infinity || stepClock(league) - last >= (scope === 'team' ? COOLDOWN.team : COOLDOWN.room);
+}
+
+/** Trouble is the season's (camp through the regular season): the winter's rooms are in flux, the playoffs have moments. */
+const troubleSeason = (league: League) => league.phase === 'preseason' || league.phase === 'regular';
+
+/** Mark a trouble meeting offered to this scope now. */
+export function markOffered(league: League, teamId: number, scope: MeetingScope): void {
+  const m = meetingsOf(league.teams[teamId]);
+  m.offeredAt = { ...m.offeredAt, [scope]: stepClock(league) };
 }
 
 /** A stirring voice who reads Poor or worse among these men: the man driving it. */
@@ -361,8 +378,9 @@ export function suggestMeeting(league: League, teamId: number, ctx: MoraleContex
       topic,
       ...choicesFor(league, teamId, 'team', 'moment', topic, undefined, ctx),
     };
-  } else {
+  } else if (troubleSeason(league)) {
     const t = troubleScope(league, teamId, ctx);
+    if (t) markOffered(league, teamId, t.scope);
     if (t)
       s = {
         clock,

@@ -440,6 +440,8 @@ export interface TeamMeetings {
   moments?: string[];
   /** The clock of the last suggestion: one a week at most. */
   lastOffer?: number;
+  /** When each room (or the team) was last offered a trouble meeting, held or not: its cooldown runs from there. */
+  offeredAt?: Partial<Record<MeetingScope, number>>;
   gmAddressSeason?: number;
   /** Your club: the head coach holds them himself. */
   byCoach?: boolean;

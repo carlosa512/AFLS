@@ -1,4 +1,5 @@
 import { chairHolder, teamCoaches } from '../coaching';
+import { managesTeam } from '../employment';
 import { actualRole, addJolt, moraleContext, YEAR, type MoraleContext } from '../morale';
 import { STARTERS } from '../positions';
 import { clamp, Rng } from '../rng';
@@ -179,7 +180,7 @@ export function judgeCommitments(league: League): void {
         continue;
       }
       // An AI club's word at the window's end: kept by its GM's tendencies (it doesn't make its moves for the room).
-      if (!kept && team.id !== league.userTeamId)
+      if (!kept && !managesTeam(league, team.id))
         kept = new Rng(`${league.seed}:meeting:${league.season}:${c.closes}:${team.id}:commit:${c.opened}`).chance(
           aiKeepChance(team.gm),
         );
