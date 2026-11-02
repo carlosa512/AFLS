@@ -1592,6 +1592,15 @@ class GameSim {
   }
 
   /**
+   * Who runs into or roughs a punter: one of the six rushing him at the front of the return unit (the rest jam the
+   * gunners), as the field record lines them up; a jammer split wide never gets there.
+   */
+  private puntRusher(unit: Lineup): Player | undefined {
+    const rush = unit.st.filter((p) => p !== unit.pr).slice(0, 6);
+    return rush.length ? this.flagRng.weighted(rush, (p) => Math.max(1, 24 - discipline(p))) : this.stCommitter(unit);
+  }
+
+  /**
    * A kick play: both kick units run, tire and face the play's risk, the backups who cover kicks most of
    * all (a return is a full-speed collision; a touchback or a fair catch mostly running).
    */
@@ -1641,7 +1650,7 @@ class GameSim {
     let note = '';
     if (rush < (RUNNING_INTO_KICKER + ROUGHING_KICKER) * all) {
       const foul: Foul = rush < RUNNING_INTO_KICKER * all ? 'runningIntoKicker' : 'roughingKicker';
-      const by = this.stCommitter(def);
+      const by = this.puntRusher(def);
       const yards = Math.min(FOULS[foul].yards as number, Math.floor((100 - this.yardLine) / 2));
       if (foul === 'roughingKicker' || this.yardLine + yards >= this.lineToGain) {
         this.flag(this.def, foul, by, 'accepted', yards);

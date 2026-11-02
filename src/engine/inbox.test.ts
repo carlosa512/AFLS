@@ -78,13 +78,16 @@ describe('inbox', () => {
   it('files one opposition report a week, however often it is delivered', () => {
     deliverMail(league);
     deliverMail(league);
-    // A new game opens with the owner's welcome and the head coach's rundown, then the week's report.
-    expect(league.inbox!.map((m) => m.id)).toEqual([
+    // A new game opens with the owner's welcome and the head coach's rundown, then the week's report (and whatever
+    // else the week brings: a coach meeting his old assistant, say).
+    const ids = league.inbox!.map((m) => m.id);
+    expect(ids.slice(0, 2)).toEqual([
       `owner:${league.season}:welcome:${league.userTeamId}:0`,
       `rundown:${league.season}:${league.userTeamId}:0`,
-      `matchup:${league.season}:1`,
     ]);
-    expect(unreadCount(league)).toBe(3);
+    expect(ids.filter((id) => id.startsWith('matchup:'))).toEqual([`matchup:${league.season}:1`]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(unreadCount(league)).toBe(ids.length);
   });
 
   it('keeps the report current without making it a management task', () => {
