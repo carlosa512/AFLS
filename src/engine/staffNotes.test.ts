@@ -190,6 +190,22 @@ describe('staff notes: the position coach on his unit', () => {
     expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 
+  it('no note when a room only goes from Settled to Tight: the report tells that', () => {
+    const l = inSeason();
+    setUnit(l, 'WR', 2);
+    expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
+  });
+
+  it('good news waits three weeks after the last word on any room; bad news does not', () => {
+    const l = inSeason();
+    told(l, 'WR', 'Split', -4);
+    told(l, 'QB', 'Settled', -1);
+    setUnit(l, 'WR', 0); // the receivers are back, but a room was told about last week
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+    splitUnit(l, 'OL'); // the line splitting is news this week all the same
+    expect(unitTurnFor(l, toldKeys(l))?.unit).toBe('OL');
+  });
+
   it('stays quiet when the room has no position coach', () => {
     const l = inSeason();
     splitUnit(l, 'WR');

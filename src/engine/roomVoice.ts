@@ -168,9 +168,10 @@ const U = (f: { unit: string; still?: boolean }) => `${cap(f.unit)} ${isAre(f.un
 const looks = (unit: string) => (SINGULAR.has(unit) ? 'looks' : 'look');
 const listens = (unit: string) => (SINGULAR.has(unit) ? 'listens' : 'listen');
 const it = (unit: string) => (SINGULAR.has(unit) ? 'it' : 'them');
-/** "Hill's" for "Hill is", but "Owens is": a contraction after a name ending in s doesn't read. */
-const isOf = (name: string | null) => (/s$/.test(name ?? '') ? `${name} is` : `${name}'s`);
-const hasOf = (name: string | null) => (/s$/.test(name ?? '') ? `${name} has` : `${name}'s`);
+/** "Hill's" for "Hill is", but "Owens is", "Chavez is": a contraction after a name ending in a hiss doesn't read. */
+const HISS = /[sxz]$/i;
+const isOf = (name: string | null) => (HISS.test(name ?? '') ? `${name} is` : `${name}'s`);
+const hasOf = (name: string | null) => (HISS.test(name ?? '') ? `${name} has` : `${name}'s`);
 const yearsIn = (n: number) => `${cap(inWords(n))} years`;
 const ordinal = (experience: number) => ORDINAL[experience] ?? 'Another';
 const feel = (f: UnitFact) => (f.cause ? `${feelFor(f.cause, f.causeCount ?? 'some of them')}.` : '');

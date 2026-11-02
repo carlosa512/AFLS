@@ -208,6 +208,9 @@ describe('the room in words: read by eye', () => {
             slot: word,
           }),
         ).not.toMatch(/James's/);
+    expect(say(UNIT_NOTE, unit({ setter: 'Chavez', pulling: 'down' }), { key: 'k', slot: 'u' })).not.toMatch(
+      /Chavez's/,
+    );
   });
 
   it("says a following isn't all good only when our read shows a man who stirs", () => {

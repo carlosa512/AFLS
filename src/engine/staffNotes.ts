@@ -32,6 +32,16 @@ const OPENER: readonly Line<{ calls: number; habits: number; units: number }>[] 
     text: () => 'A word from one of my position coaches on his guys.',
   },
   {
+    when: (f) => f.units > 0 && f.calls === 0 && f.habits === 0,
+    reads: 1,
+    text: () => 'My position coaches keep me posted on their rooms. This came up.',
+  },
+  {
+    when: (f) => f.units > 0 && f.calls === 0 && f.habits === 0,
+    reads: 1,
+    text: () => "Passing on something from the position coaches' room.",
+  },
+  {
     when: (f) => f.calls > 0 && f.habits > 0,
     reads: 2,
     text: () => 'Two things from the staff room this week: a call on the depth chart, and some habit work.',
@@ -177,10 +187,10 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
 export const NOTE_GAP = 3;
 
 /**
- * This week's turn in one of your rooms, if any, for the coach of that room to tell: a unit gone Split, Down or Tight
+ * This week's turn in one of your rooms, if any, for the coach of that room to tell: a unit gone Split or Down
  * since it was last told, or back from Split or Down. Measured against what was last told by a report or an earlier
- * note, so the two never repeat each other; never a unit told in the last three weeks, never a room with no coach.
- * One a week: Split before Down before a recovery before Tight.
+ * note, so the two never repeat each other; never a unit told in the last three weeks, never a room with no coach,
+ * and good news only when no room has been told about for three weeks. One a week: Split, then Down, then a recovery.
  */
 export function unitTurnFor(
   league: League,
@@ -191,13 +201,16 @@ export function unitTurnFor(
   // A letter builds its own context: it never reads a screen's cache.
   const ctx = moraleContext(league);
   const staff = teamCoaches(league, league.userTeamId);
+  // Good news waits until no room has been told about for three weeks: the inbox isn't a weekly mood ticker.
+  const lastWord = Math.max(-Infinity, ...[...memory.units.values()].map((u) => u.clock));
+  const goodNewsOpen = clock - lastWord >= NOTE_GAP;
   let best: { rank: number; view: UnitView; last: { word: UnitWord } | null; coachId: number } | null = null;
   for (const view of roomView(league, ctx).units) {
     const last = memory.units.get(view.unit) ?? null;
     if (last && (clock - last.clock < NOTE_GAP || last.word === view.word)) continue;
+    // A room back from Split or Down (Tight or not); a room only going Tight from Settled is the report's to tell.
     const recovered = !!last && (last.word === 'Split' || last.word === 'Down');
-    const rank =
-      view.word === 'Split' ? 0 : view.word === 'Down' ? 1 : recovered ? 2 : view.word === 'Tight' && last ? 3 : -1;
+    const rank = view.word === 'Split' ? 0 : view.word === 'Down' ? 1 : recovered && goodNewsOpen ? 2 : -1;
     if (rank < 0 || (best && best.rank <= rank)) continue;
     const coach = staff.find((c) => c.role === 'positionCoach' && c.room === view.unit);
     if (coach) best = { rank, view, last, coachId: coach.id };
