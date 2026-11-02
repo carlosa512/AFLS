@@ -293,7 +293,10 @@ describe('migration and collection', () => {
     // match, so the new traits cost no draw from the league's stream. `result` again with moods that matter (0.2.24):
     // the game-day edge moves play; the stream, players, games and charts still match, so it costs no draw. `result`
     // again with coaches' character (0.2.25): an adaptable coordinator bends his plan to his head coach's and a head
-    // coach's discipline scales flags; the stream, players, games and charts still match.
+    // coach's discipline scales flags; the stream, players, games and charts still match. Everything again with parity
+    // (0.2.36): a franchise's record lifts its starters only, backups roll deeper and a team's starter-roll luck is
+    // dealt back, and a player's ratings draw by his quality, so the stream, players, schedule and charts move with
+    // them; the passing game's shape and a team's day move the result.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -305,9 +308,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: 'a979f91370ea89de72689ffa5851d834210ae3e4c70d9c04929fafd03056b78c',
-  rng: [666865279, 3079305262, 4039765455, 1664101998],
-  games: '7d434cad09545c5d832fe11048921e57ab49f1d9807d05ae5b65df3aaa0a9978',
-  result: 'a0b5c7f03a7e9d3fe70342546b9a956309bd0015f43f381bd3b30a517606f225',
-  charts: '736837cb684778fb3965956ea01fc36726cc948ed00cd33c883ccd9bd78d4457',
+  players: '98d380fef857d6b9515405119f0949e6a758d17aeea86ade1fd52628b970fe28',
+  rng: [2055926919, 1351328155, 1663703320, 1664089055],
+  games: 'b5750e3006072f8ec3774d01e0d365791ba983fb2956f308a79e313658d7c909',
+  result: '4bcf0a084cddb87f21d74e2602676a508e4febd0013ce9631ea58759231593f4',
+  charts: 'ea1530379664eddf11b03072e7d7c56eaffeb8ab6ba77fcf5f46c52ca45bb0e0',
 };

@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.36',
+    date: '2026-11-01',
+    title: 'Any given Sunday',
+    text:
+      'Teams now have good days and bad ones, so upsets come about as often as in the real league, and a new league ' +
+      'starts as even as one that has played for years. Quarterbacks throw like today’s NFL too: mostly short, with ' +
+      'screens and checkdowns, fewer intermediate chain-movers, and the deep shot when it’s there. Play-callers differ ' +
+      'more, so some offenses throw far more than others, and a great passer’s accuracy counts in full. Front offices ' +
+      'act like real ones: they plan next year’s cap before they borrow, contenders spend and rebuilders save, they ' +
+      'tag the star they’d otherwise lose, and good veterans find a club by camp.',
+  },
+  {
     version: '0.2.35',
     date: '2026-11-01',
     title: 'Your gear, captains and rookies',

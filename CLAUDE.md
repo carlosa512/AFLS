@@ -45,7 +45,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run typecheck`
 - `npm run sim -- 10` — simulate 10 seasons and compare league stats to NFL averages, each season's
   top five (yards, TDs, catches, sacks, picks) to NFL leaders and records (`scripts/leaders.ts`), and
-  injury rates to the NFL's (`docs/INJURIES.md`). **Run this after any change to `src/engine/match/`
+  injury rates to the NFL's (`docs/INJURIES.md`); parity against the closing line (who wins, the margin around
+  strength, the win spread, with strength read weekly) and passing by depth against nflverse (average air yards and the
+  short, 10–19 and 20+ shares, from weeks 1 and 10 replayed). **Run this after any change to `src/engine/match/`
   or `injuries.ts` and keep stats inside the target ranges.** Leaders are noisy over 10 seasons:
   check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 30: over 10, the
   #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four.

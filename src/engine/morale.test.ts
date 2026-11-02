@@ -302,7 +302,9 @@ describe('morale: moving the mood', () => {
 
   it('walks a level toward its target and never out of range', () => {
     const l = createLeague({ seed: 'morale-walk' });
-    const p = activeRoster(l, 3)[0];
+    // A man with nothing to complain about: an unhappy one (an underpaid starter) speaks up on the way, and the talk
+    // (a promise made, then broken) moves his target, which this test holds still.
+    const p = activeRoster(l, 3).find((x) => Object.values(moraleFactors(l, x)).every((f) => f > -0.75))!;
     const target = moraleTarget(moraleFactors(l, p));
     p.morale = { level: target > 0 ? -10 : 10, jolts: [] };
     const start = moraleClock(l);

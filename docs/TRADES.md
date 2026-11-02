@@ -809,7 +809,7 @@ autopilot, and flag every number outside its range ▲/▼ (non-zero exit), like
 | Volume | AI trades in season (week 1 → deadline day) | 15–25 |
 | | Share on deadline day | 30–50% |
 | | Offseason (league year → camp) | 15–35 (*assumed*) |
-| | Draft day / with a first-round pick | 35–45 / 3–9 |
+| | Draft day / with a first-round pick | 28–45 / 3–9 (35–45 until 0.2.36: the NFL's run 28 in 2024 to 41–43 in 2023) |
 | | Division-rival trades | ≤ 5% |
 | Mix | Picks for a player | 55–80% |
 | | Swaps (player ↔ player, ± picks) | 5–15% |

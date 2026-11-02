@@ -40,7 +40,7 @@ import { evaluateTrade, judge } from './judge';
 import { quickValue } from './deals';
 import { acceptOffer, openOffers } from './offers';
 import { dealWatch, MINOR } from './market';
-import { tradeProblem, type TradeProposal } from './rules';
+import { playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
 import { goingRate, pickValue } from './value';
 
 /** One league played through a season and walked to draft day, cloned per test. */
@@ -473,7 +473,10 @@ describe('the cap and pick trades', () => {
     const { clock, later } = clockAnd(l, 3);
     l.caps[l.season] = 1000;
     expect(tradeProblem(l, swap(clock, later))).toBeNull();
-    const p = l.players[Object.values(l.players).find((x) => x.teamId === clock.ownerId && x.contract)!.id];
+    // A player who can be traded at all (not hurt or on IR), so the cap is the only thing that can stop the deal.
+    const p = Object.values(l.players).find(
+      (x) => x.teamId === clock.ownerId && x.contract && !playerTradeBlocker(l, x),
+    )!;
     const withPlayer: TradeProposal = {
       sides: [swap(clock, later).sides[0], { ...swap(clock, later).sides[1], players: [p.id] }],
     };
