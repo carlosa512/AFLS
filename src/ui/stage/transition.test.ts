@@ -15,6 +15,21 @@ describe('between plays', () => {
   const tr = transition(prev, next);
   const move = (id: number) => tr.moves.find((m) => m.id === id)!;
 
+  it('pulls a man up over a few steps after the whistle, not on the spot, and goes on from where he stopped', () => {
+    const fast = new Map<number, Mark>([[1, { ...mark(30, 20), vx: 8, vy: 0 }]]);
+    const t = transition(fast, { ids: [1], home: [true], pos: new Float32Array([40, 20]) });
+    const m = t.moves[0];
+    // Still carrying on just after it, a few yards on by the time he's stopped, and no jump when the beat ends.
+    expect(t.at(m, 0.1).x).toBeGreaterThan(30.6);
+    const stop = t.at(m, t.beat - 0.01).x;
+    expect(stop).toBeGreaterThan(32);
+    expect(stop).toBeLessThan(33);
+    expect(Math.abs(t.at(m, t.beat + 0.01).x - stop)).toBeLessThan(0.1);
+    // Never quicker than he was going.
+    for (let s = 0.05; s < t.beat; s += 0.05)
+      expect(t.at(m, s).x - t.at(m, s - 0.05).x).toBeLessThanOrEqual(8 * 0.05 + 1e-6);
+  });
+
   it('jogs everyone to his spot, then holds the formation before the snap', () => {
     const a = tr.at(move(1), tr.duration);
     expect([a.x, a.y]).toEqual([40, 20]);

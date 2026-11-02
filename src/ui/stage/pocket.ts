@@ -35,6 +35,8 @@ export interface PocketPlan {
   roll: boolean;
   /** The throw, the sack or the break out of the pocket. */
   throwAt: number;
+  /** Play action's back, the one who meets him at the mesh (set by the stager, who knows where everyone lined up). */
+  fakeBack?: number;
 }
 
 export interface PocketContext {
@@ -44,12 +46,17 @@ export interface PocketContext {
   hurry: boolean;
   /** Air yards past the line, on a throw that has them. */
   air: number | null;
-  /** The rusher the engine named, by his spot and his role. `across` is how far outside the ball he lined up. */
-  rusher?: { role: Role; across: number };
+  /**
+   * The rusher the engine named, by his spot and his role. `across` is how far outside the ball he lined up, `depth`
+   * how far off it, and `top` his speed (yards a second): a sack never comes before he could get there.
+   */
+  rusher?: { role: Role; across: number; depth?: number; top?: number };
   /** The earliest the ball can leave for the target's route to reach the catch with it (`throwWindow`). */
   minThrow: number;
   /** The defense sent a blitz: a sack comes quicker. */
   blitz?: boolean;
+  /** False when no back can get to the mesh in time (none in the backfield): no play action without one to fake to. */
+  fake?: boolean;
 }
 
 const DROPS: readonly Drop[] = [1, 3, 5, 7];
@@ -142,7 +149,8 @@ export function pocketPlan(e: PlayLogEntry, ctx: PocketContext, rng: Rng): Pocke
   const screen = ctx.air !== null && ctx.air < 0;
   const lean = ctx.scheme ? OFF_SCHEMES[ctx.scheme].playAction : 0;
   const early = e.down === 1 || e.down === 2;
-  const playAction = !ctx.hurry && !screen && rng.next() < (early ? PA_EARLY + PA_LEAN * lean : PA_LATE);
+  const playAction =
+    !ctx.hurry && !screen && rng.next() < (early ? PA_EARLY + PA_LEAN * lean : PA_LATE) && ctx.fake !== false;
   const throwing = e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int';
   const bootleg = playAction && throwing && !ctx.rusher && rng.next() < BOOTLEG;
   const pressure = !ctx.rusher
@@ -158,8 +166,11 @@ export function pocketPlan(e: PlayLogEntry, ctx: PocketContext, rng: Rng): Pocke
   let throwAt: number;
   if (e.kind === 'scramble')
     throwAt = Math.max(set + 0.4, range(rng, pressure === 'none' ? SCRAMBLE_OPEN : SCRAMBLE_PRESSURED));
-  else if (e.kind === 'sack') throwAt = Math.max(set + 0.3, sackTime(!!ctx.blitz, rng));
-  else {
+  else if (e.kind === 'sack') {
+    const r = ctx.rusher;
+    const home = r?.top ? Math.hypot(setDepth + (r.depth ?? 0), r.across) / r.top + 0.15 : 0;
+    throwAt = Math.max(set + 0.3, sackTime(!!ctx.blitz, rng), home);
+  } else {
     const base = CLEAN.find(([below]) => (ctx.air ?? 0) < below)![1];
     const t =
       base +
@@ -208,6 +219,18 @@ const keepIn = (p: Pt, ball: Pt, dir: 1 | -1): Pt => {
     y: Math.max(1, Math.min(FIELD_W - 1, p.y)),
   };
 };
+
+/**
+ * How far a back has to go to meet the quarterback at play action's mesh: the quarterback a step back and across to
+ * the back's side (`pocketPath`), the back a step in front of him with the ball in his belly (`script`).
+ */
+export function meshGap(back: Pt, qb: Pt, ballX: number, ballY: number, dir: 1 | -1): number {
+  const side = Math.sign(back.y - ballY) || 1;
+  const depth = Math.max((ballX - qb.x) * dir, 2.5) + 0.8;
+  const x = ballX - dir * depth + dir * 0.4;
+  const y = ballY + side * (1.3 + 0.9);
+  return Math.hypot(back.x - x, back.y - y);
+}
 
 /**
  * Where he goes with the ball, snap to throw (or the break of a scramble, or the sack): his keyframes after the
