@@ -74,8 +74,8 @@ interface OpenField {
 - `broke` is the yards-after-catch breakaway roll (`yac += exponential(22)`). `by` is the man who'd have made the tackle
   (`tackler` there), with `how` from the sign of `sizeEdge(receiver, 'contact', tackler)`.
 
-**Returns** decide only the yardage, so they get no `open`. A long return is staged as a lane and a race (§5), never
-an invented broken tackle.
+**Returns** decide only the yardage, so they get no `open`. They're staged as a lane and a pile (§5); a missed tackle
+shows only now and then on a long one (the owner's call: staging, seeded, never changing the result).
 
 **Save and compatibility:**
 - **Save:** `SAVE_VERSION` 81, with a `migrate.ts` step that changes nothing (the field is optional). `ran`, the play a
@@ -147,7 +147,11 @@ With no `broke`, nobody misses him visibly: the gain is the line's and his cut's
 - **The return's shape:** the return team sets a wall or a lane on the side the return goes, blocking the cover men
   nearest it.
 - **The returner:** he takes the ball, presses the lane, cuts upfield and runs.
-- **A long return:** the coverage's angles arrive late (speed, no invented misses).
+- **Most returns end in a pile** (owner's call, like most kickoffs): the tackler and one or two more cover men arrive
+  together and the returner goes down among them. No missed tackle.
+- **A long return** (30 yards or more, or a touchdown): now and then (about one in three, seeded) one cover man
+  misses him on the way, a juke or a cut past him, carrying on past as in 0.3.1. Otherwise the coverage's angles
+  arrive late.
 - **A return touchdown:** the kicker or the last man takes the last angle, a step short.
 - **Kickoffs:** coverage still waits for the ball to come down (0.3.1).
 
@@ -176,7 +180,8 @@ With no `broke`, nobody misses him visibly: the gain is the line's and his cut's
   - a run reaches the line between 2.3 and 3.5 s;
   - no unblocked defender stands still within 5 yards of the hole while the back goes through it;
   - a pulling guard crosses behind the line, never through it;
-  - returns never stage a missed tackle;
+  - a return under 30 yards never stages a missed tackle, and a long one stages one at most;
+  - most tackled returns end with two or more cover men within two yards of the returner at the whistle;
   - a `gone` run's safety never gets within a yard before the tackle.
 - **Engine test:** recording `open` changes nothing (the same game with and without it).
 
