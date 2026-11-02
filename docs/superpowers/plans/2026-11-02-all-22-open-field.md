@@ -7,8 +7,9 @@
 cuts, and each broken tackle the engine decided shown as one move against the man who missed.
 
 **Architecture:**
-- **The engine** writes down three run facts it already rolls, plus the after-catch breakaway (`PlayLogEntry.open`,
-  save v81). Nothing new is drawn.
+- **The engine** writes down the run facts it already rolls, the after-catch breakaway, and the film-visible habits
+  (quirks) it found in play (`PlayLogEntry.open`, save v81). Nothing new is drawn.
+- **A small `habits.ts`** turns those habits into staging knobs that the blocking, the carrier and the scripts read.
 - **The stager** turns them into ball-carrier path segments (moves are segments of the ball path, tagged on `Seg`),
   scripts the man who missed, the deep safety and the pile, and gives steer a blocking plan by the call (a new
   `runBlocks.ts`).
@@ -47,7 +48,9 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
    stage. Test in Task 4.
 4. **A move near a sideline or the goal line:** every move point stays inside the field (y 1…FIELD_W − 1, x −9…109).
    Test in Task 4 (geometry).
-5. **A QB designed run or a receiver's jet sweep with `open`:** the move is staged against the named man and the jet
+5. **A habit on a man who isn't in the play's cast** (a noted id the formation doesn't hold): it's ignored, nothing
+   throws. Test in Task 3 (`habitsOf` over a cast without him).
+6. **A QB designed run or a receiver's jet sweep with `open`:** the move is staged against the named man and the jet
    keeps its speed through the mesh (no dip under 5 yd/s between the snap and the handoff). Test in Task 4.
 
 ---
@@ -64,16 +67,23 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
   - `Anim` gains `'open'`;
   - `runPlay` (around the `bounce`, `pBreak`, breakaway and `finishesForward` rolls);
   - the completion branch of `passPlay` (around `yac += rng.exponential(22)`);
+  - `has()` notes `[p.id, q]` into a per-play list when it returns true for a quirk in `FILM_HABITS`; the list is
+    cleared as each play starts, and the run and catch branches attach it as `open.habits`;
   - `ranAnim` copies `result.open`;
   - both `ran = {…}` builders copy it like `loose`.
 - Modify: `src/engine/generate.ts`: `SAVE_VERSION = 81`.
 - Modify: `src/engine/migrate.ts`: `if (league.version < 81) league.version = 81;`, with a comment in the v78 style.
+- Modify: `src/engine/quirks.ts`: `export const FILM_HABITS: ReadonlySet<QuirkId>` (the 18 quirks of the spec's §3a
+  table).
 - Test: `src/engine/match/actors.test.ts`
 
 **Interfaces:**
 
 - Produces:
-  - `interface OpenField { bounce?: 1; broke?: { by: number; how: 'size' | 'move' }; gone?: 1; forward?: 1 }`
+  - `interface OpenField { bounce?: 1; broke?: { by: number; how: 'size' | 'move' }; gone?: 1; forward?: 1; habits?: [number, QuirkId][] }`
+  - `FILM_HABITS` (above): `patientPresser`, `dwellsInHole`, `jumpCutter`, `bouncesExternal`, `highKnee`,
+    `contactAverse`, `yacSlasher`, `runsEastWest`, `secondLevel`, `pancakePreacher`, `pullsSoft`, `armTackler`,
+    `gapShooter`, `scraper`, `thumper`, `stuckOnBlocks`, `slowFlow`, `misreadsKeys`.
   - `PlayLogEntry.open?: OpenField`, written only when at least one field is set.
 - On a run:
   - `broke.by` is the best-tackling linebacker `lb`;
@@ -92,6 +102,10 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
     - `how` is `'size'` or `'move'`;
     - no `open` on kicks, sacks, kneels or incompletions;
     - some catch carries `open.broke`.
+  - `it('notes the film habits in play, once each, and only habits the man has that day')`:
+    - every `[id, q]` in `open.habits` has `q` in `FILM_HABITS` and `activeQuirks(league.players[id])` includes `q`;
+    - no pair repeats within a play;
+    - over the 20 games at least one run notes a back's habit and one an `LB` habit.
   - `it('carries the run facts on a snap a flag wiped out')`:
     - for every entry with `ran?.kind === 'run'` and `ran.open`, `ran.open` deep-equals what the same rolls wrote
       (assert it has `broke` or `bounce` or `gone` or `forward`, and is never `{}`).
@@ -110,7 +124,7 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
 
 **Files:**
 
-- Create: `src/ui/stage/runBlocks.ts`
+- Create: `src/ui/stage/runBlocks.ts`, `src/ui/stage/habits.ts`
 - Modify:
   - `src/ui/stage/steer.ts` (the `if (a.dropback || a.run)` assignment block uses the plan on a run);
   - `src/ui/stage/stage.ts` (build the plan, pass it as `runBlocks` in steer's args, and script the puller);
@@ -147,8 +161,21 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
     - **Free-man rule:** an unblocked defender (not excluded) within reach of the hole is given the nearest spare
       offensive man (the puller, a climbing lineman, a lead back, a TE or WR) that can reach him before the back
       reaches the hole at its own `SPEED`. If none can, he's listed in `free`.
+- Produces (`habits.ts`):
+  - `function habitsOf(e: PlayLogEntry, onField: ReadonlySet<number>): Map<number, Set<QuirkId>>`, read from
+    `e.open?.habits` (or `e.ran?.open?.habits`). Ids not on the field are dropped. Empty for older games.
+  - `const has = (h: ReadonlyMap<number, ReadonlySet<QuirkId>>, id: number | undefined, q: QuirkId): boolean`
+- Habits:
+  - `secondLevel`: his `climb` starts 0.6 s after the handoff, not 1.0;
+  - `pancakePreacher`: his `steps` target is 1.5 yd further upfield (he drives his man);
+  - `pullsSoft`: the puller's path stops 1 yd short of the hole and he's put `on` the first defender there;
+  - `gapShooter` (LB): never put in `on` for the first 0.6 s; his early goal is 1.5 yd into the backfield in his gap;
+  - `scraper` (LB): his early goal moves laterally toward `side` 3 yd before he comes downhill;
+  - `stuckOnBlocks` (LB): once within 1.6 yd of a blocker he stays engaged until the whistle;
+  - `slowFlow` (LB): holds his spot until 0.4 s after the handoff;
+  - `misreadsKeys` (LB): his first 0.4 s goes 1 yd away from `side`.
 - Steer consumes:
-  - `SteerArgs.runBlocks?: RunBlocking`;
+  - `SteerArgs.runBlocks?: RunBlocking` and `SteerArgs.habits?: ReadonlyMap<number, ReadonlySet<QuirkId>>`;
   - on a run, `on` and `climb` replace the nearest-man picks;
   - `steps` are the goal for t < 0.5 s;
   - a man in `free` pursues as today (an angle that arrives late), never standing still.
@@ -161,6 +188,10 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
     `(ball.x − p.x) × dir ≥ 1`.
   - `it('never blocks the tackler or the man who misses')`: no `on` value is in `exclude`.
   - `it('gives every free man a blocker who can get there first, or lists him free')`
+  - `it('shows each line and linebacker habit')`: for each of `secondLevel`, `pancakePreacher`, `pullsSoft`,
+    `gapShooter`, `scraper`, `stuckOnBlocks`, `slowFlow`, `misreadsKeys`, the same run staged with the habit on the
+    man and without moves his path the way the table above says (e.g. `slowFlow`: under 0.5 yd moved by 0.4 s after
+    the handoff with it, over 1 yd without).
 - [ ] **Step 2: Write the failing stage tests** (`stage.test.ts`, `describe('the run game')`):
   - `it('leaves no unblocked defender standing within 5 yards of the hole as the back goes through')`: within ±0.5 s
     of the back crossing the line, every defender within 5 yd of `hole` is either within 1.6 yd of a blocker, moving
@@ -188,8 +219,13 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
 
 - Produces:
   - `type MoveKind = 'juke' | 'jumpCut' | 'spin' | 'runThrough' | 'stiffArm'`
-  - `function pickMove(how: 'size' | 'move', rng: Rng): MoveKind`: size → runThrough 0.5 / stiffArm 0.5; move →
-    juke 0.5, jumpCut 0.2, spin 0.3.
+  - `function pickMove(how: 'size' | 'move', carrier: ReadonlySet<QuirkId>, missed: ReadonlySet<QuirkId>, rng: Rng): MoveKind`.
+    The habits come first:
+    - a `contactAverse` back never gets `runThrough` or `stiffArm`: a `size` break becomes a `juke`;
+    - a `move` break by a `jumpCutter` is a `jumpCut`;
+    - a `move` break by a `highKnee` back, or against an `armTackler`, is a `runThrough`.
+
+    Otherwise: size → runThrough 0.5 / stiffArm 0.5; move → juke 0.5, jumpCut 0.2, spin 0.3.
   - `function moveSegs(kind: MoveKind, at: Pt, heading: Pt, pace: number, side: 1 | -1): Seg[]`, the carrier's path
     through the move, starting and ending on his line of run, every segment tagged `move: kind`. Each move's shape:
 
@@ -209,6 +245,8 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
     line, every point is inside the field, and no segment is faster than `pace + 0.01`.
   - `it('slows the carrier through a run-through and a spin, not through a juke')`
   - `it('picks size moves for size and footwork for the rest, the same way every time')`
+  - `it('lets the habits pick: a jump-cutter jump-cuts, an arm tackle is run through, a contact-averse back never
+    runs through')`
 - [ ] **Step 2:** Run `npx vitest run src/ui/stage/carrier.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** `carrier.ts`. It's pure, with no stage imports beyond `ballPath` and `formations` types.
 - [ ] **Step 4:** Run the same command. Expected: PASS. Then `npm run typecheck`.
@@ -219,7 +257,7 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
 **Files:**
 
 - Modify: `src/ui/stage/scripts.ts`:
-  - `stagedPath` takes an options object: `stagedPath(e, homeId, snapY, opts?: { receiverAt?: Pt; pocket?: readonly Keyframe[]; top?: number; chaser?: number; seed?: string })`.
+  - `stagedPath` takes an options object: `stagedPath(e, homeId, snapY, opts?: { receiverAt?: Pt; pocket?: readonly Keyframe[]; top?: number; chaser?: number; seed?: string; carrier?: ReadonlySet<QuirkId>; missed?: ReadonlySet<QuirkId>; tackler?: ReadonlySet<QuirkId> })`.
     Update its callers in `stage.ts` and the four in `stage.test.ts`.
   - `stageCarried`'s run branch: the press to the hole, the cut, the move inserted, and `forward`.
   - `script()`: the man who missed, the deep safety on `gone`, the tackler on `forward`.
@@ -240,7 +278,8 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
 - **The move:**
   - With `open.broke`, the carry leg is split at a point 4–6 yd past the line (seeded) for a run, or
     `min(4, 0.3 × yac)` past the catch.
-  - `moveSegs(pickMove(how, rng), …)` is inserted there, with `side` chosen away from `broke.by`'s side.
+  - `moveSegs(pickMove(how, opts.carrier, opts.missed, rng), …)` is inserted there, with `side` chosen away from
+    `broke.by`'s side.
   - The defender `broke.by`:
     - is scripted with `intoTheHit` to a point 1 yd off the move's start on his side, arriving at the move's start
       time;
@@ -253,6 +292,13 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
   carrier's path at the moment the carrier passes his depth, then freed.
 - **`forward`:** the last carry leg ends with a 1-yard lunge lasting 0.35 s. The tackler's hit lands at the lunge's
   start (`intoTheHit` to that point and time), then rides with him to `to`.
+- **The back's and the tackler's habits** (`opts.carrier`, `opts.tackler`):
+  - `patientPresser`: `TLOS` + 0.3 s;
+  - `dwellsInHole`: a 0.3 s beat at no more than 3 yd/s at the hole, before the cut;
+  - `jumpCutter`: the cut at the hole is `moveSegs('jumpCut', …)` (untagged: it isn't a broken tackle);
+  - `bouncesExternal`: a bounce's cut goes 2 yd wider;
+  - `contactAverse` (the back) or `thumper` (the tackler): no `forward` lunge even when `open.forward` is set, and with
+    `contactAverse` the hit comes 1 yd short of `to`, the pair sliding into it.
 
 - [ ] **Step 1: Write the failing tests** (`stage.test.ts`, `describe('the run game')`):
   - `it('crosses the line between 2.3 and 3.5 s on every handed-off run')`
@@ -263,6 +309,9 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
   - `it('stages a run with no open (an old game) without a move')`: strip `open` and assert there's no `move` seg.
   - `it('stages a broken tackle that ends in a fumble: the move first, then the ball out')`
   - `it('keeps a jet sweep at speed through the handoff')`
+  - `it('shows each back and tackler habit')`: the same run staged with each of `patientPresser`, `dwellsInHole`,
+    `jumpCutter`, `bouncesExternal`, `contactAverse`, `thumper` in the opts and without them moves the beat the way
+    the table above says (e.g. `patientPresser` crosses the line 0.2–0.4 s later).
   - `it('keeps the safety a step behind on a breakaway')`: on `gone` runs, the chosen safety never gets within 1 yd
     of the carrier before the whistle, unless he's the tackler.
 - [ ] **Step 2:** Run `npx vitest run src/ui/stage/stage.test.ts -t "run game"`. Expected: FAIL.
@@ -295,6 +344,10 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
 **Interfaces:**
 
 - **The catch:** a hitch or curl turns back to the ball first. Upfield within 0.4 s after the catch.
+- **The receiver's habits** (`opts.carrier` on a catch):
+  - `yacSlasher`: upfield within 0.2 s;
+  - `runsEastWest`: his first 0.6 s after the catch goes sideways (at least 2 yd across, under 1 yd on), then upfield.
+  - The tackler's `thumper` (as Task 4).
 - **The pile:** on a tackled return (not a touchdown or a fair catch), the two cover men nearest the end spot at
   `catchAt` (excluding the tackler) are scripted with `intoTheHit` to points 1.5 yd from the returner's end, at
   ±60° from the tackler's side, arriving at the whistle. A kickoff never leaves before the ball's down (`floor`).
@@ -311,6 +364,7 @@ cuts, and each broken tackle the engine decided shown as one move against the ma
   - `it('never stages a miss on a return under 30 yards, and at most one on a long one')`
   - `it('keeps the last man a step behind on a return touchdown')`: he never gets within 1 yd of the returner.
   - `it('turns a catch upfield and stages its broken tackle as a move')`
+  - `it('shows the receiver's habits: a slasher turns at once, an east-west runner goes sideways first')`
 - [ ] **Step 2:** Run `npx vitest run src/ui/stage/stage.test.ts -t "special teams|run game"`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** Run the stage suite, `npm run typecheck` and `npm run film -- 50`. Expected: PASS, and 0 outside

@@ -60,6 +60,8 @@ interface OpenField {
   gone?: 1;
   /** He fell forward for the extra yard (`finishesForward`). */
   forward?: 1;
+  /** The habits that were in play: [player id, quirk], for the film-visible quirks the engine checked and found (§3a). */
+  habits?: [number, QuirkId][];
 }
 ```
 
@@ -69,6 +71,10 @@ interface OpenField {
   edge (`contact`) was in the back's favour, and `move` otherwise.
 - `gone` is the second breakaway roll (past the safety).
 - `forward` is the `finishesForward` yard.
+
+**Habits** (`habits`): during the play, every time the engine asks whether a player has a quirk (`has()`) and he does,
+and the quirk is one film can show (§3a), it's noted as `[id, quirk]`, once each. The engine's quirk sets are fixed for
+the game, so a replay shows the habits he had that day, not the ones he has now. Nothing is drawn; `has()` already ran.
 
 **After a catch:**
 - `broke` is the yards-after-catch breakaway roll (`yac += exponential(22)`). `by` is the man who'd have made the tackle
@@ -123,7 +129,7 @@ A run is staged in beats, each timed so the whole thing still ends at the engine
 4. **The broken tackle** (`open.broke`), against the man who missed, where they meet:
    - **move:** a juke (one sharp side-step as the defender commits to where he was), a jump cut (a quick two-yard
      lateral hop at low speed), or a spin (a tight half-loop through the contact point, his
-     speed dipping to a jog). The stager picks among them seeded, with fixed shares (it sees the field record, not the players' habits).
+     speed dipping to a jog). The back's habits pick it where they speak (§3a), otherwise a seeded pick with fixed shares.
    - **size:** a run-through or a stiff arm. The back slows for a beat at contact and the defender is driven back a
      yard or two, off his line, then goes down.
    - The defender carries on past and goes down, as in 0.3.1.
@@ -134,6 +140,35 @@ A run is staged in beats, each timed so the whole thing still ends at the engine
    - **Out of bounds:** he angles to the sideline.
 
 With no `broke`, nobody misses him visibly: the gain is the line's and his cut's, and the tackle comes at the end.
+
+## 3a. Habits on film
+
+The quirks the engine reads on a run or a catch, shown the way a scout would see them on tape: by how the man moves,
+never a label on the field (so the fog of war holds: the film shows what happened; the screens still say only what
+our scouts have read). Each one leans a beat of the play, seeded, and only when the engine noted it (`habits`):
+
+| Who                 | Habit (quirk)     | On film                                                                        |
+| ------------------- | ----------------- | ------------------------------------------------------------------------------ |
+| Back                | `patientPresser`  | a longer press (about 0.3 s more to the line), then he hits it                 |
+| Back                | `dwellsInHole`    | a stutter at the hole, a beat at a jog, looking for the big one                |
+| Back                | `jumpCutter`      | his cut at the hole is a jump cut, and a `move` break is a jump cut            |
+| Back                | `bouncesExternal` | a harder, wider bounce                                                         |
+| Back                | `highKnee`        | a `move` break is a run-through of an ankle tackle (he doesn't slow)           |
+| Back                | `contactAverse`   | never a run-through or stiff arm; he goes down a step early, no lunge          |
+| Receiver            | `yacSlasher`      | upfield the moment he catches it (a 0.2 s turn)                                |
+| Receiver            | `runsEastWest`    | sideways first after the catch, looking for room                               |
+| Lineman             | `secondLevel`     | climbs early (0.6 s after the handoff, not 1.0) and seals his linebacker       |
+| Lineman             | `pancakePreacher` | drives his man back a yard or two                                              |
+| Lineman             | `pullsSoft`       | pulls into traffic: engages the first man short of the hole                    |
+| Defensive lineman   | `armTackler`      | as the man who misses, he reaches with an arm and the back runs through it     |
+| Linebacker          | `gapShooter`      | shoots his gap at the snap, into the backfield                                 |
+| Linebacker          | `scraper`         | flows sideways over the top, through the traffic                               |
+| Linebacker          | `thumper`         | as the tackler, stops the back dead: no forward lunge                          |
+| Linebacker          | `stuckOnBlocks`   | once a blocker has him, he stays blocked                                       |
+| Linebacker          | `slowFlow`        | a beat late (about 0.4 s) to move after the handoff                            |
+| Linebacker          | `misreadsKeys`    | his first step goes the wrong way, then he corrects                            |
+
+Older games (no `habits`) stage none of them.
 
 ## 4. After the catch
 
@@ -165,6 +200,7 @@ With no `broke`, nobody misses him visibly: the gain is the line's and his cut's
 | Broken tackles shown                     | exactly the engine's: one move per `broke` | the engine (`open`)                                   |
 | Missed tackles per touch                 | reported, not judged: the engine sets it   | SIS about 0.18 per RB touch (FantasyPros, 2021)       |
 | Nobody faster than his legs              | as 0.3.1                                   | the stage test                                        |
+| Each habit shows                         | every habit in §3a moves its beat the right way when present | a stage test, the same play with and without it |
 | A defender stopping dead in the open     | under 1 per 50 plays                       | the stop counter from 0.3.1's work: from 5+ yd/s to under 1.2 within 0.3 s, nobody within 2.2 yards |
 
 ## 7. Checks
