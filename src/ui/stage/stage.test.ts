@@ -1176,3 +1176,59 @@ describe('the pattern', () => {
     });
   });
 });
+
+describe('screens and throwaways', () => {
+  const all = games.flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'incomplete')) return [];
+      return [
+        {
+          e,
+          p: stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `sc${i}`, snapY: 26 }),
+        },
+      ];
+    }),
+  );
+  const P = (p: StagedPlay, k: number, st: number) => ({
+    x: p.pos[(st * 22 + k) * 2],
+    y: p.pos[(st * 22 + k) * 2 + 1],
+  });
+
+  it('leads a screen to the back with the line: two or more linemen past the line, on its side, by the catch', () => {
+    let n = 0;
+    for (const { e, p } of all) {
+      const target = actorsIn(e).ball;
+      if (p.pattern?.route !== 'screen' || target === undefined || p.arrive === null) continue;
+      const t = p.ids.indexOf(target);
+      if (p.roles[t] !== 'RB' && p.roles[t] !== 'TE') continue;
+      // Out in front as he gets going: just after the catch.
+      const st = Math.min(p.steps - 1, Math.round((p.arrive + 0.6) / p.dt));
+      const catchAt = P(p, t, Math.min(p.steps - 1, Math.round(p.arrive / p.dt)));
+      // Its side, for a screen out to one: up the middle the lead blockers fan out both ways.
+      const side = Math.abs(catchAt.y - p.ball[1]) > 3 ? Math.sign(catchAt.y - p.ball[1]) : 0;
+      const leading = p.ids
+        .map((_, k) => k)
+        .filter((k) => p.offense[k] && p.roles[k] === 'OL')
+        .filter(
+          (k) => (P(p, k, st).x - p.ball[0]) * p.dir > 0 && (side === 0 || (P(p, k, st).y - p.ball[1]) * side > -1),
+        );
+      expect(leading.length, e.text).toBeGreaterThanOrEqual(2);
+      n++;
+    }
+    expect(n).toBeGreaterThan(3);
+  });
+
+  it('throws a throwaway out of bounds, downfield on the side he rolled to', () => {
+    let n = 0;
+    for (const { e, p } of all) {
+      if (!/throws it away/.test(e.text) || !p.pocket) continue;
+      const last = p.steps - 1;
+      const y = p.ball[last * 3 + 1];
+      expect(y < 0 || y > FIELD_W, e.text).toBe(true);
+      expect((p.ball[last * 3] - p.ball[0]) * p.dir).toBeGreaterThan(5);
+      n++;
+    }
+    expect(n).toBeGreaterThan(5);
+  });
+});

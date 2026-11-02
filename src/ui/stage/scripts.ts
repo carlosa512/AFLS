@@ -94,6 +94,8 @@ const MESH = 0.8;
 const ROUTE_PACE = 8.5;
 /** The engine's beaten block is acted out when the two lined up within this many yards of each other across the field. */
 export const BEAT_ACROSS = 6;
+/** A throwaway lands this far past the line, out of bounds. */
+const THROWAWAY_DOWNFIELD = 12;
 /** A sack's last stagger to the spot, yards a second at most. */
 const SACK_PACE = 5;
 /** Before a scramble breaks out. */
@@ -207,6 +209,9 @@ function stageCarried(
     const { air: aimed, run } = flightAndRoute(e, homeId, snapY, receiverAt);
     let air = aimed;
     if (air && segs[2] && air.y1 !== segs[1].y1) segs[2] = { ...segs[2], y0: air.y1 };
+    // Thrown away: past everyone, a dozen yards down and over the sideline the play went to.
+    if (air && /throws it away/.test(e.text))
+      air = { ...air, x1: e.from + dir * THROWAWAY_DOWNFIELD, y1: air.y1 > FIELD_W / 2 ? FIELD_W + 2.5 : -2.5 };
     if (pocket?.length && air) {
       // His pocket, then the throw from wherever it left him.
       const from = pocket[pocket.length - 1];

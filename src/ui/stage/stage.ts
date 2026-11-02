@@ -239,6 +239,14 @@ export function stagePlay(args: {
     settle: scripted.settle,
     stalk: scripted.stalk,
     target: pattern ? who.ball : null,
+    // A screen to the back or the tight end: the line leads it (a bubble out wide is the receivers' to block).
+    screen:
+      pattern?.route === 'screen' &&
+      land &&
+      who.ball !== undefined &&
+      cast.offense.some((m) => m.id === who.ball && (m.role === 'RB' || m.role === 'TE'))
+        ? land
+        : null,
     arrive: passArrives(e, segs),
     separation: pattern?.separation,
     dropback: !!e.kind && DROPBACKS.has(e.kind),

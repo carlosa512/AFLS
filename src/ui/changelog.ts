@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.45',
+    date: '2026-11-02',
+    title: 'Routes',
+    text:
+      'Receivers now run real routes in All-22, as plays drawn up together: smash, flood, mesh, four verticals, ' +
+      'curl-flat, stick and more, leaning on what each offense likes. The man the ball goes to runs the route that ' +
+      'fits his catch, with a stem, a hard plant and a break, and everyone else runs his part and settles where it ' +
+      'ends. Wide receivers line up on the numbers. Man coverage is a step late out of a break, and receivers are as ' +
+      'open at the catch as the NFL’s are. On a screen to the back the line sells the pass, then leads the way, ' +
+      'and a throwaway sails out of bounds downfield.',
+  },
+  {
     version: '0.2.44',
     date: '2026-11-02',
     title: 'The pocket',
