@@ -14,7 +14,6 @@ import { employed } from './employment';
 import { activeRoster } from './roster';
 import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player } from './types';
 import { DISPUTE_LABEL, DISPUTE_PUBLIC, DISPUTE_SAID, disputeStanding } from './disputeVoice';
-import { setTradeStatus } from './trade/offers';
 
 export { aiSettle } from './offseason/ai';
 export { promisedDeal } from './disputeRead';
@@ -161,8 +160,8 @@ function yourDispute(league: League, p: Player | undefined): Dispute | undefined
 
 /**
  * Your answer to a dispute's letter. A promise of a deal (by week 1, or two weeks on in season) ends it, and broken
- * starts it again at once; negotiate, firm and shop are recorded (negotiate opens his contract talks on the screen; shop
- * puts him on your trade block). False unless he's yours, it's open and unanswered, and the answer fits: a promise needs
+ * starts it again at once; negotiate, firm and shop are recorded (negotiate opens his contract talks on the screen; the shop
+ * button puts him on your trade block). False unless he's yours, it's open and unanswered, and the answer fits: a promise needs
  * his trust, and refusing is for a trade request.
  */
 export function answerDispute(league: League, playerId: number, choice: DisputeChoice): boolean {
@@ -178,8 +177,9 @@ export function answerDispute(league: League, playerId: number, choice: DisputeC
     endDispute(league, p, 'promise', clock);
     return true;
   }
+  // Shop him: the letter's button lists him too (`answerDisputeLetter` in `ui/mail.tsx`); the trade market isn't
+  // imported here, so this module loads before it.
   d.answered = { choice, at: clock };
-  if (choice === 'shop') setTradeStatus(league, p.id, 'listed');
   return true;
 }
 

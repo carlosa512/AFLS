@@ -5,7 +5,7 @@ import { answerDispute } from '../engine/disputes';
 import { createLeague } from '../engine/generate';
 import { deliverMail } from '../engine/inbox';
 import { activeRoster } from '../engine/roster';
-import { MailCards } from './mail';
+import { MailCards, answerDisputeLetter } from './mail';
 import { NavContext, type Nav } from './nav';
 import { LockerRoom } from './screens/LockerRoom';
 import { PlayerCard } from './screens/PlayerCard';
@@ -54,6 +54,15 @@ describe('a dispute’s letter (G4)', () => {
     const html = render(<MailCards league={l} message={m} />);
     expect(html).toContain('You held firm');
     expect(html).not.toContain('Shop him');
+  });
+
+  it('puts him on your trade block when you shop him, and only then', () => {
+    const shop = holdout();
+    answerDisputeLetter(shop.l, shop.p.id, 'shop');
+    expect(shop.l.market?.status[shop.p.id]).toBe('listed');
+    const firm = holdout();
+    answerDisputeLetter(firm.l, firm.p.id, 'firm');
+    expect(firm.l.market?.status[firm.p.id]).toBeUndefined();
   });
 });
 
