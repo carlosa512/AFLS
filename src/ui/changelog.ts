@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.38',
+    date: '2026-11-02',
+    title: 'Long careers stay quick',
+    text:
+      'Nothing changes in play. Finding a club’s players no longer means reading every player the league has ever ' +
+      'had, retired ones too, so long careers slow down less: five seasons play about a tenth faster, and the gap ' +
+      'grows the longer a career runs.',
+  },
+  {
     version: '0.2.37',
     date: '2026-11-02',
     title: 'Fewer sulkers',

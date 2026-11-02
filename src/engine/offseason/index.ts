@@ -41,7 +41,7 @@ import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
-import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
@@ -172,7 +172,7 @@ export function beginOffseason(league: League): void {
             `${league.teams[p.teamId].abbrev} ${p.position} ${p.firstName} ${p.lastName} retired${head > body ? ' (concussions)' : worn > 0 ? ' (injuries)' : ''}`,
           );
       }
-      p.teamId = null;
+      setTeam(league, p, null);
       p.contract = null;
       p.retired = true;
       // A retired player keeps his record (stats, awards, injuries, draft, habits) and his last ratings for his card;
@@ -295,7 +295,7 @@ function openFreeAgency(league: League): void {
   for (const p of Object.values(league.players)) {
     if (p.teamId === null || !p.contract || !isExpired(p.contract, league.season)) continue;
     accelerateProration(league, p, p.teamId);
-    p.teamId = null;
+    setTeam(league, p, null);
     p.contract = null;
   }
   for (const team of league.teams) syncDepthChart(league, team);

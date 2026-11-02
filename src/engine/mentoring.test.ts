@@ -15,7 +15,7 @@ import {
   standingFactor,
   takes,
 } from './mentoring';
-import { activeRoster } from './roster';
+import { activeRoster, setTeam } from './roster';
 import type { Player, Traits } from './types';
 
 const league = createLeague({ seed: 'mentoring' });
@@ -133,7 +133,7 @@ describe('mentoring: pairs and seasons', () => {
     const kid = Object.values(l.players).find((p) => p.mentor !== undefined)!;
     const vet = l.players[kid.mentor!];
     const owed = mentorShift(l, vet, kid, kid.mentorWeeks!);
-    vet.teamId = (vet.teamId! + 1) % 32;
+    setTeam(l, vet, (vet.teamId! + 1) % 32);
     mentoringWeek(l);
     mentoringWeek(l);
     expect(kid.mentor === undefined || kid.mentor !== vet.id).toBe(true);

@@ -5,7 +5,7 @@
 import { noteDeparture } from '../relationships';
 import { STARTERS } from '../positions';
 import { clamp, type Rng } from '../rng';
-import { onGameRoster, teamPlayers } from '../roster';
+import { onGameRoster, setTeam, teamPlayers } from '../roster';
 import type { Contract, League, Phase, Player, Team, Transaction } from '../types';
 import { OFFSEASON_PHASES, POSITIONS } from '../types';
 import {
@@ -224,7 +224,7 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (team.taggedId === player.id) team.taggedId = null;
   player.tagCount = 0; // a later tag elsewhere is not a consecutive one
   logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`);
-  player.teamId = null;
+  setTeam(league, player, null);
   player.contract = null;
   return preview;
 }

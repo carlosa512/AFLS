@@ -42,6 +42,7 @@ import { acceptOffer, openOffers } from './offers';
 import { dealWatch, MINOR } from './market';
 import { playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
 import { goingRate, pickValue } from './value';
+import { setTeam } from '../roster';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
@@ -140,7 +141,7 @@ describe('save v60', () => {
     const prospects = l.draftClass.map((id) => l.players[id]).slice(0, 2);
     used.forEach((pk, i) => {
       pk.playerId = prospects[i].id;
-      prospects[i].teamId = pk.ownerId;
+      setTeam(l, prospects[i], pk.ownerId);
       prospects[i].draft = { season: l.season, round: pk.round, pick: pk.overall!, teamId: pk.ownerId };
     });
     used[0].originalTeamId = team.id === used[0].ownerId ? mine.ownerId : team.id;

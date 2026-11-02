@@ -5,6 +5,7 @@ import { mentoringWeek } from './mentoring';
 import { noteDeparture, speaksOut } from './relationships';
 import { recapAside } from './lockerMail';
 import type { League, Player } from './types';
+import { setTeam } from './roster';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
 
@@ -31,7 +32,7 @@ describe('locker room letters', () => {
     }
     expect(loud).toBeDefined();
     noteDeparture(l, loud!, l.userTeamId, 'traded');
-    loud!.teamId = (l.userTeamId + 1) % 32;
+    setTeam(l, loud!, (l.userTeamId + 1) % 32);
     const quiet = ours.find((p) => p !== loud)!;
     quiet.traits = { ...quiet.traits, controversy: 5 };
     noteDeparture(l, quiet, l.userTeamId, 'cut');

@@ -2,7 +2,7 @@ import { rollGem, toCurve } from '../size';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer, SAVE_VERSION } from '../generate';
 import { Rng } from '../rng';
-import { activeRoster, practiceSquad, syncDepthChart } from '../roster';
+import { activeRoster, addPlayer, practiceSquad, syncDepthChart } from '../roster';
 import { capSpace, releasePlayer } from '../finance/cap';
 import { playGame, recordResult, startLiveGame } from '../league';
 import { simulateGame } from '../match/gameSim';
@@ -61,7 +61,7 @@ function player(pos?: Position): Player {
   p.contract = null;
   p.experience = 0;
   p.service = initialService(0, 2025);
-  l.players[p.id] = p;
+  addPlayer(l, p);
   acceptSquadOffer(l, { teamId: g.homeId, playerId: p.id, weeklyPay: 13.75 });
   return p;
 }
@@ -101,7 +101,7 @@ describe('temporary call-ups and durable history', () => {
     planElevation(l, p, g);
     const extra = structuredClone(activeRoster(l, g.homeId)[0]);
     extra.id = l.nextPlayerId++;
-    l.players[extra.id] = extra; // 54 on the 53
+    addPlayer(l, extra); // 54 on the 53
     expect(() => preparePersonnelGame(l, g)).toThrow(/cut down to 53/);
     expect(g.personnel?.elevationsFiled).toBeUndefined();
     cancelElevation(l, p, g);

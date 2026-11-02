@@ -5,7 +5,7 @@ import { beginOffseason } from '../offseason';
 import { cutChoice } from '../offseason/ai';
 import { ROSTER_MAX } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
-import { activeRoster } from '../roster';
+import { activeRoster, setTeam } from '../roster';
 import type { League } from '../types';
 import { judge, tradeContext } from '.';
 import { dumpFor, pickSwapFor } from './deals';
@@ -58,7 +58,7 @@ describe('trades before a cut', () => {
       .filter((y) => y.position !== 'WR')
       .sort((a, b) => playerOvr(a) - playerOvr(b))
       .slice(0, 20)) {
-      x.teamId = 4;
+      setTeam(l, x, 4);
       x.contract = null;
     }
     // The old charge was a roster spot (15 points) for every body over 53: 300 here. The extra bodies can still

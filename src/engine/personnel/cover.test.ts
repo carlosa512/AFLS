@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague, generatePlayer } from '../generate';
 import { freeAgents } from '../offseason/negotiation';
-import { activeRoster, isAvailable, practiceSquad, slotOf } from '../roster';
+import { activeRoster, addPlayer, isAvailable, practiceSquad, slotOf } from '../roster';
 import { perceive } from '../scouting';
 import type { Injury, League, Player } from '../types';
 import type { Elevation } from './types';
@@ -87,7 +87,7 @@ describe('AI cover uses the practice squad', () => {
       jerseysUsed: new Set(),
     });
     fa.contract = null;
-    l.players[fa.id] = fa;
+    addPlayer(l, fa);
     for (const k of Object.keys(fa.ratings) as (keyof Player['ratings'])[]) fa.ratings[k] = 20;
     fa.injury = undefined;
     expect(perceive(l, team, fa).ovr).toBeGreaterThan(10);

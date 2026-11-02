@@ -35,6 +35,7 @@ import {
   trueQuirkWorth,
 } from './scouting';
 import type { Player } from './types';
+import { addPlayer } from './roster';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
@@ -132,7 +133,7 @@ describe('quirks', () => {
       ).toEqual(Object.keys(p.quirks ?? {}).sort());
     // A late-round prospect nobody has scouted: a name on a list.
     const unseen = { ...player(3, 21, 0), scouting: { grade: 6, ceiling: 8 } };
-    league.players[unseen.id] = unseen;
+    addPlayer(league, unseen);
     expect(knowledge(league, me, unseen)).toBeLessThan(QUIRK_KNOWLEDGE);
     expect(quirkNotes(league, me, unseen)).toEqual({ known: false, notes: [] });
     for (const p of Object.values(league.players).slice(0, 400))
@@ -155,7 +156,7 @@ describe('quirks', () => {
     expect(quirkWorth(league, me, mine)).toBeGreaterThanOrEqual(-0.9);
     // A prospect nobody has scouted: his habits count for nothing yet.
     const unseen = { ...player(4, 21, 0), scouting: { grade: 6, ceiling: 8 }, quirks: { staresDown: 3 } };
-    league.players[unseen.id] = unseen;
+    addPlayer(league, unseen);
     expect(quirkWorth(league, me, unseen)).toBe(0);
     expect(trueQuirkWorth(unseen)).toBeLessThan(0);
   });

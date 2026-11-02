@@ -138,6 +138,15 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
 
+## Follow-up: what the speed pass left (0.2.38)
+
+- [ ] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
+      for each free agent are worked out again on every free-agency day and both late passes (7–9 times an
+      offseason), though most don't change between days: 10–15% of a multi-season league. A club's win-now lean does
+      change as it signs, so a cache must key on what each read uses, proven by an unchanged league fingerprint.
+- Considered and left (the owner's call): slimming retired players further. Retirement already drops what only a
+  developing player needs; traits, personality and combine stay for the card (about 13% of a save at season 6).
+
 ## Follow-up: what the front-office work left (0.2.36)
 
 Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
