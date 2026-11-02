@@ -7,9 +7,11 @@ import { disputeCard, outspoken } from './disputes';
 import {
   DISPUTE_ASK,
   DISPUTE_END,
+  DISPUTE_LEAK,
   DISPUTE_START,
   DISPUTE_SUBJECT,
   disputeEndSubject,
+  leakSubject,
   type DisputeFact,
 } from './disputeVoice';
 import { STARTERS } from './positions';
@@ -25,8 +27,16 @@ export const disputeLetterId = (since: number, playerId: number) =>
   `dispute:${Math.floor(since / YEAR)}:${since}:${playerId}`;
 export const disputeEndId = (since: number, playerId: number) =>
   `dispute-end:${Math.floor(since / YEAR)}:${since}:${playerId}`;
+export const disputeLeakId = (since: number, playerId: number) =>
+  `dispute-leak:${Math.floor(since / YEAR)}:${since}:${playerId}`;
 
-function fact(league: League, p: Player, kind: DisputeFact['kind'], how?: DisputeFact['how']): DisputeFact {
+function fact(
+  league: League,
+  p: Player,
+  kind: DisputeFact['kind'],
+  how?: DisputeFact['how'],
+  cause?: DisputeFact['cause'],
+): DisputeFact {
   const spot = league.teams[p.teamId!].depthChart[p.position].indexOf(p.id);
   return {
     name: p.lastName,
@@ -37,6 +47,7 @@ function fact(league: League, p: Player, kind: DisputeFact['kind'], how?: Disput
     starter: spot >= 0 && spot < STARTERS[p.position],
     how,
     waiting: !!p.morale?.reported,
+    cause,
   };
 }
 
@@ -55,10 +66,10 @@ export function disputeMail(league: League, have: Set<string>): Draft[] {
     const m = p.morale;
     if (!m) continue;
     const d = m.dispute;
-    if (d && d.club === p.teamId && d.kind !== 'trade') {
+    if (d && d.club === p.teamId) {
       const id = disputeLetterId(d.since, p.id);
       if (!have.has(id)) {
-        const f = fact(league, p, d.kind);
+        const f = fact(league, p, d.kind, undefined, d.cause);
         const body = `${say(DISPUTE_START, f, { key: id, slot: 'start', recent })} ${say(DISPUTE_ASK, f, { key: id, slot: 'ask', recent })}`;
         out.push({
           ...base,
@@ -70,9 +81,32 @@ export function disputeMail(league: League, have: Set<string>): Draft[] {
         });
         recent.push(body);
       }
+      // A request gone public: one letter, for a request he wrote to you about.
+      const leak = disputeLeakId(d.since, p.id);
+      if (
+        d.kind === 'trade' &&
+        d.public !== undefined &&
+        !have.has(leak) &&
+        (have.has(id) || out.some((x) => x.id === id))
+      ) {
+        const body = say(DISPUTE_LEAK, fact(league, p, d.kind, undefined, d.cause), {
+          key: leak,
+          slot: 'leak',
+          recent,
+        });
+        out.push({
+          ...base,
+          id: leak,
+          ...coach,
+          subject: leakSubject(p.lastName),
+          body,
+          actions: [{ kind: 'player', playerId: p.id }],
+        });
+        recent.push(body);
+      }
     }
     const e = m.disputeEnd;
-    if (e && e.kind !== 'trade' && have.has(disputeLetterId(e.since, p.id))) {
+    if (e && have.has(disputeLetterId(e.since, p.id))) {
       const id = disputeEndId(e.since, p.id);
       if (!have.has(id)) {
         const body = say(DISPUTE_END, fact(league, p, e.kind, e.how), { key: id, slot: 'end', recent });
@@ -92,6 +126,9 @@ export function disputeMail(league: League, have: Set<string>): Draft[] {
 }
 
 /** Does a dispute's letter still ask something: the start letter while its dispute waits on your answer. */
-export function disputeNeedsYou(league: League, s: { since: number; playerId: number; end?: true }): boolean {
-  return !s.end && disputeCard(league, s).state === 'open';
+export function disputeNeedsYou(
+  league: League,
+  s: { since: number; playerId: number; end?: true; leak?: true },
+): boolean {
+  return !s.end && !s.leak && disputeCard(league, s).state === 'open';
 }

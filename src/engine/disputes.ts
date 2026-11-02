@@ -6,10 +6,10 @@
  */
 import { MOOD_ACTS } from './disputeRead';
 import { isExpired, yearOf, yearsLeft } from './finance/contract';
-import { addJolt, expectedRole, moraleLevel, moraleFactors, type MoraleContext } from './morale';
+import { addJolt, expectedRole, moraleContext, moraleLevel, moraleFactors, type MoraleContext } from './morale';
 import { aiCutdown, aiSettle, winNow } from './offseason/ai';
 import { demand, extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
-import { aiReply, talkCause, talksAt } from './playerTalks';
+import { aiReply, canPromise, gameCount, talkCause, talksAt } from './playerTalks';
 import { TRAIT_MEAN } from './traits';
 import { emptyMarket } from './trade/execute';
 import { employed } from './employment';
@@ -291,6 +291,10 @@ const CHOICES: Record<DisputeKind, readonly DisputeChoice[]> = {
   trade: ['shop', 'refuse', 'promise'],
 };
 
+/** What a promise could answer: a deal for a hold-in or holdout; for a trade request, what he asked about (snaps or a deal). */
+const promiseFor = (d: Dispute): 'snaps' | 'deal' | null =>
+  d.kind !== 'trade' ? 'deal' : canPromise(d.cause) ? (d.cause as 'snaps' | 'deal') : null;
+
 /** Whether he'd take your word: past four broken promises he remembers, he won't. */
 export const takesYourWord = (p: Player): boolean => (p.morale?.talk?.broken ?? 0) < 4;
 
@@ -314,9 +318,27 @@ export function answerDispute(league: League, playerId: number, choice: DisputeC
   if (choice === 'promise' && !takesYourWord(p)) return false;
   const clock = league.moraleAt ?? league.season * YEAR;
   if (choice === 'promise') {
-    const week = clock - league.season * YEAR;
-    const due = week < REGULAR ? league.season * YEAR + REGULAR : clock + 2;
-    (p.morale!.talk ??= { club: p.teamId! }).promise = { kind: 'deal', made: clock, due, dispute: d.kind };
+    const kind = promiseFor(d);
+    if (!kind) return false;
+    const talk = (p.morale!.talk ??= { club: p.teamId! });
+    if (kind === 'snaps') {
+      // The snaps he asked for, over his next four games (as a talk's promise is kept).
+      const ctx = moraleContext(league);
+      talk.promise = {
+        kind: 'snaps',
+        made: clock,
+        role: expectedRole(p, ctx),
+        left: 4,
+        games: 0,
+        snaps: 0,
+        seen: { season: league.season, ...gameCount(league, p, ctx) },
+        dispute: d.kind,
+      };
+    } else {
+      const week = clock - league.season * YEAR;
+      const due = week < REGULAR ? league.season * YEAR + REGULAR : clock + 2;
+      talk.promise = { kind: 'deal', made: clock, due, dispute: d.kind };
+    }
     endDispute(league, p, 'promise', clock);
     return true;
   }
@@ -337,6 +359,8 @@ export interface DisputeCardView {
   choices?: readonly DisputeChoice[];
   /** He'd take your word: a promise is on offer. */
   trust?: boolean;
+  /** What a promise would be: a deal, or (a trade request over snaps) the snaps he wants. */
+  promise?: 'snaps' | 'deal';
   /** What you told him, and in words. */
   choice?: DisputeChoice;
   said?: string;
@@ -352,7 +376,9 @@ export function disputeCard(league: League, s: { since: number; playerId: number
   const lost = d.lost ? `It has cost him $${(d.lost / 1000).toFixed(1)}M so far.` : undefined;
   if (d.answered)
     return { state: 'answered', kind: d.kind, choice: d.answered.choice, said: DISPUTE_SAID[d.answered.choice], lost };
-  return { state: 'open', kind: d.kind, choices: CHOICES[d.kind], trust: takesYourWord(p), lost };
+  const promise = promiseFor(d) ?? undefined;
+  const choices = CHOICES[d.kind].filter((c) => c !== 'promise' || promise);
+  return { state: 'open', kind: d.kind, choices, trust: takesYourWord(p), promise, lost };
 }
 
 /**
