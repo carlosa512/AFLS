@@ -10,6 +10,7 @@ import { moraleLevel } from '../morale';
 import { moodPull } from '../moodScale';
 import { POSITIONS } from '../types';
 import { Rng } from '../rng';
+import { rustKnock } from '../disputeRead';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
 export interface Lineup {
@@ -287,13 +288,13 @@ export function buildLineup(
   const knocks = new Map<number, number>();
   for (const [p, mine] of slots)
     if (!mine.includes(p.position)) knocks.set(p.id, Math.max(...mine.map((pos) => knockFor(p, pos))));
-  if (mean !== undefined || today)
-    for (const p of slots.keys()) {
-      const edge = mean === undefined ? 0 : MOOD_EDGE * moodPull(moraleLevel(league, p), mean);
-      const k = (knocks.get(p.id) ?? 0) - edge - today;
-      if (k) knocks.set(p.id, k);
-      else knocks.delete(p.id);
-    }
+  for (const p of slots.keys()) {
+    const edge = mean === undefined ? 0 : MOOD_EDGE * moodPull(moraleLevel(league, p), mean);
+    // Rust after missing camp (G4): a point in every contest his first week back, half a point the next.
+    const k = (knocks.get(p.id) ?? 0) - edge - today + rustKnock(league, p);
+    if (k) knocks.set(p.id, k);
+    else knocks.delete(p.id);
+  }
   // The unit composites below are read with the knocks on.
   const prev = useKnocks(knocks);
   try {

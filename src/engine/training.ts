@@ -43,6 +43,7 @@ import { moraleLevel } from './morale';
 import { moodLean } from './moodScale';
 import type { Attribute, Coach, League, Learning, MoveReason, Player, Position, Team } from './types';
 import { OFFSEASON_PHASES, POSITIONS } from './types';
+import { notPracticing } from './disputeRead';
 
 // ───────── the moves the coaches will teach (data in familiarity.ts) ─────────
 
@@ -149,7 +150,8 @@ function tick(league: League, weeks: (c: Conversion, p: Player) => number): void
       delete p.learning;
       continue;
     }
-    const w = weeks(c, p);
+    // A man not practicing (holding in before week 1, holding out) learns nothing (G4).
+    const w = notPracticing(league, p) ? 0 : weeks(c, p);
     if (w > 0) l.done = Math.round((l.done + w * learnRate(league, p, l.to, l.pace)) * 100) / 100;
   }
 }

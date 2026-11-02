@@ -21,6 +21,7 @@ import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { declineMult, effectiveTraits, growthMult } from './traits';
 import type { Attribute, DevYear, Game, League, Player, Position } from './types';
 import { ATTRIBUTES } from './types';
+import { notPracticing } from './disputeRead';
 
 export { PEAK_END } from './aging';
 
@@ -360,9 +361,9 @@ function tiltStep(league: League, p: Player, share: number, mean: number): void 
   // No mood on record (never rostered): nothing to tilt by, as `growthMean` leaves him out.
   if (d.potential === undefined || !p.morale || MOOD_TILT.growth <= 0) return;
   const tilting = RELEASE.program + RELEASE.camp + RELEASE.season;
-  const next =
-    Math.round(((d.mood ?? 0) + (MOOD_TILT.growth * share * moodPull(moraleLevel(league, p), mean)) / tilting) * 1e4) /
-      1e4 || 0;
+  // A man not practicing (a hold-in before week 1, a holdout) grows as an Abysmal one does those steps (G4).
+  const pull = notPracticing(league, p) ? -1 : moodPull(moraleLevel(league, p), mean);
+  const next = Math.round(((d.mood ?? 0) + (MOOD_TILT.growth * share * pull) / tilting) * 1e4) / 1e4 || 0;
   if (next) d.mood = next;
   else delete d.mood;
 }

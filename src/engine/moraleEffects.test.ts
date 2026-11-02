@@ -173,3 +173,110 @@ describe('contract talks (G2)', () => {
     expect(ask(l, p, -10, l.userTeamId)).toEqual(ask(l, p, 0, l.userTeamId));
   });
 });
+
+const { MOOD_ACTS } = await import('./disputeRead');
+const { activeLearning, bodyAs, learnBlock, moveProblem, startMove } = await import('./training');
+const { beginYear, developBlock, MOOD_TILT, playedShare, RELEASE, rollInputs } = await import('./development');
+const { coachingFor } = await import('./coaching');
+const { Rng } = await import('./rng');
+const { teamPlayers } = await import('./roster');
+const { playerOvr } = await import('./positions');
+
+describe('disputes (G4)', () => {
+  const copy = (l: League): League => JSON.parse(JSON.stringify(l));
+  /** He's holding in over his deal: at camp, not practicing, until week 1. */
+  const holdIn = (l: League, p: Player) => {
+    p.morale = {
+      ...(p.morale ?? { level: 0, jolts: [] }),
+      dispute: { kind: 'holdIn', cause: 'deal', since: l.moraleAt!, club: p.teamId! },
+    };
+  };
+
+  it('banks no position learning for a man holding in at the program or camp', () => {
+    const l = createLeague({ seed: 'dispute-costs' });
+    l.phase = 'draft';
+    const p = teamPlayers(l, l.userTeamId)
+      .filter((x) => x.position === 'CB' && !moveProblem(l, x, 'S'))
+      .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    startMove(l, p.id, 'S');
+    const banked = (hold: boolean, acts = true) => {
+      const x = copy(l);
+      if (hold) holdIn(x, x.players[p.id]);
+      MOOD_ACTS.on = acts;
+      try {
+        learnBlock(x, 'program');
+        learnBlock(x, 'camp');
+      } finally {
+        MOOD_ACTS.on = true;
+      }
+      return activeLearning(x.players[p.id])!.done;
+    };
+    expect(banked(false)).toBeGreaterThan(0);
+    expect(banked(true)).toBe(0);
+    expect(banked(true, false)).toBe(banked(false));
+  });
+
+  it("tilts a man holding in's growth at the program and camp as a pull of −1 does", () => {
+    const was = MOOD_TILT.growth;
+    MOOD_TILT.growth = 0.1;
+    try {
+      const l = createLeague({ seed: 'dispute-costs' });
+      // The spring program and camp run in the offseason (a hold-in practices from week 1).
+      l.phase = 'draft';
+      for (const x of Object.values(l.players)) x.morale = { level: 0, jolts: [] };
+      const p = Object.values(l.players).find(
+        (x) => x.teamId !== null && x.age <= 23 && x.potential > playerOvr(x) + 1,
+      )!;
+      const ctx = rollInputs({
+        playedShare: playedShare(p, l.season),
+        ...coachingFor(l, p.teamId, p.position),
+        bodyAs: bodyAs(p),
+      });
+      beginYear(l, new Rng(`${l.seed}:dev:${l.season}:${p.id}`), p, ctx);
+      expect(p.dev?.potential).toBeDefined();
+      const tilt = (set: (x: League) => void, acts = true) => {
+        const x = copy(l);
+        set(x);
+        MOOD_ACTS.on = acts;
+        try {
+          developBlock(x, 'program');
+          developBlock(x, 'camp');
+        } finally {
+          MOOD_ACTS.on = true;
+        }
+        return x.players[p.id].dev!.mood ?? 0;
+      };
+      // A pull of −1 at the program and camp: the share of the year's tilt those two steps carry, all of it down.
+      const full = RELEASE.program + RELEASE.camp + RELEASE.season;
+      const atMinusOne = (-MOOD_TILT.growth * (RELEASE.program + RELEASE.camp)) / full;
+      expect(tilt((x) => holdIn(x, x.players[p.id]))).toBeCloseTo(atMinusOne, 9);
+      // With moods not acting he's the Okay man he is.
+      expect(tilt((x) => holdIn(x, x.players[p.id]), false)).toBeCloseTo(
+        tilt(() => {}),
+        9,
+      );
+    } finally {
+      MOOD_TILT.growth = was;
+    }
+  });
+
+  it('plays a man back from a holdout a point down his first week and half the next, on top of his mood', () => {
+    const { l, team, qb } = setup();
+    const mean = moraleMean(l);
+    const knock = () => buildLineup(l, team, new Set(), undefined, mean).knocks.get(qb.id) ?? 0;
+    const plain = knock();
+    qb.morale!.rust = { season: l.season, week: l.week };
+    expect(knock()).toBeCloseTo(plain + 1, 9);
+    l.week++;
+    expect(knock()).toBeCloseTo(plain + 0.5, 9);
+    l.week++;
+    expect(knock()).toBeCloseTo(plain, 9);
+    l.week -= 2;
+    MOOD_ACTS.on = false;
+    try {
+      expect(knock()).toBeCloseTo(plain, 9);
+    } finally {
+      MOOD_ACTS.on = true;
+    }
+  });
+});
