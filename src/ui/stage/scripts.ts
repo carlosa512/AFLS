@@ -26,7 +26,7 @@ export interface Pattern {
 }
 /** A decoy runs his route at this pace (or his top speed, if lower). */
 const DECOY_PACE = 8.5;
-import type { Pt } from './formations';
+import { isVictory, type Pt } from './formations';
 
 /** A spot at a time: seconds from the snap. */
 export interface Keyframe {
@@ -96,6 +96,11 @@ const ROUTE_PACE = 8.5;
 export const BEAT_ACROSS = 6;
 /** A rusher's get-off: at his man this long after the snap, before he fights him and wins. */
 const ENGAGE = 0.45;
+/** The victory formation: where he takes the snap, the step back, down on a knee by this long, held till the whistle. */
+const QB_UNDER = 2;
+const KNEEL_STEP = 0.8;
+export const KNEEL_AT = 0.75;
+const KNEEL_HOLD = 1.3;
 /** Running out the clock on fourth down: his pace back, yards a second. */
 const RUN_OUT = 5;
 /** A throwaway lands this far past the line, out of bounds. */
@@ -122,10 +127,16 @@ export const runPace = (yards: number) => Math.min(9.3, 6.5 + yards * 0.05);
  * him can (a touchdown keeps the breakaway's pace).
  */
 const CAUGHT_PACE = 8.4;
-/** A carrier's leg on the ground at his pace, never past his own legs (`top`: a tight end's breakaway is a tight end's). */
-const carry = (sg: Seg, caught = false, top = Infinity): Seg => {
+/** A man running a carrier down closes this much quicker than the carrier runs (yards a second). */
+const RUN_DOWN_EDGE = 1.6;
+/**
+ * A carrier's leg on the ground at his pace, never past his own legs (`top`: a tight end's breakaway is a tight
+ * end's); one who's caught runs a step slower than the man who catches him (`chaser`'s top speed).
+ */
+const carry = (sg: Seg, caught = false, top = Infinity, chaser = Infinity): Seg => {
   const l = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
-  return { ...sg, dur: Math.max(0.3, l / Math.min(caught ? CAUGHT_PACE : Infinity, runPace(l), top)) };
+  const most = caught ? Math.min(CAUGHT_PACE, chaser - RUN_DOWN_EDGE) : Infinity;
+  return { ...sg, dur: Math.max(0.3, l / Math.min(most, runPace(l), top)) };
 };
 
 /**
@@ -140,10 +151,12 @@ export function stagedPath(
   pocket?: readonly Keyframe[],
   /** The ball carrier's top speed, yards a second: no run of his is quicker. */
   top?: number,
+  /** The tackler's top speed in pursuit: a carrier he runs down is a step slower. */
+  chaser?: number,
 ): Seg[] {
   // A fumble: the play staged as carried to where the ball came out, then the loose ball (`loosen`), its legs run at a
   // ball carrier's pace (a tackled one's: someone brings the returner down, or he scores).
-  return loosen(e, stageCarried(carried(e), homeId, snapY, receiverAt, pocket, top), (sg) => carry(sg, true));
+  return loosen(e, stageCarried(carried(e), homeId, snapY, receiverAt, pocket, top, chaser), (sg) => carry(sg, true));
 }
 
 /**
@@ -204,6 +217,7 @@ function stageCarried(
   receiverAt?: Pt,
   pocket?: readonly Keyframe[],
   top = Infinity,
+  chaser = Infinity,
 ): Seg[] {
   // A flag before the snap: no play, nothing moves (the walk-off is the official's, between plays).
   if (e.kind === 'penalty') return [];
@@ -223,7 +237,11 @@ function stageCarried(
       // His pocket, then the throw from wherever it left him.
       const from = pocket[pocket.length - 1];
       air = { ...air, x0: from.x, y0: from.y, dur: passFlight(Math.hypot(air.x1 - from.x, air.y1 - from.y)) };
-      return [...legs({ x: drop.x0, y: drop.y0 }, pocket), air, ...segs.slice(2).map((sg) => carry(sg, caught, top))];
+      return [
+        ...legs({ x: drop.x0, y: drop.y0 }, pocket),
+        air,
+        ...segs.slice(2).map((sg) => carry(sg, caught, top, chaser)),
+      ];
     }
     const depth = air ? Math.abs(air.x1 - air.x0) : 10;
     // In the pocket until the route has had time to get there, less the drop and the ball's flight. A deep shot is a
@@ -234,7 +252,7 @@ function stageCarried(
       hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(3.4, Math.max(0.7 + depth * 0.035, wait)))),
       air,
       // After the catch (or the pick): a runner's pace, not the broadcast view's slide.
-      ...segs.slice(2).map((sg) => carry(sg, caught, top)),
+      ...segs.slice(2).map((sg) => carry(sg, caught, top, chaser)),
     ].filter((sg): sg is Seg => !!sg);
   }
   const len = (sg: Seg) => Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
@@ -285,11 +303,22 @@ function stageCarried(
     return [
       { ...segs[0], dur: MESH },
       { x0: hand.x, y0: hand.y, x1: press.x, y1: press.y, peak: 0, dur: Math.max(0.9, len(hand, press) / 4.5 + 0.5) },
-      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }, caught, top),
+      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }, caught, top, chaser),
+    ];
+  }
+  if (isVictory(e)) {
+    // The snap into his hands under center, a step back and down on a knee, and still until the whistle.
+    const snap = { x: e.from, y: snapY };
+    const hands = { x: e.from - dir * QB_UNDER, y: snapY };
+    const knee = { x: e.from - dir * (QB_UNDER + KNEEL_STEP), y: snapY };
+    return [
+      { x0: snap.x, y0: snap.y, x1: hands.x, y1: hands.y, peak: 0, dur: 0.3 },
+      { x0: hands.x, y0: hands.y, x1: knee.x, y1: knee.y, peak: 0, dur: KNEEL_AT - 0.3 },
+      hold(knee, KNEEL_HOLD),
     ];
   }
   if (e.kind === 'kneel') {
-    // A kneel is a yard; on fourth down he rolls out and runs the clock out, a quarterback's drift back, not a dash.
+    // On fourth down he rolls out and runs the clock out, a quarterback's drift back, not a dash.
     return segs.map((s) => ({ ...s, dur: Math.max(s.dur, Math.hypot(s.x1 - s.x0, s.y1 - s.y0) / RUN_OUT + 0.3) }));
   }
   if (e.kind === 'sack' || e.kind === 'scramble') {
@@ -300,14 +329,14 @@ function stageCarried(
       const out = ground(from.x, from.y, end.x1, end.y1);
       // Taken down: the two of them to the spot at a stagger's pace, not the broadcast view's slide.
       out.dur = Math.max(out.dur, Math.hypot(end.x1 - from.x, end.y1 - from.y) / SACK_PACE);
-      return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught, top) : out];
+      return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught, top, chaser) : out];
     }
     const qb = { x: e.from - dir * 6, y: snapY };
     return [
       ground(e.from, snapY, qb.x, qb.y, 0.8),
       hold(qb, e.kind === 'sack' ? SACK_HOLD : SCRAMBLE_HOLD),
       e.kind === 'scramble'
-        ? carry(ground(qb.x, qb.y, end.x1, end.y1), caught, top)
+        ? carry(ground(qb.x, qb.y, end.x1, end.y1), caught, top, chaser)
         : ground(qb.x, qb.y, end.x1, end.y1),
     ];
   }
@@ -667,6 +696,25 @@ export function script(
         moment(who.cover, throwEnd);
       }
       break;
+    }
+  }
+
+  // The victory formation: nobody plays it out. The line and the front give a token push at the snap, the up-backs
+  // step up to wall him off, and then everyone stands until the whistle.
+  if (isVictory(e)) {
+    const ballX = segs[0].x0;
+    for (const m of [...cast.offense, ...cast.defense]) {
+      const s0 = start.get(m.id);
+      if (!s0 || m.id === qb) continue;
+      const off = (s0.x - ballX) * dir < 0;
+      const back = Math.abs(s0.x - ballX);
+      const lean = off ? (back > 6 ? 0 : back > 2 ? 0.6 : 0.3) : m.role === 'DT' || m.role === 'EDGE' ? 0.3 : 0;
+      if (lean)
+        set(m.id, [
+          at(0.5, { x: s0.x + (off ? dir : -dir) * lean, y: s0.y }),
+          at(total, { x: s0.x + (off ? dir : -dir) * lean, y: s0.y }),
+        ]);
+      else set(m.id, [at(total, s0)]);
     }
   }
 

@@ -31,6 +31,9 @@ import { downLines } from './GameViewer';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
+/** A quarterback down on a knee: his dot a little smaller (eased in over `KNEEL_EASE` seconds), so the kneel shows. */
+const KNEEL_SCALE = 0.82;
+const KNEEL_EASE = 0.2;
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
 /** The umpire after the ball: running to it, and walking it to its spot (yards a second). */
@@ -661,7 +664,8 @@ export function TopDownField({
       for (let k = 0; k < n; k++) {
         const x = s.pos[(step * n + k) * 2];
         const y = s.pos[(step * n + k) * 2 + 1];
-        drawDot(s.ids[k], x, y);
+        const down = s.kneel?.id === s.ids[k] ? Math.max(0, Math.min(1, (step * s.dt - s.kneel.t) / KNEEL_EASE)) : 0;
+        drawDot(s.ids[k], x, y, 1, 1 - (1 - KNEEL_SCALE) * down);
         mem.spots.set(s.ids[k], { x, y, home: s.home[k] });
       }
       ballRef.current?.setAttribute('opacity', '1');

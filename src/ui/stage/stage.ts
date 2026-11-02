@@ -12,8 +12,8 @@ import type { Role } from './cast';
 import { FAKE, meshGap, pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
 import { castFor } from './cast';
-import { blitzersFor, lineUp } from './formations';
-import { ballTrack, catchSpot, passFlight, script, stagedPath, throwWindow, type Pattern } from './scripts';
+import { blitzersFor, isVictory, lineUp } from './formations';
+import { ballTrack, catchSpot, KNEEL_AT, passFlight, script, stagedPath, throwWindow, type Pattern } from './scripts';
 import { assign, conceptFor, spotOf, type ConceptId } from './concepts';
 import { routeFor, routeTime, type RouteId } from './routes';
 import { SPEED, steer } from './steer';
@@ -59,6 +59,8 @@ export interface StagedPlay {
   pocket: PocketPlan | null;
   /** A pass's concept and the target's route (`concepts.ts`, `routes.ts`); absent on anything else. */
   pattern?: { concept: ConceptId; route: RouteId };
+  /** The victory formation: the quarterback, down on a knee from `t` (seconds from the snap). */
+  kneel?: { id: number; t: number };
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -224,7 +226,16 @@ export function stagePlay(args: {
   // The man who runs with the ball: the target, the man who picked it off, a scrambling quarterback, the back.
   const runner = e.kind === 'int' ? who.take : e.kind === 'scramble' ? qbId : who.ball;
   const runnerRole = [...cast.offense, ...cast.defense].find((m) => m.id === runner)?.role;
-  const segs = stagedPath(e, homeId, args.snapY, receiverAt, qbPath, runnerRole ? SPEED[runnerRole] + 0.3 : undefined);
+  const tacklerRole = cast.defense.find((m) => m.id === who.tackle)?.role;
+  const segs = stagedPath(
+    e,
+    homeId,
+    args.snapY,
+    receiverAt,
+    qbPath,
+    runnerRole ? SPEED[runnerRole] + 0.3 : undefined,
+    tacklerRole ? SPEED[tacklerRole] + PURSUIT : undefined,
+  );
   const scripted = script(e, cast, start, segs, dir, pocket, pattern);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
   const flight = segs.find((sg) => sg.peak > 0);
@@ -277,7 +288,8 @@ export function stagePlay(args: {
     coverage: def.coverage,
     call,
     blitz,
-    hold: !segs.length,
+    // The victory formation stands still (its token push is scripted).
+    hold: !segs.length || isVictory(e),
     kick: segs.length ? kick : null,
     land: flight ? { x: flight.x1, y: flight.y1 } : null,
     catchAt: catchAt ?? Infinity,
@@ -299,7 +311,8 @@ export function stagePlay(args: {
     const k = members.findIndex((m) => m.id === pursuer);
     closeIn(pos, members.length, k, keys.get(pursuer)!, steps, earliest, {
       carrier: carrier === null ? -1 : members.findIndex((m) => m.id === carrier),
-      top: SPEED[members[k].role] + PURSUIT,
+      top: SPEED[members[k].role] + 1,
+      legs: SPEED[members[k].role] + PURSUIT,
     });
   }
   const homeSide = cast.offSide === 0;
@@ -313,6 +326,7 @@ export function stagePlay(args: {
     ball: ball.subarray(0, steps * 3),
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
+    ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),
     pocket,
     ...(pattern ? { pattern: { concept: pattern.concept.id, route: pattern.route } } : {}),
     keys: [...moments.keys()],
@@ -370,6 +384,8 @@ function roughedPunt(e: PlayLogEntry, homeId: number): PlayLogEntry | undefined 
 const CLOSE = 9.5;
 /** In pursuit the tackler runs this much over his top speed (`steer`'s edge): as quick as he ever gets. */
 const PURSUIT = 0.6;
+/** A run-down planned at `top` may come out this much over his legs in a quarter-second (his drift onto the line). */
+const RUN_DOWN_GIVE = 0.4;
 /** A last run into the hit longer than this would be a slide alongside the carrier: he runs him down instead. */
 const LONG_CLOSE = 1.2;
 /** A run-down: he stays this far behind the carrier (yards) until the last `CLOSE_IN` seconds, then closes. */
@@ -393,12 +409,12 @@ function closeIn(
   keys: readonly { t: number; x: number; y: number }[],
   steps: number,
   earliest: number,
-  chase: { carrier: number; top: number },
+  chase: { carrier: number; top: number; legs: number },
 ) {
   const last = steps - 1;
   const end = keys[keys.length - 1];
   const at = (st: number) => ({ x: pos[(st * n + k) * 2], y: pos[(st * n + k) * 2 + 1] });
-  const top = Math.min(CLOSE, chase.top);
+  const top = Math.min(CLOSE, chase.legs);
   const gap = (st: number) => Math.hypot(end.x - at(st).x, end.y - at(st).y);
   let from = -1;
   for (let st = last - 1; st >= Math.min(earliest, last - 1); st--) {
@@ -438,7 +454,7 @@ function chaseDown(
   pos: Float32Array,
   n: number,
   k: number,
-  chase: { carrier: number; top: number },
+  chase: { carrier: number; top: number; legs: number },
   end: Pt,
   from: number,
   last: number,
@@ -491,8 +507,9 @@ function chaseDown(
     const sign = v >= v0 ? 1 : -1;
     return v0 * ramp + (sign * ACCEL * ramp * ramp) / 2 + v * (t - ramp);
   };
-  // The hardest miss he can still recover from, at his own top speed (never over it).
-  const tries = (whiffed ? [0.5, 2.5, 4.5, pace] : [pace]).map((v0) => ({ v0, top: chase.top }));
+  // The hardest miss he can still recover from, at his own top speed if he can, a burst over it if he must.
+  // Planned a little under his legs: the drift onto the carrier's line and the last step into the hit take the rest.
+  const tries = (whiffed ? [0.5, 2.5, 4.5, pace] : [pace]).map((v0) => ({ v0, top: chase.legs - RUN_DOWN_GIVE }));
   const plan = tries.find(({ v0, top }) => gone(v0, top, L) >= need);
   if (!plan) return false;
   const v0 = plan.v0;
@@ -511,7 +528,10 @@ function chaseDown(
   };
   // Two legs: a couple of yards behind him until the last second, then the burst that closes it, so the hit is a
   // run-down and not a man creeping up at his elbow. One leg when there's no time for two or the burst is beyond him.
-  const T1 = L - CLOSE_IN;
+  // The closing burst takes as long as his edge on the carrier needs to make up the trail (a second at least).
+  const carrierPace = (run[last] - run[from]) / L;
+  const closeIn = Math.max(CLOSE_IN, (TRAIL - 0.6) / Math.max(0.5, chase.legs - RUN_DOWN_GIVE - carrierPace));
+  const T1 = L - closeIn;
   const hold = T1 > 0.5 ? run[Math.min(last, from + Math.round(T1 / STEP))] - TRAIL - start : -1;
   let v1 = paceFor(v0, need, L, plan.top);
   let v2 = v1;
@@ -519,9 +539,9 @@ function chaseDown(
   if (hold > 0) {
     const a = paceFor(v0, hold, T1, plan.top);
     const reach = gone(v0, a, T1);
-    const b = paceFor(a, need - reach, CLOSE_IN, plan.top);
-    const ramp = Math.min(CLOSE_IN, Math.abs(b - a) / ACCEL);
-    const went = a * ramp + ((b >= a ? 1 : -1) * ACCEL * ramp * ramp) / 2 + b * (CLOSE_IN - ramp);
+    const b = paceFor(a, need - reach, closeIn, plan.top);
+    const ramp = Math.min(closeIn, Math.abs(b - a) / ACCEL);
+    const went = a * ramp + ((b >= a ? 1 : -1) * ACCEL * ramp * ramp) / 2 + b * (closeIn - ramp);
     if (Math.abs(reach - hold) < 0.3 && Math.abs(went - (need - reach)) < 0.3) [v1, v2, split] = [a, b, T1];
   }
   /** How far along the carrier's footsteps he's come `t` seconds in. */
@@ -531,6 +551,18 @@ function chaseDown(
     const ramp = Math.min(t2, Math.abs(v2 - v1) / ACCEL);
     return gone(v0, v1, split) + v1 * ramp + ((v2 >= v1 ? 1 : -1) * ACCEL * ramp * ramp) / 2 + v2 * (t2 - ramp);
   };
+  // The hit: where the script has it when the run-down already takes him there; otherwise from behind, a step off the
+  // carrier on his own line (sliding round to the script's side in the last moment would be a burst he hasn't got).
+  const reached = foot(start + along(L));
+  const carrierEnd = P(last, c);
+  const toCarrier = Math.hypot(carrierEnd.x - reached.x, carrierEnd.y - reached.y) || 1;
+  const hit =
+    Math.hypot(end.x - reached.x, end.y - reached.y) <= 0.3
+      ? end
+      : {
+          x: carrierEnd.x + ((reached.x - carrierEnd.x) / toCarrier) * 0.6,
+          y: carrierEnd.y + ((reached.y - carrierEnd.y) / toCarrier) * 0.6,
+        };
   const was0 = pos.slice((from + 1) * n * 2, (last + 1) * n * 2);
   for (let st = from + 1; st <= last; st++) {
     const t = (st - from) * STEP;
@@ -543,16 +575,16 @@ function chaseDown(
     const p = { x: f.x + off.x * fade + knock.x * k2, y: f.y + off.y * fade + knock.y * k2 };
     const g = Math.max(0, Math.min(1, (t - (L - INTO)) / INTO));
     const into = g * g * (3 - 2 * g);
-    pos[(st * n + k) * 2] = p.x + (end.x - p.x) * into;
-    pos[(st * n + k) * 2 + 1] = p.y + (end.y - p.y) * into;
+    pos[(st * n + k) * 2] = p.x + (hit.x - p.x) * into;
+    pos[(st * n + k) * 2 + 1] = p.y + (hit.y - p.y) * into;
   }
-  // His line fading onto the carrier's and the last ease into the hit add to his pace along the footsteps: a run-down
-  // that comes out quicker than his legs anywhere isn't one, and the caller's straight run stands.
+  // A run-down that comes out quicker than his legs anywhere isn't one: the caller tries it from earlier, or runs him
+  // straight in.
   const w = Math.round(0.25 / STEP);
   for (let st = from + 1; st <= last; st++) {
     const a = P(st, k);
     const b = P(Math.max(0, st - w), k);
-    if (Math.hypot(a.x - b.x, a.y - b.y) > chase.top * Math.min(w, st) * STEP * 1.02) {
+    if (Math.hypot(a.x - b.x, a.y - b.y) > (chase.legs + RUN_DOWN_GIVE) * Math.min(w, st) * STEP) {
       pos.set(was0, (from + 1) * n * 2);
       return false;
     }
