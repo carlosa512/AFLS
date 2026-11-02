@@ -11,6 +11,8 @@ import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 import { awardSeason } from './awards';
 import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
+import { UNIFORMS } from './data/uniforms';
+import { assignUniforms } from './season/uniforms';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
@@ -294,6 +296,17 @@ export function migrateLeague(league: League): League | null {
       if (!team.helmet && seed?.helmet) team.helmet = structuredClone(seed.helmet);
     }
     league.version = 75;
+  }
+  // v76: special uniforms. Each default club gets its colour rush, blackout and classic from the data by abbreviation
+  // (`Team.uniforms`; a mod's club keeps none and is dressed from its colours), and this season's games their
+  // `Game.uniform`, picked from the slots they were scheduled in, so a game flexed since keeps what it had.
+  if (league.version < 76) {
+    for (const team of league.teams) {
+      if (!team.uniforms && UNIFORMS[team.abbrev]) team.uniforms = structuredClone(UNIFORMS[team.abbrev]);
+    }
+    const games = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.uniform);
+    if (games.length) assignUniforms(league, games, league.season);
+    league.version = 76;
   }
   return league;
 }

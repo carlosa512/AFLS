@@ -7,6 +7,7 @@ import type { StartingGm } from './gm';
 import { generateGm } from './gmTraits';
 export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
+import { UNIFORMS } from './data/uniforms';
 import { rollGem, rollSize } from './size';
 import { ATTRIBUTE_PROFILES, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { ageShift } from './aging';
@@ -48,7 +49,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 75;
+export const SAVE_VERSION = 76;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -775,6 +776,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       colors: [...seedTeam.colors],
       // a copy, so a save's helmet is its own and never the seed's
       ...(seedTeam.helmet ? { helmet: structuredClone(seedTeam.helmet) } : {}),
+      ...(UNIFORMS[seedTeam.abbrev] ? { uniforms: structuredClone(UNIFORMS[seedTeam.abbrev]) } : {}),
       conference: DIVISIONS[division].conference,
       division,
       depthChart: buildAutoDepthChart([]),
