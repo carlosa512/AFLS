@@ -110,7 +110,8 @@ describe('helmet', () => {
   });
 
   it('names the shells in our own words', () => {
-    const banned = /Riddell|Schutt|Vicis|Xenith|Axiom|SpeedFlex|\bF7\b|Vengeance|Zero2|Trench|Shadow/i;
+    // makers' and models' names, as written ("shadow" and "the trenches" are ordinary words)
+    const banned = /Riddell|Schutt|Vicis|Xenith|Axiom|SpeedFlex|\bF7\b|Vengeance|Zero2|\bTrench\b|Shadow XR/;
     for (const f of ['helmet.ts', 'helmetArt.tsx', 'flags.tsx'])
       if (existsSync(`src/ui/${f}`)) expect(readFileSync(`src/ui/${f}`, 'utf8'), f).not.toMatch(banned);
     for (const n of Object.values(HELMET_LABEL)) expect(n).not.toMatch(banned);
