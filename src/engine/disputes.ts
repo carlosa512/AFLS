@@ -7,11 +7,18 @@
 import { MOOD_ACTS } from './disputeRead';
 import { isExpired, yearOf, yearsLeft } from './finance/contract';
 import { addJolt, expectedRole, moraleLevel, moraleFactors, type MoraleContext } from './morale';
-import { aiCutdown } from './offseason/ai';
+import { aiCutdown, aiSettle } from './offseason/ai';
 import { extensionBlocker, ROSTER_MAX } from './offseason/negotiation';
-import { talkCause } from './playerTalks';
+import { aiReply, talkCause } from './playerTalks';
+import { employed } from './employment';
 import { activeRoster } from './roster';
 import type { DisputeHow, League, Player } from './types';
+
+export { aiSettle } from './offseason/ai';
+export { promisedDeal } from './disputeRead';
+
+/** The club whose disputes you answer: yours, while you have a job. */
+const yourClub = (league: League) => (employed(league) ? league.userTeamId : null);
 
 /** Very poor steps in a row after a talk soured before he escalates. */
 export const RUN_STEPS = 4;
@@ -138,5 +145,12 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
     // A holdout who starts at camp is out at once.
     if (m.dispute.kind === 'holdOut' && week >= CAMP) m.dispute.out = true;
     delete m.talk!.sour;
+    // An AI club answers at once, by the rule it answers talks with: a GM who'd promise negotiates, and settles when
+    // it would keep him and can fit his walk-away; anyone else holds firm. (Your club's answer is your letter's.)
+    if (p.teamId !== yourClub(league)) {
+      const settles = aiReply(league, p.teamId!, m.dispute.cause) === 'promise';
+      if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
+      else m.dispute.answered = { choice: 'firm', at: clock };
+    }
   }
 }

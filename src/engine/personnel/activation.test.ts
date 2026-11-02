@@ -49,7 +49,9 @@ describe('switching practice squads on', () => {
     // A club whose books moved after camp is left out: a holdout who gives in at week 1 comes back to a full 53, and
     // the cut that makes his room frees cap camp never saw (G4).
     const moved = new Set(
-      l.transactions.filter((t) => t.season === l.season && t.phase === 'regular').flatMap((t) => t.teamIds),
+      l.transactions
+        .filter((t) => t.season === l.season && t.phase === 'regular' && (t.kind === 'release' || t.kind === 'waiver'))
+        .flatMap((t) => t.teamIds),
     );
     const again = structuredClone(l);
     again.phase = 'preseason';

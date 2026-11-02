@@ -24,6 +24,12 @@ export function notPracticing(league: League, p: Player): boolean {
   return d.kind === 'holdIn' && league.phase !== 'regular' && league.phase !== 'playoffs';
 }
 
+/** An open deal promise from his own club (G4): an AI club keeps it in the re-sign window. */
+export function promisedDeal(p: Player): boolean {
+  const t = MOOD_ACTS.on ? p.morale?.talk : undefined;
+  return !!t && t.club === p.teamId && t.promise?.kind === 'deal';
+}
+
 /** Rust after missing camp: a point in every contest his first week back, half a point the next. */
 export function rustKnock(league: League, p: Player): number {
   const r = MOOD_ACTS.on ? p.morale?.rust : undefined;
