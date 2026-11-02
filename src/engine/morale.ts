@@ -16,6 +16,7 @@ import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
+import { honouredSince } from './standing';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
 
@@ -47,6 +48,8 @@ export interface MoraleContext {
   mentors: Set<number>;
   /** Each team's head coach's culture: what he adds to his players' room (`cultureRoom`). */
   culture: Map<number, number>;
+  /** Players with a season award or an All-League team in the last three seasons (their word carries further). */
+  honoured: Set<number>;
 }
 
 const games = (r: { w: number; l: number; t: number } | undefined) => (r ? r.w + r.l + r.t : 0);
@@ -101,6 +104,7 @@ export function moraleContext(league: League): MoraleContext {
     live,
     mentors,
     culture,
+    honoured: honouredSince(league, season - 3),
   };
 }
 
@@ -462,13 +466,22 @@ const viewCache = new WeakMap<League, { key: string; ctx: MoraleContext }>();
  * Your own players' mood in words, or null for anyone else's (the fog of war) and for a man with no mood yet. `ctx`: a
  * context the caller built for this pass (the locker report builds its own, so a letter never reads a screen's cache).
  */
-export function moraleView(league: League, p: Player, ctx?: MoraleContext): MoraleView | null {
-  if (p.teamId !== league.userTeamId || !p.morale) return null;
-  // A signing, a cut or a trade inside a step changes the rooms the reasons read: the key sees the transactions too.
+/**
+ * The context screens read through (`moraleView`, the room's views in `standing.ts`): built once per point on the
+ * calendar. A signing, a cut or a trade inside a step changes the rooms the reasons read: the key sees the
+ * transactions too.
+ */
+export function viewContext(league: League): MoraleContext {
   const last = league.transactions[league.transactions.length - 1];
   const key = `${league.season}:${league.phase}:${league.week}:${league.faDay}:${league.moraleAt}:${league.transactions.length}:${last?.text ?? ''}`;
-  let hit = ctx ? { key, ctx } : viewCache.get(league);
+  let hit = viewCache.get(league);
   if (!hit || hit.key !== key) viewCache.set(league, (hit = { key, ctx: moraleContext(league) }));
+  return hit.ctx;
+}
+
+export function moraleView(league: League, p: Player, ctx?: MoraleContext): MoraleView | null {
+  if (p.teamId !== league.userTeamId || !p.morale) return null;
+  const hit = { ctx: ctx ?? viewContext(league) };
   const level = moraleLevel(league, p);
   const step = moraleStepOf(level);
   return {

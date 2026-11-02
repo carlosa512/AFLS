@@ -21,13 +21,17 @@ import { band, gameWeatherText, playerName, severityText, shortName } from './fo
 import { useNav } from './nav';
 import { GearLayer } from './gearArt';
 import { coldGame, gearOf } from './playerGear';
-import { BUILD_MIN_PX, playerLook } from './playerLook';
+import { BUILD_MIN_PX, buildOf, playerLook } from './playerLook';
+import { flagsOf, greenDotOf, helmetDesignOf, helmetModelOf, maskOf, wearsHelmet } from './helmet';
+import { HelmetLayer, helmetTransform, MaskLayer } from './helmetArt';
 import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
 export const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
 const NUMBER_MIN_PX = 32; // below this the digits turn to mush, and every list shows the name beside him anyway
 const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
+/** From this size the helmet carries its decals (the flags and the green dot): below it they'd be a pixel of noise. */
+export const DECALS_MIN_PX = 56;
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
 /** Kickoff this hot in the open air, the home team takes white and leaves the visitors the dark jerseys (tune). */
@@ -90,9 +94,28 @@ export function PlayerAvatar({
   const { primary } = colors;
   const kit = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
   const { jersey, ink, trim, accent } = kit;
-  const { figure: f, head, transform } = playerLook(player, size);
+  const look = playerLook(player, size);
+  const { figure: f, head, transform } = look;
   // his gear from 32px, like his build: sleeves in a cold game follow the kit's game
   const gear = size >= BUILD_MIN_PX ? gearOf(player, team !== null && coldGame(store.get(), team.id, game)) : null;
+  // his club's helmet (free agents, prospects and retired players go bareheaded): the shell at every size, its details
+  // from 32px like his gear, its decals from 56px
+  const helmet =
+    team && wearsHelmet(player, team)
+      ? (() => {
+          const model = helmetModelOf(player);
+          const league = store.get();
+          return {
+            model,
+            design: helmetDesignOf(team),
+            place: helmetTransform(model, look.build ? buildOf(player.weightLb).traps : null),
+            decals:
+              size >= DECALS_MIN_PX
+                ? { flags: flagsOf(player), dot: league !== null && greenDotOf(league, team, player) }
+                : null,
+          };
+        })()
+      : null;
   const plate = player.lastName.toUpperCase();
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, f.plateMax / (plate.length * PLATE_EM));
@@ -151,11 +174,20 @@ export function PlayerAvatar({
           <path d={f.armL} fill={url('arm')} />
           <path d={f.armR} fill={url('arm')} />
           {gear && <GearLayer id={id} figure={f} gear={gear} colors={colors} />}
+          {helmet && (
+            <g transform={helmet.place}>
+              <MaskLayer model={helmet.model} mask={maskOf(player.position)} color={helmet.design.mask} />
+            </g>
+          )}
           <path d={f.neck} fill={url('sk')} />
           <path d={f.neckSides} fill="#000" fillOpacity={0.08} />
           <path d={f.neckShade} fill="#000" fillOpacity={0.16} />
-          <path d={head.ears} fill={url('sk')} />
-          <path d={head.d} fill={url('sk')} />
+          {!helmet && (
+            <>
+              <path d={head.ears} fill={url('sk')} />
+              <path d={head.d} fill={url('sk')} />
+            </>
+          )}
           {/* a soft outline keeps a white jersey off a pale backdrop */}
           <path
             d={f.jersey}
@@ -197,6 +229,18 @@ export function PlayerAvatar({
           />
           <path d={f.sleeveShadow} fill="#000" fillOpacity={0.28} />
           <path d={f.collar} stroke={ink} strokeWidth={2.4} fill="none" />
+          {helmet && (
+            <g transform={helmet.place}>
+              <HelmetLayer
+                id={`${id}h`}
+                model={helmet.model}
+                design={helmet.design}
+                number={player.jersey}
+                detail={size >= BUILD_MIN_PX}
+                decals={helmet.decals}
+              />
+            </g>
+          )}
           {size >= NUMBER_MIN_PX && (
             <>
               <path d={f.bandsUpper} stroke={ink} strokeWidth={2} fill="none" />

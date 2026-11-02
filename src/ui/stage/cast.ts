@@ -143,7 +143,9 @@ export function castFor(record: FieldRecord, plays: readonly PlayLogEntry[], ind
     defense = scrimmageDefense(def);
     const who = actorsIn(e);
     const keep = new Set(Object.values(who));
-    if (who.ball !== undefined && who.ball === off.rb2) swapIn(offense, who.ball, 'RB', keep);
+    // A spelling back with the ball comes on for the starter; when the starter is in the play too (he picked up the
+    // rusher, or got beat), both backs are out there and he takes a tight end's or a receiver's spot.
+    if (who.ball !== undefined && who.ball === off.rb2) swapIn(offense, who.ball, 'RB', keep, ['RB', 'TE', 'WR']);
     // A target the engine sent out though `units` left him off (a second tight end): he lines up as an extra tight end.
     else if (who.ball !== undefined) swapIn(offense, who.ball, 'TE', keep, ['WR', 'TE']);
     for (const id of [who.rush, who.tackle, who.cover, who.take]) {

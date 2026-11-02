@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(74);
+    expect(SAVE_VERSION).toBe(75);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });

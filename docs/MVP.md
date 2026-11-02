@@ -138,7 +138,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
 
-## Follow-up: what the speed pass left (0.2.38)
+## Follow-up: what the speed pass left (0.2.40)
 
 - [ ] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
       for each free agent are worked out again on every free-agency day and both late passes (7–9 times an

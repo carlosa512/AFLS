@@ -51,6 +51,15 @@ function squeezed(room: number, capAggression: number) {
     .sort((a, b) => saves(b.id) - saves(a.id))[0];
   const p: Player = keepers(team.id)[0];
   p.personality.loyalty = 1;
+  // A fifth-year option is its own call, and exercising one books next year: off the table, so what these tests read
+  // is the borrowing alone (which club the fixture picks depends on the world a season of play leaves).
+  for (const x of teamPlayers(l, team.id))
+    if (x.contract?.fifthYearOption === 'eligible') delete x.contract.fifthYearOption;
+  // Next year's books, its needs counted, no more than the cap: a club already over next year rightly borrows nothing,
+  // and how far over the fixture's club starts depends on the world a season of play leaves. Each test sets next year
+  // from here.
+  const over = capSheet(l, team.id, l.season + 1).used + nextYearNeeds(l, team) - capFor(l, l.season + 1);
+  if (over > 0) team.deadMoney.push({ season: l.season + 1, amount: -Math.round(over), playerId: -1, note: 'test' });
   team.gm.capAggression = capAggression;
   const market = marketApy(leagueMarket(l), p);
   team.deadMoney.push({

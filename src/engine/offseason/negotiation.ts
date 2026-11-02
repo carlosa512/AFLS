@@ -229,6 +229,23 @@ export function extensionBlocker(league: League, player: Player): string | null 
 }
 
 /**
+ * Whether your club can talk contract with him at all: one of your own (not on the practice squad or waivers) whose
+ * deal can be extended (the last two years, a rookie after three seasons) or has run out. The calendar may still keep
+ * talks shut (`contractTalkBlocker`); this is who a screen offers the button to.
+ */
+export function talksOpen(league: League, player: Player): boolean {
+  if (player.teamId !== league.userTeamId || player.squad || player.waiver || player.retired || !player.contract)
+    return false;
+  return !extensionBlocker(league, player);
+}
+
+/** Why talks with one of your eligible players can't open right now, or null when they can. */
+export function contractTalkBlocker(league: League, _player: Player): string | null {
+  if (league.phase === 'playoffs' || league.phase === 'complete') return 'Talks open when the new league year begins.';
+  return null;
+}
+
+/**
  * The contract as it would stand after signing. An extension replaces the remaining years but
  * the old bonus proration keeps counting on schedule, as it does in the NFL.
  */
