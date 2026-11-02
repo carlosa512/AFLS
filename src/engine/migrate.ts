@@ -321,6 +321,8 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 79) league.version = 79;
   // v80: trade requests (G4b): `Dispute.calm` and the market's `wantsOut` rumors are optional and absent to start.
   if (league.version < 80) league.version = 80;
+  // v81: the open field on a run or a catch (`PlayLogEntry.open`, for All-22). Optional: older games keep their plays.
+  if (league.version < 81) league.version = 81;
   return league;
 }
 
