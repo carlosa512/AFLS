@@ -82,8 +82,9 @@ export function openCommitment(
 
 /** What a broken commitment costs a man who bought in, against what the meeting gave him. */
 export const BROKEN_DIP = 1.5;
-/** What a kept one adds. */
+/** What a kept one adds, to a man the meeting lifted fully (`FULL_LIFT`, a coach's Monday meeting). */
 export const KEPT_LIFT = 1;
+const FULL_LIFT = 2;
 
 /** An AI GM keeps his club's word by his tendencies: mostly, sometimes not (G4's rule for promises). */
 export const aiKeepChance = (gm: Pick<GmTraits, 'loyalty' | 'stubbornness'>): number =>
@@ -138,7 +139,10 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
   for (const id of c.boughtIn) {
     const p = league.players[id];
     if (!p || !onClub(league, teamId, id)) continue;
-    addJolt(p, kept ? 'kept' : 'broken', kept ? KEPT_LIFT : -BROKEN_DIP * (c.lift?.[id] ?? 0), clock);
+    // Each man feels it as far as the meeting reached him: a full lift (a coach's Monday meeting) earns the whole of a
+    // kept one, a man it barely touched a little.
+    const lift = c.lift?.[id] ?? 0;
+    addJolt(p, kept ? 'kept' : 'broken', kept ? KEPT_LIFT * Math.min(1, lift / FULL_LIFT) : -BROKEN_DIP * lift, clock);
   }
   // A feud's two are named, but the one who goes is the keeping of it, not a promise to him.
   if (c.backing !== 'feud')

@@ -440,6 +440,10 @@ export interface TeamMeetings {
   moments?: string[];
   /** The clock of the last suggestion: one a week at most. */
   lastOffer?: number;
+  /** The rooms reading Split or Down when the coach last looked: trouble is a room turning, not one staying, that way. */
+  reads?: Partial<Record<CoachRoom, 'Split' | 'Down'>>;
+  /** Feuds the coach has seen start this league year (`2026:12-40`): each is trouble once. */
+  feuds?: string[];
   /** When each room (or the team) was last offered a trouble meeting, held or not: its cooldown runs from there. */
   offeredAt?: Partial<Record<MeetingScope, number>>;
   gmAddressSeason?: number;

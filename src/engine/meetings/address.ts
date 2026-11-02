@@ -12,6 +12,8 @@ import { headCoachOf, meetingsOf, ROOMS, stepClock, topicOf, membersOf } from '.
  * (the promises you've kept and broken) decides most of it; the stakes are twice a coach's meeting.
  */
 const CRISIS = { losing: 4, rooms: 3 };
+/** What each approach does with each kind of man (on top of trust in your word). */
+export const ADDRESS = { ownIt: 0.15, raiseBar: 0.3 };
 /** A shake-up is "right after" for this many weeks. */
 const SHAKE_WEEKS = 1;
 
@@ -80,8 +82,8 @@ export function gmTerms(league: League, choice: MeetingChoice): SpeakerTerms {
   return {
     trust: (p: Player) => (0.5 * promisesScore(p)) / 3,
     lean: (p: Player) => {
-      if (choice.approach === 'ownIt') return p.personality.loyalty >= 0.6 || p.experience >= 6 ? 0.3 : 0;
-      if (choice.approach === 'raiseBar') return isDriven(p) ? 0.3 : isVolatile(p) ? -0.3 : 0;
+      if (choice.approach === 'ownIt') return p.personality.loyalty >= 0.6 || p.experience >= 6 ? ADDRESS.ownIt : 0;
+      if (choice.approach === 'raiseBar') return isDriven(p) ? ADDRESS.raiseBar : isVolatile(p) ? -ADDRESS.raiseBar : 0;
       return 0;
     },
   };

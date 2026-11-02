@@ -5,6 +5,7 @@ import { simToEndOfSeason } from '../league';
 import { beginOffseason } from '../offseason';
 import type { Coach } from '../types';
 import {
+  CRED,
   credibilityOf,
   credibilityRead,
   credibilityTick,
@@ -30,7 +31,7 @@ describe("a head coach's credibility", () => {
   it('drifts toward the middle and moves with a streak', () => {
     const calm = { credibility: 0.5 } as Coach;
     credibilityTick(calm, '');
-    expect(credibilityOf(calm)).toBeCloseTo(0.485, 6);
+    expect(credibilityOf(calm)).toBeCloseTo(0.5 * CRED.drift, 6);
     const losing = { credibility: 0.5 } as Coach;
     credibilityTick(losing, 'L3');
     expect(credibilityOf(losing)).toBeLessThan(credibilityOf(calm));
@@ -40,7 +41,7 @@ describe("a head coach's credibility", () => {
     // Two in a row is no streak.
     const two = { credibility: 0.5 } as Coach;
     credibilityTick(two, 'L2');
-    expect(credibilityOf(two)).toBeCloseTo(0.485, 6);
+    expect(credibilityOf(two)).toBeCloseTo(0.5 * CRED.drift, 6);
   });
 
   it("the league's week drifts every head coach in a chair", () => {
@@ -48,7 +49,7 @@ describe("a head coach's credibility", () => {
     const hc = teamCoaches(l, 3).find((c) => c.role === 'headCoach')!;
     hc.credibility = 0.5;
     credibilityWeek(l);
-    expect(credibilityOf(hc)).toBeCloseTo(0.485, 6);
+    expect(credibilityOf(hc)).toBeCloseTo(0.5 * CRED.drift, 6);
   });
 
   it('a new head coach starts at 0 with two new-voice meetings', () => {

@@ -6,6 +6,7 @@ import { activeRoster } from '../roster';
 import { unitOf } from '../standing';
 import type { Commitment, League, Player } from '../types';
 import { aiKeepChance, deadlineClock, isKept, judgeCommitments, openCommitment, WINDOW } from './commitments';
+import { CRED } from './credibility';
 import { headCoachOf } from './suggest';
 
 const base = createLeague({ seed: 'meetings-commit' });
@@ -60,7 +61,7 @@ describe('meetings: commitments', () => {
     expect(l.teams[TEAM].meetings!.open).toEqual([]);
     expect(joltOf(backup, 'kept')).toBe(1);
     expect(joltOf(other, 'kept')).toBe(1);
-    expect(hc.credibility).toBeCloseTo(0.15, 6);
+    expect(hc.credibility).toBeCloseTo(CRED.kept, 6);
     expect(backup.morale!.talk!.kept).toBe(1);
   });
 
@@ -74,7 +75,7 @@ describe('meetings: commitments', () => {
     expect(l.teams[TEAM].meetings!.open).toEqual([]);
     expect(joltOf(backup, 'broken')).toBe(-3);
     expect(joltOf(other, 'broken')).toBe(-3);
-    expect(hc.credibility).toBeCloseTo(-0.25, 6);
+    expect(hc.credibility).toBeCloseTo(CRED.broken, 6);
     expect(backup.morale!.talk!.broken).toBe(1);
   });
 

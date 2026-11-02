@@ -22,16 +22,15 @@ export const AI = {
   lean: 0.6,
 };
 
-/** What the GM puts behind it: a buyer a move, a loyal GM his men's snaps or talks, the rest words. */
+/** What the GM puts behind it: a buyer a move, a loyal GM his men's snaps, the rest words. */
 function backingFor(league: League, teamId: number, s: MeetingSuggestion): Backing {
   const gm = league.teams[teamId].gm;
   const has = (b: Backing) => s.backings.includes(b);
   if (gm.winNow >= AI.lean && has('move')) return 'move';
   if (s.kind === 'gm') return gm.loyalty <= 1 - AI.lean && has('jobs') ? 'jobs' : 'words';
-  if (gm.loyalty >= AI.lean) {
-    if (has('snaps')) return 'snaps';
-    if (has('talks')) return 'talks';
-  }
+  // Never talks: an AI front office deals with contracts on its own calendar (`offseason/ai.ts`), so a promise of talks
+  // would be kept or broken by a draw with nothing behind it, lifting an underpaid man for nothing.
+  if (gm.loyalty >= AI.lean && has('snaps')) return 'snaps';
   return 'words';
 }
 

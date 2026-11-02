@@ -33,9 +33,10 @@ import type {
 
 /**
  * When a head coach suggests a meeting, and what he offers (L2, spec §1.1–1.2). Moments come every season and don't
- * count against the cooldowns; trouble waits on them: a room every four weeks, the team every six, one suggestion a week.
+ * count against the cooldowns; trouble waits on them: a room every four weeks, the team every six, any trouble at all
+ * every four (the spec's lower end: about four a calm season, eight a rough one), one suggestion a week.
  */
-export const COOLDOWN = { room: 4, team: 6, week: 1 };
+export const COOLDOWN = { room: 4, team: 6, week: 1, club: 4 };
 
 export const ROOMS: readonly CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 
@@ -243,10 +244,12 @@ function tradedVoiceRooms(league: League, teamId: number, ctx: MoraleContext): S
 export function troubles(league: League, teamId: number, ctx: MoraleContext): Trouble[] {
   const out: Trouble[] = [];
   const clock = stepClock(league);
-  const reads = ROOMS.flatMap((u) => {
-    const r = unitRead(league, teamId, u, ctx);
-    return r && (r.word === 'Split' || r.word === 'Down') ? [r] : [];
-  }).sort((a, b) => (a.word === 'Down' ? 0 : 1) - (b.word === 'Down' ? 0 : 1) || a.mood - b.mood);
+  const team = league.teams[teamId];
+  const was = meetingsOf(team).reads ?? {};
+  // A room turning Split or Down is trouble; one that stays that way was already told.
+  const reads = roomTrouble(league, teamId, ctx)
+    .filter((r) => !was[r.unit as CoachRoom])
+    .sort((a, b) => (a.word === 'Down' ? 0 : 1) - (b.word === 'Down' ? 0 : 1) || a.mood - b.mood);
   for (const r of reads) {
     const men = membersOf(league, teamId, r.unit as CoachRoom);
     out.push({ scope: r.unit as CoachRoom, topic: topicOf(league, men, ctx), driver: driverIn(league, men, ctx) });
@@ -254,13 +257,10 @@ export function troubles(league: League, teamId: number, ctx: MoraleContext): Tr
   const streak = computeRecords(league).get(teamId)?.streak ?? '';
   if (league.phase === 'regular' && streak[0] === 'L' && Number(streak.slice(1)) >= LOSING_RUN)
     out.push({ scope: 'team', topic: 'losing', driver: driverIn(league, membersOf(league, teamId, 'team'), ctx) });
-  const team = league.teams[teamId];
+  const seen = new Set(meetingsOf(team).feuds ?? []);
   for (const room of ROOMS) {
-    const men = membersOf(league, teamId, room);
-    const metAbout = meetingsOf(team).log.some(
-      (m) => m.scope === room && m.topic === 'feud' && seasonOf(m.clock) === league.season,
-    );
-    if (!metAbout && feudIn(men, league.season)) out.push({ scope: room, topic: 'feud' });
+    const pair = feudIn(membersOf(league, teamId, room), league.season);
+    if (pair && !seen.has(feudKey(league, pair))) out.push({ scope: room, topic: 'feud' });
   }
   const traded = tradedVoiceRooms(league, teamId, ctx);
   for (const room of ROOMS) {
@@ -272,8 +272,43 @@ export function troubles(league: League, teamId: number, ctx: MoraleContext): Tr
   return out.filter((t, i) => out.findIndex((o) => o.scope === t.scope) === i);
 }
 
-/** The trouble to meet about now: the worst one off its cooldown. */
+/** The rooms reading Split or Down now. */
+function roomTrouble(league: League, teamId: number, ctx: MoraleContext) {
+  return ROOMS.flatMap((u) => {
+    const r = unitRead(league, teamId, u, ctx);
+    return r && (r.word === 'Split' || r.word === 'Down') ? [r] : [];
+  });
+}
+
+const feudKey = (league: League, [a, b]: [number, number]) => `${league.season}:${a}-${b}`;
+
+/** What the coach has now seen: the rooms' reads and this season's feuds (each is trouble once). */
+function noteRooms(league: League, teamId: number, ctx: MoraleContext): void {
+  const m = meetingsOf(league.teams[teamId]);
+  const reads: NonNullable<TeamMeetings['reads']> = {};
+  for (const r of roomTrouble(league, teamId, ctx)) reads[r.unit as CoachRoom] = r.word as 'Split' | 'Down';
+  if (Object.keys(reads).length) m.reads = reads;
+  else delete m.reads;
+  const feuds = new Set((m.feuds ?? []).filter((k) => k.startsWith(`${league.season}:`)));
+  for (const room of ROOMS) {
+    const pair = feudIn(membersOf(league, teamId, room), league.season);
+    if (pair) feuds.add(feudKey(league, pair));
+  }
+  if (feuds.size) m.feuds = [...feuds].sort();
+  else delete m.feuds;
+}
+
+/** The club's last trouble meeting offered, any scope, this league year. */
+function lastClubTrouble(league: League, teamId: number): number {
+  const at = Object.values(meetingsOf(league.teams[teamId]).offeredAt ?? {}).filter(
+    (c) => seasonOf(c) === league.season,
+  );
+  return at.length ? Math.max(...at) : -Infinity;
+}
+
+/** The trouble to meet about now: the worst one off its cooldown, and none within four weeks of the last. */
 export function troubleScope(league: League, teamId: number, ctx: MoraleContext): Trouble | null {
+  if (stepClock(league) - lastClubTrouble(league, teamId) < COOLDOWN.club) return null;
   return troubles(league, teamId, ctx).find((t) => offCooldown(league, teamId, t.scope)) ?? null;
 }
 
@@ -380,6 +415,7 @@ export function suggestMeeting(league: League, teamId: number, ctx: MoraleContex
     };
   } else if (troubleSeason(league)) {
     const t = troubleScope(league, teamId, ctx);
+    noteRooms(league, teamId, ctx);
     if (t) markOffered(league, teamId, t.scope);
     if (t)
       s = {

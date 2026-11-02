@@ -26,7 +26,7 @@ export { credibilityOf, credibilityRead, type CredibilityRead } from './credibil
 export type { MeetingChoice } from './react';
 
 /** An AI GM at a crisis speaks to his team this often (once a season at most). */
-const AI_ADDRESS = 0.5;
+export const AI_ADDRESS = { chance: 0.25 };
 
 /**
  * One step: last season's log cleared, a pending suggestion from an earlier step lapsed, then each club's meeting: an
@@ -43,7 +43,7 @@ export function meetingsStep(league: League): void {
     if (!yours && gmAddressOpen(league, team.id, ctx)) {
       const s = addressSuggestion(league, team.id, ctx);
       const rng = meetingRng(league, team.id, s, 'gm:choice');
-      if (rng.chance(AI_ADDRESS)) {
+      if (rng.chance(AI_ADDRESS.chance)) {
         const choice = aiChoice(league, team.id, s, rng);
         if (choice) {
           m.pending = s;

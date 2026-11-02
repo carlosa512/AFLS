@@ -7,13 +7,13 @@ import type { Coach, League } from '../types';
  * it; every week it drifts back toward the middle, so a season's slide can be climbed out of.
  */
 export const CRED = {
-  meetingLands: 0.12,
-  meetingBristles: -0.15,
+  meetingLands: 0.08,
+  meetingBristles: -0.25,
   kept: 0.15,
-  broken: -0.25,
-  winStreak: 0.03,
-  loseStreak: -0.04,
-  drift: 0.97,
+  broken: -0.3,
+  winStreak: 0.035,
+  loseStreak: -0.08,
+  drift: 0.975,
 };
 
 /** A streak this long or longer moves his word each week it runs. */

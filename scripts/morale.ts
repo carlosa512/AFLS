@@ -10,6 +10,9 @@
  *    −10…+10.
  * 6. Talks (G3): asks per club per season 4–30, every club counted alike (yours answered by the AI's rule, since nobody
  *    clicks), and 25–75% of the promises that resolve are kept.
+ * 8. Meetings (L2): meetings per club per season 3–6 (yours held by your coach, since nobody clicks); of the men in
+ *    them, 35–60% take it well and 10–30% bristle; 5–20% of head coaches' word worn thin at season's end, and some of
+ *    those recover within a season.
  * 7. Effects (G2): the game-day edge averages out (every week's league mean within ±0.05 rating points, none past ±0.5);
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
@@ -38,6 +41,8 @@ import { computeRecords } from '../src/engine/season/standings';
 import { activeRoster } from '../src/engine/roster';
 import { isCaptain, moraleStepOf as stepOf } from '../src/engine/morale';
 import { tierOf, unitReads, weightOf, type UnitWord } from '../src/engine/standing';
+import { credibilityRead, setMeetingsByCoach } from '../src/engine/meetings';
+import { membersOf } from '../src/engine/meetings/suggest';
 import type { League, Phase, Player } from '../src/engine/types';
 
 const arg = (name: string, fallback: string) => {
@@ -58,6 +63,8 @@ const check = (label: string, value: number, [lo, hi]: [number, number], digits 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
 const league = createLeague({ seed: SEED });
+// Nobody clicks: your head coach holds your meetings, as an AI club's does.
+setMeetingsByCoach(league, true);
 const rostered = (l: League) => Object.values(l.players).filter((p) => p.teamId !== null && p.morale);
 
 // 1, 2 and 5: samples at weeks 9 and 18.
@@ -149,6 +156,9 @@ const asks = new Map<string, number>();
 let promisesMade = 0;
 let kept = 0;
 let broken = 0;
+/** Players with an open promise before the step: only theirs are promises kept or broken (a meeting's commitment
+ * lands the same jolts on the men who bought in, `meetings/commitments.ts`). */
+let promised = new Set<number>();
 function talks(clock: number) {
   for (const p of rostered(league)) {
     const t = p.morale!.talk;
@@ -161,18 +171,60 @@ function talks(clock: number) {
     }
     if (p.morale!.talk?.answered?.at === clock && p.morale!.talk.answered.reply === 'promise') promisesMade++;
     for (const j of p.morale!.jolts ?? [])
-      if (j.at === clock) {
+      if (j.at === clock && promised.has(p.id)) {
         if (j.kind === 'kept') kept++;
         if (j.kind === 'broken') broken++;
       }
   }
 }
 
+// 8: meetings (L2), counted the step they're held; the re-sign window's belongs to the season it ends.
+const YEAR = 32;
+const meetingsBy = new Map<string, number>();
+let menMet = 0;
+let menLand = 0;
+let menBristle = 0;
+const wornShare: number[] = [];
+let wornBefore = new Set<number>();
+let wornSeen = 0;
+let wornRecovered = 0;
+function meetings(clock: number) {
+  for (const t of league.teams)
+    for (const r of t.meetings?.log ?? []) {
+      if (r.clock !== clock) continue;
+      const year = Math.floor(clock / YEAR) - (clock % YEAR === 0 ? 1 : 0);
+      const key = `${year}:${t.id}`;
+      meetingsBy.set(key, (meetingsBy.get(key) ?? 0) + 1);
+      const outs = Object.values(r.outcomes);
+      menMet += membersOf(league, t.id, r.scope).length;
+      menLand += outs.filter((o) => o === 'lands').length;
+      menBristle += outs.filter((o) => o === 'bristles').length;
+    }
+}
+function credibilitySample() {
+  const heads = Object.values(league.coaches).filter((c) => c.role === 'headCoach' && c.teamId !== null);
+  const worn = new Set(heads.filter((c) => credibilityRead(c) === 'wornThin').map((c) => c.id));
+  wornShare.push(worn.size / heads.length);
+  for (const id of wornBefore) {
+    const c = league.coaches[id];
+    if (!c || c.role !== 'headCoach' || c.teamId === null) continue;
+    wornSeen++;
+    if (!worn.has(id)) wornRecovered++;
+  }
+  wornBefore = worn;
+}
+
 function step(run: () => void) {
   before = new Map(rostered(league).map((p) => [p.id, moraleLevel(league, p)]));
+  promised = new Set(
+    rostered(league)
+      .filter((p) => p.morale!.talk?.promise)
+      .map((p) => p.id),
+  );
   run();
   const clock = league.moraleAt ?? moraleClock(league);
   talks(clock);
+  meetings(clock);
   for (const p of Object.values(league.players)) {
     const m = p.morale;
     if (m && (Math.abs(m.level) > 10 || Math.abs(moraleLevel(league, p)) > 10)) outOfRange++;
@@ -231,7 +283,10 @@ for (let s = 0; s < SEASONS; s++) {
     step(() => playWeek(league));
     if (regular && week === 17) readTilts();
     if (regular && week === 9) sample(false);
-    if (regular && week === 18) sample(true);
+    if (regular && week === 18) {
+      sample(true);
+      credibilitySample();
+    }
   }
   if (s === SEASONS - 1) break;
   step(() => beginOffseason(league));
@@ -299,6 +354,23 @@ check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
 // The ceiling is the point (spec §8: rooms cluster but don't run away); a club room averaging Poor is rare (about 2%),
 // so there is no floor (the owner's call, Nov 2, 2026).
 check('Club rooms at Poor or worse (ceiling)', mean(poorRooms), [0, 0.25]);
+
+// 8: meetings (L2). A season counts once its re-sign window is in (the last season played has none).
+const lastYear = league.season;
+const counts = league.teams.flatMap((t) => {
+  const out: number[] = [];
+  for (let y = league.season - SEASONS + 1; y < lastYear; y++) out.push(meetingsBy.get(`${y}:${t.id}`) ?? 0);
+  return out;
+});
+check(`Meetings per club per season (${counts.length} club-seasons)`, mean(counts), [3, 6]);
+check(`Reactions: lands (n=${menMet})`, menLand / menMet, [0.35, 0.6]);
+check('Reactions: bristles', menBristle / menMet, [0.1, 0.3]);
+check("Head coaches worn thin at season's end", mean(wornShare), [0.05, 0.2]);
+check(
+  `Worn-thin coaches who recover within a season (n=${wornSeen})`,
+  wornSeen ? wornRecovered / wornSeen : 0,
+  [0.01, 1],
+);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

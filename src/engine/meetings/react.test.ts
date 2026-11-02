@@ -6,7 +6,8 @@ import { activeRoster } from '../roster';
 import { unitOf } from '../standing';
 import type { League, MeetingSuggestion, Player } from '../types';
 import { headCoachOf, suggestMeeting } from './suggest';
-import { holdMeeting, JOLT, joltSize, reactionScore, type MeetingChoice } from './react';
+import { CRED } from './credibility';
+import { holdMeeting, JOLT, joltSize, REACT, reactionScore, type MeetingChoice } from './react';
 
 const base = createLeague({ seed: 'meetings-react' });
 const TEAM = 0;
@@ -47,7 +48,8 @@ describe('meetings: a reaction score', () => {
     const ctx = moraleContext(l);
     const hit = reactionScore(l, TEAM, p, sugg(l, { topic: 'snaps' }), straight, ctx);
     const miss = reactionScore(l, TEAM, p, sugg(l, { topic: 'deal' }), straight, ctx);
-    expect(hit).toBeGreaterThan(miss + 0.4);
+    expect(hit - miss).toBeCloseTo(REACT.fit - REACT.miss, 6);
+    expect(hit).toBeGreaterThan(miss);
   });
 
   it('a blunt coach and a short fuse score lower than a calm man', () => {
@@ -135,7 +137,9 @@ describe('meetings: holding one', () => {
     expect(moved.length).toBeGreaterThan(0);
     for (const [id, o] of moved) {
       const j = a.players[Number(id)].morale!.jolts!.find((j) => j.kind === 'meeting')!;
-      expect(j.size).toBe(o === 'lands' ? 2 : -2);
+      // A man with nothing wrong is moved a quarter as far.
+      expect([2, 2 * JOLT.content]).toContain(Math.abs(j.size));
+      expect(o === 'lands' ? j.size > 0 : j.size < 0).toBe(true);
     }
     expect(joltSize(a.teams[TEAM].meetings!.log.at(-1) as never, straight)).toBe(2 * JOLT.monday);
   });
@@ -149,7 +153,7 @@ describe('meetings: holding one', () => {
     const r = holdMeeting(l, TEAM, { ...straight, timing: 'afterGame' });
     const [id, o] = Object.entries(r.outcomes)[0];
     const j = l.players[Number(id)].morale!.jolts!.find((j) => j.kind === 'meeting')!;
-    expect(Math.abs(j.size)).toBe(3);
+    expect([3, 3 * JOLT.content]).toContain(Math.abs(j.size));
     expect(o === 'lands' ? j.size > 0 : j.size < 0).toBe(true);
   });
 
@@ -160,7 +164,9 @@ describe('meetings: holding one', () => {
     const before = hc.credibility ?? 0;
     const r = holdMeeting(l, TEAM, straight);
     const outs = Object.values(r.outcomes);
-    const net = outs.filter((o) => o === 'lands').length * 0.12 - outs.filter((o) => o === 'bristles').length * 0.15;
+    const net =
+      outs.filter((o) => o === 'lands').length * CRED.meetingLands +
+      outs.filter((o) => o === 'bristles').length * CRED.meetingBristles;
     expect((hc.credibility ?? 0) - before).toBeCloseTo(net / wrs(l).length, 3);
     expect(hc.newVoice).toBe(1);
   });

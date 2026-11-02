@@ -1,5 +1,14 @@
 import { traitLean, traitOf } from '../coachTraits';
-import { addJolt, moodLean, moraleContext, moraleLevel, promisesScore, YEAR, type MoraleContext } from '../morale';
+import {
+  addJolt,
+  moodLean,
+  moraleContext,
+  moraleFactors,
+  moraleLevel,
+  promisesScore,
+  YEAR,
+  type MoraleContext,
+} from '../morale';
 import { characterZ } from '../personality';
 import { Rng } from '../rng';
 import { tierOf, weightOf } from '../standing';
@@ -25,23 +34,35 @@ import { grievancesOf, headCoachOf, meetingsOf, membersOf } from './suggest';
  * `meeting` jolt that fades like any other. A meeting never fixes the cause.
  */
 export const REACT = {
-  fit: 0.6,
+  fit: 0.15,
   noGrievance: 0.2,
+  miss: -0.1,
+  money: -0.6,
   backingMatch: 0.8,
   backingOther: 0.15,
-  credibility: 0.4,
+  credibility: 0.25,
   newVoice: 0.2,
   heard: -0.25,
   benched: -0.2,
   broken: -0.3,
   ripple: 0.15,
-  luck: 0.35,
+  luck: 0.5,
   lands: 0.5,
   bristles: -0.5,
 };
 
 /** The jolt on the mood level: a base, the timing, then a moment or the standard smaller and the GM's address bigger. */
-export const JOLT = { base: 2, afterGame: 1.5, monday: 1, wednesday: 0.6, moment: 0.7, standard: 0.5, gm: 2 };
+export const JOLT = {
+  base: 2,
+  afterGame: 1.5,
+  monday: 1,
+  wednesday: 0.6,
+  moment: 0.7,
+  standard: 0.5,
+  gm: 2,
+  /** A man with nothing wrong isn't who it's about: it moves him a quarter as far (a happy room isn't made Tight by a talk). */
+  content: 0.25,
+};
 
 export type MeetingChoice = { approach: Approach; backing: Backing; timing: Timing };
 
@@ -137,7 +158,10 @@ export function reactionScore(
 ): number {
   const grievances = grievancesOf(league, p, ctx);
   const about = aboutOf(choice.approach, s);
-  let score = grievances.size === 0 ? REACT.noGrievance : about !== 'none' && grievances.has(about) ? REACT.fit : 0;
+  let score =
+    grievances.size === 0 ? REACT.noGrievance : about !== 'none' && grievances.has(about) ? REACT.fit : REACT.miss;
+  // A man who wants a new deal can't be talked out of it: only talks behind the meeting reach him.
+  if ((grievances.has('deal') || underpaid(league, p, ctx)) && choice.backing !== 'talks') score += REACT.money;
   score += speakerTerm(league, teamId, p, s, choice.approach);
   if (choice.backing !== 'words') {
     const named = s.namedFor?.[choice.backing];
@@ -159,6 +183,12 @@ export function reactionScore(
   if (promisesScore(p) < 0) score += REACT.broken;
   return score;
 }
+
+/** Paid well under what he thinks he's worth, whether or not it's the first thing he'd say. */
+const underpaid = (league: League, p: Player, ctx: MoraleContext) =>
+  moraleFactors(league, p, ctx).contract <= -MONEY_AT;
+/** The contract factor past which his mood board says he wants a new deal (`moraleReasons`). */
+const MONEY_AT = 0.75;
 
 const outcomeOf = (score: number): Outcome =>
   score >= REACT.lands ? 'lands' : score <= REACT.bristles ? 'bristles' : 'shrug';
@@ -198,6 +228,7 @@ export function holdMeeting(
   const scored = men.map((x) => ({
     ...x,
     tier: tierOf(league, x.p, x.w) !== null,
+    content: grievancesOf(league, x.p, ctx).size === 0,
     score: reactionScore(league, teamId, x.p, s, choice, ctx, terms) + rng.normal(0, REACT.luck),
   }));
   let net = 0;
@@ -215,11 +246,11 @@ export function holdMeeting(
     const o = outcomeOf(x.tier ? x.score : x.score + ripple);
     if (o === 'shrug') continue;
     outcomes[x.p.id] = o;
-    const jolt = o === 'lands' ? size : -size;
-    addJolt(x.p, 'meeting', jolt, s.clock);
+    const his = x.content ? size * JOLT.content : size;
+    addJolt(x.p, 'meeting', o === 'lands' ? his : -his, s.clock);
     if (o === 'lands') {
       lands++;
-      lift[x.p.id] = size;
+      lift[x.p.id] = his;
     } else bristles++;
   }
   const record: MeetingRecord = {
