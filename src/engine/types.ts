@@ -388,6 +388,10 @@ export interface Commitment {
   lift?: Record<number, number>;
   /** The starters when it opened (`jobs`, `move`): kept when they change. */
   starters?: number[];
+  /** The 53 when it opened (`move`): a starter from outside it is the move. */
+  roster?: number[];
+  /** The head coach who made it: his word gains or loses by it only while he's still in the chair. */
+  coachId?: number;
 }
 
 /** A meeting held, this season. */
