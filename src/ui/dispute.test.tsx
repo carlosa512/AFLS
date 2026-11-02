@@ -66,6 +66,21 @@ describe('a dispute’s letter (G4)', () => {
   });
 });
 
+describe('a trade request’s letter (G4b)', () => {
+  it('offers shop, refuse and the snaps he asked for; over the losing, no promise', () => {
+    const { l, p } = holdout();
+    delete p.morale!.dispute;
+    p.morale!.dispute = { kind: 'trade', cause: 'snaps', since: l.moraleAt!, club: l.userTeamId };
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id === `dispute:${l.season}:${l.moraleAt}:${p.id}`)!;
+    const html = render(<MailCards league={l} message={m} />);
+    for (const b of ['Shop him', 'Refuse', 'Promise him snaps']) expect(html).toContain(b);
+    expect(html).not.toContain('Hold firm');
+    p.morale!.dispute.cause = 'losing';
+    expect(render(<MailCards league={l} message={m} />)).not.toContain('Promise');
+  });
+});
+
 describe('disputes on the screens (G4)', () => {
   /** One of your men holding out, and another club's. */
   function both() {
