@@ -10,10 +10,10 @@ export const MOOD_ACTS = { on: true };
 
 export const disputeOf = (p: Player): Dispute | undefined => (MOOD_ACTS.on ? p.morale?.dispute : undefined);
 
-/** A holdout gone to the Reserve/Did Not Report list: off the 53, unavailable. */
+/** A holdout gone to the Reserve/Did Not Report list, or reported to a full 53 and waiting on room: off it, unavailable. */
 export const onDidNotReport = (p: Player): boolean => {
   const d = disputeOf(p);
-  return !!d && d.kind === 'holdOut' && !!d.out;
+  return (!!d && d.kind === 'holdOut' && !!d.out) || (MOOD_ACTS.on && !!p.morale?.reported);
 };
 
 /** Not practicing: a hold-in before week 1, a holdout all the while. */

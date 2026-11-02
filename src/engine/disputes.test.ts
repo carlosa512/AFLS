@@ -315,6 +315,32 @@ describe('disputes: a holdout runs and ends (G4)', () => {
     expect([a, b, c].every((x) => !x.morale!.dispute)).toBe(true);
   });
 
+  it('reports to your full 53 by waiting off it until you make room; an AI club cuts for him', () => {
+    const { l } = base('report-full');
+    l.phase = 'regular';
+    const mine = holdingOut(l, l.userTeamId);
+    const theirs = holdingOut(l, 1);
+    run(l, 7, 8);
+    expect(rosterList(mine)).toBe('didNotReport');
+    // Both give in at once: the 53 is full at each club.
+    for (const x of [mine, theirs]) x.morale!.dispute!.lost = 10 ** 9;
+    while (activeRoster(l, l.userTeamId).length < 53) {
+      const extra = activeRoster(l, 2).find((x) => !x.morale?.dispute)!;
+      setTeam(l, extra, l.userTeamId);
+    }
+    run(l, 9, 9);
+    expect(mine.morale!.disputeEnd?.how).toBe('gaveIn');
+    expect(rosterList(mine)).toBe('didNotReport');
+    expect(activeRoster(l, l.userTeamId)).toHaveLength(53);
+    expect(rosterList(theirs)).toBe('active');
+    expect(activeRoster(l, 1).length).toBeLessThanOrEqual(53);
+    // You make room: he's on the 53 the next step.
+    setTeam(l, activeRoster(l, l.userTeamId).find((x) => x !== mine)!, null);
+    run(l, 10, 10);
+    expect(rosterList(mine)).toBe('active');
+    expect(activeRoster(l, l.userTeamId)).toHaveLength(53);
+  });
+
   it('ends a holdout still out at the new league year', () => {
     const { l } = base('new-year');
     const p = holdingOut(l);

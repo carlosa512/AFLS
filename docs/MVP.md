@@ -114,7 +114,14 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
       reminds you of open promises when the season ends. Fewer sulkers (0.2.37): paid 80% of his market or more a man has
       no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
-      games a man the depth chart starts reads as a starter. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      games a man the depth chart starts reads as a starter. Hold-ins and holdouts (G4a, `disputes.ts`): a deal talk that
+      ended badly and a man still Very poor four steps later, with his deal still his top reason, holds in (reports, won't
+      practice: no position learning, growth as if Abysmal) or, a greedy veteran starter, holds out (the Reserve/Did Not
+      Report list, a $2.25M camp fine, a game check a week withheld, the accrued season lost, rust when he reports) until
+      a deal, a trade, a promise he takes, giving in, or week 1 for a hold-in. AI clubs settle or hold firm by their GM's
+      tendencies and keep the deal and snaps promises they make; your head coach writes when one starts and ends, with
+      your four answers (talks, a promise, firm, shop him), and the Locker Room, the Roster and the card show it. Trade
+      requests (G4b) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,

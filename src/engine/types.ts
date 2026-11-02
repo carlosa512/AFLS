@@ -473,6 +473,11 @@ export interface Morale {
   disputeEnd?: { kind: DisputeKind; since: number; how: DisputeHow; at: number };
   /** Back after missing camp: the first regular-season week he's back (rust that week and the next). */
   rust?: { season: number; week: number };
+  /**
+   * A holdout who reported to your full 53: he waits on the Reserve/Did Not Report list until there's room, as a man
+   * back from reserve does (your staff never cuts to make it).
+   */
+  reported?: true;
 }
 
 /** A year of development on its way: the roll's inputs (its targets come back from the seed) and what has landed so far. */

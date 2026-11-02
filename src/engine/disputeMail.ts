@@ -37,6 +37,7 @@ function fact(league: League, p: Player, kind: DisputeFact['kind'], how?: Disput
     veteran: p.experience >= 6,
     starter: spot >= 0 && spot < STARTERS[p.position],
     how,
+    waiting: !!p.morale?.reported,
   };
 }
 

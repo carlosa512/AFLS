@@ -8,7 +8,7 @@ import { MOOD_ACTS } from './disputeRead';
 import { isExpired, yearOf, yearsLeft } from './finance/contract';
 import { addJolt, expectedRole, moraleLevel, moraleFactors, type MoraleContext } from './morale';
 import { aiCutdown, aiSettle } from './offseason/ai';
-import { extensionBlocker, ROSTER_MAX } from './offseason/negotiation';
+import { extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
 import { aiReply, talkCause } from './playerTalks';
 import { employed } from './employment';
 import { activeRoster } from './roster';
@@ -90,10 +90,13 @@ export function endDispute(league: League, p: Player, how: DisputeHow, clock: nu
     const t = (m.talk ??= { club: p.teamId });
     t.sour = { cause: d.cause, at: clock, run: 0, after: d.kind };
   }
-  // Back on the 53: an AI club over the limit makes room by its own cut rule.
+  // Back on the 53: an AI club over the limit makes room by its own cut rule. Yours never cuts for you (as with a man
+  // back from reserve): he waits on the list until there's room.
   const team = p.teamId === null ? undefined : league.teams[p.teamId];
-  if (d.out && team && team.id !== league.userTeamId && league.phase === 'regular')
-    if (activeRoster(league, team.id).length > ROSTER_MAX) aiCutdown(league, team, ROSTER_MAX);
+  if (d.out && team && league.phase === 'regular' && activeRoster(league, team.id).length > ROSTER_MAX) {
+    if (team.id !== league.userTeamId) aiCutdown(league, team, ROSTER_MAX);
+    else m.reported = true;
+  }
 }
 
 /** An open dispute's step: off to Did Not Report at camp, the fine as camp ends, the game checks, giving in. */
@@ -223,7 +226,13 @@ export function disputeView(league: League, p: Player): { kind: DisputeKind; lab
  */
 export function disputeStep(league: League, ctx: MoraleContext, clock: number, week: number, newYear: boolean): void {
   if (!MOOD_ACTS.on) return;
-  for (const p of Object.values(league.players)) if (p.morale?.dispute) runDispute(league, p, clock, week, newYear);
+  for (const p of Object.values(league.players)) {
+    if (p.morale?.dispute) runDispute(league, p, clock, week, newYear);
+    // Reported to a full 53: on it once there's room (or he's gone).
+    const m = p.morale;
+    if (m?.reported && (p.teamId === null || activeRoster(league, p.teamId).length < rosterLimit(league)))
+      delete m.reported;
+  }
   const ready = new Map<number, { p: Player; level: number }[]>();
   for (const p of Object.values(league.players)) {
     const m = p.morale;

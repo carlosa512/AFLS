@@ -16,6 +16,8 @@ export interface DisputeFact {
   veteran: boolean;
   starter: boolean;
   how?: DisputeHow;
+  /** Reported to a full 53: off it until you make room. */
+  waiting?: boolean;
 }
 
 export const DISPUTE_SUBJECT: Record<'holdIn' | 'holdOut', (name: string) => string> = {
@@ -84,6 +86,12 @@ export const disputeEndSubject = (name: string, how: DisputeHow) => END_SUBJECT[
 
 /** The letter when it ends. */
 export const DISPUTE_END: readonly Line<DisputeFact>[] = [
+  {
+    when: (f) => !!f.waiting,
+    reads: 3,
+    text: (f) =>
+      `${f.full} has reported, but our 53 is full. He stays on the reserve list until you make room for him, and he won't play until you do.`,
+  },
   {
     when: (f) => f.how === 'signed',
     reads: 1,
