@@ -150,7 +150,7 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 - **Thinking again (the owner, 2026-11-02):** a club that held firm thinks it over at each step from camp to week 4
   (`aiReviewDispute`): what playing without him costs (his edge over the man who'd start in his place, what's at stake by
   then: camp's work, then each game; how much this season matters to it) against what giving in costs (his walk-away past
-  his market, its GM's stubbornness). Worth it, it settles by `aiSettle`. As in the NFL, most holdouts end by late August
+  his market, its GM's stubbornness). Worth it, it settles by `aiSettle`, making cap room first as it would for a keeper. As in the NFL, most holdouts end by late August
   and a few run into the season until a deal; a man barely better than his backup is left to give in.
 - **Keeping promises:** a deal promised, the AI extends him in the re-sign window by `resignCall`'s rule (extensions
   with two years left included), or the promise breaks when its own read says he isn't worth his ask. Snaps promised,
