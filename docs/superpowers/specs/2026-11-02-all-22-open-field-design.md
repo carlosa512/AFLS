@@ -122,8 +122,8 @@ A run is staged in beats, each timed so the whole thing still ends at the engine
    A bounce is a harder cut to the edge.
 4. **The broken tackle** (`open.broke`), against the man who missed, where they meet:
    - **move:** a juke (one sharp side-step as the defender commits to where he was), a jump cut (a quick two-yard
-     lateral hop at low speed, for a `jumpCutter`), or a spin (a tight half-loop through the contact point, his
-     speed dipping to a jog). The stager picks among them by the back's habits, seeded.
+     lateral hop at low speed), or a spin (a tight half-loop through the contact point, his
+     speed dipping to a jog). The stager picks among them seeded, with fixed shares (it sees the field record, not the players' habits).
    - **size:** a run-through or a stiff arm. The back slows for a beat at contact and the defender is driven back a
      yard or two, off his line, then goes down.
    - The defender carries on past and goes down, as in 0.3.1.
