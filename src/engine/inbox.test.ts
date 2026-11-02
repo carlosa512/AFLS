@@ -1613,7 +1613,7 @@ describe("the young players' review", () => {
     expect(section(m, 'Who we thought he was')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
     expect(rows(m).some((r) => r.playerId === second.id)).toBe(false);
     expect(rowFor(m, rookie).cells.at(-1)).toBe('Right on his draft grade.');
-    expect(m.body).toContain("The rest of this year's class is about who we thought.");
+    expect(m.body).toBe("With the season done, this year's rookies are about who we thought they were.");
   });
 
   it('a quiet season files nothing', () => {
@@ -1650,6 +1650,28 @@ describe("the young players' review", () => {
     league.inbox = [{ ...m, id: `ceiling:${league.season}:${rookie.id}` }];
     deliverMail(league);
     expect(review()).toHaveLength(0);
+  });
+
+  it('one ahead reads "graded him", not "them"', () => {
+    // Several seasons, so `say` reaches every wording of the opener.
+    const { league, rookie, review } = setup();
+    const bodies = new Set<string>();
+    for (let i = 0; i < 8; i++) {
+      league.inbox = [];
+      rookie.ceilingShifts = { [league.season]: 3 };
+      deliverMail(league);
+      bodies.add(review()[0].body);
+      league.season++;
+    }
+    expect(bodies.size).toBeGreaterThan(1);
+    for (const b of bodies) expect(b).not.toMatch(/graded them/);
+  });
+
+  it('only rookies who held: no repeated "who we thought" line', () => {
+    const { league, rookie, shift, review } = setup();
+    shift(rookie, 0.2);
+    deliverMail(league);
+    expect(review()[0].body).toBe("With the season done, this year's rookies are about who we thought they were.");
   });
 
   it('mailSubject reads it back', () => {

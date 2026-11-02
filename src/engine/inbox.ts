@@ -2562,12 +2562,13 @@ interface ReviewFacts {
 const young = (n: number) => `${small(n)} of our young players`;
 const looks = (n: number) => (n === 1 ? 'looks' : 'look');
 const are = (n: number) => (n === 1 ? 'is' : 'are');
+const them = (n: number) => (n === 1 ? 'him' : 'them');
 const REVIEW_OPENER: readonly Line<ReviewFacts>[] = [
   {
     when: (f) => f.ahead > 0 && f.behind > 0,
     reads: 2,
     text: (f) =>
-      `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded them and ${small(f.behind)} ${are(f.behind)} behind where we had them.`,
+      `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded ${them(f.ahead)} and ${small(f.behind)} ${are(f.behind)} behind where we had them.`,
   },
   {
     when: (f) => f.ahead > 0 && f.behind > 0,
@@ -2588,14 +2589,14 @@ const REVIEW_OPENER: readonly Line<ReviewFacts>[] = [
   {
     when: (f) => f.ahead > 0 && f.behind === 0,
     reads: 1,
-    text: (f) => `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded them.`,
+    text: (f) => `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded ${them(f.ahead)}.`,
   },
   {
     when: (f) => f.ahead > 0 && f.behind === 0,
     reads: 1,
     text: (f) => `Now the season's over, ${young(f.ahead)} ${looks(f.ahead)} better than our grades.`,
   },
-  { text: () => 'With the season done, the young players are tracking where we had them.' },
+  { text: () => "With the season done, this year's rookies are about who we thought they were." },
 ];
 
 /** Our season is over: the season is complete, or we have no game left to play this season. */
@@ -2639,11 +2640,15 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
     { ahead: ahead.length, behind: behind.length },
     { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
   );
-  const rest = held.length
-    ? " The rest of this year's class is about who we thought."
-    : behind.some((r) => r.year === 0)
-      ? " It's early for the rookies: their ceilings have two more seasons to settle."
-      : '';
+  // With nobody ahead or behind, the opener already says the rookies held.
+  const rest =
+    !ahead.length && !behind.length
+      ? ''
+      : held.length
+        ? " The rest of this year's class is about who we thought."
+        : behind.some((r) => r.year === 0)
+          ? " It's early for the rookies: their ceilings have two more seasons to settle."
+          : '';
   const cameIn = (p: Player) => (p.draft ? `${p.draft.season} R${p.draft.round}, No. ${p.draft.pick}` : 'Undrafted');
   const sections = (['ahead', 'held', 'behind'] as const)
     .filter((v) => rows[v].length)
