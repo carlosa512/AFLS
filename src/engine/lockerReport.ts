@@ -30,7 +30,7 @@ import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
 import { teamCoaches } from './coaching';
-import { DOWN_REASONS, moraleClock, moraleContext, moraleView } from './morale';
+import { DOWN_REASONS, MORALE_WORDS, moraleClock, moraleContext, moraleView } from './morale';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
@@ -68,6 +68,22 @@ export function dueCheckin(league: League, have: Set<string>): Checkin | null {
   const football = footballSeason(league, due);
   if (ORDER.slice(ORDER.indexOf(due)).some((c) => have.has(`locker:${football}:${c}`))) return null;
   return due;
+}
+
+/**
+ * Whether a check-in tells the rooms (L1): camp's, cut-down's when it is the season's first (captains are named on the
+ * way out of camp, so camp's often goes by unseen), and the season's end.
+ */
+function talksRooms(league: League, checkin: Checkin, told: Set<string>): boolean {
+  return (
+    checkin === 'end' || checkin === 'camp' || (checkin === 'cutdown' && !told.has(`locker:${league.season}:camp`))
+  );
+}
+
+/** Whether a locker report going out in this delivery tells the rooms: the staff notes leave them to it. */
+export function reportTellsRooms(league: League, have: Set<string>): boolean {
+  const due = dueCheckin(league, have);
+  return !!due && talksRooms(league, due, toldKeys(league));
 }
 
 /** Which check-in a date falls in, by phase and week: the window each report covers. */
@@ -123,6 +139,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   // unseen), then whoever found his voice or lost it since the last report. What the report and the staff notes told
   // before is read back from their keys, stamped with morale's clock.
   const clock = moraleClock(league);
+  // The room's news is the preseason and season's-end reports' to tell (`talksRooms`); in season the position coaches
+  // carry it in their short notes (`staffNotes.ts`).
+  const roomTalk = talksRooms(league, checkin, told);
   const roomCtx = moraleContext(league);
   const room = roomView(league, roomCtx);
   const memory = lastTold(told, user);
@@ -175,7 +194,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       if (active.has(id)) tiers.set(id, 'leader');
   for (const id of room.leaders) tiers.set(id, 'leader');
   for (const id of room.voices) tiers.set(id, 'voice');
-  if (memory.standing) {
+  if (roomTalk && memory.standing) {
     const was = memory.standing.tiers;
     // A man hurt or on the practice squad isn't quieter: only the 53 are read, both sides.
     for (const id of [...new Set([...tiers.keys(), ...was.keys()])].sort((x, y) => x - y)) {
@@ -195,10 +214,10 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       });
     }
   }
-  for (const [id, tier] of tiers) covered.push(standingKey(clock, user, id, tier));
+  if (roomTalk) for (const [id, tier] of tiers) covered.push(standingKey(clock, user, id, tier));
   // A man still ours but off the 53 (hurt, on the practice squad) keeps the place he had: he comes back to it, and if
   // he's let go from there, he's the one who left.
-  for (const [id, tier] of memory.standing?.tiers ?? [])
+  for (const [id, tier] of roomTalk ? (memory.standing?.tiers ?? []) : [])
     if (!active.has(id) && !tiers.has(id) && league.players[id]?.teamId === user)
       covered.push(standingKey(clock, user, id, tier));
   if (follows.length)
@@ -207,7 +226,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   // The room by unit: a read that turned since it was last told, and any unit that's Split or Down ("still" when it
   // was told so last time). A GM's first report has nothing to compare against: Split and Down only.
   const roomRows: MailSection['rows'] = [];
-  for (const u of room.units) {
+  for (const u of roomTalk ? room.units : []) {
     covered.push(unitKey(clock, user, u.unit, u.word));
     const last = memory.units.get(u.unit) ?? null;
     // What matters: Split or Down, a room that came together, or one back from trouble. A room that only cooled from
@@ -226,7 +245,8 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
           .find((p) => p && unitOf(p.position) === u.unit)
       : undefined;
     roomRows.push({
-      cells: [u.label, u.word],
+      // The screen's own words: Divided, or the room's mood.
+      cells: [u.label, u.word === 'Split' ? 'Divided' : MORALE_WORDS[u.mood]],
       note: say(UNIT_NOTE, unitFact(league, u, last, gone?.lastName ?? null, roomCtx), at(`unit:${u.unit}`)),
     });
   }
@@ -452,14 +472,18 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     friends: along.length,
     grew: grew.length,
     unhappy: slipped.length,
-    split: room.units.filter((u) => u.word === 'Split').map((u) => UNIT_PHRASE[u.unit as Exclude<Unit, 'ST'>]),
-    down: room.units.filter((u) => u.word === 'Down').map((u) => UNIT_PHRASE[u.unit as Exclude<Unit, 'ST'>]),
+    split: (roomTalk ? room.units : [])
+      .filter((u) => u.word === 'Split')
+      .map((u) => UNIT_PHRASE[u.unit as Exclude<Unit, 'ST'>]),
+    down: (roomTalk ? room.units : [])
+      .filter((u) => u.word === 'Down')
+      .map((u) => UNIT_PHRASE[u.unit as Exclude<Unit, 'ST'>]),
     tight:
-      room.units
+      (roomTalk ? room.units : [])
         .filter((u) => u.word === 'Tight')
         .map((u) => UNIT_PHRASE[u.unit as Exclude<Unit, 'ST'>])
         .at(0) ?? null,
-    apart: room.apart,
+    apart: roomTalk ? room.apart : null,
   };
   const verdict = say(VERDICT, fact, at('verdict'));
   const asksMotto = VERDICT.find((l) => l.text(fact) === verdict)?.motto;

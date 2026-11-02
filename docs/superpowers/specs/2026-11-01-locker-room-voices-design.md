@@ -205,12 +205,21 @@ Down 5–20%, Tight 15–35%.
 - **"Captains and leaders" becomes "Who the room follows":** the captains as now, then leaders, then voices. Each
   shows his personality pill and a short reason in words, read off the biggest parts of his weight ("Eight years in,
   starts, the line goes to him").
-- **New section, "The units":** a table with Unit, Read, Sets the tone, and What's going on (the most-felt reason,
-  counted like a coach: "Three of them want more snaps"). One row per unit with a read. It follows `docs/UI.md`
-  (`SortTh`, `PlayerLink`).
+- **New section, "The rooms"** (revised after the owner saw it in game): one card per room with a read, the ones in
+  trouble (divided, down, restless) first and marked. Each card shows the room's mood as the smiley and the same mood
+  word the rest of the screen uses, a **Divided** tag when it's split, **"Listens to"** (a man in that room, or "no
+  one yet": a captain from another room is never shown as a room's voice), and **one line on what stands out**: a
+  complaint first ("Two want a new deal."), then something this room feels that the rest of the team doesn't, then
+  "Winning keeps them happy." for a happy room that only has the winning, else "Nothing to flag." No new read words
+  reach the screen.
 - The morale board, mentoring and "In the room" stay as they are.
 
 ### 4.2 The head coach's locker room report (four check-ins)
+
+The room's news (both sections below and the verdict's room facts) goes only in the season's first report (camp's,
+or cut-down's when camp went by unseen, since captains are named on the way out of camp) and the season's end. The
+deadline report stays as it was; in season the position coaches carry the rooms. Rows read in the screen's words:
+Divided, or the room's mood.
 
 - **New section, "The room":** a row for any unit that is Split or Down (with "still" when it was told so last
   time), one that came together (turned Tight), and one back from Split, Down or Restless. A unit that only cooled

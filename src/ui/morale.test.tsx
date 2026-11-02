@@ -130,12 +130,16 @@ describe('the Locker Room’s promises (G3)', () => {
 });
 
 describe('the Locker Room: who runs the room', () => {
-  it('shows who the room follows and the units, in words', () => {
+  it('shows who the room follows and a card per room, in the mood words', () => {
     const html = render(<LockerRoom league={league} />);
     expect(html).toContain('Who the room follows');
-    expect(html).toContain('The units');
+    expect(html).toContain('The rooms');
     for (const label of ['Offensive line', 'Secondary']) expect(html).toContain(label);
-    expect(html).toMatch(/>(Tight|Settled|Restless|Down|Split)</);
-    expect(html.replace(/<[^>]+>/g, ' ')).not.toMatch(/\bweight\b|\btiers?\b|faction|cohesion|influence/i);
+    expect(html).toContain('Listens to');
+    const text = html.replace(/<[^>]+>/g, ' ');
+    expect(text).toMatch(/\b(Superb|Very good|Good|Okay|Poor|Very poor|Abysmal)\b/);
+    expect(text).not.toMatch(/\b(Tight|Settled|Restless)\b/);
+    expect(text).toMatch(/Nothing to flag\.|Winning keeps them happy\.|want|close with|enjoying|happy with|tired of|feud/);
+    expect(text).not.toMatch(/\bweight\b|\btiers?\b|faction|cohesion|influence/i);
   });
 });

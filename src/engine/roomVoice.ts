@@ -99,13 +99,6 @@ const feelFor = (cause: Cause, count: string) => `${cap(count)} ${(/^one\b/.test
 export const countOf = (n: number, total: number, unit: string): string =>
   n <= 4 ? `${inWords(n)} of them` : coachCount(n, total, unit);
 
-/** The Locker Room's "what's going on" for a unit: its most-felt reason, counted. */
-export function goingOn(reason: { text: string; count: number }, total: number, unit: string): string {
-  const count = countOf(reason.count, total, unit);
-  const cause = causeOf(reason.text);
-  return cause ? `${feelFor(cause, count)}.` : `${reason.text}: ${count}.`;
-}
-
 /** What it's about, after "It's about". */
 const TOPIC: Record<Cause, string> = { snaps: 'snaps', deal: 'money', losing: 'the losing', feud: 'a feud' };
 
@@ -482,3 +475,48 @@ export const STANDING_WHY: readonly Line<WhyFact>[] = [
 export const pronounFor = it;
 /** For the verdict: "The line is", "The receivers are". */
 export const unitIs = (unit: string) => `${cap(unit)} ${isAre(unit)}`;
+
+// ───────── what stands out about a room (the Locker Room's cards) ─────────
+
+/** A good reason as a room shares it: "four are close with each other". */
+const SHARED: Record<string, [string, string]> = {
+  'Close with his teammates': ['is close with the others', 'are close with each other'],
+  'Enjoying his role': ['is enjoying his role', 'are enjoying their roles'],
+  'Happy with his deal': ['is happy with his deal', 'are happy with their deals'],
+  'Trusts your word': ['trusts your word', 'trust your word'],
+  'Feels valued': ['feels valued', 'feel valued'],
+  'Just got paid': ['just got paid', 'just got paid'],
+};
+const WINNING = 'Loving the winning';
+/** A grievance on a card, in the mood board's own words: [one man, more]. */
+const ON_CARD: Record<Cause, [string, string]> = {
+  snaps: ['wants more snaps', 'want more snaps'],
+  deal: ['wants a new deal', 'want a new deal'],
+  losing: ['is tired of losing', 'are tired of losing'],
+  feud: ['is caught up in a feud', 'are caught up in a feud'],
+};
+
+/**
+ * The one line a room's card says about it: a complaint first ("Two want a new deal."), then something this room
+ * feels that the rest of the team doesn't, then a happy room that only has the winning ("Winning keeps them happy."),
+ * else nothing to flag. What the whole team feels (the winning, mostly) is the Morale card's, not a room's.
+ */
+export function standsOut(
+  room: { members: number; mood: number; reasons: { text: string; count: number }[] },
+  team: { size: number; reasons: { text: string; count: number }[] },
+): string {
+  const who = (n: number) => cap(n <= 4 ? inWords(n) : coachCount(n, room.members));
+  // A grievance two men share, or one man's in a room of three.
+  const gripe = room.reasons.find((r) => causeOf(r.text) && (r.count >= 2 || room.members <= 3));
+  if (gripe) {
+    const cause = causeOf(gripe.text)!;
+    return `${who(gripe.count)} ${ON_CARD[cause][gripe.count === 1 ? 0 : 1]}.`;
+  }
+  const teamShare = (text: string) => (team.reasons.find((r) => r.text === text)?.count ?? 0) / Math.max(1, team.size);
+  const own = room.reasons.find(
+    (r) => SHARED[r.text] && r.count >= 2 && r.count / Math.max(1, room.members) - teamShare(r.text) >= 0.25,
+  );
+  if (own) return `${who(own.count)} ${SHARED[own.text][own.count === 1 ? 0 : 1]}.`;
+  if (room.mood >= 5 && room.reasons[0]?.text === WINNING) return 'Winning keeps them happy.';
+  return 'Nothing to flag.';
+}

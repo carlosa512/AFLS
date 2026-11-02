@@ -10,6 +10,7 @@ import {
   inWords,
   STANDING_NOTE,
   STANDING_WHY,
+  standsOut,
   UNIT_NOTE,
   UNIT_TURN,
   type StandingFact,
@@ -315,5 +316,75 @@ describe('the room in words: after review', () => {
     });
     for (const k of ['a', 'b', 'c'])
       expect(say(STANDING_NOTE, fact(0), { key: k, slot: 's' })).not.toMatch(/Second year/);
+  });
+});
+
+describe('what stands out about a room', () => {
+  const team = {
+    size: 53,
+    reasons: [
+      { text: 'Loving the winning', count: 40 },
+      { text: 'Wants a new deal', count: 6 },
+    ],
+  };
+  it('names a complaint first', () => {
+    expect(
+      standsOut(
+        {
+          members: 9,
+          mood: 4,
+          reasons: [
+            { text: 'Loving the winning', count: 8 },
+            { text: 'Wants a new deal', count: 2 },
+          ],
+        },
+        team,
+      ),
+    ).toBe('Two want a new deal.');
+    expect(standsOut({ members: 3, mood: 3, reasons: [{ text: 'Wants more snaps', count: 1 }] }, team)).toBe(
+      'One wants more snaps.',
+    );
+  });
+  it('then what this room feels that the rest of the team does not', () => {
+    expect(
+      standsOut(
+        {
+          members: 8,
+          mood: 5,
+          reasons: [
+            { text: 'Loving the winning', count: 8 },
+            { text: 'Close with his teammates', count: 4 },
+          ],
+        },
+        team,
+      ),
+    ).toBe('Four are close with each other.');
+  });
+  it('a happy room that only has the winning says so', () => {
+    expect(standsOut({ members: 9, mood: 5, reasons: [{ text: 'Loving the winning', count: 9 }] }, team)).toBe(
+      'Winning keeps them happy.',
+    );
+  });
+  it('otherwise nothing to flag', () => {
+    expect(standsOut({ members: 9, mood: 4, reasons: [] }, team)).toBe('Nothing to flag.');
+  });
+});
+
+describe('the verdict: two rooms', () => {
+  it('says "both" for two rooms, never "all"', () => {
+    const f: VerdictFact = {
+      checkin: 'cutdown',
+      newFeuds: 0,
+      standing: null,
+      lost: 0,
+      lostName: null,
+      struggling: 0,
+      friends: 0,
+      grew: 0,
+      unhappy: 0,
+      split: ['the backs', 'the receivers'],
+    };
+    for (const k of ['a', 'b', 'c', 'd', 'e', 'f'])
+      expect(say(VERDICT, f, { key: k, slot: 'v' })).not.toMatch(/\ball need/);
   });
 });

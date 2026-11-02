@@ -251,3 +251,15 @@ describe('standing: the vets and the young guys', () => {
     expect(roomView(l, moraleContext(l)).apart).toBe('young down');
   });
 });
+
+describe('standing: who a room listens to', () => {
+  it('names only a man in that room, never a captain from another', () => {
+    const l = fresh();
+    for (const p of activeRoster(l, 0).filter((x) => x.position === 'QB')) p.traits.leads = 1;
+    const ol = starters(l, l.teams[0], 'OL')[0];
+    l.teams[0].captains = { season: l.season, offense: ol.id, defense: -1, specialTeams: -1 };
+    const r = unitRead(l, 0, 'QB', moraleContext(l))!;
+    expect(r.setter).toBeNull();
+    expect(r.noVoice).toBe(true);
+  });
+});

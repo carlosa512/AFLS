@@ -425,6 +425,11 @@ describe('the locker room report: the room', () => {
         p.morale!.level = i % 2 ? 2 : -2;
         delete p.morale!.jolts;
       });
+  /** On to the re-sign window: the season's-end report, which looks back on the year. */
+  const toEnd = (l: League) => {
+    l.season += 1;
+    at(l, 'resign');
+  };
   const camp = () => {
     const l = copy(template);
     at(l, 'preseason');
@@ -432,11 +437,36 @@ describe('the locker room report: the room', () => {
     return l;
   };
 
+  it('an in-season report leaves the rooms to the position coaches', () => {
+    const l = camp();
+    deliverMail(l);
+    splitUnit(l, 'WR');
+    at(l, 'regular', 1);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(m.id).toBe(`locker:${l.season}:cutdown`);
+    expect(section(m, 'The room')).toBeUndefined();
+    expect(m.covered!.some((k) => k.startsWith('unit:') || k.startsWith('standing:'))).toBe(false);
+    expect(m.body).not.toMatch(/receivers/i);
+  });
+
+  it("tells the rooms in the season's first report when camp went by unseen", () => {
+    const l = camp();
+    splitUnit(l, 'WR');
+    at(l, 'regular', 1);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(m.id).toBe(`locker:${l.season}:cutdown`);
+    expect(section(m, 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(true);
+  });
+
   it('a first report tells only Split and Down units, and no standing changes', () => {
     const l = camp();
     deliverMail(l);
     const m = reports(l).at(-1)!;
-    for (const r of section(m, 'The room')?.rows ?? []) expect(['Split', 'Down']).toContain(r.cells[1]);
+    // Divided, or a mood of Poor or worse: the screen's own words.
+    for (const r of section(m, 'The room')?.rows ?? [])
+      expect(r.cells[1]).toMatch(/^(Divided|Poor|Very poor|Abysmal)$/);
     expect(
       section(m, 'Who the room follows')!.rows.some((r) => /Found his voice|Now a leader|Quieter now/.test(r.cells[1])),
     ).toBe(false);
@@ -459,9 +489,9 @@ describe('the locker room report: the room', () => {
     splitUnit(l, 'WR');
     deliverMail(l);
     const first = section(reports(l).at(-1)!, 'The room')!.rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
-    expect(first.cells[1]).toBe('Split');
+    expect(first.cells[1]).toBe('Divided');
     expect(first.note).not.toMatch(/still/i);
-    at(l, 'regular', 1);
+    toEnd(l);
     splitUnit(l, 'WR');
     deliverMail(l);
     const again = section(reports(l).at(-1)!, 'The room')!.rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
@@ -498,7 +528,7 @@ describe('the locker room report: the room', () => {
     // Hired across the league: same inbox, another club.
     l.userTeamId = (l.userTeamId + 7) % l.teams.length;
     nameCaptains(l);
-    at(l, 'regular', 1);
+    toEnd(l);
     deliverMail(l);
     const m = reports(l).at(-1)!;
     expect(
@@ -514,13 +544,14 @@ describe('the locker room report: the room', () => {
     deliverMail(l);
     const p = [...leadersOf(l, l.userTeamId), ...voicesOf(l, l.userTeamId)][0];
     p.ir = { season: l.season, week: 1, weeks: 0 };
-    at(l, 'regular', 1);
+    toEnd(l);
     deliverMail(l);
     delete p.ir;
-    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    at(l, 'preseason');
+    nameCaptains(l);
     deliverMail(l);
     const rows = section(reports(l).at(-1)!, 'Who the room follows')?.rows ?? [];
-    expect(rows.some((r) => r.playerId === p.id)).toBe(false);
+    expect(rows.some((r) => r.playerId === p.id && /Found his voice|Now a leader/.test(r.cells[1]))).toBe(false);
   });
 
   it('a leader on injured reserve has not left', () => {
@@ -529,7 +560,7 @@ describe('the locker room report: the room', () => {
     const inDb = (x: Player) => unitOf(x.position) === 'DB';
     const p = leadersOf(l, l.userTeamId).find(inDb) ?? voicesOf(l, l.userTeamId).find(inDb)!;
     p.ir = { season: l.season, week: 1, weeks: 0 };
-    at(l, 'regular', 1);
+    toEnd(l);
     deliverMail(l);
     expect(text(reports(l).at(-1)!)).not.toMatch(new RegExp(`since ${p.lastName} left`));
   });
@@ -549,7 +580,7 @@ describe('the locker room report: the room', () => {
       x.morale!.level = -4;
       delete x.morale!.jolts;
     }
-    at(l, 'regular', 1);
+    toEnd(l);
     deliverMail(l);
     expect(text(reports(l).at(-1)!)).toMatch(new RegExp(`since ${lead.lastName} left`));
   });

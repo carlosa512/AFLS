@@ -1,12 +1,12 @@
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { whyFact } from '../../engine/roomFacts';
-import { goingOn, SPECIALISTS, STANDING_WHY, UNIT_PHRASE } from '../../engine/roomVoice';
-import { roomView, standingView, UNITS, type Unit, type UnitView, type UnitWord } from '../../engine/standing';
+import { STANDING_WHY, standsOut } from '../../engine/roomVoice';
+import { roomView, standingView, UNITS, type UnitWord } from '../../engine/standing';
 import { say } from '../../engine/voice';
 import { activeRoster } from '../../engine/roster';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITION_NAMES } from '../../engine/positions';
-import { PlayerLink, Section, SortTh, sortRows, useSort } from '../components';
+import { PlayerLink, Section } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
 import { DOWN_REASONS, MORALE_WORDS, moraleStepOf, moraleView, TEMPERAMENT_REASONS } from '../../engine/morale';
@@ -23,8 +23,11 @@ export function LockerRoom({ league }: { league: League }) {
   const room = roomView(league);
   const leaders = room.leaders.map((id) => league.players[id]);
   const voices = room.voices.map((id) => league.players[id]);
-  const [unitSort, onUnitSort] = useSort<UnitSort>({ key: 'unit', desc: false });
-  const units = sortRows(room.units, unitSort, (u, key) => unitSortValue(league, u, key));
+  // Rooms in trouble first (divided, down, restless), then the unhappiest, then the coaches' order.
+  const roomCards = [...room.units].sort(
+    (a, b) =>
+      READ_ORDER[a.word] - READ_ORDER[b.word] || a.mood - b.mood || UNITS.indexOf(a.unit) - UNITS.indexOf(b.unit),
+  );
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
@@ -265,34 +268,39 @@ export function LockerRoom({ league }: { league: League }) {
           ) : null,
         )}
       </Section>
-      <Section id="locker-units" title="The units">
-        {units.length === 0 ? (
+      <Section id="locker-rooms" title="The rooms">
+        {roomCards.length === 0 ? (
           <p className="muted">No room is big enough for a read yet.</p>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <SortTh label="Unit" k="unit" sort={unitSort} onSort={onUnitSort} desc={false} />
-                <SortTh label="Read" k="read" sort={unitSort} onSort={onUnitSort} desc={false} />
-                <SortTh label="Sets the tone" k="setter" sort={unitSort} onSort={onUnitSort} desc={false} />
-                <th>What's going on</th>
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((u) => {
-                const setter = u.setter === null ? undefined : league.players[u.setter];
-                const phrase = u.unit === 'ST' ? SPECIALISTS : UNIT_PHRASE[u.unit];
-                return (
-                  <tr key={u.unit}>
-                    <td>{u.label}</td>
-                    <td>{u.word}</td>
-                    <td>{setter ? <PlayerLink league={league} player={setter} pos /> : '—'}</td>
-                    <td>{u.reasons[0] ? goingOn(u.reasons[0], u.members, phrase) : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="room-cards">
+            {roomCards.map((u) => {
+              const voice = u.setter === null ? undefined : league.players[u.setter];
+              const trouble = u.word === 'Split' || u.word === 'Down' || u.word === 'Restless';
+              return (
+                <div key={u.unit} className={`room-card${trouble ? ' is-trouble' : ''}`}>
+                  <div className="room-card-head">
+                    <MoodFace step={u.mood} size={32} />
+                    <div>
+                      <div className="room-card-name">{u.label}</div>
+                      <div className="room-card-mood">
+                        {MORALE_WORDS[u.mood]}
+                        {u.word === 'Split' && <span className="tag-pill room-divided">Divided</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="room-card-line">{standsOut(u, room.team)}</p>
+                  <p className="room-card-voice small">
+                    <span className="muted">Listens to: </span>
+                    {voice ? (
+                      <PlayerLink league={league} player={voice} pos />
+                    ) : (
+                      <span className="muted">no one yet</span>
+                    )}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         )}
       </Section>
       <Section id="locker-mentoring" title="Mentoring">
@@ -375,15 +383,8 @@ export function LockerRoom({ league }: { league: League }) {
   );
 }
 
-type UnitSort = 'unit' | 'read' | 'setter';
-/** Worst first when sorted by read: the units that need you on top. */
+/** Worst first: the rooms that need you on top. */
 const READ_ORDER: Record<UnitWord, number> = { Split: 0, Down: 1, Restless: 2, Settled: 3, Tight: 4 };
-
-function unitSortValue(league: League, u: UnitView, key: UnitSort): number | string {
-  if (key === 'read') return READ_ORDER[u.word];
-  if (key === 'setter') return u.setter === null ? '~' : (league.players[u.setter]?.lastName ?? '~');
-  return UNITS.indexOf(u.unit as Unit);
-}
 
 /** Why the room goes to him, in one line: the biggest parts of where he stands. */
 function whyLine(league: League, p: Player): string {

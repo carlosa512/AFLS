@@ -7,7 +7,7 @@
 import { coachAdviceObservation, teachingNoteFor } from './coachReports';
 import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from './coaching';
 import { moraleClock, moraleContext } from './morale';
-import { dueCheckin } from './lockerReport';
+import { reportTellsRooms } from './lockerReport';
 import { lastTold, unitFact, unitKey } from './roomFacts';
 import { UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
@@ -99,8 +99,8 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
   const found = teachingNoteFor(league);
   const habitKey = found && `teach:${league.season}:${found.coachId}:${found.playerId}:${found.habit}`;
   const habit = found && !told.has(habitKey!) ? found : undefined;
-  // A head coach's report going out today tells the rooms itself: the position coach doesn't repeat it.
-  const unitNote = dueCheckin(league, have) ? null : unitTurnFor(league, told);
+  // In season the rooms are the position coaches' to tell, except on the day the season's first report tells them.
+  const unitNote = reportTellsRooms(league, have) ? null : unitTurnFor(league, told);
   if (!call && !habit && !unitNote) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];

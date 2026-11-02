@@ -19,6 +19,7 @@ import {
   TEMPERAMENT_REASONS,
   viewContext,
   type MoraleContext,
+  type MoraleStep,
 } from './morale';
 import { activeRoster, starters } from './roster';
 import { seasonRole } from './scouting';
@@ -240,10 +241,12 @@ export interface UnitRead {
   unit: Unit;
   word: UnitWord;
   members: number[];
-  /** Who sets the tone: the unit's heaviest leader or voice, else its side's captain. */
+  /** The room's mood on the seven-step scale, the voices counting more. */
+  mood: MoraleStep;
+  /** Who sets the tone: the unit's heaviest leader or voice, or no one. */
   setter: number | null;
   pulling: 'up' | 'down' | 'even' | null;
-  /** No leader or voice of its own (its side's captain is elsewhere, or there is none). */
+  /** No leader or voice of its own. */
   noVoice: boolean;
 }
 
@@ -271,9 +274,9 @@ export function unitRead(league: League, teamId: number, unit: Unit, ctx: Morale
     if (tierOf(league, p, weight) && (!setter || weight > setter.w || (weight === setter.w && p.id < setter.p.id)))
       setter = { p, w: weight };
   }
+  // Who the room listens to is a man in it: a captain from another room pulls on it (`toneOf`), but he isn't its voice.
   const noVoice = !setter;
-  const captain = ctx.sideCaptains.get(`${teamId}:${sideOf(unit)}`);
-  const lead = setter?.p ?? (captain ? league.players[captain.id] : undefined);
+  const lead = setter?.p;
   const mean = sum / total;
   const word: UnitWord =
     up / total >= SPLIT_SHARE && down / total >= SPLIT_SHARE
@@ -290,6 +293,7 @@ export function unitRead(league: League, teamId: number, unit: Unit, ctx: Morale
     unit,
     word,
     members: men.map((p) => p.id),
+    mood: moraleStepOf(mean),
     setter: lead?.id ?? null,
     pulling: lead ? pullOf(moodLean(moraleLevel(league, lead))) : null,
     noVoice,
@@ -332,7 +336,7 @@ export function standingView(league: League, p: Player, ctx = viewContext(league
 export interface UnitView extends Omit<UnitRead, 'teamId' | 'members'> {
   label: string;
   members: number;
-  /** What the unit is feeling, most-felt first: the mood board's phrases, with how many feel each. */
+  /** What the unit is feeling, most-felt first: the mood board's phrases, with how many feel each (all of them). */
   reasons: { text: string; count: number }[];
 }
 
@@ -345,6 +349,8 @@ export interface RoomView {
   voices: number[];
   /** The vets and the young guys two mood steps or more apart, and which of them is down. */
   apart: 'young down' | 'vets down' | null;
+  /** What the whole 53 feel, most-felt first, so a room's own concerns can stand out against it. */
+  team: { size: number; reasons: { text: string; count: number }[] };
 }
 
 /** Your room as your staff see it: every read unit, who it follows, and its shape. Words and ids only. */
@@ -357,7 +363,6 @@ export function roomView(league: League, ctx = viewContext(league)): RoomView {
         if (!TEMPERAMENT_REASONS.has(text)) counts.set(text, (counts.get(text) ?? 0) + 1);
     const reasons = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 2)
       .map(([text, count]) => ({ text, count }));
     const { teamId: _t, members, ...rest } = r;
     return { ...rest, label: ROOM_LABEL[r.unit as CoachRoom], members: members.length, reasons };
@@ -373,6 +378,10 @@ export function roomView(league: League, ctx = viewContext(league)): RoomView {
     return t ? s / t : 0;
   };
   const roster = activeRoster(league, teamId);
+  const all = new Map<string, number>();
+  for (const p of roster)
+    for (const text of moraleView(league, p, ctx)?.reasons ?? [])
+      if (!TEMPERAMENT_REASONS.has(text)) all.set(text, (all.get(text) ?? 0) + 1);
   const vets = roster.filter((p) => p.experience >= 6);
   const young = roster.filter((p) => p.experience <= 2);
   let apart: RoomView['apart'] = null;
@@ -388,5 +397,6 @@ export function roomView(league: League, ctx = viewContext(league)): RoomView {
     leaders: byTier(league, teamId, 'leader', ctx).map((p) => p.id),
     voices: byTier(league, teamId, 'voice', ctx).map((p) => p.id),
     apart,
+    team: { size: roster.length, reasons: [...all.entries()].map(([text, count]) => ({ text, count })) },
   };
 }

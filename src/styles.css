@@ -5231,3 +5231,42 @@ button.tip-pill {
   min-width: 32px;
   min-height: 32px;
 }
+
+/* The Locker Room's rooms (L1): one card per position room, the ones in trouble first and marked. */
+.room-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.room-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.room-card.is-trouble {
+  border-left: 4px solid var(--danger);
+}
+.room-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.room-card-name {
+  font-weight: 700;
+}
+.room-card-mood {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+.room-card-line,
+.room-card-voice {
+  margin: 0;
+}
+.tag-pill.room-divided {
+  background: var(--danger);
+  color: #fff;
+}

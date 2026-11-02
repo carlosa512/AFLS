@@ -8,6 +8,7 @@ import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
 import { unitTurnFor } from './staffNotes';
 import { toldKeys } from './voice';
+import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ATTRIBUTES, type League } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
@@ -219,7 +220,17 @@ describe('staff notes: the position coach on his unit', () => {
     expect(unitTurnFor(l, toldKeys(l))).toBeNull();
   });
 
-  it("leaves a turn to the head coach's report when one goes out the same day", () => {
+  it('still writes on deadline day: that report leaves the rooms to him', () => {
+    const l = inSeason();
+    l.week = TRADE_DEADLINE_WEEK;
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
+    expect(report.sections?.find((s) => s.title === 'The room')).toBeUndefined();
+    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(true);
+  });
+
+  it("leaves a turn to the season's first report when it goes out the same day", () => {
     const l = inSeason();
     l.inbox = l.inbox!.filter((m) => m.id !== `locker:${l.season}:cutdown`);
     splitUnit(l, 'WR');

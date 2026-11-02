@@ -103,7 +103,8 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
   {
     when: (f) => troubled(f) >= 2 && !(f.down?.length === 1 && f.split?.length === 1),
     reads: 4,
-    text: (f) => `Not the room I want. ${cap(listOf([...(f.split ?? []), ...(f.down ?? [])]))} all need watching.`,
+    text: (f) =>
+      `Not the room I want. ${cap(listOf([...(f.split ?? []), ...(f.down ?? [])]))} ${troubled(f) === 2 ? 'both' : 'all'} need watching.`,
   },
   {
     when: (f) => f.apart === 'young down' && !f.split?.length,
