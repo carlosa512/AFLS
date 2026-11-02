@@ -83,6 +83,29 @@ describe('who each play was about', () => {
     }
   });
 
+  it('writes where a lost fumble came out, in field yards, and nowhere else', () => {
+    let lost = 0;
+    for (const { g, r } of games)
+      for (const e of r.plays ?? []) {
+        const ran = e.ran ?? e;
+        if (!/FUMBLE, recovered by/.test(e.text)) {
+          expect(ran.loose).toBeUndefined();
+          continue;
+        }
+        if (e.kind === 'penalty') continue;
+        lost++;
+        expect(e.loose).toBeTypeOf('number');
+        expect(e.loose!).toBeGreaterThanOrEqual(-10);
+        expect(e.loose!).toBeLessThanOrEqual(110);
+        // The return runs toward the fumbling offense's own goal: home drives toward 100, so its returns come back down.
+        const toward = e.offense === g.homeId ? 1 : -1;
+        const back = (e.loose! - e.to!) * toward;
+        expect(back).toBeGreaterThanOrEqual(0);
+        expect(back).toBeLessThanOrEqual(44);
+      }
+    expect(lost).toBeGreaterThan(5);
+  });
+
   it('plays the same game with the log kept or not', () => {
     for (let i = 0; i < 5; i++) {
       const g = league.games[i];

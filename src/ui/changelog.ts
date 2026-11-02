@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.43',
+    date: '2026-11-02',
+    title: 'Fumbles you can see',
+    text:
+      'A fumble now looks like one when you watch it. The ball pops loose where the hit lands and bounces a few ' +
+      'yards while players from both sides go for it, and the man who recovers it falls on it or picks it up. If ' +
+      'the defense gets it, it can return it, and the offense chases him down. The player who fumbled stays down ' +
+      'instead of running on backwards, in the broadcast view and in All-22. Strip-sacks look the same way.',
+  },
+  {
     version: '0.2.42',
     date: '2026-11-02',
     title: 'Numbers of their own',
