@@ -14,12 +14,16 @@
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
  *
+ * 9. Disputes (G4): started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2, and none past
+ *    the limit he gives in at (yours answered by the AI's rule, as for talks).
+ *
  *   npm run morale                        # 4 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
 import { yearsLeft } from '../src/engine/finance/contract';
 import { buildMarket, marketApy } from '../src/engine/finance/market';
 import { aiReply, answerTalk } from '../src/engine/playerTalks';
+import { aiAnswerDispute, giveInLimit } from '../src/engine/disputes';
 import { createLeague } from '../src/engine/generate';
 import { playWeek } from '../src/engine/league';
 import {
@@ -168,11 +172,40 @@ function talks(clock: number) {
   }
 }
 
+// 9: disputes, counted by the league year they start in.
+const disputeSeen = new Set<string>();
+const started = new Map<number, number>();
+const holdouts = new Map<number, number>();
+const outAfterWeek1 = new Map<number, number>();
+let pastLimit = 0;
+function disputes(clock: number) {
+  const bump = (m: Map<number, number>, season: number) => m.set(season, (m.get(season) ?? 0) + 1);
+  for (const p of rostered(league)) {
+    const m = p.morale!;
+    // Started this step: one still open, or one an AI club settled the step it started.
+    for (const x of [m.dispute, m.disputeEnd])
+      if (x && x.since === clock && !disputeSeen.has(`${p.id}:${x.since}`)) {
+        disputeSeen.add(`${p.id}:${x.since}`);
+        bump(started, Math.floor(x.since / 32));
+        if (x.kind === 'holdOut') bump(holdouts, Math.floor(x.since / 32));
+      }
+    if (m.dispute && !m.dispute.answered && p.teamId === league.userTeamId) aiAnswerDispute(league, p, clock);
+    const d = p.morale!.dispute;
+    if (d?.kind === 'holdOut' && (d.lost ?? 0) >= giveInLimit(league, p)) pastLimit++;
+    // The step after week 1's games.
+    if (d?.kind === 'holdOut' && d.out && league.phase === 'regular' && league.week === 2)
+      bump(outAfterWeek1, Math.floor(d.since / 32));
+  }
+}
+/** League years whose re-sign window to camp the run played: the ones a dispute can start in. */
+const windows: number[] = [];
+
 function step(run: () => void) {
   before = new Map(rostered(league).map((p) => [p.id, moraleLevel(league, p)]));
   run();
   const clock = league.moraleAt ?? moraleClock(league);
   talks(clock);
+  disputes(clock);
   for (const p of Object.values(league.players)) {
     const m = p.morale;
     if (m && (Math.abs(m.level) > 10 || Math.abs(moraleLevel(league, p)) > 10)) outOfRange++;
@@ -235,6 +268,7 @@ for (let s = 0; s < SEASONS; s++) {
   }
   if (s === SEASONS - 1) break;
   step(() => beginOffseason(league));
+  windows.push(league.season);
   while ((league.phase as Phase) !== 'regular') step(() => advanceOffseason(league, { autoUser: true }));
 }
 
@@ -299,6 +333,12 @@ check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
 // The ceiling is the point (spec §8: rooms cluster but don't run away); a club room averaging Poor is rare (about 2%),
 // so there is no floor (the owner's call, Nov 2, 2026).
 check('Club rooms at Poor or worse (ceiling)', mean(poorRooms), [0, 0.25]);
+
+const perWindow = (m: Map<number, number>) => mean(windows.map((s) => m.get(s) ?? 0));
+check(`Disputes started a season (${windows.length} windows)`, perWindow(started), [3, 12]);
+check('Holdouts a season', perWindow(holdouts), [0.5, 5]);
+check('Holdouts still out after week 1, a season', perWindow(outAfterWeek1), [0, 2]);
+check('Holdouts past the limit he gives in at', pastLimit, [0, 0], 0);
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

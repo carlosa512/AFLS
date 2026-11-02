@@ -104,7 +104,7 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
   if (m.jolts?.some((j) => j.kind === 'paid' && j.at === clock)) return endDispute(league, p, 'signed', clock);
   // Still unanswered at a club that isn't yours (you lost the job, or never answered and left it): the club answers.
   if (!d.answered && p.teamId !== yourClub(league)) {
-    aiAnswer(league, p, clock);
+    aiAnswerDispute(league, p, clock);
     if (!m.dispute) return;
   }
   if (d.kind === 'trade') return;
@@ -130,9 +130,9 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
 
 /**
  * An AI club's answer, by the rule it answers talks with: a GM who'd promise negotiates, and settles when it would keep
- * him and can fit his walk-away (`aiSettle`); anyone else holds firm.
+ * him and can fit his walk-away (`aiSettle`); anyone else holds firm. The checks answer your club's by it too.
  */
-function aiAnswer(league: League, p: Player, clock: number): void {
+export function aiAnswerDispute(league: League, p: Player, clock: number): void {
   const d = p.morale!.dispute!;
   const settles = aiReply(league, p.teamId!, d.cause) === 'promise';
   if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
@@ -249,6 +249,6 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
     if (m.dispute.kind === 'holdOut' && week >= CAMP) m.dispute.out = true;
     delete m.talk!.sour;
     // An AI club answers at once (your club's answer is your letter's).
-    if (p.teamId !== yourClub(league)) aiAnswer(league, p, clock);
+    if (p.teamId !== yourClub(league)) aiAnswerDispute(league, p, clock);
   }
 }
