@@ -101,6 +101,10 @@ const QB_UNDER = 2;
 const KNEEL_STEP = 0.8;
 export const KNEEL_AT = 0.75;
 const KNEEL_HOLD = 1.3;
+/** Kickoff coverage: set up this far off the tee, then down the field at this pace once the ball's down (seconds to react). */
+const KICKOFF_COVER = 25;
+const COVER_PACE = 8;
+const COVER_REACT = 0.4;
 /** Running out the clock on fourth down: his pace back, yards a second. */
 const RUN_OUT = 5;
 /** A throwaway lands this far past the line, out of bounds. */
@@ -268,10 +272,20 @@ function stageCarried(
       const out = { ...segs[a], x1: Math.max(-5, Math.min(105, tee.x + dir * 52)), y1: side, dur: 3.4 };
       return [hold(tee, KICK_RUN_UP), out];
     }
-    // On the tee while the kicker runs up, then the hang time, then the return.
+    // On the tee while the kicker runs up, then the hang time, then the return. The coverage sets up 25 yards off the
+    // tee and may not move until the ball comes down, so the return lasts at least as long as their run to where it
+    // ends (a short one is the returner picking his way while they close).
     const tee = { x: segs[a].x0, y: segs[a].y0 };
     const flight = { ...segs[a], dur: Math.max(3.2, Math.min(4, len(segs[a]) / 17)) };
-    return [hold(tee, KICK_RUN_UP), flight, ...segs.slice(a + 1).map(returnPace)];
+    const back = segs.slice(a + 1).map(returnPace);
+    if (back.length) {
+      const coverX = tee.x + dir * KICKOFF_COVER;
+      const ends = back[back.length - 1];
+      const reach = Math.abs(ends.x1 - coverX) / COVER_PACE + COVER_REACT;
+      const took = back.reduce((t, sg) => t + sg.dur, 0);
+      if (took < reach) for (const sg of back) sg.dur *= reach / took;
+    }
+    return [hold(tee, KICK_RUN_UP), flight, ...back];
   }
   if (e.kind === 'punt') {
     const a = segs.findIndex((sg) => sg.peak > 0);
@@ -350,12 +364,12 @@ const PURSUIT = 0.6;
  * His path up to the run into the hit at `t`: as it was until the latest moment he can still get to `hit` on his own
  * legs (`top`), then off it. Late off his part beats a run no man could make.
  */
-function intoTheHit(way: readonly Keyframe[], hit: Pt, t: number, top: number): Keyframe[] {
+function intoTheHit(way: readonly Keyframe[], hit: Pt, t: number, top: number, floor = 0): Keyframe[] {
   const upTo = way.filter((k) => k.t < t - 1e-6);
   if (!upTo.length) return [];
   const last = upTo[upTo.length - 1];
   if (Math.hypot(hit.x - last.x, hit.y - last.y) <= top * (t - last.t)) return upTo;
-  for (let leave = last.t; leave >= 0; leave -= 0.05) {
+  for (let leave = last.t; leave >= floor; leave -= 0.05) {
     const p = sample(upTo, leave);
     if (Math.hypot(hit.x - p.x, hit.y - p.y) <= top * (t - leave))
       return [...upTo.filter((k) => k.t < leave - 1e-6), at(leave, p)];
@@ -726,12 +740,15 @@ export function script(
     const b0 = start.get(back.id)!;
     const mesh = sample(qbKeys, FAKE);
     const side = Math.sign(b0.y - segs[0].y0) || 1;
+    const meet = { x: mesh.x + dir * 0.4, y: mesh.y + side * 0.9 };
+    // At the mesh as soon as his legs get him there (from deep in the I, a beat after the quarterback turns).
+    const there = Math.max(FAKE, Math.hypot(meet.x - b0.x, meet.y - b0.y) / topOf(back.id));
     keys.set(back.id, [
       from(back.id),
-      at(FAKE, { x: mesh.x + dir * 0.4, y: mesh.y + side * 0.9 }),
-      at(FAKE + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
+      at(there, meet),
+      at(there + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
     ]);
-    free.set(back.id, FAKE + 0.7);
+    free.set(back.id, there + 0.7);
   }
 
   // A fumble: the man with the ball goes down where it comes out, with the man who hit him; the ball bounces to the man
@@ -837,7 +854,9 @@ export function script(
           : [];
       const hit = toward(end, s0, 0.6);
       const way = [from(tackler), ...set, ...before.filter((k) => k.t > 0), ...off];
-      keys.set(tackler, [...intoTheHit(way, hit, total, topOf(tackler) + PURSUIT), at(total, hit)]);
+      // A kickoff's coverage may not leave before the ball's down.
+      const floor = set.length ? set[0].t : 0;
+      keys.set(tackler, [...intoTheHit(way, hit, total, topOf(tackler) + PURSUIT, floor), at(total, hit)]);
       tacklerId = tackler;
       // Nothing else scripted for him, or his part over well before the tackle (the cover man beaten on the catch, the
       // receiver a pass was picked off from): he runs the carrier down himself from there.
