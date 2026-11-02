@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../engine/generate';
 import type { Game, League, Team } from '../engine/types';
-import { contrast } from './color';
+import { contrast, shade } from './color';
 import { helmetDesignOf } from './helmet';
 import { clubUniforms, numberOutline, uniformFor, wearsWhite } from './uniform';
 
@@ -65,7 +65,14 @@ describe('uniformFor', () => {
     expect(numberOutline('#e31837', '#F8FAFC', '#ffb81c')).toEqual({ color: '#ffb81c', width: 2.4 }); // KC: gold
     expect(numberOutline('#0b162a', '#F8FAFC', '#c83803')).toEqual({ color: '#c83803', width: 2.4 }); // CHI: orange
     expect(numberOutline('#008e97', '#0F172A', '#fc4c02')).toEqual({ color: '#F8FAFC', width: 2 }); // MIA: an edge
-    expect(numberOutline('#203731', '#ffb612', '#ffb612')).toEqual({ color: '#0F172A', width: 2 }); // GB: gold is the ink
+    // GB: gold is the ink, and a black edge wouldn't show on dark green, so a shade of the green
+    expect(numberOutline('#203731', '#ffb612', '#ffb612')).toEqual({ color: shade('#203731', 0.45), width: 2 });
+  });
+  it('never gives a number an outline that vanishes into its jersey', () => {
+    // a white away jersey lettered dark (Cincinnati, Denver, the NY Knights, Carolina, the LA Stars): the light edge
+    // would disappear, so it keeps the shaded edge the field view's dots rely on
+    const o = numberOutline('#FFFFFF', '#0F172A', '#000000'); // Cincinnati away: dark lettering, black secondary
+    expect(contrast(o.color, '#FFFFFF')).toBeGreaterThanOrEqual(1.5);
   });
   it('dresses home colours in a bye week and the offseason', () => {
     const kc = club(league, 'KC');

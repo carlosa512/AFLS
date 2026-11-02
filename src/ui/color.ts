@@ -99,7 +99,10 @@ const PANTS_SILVER = '#B9C2CC';
  */
 export function numberOutline(jersey: string, ink: string, secondary: string): { color: string; width: number } {
   if (contrast(secondary, jersey) >= 1.5 && contrast(secondary, ink) >= 1.5) return { color: secondary, width: 2.4 };
-  return { color: contrast(ink, DARK) >= contrast(ink, LIGHT) ? DARK : LIGHT, width: 2 };
+  const edge = contrast(ink, DARK) >= contrast(ink, LIGHT) ? DARK : LIGHT;
+  // an edge that vanishes into the jersey (dark lettering on white) gives way to a shade of the jersey, which also
+  // keeps the field view's dots edged (`TopDownField` draws them with the kit's trim)
+  return { color: contrast(edge, jersey) >= 1.5 ? edge : shade(jersey, 0.45), width: 2 };
 }
 
 export function kitFor({ primary, secondary }: TeamColors, away = false): Kit {
