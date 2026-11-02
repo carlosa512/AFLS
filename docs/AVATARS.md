@@ -188,11 +188,15 @@ It is decorative (`aria-hidden`): every placement shows the player's name next t
 - **Lettering** is the secondary when it reaches **4.5:1** against the jersey (WCAG's bar for small text:
   at 32–95px the number is small text). Otherwise it is light or dark, whichever reads better; on mid
   grey that pair bottoms out near 4.2:1. Eighteen of the 32 home kits swap.
-- **Two-tone trim.** A swapped-out secondary isn't lost: it becomes the number's outline (when it stands
-  out from the lettering by 3:1) and the lower sleeve band. Buffalo keeps its red, Miami its orange,
-  Kansas City its gold.
+- **Every number is outlined** (`numberOutline`): in the club's second colour, 2.4 wide, where it stands off both the
+  jersey and the number (contrast 1.5 or more against each); otherwise a 2.0 edge in dark or light, whichever stands
+  off the number more. A swapped-out secondary isn't lost: it becomes the outline (Kansas City's gold, Chicago's
+  orange) and the lower sleeve band.
 - **Font.** The app's display face (`var(--font-display)`, Big Shoulders Display) at weight 900, numerals
-  stretched 15% wider. The surname is sized from a measured width per capital (`PLATE_EM`, 0.52) and
+  stretched 15% wider, for most clubs. Some have their own (`ClubUniforms.font`, `NUMBER_FONTS`): Anton (tall, at 91%
+  size) for Minnesota, Tennessee, the LA Stars, Jacksonville and the NY Knights; Archivo Black (wide) for the NY
+  Empire, Indianapolis, New England, Baltimore and Cleveland; Russo One (squared) for Seattle; every classic is in
+  Bitter 800, a slab. The font is the number's and the nameplate's. The surname is sized from a measured width per capital (`PLATE_EM`, 0.52) and
   pinned there with `textLength`, so it stays on the jersey even if a wider fallback font stands in.
 - **Dark mode.** A 1px edge (`--avatar-edge` in `styles.css`) outlines the circle; without it the 19
   primaries under 2:1 against the dark surface (navies, blacks, browns) sink into it.
@@ -219,22 +223,41 @@ with the secondary as trim.
   designated home team is in colours.
 - A game that's already been played shows the kit worn that day (the player of the game passes `game`).
 
+### Special uniforms
+
+> **Status.** Built: the designs in `src/engine/data/uniforms.ts` (`Team.uniforms`), the schedule's picks in
+> `src/engine/season/uniforms.ts` (`Game.uniform`), what each club wears in `src/ui/uniform.ts` (`uniformFor`). Spec:
+> `docs/superpowers/specs/2026-11-02-alternate-classic-uniforms-design.md`.
+
+- **The sets:** a **colour rush** for every club (one colour head to toe, a wide white-edged sleeve band, the usual
+  helmet; whiteouts for Las Vegas, Pittsburgh, New Orleans, Carolina and Arizona, Houston and Atlanta in red, Chicago
+  in orange), a **blackout** for Pittsburgh, Chicago, Las Vegas, New Orleans, Houston, Atlanta, Carolina and Arizona
+  (black with a black helmet, trimmed in the club's colour), and a **classic** for every club (three thin sleeve
+  stripes, cream pants, slab numbers, the club's helmet in matte, or a classic colour of its own for eleven clubs).
+  Our own designs; colours borrowed from each market's club. A mod's club is dressed from its colours.
+- **When, as the NFL allows:** at most four special games a season, home team only, picked when the schedule is
+  made and stamped on the game, so a flex never changes it. Up to two primetime home games in an alternate, Thursday
+  first (a blackout club wears its colour rush, then its blackout); one or two classics, division games first, never
+  in back-to-back weeks; never week 18 or the playoffs. At most three helmets a season: usual, black, classic.
+- **The other side:** the visitors wear white, or their colours against a whiteout. A special beats the hot-day
+  white.
+
 ## 6. Tunables
 
 In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM`
 (0.79), `DROP` (-4), `PANTS_TOP` (104), `PANTS_DIP` (4), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2),
 `ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4) and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
 `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `DECALS_MIN_PX` (56), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
-(4.5) and `HOT_KICKOFF_F` (85). In `src/ui/helmet.ts`: `HELMET_SCALE` (0.85), `HELMET_NECK_Y` (38.8),
+(4.5). In `src/ui/uniform.ts`: `HOT_KICKOFF_F` (85) and `NUMBER_FONTS`. In `src/ui/helmet.ts`: `HELMET_SCALE` (0.85), `HELMET_NECK_Y` (38.8),
 `HELMET_NECK_PER_TRAP` (0.5) and `HELMET_WEIGHTS`. In `src/ui/playerGear.ts`: `PADDED_BOTH` (0.15), `WRISTBAND_QB`
 (0.6) and `WRISTBAND_RIGHT` (0.25).
 
 ## 7. Not yet
 
-- Alternate and throwback uniforms, colour-on-colour specials, club traditions (a team that always
-  wears white at home), and each club's own pants colour (gold, silver…): today's pants follow the rule in section 4.
-- Alternate helmets, with alternate jerseys and throwbacks: one per club, worn in its primetime games, fixed when
-  the schedule is made so a flex doesn't change it (mocked for six clubs).
+- Club traditions (a team that always wears white at home), and each club's own pants colour (gold, silver…) on
+  the home kit: today's pants follow the rule in section 4.
+- Special uniforms on the schedule screen and the game preview ("Classic game"); visitors in specials (the NFL's
+  contrast rule); alternates in the playoffs; choosing your club's special games.
 - Hair under the helmet (locs, braids, the flow, a ponytail, curls; mocked, held for now).
 - A SpeedFlex-style shell (no straight-on rear reference yet); wristbands for defensive play-callers.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is

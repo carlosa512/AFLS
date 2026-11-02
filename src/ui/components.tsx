@@ -11,17 +11,16 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { gamesInWeek } from '../engine/league';
-import type { Game, League, Player, Position, Team } from '../engine/types';
+import type { Game, League, Player, Position, SleeveStyle, Team } from '../engine/types';
 import { POSITIONS } from '../engine/types';
 import { isProspect } from '../engine/scouting';
-import { gameWeather, type Forecast, type Weather } from '../engine/weather';
+import { type Forecast, type Weather } from '../engine/weather';
 import { inkOn, kitFor, shade, tint, type TeamColors } from './color';
 import { band, gameWeatherText, playerName, severityText, shortName } from './format';
 import { useNav } from './nav';
 import { GearLayer } from './gearArt';
 import { coldGame, gearOf } from './playerGear';
-import { BUILD_MIN_PX, buildOf, playerLook } from './playerLook';
+import { BUILD_MIN_PX, buildOf, playerLook, type Figure } from './playerLook';
 import { flagsOf, greenDotOf, helmetDesignOf, helmetModelOf, maskOf, wearsHelmet } from './helmet';
 import { HelmetLayer, helmetTransform, MaskLayer } from './helmetArt';
 import { store } from './store';
@@ -34,25 +33,35 @@ const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
 export const DECALS_MIN_PX = 56;
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
-/** Kickoff this hot in the open air, the home team takes white and leaves the visitors the dark jerseys (tune). */
-export const HOT_KICKOFF_F = 85;
+import { NUMBER_FONTS, uniformFor } from './uniform';
+export { HOT_KICKOFF_F, wearsWhite } from './uniform';
 
 /**
- * Whether a team takes the field in white. The league's rule: the home team picks, the visitors wear the
- * other jersey. Home teams wear their colours, except on a hot open-air day (Miami, Tampa and Jacksonville
- * in September, mostly), about one game in fifty. It follows this week's game, or `game` for one already
- * played (weather is a pure function of the game, so it comes out the same); with no game (a bye, the
- * offseason) everyone is in home colours.
+ * The stripes on the shoulder pads' outer face: today's two (the number's colour over the accent), the classic's three
+ * thin ones, or the colour rush's one wide band (the accent edged in the number's colour).
  */
-export function wearsWhite(league: League | null, teamId: number, game?: Game): boolean {
-  const inSeason = league?.phase === 'regular' || league?.phase === 'playoffs';
-  const g =
-    game ??
-    (league && inSeason ? gamesInWeek(league).find((x) => x.homeId === teamId || x.awayId === teamId) : undefined);
-  if (!league || !g || (g.homeId !== teamId && g.awayId !== teamId)) return false;
-  const w = gameWeather(league, g);
-  const homeInWhite = (w.roof === 'outdoors' || w.roof === 'open') && w.tempF >= HOT_KICKOFF_F;
-  return (g.homeId === teamId) === homeInWhite;
+function SleeveStripes({ f, style, ink, accent }: { f: Figure; style: SleeveStyle; ink: string; accent: string }) {
+  if (style === 'three')
+    return (
+      <>
+        <path d={f.bandsUpper} transform="translate(0 -1.2)" stroke={ink} strokeWidth={1.2} fill="none" />
+        <path d={f.bandsUpper} transform="translate(0 1.5)" stroke={accent} strokeWidth={1.2} fill="none" />
+        <path d={f.bandsLower} transform="translate(0 1.6)" stroke={ink} strokeWidth={1.2} fill="none" />
+      </>
+    );
+  if (style === 'wide')
+    return (
+      <>
+        <path d={f.bandsUpper} transform="translate(0 1.6)" stroke={ink} strokeWidth={4} fill="none" />
+        <path d={f.bandsUpper} transform="translate(0 1.6)" stroke={accent} strokeWidth={2.4} fill="none" />
+      </>
+    );
+  return (
+    <>
+      <path d={f.bandsUpper} stroke={ink} strokeWidth={2} fill="none" />
+      <path d={f.bandsLower} stroke={accent} strokeWidth={2} fill="none" />
+    </>
+  );
 }
 
 /** A first-year pro (drafted or signed, never a prospect): a red "R" sits beside his name in lists and on his card. */
@@ -92,8 +101,11 @@ export function PlayerAvatar({
   const url = (part: string) => `url(#${id}${part})`;
   const colors = team ? { primary: team.colors[0], secondary: team.colors[1] } : FREE_AGENT;
   const { primary } = colors;
-  const kit = kitFor(colors, team !== null && wearsWhite(store.get(), team.id, game));
+  // what he wears today: the plain kit, or the special set the schedule stamped on his home game (`uniform.ts`)
+  const dressed = team ? uniformFor(store.get(), team, game) : null;
+  const kit = dressed?.kit ?? kitFor(colors);
   const { jersey, ink, trim, accent } = kit;
+  const numbers = NUMBER_FONTS[dressed?.font ?? 'standard'];
   const look = playerLook(player, size);
   const { figure: f, head, transform } = look;
   // his gear from 32px, like his build: sleeves in a cold game follow the kit's game
@@ -107,7 +119,7 @@ export function PlayerAvatar({
           const league = store.get();
           return {
             model,
-            design: helmetDesignOf(team),
+            design: dressed?.helmet ?? helmetDesignOf(team),
             place: helmetTransform(model, look.build ? buildOf(player.weightLb).traps : null),
             decals:
               size >= DECALS_MIN_PX
@@ -120,14 +132,14 @@ export function PlayerAvatar({
   // long names shrink, and textLength holds the estimate even if the font hasn't loaded and a wider one stands in
   const plateSize = Math.min(9.5, f.plateMax / (plate.length * PLATE_EM));
   // 15% wider around x = 50 (the condensed display face is narrower than block jersey numerals), less on a narrow back
-  const numberX = 1.15 * f.numberWidth;
+  const numberX = numbers.stretch * f.numberWidth;
   return (
     <svg
       className="avatar"
       width={size}
       height={size}
       viewBox="0 0 100 100"
-      fontFamily="var(--font-display)"
+      fontFamily={numbers.family}
       aria-hidden="true"
     >
       <defs>
@@ -243,19 +255,18 @@ export function PlayerAvatar({
           )}
           {size >= NUMBER_MIN_PX && (
             <>
-              <path d={f.bandsUpper} stroke={ink} strokeWidth={2} fill="none" />
-              <path d={f.bandsLower} stroke={accent} strokeWidth={2} fill="none" />
+              <SleeveStripes f={f} style={dressed?.sleeves ?? 'two'} ink={ink} accent={accent} />
               <text
                 x="50"
                 y="78"
                 transform={`translate(${+(50 * (1 - numberX)).toFixed(2)} 0) scale(${+numberX.toFixed(3)} 1)`}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={32}
+                fontSize={32 * numbers.scale}
                 fontWeight={900}
                 fill={ink}
                 stroke={trim}
-                strokeWidth={1.4}
+                strokeWidth={kit.outline}
                 paintOrder="stroke"
                 strokeLinejoin="round"
               >

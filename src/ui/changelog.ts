@@ -13,13 +13,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.40',
+    version: '0.2.41',
     date: '2026-11-02',
     title: 'Long careers stay quick',
     text:
       'Nothing changes in play. Finding a club’s players no longer means reading every player the league has ever ' +
       'had, retired ones too, so long careers slow down less: five seasons play about a tenth faster, and the gap ' +
       'grows the longer a career runs.',
+  },
+  {
+    version: '0.2.40',
+    date: '2026-11-02',
+    title: 'Colour rush',
+    text:
+      'Clubs now dress up for big games. Under the lights a club may wear its colour rush, one colour head to toe ' +
+      '(some clubs go all white), and eight clubs also have a blackout. Once or twice a season each club wears its ' +
+      'classic uniform at home, often against a division rival. Every number is now outlined so it reads at a ' +
+      'glance, and some clubs have their own number style.',
   },
   {
     version: '0.2.39',
