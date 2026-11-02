@@ -93,7 +93,7 @@ function feudIn(men: Player[], since?: number): [number, number] | null {
 }
 
 /** The most-felt grievance among these men, or none. */
-function topicOf(league: League, men: Player[], ctx: MoraleContext): TalkCause | 'none' {
+export function topicOf(league: League, men: Player[], ctx: MoraleContext): TalkCause | 'none' {
   const counts = new Map<TalkCause, number>();
   for (const p of men) for (const c of grievancesOf(league, p, ctx)) counts.set(c, (counts.get(c) ?? 0) + 1);
   const order: TalkCause[] = ['feud', 'deal', 'snaps', 'losing'];
