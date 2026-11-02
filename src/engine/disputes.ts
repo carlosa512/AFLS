@@ -211,12 +211,10 @@ function runRequest(
   if (d.cause === 'snaps' && m.jolts?.some((j) => j.kind === 'kept' && j.at === clock))
     return endDispute(league, p, 'withdrawn', clock);
   const level = moraleLevel(league, p, clock);
-  // A request carries into the spring, when the market reopens (most come after the deadline): from the new league year
-  // to camp he wants out while he's Poor or worse, and only steps at Okay or better count toward letting it go.
-  const spring = week < CAMP && d.since < league.season * YEAR;
-  const settled = spring ? level > POOR : level > VERY_POOR;
+  // He lets it go only once he's content again: four steps at Okay or better (a man still Poor still wants out). It
+  // carries into the spring, when the market reopens (most requests come after the deadline).
   if (clock > d.since) {
-    if (settled) d.calm = (d.calm ?? 0) + 1;
+    if (level > POOR) d.calm = (d.calm ?? 0) + 1;
     else delete d.calm;
   }
   if ((d.calm ?? 0) >= RUN_STEPS) return endDispute(league, p, 'withdrawn', clock);

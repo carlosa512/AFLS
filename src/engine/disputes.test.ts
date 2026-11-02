@@ -873,15 +873,19 @@ describe('disputes: trade requests (G4b)', () => {
     expect(p.morale!.dispute).toMatchObject({ kind: 'holdIn', cause: 'deal', since: at(l, 7) });
   });
 
-  it('is withdrawn after four steps at Poor or better, or when his snaps come; a raise ends one over a deal', () => {
+  it('is withdrawn after four steps at Okay or better, or when his snaps come; a raise ends one over a deal', () => {
     const calm = base('withdraw-calm');
     const p = souredOver(calm.l, calm.l.userTeamId, 'snaps');
     run(calm.l, 9, 9);
-    p.morale!.level = 0;
+    // Poor is still unhappy: it stands.
+    p.morale!.level = -2;
     p.morale!.jolts = [];
-    run(calm.l, 10, 12);
+    run(calm.l, 10, 14);
     expect(p.morale!.dispute?.kind).toBe('trade');
-    run(calm.l, 13, 13);
+    p.morale!.level = 0;
+    run(calm.l, 15, 17);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    run(calm.l, 18, 18);
     expect(p.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'withdrawn' });
 
     const kept = base('withdraw-kept');
