@@ -284,7 +284,7 @@ export function choicesFor(
   topic: TalkCause | 'none',
   driver: number | undefined,
   ctx: MoraleContext,
-): Pick<MeetingSuggestion, 'approaches' | 'backings' | 'timings' | 'named' | 'leader' | 'driver'> {
+): Pick<MeetingSuggestion, 'approaches' | 'backings' | 'timings' | 'named' | 'namedFor' | 'leader' | 'driver'> {
   const men = membersOf(league, teamId, scope);
   const leader = leaderIn(league, men, ctx);
   const losingNow = losing(league, teamId);
@@ -312,9 +312,11 @@ export function choicesFor(
   if (league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK && losingNow) backings.push('move');
   backings.push('words');
   // The men each commitment would name, in the order the commitments are offered.
-  if (dealMen.length) named.push(...dealMen.map((p) => p.id));
-  if (snapsMan) named.push(snapsMan.id);
-  if (feud) named.push(...feud);
+  const namedFor: NonNullable<MeetingSuggestion['namedFor']> = {};
+  if (dealMen.length) namedFor.talks = dealMen.map((p) => p.id);
+  if (snapsMan) namedFor.snaps = [snapsMan.id];
+  if (feud) namedFor.feud = [...feud];
+  for (const ids of Object.values(namedFor)) named.push(...ids);
 
   const timings: Timing[] =
     kind === 'moment'
@@ -327,6 +329,7 @@ export function choicesFor(
     backings,
     timings,
     named: [...new Set(named)],
+    ...(Object.keys(namedFor).length ? { namedFor } : {}),
     ...(leader !== undefined ? { leader } : {}),
     ...(driver !== undefined ? { driver } : {}),
   };

@@ -398,6 +398,7 @@ export interface MeetingRecord {
   approach: Approach;
   backing: Backing;
   timing: Timing;
+  /** How each man took it; a shrug is left out (most of a room), so the log stays small. */
   outcomes: Record<number, Outcome>;
   /** The leader who said it, or the man called out. */
   speaker?: number;
@@ -418,6 +419,8 @@ export interface MeetingSuggestion {
   /** Empty for a moment: it sets its own. */
   timings: Timing[];
   named: number[];
+  /** The men each commitment would name (`named` is all of them, for the letter). */
+  namedFor?: Partial<Record<Exclude<Backing, 'words'>, number[]>>;
   /** The man driving it (a stirring voice). */
   driver?: number;
   /** The leader who could say it. */
