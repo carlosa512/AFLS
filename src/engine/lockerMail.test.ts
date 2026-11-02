@@ -73,7 +73,7 @@ describe('locker room letters', () => {
     ours.traits = { ...ours.traits, poise: 20 };
     ours.personality = { greed: 0.5, loyalty: 0.5, winning: 0.5, patience: 0.55 };
     ours.traits = { ...ours.traits, leads: 10, controversy: 10, sportsmanship: 10, workEthic: 10, temperament: 10 };
-    expect(recapAside(l, ours, { won: true, margin: 3 })).toBe('. He wanted the ball late');
+    expect(recapAside(l, ours, { won: true, margin: 3 })).toBe(', and he wanted the ball late');
     expect(recapAside(l, ours, { won: true, margin: 17 })).toBe('');
     expect(recapAside(l, ours, { won: false, margin: 3 })).toBe('');
   });

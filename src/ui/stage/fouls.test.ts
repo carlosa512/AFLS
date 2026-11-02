@@ -39,12 +39,16 @@ const stepOf = (p: FouledPlay, t: number) => Math.min(p.steps - 1, Math.round(t 
 const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
 describe('the fouls in the log', () => {
-  it('names the man and the moment of every foul in 60 games, two when they offset', () => {
+  it('names the man and the moment of every foul in 60 games, two or more when they offset', () => {
     let named = 0;
     let all = 0;
     for (const { e, p } of flagged) {
       expect(p.fouls.length, e.text).toBeGreaterThan(0);
-      if (/Offsetting/.test(e.text)) expect(p.fouls.length, e.text).toBe(2);
+      // Offsetting fouls are on both teams, two or more of them (offside and a face mask on one, holding on the other).
+      if (/Offsetting/.test(e.text)) {
+        expect(p.fouls.length, e.text).toBeGreaterThanOrEqual(2);
+        expect(new Set(foulsIn(e).map((f) => f.team)).size, e.text).toBe(2);
+      }
       for (const f of p.fouls) {
         all++;
         if (f.id !== null) named++;

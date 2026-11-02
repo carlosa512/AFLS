@@ -12,6 +12,7 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { hasTree, liveTrees, treeFor, treeOf } from '../src/engine/trees';
 import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
+import { regularSeasonGames } from '../src/engine/season/standings';
 import { bodyAs } from '../src/engine/training';
 import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
@@ -27,7 +28,16 @@ export interface LeagueRun {
   retiredAt: Record<string, number[]>;
   /** Yearly OVR change of rostered players, by age bucket. */
   deltas: Record<string, number[]>;
-  steady: { qb35: number[]; k38: number[]; rb30: number[]; points: number[]; penalties: number[]; sacks: number[] };
+  steady: {
+    qb35: number[];
+    k38: number[];
+    rb30: number[];
+    points: number[];
+    penalties: number[];
+    sacks: number[];
+    /** Each steady season's spread of team wins (SD), against a fresh league's in the sim check. */
+    winSpread: number[];
+  };
   /** What coaching applies league-wide (it must stay neutral); kickers and punters apart, they have their own blend. */
   ledger: { growth: number[]; body: number[]; craft: number[]; kpGrowth: number[]; kpCraft: number[] };
   /**
@@ -54,6 +64,8 @@ export interface LeagueRun {
    * coaches in a live tree; each offseason's new head coaches and how many came from a tree (and the most from one);
    * trees born during the run, and founding trees still alive at the end.
    */
+  /** Each season's win share by team, for how long a record lasts (against the NFL's carryover). */
+  records: number[][];
   trees: {
     live: number[];
     biggest: number[];
@@ -75,7 +87,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     awareness: [0, 0],
     retiredAt: {},
     deltas: { '21-25': [], '26-29': [], '30-33': [], '34+': [] },
-    steady: { qb35: [], k38: [], rb30: [], points: [], penalties: [], sacks: [] },
+    steady: { qb35: [], k38: [], rb30: [], points: [], penalties: [], sacks: [], winSpread: [] },
     ledger: { growth: [], body: [], craft: [], kpGrowth: [], kpCraft: [] },
     coached: { all: [], best: [], worst: [] },
     leaders: {},
@@ -83,6 +95,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     drafts: [],
     shifts: [],
     trees: { live: [], biggest: [], inTreeShare: [], hires: [], born: 0, foundingAlive: 0 },
+    records: [],
   };
   const headCoaches = () =>
     new Map(league.teams.map((t) => [t.id, teamCoaches(league, t.id).find((c) => c.role === 'headCoach')?.id]));
@@ -104,6 +117,18 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
 
   for (let s = 0; s < seasons; s++) {
     simToEndOfSeason(league);
+    {
+      const wins = new Map(league.teams.map((t) => [t.id, 0]));
+      const games = regularSeasonGames(league);
+      for (const g of games) {
+        const r = g.result!;
+        const w = r.homeScore > r.awayScore ? g.homeId : r.awayScore > r.homeScore ? g.awayId : null;
+        if (w !== null) wins.set(w, wins.get(w)! + 1);
+        else for (const id of [g.homeId, g.awayId]) wins.set(id, wins.get(id)! + 0.5);
+      }
+      const played = (2 * games.length) / league.teams.length;
+      out.records.push(league.teams.map((t) => wins.get(t.id)! / played));
+    }
     if (s >= steadyFrom) {
       for (const [key, top] of Object.entries(seasonTops(league, league.season))) (out.leaders[key] ??= []).push(top);
       for (const g of league.games) {
@@ -113,6 +138,16 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
         out.steady.penalties.push((r.home.penalties + r.away.penalties) / 2);
         out.steady.sacks.push((r.home.sacked + r.away.sacked) / 2);
       }
+      const wins = new Map(league.teams.map((t) => [t.id, 0]));
+      for (const g of regularSeasonGames(league)) {
+        const r = g.result!;
+        if (r.homeScore !== r.awayScore) {
+          const w = r.homeScore > r.awayScore ? g.homeId : g.awayId;
+          wins.set(w, wins.get(w)! + 1);
+        }
+      }
+      const w = [...wins.values()];
+      out.steady.winSpread.push(Math.sqrt(mean(w.map((x) => (x - mean(w)) ** 2))));
     }
     const before = new Map(
       Object.values(league.players)

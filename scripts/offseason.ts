@@ -74,6 +74,7 @@ import {
 import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { CapRun } from './offseason-league';
+import { chairKey, chairSnap, hcOrigin } from './carousel';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
 const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
@@ -133,6 +134,32 @@ function check(label: string, value: number, lo: number, hi: number, digits = 2)
 /** Known engine issues, by title, each with where it showed up. Printed at the end; never counted. */
 const known: Record<string, string[]> = {};
 const warn = (issue: string, where: string) => void (known[issue] ??= []).push(where);
+
+/**
+ * A band the engine can't meet yet, kept at its research values: a miss shows ⚠ and lands as a known issue, never
+ * counted, until its fix lands and it goes back to `check`.
+ */
+function soft(
+  label: string,
+  value: number,
+  lo: number,
+  hi: number,
+  digits: number,
+  issue: string,
+  where: string,
+): string {
+  const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
+  const out = !Number.isFinite(value) || value < lo || value > hi;
+  if (out) warn(issue, `${where} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'}`);
+  return `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (${range})${out ? ' ⚠' : ''}`;
+}
+
+// Known issues the front-office work (0.2.36) left, each a follow-up in docs/MVP.md:
+const OUT_OF_FOOTBALL =
+  'starters out of football climb as a league ages (about 3% early, 5-8% by season 6 in every world: retirements and faded veterans no club has room for)';
+const TAGS = 'tags a season spike past the NFL band when a big class of stars comes due at once';
+const RESTRUCTURING =
+  "clubs restructuring runs under the NFL's about 55% in a new league's first seasons and swings season to season";
 
 // The mechanisms below were traced by replaying the baseline run (src/ is untouched by this audit).
 //
@@ -242,15 +269,6 @@ interface Row {
   agency: { refusals: number; stepDowns: number; exHeads: number };
 }
 
-/** Who sits in every chair at kickoff, by team: the carousel is read off two of these. */
-const chairKey = (ch: (typeof CHAIRS)[number]) => `${ch.role}${ch.room ?? ''}`;
-const chairSnap = (l: League) =>
-  new Map(
-    l.teams.map((t) => [
-      t.id,
-      new Map(CHAIRS.map((ch) => [chairKey(ch), chairHolder(teamCoaches(l, t.id), ch)?.id ?? -1])),
-    ]),
-  );
 let chairsBefore = chairSnap(league);
 
 const SCOUT_MAX = Object.values(STAFF_SLOTS).reduce((a, b) => a + b, 0); // 8
@@ -262,6 +280,10 @@ const perRun = (n6: number) => Math.ceil((n6 * seasons) / 6);
 
 /** Young players' OVR gains under the best- and worst-8 coaching staffs, pooled over the run. */
 const gains = { best: [] as number[], worst: [] as number[] };
+/** Every club's depth-chart starters at a kickoff. */
+const kickoffStarters = (l: League) =>
+  l.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos])));
+let lastStarters = kickoffStarters(league);
 const rows: Row[] = [];
 const playerGrowth: number[] = [];
 /** The whole save's growth each season from the third: judged on average (one season's games swing it ±100 KB). */
@@ -325,6 +347,11 @@ for (let s = 0; s < seasons; s++) {
   }
   const year = league.season;
   const k = snaps.regular!;
+  // Last kickoff's starters out of football at this one: unsigned or retired.
+  const outOfFootball =
+    (100 * lastStarters.filter((id) => league.players[id].retired || league.players[id].teamId === null).length) /
+    lastStarters.length;
+  lastStarters = kickoffStarters(league);
   // The log is capped, so count this offseason's moves by date rather than by position in it.
   const moves = league.transactions.filter(
     (m) => m.season === league.season && m.phase !== 'regular' && m.phase !== 'playoffs',
@@ -379,21 +406,7 @@ for (let s = 0; s < seasons; s++) {
       if (id === chairsBefore.get(t.id)!.get(chairKey(ch))) continue;
       changed[ch.role]++;
       if (ch.role !== 'headCoach') continue;
-      const career = (league.coaches[id]?.career ?? []).filter((cs) => cs.season < league.season);
-      // Keeping last season's internal interim is a promotion, not rehiring a former head coach.
-      const retainedInterim = career.some(
-        (cs) =>
-          cs.role === 'headCoach' &&
-          cs.teamId === t.id &&
-          cs.season === league.season - 1 &&
-          (cs.record?.fromWeek ?? 1) > 1,
-      );
-      const past = retainedInterim
-        ? career.filter((cs) => cs.season !== league.season - 1 || cs.role !== 'headCoach')
-        : career;
-      if (past.some((cs) => cs.role === 'headCoach')) hcFrom.retread++;
-      else if (past.at(-1)?.role === 'offCoord' || past.at(-1)?.role === 'defCoord') hcFrom.coordinator++;
-      else hcFrom.other++;
+      hcFrom[hcOrigin(league, t, id)]++;
     }
   }
   chairsBefore = chairsNow;
@@ -459,8 +472,14 @@ for (let s = 0; s < seasons; s++) {
   // them 43 and one team a season in 8 of 24 seed-seasons, the old known issues).
   // Holes / below keep-min / bad depth spots 0: a roster missing a starter's position, or a depth chart that names a
   // player who retired or left, breaks games (obs 0 everywhere).
+  // Tags: a club keeping the star it would otherwise lose. NFL clubs tagged 10, 8, 6 and 9 players in 2021–24 (Sharp
+  // Football; 2 and 4 the two offseasons since).
+  // Starters out of football: last kickoff's starters unsigned or retired at this one, counted as nflverse counts it
+  // (owner's call, 2026-10-31): of a season's regular starters, 3.2% and 2.9% were on no club's week-1 roster the next
+  // season in 2022–24 (another 1.5–2.1% were on one, hurt or on a reserve list). Before the late market (a club
+  // offering what it can fit, shopping past day 5) the sim's read about 9.6%.
   console.log(
-    `  checks ${year} roster: ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
+    `  checks ${year} roster: ${soft('starters out of football %', outOfFootball, 2.5, 4.5, 1, OUT_OF_FOOTBALL, String(year))} · ${soft('tags', count('tag'), 4, 10, 0, TAGS, String(year))} · ${check('max', k.rosterMax, ROSTER_MAX, ROSTER_MAX, 0)} · ${check('min', k.rosterMin, 50, ROSTER_MAX, 0)} · under 53: ${k.short.length} · ${check('under 53 with cap room', withRoom.length, 0, 0, 0)} · ${check('position holes', k.holes, 0, 0, 0)} · ${check('below keep-min', k.belowKeep, 0, 0, 0)} · ${check('bad depth-chart spots', k.badDepth, 0, 0, 0)}`,
   );
 
   // Cap space as a share of the cap (the cap grows ~8% a year). Median: 3.8, 2.6, 3.4, then 3.3, 1.9, 2.6% (0.1.5);
@@ -475,7 +494,10 @@ for (let s = 0; s < seasons; s++) {
   // seasons 1-3 are judged at <= 30% and index 4+ at <= 20%. Before the generated league was paid like a settled one
   // (0.1.3) seasons 1-3 read 54.6, 59.0, 37.9%: rosters opened as low as 62% committed and a hoarder banked the rest.
   // Dead money: max 7.1-16.7% of cap at kickoff (0.1.5; 6.2-17.3% at 0.1.10; 6.0-19.3% at 0.1.3, all seeds then
-  // 6.5-22.7), median at most 3.1%; a front office that cuts stars wholesale shows up as the max passing 30%.
+  // 6.5-22.7), median at most 3.1%. The max's ceiling is the NFL's worst modern season, a rebuild clearing its books:
+  // the 2024 Broncos carried $89.1M of a $255.4M cap, about 35% (Wilson's release 20.5% of it; ESPN). 30% until 0.2.36,
+  // when a rebuilding club releasing its 34-year-old quarterback read 32.5% (owner's call, 2026-11-01). A front office
+  // that cuts stars wholesale still shows up past it.
   // Free agents: 253 → 467 over 6 seasons, +64 at most in a step (0.1.5; 252 → 443, +74 at 0.1.10; all seeds then
   // 99); it keeps rising until about season 12 and plateaus near 500 (retirement caps the stock), so the ceiling is 650
   // and the floor 100 (a dried-up market). One league's pool moves a lot in a single step: re-read at 0.2.5 over four
@@ -483,8 +505,14 @@ for (let s = 0; s < seasons; s++) {
   // rebounds to 497), while the whole run grew alike (+110 and +115 on average), so the step ceiling is 210; the pool
   // band (100-650) is what catches a runaway.
   const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 210, 0)}` : ''}`;
+  // Clubs restructuring anyone this offseason: about 55% of NFL clubs restructure at least a minor deal in a year, 37% a
+  // major one (over $6.5M), 78% of playoff teams (Over the Cap, "Looking at restructuring NFL contracts"). Before GMs
+  // planned next year (2026-11-01), nearly every club did, three to five times a year, and the league tightened each
+  // season till no club had room for a faded veteran.
+  const restructuring =
+    (100 * new Set(moves.filter((m) => m.kind === 'restructure').flatMap((m) => m.teamIds)).size) / league.teams.length;
   console.log(
-    `  checks ${year} cap: ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 30, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 35, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
   );
 
   // League talent (mean starter OVR at kickoff): 12.89, 12.92, 13.02, 13.09, 13.18, 13.20 (all seeds then 12.69-13.12),
@@ -527,7 +555,7 @@ for (let s = 0; s < seasons; s++) {
     weekly: save.weekly - prevSave.weekly,
   };
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · ${check('players growth KB', dSave.players, -Infinity, 800 + Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0), 0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   if (dSave && s >= 2) saveGrowth.push(dSave.total);
@@ -632,6 +660,15 @@ if (playerGrowth.some((g) => g > 100)) {
 // The save's yearly growth, on average: a season's stored games keep its scoring plays, so one season reads up to about
 // 100 KB high or low by its history alone (the same league at the same scoring, 22.6 points a game either way, read
 // 1143 and 1303 in its third season). The budget holds per season; it's judged on the run's mean.
+// Players' growth the same way: the first season's runs highest (a new league's first retirements and its first
+// season's stat lines land at once, 1100-1161 KB against later seasons' 740-904), so it's judged on the run's mean.
+const PLAYERS_GROWTH_BUDGET =
+  800 +
+  Object.values(SAVE_FEATURE_ALLOWANCES).reduce((sum, a) => sum + ('playersGrowth' in a ? a.playersGrowth : 0), 0);
+if (playerGrowth.length)
+  console.log(
+    `players growth a season (mean of ${playerGrowth.length}, ${playerGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(playerGrowth), -Infinity, PLAYERS_GROWTH_BUDGET, 0)}`,
+  );
 if (saveGrowth.length)
   console.log(
     `save growth a season (mean of ${saveGrowth.length}, ${saveGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(saveGrowth), -Infinity, SAVE_SIZE_BUDGET.annualGrowth, 0)}`,
@@ -696,7 +733,7 @@ function carouselRun(): string {
       15,
       1,
     ),
-    check('HC hires retreads %', (100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires, 10, 50, 0),
+    `HC hires retreads % ${((100 * rows.reduce((a, r) => a + r.hcFrom.retread, 0)) / hires).toFixed(0)} (judged below, over every league)`,
     check('…coordinators %', (100 * rows.reduce((a, r) => a + r.hcFrom.coordinator, 0)) / hires, 35, 85, 0),
     // Agency, reported only: refusals and step-downs a season, step-downs per head coach fired.
     `refusals/season ${per((r) => r.agency.refusals).toFixed(1)}`,
@@ -716,6 +753,22 @@ if (rows.length >= 5) {
   const end = rows[rows.length - 1];
   // Every team of the four leagues a season, this one's and the others' (the upper middle, as for one league's).
   const others = await capRuns;
+  // Where new head coaches came from, pooled over this league and the extra ones: one league's 50-odd hires swing the
+  // retread share about 7 points either way (39-54% on the same code), four leagues' read it to about 3.
+  {
+    const own = rows.reduce((a, r) => ({ retread: a.retread + r.hcFrom.retread, all: a.all + r.turnover.hc }), {
+      retread: 0,
+      all: 0,
+    });
+    const retread = own.retread + others.reduce((a, o) => a + o.hcFrom.retread, 0);
+    const all = Math.max(
+      1,
+      own.all + others.reduce((a, o) => a + o.hcFrom.retread + o.hcFrom.coordinator + o.hcFrom.other, 0),
+    );
+    console.log(
+      `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0)}`,
+    );
+  }
   const tail = rows.slice(-3).map((r, j) => {
     const s = rows.length - 3 + j;
     const all = [...r.k.space.map((x) => (100 * x) / r.k.cap), ...others.flatMap((run) => run.space[s])];

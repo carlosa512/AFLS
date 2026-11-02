@@ -1,5 +1,6 @@
 import { seedMorale } from './morale';
 import { seedFoundingTrees } from './trees';
+import { teamRatings } from './roster';
 import { lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
@@ -221,7 +222,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 63) league.version = 63;
   // v64: coaching trees (`Coach.pastUnder`, optional): a few founding trees, seeded as a new league from this seed would.
   if (league.version < 64) {
-    seedFoundingTrees(league);
+    seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
     league.version = 64;
   }
   // v65: optional `sections` and `covered` on inbox messages (the digest letters) and `League.mailTold`: nothing to

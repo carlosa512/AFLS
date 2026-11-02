@@ -111,7 +111,9 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
     qbRun: 0,
     quick: 0,
     release: -0.3,
-    playAction: 0.15,
+    // No play action: its shots come off the drop, not a run fake (it out-scored every other offense by 1–2 points
+    // a game with both, the deep lean paid for twice).
+    playAction: 0,
     lean: 0.35,
     fit: { QB: ['deepAccuracy'], WR: ['deepRoutes'], OL: ['passPro'] },
   },

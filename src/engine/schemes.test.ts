@@ -9,7 +9,8 @@ import { Rng } from './rng';
 import { lineOrder } from './roster';
 import { COVERAGE_IDS, FRONT_IDS, OFF_SCHEME_IDS, OFF_SCHEMES, spotsFor, type CoachScheme } from './schemes';
 import { skill } from './attributes';
-import type { League, StatLine } from './types';
+import { sizeEdge, typicalAt } from './size';
+import type { League, Player, StatLine } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -131,7 +132,13 @@ describe('schemes', () => {
   });
 
   it('lines up the best pass protectors at tackle', () => {
-    const team = league.teams[0];
+    // `lineOrder` ranks tackles by pass protection less arm length (a long-armed guard-sized man can edge out a
+    // better blocker outside), so test a team whose five barely differ in length: there the order is pass protection.
+    const lengths = (ol: Player[]) => ol.slice(0, 5).map((p) => sizeEdge(typicalAt('EDGE'), 'edgeLength', p));
+    const team = league.teams.find((t) => {
+      const e = lengths(t.depthChart.OL.map((id) => league.players[id]));
+      return Math.max(...e) - Math.min(...e) < 1;
+    })!;
     const ol = team.depthChart.OL.map((id) => league.players[id]);
     const [lt, lg, c, rg, rt] = lineOrder(ol);
     for (const inside of [lg, c, rg]) {

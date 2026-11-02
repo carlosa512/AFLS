@@ -174,8 +174,10 @@ describe('the waiver letter', () => {
       .sort((a, b) => perceive(l, 0, a).ovr - perceive(l, 0, b).ovr)[0];
     const kid = waive(12, (x) => x.id === raw.id);
     kid.age = 22;
-    kid.potential = 10;
     l.knowledge[kid.id] = 0.9;
+    // Three points of ceiling over what we read today, whatever the world made him: well past the 1.5 a scout
+    // wants, still short of a starter's.
+    kid.potential = Math.round(perceive(l, 0, kid).ovr) + 3;
     deliverMail(l);
     const wire = letters()[0]?.sections?.find((s) => s.title === 'On the wire now');
     const v = perceive(l, 0, kid);

@@ -10,7 +10,6 @@ import type { Game, GameResult, GeneralManager } from '../engine/types';
 import { gmLook, gmName, gmStatus, gmStyleNotes, GmAvatar } from './gm';
 import { hashToRoute, routeToHash } from './routes';
 import { GeneralManagers, GmCard, gmHeadCoaches } from './screens/GeneralManagers';
-import { lookOf } from './staffAvatar';
 import { staffLook } from './staffLook';
 import { linkedSegments, moveIndex, nameIndex } from './moves';
 import { leadershipNewYear } from '../engine/leadership';
@@ -218,7 +217,8 @@ describe('GM portraits', () => {
     const l = world();
     const source = Object.values(l.staff).find((s) => s.teamId === 1 && s.role === 'director')!;
     source.woman = true;
-    const original = lookOf(l, source);
+    // The scouting portrait on a game day (in a blazer): the weather's jacket or polo shows other hair that day.
+    const original = staffLook(`staff:${source.id}`, 'director', true, 'game');
     endGmAppointment(l, l.teams[1].gmId!, 'dismissed');
     const gm = appointDirectorAsGm(l, 1, source.id, { through: l.season, interim: true });
     const promoted = gmLook(gm);

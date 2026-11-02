@@ -13,16 +13,38 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.36',
+    version: '0.2.38',
     date: '2026-11-02',
     title: 'Who runs the room',
     text:
-      'Your locker room now has a shape. Some players are leaders and some have a voice, from their makeup, whether ' +
-      'they start, their years in the league and here, and what they have won, and veterans wear the C more often. ' +
-      'A voice’s mood rubs off on his position group: a stirrer spreads a bad week, a steady leader keeps one to ' +
-      'himself. The Locker Room shows who the room follows and how each group is feeling (tight, settled, restless, ' +
-      'down or split) and why, the head coach’s report says which rooms have turned, and a position coach writes ' +
-      'when his guys go one way or the other.',
+      'Your locker room now has a shape. Some players lead and some have a voice, from their makeup, whether they ' +
+      'start, their years in the league and here, and what they have won, and veterans wear the C more often. A ' +
+      'voice’s mood rubs off on his position room: a stirrer spreads a bad week, a steady leader keeps one to himself. ' +
+      'The Locker Room has a card for each room with its mood, what stands out, who it follows, its mentoring and its ' +
+      'feuds. The head coach covers the rooms at the start and end of the season, a position coach writes when his ' +
+      'guys turn, and a yellow Negotiate button opens contract talks from a room, a player’s card or his letter.',
+  },
+  {
+    version: '0.2.37',
+    date: '2026-11-02',
+    title: 'Fewer sulkers',
+    text:
+      'Players are happier with deals that pay them close to their worth: only a man paid well under his market ' +
+      'complains, and a backup feels it less than a starter. A star still on his rookie deal wants his extension but ' +
+      'doesn’t turn bitter over it. And a player you’ve moved into the starting job no longer complains about snaps ' +
+      'before the season has even started. Free agency days also run about three times faster.',
+  },
+  {
+    version: '0.2.36',
+    date: '2026-11-01',
+    title: 'Any given Sunday',
+    text:
+      'Teams now have good days and bad ones, so upsets come about as often as in the real league, and a new league ' +
+      'starts as even as one that has played for years. Quarterbacks throw like today’s NFL too: mostly short, with ' +
+      'screens and checkdowns, fewer intermediate chain-movers, and the deep shot when it’s there. Play-callers differ ' +
+      'more, so some offenses throw far more than others, and a great passer’s accuracy counts in full. Front offices ' +
+      'act like real ones: they plan next year’s cap before they borrow, contenders spend and rebuilders save, they ' +
+      'tag the star they’d otherwise lose, and good veterans find a club by camp.',
   },
   {
     version: '0.2.35',

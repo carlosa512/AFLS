@@ -98,7 +98,7 @@ describe('every new player has an origin', () => {
   // Taken on main before origins: an origin draw runs on its own stream, so no rating moves. The class's was taken
   // again when prospects came in rawer, with a stronger top (`RAW`, `HYPE_ROOM`, draft busts), and again when the
   // class's top went from 13.95 to 14.1 (taken on main with only that change): origins still move none of its ratings.
-  const MAIN_LEAGUE = 122606184;
+  const MAIN_LEAGUE = 44280957;
   const MAIN_CLASS = 203098958;
 
   it('gives every player of a new league and a draft class a college, without moving a rating', () => {

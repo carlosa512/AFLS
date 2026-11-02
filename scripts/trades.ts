@@ -1090,7 +1090,10 @@ const pct = (x: number[]) => (100 * x[0]) / Math.max(1, x[1]);
 console.log(
   `\nDraft day (${draftDay.perDraft.length} drafts, ${draftDay.records.length} deals: ${draftDay.records.filter((r) => r.kind === 'draft').length} moves up, ${draftDay.records.filter((r) => r.kind === 'futureSwap').length} future-for-current swaps)`,
 );
-check('draft trades a draft', mean(draftDay.perDraft), [35, 45], 1);
+// The NFL's drafts run from about 28 trades (2024, one of its quietest) to 41-43 (2023, the record; 40 in 2019): CBS,
+// ESPN, Fox. 35-45 until 0.2.36, when front offices keeping their cores left fewer thin spots to trade up for (34.3
+// a draft; first-round trades 5.8, the NFL's 2016-25 average 5.5) (owner's call, 2026-11-02).
+check('draft trades a draft', mean(draftDay.perDraft), [28, 45], 1);
 check('…with a first-round pick', mean(draftDay.withFirst), [3, 9], 1);
 check('ms a pick (median, one whole draft)', median(draftDay.ms), [0, 3], 2);
 check('trade-ups where the buyer took its man (%)', pct(draftDay.tookHim), [90, 100], 1);

@@ -104,16 +104,25 @@ describe('offers to you', () => {
       // with years left on his deal: the bug is a young starter priced in firsts, so prime-age players only (30 or
       // under, as the price audit's quality starters).
       .filter((p) => p.position !== 'K' && p.position !== 'P' && p.age <= 30)
-      .sort((a, b) => playerOvr(b) - playerOvr(a))
-      .slice(0, 3);
+      .sort((a, b) => playerOvr(b) - playerOvr(a));
+    let tested = 0;
     for (const star of shop) {
+      if (tested === 3) break;
       const x = fresh();
       setTradeStatus(x, star.id, 'listed');
       const before = x.market!.nextOfferId;
-      for (let w = 0; w < 2; w++) playWeek(x);
+      let hurt = false;
+      for (let w = 0; w < 2; w++) {
+        playWeek(x);
+        hurt ||= playerTradeBlocker(x, x.players[star.id]) !== null;
+      }
       const named = x.market!.offers.filter((o) => o.id >= before && o.sides[1].players.includes(star.id));
+      // Hurt while he was listed, he'd fail the physical, and the rules take him off the market: the next one down.
+      if (hurt && !named.length) continue;
+      tested++;
       expect(named.length, `${star.position} ${star.age}`).toBeGreaterThan(0);
     }
+    expect(tested).toBe(3);
   });
 
   it('bids for your player from a team short of room, with you keeping what it can’t fit, and pays for it', () => {
@@ -127,6 +136,10 @@ describe('offers to you', () => {
     for (const p of activeRoster(l, l.userTeamId)) {
       if (cases.length >= 8) break;
       if (!p.contract || playerTradeBlocker(l, p) || p.position === 'K' || p.position === 'P') continue;
+      // A big deal, not a rental: on an expiring one the buyer's whole bill is this year's, which in season a squeezed
+      // team weighs at 1 where a roomy one weighs it at half (`nowWeight`), so what it adds for the money you keep is
+      // eaten by what the rest of the salary now costs it, and the comparison below says nothing about the retained share.
+      if (yearsLeft(p.contract, l.season) < 2) continue;
       // Paid well past the minimum, so his team can keep a third of what's left.
       if (maxRetain(l, p) < 0.5 * salaryToTake(l, p)) continue;
       for (const t of ai) {

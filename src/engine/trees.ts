@@ -192,14 +192,24 @@ function seasonsInCharge(league: League, c: Coach, rootId: number): number[] {
     return !known.length || share.get(Math.max(...known))! >= 0.5;
   };
   const established = seasons.filter((x) => ran.has(x - 1) && winning(x));
-  // A founding disciple was already established in his club before the league began.
-  if (last === -Infinity && isActiveHead(c)) established.push(-Infinity, league.season);
+  // A founding disciple was already established in his club before the league began, and that history stays once he's
+  // let go (his first season in the league was as a head coach): losing one man once unmade a founding tree while the
+  // other still ran a club.
+  if (last === -Infinity && (isActiveHead(c) || c.career?.[0]?.role === 'headCoach')) {
+    established.push(-Infinity);
+    if (isActiveHead(c)) established.push(league.season);
+  }
   return established;
 }
 
 /** The season his tree was born (two of his men in charge at once), or null if it hasn't been. */
-/** A tree grows from a clear winner: .600 or better over five seasons or more as a head coach. */
-export const WINNER = { seasons: 5, share: 0.6 };
+/**
+ * A tree grows from a winner: .550 or better over five seasons or more as a head coach, Kyle Shanahan's record (.556)
+ * and his tree among the NFL's best known. About 10 of the NFL's head coaches cleared it entering 2025, 8 cleared
+ * .600; the sim's long leagues carry as many five-year head coaches (15) but fewer winners among them (6 at .550, 3 at
+ * .600), so .600 left trees at the floor of their bands.
+ */
+export const WINNER = { seasons: 5, share: 0.55 };
 
 /**
  * The seasons by which he was a winner as a head coach, his record up to and including each (his team's record
@@ -423,9 +433,11 @@ export function standingOf(league: League, tree: Tree): TreeStanding {
  * A new league starts with a few trees, as the NFL always has some: three or four founding roots, one or two of them
  * retired legends, each with two of today's head coaches and a few coordinators or position coaches who worked under
  * him before the league began. That history goes in `Coach.pastUnder`, never in a career row, so nobody's record
- * counts it. On its own stream, and only once (an upgraded save gets what a new league from its seed would).
+ * counts it. A tree is known by its winners, so its head coaches run the stronger half of the league's clubs
+ * (`strength`, a club's overall; on random clubs, both a tree's men were often fired within two seasons and the tree
+ * gone with them). On its own stream, and only once (an upgraded save gets what a new league from its seed would).
  */
-export function seedFoundingTrees(league: League): void {
+export function seedFoundingTrees(league: League, strength?: (teamId: number) => number): void {
   const all = Object.values(league.coaches);
   if (all.some((c) => c.pastUnder?.length)) return;
   const rng = new Rng(`${league.seed}:trees:init`);
@@ -464,8 +476,11 @@ export function seedFoundingTrees(league: League): void {
     league.retiredCoaches[legend.id] = legend;
     founders.push(legend);
   }
+  const clubs = league.teams.map((t) => t.id);
+  if (strength) clubs.sort((a, b) => strength(b) - strength(a) || a - b);
+  const strong = new Set(clubs.slice(0, strength ? Math.ceil(clubs.length / 2) : clubs.length));
   for (const root of founders) {
-    for (const d of take(heads, 2))
+    for (const d of take(heads, 2, (c) => c.teamId !== null && strong.has(c.teamId)))
       (d.pastUnder ??= []).push({
         coachId: root.id,
         role: rng.chance(0.5) ? 'offCoord' : 'defCoord',

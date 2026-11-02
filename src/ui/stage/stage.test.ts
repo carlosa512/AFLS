@@ -4,6 +4,7 @@ import { simulateGame } from '../../engine/match/gameSim';
 import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
+import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { lineUp } from './formations';
@@ -36,8 +37,12 @@ describe('who is on the field for a play', () => {
     let checked = 0;
     for (const { r } of games)
       for (const hurt of r.injuries ?? []) {
+        // The play he was hurt on (a player can sit a stretch earlier, rotated or rested, and come back).
+        const hurtAt = r.plays!.findIndex(
+          (e) => e.quarter > hurt.quarter || (e.quarter === hurt.quarter && e.clock <= hurt.clock),
+        );
         const change = r.field!.changes.find(
-          ([, , u]) => !eleven(u).includes(hurt.playerId) && r.playerTeams[u.qb] === hurt.teamId,
+          ([at, , u]) => at >= hurtAt && !eleven(u).includes(hurt.playerId) && r.playerTeams[u.qb] === hurt.teamId,
         );
         if (!change) continue;
         for (let i = change[0]; i < r.plays!.length; i++) {
@@ -114,7 +119,7 @@ function lineUps(n: number, kinds?: readonly string[]) {
         dir,
         new Rng(`f:${g.id}:${i}`),
       );
-      out.push({ e, cast, dir, ballX: e.from, ballY, spots });
+      out.push({ e, cast, dir, ballX: e.from, ballY, spots, units: unitsAt(r.field!, i) });
     }
   return out;
 }
@@ -126,10 +131,13 @@ describe('formations', () => {
     // Which side of the ball (from the offense's view) each fixed position takes; never both in a game.
     const sides = new Map<string, Set<number>>();
     let checked = 0;
-    for (const { e, cast, dir, ballY, spots } of lineUps(10, SCRIMMAGE)) {
+    for (const { e, cast, dir, ballY, spots, units } of lineUps(10, SCRIMMAGE)) {
       void e;
+      const defense = units[1 - cast.offSide];
       for (const m of [...cast.offense, ...cast.defense]) {
         if (!['OL', 'EDGE', 'CB'].includes(m.role) || (m.role === 'CB' && m.slot > 1)) continue;
+        // The starters keep their sides; a rotation rusher in for a snap spells whichever end needs the breather.
+        if (m.role === 'EDGE' && !defense.edge.includes(m.id)) continue;
         const across = (spots.get(m.id)!.y - ballY) * dir;
         if (Math.abs(across) < 1) continue; // the center
         const key = `${m.id}:${m.role}`;
@@ -532,7 +540,9 @@ describe('off the ball', () => {
 
   it('gives a run time to develop: a handoff, the press to the line, then the burst', () => {
     for (const { e, p } of picks('run')) {
-      const yards = Math.abs((e.to ?? 0) - (e.from ?? 0));
+      // Longer the more ground it gains; a run stuffed behind the line still has its handoff and press, then ends.
+      const lost = /for -\d+ yards?|for no gain/.test(e.text);
+      const yards = lost ? 0 : Math.abs((e.to ?? 0) - (e.from ?? 0));
       expect((p.steps - 1) * p.dt, e.text).toBeGreaterThanOrEqual(1.8 + Math.min(yards, 20) * 0.05);
     }
   });
@@ -653,7 +663,13 @@ describe('the call', () => {
       Math.max(...p.ids.map((_, k) => (!p.offense[k] && p.roles[k] === 'S' ? depth(p, 0, k) : 0)));
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     const of = (c: string) => plays.filter((x) => x.call === c).map((x) => x.p);
-    expect(mean(of('runD').map(box))).toBeGreaterThan(mean(of('passD').map(box)) + 0.5);
+    // The second safety comes down against the run where he plays deep: in a two-high shell (a single-high's second
+    // safety already sits in the box on every call, so a league's mix of shells decides the gap there).
+    const twoHigh = (c: string) =>
+      plays
+        .filter((x) => x.call === c && (x.coverage ? COVERAGES[x.coverage as CoverageId].twoHigh : true))
+        .map((x) => x.p);
+    expect(mean(twoHigh('runD').map(box))).toBeGreaterThan(mean(twoHigh('passD').map(box)) + 0.5);
     expect(mean(of('passD').map(deep))).toBeGreaterThan(mean(of('base').map(deep)) + 1);
   });
 
@@ -703,7 +719,11 @@ describe('special teams', () => {
     x: p.pos[(st * 22 + k) * 2],
     y: p.pos[(st * 22 + k) * 2 + 1],
   });
-  const returned = (e: PlayLogEntry) => e.air !== undefined && e.to !== undefined && Math.abs(e.to - e.air) > 0.5;
+  /** A kick run back, as the stage draws it: to where the return ended, not where a flag's walk-off put the ball. */
+  const ranBack = (x: PlayLogEntry) => {
+    const e = returned(x);
+    return e.air !== undefined && e.to !== undefined && Math.abs(e.to - e.air) > 0.5;
+  };
   const kickoffs = kicks('kickoff');
   const punts = kicks('punt');
 
@@ -716,7 +736,7 @@ describe('special teams', () => {
   it('puts the returner under the ball when it comes down, and the tackler on him at the whistle', () => {
     let n = 0;
     for (const { e, segs, p } of [...kickoffs, ...punts]) {
-      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text)) continue;
+      if (!ranBack(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text)) continue;
       const ret = p.roles.indexOf('RET');
       const air = segs.findIndex((s) => s.peak > 0);
       const land = segs.slice(0, air + 1).reduce((t, s) => t + s.dur, 0);
@@ -799,7 +819,7 @@ describe('special teams', () => {
     let n = 0;
     let moving = 0;
     for (const { e, p } of [...kickoffs, ...punts]) {
-      if (!returned(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text) || p.carrier === null) continue;
+      if (!ranBack(e) || /TOUCHDOWN|BLOCKED|onside/i.test(e.text) || p.carrier === null) continue;
       const last = p.steps - 1;
       const c = p.ids.indexOf(p.carrier);
       const end = at(p, last, c);

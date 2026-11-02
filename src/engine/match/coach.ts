@@ -45,8 +45,12 @@ const isLateHalf = (s: Situation, seconds: number) => (s.quarter === 2 || s.quar
 /** Seconds left in the game (regulation fourth quarter or overtime). */
 const gameSecondsLeft = (s: Situation) => (s.quarter >= 4 ? s.clock : Infinity);
 
-/** Pass probability a full-strength lean adds or takes away in an ordinary situation. */
-const PASS_LEAN = 0.06;
+/**
+ * Pass probability a full-strength lean adds or takes away in an ordinary situation. Play-callers differ: NFL teams'
+ * pass rates in neutral situations spread with an SD of about 4.5 points once the sample's noise is set aside (nflverse
+ * 2021–24, 43% to 65%), so a pass-first offense throws 650 times and a run-first one 480.
+ */
+const PASS_LEAN = 0.09;
 /**
  * Pass probability a top passer adds (a poor one takes it away) in an ordinary situation: callers
  * keep throwing with a great quarterback even with a lead, so NFL passing leaders throw 600+ times.
@@ -192,10 +196,11 @@ export function fourthDown(s: Situation, rng: Rng): FourthDown {
 
 /** Probability the offense calls a pass (vs. a run). */
 export function passProbability(s: Situation): number {
+  // Today's NFL throws: 33.4 attempts, 2.4 sacks, 1.9 scrambles and 24.4 designed runs a team-game (nflverse 2021–24).
   let p: number;
-  if (s.down === 1) p = s.distance > 10 ? 0.65 : 0.505;
-  else if (s.down === 2) p = s.distance >= 8 ? 0.68 : s.distance <= 3 ? 0.45 : 0.61;
-  else p = s.distance >= 7 ? 0.88 : s.distance >= 4 ? 0.74 : s.distance <= 1 ? 0.3 : 0.52;
+  if (s.down === 1) p = s.distance > 10 ? 0.67 : 0.525;
+  else if (s.down === 2) p = s.distance >= 8 ? 0.7 : s.distance <= 3 ? 0.47 : 0.63;
+  else p = s.distance >= 7 ? 0.9 : s.distance >= 4 ? 0.76 : s.distance <= 1 ? 0.32 : 0.54;
 
   // Inside the 20 the windows shrink and play-callers lean on the run (NFL 2021–25: about half of red-zone
   // snaps are runs, two in three at the 1 or 2); the clock and the score still decide the end of games.
@@ -221,11 +226,13 @@ export function passProbability(s: Situation): number {
 
 export function passDepth(s: Situation, rng: Rng): PassDepth {
   const yardsToGoal = 100 - s.yardLine;
+  // Two throws in three go short (screens and checkdowns behind the line among them), one in five 10 to 19 yards
+  // and one in nine deep (nflverse 2019–24: 67.5 / 20.9 / 11.6%); the chain-mover gets more of the long downs.
   let mix: [number, number, number];
-  if (s.distance >= 15) mix = [0.35, 0.4, 0.25];
-  else if (s.distance >= 7) mix = [0.5, 0.36, 0.14];
-  else if (s.distance <= 3) mix = [0.72, 0.2, 0.08];
-  else mix = [0.6, 0.29, 0.11];
+  if (s.distance >= 15) mix = [0.554, 0.232, 0.214];
+  else if (s.distance >= 7) mix = [0.671, 0.209, 0.12];
+  else if (s.distance <= 3) mix = [0.816, 0.116, 0.068];
+  else mix = [0.738, 0.168, 0.094];
   // The scheme's taste (West Coast underneath, Air Coryell deep) only where the situation doesn't dictate.
   if (s.depthLean && ordinary(s)) mix = shiftMix(mix, s.depthLean);
   // Wind and slop take the deep ball away; a dome gives a little back.
