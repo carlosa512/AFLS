@@ -299,7 +299,9 @@ describe('migration and collection', () => {
     // (0.2.36): a franchise's record lifts its starters only, backups roll deeper and a team's starter-roll luck is
     // dealt back, and a player's ratings draw by his quality, so the stream, players, schedule and charts move with
     // them; the passing game's shape and a team's day move the result. `result` again
-    // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean.
+    // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean. `players` again with numbers
+    // of their own (0.2.42): a club numbers its players by their choices, on their own streams; the stream, games,
+    // charts and result still match, so numbers cost no draw.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -311,7 +313,7 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '98d380fef857d6b9515405119f0949e6a758d17aeea86ade1fd52628b970fe28',
+  players: '45d56bd234b1ed83581c6258e8bd725e5784e03864b5e32746ca0f8750d66cb2',
   rng: [2055926919, 1351328155, 1663703320, 1664089055],
   games: 'b5750e3006072f8ec3774d01e0d365791ba983fb2956f308a79e313658d7c909',
   result: 'e52aa95b31d9c73f42bfeb2e26efe0289a13c5558ec037a270bcee2e0278daa1',
