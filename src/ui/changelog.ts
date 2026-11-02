@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.40',
+    version: '0.2.41',
     date: '2026-11-02',
     title: 'Team meetings around the league',
     text:
@@ -22,6 +22,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'kept and some broken, and every head coach carries a word with his room that rises and wears thin; a coach who ' +
       'has lost his room and keeps losing is a little closer to the door. Your own coach’s meetings, and his letters ' +
       'about them, come in the next update.',
+  },
+  {
+    version: '0.2.40',
+    date: '2026-11-02',
+    title: 'Colour rush',
+    text:
+      'Clubs now dress up for big games. Under the lights a club may wear its colour rush, one colour head to toe ' +
+      '(some clubs go all white), and eight clubs also have a blackout. Once or twice a season each club wears its ' +
+      'classic uniform at home, often against a division rival. Every number is now outlined so it reads at a ' +
+      'glance, and some clubs have their own number style.',
   },
   {
     version: '0.2.39',

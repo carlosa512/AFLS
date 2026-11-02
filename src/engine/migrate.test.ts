@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(76);
+    expect(SAVE_VERSION).toBe(77);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -202,12 +202,12 @@ describe('save v74', () => {
   });
 });
 
-describe('save v76: meetings', () => {
-  it('loads a v75 save with empty meeting logs and every head coach at credibility 0', () => {
-    const l = createLeague({ seed: 'v76' });
+describe('save v77: meetings', () => {
+  it('loads a v76 save with empty meeting logs and every head coach at credibility 0', () => {
+    const l = createLeague({ seed: 'v77' });
     for (const t of l.teams) delete t.meetings;
     for (const c of Object.values(l.coaches)) delete c.credibility;
-    l.version = 75;
+    l.version = 76;
     const up = migrateLeague(l)!;
     expect(up.version).toBe(SAVE_VERSION);
     for (const t of up.teams) expect(t.meetings).toEqual({ log: [], open: [] });
@@ -216,7 +216,7 @@ describe('save v76: meetings', () => {
     for (const c of heads) expect(c.credibility).toBe(0);
   });
   it('a new league starts the same, and stays plain JSON', () => {
-    const l = createLeague({ seed: 'v76-new' });
+    const l = createLeague({ seed: 'v77-new' });
     for (const t of l.teams) expect(t.meetings).toEqual({ log: [], open: [] });
     for (const c of Object.values(l.coaches).filter((c) => c.role === 'headCoach')) {
       expect(c.credibility).toBe(0);

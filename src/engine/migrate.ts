@@ -11,6 +11,8 @@ import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 import { awardSeason } from './awards';
 import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
+import { UNIFORMS } from './data/uniforms';
+import { assignUniforms } from './season/uniforms';
 import { buildContract } from './finance/contract';
 import { minSalary } from './finance/market';
 import { recordRatings } from './development';
@@ -295,12 +297,25 @@ export function migrateLeague(league: League): League | null {
     }
     league.version = 75;
   }
-  // v76: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
-  // middle (`Coach.credibility`). `MoraleJolt` gains `meeting` and `League.lockerBeats` is optional: nothing to rewrite.
+  // v76: special uniforms. Each default club gets its colour rush, blackout and classic from the data by abbreviation
+  // (`Team.uniforms`; a mod's club keeps none and is dressed from its colours), and this season's games their
+  // `Game.uniform`, picked from the slots they were scheduled in, so a game flexed since keeps what it had.
   if (league.version < 76) {
+    for (const team of league.teams) {
+      if (!team.uniforms && UNIFORMS[team.abbrev]) team.uniforms = structuredClone(UNIFORMS[team.abbrev]);
+    }
+    // a season already dressed (a save made by this version, carried back) is left as it is: most games wear no
+    // special set, so an unstamped game alone doesn't mean the season was never dressed
+    const games = league.games.filter((g) => g.season === league.season && !g.playoffRound);
+    if (games.length && !games.some((g) => g.uniform)) assignUniforms(league, games, league.season);
+    league.version = 76;
+  }
+  // v77: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
+  // middle (`Coach.credibility`). `MoraleJolt` gains `meeting` and `League.lockerBeats` is optional: nothing to rewrite.
+  if (league.version < 77) {
     for (const team of league.teams) team.meetings ??= { log: [], open: [] };
     for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
-    league.version = 76;
+    league.version = 77;
   }
   return league;
 }

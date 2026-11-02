@@ -1,5 +1,6 @@
 import type { Rng } from '../rng';
 import type { Game, League } from '../types';
+import { assignUniforms } from './uniforms';
 import { assignKickoffs } from './kickoff';
 
 export const REGULAR_SEASON_WEEKS = 18;
@@ -614,6 +615,7 @@ export function generateSchedule(league: League, rng: Rng, order?: DivisionOrder
     games.sort((a, b) => a.week - b.week || a.homeId - b.homeId);
     for (const g of games) g.id = league.nextGameId++;
     assignKickoffs(league, games, season);
+    assignUniforms(league, games, season);
     return games;
   }
   throw new Error('Unable to generate a valid schedule');
