@@ -194,8 +194,9 @@ Mostly on one arm, the left as likely as the right; both arms for about one in s
 **Rates: the normal mix.** A quarterback's chance of a sleeve stays today's (40%, `GEAR_RATES.QB.sleeve`); the padded
 kinds join his sleeve lengths as two more options, weights `padded` 40 and `paddedElbow` 20 beside today's (full 35,
 half 25, three-quarter 25, forearm 15, shooter 45). About three in ten of his sleeves come out padded, about one
-quarterback in eight. In a cold game, when he pulls sleeves on like everyone else, either padded kind becomes a full
-`padded` sleeve on both arms.
+quarterback in eight. The padded sleeve is a flavour option, not cold-weather gear: in a cold game a quarterback
+dresses like everyone else (today's rule in `gearOf`: plain full sleeves on both arms, in the colour he'd pick anyway),
+so the padded sleeve comes off with whatever sleeve he wore.
 
 ### The play-call wristband
 
@@ -227,7 +228,8 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
   rules (`flagsOf(player)`, `greenDotOf`).
 - **New `src/ui/helmetArt.tsx`:** the drawing, as `gearArt.tsx` draws gear: `HelmetLayer` (shell, stripes, details,
   plate or bumper, number, decals) and `MaskLayer` (drawn before the neck). `src/ui/flags.tsx` for the flags.
-- **`playerGear.ts` and `gearArt.tsx`:** the padded sleeves and the wristband, their rates and the cold-game rules.
+- **`playerGear.ts` and `gearArt.tsx`:** the padded sleeves and the wristband and their rates (the cold-game rule is
+  unchanged: plain full sleeves, the wristband kept).
 - **`PlayerAvatar` (`components.tsx`):** the mask before the neck, the helmet in place of the ears and head. A roster
   mod's `player.portrait` still replaces the whole drawing; staff avatars are untouched.
 - **Detail by size:** the shell, stripes and bumper at every size (the helmet becomes a team-coloured cap in lists);
@@ -244,7 +246,8 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
 - `playerGear.test.ts`: padded sleeves only on quarterbacks by default, on one arm for about 85% (left and right about
   even) and both arms for the rest; quarterbacks'
   sleeve rate unchanged (40%) and about three in ten of their sleeves padded; the wristband on 60% of quarterbacks, one
-  wrist, the left for about three in four and the right for the rest; the cold-game rules for both.
+  wrist, the left for about three in four and the right for the rest; in a cold game the padded sleeve gives way
+  to plain full sleeves on both arms and the wristband stays on.
 - `avatar.test.tsx`: the helmet renders at every size with no `NaN` in its paths; decals absent under 56px; free agents,
   prospects and retired players keep the bare head.
 - `ui.test.ts`: the screen contract still holds (nothing new reads `player.ratings`).
