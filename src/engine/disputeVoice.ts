@@ -143,3 +143,10 @@ export function disputeStanding(d: Dispute): string {
   const answer = d.answered ? ` ${DISPUTE_SAID[d.answered.choice]}` : ' He waits on your answer.';
   return `${where}${cost}${answer}`;
 }
+
+/** What anyone can see of a dispute: he isn't practicing, or isn't there (G4b: a request once it's public). */
+export const DISPUTE_PUBLIC: Record<DisputeKind, string> = {
+  holdOut: "Holding out for a new deal: he hasn't reported.",
+  holdIn: "Holding in for a new deal: he reported, but he isn't practicing.",
+  trade: 'He has asked for a trade.',
+};

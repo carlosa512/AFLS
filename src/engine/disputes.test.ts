@@ -508,3 +508,21 @@ describe('disputes: AI clubs keep their promises (G4)', () => {
     }
   });
 });
+
+const { disputeView } = await import('./disputes');
+
+describe('disputes: what screens see (G4)', () => {
+  it("reads a hold-in or holdout for anyone's player, in words, and nothing without one", () => {
+    const { l } = base('view');
+    const theirs = activeRoster(l, (l.userTeamId + 1) % 32).find((x) => x.morale)!;
+    expect(disputeView(l, theirs)).toBeNull();
+    theirs.morale!.dispute = { kind: 'holdOut', cause: 'deal', since: l.moraleAt!, club: theirs.teamId!, out: true };
+    expect(disputeView(l, theirs)).toMatchObject({ kind: 'holdOut', label: 'Holding out' });
+    expect(disputeView(l, theirs)!.text).not.toMatch(/answer|\$/);
+    const mine = activeRoster(l, l.userTeamId).find((x) => x.morale)!;
+    mine.morale!.dispute = { kind: 'holdIn', cause: 'deal', since: l.moraleAt!, club: l.userTeamId };
+    expect(disputeView(l, mine)).toMatchObject({ kind: 'holdIn', label: 'Holding in' });
+    MOOD_ACTS.on = false;
+    expect(disputeView(l, mine)).toBeNull();
+  });
+});

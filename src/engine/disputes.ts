@@ -13,7 +13,7 @@ import { aiReply, talkCause } from './playerTalks';
 import { employed } from './employment';
 import { activeRoster } from './roster';
 import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player } from './types';
-import { DISPUTE_SAID } from './disputeVoice';
+import { DISPUTE_LABEL, DISPUTE_PUBLIC, DISPUTE_SAID, disputeStanding } from './disputeVoice';
 import { setTradeStatus } from './trade/offers';
 
 export { aiSettle } from './offseason/ai';
@@ -203,6 +203,18 @@ export function disputeCard(league: League, s: { since: number; playerId: number
   if (d.answered)
     return { state: 'answered', kind: d.kind, choice: d.answered.choice, said: DISPUTE_SAID[d.answered.choice], lost };
   return { state: 'open', kind: d.kind, choices: CHOICES[d.kind], trust: takesYourWord(p), lost };
+}
+
+/**
+ * A player's dispute as a screen may show it (G4): your players' in full words; anyone else's only what's public (a
+ * hold-in, a holdout; G4b: a trade request once it leaks). Null with none, or with moods not acting.
+ */
+export function disputeView(league: League, p: Player): { kind: DisputeKind; label: string; text: string } | null {
+  const d = MOOD_ACTS.on ? p.morale?.dispute : undefined;
+  if (!d || p.teamId === null || d.club !== p.teamId) return null;
+  const yours = p.teamId === yourClub(league);
+  if (d.kind === 'trade' && !yours && d.public === undefined) return null;
+  return { kind: d.kind, label: DISPUTE_LABEL[d.kind], text: yours ? disputeStanding(d) : DISPUTE_PUBLIC[d.kind] };
 }
 
 /**

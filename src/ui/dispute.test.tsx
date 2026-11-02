@@ -7,8 +7,17 @@ import { deliverMail } from '../engine/inbox';
 import { activeRoster } from '../engine/roster';
 import { MailCards } from './mail';
 import { NavContext, type Nav } from './nav';
+import { LockerRoom } from './screens/LockerRoom';
+import { PlayerCard } from './screens/PlayerCard';
+import { Roster } from './screens/Roster';
 
-const nav = { openPlayer: () => {}, openTeam: () => {}, go: () => {}, openStaff: () => {} } as unknown as Nav;
+const nav = {
+  openPlayer: () => {},
+  openTeam: () => {},
+  go: () => {},
+  openStaff: () => {},
+  compareIds: [],
+} as unknown as Nav;
 const render = (el: ReactElement) => renderToStaticMarkup(<NavContext.Provider value={nav}>{el}</NavContext.Provider>);
 
 /** One of your men holding out, his letter filed. */
@@ -45,5 +54,36 @@ describe('a dispute’s letter (G4)', () => {
     const html = render(<MailCards league={l} message={m} />);
     expect(html).toContain('You held firm');
     expect(html).not.toContain('Shop him');
+  });
+});
+
+describe('disputes on the screens (G4)', () => {
+  /** One of your men holding out, and another club's. */
+  function both() {
+    const { l, p } = holdout();
+    p.morale!.dispute!.out = true;
+    const theirs = activeRoster(l, (l.userTeamId + 1) % 32).find((x) => x.morale)!;
+    theirs.morale!.dispute = { kind: 'holdOut', cause: 'deal', since: l.moraleAt!, club: theirs.teamId!, out: true };
+    return { l, p, theirs };
+  }
+
+  it('lists your disputes in the Locker Room', () => {
+    const { l, p } = both();
+    const html = render(<LockerRoom league={l} />);
+    expect(html).toContain('Disputes');
+    expect(html).toContain(p.lastName);
+    expect(html).toContain('Holding out');
+  });
+
+  it('counts a holdout as not reported on the Roster, and tags him', () => {
+    const { l } = both();
+    const html = render(<Roster league={l} teamId={l.userTeamId} />);
+    expect(html).toContain('did not report');
+    expect(html).toContain('Holding out');
+  });
+
+  it("shows Holding out on any club's player card", () => {
+    const { l, theirs } = both();
+    expect(render(<PlayerCard league={l} player={theirs} onClose={() => {}} />)).toContain('Holding out');
   });
 });
