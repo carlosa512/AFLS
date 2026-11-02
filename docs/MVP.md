@@ -114,7 +114,10 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
       reminds you of open promises when the season ends. Fewer sulkers (0.2.37): paid 80% of his market or more a man has
       no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
-      games a man the depth chart starts reads as a starter. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      games a man the depth chart starts reads as a starter. Team meetings (0.2.40, L2 engine): head coaches hold them at
+      the calendar's moments and when a room turns, players take them well or bristle, commitments are kept or broken,
+      and each head coach's credibility with his room rises and wears thin (a small push on the hot seat); your coach's
+      letters and screens follow. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,
