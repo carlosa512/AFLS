@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.39',
+    date: '2026-11-02',
+    title: 'Colour rush',
+    text:
+      'Clubs now dress up for big games. Under the lights a club may wear its colour rush, one colour head to toe ' +
+      '(some clubs go all white), and eight clubs also have a blackout. Once or twice a season each club wears its ' +
+      'classic uniform at home, often against a division rival. Every number is now outlined so it reads at a ' +
+      'glance, and some clubs have their own number style.',
+  },
+  {
     version: '0.2.38',
     date: '2026-11-02',
     title: 'Helmets on',
