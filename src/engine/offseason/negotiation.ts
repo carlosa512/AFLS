@@ -12,9 +12,10 @@ import { moodLean } from '../moodScale';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
-import { freeJersey, rookieContract } from '../generate';
+import { rookieContract } from '../generate';
+import { numberOnArrival } from '../jerseys';
 import { clamp, Rng } from '../rng';
-import { activeRoster, setTeam, syncDepthChart, teamPlayers, teamRatings } from '../roster';
+import { activeRoster, setTeam, syncDepthChart, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
 
@@ -391,16 +392,7 @@ export function signPlayer(
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];
-  if (!own)
-    player.jersey = freeJersey(
-      player.position,
-      new Set(
-        teamPlayers(league, teamId)
-          .filter((p) => p.id !== player.id)
-          .map((p) => p.jersey),
-      ),
-      player.jersey,
-    );
+  if (!own) numberOnArrival(league, player);
   syncDepthChart(league, team);
   const money = `${offer.years} yr, $${((offer.apy * offer.years) / 1000).toFixed(1)}M`;
   const verb = extension ? 'extended' : own ? 're-signed' : 'signed';

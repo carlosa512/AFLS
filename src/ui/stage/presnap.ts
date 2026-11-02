@@ -1,7 +1,8 @@
 /**
- * The seconds before the snap, as the dots show them. Nobody stands still waiting for the ball: the line sinks into its
- * stance, a receiver goes in motion (more for the offenses built on it: about half of NFL snaps have some), and the
- * defense answers by its front and coverage. A man in man coverage travels with the motion, a zone bumps over; safeties
+ * The seconds before the snap, as the dots show them. The offense plays by the rules: the line is set from the moment it
+ * gets there (a lineman who moves before the snap is a false start, `fouls.ts`), a shift sets a full second before the
+ * ball, and only the man in motion moves at the snap, never toward the line. A receiver goes in motion (more for the
+ * offenses built on it: about half of NFL snaps have some), and the defense answers by its front and coverage. A man in man coverage travels with the motion, a zone bumps over; safeties
  * show one shell and rotate to another at the snap (about a third of snaps are disguised, more on passing downs);
  * linebackers walk up to show a blitz and bail, or creep up late to time a real one; corners show press and bail; an
  * offside man jumps on the count.
@@ -25,6 +26,8 @@ export interface Leg {
   to: Pt;
   /** A bend behind the line (yards, at the middle of the leg): an orbit or a cross behind the quarterback. */
   arc?: number;
+  /** Still running at the snap (a jet): his bend is done before the end, so he comes flat across, level with his spot. */
+  through?: boolean;
 }
 
 /** A man who moves before the snap: he sets at `set` when the jog brings him in, then runs his legs in order. */
@@ -72,6 +75,13 @@ const HARD_COUNT = 0.08;
 /** His barks: the snap a moment before the ball moves; a hard count's two, a beat apart, well before it. */
 const SNAP_BARK = 0.12;
 const HARD_BARKS = [1.15, 0.95];
+/**
+ * A man who moves and stops is a shift: everyone must then be set a full second before the snap (a beat over, so it
+ * reads). Only a man in motion at the snap may still be moving, and never toward the line.
+ */
+export const SET = 1.05;
+/** A jet's bend behind the line is done this far through his run: the rest is flat, level with his spot. */
+const JET_BEND = 0.75;
 
 const SCRIMMAGE: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
 
@@ -124,15 +134,10 @@ export function presnapPlan(args: {
   };
 
   const qb = off.find((k) => role(k) === 'QB') ?? -1;
-  const line = off.filter((k) => role(k) === 'OL');
   const lbs = def.filter((k) => role(k) === 'LB');
   const blitz = new Set(s.blitz.map((id) => s.ids.indexOf(id)));
 
-  // The offense at the line: the line sinks into its stance.
-  for (const k of line) {
-    const p = snap(k);
-    move(k, { x: p.x - dir * 0.35, y: p.y }, [{ at: 0.85, dur: 0.3, to: p }]);
-  }
+  // The line is set where it lines up and stays there: from above a stance is invisible, and any step reads as a flinch.
 
   // Every snap the quarterback calls for the ball. A hard count is two barks before it with no ball: nobody moves,
   // unless the flag says a defender jumped (he sets on his side of the line and goes on the second bark).
@@ -186,15 +191,16 @@ export function presnapPlan(args: {
         // From the far side of the formation, across behind the line; a jet is still running at the snap.
         set = { x: p.x, y: clampY(ball.y - (p.y - ball.y) * 0.8) };
         const dur = Math.max(0.9, Math.min(2.2, Math.abs(set.y - p.y) / (kind === 'jet' ? 8.5 : 6)));
-        leg = { at: kind === 'jet' ? dur : dur + 0.5, dur, to: p, arc: kind === 'jet' ? -1.5 : -4 };
+        leg =
+          kind === 'jet' ? { at: dur, dur, to: p, arc: -1.5, through: true } : { at: dur + SET, dur, to: p, arc: -4 };
       } else if (kind === 'cross') {
         // The tight end crosses the formation to the other end of the line.
         set = { x: p.x, y: clampY(ball.y - (p.y - ball.y)) };
-        leg = { at: 1.9, dur: 1.0, to: p, arc: -1.2 };
+        leg = { at: SET + 1.0, dur: 1.0, to: p, arc: -1.2 };
       } else {
         // A few yards in or out, then set.
         set = { x: p.x, y: clampY(p.y + out * (rng.next() < 0.5 ? 5 : -4)) };
-        leg = { at: 1.7, dur: 0.75, to: p };
+        leg = { at: SET + 0.75, dur: 0.75, to: p };
       }
       if (move(k, set, [leg])) {
         // As paced when he was given it (`move`): the man covering him, and the bark that sends him, go by it.
@@ -326,7 +332,8 @@ export function preMoveAt(m: PreMove, before: number, dir: 1 | -1, start: Pt = m
     const u = Math.min(1, (leg.at - before) / leg.dur);
     if (u < 1) {
       const e = u * u * (3 - 2 * u);
-      const arc = (leg.arc ?? 0) * Math.sin(Math.PI * u);
+      // The bend eases in and out; a jet's is done early, so at the snap he's running across, not stepping up.
+      const arc = (leg.arc ?? 0) * Math.sin(Math.PI * Math.min(1, leg.through ? u / JET_BEND : u)) ** 2;
       return { x: at.x + (leg.to.x - at.x) * e + dir * arc, y: at.y + (leg.to.y - at.y) * e };
     }
     at = leg.to;

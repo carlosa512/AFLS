@@ -3,7 +3,7 @@ import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import type { PlayLogEntry } from '../../engine/types';
 import { snapYFor } from './ballPath';
-import { preMoveAt, presnapPlan, type Presnap } from './presnap';
+import { preMoveAt, presnapPlan, SET, type Presnap } from './presnap';
 import { stagePlay, type StagedPlay } from './stage';
 
 const league = createLeague({ seed: 'presnap' });
@@ -102,6 +102,36 @@ describe('the moments before the snap', () => {
       expect(sent).toBeLessThanOrEqual(motion ? 1 : 0);
       expect(sent).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('plays by the rules: the line never moves, and in the last second only a man in motion does, never upfield', () => {
+    let motions = 0;
+    for (const { s, plan } of snaps) {
+      for (const m of plan.moves) {
+        const k = s.ids.indexOf(m.id);
+        if (!s.offense[k]) continue;
+        // A lineman who moves before the snap is a false start: the flag's to stage (`fouls.ts`), never the look.
+        expect(s.roles[k]).not.toBe('OL');
+      }
+      const offense = plan.moves.filter((m) => s.offense[s.ids.indexOf(m.id)]);
+      for (let b = 0; b < SET - 1e-9; b += 0.05) {
+        const moving = offense.filter((m) => {
+          const p = preMoveAt(m, b, s.dir);
+          const q = preMoveAt(m, b + 0.05, s.dir);
+          return Math.hypot(p.x - q.x, p.y - q.y) > 1e-3;
+        });
+        expect(moving.length).toBeLessThanOrEqual(1);
+        if (b > 0) continue;
+        for (const m of moving) {
+          // Across or away from the line, not toward it, as the ball is snapped.
+          const p = preMoveAt(m, 0, s.dir);
+          const q = preMoveAt(m, 0.05, s.dir);
+          expect((p.x - q.x) * s.dir).toBeLessThan(0.02);
+          motions++;
+        }
+      }
+    }
+    expect(motions).toBeGreaterThan(0);
   });
 
   it('the same snap, the same look; a no-huddle snap is quick and rarely moves', () => {

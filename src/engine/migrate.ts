@@ -310,6 +310,9 @@ export function migrateLeague(league: League): League | null {
     if (games.length && !games.some((g) => g.uniform)) assignUniforms(league, games, league.season);
     league.version = 76;
   }
+  // v77: numbers by the players' own choices (`jerseys.ts`). `Player.numberEdited` is optional, and nobody's number
+  // changes on load: players move to their favourites as they come free, at each new league year.
+  if (league.version < 77) league.version = 77;
   return league;
 }
 

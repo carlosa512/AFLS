@@ -80,6 +80,7 @@ import { nameCaptains } from '../personality';
 import { personnelClock } from '../personnel/calendar';
 import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPending } from '../personnel/flow';
 import { ensureWaivers } from '../personnel/waivers';
+import { numberSwitches } from '../jerseys';
 
 export const FA_DAYS = 5;
 
@@ -202,6 +203,8 @@ export function beginOffseason(league: League): void {
   tiesOffseason(league);
   // Picks three league years back get their verdict now: the year's development is in, their ceilings have settled.
   lockVerdicts(league);
+  // Numbers change hands now, as in March: a favourite a retiree or a teammate left behind is taken.
+  numberSwitches(league);
   expireSquadContracts(league);
   // Careers from before practice squads get one offer to switch them on (the squad desk, until camp).
   if (league.personnel && !league.personnel.enabled && league.personnel.offered === undefined)
