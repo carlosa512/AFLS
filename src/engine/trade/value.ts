@@ -469,7 +469,7 @@ function roleAt(rank: number, pos: Position): number {
  * apart share the job in proportion, so a misread of a few tenths moves a player's value a little,
  * never across a cliff: shopping him to 31 teams can't find one that thinks he's a starter by a hair.
  */
-const RANK_SPREAD = 0.75;
+const RANK_SPREAD = 1;
 
 /**
  * What a room of players at one position is worth to its team: each player's play and the market's
