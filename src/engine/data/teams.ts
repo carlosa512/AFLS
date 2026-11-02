@@ -4,6 +4,9 @@
  * marks. Colours follow each market's real club, so a city still looks like
  * itself (colours alone aren't a mark). Players can replace this data with a mod file.
  */
+
+import type { HelmetDesign } from '../types';
+
 export interface TeamSeed {
   city: string;
   name: string;
@@ -21,6 +24,29 @@ export interface TeamSeed {
    * leave it out for a random start.
    */
   winPct?: number;
+  /** The club's helmet (the same home and away); a mod can leave it out for the fallback built from `colors`. */
+  helmet?: HelmetDesign;
+}
+
+const WHITE = '#F2F4F6';
+const GREY_MASK = '#9AA3AD';
+const BLACK_MASK = '#1A1D22';
+/** One club's helmet, in the order of the spec's table: shell, finish, stripe (A, B), number (ink, trim), bumper, mask. */
+function helmet(
+  shell: string,
+  finish: HelmetDesign['finish'],
+  stripe: HelmetDesign['stripe'],
+  stripeA: string | undefined,
+  stripeB: string | undefined,
+  number: [string, string] | null,
+  bumper: string,
+  mask: string,
+): HelmetDesign {
+  const d: HelmetDesign = { shell, finish, stripe, bumper, mask };
+  if (stripeA) d.stripeA = stripeA;
+  if (stripeB) d.stripeB = stripeB;
+  if (number) d.number = { ink: number[0], trim: number[1] };
+  return d;
 }
 
 export const CONFERENCES = [
@@ -43,28 +69,172 @@ export const DIVISIONS = [
 /** 32 teams, four per division in DIVISIONS order. */
 export const TEAM_SEEDS: TeamSeed[] = [
   // Liberty East
-  { city: 'Buffalo', name: 'Blizzard', abbrev: 'BUF', colors: ['#00338d', '#c60c30'], revenue: 585, winPct: 0.62 },
-  { city: 'Miami', name: 'Barracudas', abbrev: 'MIA', colors: ['#008e97', '#fc4c02'], revenue: 656, winPct: 0.494 },
-  { city: 'New England', name: 'Admirals', abbrev: 'NE', colors: ['#002244', '#c60c30'], revenue: 762, winPct: 0.579 },
-  { city: 'New York', name: 'Knights', abbrev: 'NYK', colors: ['#125740', '#ffffff'], revenue: 663, winPct: 0.341 },
+  {
+    city: 'Buffalo',
+    name: 'Blizzard',
+    abbrev: 'BUF',
+    colors: ['#00338d', '#c60c30'],
+    revenue: 585,
+    winPct: 0.62,
+    helmet: helmet(WHITE, 'gloss', 'triple', '#c60c30', '#00338d', ['#00338d', '#ffffff'], '#00338d', GREY_MASK),
+  },
+  {
+    city: 'Miami',
+    name: 'Barracudas',
+    abbrev: 'MIA',
+    colors: ['#008e97', '#fc4c02'],
+    revenue: 656,
+    winPct: 0.494,
+    helmet: helmet(WHITE, 'gloss', 'triple', '#008e97', '#fc4c02', ['#008e97', '#ffffff'], '#008e97', '#008e97'),
+  },
+  {
+    city: 'New England',
+    name: 'Admirals',
+    abbrev: 'NE',
+    colors: ['#002244', '#c60c30'],
+    revenue: 762,
+    winPct: 0.579,
+    helmet: helmet('#a9b2ba', 'metal', 'triple', '#002244', '#c60c30', ['#002244', '#ffffff'], '#002244', GREY_MASK),
+  },
+  {
+    city: 'New York',
+    name: 'Knights',
+    abbrev: 'NYK',
+    colors: ['#125740', '#ffffff'],
+    revenue: 663,
+    winPct: 0.341,
+    helmet: helmet('#125740', 'gloss', 'double', '#ffffff', undefined, ['#ffffff', '#0b3a2a'], '#ffffff', WHITE),
+  },
   // Liberty North
-  { city: 'Baltimore', name: 'Clippers', abbrev: 'BAL', colors: ['#241773', '#9e7c0c'], revenue: 621, winPct: 0.61 },
-  { city: 'Cincinnati', name: 'Steamers', abbrev: 'CIN', colors: ['#fb4f14', '#000000'], revenue: 573, winPct: 0.479 },
-  { city: 'Cleveland', name: 'Hammers', abbrev: 'CLE', colors: ['#311d00', '#ff3c00'], revenue: 685, winPct: 0.351 },
-  { city: 'Pittsburgh', name: 'Forge', abbrev: 'PIT', colors: ['#101820', '#ffb612'], revenue: 619, winPct: 0.622 },
+  {
+    city: 'Baltimore',
+    name: 'Clippers',
+    abbrev: 'BAL',
+    colors: ['#241773', '#9e7c0c'],
+    revenue: 621,
+    winPct: 0.61,
+    helmet: helmet('#241773', 'gloss', 'triple', '#c9a227', '#ffffff', ['#ffffff', '#241773'], '#c9a227', BLACK_MASK),
+  },
+  {
+    city: 'Cincinnati',
+    name: 'Steamers',
+    abbrev: 'CIN',
+    colors: ['#fb4f14', '#000000'],
+    revenue: 573,
+    winPct: 0.479,
+    helmet: helmet('#fb4f14', 'gloss', 'triple', '#000000', '#ffffff', ['#000000', '#ffffff'], BLACK_MASK, BLACK_MASK),
+  },
+  {
+    city: 'Cleveland',
+    name: 'Hammers',
+    abbrev: 'CLE',
+    colors: ['#311d00', '#ff3c00'],
+    revenue: 685,
+    winPct: 0.351,
+    helmet: helmet('#ff3c00', 'gloss', 'triple', '#311d00', '#ffffff', null, '#311d00', GREY_MASK),
+  },
+  {
+    city: 'Pittsburgh',
+    name: 'Forge',
+    abbrev: 'PIT',
+    colors: ['#101820', '#ffb612'],
+    revenue: 619,
+    winPct: 0.622,
+    helmet: helmet('#101820', 'gloss', 'single', '#ffb612', undefined, ['#ffb612', '#000000'], '#ffb612', BLACK_MASK),
+  },
   // Liberty South
-  { city: 'Houston', name: 'Wildcatters', abbrev: 'HOU', colors: ['#03202f', '#a71930'], revenue: 687, winPct: 0.454 },
-  { city: 'Indianapolis', name: 'Racers', abbrev: 'IND', colors: ['#002c5f', '#a2aaad'], revenue: 593, winPct: 0.479 },
-  { city: 'Jacksonville', name: 'Tarpons', abbrev: 'JAX', colors: ['#006778', '#d7a22a'], revenue: 522, winPct: 0.335 },
-  { city: 'Tennessee', name: 'Outlaws', abbrev: 'TEN', colors: ['#0c2340', '#4b92db'], revenue: 582, winPct: 0.476 },
+  {
+    city: 'Houston',
+    name: 'Wildcatters',
+    abbrev: 'HOU',
+    colors: ['#03202f', '#a71930'],
+    revenue: 687,
+    winPct: 0.454,
+    helmet: helmet('#03202f', 'gloss', 'triple', '#a71930', '#ffffff', ['#ffffff', '#a71930'], '#a71930', GREY_MASK),
+  },
+  {
+    city: 'Indianapolis',
+    name: 'Racers',
+    abbrev: 'IND',
+    colors: ['#002c5f', '#a2aaad'],
+    revenue: 593,
+    winPct: 0.479,
+    helmet: helmet(WHITE, 'gloss', 'double', '#002c5f', undefined, ['#002c5f', '#ffffff'], '#002c5f', GREY_MASK),
+  },
+  {
+    city: 'Jacksonville',
+    name: 'Tarpons',
+    abbrev: 'JAX',
+    colors: ['#006778', '#d7a22a'],
+    revenue: 522,
+    winPct: 0.335,
+    helmet: helmet('#006778', 'gloss', 'triple', '#d7a22a', '#ffffff', ['#d7a22a', '#003b45'], '#d7a22a', BLACK_MASK),
+  },
+  {
+    city: 'Tennessee',
+    name: 'Outlaws',
+    abbrev: 'TEN',
+    colors: ['#0c2340', '#4b92db'],
+    revenue: 582,
+    winPct: 0.476,
+    helmet: helmet('#0c2340', 'gloss', 'triple', '#4b92db', '#ffffff', ['#ffffff', '#4b92db'], '#4b92db', GREY_MASK),
+  },
   // Liberty West
-  { city: 'Denver', name: 'Summit', abbrev: 'DEN', colors: ['#fb4f14', '#002244'], revenue: 645, winPct: 0.451 },
-  { city: 'Kansas City', name: 'Marshals', abbrev: 'KC', colors: ['#e31837', '#ffb81c'], revenue: 610, winPct: 0.75 },
-  { city: 'Las Vegas', name: 'Mirage', abbrev: 'LV', colors: ['#000000', '#a5acaf'], revenue: 832, winPct: 0.439 },
-  { city: 'Los Angeles', name: 'Condors', abbrev: 'LAC', colors: ['#0080c6', '#ffc20e'], revenue: 593, winPct: 0.47 },
+  {
+    city: 'Denver',
+    name: 'Summit',
+    abbrev: 'DEN',
+    colors: ['#fb4f14', '#002244'],
+    revenue: 645,
+    winPct: 0.451,
+    helmet: helmet('#002244', 'gloss', 'triple', '#fb4f14', '#ffffff', ['#fb4f14', '#ffffff'], '#fb4f14', BLACK_MASK),
+  },
+  {
+    city: 'Kansas City',
+    name: 'Marshals',
+    abbrev: 'KC',
+    colors: ['#e31837', '#ffb81c'],
+    revenue: 610,
+    winPct: 0.75,
+    helmet: helmet('#e31837', 'gloss', 'triple', '#ffb81c', '#ffffff', ['#ffffff', '#7a0d1d'], '#f2f4f6', WHITE),
+  },
+  {
+    city: 'Las Vegas',
+    name: 'Mirage',
+    abbrev: 'LV',
+    colors: ['#000000', '#a5acaf'],
+    revenue: 832,
+    winPct: 0.439,
+    helmet: helmet('#a9b2ba', 'metal', 'single', '#000000', undefined, ['#000000', '#ffffff'], BLACK_MASK, BLACK_MASK),
+  },
+  {
+    city: 'Los Angeles',
+    name: 'Condors',
+    abbrev: 'LAC',
+    colors: ['#0080c6', '#ffc20e'],
+    revenue: 593,
+    winPct: 0.47,
+    helmet: helmet('#0080c6', 'gloss', 'triple', '#ffc20e', '#ffffff', ['#ffc20e', '#00476f'], '#ffc20e', '#ffc20e'),
+  },
   // Frontier East
-  { city: 'Dallas', name: 'Stampede', abbrev: 'DAL', colors: ['#003594', '#869397'], revenue: 1234, winPct: 0.567 },
-  { city: 'New York', name: 'Empire', abbrev: 'NYE', colors: ['#0b2265', '#a71930'], revenue: 707, winPct: 0.351 },
+  {
+    city: 'Dallas',
+    name: 'Stampede',
+    abbrev: 'DAL',
+    colors: ['#003594', '#869397'],
+    revenue: 1234,
+    winPct: 0.567,
+    helmet: helmet('#a9b2ba', 'metal', 'triple', '#003594', '#ffffff', ['#003594', '#ffffff'], '#003594', '#003594'),
+  },
+  {
+    city: 'New York',
+    name: 'Empire',
+    abbrev: 'NYE',
+    colors: ['#0b2265', '#a71930'],
+    revenue: 707,
+    winPct: 0.351,
+    helmet: helmet('#0b2265', 'gloss', 'triple', '#a71930', '#ffffff', ['#ffffff', '#a71930'], '#a71930', GREY_MASK),
+  },
   {
     city: 'Philadelphia',
     name: 'Founders',
@@ -72,23 +242,128 @@ export const TEAM_SEEDS: TeamSeed[] = [
     colors: ['#004c54', '#a5acaf'],
     revenue: 688,
     winPct: 0.595,
+    helmet: helmet('#004c54', 'gloss', 'triple', '#c4ccd0', '#ffffff', ['#e8ecee', '#001f22'], '#c4ccd0', BLACK_MASK),
   },
-  { city: 'Washington', name: 'Sentinels', abbrev: 'WAS', colors: ['#5a1414', '#ffb612'], revenue: 644, winPct: 0.445 },
+  {
+    city: 'Washington',
+    name: 'Sentinels',
+    abbrev: 'WAS',
+    colors: ['#5a1414', '#ffb612'],
+    revenue: 644,
+    winPct: 0.445,
+    helmet: helmet('#5a1414', 'gloss', 'triple', '#ffb612', '#ffffff', ['#ffb612', '#2d0a0a'], '#ffb612', '#ffb612'),
+  },
   // Frontier North
-  { city: 'Chicago', name: 'Gale', abbrev: 'CHI', colors: ['#0b162a', '#c83803'], revenue: 629, winPct: 0.384 },
-  { city: 'Detroit', name: 'Gears', abbrev: 'DET', colors: ['#0076b6', '#b0b7bc'], revenue: 585, winPct: 0.482 },
-  { city: 'Green Bay', name: 'Lumberjacks', abbrev: 'GB', colors: ['#203731', '#ffb612'], revenue: 719, winPct: 0.613 },
-  { city: 'Minnesota', name: 'Voyageurs', abbrev: 'MIN', colors: ['#4f2683', '#ffc62f'], revenue: 609, winPct: 0.607 },
+  {
+    city: 'Chicago',
+    name: 'Gale',
+    abbrev: 'CHI',
+    colors: ['#0b162a', '#c83803'],
+    revenue: 629,
+    winPct: 0.384,
+    helmet: helmet('#0b162a', 'gloss', 'triple', '#c83803', '#ffffff', ['#ffffff', '#c83803'], '#c83803', GREY_MASK),
+  },
+  {
+    city: 'Detroit',
+    name: 'Gears',
+    abbrev: 'DET',
+    colors: ['#0076b6', '#b0b7bc'],
+    revenue: 585,
+    winPct: 0.482,
+    helmet: helmet('#b0b7bc', 'metal', 'triple', '#0076b6', '#ffffff', ['#0076b6', '#ffffff'], '#0076b6', '#0076b6'),
+  },
+  {
+    city: 'Green Bay',
+    name: 'Lumberjacks',
+    abbrev: 'GB',
+    colors: ['#203731', '#ffb612'],
+    revenue: 719,
+    winPct: 0.613,
+    helmet: helmet('#ffb612', 'gloss', 'triple', '#203731', '#ffffff', null, '#203731', '#203731'),
+  },
+  {
+    city: 'Minnesota',
+    name: 'Voyageurs',
+    abbrev: 'MIN',
+    colors: ['#4f2683', '#ffc62f'],
+    revenue: 609,
+    winPct: 0.607,
+    helmet: helmet('#4f2683', 'gloss', 'triple', '#ffc62f', '#ffffff', ['#ffc62f', '#2a1146'], '#ffc62f', BLACK_MASK),
+  },
   // Frontier South
-  { city: 'Atlanta', name: 'Firebirds', abbrev: 'ATL', colors: ['#a71930', '#000000'], revenue: 612, winPct: 0.463 },
-  { city: 'Carolina', name: 'Monarchs', abbrev: 'CAR', colors: ['#0085ca', '#101820'], revenue: 588, winPct: 0.415 },
-  { city: 'New Orleans', name: 'Krewe', abbrev: 'NO', colors: ['#101820', '#d3bc8d'], revenue: 607, winPct: 0.567 },
-  { city: 'Tampa Bay', name: 'Corsairs', abbrev: 'TB', colors: ['#d50a0a', '#34302b'], revenue: 629, winPct: 0.506 },
+  {
+    city: 'Atlanta',
+    name: 'Firebirds',
+    abbrev: 'ATL',
+    colors: ['#a71930', '#000000'],
+    revenue: 612,
+    winPct: 0.463,
+    helmet: helmet('#141619', 'gloss', 'triple', '#a71930', '#ffffff', ['#a71930', '#ffffff'], '#a71930', BLACK_MASK),
+  },
+  {
+    city: 'Carolina',
+    name: 'Monarchs',
+    abbrev: 'CAR',
+    colors: ['#0085ca', '#101820'],
+    revenue: 588,
+    winPct: 0.415,
+    helmet: helmet('#a9b2ba', 'metal', 'triple', '#0085ca', '#101820', ['#101820', '#ffffff'], '#0085ca', BLACK_MASK),
+  },
+  {
+    city: 'New Orleans',
+    name: 'Krewe',
+    abbrev: 'NO',
+    colors: ['#101820', '#d3bc8d'],
+    revenue: 607,
+    winPct: 0.567,
+    helmet: helmet('#d3bc8d', 'metal', 'triple', '#101820', '#ffffff', ['#101820', '#ffffff'], '#101820', BLACK_MASK),
+  },
+  {
+    city: 'Tampa Bay',
+    name: 'Corsairs',
+    abbrev: 'TB',
+    colors: ['#d50a0a', '#34302b'],
+    revenue: 629,
+    winPct: 0.506,
+    helmet: helmet('#6e6a63', 'metal', 'triple', '#d50a0a', '#ffffff', ['#d50a0a', '#ffffff'], '#d50a0a', '#34302b'),
+  },
   // Frontier West
-  { city: 'Arizona', name: 'Scorpions', abbrev: 'ARI', colors: ['#97233f', '#000000'], revenue: 571, winPct: 0.439 },
-  { city: 'Los Angeles', name: 'Stars', abbrev: 'LAS', colors: ['#003594', '#ffd100'], revenue: 764, winPct: 0.555 },
-  { city: 'San Francisco', name: 'Fog', abbrev: 'SF', colors: ['#aa0000', '#b3995d'], revenue: 723, winPct: 0.47 },
-  { city: 'Seattle', name: 'Squall', abbrev: 'SEA', colors: ['#002244', '#69be28'], revenue: 624, winPct: 0.595 },
+  {
+    city: 'Arizona',
+    name: 'Scorpions',
+    abbrev: 'ARI',
+    colors: ['#97233f', '#000000'],
+    revenue: 571,
+    winPct: 0.439,
+    helmet: helmet(WHITE, 'gloss', 'triple', '#97233f', '#000000', ['#97233f', '#ffffff'], '#97233f', BLACK_MASK),
+  },
+  {
+    city: 'Los Angeles',
+    name: 'Stars',
+    abbrev: 'LAS',
+    colors: ['#003594', '#ffd100'],
+    revenue: 764,
+    winPct: 0.555,
+    helmet: helmet('#003594', 'gloss', 'triple', '#ffd100', '#ffffff', ['#ffd100', '#001a4d'], '#ffd100', '#ffd100'),
+  },
+  {
+    city: 'San Francisco',
+    name: 'Fog',
+    abbrev: 'SF',
+    colors: ['#aa0000', '#b3995d'],
+    revenue: 723,
+    winPct: 0.47,
+    helmet: helmet('#b3995d', 'metal', 'triple', '#aa0000', '#ffffff', ['#aa0000', '#ffffff'], '#aa0000', '#aa0000'),
+  },
+  {
+    city: 'Seattle',
+    name: 'Squall',
+    abbrev: 'SEA',
+    colors: ['#002244', '#69be28'],
+    revenue: 624,
+    winPct: 0.595,
+    helmet: helmet('#002244', 'gloss', 'triple', '#69be28', '#a5acaf', ['#ffffff', '#69be28'], '#69be28', GREY_MASK),
+  },
 ];
 
 /** Nicknames we must never ship (licensed marks), used by tests to guard mod-free defaults. */

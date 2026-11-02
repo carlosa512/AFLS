@@ -185,6 +185,29 @@ export interface Gear {
   elbowPads?: { color: GearColor; side: GearSide };
   /** Black neoprene with a strap in the team's colour, on one shoulder. */
   shoulderBrace?: { side: 'left' | 'right'; strap: 'primary' | 'secondary' };
+  /** The helmet shell you picked for him; absent, the avatar picks one from his id and position. */
+  helmet?: HelmetModel;
+  /** The quarterback's play-call wristband, the card behind its window: always one wrist. */
+  wristband?: { side: 'left' | 'right'; color: GearColor };
+}
+
+/** The helmet shells the avatar draws, by our own names (never a maker's or a model's). */
+export type HelmetModel = 'modern' | 'modernSmooth' | 'plated' | 'classic' | 'pod' | 'podWide' | 'ridgeback' | 'retro';
+
+/** A club's helmet: the same home and away, on whatever shell each player wears. Colours are "#RRGGBB". */
+export interface HelmetDesign {
+  shell: string;
+  finish: 'gloss' | 'matte' | 'metal';
+  stripe: 'none' | 'single' | 'double' | 'triple';
+  /** The stripe; a triple's middle. */
+  stripeA?: string;
+  /** A triple's edges. */
+  stripeB?: string;
+  /** The number on the back, its ink and outline; absent, no number. */
+  number?: { ink: string; trim: string };
+  bumper: string;
+  /** The facemask's colour. */
+  mask: string;
 }
 
 export interface Player {
@@ -850,6 +873,8 @@ export interface Team {
   conference: number;
   division: number;
   colors: [string, string];
+  /** The club's helmet, copied from its seed; absent (a mod's club), the avatar builds one from `colors`. */
+  helmet?: HelmetDesign;
   depthChart: DepthChart;
   /** The kick and punt returners the user picked (player ids); unset, the lineup picks the best backup. */
   returners?: { kr?: number; pr?: number };

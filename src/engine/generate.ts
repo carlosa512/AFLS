@@ -48,7 +48,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 74;
+export const SAVE_VERSION = 75;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -773,6 +773,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
       name: seedTeam.name,
       abbrev: seedTeam.abbrev,
       colors: [...seedTeam.colors],
+      // a copy, so a save's helmet is its own and never the seed's
+      ...(seedTeam.helmet ? { helmet: structuredClone(seedTeam.helmet) } : {}),
       conference: DIVISIONS[division].conference,
       division,
       depthChart: buildAutoDepthChart([]),
