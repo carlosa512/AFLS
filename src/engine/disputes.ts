@@ -220,6 +220,17 @@ function runRequest(
     if (level > VERY_POOR || !cause) return endDispute(league, p, 'withdrawn', clock);
   }
   if (d.public === undefined && clock - d.since >= (outspoken(p) ? LEAK_LOUD : LEAK_STEPS)) leak(league, p, clock);
+  // A club that turned him down thinks it over once the league knows (as with a holdout, `aiReviewDispute`): keeping him
+  // is worth his edge over the man who'd start in his place, as much as this season matters, and its GM's pride; a man
+  // who wants out and says so costs it more each week. Once he's not worth keeping, it shops him. Yours is your call.
+  if (d.refused && d.public !== undefined && p.teamId !== yourClub(league)) {
+    const team = league.teams[p.teamId!];
+    const keep = 2 * team.gm.stubbornness + edgeOverReplacement(league, p) * (0.5 + winNow(league, team));
+    if (0.5 * (clock - d.public) >= keep) {
+      d.answered = { choice: 'shop', at: clock };
+      delete d.refused;
+    }
+  }
   const refusedAt = d.answered?.choice === 'refuse' ? d.answered.at : clock;
   if (d.refused && week === CAMP && refusedAt < clock && level <= VERY_POOR && extendable(league, p)) {
     // Hardened: the request becomes a hold-in, a new dispute with its own letter.

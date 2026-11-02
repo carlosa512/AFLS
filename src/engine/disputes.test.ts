@@ -905,6 +905,44 @@ describe('disputes: trade requests (G4b)', () => {
     expect(q.morale!.dispute!.refused).toBeUndefined();
   });
 
+  it('a club that refused a public request shops him once keeping him stops being worth it; a stubborn GM holds longer', () => {
+    /** The step its club starts shopping a public, refused request, running steps 10-30, or null. */
+    const shopsAt = (stubbornness: number, gap: number) => {
+      const { l } = base('refused-review');
+      Object.assign(l.teams[1].gm, { loyalty: 0, stubbornness });
+      const p = souredOver(l, 1, 'snaps');
+      for (const x of teamPlayers(l, 1))
+        if (x.position === p.position && x !== p)
+          x.ratings = Object.fromEntries(
+            Object.entries(p.ratings).map(([k, v]) => [k, Math.max(1, v - gap)]),
+          ) as typeof p.ratings;
+      p.morale!.dispute = {
+        kind: 'trade',
+        cause: 'snaps',
+        since: at(l, 9),
+        club: 1,
+        answered: { choice: 'refuse', at: at(l, 9) },
+        refused: true,
+        public: at(l, 9),
+      };
+      delete p.morale!.talk!.sour;
+      for (let w = 10; w <= 30; w++) {
+        run(l, w, w);
+        if (p.morale!.dispute?.answered?.choice === 'shop') {
+          expect(p.morale!.dispute.refused).toBeUndefined();
+          return w;
+        }
+      }
+      return null;
+    };
+    const easy = shopsAt(0.6, 0);
+    const hard = shopsAt(1, 0);
+    expect(easy).not.toBeNull();
+    expect(easy!).toBeLessThan(hard ?? 99);
+    // A man the club can't replace is held longer.
+    expect(easy!).toBeLessThan(shopsAt(0.6, 4) ?? 99);
+  });
+
   it('stands at the new league year while he is Very poor with a cause, else is withdrawn; ends traded on a move', () => {
     const stands = base('new-year-stands');
     const p = souredOver(stands.l, stands.l.userTeamId, 'snaps');

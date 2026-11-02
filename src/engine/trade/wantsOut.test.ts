@@ -7,6 +7,7 @@ import type { League, Player } from '../types';
 import { playerTradeBlocker, tradeContext } from '.';
 import { quickValue } from './deals';
 import { floorShare, WANTS_OUT } from './judge';
+import { marketMoment } from './market';
 import { bidFor, yourListings } from './offers';
 import { tradeBlock } from './plans';
 
@@ -95,5 +96,22 @@ describe('the market reads a public trade request (G4b)', () => {
       if (v < c.value) lower++;
     }
     expect(lower).toBeGreaterThanOrEqual(1);
+  });
+
+  it('his club calls around once a shopped request is public: most are moved within a few weeks', () => {
+    const run = (open: boolean) => {
+      const l = league('wants-out-calls');
+      const men = l.teams
+        .filter((t) => t.id !== l.userTeamId)
+        .slice(0, 8)
+        .map((t) => tradeable(l, t.id).filter((p) => p.age < 30)[3]);
+      for (const p of men) asks(l, p, 'shop', open);
+      const from = men.map((p) => p.teamId);
+      for (let i = 0; i < 3; i++) marketMoment(l, 'week');
+      return men.filter((p, i) => p.teamId !== from[i]).length;
+    };
+    const moved = run(true);
+    expect(moved).toBeGreaterThanOrEqual(4);
+    expect(run(false)).toBeLessThan(moved);
   });
 });
