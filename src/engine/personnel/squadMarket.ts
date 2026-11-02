@@ -4,7 +4,7 @@ import { generatePlayer } from '../generate';
 import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
 import { contenderScore, resetContenderCache } from '../offseason/negotiation';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, addPlayer, practiceSquad } from '../roster';
 import { playerOvr } from '../positions';
 import { recordRatings } from '../development';
 import { Rng } from '../rng';
@@ -76,7 +76,7 @@ export function ensureSquadSupply(league: League): void {
     p.potential = Math.min(20, playerOvr(p) + upside);
     recordRatings(p, league.season);
     p.contract = null;
-    league.players[p.id] = p;
+    addPlayer(league, p);
     if (!veteran) baseMissing--;
   }
 }

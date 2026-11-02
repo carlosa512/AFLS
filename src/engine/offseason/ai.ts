@@ -36,7 +36,7 @@ import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
 import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
 import { clamp, Rng } from '../rng';
-import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, addPlayer, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { GmTraits, League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
@@ -833,7 +833,7 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
   });
   p.origin = collegeOrigin(league.seed, p.id, 3);
   recordRatings(p, league.season);
-  league.players[p.id] = p;
+  addPlayer(league, p);
   return p;
 }
 

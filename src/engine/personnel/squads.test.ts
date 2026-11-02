@@ -6,7 +6,7 @@ import { inSeasonReserve, spendable } from '../offseason/ai';
 import { contenderScore } from '../offseason/negotiation';
 import { irProblem, practiceLoad } from '../injuries';
 import { migrateLeague } from '../migrate';
-import { activeRoster, isAvailable, practiceSquad, syncDepthChart } from '../roster';
+import { activeRoster, addPlayer, isAvailable, practiceSquad, syncDepthChart } from '../roster';
 import { Rng } from '../rng';
 import { rosterOf, tradeContext } from '../trade/context';
 import type { League, Player } from '../types';
@@ -47,7 +47,7 @@ function candidate(experience = 0): Player {
   p.experience = experience;
   p.service = initialService(experience, l.season - 1);
   p.contract = null;
-  l.players[p.id] = p;
+  addPlayer(l, p);
   return p;
 }
 function sign(p = candidate(), teamId = 0, weeklyPay = squadRates(l, p).min) {

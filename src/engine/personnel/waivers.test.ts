@@ -6,7 +6,7 @@ import { migrateLeague } from '../migrate';
 import { advanceOffseason } from '../offseason';
 import { freeAgents, makeOffer, offerProblem, signPlayer } from '../offseason/negotiation';
 import { availableProspects } from '../offseason/draft';
-import { activeRoster, isAvailable, rosterList } from '../roster';
+import { activeRoster, addPlayer, isAvailable, rosterList, setTeam } from '../roster';
 import { playerTradeBlocker } from '../trade/rules';
 import type { Contract, GameResult, League, Player } from '../types';
 import { submitAIClaims } from './ai';
@@ -351,7 +351,7 @@ describe('atomic validation and notice boundaries', () => {
     cut.contract!.bonuses = [];
     cut.contract!.years.forEach((y) => (y.guaranteed = 0));
     setWaiverClaim(l, claim(e.id, 1, [cut.id]));
-    cut.teamId = 2;
+    setTeam(l, cut, 2);
     resolveWaiverBatch(l, e.batch);
     expect(l.players[e.playerId].teamId).toBeNull();
     expect(cut.teamId).toBe(2);
@@ -533,7 +533,7 @@ describe('AI and calendar integration', () => {
     const p = copy(activeRoster(l, 1)[0]);
     p.id = l.nextPlayerId++;
     p.teamId = l.userTeamId;
-    l.players[p.id] = p;
+    addPlayer(l, p);
     const before = copy(l);
     expect(() => advanceOffseason(l)).toThrow(/Cut down/);
     expect(l).toEqual(before);

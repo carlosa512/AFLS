@@ -5,7 +5,7 @@ import { freeJersey } from '../generate';
 import { inSeasonReserve } from '../offseason/ai';
 import { freeAgents } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
-import { activeRoster, isAvailable, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, isAvailable, practiceSquad, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { perceive } from '../scouting';
 import type { Contract, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
@@ -158,7 +158,7 @@ function sign(league: League, p: Player, offer: PoachOffer): void {
   markSquadDeparture(league, p);
   const contract = poachContract(league, p, offer.years);
   delete p.squad;
-  p.teamId = offer.teamId;
+  setTeam(league, p, offer.teamId);
   p.contract = contract;
   p.jersey = freeJersey(
     p.position,

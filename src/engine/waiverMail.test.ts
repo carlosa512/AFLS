@@ -3,7 +3,7 @@ import { releasePreview } from './finance/cap';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { ROSTER_TEMPLATE } from './positions';
-import { activeRoster } from './roster';
+import { activeRoster, setTeam } from './roster';
 import { perceive } from './scouting';
 import type { League, Player, Position } from './types';
 import type { WaiverResult } from './personnel/types';
@@ -42,7 +42,7 @@ function thinOut(pos: Position, keep: number) {
   for (const p of activeRoster(l, 0)
     .filter((x) => x.position === pos)
     .slice(keep))
-    p.teamId = 31;
+    setTeam(l, p, 31);
 }
 /** Another club waives one of its players. */
 function waive(teamId: number, pick: (p: Player) => boolean): Player {
@@ -140,7 +140,7 @@ describe('the waiver letter', () => {
       for (const q of activeRoster(l, t)
         .filter((x) => x.position === 'S')
         .slice(1))
-        q.teamId = 31;
+        setTeam(l, q, 31);
     const c = wireChance(l, entry);
     expect(c.place).toBe(order.indexOf(0) + 1);
     expect(c.word).toBe(ahead.length >= 3 ? 'long shot' : ahead.length >= 1 ? 'maybe' : 'good chance');
@@ -161,7 +161,7 @@ describe('the waiver letter', () => {
     const full = copy(l);
     while (activeRoster(full, 0).length < 53) {
       const extra = activeRoster(full, 9).find((x) => x.position === 'WR')!;
-      extra.teamId = 0;
+      setTeam(full, extra, 0);
     }
     expect(wireClaim(full, entry.id).problem).toMatch(/roster move/);
   });

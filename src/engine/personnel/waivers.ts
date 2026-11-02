@@ -5,7 +5,7 @@ import { deadMoney, isExpired } from '../finance/contract';
 import { freeJersey } from '../generate';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
-import { activeRoster, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, practiceSquad, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { Rng } from '../rng';
 import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
@@ -124,7 +124,7 @@ export function queueWaiver(league: League, p: Player, preview: ReleasePreview):
   if (t.playingAt) delete t.playingAt[p.id];
   if (t.taggedId === p.id) t.taggedId = null;
   p.waiver = { id: entry.id, fromTeamId: from };
-  p.teamId = null;
+  setTeam(league, p, null);
   p.tagCount = 0;
   delete league.negotiations[p.id];
   logTransaction(league, 'waiver', [from], `${t.abbrev} waived ${p.position} ${p.firstName} ${p.lastName}`);
@@ -304,7 +304,7 @@ export function resolveWaiverBatch(league: League, closing: number): WaiverResul
       }
       book(league, entry, entry.assigned, 'Waiver assignment');
       p.contract = assignedContract(entry);
-      p.teamId = teamId;
+      setTeam(league, p, teamId);
       p.waiverArrival = { season: league.season, week: league.week, phase: league.phase };
       delete p.waiver;
       delete p.ir;

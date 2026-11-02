@@ -8,6 +8,7 @@ import { draftDayOffers } from '../engine/trade/draft';
 import type { League } from '../engine/types';
 import { offseasonStep } from './App';
 import { Draft, SimTheRest } from './screens/Draft';
+import { setTeam } from '../engine/roster';
 
 const atDraft = (() => {
   const league = createLeague({ seed: 'draft-trades-c' });
@@ -59,7 +60,7 @@ describe('draft room on draft day', () => {
     const l = draftDay();
     const other = l.teams.find((t) => t.id !== l.userTeamId)!;
     const p = l.players[l.draftClass[0]];
-    p.teamId = l.userTeamId;
+    setTeam(l, p, l.userTeamId);
     p.draft = {
       season: l.season,
       round: 1,

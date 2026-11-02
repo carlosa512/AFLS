@@ -51,7 +51,7 @@ import { isMedicExpiring, teamMedics } from './medical';
 import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { expiringPlayers } from './offseason/ai';
-import { activeRoster, teamPlayers } from './roster';
+import { activeRoster, addPlayer, setTeam, teamPlayers } from './roster';
 import { computeRecords, conferenceSeeds } from './season/standings';
 import { isExpiring, teamStaff } from './staff';
 import { playerOvr } from './positions';
@@ -784,7 +784,7 @@ describe('position moves in the inbox', () => {
     const ai = l.teams.find((t) => t.id !== l.userTeamId)!;
     const cb = teamPlayers(l, ai.id).find((p) => p.position === 'CB')!;
     changePosition(l, cb, 'S');
-    cb.teamId = l.userTeamId;
+    setTeam(l, cb, l.userTeamId);
     deliverMail(l);
     expect(cb.moves?.at(-1)?.season).toBe(l.season);
     expect(movedIn(l).flatMap((m) => m.covered ?? [])).not.toContain(`position:${l.season}:moved:${cb.id}`);
@@ -1219,7 +1219,7 @@ describe('short positions in the inbox', () => {
       teamId: null,
       jerseysUsed: new Set(),
     });
-    l.players[fa.id] = fa;
+    addPlayer(l, fa);
     signPlayer(l, fa, team.id, { years: 1, apy: 2000, bonusPct: 0, gtdPct: 0, voidYears: 0 });
     expect(activeRoster(l, team.id)).toHaveLength(53);
     deliverMail(l);

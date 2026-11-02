@@ -181,7 +181,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
     five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
-  - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
+    an index beside the league kept by `setTeam` and `addPlayer`)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
     the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
     size decides (`sizeEdge`: contested balls, the jam, a passer's lanes, contact; `rushSizeEdge` and `massEdge` in
@@ -321,6 +322,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
   position (unit-tested) and move outcomes in `npm run audit`.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
+- **A player changes club through `setTeam`, and joins the league through `addPlayer`** (`roster.ts`), tests included:
+  `teamPlayers` reads an index those keep. A club cleared by hand is caught and read again; a club set by hand isn't.
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and
   add an upgrade step to `migrate.ts` (old saves are migrated on load, never thrown away).
 - `league.season` is the league year: it ticks over when the offseason begins (like the NFL's March

@@ -24,7 +24,7 @@ import { simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { seasonRole } from './scouting';
 import { teamCoaches } from './coaching';
-import { activeRoster, starters } from './roster';
+import { activeRoster, setTeam, starters } from './roster';
 import type { League, Player } from './types';
 
 const fresh = (seed = 'relationships') => createLeague({ seed });
@@ -160,11 +160,12 @@ describe('rapport, homecomings and grudges, read off history', () => {
     expect(contractLean(l, pal, other).value).toBeGreaterThan(1);
     // A day later his friend has signed with another club: the pull goes with him.
     l.faDay = 2;
-    friend.teamId = (other + 1) % 32;
+    const signedWith = (other + 1) % 32;
+    setTeam(l, friend, signedWith);
     expect(contractLean(l, pal, other).value).toBe(1);
-    expect(contractLean(l, pal, friend.teamId).value).toBeGreaterThan(1);
+    expect(contractLean(l, pal, signedWith).value).toBeGreaterThan(1);
     Object.assign(l, { phase: was.phase, faDay: was.faDay });
-    friend.teamId = was.team;
+    setTeam(l, friend, was.team);
   });
 
   it('draws a man to an old coach at another club, never to the coaches he already has', () => {
@@ -201,7 +202,7 @@ describe('friendships and feuds', () => {
     const l = fresh('feuds-room');
     const [a, b] = room(l, 1, 'WR');
     addTie(l, a, b, 'feud');
-    b.teamId = 2;
+    setTeam(l, b, 2);
     l.season++;
     tiesOffseason(l);
     expect(a.ties?.some((t) => t.with === b.id) ?? false).toBe(false);

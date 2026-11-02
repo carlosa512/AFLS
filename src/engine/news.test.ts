@@ -8,6 +8,7 @@ import { keyTradeNews, rumorNews, tradeNewsWindow } from './tradeNews';
 import { divisionTable } from './newsContext';
 import { leagueNews, matchupStakes, rookieImpactMail } from './news';
 import type { Game, GameResult, League, TeamGameStats } from './types';
+import { setTeam } from './roster';
 
 const base = createLeague({ seed: 'news-desk' });
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -167,7 +168,7 @@ describe('rookie impact and delivery', () => {
 
   it('uses event-time team identity, excluding work after a rookie leaves', () => {
     const { l, p } = rookieLeague();
-    p.teamId = 4;
+    setTeam(l, p, 4);
     l.games[7].result!.playerTeams[p.id] = 4;
     l.games[7].result!.playerStats[p.id] = { snaps: 99 };
     const [m] = rookieImpactMail(l, [p], sender);
@@ -434,7 +435,7 @@ describe('SNN trade reporting', () => {
   it('reports what each club receives, including draft capital and retained salary, once per week', () => {
     const { l, p, pick, deal } = marketLeague();
     l.market!.history = [deal];
-    p.teamId = 2;
+    setTeam(l, p, 2);
     const [m] = leagueNews(l, new Set());
     expect(m.subject).toContain(`${p.firstName} ${p.lastName}`);
     expect(m.tradeReport!.exchanges.find((r) => r.teamId === 2)!.receives).toContain(`QB ${p.firstName} ${p.lastName}`);
@@ -458,7 +459,7 @@ describe('SNN trade reporting', () => {
       game(l, 1, 8, 4, 24, 10),
     );
     l.market!.history = [deal];
-    p.teamId = 2;
+    setTeam(l, p, 2);
     const [m] = keyTradeNews(l, 8);
     expect(m.body).toContain(`The ${l.teams[1].name}, 1–3, are selling.`);
     l.games = l.games.filter((g) => g.homeId !== 1);

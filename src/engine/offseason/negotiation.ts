@@ -14,7 +14,7 @@ import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
 import { freeJersey, rookieContract } from '../generate';
 import { clamp, Rng } from '../rng';
-import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from '../roster';
+import { activeRoster, setTeam, syncDepthChart, teamPlayers, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
 
@@ -385,7 +385,7 @@ export function signPlayer(
       noteDeparture(league, player, last, 'walked');
   }
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
-  player.teamId = teamId;
+  setTeam(league, player, teamId);
   // Paid over a starter in his room who's still on an older deal: it may not go down well.
   if (own && kind !== 'tag') snubCheck(league, player);
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags

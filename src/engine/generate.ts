@@ -33,7 +33,7 @@ import {
   type Market,
 } from './finance/market';
 import { clamp, Rng } from './rng';
-import { buildAutoDepthChart, headline, teamRatings, UNIT_POSITIONS } from './roster';
+import { addPlayer, buildAutoDepthChart, headline, teamRatings, UNIT_POSITIONS } from './roster';
 import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
@@ -846,7 +846,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
         });
         recordRatings(player, season);
         roster.push(player);
-        league.players[player.id] = player;
+        addPlayer(league, player);
       }
     }
     team.depthChart = buildAutoDepthChart(roster);

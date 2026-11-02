@@ -19,7 +19,7 @@ import {
 } from '../generate';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, Rng } from '../rng';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { addPlayer, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth } from '../scouting';
 import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
@@ -84,7 +84,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
       ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling / film)) * 2) / 2,
     };
     recordRatings(p, league.season);
-    league.players[p.id] = p;
+    addPlayer(league, p);
     league.draftClass.push(p.id);
   }
 }
@@ -269,7 +269,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);
   const via = pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined;
-  player.teamId = team.id;
+  setTeam(league, player, team.id);
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = {
     season: league.season,

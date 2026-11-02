@@ -31,8 +31,88 @@ export function practicingPlayers(league: League, teamId: number): Player[] {
   );
 }
 
+/**
+ * Each league's players by club, in id order (the order a pass over `league.players` reads them): built from one pass
+ * the first time a club's players are asked for, then kept current by `setTeam` and `addPlayer`. It lives beside the
+ * league, never in it, so the save stays plain JSON and a loaded or copied league builds its own. Reading every
+ * player the league ever had for each club, retired ones too, was 14% of a 16-season league.
+ */
+const byTeam = new WeakMap<League, Map<number, Player[]>>();
+
+function clubIndex(league: League): Map<number, Player[]> {
+  let index = byTeam.get(league);
+  if (!index) {
+    index = new Map();
+    for (const p of Object.values(league.players)) {
+      if (p.teamId === null || p.teamId === undefined) continue;
+      const club = index.get(p.teamId);
+      if (club) club.push(p);
+      else index.set(p.teamId, [p]);
+    }
+    byTeam.set(league, index);
+  }
+  return index;
+}
+
+/** Into a club's list at his place by id. */
+function place(club: Player[], p: Player): void {
+  let lo = 0;
+  let hi = club.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (club[mid].id < p.id) lo = mid + 1;
+    else hi = mid;
+  }
+  club.splice(lo, 0, p);
+}
+
+function unplace(index: Map<number, Player[]>, p: Player, teamId: number | null | undefined): void {
+  if (teamId === null || teamId === undefined) return;
+  const club = index.get(teamId);
+  const at = club?.indexOf(p) ?? -1;
+  if (at >= 0) club!.splice(at, 1);
+}
+
+/** How often a club's list was read again because a player's club changed around `setTeam` (the game never does). */
+let heals = 0;
+export const teamIndexHeals = () => heals;
+
 export function teamPlayers(league: League, teamId: number): Player[] {
-  return Object.values(league.players).filter((p) => p.teamId === teamId);
+  let club = clubIndex(league).get(teamId) ?? [];
+  // A player whose club was changed by hand, not through `setTeam` (a test, an old save's upgrade): read again.
+  if (club.some((p) => p.teamId !== teamId || league.players[p.id] !== p)) {
+    heals++;
+    byTeam.delete(league);
+    club = clubIndex(league).get(teamId) ?? [];
+  }
+  return club.slice();
+}
+
+/** Move a player to a club (null: none). Every change of a player's club goes through here. */
+export function setTeam(league: League, p: Player, teamId: number | null): void {
+  const index = byTeam.get(league);
+  if (index && p.teamId !== teamId) {
+    unplace(index, p, p.teamId);
+    if (teamId !== null) {
+      const club = index.get(teamId);
+      if (club) place(club, p);
+      else index.set(teamId, [p]);
+    }
+  }
+  p.teamId = teamId;
+}
+
+/** A new player into the league (a draft class, an undrafted signing, a generated free agent). */
+export function addPlayer(league: League, p: Player): void {
+  const index = byTeam.get(league);
+  const before = league.players[p.id];
+  if (index && before) unplace(index, before, before.teamId);
+  league.players[p.id] = p;
+  if (index && p.teamId !== null && p.teamId !== undefined) {
+    const club = index.get(p.teamId);
+    if (club) place(club, p);
+    else index.set(p.teamId, [p]);
+  }
 }
 
 /** Players counting toward the 53; employment and practice squad membership are separate queries. */

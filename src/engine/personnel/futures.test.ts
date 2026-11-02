@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { deliverMail } from '../inbox';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, practiceSquad, setTeam } from '../roster';
 import { perceive } from '../scouting';
 import type { League } from '../types';
 import {
@@ -129,7 +129,7 @@ describe('squad castoffs nobody signed by the end of camp', () => {
     const released = l.personnel!.futures!.released ?? [];
     expect(released.length).toBeGreaterThan(100);
     const signed = l.players[released[0]];
-    signed.teamId = 4;
+    setTeam(l, signed, 4);
     signed.contract = { ...l.players[activeRoster(l, 4)[0].id].contract! };
     const again = copy(l);
     retireCastoffs(l);

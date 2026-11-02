@@ -42,7 +42,14 @@ const CHECKS = {
     detail: /\[warn\]/,
   },
   typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, secs: 10, summary: /error TS\d+.*/ },
-  test: { cmd: ['npm', 'test'], cores: CORES, secs: 55, summary: /Tests\s+.*/, detail: /FAIL|Error|Expected|Received/ },
+  // On CI a worker per core (vitest's default leaves one idle; the job has the runner to itself); locally its default.
+  test: {
+    cmd: ['npm', 'test', ...(process.env.CI ? ['--', `--maxWorkers=${CORES}`] : [])],
+    cores: CORES,
+    secs: 55,
+    summary: /Tests\s+.*/,
+    detail: /FAIL|Error|Expected|Received/,
+  },
   build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1, secs: 15 },
   sim: { cmd: ['npm', 'run', 'sim', '--', '60'], cores: 1, secs: 220, summary: /\d+ stat\(s\) outside target range/ },
   endings: {
@@ -67,17 +74,18 @@ const CHECKS = {
     slow: true,
     summary: /\d+ number\(s\) outside target range/,
   },
+  // Every (position, attribute) pair replayed, in worker processes on every core.
   audit: {
     cmd: ['npm', 'run', 'audit'],
-    cores: 1,
+    cores: CORES,
     secs: 170,
     slow: true,
     summary: /Needs attention.*|Every attribute.*/,
   },
-  // The marble bag's churn and every quirk's effect, replayed on the same games.
+  // The marble bag's churn and every quirk's effect, replayed on the same games (the effects in worker processes).
   quirks: {
     cmd: ['npm', 'run', 'quirks', '--', '--effects'],
-    cores: 1,
+    cores: CORES,
     secs: 290,
     slow: true,
     summary: /Needs attention.*|Every quirk.*|▼ Nobody carries.*/,

@@ -4,7 +4,7 @@ import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/
 import { deadMoney } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
 import { freeJersey } from '../generate';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { setTeam, syncDepthChart, teamPlayers } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
@@ -81,7 +81,7 @@ export function executeTrade(
       c.bonuses = [];
       c.years = c.years.filter((y) => !y.void);
       noteDeparture(league, p, side.teamId, 'traded');
-      p.teamId = to;
+      setTeam(league, p, to);
       p.jersey = freeJersey(
         p.position,
         new Set(

@@ -52,7 +52,7 @@ import {
 import { migrateLeague } from './migrate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
-import { activeRoster, chooseCover, COVER_BAR, isAvailable, placeAt, teamPlayers } from './roster';
+import { activeRoster, addPlayer, chooseCover, COVER_BAR, isAvailable, placeAt, teamPlayers } from './roster';
 import { slotOvr } from './familiarity';
 import { signPlayer } from './offseason/negotiation';
 import { quirkWeek } from './quirks';
@@ -990,7 +990,7 @@ describe('covering a short position', () => {
     const p = teamPlayers(league, team.id).find((x) => x.position === 'LB')!;
     p.ir = { season: league.season, week: 1, weeks: IR_MIN_WEEKS };
     const fa = player(7);
-    league.players[fa.id] = fa;
+    addPlayer(league, fa);
     signPlayer(league, fa, team.id, { years: 1, apy: 2000, bonusPct: 0, gtdPct: 0, voidYears: 0 });
     expect(activeRoster(league, team.id)).toHaveLength(53);
     const before = ids(league, team.id);
