@@ -96,6 +96,8 @@ const ROUTE_PACE = 8.5;
 export const BEAT_ACROSS = 6;
 /** A rusher's get-off: at his man this long after the snap, before he fights him and wins. */
 const ENGAGE = 0.45;
+/** Running out the clock on fourth down: his pace back, yards a second. */
+const RUN_OUT = 5;
 /** A throwaway lands this far past the line, out of bounds. */
 const THROWAWAY_DOWNFIELD = 12;
 /** A sack's last stagger to the spot, yards a second at most. */
@@ -120,10 +122,10 @@ export const runPace = (yards: number) => Math.min(9.3, 6.5 + yards * 0.05);
  * him can (a touchdown keeps the breakaway's pace).
  */
 const CAUGHT_PACE = 8.4;
-/** A carrier's leg on the ground at his pace. */
-const carry = (sg: Seg, caught = false): Seg => {
+/** A carrier's leg on the ground at his pace, never past his own legs (`top`: a tight end's breakaway is a tight end's). */
+const carry = (sg: Seg, caught = false, top = Infinity): Seg => {
   const l = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
-  return { ...sg, dur: Math.max(0.3, l / Math.min(caught ? CAUGHT_PACE : Infinity, runPace(l))) };
+  return { ...sg, dur: Math.max(0.3, l / Math.min(caught ? CAUGHT_PACE : Infinity, runPace(l), top)) };
 };
 
 /**
@@ -136,10 +138,12 @@ export function stagedPath(
   snapY: number,
   receiverAt?: Pt,
   pocket?: readonly Keyframe[],
+  /** The ball carrier's top speed, yards a second: no run of his is quicker. */
+  top?: number,
 ): Seg[] {
   // A fumble: the play staged as carried to where the ball came out, then the loose ball (`loosen`), its legs run at a
   // ball carrier's pace (a tackled one's: someone brings the returner down, or he scores).
-  return loosen(e, stageCarried(carried(e), homeId, snapY, receiverAt, pocket), (sg) => carry(sg, true));
+  return loosen(e, stageCarried(carried(e), homeId, snapY, receiverAt, pocket, top), (sg) => carry(sg, true));
 }
 
 /**
@@ -199,6 +203,7 @@ function stageCarried(
   snapY: number,
   receiverAt?: Pt,
   pocket?: readonly Keyframe[],
+  top = Infinity,
 ): Seg[] {
   // A flag before the snap: no play, nothing moves (the walk-off is the official's, between plays).
   if (e.kind === 'penalty') return [];
@@ -218,7 +223,7 @@ function stageCarried(
       // His pocket, then the throw from wherever it left him.
       const from = pocket[pocket.length - 1];
       air = { ...air, x0: from.x, y0: from.y, dur: passFlight(Math.hypot(air.x1 - from.x, air.y1 - from.y)) };
-      return [...legs({ x: drop.x0, y: drop.y0 }, pocket), air, ...segs.slice(2).map((sg) => carry(sg, caught))];
+      return [...legs({ x: drop.x0, y: drop.y0 }, pocket), air, ...segs.slice(2).map((sg) => carry(sg, caught, top))];
     }
     const depth = air ? Math.abs(air.x1 - air.x0) : 10;
     // In the pocket until the route has had time to get there, less the drop and the ball's flight. A deep shot is a
@@ -229,7 +234,7 @@ function stageCarried(
       hold({ x: drop.x1, y: drop.y1 }, Math.max(0.8, Math.min(3.4, Math.max(0.7 + depth * 0.035, wait)))),
       air,
       // After the catch (or the pick): a runner's pace, not the broadcast view's slide.
-      ...segs.slice(2).map((sg) => carry(sg, caught)),
+      ...segs.slice(2).map((sg) => carry(sg, caught, top)),
     ].filter((sg): sg is Seg => !!sg);
   }
   const len = (sg: Seg) => Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
@@ -280,8 +285,12 @@ function stageCarried(
     return [
       { ...segs[0], dur: MESH },
       { x0: hand.x, y0: hand.y, x1: press.x, y1: press.y, peak: 0, dur: Math.max(0.9, len(hand, press) / 4.5 + 0.5) },
-      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }, caught),
+      carry({ x0: press.x, y0: press.y, x1: end.x, y1: end.y, peak: 0, dur: 0 }, caught, top),
     ];
+  }
+  if (e.kind === 'kneel') {
+    // A kneel is a yard; on fourth down he rolls out and runs the clock out, a quarterback's drift back, not a dash.
+    return segs.map((s) => ({ ...s, dur: Math.max(s.dur, Math.hypot(s.x1 - s.x0, s.y1 - s.y0) / RUN_OUT + 0.3) }));
   }
   if (e.kind === 'sack' || e.kind === 'scramble') {
     const end = segs[segs.length - 1];
@@ -291,16 +300,38 @@ function stageCarried(
       const out = ground(from.x, from.y, end.x1, end.y1);
       // Taken down: the two of them to the spot at a stagger's pace, not the broadcast view's slide.
       out.dur = Math.max(out.dur, Math.hypot(end.x1 - from.x, end.y1 - from.y) / SACK_PACE);
-      return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught) : out];
+      return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught, top) : out];
     }
     const qb = { x: e.from - dir * 6, y: snapY };
     return [
       ground(e.from, snapY, qb.x, qb.y, 0.8),
       hold(qb, e.kind === 'sack' ? SACK_HOLD : SCRAMBLE_HOLD),
-      e.kind === 'scramble' ? carry(ground(qb.x, qb.y, end.x1, end.y1), caught) : ground(qb.x, qb.y, end.x1, end.y1),
+      e.kind === 'scramble'
+        ? carry(ground(qb.x, qb.y, end.x1, end.y1), caught, top)
+        : ground(qb.x, qb.y, end.x1, end.y1),
     ];
   }
   return segs;
+}
+
+/** The tackler runs this much over his top speed in pursuit (`steer`'s edge): as quick as he ever gets. */
+const PURSUIT = 0.6;
+
+/**
+ * His path up to the run into the hit at `t`: as it was until the latest moment he can still get to `hit` on his own
+ * legs (`top`), then off it. Late off his part beats a run no man could make.
+ */
+function intoTheHit(way: readonly Keyframe[], hit: Pt, t: number, top: number): Keyframe[] {
+  const upTo = way.filter((k) => k.t < t - 1e-6);
+  if (!upTo.length) return [];
+  const last = upTo[upTo.length - 1];
+  if (Math.hypot(hit.x - last.x, hit.y - last.y) <= top * (t - last.t)) return upTo;
+  for (let leave = last.t; leave >= 0; leave -= 0.05) {
+    const p = sample(upTo, leave);
+    if (Math.hypot(hit.x - p.x, hit.y - p.y) <= top * (t - leave))
+      return [...upTo.filter((k) => k.t < leave - 1e-6), at(leave, p)];
+  }
+  return [at(0, upTo[0])];
 }
 
 /** Keyframes that ride the ball through segments `from`..`to` (inclusive). */
@@ -433,7 +464,11 @@ export function script(
       carrier = qb;
       set(qb, ride(segs, 0, segs.length - 1));
       // A sack: home as his pocket ends (`sackTime`), then the two of them go down together on the spot.
-      const contact = e.kind === 'sack' ? (pocket ? ts[ts.length - 1][0] : total * 0.6) : 0;
+      // The stagger to the spot is the last leg; on a strip-sack the ball's bounces come after it (`loosen`), so it's
+      // the leg before the first hop.
+      const hop = segs.findIndex((sg) => sg.peak > 0 && sg.peak <= HOP_PEAK);
+      const stagger = hop > 0 ? hop - 1 : ts.length - 1;
+      const contact = e.kind === 'sack' ? (pocket ? ts[stagger][0] : total * 0.6) : 0;
       if (e.kind === 'sack' && who.rush !== undefined && start.has(who.rush) && qb !== undefined) {
         // Past the man he beat (or straight in), onto the quarterback where he is, and with him to the ground.
         const s0 = start.get(who.rush)!;
@@ -464,7 +499,19 @@ export function script(
         else if (e.kind === 'punt') set(kicker, [at(kickT, s0), at(total, { x: s0.x + dir * 4, y: s0.y })]);
         else set(kicker, [at(kickT, toward(tee, s0, 0.8)), at(total, toward(tee, s0, 0.5))]);
       }
-      const ret = cast.defense.find((m) => m.role === 'RET')?.id;
+      // Under the ball as it comes down: the returner, when he can get there (an onside kick is short of him: the
+      // man nearest where it comes down goes to it instead).
+      const deep = cast.defense.find((m) => m.role === 'RET')?.id;
+      const reaches = (id: number) =>
+        Math.hypot(land.x - start.get(id)!.x, land.y - start.get(id)!.y) <= topOf(id) * landT;
+      const near = [...cast.offense, ...cast.defense]
+        .filter((m) => m.id !== kicker && start.has(m.id))
+        .sort(
+          (a, b) =>
+            Math.hypot(land.x - start.get(a.id)!.x, land.y - start.get(a.id)!.y) -
+            Math.hypot(land.x - start.get(b.id)!.x, land.y - start.get(b.id)!.y),
+        )[0]?.id;
+      const ret = deep !== undefined && start.has(deep) && !reaches(deep) && near !== undefined ? near : deep;
       if (ret !== undefined && (e.kind === 'kickoff' || e.kind === 'punt')) {
         // Under the ball as it comes down, then the return (a touchback or a fair catch ends there).
         set(ret, [at(landT, land), ...ride(segs, a + 1, segs.length - 1)]);
@@ -626,7 +673,7 @@ export function script(
   // Play action: the back meets the quarterback at the mesh and carries the fake into the line, then blocks or leaks
   // out on his own (steered from there).
   const qbKeys = qb === undefined ? undefined : keys.get(qb);
-  const back = cast.offense.find((m) => m.role === 'RB' && m.id !== who.ball && !keys.has(m.id));
+  const back = cast.offense.find((m) => m.id === pocket?.fakeBack && !keys.has(m.id));
   if (pocket?.playAction && qbKeys && back && start.has(back.id)) {
     const b0 = start.get(back.id)!;
     const mesh = sample(qbKeys, FAKE);
@@ -658,11 +705,16 @@ export function script(
     // release (or his own part), and meets him as the ball comes out.
     const hitter = e.kind === 'sack' ? who.rush : who.tackle;
     const release = e.kind === 'run' ? ts[0][1] : e.kind === 'sack' ? 0 : outT;
-    const onTheMove = (id: number, t: number): Keyframe[] =>
-      keys.has(id) ? upTo(id, t) : [from(id), at(Math.min(release, t - 0.3), start.get(id)!)];
+    // Off his spot when the ball's out, or sooner if he must to get to `to` by `t` on his own legs.
+    const onTheMove = (id: number, t: number, to: Pt): Keyframe[] => {
+      if (keys.has(id)) return upTo(id, t);
+      const s0 = start.get(id)!;
+      const run = Math.hypot(to.x - s0.x, to.y - s0.y) / topOf(id);
+      return [from(id), at(Math.max(0, Math.min(release, t - 0.3, t - run)), s0)];
+    };
     if (hitter !== undefined && hitter !== fumbler && start.has(hitter)) {
       keys.set(hitter, [
-        ...onTheMove(hitter, tHit),
+        ...onTheMove(hitter, tHit, toward(hit, start.get(hitter)!, 0.6)),
         at(tHit, toward(hit, start.get(hitter)!, 0.6)),
         at(total, toward(hit, start.get(hitter)!, 0.6)),
       ]);
@@ -678,7 +730,7 @@ export function script(
         const lead =
           by === hitter
             ? keys.get(by)!.filter((k) => k.t <= tHit)
-            : [...onTheMove(by, tHit), at(tHit, toward(hit, s0, 2.5))];
+            : [...onTheMove(by, tHit, toward(hit, s0, 2.5)), at(tHit, toward(hit, s0, 2.5))];
         keys.set(by, [...lead, at(tSettle, settle), ...back]);
         // The man who fumbled stays down where it came out.
         keys.set(fumbler, [...upTo(fumbler, tHit), at(tHit, hit), at(total, hit)]);
@@ -735,13 +787,9 @@ export function script(
         pattern && !before.some((k) => k.t > 0) && caughtAt > 0 && caughtAt < total - 0.1
           ? [at(caughtAt, toward(pointAt(segs[airIdx], 1), s0, pattern.separation + 0.5))]
           : [];
-      keys.set(tackler, [
-        from(tackler),
-        ...set,
-        ...before.filter((k) => k.t > 0),
-        ...off,
-        at(total, toward(end, s0, 0.6)),
-      ]);
+      const hit = toward(end, s0, 0.6);
+      const way = [from(tackler), ...set, ...before.filter((k) => k.t > 0), ...off];
+      keys.set(tackler, [...intoTheHit(way, hit, total, topOf(tackler) + PURSUIT), at(total, hit)]);
       tacklerId = tackler;
       // Nothing else scripted for him, or his part over well before the tackle (the cover man beaten on the catch, the
       // receiver a pass was picked off from): he runs the carrier down himself from there.

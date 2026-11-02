@@ -188,8 +188,10 @@ export function presnapPlan(args: {
       let set: Pt;
       let leg: Leg;
       if (kind === 'jet' || kind === 'orbit') {
-        // From the far side of the formation, across behind the line; a jet is still running at the snap.
-        set = { x: p.x, y: clampY(ball.y - (p.y - ball.y) * 0.8) };
+        // From the far side of the formation, across behind the line; a jet is still running at the snap. A jet
+        // sweep's runner is at the snap a few yards from the ball on his way to the mesh (`formations.ts`): his motion
+        // comes from out wide on that side, toward the ball.
+        set = { x: p.x, y: clampY(jetSweep ? p.y + (p.y - ball.y) * 1.5 : ball.y - (p.y - ball.y) * 0.8) };
         const dur = Math.max(0.9, Math.min(2.2, Math.abs(set.y - p.y) / (kind === 'jet' ? 8.5 : 6)));
         leg =
           kind === 'jet' ? { at: dur, dur, to: p, arc: -1.5, through: true } : { at: dur + SET, dur, to: p, arc: -4 };
@@ -202,7 +204,17 @@ export function presnapPlan(args: {
         set = { x: p.x, y: clampY(p.y + out * (rng.next() < 0.5 ? 5 : -4)) };
         leg = { at: SET + 0.75, dur: 0.75, to: p };
       }
-      if (move(k, set, [leg])) {
+      // A jet sweep's motion starts out wide on his side; where a receiver stands there, from just inside or outside him.
+      const tries = jetSweep
+        ? [1.5, 1.1, 1.9, 0.8].map((f) => ({ x: p.x, y: clampY(p.y + (p.y - ball.y) * f) }))
+        : [set];
+      const sent = tries.find((at) => {
+        if (!jetSweep) return move(k, at, [leg]);
+        const dur = Math.max(0.9, Math.min(2.2, Math.abs(at.y - p.y) / 8.5));
+        return move(k, at, [{ at: dur, dur, to: p, arc: -1.5, through: true }]);
+      });
+      if (sent) {
+        set = sent;
         // As paced when he was given it (`move`): the man covering him, and the bark that sends him, go by it.
         const sentLeg = moves.get(k)!.legs[0];
         motionLeg = { k, leg: sentLeg, set };

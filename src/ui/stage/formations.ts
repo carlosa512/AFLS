@@ -102,8 +102,35 @@ export function lineUp(
     scrimmage(e, cast, off, def, put, face, strong, look);
     coverTheTarget(e, cast, spots);
     tacklerNear(e, cast, spots, ballY, dir);
+    jetSweep(e, cast, spots, ballX, ballY, dir);
   }
   return spots;
+}
+
+/** A jet sweep's runner at the snap: this far across from the ball on the side away from the run, and this far off the line. */
+const JET_ACROSS = 6;
+const JET_BACK = 1.2;
+
+/**
+ * A receiver who carries a run is a jet sweep: in motion across the formation (`presnap.ts`), he's at the snap a few
+ * yards from the ball on the far side from the run, running at it, so he's at the mesh as the ball gets there. Lined up
+ * out wide instead, he could never be. Whoever the formation put on that spot takes his.
+ */
+function jetSweep(e: PlayLogEntry, cast: Cast, spots: Map<number, Pt>, ballX: number, ballY: number, dir: 1 | -1) {
+  const runner = actorsIn(e).ball;
+  const role = cast.offense.find((m) => m.id === runner)?.role;
+  if (e.kind !== 'run' || runner === undefined || (role !== 'WR' && role !== 'TE') || !spots.has(runner)) return;
+  const side = (e.lane ?? 0) < 0 ? -1 : 1;
+  const jet = {
+    x: ballX - dir * JET_BACK,
+    y: Math.max(EDGE, Math.min(FIELD_W - EDGE, ballY - dir * side * JET_ACROSS)),
+  };
+  const was = spots.get(runner)!;
+  for (const m of cast.offense) {
+    const p = spots.get(m.id);
+    if (m.id !== runner && p && Math.hypot(p.x - jet.x, p.y - jet.y) < 1.5) spots.set(m.id, was);
+  }
+  spots.set(runner, jet);
 }
 
 /**
@@ -182,7 +209,10 @@ function scrimmage(
     const m = of(o, 'OL')[i];
     if (m) put(m.id, 0.8, across);
   });
-  const gun = !underCenter(e) || off.personnel === '10';
+  // The victory formation and the spike are under center whatever the personnel: the kneel (a yard back) and the
+  // spike happen right there.
+  const kneel = e.kind === 'kneel' || e.kind === 'spike';
+  const gun = !kneel && (!underCenter(e) || off.personnel === '10');
   for (const m of of(o, 'QB')) put(m.id, gun ? 5 : 2, 0);
   for (const m of of(o, 'RB')) put(m.id, gun ? 5 : 6.5, gun ? -s * 1.5 : 0);
 

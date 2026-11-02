@@ -9,7 +9,7 @@ import type { DefenseCall } from '../../engine/match/coach';
 import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
 import { MID, offenseSide } from './ballPath';
 import type { Role } from './cast';
-import { pocketPath, pocketPlan, type PocketPlan } from './pocket';
+import { FAKE, meshGap, pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
 import { castFor } from './cast';
 import { blitzersFor, lineUp } from './formations';
@@ -173,7 +173,15 @@ export function stagePlay(args: {
   }
   // A dropback: his drop and pocket (`pocket.ts`), on its own stream.
   const qbId = cast.offense.find((m) => m.role === 'QB')?.id;
-  const backId = cast.offense.find((m) => m.role === 'RB')?.id;
+  const qbStart = qbId === undefined ? undefined : start.get(qbId);
+  // Play action's back: one in the backfield who can meet the quarterback at the mesh (`pocketPath`) in time.
+  const backId = qbStart
+    ? cast.offense
+        .filter((m) => m.role === 'RB' && m.id !== who.ball && start.has(m.id))
+        .map((m) => ({ id: m.id, gap: meshGap(start.get(m.id)!, qbStart, ballX, ballY, dir) }))
+        .filter((b) => b.gap <= SPEED.RB * FAKE)
+        .sort((a, b) => a.gap - b.gap)[0]?.id
+    : undefined;
   let pocket: PocketPlan | null = null;
   let qbPath: ReturnType<typeof pocketPath> | undefined;
   if (e.kind && DROPBACKS.has(e.kind) && qbId !== undefined && start.has(qbId) && e.from !== undefined) {
@@ -188,12 +196,22 @@ export function stagePlay(args: {
         // The two-minute drill: no time for a fake.
         hurry: (e.quarter === 2 || e.quarter >= 4) && e.clock <= 120,
         air: e.air !== undefined && e.kind !== 'sack' && e.kind !== 'scramble' ? (e.air - e.from) * dir : null,
-        rusher: rusherAt && rusherRole ? { role: rusherRole, across: Math.abs(rusherAt.y - ballY) } : undefined,
+        rusher:
+          rusherAt && rusherRole
+            ? {
+                role: rusherRole,
+                across: Math.abs(rusherAt.y - ballY),
+                depth: Math.max(0, (rusherAt.x - ballX) * dir),
+                top: SPEED[rusherRole],
+              }
+            : undefined,
         minThrow: pattern ? Math.max(0, routeNeed) : throwWindow(e, homeId, args.snapY, receiverAt),
         blitz: call === 'blitz',
+        fake: backId !== undefined,
       },
       new Rng(`${args.seed}:pocket`),
     );
+    if (pocket.playAction) pocket.fakeBack = backId;
     qbPath = pocketPath(pocket, {
       ball: { x: ballX, y: ballY },
       qb: qbAt,
@@ -203,7 +221,10 @@ export function stagePlay(args: {
       back: backId === undefined ? undefined : start.get(backId),
     });
   }
-  const segs = stagedPath(e, homeId, args.snapY, receiverAt, qbPath);
+  // The man who runs with the ball: the target, the man who picked it off, a scrambling quarterback, the back.
+  const runner = e.kind === 'int' ? who.take : e.kind === 'scramble' ? qbId : who.ball;
+  const runnerRole = [...cast.offense, ...cast.defense].find((m) => m.id === runner)?.role;
+  const segs = stagedPath(e, homeId, args.snapY, receiverAt, qbPath, runnerRole ? SPEED[runnerRole] + 0.3 : undefined);
   const scripted = script(e, cast, start, segs, dir, pocket, pattern);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
   const flight = segs.find((sg) => sg.peak > 0);
@@ -278,7 +299,7 @@ export function stagePlay(args: {
     const k = members.findIndex((m) => m.id === pursuer);
     closeIn(pos, members.length, k, keys.get(pursuer)!, steps, earliest, {
       carrier: carrier === null ? -1 : members.findIndex((m) => m.id === carrier),
-      top: SPEED[members[k].role] + 1,
+      top: SPEED[members[k].role] + PURSUIT,
     });
   }
   const homeSide = cast.offSide === 0;
@@ -347,6 +368,8 @@ function roughedPunt(e: PlayLogEntry, homeId: number): PlayLogEntry | undefined 
 
 /** The tackler's top closing speed (yards a second): the last stretch into the carrier is never quicker than this. */
 const CLOSE = 9.5;
+/** In pursuit the tackler runs this much over his top speed (`steer`'s edge): as quick as he ever gets. */
+const PURSUIT = 0.6;
 /** A last run into the hit longer than this would be a slide alongside the carrier: he runs him down instead. */
 const LONG_CLOSE = 1.2;
 /** A run-down: he stays this far behind the carrier (yards) until the last `CLOSE_IN` seconds, then closes. */
@@ -375,13 +398,26 @@ function closeIn(
   const last = steps - 1;
   const end = keys[keys.length - 1];
   const at = (st: number) => ({ x: pos[(st * n + k) * 2], y: pos[(st * n + k) * 2 + 1] });
-  let from = last;
+  const top = Math.min(CLOSE, chase.top);
+  const gap = (st: number) => Math.hypot(end.x - at(st).x, end.y - at(st).y);
+  let from = -1;
   for (let st = last - 1; st >= Math.min(earliest, last - 1); st--) {
-    const p = at(st);
     const left = (last - st) * STEP;
-    from = st;
     // Far enough out that a full-speed run covers the gap with a little room: start the run in here.
-    if (left >= 0.35 && Math.hypot(end.x - p.x, end.y - p.y) <= CLOSE * left * 0.8) break;
+    if (left >= 0.35 && gap(st) <= top * left * 0.8) {
+      from = st;
+      break;
+    }
+  }
+  // Too far to get there once he may move: he read it sooner, and left from the latest step he still makes it from
+  // at full speed. Never quicker than his legs.
+  if (from < 0) {
+    from = 0;
+    for (let st = Math.min(earliest, last) - 1; st >= 0; st--)
+      if (gap(st) <= top * (last - st) * STEP) {
+        from = st;
+        break;
+      }
   }
   if ((last - from) * STEP > LONG_CLOSE && chase.carrier >= 0 && chaseDown(pos, n, k, chase, end, from, last)) return;
   const p0 = at(from);
@@ -455,10 +491,8 @@ function chaseDown(
     const sign = v >= v0 ? 1 : -1;
     return v0 * ramp + (sign * ACCEL * ramp * ramp) / 2 + v * (t - ramp);
   };
-  // The hardest miss he can still recover from, at his own top speed if he can, a burst over it if he must.
-  const tries = (whiffed ? [0.5, 2.5, 4.5, pace] : [pace]).flatMap((v0) =>
-    [chase.top, chase.top + 1.5].map((top) => ({ v0, top })),
-  );
+  // The hardest miss he can still recover from, at his own top speed (never over it).
+  const tries = (whiffed ? [0.5, 2.5, 4.5, pace] : [pace]).map((v0) => ({ v0, top: chase.top }));
   const plan = tries.find(({ v0, top }) => gone(v0, top, L) >= need);
   if (!plan) return false;
   const v0 = plan.v0;
@@ -485,7 +519,7 @@ function chaseDown(
   if (hold > 0) {
     const a = paceFor(v0, hold, T1, plan.top);
     const reach = gone(v0, a, T1);
-    const b = paceFor(a, need - reach, CLOSE_IN, plan.top + 1.5);
+    const b = paceFor(a, need - reach, CLOSE_IN, plan.top);
     const ramp = Math.min(CLOSE_IN, Math.abs(b - a) / ACCEL);
     const went = a * ramp + ((b >= a ? 1 : -1) * ACCEL * ramp * ramp) / 2 + b * (CLOSE_IN - ramp);
     if (Math.abs(reach - hold) < 0.3 && Math.abs(went - (need - reach)) < 0.3) [v1, v2, split] = [a, b, T1];
@@ -497,6 +531,7 @@ function chaseDown(
     const ramp = Math.min(t2, Math.abs(v2 - v1) / ACCEL);
     return gone(v0, v1, split) + v1 * ramp + ((v2 >= v1 ? 1 : -1) * ACCEL * ramp * ramp) / 2 + v2 * (t2 - ramp);
   };
+  const was0 = pos.slice((from + 1) * n * 2, (last + 1) * n * 2);
   for (let st = from + 1; st <= last; st++) {
     const t = (st - from) * STEP;
     const u = t / L;
@@ -510,6 +545,17 @@ function chaseDown(
     const into = g * g * (3 - 2 * g);
     pos[(st * n + k) * 2] = p.x + (end.x - p.x) * into;
     pos[(st * n + k) * 2 + 1] = p.y + (end.y - p.y) * into;
+  }
+  // His line fading onto the carrier's and the last ease into the hit add to his pace along the footsteps: a run-down
+  // that comes out quicker than his legs anywhere isn't one, and the caller's straight run stands.
+  const w = Math.round(0.25 / STEP);
+  for (let st = from + 1; st <= last; st++) {
+    const a = P(st, k);
+    const b = P(Math.max(0, st - w), k);
+    if (Math.hypot(a.x - b.x, a.y - b.y) > chase.top * Math.min(w, st) * STEP * 1.02) {
+      pos.set(was0, (from + 1) * n * 2);
+      return false;
+    }
   }
   return true;
 }

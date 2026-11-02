@@ -21,6 +21,8 @@ const ROOM = 1;
 const ROOM_PUSH = 0.12;
 /** No one moves further than this in a step (yards: 11 a second), however he's pushed or knocked off. */
 const MAX_STEP = 0.55;
+/** A push can take a man this far past his own top speed (yards a second): a shove, never a sprint he hasn't got. */
+const LEGS_OVER = 0.3;
 /** How close a chaser may come to the man with the ball before the scripted tackler gets there. */
 const RING = 1.2;
 /** A chaser who gets there first whiffs: this long (seconds) at this share of his speed, finding his feet. */
@@ -875,19 +877,23 @@ export function steer(a: SteerArgs): Float32Array {
           } else if (d > RING * 2) ringSide[k] = 0;
         }
       }
-      // However he was pushed or knocked off, a man covers no more ground in a step than a man can.
+      // However he was pushed or knocked off, a man covers no more ground in a step than his own legs can: a lineman
+      // never moves like a corner, whatever the room around him asks.
       for (let k = 0; k < n; k++) {
         if (!steered[k]) continue;
         const dx = px[k] - lastX[k];
         const dy = py[k] - lastY[k];
         const d = Math.hypot(dx, dy);
-        if (d > MAX_STEP) {
-          px[k] = lastX[k] + (dx / d) * MAX_STEP;
-          py[k] = lastY[k] + (dy / d) * MAX_STEP;
+        const most = Math.min(MAX_STEP, (SPEED[members[k].role] + (k === pk ? PURSUIT : 0) + LEGS_OVER) * a.dt);
+        if (d > most) {
+          px[k] = lastX[k] + (dx / d) * most;
+          py[k] = lastY[k] + (dy / d) * most;
         }
       }
-      // ...and nobody but the tackler gets his hands on the man with the ball: the least step out to a yard off him.
-      for (const r of new Set([hk, ck])) {
+      // ...and nobody but the tackler gets his hands on the man with the ball (the quarterback until it's out, then
+      // the carrier; a receiver still on his route is covered as close as his man can get): the least step out to a
+      // yard off him.
+      for (const r of [hk]) {
         if (r < 0) continue;
         for (let k = 0; k < n; k++) {
           if (!steered[k] || k === pk || offense[k] === offense[r]) continue;
@@ -895,8 +901,14 @@ export function steer(a: SteerArgs): Float32Array {
           const dy = py[k] - py[r];
           const d = Math.hypot(dx, dy);
           if (d < FLOOR && d > 0) {
-            px[k] = px[r] + (dx / d) * FLOOR;
-            py[k] = py[r] + (dy / d) * FLOOR;
+            // Out to the floor on the side he came from: the least step there is (out from where the step left him
+            // would drag him round the carrier, quicker than he runs).
+            const lx = lastX[k] - px[r];
+            const ly = lastY[k] - py[r];
+            const ld = Math.hypot(lx, ly);
+            const [ux, uy] = ld > 0 ? [lx / ld, ly / ld] : [dx / d, dy / d];
+            px[k] = px[r] + ux * FLOOR;
+            py[k] = py[r] + uy * FLOOR;
           }
         }
       }

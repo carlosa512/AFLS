@@ -11,6 +11,7 @@ import { fumbleIn } from './fumble';
 import { lineUp } from './formations';
 import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
 import { asRan, returned, stagePlay, type StagedPlay } from './stage';
+import { SPEED } from './speed';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -285,6 +286,35 @@ describe('the staged play', () => {
   const pos = (p: StagedPlay, step: number, k: number) => ({
     x: p.pos[(step * p.ids.length + k) * 2],
     y: p.pos[(step * p.ids.length + k) * 2 + 1],
+  });
+
+  /** A man's quickest quarter-second on the play, yards a second, and when it ends. */
+  const quickest = (p: StagedPlay, k: number) => {
+    const w = Math.round(0.25 / p.dt);
+    let best = 0;
+    let when = 0;
+    for (let st = w; st < p.steps; st++) {
+      const a = pos(p, st, k);
+      const b = pos(p, st - w, k);
+      const v = Math.hypot(a.x - b.x, a.y - b.y) / (w * p.dt);
+      if (v > best) [best, when] = [v, st * p.dt];
+    }
+    return { v: best, t: when };
+  };
+  /**
+   * As quick as a man gets: his top speed and the pursuit edge, and a little for a shove (a carrier running into a man
+   * moves him, `steer`'s floor) and for rounding.
+   */
+  const legs = (role: string) => SPEED[role as keyof typeof SPEED] + 0.6 + 0.5;
+
+  it('never has anyone faster than his legs, on any play: nobody teleports, the tackler included', () => {
+    const fast: string[] = [];
+    for (const { e, p } of staged)
+      p.ids.forEach((_, k) => {
+        const q = quickest(p, k);
+        if (q.v > legs(p.roles[k])) fast.push(`${p.roles[k]} ${q.v.toFixed(1)} at ${q.t.toFixed(2)}: ${e.text}`);
+      });
+    expect(fast.slice(0, 5)).toEqual([]);
   });
 
   it('stages every entry of 40 games without throwing, 22 ids each', () => {
