@@ -181,7 +181,9 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 - **Ranges that move by design (the owner's call, never loosened quietly):** the promises-kept share (25–75%) was set
   when no club acted on its promises; with AI clubs keeping them it should rise. The underpaid-final-year check (60%+
   Poor or worse) may fall once an open promise softens the grievance. The plan measures both; if either leaves its
-  range, stop and bring the owner the numbers before any range changes.
+  range, stop and bring the owner the numbers before any range changes. **The owner's call (2026-11-02):** both left
+  their ranges (promises kept 0.75 with AI clubs keeping deal and snaps promises; underpaid 0.59, the angriest men
+  escalating and getting paid, main itself at 0.600): promises kept is now 25–85%, the underpaid floor 0.5.
 - **Play moves** (holdouts miss games, rosters cover them): CI's planner runs `sim`, `offseason`, `trades`, `careers`
   and the rest; no range is loosened to get green.
 

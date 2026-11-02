@@ -181,7 +181,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       next year before it borrows, but the tag path (and a one-year deal) counts nothing: a GM that just made no room
       for a keeper's new deal can then restructure to tag him, though next spring he's owed his price again, as
       `nextYearNeeds` counts him once tagged. Counting his market price there (`inPlans` keepers only) fixes it, but
-      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1) and
+      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1 then; the floor is 0.5 since G4) and
       `trades`' draft-day deals with a future pick (2.6 against 3–9). Measure both before it ships.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands

@@ -3,13 +3,14 @@
  * checks the moods look like a real league's:
  *
  * 1. Bands: most players sit between Okay and Very good; Poor or worse is a minority; Abysmal and Superb are rare.
- * 2. Underpaid final-year starters (veterans paid under 0.7× their market) mostly read Poor or worse.
+ * 2. Underpaid final-year starters (veterans paid under 0.7× their market): half or more read Poor or worse. The angriest
+ *    escalate and get paid (G4), which takes them out of the count; the owner set the floor at 0.5 (2026-11-02).
  * 3. A benching: the week it lands his mood drops by 1.5 or more; six steps later he is back within 1.5 of his target.
  * 4. Winning rooms (.650 or better) average at least a step happier than losing ones (.350 or worse).
  * 5. Nothing runs away: the league's mean at week 18 stays within ±1.0 of the first season's, and no level leaves
  *    −10…+10.
  * 6. Talks (G3): asks per club per season 4–30, every club counted alike (yours answered by the AI's rule, since nobody
- *    clicks), and 25–75% of the promises that resolve are kept.
+ *    clicks), and 25–85% of the promises that resolve are kept (85% since AI clubs keep their promises, G4).
  * 7. Effects (G2): the game-day edge averages out (every week's league mean within ±0.05 rating points, none past ±0.5);
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
@@ -300,7 +301,8 @@ check(
   share((s) => s === 7),
   [0, 0.08],
 );
-check(`Underpaid final-year starters, Poor or worse (n=${underpaid.length})`, mean(underpaid), [0.6, 1]);
+// 0.6 until G4 (the owner, 2026-11-02): the men who escalate get paid and leave the count, and main sat on the floor.
+check(`Underpaid final-year starters, Poor or worse (n=${underpaid.length})`, mean(underpaid), [0.5, 1]);
 const drops = done.filter((w) => w.after !== undefined).map((w) => w.before - w.after!);
 check(`Benched: drop the week it lands (n=${drops.length})`, mean(drops), [1.5, 20]);
 const gaps = done.filter((w) => w.gap !== undefined).map((w) => w.gap!);
@@ -313,7 +315,8 @@ check(`Talks: asks per club per season (${asks.size} club-seasons)`, mean([...as
 check(
   `Talks: promises kept, of those resolved (made ${promisesMade}, kept ${kept}, broken ${broken})`,
   kept / Math.max(1, kept + broken),
-  [0.25, 0.75],
+  // 0.75 until G4 (the owner, 2026-11-02): it was set when no club acted on its promises; AI clubs now keep them.
+  [0.25, 0.85],
 );
 check('Game-day edge: league mean (worst week)', Math.max(...edgeMeans.map(Math.abs)), [0, 0.05], 3);
 check('Game-day edge: largest', edgeMax, [0, 0.5], 3);
