@@ -12,7 +12,9 @@ import { extensionBlocker, ROSTER_MAX } from './offseason/negotiation';
 import { aiReply, talkCause } from './playerTalks';
 import { employed } from './employment';
 import { activeRoster } from './roster';
-import type { DisputeHow, League, Player } from './types';
+import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player } from './types';
+import { DISPUTE_SAID } from './disputeVoice';
+import { setTradeStatus } from './trade/offers';
 
 export { aiSettle } from './offseason/ai';
 export { promisedDeal } from './disputeRead';
@@ -53,10 +55,14 @@ function canStart(league: League, p: Player, ctx: MoraleContext, clock: number, 
   const s = p.morale!.talk!.sour!;
   if (p.injury || p.ir) return false;
   if (!s.now && s.run < RUN_STEPS) return false;
-  if (talkCause(league, p, moraleFactors(league, p, ctx), clock) !== s.cause) return false;
+  // His grievance is still what soured the talk (a broken promise is its own cause: its jolt is the loudest thing on him).
+  if (!s.now && talkCause(league, p, moraleFactors(league, p, ctx), clock) !== s.cause) return false;
   // Trade requests are G4b's; until then only a deal escalates.
-  if (s.cause !== 'deal') return false;
-  return week >= 0 && week <= CAMP && extendable(league, p);
+  if (s.cause !== 'deal' || !extendable(league, p)) return false;
+  // A promise made to end a dispute, broken, starts it again at once: a holdout goes back out whenever it breaks (a
+  // hold-in only before week 1: from then he plays). A new dispute starts in the re-sign window to camp.
+  if (s.now && s.after === 'holdOut') return week >= 0;
+  return week >= 0 && week <= CAMP;
 }
 
 /** What a holdout will lose before he gives in: a calm man his camp fine, the most stubborn half his year's base. */
@@ -96,6 +102,11 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
   const d = m.dispute!;
   if (p.teamId !== d.club) return endDispute(league, p, p.teamId === null ? 'released' : 'traded', clock);
   if (m.jolts?.some((j) => j.kind === 'paid' && j.at === clock)) return endDispute(league, p, 'signed', clock);
+  // Still unanswered at a club that isn't yours (you lost the job, or never answered and left it): the club answers.
+  if (!d.answered && p.teamId !== yourClub(league)) {
+    aiAnswer(league, p, clock);
+    if (!m.dispute) return;
+  }
   if (d.kind === 'trade') return;
   if (newYear && d.since < league.season * YEAR) return endDispute(league, p, 'newYear', clock);
   if (d.kind === 'holdIn') {
@@ -115,6 +126,83 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
     d.lost = (d.lost ?? 0) + Math.round(y.base / CHECKS);
   }
   if (week >= REGULAR && (d.lost ?? 0) >= giveInLimit(league, p)) endDispute(league, p, 'gaveIn', clock);
+}
+
+/**
+ * An AI club's answer, by the rule it answers talks with: a GM who'd promise negotiates, and settles when it would keep
+ * him and can fit his walk-away (`aiSettle`); anyone else holds firm.
+ */
+function aiAnswer(league: League, p: Player, clock: number): void {
+  const d = p.morale!.dispute!;
+  const settles = aiReply(league, p.teamId!, d.cause) === 'promise';
+  if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
+  else d.answered = { choice: 'firm', at: clock };
+}
+
+/** Your answers to each kind of dispute (a trade request's are G4b's). */
+const CHOICES: Record<DisputeKind, readonly DisputeChoice[]> = {
+  holdIn: ['negotiate', 'promise', 'firm', 'shop'],
+  holdOut: ['negotiate', 'promise', 'firm', 'shop'],
+  trade: ['shop', 'refuse', 'promise'],
+};
+
+/** Whether he'd take your word: past four broken promises he remembers, he won't. */
+export const takesYourWord = (p: Player): boolean => (p.morale?.talk?.broken ?? 0) < 4;
+
+/** Your player's open dispute, while you can answer it: your club's, while you have a job. */
+function yourDispute(league: League, p: Player | undefined): Dispute | undefined {
+  const d = p?.morale?.dispute;
+  if (!p || !d || !MOOD_ACTS.on || p.teamId === null || p.teamId !== yourClub(league) || d.club !== p.teamId) return;
+  return d;
+}
+
+/**
+ * Your answer to a dispute's letter. A promise of a deal (by week 1, or two weeks on in season) ends it, and broken
+ * starts it again at once; negotiate, firm and shop are recorded (negotiate opens his contract talks on the screen; shop
+ * puts him on your trade block). False unless he's yours, it's open and unanswered, and the answer fits: a promise needs
+ * his trust, and refusing is for a trade request.
+ */
+export function answerDispute(league: League, playerId: number, choice: DisputeChoice): boolean {
+  const p = league.players[playerId];
+  const d = yourDispute(league, p);
+  if (!d || d.answered || !CHOICES[d.kind].includes(choice)) return false;
+  if (choice === 'promise' && !takesYourWord(p)) return false;
+  const clock = league.moraleAt ?? league.season * YEAR;
+  if (choice === 'promise') {
+    const week = clock - league.season * YEAR;
+    const due = week < REGULAR ? league.season * YEAR + REGULAR : clock + 2;
+    (p.morale!.talk ??= { club: p.teamId! }).promise = { kind: 'deal', made: clock, due, dispute: d.kind };
+    endDispute(league, p, 'promise', clock);
+    return true;
+  }
+  d.answered = { choice, at: clock };
+  if (choice === 'shop') setTradeStatus(league, p.id, 'listed');
+  return true;
+}
+
+export interface DisputeCardView {
+  /** Open: it waits on your answer. Answered: what you said. Closed: no longer yours to answer (ended, he left, your job). */
+  state: 'open' | 'answered' | 'closed';
+  kind?: DisputeKind;
+  choices?: readonly DisputeChoice[];
+  /** He'd take your word: a promise is on offer. */
+  trust?: boolean;
+  /** What you told him, and in words. */
+  choice?: DisputeChoice;
+  said?: string;
+  /** What it has cost him so far: camp fines, withheld game checks. */
+  lost?: string;
+}
+
+/** What a dispute's letter shows now, read off the league: your players only. */
+export function disputeCard(league: League, s: { since: number; playerId: number }): DisputeCardView {
+  const p = league.players[s.playerId];
+  const d = yourDispute(league, p);
+  if (!d || d.since !== s.since) return { state: 'closed' };
+  const lost = d.lost ? `It has cost him $${(d.lost / 1000).toFixed(1)}M so far.` : undefined;
+  if (d.answered)
+    return { state: 'answered', kind: d.kind, choice: d.answered.choice, said: DISPUTE_SAID[d.answered.choice], lost };
+  return { state: 'open', kind: d.kind, choices: CHOICES[d.kind], trust: takesYourWord(p), lost };
 }
 
 /**
@@ -141,16 +229,14 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
   for (const list of ready.values()) {
     const { p } = list.sort((a, b) => a.level - b.level || a.p.id - b.p.id)[0];
     const m = p.morale!;
-    m.dispute = { kind: disputeKind(league, p, ctx), cause: m.talk!.sour!.cause, since: clock, club: p.teamId! };
+    const s = m.talk!.sour!;
+    // Started again by a broken promise, it's the same dispute it was.
+    const kind = s.now && (s.after === 'holdIn' || s.after === 'holdOut') ? s.after : disputeKind(league, p, ctx);
+    m.dispute = { kind, cause: s.cause, since: clock, club: p.teamId! };
     // A holdout who starts at camp is out at once.
     if (m.dispute.kind === 'holdOut' && week >= CAMP) m.dispute.out = true;
     delete m.talk!.sour;
-    // An AI club answers at once, by the rule it answers talks with: a GM who'd promise negotiates, and settles when
-    // it would keep him and can fit his walk-away; anyone else holds firm. (Your club's answer is your letter's.)
-    if (p.teamId !== yourClub(league)) {
-      const settles = aiReply(league, p.teamId!, m.dispute.cause) === 'promise';
-      if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
-      else m.dispute.answered = { choice: 'firm', at: clock };
-    }
+    // An AI club answers at once (your club's answer is your letter's).
+    if (p.teamId !== yourClub(league)) aiAnswer(league, p, clock);
   }
 }
