@@ -525,8 +525,8 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     // A promised deal (G4): the club meets his walk-away when it fits, and he doesn't go to see what the market pays
     // (the draw is still made, so the window draws what it would have).
     const promised = promisedDeal(p);
-    if (promised && offerValue(league, p, team.id, offer, d) < d.walkAway) {
-      const apy = Math.max(offer.apy, d.walkAway);
+    if (promised) {
+      const apy = walkAwayApy(league, p, team.id, offer, d);
       if (offerCharge(league, p, team.id, { ...offer, apy }) <= budget()) offer.apy = apy;
     }
     // Some players want to see what the market will pay, however loyal the club.
@@ -572,6 +572,21 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
 }
 
 /**
+ * The pay that meets a man's walk-away with this offer's other terms: what a deal is worth to him scales with its pay, so
+ * terms short of his asks (fewer years, less guaranteed) are made up in pay, never cut from it.
+ */
+export function walkAwayApy(
+  league: League,
+  p: Player,
+  teamId: number,
+  offer: Offer,
+  d = demand(league, p, teamId),
+): number {
+  const value = offerValue(league, p, teamId, offer, d);
+  return value >= d.walkAway || value <= 0 ? offer.apy : Math.ceil((offer.apy * d.walkAway) / value);
+}
+
+/**
  * An AI club meets a man's walk-away (a dispute it settles, a deal it promised) when its own read would keep him and the
  * deal fits what it can spend: his new deal, offered on his dispute stream so the club's own window draws what it would
  * have (G4). Returns whether he signed.
@@ -581,8 +596,7 @@ export function aiSettle(league: League, team: Team, p: Player): boolean {
   if (resignCall(league, team.id, p).call === 'walk') return false;
   const d = demand(league, p, team.id);
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
-  offer.apy = Math.max(offer.apy, d.walkAway);
-  if (offerValue(league, p, team.id, offer, d) < d.walkAway) return false;
+  offer.apy = walkAwayApy(league, p, team.id, offer, d);
   if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
   signPlayer(league, p, team.id, offer);
   return true;

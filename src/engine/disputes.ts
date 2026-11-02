@@ -7,11 +7,12 @@
 import { MOOD_ACTS } from './disputeRead';
 import { isExpired, yearOf, yearsLeft } from './finance/contract';
 import { addJolt, expectedRole, moraleLevel, moraleFactors, type MoraleContext } from './morale';
-import { aiCutdown, aiSettle } from './offseason/ai';
-import { extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
+import { aiCutdown, aiSettle, winNow } from './offseason/ai';
+import { demand, extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
 import { aiReply, talkCause } from './playerTalks';
 import { employed } from './employment';
-import { activeRoster } from './roster';
+import { playerOvr, STARTERS } from './positions';
+import { activeRoster, isAvailable } from './roster';
 import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player } from './types';
 import { DISPUTE_LABEL, DISPUTE_PUBLIC, DISPUTE_SAID, disputeStanding } from './disputeVoice';
 
@@ -34,6 +35,8 @@ const CHECKS = 18;
 export const CAMP_FINE = 2250;
 /** Very poor or worse, as the words read it. */
 const VERY_POOR = -3;
+/** The last step a firm club thinks a dispute over: after week 4's games (holdouts rarely run past a month in). */
+const REVIEW_UNTIL = REGULAR + 4;
 
 /** A holdout when he's a greedy veteran starter off his rookie deal (or in its option year); otherwise a hold-in. */
 export function disputeKind(league: League, p: Player, ctx: MoraleContext): 'holdIn' | 'holdOut' {
@@ -111,6 +114,11 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
   }
   if (d.kind === 'trade') return;
   if (newYear && d.since < league.season * YEAR) return endDispute(league, p, 'newYear', clock);
+  // A club that isn't yours thinks again (yours is your letter's call). Settled before camp ends, his fine is waived.
+  if (p.teamId !== yourClub(league)) {
+    aiReviewDispute(league, p, clock, week);
+    if (!m.dispute) return;
+  }
   if (d.kind === 'holdIn') {
     if (week >= REGULAR) endDispute(league, p, 'week1', clock);
     return;
@@ -139,6 +147,43 @@ export function aiAnswerDispute(league: League, p: Player, clock: number): void 
   const settles = aiReply(league, p.teamId!, d.cause) === 'promise';
   if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
   else d.answered = { choice: 'firm', at: clock };
+}
+
+/** What a dispute costs his club at a step: nothing before camp; a hold-in camp's work; a holdout camp, then each game. */
+function stakes(kind: DisputeKind, week: number): number {
+  if (week < CAMP || week > REVIEW_UNTIL) return 0;
+  if (kind === 'holdIn') return week === CAMP ? 0.5 : 0;
+  return week === CAMP ? 1 : 2 + 0.5 * (week - REGULAR);
+}
+
+/** How much better he is today than the man who'd start in his place, in rating points (0 if he wouldn't start). */
+function edgeOverReplacement(league: League, p: Player): number {
+  const others = activeRoster(league, p.teamId!)
+    .filter((x) => x.position === p.position && x.id !== p.id && isAvailable(x))
+    .map(playerOvr)
+    .sort((a, b) => b - a);
+  return Math.max(0, playerOvr(p) - (others[STARTERS[p.position] - 1] ?? 0));
+}
+
+/**
+ * A club thinks an answered dispute over at each step from camp to a month into the season, as holdouts end in the NFL:
+ * most by late August, a few weeks in when a deal comes. Against what playing without him costs (his edge over the man
+ * who'd start in his place, what's at stake by now, how much this season matters to the club) it weighs what giving in
+ * costs (his walk-away past his market, its GM's stubbornness). Worth it, it settles if it would keep him and can fit him
+ * (`aiSettle`). `runDispute` asks it for every club but yours; the morale check asks it for yours, standing in for you.
+ */
+export function aiReviewDispute(league: League, p: Player, clock: number, week: number): void {
+  const d = p.morale?.dispute;
+  if (!d?.answered || d.kind === 'trade' || p.teamId === null || p.teamId !== d.club) return;
+  const stake = stakes(d.kind, week);
+  const edge = stake ? edgeOverReplacement(league, p) : 0;
+  if (!edge) return;
+  const team = league.teams[p.teamId];
+  const ask = demand(league, p, team.id);
+  const premium = ask.market > 0 ? Math.max(0, ask.walkAway / ask.market - 1) : 0;
+  const without = edge * stake * (0.5 + winNow(league, team));
+  const givingIn = 0.5 + 2 * team.gm.stubbornness + 4 * premium;
+  if (without >= givingIn && aiSettle(league, team, p)) endDispute(league, p, 'signed', clock);
 }
 
 /** Your answers to each kind of dispute (a trade request's are G4b's). */

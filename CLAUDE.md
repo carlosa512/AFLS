@@ -250,7 +250,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins and holdouts (G4a): who escalates
     (a soured deal talk, four Very poor steps, the re-sign window to camp), how a dispute runs and ends, AI clubs' answers
-    (`aiAnswerDispute`, `aiSettle` in `offseason/ai.ts`) and kept promises, your answers (`answerDispute`) and what a screen
+    (`aiAnswerDispute`, `aiReviewDispute` from camp to week 4, `aiSettle` in `offseason/ai.ts`) and kept promises, your answers (`answerDispute`) and what a screen
     may show (`disputeView`); the readers the roster, training, development and lineup code need live in `disputeRead.ts`
     (no engine imports: `MOOD_ACTS`, `onDidNotReport`, `notPracticing`, `rustKnock`, `promisedDeal`); the head coach's
     letters in `disputeMail.ts`, his words in `disputeVoice.ts` · `standing.ts` who runs the room (L1,

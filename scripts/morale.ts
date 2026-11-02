@@ -23,7 +23,7 @@
 import { yearsLeft } from '../src/engine/finance/contract';
 import { buildMarket, marketApy } from '../src/engine/finance/market';
 import { aiReply, answerTalk } from '../src/engine/playerTalks';
-import { aiAnswerDispute, giveInLimit } from '../src/engine/disputes';
+import { aiAnswerDispute, aiReviewDispute, giveInLimit } from '../src/engine/disputes';
 import { createLeague } from '../src/engine/generate';
 import { playWeek } from '../src/engine/league';
 import {
@@ -189,7 +189,11 @@ function disputes(clock: number) {
         bump(started, Math.floor(x.since / 32));
         if (x.kind === 'holdOut') bump(holdouts, Math.floor(x.since / 32));
       }
-    if (m.dispute && !m.dispute.answered && p.teamId === league.userTeamId) aiAnswerDispute(league, p, clock);
+    // Your club's are answered, and thought over, by the AI's rules.
+    if (m.dispute && p.teamId === league.userTeamId) {
+      if (!m.dispute.answered) aiAnswerDispute(league, p, clock);
+      else if (m.dispute.since < clock) aiReviewDispute(league, p, clock, clock - league.season * 32);
+    }
     const d = p.morale!.dispute;
     if (d?.kind === 'holdOut' && (d.lost ?? 0) >= giveInLimit(league, p)) pastLimit++;
     // The step after week 1's games.

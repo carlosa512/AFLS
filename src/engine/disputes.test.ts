@@ -218,8 +218,12 @@ const { CAMP_FINE, giveInLimit } = await import('./disputes');
 const { capHit, yearOf } = await import('./finance/contract');
 const { serviceSeasons, creditService } = await import('./personnel/service');
 
-/** A holdout started at the re-sign window on team `teamId`, his base set to `base` ($K). */
+/**
+ * A holdout started at the re-sign window on team `teamId`, his base set to `base` ($K). His club has no room for his raise,
+ * so it can't settle (below): the dispute runs its course.
+ */
 function holdingOut(l: League, teamId = 1, base = 20_000): Player {
+  room(l, teamId, -400_000);
   const p = souredDeal(l, teamId);
   p.personality = { ...p.personality, greed: 1, patience: 0 };
   yearOf(p.contract!, l.season)!.base = base;
@@ -288,6 +292,7 @@ describe('disputes: a holdout runs and ends (G4)', () => {
 
   it('ends a hold-in at week 1: he plays, with rust, and the talk sours', () => {
     const { l } = base('week1');
+    room(l, 1, -400_000);
     const p = souredDeal(l);
     p.morale!.dispute = { kind: 'holdIn', cause: 'deal', since: at(l, 2), club: 1 };
     delete p.morale!.talk!.sour;
@@ -395,6 +400,102 @@ describe('disputes: AI clubs answer (G4)', () => {
     MOOD_ACTS.on = false;
     expect(aiSettle(l, l.teams[1], a)).toBe(false);
     expect(promisedDeal(a)).toBe(false);
+  });
+});
+
+const { aiReviewDispute } = await import('./disputes');
+
+/**
+ * Team `teamId`'s starter holding out (or in) since the re-sign window, answered firm by a GM this stubborn whose club has
+ * room for his raise; every other man at his position `gap` points worse on every rating.
+ */
+function firmHoldout(
+  l: League,
+  teamId: number,
+  stubbornness: number,
+  gap: number,
+  kind: 'holdIn' | 'holdOut' = 'holdOut',
+) {
+  Object.assign(l.teams[teamId].gm, { loyalty: 0, stubbornness });
+  room(l, teamId, 60_000);
+  const p = souredDeal(l, teamId, RUN_STEPS - 1, 0, (x) => resignCall(l, teamId, x).call !== 'walk');
+  for (const x of teamPlayers(l, teamId))
+    if (x.position === p.position && x !== p)
+      x.ratings = Object.fromEntries(
+        Object.entries(p.ratings).map(([k, v]) => [k, Math.max(1, v - gap)]),
+      ) as typeof p.ratings;
+  p.morale!.dispute = {
+    kind,
+    cause: 'deal',
+    since: at(l, 0),
+    club: teamId,
+    answered: { choice: 'firm', at: at(l, 0) },
+  };
+  delete p.morale!.talk!.sour;
+  return p;
+}
+
+/** The step his dispute ended signed in, running steps `from` to `to`; null if it didn't. */
+function settledAt(l: League, p: Player, from: number, to: number): number | null {
+  for (let w = from; w <= to; w++) {
+    run(l, w, w);
+    if (p.morale!.disputeEnd?.how === 'signed') return w;
+    if (!p.morale!.dispute) return null;
+  }
+  return null;
+}
+
+describe('disputes: a firm club thinks again (G4)', () => {
+  it("settles with a starter it can't replace once camp and the games make his absence cost, never before camp", () => {
+    const { l } = base('review');
+    const p = firmHoldout(l, 1, 0.5, 4);
+    run(l, 1, 6);
+    expect(p.morale!.dispute).toBeDefined();
+    expect(settledAt(l, p, 7, 12)).not.toBeNull();
+    expect(p.contract!.signedSeason).toBe(l.season);
+  });
+
+  it('holds while his backup is as good as he is', () => {
+    const { l } = base('review-twin');
+    const p = firmHoldout(l, 1, 0.2, 0);
+    expect(settledAt(l, p, 7, 12)).toBeNull();
+  });
+
+  it('a stubborn GM holds longer than an easy one, and a club playing for later longer than a contender', () => {
+    const steps = (stubbornness: number, winNow: number) => {
+      const { l } = base('review-gm');
+      const p = firmHoldout(l, 1, stubbornness, 1.5);
+      l.teams[1].gm.winNow = winNow;
+      return settledAt(l, p, 7, 12) ?? 99;
+    };
+    expect(steps(0.1, 0.5)).toBeLessThan(steps(0.9, 0.5));
+    expect(steps(0.5, 1)).toBeLessThan(steps(0.5, 0));
+  });
+
+  it('weighs a hold-in at camp only: from week 1 he plays', () => {
+    const big = base('review-hold-in');
+    expect(settledAt(big.l, firmHoldout(big.l, 1, 0.1, 8, 'holdIn'), 7, 7)).toBe(7);
+    const twin = base('review-hold-in');
+    const p = firmHoldout(twin.l, 1, 0.1, 0, 'holdIn');
+    expect(settledAt(twin.l, p, 7, 12)).toBeNull();
+    expect(p.morale!.disputeEnd?.how).toBe('week1');
+  });
+
+  it('stops thinking again after week 4, and leaves your club to you', () => {
+    const late = base('review-late');
+    const p = firmHoldout(late.l, 1, 0.1, 8);
+    p.morale!.dispute!.out = true;
+    expect(settledAt(late.l, p, 13, 16)).toBeNull();
+    const yours = base('review-yours');
+    const mine = firmHoldout(yours.l, yours.l.userTeamId, 0.1, 8);
+    // Stubborn and well paid: he holds out past week 4 (`giveInLimit`, half his $20M).
+    mine.personality = { ...mine.personality, greed: 1, patience: 0 };
+    yearOf(mine.contract!, yours.l.season)!.base = 20_000;
+    expect(settledAt(yours.l, mine, 7, 12)).toBeNull();
+    expect(mine.morale!.dispute).toBeDefined();
+    // The morale check stands in for you with the same rule.
+    aiReviewDispute(yours.l, mine, at(yours.l, 12), 12);
+    expect(mine.morale!.disputeEnd?.how).toBe('signed');
   });
 });
 
