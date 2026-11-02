@@ -394,8 +394,8 @@ Nothing stored. Worked out on the spot:
 - **Standing per club, in season:** leaders (captains included) 3–6 on average; voices 6–12; no leader past the
   captains in 10–30% of club-weeks.
 - **Unit reads league-wide:** Split 5–15% of unit-weeks, Down 5–20%, Tight 15–35%.
-- **Room moods cluster but don't run away:** club rooms at Poor or worse in at most 25% of club-weeks. (Proposed
-  0–25%, pending the owner: the first draft's 5% floor was a guess, and played leagues sit at 2%.)
+- **Room moods cluster but don't run away:** club rooms at Poor or worse in at most 25% of club-weeks (0–25%,
+  approved by the owner on Nov 2, 2026: the first draft's 5% floor was a guess, and played leagues sit near 2%).
 - **Direction checks, like against like:** the unit-mates of a down voice who stirs have a lower room factor than the
   unit-mates of a down voice who is even, and the unit-mates of a down voice who steadies a higher one (✗ if not).
 - **The mechanic's size:** the average size of the voices' pull on a player's room factor sits at 0.05–0.4, so it
