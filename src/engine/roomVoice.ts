@@ -53,7 +53,12 @@ export function coachCount(n: number, total: number, group = 'them'): string {
   if (n <= 4) return inWords(n);
   const share = n / Math.max(1, total);
   const of = group === 'them' ? 'of them' : group;
-  if (share >= 0.95) return group === 'them' ? 'all of them' : `the whole ${group.replace(/^the /, '')}`;
+  if (share >= 0.95)
+    return group === 'them'
+      ? 'all of them'
+      : SINGULAR.has(group)
+        ? `the whole ${group.replace(/^the /, '')}`
+        : `all of ${group}`;
   if (share >= 0.6) return `most ${group === 'them' ? 'of them' : `of ${group}`}`;
   if (share >= 0.4) return `half ${of}`;
   return 'several of them';
@@ -141,6 +146,8 @@ export interface StandingFact {
   was: Tier | null;
   /** Seasons in the league (0 for a rookie). */
   experience: number;
+  /** Which of his seasons the report is about, counting from 0: at the season's end, the one just finished. */
+  yearOf: number;
   newcomer: boolean;
   starts: boolean;
   captain: boolean;
@@ -263,7 +270,8 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Tight' && f.losingRun >= 3 && !!f.setter,
     reads: 3,
-    text: (f) => `${cap(inWords(f.losingRun))} losses in a row and ${f.unit} hasn't blinked. ${f.setter} won't let it.`,
+    text: (f) =>
+      `${cap(inWords(f.losingRun))} losses in a row and ${f.unit} ${SINGULAR.has(f.unit) ? "hasn't" : "haven't"} blinked. ${f.setter} won't let it.`,
   },
   {
     when: (f) => f.word === 'Tight' && f.setterCaptain && !!f.setter,
@@ -388,10 +396,10 @@ export const STANDING_NOTE: readonly Line<StandingFact>[] = [
     text: (f) => `${yearsIn(f.experience)} in the league. He walked in and ${f.unit} made room for him.`,
   },
   {
-    when: (f) => f.now === 'voice' && f.was === null && f.experience <= 2 && f.starts,
+    when: (f) => f.now === 'voice' && f.was === null && f.yearOf >= 1 && f.yearOf <= 2 && f.starts,
     reads: 3,
     text: (f) =>
-      `${ordinal(f.experience)} year, starting, and ${f.unit} ${listens(f.unit)}. That came quicker than I expected.`,
+      `${ordinal(f.yearOf)} year, starting, and ${f.unit} ${listens(f.unit)}. That came quicker than I expected.`,
   },
   {
     when: (f) => f.now === 'voice' && f.was === null && f.stirs && f.warn,

@@ -102,6 +102,7 @@ describe('the room in words', () => {
                     now,
                     was,
                     experience,
+                    yearOf: experience,
                     newcomer,
                     starts: true,
                     captain: false,
@@ -166,11 +167,19 @@ describe('the room in words', () => {
 
   it('lastTold keeps the latest clock', () => {
     const t = lastTold(
-      new Set(['unit:400:WR:Split', 'unit:405:WR:Restless', 'standing:400:7:voice', 'standing:405:8:leader']),
+      new Set([
+        'unit:400:3:WR:Split',
+        'unit:405:3:WR:Restless',
+        'unit:409:4:WR:Down',
+        'standing:400:3:7:voice',
+        'standing:405:3:8:leader',
+        'standing:409:4:9:leader',
+      ]),
+      3,
     );
     expect(t.units.get('WR')).toEqual({ word: 'Restless', clock: 405 });
     expect([...t.standing!.tiers]).toEqual([[8, 'leader']]);
-    expect(lastTold(new Set()).standing).toBeNull();
+    expect(lastTold(new Set(), 3).standing).toBeNull();
   });
 
   it("writes a clean line for every unit of a played league's room", () => {
@@ -186,6 +195,7 @@ describe('the room in words: read by eye', () => {
     now: 'voice',
     was: null,
     experience: 5,
+    yearOf: 5,
     newcomer: false,
     starts: true,
     captain: false,
@@ -246,5 +256,64 @@ describe('the room in words: read by eye', () => {
     for (const k of ['a', 'b', 'c', 'd', 'e', 'f'])
       for (const room of [{ split: ['the quarterbacks'] }, { down: ['the line'] }])
         expect(say(VERDICT, { ...fact, ...room }, { key: k, slot: 'v' })).not.toMatch(/rest of the room is fine/i);
+  });
+});
+
+describe('the room in words: after review', () => {
+  const quiet: VerdictFact = {
+    checkin: 'end',
+    newFeuds: 0,
+    standing: null,
+    lost: 0,
+    lostName: null,
+    struggling: 0,
+    friends: 0,
+    grew: 2,
+    unhappy: 0,
+  };
+
+  it('the verdict leads with split and down rooms over a good year', () => {
+    for (const k of ['a', 'b', 'c', 'd']) {
+      const s = say(
+        VERDICT,
+        { ...quiet, down: ['the line', 'the secondary', 'the backs'], split: ['the receivers'] },
+        { key: k, slot: 'v' },
+      );
+      expect(s).toMatch(/line|secondary|backs|receivers|rooms/i);
+      expect(s).not.toMatch(/grew up|rest of the room/i);
+      const two = say(VERDICT, { ...quiet, down: ['the line', 'the secondary'] }, { key: k, slot: 'v' });
+      expect(two).toMatch(/line/i);
+      expect(two).toMatch(/secondary/i);
+      expect(two).not.toMatch(/rest of the room/i);
+    }
+  });
+
+  it('agrees the verb with the room', () => {
+    const s = say(UNIT_NOTE, unit({ unit: 'the linebackers', word: 'Tight', losingRun: 3, setter: 'Reyes' }), {
+      key: 'k',
+      slot: 'u',
+    });
+    expect(s).toMatch(/linebackers haven't blinked/);
+    expect(coachCount(10, 10, 'the receivers')).toBe('all of the receivers');
+    expect(coachCount(10, 10, 'the line')).toBe('the whole line');
+  });
+
+  it('counts the season he just finished, not the one about to start', () => {
+    const fact = (yearOf: number) => ({
+      name: 'Hill',
+      now: 'voice' as const,
+      was: null,
+      experience: 1,
+      yearOf,
+      newcomer: false,
+      starts: true,
+      captain: false,
+      benched: false,
+      stirs: false,
+      warn: false,
+      unit: 'the receivers',
+    });
+    for (const k of ['a', 'b', 'c'])
+      expect(say(STANDING_NOTE, fact(0), { key: k, slot: 's' })).not.toMatch(/Second year/);
   });
 });

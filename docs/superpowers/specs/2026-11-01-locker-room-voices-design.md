@@ -170,11 +170,15 @@ voice counts for more but a quiet man still counts:
 
 | Read | When |
 | --- | --- |
-| **Split** | at least 30% of the unit's weight sits at Good or better and at least 30% at Poor or worse (this overrides the rest) |
-| **Tight** | the weighted mean reads Good or better |
-| **Settled** | the weighted mean reads Okay |
-| **Restless** | the weighted mean reads Poor |
-| **Down** | the weighted mean reads Very poor or worse |
+| **Split** | at least 25% of the unit's weight sits at Good or better and at least 25% at Poor or worse (this overrides the rest) |
+| **Tight** | the weighted mean level is 1.5 or more (well into Good) |
+| **Settled** | between Restless and Tight |
+| **Restless** | the weighted mean level is −0.5 or less |
+| **Down** | the weighted mean level is −1 or less (Poor or worse) |
+
+A unit's mean runs far narrower than one man's mood (its tenth worst reads only Poor), so the words sit where a
+unit's spread puts them, calibrated in `npm run morale` (`READ_AT`, `SPLIT_SHARE` in `standing.ts`), not on the
+seven mood steps.
 
 Each read also carries:
 
@@ -208,22 +212,27 @@ Down 5–20%, Tight 15–35%.
 
 ### 4.2 The head coach's locker room report (four check-ins)
 
-- **New section, "The room":** one row per unit whose read changed since the last report, plus any unit that is
-  Split or Down. A unit still Split or Down from last time is told again with "still". Columns: Unit, Read, and a
-  note in one sentence.
+- **New section, "The room":** a row for any unit that is Split or Down (with "still" when it was told so last
+  time), one that came together (turned Tight), and one back from Split, Down or Restless. A unit that only cooled
+  from Tight, or went a little restless, waits until it's news. Columns: Unit, Read, and a note in one sentence.
 - **Standing changes** go in the captains section, now titled "Who the room follows": a man who became a leader or
   a voice, or stopped being one, since the last report. A GM's first report has nothing to compare against, so it
-  lists no changes. A leader on injured reserve hasn't left: only a man off the club counts as gone.
+  lists no changes. A leader on injured reserve hasn't left: only a man off the club counts as gone, and a man off
+  the 53 but still ours keeps the place he had, so he isn't told as new when he's back. A captain named in the same
+  report is listed once. Last season's captains lead the room until camp names new ones.
 - **The verdict's facts** gain the room's shape (split units, down units, a tight unit, a unit with no voice, the
-  vets and the young guys apart), so the opening line can speak about it.
+  vets and the young guys apart when the lower group reads Poor or worse), so the opening line can speak about it.
+  A split or down room outranks everything but a feud on the field; with a feud still on, the verdict names both.
 
 ### 4.3 Position coaches in the weekly staff notes
 
-When a unit's read turns between weeks (into or out of Split or Down, or into Tight), the coach of that unit's
-unit adds a note to the week's staff notes (`staffNotes.ts`). A turn is measured against what was last told about
-the unit, by a report or an earlier note, so the two never repeat each other. At most one unit note a week (the
-biggest turn), never for a unit told about in the last three weeks, and none when the room has no position coach (the
-head coach's report covers it). A week with nothing to say adds nothing.
+When a unit's read turns between weeks (into Split or Down, or back from them), the coach of that unit adds a note
+to the week's staff notes (`staffNotes.ts`). A turn is measured against what was last told about the unit, by a
+report or an earlier note, so the two never repeat each other; a room nobody has reported on yet has no turn, and a
+week when the head coach's report goes out leaves the rooms to the report. At most one unit note a week (Split, then
+Down, then a recovery), never for a unit told about in the last three weeks, and none when the room has no position
+coach. Good news waits until no room has been told about for three weeks, so the inbox isn't a weekly mood ticker; a
+room only going Tight from Settled is the report's to tell. A week with nothing to say adds nothing.
 
 ### 4.4 Not shown
 
@@ -364,8 +373,10 @@ Nothing stored. Worked out on the spot:
   `unitRead`; `leadersOf` moves here.
 - `MoraleContext` gains each club's voices by unit (weight and loudness) and each side's captain, for tone.
 - `covered` keys, stamped with morale's clock (`moraleClock`, which only moves forward) so the report and the staff
-  notes read one memory: `standing:{clock}:{playerId}:{tier}` for every leader and voice at each report, and
-  `unit:{clock}:{unit}:{read}` for every read unit at each report and for each unit a staff note tells.
+  notes read one memory, naming the club so a GM hired across the league starts fresh:
+  `standing:{clock}:{teamId}:{playerId}:{tier}` for every leader and voice at each report (and the place a man off
+  the 53 had), and `unit:{clock}:{teamId}:{unit}:{read}` for every read unit at each report and for each unit a staff
+  note tells.
 
 ## 8. Checks
 
@@ -374,7 +385,8 @@ Nothing stored. Worked out on the spot:
 - **Standing per club, in season:** leaders (captains included) 3–6 on average; voices 6–12; no leader past the
   captains in 10–30% of club-weeks.
 - **Unit reads league-wide:** Split 5–15% of unit-weeks, Down 5–20%, Tight 15–35%.
-- **Room moods cluster but don't run away:** club rooms at Poor or worse in 5–25% of club-weeks.
+- **Room moods cluster but don't run away:** club rooms at Poor or worse in at most 25% of club-weeks. (Proposed
+  0–25%, pending the owner: the first draft's 5% floor was a guess, and played leagues sit at 2%.)
 - **Direction checks, like against like:** the unit-mates of a down voice who stirs have a lower room factor than the
   unit-mates of a down voice who is even, and the unit-mates of a down voice who steadies a higher one (✗ if not).
 - **The mechanic's size:** the average size of the voices' pull on a player's room factor sits at 0.05–0.4, so it

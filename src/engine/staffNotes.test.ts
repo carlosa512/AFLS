@@ -135,7 +135,7 @@ describe('staff notes: the position coach on his unit', () => {
       delete p.morale!.jolts;
     });
   const told = (l: League, unit: Unit, word: UnitWord, ago: number) => {
-    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) + ago}:${unit}:${word}`]: 1 };
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) + ago}:${l.userTeamId}:${unit}:${word}`]: 1 };
   };
   /** Week 6, every unit Okay and told Settled five steps ago. */
   const inSeason = () => {
@@ -147,6 +147,12 @@ describe('staff notes: the position coach on his unit', () => {
       setUnit(l, u, 0);
       told(l, u, 'Settled', -5);
     }
+    // This stretch's locker report is already in: the week is the staff notes' alone.
+    const filed = { season: l.season, phase: 'regular' as const, week: 1, from: 'x', subject: '', body: '' };
+    l.inbox = [
+      ...(l.inbox ?? []),
+      { ...filed, id: `locker:${l.season}:cutdown`, category: 'staff', read: true, actions: [] },
+    ];
     return l;
   };
   const fireRoomCoach = (l: League, unit: Unit) => {
@@ -164,7 +170,7 @@ describe('staff notes: the position coach on his unit', () => {
     const turn = unitTurnFor(l, toldKeys(l))!;
     expect(turn.unit).toBe('WR');
     expect(turn.word).toBe('Split');
-    expect(turn.key).toBe(`unit:${moraleClock(l)}:WR:Split`);
+    expect(turn.key).toBe(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
   });
 
   it('files it in the week’s notes, in his words, and remembers it', () => {
@@ -175,7 +181,7 @@ describe('staff notes: the position coach on his unit', () => {
     const row = m.sections![0].rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
     expect(row.note).toMatch(/\b(my|I|I'm)\b/i);
     expect(row.note).not.toMatch(BANNED);
-    expect(m.covered).toContain(`unit:${moraleClock(l)}:WR:Split`);
+    expect(m.covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
   });
 
   it('says nothing about a unit told within three weeks', () => {
@@ -204,6 +210,25 @@ describe('staff notes: the position coach on his unit', () => {
     expect(unitTurnFor(l, toldKeys(l))).toBeNull();
     splitUnit(l, 'OL'); // the line splitting is news this week all the same
     expect(unitTurnFor(l, toldKeys(l))?.unit).toBe('OL');
+  });
+
+  it('says nothing about a room nobody has reported on yet (a new GM, a new game)', () => {
+    const l = inSeason();
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
+    splitUnit(l, 'WR');
+    expect(unitTurnFor(l, toldKeys(l))).toBeNull();
+  });
+
+  it("leaves a turn to the head coach's report when one goes out the same day", () => {
+    const l = inSeason();
+    l.inbox = l.inbox!.filter((m) => m.id !== `locker:${l.season}:cutdown`);
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const report = l.inbox!.find((m) => m.id === `locker:${l.season}:cutdown`)!;
+    expect(report.sections!.find((s) => s.title === 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(
+      true,
+    );
+    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(false);
   });
 
   it('stays quiet when the room has no position coach', () => {

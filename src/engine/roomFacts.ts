@@ -3,7 +3,7 @@
  * our staff use. What the report and the staff notes told before is read back from their `covered` keys, stamped
  * with morale's clock, so the two speak from one memory.
  */
-import { isCaptain, moraleLevel, moraleStepOf, viewContext } from './morale';
+import { moraleLevel, moraleStepOf, viewContext } from './morale';
 import { personalityRead, personalityTone } from './personality';
 import { starters } from './roster';
 import {
@@ -17,6 +17,7 @@ import {
 } from './roomVoice';
 import {
   isNewcomer,
+  leadsAsCaptain,
   soundOf,
   standingView,
   unitOf,
@@ -31,11 +32,19 @@ import {
 } from './standing';
 import type { League, Player } from './types';
 
-const UNIT_KEY = /^unit:(\d+):(\w+):(\w+)$/;
-const STANDING_KEY = /^standing:(\d+):(\d+):(leader|voice)$/;
+/** Memory keys name the club: a GM hired across the league starts with none of his old club's rooms. */
+const UNIT_KEY = /^unit:(\d+):(\d+):(\w+):(\w+)$/;
+const STANDING_KEY = /^standing:(\d+):(\d+):(\d+):(leader|voice)$/;
+export const unitKey = (clock: number, teamId: number, unit: Unit, word: UnitWord) =>
+  `unit:${clock}:${teamId}:${unit}:${word}`;
+export const standingKey = (clock: number, teamId: number, playerId: number, tier: Tier) =>
+  `standing:${clock}:${teamId}:${playerId}:${tier}`;
 
-/** The latest told read of each unit, and the leaders and voices at the latest report. */
-export function lastTold(told: Set<string>): {
+/** The latest told read of each of `teamId`'s units, and its leaders and voices at the latest report. */
+export function lastTold(
+  told: Set<string>,
+  teamId: number,
+): {
   units: Map<Unit, { word: UnitWord; clock: number }>;
   standing: { clock: number; tiers: Map<number, Tier> } | null;
 } {
@@ -44,16 +53,17 @@ export function lastTold(told: Set<string>): {
   for (const k of told) {
     const u = k.match(UNIT_KEY);
     if (u) {
+      if (Number(u[2]) !== teamId) continue;
       const clock = Number(u[1]);
-      const have = units.get(u[2] as Unit);
-      if (!have || clock >= have.clock) units.set(u[2] as Unit, { word: u[3] as UnitWord, clock });
+      const have = units.get(u[3] as Unit);
+      if (!have || clock >= have.clock) units.set(u[3] as Unit, { word: u[4] as UnitWord, clock });
       continue;
     }
     const s = k.match(STANDING_KEY);
-    if (!s) continue;
+    if (!s || Number(s[2]) !== teamId) continue;
     const clock = Number(s[1]);
     if (!standing || clock > standing.clock) standing = { clock, tiers: new Map() };
-    if (clock === standing.clock) standing.tiers.set(Number(s[2]), s[3] as Tier);
+    if (clock === standing.clock) standing.tiers.set(Number(s[3]), s[4] as Tier);
   }
   return { units, standing };
 }
@@ -117,7 +127,7 @@ export function unitFact(
     turned: !!last && last.word !== view.word,
     was: last?.word ?? null,
     setter: setter?.lastName ?? null,
-    setterCaptain: !!setter && isCaptain(league, setter),
+    setterCaptain: !!setter && leadsAsCaptain(league, setter),
     setterSound: setter ? soundOf(setter) : null,
     pulling: view.pulling,
     cause,
@@ -145,9 +155,11 @@ export function standingFact(
     now,
     was,
     experience: p.experience,
+    // The season's-end report looks back on the season just played; the league year has already ticked over.
+    yearOf: league.phase === 'resign' ? Math.max(0, p.experience - 1) : p.experience,
     newcomer: isNewcomer(league, p),
     starts: !!view?.parts.includes('starts'),
-    captain: isCaptain(league, p),
+    captain: leadsAsCaptain(league, p),
     benched: !!p.morale?.jolts?.some((j) => j.kind === 'benched'),
     stirs: soundOf(p) === 'stirs',
     warn: (() => {

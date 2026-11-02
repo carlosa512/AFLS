@@ -7,9 +7,9 @@
  */
 import { betterMentor, mentorStatus } from './mentoring';
 import { personalityOf, personalityRead, personalityTone, trueCharacter } from './personality';
-import { lastTold, standingFact, unitFact } from './roomFacts';
+import { lastTold, standingFact, standingKey, unitFact, unitKey } from './roomFacts';
 import { STANDING_NOTE, UNIT_NOTE, UNIT_PHRASE } from './roomVoice';
-import { roomView, unitOf, type Tier, type Unit } from './standing';
+import { captainsNow, roomView, unitOf, type Tier, type Unit } from './standing';
 import {
   CAPTAIN_WHY,
   FRICTION,
@@ -125,7 +125,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   const clock = moraleClock(league);
   const roomCtx = moraleContext(league);
   const room = roomView(league, roomCtx);
-  const memory = lastTold(told);
+  const memory = lastTold(told, user);
   const follows: MailSection['rows'] = [];
   // Captains and leaders: camp's report, or the season's first report when camp went by unseen (a sim straight to the
   // season, a new GM).
@@ -169,8 +169,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   }
   const active = new Set(activeRoster(league, user).map((p) => p.id));
   const tiers = new Map<number, Tier>();
-  if (team.captains?.season === season)
-    for (const id of [team.captains.offense, team.captains.defense, team.captains.specialTeams])
+  const leading = captainsNow(league, team);
+  if (leading)
+    for (const id of [leading.offense, leading.defense, leading.specialTeams])
       if (active.has(id)) tiers.set(id, 'leader');
   for (const id of room.leaders) tiers.set(id, 'leader');
   for (const id of room.voices) tiers.set(id, 'voice');
@@ -194,7 +195,12 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       });
     }
   }
-  for (const [id, tier] of tiers) covered.push(`standing:${clock}:${id}:${tier}`);
+  for (const [id, tier] of tiers) covered.push(standingKey(clock, user, id, tier));
+  // A man still ours but off the 53 (hurt, on the practice squad) keeps the place he had: he comes back to it, and if
+  // he's let go from there, he's the one who left.
+  for (const [id, tier] of memory.standing?.tiers ?? [])
+    if (!active.has(id) && !tiers.has(id) && league.players[id]?.teamId === user)
+      covered.push(standingKey(clock, user, id, tier));
   if (follows.length)
     sections.push({ title: 'Who the room follows', columns: ['Player', 'Role', 'Our read'], rows: follows });
 
@@ -202,7 +208,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   // was told so last time). A GM's first report has nothing to compare against: Split and Down only.
   const roomRows: MailSection['rows'] = [];
   for (const u of room.units) {
-    covered.push(`unit:${clock}:${u.unit}:${u.word}`);
+    covered.push(unitKey(clock, user, u.unit, u.word));
     const last = memory.units.get(u.unit) ?? null;
     // What matters: Split or Down, a room that came together, or one back from trouble. A room that only cooled from
     // Tight, or went a little restless, waits until it's news.

@@ -11,7 +11,6 @@ import { ROOM_LABEL, ROOM_OF } from './coaching';
 import { leadFactor } from './mentoring';
 import {
   actualRole,
-  isCaptain,
   MORALE_WORDS,
   moodLean,
   moraleLevel,
@@ -92,9 +91,26 @@ export function weightOf(league: League, p: Player, ctx: MoraleContext): number 
   return leadFactor(p.traits.leads) * FIELD[role] * seniority(p.experience, isNewcomer(league, p)) * stature;
 }
 
+const BEFORE_CAMP: ReadonlySet<League['phase']> = new Set(['resign', 'freeAgency', 'draft']);
+
+/** The captains the room follows now: this season's, or last season's until camp names new ones. */
+export function captainsNow(league: League, team: League['teams'][number]): NonNullable<typeof team.captains> | null {
+  const c = team.captains;
+  if (!c) return null;
+  if (c.season === league.season) return c;
+  return c.season === league.season - 1 && BEFORE_CAMP.has(league.phase) ? c : null;
+}
+
+/** Whether he's one of the captains the room follows now. */
+export function leadsAsCaptain(league: League, p: Player): boolean {
+  if (p.teamId === null) return false;
+  const c = captainsNow(league, league.teams[p.teamId]);
+  return !!c && (c.offense === p.id || c.defense === p.id || c.specialTeams === p.id);
+}
+
 /** A captain always leads; otherwise his weight decides. */
 export function tierOf(league: League, p: Player, weight: number): Tier | null {
-  if (isCaptain(league, p)) return 'leader';
+  if (leadsAsCaptain(league, p)) return 'leader';
   return weight >= LEADER_AT ? 'leader' : weight >= VOICE_AT ? 'voice' : null;
 }
 
@@ -125,7 +141,7 @@ export function roomVoices(
   const voices = new Map<string, VoiceRef[]>();
   const sideCaptains = new Map<string, VoiceRef>();
   for (const team of league.teams) {
-    const c = team.captains?.season === league.season ? team.captains : undefined;
+    const c = captainsNow(league, team);
     const captainOf = new Map<number, Side>(
       c
         ? [
@@ -192,7 +208,7 @@ export function friendLean(league: League, p: Player, ctx: MoraleContext): numbe
 function byTier(league: League, teamId: number, want: Tier, ctx = viewContext(league)): Player[] {
   return activeRoster(league, teamId)
     .map((p) => ({ p, w: weightOf(league, p, ctx) }))
-    .filter((x) => tierOf(league, x.p, x.w) === want && !(want === 'leader' && isCaptain(league, x.p)))
+    .filter((x) => tierOf(league, x.p, x.w) === want && !(want === 'leader' && leadsAsCaptain(league, x.p)))
     .sort((a, b) => b.w - a.w || a.p.id - b.p.id)
     .map((x) => x.p);
 }
@@ -302,7 +318,7 @@ export function standingView(league: League, p: Player, ctx = viewContext(league
   const tier = tierOf(league, p, weightOf(league, p, ctx));
   const team = league.teams[p.teamId];
   const parts: WhyPart[] = [];
-  if (isCaptain(league, p)) parts.push('captain');
+  if (leadsAsCaptain(league, p)) parts.push('captain');
   if (p.position === 'QB' && starters(league, team, 'QB')[0]?.id === p.id) parts.push('quarterback');
   if (p.experience >= 6) parts.push('veteran');
   if (actualRole(league, p, ctx) === 2 || starters(league, team, p.position).some((s) => s.id === p.id))
@@ -361,8 +377,10 @@ export function roomView(league: League, ctx = viewContext(league)): RoomView {
   const young = roster.filter((p) => p.experience <= 2);
   let apart: RoomView['apart'] = null;
   if (vets.length && young.length) {
-    const gap = moraleStepOf(mean(vets)) - moraleStepOf(mean(young));
-    apart = gap >= 2 ? 'young down' : gap <= -2 ? 'vets down' : null;
+    // Apart only when the lower group really is down (Poor or worse), not merely less happy.
+    const v = moraleStepOf(mean(vets));
+    const y = moraleStepOf(mean(young));
+    apart = v - y >= 2 && y <= 3 ? 'young down' : y - v >= 2 && v <= 3 ? 'vets down' : null;
   }
   return {
     word: MORALE_WORDS[moraleStepOf(mean(roster))],

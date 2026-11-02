@@ -7,7 +7,8 @@
 import { coachAdviceObservation, teachingNoteFor } from './coachReports';
 import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from './coaching';
 import { moraleClock, moraleContext } from './morale';
-import { lastTold, unitFact } from './roomFacts';
+import { dueCheckin } from './lockerReport';
+import { lastTold, unitFact, unitKey } from './roomFacts';
 import { UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
 import { QUIRKS, type QuirkId } from './quirks';
@@ -98,7 +99,8 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
   const found = teachingNoteFor(league);
   const habitKey = found && `teach:${league.season}:${found.coachId}:${found.playerId}:${found.habit}`;
   const habit = found && !told.has(habitKey!) ? found : undefined;
-  const unitNote = unitTurnFor(league, told);
+  // A head coach's report going out today tells the rooms itself: the position coach doesn't repeat it.
+  const unitNote = dueCheckin(league, have) ? null : unitTurnFor(league, told);
   if (!call && !habit && !unitNote) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];
@@ -197,7 +199,7 @@ export function unitTurnFor(
   told: Set<string>,
 ): { unit: Unit; word: UnitWord; coachId: number; key: string; fact: UnitFact } | null {
   const clock = moraleClock(league);
-  const memory = lastTold(told);
+  const memory = lastTold(told, league.userTeamId);
   // A letter builds its own context: it never reads a screen's cache.
   const ctx = moraleContext(league);
   const staff = teamCoaches(league, league.userTeamId);
@@ -207,7 +209,8 @@ export function unitTurnFor(
   let best: { rank: number; view: UnitView; last: { word: UnitWord } | null; coachId: number } | null = null;
   for (const view of roomView(league, ctx).units) {
     const last = memory.units.get(view.unit) ?? null;
-    if (last && (clock - last.clock < NOTE_GAP || last.word === view.word)) continue;
+    // A turn is against what was told: a room nobody has reported on yet (a new GM, a new game) has none.
+    if (!last || clock - last.clock < NOTE_GAP || last.word === view.word) continue;
     // A room back from Split or Down (Tight or not); a room only going Tight from Settled is the report's to tell.
     const recovered = !!last && (last.word === 'Split' || last.word === 'Down');
     const rank = view.word === 'Split' ? 0 : view.word === 'Down' ? 1 : recovered && goodNewsOpen ? 2 : -1;
@@ -221,7 +224,7 @@ export function unitTurnFor(
     unit: view.unit,
     word: view.word,
     coachId: best.coachId,
-    key: `unit:${clock}:${view.unit}:${view.word}`,
+    key: unitKey(clock, league.userTeamId, view.unit, view.word),
     fact: unitFact(league, view, best.last, null, ctx),
   };
 }

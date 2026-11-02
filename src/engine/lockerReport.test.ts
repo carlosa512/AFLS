@@ -446,8 +446,12 @@ describe('the locker room report: the room', () => {
     const l = camp();
     deliverMail(l);
     const m = reports(l).at(-1)!;
-    expect(m.covered!.some((k) => /^unit:\d+:(QB|RB|WR|OL|DL|LB|DB):\w+$/.test(k))).toBe(true);
-    expect(m.covered!.some((k) => /^standing:\d+:\d+:(leader|voice)$/.test(k))).toBe(true);
+    expect(m.covered!.some((k) => new RegExp(`^unit:\\d+:${l.userTeamId}:(QB|RB|WR|OL|DL|LB|DB):\\w+$`).test(k))).toBe(
+      true,
+    );
+    expect(m.covered!.some((k) => new RegExp(`^standing:\\d+:${l.userTeamId}:\\d+:(leader|voice)$`).test(k))).toBe(
+      true,
+    );
   });
 
   it('tells a split unit, and reads "still" when it is still split at the next report', () => {
@@ -467,7 +471,7 @@ describe('the locker room report: the room', () => {
   it('lists a captain once, as captain, even when his place in the room changed', () => {
     const l = camp();
     const c = l.teams[l.userTeamId].captains!;
-    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l) - 1}:${c.offense}:voice`]: 1 };
+    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l) - 1}:${l.userTeamId}:${c.offense}:voice`]: 1 };
     deliverMail(l);
     const rows = section(reports(l).at(-1)!, 'Who the room follows')!.rows;
     expect(rows.filter((r) => r.playerId === c.offense)).toHaveLength(1);
@@ -477,7 +481,7 @@ describe('the locker room report: the room', () => {
     const l = camp();
     // Only this memory of the line: the template filed reads of its own.
     for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
-    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 1}:OL:Tight`]: 1 };
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 1}:${l.userTeamId}:OL:Tight`]: 1 };
     for (const p of ours(l).filter((x) => unitOf(x.position) === 'OL' && x.morale)) {
       p.morale!.level = 0;
       delete p.morale!.jolts;
@@ -485,6 +489,38 @@ describe('the locker room report: the room', () => {
     deliverMail(l);
     const rows = section(reports(l).at(-1)!, 'The room')?.rows ?? [];
     expect(rows.find((r) => r.cells[0] === ROOM_LABEL.OL)).toBeUndefined();
+  });
+
+  it("a GM at a new club hears nothing of his old club's rooms", () => {
+    const l = camp();
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    // Hired across the league: same inbox, another club.
+    l.userTeamId = (l.userTeamId + 7) % l.teams.length;
+    nameCaptains(l);
+    at(l, 'regular', 1);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(
+      section(m, 'Who the room follows')?.rows.some((r) =>
+        /Found his voice|Now a leader|Quieter now/.test(r.cells[1]),
+      ) ?? false,
+    ).toBe(false);
+    for (const r of section(m, 'The room')?.rows ?? []) expect(r.note).not.toMatch(/still|back on|same story/i);
+  });
+
+  it('a voice back from injured reserve is not told as new', () => {
+    const l = camp();
+    deliverMail(l);
+    const p = [...leadersOf(l, l.userTeamId), ...voicesOf(l, l.userTeamId)][0];
+    p.ir = { season: l.season, week: 1, weeks: 0 };
+    at(l, 'regular', 1);
+    deliverMail(l);
+    delete p.ir;
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'Who the room follows')?.rows ?? [];
+    expect(rows.some((r) => r.playerId === p.id)).toBe(false);
   });
 
   it('a leader on injured reserve has not left', () => {
@@ -504,7 +540,7 @@ describe('the locker room report: the room', () => {
     const room = ours(l).filter((x) => unitOf(x.position) === 'DB');
     const lead = leadersOf(l, l.userTeamId).find((x) => unitOf(x.position) === 'DB') ?? room[0];
     // Stamp him as a leader at the last report, then make the rest of the room quiet and let him go.
-    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l)}:${lead.id}:leader`]: 1 };
+    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l)}:${l.userTeamId}:${lead.id}:leader`]: 1 };
     for (const x of room) x.traits.leads = 1;
     lead.teamId = null;
     const c = l.teams[l.userTeamId].captains!;
