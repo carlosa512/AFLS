@@ -187,8 +187,11 @@ export function contractFromOffer(
 /** Salary of the player's current deal already paid this season (it stays on the cap when the deal is replaced). */
 function paidUnderCurrentDeal(league: League, player: Player): number {
   const c = player.contract;
-  if (!c) return 0;
-  return (yearOf(c, league.season)?.base ?? 0) * paidShare(league, c);
+  const y = c && yearOf(c, league.season);
+  if (!y) return 0;
+  // A holdout's withheld game checks were never paid (G4).
+  const held = y.withheld ? (y.base * y.withheld) / 18 : 0;
+  return Math.max(0, y.base * paidShare(league, c) - held);
 }
 
 /**

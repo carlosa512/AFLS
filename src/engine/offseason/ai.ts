@@ -61,6 +61,7 @@ import {
   ROSTER_MAX,
   signPlayer,
   willExtend,
+  extensionBlocker,
   type Offer,
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
@@ -559,11 +560,13 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       }
     }
   }
-  // A man promised a deal with two years or fewer left gets it now, when the club would keep him and it fits (G4).
+  // A man promised a deal with two years or fewer left gets it now, when the club would keep him and it fits (G4); one
+  // it just re-signed above has his deal.
   for (const p of teamPlayers(league, team.id))
     if (
       promisedDeal(p) &&
       p.contract &&
+      p.contract.signedSeason !== league.season &&
       !isExpired(p.contract, league.season) &&
       yearsLeft(p.contract, league.season) <= 2
     )
@@ -593,6 +596,8 @@ export function walkAwayApy(
  */
 export function aiSettle(league: League, team: Team, p: Player): boolean {
   if (!MOOD_ACTS.on || p.teamId !== team.id || !p.contract) return false;
+  // A deal the rules allow now (a rookie after three seasons), and one the club would make.
+  if (!isExpired(p.contract, league.season) && extensionBlocker(league, p)) return false;
   if (resignCall(league, team.id, p).call === 'walk') return false;
   const d = demand(league, p, team.id);
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);

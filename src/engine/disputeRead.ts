@@ -8,7 +8,17 @@ import type { Dispute, League, Player } from './types';
 /** Moods that act: disputes and the AI clubs keeping their promises. `morale.rng.test.ts` turns it off. */
 export const MOOD_ACTS = { on: true };
 
-export const disputeOf = (p: Player): Dispute | undefined => (MOOD_ACTS.on ? p.morale?.dispute : undefined);
+/**
+ * His open dispute, at the club he has it with. Traded, released or given a raise since the last step, it's over at once
+ * (he reports, he practices); the next step files how it ended.
+ */
+export function disputeOf(p: Player): Dispute | undefined {
+  const m = MOOD_ACTS.on ? p.morale : undefined;
+  const d = m?.dispute;
+  if (!d || d.club !== p.teamId) return undefined;
+  if (p.contract && m!.apy !== undefined && p.contract.apy > m!.apy) return undefined;
+  return d;
+}
 
 /** A holdout gone to the Reserve/Did Not Report list, or reported to a full 53 and waiting on room: off it, unavailable. */
 export const onDidNotReport = (p: Player): boolean => {

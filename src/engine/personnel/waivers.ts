@@ -137,6 +137,8 @@ export function assignedContract(entry: WaiverEntry): Contract {
   c.years = c.years.filter((y) => !y.void);
   const now = c.years.find((y) => y.season === entry.season);
   if (now) {
+    // A holdout's withheld checks were his old club's to keep (G4): the claiming club pays what's left.
+    delete now.withheld;
     const paid = now.base * entry.paid;
     now.base = Math.round(now.base - paid);
     now.guaranteed = Math.min(now.base, Math.round(Math.max(0, now.guaranteed - paid)));

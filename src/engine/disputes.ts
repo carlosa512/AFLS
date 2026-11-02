@@ -96,7 +96,7 @@ export function endDispute(league: League, p: Player, how: DisputeHow, clock: nu
   // back from reserve): he waits on the list until there's room.
   const team = p.teamId === null ? undefined : league.teams[p.teamId];
   if (d.out && team && league.phase === 'regular' && activeRoster(league, team.id).length > ROSTER_MAX) {
-    if (team.id !== league.userTeamId) aiCutdown(league, team, ROSTER_MAX);
+    if (team.id !== yourClub(league)) aiCutdown(league, team, ROSTER_MAX);
     else m.reported = true;
   }
 }
@@ -287,7 +287,12 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
     // The step it soured isn't one of the steps since.
     if (s.at < clock) s.run = level <= VERY_POOR ? s.run + 1 : 0;
     if (level > VERY_POOR && !s.now) continue;
-    if (!canStart(league, p, ctx, clock, week)) continue;
+    if (!canStart(league, p, ctx, clock, week)) {
+      // A broken promise restarts a dispute at once or not at all: past its window (a hold-in from week 1, a hurt man) it
+      // is a soured talk like any other, counted from here.
+      delete s.now;
+      continue;
+    }
     const list = ready.get(p.teamId) ?? [];
     list.push({ p, level });
     ready.set(p.teamId, list);

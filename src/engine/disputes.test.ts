@@ -603,8 +603,6 @@ describe('disputes: AI clubs keep their promises (G4)', () => {
     const chartOf = (teamId: number) => l.teams[teamId].depthChart[pos];
     /** The club's first man past its starters within `gap` points of its last starter, promised snaps. */
     const promise = (teamId: number, near: (gap: number) => boolean) => {
-      const t = l.teams[teamId];
-      t.autoDepth = false;
       const chart = chartOf(teamId);
       const last = l.players[chart[n - 1]];
       const i = chart.findIndex((id, k) => k >= n && near(playerOvr(last) - playerOvr(l.players[id])));
@@ -665,5 +663,109 @@ describe('disputes: what screens see (G4)', () => {
     expect(disputeView(l, mine)).toMatchObject({ kind: 'holdIn', label: 'Holding in' });
     MOOD_ACTS.on = false;
     expect(disputeView(l, mine)).toBeNull();
+  });
+});
+
+const { signPlayer } = await import('./offseason/negotiation');
+const { assignedContract } = await import('./personnel/waivers');
+
+describe('disputes: the edges (G4)', () => {
+  it('re-signs a promised man once in the re-sign window, not again as an extension', () => {
+    const { l, p } = promisedKeeper(true);
+    aiResignWindow(l, l.teams[p.teamId!], new Rng('once'));
+    const deals = l.transactions.filter(
+      (x) => x.season === l.season && x.text.includes(p.lastName) && /re-signed|extended/.test(x.text),
+    );
+    expect(deals.length).toBeLessThanOrEqual(1);
+  });
+
+  it("a broken hold-in promise past week 1 doesn't start one later", () => {
+    const { l } = base('stale-now');
+    const p = souredDeal(l, 1);
+    p.morale = {
+      level: 2,
+      jolts: [],
+      talk: { club: 1, sour: { cause: 'deal', at: at(l, 8), run: 0, now: true, after: 'holdIn' } },
+    };
+    l.moraleAt = at(l, 8);
+    disputeStep(l, moraleContext(l), at(l, 8), 8, false);
+    expect(p.morale!.dispute).toBeUndefined();
+    // The next league year's re-sign window: a man no longer unhappy starts nothing.
+    l.moraleAt = at(l, YEAR);
+    disputeStep(l, moraleContext(l), at(l, YEAR), 0, true);
+    expect(p.morale!.dispute).toBeUndefined();
+  });
+
+  it('a holdout traded, given a raise or waiting on room at a club he has left is off Did Not Report at once', () => {
+    const traded = base('dnr-trade');
+    holdout(traded.l, traded.p);
+    setTeam(traded.l, traded.p, 7);
+    expect(rosterList(traded.p)).toBe('active');
+    expect(activeRoster(traded.l, 7).some((x) => x.id === traded.p.id)).toBe(true);
+    const raised = base('dnr-raise');
+    holdout(raised.l, raised.p);
+    raised.p.morale!.apy = raised.p.contract!.apy;
+    raised.p.contract!.apy += 5_000;
+    expect(rosterList(raised.p)).toBe('active');
+    const waiting = base('dnr-reported');
+    waiting.p.morale!.reported = true;
+    expect(rosterList(waiting.p)).toBe('didNotReport');
+    setTeam(waiting.l, waiting.p, 7);
+    expect(rosterList(waiting.p)).toBe('active');
+  });
+
+  it("extending a holdout keeps only the salary he was paid on this year's cap, and a claim takes no withheld weeks", () => {
+    const deadPaid = (withheld: number) => {
+      const { l, p } = base('extend-held');
+      l.phase = 'regular';
+      l.week = 7;
+      const y = yearOf(p.contract!, l.season)!;
+      y.base = 18_000;
+      if (withheld) y.withheld = withheld;
+      signPlayer(l, p, p.teamId!, { years: 2, apy: p.contract!.apy + 5_000, bonusPct: 0.2, gtdPct: 0.5, voidYears: 0 });
+      return (
+        l.teams[p.teamId!].deadMoney.find((x) => x.playerId === p.id && x.note === 'Salary paid before extension')
+          ?.amount ?? 0
+      );
+    };
+    expect(deadPaid(0) - deadPaid(3)).toBe(3_000);
+    const { l, p } = base('claim-held');
+    const c = structuredClone(p.contract!);
+    yearOf(c, l.season)!.withheld = 3;
+    const claimed = assignedContract({ contract: c, season: l.season, paid: 0.25, paidBefore: 4 } as never);
+    expect(yearOf(claimed, l.season)!.withheld).toBeUndefined();
+  });
+
+  it("reports to a club you no longer run like any AI club's: it cuts for him", () => {
+    const { l } = base('fired-report');
+    l.phase = 'regular';
+    const was = l.userTeamId;
+    const p = holdingOut(l, was);
+    l.gms[l.userGmId].teamId = null;
+    run(l, 7, 8);
+    while (activeRoster(l, was).length < 53) {
+      const extra = activeRoster(l, 2).find((x) => !x.morale?.dispute)!;
+      setTeam(l, extra, was);
+    }
+    p.morale!.dispute!.lost = 10 ** 9;
+    run(l, 9, 9);
+    expect(p.morale!.disputeEnd?.how).toBe('gaveIn');
+    expect(rosterList(p)).toBe('active');
+    expect(activeRoster(l, was).length).toBeLessThanOrEqual(53);
+  });
+
+  it('never extends a promised rookie before the rules allow it', () => {
+    const { l } = base('rookie-promise');
+    gm(l, 1, true);
+    room(l, 1, 80_000);
+    const p = teamPlayers(l, 1).find(
+      (x) => x.contract?.kind === 'rookie' && x.experience < 3 && resignCall(l, 1, x).call !== 'walk',
+    )!;
+    p.morale = {
+      level: 0,
+      jolts: [],
+      talk: { club: 1, promise: { kind: 'deal', made: l.moraleAt!, due: l.moraleAt! + 8 } },
+    };
+    expect(aiSettle(l, l.teams[1], p)).toBe(false);
   });
 });

@@ -659,7 +659,6 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
   );
 }
 
-/** A hold-in or holdout's letter (G4): your four answers while it's open, what you said once you've answered. */
 /**
  * A dispute letter's button: your answer, and shopping him puts him on your block as the trade screen's Shop him does
  * (here, not in `answerDispute`: the disputes module loads before the trade market).
@@ -668,6 +667,7 @@ export function answerDisputeLetter(league: League, playerId: number, choice: Di
   if (answerDispute(league, playerId, choice) && choice === 'shop') setTradeStatus(league, playerId, 'listed');
 }
 
+/** A hold-in or holdout's letter (G4): your four answers while it's open, what you said once you've answered. */
 function DisputeCards({ league, s }: { league: League; s: { since: number; playerId: number } }) {
   const card = disputeCard(league, s);
   const p = league.players[s.playerId];

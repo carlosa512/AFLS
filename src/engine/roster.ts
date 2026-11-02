@@ -101,6 +101,8 @@ export function setTeam(league: League, p: Player, teamId: number | null): void 
       else index.set(teamId, [p]);
     }
   }
+  // Waiting on room at the club he reported to (G4): a new club has none to make.
+  if (p.teamId !== teamId && p.morale?.reported) delete p.morale.reported;
   p.teamId = teamId;
 }
 
@@ -213,6 +215,7 @@ export function syncDepthChart(league: League, team: Team): void {
       undefined,
       wrSpotsOf(league, team.id),
     );
+    keepSnapsPromises(league, team);
     return;
   }
   const placed = new Set<number>();
