@@ -56,6 +56,7 @@ import { HELMET_LABEL, helmetModelOf } from '../helmet';
 import { CaptainPatch, captainStreak } from '../captainPatch';
 import { TradeActions } from '../offers';
 import { ContractActions, ContractSummary, ContractYears, contractLabel } from '../contracts';
+import { TalkContractButton } from '../negotiation';
 import { band, heightFt } from '../format';
 import {
   familiarityTone,
@@ -1227,7 +1228,10 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         <Section id="contract" title="Contract">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span className="muted small">{contractLabel(league, p)}</span>
-            <ContractActions league={league} player={p} />
+            <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+              <TalkContractButton league={league} player={p} />
+              <ContractActions league={league} player={p} />
+            </span>
           </div>
           <ContractSummary league={league} player={p} />
           <ContractYears player={p} />

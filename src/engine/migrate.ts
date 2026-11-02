@@ -304,8 +304,10 @@ export function migrateLeague(league: League): League | null {
     for (const team of league.teams) {
       if (!team.uniforms && UNIFORMS[team.abbrev]) team.uniforms = structuredClone(UNIFORMS[team.abbrev]);
     }
-    const games = league.games.filter((g) => g.season === league.season && !g.playoffRound && !g.uniform);
-    if (games.length) assignUniforms(league, games, league.season);
+    // a season already dressed (a save made by this version, carried back) is left as it is: most games wear no
+    // special set, so an unstamped game alone doesn't mean the season was never dressed
+    const games = league.games.filter((g) => g.season === league.season && !g.playoffRound);
+    if (games.length && !games.some((g) => g.uniform)) assignUniforms(league, games, league.season);
     league.version = 76;
   }
   return league;

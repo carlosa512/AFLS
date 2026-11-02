@@ -284,6 +284,8 @@ describe('migration and collection', () => {
       delete p.playsBig;
       delete p.morale;
     }
+    // Special uniforms (0.2.40) stamp a game's set on their own stream: the schedule itself still matches main.
+    for (const g of l.games) delete g.uniform;
     // Filled from origin/main's own output (no personnel code), not regenerated from the implementation under test.
     // `players` and `result` re-taken with player size (0.2.2): new builds reseed hidden traits; the stream, charts
     // and schedule still match main, which is what proves the size roll costs the same two draws. `result` again with

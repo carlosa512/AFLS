@@ -43,7 +43,7 @@ describe('the locker room', () => {
     expect(html).toContain(kid.lastName);
     expect(html).toContain(league.players[kid.mentor!].lastName);
     expect(html).toContain('early days');
-    expect(html).toContain('Let the coaches handle it');
+    expect(html).toContain('Let the coaches handle the mentoring');
     expect(html).not.toMatch(/\b\d+\.\d+\b/); // no numbers from under the hood
   });
 

@@ -65,6 +65,7 @@ import {
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
 import { LinkedText, moveIndex, MoveText, nameIndex } from './moves';
+import { TalkContractButton } from './negotiation';
 import {
   deadlineDayTrades,
   draftClassOf,
@@ -644,30 +645,29 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
         <button className="btn btn-sm" onClick={() => answer('firm')}>
           Be firm
         </button>
+        {/* About money: talk contract right here, when his deal is open to it. Opening talks isn't an answer. */}
+        {card.cause === 'deal' && league.players[s.playerId] && (
+          <TalkContractButton league={league} player={league.players[s.playerId]} />
+        )}
       </div>
     </Card>
   );
 }
 
-/** A promised deal's row (the promises reminder): talks with him, once the calendar allows them. */
+/** A promised deal's row (the promises reminder): the same Negotiate button as everywhere else. */
 function NegotiateButton({
   league,
   playerId,
-  onNegotiate,
 }: {
   league: League;
   playerId: number;
-  onNegotiate: (playerId: number) => void;
+  onNegotiate?: (playerId: number) => void;
 }) {
   const p = league.players[playerId];
   if (!p || p.teamId !== league.userTeamId) return null;
-  if (league.phase === 'playoffs' || league.phase === 'complete')
-    return <p className="mail-row-note small muted">Talks open when the new league year begins.</p>;
   return (
     <div className="row" style={{ gap: 8 }}>
-      <button className="btn btn-sm" onClick={() => onNegotiate(playerId)}>
-        Negotiate
-      </button>
+      <TalkContractButton league={league} player={p} />
     </div>
   );
 }

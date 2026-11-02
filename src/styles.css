@@ -5231,3 +5231,71 @@ button.tip-pill {
   min-width: 32px;
   min-height: 32px;
 }
+
+/* The Locker Room's rooms (L1): one card per position room, the ones in trouble first and marked. */
+.room-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 12px;
+}
+.room-card h4 {
+  margin: 6px 0 2px;
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.room-card .plain-list li {
+  padding: 3px 0;
+}
+.room-mentoring select {
+  max-width: 11rem;
+}
+.room-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.room-card.is-trouble {
+  border-left: 4px solid var(--danger);
+}
+.room-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.room-card-name {
+  font-weight: 700;
+}
+.room-card-mood {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+.room-card-line,
+.room-card-voice {
+  margin: 0;
+}
+.tag-pill.room-divided {
+  background: var(--danger);
+  color: #fff;
+}
+
+.room-deal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.room-fold > summary {
+  cursor: pointer;
+  font-size: var(--step--1);
+  font-weight: 700;
+  padding: 4px 0;
+}
+.room-fold[open] > summary {
+  margin-bottom: 4px;
+}

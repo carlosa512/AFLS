@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
 import { dueCheckin } from './lockerReport';
-import { moraleView } from './morale';
+import { moraleClock, moraleView } from './morale';
+import { ROOM_LABEL } from './coaching';
+import { leadersOf, unitOf, voicesOf, type Unit } from './standing';
 import { playerOvr } from './positions';
 import { betterMentor, mentoringWeek, mentorStatus } from './mentoring';
 import { nameCaptains } from './personality';
@@ -200,7 +202,7 @@ describe('the locker room report: morale', () => {
     moody(l);
     deliverMail(l);
     const titles = reports(l)[0].sections!.map((s) => s.title);
-    expect(titles.indexOf('Morale')).toBeGreaterThan(titles.indexOf('Captains and leaders'));
+    expect(titles.indexOf('Morale')).toBeGreaterThan(titles.indexOf('Who the room follows'));
     if (titles.includes('Mentoring')) expect(titles.indexOf('Morale')).toBeLessThan(titles.indexOf('Mentoring'));
   });
 });
@@ -289,12 +291,12 @@ describe('the locker room report', () => {
     deliverMail(l);
     const [camp] = reports(l);
     const c = l.teams[l.userTeamId].captains!;
-    const rows = section(camp, 'Captains and leaders')!.rows;
+    const rows = section(camp, 'Who the room follows')!.rows;
     expect(rows.slice(0, 3).map((r) => r.playerId)).toEqual([c.offense, c.defense, c.specialTeams]);
     expect(camp.covered).toContain(`captains:${l.season}`);
     at(l, 'regular', 1);
     deliverMail(l);
-    expect(section(reports(l)[1], 'Captains and leaders')).toBeUndefined();
+    expect(section(reports(l)[1], 'Who the room follows')).toBeUndefined();
   });
 
   it('a quiet check-in still files, with only its verdict', () => {
@@ -304,6 +306,8 @@ describe('the locker room report', () => {
       delete p.ties;
       p.morale = { level: 0, jolts: [] };
     }
+    // Nothing told about the rooms either, so no room is coming back from anything.
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
     at(l, 'regular', 1);
     deliverMail(l);
     const [m] = reports(l);
@@ -391,10 +395,10 @@ describe('the locker room report, across the calendar', () => {
     deliverMail(l);
     const [m] = reports(l);
     expect(m.id).toBe(`locker:${l.season}:cutdown`);
-    expect(section(m, 'Captains and leaders')).toBeDefined();
+    expect(section(m, 'Who the room follows')).toBeDefined();
     at(l, 'regular', TRADE_DEADLINE_WEEK);
     deliverMail(l);
-    expect(section(reports(l).at(-1)!, 'Captains and leaders')).toBeUndefined();
+    expect(section(reports(l).at(-1)!, 'Who the room follows')).toBeUndefined();
   });
 
   it('remembers what it told after the letter itself has left the inbox', () => {
@@ -409,5 +413,175 @@ describe('the locker room report, across the calendar', () => {
     at(l, 'regular', TRADE_DEADLINE_WEEK);
     deliverMail(l);
     expect(section(reports(l).at(-1)!, 'Friction')).toBeUndefined();
+  });
+});
+
+describe('the locker room report: the room', () => {
+  /** The unit's men alternately up and down, no jolts: a Split read. */
+  const splitUnit = (l: League, unit: Unit) =>
+    ours(l)
+      .filter((p) => unitOf(p.position) === unit && p.morale)
+      .forEach((p, i) => {
+        p.morale!.level = i % 2 ? 2 : -2;
+        delete p.morale!.jolts;
+      });
+  /** On to the re-sign window: the season's-end report, which looks back on the year. */
+  const toEnd = (l: League) => {
+    l.season += 1;
+    at(l, 'resign');
+  };
+  const camp = () => {
+    const l = copy(template);
+    at(l, 'preseason');
+    nameCaptains(l);
+    return l;
+  };
+
+  it('an in-season report leaves the rooms to the position coaches', () => {
+    const l = camp();
+    deliverMail(l);
+    splitUnit(l, 'WR');
+    at(l, 'regular', 1);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(m.id).toBe(`locker:${l.season}:cutdown`);
+    expect(section(m, 'The room')).toBeUndefined();
+    expect(m.covered!.some((k) => k.startsWith('unit:') || k.startsWith('standing:'))).toBe(false);
+    expect(m.body).not.toMatch(/receivers/i);
+  });
+
+  it("tells the rooms in the season's first report when camp went by unseen", () => {
+    const l = camp();
+    splitUnit(l, 'WR');
+    at(l, 'regular', 1);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(m.id).toBe(`locker:${l.season}:cutdown`);
+    expect(section(m, 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(true);
+  });
+
+  it('a first report tells only Split and Down units, and no standing changes', () => {
+    const l = camp();
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    // Divided, or a mood of Poor or worse: the screen's own words.
+    for (const r of section(m, 'The room')?.rows ?? [])
+      expect(r.cells[1]).toMatch(/^(Divided|Poor|Very poor|Abysmal)$/);
+    expect(
+      section(m, 'Who the room follows')!.rows.some((r) => /Found his voice|Now a leader|Quieter now/.test(r.cells[1])),
+    ).toBe(false);
+  });
+
+  it('stamps every leader, voice and read unit', () => {
+    const l = camp();
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(m.covered!.some((k) => new RegExp(`^unit:\\d+:${l.userTeamId}:(QB|RB|WR|OL|DL|LB|DB):\\w+$`).test(k))).toBe(
+      true,
+    );
+    expect(m.covered!.some((k) => new RegExp(`^standing:\\d+:${l.userTeamId}:\\d+:(leader|voice)$`).test(k))).toBe(
+      true,
+    );
+  });
+
+  it('tells a split unit, and reads "still" when it is still split at the next report', () => {
+    const l = camp();
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const first = section(reports(l).at(-1)!, 'The room')!.rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    expect(first.cells[1]).toBe('Divided');
+    expect(first.note).not.toMatch(/still/i);
+    toEnd(l);
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    const again = section(reports(l).at(-1)!, 'The room')!.rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    expect(again.note).toMatch(/still/i);
+  });
+
+  it('lists a captain once, as captain, even when his place in the room changed', () => {
+    const l = camp();
+    const c = l.teams[l.userTeamId].captains!;
+    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l) - 1}:${l.userTeamId}:${c.offense}:voice`]: 1 };
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'Who the room follows')!.rows;
+    expect(rows.filter((r) => r.playerId === c.offense)).toHaveLength(1);
+  });
+
+  it('leaves out a unit that only cooled from Tight to Settled', () => {
+    const l = camp();
+    // Only this memory of the line: the template filed reads of its own.
+    for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
+    l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 1}:${l.userTeamId}:OL:Tight`]: 1 };
+    for (const p of ours(l).filter((x) => unitOf(x.position) === 'OL' && x.morale)) {
+      p.morale!.level = 0;
+      delete p.morale!.jolts;
+    }
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'The room')?.rows ?? [];
+    expect(rows.find((r) => r.cells[0] === ROOM_LABEL.OL)).toBeUndefined();
+  });
+
+  it("a GM at a new club hears nothing of his old club's rooms", () => {
+    const l = camp();
+    splitUnit(l, 'WR');
+    deliverMail(l);
+    // Hired across the league: same inbox, another club.
+    l.userTeamId = (l.userTeamId + 7) % l.teams.length;
+    nameCaptains(l);
+    toEnd(l);
+    deliverMail(l);
+    const m = reports(l).at(-1)!;
+    expect(
+      section(m, 'Who the room follows')?.rows.some((r) =>
+        /Found his voice|Now a leader|Quieter now/.test(r.cells[1]),
+      ) ?? false,
+    ).toBe(false);
+    for (const r of section(m, 'The room')?.rows ?? []) expect(r.note).not.toMatch(/still|back on|same story/i);
+  });
+
+  it('a voice back from injured reserve is not told as new', () => {
+    const l = camp();
+    deliverMail(l);
+    const p = [...leadersOf(l, l.userTeamId), ...voicesOf(l, l.userTeamId)][0];
+    p.ir = { season: l.season, week: 1, weeks: 0 };
+    toEnd(l);
+    deliverMail(l);
+    delete p.ir;
+    at(l, 'preseason');
+    nameCaptains(l);
+    deliverMail(l);
+    const rows = section(reports(l).at(-1)!, 'Who the room follows')?.rows ?? [];
+    expect(rows.some((r) => r.playerId === p.id && /Found his voice|Now a leader/.test(r.cells[1]))).toBe(false);
+  });
+
+  it('a leader on injured reserve has not left', () => {
+    const l = camp();
+    deliverMail(l);
+    const inDb = (x: Player) => unitOf(x.position) === 'DB';
+    const p = leadersOf(l, l.userTeamId).find(inDb) ?? voicesOf(l, l.userTeamId).find(inDb)!;
+    p.ir = { season: l.season, week: 1, weeks: 0 };
+    toEnd(l);
+    deliverMail(l);
+    expect(text(reports(l).at(-1)!)).not.toMatch(new RegExp(`since ${p.lastName} left`));
+  });
+
+  it('a leader who left the club is told as gone when his unit has no voice', () => {
+    const l = camp();
+    deliverMail(l);
+    const room = ours(l).filter((x) => unitOf(x.position) === 'DB');
+    const lead = leadersOf(l, l.userTeamId).find((x) => unitOf(x.position) === 'DB') ?? room[0];
+    // Stamp him as a leader at the last report, then make the rest of the room quiet and let him go.
+    l.mailTold = { ...l.mailTold, [`standing:${moraleClock(l)}:${l.userTeamId}:${lead.id}:leader`]: 1 };
+    for (const x of room) x.traits.leads = 1;
+    lead.teamId = null;
+    const c = l.teams[l.userTeamId].captains!;
+    if (c.defense === lead.id || room.some((x) => x.id === c.defense)) c.defense = -1;
+    for (const x of room.filter((y) => y.id !== lead.id)) {
+      x.morale!.level = -4;
+      delete x.morale!.jolts;
+    }
+    toEnd(l);
+    deliverMail(l);
+    expect(text(reports(l).at(-1)!)).toMatch(new RegExp(`since ${lead.lastName} left`));
   });
 });
