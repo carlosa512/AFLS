@@ -203,7 +203,9 @@ so the padded sleeve comes off with whatever sleeve he wore.
 A new `Gear.wristband?: { side: 'left' | 'right'; color: GearColor }`, always on one wrist: mostly the non-throwing
 one (the left), the right for one in four for flavour (`WRISTBAND_RIGHT = 0.25`). 60% of quarterbacks wear one
 (`WRISTBAND_QB = 0.6`, between the 55 and 60% asked for); colours white 40, black 30, team colour 15, second colour 15.
-On the right wrist it's drawn the same way, mirrored.
+On the right wrist it's drawn the same way, mirrored. For a clean look it never goes on an arm in a padded sleeve: over a full sleeve, below
+one that ends above the wrist, or on a bare wrist is fine; with a padded sleeve on its wrist's arm it moves to the other
+wrist, and a quarterback padded on both arms wears none. (The editor still allows any pick, as it does everywhere.)
 A solid band from 92 to 104.6 on the arm (a little above the wrist, so more of it stays inside the ring), the play card
 behind a clear window turned 75° toward the outside of the wrist, where he flips it up to read. At 128px it shows as a
 light strip on the outside of his wrist; it stays on in cold games. No other position wears one by default.

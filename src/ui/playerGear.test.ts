@@ -177,6 +177,20 @@ describe('gearOf', () => {
         position,
       ).toBe(0);
   });
+  it('never puts the wristband on an arm with a padded sleeve, for a clean look', () => {
+    const padded = (g: Gear) => g.sleeve?.length === 'padded' || g.sleeve?.length === 'paddedElbow';
+    const qbs = players('QB')
+      .map((p) => gearOf(p))
+      .filter(padded);
+    expect(qbs.length).toBeGreaterThan(0);
+    for (const g of qbs) {
+      if (!g.wristband) continue;
+      expect(g.sleeve!.side).not.toBe('both');
+      expect(g.wristband.side).not.toBe(g.sleeve!.side);
+    }
+    // a padded sleeve on one arm moves the band to the other wrist rather than dropping it
+    expect(qbs.filter((g) => g.sleeve!.side !== 'both' && g.wristband).length).toBeGreaterThan(0);
+  });
   it('dresses a quarterback in plain long sleeves in the cold, and keeps his wristband on', () => {
     for (const p of players('QB')) {
       const warm = gearOf(p);

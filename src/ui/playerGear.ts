@@ -216,12 +216,21 @@ export function ownGear(player: Pick<Player, 'id' | 'position'>): Gear {
       gear.band = { at: 'forearm', color: weighted(id, 'bandColor', BAND_COLORS), side: oneSide(id, 'bandSide') };
     }
   }
-  // the quarterback's play-call wristband: one wrist, outside the two-piece limit (it's his, not arm gear)
-  if (position === 'QB' && roll(id, 'wristband') < WRISTBAND_QB)
-    gear.wristband = {
-      side: roll(id, 'wristSide') < WRISTBAND_RIGHT ? 'right' : 'left',
-      color: weighted(id, 'wristColor', WRIST_COLORS),
-    };
+  // the quarterback's play-call wristband: one wrist, outside the two-piece limit (it's his, not arm gear). Never on an
+  // arm in a padded sleeve, for a clean look: it moves to the other wrist, or stays off when both arms are padded.
+  if (position === 'QB' && roll(id, 'wristband') < WRISTBAND_QB) {
+    const padded = gear.sleeve?.length === 'padded' || gear.sleeve?.length === 'paddedElbow';
+    const busy = (side: 'left' | 'right') => padded && (gear.sleeve!.side === side || gear.sleeve!.side === 'both');
+    const want = roll(id, 'wristSide') < WRISTBAND_RIGHT ? 'right' : 'left';
+    const side = !busy(want)
+      ? want
+      : !busy(want === 'left' ? 'right' : 'left')
+        ? want === 'left'
+          ? 'right'
+          : 'left'
+        : null;
+    if (side) gear.wristband = { side, color: weighted(id, 'wristColor', WRIST_COLORS) };
+  }
   return gear;
 }
 
