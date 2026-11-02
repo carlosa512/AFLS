@@ -1,11 +1,11 @@
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { whyFact } from '../../engine/roomFacts';
 import { STANDING_WHY, standsOut } from '../../engine/roomVoice';
-import { roomView, standingView, UNITS, type UnitWord } from '../../engine/standing';
+import { captainsNow, roomView, standingView, unitOf, UNITS, type UnitWord } from '../../engine/standing';
+import { ROOM_LABEL } from '../../engine/coaching';
 import { say } from '../../engine/voice';
 import { activeRoster } from '../../engine/roster';
-import type { League, Player, Position } from '../../engine/types';
-import { POSITION_NAMES } from '../../engine/positions';
+import type { League, Player } from '../../engine/types';
 import { PlayerLink, Section } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
@@ -21,25 +21,44 @@ export function LockerRoom({ league }: { league: League }) {
   const roster = activeRoster(league, team.id);
   const captains = team.captains?.season === league.season ? team.captains : undefined;
   const room = roomView(league);
-  const leaders = room.leaders.map((id) => league.players[id]);
-  const voices = room.voices.map((id) => league.players[id]);
-  // Rooms in trouble first (divided, down, restless), then the unhappiest, then the coaches' order.
-  const roomCards = [...room.units].sort(
-    (a, b) =>
-      READ_ORDER[a.word] - READ_ORDER[b.word] || a.mood - b.mood || UNITS.indexOf(a.unit) - UNITS.indexOf(b.unit),
-  );
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
-  // Friendships and feuds inside our rooms, each pair once, by position.
-  const byPos = new Map<Position, { a: Player; b: Player; kind: 'friend' | 'feud' }[]>();
-  for (const a of roster)
-    for (const t of a.ties ?? []) {
-      const b = league.players[t.with];
-      if (!b || b.teamId !== team.id || b.id < a.id) continue;
-      byPos.set(a.position, [...(byPos.get(a.position) ?? []), { a, b, kind: t.kind }]);
-    }
-  const rooms = [...byPos.entries()];
+  // One card per room: its read, who it follows, its young players and its friendships and feuds. Rooms in trouble
+  // first (divided, down, restless), then the unhappiest, then the coaches' order; a room with no read (too small, the
+  // specialists) only when it has someone to show.
+  const now = captainsNow(league, team);
+  const captainIds = now ? [now.offense, now.defense, now.specialTeams] : [];
+  const followers = [...captainIds, ...room.leaders, ...room.voices]
+    .filter((id, i, all) => all.indexOf(id) === i)
+    .map((id) => league.players[id])
+    .filter((p): p is Player => !!p && p.teamId === team.id);
+  const cards = UNITS.map((unit) => {
+    const view = room.units.find((u) => u.unit === unit);
+    const inRoom = (p: Player) => unitOf(p.position) === unit;
+    const ties: { a: Player; b: Player; kind: 'friend' | 'feud' }[] = [];
+    for (const a of roster.filter(inRoom))
+      for (const t of a.ties ?? []) {
+        const b = league.players[t.with];
+        if (b && b.teamId === team.id && b.id > a.id) ties.push({ a, b, kind: t.kind });
+      }
+    return {
+      unit,
+      label: unit === 'ST' ? 'Specialists' : ROOM_LABEL[unit],
+      view,
+      trouble: !!view && (view.word === 'Split' || view.word === 'Down' || view.word === 'Restless'),
+      follows: followers.filter(inRoom),
+      young: young.filter(inRoom),
+      ties,
+    };
+  })
+    .filter((c) => c.view || c.follows.length || c.young.length || c.ties.length)
+    .sort(
+      (a, b) =>
+        (a.view ? READ_ORDER[a.view.word] : 9) - (b.view ? READ_ORDER[b.view.word] : 9) ||
+        (a.view?.mood ?? 9) - (b.view?.mood ?? 9) ||
+        UNITS.indexOf(a.unit) - UNITS.indexOf(b.unit),
+    );
   // The room's mood: every man's, averaged; then who's down, worst first, and who's flying.
   const moods = roster.flatMap((p) => {
     const view = moraleView(league, p);
@@ -227,7 +246,7 @@ export function LockerRoom({ league }: { league: League }) {
           </div>
         )}
       </Section>
-      <Section id="locker-leaders" title="Who the room follows">
+      <Section id="locker-leaders" title="Captains">
         {captains ? (
           <ul className="plain-list">
             {(
@@ -247,137 +266,97 @@ export function LockerRoom({ league }: { league: League }) {
         ) : (
           <p className="muted">Captains are named when camp opens.</p>
         )}
-        {(
-          [
-            ['Leaders', leaders],
-            ['Voices', voices],
-          ] as const
-        ).map(([title, list]) =>
-          list.length ? (
-            <div key={title}>
-              <h3>{title}</h3>
-              <ul className="plain-list">
-                {list.map((p) => (
-                  <li key={p.id}>
-                    <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />{' '}
-                    <span className="muted small">{whyLine(league, p)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null,
-        )}
       </Section>
       <Section id="locker-rooms" title="The rooms">
-        {roomCards.length === 0 ? (
-          <p className="muted">No room is big enough for a read yet.</p>
-        ) : (
-          <div className="room-cards">
-            {roomCards.map((u) => {
-              const voice = u.setter === null ? undefined : league.players[u.setter];
-              const trouble = u.word === 'Split' || u.word === 'Down' || u.word === 'Restless';
-              return (
-                <div key={u.unit} className={`room-card${trouble ? ' is-trouble' : ''}`}>
-                  <div className="room-card-head">
-                    <MoodFace step={u.mood} size={32} />
-                    <div>
-                      <div className="room-card-name">{u.label}</div>
-                      <div className="room-card-mood">
-                        {MORALE_WORDS[u.mood]}
-                        {u.word === 'Split' && <span className="tag-pill room-divided">Divided</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="room-card-line">{standsOut(u, room.team)}</p>
-                  <p className="room-card-voice small">
-                    <span className="muted">Listens to: </span>
-                    {voice ? (
-                      <PlayerLink league={league} player={voice} pos />
-                    ) : (
-                      <span className="muted">no one yet</span>
-                    )}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
-      <Section id="locker-mentoring" title="Mentoring">
         <label className="check">
           <input
             type="checkbox"
             checked={byCoaches}
             onChange={(e) => store.mutate((l) => setMentoringByYou(l, !e.target.checked))}
           />{' '}
-          Let the coaches handle it
+          Let the coaches handle the mentoring
         </label>
-        {young.length === 0 ? (
-          <p className="muted">No one on the roster is young enough to need a mentor.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Mentor</th>
-                <th>How it's going</th>
-              </tr>
-            </thead>
-            <tbody>
-              {young.map((y) => {
-                const options = roster.filter(
-                  (m) => m.id !== y.id && canMentor(m) && (m.id === y.mentor || load(m.id) < MAX_MENTEES),
-                );
-                const mentor = y.mentor === undefined ? undefined : league.players[y.mentor];
-                return (
-                  <tr key={y.id}>
-                    <td>
-                      <span className="mood-word">
-                        <MoodCell league={league} player={y} /> <PlayerLink league={league} player={y} pos />
-                      </span>
-                    </td>
-                    <td>
-                      <select
-                        aria-label={`Mentor for ${y.lastName}`}
-                        value={y.mentor ?? ''}
-                        onChange={(e) =>
-                          store.mutate((l) => setMentor(l, y.id, e.target.value === '' ? null : Number(e.target.value)))
-                        }
-                      >
-                        <option value="">No mentor</option>
-                        {options.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.position} {m.lastName}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{mentor ? mentorStatus(league, y) : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </Section>
-      <Section id="locker-room-ties" title="In the room">
-        {rooms.length === 0 ? (
-          <p className="muted">No friendships or feuds our coaches would mention.</p>
-        ) : (
-          rooms.map(([pos, ties]) => (
-            <div key={pos}>
-              <h3>{POSITION_NAMES[pos]}</h3>
-              <ul className="plain-list">
-                {ties.map(({ a, b, kind }) => (
-                  <li key={`${a.id}:${b.id}`}>
-                    <PlayerLink league={league} player={a} /> and <PlayerLink league={league} player={b} />
-                    {kind === 'feud' ? ' don’t see eye to eye' : ' are close'}
-                  </li>
-                ))}
-              </ul>
+        <div className="room-cards">
+          {cards.map((c) => (
+            <div key={c.unit} className={`room-card${c.trouble ? ' is-trouble' : ''}`}>
+              <div className="room-card-head">
+                {c.view && <MoodFace step={c.view.mood} size={32} />}
+                <div>
+                  <div className="room-card-name">{c.label}</div>
+                  {c.view && (
+                    <div className="room-card-mood">
+                      {MORALE_WORDS[c.view.mood]}
+                      {c.view.word === 'Split' && <span className="tag-pill room-divided">Divided</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
+              {c.follows.length > 0 && (
+                <div>
+                  <h4>Who they follow</h4>
+                  <ul className="plain-list">
+                    {c.follows.map((p) => (
+                      <li key={p.id}>
+                        <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
+                        <div className="muted small">{whyLine(league, p)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {c.young.length > 0 && (
+                <div>
+                  <h4>Mentoring</h4>
+                  <ul className="plain-list room-mentoring">
+                    {c.young.map((y) => {
+                      const options = roster.filter(
+                        (m) => m.id !== y.id && canMentor(m) && (m.id === y.mentor || load(m.id) < MAX_MENTEES),
+                      );
+                      return (
+                        <li key={y.id}>
+                          <span className="mood-word">
+                            <MoodCell league={league} player={y} /> <PlayerLink league={league} player={y} pos />
+                          </span>{' '}
+                          <select
+                            aria-label={`Mentor for ${y.lastName}`}
+                            value={y.mentor ?? ''}
+                            onChange={(e) =>
+                              store.mutate((l) =>
+                                setMentor(l, y.id, e.target.value === '' ? null : Number(e.target.value)),
+                              )
+                            }
+                          >
+                            <option value="">No mentor</option>
+                            {options.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.position} {m.lastName}
+                              </option>
+                            ))}
+                          </select>{' '}
+                          {y.mentor !== undefined && <span className="muted small">{mentorStatus(league, y)}</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {c.ties.length > 0 && (
+                <div>
+                  <h4>In the room</h4>
+                  <ul className="plain-list">
+                    {c.ties.map(({ a, b, kind }) => (
+                      <li key={`${a.id}:${b.id}`}>
+                        <PlayerLink league={league} player={a} /> and <PlayerLink league={league} player={b} />
+                        {kind === 'feud' ? ' don’t see eye to eye' : ' are close'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          ))
-        )}
+          ))}
+        </div>
       </Section>
     </div>
   );

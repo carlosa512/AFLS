@@ -4,7 +4,7 @@
  * flat sentences, the room's business kept in the room, captains as the room's call. Our own lines, never anyone's
  * quotes. Personality names are our scouts' read; nothing here is a number or a trait.
  */
-import { inWords, pronounFor, unitIs } from './roomVoice';
+import { inWords, unitIs } from './roomVoice';
 import type { Line } from './voice';
 
 export type Checkin = 'camp' | 'cutdown' | 'deadline' | 'end';
@@ -15,7 +15,6 @@ const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eig
 const count = (n: number) => COUNT[n] ?? String(n);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const first = (units: string[] | undefined) => units?.[0] ?? 'the room';
-const isAreOf = (unit: string) => unitIs(unit).split(' ').pop()!;
 /** No feud in the room, old or new: only then is the rest of the room "fine". */
 const calm = (f: VerdictFact) => !f.standing && f.newFeuds === 0;
 /** Rooms reading Split or Down. */
@@ -64,47 +63,39 @@ const month = (c: Checkin) => (c === 'camp' ? 'the season' : c === 'cutdown' ? '
 
 /** `motto: true` lines close with the coach's saying. */
 export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
-  // The room's shape (L1): a split or a down room is the news, ahead of anything but a feud on the field; a tight one
-  // is worth a word on a quiet report. Text must hold for any fact: the report reads every line's text to find the one
-  // it picked.
+  // The room's shape (L1): a divided or a down room is the news, ahead of anything but a feud on the field; a close
+  // one is worth a word on a quiet report. Short and flat, like the rest of his verdicts. Text must hold for any fact:
+  // the report reads every line's text to find the one it picked.
   {
     when: (f) => f.split?.length === 1 && !f.down?.length && calm(f),
     reads: 4,
-    text: (f) => `Mostly fine. ${unitIs(first(f.split))} the exception.`,
+    text: (f) => `One room on my list: ${first(f.split)}. Everyone else is in a good place.`,
   },
   {
     when: (f) => f.split?.length === 1 && !f.down?.length && calm(f),
     reads: 4,
-    text: (f) => `${unitIs(first(f.split))} split. The rest of the room is fine.`,
+    text: (f) => `${unitIs(first(f.split))} divided. Everyone else is fine.`,
   },
   {
     when: (f) => f.down?.length === 1 && !f.split?.length && calm(f),
     reads: 4,
-    text: (f) => `${unitIs(first(f.down))} down. The rest of the room is holding up.`,
+    text: (f) => `${unitIs(first(f.down))} down. Everyone else is holding up.`,
   },
   {
     when: (f) => troubled(f) === 1 && !!f.standing && f.newFeuds === 0,
     reads: 5,
     text: (f) =>
-      `${unitIs(first([...(f.split ?? []), ...(f.down ?? [])]))} ${f.split?.length ? 'split' : 'down'}, and ${f.standing} still aren't talking. Two things I'm watching.`,
+      `${unitIs(first([...(f.split ?? []), ...(f.down ?? [])]))} ${f.split?.length ? 'divided' : 'down'}, and ${f.standing} still aren't talking. Two things I'm watching.`,
   },
   {
-    when: (f) => f.down?.length === 1 && f.split?.length === 1,
+    when: (f) => troubled(f) >= 2,
     reads: 4,
-    text: (f) =>
-      `${unitIs(first(f.split))} split, and ${first(f.down)} ${isAreOf(first(f.down))} down. Not the room I want.`,
+    text: (f) => `${cap(inWords(troubled(f)))} rooms on my list: ${listOf([...(f.split ?? []), ...(f.down ?? [])])}.`,
   },
   {
-    when: (f) => troubled(f) >= 2 && !(f.down?.length === 1 && f.split?.length === 1),
+    when: (f) => troubled(f) >= 2,
     reads: 4,
-    text: (f) =>
-      `${cap(inWords(troubled(f)))} rooms in a bad way: ${listOf([...(f.split ?? []), ...(f.down ?? [])])}. That's where my attention is.`,
-  },
-  {
-    when: (f) => troubled(f) >= 2 && !(f.down?.length === 1 && f.split?.length === 1),
-    reads: 4,
-    text: (f) =>
-      `Not the room I want. ${cap(listOf([...(f.split ?? []), ...(f.down ?? [])]))} ${troubled(f) === 2 ? 'both' : 'all'} need watching.`,
+    text: (f) => `${cap(listOf([...(f.split ?? []), ...(f.down ?? [])]))}: that's where my attention is.`,
   },
   {
     when: (f) => f.apart === 'young down' && !f.split?.length,
@@ -119,8 +110,7 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
   {
     when: (f) => quiet(f) && !!f.tight,
     reads: 2,
-    text: (f) =>
-      `Good room. ${unitIs(f.tight ?? 'the room')} as tight as I've seen ${pronounFor(f.tight ?? 'the room')}.`,
+    text: (f) => `Good room. ${unitIs(f.tight ?? 'the room')} as close a group as I've seen.`,
   },
   {
     when: (f) => !!f.standing && f.newFeuds === 0,

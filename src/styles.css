@@ -5235,8 +5235,21 @@ button.tip-pill {
 /* The Locker Room's rooms (L1): one card per position room, the ones in trouble first and marked. */
 .room-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
   gap: 12px;
+}
+.room-card h4 {
+  margin: 6px 0 2px;
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.room-card .plain-list li {
+  padding: 3px 0;
+}
+.room-mentoring select {
+  max-width: 11rem;
 }
 .room-card {
   background: var(--surface);

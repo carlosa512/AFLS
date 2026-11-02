@@ -388,3 +388,58 @@ describe('the verdict: two rooms', () => {
       expect(say(VERDICT, f, { key: k, slot: 'v' })).not.toMatch(/\ball need/);
   });
 });
+
+describe('the language pass', () => {
+  it('the head coach says divided, like the screen', () => {
+    for (const k of ['a', 'b', 'c', 'd']) {
+      const s = say(UNIT_NOTE, unit({ word: 'Split' }), { key: k, slot: 'u' });
+      expect(s).toMatch(/divided/i);
+      expect(s).not.toMatch(/\bsplit\b/i);
+    }
+  });
+
+  it('never opens a verdict with "Not the room I want"', () => {
+    const f: VerdictFact = {
+      checkin: 'cutdown',
+      newFeuds: 0,
+      standing: null,
+      lost: 0,
+      lostName: null,
+      struggling: 0,
+      friends: 0,
+      grew: 0,
+      unhappy: 0,
+    };
+    for (const k of ['a', 'b', 'c', 'd', 'e', 'f'])
+      for (const room of [
+        { split: ['the backs', 'the receivers'] },
+        { split: ['the backs'], down: ['the line'] },
+        { down: ['the line', 'the backs', 'the secondary'] },
+      ])
+        expect(say(VERDICT, { ...f, ...room }, { key: k, slot: 'v' })).not.toMatch(/Not the room I want/);
+  });
+
+  it('a room with no voice is only called leaderless when a leader left', () => {
+    for (const word of WORDS)
+      for (const k of ['a', 'b', 'c']) {
+        const s = say(UNIT_NOTE, unit({ word, noVoice: true, nearVoice: 'Pope' }), { key: k, slot: word });
+        expect(s).not.toMatch(/nobody|no one|taken charge|has the room yet/i);
+      }
+    expect(say(UNIT_NOTE, unit({ word: 'Down', noVoice: true, goneLeader: 'Cole' }), { key: 'k', slot: 'u' })).toMatch(
+      /Cole/,
+    );
+  });
+
+  it('gives a starter more than one way to say why the room goes to him', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 12; i++)
+      seen.add(
+        say(
+          STANDING_WHY,
+          { parts: ['starts'], experience: 3, unit: 'the secondary' },
+          { key: `why:${i}`, slot: 'why' },
+        ),
+      );
+    expect(seen.size).toBeGreaterThan(1);
+  });
+});
