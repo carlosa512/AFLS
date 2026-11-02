@@ -361,8 +361,11 @@ describe('the staged play', () => {
     for (const { p } of staged) {
       if (p.carrier === null) continue;
       const c = p.ids.indexOf(p.carrier);
-      // From when he has it: the throw or the handoff, or a fumble's recovery (before, he may be the man in coverage).
-      const from = Math.round((p.loose ? p.loose.t : p.release) / p.dt);
+      // From when he has it: the throw or the handoff, a pick as he makes it, or a fumble's recovery (before, the man who
+      // ends up with it may have been in coverage).
+      const from = Math.round(
+        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt,
+      );
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).
         if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k])) continue;

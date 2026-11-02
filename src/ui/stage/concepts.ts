@@ -7,7 +7,7 @@
 import type { Rng } from '../../engine/rng';
 import type { OffSchemeId } from '../../engine/schemes';
 import { FIELD_W } from './ballPath';
-import type { Pt } from './formations';
+import { WIDE_SPLIT, type Pt } from './formations';
 import { ROUTES, type RouteId, type Spot } from './routes';
 
 export type ConceptId =
@@ -146,7 +146,7 @@ export function conceptFor(
 export function spotOf(role: string, at: Pt, ballY: number): Spot {
   if (role === 'TE') return 'TE';
   if (role === 'RB') return 'RB';
-  return Math.abs(at.y - ballY) >= 15 ? 'WIDE' : 'SLOT';
+  return Math.abs(at.y - ballY) >= WIDE_SPLIT - 2 ? 'WIDE' : 'SLOT';
 }
 
 /** A second man at one spot on one side (trips, two tight ends) runs this instead, so they don't run one route twice. */

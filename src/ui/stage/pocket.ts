@@ -174,6 +174,8 @@ export function pocketPlan(e: PlayLogEntry, ctx: PocketContext, rng: Rng): Pocke
   return { gun: ctx.gun, drop, hitch, setDepth, playAction, bootleg, pressure, roll, throwAt };
 }
 
+/** The quickest he moves in the pocket, yards a second (a drop, a roll, a reset). */
+const QB_PACE = 7;
 /** Stepping up or climbing, he stops this deep: the line's backs are a yard or two off the ball. */
 const STEP_UP_TO = 4;
 /** Held this long after a quick set, he resets to this depth. */
@@ -254,6 +256,15 @@ export function pocketPath(plan: PocketPlan, ctx: PathContext): Keyframe[] {
     to(step, here);
     to(end, behind(Math.max(Math.min(depthHere, STEP_UP_TO), depthHere - 1.2), here.y - ball.y));
   }
-  // One key per moment, in order: a plan whose throw comes as he sets keeps the later.
-  return keys.filter((k, i) => i === keys.length - 1 || k.t < keys[i + 1].t);
+  // No move quicker than his legs: a roll or a reset the throw would come too soon for comes as soon as he can make it
+  // (the throw with it). Then one key per moment, in order.
+  let prev: Keyframe = { t: 0, x: ctx.qb.x, y: ctx.qb.y };
+  let late = 0;
+  const paced = keys.map((k) => {
+    const t = Math.max(k.t + late, prev.t + Math.hypot(k.x - prev.x, k.y - prev.y) / QB_PACE);
+    late = t - k.t;
+    prev = { ...k, t };
+    return prev;
+  });
+  return paced.filter((k, i) => i === paced.length - 1 || k.t < paced[i + 1].t);
 }

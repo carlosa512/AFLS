@@ -10,6 +10,7 @@ import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type 
 import type { Cast } from './cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
 import { FAKE, type PocketPlan } from './pocket';
+import { runnable, SPEED } from './speed';
 import { decoyEnd, type Assignment, type Concept } from './concepts';
 import { routeKeys, routeTime, type RouteId } from './routes';
 
@@ -93,6 +94,8 @@ const MESH = 0.8;
 const ROUTE_PACE = 8.5;
 /** The engine's beaten block is acted out when the two lined up within this many yards of each other across the field. */
 export const BEAT_ACROSS = 6;
+/** A sack's last stagger to the spot, yards a second at most. */
+const SACK_PACE = 5;
 /** Before a scramble breaks out. */
 const SCRAMBLE_HOLD = 1.1;
 
@@ -279,6 +282,8 @@ function stageCarried(
       // His pocket, then the break (a scramble, at a runner's pace) or the rush taking him down.
       const from = pocket[pocket.length - 1];
       const out = ground(from.x, from.y, end.x1, end.y1);
+      // Taken down: the two of them to the spot at a stagger's pace, not the broadcast view's slide.
+      out.dur = Math.max(out.dur, Math.hypot(end.x1 - from.x, end.y1 - from.y) / SACK_PACE);
       return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught) : out];
     }
     const qb = { x: e.from - dir * 6, y: snapY };
@@ -380,6 +385,12 @@ export function script(
     if (id === undefined || !start.has(id)) return;
     keys.set(id, [from(id), ...ks.filter((k) => k.t > 0)]);
   };
+  /** His top speed by his role on the field. */
+  const topOf = (id: number) => SPEED[[...cast.offense, ...cast.defense].find((m) => m.id === id)?.role ?? 'WR'];
+  /** A defender's scripted run: the spots on the way he can't reach in time dropped (`runnable`). */
+  const setRun = (id: number, ks: Keyframe[]) => {
+    if (start.has(id)) set(id, runnable(start.get(id)!, ks, topOf(id)));
+  };
   /**
    * The blocker the engine says the rush beat, where he lined up: only when the formation put the two near each other
    * (a rusher crossing the whole formation to beat a man on the far side would be a picture of nothing).
@@ -422,7 +433,7 @@ export function script(
         const qbAt = (t: number) => sample(keys.get(qb)!, t);
         const beat = beatenNear(who.beat, s0);
         const mid: Keyframe[] = beat ? [at(contact * 0.6, toward(beat, qbAt(contact * 0.6), 1))] : [];
-        set(who.rush, [...mid, at(contact, toward(qbAt(contact), s0, 0.8)), at(total, toward(end, s0, 0.6))]);
+        setRun(who.rush, [...mid, at(contact, toward(qbAt(contact), s0, 0.8)), at(total, toward(end, s0, 0.6))]);
         moment(who.rush, Math.max(0, contact - 0.4));
       }
       // A sack's moment is the rush getting home; a scramble's, breaking out of the pocket.
@@ -472,7 +483,7 @@ export function script(
       if (target !== undefined && start.has(target)) {
         const s0 = start.get(target)!;
         // His route to the ball, arriving as it does (a step short of a pick or a miss).
-        const short = e.kind === 'pass' ? 0 : e.kind === 'int' ? 1.5 : 0.7;
+        const short = e.kind === 'pass' ? 0 : e.kind === 'int' ? 0.7 : 0.7;
         const arrive = short ? toward(land, s0, short) : land;
         const after = e.kind === 'pass' ? ride(segs, a + 1, segs.length - 1) : [];
         if (pattern) {
@@ -526,14 +537,25 @@ export function script(
         const out = Math.sign(s0.y - ballY) || 1;
         const shift = (p: Pt, across: number, back: number): Pt => ({ x: p.x - dir * back, y: p.y + out * across });
         const edge = pocket?.pressure === 'edge';
-        const beatAt = Math.min(outT * 0.55, outT - 1.2);
-        const mid: Keyframe[] =
-          beat && beatAt > 0.3 ? [at(beatAt, edge ? shift(beat, 1.5, 0.8) : toward(beat, qbAt(beatAt), 1))] : [];
-        // Off the edge, a yard deeper than the quarterback and outside him as he starts to climb.
+        // Off the edge, a yard deeper than the quarterback and outside him as he starts to climb: the loop is the
+        // picture, so the beat comes as early as the loop needs it (and goes, if even that can't be run in time).
         const set0 = qbAt(outT - 0.7);
-        set(who.rush, [
+        const loop = shift(set0, 2.5, 1);
+        const pace = topOf(who.rush);
+        const outside = beat ? shift(beat, 1.5, 0.8) : undefined;
+        const beatAt = edge
+          ? outside
+            ? Math.min(outT * 0.55, outT - 0.7 - Math.hypot(loop.x - outside.x, loop.y - outside.y) / pace)
+            : 0
+          : Math.min(outT * 0.55, outT - 1.2);
+        const reach = (p: Pt) => Math.hypot(p.x - s0.x, p.y - s0.y) / pace;
+        const mid: Keyframe[] =
+          beat && beatAt > 0.3 && (!edge || beatAt >= reach(outside!))
+            ? [at(beatAt, edge ? outside! : toward(beat, qbAt(beatAt), 1))]
+            : [];
+        setRun(who.rush, [
           ...mid,
-          ...(edge ? [at(outT - 0.7, shift(set0, 2.5, 1))] : [at(outT - 0.3, toward(qbAt(outT - 0.3), s0, 1.8))]),
+          ...(edge ? [at(outT - 0.7, loop)] : [at(outT - 0.3, toward(qbAt(outT - 0.3), s0, 1.8))]),
           at(outT, edge ? shift(qbAt(outT), 0.7, 0.7) : toward(qbAt(outT), s0, 1)),
           at(outT + 0.35, edge ? shift(qbAt(outT), 0.5, 0.4) : toward(qbAt(outT), s0, 0.7)),
         ]);
@@ -552,9 +574,12 @@ export function script(
         // came from; without a pattern, a yard and a half deeper (under it on a miss). Beaten on a catch, he chases from
         // there on his own legs (`free`), not sliding along at the receiver's back.
         const sep = pattern?.separation;
+        const c0 = start.get(who.cover)!;
+        // As near as he could get by the time the ball does: a man lined up far off is further off the catch.
+        const reach = Math.hypot(land.x - c0.x, land.y - c0.y) - topOf(who.cover) * throwEnd;
         const spot =
           sep !== undefined
-            ? toward(land, start.get(who.cover)!, sep)
+            ? toward(land, c0, Math.max(sep, reach))
             : { x: land.x + dir * (e.kind === 'incomplete' ? 0.7 : 1.5), y: land.y };
         set(who.cover, [at(throwEnd, spot)]);
         if (e.kind === 'pass') free.set(who.cover, throwEnd);
@@ -664,14 +689,29 @@ export function script(
     if (tackler !== undefined) {
       const s0 = start.get(tackler)!;
       // Already scripted (the cover man on a catch): keep his path, and end it on the carrier.
-      const before = keys.get(tackler)?.filter((k) => k.t < total) ?? [];
+      // His part so far: up to the whistle (a cover man scripted to a catch made where the tackle is has his part end
+      // at it, and only needs ending on the carrier).
+      const before = keys.get(tackler)?.filter((k) => k.t < total - 1e-6) ?? [];
+      const there = (keys.get(tackler) ?? []).some((k) => k.t >= total - 1e-6 && k.t > 0);
       // On a kickoff he's set with the rest until the ball comes down, then he takes his angle on the returner.
       const set = e.kind === 'kickoff' && catchAt !== undefined && catchAt + 0.2 < total ? [at(catchAt + 0.2, s0)] : [];
-      keys.set(tackler, [from(tackler), ...set, ...before.filter((k) => k.t > 0), at(total, toward(end, s0, 0.6))]);
+      // On a catch, open by the play's separation as the ball gets there, then on him: not ambling up from the snap.
+      const caughtAt = passing && airIdx > 0 ? ts[airIdx][1] : 0;
+      const off =
+        pattern && !before.some((k) => k.t > 0) && caughtAt > 0 && caughtAt < total - 0.1
+          ? [at(caughtAt, toward(pointAt(segs[airIdx], 1), s0, pattern.separation + 0.5))]
+          : [];
+      keys.set(tackler, [
+        from(tackler),
+        ...set,
+        ...before.filter((k) => k.t > 0),
+        ...off,
+        at(total, toward(end, s0, 0.6)),
+      ]);
       tacklerId = tackler;
       // Nothing else scripted for him, or his part over well before the tackle (the cover man beaten on the catch, the
       // receiver a pass was picked off from): he runs the carrier down himself from there.
-      const done = before.length ? before[before.length - 1].t : 0;
+      const done = there ? total : before.length ? before[before.length - 1].t : 0;
       if (total - done > 0.5) {
         pursuer = tackler;
         if (done > 0) free.set(tackler, done);

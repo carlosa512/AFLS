@@ -57,6 +57,10 @@ export function blitzersFor(e: PlayLogEntry, cast: Cast, call: DefenseCall, rng:
   return out;
 }
 
+/** Yards from the ball across the field: wide receivers about on the numbers, slots a few yards inside them. */
+export const WIDE_SPLIT = 15;
+const SLOT_SPLIT = 8;
+
 /** Under center on early downs at a normal distance, outside either two-minute window; the shotgun otherwise. */
 function underCenter(e: PlayLogEntry): boolean {
   // The victory formation, and the spike: the quarterback takes the snap under center.
@@ -182,7 +186,8 @@ function scrimmage(
   for (const m of of(o, 'QB')) put(m.id, gun ? 5 : 2, 0);
   for (const m of of(o, 'RB')) put(m.id, gun ? 5 : 6.5, gun ? -s * 1.5 : 0);
 
-  // Tight ends on the line, the first on the strong side; receivers split wide, slots inside them on the side with fewer.
+  // Tight ends on the line, the first on the strong side; receivers split out about on the numbers, slots inside them on
+  // the side with fewer.
   const tes = of(o, 'TE');
   tes.forEach((m, i) => put(m.id, 0.8, (i % 2 === 0 ? s : -s) * (6 + Math.floor(i / 2) * 1.5)));
   const wrs = of(o, 'WR');
@@ -190,11 +195,11 @@ function scrimmage(
   const count = { [s]: tes.filter((_, i) => i % 2 === 0).length, [-s]: tes.filter((_, i) => i % 2 === 1).length };
   wrs.forEach((m, i) => {
     let across: number;
-    if (i < 2) across = (i === 0 ? s : -s) * 20;
+    if (i < 2) across = (i === 0 ? s : -s) * WIDE_SPLIT;
     else {
       const side: 1 | -1 = count[s] <= count[-s] ? s : (-s as 1 | -1);
       const already = wrs.slice(2, i).filter((_, k) => k % 2 === (i - 2) % 2).length;
-      across = side * (10 + already * 3.5);
+      across = side * (SLOT_SPLIT + already * 3);
     }
     count[Math.sign(across)] = (count[Math.sign(across)] ?? 0) + 1;
     outside.push(across);
