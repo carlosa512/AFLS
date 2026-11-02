@@ -895,7 +895,11 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   seedMorale(league);
   // Team meetings (L2): no log yet, and every head coach's word in the middle.
   for (const team of league.teams) team.meetings = { log: [], open: [] };
-  for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility = 0;
+  // The staffs were hired as the world was built (`signCoach`), but none of them is new to his room.
+  for (const c of Object.values(league.coaches)) {
+    if (c.role === 'headCoach') c.credibility = 0;
+    delete c.newVoice;
+  }
   generateMedicalWorld(league);
   league.userTeamId = options.userTeamId ?? 0;
   generateCrews(league);

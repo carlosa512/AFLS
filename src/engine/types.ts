@@ -402,6 +402,8 @@ export interface MeetingRecord {
   /** The leader who said it, or the man called out. */
   speaker?: number;
   moment?: Moment;
+  /** What it was about: a feud met about once isn't trouble again. */
+  topic?: TalkCause | 'none';
 }
 
 /** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */
@@ -427,6 +429,10 @@ export interface TeamMeetings {
   log: MeetingRecord[];
   open: Commitment[];
   pending?: MeetingSuggestion;
+  /** This league year's moments already offered (`2026:camp`, `2026:newCoach:41`): each comes once, held or skipped. */
+  moments?: string[];
+  /** The clock of the last suggestion: one a week at most. */
+  lastOffer?: number;
   gmAddressSeason?: number;
   /** Your club: the head coach holds them himself. */
   byCoach?: boolean;

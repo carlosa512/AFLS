@@ -291,7 +291,7 @@ export function moraleTarget(f: MoraleFactors): number {
 // ───────── the clock and the jolts ─────────
 
 /** Morale steps in a league year: the offseason's calendar steps, then camp, then each week played. */
-const YEAR = 32;
+export const YEAR = 32;
 const REGULAR = 8;
 const CAMP = 7;
 

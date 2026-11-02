@@ -218,7 +218,10 @@ describe('save v76: meetings', () => {
   it('a new league starts the same, and stays plain JSON', () => {
     const l = createLeague({ seed: 'v76-new' });
     for (const t of l.teams) expect(t.meetings).toEqual({ log: [], open: [] });
-    for (const c of Object.values(l.coaches).filter((c) => c.role === 'headCoach')) expect(c.credibility).toBe(0);
+    for (const c of Object.values(l.coaches).filter((c) => c.role === 'headCoach')) {
+      expect(c.credibility).toBe(0);
+      expect(c.newVoice).toBeUndefined();
+    }
     expect(JSON.parse(JSON.stringify(l))).toEqual(l);
   });
 });
