@@ -8,8 +8,8 @@ import { TalkContractButton } from './negotiation';
 import { NavContext, type Nav } from './nav';
 import { PlayerCard } from './screens/PlayerCard';
 import { LockerRoom } from './screens/LockerRoom';
-import { moraleView } from '../engine/morale';
-import { roomView } from '../engine/standing';
+import { moraleView, viewContext } from '../engine/morale';
+import { roomReasons, roomView } from '../engine/standing';
 
 const nav = {
   openPlayer: () => {},
@@ -124,6 +124,18 @@ describe('the Locker Room: who wants a new deal', () => {
     underpaid(l, 4);
     const room = roomView(l).units.find((u) => u.unit === 'WR')!;
     expect(room.reasons.some((r) => r.text === 'Wants a new deal')).toBe(false);
+  });
+
+  it("doesn't count a man who wants more money but isn't upset", () => {
+    const l = fresh();
+    l.phase = 'regular';
+    const p = underpaid(l, 1);
+    p.morale = { level: 0 };
+    expect(moraleView(l, p)!.reasons).toContain('Wants a new deal');
+    const out = html(l);
+    const card = out.slice(out.indexOf('Receivers &amp; tight ends'));
+    expect(card.slice(0, card.indexOf('Mentoring'))).not.toContain(p.lastName + '</a></span><button');
+    expect(roomReasons(l, p, viewContext(l))).not.toContain('Wants a new deal');
   });
 
   it('folds each room’s mentoring away until you open it', () => {

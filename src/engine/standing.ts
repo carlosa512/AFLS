@@ -359,12 +359,15 @@ export const WANTS_DEAL = 'Wants a new deal';
 
 /**
  * What one of your men brings to his room's talk: his mood board reasons less his makeup, and "wants a new deal" only
- * when his contract is open to talks (`talksOpen`), so a room never counts a grievance you can't act on yet.
+ * when he's upset about it (Poor or worse) and his contract is open to talks (`talksOpen`), so a room counts only the
+ * grievances you can act on.
  */
 export function roomReasons(league: League, p: Player, ctx: MoraleContext): string[] {
-  return (moraleView(league, p, ctx)?.reasons ?? []).filter(
-    (text) => !TEMPERAMENT_REASONS.has(text) && (text !== WANTS_DEAL || talksOpen(league, p)),
-  );
+  const view = moraleView(league, p, ctx);
+  if (!view) return [];
+  // Upset (Poor or worse) and open to talks: a man happy enough with a raise in mind isn't the room's news.
+  const dealNews = view.step <= 3 && talksOpen(league, p);
+  return view.reasons.filter((text) => !TEMPERAMENT_REASONS.has(text) && (text !== WANTS_DEAL || dealNews));
 }
 
 /** Your room as your staff see it: every read unit, who it follows, and its shape. Words and ids only. */
