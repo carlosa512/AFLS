@@ -107,6 +107,7 @@ describe('the room in words', () => {
                     captain: false,
                     benched: now === null,
                     stirs: now === 'voice',
+                    warn: now === 'voice',
                     unit: 'the receivers',
                   },
                   { key: `s:${now}:${was}:${experience}:${newcomer}`, slot: 's' },
