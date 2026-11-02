@@ -943,6 +943,28 @@ describe('disputes: trade requests (G4b)', () => {
     expect(easy!).toBeLessThan(shopsAt(0.6, 4) ?? 99);
   });
 
+  it('carries into the spring: at the new league year it stands while he is Poor, the losing he asked out of still counting', () => {
+    const { l } = base('spring');
+    const p = souredOver(l, l.userTeamId, 'snaps');
+    p.morale = { level: -2, jolts: [] };
+    p.morale.dispute = {
+      kind: 'trade',
+      cause: 'losing',
+      since: at(l, 0) - 10,
+      club: l.userTeamId,
+      public: at(l, 0) - 4,
+    };
+    l.moraleAt = at(l, 0);
+    disputeStep(l, moraleContext(l), at(l, 0), 0, true);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    // Through the spring, only steps at Okay or better count toward letting it go.
+    run(l, 1, 6);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    p.morale!.level = 2;
+    run(l, 7, 10);
+    expect(p.morale!.disputeEnd?.how).toBe('withdrawn');
+  });
+
   it('stands at the new league year while he is Very poor with a cause, else is withdrawn; ends traded on a move', () => {
     const stands = base('new-year-stands');
     const p = souredOver(stands.l, stands.l.userTeamId, 'snaps');

@@ -35,8 +35,9 @@ const REGULAR = 8;
 const CHECKS = 18;
 /** A veteran's camp fine: $50K a day (the 2020 CBA) over about 45 days of camp, $K. */
 export const CAMP_FINE = 2250;
-/** Very poor or worse, as the words read it. */
+/** Very poor or worse, as the words read it; Poor or worse below `POOR` (`moraleStepOf`). */
 const VERY_POOR = -3;
+const POOR = -1;
 /** Steps a trade request stays private before it leaks; an outspoken man's, fewer (G4b). */
 export const LEAK_STEPS = 6;
 export const LEAK_LOUD = 3;
@@ -210,14 +211,19 @@ function runRequest(
   if (d.cause === 'snaps' && m.jolts?.some((j) => j.kind === 'kept' && j.at === clock))
     return endDispute(league, p, 'withdrawn', clock);
   const level = moraleLevel(league, p, clock);
+  // A request carries into the spring, when the market reopens (most come after the deadline): from the new league year
+  // to camp he wants out while he's Poor or worse, and only steps at Okay or better count toward letting it go.
+  const spring = week < CAMP && d.since < league.season * YEAR;
+  const settled = spring ? level > POOR : level > VERY_POOR;
   if (clock > d.since) {
-    if (level > VERY_POOR) d.calm = (d.calm ?? 0) + 1;
+    if (settled) d.calm = (d.calm ?? 0) + 1;
     else delete d.calm;
   }
   if ((d.calm ?? 0) >= RUN_STEPS) return endDispute(league, p, 'withdrawn', clock);
   if (newYear && d.since < league.season * YEAR) {
-    const cause = talkCause(league, p, moraleFactors(league, p, ctx), clock);
-    if (level > VERY_POOR || !cause) return endDispute(league, p, 'withdrawn', clock);
+    // The losing season he asked out of still counts until his club plays again.
+    const cause = d.cause === 'losing' || talkCause(league, p, moraleFactors(league, p, ctx), clock);
+    if (level > POOR || !cause) return endDispute(league, p, 'withdrawn', clock);
   }
   if (d.public === undefined && clock - d.since >= (outspoken(p) ? LEAK_LOUD : LEAK_STEPS)) leak(league, p, clock);
   // A club that turned him down thinks it over once the league knows (as with a holdout, `aiReviewDispute`): keeping him
