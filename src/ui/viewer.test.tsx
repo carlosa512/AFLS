@@ -6,7 +6,7 @@ import type { PlayLogEntry } from '../engine/types';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
-import { allSpeed, GameViewer } from './screens/GameViewer';
+import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { handoverFor, TopDownField } from './screens/TopDownField';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
@@ -147,5 +147,94 @@ describe('the ball changing hands in All-22', () => {
     // A punt has its own change-over, and the same side's next snap is no handover.
     expect(handoverFor([play({ kind: 'punt', offense: 1, from: 30, air: 70 }), theirs], 1, 1)).toBeNull();
     expect(handoverFor([play({ kind: 'run', offense: 1 }), play({ kind: 'pass', offense: 1 })], 1, 1)).toBeNull();
+  });
+});
+
+describe('the play label', () => {
+  // The away side (offense 1; home is 0) drives toward 0.
+  const play = (over: Partial<PlayLogEntry>): PlayLogEntry => ({
+    quarter: 2,
+    clock: 400,
+    offense: 1,
+    down: 2,
+    distance: 10,
+    yardLine: 50,
+    text: 'A.Passer pass short left to W.Out for 12 yards (C.Corner)',
+    homeScore: 0,
+    awayScore: 0,
+    kind: 'pass',
+    from: 50,
+    air: 42,
+    to: 38,
+    ...over,
+  });
+
+  it("gives a lost fumble's gain to where the ball came out, and says it was lost", () => {
+    const lost = play({
+      text: 'A.Passer pass short left to W.Out for 12 yards (C.Corner). FUMBLE, recovered by C.Corner',
+      to: 42,
+      loose: 38,
+    });
+    expect(playLabel(lost, 0)).toBe('Pass · +12 yds · Fumble lost');
+    expect(
+      playLabel(
+        { ...lost, kind: 'run', text: 'R.Back rush left for 12 yards (C.Corner). FUMBLE, recovered by C.Corner' },
+        0,
+      ),
+    ).toBe('Run · +12 yds · Fumble lost');
+    // A game before v78 kept only where the return ended.
+    expect(playLabel({ ...lost, loose: undefined }, 0)).toBe('Pass · +8 yds · Fumble lost');
+  });
+
+  it('says when the offense kept a fumble, and calls a lost one on a sack a strip sack', () => {
+    expect(
+      playLabel(
+        play({
+          text: 'R.Back rush left for 3 yards (B.Backer). Fumble, recovered by the offense',
+          kind: 'run',
+          to: 47,
+        }),
+        0,
+      ),
+    ).toBe('Run · +3 yds · Fumble kept');
+    const sack = play({
+      kind: 'sack',
+      text: 'A.Passer SACKED by E.Rusher for -7 yards. FUMBLE, recovered by E.Rusher',
+      to: 57,
+      loose: 57,
+      air: undefined,
+    });
+    expect(playLabel(sack, 0)).toBe('Strip sack · Fumble lost');
+    expect(playLabel({ ...sack, text: 'A.Passer SACKED by E.Rusher for -7 yards' }, 0)).toBe('Sack · -7 yds');
+  });
+
+  it('says a fourth down that came up short turned the ball over, and not one that made it', () => {
+    expect(
+      playLabel(
+        play({ down: 4, distance: 2, kind: 'run', text: 'R.Back rush up the middle for 1 yard (B.Backer)', to: 49 }),
+        0,
+      ),
+    ).toBe('Run · +1 yds · Turnover on downs');
+    expect(
+      playLabel(
+        play({ down: 4, distance: 2, kind: 'incomplete', text: 'A.Passer pass incomplete deep right', to: 50 }),
+        0,
+      ),
+    ).toBe('Incomplete · Turnover on downs');
+    expect(
+      playLabel(
+        play({ down: 4, distance: 2, kind: 'run', text: 'R.Back rush up the middle for 3 yards (B.Backer)', to: 47 }),
+        0,
+      ),
+    ).toBe('Run · +3 yds');
+    expect(
+      playLabel(
+        play({ down: 3, distance: 2, kind: 'run', text: 'R.Back rush up the middle for 1 yard (B.Backer)', to: 49 }),
+        0,
+      ),
+    ).toBe('Run · +1 yds');
+    expect(playLabel(play({ kind: 'int', text: 'A.Passer pass intercepted by C.Corner', to: 60 }), 0)).toBe(
+      'Interception',
+    );
   });
 });

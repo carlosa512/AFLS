@@ -340,7 +340,8 @@ async function main() {
         let best: { gameId: number; index: number; s: number } | null = null;
         for (const g of games)
           g.result!.plays!.forEach((e, index) => {
-            const s = e.down > 0 ? score(e) : 0;
+            // Between the 25s where it can: a play squeezed against a goal line shows less.
+            const s = e.down > 0 && score(e) > 0 ? score(e) + (e.yardLine >= 25 && e.yardLine <= 75 ? 0.5 : 0) : 0;
             if (s > (best?.s ?? 0)) best = { gameId: g.id, index, s };
           });
         if (!best) {

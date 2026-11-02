@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.44',
+    version: '0.2.45',
     date: '2026-11-02',
     title: 'Hold-ins and holdouts',
     text:
@@ -24,6 +24,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'firm or shop him. Other clubs think it over as camp goes on, the way NFL teams do: most holdouts end by the ' +
       'last week of camp, and a few run into the season until a deal is done. The Roster, the Locker Room and the ' +
       'player card show who is holding out or in.',
+  },
+  {
+    version: '0.2.44',
+    date: '2026-11-02',
+    title: 'The pocket',
+    text:
+      'Quarterbacks now play the pocket in All-22. They drop deeper for deeper throws, fake to the back on about ' +
+      'three early downs in ten, roll out on bootlegs, step up into a clean pocket, and climb or slide away when the ' +
+      'rush gets there. The line forms a cup around them, and the rusher who got home loops around the man he beat. ' +
+      'Sacks take as long as the NFL’s, from quick ones to coverage sacks after five seconds, and the sacker takes ' +
+      'the quarterback down where the sack lands. Throws leave on the NFL’s timing, and a deep ball hangs in the ' +
+      'air. Play labels now say when a fumble was lost or kept, and when a fourth down turned the ball over.',
   },
   {
     version: '0.2.43',

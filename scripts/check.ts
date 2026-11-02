@@ -107,6 +107,14 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
   },
+  // All-22 against the NFL's tracking numbers: every dropback of 200 games staged and measured.
+  film: {
+    cmd: ['npm', 'run', 'film'],
+    cores: 1,
+    secs: 90,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /[▲▼✗]/,
+  },
   // Officiating crews: the league stays at baseline, the crews spread like the NFL's, the rotation and drift hold.
   crews: {
     cmd: ['npm', 'run', 'crews'],
@@ -204,6 +212,8 @@ const RULES: [RegExp, Name[]][] = [
   // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
+  // All-22's staging, and the engine's play log it stages from.
+  [/^src\/ui\/stage\/(?!.*\.test\.ts$)|^src\/engine\/(match\/|playActors\.ts)|^scripts\/film\.ts$/, ['film']],
   // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate)/, ['size']],
   [/^scripts\/size\.ts$/, ['size']],
