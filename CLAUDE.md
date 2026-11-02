@@ -109,8 +109,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
   no drift and no level out of range; the talks (`playerTalks.ts`): asks per club per season, promises kept; and
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room
-  (L1): leaders and voices per club, unit reads (Split, Down, Tight shares), club rooms not running away, a stirring
-  or steadying voice pulling the right way against an even one, and the voices' pull sized. Run it after
+  (L1): leaders and voices per club, unit reads (Split, Down, Tight shares) and club rooms not running away. Run it after
   changing `morale.ts`, `standing.ts`, `playerTalks.ts`, `development.ts`, `match/lineup.ts`, `training.ts` or
   `offseason/negotiation.ts`. Nothing may be flagged ✗.
 - `npm run build` — web build to `dist/`
@@ -250,12 +249,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `standing.ts` who runs the room (L1,
     `docs/superpowers/specs/2026-11-01-locker-room-voices-design.md`): a man's weight (leadership, the field, seniority,
-    stature), leaders and voices (`tierOf`, captains always lead and are named by weight), how a voice sounds (stirs,
-    steadies), units (the position coaches' rooms plus the specialists), a voice's mood rubbing off on his unit
-    (`toneOf`, in `roomScore`), each unit's read (`unitRead`: Tight, Settled, Restless, Down, Split) and your club's views
-    (`roomView`, `standingView`, words and ids only); `roomFacts.ts` builds what a line may read, `roomVoice.ts` the
-    head coach's, position coaches' and screen's words; the report and the staff notes remember what they told in
-    clock-stamped `unit:`/`standing:` keys · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
+    stature), leaders and voices (`tierOf`; captains always lead, last season's until camp), how a voice sounds (stirs,
+    steadies: words only), units (the position coaches' rooms plus the specialists), each unit's read (`unitRead`: its
+    men's moods with the voices counting more; Tight, Settled, Restless, Down, Split) and your club's views (`roomView`,
+    `standingView`, `roomReasons`; words and ids only). It moves no one's mood: a voice rubbing off on his room is L3's.
+    `roomFacts.ts` builds what a line may read, `roomVoice.ts` the head coach's, position coaches' and screen's words; the
+    report and the staff notes remember what they told in clock-stamped, club-named `unit:`/`standing:` keys;
+    `TalkContractButton` (`ui/negotiation.tsx`) opens contract talks anywhere for a player `talksOpen` allows · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a
     point a year (`Player.shifts`, read through `workEthicOf`/`temperamentOf`/`poiseOf`, never `traits` directly),
     landing at the new league year; one planner for your staff and AI teams (`planMentors`) · `lockerMail.ts` the
     locker room's letters · `relationships.ts` how a player left each club (`Player.left`), friendships and feuds

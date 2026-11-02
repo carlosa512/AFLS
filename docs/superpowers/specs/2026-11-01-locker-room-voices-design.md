@@ -20,7 +20,7 @@ and how each group is feeling**. L1 builds that foundation and tells it in words
 | --- | --- | --- |
 | **L1: who runs the room** (this spec) | Leaders and voices; units; a voice's mood rubs off on his unit; each unit's read; the coaches' words for all of it | personality, ties, captains, morale |
 | **L2: team meetings** | You call a meeting with a topic and a tone; each group reacts by its makeup and who leads it; moods move through jolts; mixed reactions you can read and understand | L1 |
-| **L3: chemistry on Sunday** | A unit that's together plays a little better and a split one a little worse, centred on the league; time playing together counts | L1, the match engine |
+| **L3: chemistry on Sunday** | A voice's mood rubs off on his room (moved here from L1); a unit that's together plays a little better and a split one a little worse, centred on the league; time playing together counts | L1, the match engine |
 | **L4: backing the staff** | Whether the room believes in the coordinators; a lawyer stirs doubt after losses; you answer it in a meeting; a room that has lost faith executes worse, and the inbox warns you first | L1–L3 |
 
 Hold-ins, holdouts and trade requests (G4, `2026-10-30-morale-escalations-design.md`) stay their own track.
@@ -38,10 +38,11 @@ Hold-ins, holdouts and trade requests (G4, `2026-10-30-morale-escalations-design
 
 ## Decisions (proposed; the owner checks these in review)
 
-1. **Standing does something from day one.** A voice's mood rubs off on his unit, and a captain's on his whole side.
-   A label that changes nothing would break the house rule that nothing is shown without a hook (`TRAITS_ON`, "no
-   attribute without an engine hook"). This moves moods a little, so `npm run morale` and `npm run careers` must stay
-   green.
+1. **Standing shapes how the room reads; it moves no one's mood yet** (the owner's call, Nov 2, 2026, after CI). A
+   leader's or voice's mood counts for more in his room's read, so the cards, the Divided tag, the letters and the
+   Negotiate buttons all rest on it. A voice's mood rubbing off on his teammates moved play a little (the game-day
+   edge), which tipped four checks that sit on an edge on main itself, so it moves to L3 (chemistry on Sunday), where
+   the room's effect on play is designed and checked.
 2. **Two words, and quiet is the default.** A player is a **leader**, a **voice**, or neither. The thresholds are
    absolute, not ranks, so a young room can have no leader past its captains, and the head coach will say so.
 3. **Units are the groups that carry mood.** The seven position coaches' rooms plus the specialists (§2), so every
@@ -55,9 +56,8 @@ Hold-ins, holdouts and trade requests (G4, `2026-10-30-morale-escalations-design
    L1.
 7. **Position coaches speak about their own unit** in the weekly staff notes when it turns, so a change never waits
    for the next quarterly report.
-8. **Captains are named by the same weight** as everything else (§1.1), so seniority and stature count, not only
-   leadership and snaps. Most NFL captains are veterans; today a second-year starter with a high leadership read can
-   wear the C over a ten-year starter.
+8. **Captains are named as before** (`nameCaptains`, main's rule). Naming them by weight changed who gets a
+   captain's lift, so it moved moods; it can come back with L3. Last season's captains lead the room until camp.
 9. **The writing is the feature.** Every line follows §6. A test enforces the rules a machine can check.
 
 ## 1. Standing: who the room listens to
@@ -133,35 +133,11 @@ same way `sameRoom` keeps him in his position room. **Sides:** offense is QB, RB
 DB; special teams is the specialists. The offense captain's voice reaches every offensive unit, the defense captain's
 every defensive unit, and the special teams captain's the specialists and his own unit.
 
-### 2.1 A voice's mood rubs off (the mechanic)
+### 2.1 A voice's mood rubs off: moved to L3
 
-`roomScore` in `morale.ts` gains one term, **tone**:
-
-```
-tone = Σ w(v) · loud(v) · lean(v)  /  max(Σ w(v), 2.0)
-       over v = the leaders and voices in his unit, plus his side's captain (counted once), v ≠ him
-
-roomScore += 0.5 × clamp(tone, −1, 1)
-```
-
-- `lean(v)` is `moodLean(moraleLevel(league, v))`, −1…+1, at the last morale step.
-- `loud(v)` is 1 for an even voice. For a voice who stirs, it's 1.5 when he's down and 0.75 when he's up. For one who
-  steadies, it's 0.5 when he's down.
-- The floor of 2.0 under the sum keeps a unit with one weak voice from being pulled hard. Two solid voices pull
-  fully.
-- **Friends:** each friend at the club adds `0.15 × lean(friend)`, at most two friends counted, on top of the +0.5 a
-  friendship already gives.
-- The room score still clamps to ±1.5, and it is one of six factors in the target.
-
-**Why it can't run away.** Quiet players never feed tone. Voices read other voices, but each step a level moves only
-part of the way to its target, and tone is at most ±0.5 of a room score that is one factor of six, so the loop gain
-is well under 1. `npm run morale`'s no-drift check guards it.
-
-**Cost.** Tone is worked out once per morale step in `moraleContext` (per club: each unit's voices with their weight
-and loudness, and each side's captain), so a pass reads each player once.
-
-**Downstream.** G2's effects read `moodPull` against the league's mean, so league totals hold however moods cluster
-by room.
+The first build added a term to `roomScore` (`toneOf`: a voice's mood, louder for a man who stirs and softer for one
+who steadies, pulling on his room; friends' moods too). It moved play through the game-day edge, so it comes back in
+L3 with its own checks. In L1 how a voice sounds (stirs, steadies) is only character in the coaches' words.
 
 ### 2.2 A unit's read
 
@@ -182,7 +158,7 @@ seven mood steps.
 
 Each read also carries:
 
-- **Who sets the tone:** the unit's heaviest leader or voice, or its side's captain, and which way he's pulling.
+- **Who sets the tone:** the unit's heaviest leader or voice (a man in that room only), and which way his mood leans.
 - **What it's about:** the unit's most-felt reasons, read off `moraleView` (the same phrases the Locker Room's "On
   their minds" uses), with how many men feel each.
 - **No voice:** a flag when the unit has no leader or voice of its own and its side's captain isn't in it.
@@ -380,7 +356,7 @@ Nothing stored. Worked out on the spot:
 - `standing.ts`, new: `weightOf`, `standingOf(league, p, ctx?)` returning the tier (`'leader' | 'voice' | null`),
   the voice (`'stirs' | 'steadies' | null`) and the parts of his weight for the screen's reason; `UNITS`, `unitOf`,
   `unitRead`; `leadersOf` moves here.
-- `MoraleContext` gains each club's voices by unit (weight and loudness) and each side's captain, for tone.
+- `MoraleContext` gains `honoured` (season awards and All-League teams, for stature).
 - `covered` keys, stamped with morale's clock (`moraleClock`, which only moves forward) so the report and the staff
   notes read one memory, naming the club so a GM hired across the league starts fresh:
   `standing:{clock}:{teamId}:{playerId}:{tier}` for every leader and voice at each report (and the place a man off
@@ -396,10 +372,6 @@ Nothing stored. Worked out on the spot:
 - **Unit reads league-wide:** Split 5–15% of unit-weeks, Down 5–20%, Tight 15–35%.
 - **Room moods cluster but don't run away:** club rooms at Poor or worse in at most 25% of club-weeks (0–25%,
   approved by the owner on Nov 2, 2026: the first draft's 5% floor was a guess, and played leagues sit near 2%).
-- **Direction checks, like against like:** the unit-mates of a down voice who stirs have a lower room factor than the
-  unit-mates of a down voice who is even, and the unit-mates of a down voice who steadies a higher one (✗ if not).
-- **The mechanic's size:** the average size of the voices' pull on a player's room factor sits at 0.05–0.4, so it
-  does something without running the room.
 - **Existing checks hold:** band shares, underpaid final-year starters, a benching's dip and recovery, winning rooms
   happier than losing ones, no drift, no level out of range.
 
@@ -409,7 +381,7 @@ Unit tests:
 
 - `standing.test.ts`: weight rises with each of its parts; captains are always leaders; a rookie is never a leader
   unless he's a captain; stirs and steadies never both hold.
-- `morale.test.ts`: tone is zero for a unit with no voices, and bounded.
+- `standing.test.ts`: a voice's mood moves no teammate's target (L1).
 - `lockerVoice.test.ts`: the §6.4 rules.
 - `ui.test.ts`: the screen contract for the new section.
 
@@ -422,7 +394,7 @@ hold. CI's planner decides what runs on the pull request in any case.
 | --- | --- |
 | `src/engine/standing.ts` | new: weight, tiers, how a voice sounds, units, a unit's read, `leadersOf` |
 | `src/engine/standing.test.ts` | new |
-| `src/engine/morale.ts` | tone in `roomScore`; voices and captains in `moraleContext`; the room's mood weighted |
+| `src/engine/morale.ts` | `honoured` in `moraleContext`; `viewContext`, the cache screens read through |
 | `src/engine/personality.ts` | `nameCaptains` rates by weight; `leadersOf` moves out |
 | `src/engine/roomFacts.ts` | new: the facts a line reads (a unit's, a standing change's, a leader's reason), built from our club only |
 | `src/engine/roomVoice.ts` | new: the banks for unit reads, standing changes, a leader's reason and the position coach's note |

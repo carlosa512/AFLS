@@ -4,9 +4,8 @@
  * dials his agent negotiates with (0–1). Nothing here is stored: a name is worked out whenever a screen or a letter
  * needs it, so it follows the player as he changes (docs/superpowers/specs/2026-10-28-personality-relationships-design.md §1).
  */
-import { moraleContext } from './morale';
+import { leadFactor, standingFactor } from './mentoring';
 import { activeRoster, starters } from './roster';
-import { weightOf } from './standing';
 import { characterRead } from './scouting';
 import { TRAIT_MEAN } from './traits';
 import type { League, Personality, Player, Position, Traits } from './types';
@@ -209,10 +208,9 @@ const DEFENSE: readonly Position[] = ['DT', 'EDGE', 'LB', 'CB', 'S'];
  * captain's seasons are kept (`Player.captainSeasons`) for his avatar's patch: its stars count the seasons in a row.
  */
 export function nameCaptains(league: League): void {
-  // Rated by weight (L1): leadership, the field, seniority and stature, so the room's veterans wear the C.
-  const ctx = moraleContext(league);
   for (const team of league.teams) {
-    const rate = (p: Player) => weightOf(league, p, ctx);
+    const rate = (p: Player) =>
+      leadFactor(characterRead(league, team.id, p)?.leads ?? TRAIT_MEAN) * standingFactor(league, p);
     const best = (ps: Player[]) => [...ps].sort((a, b) => rate(b) - rate(a) || a.id - b.id)[0];
     const side = (positions: readonly Position[]) => positions.flatMap((pos) => starters(league, team, pos));
     const offense = best(side(OFFENSE));

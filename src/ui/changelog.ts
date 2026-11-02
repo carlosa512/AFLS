@@ -18,11 +18,11 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     title: 'Who runs the room',
     text:
       'Your locker room now has a shape. Some players lead and some have a voice, from their makeup, whether they ' +
-      'start, their years in the league and here, and what they have won, and veterans wear the C more often. A ' +
-      'voice’s mood rubs off on his position room: a stirrer spreads a bad week, a steady leader keeps one to himself. ' +
-      'The Locker Room has a card for each room with its mood, what stands out, who it follows, its mentoring and its ' +
-      'feuds. The head coach covers the rooms at the start and end of the season, a position coach writes when his ' +
-      'guys turn, and a yellow Negotiate button opens contract talks from a room, a player’s card or his letter.',
+      'start, their years in the league and here, and what they have won, and their moods count for more in how ' +
+      'their room is feeling. The Locker Room has a card for each room with its mood, what stands out, who it ' +
+      'follows, its mentoring and its feuds. The head coach covers the rooms at the start and end of the season, a ' +
+      'position coach writes when his guys turn, and a yellow Negotiate button opens contract talks from a room, a ' +
+      'player’s card or his letter.',
   },
   {
     version: '0.2.38',

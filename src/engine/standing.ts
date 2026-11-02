@@ -123,88 +123,6 @@ export function soundOf(p: Player): Sound | null {
   return null;
 }
 
-// ───────── a voice's mood rubs off on his unit ─────────
-
-/** A leader or voice as one pass of the league reads him. */
-export interface VoiceRef {
-  id: number;
-  weight: number;
-  sound: Sound | null;
-}
-
-/** The pull's size (spec §2.1): its share of the room score, the floor under the weights, friends' moods. */
-export const TONE = { weight: 0.5, floor: 2.0, friend: 0.15, friends: 2 };
-
-/** Each club's leaders and voices by unit, and each side's captain, for one pass over the league. */
-export function roomVoices(
-  league: League,
-  ctx: MoraleContext,
-): { voices: Map<string, VoiceRef[]>; sideCaptains: Map<string, VoiceRef> } {
-  const voices = new Map<string, VoiceRef[]>();
-  const sideCaptains = new Map<string, VoiceRef>();
-  for (const team of league.teams) {
-    const c = captainsNow(league, team);
-    const captainOf = new Map<number, Side>(
-      c
-        ? [
-            [c.offense, 'offense'],
-            [c.defense, 'defense'],
-            [c.specialTeams, 'specialTeams'],
-          ]
-        : [],
-    );
-    for (const p of activeRoster(league, team.id)) {
-      const weight = weightOf(league, p, ctx);
-      if (!tierOf(league, p, weight)) continue;
-      const ref: VoiceRef = { id: p.id, weight, sound: soundOf(p) };
-      const key = `${team.id}:${unitOf(p.position)}`;
-      (voices.get(key) ?? voices.set(key, []).get(key)!).push(ref);
-      const side = captainOf.get(p.id);
-      if (side) sideCaptains.set(`${team.id}:${side}`, ref);
-    }
-  }
-  return { voices, sideCaptains };
-}
-
-/** How far his mood travels: a stirrer's bad mood half again as far and his good one a quarter less; a steady man's bad mood half as far. */
-export function loudness(sound: Sound | null, lean: number): number {
-  if (sound === 'stirs') return lean < 0 ? 1.5 : 0.75;
-  if (sound === 'steadies' && lean < 0) return 0.5;
-  return 1;
-}
-
-/** The pull of the voices around him on his room: his unit's leaders and voices and his side's captain, never himself. */
-export function toneOf(p: Player, ctx: MoraleContext): number {
-  if (p.teamId === null) return 0;
-  const unit = unitOf(p.position);
-  const around = [...(ctx.voices.get(`${p.teamId}:${unit}`) ?? [])];
-  const captain = ctx.sideCaptains.get(`${p.teamId}:${sideOf(unit)}`);
-  if (captain && !around.some((v) => v.id === captain.id)) around.push(captain);
-  let sum = 0;
-  let weights = 0;
-  for (const v of around) {
-    if (v.id === p.id) continue;
-    const lean = ctx.leans.get(v.id) ?? 0;
-    sum += v.weight * loudness(v.sound, lean) * lean;
-    weights += v.weight;
-  }
-  if (!weights) return 0;
-  return Math.max(-1, Math.min(1, sum / Math.max(weights, TONE.floor)));
-}
-
-/** A friend's mood rubs off too: his first two friends at the club. */
-export function friendLean(league: League, p: Player, ctx: MoraleContext): number {
-  let out = 0;
-  let n = 0;
-  for (const t of p.ties ?? []) {
-    if (n >= TONE.friends) break;
-    if (t.kind !== 'friend' || league.players[t.with]?.teamId !== p.teamId) continue;
-    out += TONE.friend * (ctx.leans.get(t.with) ?? 0);
-    n++;
-  }
-  return out;
-}
-
 // ───────── who the room follows ─────────
 
 function byTier(league: League, teamId: number, want: Tier, ctx = viewContext(league)): Player[] {
@@ -223,13 +141,13 @@ export const voicesOf = (league: League, teamId: number): Player[] => byTier(lea
 
 export type UnitWord = 'Tight' | 'Settled' | 'Restless' | 'Down' | 'Split';
 /** A unit is split when this share of its weight sits at Good or better and this share at Poor or worse. */
-export const SPLIT_SHARE = 0.25;
+export const SPLIT_SHARE = 0.2;
 /**
  * The read off a unit's weighted mean mood. A unit's mean runs far narrower than a man's mood (its tenth worst reads
- * only Poor), so the words sit where a unit's spread puts them, calibrated in `npm run morale`: Down at Poor or worse,
- * Restless just above it, Tight well into Good.
+ * a little below Okay), so the words sit where a unit's spread puts them, calibrated in `npm run morale`: Down in its
+ * bottom tenth, Restless just above it, Tight well into Good.
  */
-export const READ_AT = { tight: 1.5, restless: -0.5, down: -1 };
+export const READ_AT = { tight: 1.5, restless: -0.25, down: -0.55 };
 /** Fewer men than this and a room has no read of its own (a two-man quarterback room). */
 export const READ_MIN = 3;
 /** A quiet man still counts in his unit's read. */

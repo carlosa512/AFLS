@@ -221,7 +221,7 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.setterSound === 'steadies' && f.pulling !== 'down',
     reads: 3,
-    text: (f) => `${U(f)} divided, but ${f.setter} is keeping it civil.`,
+    text: (f) => `${U(f)} divided, but ${f.setter} is staying even about it.`,
   },
   {
     when: (f) => f.word === 'Split' && !!f.setter && f.pulling === 'down',
@@ -237,12 +237,12 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Down' && !!f.setter && f.setterSound === 'steadies' && f.pulling !== 'down',
     reads: 3,
-    text: (f) => `${U(f)} down, but ${f.setter} is holding them together.`,
+    text: (f) => `${U(f)} down, but ${f.setter} is staying positive.`,
   },
   {
     when: (f) => f.word === 'Down' && !!f.setter && f.setterSound === 'stirs' && f.pulling === 'down',
     reads: 3,
-    text: (f) => `${U(f)} down, and ${f.setter} isn't helping.`,
+    text: (f) => `${U(f)} down, and ${f.setter} is the loudest about it.`,
   },
   {
     when: (f) => f.word === 'Down' && f.cause === 'losing',
@@ -258,7 +258,7 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
     when: (f) => f.word === 'Tight' && f.losingRun >= 3 && !!f.setter,
     reads: 3,
     text: (f) =>
-      `${cap(inWords(f.losingRun))} losses in a row and ${f.unit} ${SINGULAR.has(f.unit) ? "hasn't" : "haven't"} blinked. ${f.setter} won't let it.`,
+      `${cap(inWords(f.losingRun))} losses in a row and ${f.unit} ${SINGULAR.has(f.unit) ? "hasn't" : "haven't"} blinked. ${f.setter} sets the tone.`,
   },
   {
     when: (f) => f.word === 'Tight' && f.setterCaptain && !!f.setter,
@@ -330,7 +330,7 @@ export const UNIT_TURN: readonly Line<UnitFact>[] = [
   {
     when: (f) => f.word === 'Down' && !!f.setter && f.setterSound === 'steadies' && f.pulling !== 'down',
     reads: 3,
-    text: (f) => `My guys are down, but ${f.setter} is the one keeping them together.`,
+    text: (f) => `My guys are down, but ${f.setter} is staying positive.`,
   },
   {
     when: (f) => f.word === 'Down' && f.cause === 'losing',

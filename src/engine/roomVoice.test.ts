@@ -443,3 +443,17 @@ describe('the language pass', () => {
     expect(seen.size).toBeGreaterThan(1);
   });
 });
+
+describe('claims only what the engine does (L1: a voice moves no one’s mood)', () => {
+  it('never says a voice holds the room together, keeps it civil, or makes it worse', () => {
+    const CLAIM = /holding them together|keeping it civil|isn't helping|keeping them together|won't let it/i;
+    for (const word of WORDS)
+      for (const sound of [null, 'stirs', 'steadies'] as const)
+        for (const pulling of ['up', 'down', 'even'] as const)
+          for (const k of ['a', 'b', 'c']) {
+            const f = unit({ word, setter: 'Reyes', setterSound: sound, pulling, losingRun: 3, setterCaptain: true });
+            expect(say(UNIT_NOTE, f, { key: k, slot: word })).not.toMatch(CLAIM);
+            expect(say(UNIT_TURN, f, { key: k, slot: word })).not.toMatch(CLAIM);
+          }
+  });
+});

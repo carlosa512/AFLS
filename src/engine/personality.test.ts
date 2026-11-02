@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { starters } from './roster';
 import {
   characterLine,
   nameCaptains,
@@ -135,18 +134,5 @@ describe('personality', () => {
     nameCaptains(l);
     const c = l.teams[0].captains!;
     expect(l.players[c.offense].captainSeasons).toEqual([l.season]);
-  });
-
-  it('names the veteran over a younger starter with a slightly better read', () => {
-    const l = createLeague({ seed: 'captains-weight' });
-    const side = (['QB', 'RB', 'WR', 'TE', 'OL'] as const).flatMap((pos) => starters(l, l.teams[0], pos));
-    for (const p of side) p.traits.leads = 1;
-    const [vet, kid] = side.filter((p) => p.position === 'OL');
-    vet.experience = 10;
-    vet.traits.leads = 12;
-    kid.experience = 1;
-    kid.traits.leads = 13;
-    nameCaptains(l);
-    expect(l.teams[0].captains!.offense).toBe(vet.id);
   });
 });

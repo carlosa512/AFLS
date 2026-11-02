@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { moraleContext } from './morale';
+import { moraleContext, moraleFactors } from './morale';
 import { releasePlayer } from './finance/cap';
 import { nameCaptains } from './personality';
 import { activeRoster, starters } from './roster';
@@ -16,10 +16,8 @@ import {
   sideOf,
   soundOf,
   tierOf,
-  toneOf,
   unitOf,
   weightOf,
-  type VoiceRef,
 } from './standing';
 import type { League, Player } from './types';
 
@@ -121,54 +119,6 @@ describe('standing: tiers and sound', () => {
   });
 });
 
-describe('standing: tone', () => {
-  const setup = () => {
-    const l = fresh();
-    return { l, ctx: moraleContext(l), p: wrOf(l) };
-  };
-
-  it('is zero with no voices around him', () => {
-    const { ctx, p } = setup();
-    ctx.voices = new Map();
-    ctx.sideCaptains = new Map();
-    expect(toneOf(p, ctx)).toBe(0);
-  });
-
-  it('stays inside −1…1 when the whole league is miserable', () => {
-    const { ctx, p } = setup();
-    for (const id of ctx.leans.keys()) ctx.leans.set(id, -1);
-    expect(Math.abs(toneOf(p, ctx))).toBeLessThanOrEqual(1);
-  });
-
-  it('a voice who stirs pulls half again as hard when he is down', () => {
-    const { ctx, p } = setup();
-    const v: VoiceRef = { id: -7, weight: 1, sound: null };
-    ctx.voices.set(`${p.teamId}:WR`, [v]);
-    ctx.sideCaptains = new Map();
-    ctx.leans.set(v.id, -1);
-    const even = toneOf(p, ctx);
-    v.sound = 'stirs';
-    expect(toneOf(p, ctx) / even).toBeCloseTo(1.5);
-  });
-
-  it('a quiet unit-mate never counts', () => {
-    const { l, ctx, p } = setup();
-    const before = toneOf(p, ctx);
-    const quiet = activeRoster(l, p.teamId!).find(
-      (q) => unitOf(q.position) === 'WR' && q.id !== p.id && !tierOf(l, q, weightOf(l, q, ctx)),
-    )!;
-    ctx.leans.set(quiet.id, -1);
-    expect(toneOf(p, ctx)).toBe(before);
-  });
-
-  it('his own mood never feeds his own tone', () => {
-    const { ctx, p } = setup();
-    ctx.voices.set(`${p.teamId}:WR`, [{ id: p.id, weight: 2, sound: null }]);
-    ctx.sideCaptains = new Map();
-    expect(toneOf(p, ctx)).toBe(0);
-  });
-});
-
 describe('standing: who the room follows', () => {
   it('leadersOf leaves out the captains; voicesOf holds only voices', () => {
     const l = fresh();
@@ -261,5 +211,17 @@ describe('standing: who a room listens to', () => {
     const r = unitRead(l, 0, 'QB', moraleContext(l))!;
     expect(r.setter).toBeNull();
     expect(r.noVoice).toBe(true);
+  });
+});
+
+describe('standing: moods stay each man’s own (L1)', () => {
+  it("a voice's mood doesn't move a teammate's target: that waits for chemistry (L3)", () => {
+    const l = fresh();
+    const p = wrOf(l);
+    const ctx = moraleContext(l);
+    const before = moraleFactors(l, p, ctx).room;
+    for (const v of voicesOf(l, p.teamId!).concat(leadersOf(l, p.teamId!)))
+      if (v.id !== p.id && unitOf(v.position) === 'WR') v.morale = { level: -9 };
+    expect(moraleFactors(l, p, moraleContext(l)).room).toBe(before);
   });
 });
