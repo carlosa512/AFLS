@@ -1,0 +1,251 @@
+# Helmets, helmet decals and the quarterback's gear
+
+Date: 2026-11-02 · Branch: `claude/gallant-johnson-gqsz8w`
+
+Mockups: eleven rounds, drawn by the real avatar code (`PlayerAvatar`'s figure, builds, kits and sizes) with the new
+pieces on top. The last two versions are the reference: the 32-club board (version 10) and the gear editor (version 11)
+of the private artifact `https://claude.ai/artifact/USBYRuMphWq9aXHwtaqofQ`. The mockup source, with every path and
+number below, is kept beside this spec: `2026-11-02-helmets-qb-gear-mockup.tsx` (not built; see its header).
+
+## Why
+
+The avatar (`docs/AVATARS.md`) draws every player from behind with a bare grey head. A helmet in the club's design is
+the most recognisable thing about a player from behind, and the quarterback's padded sleeve and play-call wristband
+are the most recognisable pieces of his kit. This adds both, plus the decals real helmets carry, with nothing read from
+ratings and nothing that changes play.
+
+## Decisions (agreed in the mockups)
+
+1. **The helmet replaces the bare head** on every player with a club, at every size. Free agents and prospects keep
+   today's bare head (open question 2).
+2. **The model is the player's, the design is the club's.** Each player wears one of eight shells, picked once from his
+   id and position like his sleeves; the club's colours, stripes, number, bumper and mask go on whatever he wears. The
+   same helmet home and away, on hot days and in cold games.
+3. **Our own names only.** The shells were drawn from rear product photos of real helmets (Riddell Axiom, Schutt F7 and
+   Vengeance, Vicis Zero2 and Zero2 Trench). No maker or model name appears in the game, code identifiers included.
+4. **Decals:** the US flag on every helmet; a Pathway player's country stacked under it (never for a CFL arrival); the
+   green dot on the quarterback and the defence's play-caller.
+5. **Quarterbacks:** a padded sleeve (two kinds) on the throwing arm and a play-call wristband on the other wrist,
+   picked from his id like the rest of his gear.
+6. **The gear editor** (the card's pencil) gains a Helmet row, two padded sleeve kinds and a Wristband row.
+7. **Held for later:** alternate helmets (they come with alternate jerseys and throwbacks), hair under the helmet, a
+   SpeedFlex-style shell (no straight-on rear photo was found).
+
+## The helmet
+
+### Size and fit
+
+- **Size:** 85% of the round-2 shell (`HELMET_SCALE = 0.85`), scaled about the middle of the head (50, 26) in the
+  figure's 100-unit box. About 1.16× the bare head's width.
+- **Fit:** the back's lowest point sits at `38.8 − 0.5 × max(0, build.traps)` in the figure's units (`HELMET_NECK_Y`,
+  `HELMET_NECK_PER_TRAP`). Heavier builds carry their pads higher, so their helmet rides a little higher and a lineman
+  keeps some neck. The plain figure (under 32px) uses 38.8.
+- The helmet scales with the figure (zoom, height, girth), like the head it replaces. The tallest players' crowns stay
+  inside the ring (tested).
+
+### The eight shells
+
+Each is drawn in the same box (`MODELS`), so size and fit hold for all of them. Keys are what the code stores; names are
+what the editor shows.
+
+| Key | Name | From behind | Number goes |
+| --- | --- | --- | --- |
+| `modern` | Modern | Taller than wide, chevron vent slits, a ledge with two vent pockets, a bumper plate | Lower back |
+| `modernSmooth` | Modern, smooth | The same, ledge and pockets only | Lower back |
+| `plated` | Plated | Round dome, three pairs of vertical slots, a dark plate across the lower back | On the plate |
+| `classic` | Classic | Round, two holes on the centreline, a ledge across the back, a dark bumper | On the bumper |
+| `pod` | Pod | Smooth and tall, soft seams, dot vents low on each side, a dark trapezoid plate | On the plate |
+| `podWide` | Pod, wide | The lineman's version: wider (×1.06) and squarer | On the plate |
+| `ridgeback` | Ridgeback | Ours: the Modern shape with a raised spine instead of slits | Lower back |
+| `retro` | Retro | Ours: the Classic shape with Modern's upper slits and a bumper plate | Lower back |
+
+**Picking his shell** (`helmetModelOf`, from his id like `ownGear`): offensive and defensive linemen draw Pod, wide
+about a third of the time; everyone else, and the rest of the linemen, from the other seven. Starting weights (an AFLS
+estimate, tuned by eye on a league's rosters): Modern 30, Modern smooth 15, Plated 15, Pod 15, Classic 10, Ridgeback 8,
+Retro 7.
+
+### Details on every shell
+
+- **Chin-strap clips:** a small black clip with a white tip at two heights on each side, just past the shell's edge.
+- **The facemask's lower corners:** from behind only the corners show, a bar dropping from under the shell and turning
+  in toward the chin. Drawn before the neck, so the neck hides the rest. By position:
+
+  | Positions | Mask |
+  | --- | --- |
+  | QB | One bar |
+  | RB, WR, CB, S | One bar, slightly lighter |
+  | LB, EDGE, TE | Two bars (a middle cage) |
+  | OL, DT | Two bars and a connector (the full cage) |
+  | K, P | One thin bar |
+
+- **Dark shells** (contrast against black under 2.4) get a soft rim of light around the edge, a brighter gloss and a
+  faint edge on their vents, so they hold their shape against dark jerseys and backdrops.
+- **Finishes:** gloss, matte, or metallic (vertical banding) for the silver, gold and pewter shells.
+
+### Each club's design
+
+A `helmet` entry per club on `TeamSeed` (`data/teams.ts`), copied to `Team.helmet` when a league is built:
+
+```ts
+interface HelmetDesign {
+  shell: string;            // #RRGGBB
+  finish: 'gloss' | 'matte' | 'metal';
+  stripe: 'none' | 'single' | 'double' | 'triple';
+  stripeA?: string;         // the stripe; a triple's middle
+  stripeB?: string;         // a triple's edges
+  number?: { ink: string; trim: string };  // absent: no number on the back
+  bumper: string;
+  mask: string;             // the facemask's colour
+}
+```
+
+A team without one (a mod's) falls back to a rule: its primary as a gloss shell, a single stripe in its secondary (or
+light or dark when the secondary doesn't stand off the shell), no number, the secondary as bumper, a grey mask. Masks:
+grey `#9AA3AD`, black `#1A1D22`, white `#F2F4F6`.
+
+| Club | Shell | Finish | Stripe | Number | Bumper | Mask |
+| --- | --- | --- | --- | --- | --- | --- |
+| Buffalo | white | gloss | triple `#c60c30` / `#00338d` | `#00338d` on white | `#00338d` | grey |
+| Miami | white | gloss | triple `#008e97` / `#fc4c02` | `#008e97` on white | `#008e97` | `#008e97` |
+| New England | `#a9b2ba` | metal | triple `#002244` / `#c60c30` | `#002244` on white | `#002244` | grey |
+| New York (Knights) | `#125740` | gloss | double white | white on `#0b3a2a` | white | white |
+| Baltimore | `#241773` | gloss | triple `#c9a227` / white | white on `#241773` | `#c9a227` | black |
+| Cincinnati | `#fb4f14` | gloss | triple black / white | black on white | black | black |
+| Cleveland | `#ff3c00` | gloss | triple `#311d00` / white | none | `#311d00` | grey |
+| Pittsburgh | `#101820` | gloss | single `#ffb612` | `#ffb612` on black | `#ffb612` | black |
+| Houston | `#03202f` | gloss | triple `#a71930` / white | white on `#a71930` | `#a71930` | grey |
+| Indianapolis | white | gloss | double `#002c5f` | `#002c5f` on white | `#002c5f` | grey |
+| Jacksonville | `#006778` | gloss | triple `#d7a22a` / white | `#d7a22a` on `#003b45` | `#d7a22a` | black |
+| Tennessee | `#0c2340` | gloss | triple `#4b92db` / white | white on `#4b92db` | `#4b92db` | grey |
+| Denver | `#002244` | gloss | triple `#fb4f14` / white | `#fb4f14` on white | `#fb4f14` | black |
+| Kansas City | `#e31837` | gloss | triple `#ffb81c` / white | white on `#7a0d1d` | `#f2f4f6` | white |
+| Las Vegas | `#a9b2ba` | metal | single black | black on white | black | black |
+| Los Angeles (Condors) | `#0080c6` | gloss | triple `#ffc20e` / white | `#ffc20e` on `#00476f` | `#ffc20e` | `#ffc20e` |
+| Dallas | `#a9b2ba` | metal | triple `#003594` / white | `#003594` on white | `#003594` | `#003594` |
+| New York (Empire) | `#0b2265` | gloss | triple `#a71930` / white | white on `#a71930` | `#a71930` | grey |
+| Philadelphia | `#004c54` | gloss | triple `#c4ccd0` / white | `#e8ecee` on `#001f22` | `#c4ccd0` | black |
+| Washington | `#5a1414` | gloss | triple `#ffb612` / white | `#ffb612` on `#2d0a0a` | `#ffb612` | `#ffb612` |
+| Chicago | `#0b162a` | gloss | triple `#c83803` / white | white on `#c83803` | `#c83803` | grey |
+| Detroit | `#b0b7bc` | metal | triple `#0076b6` / white | `#0076b6` on white | `#0076b6` | `#0076b6` |
+| Green Bay | `#ffb612` | gloss | triple `#203731` / white | none | `#203731` | `#203731` |
+| Minnesota | `#4f2683` | gloss | triple `#ffc62f` / white | `#ffc62f` on `#2a1146` | `#ffc62f` | black |
+| Atlanta | `#141619` | gloss | triple `#a71930` / white | `#a71930` on white | `#a71930` | black |
+| Carolina | `#a9b2ba` | metal | triple `#0085ca` / `#101820` | `#101820` on white | `#0085ca` | black |
+| New Orleans | `#d3bc8d` | metal | triple `#101820` / white | `#101820` on white | `#101820` | black |
+| Tampa Bay | `#6e6a63` | metal | triple `#d50a0a` / white | `#d50a0a` on white | `#d50a0a` | `#34302b` |
+| Arizona | white | gloss | triple `#97233f` / black | `#97233f` on white | `#97233f` | black |
+| Los Angeles (Stars) | `#003594` | gloss | triple `#ffd100` / white | `#ffd100` on `#001a4d` | `#ffd100` | `#ffd100` |
+| San Francisco | `#b3995d` | metal | triple `#aa0000` / white | `#aa0000` on white | `#aa0000` | `#aa0000` |
+| Seattle | `#002244` | gloss | triple `#69be28` / `#a5acaf` | white on `#69be28` | `#69be28` | grey |
+
+("White" shells are `#F2F4F6`. "A on B" is the number's ink and its outline.) That ink is for a number on the shell;
+on a shell whose number sits on a dark plate or bumper (Plated, Classic, Pod), it's white, outlined in the stripe
+colour.
+
+## Decals
+
+### Flags
+
+- **The US flag on every helmet**, as on every NFL helmet, on the lower back left of the number (above the plate on the
+  plated and pod shells). 3.4 × 2.25 units, drawn simply (five stripes and the canton).
+- **A second flag for Pathway players**, stacked under the US flag. In the NFL's Heritage Program a player may add the
+  flag of a country he, a parent or a grandparent was born in, or he lived in for two years
+  ([NFL Football Operations](https://operations.nfl.com/updates/the-players/the-nfl-celebrates-international-diversity-with-nfl-heritage-program),
+  [CBS](https://www.cbssports.com/nfl/news/kyler-murray-tua-tagovailoa-among-nfl-players-who-will-wear-international-flags-starting-in-week-4)).
+  The game knows a player's country only through `Player.origin` of kind `pathway`, so those players get it. A CFL
+  arrival does not: that's the league he came through, not where he's from. College players get the US flag only.
+- **The 15 Pathway countries**, each drawn to read at a few pixels (`FLAGS`, keyed by the origin's name): Germany,
+  United Kingdom, Australia, Nigeria, Mexico, France, Austria, Italy, Brazil, Japan, Ghana, New Zealand, Canada, Ireland,
+  Sweden. A test fails if a Pathway origin has no flag.
+
+### The green dot
+
+The helmet with the coach's radio, one per side: the club's **starting quarterback** (`starters(league, team, 'QB')[0]`)
+and the **defence's play-caller**, the first linebacker starter (the MLB or MIKE spot in every scheme), or the first
+safety when a club has no linebacker starter. It follows the depth chart, so it moves when a starter changes. Depth
+charts are public, so it reveals nothing hidden. A green disc with a thin dark edge, low in the middle of the shell: above
+the number where the number is on the shell, just above the plate where a plate fills the bottom (`DECALS` gives each
+shell's spot).
+
+## The quarterback's gear
+
+### Padded sleeves
+
+Two new `SleeveLength` values, drawn on the arm as a cylinder so a pad turned toward the outside squeezes there:
+
+- `padded`: a full sleeve with a honeycomb pad over the point of the elbow, turned 62° toward the outside of the arm.
+- `paddedElbow`: a short padded sleeve from mid upper arm to mid forearm, the same pad.
+
+The pad is a shade of the sleeve: black → `#3a4048`, white → `#c9d0d7`, a team colour → 30% darker. Quarterbacks only by
+default (anyone through the editor), on the throwing arm (the right; it follows handedness if that ever exists), in the
+same four colours as today's sleeves. Of quarterbacks (an AFLS estimate): 35% `padded`, 15% `paddedElbow`, 20% a plain
+sleeve as today (shooter most often), 30% none. In a cold game `padded` stays on (it's already full); `paddedElbow`
+becomes `padded`.
+
+### The play-call wristband
+
+A new `Gear.wristband?: { side: 'left' | 'right'; color: GearColor }`, on the non-throwing wrist (the left). About 85% of
+quarterbacks wear one (an AFLS estimate: most starters do); colours white 40, black 30, team colour 15, second colour 15.
+A solid band from 92 to 104.6 on the arm (a little above the wrist, so more of it stays inside the ring), the play card
+behind a clear window turned 75° toward the outside of the wrist, where he flips it up to read. At 128px it shows as a
+light strip on the outside of his wrist; it stays on in cold games. No other position wears one by default.
+
+## The gear editor
+
+On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
+
+- **Helmet** (new, first row): the eight shells by name. Stored as `Gear.helmet?: HelmetModel`; absent means the game's
+  pick.
+- **Sleeve** gains "Padded" and "Padded elbow".
+- **Wristband** (new): None, Left wrist, Right wrist, and a colour.
+- "Back to his own" drops every pick, helmet included. Anything goes whatever his position, as today.
+
+## Data, saves and code
+
+- **Saves:** `SAVE_VERSION` 74 → 75. `Gear` gains `helmet` and `wristband`, `SleeveLength` two values (all optional or
+  additive, nothing to rewrite). `Team.helmet` is filled from the seeds by `abbrev` for the 32 default clubs; any other
+  team keeps none and uses the fallback rule.
+- **New `src/ui/helmet.ts`:** the shells' data (`MODELS`), the fit numbers, `helmetModelOf`, `maskOf` by position,
+  `helmetDesignOf(team)` (the club's design or the fallback), and the decal rules (`flagsOf(player)`, `greenDotOf`).
+- **New `src/ui/helmetArt.tsx`:** the drawing, as `gearArt.tsx` draws gear: `HelmetLayer` (shell, stripes, details,
+  plate or bumper, number, decals) and `MaskLayer` (drawn before the neck). `src/ui/flags.tsx` for the flags.
+- **`playerGear.ts` and `gearArt.tsx`:** the padded sleeves and the wristband, their rates and the cold-game rules.
+- **`PlayerAvatar` (`components.tsx`):** the mask before the neck, the helmet in place of the ears and head. A roster
+  mod's `player.portrait` still replaces the whole drawing; staff avatars are untouched.
+- **Detail by size:** the shell, stripes and bumper at every size (the helmet becomes a team-coloured cap in lists);
+  vents, clips, mask corners and the number from 32px, as with gear; flags and the green dot from 56px.
+- **Nothing in `src/engine/` changes** except the types, the seeds and the save step. Nothing reads ratings.
+
+## Tests
+
+- `helmet.test.ts`: every default club has a design; its stripes, number and bumper stand off the shell (contrast
+  floors); every Pathway origin has a flag and CFL and college origins get the US flag only; one green dot per side per
+  club, on the starting QB and the first LB (or S); the mask by position; the model picks stay in their weights over a
+  large sample and linemen draw the wide pod; a picked `Gear.helmet` wins.
+- `playerGear.test.ts`: padded sleeves only on quarterbacks by default and on the throwing arm; the wristband's share and
+  side; the cold-game rules for both.
+- `avatar.test.tsx`: the helmet renders at every size with no `NaN` in its paths; the tallest build's crown stays inside
+  the ring; decals absent under 56px; a free agent keeps the bare head.
+- `ui.test.ts`: the screen contract still holds (nothing new reads `player.ratings`).
+
+## Docs and version
+
+- `docs/AVATARS.md`: the head becomes the helmet (section 2), a new helmet section with the shells, fit, details,
+  designs and decals, the padded sleeves and wristband in 2b, the detail-by-size table, tunables, and "Not yet"
+  (alternates, hair, a SpeedFlex-style shell).
+- No MVP item: a PATCH bump with a changelog entry in a player's words.
+
+## Later
+
+- **Alternate helmets and jerseys** (their own pass, with throwbacks): one alternate per club, worn in its primetime
+  games (Thursday, Sunday and Monday nights), fixed when the schedule is made so a flex in or out doesn't change it, with
+  the home and away rule as today. Mocked for six clubs in version 8 of the mockups.
+- Hair under the helmet (locs, braids, the flow, a ponytail, curls; mocked in rounds 1–2, dropped for now).
+- Wristbands for defensive play-callers; a SpeedFlex-style shell once a rear reference turns up.
+
+## Open questions
+
+1. **When does the second flag show?** The NFL runs the Heritage Program for a couple of weeks a season. Recommended:
+   all season, since it's the only place a Pathway player's country shows on the field.
+2. **Free agents and prospects:** keep the bare head (recommended: they have no club design, and it tells them apart
+   at a glance), or a plain helmet in the grey-green?
