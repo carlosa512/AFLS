@@ -10,6 +10,21 @@ import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type 
 import type { Cast } from './cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
 import { FAKE, type PocketPlan } from './pocket';
+import { decoyEnd, type Assignment, type Concept } from './concepts';
+import { routeKeys, routeTime, type RouteId } from './routes';
+
+/** The pass's pattern (`concepts.ts`): the target's route, everyone else's, which way is in for each, their speeds. */
+export interface Pattern {
+  route: RouteId;
+  concept: Concept;
+  assigned: ReadonlyMap<number, Assignment | undefined>;
+  inward: ReadonlyMap<number, 1 | -1>;
+  top: ReadonlyMap<number, number>;
+  /** How far the man in coverage is from the target as the ball gets there (yards; NGS's separation at the target). */
+  separation: number;
+}
+/** A decoy runs his route at this pace (or his top speed, if lower). */
+const DECOY_PACE = 8.5;
 import type { Pt } from './formations';
 
 /** A spot at a time: seconds from the snap. */
@@ -148,6 +163,13 @@ function flightAndRoute(e: PlayLogEntry, homeId: number, snapY: number, receiver
   const run = route < 3 ? route / 4 : 0.75 + (route - 3) / ROUTE_PACE;
   if (air) air = { ...air, dur: passFlight(Math.hypot(air.x1 - air.x0, air.y1 - air.y0)) };
   return { segs, air, run };
+}
+
+/** Where a pass is caught (or comes down), as All-22 throws it: null on anything but a throw. */
+export function catchSpot(e: PlayLogEntry, homeId: number, snapY: number): Pt | null {
+  if (e.kind !== 'pass' && e.kind !== 'incomplete' && e.kind !== 'int') return null;
+  const { air } = flightAndRoute(e, homeId, snapY);
+  return air ? { x: air.x1, y: air.y1 } : null;
 }
 
 /** The earliest the ball can leave for the target's route to reach the catch as it does (0 on anything but a throw). */
@@ -314,6 +336,10 @@ export interface Scripted {
   free: Map<number, number>;
   /** A fumble: when and where the ball came out, when it settled, and who recovered it. */
   loose?: { t: number; x: number; y: number; settle: number; by: number };
+  /** Decoys let go at the end of their routes, and where they settle (`SteerArgs.settle`). */
+  settle: Map<number, Pt>;
+  /** A screen's other receivers, who block the nearest defensive back. */
+  stalk: Set<number>;
 }
 
 export function script(
@@ -324,12 +350,17 @@ export function script(
   dir: 1 | -1,
   /** A dropback's pocket (`pocket.ts`): play action sends the back on a fake. */
   pocket?: PocketPlan | null,
+  /** A pass's routes (`concepts.ts`). */
+  pattern?: Pattern,
 ): Scripted {
   const keys = new Map<number, Keyframe[]>();
   const moments = new Map<number, number>();
   const free = new Map<number, number>();
   const until = new Map<number, number>();
-  if (!segs.length) return { keys, carrier: null, tackler: null, pursuer: null, release: 0, moments, until, free };
+  const settle = new Map<number, Pt>();
+  const stalk = new Set<number>();
+  if (!segs.length)
+    return { keys, carrier: null, tackler: null, pursuer: null, release: 0, moments, until, free, settle, stalk };
   /** His moment: the first that comes, if he has two (a cover man who makes the tackle). */
   const moment = (id: number | undefined, t: number) => {
     if (id !== undefined && keys.has(id)) moments.set(id, Math.min(t, moments.get(id) ?? Infinity));
@@ -440,19 +471,49 @@ export function script(
       const target = who.ball;
       if (target !== undefined && start.has(target)) {
         const s0 = start.get(target)!;
-        // A stem upfield, then the break to the ball, arriving as it does (a step short of a pick or a miss).
+        // His route to the ball, arriving as it does (a step short of a pick or a miss).
         const short = e.kind === 'pass' ? 0 : e.kind === 'int' ? 1.5 : 0.7;
         const arrive = short ? toward(land, s0, short) : land;
-        const stem = { x: s0.x + (arrive.x - s0.x) * 0.6, y: s0.y + (arrive.y - s0.y) * 0.25 };
         const after = e.kind === 'pass' ? ride(segs, a + 1, segs.length - 1) : [];
-        // Each leg in its share of the time, so he runs it at one pace (a crosser's break is the long leg).
-        const legs = [Math.hypot(stem.x - s0.x, stem.y - s0.y), Math.hypot(arrive.x - stem.x, arrive.y - stem.y)];
-        const split = legs[0] + legs[1] > 0 ? legs[0] / (legs[0] + legs[1]) : 0.55;
-        set(target, [at(throwEnd * Math.max(0.3, Math.min(0.75, split)), stem), at(throwEnd, arrive), ...after]);
+        if (pattern) {
+          const inward = pattern.inward.get(target) ?? 1;
+          set(target, [
+            ...routeKeys(pattern.route, s0, arrive, throwEnd, dir, inward, pattern.top.get(target) ?? 9),
+            ...after,
+          ]);
+        } else {
+          // No pattern (a caller with no cast): a stem upfield, then the break to the ball, each leg in its share of
+          // the time so he runs it at one pace.
+          const stem = { x: s0.x + (arrive.x - s0.x) * 0.6, y: s0.y + (arrive.y - s0.y) * 0.25 };
+          const legs = [Math.hypot(stem.x - s0.x, stem.y - s0.y), Math.hypot(arrive.x - stem.x, arrive.y - stem.y)];
+          const split = legs[0] + legs[1] > 0 ? legs[0] / (legs[0] + legs[1]) : 0.55;
+          set(target, [at(throwEnd * Math.max(0.3, Math.min(0.75, split)), stem), at(throwEnd, arrive), ...after]);
+        }
         if (e.kind === 'pass') carrier = target;
         moment(target, outT);
       }
       moment(qb, outT);
+      // The rest of the pattern: each decoy runs his concept route at a decoy's pace, then is let go where it ends
+      // (he settles there until the ball's out); a screen's other men block.
+      if (pattern)
+        for (const [id, job] of pattern.assigned) {
+          if (job === undefined || id === target || id === who.beat || keys.has(id) || !start.has(id)) continue;
+          if (job === 'block') {
+            stalk.add(id);
+            continue;
+          }
+          // The back sells the fake on play action, then is on his own.
+          if (pocket?.playAction && cast.offense.find((m) => m.id === id)?.role === 'RB') continue;
+          const s0 = start.get(id)!;
+          const inward = pattern.inward.get(id) ?? 1;
+          const top = Math.min(DECOY_PACE, pattern.top.get(id) ?? DECOY_PACE);
+          const to = decoyEnd(job, s0, segs[0].x0, dir, inward);
+          const t = routeTime(job, s0, to, dir, inward, top);
+          set(id, routeKeys(job, s0, to, t, dir, inward, top));
+          // Let go at his route's end, or when the ball gets there (a catch or a pick: everyone reacts).
+          free.set(id, Math.min(t, throwEnd));
+          settle.set(id, to);
+        }
       const qbKeys = qb === undefined ? undefined : keys.get(qb);
       if (qbKeys && who.rush !== undefined && start.has(who.rush) && who.rush !== who.take && who.rush !== who.cover) {
         // Pressure: past the man he beat (or straight in), on the quarterback as the ball comes out, a hit on the
@@ -487,10 +548,14 @@ export function script(
         moment(who.take, throwEnd);
       }
       if (who.cover !== undefined && who.cover !== who.take && start.has(who.cover)) {
-        // Trailing the receiver: a yard and a half deeper than the catch (under it on a miss). Beaten on a catch, he
-        // chases from there on his own legs (`free`), not sliding along at the receiver's back.
-        const trail = e.kind === 'incomplete' ? 0.7 : 1.5;
-        const spot = { x: land.x + dir * trail, y: land.y };
+        // As far off the receiver as the play's separation (NGS: about three yards at the target), on the side he
+        // came from; without a pattern, a yard and a half deeper (under it on a miss). Beaten on a catch, he chases from
+        // there on his own legs (`free`), not sliding along at the receiver's back.
+        const sep = pattern?.separation;
+        const spot =
+          sep !== undefined
+            ? toward(land, start.get(who.cover)!, sep)
+            : { x: land.x + dir * (e.kind === 'incomplete' ? 0.7 : 1.5), y: land.y };
         set(who.cover, [at(throwEnd, spot)]);
         if (e.kind === 'pass') free.set(who.cover, throwEnd);
         moment(who.cover, throwEnd);
@@ -640,5 +705,7 @@ export function script(
     free,
     ...(catchAt !== undefined ? { catchAt } : {}),
     ...(loose ? { loose } : {}),
+    settle,
+    stalk,
   };
 }

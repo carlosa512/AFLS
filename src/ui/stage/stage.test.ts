@@ -361,11 +361,13 @@ describe('the staged play', () => {
     for (const { p } of staged) {
       if (p.carrier === null) continue;
       const c = p.ids.indexOf(p.carrier);
+      // From when he has it: the throw or the handoff, or a fumble's recovery (before, he may be the man in coverage).
+      const from = Math.round((p.loose ? p.loose.t : p.release) / p.dt);
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).
         if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k])) continue;
         let closest = Infinity;
-        for (let st = 0; st < p.steps - 1; st++) {
+        for (let st = from; st < p.steps - 1; st++) {
           const a = pos(p, st, k);
           const b = pos(p, st, c);
           closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
@@ -1128,5 +1130,46 @@ describe('the pocket', () => {
       n++;
     }
     expect(n).toBeGreaterThan(20);
+  });
+});
+
+describe('the pattern', () => {
+  it('gives every throw to a receiver a concept and the route that fits his catch', () => {
+    let n = 0;
+    for (const { g, r } of games.slice(0, 10))
+      r.plays!.forEach((raw, i) => {
+        const e = asRan(raw);
+        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'incomplete' && e.kind !== 'int')) return;
+        if (actorsIn(e).ball === undefined || /throws it away/.test(e.text)) return;
+        const p = stagePlay({
+          plays: r.plays!,
+          index: i,
+          record: r.field!,
+          homeId: g.homeId,
+          seed: `pt${i}`,
+          snapY: 26,
+        });
+        expect(p.pattern, e.text).toBeDefined();
+        n++;
+      });
+    expect(n).toBeGreaterThan(300);
+  });
+
+  it('stages a game without actors (before v71): every play ends where the engine says', () => {
+    const { g, r } = games[3];
+    const bare = r.plays!.map((e) => {
+      const c: PlayLogEntry = { ...e };
+      delete c.who;
+      if (c.ran) c.ran = { ...c.ran, who: undefined };
+      return c;
+    });
+    bare.forEach((e, i) => {
+      const p = stagePlay({ plays: bare, index: i, record: r.field!, homeId: g.homeId, seed: `bare${i}`, snapY: 26 });
+      const segs = stagedPath(returned(asRan(e)), g.homeId, 26);
+      if (!segs.length) return;
+      const end = pointAt(segs[segs.length - 1], 1);
+      const last = (p.steps - 1) * 3;
+      expect(Math.abs(p.ball[last] - end.x), e.text).toBeLessThan(0.5);
+    });
   });
 });

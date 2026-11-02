@@ -44,27 +44,36 @@ interface RouteShape {
   spots: readonly Spot[];
   /** He settles at the catch spot if he gets there early (a sit route), rather than running on through it. */
   sits?: true;
+  /** The furthest across the field it takes him from his line (yards); none: as far as the field goes. */
+  reach?: number;
 }
 
 export const ROUTES: Record<RouteId, RouteShape> = {
-  screen: { mean: -2.8, air: [-10, 0], way: ['in', 'out', 'line'], spots: ['WIDE', 'SLOT', 'TE', 'RB'], sits: true },
-  swing: { mean: -0.5, air: [-6, 3], way: ['out', 'line'], spots: ['RB'], sits: true },
-  flat: { mean: -0.5, air: [-3, 4], way: ['out', 'line'], spots: ['RB', 'TE', 'SLOT'], sits: true },
-  quickOut: { mean: 3, air: [0, 6], way: ['out'], spots: ['WIDE', 'SLOT'], sits: true },
+  screen: {
+    mean: -2.8,
+    air: [-10, 0],
+    way: ['in', 'out', 'line'],
+    spots: ['WIDE', 'SLOT', 'TE', 'RB'],
+    sits: true,
+    reach: 8,
+  },
+  swing: { mean: -0.5, air: [-6, 3], way: ['out', 'line'], spots: ['RB'], sits: true, reach: 10 },
+  flat: { mean: -0.5, air: [-3, 4], way: ['out', 'line'], spots: ['RB', 'TE', 'SLOT'], sits: true, reach: 10 },
+  quickOut: { mean: 3, air: [0, 6], way: ['out'], spots: ['WIDE', 'SLOT'], sits: true, reach: 7 },
   drag: { mean: 3, air: [0, 7], way: ['in'], spots: ['WIDE', 'SLOT', 'TE', 'RB'] },
-  hitch: { mean: 5, air: [2, 9], way: ['line'], spots: ['WIDE', 'SLOT', 'TE'], sits: true },
-  slant: { mean: 6.1, air: [3, 10], way: ['in'], spots: ['WIDE', 'SLOT'] },
-  stick: { mean: 6, air: [4, 8], way: ['line', 'out'], spots: ['TE', 'SLOT', 'RB'], sits: true },
-  curl: { mean: 7.4, air: [5, 14], way: ['line', 'in'], spots: ['WIDE', 'SLOT', 'TE'], sits: true },
-  out: { mean: 7.3, air: [3, 15], way: ['out'], spots: ['WIDE', 'SLOT', 'TE'], sits: true },
+  hitch: { mean: 5, air: [2, 9], way: ['line'], spots: ['WIDE', 'SLOT', 'TE'], sits: true, reach: 4 },
+  slant: { mean: 6.1, air: [3, 10], way: ['in'], spots: ['WIDE', 'SLOT'], reach: 9 },
+  stick: { mean: 6, air: [4, 8], way: ['line', 'out'], spots: ['TE', 'SLOT', 'RB'], sits: true, reach: 5 },
+  curl: { mean: 7.4, air: [5, 14], way: ['line', 'in'], spots: ['WIDE', 'SLOT', 'TE'], sits: true, reach: 5 },
+  out: { mean: 7.3, air: [3, 15], way: ['out'], spots: ['WIDE', 'SLOT', 'TE'], sits: true, reach: 12 },
   cross: { mean: 6.9, air: [3, 18], way: ['in'], spots: ['SLOT', 'TE', 'WIDE'] },
-  comeback: { mean: 13, air: [10, 18], way: ['out', 'line'], spots: ['WIDE'], sits: true },
+  comeback: { mean: 13, air: [10, 18], way: ['out', 'line'], spots: ['WIDE'], sits: true, reach: 6 },
   dig: { mean: 10.6, air: [8, 18], way: ['in'], spots: ['WIDE', 'SLOT', 'TE'] },
-  wheel: { mean: 13.8, air: [5, 30], way: ['out', 'line'], spots: ['RB', 'SLOT'] },
-  corner: { mean: 21.3, air: [12, 40], way: ['out'], spots: ['WIDE', 'SLOT', 'TE'] },
+  wheel: { mean: 13.8, air: [5, 30], way: ['out', 'line'], spots: ['RB', 'SLOT'], reach: 12 },
+  corner: { mean: 21.3, air: [12, 40], way: ['out'], spots: ['WIDE', 'SLOT', 'TE'], reach: 14 },
   post: { mean: 21, air: [12, 60], way: ['in'], spots: ['WIDE', 'SLOT', 'TE'] },
-  go: { mean: 23.4, air: [12, 70], way: ['line', 'out'], spots: ['WIDE'] },
-  seam: { mean: 20, air: [10, 50], way: ['line'], spots: ['SLOT', 'TE'] },
+  go: { mean: 23.4, air: [12, 70], way: ['line', 'out'], spots: ['WIDE'], reach: 6 },
+  seam: { mean: 20, air: [10, 50], way: ['line'], spots: ['SLOT', 'TE'], reach: 6 },
 };
 
 const IDS = Object.keys(ROUTES) as RouteId[];
@@ -99,7 +108,10 @@ export function routeFor(c: { air: number; across: number; spot: Spot }, rng: Rn
   const way = wayOf(c.across);
   const fits = (id: RouteId, strict: boolean) => {
     const r = ROUTES[id];
-    return r.spots.includes(c.spot) && c.air >= r.air[0] && c.air <= r.air[1] && (!strict || r.way.includes(way));
+    const reach = r.reach === undefined || Math.abs(c.across) <= r.reach;
+    return (
+      r.spots.includes(c.spot) && c.air >= r.air[0] && c.air <= r.air[1] && (!strict || (r.way.includes(way) && reach))
+    );
   };
   let pool = IDS.filter((id) => fits(id, true));
   // Nothing his spot runs goes exactly there (a back's catch 20 yards across): the nearest that goes that deep.

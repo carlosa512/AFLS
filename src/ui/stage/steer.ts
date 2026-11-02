@@ -101,6 +101,10 @@ export interface SteerArgs {
   beat?: number | null;
   /** A designed shot: the tight end and the back stay in to block. */
   maxProtect?: boolean;
+  /** Decoys let go where their routes end: they settle there until the ball's out (`Scripted.settle`). */
+  settle?: ReadonlyMap<number, Pt>;
+  /** A screen's other receivers: they block the nearest defensive back, as on a run. */
+  stalk?: ReadonlySet<number>;
   man: boolean;
   /** The coordinator's coverage (its zone landmarks), the defense's call on the snap, and the men a blitz sends. */
   coverage?: CoverageId | null;
@@ -205,11 +209,15 @@ export function steer(a: SteerArgs): Float32Array {
   const keptIn = (m: CastMember) =>
     !a.scripted.has(m.id) && ((a.maxProtect && m.role === 'TE') || (a.dropback && m.id === a.beat));
   for (const m of receivers) if (!keptIn(m)) routes.set(m.id, decoy(a.start.get(m.id)!, a.dir, a.rng, ballY0));
+  // A decoy's route is scripted: once it ends, he holds where it took him.
+  for (const [id, p] of a.settle ?? []) routes.set(id, [p]);
   // On a dropback the back stays in to block or leaks out to the flat: a coin per play (max protect: he stays).
   const checkdowns = new Set<number>();
   if (a.dropback && !a.maxProtect)
     for (const m of members.filter((x, k) => offense[k] && x.role === 'RB')) {
-      if (a.rng.next() < 0.5 || m.id === a.beat) continue;
+      // A back on a route of his own (the pattern's) is out of the protection.
+      if (a.settle?.has(m.id)) checkdowns.add(m.id);
+      if (a.rng.next() < 0.5 || m.id === a.beat || a.settle?.has(m.id)) continue;
       const p = a.start.get(m.id)!;
       const side = p.y < ballY0 ? -1 : 1;
       routes.set(m.id, [
@@ -304,6 +312,13 @@ export function steer(a: SteerArgs): Float32Array {
           const d = pick(front, k);
           if (d >= 0) assign(k, d);
         }
+    // A screen's other receivers stalk the nearest defensive back.
+    for (const id of a.stalk ?? []) {
+      const k = index.get(id);
+      if (k === undefined || !steered[k]) continue;
+      const d = pick(dbs, k);
+      if (d >= 0) assign(k, d);
+    }
     if (a.run)
       for (const k of all)
         if (offense[k] && steered[k] && (members[k].role === 'WR' || members[k].role === 'TE')) {
@@ -513,11 +528,12 @@ export function steer(a: SteerArgs): Float32Array {
           on !== undefined &&
           (m.role === 'OL' ||
             (a.run && t > 0.4) ||
+            (!!a.stalk?.has(m.id) && t > 0.4) ||
             (a.maxProtect && m.role === 'TE') ||
             (a.dropback && m.id === a.beat && m.role !== 'RB')) &&
-          !(a.dropback && released)
+          (!(a.dropback && released) || !!a.stalk?.has(m.id))
         ) {
-          if (a.dropback && hk >= 0) {
+          if (a.dropback && hk >= 0 && !a.stalk?.has(m.id)) {
             // Pass set: kick to his spot in the cup, then a yard in front of his man, between him and the quarterback,
             // giving ground slowly. A man who doesn't come (he drops into coverage, or someone else has him): help on
             // the nearest rusher instead.
