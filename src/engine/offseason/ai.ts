@@ -597,7 +597,9 @@ export function aiSettle(league: League, team: Team, p: Player): boolean {
   const d = demand(league, p, team.id);
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
   offer.apy = walkAwayApy(league, p, team.id, offer, d);
-  if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
+  // A man it would keep, so it makes room as it does for a keeper in the re-sign window: restructures, then a cut.
+  const short = offerCharge(league, p, team.id, offer) - spendable(league, team.id);
+  if (short > 0 && makeRoom(league, team, short, p, offer.years > 1 ? offer.apy : 0) < short) return false;
   signPlayer(league, p, team.id, offer);
   return true;
 }

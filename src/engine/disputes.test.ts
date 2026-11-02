@@ -357,7 +357,7 @@ describe('disputes: a holdout runs and ends (G4)', () => {
 });
 
 const { aiSettle, promisedDeal } = await import('./disputes');
-const { aiResignWindow, expiringPlayers, resignCall } = await import('./offseason/ai');
+const { aiResignWindow, expiringPlayers, resignCall, spendable } = await import('./offseason/ai');
 const { simToEndOfSeason } = await import('./league');
 const { beginOffseason } = await import('./offseason');
 const { isExpired } = await import('./finance/contract');
@@ -390,6 +390,20 @@ describe('disputes: AI clubs answer (G4)', () => {
     expect(a.contract!.signedSeason).toBe(l.season);
     expect(b.morale!.dispute?.answered?.choice).toBe('firm');
     expect(c.morale!.dispute?.answered?.choice).toBe('firm');
+  });
+
+  it('makes room for a man it would keep when it is short, as for a keeper, and stays under the cap', () => {
+    const { l } = base('settle-room');
+    // The re-sign window: restructures are an offseason move.
+    l.phase = 'resign';
+    gm(l, 1, true);
+    const a = souredDeal(l, 1, RUN_STEPS - 1, 0, (x) => resignCall(l, 1, x).call !== 'walk');
+    // $5M short before his raise (restructures convert $1M or more at a time).
+    room(l, 1, -(spendable(l, 1) + 5_000));
+    expect(spendable(l, 1)).toBeLessThan(0);
+    disputeStep(l, moraleContext(l), at(l, 0), 0, false);
+    expect(a.morale!.disputeEnd?.how).toBe('signed');
+    expect(spendable(l, 1)).toBeGreaterThanOrEqual(0);
   });
 
   it('answers nothing with the dial off', () => {
