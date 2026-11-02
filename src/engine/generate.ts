@@ -32,7 +32,7 @@ import {
   type Market,
 } from './finance/market';
 import { clamp, Rng } from './rng';
-import { buildAutoDepthChart } from './roster';
+import { buildAutoDepthChart, headline, teamRatings, UNIT_POSITIONS } from './roster';
 import { newIdentity } from './identity';
 import { generateCombine, SCOUT_POINTS_PER_YEAR } from './scouting';
 import { generateSchedule } from './season/schedule';
@@ -48,7 +48,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 70;
+export const SAVE_VERSION = 74;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -428,13 +428,13 @@ function rookieExtension(market: Market, player: Player, season: number, gm: GmT
 /** The most `fitPayroll` scales a roster's pay above the minimum: past it, what's missing comes as raises. */
 const MAX_SCALE = 1.5;
 /** The most of next year's cap an opening roster's restructures may commit. */
-const NEXT_YEAR_CEILING = 0.97;
+export const NEXT_YEAR_CEILING = 0.97;
 /**
  * The most a last-year deal is raised to, as a multiple of its player's market. A settled league's kickoffs pay their
  * last-year deals 1.13-1.55 times their market in all; 1.55 a deal left a new league's at 1.16 (the position's top
  * holds the best back) and 28.5% of payroll, against a settled 29-33%.
  */
-const LAST_YEAR_MOST = 1.7;
+export const LAST_YEAR_MOST = 1.7;
 
 /**
  * Nudge veteran money so a team's opening payroll lands near `target`, never over the cap. Rookie deals stay
@@ -547,13 +547,16 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
   if (short <= 1) return;
   const worth = new Map(players.map((p) => [p, marketApy(market, p)]));
   const priced = (p: Player) => worth.get(p)! > min(p);
-  /** Raises over the remaining years of running deals `who` picks, none past `most` in any year. */
-  const raise = (most: (p: Player) => number, who: (p: Player) => boolean = () => true) => {
+  /**
+   * Raises over the remaining years of running deals `who` picks, none past `most` in any year (`oneYear`: this
+   * year's deals too, for the last fill).
+   */
+  const raise = (most: (p: Player) => number, who: (p: Player) => boolean = () => true, oneYear = false) => {
     for (const weight of [salary, hit]) {
       for (let pass = 0; pass < 6 && short > 1; pass++) {
         const room = new Map(
           vets
-            .filter((p) => running(p) && who(p))
+            .filter((p) => (oneYear || running(p)) && who(p))
             .map((p) => [p, Math.max(0, Math.min(...real(p).map((y) => most(p) - capHit(p.contract!, y.season))))]),
         );
         const open = [...room.keys()].filter((p) => room.get(p)! >= 1 && weight(p) > 0);
@@ -610,7 +613,19 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
     c.length += more.length;
     raise(twice, (q) => q === p);
   }
-  raise((p) => (priced(p) ? Math.min(top(p), 3.5 * worth.get(p)!) : 3 * min(p)));
+  // The last fill reaches this year's deals too: a roster of one-year minimum veterans behind linemen already near
+  // their position's top otherwise opened with a sixth of the cap unspent.
+  // A one-year deal there is held to what a last-year deal may be paid.
+  raise(
+    (p) =>
+      !running(p)
+        ? Math.min(top(p), LAST_YEAR_MOST * Math.max(worth.get(p)!, min(p)))
+        : priced(p)
+          ? Math.min(top(p), 3.5 * worth.get(p)!)
+          : 3 * min(p),
+    () => true,
+    true,
+  );
 }
 
 /** Each team's seven picks in the `season` draft. */
@@ -623,22 +638,61 @@ export function createDraftPicks(league: League, season: number): void {
   }
 }
 
-/** Quality (target overall) for the Nth player on the depth chart at a position. */
 /**
- * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`). The real
- * league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality, on top of
- * the luck of each player's roll (about half a point between teams): a new league's team ratings follow the
- * real records at about 0.7 (0.6–0.75 by seed), so the old pecking order shows in year one without deciding it.
+ * Quality per point of a franchise's recent win share, above or below .500 (`TeamSeed.winPct`), on its starters. The
+ * real league's spread (.335 to .750 over 2015–2024) then spans about 1.65 points of starter quality; with most of
+ * each roll's luck dealt back (`EVEN_DEAL`), a new league's team ratings follow the real records at about 0.66
+ * (0.42–0.84 by seed), so the old pecking order shows in year one without deciding it.
  */
 const PEDIGREE = 4;
 
-function slotQuality(rng: Rng, position: Position, slot: number, teamTalent: number): number {
+/** A starter's quality before his team's talent: the luck of his roll is how far he lands from this. */
+const STARTER_QUALITY = 12.8;
+
+/**
+ * The roll for the Nth player at a position, before his team's talent (a starter's lands around `STARTER_QUALITY`).
+ * Backups roll as a league the AI has built over the years carries them: its next men average about 9.7, three points
+ * behind the starters (a new league's sat four behind and lost more to every injury).
+ */
+function slotRoll(rng: Rng, position: Position, slot: number): number {
   const starters = STARTERS[position];
-  let q: number;
-  if (slot < starters) q = rng.normal(12.8, 2.3);
-  else if (slot === starters) q = rng.normal(10, 1.8);
-  else q = rng.normal(8.3, 1.7);
-  return clamp(q + teamTalent, 4, 19.5);
+  if (slot < starters) return rng.normal(STARTER_QUALITY, 2.3);
+  if (slot === starters) return rng.normal(11.1, 1.8);
+  return rng.normal(9.4, 1.7);
+}
+
+/**
+ * The share of a team's luck in its starters' rolls that a new league deals back. Rolled alone, 22 starters leave
+ * about half a point of team overall between clubs by chance, on top of their records (`PEDIGREE`), and a league
+ * starts with records spread wider than the NFL's (an SD of 3.8 wins against nflverse's 3.09 for 2015–24); one built
+ * over many seasons reads 3.09. Three quarters dealt back, a new league reads 3.3. Dealt back, a club that rolled a great quarterback has a little less around him, as the cap would leave it.
+ */
+export const EVEN_DEAL = 0.75;
+
+/**
+ * A team's starters' rolls (each less `STARTER_QUALITY`, by position and slot) with `EVEN_DEAL` of their luck dealt
+ * back: the luck weighed as team overall weighs its units (`headline`), taken evenly from everyone but the
+ * quarterback, who keeps the roll that makes him a star or not.
+ */
+export function evenDeal(luck: Record<Position, number[]>): Record<Position, number[]> {
+  const avg = (positions: readonly Position[], r: (pos: Position, x: number) => number) => {
+    const xs = positions.flatMap((pos) => luck[pos].map((x) => r(pos, x)));
+    return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  };
+  const weigh = (r: (pos: Position, x: number) => number) =>
+    headline(
+      avg(UNIT_POSITIONS.qb, r),
+      avg(UNIT_POSITIONS.offense, r),
+      avg(UNIT_POSITIONS.defense, r),
+      avg(UNIT_POSITIONS.special, r),
+    );
+  const total = weigh((_, x) => x);
+  // What one point on every starter but the quarterback is worth to team overall.
+  const perPoint = weigh((pos) => (pos === 'QB' ? 0 : 1));
+  const shift = total ? (-EVEN_DEAL * total) / perPoint : 0;
+  return Object.fromEntries(
+    Object.entries(luck).map(([pos, xs]) => [pos, pos === 'QB' ? [...xs] : xs.map((x) => x + shift)]),
+  ) as Record<Position, number[]>;
 }
 
 function slotAge(rng: Rng, isStarter: boolean): number {
@@ -745,13 +799,43 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     talent.push(teamTalent);
     const jerseysUsed = new Set<number>();
     const roster: Player[] = [];
+    // The starters' luck is dealt back before anyone is built, without moving a draw: a probe on a copy of the
+    // stream builds the roster once to read its rolls, then the real pass makes every draw where it always came and
+    // only the starters' qualities change.
+    const probe = new Rng(rng.getState());
+    const rolls = {} as Record<Position, number[]>;
+    const probeJerseys = new Set<number>();
+    for (const position of POSITIONS)
+      for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
+        const roll = slotRoll(probe, position, slot);
+        (rolls[position] ??= []).push(roll);
+        generatePlayer(probe, {
+          id: -1,
+          position,
+          quality: clamp(roll, 4, 19.5),
+          age: slotAge(probe, slot < STARTERS[position]),
+          teamId: team.id,
+          jerseysUsed: probeJerseys,
+        });
+      }
+    const dealt = evenDeal(
+      Object.fromEntries(
+        POSITIONS.map((pos) => [pos, rolls[pos].slice(0, STARTERS[pos]).map((q) => q - STARTER_QUALITY)]),
+      ) as Record<Position, number[]>,
+    );
+    for (const pos of POSITIONS) dealt[pos].forEach((x, slot) => (rolls[pos][slot] = x + STARTER_QUALITY));
     for (const position of POSITIONS) {
       for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
         const isStarter = slot < STARTERS[position];
+        // The roll's draw where it always came; the quality is the probe's roll, dealt.
+        slotRoll(rng, position, slot);
         const player = generatePlayer(rng, {
           id: league.nextPlayerId++,
           position,
-          quality: slotQuality(rng, position, slot, teamTalent),
+          // A franchise's record lifts its starters, not its depth: a built league's depth barely follows its
+          // strength (stars cost the room it would take), and depth that did let strong clubs shrug off injuries
+          // weak ones couldn't, pulling a new league apart through its first season.
+          quality: clamp(rolls[position][slot] + (isStarter ? teamTalent : 0), 4, 19.5),
           age: slotAge(rng, isStarter),
           teamId: team.id,
           jerseysUsed,
@@ -804,7 +888,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   if (options.inheritStaff) league.userTeamId = -1;
   generateStaffWorld(league);
   generateCoachingWorld(league);
-  seedFoundingTrees(league);
+  seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
   // Every player starts where he stands: no jolts, nothing drawn.
   seedMorale(league);
   generateMedicalWorld(league);

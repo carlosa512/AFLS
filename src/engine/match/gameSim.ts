@@ -53,6 +53,10 @@ import type {
   GameInjury,
   GameResult,
   League,
+  FieldRecord,
+  FieldUnits,
+  PackedActors,
+  PlayActors,
   PlayKind,
   PlayLogEntry,
   Player,
@@ -61,6 +65,7 @@ import type {
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
+import { CALL_CHAR, packActors } from '../playActors';
 import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
 import {
   gameWeather,
@@ -76,6 +81,7 @@ import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
   buildLineup,
+  teamDay,
   discipline,
   KICK_FLAG_PER_POINT,
   RETURN_COACH,
@@ -98,6 +104,8 @@ export interface SimOptions {
   weather?: Weather;
   /** Override the officiating crew (defaults to the game's own, see `officials.ts`); null is a league-average crew. */
   crew?: Crew | null;
+  /** Override each team's day, home then away (defaults to the game's own draw, `teamDay`). */
+  days?: [home: number, away: number];
 }
 
 const QUARTER_SECONDS = 900;
@@ -133,7 +141,33 @@ function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
   return [lean(qbs[0]), lean(qbs[1])];
 }
 
-type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane'>;
+type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran'>;
+
+/**
+ * Who a scrimmage play was about, read off what the engine already chose: its stat lines, the man in coverage, the
+ * rusher who got home and the blocker charged for it. Nothing here draws, so recording it never changes a game.
+ */
+export function actorsOf(play: {
+  entries: readonly (readonly [Player, StatKey, number])[];
+  defender?: Player;
+  rusher?: Player | null;
+  beat?: Player | null;
+  take?: Player;
+}): PlayActors {
+  const first = (key: StatKey) => play.entries.find(([, k]) => k === key)?.[0];
+  const who: PlayActors = {};
+  const ball = first('targets') ?? first('rushAtt');
+  const set = (k: keyof PlayActors, p: Player | null | undefined) => {
+    if (p) who[k] = p.id;
+  };
+  set('ball', ball);
+  set('cover', play.defender);
+  set('tackle', first('tackles'));
+  set('rush', play.rusher);
+  set('beat', play.beat);
+  set('take', play.take);
+  return who;
+}
 const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 /** League-typical linemen discipline: penalty rates are scaled around these, so totals stay NFL-like. */
 const OL_DISCIPLINE = 12;
@@ -212,8 +246,6 @@ const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
-/** Accuracy beyond which each point does half as much (elite passers stay inside NFL records). */
-const ACC_SOFT_CAP = 16;
 /** How much more (man) or less (zone) the covering defender's skill counts, away from a typical 12. */
 const MAN_ISLAND = 0.25;
 const ZONE_ISLAND = -0.15;
@@ -378,6 +410,8 @@ export interface LiveGame {
   next(): PlayLogEntry[];
   readonly over: boolean;
   result(): GameResult;
+  /** Who is on the field so far (All-22): read-only, it draws nothing. */
+  field(): FieldRecord | undefined;
 }
 
 export function startGame(league: League, game: Game, options: SimOptions = {}): LiveGame {
@@ -389,24 +423,113 @@ export function startGame(league: League, game: Game, options: SimOptions = {}):
       return sim.isOver;
     },
     result: () => sim.result(),
+    field: () => sim.fieldNow(),
   };
 }
 
 /** Hard stop for a runaway loop; a real game is ~170 iterations. */
 const MAX_STEPS = 2000;
 
+/** The receivers on the field for the offense's personnel. */
+function receivers(l: Lineup): Player[] {
+  const personnel = l.scheme.offense.personnel;
+  return personnel === '12'
+    ? [...l.wrs.slice(0, 2), ...l.tes.slice(0, 2)]
+    : personnel === '10'
+      ? [...l.wrs, ...(l.wr4 ? [l.wr4] : [])]
+      : [...l.wrs, l.tes[0]];
+}
+
 /** Who is on the field for a snap: the offense's eleven (by personnel) and the defense's. */
 function units(l: Lineup): [offense: Player[], defense: Player[]] {
-  const personnel = l.scheme.offense.personnel;
-  const receivers =
-    personnel === '12'
-      ? [...l.wrs.slice(0, 2), ...l.tes.slice(0, 2)]
-      : personnel === '10'
-        ? [...l.wrs, ...(l.wr4 ? [l.wr4] : [])]
-        : [...l.wrs, l.tes[0]];
   return [
-    [l.qb, ...l.ol, l.rbs[0], ...receivers],
+    [l.qb, ...l.ol, l.rbs[0], ...receivers(l)],
     [...l.dt, ...l.edge, ...l.lb, ...l.cb, ...l.s],
+  ];
+}
+
+/**
+ * The share of a receiver's short throws thrown behind the line: screens and quick throws to the flat with blockers in
+ * front (nflverse 2019–24: 16.6% of every throw, at −3.3 air yards on average; backs' checkdowns behind the line add
+ * to it).
+ */
+export const BEHIND_SHARE = 0.18;
+
+/** A catch behind the line has blockers in front of it: the NFL's gain 9.1 yards after the catch (nflverse 2019–24). */
+export const SCREEN_YAC = 8.6;
+/**
+ * Share of a screen's room that the goal line takes away: inside the 5 the whole defense is a step from the ball
+ * (nflverse 2021–24: 36.7% of catches behind the line score there, 92% of those past it).
+ */
+const SCREEN_SQUEEZE = 0.65;
+/** A screen's room after the catch with the field shrunk by `tight` (0 between the 20s, 1 at the goal line). */
+export const screenRoom = (tight: number) => SCREEN_YAC * (1 - SCREEN_SQUEEZE * tight);
+
+/**
+ * How far a throw travels past the line: a back's short throw is a checkdown in the flat; a receiver's is a screen
+ * behind the line or the quick game in front of it (0 to 9, about 4.2 on average, as the NFL's). Never caught behind the
+ * offense's own goal line, nor more than nine yards deep in the end zone.
+ */
+export function passAir(rng: Rng, depth: PassDepth, isBack: boolean, yardLine: number, yardsToGoal: number): number {
+  let air: number;
+  if (isBack && depth === 'short') air = rng.int(-3, 4);
+  else if (depth === 'short')
+    air = rng.chance(BEHIND_SHARE) ? -rng.int(1, 5) : Math.round(clamp(rng.normal(4.2, 2.6), 0, 9));
+  else if (depth === 'medium') air = rng.int(10, 17);
+  // Deep balls travel about 29 yards in the air (nflverse 2019–24) and their catchers keep running (5.6 yards after the
+  // catch): NFL 2021–25, 0.47 completions of 40+ yards a team-game, a third of them touchdowns.
+  else air = 20 + Math.round(Math.min(rng.exponential(10), 60));
+  air = Math.max(air, 1 - yardLine);
+  return Math.min(air, yardsToGoal + 9);
+}
+
+/** A lineup as All-22 keeps it: ids by group, the same eleven `units` puts on the field. */
+export function fieldUnits(l: Lineup): FieldUnits {
+  const ids = (ps: readonly Player[]) => ps.map((p) => p.id);
+  const on = receivers(l);
+  return {
+    qb: l.qb.id,
+    ol: ids(l.ol),
+    rb: l.rbs[0].id,
+    ...(l.rbs[1] ? { rb2: l.rbs[1].id } : {}),
+    wr: ids(on.filter((p) => !l.tes.includes(p))),
+    te: ids(on.filter((p) => l.tes.includes(p))),
+    dt: ids(l.dt),
+    edge: ids(l.edge),
+    lb: ids(l.lb),
+    cb: ids(l.cb),
+    s: ids(l.s),
+    rot: l.rushRotation.map((p): [number, 'EDGE' | 'DT'] => [p.id, p.position === 'EDGE' ? 'EDGE' : 'DT']),
+    k: l.k.id,
+    p: l.p.id,
+    kr: l.kr.id,
+    pr: l.pr.id,
+    st: ids(l.st),
+    fg: ids(l.fg),
+  };
+}
+
+/** Every id a side's units name. */
+function unitIds(u: FieldUnits): number[] {
+  return [
+    u.qb,
+    ...u.ol,
+    u.rb,
+    ...(u.rb2 !== undefined ? [u.rb2] : []),
+    ...u.wr,
+    ...u.te,
+    ...u.dt,
+    ...u.edge,
+    ...u.lb,
+    ...u.cb,
+    ...u.s,
+    ...u.rot.map(([id]) => id),
+    u.k,
+    u.p,
+    u.kr,
+    u.pr,
+    ...u.st,
+    ...u.fg,
   ];
 }
 
@@ -427,6 +550,8 @@ class GameSim {
   private endZoneShot = false;
   private disguise = false;
   private preventShell = false;
+  /** The defense's call on the snap being played, until its log entry is written (`FieldRecord.calls`). */
+  private callNow: DefenseCall | null = null;
   private habits(side: Side, role: Coach['role']): ReadonlySet<CoachQuirkId> {
     return this.gameHabits[side].get(role) ?? this.noHabits;
   }
@@ -509,6 +634,10 @@ class GameSim {
   private creditRng: Rng;
   /** The rusher who got home on the current snap without a sack, credited once the play resolves. */
   private pressureBy: Player | null = null;
+  /** The blocker charged on this snap's pressure or sack, if any: recorded for All-22, never read by the sim. */
+  private beatBy: Player | null = null;
+  /** Who was on the field, kept with the plays for All-22 (only when `keepPlays`). */
+  private fieldRecord: FieldRecord | null = null;
   /**
    * Injuries draw from their own stream, like credit: a game where nobody gets hurt plays out exactly
    * as it would with no injury model at all.
@@ -567,8 +696,9 @@ class GameSim {
     private game: Game,
     private options: SimOptions,
   ) {
-    this.rng = new Rng(options.seed ?? `${league.seed}:${game.season}:${game.id}`);
-    this.habitRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:coach-habits`);
+    const seed = options.seed ?? `${league.seed}:${game.season}:${game.id}`;
+    this.rng = new Rng(seed);
+    this.habitRng = new Rng(`${seed}:coach-habits`);
     this.gameCoaches = [game.homeId, game.awayId].map((id) =>
       options.coachQuirks === false ? [] : teamCoaches(league, id).map((c) => ({ ...c, quirks: { ...c.quirks } })),
     ) as [Coach[], Coach[]];
@@ -577,9 +707,10 @@ class GameSim {
         staff.filter((c) => c.role !== 'positionCoach').map((c) => [c.role, new Set(activeCoachQuirks(c))]),
       );
     this.gameHabits = [habitsFor(this.gameCoaches[0]), habitsFor(this.gameCoaches[1])];
-    this.creditRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:credit`);
-    this.injuryRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:injury`);
-    this.flagRng = new Rng(`${options.seed ?? `${league.seed}:${game.season}:${game.id}`}:flags`);
+    this.creditRng = new Rng(`${seed}:credit`);
+    this.injuryRng = new Rng(`${seed}:injury`);
+    this.flagRng = new Rng(`${seed}:flags`);
+    this.days = options.days ?? [teamDay(seed, game.homeId), teamDay(seed, game.awayId)];
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
     this.wx = weatherEffects(weatherAt(this.weather, 1));
@@ -591,14 +722,29 @@ class GameSim {
     // The league's mood at kickoff: every lineup this game builds, the rebuild after an injury too, reads the same one.
     this.moodMean = moraleMean(league);
     this.lineups = [
-      buildLineup(league, team(game.homeId), undefined, game, this.moodMean),
-      buildLineup(league, team(game.awayId), undefined, game, this.moodMean),
+      buildLineup(league, team(game.homeId), undefined, game, this.moodMean, this.days[0]),
+      buildLineup(league, team(game.awayId), undefined, game, this.moodMean, this.days[1]),
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
     this.culture = [cultureCalls(league, game.homeId), cultureCalls(league, game.awayId)];
     this.qbLeans = this.leans();
     this.fields = [units(this.lineups[0]), units(this.lineups[1])];
+    if (options.keepPlays) {
+      const scheme = (l: Lineup) => ({
+        offense: l.scheme.offense.id,
+        personnel: l.scheme.offense.personnel,
+        front: l.scheme.front.id,
+        coverage: l.scheme.coverage?.id ?? null,
+      });
+      this.fieldRecord = {
+        units: [fieldUnits(this.lineups[0]), fieldUnits(this.lineups[1])],
+        scheme: [scheme(this.lineups[0]), scheme(this.lineups[1])],
+        jerseys: {},
+        changes: [],
+      };
+      for (const u of this.fieldRecord.units) this.noteJerseys(u);
+    }
     // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
     for (const l of this.lineups) {
       if (this.has(l.qb, 'seesGhosts') && formFor(league, l.qb, game.week).shaken) this.rattled.set(l.qb.id, 0.5);
@@ -623,6 +769,8 @@ class GameSim {
 
   /** The league's mood at kickoff (G2's game-day edge is measured against it). */
   private moodMean = 0;
+  /** Each team's day, home then away (`teamDay`): drawn once, so a rebuilt lineup plays the same one. */
+  private days: [number, number] = [0, 0];
   /** Both lineups' out-of-position knocks, kept in one map that every step reads through `skill`. */
   private knocks = new Map<number, number>();
   private syncKnocks() {
@@ -903,12 +1051,33 @@ class GameSim {
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
       const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(this.league, this.lineups[side].team, this.out, this.game, this.moodMean);
+      this.lineups[side] = buildLineup(
+        this.league,
+        this.lineups[side].team,
+        this.out,
+        this.game,
+        this.moodMean,
+        this.days[side],
+      );
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);
+      if (this.fieldRecord) {
+        const u = fieldUnits(this.lineups[side]);
+        this.fieldRecord.changes.push([this.plays.length, side, u]);
+        this.noteJerseys(u);
+      }
       if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
     }
     this.hurt = [];
+  }
+
+  /** The field record as it stands (a live game's view reads it before the result exists). */
+  fieldNow(): FieldRecord | undefined {
+    return this.fieldRecord ?? undefined;
+  }
+
+  private noteJerseys(u: FieldUnits) {
+    for (const id of unitIds(u)) this.fieldRecord!.jerseys[id] ??= this.league.players[id].jersey;
   }
 
   private fgProb(distance: number, kicker: Player): number {
@@ -975,7 +1144,14 @@ class GameSim {
     if (scoring) entry.scoring = true;
     if (this.anim) Object.assign(entry, this.anim);
     this.anim = null;
-    if (this.options.keepPlays || scoring) this.plays.push(entry);
+    if (this.options.keepPlays || scoring) {
+      this.plays.push(entry);
+      // The defense's call on this snap, for All-22 (recorded only: the play is already played).
+      if (this.fieldRecord && this.callNow && this.callNow !== 'base')
+        this.fieldRecord.calls =
+          (this.fieldRecord.calls ?? '').padEnd(this.plays.length - 1, '.') + CALL_CHAR[this.callNow];
+    }
+    this.callNow = null;
     this.snapshot = null;
   }
 
@@ -984,9 +1160,55 @@ class GameSim {
     return side === 0 ? yardLine : 100 - yardLine;
   }
 
-  private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0) {
-    this.anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
-    if (air !== undefined) this.anim.air = this.fieldX(side, air);
+  private setAnim(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PackedActors) {
+    this.anim = this.animOf(side, kind, from, to, air, lane, who);
+  }
+
+  private animOf(side: Side, kind: PlayKind, from: number, to: number, air?: number, lane = 0, who?: PackedActors) {
+    const anim: Anim = { kind, from: this.fieldX(side, from), to: this.fieldX(side, to), lane };
+    if (air !== undefined) anim.air = this.fieldX(side, air);
+    if (who) anim.who = who;
+    return anim;
+  }
+
+  /** Who a scrimmage play was about, packed for the log (`actorsOf`). */
+  private actorsFor(result: PlayResult): PackedActors | undefined {
+    return packActors(
+      actorsOf({
+        entries: result.stats.entries,
+        defender: result.defender,
+        // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
+        rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
+        beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
+        take: result.turnover?.by,
+      }),
+    );
+  }
+
+  /**
+   * A snap as it ran, for the log, whether it stands or a flag wipes it out: its kind, where it started and ended,
+   * where the ball came down and who it was about (offense's yards; `animOf` turns them into the field's).
+   */
+  private ranAnim(result: PlayResult, start: number, airAt: number | undefined, who?: PackedActors): Anim {
+    const side = this.offense;
+    if (result.turnover) {
+      const { spot, returnYds } = result.turnover;
+      const isInt = result.turnover.kind === 'int';
+      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
+      return this.animOf(
+        side,
+        isInt ? 'int' : result.kind,
+        start,
+        end,
+        isInt ? Math.min(spot, 108) : airAt,
+        result.lane,
+        who,
+      );
+    }
+    const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
+    const ran = start + result.yards;
+    const end = kind === 'incomplete' ? start : ran >= 100 ? 102 : Math.max(-4, ran);
+    return this.animOf(side, kind, start, end, airAt, result.lane, who);
   }
 
   private takeSnapshot(down = this.down) {
@@ -1370,6 +1592,15 @@ class GameSim {
   }
 
   /**
+   * Who runs into or roughs a punter: one of the six rushing him at the front of the return unit (the rest jam the
+   * gunners), as the field record lines them up; a jammer split wide never gets there.
+   */
+  private puntRusher(unit: Lineup): Player | undefined {
+    const rush = unit.st.filter((p) => p !== unit.pr).slice(0, 6);
+    return rush.length ? this.flagRng.weighted(rush, (p) => Math.max(1, 24 - discipline(p))) : this.stCommitter(unit);
+  }
+
+  /**
    * A kick play: both kick units run, tire and face the play's risk, the backups who cover kicks most of
    * all (a return is a full-speed collision; a touchback or a fair catch mostly running).
    */
@@ -1419,7 +1650,7 @@ class GameSim {
     let note = '';
     if (rush < (RUNNING_INTO_KICKER + ROUGHING_KICKER) * all) {
       const foul: Foul = rush < RUNNING_INTO_KICKER * all ? 'runningIntoKicker' : 'roughingKicker';
-      const by = this.stCommitter(def);
+      const by = this.puntRusher(def);
       const yards = Math.min(FOULS[foul].yards as number, Math.floor((100 - this.yardLine) / 2));
       if (foul === 'roughingKicker' || this.yardLine + yards >= this.lineToGain) {
         this.flag(this.def, foul, by, 'accepted', yards);
@@ -1809,6 +2040,7 @@ class GameSim {
     // A prevent shell most snaps, not every one: the frustration is that it shows up when it shouldn't.
     this.preventShell = calls.preventShell && this.habitRng.chance(0.6);
     if (this.preventShell) defCall = 'passD';
+    this.callNow = defCall;
     if (calls.prevent) this.evidence(this.def, 'defCoord', 'playsPrevent', this.preventShell, this.preventShell);
     this.disguise = calls.disguise;
     if (calls.obvious) this.evidence(this.def, 'defCoord', 'disguisesCoverages', calls.disguise, calls.disguise);
@@ -1826,6 +2058,7 @@ class GameSim {
     this.deepProtection = calls.protectDeep;
     this.endZoneShot = calls.endZoneShot;
     this.pressureBy = null;
+    this.beatBy = null;
     const passing = this.rng.chance(clamp(coach.passProbability(s) + calls.passShift, 0, 1)) || this.designedShot;
     const result = passing ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
     if (calls.settling)
@@ -2410,27 +2643,21 @@ class GameSim {
     if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
     sep = fade(sep, tight);
 
-    // Past a point, placement can't beat physics: the best arms complete a few more, not every throw.
-    const rawAcc =
+    // Every point of accuracy counts in full: no cap on what an elite passer can do.
+    const acc =
       skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') +
       fast -
       1.5 * ghosts +
       // Over the middle and downfield a short passer throws through his own line; a tall one sees over it.
       (depth === 'short' ? 0 : sizeEdge(qb, 'lanes'));
-    const acc = rawAcc > ACC_SOFT_CAP ? ACC_SOFT_CAP + (rawAcc - ACC_SOFT_CAP) * 0.5 : rawAcc;
-    let air: number;
-    if (isBack && depth === 'short') air = rng.int(-3, 4);
-    else if (depth === 'short') air = Math.round(clamp(rng.normal(2.9, 3.2), -3, 9));
-    else if (depth === 'medium') air = rng.int(10, 17);
-    // Deep balls travel (NFL 2021–25: 0.47 completions of 40+ yards a team-game, a third of them touchdowns).
-    else air = 20 + Math.round(Math.min(rng.exponential(12), 60));
-    air = Math.max(air, 1 - this.yardLine);
-    air = Math.min(air, yardsToGoal + 9);
+    const air = passAir(rng, depth, isBack, this.yardLine, yardsToGoal);
 
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give most of it back.
+    // By depth as the NFL completes them (nflverse 2019–24: 81% behind the line, 70% at 0–9, 55% at 10–19, 36% deep),
+    // before the passer, the separation and the hands.
     let pComplete =
-      { short: 0.81, medium: 0.596, deep: 0.371 }[depth] +
+      (depth === 'short' && air < 0 ? 0.81 : { short: 0.74, medium: 0.54, deep: 0.371 }[depth]) +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);
@@ -2447,8 +2674,10 @@ class GameSim {
     pComplete -= WEATHER_PASS[depth] * this.wx.pass;
     pComplete = clamp(pComplete, 0.05, 0.95);
 
+    // Picks by depth as the NFL throws them (nflverse 2019–24: 0.8% behind the line, 1.4% at 0–9, 3.4% at 10–19, 6.3%
+    // deep), before the passer's eyes and arm and the coverage's hands.
     const pInt =
-      { short: 0.0089, medium: 0.0216, deep: 0.0375 }[depth] *
+      (depth === 'short' && air < 0 ? 0.0065 : { short: 0.0113, medium: 0.0245, deep: 0.0422 }[depth]) *
       Math.exp(
         -0.07 * (decisions - 12) -
           0.05 * (acc - 12) +
@@ -2520,10 +2749,14 @@ class GameSim {
       tackler = rng.chance(0.6) ? defender : this.pickTackler(def, air + 4);
       const yacSkill =
         skill(receiver, 'afterCatch') - skill(tackler, 'tackling') + sizeEdge(receiver, 'contact', tackler);
+      // Room after the catch by where it's made, as the NFL's catchers find it (nflverse 2019–24: 9.1 yards behind the
+      // line, 4.2 at 0–9, 3.7 at 10–19, 5.6 deep), before the catcher and the tackler.
       let yac = Math.max(
         0,
         rng.normal(
-          { short: 3.2, medium: 2.15, deep: 1.75 }[depth] + 0.3 * yacSkill + this.afterCatch(receiver, tackler, depth),
+          (depth === 'short' && air < 0 ? screenRoom(tight) : { short: 3.6, medium: 3.2, deep: 6 }[depth]) +
+            0.3 * yacSkill +
+            this.afterCatch(receiver, tackler, depth),
           3,
         ),
       );
@@ -2831,6 +3064,7 @@ class GameSim {
     if (rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE)) return;
     const blocker = blockerFor(off, def, rusher, defCall === 'blitz', rng);
     if (!blocker) return;
+    this.beatBy = blocker;
     buf.add(blocker, 'pressuresAllowed');
     if (hit) buf.add(blocker, 'hitsAllowed');
     if (sack) buf.add(blocker, 'sacksAllowed');
@@ -2895,10 +3129,11 @@ class GameSim {
     const fouls = this.playFouls(result);
     const warning = this.playTime(result.duration);
     this.driveSnaps++;
+    const who = this.actorsFor(result);
 
     let late: { yardLine: number; text: string } | undefined;
     if (fouls.length) {
-      const call = this.callFouls(result, fouls);
+      const call = this.callFouls(result, fouls, this.ranAnim(result, startYardLine, airAt, who));
       // Taken (or offsetting): the play never happened, though the snap still wore the defense down.
       if (call === true) return;
       text += call.note;
@@ -2936,6 +3171,7 @@ class GameSim {
         end,
         isInt ? Math.min(spot, 108) : airAt,
         result.lane,
+        who,
       );
       this.log(text);
       if (spot >= 100 && result.turnover.kind === 'int') {
@@ -2963,7 +3199,7 @@ class GameSim {
     this.clockRunning = !(result.clockStops || warning);
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const end = kind === 'incomplete' ? startYardLine : this.yardLine >= 100 ? 102 : this.yardLine;
-    this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane);
+    this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane, who);
 
     if (this.yardLine >= 100) {
       if (downBefore === 3) ts.thirdDownConv++;
@@ -3124,6 +3360,8 @@ class GameSim {
   private callFouls(
     result: PlayResult,
     fouls: LiveFoul[],
+    /** The snap as it ran: logged with a play the flags wipe out, so All-22 shows it before the walk-off. */
+    ran: Anim,
   ): true | { note: string; late?: { yardLine: number; text: string } } {
     const offSide = this.offense;
     const defSide = this.def;
@@ -3137,6 +3375,12 @@ class GameSim {
       for (const f of fouls) this.flag(sideOf(f), f.foul, f.by, 'offset');
       this.clockRunning = false;
       this.setAnim(offSide, 'penalty', at.yardLine, at.yardLine, undefined, result.lane);
+      this.anim!.ran = {
+        kind: ran.kind,
+        to: ran.to,
+        ...(ran.air !== undefined ? { air: ran.air } : {}),
+        ...(ran.who ? { who: ran.who } : {}),
+      };
       this.log(`${result.text}. Offsetting penalties: ${fouls.map(named).join(', ')}. Replay the down.`);
       return true;
     }
@@ -3192,6 +3436,12 @@ class GameSim {
     // A defensive foul on the last play of a half: the offense gets one more snap.
     if (side === defSide && this.clock <= 0 && (this.quarter === 2 || this.quarter >= 4)) this.untimed = true;
     this.setAnim(offSide, 'penalty', at.yardLine, this.yardLine, undefined, result.lane);
+    this.anim!.ran = {
+      kind: ran.kind,
+      to: ran.to,
+      ...(ran.air !== undefined ? { air: ran.air } : {}),
+      ...(ran.who ? { who: ran.who } : {}),
+    };
     const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';
     this.log(`${result.text}${note}. ${called}${what}${this.untimed ? ' Untimed down.' : ''}`);
     return true;
@@ -3382,6 +3632,7 @@ class GameSim {
       playerStats: this.playerStats,
       playerTeams,
       plays,
+      ...(this.fieldRecord ? { field: this.fieldRecord } : {}),
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       condition,
       weather: this.weather,

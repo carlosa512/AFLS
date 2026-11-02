@@ -25,6 +25,8 @@
   --font-display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif;
   --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-data: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Painted on the field in All-22: the yard numbers and the end zones' names. */
+  --font-field: 'Graduate', 'Rockwell', 'Roboto Slab', Georgia, serif;
 
   --step--1: 0.8125rem;
   --step-0: 0.9375rem;
@@ -1632,6 +1634,30 @@ select {
   letter-spacing: 0;
   font-family: var(--font-data);
 }
+/* Highlight level: one pill split three ways, the picked one lit like the play button. */
+.vc-levels {
+  display: inline-flex;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 3px;
+}
+.vc-level {
+  border: 0;
+  border-radius: 999px;
+  min-width: 44px;
+  padding: 0 10px;
+  background: none;
+  color: var(--scene-ink);
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: var(--step--1);
+  cursor: pointer;
+}
+.vc-level.on {
+  background: var(--marker);
+  color: var(--marker-ink);
+}
 .vc-scrub {
   flex: 1 1 140px;
   min-width: 0;
@@ -1767,6 +1793,10 @@ select {
   .sheet-head .avatar {
     width: 96px;
     height: 96px;
+  }
+  .sheet-head .captain-patch {
+    height: 48px;
+    width: 38px;
   }
 }
 .player-link,
@@ -3471,6 +3501,63 @@ details.more > summary {
 .jersey-input {
   max-width: 6ch;
 }
+/* the gear rows under name and number: a piece, then its arm and colour when it has them */
+.gear-edit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.gear-edit legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.gear-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gear-edit-row label {
+  display: grid;
+  gap: 2px;
+  min-width: 130px;
+}
+/* a first-year pro: a red "R" on the line of his name, in lists and on his card */
+.rookie-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.72em;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: 0.1em;
+}
+.player-link .rookie-mark {
+  margin-left: -2px;
+}
+.sheet-head .rookie-mark {
+  font-size: 0.42em;
+  margin-left: 12px;
+  vertical-align: 0.35em;
+  box-shadow: 0 0 0 2px #fff;
+}
+/* a captain's patch, close up, at the right of his card's header */
+.sheet-head .captain-patch {
+  flex: none;
+  margin-left: auto;
+  margin-right: 8px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
 .team-tag {
   display: inline-block;
   padding-left: 6px;
@@ -5045,4 +5132,102 @@ button.tip-pill {
   .mood-effect {
     grid-column: 2;
   }
+}
+
+/* ───────── All-22: the play from above (`TopDownField`) ───────── */
+.td-field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 124 / 62.3;
+  background: #1f4f2e;
+  touch-action: manipulation;
+}
+@media (max-width: 600px) {
+  /* A phone held upright: the field runs up the screen and the camera follows the ball. */
+  .td-field {
+    aspect-ratio: 4 / 5;
+  }
+}
+.td-scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.td-scene .dot text {
+  font-family: var(--font-data);
+  pointer-events: none;
+}
+.td-card {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+/* The ball changing hands, while the units change over. */
+.td-banner {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+/* The call on a play: a flag (what, on whom, how far) or an injury stoppage. */
+.td-call {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--step--1);
+  font-weight: 700;
+  /* Two lines at most on a phone, never cut off. */
+  width: max-content;
+  text-align: center;
+  line-height: 1.25;
+  border-radius: 14px;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  border-left: 6px solid #ffd400;
+}
+.td-call-final {
+  border-left-color: var(--accent, #2e7d32);
+  font-size: var(--step-0);
+}
+.td-call-injury {
+  border-left-color: #d32f2f;
+}
+.td-card-x {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  min-width: 32px;
+  min-height: 32px;
 }

@@ -1,5 +1,6 @@
 import { seedMorale } from './morale';
 import { seedFoundingTrees } from './trees';
+import { teamRatings } from './roster';
 import { lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
@@ -221,7 +222,7 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 63) league.version = 63;
   // v64: coaching trees (`Coach.pastUnder`, optional): a few founding trees, seeded as a new league from this seed would.
   if (league.version < 64) {
-    seedFoundingTrees(league);
+    seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
     league.version = 64;
   }
   // v65: optional `sections` and `covered` on inbox messages (the digest letters) and `League.mailTold`: nothing to
@@ -260,6 +261,29 @@ export function migrateLeague(league: League): League | null {
       );
     }
     league.version = 70;
+  }
+  // v71: All-22's play actors (`PlayLogEntry.who`) and who was on the field (`GameResult.field`). Both are optional:
+  // games played before simply have none, and their replays offer the broadcast view only.
+  if (league.version < 71) league.version = 71;
+  // v72: a snap a flag wiped out keeps the play as it ran (`PlayLogEntry.ran`), for All-22. Optional: older games'
+  // flagged plays show the walk-off alone.
+  if (league.version < 72) league.version = 72;
+  // v73: the defense's call on each kept play (`FieldRecord.calls`) and the offense each side ran
+  // (`FieldScheme.offense`), for All-22. Optional: in older games every snap shows the defense's base call, and each
+  // offense moves before the snap at the league's rate.
+  if (league.version < 73) league.version = 73;
+  // v74: the gear you chose for a player's avatar (`Player.gear`, optional: none chosen yet) and each captain's
+  // seasons (`Player.captainSeasons`): this season's captains get this season; earlier ones were never kept.
+  if (league.version < 74) {
+    for (const team of league.teams) {
+      const c = team.captains;
+      if (c?.season !== league.season) continue;
+      for (const id of [c.offense, c.defense, c.specialTeams]) {
+        const p = league.players[id];
+        if (p && !p.captainSeasons?.length) p.captainSeasons = [c.season];
+      }
+    }
+    league.version = 74;
   }
   return league;
 }

@@ -8,7 +8,8 @@ and always accompany a linked name. GM cards and the directory use the same iden
 
 > **Status.** Built: `PlayerAvatar` in `src/ui/components.tsx` draws every player from behind in his
 > team's jersey (pure SVG, no images, no new dependencies), the colour rules and kits in `src/ui/color.ts`,
-> and home and away jerseys by the league's rule. Tested in `src/ui/avatar.test.tsx`. A roster mod's
+> home and away jerseys by the league's rule, and each player's build, head and height (`src/ui/playerLook.ts`,
+> [section 2a](#2a-builds-heads-and-height)). Tested in `src/ui/avatar.test.tsx`. A roster mod's
 > `player.portrait` still replaces the drawing. Staff (coaches, scouts, medical staff) have their own
 > avatar facing you, dressed for the job and the week: see [section 8](#8-staff-avatars).
 
@@ -16,7 +17,8 @@ and always accompany a linked name. GM cards and the directory use the same iden
 
 The jersey number is how fans recognise a player, and with no face there are no faces or skin tones to
 generate. It also keeps real-roster mods away from likenesses. The avatar never shows ratings, stars or
-OVR: it reads only the jersey number, the surname and the team's colours.
+OVR: it reads only the jersey number, the surname, the team's colours, and the height, weight and position
+the card already shows.
 
 ## 2. The figure
 
@@ -29,19 +31,110 @@ picked from rendered options; don't undo one without a reason.
 - **The neck sinks into the pads**, so the head sits low between the shoulders, as players look in full gear.
 - **The head is blocky** (square jaw corners, both ears), sized to balance the pads.
 
-The artwork is plain path strings at the top of the component: tweaking the figure means editing those,
-not the logic. Layers, back to front, all clipped to the circle: a spotlight backdrop in the team's
+The artwork is plain path strings at the top of `src/ui/playerLook.ts`: tweaking the figure means editing
+those, not the logic. Layers, back to front, all clipped to the circle: a spotlight backdrop in the team's
 primary, the slate mannequin (`#3E4A59`), the jersey (1px soft outline so a white one stays visible),
 shadows and pad gloss, the collar and two sleeve bands, the surname, the number, and a ring in a shade of
 the primary with a thin highlight inside it.
+
+## 2a. Builds, heads and height
+
+From 32px each player is drawn to his own body. Nothing is saved: it's a pure function of his weight, height,
+position and id. Each choice was picked from rendered options (three rounds of mockups, then a fourth for the arms,
+framing and height); don't undo one without a reason.
+
+- **Five builds by real weight**, the same ruler at every position, so a 212 lb corner looks like a safety:
+  Lean (under 205: most receivers, corners, kickers), Athletic (205–229: safeties, backs, quarterbacks,
+  punters), Solid (230–264: linebackers, tight ends), Big (265–294: edge rushers) and Heavy (295 and up:
+  linemen). A build sets the pads' width, the chest, belly and waist, the neck and how high the shoulders
+  ride toward it (`BUILDS`). The head stays one size, so the body reads bigger or smaller.
+- **Every build has a waist**, so the heaviest still read as men and not walls. The light builds taper only a
+  little below the chest: a sharper taper made receivers and corners look pinched.
+- **Zoomed out 21%** about the collar (`ZOOM`), so the wide builds show their width inside the ring and the ring
+  crops the arm below the elbow, where its shape shows. The number gives up a little size for it, and narrows
+  with a narrow back. **Moved up** a little (`DROP`, -4), so the head sits near the top and the pants show at
+  the bottom (moved down 6 left too much air over the head; up 8 crowded it).
+- **Football pants at the hips.** The jersey runs well past the number before it tucks in, and the waistband
+  sits at the hips (`PANTS_TOP`): two tries with the belt just under the number read as high-waisted slacks.
+  A thin belt half hidden under the jersey's tuck, the waistband dipping in the middle with its sides lifted
+  (`PANTS_DIP`), tight over the seat with a sheen, a seam down the middle and two stripes down each side. Only
+  built figures wear them: on the plain figure they'd sit below the ring.
+- **Arms are two outlines mixed by build:** a smooth tube and a muscled arm (triceps, a pinch at the elbow,
+  the forearm), with the same commands so a build sits anywhere between them (`Build.arm`: lean 25% muscled up to
+  heavy 55%; the plain figure 40%). The old single arm bowed out and tapered to a point. Each ends in a wrist and
+  a hand at the hip, past the ring's edge: stretched past the ring instead, the forearm ran on with no end.
+- **Arms keep their gap to the jersey** and thicken only a little with the build (skinny arms read wrong);
+  they hang a touch off the body (`ARM_GAP`, `ARM_SWING`; a wider swing read as bowed out on the big builds).
+  Below the chest they follow only 30% of the body's width (`ARM_FOLLOW`): following all of it bowed a heavy
+  man's arms out around his belly.
+- **Three heads** from behind (today's blocky one, a wide round one and a long one), picked once from his id.
+  Outline only, like the staff.
+- **Height against his position, on the card only:** an average height for his position is today's spot; a
+  tall one is drawn up to 6.5% taller from his feet (2.6% per sd, capped at 2.5 sd), a short one shorter. His
+  width moves the other way by about half as much (`1 / sqrt` of the height's scale), because the same weight on a
+  shorter frame is stockier: drawn bigger all over, a short receiver looked skinnier than a tall one. From
+  the feet, not a slide, so the number never drops out of the ring. The engine judges size the same way
+  (inches over his position's median), so a man who stands taller wins the contested balls the picture
+  promises.
+
+## 2b. Gear
+
+> **Status.** Built: `gearOf` and the rates in `src/ui/playerGear.ts`, the drawing in `src/ui/gearArt.tsx`. Tested
+> in `src/ui/playerGear.test.ts`.
+
+From 32px each player wears his own gear on his arms, picked once from his id and position like his head, so his
+look is his for a career. Nothing is saved and nothing reads ratings. Each choice was picked from rendered options
+(four rounds); don't undo one without a reason.
+
+- **Pieces:** sleeves (full, three-quarter, half, the forearm only, or a shooter sleeve: from partway down the
+  upper arm to the wrist, bare skin above it; common for quarterbacks, receivers and the secondary, on one arm for
+  nearly every quarterback and most receivers, on both for about half the corners and safeties), a short solid undershirt sleeve (the
+  jersey keeps its stripes), biceps bands (on both arms; a single band goes on the forearm), elbow pads, and a
+  black shoulder brace with a strap in the team's colour (bulkier than the arm, a diagonal strap and a D-ring, so it
+  doesn't read as a sleeve). Two pieces at most, and bands rarely go over a sleeve (`BANDS_OVER_SLEEVE`): an
+  undershirt sleeve with biceps bands, or a single forearm band, is the usual layered look. Colours: black, white or the primary; bands also the secondary.
+- **By position** (`GEAR_RATES`): skill players in light sleeves and bands (a sleeve on about 60% of receivers,
+  55% of corners, 45% of backs and safeties), 40% of quarterbacks in one (often a shooter sleeve; a single sleeve
+  goes on the throwing arm), the trenches in elbow pads (40% of the offensive line and edge rushers, 30% of
+  tackles) and now and then a sleeve (a quarter of edge rushers, 15% of tackles, 10% of the offensive line), a
+  shoulder brace on about one lineman or edge rusher in twenty, kickers and punters nearly bare. Linemen
+  take most of their contact through the elbows, and most NFL arm injuries are theirs
+  ([WashU](https://source.washu.edu/2008/08/researchers-track-common-arm-injuries-among-nfl-players/)); skill players
+  wear the lighter gear ([Dick's](https://www.dickssportinggoods.com/protips/sports-and-activities/football/choose-football-arm-protection));
+  shoulder braces are worn mostly by offensive linemen after an injury
+  ([study](https://pmc.ncbi.nlm.nih.gov/articles/PMC5140042/)).
+- **Cold games** (`coldGame`): open air at 35°F or colder at kickoff (`COLD_KICKOFF_F`), snow, or heavy rain, and
+  about 85% of players pull on full sleeves in the colour they'd pick anyway, half the tackles, never the offensive
+  line: a lineman who wears sleeves keeps them, but the line doesn't dress for the cold
+  ([SI](https://www.si.com/more-sports/2010/12/08/long-sleeves)). It follows the kit's game, like the hot-day white
+  jerseys. Under full sleeves a shoulder brace and bands stay on; the undershirt sleeve and elbow pads come off.
+- **Your pick** (the card's pencil): name, number and gear in one editor, a row a piece (sleeve or undershirt
+  sleeve, band, elbow pads, shoulder brace) with its arm and colour, the card's avatar wearing it as you change it.
+  Anything goes, whatever his position (cosmetic, like a rename); it's kept on the player (`Player.gear`,
+  `editPlayerGear`) and "Back to his own" drops it. A cold game still dresses him as above.
+
+## 2c. Captains and rookies
+
+- **The captain's patch**, close up at the right of his card's header (`captainPatch.tsx`), never on the small
+  avatar: a "C" in the team's second colour (white or dark when that doesn't stand off the header), four tiny stars
+  under it, one lit for each season in a row he's been a captain (`Player.captainSeasons`, kept when captains are
+  named at camp), and the whole patch gold from the fifth (`GOLD_AFTER`). Hover or a screen reader says "Captain · 3
+  seasons in a row".
+- **Rookies** (a first-year pro, drafted or signed, never a prospect: `isRookie`) get a small red "R" on the line of
+  their name (`RookieMark`): in every list that shows the player's picture (`PlayerLink` with an avatar: depth charts,
+  the market, rosters), so they stand out at a glance, and beside the name on their card. Never inside a sentence, and
+  never on the picture itself.
+- **Dropped:** a neck roll (a crescent at the collar at these sizes), a hinged elbow brace (read wrong), a flat
+  brace (read as a sleeve). The ring crops above the wrist, so wristbands, gloves and the quarterback's playbook
+  band wouldn't show.
 
 ## 3. Detail by size
 
 | Size | Shows | Used in |
 | --- | --- | --- |
-| under 32px | ring, figure, jersey | list rows (trades, medical, stats, cap, front office): the name sits beside it |
-| 32 to 95px | adds the sleeve bands and the number | depth chart (32), player of the game, inbox, negotiation |
-| 96px and up | adds the surname | the player card (128; 96 on phones) |
+| under 32px | ring, figure, jersey: the same plain figure for everyone | list rows (trades, medical, stats, cap, front office): the name sits beside it |
+| 32 to 95px | adds his build and head, his gear, the sleeve bands and the number | depth chart (32), player of the game, inbox, negotiation |
+| 96px and up | adds the surname and his height | the player card (128; 96 on phones) |
 
 It is decorative (`aria-hidden`): every placement shows the player's name next to it.
 
@@ -58,6 +151,10 @@ It is decorative (`aria-hidden`): every placement shows the player's name next t
   pinned there with `textLength`, so it stays on the jersey even if a wider fallback font stands in.
 - **Dark mode.** A 1px edge (`--avatar-edge` in `styles.css`) outlines the circle; without it the 19
   primaries under 2:1 against the dark surface (navies, blacks, browns) sink into it.
+- **Pants** are white at home, silver under a jersey too light to stand off white, and the primary under the
+  white away jersey, so white never meets white. The wide side stripe is the primary on light pants and white
+  on the primary; the thin one is the secondary when it shows against the pants. The belt is a shade of the
+  primary.
 - **Free agents and prospects** wear the app's grey-green (`#4a554e` / `#9aa59e`).
 
 ## 5. Home and away
@@ -79,15 +176,17 @@ with the secondary as trim.
 
 ## 6. Tunables
 
-All in `src/ui/components.tsx` and `src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96),
-`NAMEPLATE_MAX` (40 viewBox units), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
+In `src/ui/playerLook.ts`: `BUILDS` (with each build's `arm` mix), `BUILD_MIN_PX` (32), `HEIGHT_MIN_PX` (96), `ZOOM`
+(0.79), `DROP` (-4), `PANTS_TOP` (104), `PANTS_DIP` (4), `GROW_PER_SD` (0.026), `ARM_GAP` (1.3), `ARM_SWING` (2),
+`ARM_FOLLOW` (0.3), `PLAIN_ARM` (0.4) and `NAMEPLATE_MAX` (40 viewBox units). In `src/ui/components.tsx` and
+`src/ui/color.ts`: `NUMBER_MIN_PX` (32), `NAMEPLATE_MIN_PX` (96), `PLATE_EM` (re-measure if the display font changes), `MIN_CONTRAST`
 (4.5) and `HOT_KICKOFF_F` (85).
 
 ## 7. Not yet
 
-- Alternate and throwback uniforms, colour-on-colour specials, and club traditions (a team that always
-  wears white at home).
-- Gear and builds by position (neck rolls, wider linemen). Several were drawn during design.
+- Alternate and throwback uniforms, colour-on-colour specials, club traditions (a team that always
+  wears white at home), and each club's own pants colour (gold, silver…): today's pants follow the rule in section 4.
+- Hair from behind (no helmet in the picture): buzz, fade, braids, locs, a bun.
 - Ring text ("QB · Dallas Stampede"): the card header already shows that line, and curved text is
   unreadable at these sizes. Dropped.
 - Validating mod-supplied colours (arrives with league import).

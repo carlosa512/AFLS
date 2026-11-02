@@ -26,8 +26,10 @@ function ask(l: League, sellerId: number, playerId: number, buyer: number): numb
 describe('a rental seller’s floor', () => {
   it('holds higher against you than against another AI team, and lets a rental go cheap on deadline day', () => {
     const l = fresh();
+    const buyer = l.teams.find((t) => t.id !== l.userTeamId && contenderScore(l, t.id) > 0.6)!;
     const rentals = l.teams
-      .filter((t) => t.id !== l.userTeamId && contenderScore(l, t.id) <= 0.4)
+      // A division rival asks 0.2 more of an AI buyer (`marginFor`), which says nothing about rentals: leave those out.
+      .filter((t) => t.id !== l.userTeamId && contenderScore(l, t.id) <= 0.4 && t.division !== buyer.division)
       .flatMap((t) =>
         activeRoster(l, t.id).filter(
           (p) =>
@@ -38,13 +40,12 @@ describe('a rental seller’s floor', () => {
       )
       .filter((p) => marketValue(tradeContext(l), l.teams[p.teamId!], p) > 50);
     expect(rentals.length).toBeGreaterThan(3);
-    const buyer = l.teams.find((t) => t.id !== l.userTeamId && contenderScore(l, t.id) > 0.6)!.id;
     let cheap = 0;
     let lower = 0;
     for (const week of [1, 9]) {
       l.week = week;
       for (const p of rentals) {
-        const theirs = ask(l, p.teamId!, p.id, buyer);
+        const theirs = ask(l, p.teamId!, p.id, buyer.id);
         const yours = ask(l, p.teamId!, p.id, l.userTeamId);
         expect(theirs).toBeLessThanOrEqual(yours + 1e-9);
         if (theirs < yours - 0.05) lower++;

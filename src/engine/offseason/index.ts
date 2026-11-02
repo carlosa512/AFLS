@@ -71,7 +71,7 @@ import {
   setDraftOrder,
   simDraft,
 } from './draft';
-import { resetContenderCache, ROSTER_MAX } from './negotiation';
+import { OFFSEASON_ROSTER_MAX, resetContenderCache, ROSTER_MAX } from './negotiation';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
@@ -225,7 +225,11 @@ export function beginOffseason(league: League): void {
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
-  for (const g of league.games) if (g.result?.plays) g.result.plays = g.result.plays.filter((p) => p.scoring);
+  for (const g of league.games)
+    if (g.result?.plays) {
+      g.result.plays = g.result.plays.filter((p) => p.scoring);
+      delete g.result.field;
+    }
   league.games.push(...generateSchedule(league, rng, order));
   league.week = 1;
   league.phase = 'resign';
@@ -357,7 +361,11 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
     case 'draft':
       simDraft(league, rng, { stopAtUser: false });
       finishDraft(league);
+      // The market doesn't shut after its first week: veterans still unsigned sign after the draft, at its prices,
+      // and the last of them as camp opens (camp still carries 90; cut-down's 53 comes later).
+      aiFreeAgencyDay(league, rng, { includeUser: auto });
       league.phase = 'preseason';
+      aiFreeAgencyDay(league, rng, { includeUser: auto, rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
       // Camp opens: anyone still hurt going into week 1 can go on reserve, off the 53 (yours too, unless you manage injuries).
       for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
       // Coaches pick the position moves they'll teach, then the spring program's learning (docs/TRAINING.md §4).

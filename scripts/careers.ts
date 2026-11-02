@@ -312,13 +312,17 @@ for (const r of runs) for (const [group, ages] of Object.entries(r.retiredAt)) (
 for (const r of runs)
   console.log(`starter OVR by season (${r.seed}): ` + r.starterOvr.map((v) => v.toFixed(2)).join(' '));
 // The league must neither drain nor inflate (v4 on careers-audit slid from 12.92 to 12.60 over 16 seasons).
-// Judged on the leagues' average path, so one league's luck doesn't decide it.
+// Judged on the leagues' average path, so one league's luck doesn't decide it. The ceiling sits 0.35 over a lived-in
+// league's level (its seasons 7-10): 12.85 + 0.35 = 13.2 while about a tenth of last season's starters fell out of
+// football; once good veterans stay (0.2.36, the late market and front offices) a lived-in league holds 12.94, so 13.3
+// (owner's call, 2026-11-01). A new league's young starters growing into their prime peak it at 13.22 in year three.
+const STARTER_OVR_CEILING = 13.3;
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
 console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
 console.log(
-  check('lowest starter OVR', Math.min(...meanPath), 12.65, 13.2) +
+  check('lowest starter OVR', Math.min(...meanPath), 12.65, STARTER_OVR_CEILING) +
     ' · ' +
-    check('highest starter OVR', Math.max(...meanPath), 12.65, 13.2),
+    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING),
 );
 console.log(
   `starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`,
@@ -370,6 +374,24 @@ console.log(
 // about half a point either way, and the old ceiling of 24 flipped from run to run (owner's call, Oct 19 2026).
 console.log(
   `${check('points per team-game', mean(steady.points), 21, 25)} · ${check('penalties', mean(steady.penalties), 5, 7)} · ${check('sacks', mean(steady.sacks), 2, 2.7)}`,
+);
+// A long league's spread of records, against a fresh league's in the sim check: reported until the NFL figure for a
+// league that has built its own rosters is agreed.
+console.log(
+  `win spread, SD of team wins (steady): ${mean(steady.winSpread).toFixed(2)} (NFL 3.0–3.3; reported, not judged)`,
+);
+// How long a record lasts: a club's win share against its own one and three seasons on, from season 3 (a new league's
+// first two are its making). nflverse 2002–24: 0.34 and 0.18.
+const corr = (a: number[], b: number[]) => {
+  const ma = mean(a),
+    mb = mean(b);
+  const c = a.reduce((t, x, i) => t + (x - ma) * (b[i] - mb), 0);
+  return c / Math.sqrt(a.reduce((t, x) => t + (x - ma) ** 2, 0) * b.reduce((t, y) => t + (y - mb) ** 2, 0));
+};
+const carry = (lag: number) =>
+  mean(runs.flatMap((r) => r.records.slice(2, r.records.length - lag).map((w, i) => corr(w, r.records[i + 2 + lag]))));
+console.log(
+  `record carryover: 1 season ${carry(1).toFixed(2)}, 3 seasons ${carry(3).toFixed(2)} (NFL 0.34 and 0.18; reported)`,
 );
 // Grown-up stars must still lead the league like the NFL's do: the average #1 and #5 are held to the
 // ranges `npm run sim` uses for a fresh league. How often a leader passes the record is printed but not

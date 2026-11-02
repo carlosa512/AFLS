@@ -75,15 +75,29 @@ export interface Kit {
   trim: string;
   /** The lower sleeve band: the team's other colour, even when it can't carry the number. */
   accent: string;
+  /** The pants, their wide and thin side stripes, and the belt. */
+  pants: string;
+  stripe: string;
+  stripeThin: string;
+  belt: string;
 }
+
+const PANTS_WHITE = '#EEF1F4';
+const PANTS_SILVER = '#B9C2CC';
 
 /**
  * Home is the primary jersey lettered in the secondary; away is white lettered in the primary. Lettering
  * that doesn't read swaps to light or dark, and the colour it replaced stays on as the twill and a stripe.
+ * Pants: white at home (silver under a jersey too light to stand off white), the primary away, so a white
+ * jersey never meets white pants; striped down the side in the team's colours, like the sleeves.
  */
 export function kitFor({ primary, secondary }: TeamColors, away = false): Kit {
   const jersey = away ? '#FFFFFF' : primary;
   const ink = readableOn(jersey, away ? primary : secondary);
   const trim = secondary !== ink && contrast(ink, secondary) >= 3 ? secondary : shade(jersey, 0.45);
-  return { jersey, ink, trim, accent: secondary };
+  const pants = away ? primary : contrast(jersey, PANTS_WHITE) >= 1.6 ? PANTS_WHITE : PANTS_SILVER;
+  const stripe = away ? LIGHT : contrast(pants, primary) >= 1.5 ? primary : DARK;
+  const stripeThin = secondary !== stripe && contrast(pants, secondary) >= 1.3 ? secondary : stripe;
+  const belt = shade(primary, away ? 0.55 : 0.3);
+  return { jersey, ink, trim, accent: secondary, pants, stripe, stripeThin, belt };
 }

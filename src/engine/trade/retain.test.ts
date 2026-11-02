@@ -61,8 +61,10 @@ describe('retained salary', () => {
       l.teams[t].deadMoney
         .filter((d) => d.season === l.season && d.note === 'Retained salary')
         .reduce((s, d) => s + d.amount, 0);
+    // Four weeks in, the seller may already carry money it kept in an earlier deal: this one's is what it adds.
+    const before = dead(9);
     executeTrade(l, deal);
-    expect(dead(9)).toBe(keep);
+    expect(dead(9) - before).toBe(keep);
     expect(capHit(l.players[p.id].contract!, l.season)).toBeCloseTo(owed - keep, -1);
   });
 

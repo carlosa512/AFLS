@@ -20,9 +20,22 @@ export interface LiveSession {
   playing: boolean;
   /** The result is recorded and the rest of the week has been played. */
   finished: boolean;
+  /** The play on screen was skipped by the highlight level: show where it ended, don't animate it. */
+  still: boolean;
 }
 
 let session: LiveSession | null = null;
+
+/** Make sure the play at `index` (default: the one after the current play) has been played. False when it never will. */
+function pull(s: LiveSession, index = s.current + 1): boolean {
+  while (index >= s.plays.length) {
+    if (s.sim.over) return false;
+    const batch = s.sim.next();
+    if (!batch.length) return false;
+    s.plays.push(...batch);
+  }
+  return true;
+}
 let version = 0;
 const listeners = new Set<() => void>();
 const emit = () => {
@@ -51,6 +64,7 @@ export const live = {
       speed: session?.speed ?? 2,
       playing: true,
       finished: false,
+      still: false,
     };
     emit();
   },
@@ -63,17 +77,26 @@ export const live = {
 
   /** Reveal the next play, pulling more from the engine when needed. Returns false at the final whistle. */
   advance(): boolean {
-    if (!session) return false;
-    if (session.current < session.plays.length - 1) {
-      session.current++;
-      emit();
-      return true;
-    }
-    if (session.sim.over) return false;
-    const batch = session.sim.next();
-    if (!batch.length) return false;
-    session.plays.push(...batch);
+    if (!session || !pull(session)) return false;
     session.current++;
+    session.still = false;
+    emit();
+    return true;
+  },
+
+  /**
+   * Highlights: move to the last play before the next one `isShown` accepts, pulling plays from the engine as needed,
+   * so the log and the scoreboard catch up in one step. Returns false when the next play is already shown (or there is
+   * none). At the final whistle it stops on the last play.
+   */
+  skipTo(isShown: (plays: PlayLogEntry[], i: number) => boolean): boolean {
+    const s = session;
+    if (!s) return false;
+    let i = s.current;
+    while (pull(s, i + 1) && !isShown(s.plays, i + 1)) i++;
+    if (i === s.current) return false;
+    s.current = i;
+    s.still = true;
     emit();
     return true;
   },

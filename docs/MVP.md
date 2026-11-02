@@ -11,7 +11,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       nicknames, the NFL's 17-game formula (`season/schedule.ts`), tiebreakers (`season/standings.ts`) and a
       14-team bracket to a champion (`season/playoffs.ts`).
 - [x] **2. Match engine with box scores** · **Done**: a play-by-play engine (`match/gameSim.ts`) with box scores and
-      a replay viewer (`BoxScore.tsx`, `GameViewer.tsx`).
+      a replay viewer (`BoxScore.tsx`, `GameViewer.tsx`). Games as uncertain as the NFL's (a team's day, new
+      leagues as even as lived-in ones) and a passing game shaped like today's, checked against nflverse (0.2.36).
 - [x] **3. Rosters and depth charts** · **Done**: 53-man rosters, a drag-to-reorder depth chart and scheme spots
       (`roster.ts`, `Roster.tsx`).
 - [x] **4. Injuries that matter** · **Done**: snap and collision injuries with layoffs and IR (`injuries.ts`).
@@ -111,7 +112,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       learns a new position faster, and an unhappy one asks his own club up to 10% more with less patience; the Locker
       Room and the coach's report say who it's costing. Being heard (0.2.26): a promise eases three quarters of the
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
-      reminds you of open promises when the season ends. Fewer sulkers (0.2.27): paid 80% of his market or more a man has
+      reminds you of open promises when the season ends. Fewer sulkers (0.2.37): paid 80% of his market or more a man has
       no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
       games a man the depth chart starts reads as a starter. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
@@ -136,6 +137,29 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
+
+## Follow-up: what the front-office work left (0.2.36)
+
+Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
+being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
+
+- [ ] **Leagues grow older than the NFL's (start here: it likely explains the next items).** NFL starters average 26.6,
+      12% of them 31 or older (*nflverse* snap counts and birth dates, 2021–24). A new league matches (26.8, 12%), but by
+      season 10 its starters average 28.0 with 28% aged 31+ (main: 27.75 and 24%, so it predates 0.2.36). The oldest
+      gaps are at QB and TE (+2.4 years), punter (+2.1), WR and OL (+1.5), where ratings hold their peak longest. Look
+      at who coaches start (a young player with upside against a veteran barely better), when players retire, and how
+      ready draftees are; the league's talent sliding after year three (13.22 to 12.7 over 16 seasons) likely follows.
+- [ ] **Starters leave football more as a league ages.** About 3% of last season's starters are unsigned or retired
+      at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
+      retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
+      shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
+      the bottom of a roster.
+- [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
+      Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
+      ours don't.
+- [ ] **Tags spike when a big class of stars comes due at once** (20 in one season, 11–13 in others, against the NFL's
+      6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
+      has run out.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands
 
@@ -191,3 +215,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       4.08 → 3.61, born 2.63 → 2.50 (6 of 8 worlds at 3), founding trees alive in every world; head-coach changes 7.2 a
       year, year-to-year win correlation 0.335. The price premium stayed as it was: the budget wasn't what kept a winner's
       men out (they were outscored).
+
+      **Front offices (0.2.36,** `docs/superpowers/specs/2026-11-01-front-offices-design.md`**):** a good team didn't
+      stay good, so few coaches lasted as winners. Now good veterans find a club by camp (the late market and the last
+      call); a GM plans next year's cap before he borrows, restructures only players he plans to keep (for his own and
+      for a free agent he wants), contends or rebuilds by his win-now; the tag goes to a star the club values near its
+      price. The upgrade cut was tried and dropped (it put the median club's dead money past 6%). Four 16-season
+      leagues: live trees 3.1, head coaches in a tree 0.24, hires from a tree 0.23, born 3.3; record carryover 0.30 a
+      season on, 0.01 three on (NFL 0.34 and 0.18). **Left:** three-season carryover; owners' spending; contenders
+      selling their stars (a trade-AI question); dead money from trading restructured players.

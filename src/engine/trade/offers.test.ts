@@ -127,6 +127,10 @@ describe('offers to you', () => {
     for (const p of activeRoster(l, l.userTeamId)) {
       if (cases.length >= 8) break;
       if (!p.contract || playerTradeBlocker(l, p) || p.position === 'K' || p.position === 'P') continue;
+      // A big deal, not a rental: on an expiring one the buyer's whole bill is this year's, which in season a squeezed
+      // team weighs at 1 where a roomy one weighs it at half (`nowWeight`), so what it adds for the money you keep is
+      // eaten by what the rest of the salary now costs it, and the comparison below says nothing about the retained share.
+      if (yearsLeft(p.contract, l.season) < 2) continue;
       // Paid well past the minimum, so his team can keep a third of what's left.
       if (maxRetain(l, p) < 0.5 * salaryToTake(l, p)) continue;
       for (const t of ai) {
