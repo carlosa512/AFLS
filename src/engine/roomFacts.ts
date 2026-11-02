@@ -7,8 +7,7 @@ import { isCaptain, moraleLevel, moraleStepOf, viewContext } from './morale';
 import { starters } from './roster';
 import {
   causeOf,
-  coachCount,
-  inWords,
+  countOf,
   SPECIALISTS,
   UNIT_PHRASE,
   type StandingFact,
@@ -120,11 +119,7 @@ export function unitFact(
     setterSound: setter ? soundOf(setter) : null,
     pulling: view.pulling,
     cause,
-    causeCount: grievance
-      ? grievance.count <= 4
-        ? `${inWords(grievance.count)} of them`
-        : coachCount(grievance.count, view.members, unit)
-      : null,
+    causeCount: grievance ? countOf(grievance.count, view.members, unit) : null,
     upYoung,
     rival,
     losingRun: streak ? Number(streak[1]) : 0,

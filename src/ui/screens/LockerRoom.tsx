@@ -1,9 +1,12 @@
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
-import { leadersOf } from '../../engine/standing';
+import { whyFact } from '../../engine/roomFacts';
+import { goingOn, SPECIALISTS, STANDING_WHY, UNIT_PHRASE } from '../../engine/roomVoice';
+import { roomView, standingView, UNITS, type Unit, type UnitView, type UnitWord } from '../../engine/standing';
+import { say } from '../../engine/voice';
 import { activeRoster } from '../../engine/roster';
 import type { League, Player, Position } from '../../engine/types';
 import { POSITION_NAMES } from '../../engine/positions';
-import { PlayerLink, Section } from '../components';
+import { PlayerLink, Section, SortTh, sortRows, useSort } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
 import { DOWN_REASONS, MORALE_WORDS, moraleStepOf, moraleView, TEMPERAMENT_REASONS } from '../../engine/morale';
@@ -17,7 +20,11 @@ export function LockerRoom({ league }: { league: League }) {
   const team = league.teams[league.userTeamId];
   const roster = activeRoster(league, team.id);
   const captains = team.captains?.season === league.season ? team.captains : undefined;
-  const leaders = leadersOf(league, team.id);
+  const room = roomView(league);
+  const leaders = room.leaders.map((id) => league.players[id]);
+  const voices = room.voices.map((id) => league.players[id]);
+  const [unitSort, onUnitSort] = useSort<UnitSort>({ key: 'unit', desc: false });
+  const units = sortRows(room.units, unitSort, (u, key) => unitSortValue(league, u, key));
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
@@ -35,7 +42,10 @@ export function LockerRoom({ league }: { league: League }) {
     const view = moraleView(league, p);
     return view ? [{ p, view }] : [];
   });
-  const roomStep = moods.length ? moraleStepOf(moods.reduce((t, m) => t + m.view.level, 0) / moods.length) : undefined;
+  // The room's mood: the 53's, the voices counting more (`roomView`).
+  const roomStep = moods.length
+    ? (([1, 2, 3, 4, 5, 6, 7] as const).find((step) => MORALE_WORDS[step] === room.word) ?? moraleStepOf(0))
+    : undefined;
   const unhappy = moods.filter((m) => m.view.step <= 3).sort((a, b) => a.view.level - b.view.level);
   const happiest = moods
     .filter((m) => m.view.step >= 5)
@@ -214,7 +224,7 @@ export function LockerRoom({ league }: { league: League }) {
           </div>
         )}
       </Section>
-      <Section id="locker-leaders" title="Leaders">
+      <Section id="locker-leaders" title="Who the room follows">
         {captains ? (
           <ul className="plain-list">
             {(
@@ -234,17 +244,55 @@ export function LockerRoom({ league }: { league: League }) {
         ) : (
           <p className="muted">Captains are named when camp opens.</p>
         )}
-        {leaders.length > 0 && (
-          <>
-            <h3>The room also follows</h3>
-            <ul className="plain-list">
-              {leaders.map((p) => (
-                <li key={p.id}>
-                  <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
-                </li>
-              ))}
-            </ul>
-          </>
+        {(
+          [
+            ['Leaders', leaders],
+            ['Voices', voices],
+          ] as const
+        ).map(([title, list]) =>
+          list.length ? (
+            <div key={title}>
+              <h3>{title}</h3>
+              <ul className="plain-list">
+                {list.map((p) => (
+                  <li key={p.id}>
+                    <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />{' '}
+                    <span className="muted small">{whyLine(league, p)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null,
+        )}
+      </Section>
+      <Section id="locker-units" title="The units">
+        {units.length === 0 ? (
+          <p className="muted">No room is big enough for a read yet.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <SortTh label="Unit" k="unit" sort={unitSort} onSort={onUnitSort} desc={false} />
+                <SortTh label="Read" k="read" sort={unitSort} onSort={onUnitSort} desc={false} />
+                <SortTh label="Sets the tone" k="setter" sort={unitSort} onSort={onUnitSort} desc={false} />
+                <th>What's going on</th>
+              </tr>
+            </thead>
+            <tbody>
+              {units.map((u) => {
+                const setter = u.setter === null ? undefined : league.players[u.setter];
+                const phrase = u.unit === 'ST' ? SPECIALISTS : UNIT_PHRASE[u.unit];
+                return (
+                  <tr key={u.unit}>
+                    <td>{u.label}</td>
+                    <td>{u.word}</td>
+                    <td>{setter ? <PlayerLink league={league} player={setter} pos /> : '—'}</td>
+                    <td>{u.reasons[0] ? goingOn(u.reasons[0], u.members, phrase) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </Section>
       <Section id="locker-mentoring" title="Mentoring">
@@ -325,4 +373,20 @@ export function LockerRoom({ league }: { league: League }) {
       </Section>
     </div>
   );
+}
+
+type UnitSort = 'unit' | 'read' | 'setter';
+/** Worst first when sorted by read: the units that need you on top. */
+const READ_ORDER: Record<UnitWord, number> = { Split: 0, Down: 1, Restless: 2, Settled: 3, Tight: 4 };
+
+function unitSortValue(league: League, u: UnitView, key: UnitSort): number | string {
+  if (key === 'read') return READ_ORDER[u.word];
+  if (key === 'setter') return u.setter === null ? '~' : (league.players[u.setter]?.lastName ?? '~');
+  return UNITS.indexOf(u.unit as Unit);
+}
+
+/** Why the room goes to him, in one line: the biggest parts of where he stands. */
+function whyLine(league: League, p: Player): string {
+  const view = standingView(league, p);
+  return view ? say(STANDING_WHY, whyFact(league, p, view), { key: `why:${p.id}`, slot: 'why' }) : '';
 }

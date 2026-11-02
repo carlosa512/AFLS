@@ -80,6 +80,27 @@ const FEEL: Record<Cause, string> = {
   losing: 'are wearing the losing',
   feud: 'are caught up in a feud',
 };
+/** The same for one man ("one of them wants more snaps"). */
+const FEEL_ONE: Record<Cause, string> = {
+  snaps: 'wants more snaps',
+  deal: "thinks he's underpaid",
+  losing: 'is wearing the losing',
+  feud: 'is caught up in a feud',
+};
+/** "Two of them want more snaps", "One of them wants more snaps", "Half the line think they're underpaid". */
+const feelFor = (cause: Cause, count: string) => `${cap(count)} ${(/^one\b/.test(count) ? FEEL_ONE : FEEL)[cause]}`;
+
+/** How many feel one of a unit's reasons, as a coach counts: "two of them", "half the line". */
+export const countOf = (n: number, total: number, unit: string): string =>
+  n <= 4 ? `${inWords(n)} of them` : coachCount(n, total, unit);
+
+/** The Locker Room's "what's going on" for a unit: its most-felt reason, counted. */
+export function goingOn(reason: { text: string; count: number }, total: number, unit: string): string {
+  const count = countOf(reason.count, total, unit);
+  const cause = causeOf(reason.text);
+  return cause ? `${feelFor(cause, count)}.` : `${reason.text}: ${count}.`;
+}
+
 /** What it's about, after "It's about". */
 const TOPIC: Record<Cause, string> = { snaps: 'snaps', deal: 'money', losing: 'the losing', feud: 'a feud' };
 
@@ -145,7 +166,7 @@ const listens = (unit: string) => (SINGULAR.has(unit) ? 'listens' : 'listen');
 const it = (unit: string) => (SINGULAR.has(unit) ? 'it' : 'them');
 const yearsIn = (n: number) => `${cap(inWords(n))} years`;
 const ordinal = (experience: number) => ORDINAL[experience] ?? 'Another';
-const feel = (f: UnitFact) => (f.cause ? `${cap(f.causeCount ?? 'some of them')} ${FEEL[f.cause]}.` : '');
+const feel = (f: UnitFact) => (f.cause ? `${feelFor(f.cause, f.causeCount ?? 'some of them')}.` : '');
 
 // ───────── the head coach on a unit (the report's rows) ─────────
 

@@ -128,3 +128,14 @@ describe('the Locker Room’s promises (G3)', () => {
     expect(html).toContain(roster[0].lastName);
   });
 });
+
+describe('the Locker Room: who runs the room', () => {
+  it('shows who the room follows and the units, in words', () => {
+    const html = render(<LockerRoom league={league} />);
+    expect(html).toContain('Who the room follows');
+    expect(html).toContain('The units');
+    for (const label of ['Offensive line', 'Secondary']) expect(html).toContain(label);
+    expect(html).toMatch(/>(Tight|Settled|Restless|Down|Split)</);
+    expect(html.replace(/<[^>]+>/g, ' ')).not.toMatch(/\bweight\b|\btiers?\b|faction|cohesion|influence/i);
+  });
+});
