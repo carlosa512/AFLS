@@ -16,8 +16,9 @@ ratings and nothing that changes play.
 
 ## Decisions (agreed in the mockups)
 
-1. **The helmet replaces the bare head** on every player with a club, at every size. Free agents and prospects keep
-   today's bare head (open question 2).
+1. **The helmet replaces the bare head** on every player with a club, at every size. Players without one keep
+   today's bare head: free agents, draft prospects until they're drafted, and retired players
+   (`wearsHelmet(player, team)`: a team, not retired, not a prospect).
 2. **The model is the player's, the design is the club's.** Each player wears one of eight shells, picked once from his
    id and position like his sleeves; the club's colours, stripes, number, bumper and mask go on whatever he wears. The
    same helmet home and away, on hot days and in cold games.
@@ -59,10 +60,17 @@ what the editor shows.
 | `ridgeback` | Ridgeback | Ours: the Modern shape with a raised spine instead of slits | Lower back |
 | `retro` | Retro | Ours: the Classic shape with Modern's upper slits and a bumper plate | Lower back |
 
-**Picking his shell** (`helmetModelOf`, from his id like `ownGear`): offensive and defensive linemen draw Pod, wide
-about a third of the time; everyone else, and the rest of the linemen, from the other seven. Starting weights (an AFLS
-estimate, tuned by eye on a league's rosters): Modern 30, Modern smooth 15, Plated 15, Pod 15, Classic 10, Ridgeback 8,
-Retro 7.
+**Picking his shell** (`helmetModelOf`, from his id like `ownGear`), weighted by position so certain shells belong to
+certain jobs: the wide pod up front, the older shapes for kickers. Starting weights (`HELMET_WEIGHTS`, an AFLS estimate,
+tuned by eye on a league's rosters):
+
+| Positions | Modern | Modern smooth | Plated | Classic | Pod | Pod wide | Ridgeback | Retro |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| QB | 35 | 20 | 15 | – | 20 | – | 10 | – |
+| RB, WR, CB, S | 25 | 15 | 15 | – | 20 | – | 15 | 10 |
+| LB, EDGE, TE | 25 | 5 | 20 | 10 | 15 | 15 | 10 | – |
+| OL, DT | 20 | 10 | 20 | 15 | – | 35 | – | – |
+| K, P | 10 | 20 | – | 30 | 15 | – | – | 25 |
 
 ### Details on every shell
 
@@ -148,7 +156,8 @@ colour.
 
 - **The US flag on every helmet**, as on every NFL helmet, on the lower back left of the number (above the plate on the
   plated and pod shells). 3.4 × 2.25 units, drawn simply (five stripes and the canton).
-- **A second flag for Pathway players**, stacked under the US flag. In the NFL's Heritage Program a player may add the
+- **A second flag for Pathway players**, stacked under the US flag, all season (the NFL shows it for a couple of
+  weeks; here it's the only place a Pathway player's country shows on the field). In the NFL's Heritage Program a player may add the
   flag of a country he, a parent or a grandparent was born in, or he lived in for two years
   ([NFL Football Operations](https://operations.nfl.com/updates/the-players/the-nfl-celebrates-international-diversity-with-nfl-heritage-program),
   [CBS](https://www.cbssports.com/nfl/news/kyler-murray-tua-tagovailoa-among-nfl-players-who-will-wear-international-flags-starting-in-week-4)).
@@ -177,15 +186,19 @@ Two new `SleeveLength` values, drawn on the arm as a cylinder so a pad turned to
 - `paddedElbow`: a short padded sleeve from mid upper arm to mid forearm, the same pad.
 
 The pad is a shade of the sleeve: black → `#3a4048`, white → `#c9d0d7`, a team colour → 30% darker. Quarterbacks only by
-default (anyone through the editor), on the throwing arm (the right; it follows handedness if that ever exists), in the
-same four colours as today's sleeves. Of quarterbacks (an AFLS estimate): 35% `padded`, 15% `paddedElbow`, 20% a plain
-sleeve as today (shooter most often), 30% none. In a cold game `padded` stays on (it's already full); `paddedElbow`
-becomes `padded`.
+default (anyone through the editor), always on one arm, the throwing arm (the right; it follows handedness if that ever
+exists), in the same four colours as today's sleeves.
+
+**Rates: the normal mix.** A quarterback's chance of a sleeve stays today's (40%, `GEAR_RATES.QB.sleeve`); the padded
+kinds join his sleeve lengths as two more options, weights `padded` 40 and `paddedElbow` 20 beside today's (full 35,
+half 25, three-quarter 25, forearm 15, shooter 45). About three in ten of his sleeves come out padded, about one
+quarterback in eight. In a cold game `padded` stays on (it's already full); `paddedElbow` becomes `padded`.
 
 ### The play-call wristband
 
-A new `Gear.wristband?: { side: 'left' | 'right'; color: GearColor }`, on the non-throwing wrist (the left). About 85% of
-quarterbacks wear one (an AFLS estimate: most starters do); colours white 40, black 30, team colour 15, second colour 15.
+A new `Gear.wristband?: { side: 'left' | 'right'; color: GearColor }`, always on one wrist, the non-throwing one (the
+left). 60% of quarterbacks wear one (`WRISTBAND_QB = 0.6`, between the 55 and 60% asked for); colours white 40, black 30,
+team colour 15, second colour 15.
 A solid band from 92 to 104.6 on the arm (a little above the wrist, so more of it stays inside the ring), the play card
 behind a clear window turned 75° toward the outside of the wrist, where he flips it up to read. At 128px it shows as a
 light strip on the outside of his wrist; it stays on in cold games. No other position wears one by default.
@@ -196,7 +209,7 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
 
 - **Helmet** (new, first row): the eight shells by name. Stored as `Gear.helmet?: HelmetModel`; absent means the game's
   pick.
-- **Sleeve** gains "Padded" and "Padded elbow".
+- **Sleeve** gains "Padded" and "Padded elbow"; for those two the Arm list offers one arm only (Right, Left).
 - **Wristband** (new): None, Left wrist, Right wrist, and a colour.
 - "Back to his own" drops every pick, helmet included. Anything goes whatever his position, as today.
 
@@ -205,8 +218,9 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
 - **Saves:** `SAVE_VERSION` 74 → 75. `Gear` gains `helmet` and `wristband`, `SleeveLength` two values (all optional or
   additive, nothing to rewrite). `Team.helmet` is filled from the seeds by `abbrev` for the 32 default clubs; any other
   team keeps none and uses the fallback rule.
-- **New `src/ui/helmet.ts`:** the shells' data (`MODELS`), the fit numbers, `helmetModelOf`, `maskOf` by position,
-  `helmetDesignOf(team)` (the club's design or the fallback), and the decal rules (`flagsOf(player)`, `greenDotOf`).
+- **New `src/ui/helmet.ts`:** the shells' data (`MODELS`), the fit numbers, `wearsHelmet`, `helmetModelOf` and
+  `HELMET_WEIGHTS`, `maskOf` by position, `helmetDesignOf(team)` (the club's design or the fallback), and the decal
+  rules (`flagsOf(player)`, `greenDotOf`).
 - **New `src/ui/helmetArt.tsx`:** the drawing, as `gearArt.tsx` draws gear: `HelmetLayer` (shell, stripes, details,
   plate or bumper, number, decals) and `MaskLayer` (drawn before the neck). `src/ui/flags.tsx` for the flags.
 - **`playerGear.ts` and `gearArt.tsx`:** the padded sleeves and the wristband, their rates and the cold-game rules.
@@ -220,12 +234,14 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
 
 - `helmet.test.ts`: every default club has a design; its stripes, number and bumper stand off the shell (contrast
   floors); every Pathway origin has a flag and CFL and college origins get the US flag only; one green dot per side per
-  club, on the starting QB and the first LB (or S); the mask by position; the model picks stay in their weights over a
-  large sample and linemen draw the wide pod; a picked `Gear.helmet` wins.
-- `playerGear.test.ts`: padded sleeves only on quarterbacks by default and on the throwing arm; the wristband's share and
-  side; the cold-game rules for both.
+  club, on the starting QB and the first LB (or S); the mask by position; each position group's picks stay in its
+  weights over a large sample (no wide pod outside the trenches and the middle, none for kickers); a picked
+  `Gear.helmet` wins.
+- `playerGear.test.ts`: padded sleeves only on quarterbacks by default, always on the throwing arm alone; quarterbacks'
+  sleeve rate unchanged (40%) and about three in ten of their sleeves padded; the wristband on 60% of quarterbacks, one
+  wrist, the left; the cold-game rules for both.
 - `avatar.test.tsx`: the helmet renders at every size with no `NaN` in its paths; the tallest build's crown stays inside
-  the ring; decals absent under 56px; a free agent keeps the bare head.
+  the ring; decals absent under 56px; free agents, prospects and retired players keep the bare head.
 - `ui.test.ts`: the screen contract still holds (nothing new reads `player.ratings`).
 
 ## Docs and version
@@ -243,9 +259,9 @@ On the player card's pencil (`GearEditor` in `PlayerCard.tsx`):
 - Hair under the helmet (locs, braids, the flow, a ponytail, curls; mocked in rounds 1–2, dropped for now).
 - Wristbands for defensive play-callers; a SpeedFlex-style shell once a rear reference turns up.
 
-## Open questions
+## Settled in review
 
-1. **When does the second flag show?** The NFL runs the Heritage Program for a couple of weeks a season. Recommended:
-   all season, since it's the only place a Pathway player's country shows on the field.
-2. **Free agents and prospects:** keep the bare head (recommended: they have no club design, and it tells them apart
-   at a glance), or a plain helmet in the grey-green?
+1. **The second flag shows all season**, not only in the Heritage weeks.
+2. **No club, no helmet:** free agents, draft prospects until they're drafted, and retired players keep the bare head.
+3. **Rates:** helmet models weighted by position; the padded sleeves are options inside a quarterback's normal sleeve
+   mix (no boost), always on one arm; the wristband on 60% of quarterbacks, one wrist.
