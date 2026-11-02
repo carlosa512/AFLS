@@ -56,3 +56,29 @@ describe('a player’s letter', () => {
     expect(html).toContain('You promised him more snaps');
   });
 });
+
+describe('a contract letter: talks right from it', () => {
+  /** His deal set to `left` years from this season, a veteran's, so the extension rule decides. */
+  const deal = (l: ReturnType<typeof createLeague>, p: ReturnType<typeof activeRoster>[number], left: number) => {
+    const c = p.contract!;
+    c.kind = 'veteran';
+    c.years = Array.from({ length: left }, (_, i) => ({ ...c.years[0], season: l.season + i }));
+  };
+
+  it('puts the yellow Negotiate button by his answers when his deal is open to talks', () => {
+    const { l, p, m } = letter('deal');
+    deal(l, p, 1);
+    const html = render(<MailCards league={l} message={m} />);
+    expect(html).toContain('Promise a new deal');
+    expect(html).toMatch(/btn-primary[^>]*>Negotiate/);
+  });
+
+  it('leaves it off when his deal is not open to talks, or the letter is about something else', () => {
+    const a = letter('deal');
+    deal(a.l, a.p, 4);
+    expect(render(<MailCards league={a.l} message={a.m} />)).not.toContain('>Negotiate<');
+    const b = letter('losing');
+    deal(b.l, b.p, 1);
+    expect(render(<MailCards league={b.l} message={b.m} />)).not.toContain('>Negotiate<');
+  });
+});
