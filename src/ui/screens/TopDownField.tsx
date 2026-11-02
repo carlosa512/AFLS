@@ -34,6 +34,8 @@ const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
 /** A quarterback down on a knee: his dot a little smaller (eased in over `KNEEL_EASE` seconds), so the kneel shows. */
 const KNEEL_SCALE = 0.82;
 const KNEEL_EASE = 0.2;
+/** Men this close to the carrier at the whistle are the pile: they go down with him, no pulling up. */
+const PILE = 1.5;
 /** Taps land within this many yards of a dot. */
 const REACH = 2.5;
 /** The umpire after the ball: running to it, and walking it to its spot (yards a second). */
@@ -666,7 +668,15 @@ export function TopDownField({
         const y = s.pos[(step * n + k) * 2 + 1];
         const down = s.kneel?.id === s.ids[k] ? Math.max(0, Math.min(1, (step * s.dt - s.kneel.t) / KNEEL_EASE)) : 0;
         drawDot(s.ids[k], x, y, 1, 1 - (1 - KNEEL_SCALE) * down);
-        mem.spots.set(s.ids[k], { x, y, home: s.home[k] });
+        // At the whistle: how he was moving, so he pulls up over a few steps (`transition.ts`), except the men in the
+        // pile on the carrier, who go down where the tackle is.
+        const prev = Math.max(0, step - 2);
+        const c = s.carrier === null ? -1 : s.ids.indexOf(s.carrier);
+        const pile = c >= 0 && Math.hypot(x - s.pos[(step * n + c) * 2], y - s.pos[(step * n + c) * 2 + 1]) < PILE;
+        const moving = step === last && step > 0 && !pile;
+        const vx = moving ? (x - s.pos[(prev * n + k) * 2]) / ((step - prev) * s.dt) : 0;
+        const vy = moving ? (y - s.pos[(prev * n + k) * 2 + 1]) / ((step - prev) * s.dt) : 0;
+        mem.spots.set(s.ids[k], { x, y, home: s.home[k], ...(vx || vy ? { vx, vy } : {}) });
       }
       ballRef.current?.setAttribute('opacity', '1');
       oldBallRef.current?.setAttribute('opacity', '0');

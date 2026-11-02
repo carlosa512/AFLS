@@ -30,8 +30,9 @@ const STILL = 0.5;
 const PRE_SNAP = 1.6;
 /** The man in coverage's distance from the target as the ball arrives: a catch, a miss (mean, least, most), a pick. */
 const SEPARATION = { catch: [4, 2.5, 6.5], miss: [2.6, 1.2, 4], pick: 0.8 } as const;
-/** A key man's ring shows this long before his moment. */
-const REVEAL_LEAD = 0.4;
+/** A key man's ring shows at his moment, never ahead of it: a ring that comes first gives the play away (who's thrown
+ * to, who makes the tackle). */
+const REVEAL_LEAD = 0;
 
 export interface StagedPlay {
   /** Seconds a step. */
