@@ -3,6 +3,7 @@
  * 53.3. Both views draw it (the broadcast view in 2.5D, All-22 from above), so both throw the same ball.
  */
 import type { PlayLogEntry } from '../../engine/types';
+import { bounce, fumbleIn } from './fumble';
 
 export const FIELD_W = 53.3;
 export const MID = FIELD_W / 2;
@@ -97,7 +98,33 @@ export function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[]
     default:
       segs.push(ground(from, snapY, to, snapY, e.kind === 'penalty' ? 1.6 : 1));
   }
-  return segs;
+  return loosen(e, segs);
+}
+
+/**
+ * A fumble: the carry stops where the ball comes out, it bounces to where it's recovered (`fumble.ts`), and a lost one
+ * is returned to where the play ended. Without one, the path as it was.
+ */
+function loosen(e: PlayLogEntry, segs: Seg[]): Seg[] {
+  const f = fumbleIn(e);
+  if (!f || !segs.length) return segs;
+  const last = segs[segs.length - 1];
+  // Recovered level with where the carry was heading across the field.
+  const at = { x: f.x, y: last.y1 };
+  const hops = bounce(e, at);
+  const out = { x: hops[0].x0, y: hops[0].y0 };
+  // The carry ends where it came out; after a catch with no run logged (the throw ends it), he runs on to it.
+  const carry =
+    last.peak > 0
+      ? [last, ground(last.x1, last.y1, out.x, out.y)]
+      : [ground(last.x0, last.y0, out.x, out.y, last.dur / ground(last.x0, last.y0, last.x1, last.y1).dur)];
+  const back = f.lost && e.to !== undefined && Math.abs(e.to - f.x) > 0.5;
+  return [
+    ...segs.slice(0, -1),
+    ...carry,
+    ...hops,
+    ...(back ? [ground(at.x, at.y, e.to!, clampY(at.y + (MID - at.y) * 0.2))] : []),
+  ];
 }
 
 export function pointAt(seg: Seg, s: number) {
