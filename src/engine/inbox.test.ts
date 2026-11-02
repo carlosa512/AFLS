@@ -524,7 +524,9 @@ describe('mail through a season', () => {
         m.body,
         ...m.sections!.flatMap((x) => [x.title, x.lead ?? '', ...x.rows.flatMap((r) => [...r.cells, r.note ?? ''])]),
       ].join(' ');
-      expect(words).not.toMatch(/marble|\btraits?\b|z-score|potential|undefined|NaN/i);
+      expect(words).not.toMatch(/marble|\btraits?\b|z-score|potential|undefined/i);
+      // Case-sensitive: a name like Keenan is not a NaN.
+      expect(words).not.toMatch(/\bNaN\b/);
     }
     // A waiver row's read is our scouts', not the player's true overall.
     for (const m of digests.filter((x) => x.id.startsWith('waivers:')))
@@ -1516,42 +1518,144 @@ describe('the owner’s letter for the new league year', () => {
   });
 });
 
-describe('ceiling mail', () => {
-  const setup = (shift: number) => {
+describe("the young players' review", () => {
+  type Msg = NonNullable<League['inbox']>[number];
+  const setup = (opts: { keepGames?: boolean } = {}) => {
     const league = createLeague({ seed: 'ceiling-mail' });
     league.phase = 'playoffs';
-    const young = Object.values(league.players).filter(
-      (p) => p.age <= 23 && p.potential - playerOvr(p) >= 4 && p.experience <= 2,
-    );
-    const mine = young.find((p) => p.teamId === league.userTeamId)!;
-    const theirs = young.find((p) => p.teamId !== null && p.teamId !== league.userTeamId)!;
-    for (const p of [mine, theirs]) p.ceilingShifts = { [league.season]: shift };
-    deliverMail(league);
-    const mail = (p: { id: number }) => league.inbox!.filter((m) => m.id === `ceiling:${league.season}:${p.id}`);
-    return { league, mine, theirs, mail };
+    const user = league.userTeamId;
+    const anyGame = league.games[0];
+    if (!opts.keepGames) league.games = league.games.filter((g) => g.homeId !== user && g.awayId !== user);
+    // The young players with the most room, so a shift of three moves our read either way (and stays under 20).
+    const young = Object.values(league.players)
+      .filter((p) => p.age <= 24 && !p.retired && p.potential <= 16)
+      .sort((a, b) => b.potential - playerOvr(b) - (a.potential - playerOvr(a)) || a.id - b.id);
+    const ours = young.filter((p) => p.teamId === user);
+    const [rookie, second, third, extra] = ours;
+    rookie.experience = 0;
+    second.experience = 1;
+    third.experience = 2;
+    extra.experience = 0;
+    const theirs = young.find((p) => p.teamId !== null && p.teamId !== user)!;
+    theirs.experience = 0;
+    const shift = (p: Player, by: number) => (p.ceilingShifts = { [league.season]: by });
+    const review = () => (league.inbox ?? []).filter((m) => m.id === `ceilingReview:${league.season}`);
+    const section = (m: Msg, title: string) => m.sections?.find((s) => s.title === title);
+    const rows = (m: Msg) => (m.sections ?? []).flatMap((s) => s.rows);
+    const rowFor = (m: Msg, p: Player) => rows(m).find((r) => r.playerId === p.id)!;
+    return { league, user, anyGame, rookie, second, third, extra, theirs, shift, review, section, rows, rowFor };
   };
 
-  it('the head coach writes when a young player’s read drops a point', () => {
-    const { mine, theirs, mail } = setup(-3);
-    expect(mail(mine)).toHaveLength(1);
-    expect(mail(mine)[0].from).toMatch(/Head coach|Coaching staff/);
-    expect(mail(mine)[0].subject).toBe(`${mine.firstName} ${mine.lastName} has hit a wall`);
-    expect(mail(theirs)).toHaveLength(0);
-  });
-
-  it('the director writes when it rises', () => {
-    const { mine, mail } = setup(3);
-    expect(mail(mine)).toHaveLength(1);
-    expect(mail(mine)[0].from).toMatch(/Director of scouting|Scouting department/);
-    expect(mail(mine)[0].body).toBe("He's outplaying his grades. We may have had his ceiling too low.");
-  });
-
-  it('says nothing under a point, and files once', () => {
-    const quiet = setup(0.3);
-    expect(quiet.mail(quiet.mine)).toHaveLength(0);
-    const { league, mine, mail } = setup(-3);
+  it('one letter from the director for several movers, none for another club', () => {
+    const { league, rookie, second, theirs, shift, review, section, rows } = setup();
+    shift(rookie, 3);
+    shift(second, -3);
+    shift(theirs, -3);
     deliverMail(league);
-    expect(mail(mine)).toHaveLength(1);
-    expect(mailSubject(mail(mine)[0])).toEqual({ kind: 'ceiling', season: league.season, playerId: mine.id });
+    expect(review()).toHaveLength(1);
+    const [m] = review();
+    expect(m.from).toMatch(/Director of scouting|Scouting department/);
+    expect(m.subject).toBe("How the young players' year went");
+    expect(section(m, 'Ahead of our grades')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
+    expect(section(m, 'Behind our grades')!.rows.map((r) => r.playerId)).toEqual([second.id]);
+    expect(section(m, 'Ahead of our grades')!.columns).toEqual(['Player', 'Pos', 'Age', 'Came in', 'Our read']);
+    expect(rows(m).some((r) => r.playerId === theirs.id)).toBe(false);
+    expect((league.inbox ?? []).some((x) => x.id.startsWith(`ceiling:${league.season}:`))).toBe(false);
+  });
+
+  it('files once', () => {
+    const { league, rookie, shift, review } = setup();
+    shift(rookie, 3);
+    deliverMail(league);
+    deliverMail(league);
+    expect(review()).toHaveLength(1);
+  });
+
+  it('waits while we are still playing', () => {
+    const { league, user, anyGame, rookie, shift, review } = setup();
+    league.games.push({ ...anyGame, season: league.season, homeId: user, result: undefined });
+    shift(rookie, 3);
+    deliverMail(league);
+    expect(review()).toHaveLength(0);
+  });
+
+  it('files for the champion once the season is complete', () => {
+    const { league, rookie, shift, review } = setup({ keepGames: true });
+    league.phase = 'complete';
+    shift(rookie, 3);
+    deliverMail(league);
+    expect(review()).toHaveLength(1);
+  });
+
+  it('a rookie behind reads early, never final', () => {
+    const { league, rookie, shift, review, rowFor } = setup();
+    shift(rookie, -3);
+    deliverMail(league);
+    const row = rowFor(review()[0], rookie);
+    expect(row.cells.at(-1)).toBe('Behind where we had him coming out. Still early.');
+    expect(row.cells.join(' ')).not.toContain('what you see is about what you get');
+    expect(review()[0].body).toContain("It's early for the rookies");
+  });
+
+  it('a third-year behind reads close to his ceiling', () => {
+    const { league, third, shift, review, rowFor } = setup();
+    shift(third, -3);
+    deliverMail(league);
+    expect(rowFor(review()[0], third).cells.at(-1)).toBe('Close to his ceiling: what you see is about what you get.');
+  });
+
+  it('who we thought: a rookie who held is listed, a second-year who held is not', () => {
+    const { league, rookie, second, shift, review, section, rows, rowFor } = setup();
+    shift(rookie, 0.2);
+    shift(second, 0.2);
+    deliverMail(league);
+    const [m] = review();
+    expect(section(m, 'Who we thought he was')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
+    expect(rows(m).some((r) => r.playerId === second.id)).toBe(false);
+    expect(rowFor(m, rookie).cells.at(-1)).toBe('Right on his draft grade.');
+    expect(m.body).toContain("The rest of this year's class is about who we thought.");
+  });
+
+  it('a quiet season files nothing', () => {
+    const { league, second, shift, review } = setup();
+    shift(second, 0.2);
+    deliverMail(league);
+    expect(review()).toHaveLength(0);
+  });
+
+  it('carries the real week', () => {
+    const { league, rookie, shift, review } = setup();
+    league.week = 20;
+    shift(rookie, 3);
+    deliverMail(league);
+    expect(review()[0].week).toBe(20);
+  });
+
+  it('came in: a draft line or undrafted', () => {
+    const { league, user, rookie, extra, shift, review, rowFor } = setup();
+    rookie.draft = { season: league.season, round: 1, pick: 12, teamId: user };
+    delete extra.draft;
+    shift(rookie, 3);
+    shift(extra, 3);
+    deliverMail(league);
+    expect(rowFor(review()[0], rookie).cells[3]).toBe(`${league.season} R1, No. 12`);
+    expect(rowFor(review()[0], extra).cells[3]).toBe('Undrafted');
+  });
+
+  it('old saves: an old one-off this season means no review', () => {
+    const { league, rookie, shift, review } = setup();
+    shift(rookie, 3);
+    deliverMail(league);
+    const [m] = review();
+    league.inbox = [{ ...m, id: `ceiling:${league.season}:${rookie.id}` }];
+    deliverMail(league);
+    expect(review()).toHaveLength(0);
+  });
+
+  it('mailSubject reads it back', () => {
+    const { league, rookie, shift, review } = setup();
+    shift(rookie, 3);
+    deliverMail(league);
+    expect(mailSubject(review()[0])).toEqual({ kind: 'ceilingReview', season: league.season });
   });
 });
