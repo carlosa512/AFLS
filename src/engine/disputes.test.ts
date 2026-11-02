@@ -62,7 +62,7 @@ describe('disputes: the lists and the readers (G4)', () => {
 });
 
 describe('save v77', () => {
-  it('upgrades a v76 save with talks open and steps it without starting anything', () => {
+  it('upgrades a v77 save with talks open and steps it without starting anything', () => {
     const { l, p } = base('v77');
     const clock = l.moraleAt!;
     p.morale!.talk = {
@@ -70,9 +70,9 @@ describe('save v77', () => {
       answered: { reply: 'firm', at: clock, ask: clock },
       promise: { kind: 'deal', made: clock, due: clock + 20 },
     };
-    l.version = 76;
+    l.version = 77;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(77);
+    expect(up.version).toBe(78);
     expect(() => moraleAdvance(up, clock + 1)).not.toThrow();
     expect(Object.values(up.players).some((x) => x.morale?.dispute)).toBe(false);
   });

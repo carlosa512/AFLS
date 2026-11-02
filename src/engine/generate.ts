@@ -9,7 +9,8 @@ export { generateGm } from './gmTraits';
 import { CONFERENCES, DIVISIONS, TEAM_SEEDS } from './data/teams';
 import { UNIFORMS } from './data/uniforms';
 import { rollGem, rollSize } from './size';
-import { ATTRIBUTE_PROFILES, JERSEY_RANGES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
+import { ATTRIBUTE_PROFILES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
+import { numberSquad } from './jerseys';
 import { ageShift } from './aging';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
@@ -49,7 +50,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 77;
+export const SAVE_VERSION = 78;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -67,8 +68,55 @@ export function generateRatings(rng: Rng, position: Position, quality: number): 
   return ratings;
 }
 
-function pickJersey(rng: Rng, position: Position, used: Set<number>): number {
-  const ranges = JERSEY_RANGES[position];
+/** The ranges the first number picker drew from (`legacyJersey`). */
+const LEGACY_RANGES: Record<Position, [number, number][]> = {
+  QB: [[1, 19]],
+  RB: [
+    [20, 39],
+    [0, 9],
+  ],
+  WR: [
+    [10, 19],
+    [80, 89],
+    [0, 9],
+  ],
+  TE: [
+    [80, 89],
+    [40, 49],
+  ],
+  OL: [[60, 79]],
+  DT: [
+    [90, 99],
+    [50, 79],
+  ],
+  EDGE: [
+    [90, 99],
+    [40, 59],
+  ],
+  LB: [
+    [40, 59],
+    [0, 9],
+  ],
+  CB: [
+    [20, 39],
+    [0, 9],
+  ],
+  S: [
+    [20, 49],
+    [0, 9],
+  ],
+  K: [[1, 19]],
+  P: [[1, 19]],
+};
+
+/**
+ * The first number picker, kept for its draws: every later roll in a player (and in the league built around him) comes
+ * where it always did, so a seed builds the same world. The number it gives is a placeholder: a club numbers its
+ * players by their own choices (`numberSquad`, `numberOnArrival` in `jerseys.ts`), and a player out of the league
+ * wears his favourite.
+ */
+function legacyJersey(rng: Rng, position: Position, used: Set<number>): number {
+  const ranges = LEGACY_RANGES[position];
   for (let tries = 0; tries < 50; tries++) {
     const [lo, hi] = ranges[tries < 30 ? 0 : rng.int(0, ranges.length - 1)];
     const n = rng.int(lo, hi);
@@ -84,14 +132,6 @@ function pickJersey(rng: Rng, position: Position, used: Set<number>): number {
     }
   }
   return 0;
-}
-
-/** The first open number in a position's usual ranges (deterministic, for signings and draftees). */
-export function freeJersey(position: Position, used: Set<number>, current?: number): number {
-  if (current !== undefined && !used.has(current)) return current;
-  for (const [lo, hi] of JERSEY_RANGES[position]) for (let n = lo; n <= hi; n++) if (!used.has(n)) return n;
-  for (let n = 1; n < 100; n++) if (!used.has(n)) return n;
-  return current ?? 0;
 }
 
 interface PlayerSpec {
@@ -130,7 +170,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
     position,
     age,
     ...build,
-    jersey: pickJersey(rng, position, spec.jerseysUsed),
+    jersey: legacyJersey(rng, position, spec.jerseysUsed),
     experience,
     ratings,
     potential: Math.round(potential * 10) / 10,
@@ -849,6 +889,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
         addPlayer(league, player);
       }
     }
+    // Numbers by the players' own choices, on their own streams: nothing above draws differently.
+    numberSquad(league.seed, roster);
     team.depthChart = buildAutoDepthChart(roster);
   });
 

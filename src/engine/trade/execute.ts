@@ -3,8 +3,8 @@ import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
 import { deadMoney } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
-import { freeJersey } from '../generate';
-import { setTeam, syncDepthChart, teamPlayers } from '../roster';
+import { numberOnArrival } from '../jerseys';
+import { setTeam, syncDepthChart } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
@@ -85,15 +85,7 @@ export function executeTrade(
       c.years = c.years.filter((y) => !y.void);
       noteDeparture(league, p, side.teamId, 'traded');
       setTeam(league, p, to);
-      p.jersey = freeJersey(
-        p.position,
-        new Set(
-          teamPlayers(league, to)
-            .filter((x) => x.id !== id)
-            .map((x) => x.jersey),
-        ),
-        p.jersey,
-      );
+      numberOnArrival(league, p);
       if (league.teams[side.teamId].taggedId === id) league.teams[side.teamId].taggedId = null;
       p.tagCount = 0; // a tag by the new team is not a consecutive one
       delete league.negotiations[id];

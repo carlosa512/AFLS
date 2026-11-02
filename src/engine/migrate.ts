@@ -310,10 +310,13 @@ export function migrateLeague(league: League): League | null {
     if (games.length && !games.some((g) => g.uniform)) assignUniforms(league, games, league.season);
     league.version = 76;
   }
-  // v77: disputes (G4): `Morale.dispute`, `disputeEnd`, `rust`, `Talk.sour`, `Talk.promise.dispute`,
-  // `ContractYear.withheld`, `Player.lostAccrual` and `Morale.reported` are all optional and absent to start; a save from before them
-  // has no dispute and nothing soured.
+  // v77: numbers by the players' own choices (`jerseys.ts`). `Player.numberEdited` is optional, and nobody's number
+  // changes on load: players move to their favourites as they come free, at each new league year.
   if (league.version < 77) league.version = 77;
+  // v78: disputes (G4): `Morale.dispute`, `disputeEnd`, `rust`, `Talk.sour`, `Talk.promise.dispute`,
+  // `ContractYear.withheld`, `Player.lostAccrual` and `Morale.reported` are all optional and absent to start; a save from
+  // before them has no dispute and nothing soured.
+  if (league.version < 78) league.version = 78;
   return league;
 }
 

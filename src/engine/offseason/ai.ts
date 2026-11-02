@@ -43,6 +43,7 @@ import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
 import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
+import { favoriteJersey } from '../jerseys';
 import { clamp, Rng } from '../rng';
 import { activeRoster, addPlayer, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
@@ -874,6 +875,7 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
     jerseysUsed: new Set(),
   });
   p.origin = collegeOrigin(league.seed, p.id, 3);
+  p.jersey = favoriteJersey(league.seed, p);
   recordRatings(p, league.season);
   addPlayer(league, p);
   return p;

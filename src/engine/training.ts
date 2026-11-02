@@ -36,6 +36,7 @@ import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
 import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster';
+import { numberAfterMove } from './jerseys';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { rosterOf, tradeContext, type TradeContext } from './trade/context';
 import { learnMult, workEthicOf } from './traits';
@@ -283,6 +284,8 @@ export function changePosition(league: League, p: Player, to: Position): void {
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
   const [lo, hi] = sizeLimits(to).w;
   p.weightLb = clamp(p.weightLb, lo, hi);
+  // His number goes with him if the rules allow it at the new spot (a receiver's 15 at corner), else he picks one.
+  numberAfterMove(league, p);
   // The gem is read against the position he plays: drawn from his own stream, so only the gate can change.
   if (rollGem(p)) p.playsBig = true;
   else delete p.playsBig;

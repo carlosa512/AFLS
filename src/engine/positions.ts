@@ -159,47 +159,6 @@ export const POSITION_VALUE: Record<Position, number> = {
   P: 0.08,
 };
 
-/** Typical jersey number ranges. */
-export const JERSEY_RANGES: Record<Position, [number, number][]> = {
-  QB: [[1, 19]],
-  RB: [
-    [20, 39],
-    [0, 9],
-  ],
-  WR: [
-    [10, 19],
-    [80, 89],
-    [0, 9],
-  ],
-  TE: [
-    [80, 89],
-    [40, 49],
-  ],
-  OL: [[60, 79]],
-  DT: [
-    [90, 99],
-    [50, 79],
-  ],
-  EDGE: [
-    [90, 99],
-    [40, 59],
-  ],
-  LB: [
-    [40, 59],
-    [0, 9],
-  ],
-  CB: [
-    [20, 39],
-    [0, 9],
-  ],
-  S: [
-    [20, 49],
-    [0, 9],
-  ],
-  K: [[1, 19]],
-  P: [[1, 19]],
-};
-
 export function overall(ratings: Ratings, position: Position): number {
   const weights = OVR_WEIGHTS[position];
   let sum = 0;

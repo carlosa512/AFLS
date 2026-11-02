@@ -5,6 +5,7 @@ import { capHit, buildContract } from '../finance/contract';
 import { minSalary } from '../finance/market';
 import { activeRoster, onGameRoster, practiceSquad, setTeam, syncDepthChart } from '../roster';
 import { STARTERS } from '../positions';
+import { numberOnArrival } from '../jerseys';
 import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
 import { squadFit, squadRates, squadCategory, squadFormationCost } from './eligibility';
@@ -96,6 +97,7 @@ export function acceptSquadOffer(league: League, offer: SquadOffer): void {
   // Settle before assigning the new employer; no old rookie contract can be revived here.
   settleSquadPayroll(league);
   setTeam(league, p, offer.teamId);
+  numberOnArrival(league, p);
   p.contract = null;
   delete p.ir;
   ensureService(p, league.season);

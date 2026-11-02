@@ -251,7 +251,10 @@ export interface Player {
   weightLb: number;
   /** Plays bigger than his size: an outlier build costs him half (`sizeEdge`). Hidden like a trait; absent for most. */
   playsBig?: true;
+  /** His number on his club (`jerseys.ts`): his favourite or the closest he could get to it. */
   jersey: number;
+  /** A number the user chose: the new league year's switches leave it alone; it stays behind if he changes clubs. */
+  numberEdited?: true;
   /** Years of pro experience (0 = rookie). */
   experience: number;
   /** Separate from calendar experience: accrued, minimum-salary and pension service. */
