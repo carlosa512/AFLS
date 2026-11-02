@@ -20,6 +20,13 @@ export function disputeOf(p: Player): Dispute | undefined {
   return d;
 }
 
+/** A trade request as the league may know it (G4b): public once it's leaked, private to his own club until then. */
+export function wantsOut(p: Player): 'private' | 'public' | null {
+  const d = disputeOf(p);
+  if (!d || d.kind !== 'trade') return null;
+  return d.public === undefined ? 'private' : 'public';
+}
+
 /** A holdout gone to the Reserve/Did Not Report list, or reported to a full 53 and waiting on room: off it, unavailable. */
 export const onDidNotReport = (p: Player): boolean => {
   const d = disputeOf(p);

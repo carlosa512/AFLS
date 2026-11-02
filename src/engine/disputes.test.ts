@@ -892,6 +892,19 @@ describe('disputes: trade requests (G4b)', () => {
     expect(q.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'withdrawn' });
   });
 
+  it('is answered at once by an AI club: a stubborn GM refuses him, the rest shop him', () => {
+    const hard = base('ai-request-hard');
+    const p = souredOver(hard.l, 1, 'snaps');
+    run(hard.l, 9, 9);
+    expect(p.morale!.dispute).toMatchObject({ kind: 'trade', refused: true, answered: { choice: 'refuse' } });
+    const easy = base('ai-request-easy');
+    Object.assign(easy.l.teams[1].gm, { loyalty: 0.3, stubbornness: 0.3 });
+    const q = souredOver(easy.l, 1, 'snaps');
+    run(easy.l, 9, 9);
+    expect(q.morale!.dispute).toMatchObject({ kind: 'trade', answered: { choice: 'shop' } });
+    expect(q.morale!.dispute!.refused).toBeUndefined();
+  });
+
   it('stands at the new league year while he is Very poor with a cause, else is withdrawn; ends traded on a move', () => {
     const stands = base('new-year-stands');
     const p = souredOver(stands.l, stands.l.userTeamId, 'snaps');

@@ -12,6 +12,7 @@
  * (his patience runs one to three rounds, the last his final offer). You also set your players'
  * statuses, shop a player, and ask a GM his price. Verdicts are always the GM's own (`judge`).
  */
+import { wantsOut } from '../disputeRead';
 import { logTransaction, releasePlayer } from '../finance/cap';
 import { isExpired } from '../finance/contract';
 import { aiCutdown, cutChoice } from '../offseason/ai';
@@ -73,6 +74,9 @@ const AVAILABLE = 0.45;
 
 const userTeam = (league: League) => league.teams[league.userTeamId];
 
+/** On your block as the league sees it: you listed him, or he's asked out and it's public (G4b). */
+const onYourBlock = (league: League, p: Player) => league.market?.status[p.id] === 'listed' || wantsOut(p) === 'public';
+
 /** Your players other teams can call about: under contract, tradeable, not Untouchable, not just signed. */
 export function yourListings(ctx: TradeContext): Listing[] {
   const { league } = ctx;
@@ -92,8 +96,8 @@ export function yourListings(ctx: TradeContext): Listing[] {
       team: user,
       entry: {
         playerId: p.id,
-        reason: status[p.id] === 'listed' ? ('listed' as const) : ('available' as const),
-        keenness: status[p.id] === 'listed' ? LISTED : AVAILABLE,
+        reason: onYourBlock(league, p) ? ('listed' as const) : ('available' as const),
+        keenness: onYourBlock(league, p) ? LISTED : AVAILABLE,
       },
     }));
 }
@@ -129,7 +133,14 @@ export function bidFor(ctx: TradeContext, buyer: Team, target: Player): TradePro
     (x) => x.playerId === target.id && x.teamId !== buyer.id,
   ).length;
   const listed = league.market?.status[target.id] === 'listed';
-  const price = Math.min(most, worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders)) * (listed ? 0.95 : 1));
+  // A man who's asked out, and the league knows it: a buyer opens 10-25% under his price (G4b), on his own draw.
+  const under =
+    wantsOut(target) === 'public'
+      ? new Rng(`${league.seed}:offers:wants-out:${league.season}:${buyer.id}:${target.id}`).float(0.1, 0.25)
+      : 0;
+  const price =
+    Math.min(most, worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders)) * (listed && !under ? 0.95 : 1)) *
+    (1 - under);
   const ceiling = maxOver(buyer.gm) * worth;
   // How low a bid under his price may go: what an AI seller would hold out for from you, 5% less once he's on the block.
   const floor = floorShare(league, user, target, true) * worth * (listed ? 0.95 : 1);
@@ -308,7 +319,7 @@ export function offersMoment(
     const p = league.players[x.playerId];
     if (!p || p.teamId !== user.id || market.status[p.id] === 'untouchable') continue;
     const team = league.teams[x.teamId];
-    const listed = market.status[p.id] === 'listed';
+    const listed = onYourBlock(league, p);
     if (x.level >= 3 || (listed && x.level >= 2))
       calls.push({
         team,
