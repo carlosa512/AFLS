@@ -9,6 +9,7 @@ import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '..
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
 import { asRan } from '../stage/stage';
+import { fumbleIn } from '../stage/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────
@@ -360,22 +361,36 @@ export const inPlay = (e: PlayLogEntry | undefined): boolean => {
   return !!kind && IN_PLAY.has(kind);
 };
 
+/** Snaps that end a fourth down short of the line to gain hand the ball over. */
+const ON_DOWNS: ReadonlySet<string> = new Set(['run', 'pass', 'scramble', 'sack', 'incomplete']);
+
 export function playLabel(e: PlayLogEntry, homeId: number): string {
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';
   const dir = e.offense === homeId ? 1 : -1;
-  const gain = e.from !== undefined && e.to !== undefined ? Math.round((e.to - e.from) * dir) : 0;
+  // A lost fumble gained to where the ball came out: its logged end is where the other side's return finished.
+  const f = fumbleIn(e);
+  const end = f?.lost ? f.x : e.to;
+  const gain = e.from !== undefined && end !== undefined ? Math.round((end - e.from) * dir) : 0;
   const yds = `${gain > 0 ? '+' : ''}${gain} yds`;
+  // What the ball did after the play: the other side has it, or the offense hung on to it.
+  const then = f
+    ? f.lost
+      ? ' · Fumble lost'
+      : ' · Fumble kept'
+    : e.down === 4 && ON_DOWNS.has(e.kind ?? '') && gain < e.distance
+      ? ' · Turnover on downs'
+      : '';
   switch (e.kind) {
     case 'pass':
-      return `Pass · ${yds}`;
+      return `Pass · ${yds}${then}`;
     case 'run':
-      return `Run · ${yds}`;
+      return `Run · ${yds}${then}`;
     case 'scramble':
-      return `Scramble · ${yds}`;
+      return `Scramble · ${yds}${then}`;
     case 'sack':
-      return /FUMBLE/.test(e.text) ? 'Strip sack' : `Sack · ${yds}`;
+      return f?.lost ? 'Strip sack · Fumble lost' : `Sack · ${yds}${then}`;
     case 'incomplete':
-      return 'Incomplete';
+      return `Incomplete${then}`;
     case 'int':
       return 'Interception';
     case 'kickoff':
