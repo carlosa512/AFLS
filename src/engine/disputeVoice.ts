@@ -3,7 +3,7 @@
  * by `say` from what the club can see (who he is, the kind of dispute, how it ended), so the same league always writes
  * the same letter.
  */
-import type { Dispute, DisputeChoice, DisputeHow, DisputeKind } from './types';
+import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, TalkCause } from './types';
 import type { Line } from './voice';
 
 export interface DisputeFact {
@@ -18,11 +18,14 @@ export interface DisputeFact {
   how?: DisputeHow;
   /** Reported to a full 53: off it until you make room. */
   waiting?: boolean;
+  /** What it's over (a trade request's letter names it). */
+  cause?: TalkCause;
 }
 
-export const DISPUTE_SUBJECT: Record<'holdIn' | 'holdOut', (name: string) => string> = {
+export const DISPUTE_SUBJECT: Record<DisputeKind, (name: string) => string> = {
   holdOut: (name) => `${name} is holding out`,
   holdIn: (name) => `${name} is holding in`,
+  trade: (name) => `${name} wants a trade`,
 };
 
 /** The letter when it starts. */
@@ -62,6 +65,52 @@ export const DISPUTE_START: readonly Line<DisputeFact>[] = [
     reads: 3,
     text: (f) =>
       `${f.full} is holding in. He's been around long enough to know how this works: he shows up, he doesn't practice, and he waits on a new deal.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.cause === 'snaps',
+    reads: 2,
+    text: (f) =>
+      `${f.full} came to me and asked to be traded. He wants to play, and he doesn't see it happening here. It's between us for now.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.cause === 'losing',
+    reads: 2,
+    text: (f) =>
+      `${f.full} wants out. He's tired of losing and wants to play somewhere that's winning. He told me, not the press, so far.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.cause === 'feud',
+    reads: 2,
+    text: (f) =>
+      `${f.full} has asked for a trade. He and a teammate can't stand each other, and he'd rather go than keep sharing a room. Nobody outside knows yet.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.cause === 'deal',
+    reads: 2,
+    text: (f) =>
+      `${f.full} has asked to be traded. He never got the deal he wanted here, and he's done waiting on it. It's private for now.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.loud,
+    reads: 3,
+    text: (f) =>
+      `${f.full} wants a trade. He told me first, but he's not one to keep things quiet, so I wouldn't count on this staying in the building.`,
+  },
+  { when: (f) => f.kind === 'trade', text: (f) => `${f.full} has asked to be traded. For now only we know.` },
+];
+
+/** The letter when a trade request leaks (G4b). */
+export const leakSubject = (name: string) => `Word is out on ${name}`;
+export const DISPUTE_LEAK: readonly Line<DisputeFact>[] = [
+  {
+    text: (f) =>
+      `It's out: the league knows ${f.full} wants a trade. Expect calls, and expect them to come in low; they know we're dealing with a man who wants to leave.`,
+  },
+  {
+    when: (f) => f.loud,
+    reads: 2,
+    text: (f) =>
+      `${f.full} made sure everyone heard he wants out. Other clubs know now, and their offers will reflect it.`,
   },
 ];
 
@@ -116,6 +165,17 @@ export const DISPUTE_END: readonly Line<DisputeFact>[] = [
       `${f.full} practiced today. The games count now and he's playing, but nothing's been settled for him, and he knows it.`,
   },
   {
+    when: (f) => f.kind === 'trade' && f.how === 'withdrawn',
+    reads: 2,
+    text: (f) => `${f.full} has taken back his trade request. He's in a better place than he was, and he's ours again.`,
+  },
+  {
+    when: (f) => f.kind === 'trade' && f.how === 'promise',
+    reads: 2,
+    text: (f) =>
+      `${f.full} took your word and dropped his request. He'll be watching to see it kept, and so will the room.`,
+  },
+  {
     when: (f) => f.how === 'newYear',
     reads: 1,
     text: (f) => `${f.full}'s dispute is behind us with the new league year. We start over with him.`,
@@ -142,11 +202,15 @@ export const DISPUTE_LABEL: Record<DisputeKind, string> = {
 /** Where a running dispute stands, for the locker room report: where he is, what it has cost him, your answer. */
 export function disputeStanding(d: Dispute): string {
   const where =
-    d.kind === 'holdOut'
-      ? d.out
-        ? 'Not reporting.'
-        : 'Staying away from the spring program.'
-      : 'In the building, not practicing.';
+    d.kind === 'trade'
+      ? d.public === undefined
+        ? 'Wants a trade; only we know.'
+        : 'Wants a trade, and the league knows.'
+      : d.kind === 'holdOut'
+        ? d.out
+          ? 'Not reporting.'
+          : 'Staying away from the spring program.'
+        : 'In the building, not practicing.';
   const cost = d.lost ? ` It has cost him $${(d.lost / 1000).toFixed(1)}M.` : '';
   const answer = d.answered ? ` ${DISPUTE_SAID[d.answered.choice]}` : ' He waits on your answer.';
   return `${where}${cost}${answer}`;

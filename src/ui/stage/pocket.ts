@@ -174,6 +174,14 @@ export function pocketPlan(e: PlayLogEntry, ctx: PocketContext, rng: Rng): Pocke
   return { gun: ctx.gun, drop, hitch, setDepth, playAction, bootleg, pressure, roll, throwAt };
 }
 
+/** The quickest he moves in the pocket, yards a second (a drop, a roll, a reset). */
+const QB_PACE = 7;
+/** Under pressure he's moving this long before the ball comes out: he feels it as his man's block goes. */
+export const PRESSURE_REACT = 0.9;
+/** Feeling it, he's where he's going within this long (a quick step up or across), then sets his feet and throws. */
+const PRESSURE_MOVE = 0.45;
+/** Climbing away from an edge rush he gets as far up as this, just behind his guards. */
+const CLIMB_TO = 3;
 /** Stepping up or climbing, he stops this deep: the line's backs are a yard or two off the ball. */
 const STEP_UP_TO = 4;
 /** Held this long after a quick set, he resets to this depth. */
@@ -241,19 +249,42 @@ export function pocketPath(plan: PocketPlan, ctx: PathContext): Keyframe[] {
     // On the run toward the sideline until the throw.
     to(end, keepIn({ x: here.x, y: here.y - side * 3 }, ball, dir));
   } else if (plan.pressure !== 'none') {
-    // The rush gets there late in the down: he holds, then moves away from it as it arrives.
+    // He feels it as his man's block goes (`PRESSURE_REACT` before the ball comes out) and is moving before the rush
+    // gets there: up into the pocket from an edge rush (to just behind his guards), across from an inside one, or out
+    // of the pocket altogether; the throw comes from where that takes him, the rusher arriving with it.
     const away = Math.sign(ball.y - (ctx.through ?? ctx.rusher)!.y) || Math.sign(ball.y - (ctx.rusher?.y ?? 0)) || 1;
-    const move = Math.max(t, end - 0.7);
-    to(move, here);
-    if (plan.roll) to(end, keepIn({ x: here.x + dir * 0.5, y: here.y + away * 6 }, ball, dir));
-    else if (plan.pressure === 'edge') to(end, behind(Math.max(STEP_UP_TO, depthHere - 2.5), (here.y - ball.y) * 0.5));
-    else to(end, keepIn({ x: here.x, y: here.y + away * 2.5 }, ball, dir));
+    const feel = Math.max(t, end - PRESSURE_REACT);
+    to(feel, here);
+    const settle = plan.roll ? feel + (end - feel) * 0.7 : feel + Math.min(PRESSURE_MOVE, (end - feel) * 0.6);
+    if (plan.roll) {
+      // Out of the pocket: away from it, then on the run toward the sideline as he throws.
+      to(settle, keepIn({ x: here.x + dir * 0.3, y: here.y + away * 5 }, ball, dir));
+      to(end, keepIn({ x: here.x + dir * 1, y: here.y + away * 7.5 }, ball, dir));
+    } else if (plan.pressure === 'edge') {
+      // Up into the pocket, a hitch to set his feet, the throw.
+      const up = behind(Math.max(CLIMB_TO, depthHere - 3), (here.y - ball.y) * 0.5);
+      to(settle, up);
+      to(end, behind(Math.max(CLIMB_TO, depthHere - 3.3), (here.y - ball.y) * 0.4));
+    } else {
+      // Across the pocket, a shuffle and a half-step back from the man coming through.
+      to(settle, keepIn({ x: here.x - dir * 0.4, y: here.y + away * 2.5 }, ball, dir));
+      to(end, keepIn({ x: here.x - dir * 0.3, y: here.y + away * 3.2 }, ball, dir));
+    }
   } else {
     // A clean pocket: he holds, then steps up into the throw (off a quick set he throws from where he is).
     const step = Math.max(t, end - 0.4);
     to(step, here);
     to(end, behind(Math.max(Math.min(depthHere, STEP_UP_TO), depthHere - 1.2), here.y - ball.y));
   }
-  // One key per moment, in order: a plan whose throw comes as he sets keeps the later.
-  return keys.filter((k, i) => i === keys.length - 1 || k.t < keys[i + 1].t);
+  // No move quicker than his legs: a roll or a reset the throw would come too soon for comes as soon as he can make it
+  // (the throw with it). Then one key per moment, in order.
+  let prev: Keyframe = { t: 0, x: ctx.qb.x, y: ctx.qb.y };
+  let late = 0;
+  const paced = keys.map((k) => {
+    const t = Math.max(k.t + late, prev.t + Math.hypot(k.x - prev.x, k.y - prev.y) / QB_PACE);
+    late = t - k.t;
+    prev = { ...k, t };
+    return prev;
+  });
+  return paced.filter((k, i) => i === paced.length - 1 || k.t < paced[i + 1].t);
 }

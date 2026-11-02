@@ -99,7 +99,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       rosters; small schools and the Pathway start on less film (`knowledge`). A Pathway class arrives after each
       draft (with a reserved practice squad place on profile `afls-2026-v2`) and CFL veterans at each new league year.
       Spec: `docs/superpowers/specs/2026-10-27-player-origins-design.md`.
-- [ ] **Morale and holdouts** · **Partial** (hooks into #6 and #8): every rostered player has a mood (0.2.21,
+- [x] **Morale and holdouts** · **Done** (0.3.0; hooks into #6 and #8): every rostered player has a mood (0.2.21,
       `morale.ts`): a weekly target from his contract against his market, the role he plays against the one he expects
       (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
       with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
@@ -122,7 +122,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       tendencies, think a firm answer over each step from camp to week 4 (playing without him against his raise and the
       GM's stubbornness), and keep the deal and snaps promises they make; your head coach writes when one starts and ends, with
       your four answers (talks, a promise, firm, shop him), and the Locker Room, the Roster and the card show it. Trade
-      requests (G4b) are to come. Specs:
+      requests (G4b, 0.3.0): a talk soured over snaps, the losing or a feud (or a deal, in season, after a hold-in or
+      holdout that ended without one) becomes a request, private to his club until it leaks (six steps, three for an
+      outspoken man, at once when he's refused and outspoken; then a rumor). Public, his club holds out for 15% less and
+      buyers open 10-25% under their price; an AI club shopping him puts him on its block, a stubborn one refuses him.
+      Refused and still Very poor at the next camp with a deal in reach, it hardens into a hold-in; it's withdrawn after
+      four calmer steps or when his snaps come. Your letter offers shop, refuse, and the promise his cause allows. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,

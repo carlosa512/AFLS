@@ -759,7 +759,7 @@ export type MailSubject =
   // A player of yours speaking up (talkMail.ts): it needs you while his ask is open.
   | { kind: 'talk'; season: number; clock: number; playerId?: number }
   // A player of yours holding in or out (disputeMail.ts): the start letter needs you while it waits on your answer.
-  | { kind: 'dispute'; season: number; since: number; playerId: number; end?: true }
+  | { kind: 'dispute'; season: number; since: number; playerId: number; end?: true; leak?: true }
   // The head coach's season's-end reminder of open promises (promiseMail.ts).
   | { kind: 'promises'; season: number };
 
@@ -890,6 +890,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'dispute', season, since: Number(a), playerId: Number(b) };
     case 'dispute-end':
       return { kind: 'dispute', season, since: Number(a), playerId: Number(b), end: true };
+    case 'dispute-leak':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b), leak: true };
     case 'promises':
       return { kind: 'promises', season };
     case 'waivers':
