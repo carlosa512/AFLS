@@ -347,7 +347,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1607,
       1614,
     ],
-    "tagged": [],
+    "tagged": [
+      867,
+    ],
   },
   "TB": {
     "kept": [

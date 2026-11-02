@@ -344,7 +344,9 @@ check(
 const shareOf = (w: UnitWord) => reads.filter((r) => r === w).length / Math.max(1, reads.length);
 check(`Leaders per club, captains included (n=${leadersPer.length})`, mean(leadersPer), [3, 6]);
 check('Voices per club', mean(voicesPer), [6, 12]);
-check('Clubs with no leader past the captains', mean(noLeader), [0.1, 0.3]);
+// 0.1 until G4b (the owner, 2026-11-02): main itself read 0.09 over eight seasons; the line only sets how often the report
+// says nobody past the captains steps up (L1 moves no moods).
+check('Clubs with no leader past the captains', mean(noLeader), [0.05, 0.3]);
 check(`Unit reads: Split (n=${reads.length})`, shareOf('Split'), [0.05, 0.15]);
 // Down means a room reads Poor or worse, the word the screen shows: rare in a happy league, so only its ceiling counts
 // (the owner's call, Nov 2, 2026).
