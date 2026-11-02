@@ -9,11 +9,13 @@ import { isExpired, yearOf, yearsLeft } from './finance/contract';
 import { addJolt, expectedRole, moraleLevel, moraleFactors, type MoraleContext } from './morale';
 import { aiCutdown, aiSettle, winNow } from './offseason/ai';
 import { demand, extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
-import { aiReply, talkCause } from './playerTalks';
+import { aiReply, talkCause, talksAt } from './playerTalks';
+import { TRAIT_MEAN } from './traits';
+import { emptyMarket } from './trade/execute';
 import { employed } from './employment';
 import { playerOvr, STARTERS } from './positions';
 import { activeRoster, isAvailable } from './roster';
-import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player } from './types';
+import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player, Rumor } from './types';
 import { DISPUTE_LABEL, DISPUTE_PUBLIC, DISPUTE_SAID, disputeStanding } from './disputeVoice';
 
 export { aiSettle } from './offseason/ai';
@@ -35,6 +37,11 @@ const CHECKS = 18;
 export const CAMP_FINE = 2250;
 /** Very poor or worse, as the words read it. */
 const VERY_POOR = -3;
+/** Steps a trade request stays private before it leaks; an outspoken man's, fewer (G4b). */
+export const LEAK_STEPS = 6;
+export const LEAK_LOUD = 3;
+/** Rumors the market keeps (as `trade/market.ts` does). */
+const KEEP_RUMORS = 80;
 /** The last step a firm club thinks a dispute over: after week 4's games (holdouts rarely run past a month in). */
 const REVIEW_UNTIL = REGULAR + 4;
 
@@ -52,19 +59,27 @@ function extendable(league: League, p: Player): boolean {
   return !!c && !isExpired(c, league.season) && yearsLeft(c, league.season) <= 2 && !extensionBlocker(league, p);
 }
 
-/** Whether a soured talk can start a dispute now: the cause, the calendar and his deal. */
-function canStart(league: League, p: Player, ctx: MoraleContext, clock: number, week: number): boolean {
+/**
+ * What a soured talk escalates into now, if anything (spec Part 2): a trade request over snaps, the losing or a feud at a
+ * step talks run, over a deal in season once a hold-in or holdout ended without one; a hold-in or holdout over a deal he
+ * could be extended out of, from the re-sign window to camp. A promise made to end a dispute, broken, starts it again at
+ * once.
+ */
+function escalation(league: League, p: Player, ctx: MoraleContext, clock: number, week: number): DisputeKind | null {
   const s = p.morale!.talk!.sour!;
-  if (p.injury || p.ir) return false;
-  if (!s.now && s.run < RUN_STEPS) return false;
+  if (p.injury || p.ir) return null;
+  if (!s.now && s.run < RUN_STEPS) return null;
   // His grievance is still what soured the talk (a broken promise is its own cause: its jolt is the loudest thing on him).
-  if (!s.now && talkCause(league, p, moraleFactors(league, p, ctx), clock) !== s.cause) return false;
-  // Trade requests are G4b's; until then only a deal escalates.
-  if (s.cause !== 'deal' || !extendable(league, p)) return false;
-  // A promise made to end a dispute, broken, starts it again at once: a holdout goes back out whenever it breaks (a
-  // hold-in only before week 1: from then he plays). A new dispute starts in the re-sign window to camp.
-  if (s.now && s.after === 'holdOut') return week >= 0;
-  return week >= 0 && week <= CAMP;
+  if (!s.now && talkCause(league, p, moraleFactors(league, p, ctx), clock) !== s.cause) return null;
+  const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
+  if (s.now && s.after === 'trade') return 'trade';
+  if (s.cause !== 'deal') return talksAt(league, week) ? 'trade' : null;
+  if (s.after && !s.now && inSeason) return 'trade';
+  if (!extendable(league, p)) return null;
+  // A holdout goes back out whenever its promise breaks; a hold-in only before week 1 (from then he plays).
+  if (s.now && s.after === 'holdOut') return week >= 0 ? 'holdOut' : null;
+  if (week < 0 || week > CAMP) return null;
+  return s.now && s.after === 'holdIn' ? 'holdIn' : disputeKind(league, p, ctx);
 }
 
 /** What a holdout will lose before he gives in: a calm man his camp fine, the most stubborn half his year's base. */
@@ -102,17 +117,26 @@ export function endDispute(league: League, p: Player, how: DisputeHow, clock: nu
 }
 
 /** An open dispute's step: off to Did Not Report at camp, the fine as camp ends, the game checks, giving in. */
-function runDispute(league: League, p: Player, clock: number, week: number, newYear: boolean): void {
+function runDispute(
+  league: League,
+  p: Player,
+  ctx: MoraleContext,
+  clock: number,
+  week: number,
+  newYear: boolean,
+): void {
   const m = p.morale!;
   const d = m.dispute!;
   if (p.teamId !== d.club) return endDispute(league, p, p.teamId === null ? 'released' : 'traded', clock);
-  if (m.jolts?.some((j) => j.kind === 'paid' && j.at === clock)) return endDispute(league, p, 'signed', clock);
+  // A raise answers a dispute over a deal.
+  if (d.cause === 'deal' && m.jolts?.some((j) => j.kind === 'paid' && j.at === clock))
+    return endDispute(league, p, 'signed', clock);
   // Still unanswered at a club that isn't yours (you lost the job, or never answered and left it): the club answers.
   if (!d.answered && p.teamId !== yourClub(league)) {
     aiAnswerDispute(league, p, clock);
     if (!m.dispute) return;
   }
-  if (d.kind === 'trade') return;
+  if (d.kind === 'trade') return runRequest(league, p, ctx, clock, week, newYear);
   if (newYear && d.since < league.season * YEAR) return endDispute(league, p, 'newYear', clock);
   // A club that isn't yours thinks again (yours is your letter's call). Settled before camp ends, his fine is waived.
   if (p.teamId !== yourClub(league)) {
@@ -138,15 +162,89 @@ function runDispute(league: League, p: Player, clock: number, week: number, newY
   if (week >= REGULAR && (d.lost ?? 0) >= giveInLimit(league, p)) endDispute(league, p, 'gaveIn', clock);
 }
 
+/** Outspoken: he says it to anyone who'll listen (`controversy` well above the mean). */
+export const outspoken = (p: Player): boolean => (p.traits.controversy - TRAIT_MEAN) / 3.5 >= 0.5;
+
+/** A trade request goes public: every club knows he wants out, and the market hears it (one rumor). */
+function leak(league: League, p: Player, clock: number): void {
+  const d = p.morale!.dispute!;
+  d.public = clock;
+  const team = league.teams[p.teamId!];
+  const market = (league.market ??= emptyMarket());
+  const rumor: Rumor = {
+    id: `wants-out:${d.since}:${p.id}`,
+    kind: 'wantsOut',
+    season: league.season,
+    phase: league.phase,
+    week: league.week,
+    teamIds: [team.id],
+    playerId: p.id,
+    text: `${p.position} ${p.firstName} ${p.lastName} has asked the ${team.city} ${team.name} to trade him, league sources say.`,
+  };
+  market.rumors = [...market.rumors, rumor].slice(-KEEP_RUMORS);
+}
+
+/** His club turns a trade request down: he stays, and an outspoken man doesn't keep it to himself. */
+function refuse(league: League, p: Player, clock: number): void {
+  const d = p.morale!.dispute!;
+  d.answered = { choice: 'refuse', at: clock };
+  d.refused = true;
+  if (outspoken(p) && d.public === undefined) leak(league, p, clock);
+}
+
+/**
+ * A trade request's step (G4b): withdrawn when his snaps come or he's been Poor or better four steps; at the new league
+ * year it stands only while he's Very poor with a cause; private until it leaks; refused, it hardens into a hold-in at the
+ * next camp while he's still Very poor and a deal is in reach. A trade ends it (`runDispute`).
+ */
+function runRequest(
+  league: League,
+  p: Player,
+  ctx: MoraleContext,
+  clock: number,
+  week: number,
+  newYear: boolean,
+): void {
+  const m = p.morale!;
+  const d = m.dispute!;
+  if (d.cause === 'snaps' && m.jolts?.some((j) => j.kind === 'kept' && j.at === clock))
+    return endDispute(league, p, 'withdrawn', clock);
+  const level = moraleLevel(league, p, clock);
+  if (clock > d.since) {
+    if (level > VERY_POOR) d.calm = (d.calm ?? 0) + 1;
+    else delete d.calm;
+  }
+  if ((d.calm ?? 0) >= RUN_STEPS) return endDispute(league, p, 'withdrawn', clock);
+  if (newYear && d.since < league.season * YEAR) {
+    const cause = talkCause(league, p, moraleFactors(league, p, ctx), clock);
+    if (level > VERY_POOR || !cause) return endDispute(league, p, 'withdrawn', clock);
+  }
+  if (d.public === undefined && clock - d.since >= (outspoken(p) ? LEAK_LOUD : LEAK_STEPS)) leak(league, p, clock);
+  const refusedAt = d.answered?.choice === 'refuse' ? d.answered.at : clock;
+  if (d.refused && week === CAMP && refusedAt < clock && level <= VERY_POOR && extendable(league, p)) {
+    // Hardened: the request becomes a hold-in, a new dispute with its own letter.
+    m.dispute = { kind: 'holdIn', cause: 'deal', since: clock, club: d.club };
+    if (p.teamId !== yourClub(league)) aiAnswerDispute(league, p, clock);
+  }
+}
+
 /**
  * An AI club's answer, by the rule it answers talks with: a GM who'd promise negotiates, and settles when it would keep
  * him and can fit his walk-away (`aiSettle`); anyone else holds firm. The checks answer your club's by it too.
  */
 export function aiAnswerDispute(league: League, p: Player, clock: number): void {
   const d = p.morale!.dispute!;
-  const settles = aiReply(league, p.teamId!, d.cause) === 'promise';
-  if (settles && aiSettle(league, league.teams[p.teamId!], p)) endDispute(league, p, 'signed', clock);
-  else d.answered = { choice: 'firm', at: clock };
+  const reply = aiReply(league, p.teamId!, d.cause);
+  // A deal settles a dispute over one; nothing else does.
+  if (reply === 'promise' && d.cause === 'deal' && aiSettle(league, league.teams[p.teamId!], p))
+    return endDispute(league, p, 'signed', clock);
+  // A trade request: a stubborn GM turns it down, the rest shop him.
+  if (d.kind === 'trade') {
+    if (reply === 'firm') refuse(league, p, clock);
+    else d.answered = { choice: 'shop', at: clock };
+    return;
+  }
+  d.answered = { choice: 'firm', at: clock };
 }
 
 /** What a dispute costs his club at a step: nothing before camp; a hold-in camp's work; a holdout camp, then each game. */
@@ -222,6 +320,10 @@ export function answerDispute(league: League, playerId: number, choice: DisputeC
     endDispute(league, p, 'promise', clock);
     return true;
   }
+  if (choice === 'refuse') {
+    refuse(league, p, clock);
+    return true;
+  }
   // Shop him: the letter's button lists him too (`answerDisputeLetter` in `ui/mail.tsx`); the trade market isn't
   // imported here, so this module loads before it.
   d.answered = { choice, at: clock };
@@ -272,13 +374,13 @@ export function disputeView(league: League, p: Player): { kind: DisputeKind; lab
 export function disputeStep(league: League, ctx: MoraleContext, clock: number, week: number, newYear: boolean): void {
   if (!MOOD_ACTS.on) return;
   for (const p of Object.values(league.players)) {
-    if (p.morale?.dispute) runDispute(league, p, clock, week, newYear);
+    if (p.morale?.dispute) runDispute(league, p, ctx, clock, week, newYear);
     // Reported to a full 53: on it once there's room (or he's gone).
     const m = p.morale;
     if (m?.reported && (p.teamId === null || activeRoster(league, p.teamId).length < rosterLimit(league)))
       delete m.reported;
   }
-  const ready = new Map<number, { p: Player; level: number }[]>();
+  const ready = new Map<number, { p: Player; level: number; kind: DisputeKind }[]>();
   for (const p of Object.values(league.players)) {
     const m = p.morale;
     const s = m?.talk?.sour;
@@ -287,22 +389,21 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
     // The step it soured isn't one of the steps since.
     if (s.at < clock) s.run = level <= VERY_POOR ? s.run + 1 : 0;
     if (level > VERY_POOR && !s.now) continue;
-    if (!canStart(league, p, ctx, clock, week)) {
+    const kind = escalation(league, p, ctx, clock, week);
+    if (!kind) {
       // A broken promise restarts a dispute at once or not at all: past its window (a hold-in from week 1, a hurt man) it
       // is a soured talk like any other, counted from here.
       delete s.now;
       continue;
     }
     const list = ready.get(p.teamId) ?? [];
-    list.push({ p, level });
+    list.push({ p, level, kind });
     ready.set(p.teamId, list);
   }
   for (const list of ready.values()) {
-    const { p } = list.sort((a, b) => a.level - b.level || a.p.id - b.p.id)[0];
+    const { p, kind } = list.sort((a, b) => a.level - b.level || a.p.id - b.p.id)[0];
     const m = p.morale!;
     const s = m.talk!.sour!;
-    // Started again by a broken promise, it's the same dispute it was.
-    const kind = s.now && (s.after === 'holdIn' || s.after === 'holdOut') ? s.after : disputeKind(league, p, ctx);
     m.dispute = { kind, cause: s.cause, since: clock, club: p.teamId! };
     // A holdout who starts at camp is out at once.
     if (m.dispute.kind === 'holdOut' && week >= CAMP) m.dispute.out = true;

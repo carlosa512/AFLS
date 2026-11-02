@@ -415,6 +415,8 @@ export interface Dispute {
   public?: number;
   /** A trade request his club turned down (G4b). */
   refused?: true;
+  /** A trade request's steps in a row at Poor or better since it started: four and he withdraws it (G4b). */
+  calm?: number;
 }
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
@@ -1092,7 +1094,7 @@ export interface Rumor {
   season: number;
   phase: Phase;
   week: number;
-  kind: 'shopping' | 'interest';
+  kind: 'shopping' | 'interest' | 'wantsOut';
   teamIds: number[];
   playerId: number;
   text: string;

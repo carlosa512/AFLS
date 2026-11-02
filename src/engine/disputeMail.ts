@@ -3,7 +3,7 @@
  * every letter. Its buttons answer through `answerDispute`; what the letter shows is worked out from the league as it is
  * (`disputeCard`), so nothing about it is stored on the message.
  */
-import { disputeCard } from './disputes';
+import { disputeCard, outspoken } from './disputes';
 import {
   DISPUTE_ASK,
   DISPUTE_END,
@@ -15,7 +15,6 @@ import {
 import { STARTERS } from './positions';
 import { teamPlayers } from './roster';
 import { headCoach, type Draft } from './senders';
-import { TRAIT_MEAN } from './traits';
 import type { League, Player } from './types';
 import { recentBodies, say } from './voice';
 
@@ -33,7 +32,7 @@ function fact(league: League, p: Player, kind: DisputeFact['kind'], how?: Disput
     name: p.lastName,
     full: `${p.firstName} ${p.lastName}`,
     kind,
-    loud: (p.traits.controversy - TRAIT_MEAN) / 3.5 >= 0.5,
+    loud: outspoken(p),
     veteran: p.experience >= 6,
     starter: spot >= 0 && spot < STARTERS[p.position],
     how,

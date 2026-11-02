@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { MOOD_ACTS, rustKnock } from './disputeRead';
-import { createLeague } from './generate';
+import { createLeague, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
 import { moraleAdvance } from './morale';
 import { activeRoster, isAvailable, rosterList, setTeam } from './roster';
@@ -72,7 +72,7 @@ describe('save v77', () => {
     };
     l.version = 78;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(79);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(() => moraleAdvance(up, clock + 1)).not.toThrow();
     expect(Object.values(up.players).some((x) => x.morale?.dispute)).toBe(false);
   });
@@ -767,5 +767,153 @@ describe('disputes: the edges (G4)', () => {
       talk: { club: 1, promise: { kind: 'deal', made: l.moraleAt!, due: l.moraleAt! + 8 } },
     };
     expect(aiSettle(l, l.teams[1], p)).toBe(false);
+  });
+});
+
+const { LEAK_STEPS, LEAK_LOUD, answerDispute } = await import('./disputes');
+const { TRAIT_MEAN } = await import('./traits');
+
+/**
+ * A man on team `teamId` whose `cause` weighs on him most, at Very poor with a talk soured over it `run` steps ago: snaps
+ * by a benching's sting, a feud by one with a roommate. A rookie (no deal to sulk over) unless `pick` says otherwise.
+ */
+function souredOver(
+  l: League,
+  teamId: number,
+  cause: 'snaps' | 'feud',
+  pick: (x: Player) => boolean = (x) => x.contract?.kind === 'rookie' && x.experience < 3,
+  run = RUN_STEPS - 1,
+): Player {
+  const ctx = moraleContext(l);
+  const p = activeRoster(l, teamId).find(
+    (x) => !x.injury && x.morale && !x.morale.dispute && pick(x) && marketApy(ctx.market, x) <= x.contract!.apy * 1.2,
+  )!;
+  p.ties = [];
+  delete p.shifts;
+  p.traits = { ...p.traits, temperament: 11, controversy: TRAIT_MEAN };
+  p.personality = { ...p.personality, patience: 0.5, loyalty: 0.5, greed: 0 };
+  if (cause === 'feud') {
+    const mate = activeRoster(l, teamId).find((x) => x.position === p.position && x !== p)!;
+    p.ties = [{ kind: 'feud', with: mate.id, since: l.season }];
+  }
+  p.morale = {
+    level: -5,
+    jolts: cause === 'snaps' ? [{ kind: 'benched', size: -8, at: l.moraleAt! }] : [],
+    talk: { club: teamId, sour: { cause, at: l.moraleAt! - 10, run } },
+  };
+  return p;
+}
+const outspoken = (p: Player) => (p.traits = { ...p.traits, controversy: TRAIT_MEAN + 3.5 });
+const rumorsOn = (l: League, p: Player) => (l.market?.rumors ?? []).filter((r) => r.playerId === p.id);
+
+describe('disputes: trade requests (G4b)', () => {
+  it('starts a private trade request over snaps or a feud at a step talks run, not on a free-agency day', () => {
+    for (const cause of ['snaps', 'feud'] as const) {
+      const { l } = base(`request-${cause}`);
+      const p = souredOver(l, l.userTeamId, cause);
+      l.phase = 'freeAgency';
+      run(l, 3, 3);
+      expect(p.morale!.dispute).toBeUndefined();
+      l.phase = 'regular';
+      run(l, 9, 9);
+      expect(p.morale!.dispute).toMatchObject({ kind: 'trade', cause, club: l.userTeamId, since: at(l, 9) });
+      expect(p.morale!.dispute!.public).toBeUndefined();
+    }
+  });
+
+  it('starts one over a deal in season once a hold-in or holdout ended without one; before that a deal waits', () => {
+    const { l } = base('request-deal');
+    const after = souredDeal(l, l.userTeamId);
+    after.morale!.talk!.sour!.after = 'holdIn';
+    const plain = souredDeal(l, 2);
+    run(l, 10, 10);
+    expect(after.morale!.dispute).toMatchObject({ kind: 'trade', cause: 'deal' });
+    expect(plain.morale!.dispute).toBeUndefined();
+  });
+
+  it('leaks after six steps, three for an outspoken man, at once when refused and outspoken: public, one rumor', () => {
+    const quiet = base('leak-quiet');
+    const p = souredOver(quiet.l, quiet.l.userTeamId, 'snaps');
+    run(quiet.l, 9, 9 + LEAK_STEPS - 1);
+    expect(p.morale!.dispute!.public).toBeUndefined();
+    expect(rumorsOn(quiet.l, p)).toHaveLength(0);
+    run(quiet.l, 9 + LEAK_STEPS, 9 + LEAK_STEPS + 2);
+    expect(p.morale!.dispute!.public).toBe(at(quiet.l, 9 + LEAK_STEPS));
+    expect(rumorsOn(quiet.l, p)).toHaveLength(1);
+    expect(LEAK_STEPS).toBe(6);
+
+    const loud = base('leak-loud');
+    const q = souredOver(loud.l, loud.l.userTeamId, 'snaps');
+    outspoken(q);
+    run(loud.l, 9, 9 + LEAK_LOUD);
+    expect(q.morale!.dispute!.public).toBe(at(loud.l, 9 + LEAK_LOUD));
+    expect(LEAK_LOUD).toBe(3);
+
+    const refused = base('leak-refused');
+    const r = souredOver(refused.l, refused.l.userTeamId, 'snaps');
+    outspoken(r);
+    run(refused.l, 9, 9);
+    expect(answerDispute(refused.l, r.id, 'refuse')).toBe(true);
+    expect(r.morale!.dispute).toMatchObject({ refused: true, public: at(refused.l, 9) });
+    expect(rumorsOn(refused.l, r)).toHaveLength(1);
+  });
+
+  it('hardens into a hold-in at the next camp when refused, still Very poor and a deal is in reach', () => {
+    const { l } = base('harden');
+    l.phase = 'resign';
+    const extendableVet = (x: Player) =>
+      x.contract?.kind === 'veteran' && yearsLeft(x.contract, l.season) <= 2 && yearsLeft(x.contract, l.season) >= 1;
+    const p = souredOver(l, l.userTeamId, 'snaps', extendableVet);
+    run(l, 0, 0);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    answerDispute(l, p.id, 'refuse');
+    run(l, 1, 6);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    run(l, 7, 7);
+    expect(p.morale!.dispute).toMatchObject({ kind: 'holdIn', cause: 'deal', since: at(l, 7) });
+  });
+
+  it('is withdrawn after four steps at Poor or better, or when his snaps come; a raise ends one over a deal', () => {
+    const calm = base('withdraw-calm');
+    const p = souredOver(calm.l, calm.l.userTeamId, 'snaps');
+    run(calm.l, 9, 9);
+    p.morale!.level = 0;
+    p.morale!.jolts = [];
+    run(calm.l, 10, 12);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+    run(calm.l, 13, 13);
+    expect(p.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'withdrawn' });
+
+    const kept = base('withdraw-kept');
+    const q = souredOver(kept.l, kept.l.userTeamId, 'snaps');
+    run(kept.l, 9, 9);
+    q.morale!.jolts!.push({ kind: 'kept', size: 2, at: at(kept.l, 10) });
+    run(kept.l, 10, 10);
+    expect(q.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'withdrawn' });
+  });
+
+  it('stands at the new league year while he is Very poor with a cause, else is withdrawn; ends traded on a move', () => {
+    const stands = base('new-year-stands');
+    const p = souredOver(stands.l, stands.l.userTeamId, 'snaps');
+    p.morale!.dispute = { kind: 'trade', cause: 'snaps', since: at(stands.l, 0) - 10, club: stands.l.userTeamId };
+    delete p.morale!.talk!.sour;
+    stands.l.moraleAt = at(stands.l, 0);
+    disputeStep(stands.l, moraleContext(stands.l), at(stands.l, 0), 0, true);
+    expect(p.morale!.dispute?.kind).toBe('trade');
+
+    const gone = base('new-year-gone');
+    const q = souredOver(gone.l, gone.l.userTeamId, 'snaps');
+    q.morale = { level: 2, jolts: [] };
+    q.morale.dispute = { kind: 'trade', cause: 'snaps', since: at(gone.l, 0) - 10, club: gone.l.userTeamId };
+    gone.l.moraleAt = at(gone.l, 0);
+    disputeStep(gone.l, moraleContext(gone.l), at(gone.l, 0), 0, true);
+    expect(q.morale!.disputeEnd?.how).toBe('withdrawn');
+
+    const moved = base('request-traded');
+    const r = souredOver(moved.l, moved.l.userTeamId, 'snaps');
+    run(moved.l, 9, 9);
+    setTeam(moved.l, r, 5);
+    run(moved.l, 10, 10);
+    expect(r.morale!.disputeEnd).toMatchObject({ kind: 'trade', how: 'traded' });
   });
 });
