@@ -46,12 +46,18 @@ describe('switching practice squads on', () => {
     // 32 (seeds activation-old, sq-2, sq-3 on main before the draft-busts change: 31, 26, 30).
     expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(26);
     // Camp's pay-ahead held room for a full veteran squad; once squads formed, what they didn't cost was paid ahead too.
+    // A club whose books moved after camp is left out: a holdout who gives in at week 1 comes back to a full 53, and
+    // the cut that makes his room frees cap camp never saw (G4).
+    const moved = new Set(
+      l.transactions.filter((t) => t.season === l.season && t.phase === 'regular').flatMap((t) => t.teamIds),
+    );
     const again = structuredClone(l);
     again.phase = 'preseason';
-    for (const t of again.teams) {
+    for (const t of again.teams.filter((x) => !moved.has(x.id))) {
       const before = capSpace(again, t.id);
       payAhead(again, t);
       expect(capSpace(again, t.id)).toBeCloseTo(before, 3);
     }
+    expect(moved.size).toBeLessThan(8);
   }, 300_000);
 });
