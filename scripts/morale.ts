@@ -19,7 +19,7 @@
  *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 4–15 a
  *    season, 40–90% going public, 25–75% of those resolved ending in a trade.
  *
- *   npm run morale                        # 4 seasons, seed morale-check
+ *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
 import { yearsLeft } from '../src/engine/finance/contract';
@@ -50,7 +50,8 @@ const arg = (name: string, fallback: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
-const SEASONS = Number(arg('seasons', '4'));
+// Eight seasons: four left trade requests' outcomes to about ten cases (G4b).
+const SEASONS = Number(arg('seasons', '8'));
 const SEED = arg('seed', 'morale-check');
 
 let misses = 0;

@@ -164,7 +164,7 @@ const CHECKS = {
   morale: {
     cmd: ['npm', 'run', 'morale'],
     cores: 1,
-    secs: 80,
+    secs: 160,
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
   },
