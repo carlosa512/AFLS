@@ -296,7 +296,8 @@ describe('migration and collection', () => {
     // coach's discipline scales flags; the stream, players, games and charts still match. Everything again with parity
     // (0.2.36): a franchise's record lifts its starters only, backups roll deeper and a team's starter-roll luck is
     // dealt back, and a player's ratings draw by his quality, so the stream, players, schedule and charts move with
-    // them; the passing game's shape and a team's day move the result.
+    // them; the passing game's shape and a team's day move the result. `result` again
+    // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -311,6 +312,6 @@ const BASELINE = {
   players: '98d380fef857d6b9515405119f0949e6a758d17aeea86ade1fd52628b970fe28',
   rng: [2055926919, 1351328155, 1663703320, 1664089055],
   games: 'b5750e3006072f8ec3774d01e0d365791ba983fb2956f308a79e313658d7c909',
-  result: '4bcf0a084cddb87f21d74e2602676a508e4febd0013ce9631ea58759231593f4',
+  result: 'e52aa95b31d9c73f42bfeb2e26efe0289a13c5558ec037a270bcee2e0278daa1',
   charts: 'ea1530379664eddf11b03072e7d7c56eaffeb8ab6ba77fcf5f46c52ca45bb0e0',
 };

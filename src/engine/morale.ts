@@ -140,6 +140,10 @@ export function actualRole(league: League, p: Player, ctx: MoraleContext): numbe
       return ref ? roleStep((s?.snaps ?? 0) / ((ref * available) / played)) : null;
     }
   }
+  // Before this season's games say, the depth chart does: a man it starts isn't being kept off the field, whatever he
+  // played last season.
+  const chart = league.teams[p.teamId].depthChart[p.position] ?? [];
+  if (chart.slice(0, STARTERS[p.position]).includes(p.id)) return 2;
   if (!p.stats[ctx.season - 1]) return null;
   const last = seasonRole(league, p, ctx.season - 1);
   return last ? ROLE_STEP[last.role] : 0;
@@ -161,15 +165,28 @@ function availableGames(p: Player, season: number, played: number): number {
   return Math.min(played, Math.max(gp, played - missed.size));
 }
 
+/** Paid this share of his market or more, he has no complaint: he signed the deal. */
+export const FAIR_PAY = 0.8;
+
 function contractScore(league: League, p: Player, ctx: MoraleContext): number {
   const c = p.contract;
   if (!c || p.teamId === null) return 0;
   const ratio = c.apy / Math.max(1, marketApy(ctx.market, p));
-  let score = clamp(3 * Math.log2(ratio) * (0.6 + 0.8 * p.personality.greed), -4, 2);
-  if (score < 0 && yearsLeft(c, league.season) <= 1) score = Math.max(-4, score * 1.5);
-  // A rookie deal is what it is until the extension window opens in his third season.
-  if (c.kind === 'rookie' && p.experience < 3) score = Math.max(0, score);
-  return score;
+  const greed = 0.6 + 0.8 * p.personality.greed;
+  // Under the fair band the grievance grows with the gap below it; over his market he's pleased.
+  let score = ratio < FAIR_PAY ? 3 * Math.log2(ratio / FAIR_PAY) * greed : ratio > 1 ? 3 * Math.log2(ratio) * greed : 0;
+  score = clamp(score, -4, 2);
+  const last = yearsLeft(c, league.season) <= 1;
+  if (score < 0 && last) score = Math.max(-4, score * 1.5);
+  // A backup doesn't hold out over money: half the grievance of a man who expects to start.
+  if (score < 0 && expectedRole(p, ctx) < 2) score /= 2;
+  if (c.kind === 'rookie') {
+    // A rookie deal is what it is until the extension window opens in his third season; after, a star on the scale
+    // wants his extension, but he signed the scale: -2 at most, -3 in its last year.
+    if (p.experience < 3) score = Math.max(0, score);
+    else score = Math.max(last ? -3 : -2, score);
+  }
+  return score || 0;
 }
 
 function roleScore(league: League, p: Player, ctx: MoraleContext): number {

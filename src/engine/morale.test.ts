@@ -26,7 +26,7 @@ import {
   QUIET,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
-import { leagueMarket, resetLeagueMarket } from './finance/market';
+import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
 import { activeRoster } from './roster';
 import type { League, Player } from './types';
 
@@ -69,6 +69,59 @@ describe('morale: the factors', () => {
     expect(final).toBeGreaterThanOrEqual(-4);
   });
 
+  it('reads no grievance at 80% of his market or more: he signed the deal', () => {
+    const s = veteran();
+    const ctx = moraleContext(league);
+    const market = marketApy(ctx.market, s);
+    const at = (share: number) => {
+      const p: Player = { ...s, contract: { ...s.contract!, apy: Math.round(market * share) } };
+      return moraleFactors(withPlayer(p), p, ctx).contract;
+    };
+    expect(at(0.8)).toBe(0);
+    expect(at(0.95)).toBe(0);
+    expect(at(0.7)).toBeLessThan(0);
+    expect(at(0.4)).toBeLessThan(at(0.7));
+    expect(at(1.3)).toBeGreaterThan(0);
+  });
+
+  it('gives a depth man half the grievance of a starter paid the same share of his market', () => {
+    const ctx = moraleContext(league);
+    const room = team0.filter((p) => p.position === 'OL').sort((a, b) => playerOvr(b) - playerOvr(a));
+    const share = (p: Player) => {
+      const q: Player = {
+        ...p,
+        experience: 5,
+        personality: { ...p.personality, greed: 0.5 },
+        contract: {
+          ...p.contract!,
+          kind: 'veteran',
+          apy: Math.round(marketApy(ctx.market, p) * 0.4),
+          years: [0, 1, 2].map((i) => ({ ...p.contract!.years[0], season: league.season + i })),
+        },
+      };
+      return moraleFactors(withPlayer(q), q, ctx).contract;
+    };
+    const starterGrievance = share(room[0]);
+    const depthGrievance = share(room[STARTERS.OL + 1]);
+    expect(starterGrievance).toBeLessThan(0);
+    expect(depthGrievance).toBeCloseTo(starterGrievance / 2, 2);
+  });
+
+  it('caps a rookie-deal star at -2, -3 in his deal’s last year', () => {
+    const s = starter();
+    const ctx = moraleContext(league);
+    const rookie = (years: number): Player => ({
+      ...s,
+      experience: 3,
+      personality: { ...s.personality, greed: 1 },
+      contract: { ...s.contract!, kind: 'rookie', apy: 100, years: s.contract!.years.slice(0, years) },
+    });
+    const two = rookie(2);
+    const one = rookie(1);
+    expect(moraleFactors(withPlayer(two), two, ctx).contract).toBe(-2);
+    expect(moraleFactors(withPlayer(one), one, ctx).contract).toBe(-3);
+  });
+
   it('never reads a rookie deal in its first seasons as a grievance', () => {
     const s = starter();
     const rookie: Player = {
@@ -92,6 +145,29 @@ describe('morale: the factors', () => {
     ctx.live.WR = 300;
     expect(moraleFactors(league, s, ctx).role).toBeLessThan(0);
     expect(moraleFactors(league, s, ctx).role).toBeGreaterThanOrEqual(-3);
+  });
+
+  it('reads a man the depth chart starts as a starter before the season’s games: last season isn’t this one', () => {
+    const ctx = moraleContext(league);
+    for (const r of ctx.records.values()) r.w = r.l = r.t = 0;
+    const team = league.teams[0];
+    const wr = team0.filter((p) => p.position === 'WR').sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+    // A backup last season (no snaps), the top of the room now.
+    const promoted = {
+      ...wr,
+      experience: 4,
+      stats: { [league.season - 1]: { gp: 17, snaps: 20 } },
+    } as Player;
+    const charted = { ...team.depthChart, WR: [wr.id, ...team.depthChart.WR.filter((id) => id !== wr.id)] };
+    const l = {
+      ...withPlayer(promoted),
+      teams: league.teams.map((t) => (t.id === 0 ? { ...t, depthChart: charted } : t)),
+    };
+    expect(moraleFactors(l, promoted, ctx).role).toBe(0);
+    // Off the chart's starting spots, last season still reads.
+    const benched = { ...charted, WR: [...charted.WR.filter((id) => id !== wr.id), wr.id] };
+    const l2 = { ...l, teams: l.teams.map((t) => (t.id === 0 ? { ...t, depthChart: benched } : t)) };
+    expect(moraleFactors(l2, promoted, ctx).role).toBeLessThan(0);
   });
 
   it("doesn't count the games a starter missed hurt against his role", () => {

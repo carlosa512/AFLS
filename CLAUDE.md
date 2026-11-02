@@ -49,8 +49,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   strength, the win spread, with strength read weekly) and passing by depth against nflverse (average air yards and the
   short, 10–19 and 20+ shares, from weeks 1 and 10 replayed). **Run this after any change to `src/engine/match/`
   or `injuries.ts` and keep stats inside the target ranges.** Leaders are noisy over 10 seasons:
-  check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 30: over 10, the
-  #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four.
+  check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 60: over 10, the
+  #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four, and over 30 a
+  change to moods alone (which reshuffles every game) moved overtime and the leaders' rows by a block's width.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
