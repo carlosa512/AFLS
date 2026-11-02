@@ -147,6 +147,11 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 - **Disputes:** an AI GM answers by its tendencies, the same way `aiReply` does: a loyal one negotiates (an extension at
   its own price, `resignCall`'s rule, if the cap fits), a stubborn one holds firm, the rest shop a trade request once
   it's public or a holdout past week 1.
+- **Thinking again (the owner, 2026-11-02):** a club that held firm thinks it over at each step from camp to week 4
+  (`aiReviewDispute`): what playing without him costs (his edge over the man who'd start in his place, what's at stake by
+  then: camp's work, then each game; how much this season matters to it) against what giving in costs (his walk-away past
+  his market, its GM's stubbornness). Worth it, it settles by `aiSettle`, making cap room first as it would for a keeper. As in the NFL, most holdouts end by late August
+  and a few run into the season until a deal; a man barely better than his backup is left to give in.
 - **Keeping promises:** a deal promised, the AI extends him in the re-sign window by `resignCall`'s rule (extensions
   with two years left included), or the promise breaks when its own read says he isn't worth his ask. Snaps promised,
   its depth chart starts him for the promise's games when he's within a point of the man he'd replace on its own read;
@@ -176,7 +181,9 @@ Report, like IR. What's public shows for anyone's player where an injury shows: 
 - **Ranges that move by design (the owner's call, never loosened quietly):** the promises-kept share (25–75%) was set
   when no club acted on its promises; with AI clubs keeping them it should rise. The underpaid-final-year check (60%+
   Poor or worse) may fall once an open promise softens the grievance. The plan measures both; if either leaves its
-  range, stop and bring the owner the numbers before any range changes.
+  range, stop and bring the owner the numbers before any range changes. **The owner's call (2026-11-02):** both left
+  their ranges (promises kept 0.75 with AI clubs keeping deal and snaps promises; underpaid 0.59, the angriest men
+  escalating and getting paid, main itself at 0.600): promises kept is now 25–85%, the underpaid floor 0.5.
 - **Play moves** (holdouts miss games, rosters cover them): CI's planner runs `sim`, `offseason`, `trades`, `careers`
   and the rest; no range is loosened to get green.
 

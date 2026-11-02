@@ -97,6 +97,10 @@ function settle(p: Player, t: Talk, kept: boolean, clock: number) {
   addJolt(p, kept ? 'kept' : 'broken', kept ? 2 : -4, clock);
   const k = kept ? 'kept' : 'broken';
   t[k] = (t[k] ?? 0) + 1;
+  // A broken promise sours the talk (G4); one made to end a dispute starts it again at once.
+  const pr = t.promise!;
+  if (!kept)
+    t.sour = { cause: pr.kind, at: clock, run: 0, ...(pr.dispute ? { after: pr.dispute, now: true as const } : {}) };
   delete t.promise;
 }
 
@@ -170,6 +174,9 @@ function applyReply(
     if (reply === 'ignored') addJolt(p, 'ignored', -1, clock);
   }
   t.answered = { reply, at: clock, ask: t.ask?.at ?? clock, cause };
+  // Ignored or told no, the talk has soured (G4); any other answer clears an old sourness.
+  if (reply === 'ignored' || reply === 'firm') t.sour = { cause, at: clock, run: 0 };
+  else delete t.sour;
   delete t.ask;
 }
 

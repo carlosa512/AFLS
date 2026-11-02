@@ -1,9 +1,10 @@
+import { MOOD_ACTS, onDidNotReport } from './disputeRead';
 import { coachOrder } from './coachDecisions';
 import { teamCoaches, teamScheme } from './coaching';
 import { spotsFor } from './schemes';
 import { skill } from './attributes';
 import { slotOvr } from './familiarity';
-import { STARTERS } from './positions';
+import { playerOvr, STARTERS } from './positions';
 import { sizeEdge, typicalAt } from './size';
 import type { Coach, DepthChart, Gear, Injury, League, Player, PlayingAt, Position, Team } from './types';
 import { POSITIONS } from './types';
@@ -15,7 +16,8 @@ export function rosterList(p: Player): RosterList {
   if (p.waiver) return 'waivers';
   if (p.teamId === null) return 'unattached';
   if (p.squad) return p.squad.kind;
-  return p.ir ? 'injuredReserve' : 'active';
+  if (p.ir) return 'injuredReserve';
+  return onDidNotReport(p) ? 'didNotReport' : 'active';
 }
 
 /** Eligible list membership, independent of health (emergency injury fallbacks still need this). */
@@ -99,6 +101,8 @@ export function setTeam(league: League, p: Player, teamId: number | null): void 
       else index.set(teamId, [p]);
     }
   }
+  // Waiting on room at the club he reported to (G4): a new club has none to make.
+  if (p.teamId !== teamId && p.morale?.reported) delete p.morale.reported;
   p.teamId = teamId;
 }
 
@@ -211,6 +215,7 @@ export function syncDepthChart(league: League, team: Team): void {
       undefined,
       wrSpotsOf(league, team.id),
     );
+    keepSnapsPromises(league, team);
     return;
   }
   const placed = new Set<number>();
@@ -224,6 +229,27 @@ export function syncDepthChart(league: League, team: Team): void {
   }
   const auto = buildAutoDepthChart(players, at);
   for (const pos of POSITIONS) team.depthChart[pos] = [...kept[pos], ...auto[pos].filter((id) => !placed.has(id))];
+  keepSnapsPromises(league, team);
+}
+
+/**
+ * An AI club keeps a snaps promise (G4): a promised man just past its starters takes the last starter's place while
+ * the promise runs, when he's within a point of him. Your club's chart is yours to set.
+ */
+function keepSnapsPromises(league: League, team: Team): void {
+  if (!MOOD_ACTS.on || team.id === league.userTeamId) return;
+  for (const pos of POSITIONS) {
+    const chart = team.depthChart[pos];
+    const n = STARTERS[pos];
+    const last = league.players[chart[n - 1]];
+    if (!last) continue;
+    const i = chart.findIndex((id, k) => {
+      const t = k >= n ? league.players[id]?.morale?.talk : undefined;
+      return t?.club === team.id && t.promise?.kind === 'snaps' && playerOvr(last) - playerOvr(league.players[id]) <= 1;
+    });
+    if (i < 0) continue;
+    [chart[n - 1], chart[i]] = [chart[i], chart[n - 1]];
+  }
 }
 
 /**

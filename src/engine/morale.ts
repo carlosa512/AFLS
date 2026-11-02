@@ -17,6 +17,7 @@ import { computeRecords, playoffRace, type TeamRecord } from './season/standings
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
 import { honouredSince } from './standing';
+import { disputeStep } from './disputes';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
 
@@ -388,6 +389,7 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   reassured: 'Feels valued',
   firm: "Didn't like your answer",
   ignored: 'Feels ignored',
+  gaveIn: 'Gave in on his holdout',
 };
 
 /** While a promise is open, the grievance it answered reads as waiting on it (G4). */
@@ -408,6 +410,7 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.broken,
   JOLT_WORDS.firm,
   JOLT_WORDS.ignored,
+  JOLT_WORDS.gaveIn,
   ...Object.values(WAITING).map((w) => w!.text),
 ]);
 
@@ -626,8 +629,9 @@ export function moraleAdvance(league: League, clock: number): void {
     if (p.contract) m.apy = p.contract.apy;
   }
   rememberClinches(league, clinched, spots);
-  // Then they talk: asks, answers, promises (G3).
+  // Then they talk: asks, answers, promises (G3); then talks gone wrong escalate (G4).
   talkStep(league, ctx, clock, week, newYear);
+  disputeStep(league, ctx, clock, week, newYear);
 }
 
 /** His jolts after a step: the faded-out dropped, the four biggest kept, newest last; none is nothing in the save. */

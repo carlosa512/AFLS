@@ -14,7 +14,9 @@ import {
 import { TalkContractButton } from '../negotiation';
 import { ROOM_LABEL } from '../../engine/coaching';
 import { say } from '../../engine/voice';
-import { activeRoster } from '../../engine/roster';
+import { activeRoster, teamPlayers } from '../../engine/roster';
+import { disputeView } from '../../engine/disputes';
+import { DisputeTag } from '../disputeTag';
 import type { League, Player } from '../../engine/types';
 import { PlayerLink, Section } from '../components';
 import { PersonalityPill } from '../scouting';
@@ -39,6 +41,11 @@ export function LockerRoom({ league }: { league: League }) {
   const captains = team.captains?.season === league.season ? team.captains : undefined;
   const ctx = viewContext(league);
   const room = roomView(league, ctx);
+  // Your men holding in or out (G4), the holdouts off the 53 among them.
+  const disputes = teamPlayers(league, team.id).flatMap((p) => {
+    const v = disputeView(league, p);
+    return v ? [{ p, v }] : [];
+  });
   const young = roster.filter((p) => p.age >= 21 && p.age <= 24).sort((a, b) => a.age - b.age || a.id - b.id);
   const load = (id: number) => roster.filter((p) => p.mentor === id).length;
   const byCoaches = !team.mentoringByYou;
@@ -269,6 +276,18 @@ export function LockerRoom({ league }: { league: League }) {
           </div>
         )}
       </Section>
+      {disputes.length > 0 && (
+        <Section id="locker-disputes" title="Disputes">
+          <ul className="plain-list">
+            {disputes.map(({ p, v }) => (
+              <li key={p.id}>
+                <PlayerLink league={league} player={p} pos /> <DisputeTag league={league} p={p} />{' '}
+                <span className="muted small">{v.text}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       <Section id="locker-leaders" title="Captains">
         {captains ? (
           <ul className="plain-list">

@@ -248,7 +248,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
-    reads what a letter shows), his words in `playerVoice.ts` · `standing.ts` who runs the room (L1,
+    reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins and holdouts (G4a): who escalates
+    (a soured deal talk, four Very poor steps, the re-sign window to camp), how a dispute runs and ends, AI clubs' answers
+    (`aiAnswerDispute`, `aiReviewDispute` from camp to week 4, `aiSettle` in `offseason/ai.ts`) and kept promises, your answers (`answerDispute`) and what a screen
+    may show (`disputeView`); the readers the roster, training, development and lineup code need live in `disputeRead.ts`
+    (no engine imports: `MOOD_ACTS`, `onDidNotReport`, `notPracticing`, `rustKnock`, `promisedDeal`); the head coach's
+    letters in `disputeMail.ts`, his words in `disputeVoice.ts` · `standing.ts` who runs the room (L1,
     `docs/superpowers/specs/2026-11-01-locker-room-voices-design.md`): a man's weight (leadership, the field, seniority,
     stature), leaders and voices (`tierOf`; captains always lead, last season's until camp), how a voice sounds (stirs,
     steadies: words only), units (the position coaches' rooms plus the specialists), each unit's read (`unitRead`: its

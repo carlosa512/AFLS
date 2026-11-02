@@ -31,6 +31,7 @@ import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
 import { teamCoaches } from './coaching';
 import { DOWN_REASONS, MORALE_WORDS, moraleClock, moraleContext, moraleView } from './morale';
+import { DISPUTE_LABEL, disputeStanding } from './disputeVoice';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
@@ -314,6 +315,15 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   // Every man flying is on file, named this time or last, so a man up all season is named once.
   for (const m of moods)
     if (m.view.step >= 6 && !back.includes(m)) covered.push(`morale:${fs}:${checkin}:${m.p.id}:up`);
+  // Disputes (G4): every man of ours holding in or out, and where it stands, at each report while it runs.
+  const disputes: MailSection['rows'] = [];
+  for (const p of ours) {
+    const d = p.morale?.dispute;
+    if (!d || d.kind === 'trade' || d.club !== user) continue;
+    disputes.push({ playerId: p.id, cells: [fullName(p), DISPUTE_LABEL[d.kind], disputeStanding(d)] });
+  }
+  if (disputes.length)
+    sections.push({ title: 'Disputes', columns: ['Player', 'Dispute', 'Where it stands'], rows: disputes });
   const more = slipped.length - listed.length;
   if (morale.length)
     sections.push({

@@ -585,3 +585,30 @@ describe('the locker room report: the room', () => {
     expect(text(reports(l).at(-1)!)).toMatch(new RegExp(`since ${lead.lastName} left`));
   });
 });
+
+describe('the locker room report: disputes (G4)', () => {
+  it('tells where each running dispute stands, at every check-in while it runs', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const p = ours(l).find((x) => x.morale && x.contract)!;
+    p.morale = {
+      level: -5,
+      jolts: [],
+      dispute: { kind: 'holdOut', cause: 'deal', since: l.moraleAt!, club: l.userTeamId, out: true, lost: 2250 },
+    };
+    deliverMail(l);
+    const report = reports(l)[0];
+    const row = section(report, 'Disputes')!.rows.find((r) => r.playerId === p.id)!;
+    expect(row.cells[1]).toBe('Holding out');
+    expect(row.cells[2]).toMatch(/\$2\.3M/);
+    expect(text(report)).not.toMatch(BANNED);
+  });
+
+  it('leaves the section out when nobody is in a dispute', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    for (const p of ours(l)) if (p.morale) delete p.morale.dispute;
+    deliverMail(l);
+    expect(section(reports(l)[0], 'Disputes')).toBeUndefined();
+  });
+});

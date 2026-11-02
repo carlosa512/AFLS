@@ -107,6 +107,8 @@ import {
   useStarScale,
   viewOf,
 } from '../scouting';
+import { DisputeTag } from '../disputeTag';
+import { disputeView } from '../../engine/disputes';
 
 type Col = [label: string, value: (s: StatLine) => string | number];
 
@@ -1058,6 +1060,14 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                   {mood.promise.kind === 'deal' ? 'Promised a new deal' : 'Promised snaps'}
                 </TipPill>
               )}
+            </span>
+          </span>
+        )}
+        {disputeView(league, p) && (
+          <span className="fact">
+            <span className="eyebrow">Contract</span>
+            <span className="pill-row">
+              <DisputeTag league={league} p={p} />
             </span>
           </span>
         )}
