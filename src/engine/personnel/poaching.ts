@@ -1,11 +1,11 @@
 import { capSpace, logTransaction } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { minSalary } from '../finance/market';
-import { freeJersey } from '../generate';
+import { numberOnArrival } from '../jerseys';
 import { inSeasonReserve } from '../offseason/ai';
 import { freeAgents } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
-import { activeRoster, isAvailable, practiceSquad, setTeam, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, isAvailable, practiceSquad, setTeam, syncDepthChart } from '../roster';
 import { perceive } from '../scouting';
 import type { Contract, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
@@ -160,15 +160,7 @@ function sign(league: League, p: Player, offer: PoachOffer): void {
   delete p.squad;
   setTeam(league, p, offer.teamId);
   p.contract = contract;
-  p.jersey = freeJersey(
-    p.position,
-    new Set(
-      teamPlayers(league, offer.teamId)
-        .filter((x) => x.id !== p.id)
-        .map((x) => x.jersey),
-    ),
-    p.jersey,
-  );
+  numberOnArrival(league, p);
   invalidateSquadPayroll(league);
   syncDepthChart(league, league.teams[from]);
   syncDepthChart(league, league.teams[offer.teamId]);

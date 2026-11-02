@@ -6,6 +6,7 @@
 import { CFL_ORIGIN, PATHWAY_ORIGINS } from '../data/origins';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
+import { favoriteJersey } from '../jerseys';
 import { ensureService } from '../personnel/service';
 import { playerOvr } from '../positions';
 import { clamp, Rng } from '../rng';
@@ -56,6 +57,7 @@ function arrival(league: League, rng: Rng, position: Position, quality: number, 
     jerseysUsed: new Set(),
   });
   p.experience = 0;
+  p.jersey = favoriteJersey(league.seed, p);
   ensureService(p, league.season);
   return p;
 }

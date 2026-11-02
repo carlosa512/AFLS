@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(76);
+    expect(SAVE_VERSION).toBe(77);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -199,5 +199,16 @@ describe('save v74', () => {
     expect(up.players[offense.id].captainSeasons).toEqual([l.season]);
     expect(up.players[specialTeams.id].captainSeasons).toEqual([l.season]);
     expect(Object.values(up.players).some((p) => p.gear)).toBe(false);
+  });
+});
+
+describe('save v77', () => {
+  it("a v76 save loads with every player's number as it was: numbers move only at the new league year", () => {
+    const l = createLeague({ seed: 'v77' });
+    l.version = 76;
+    const before = Object.fromEntries(Object.values(l.players).map((p) => [p.id, p.jersey]));
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(77);
+    for (const p of Object.values(up.players)) expect(p.jersey).toBe(before[p.id]);
   });
 });

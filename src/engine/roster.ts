@@ -402,6 +402,7 @@ export function editPlayerIdentity(league: League, playerId: number, edit: Playe
   const firstName = edit.firstName.trim();
   const lastName = edit.lastName.trim();
   if (firstName !== p.firstName || lastName !== p.lastName) p.nameEdited = true;
+  if (edit.jersey !== p.jersey) p.numberEdited = true;
   p.firstName = firstName;
   p.lastName = lastName;
   p.jersey = edit.jersey;

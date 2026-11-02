@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.42',
+    date: '2026-11-02',
+    title: 'Numbers of their own',
+    text:
+      'Players now pick their own numbers, the way NFL players do: receivers in the 80s and single digits, corners ' +
+      'in single digits, linemen in the 50s, each to the rules for his position. A newcomer takes his favourite if ' +
+      'it is free, or one close to it, instead of the next number up, and a player who changes position keeps his ' +
+      'number if the rules allow it there. In a career already under way, players move to their favourites as they ' +
+      'come free each new league year; a number you set yourself stays. In All-22, the line no longer steps up ' +
+      'before every snap, and motion and shifts follow the rules.',
+  },
+  {
     version: '0.2.41',
     date: '2026-11-02',
     title: 'Long careers stay quick',
