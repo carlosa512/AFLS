@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.45',
+    version: '0.2.46',
     date: '2026-11-02',
     title: 'Routes',
     text:
@@ -22,7 +22,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'fits his catch, with a stem, a hard plant and a break, and everyone else runs his part and settles where it ' +
       'ends. Wide receivers line up on the numbers. Man coverage is a step late out of a break, and receivers are as ' +
       'open at the catch as the NFL’s are. On a screen to the back the line sells the pass, then leads the way, ' +
-      'and a throwaway sails out of bounds downfield.',
+      'and a throwaway sails out of bounds downfield. Under pressure the quarterback steps up or slides before the ' +
+      'rusher gets there and throws as he arrives.',
+  },
+  {
+    version: '0.2.45',
+    date: '2026-11-02',
+    title: 'Hold-ins and holdouts',
+    text:
+      'A player who is unhappy with his contract, and stays unhappy after talks go badly, can now dig in. Most hold in: ' +
+      'they report but sit out practice, and miss the work. A proud veteran starter may hold out instead: he goes on ' +
+      'the Did Not Report list, is fined for missing camp, loses a game check for every week he stays away, and comes ' +
+      'back rusty. Your head coach writes when one starts and asks how to answer: open talks, promise a new deal, hold ' +
+      'firm or shop him. Other clubs think it over as camp goes on, the way NFL teams do: most holdouts end by the ' +
+      'last week of camp, and a few run into the season until a deal is done. The Roster, the Locker Room and the ' +
+      'player card show who is holding out or in.',
   },
   {
     version: '0.2.44',

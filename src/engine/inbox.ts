@@ -1,6 +1,7 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { talkMail, talkNeedsYou } from './talkMail';
+import { disputeMail, disputeNeedsYou } from './disputeMail';
 import { promiseMail, promisesNeedYou } from './promiseMail';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
@@ -757,6 +758,8 @@ export type MailSubject =
   | { kind: 'expiring'; season: number }
   // A player of yours speaking up (talkMail.ts): it needs you while his ask is open.
   | { kind: 'talk'; season: number; clock: number; playerId?: number }
+  // A player of yours holding in or out (disputeMail.ts): the start letter needs you while it waits on your answer.
+  | { kind: 'dispute'; season: number; since: number; playerId: number; end?: true }
   // The head coach's season's-end reminder of open promises (promiseMail.ts).
   | { kind: 'promises'; season: number };
 
@@ -883,6 +886,10 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'lockerReport', season, checkin: a as 'camp' | 'cutdown' | 'deadline' | 'end' };
     case 'talk':
       return { kind: 'talk', season, clock: Number(a), ...(b === undefined ? {} : { playerId: Number(b) }) };
+    case 'dispute':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b) };
+    case 'dispute-end':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b), end: true };
     case 'promises':
       return { kind: 'promises', season };
     case 'waivers':
@@ -941,6 +948,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return contractLetterNeedsYou(league, m.sections);
     case 'talk':
       return talkNeedsYou(league, m);
+    case 'dispute':
+      return disputeNeedsYou(league, s);
     case 'promises':
       return promisesNeedYou(league, m);
     case 'contract':
@@ -2886,6 +2895,7 @@ export function deliverMail(league: League): void {
       ...lockerMail(league, have),
       ...lockerReportMail(league, have),
       ...talkMail(league, have),
+      ...disputeMail(league, have),
       ...promiseMail(league, have),
     );
     if (league.phase === 'resign')

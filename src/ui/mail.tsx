@@ -121,8 +121,9 @@ import type {
   Staff,
   Team,
   TalkReply,
+  DisputeChoice,
 } from '../engine/types';
-import { stanceOf, tradeWindow } from '../engine/trade';
+import { setTradeStatus, stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { Dialog, PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
@@ -149,6 +150,7 @@ import {
 import { store } from './store';
 import { answerTalk } from '../engine/playerTalks';
 import { talkCard } from '../engine/talkMail';
+import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
 import { wireClaim } from '../engine/waiverMail';
 
@@ -180,6 +182,9 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return s.playerId === undefined ? null : (
         <TalkCards league={league} s={{ clock: s.clock, playerId: s.playerId }} />
       );
+    case 'dispute':
+      // The start letter carries your answer; the end letter is the coach's word alone.
+      return s.end ? null : <DisputeCards league={league} s={{ since: s.since, playerId: s.playerId }} />;
     case 'retirement':
       return <RetirementCards league={league} s={s} />;
     case 'combine':
@@ -649,6 +654,72 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
         {card.cause === 'deal' && league.players[s.playerId] && (
           <TalkContractButton league={league} player={league.players[s.playerId]} />
         )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * A dispute letter's button: your answer, and shopping him puts him on your block as the trade screen's Shop him does
+ * (here, not in `answerDispute`: the disputes module loads before the trade market).
+ */
+export function answerDisputeLetter(league: League, playerId: number, choice: DisputeChoice): void {
+  if (answerDispute(league, playerId, choice) && choice === 'shop') setTradeStatus(league, playerId, 'listed');
+}
+
+/** A hold-in or holdout's letter (G4): your four answers while it's open, what you said once you've answered. */
+function DisputeCards({ league, s }: { league: League; s: { since: number; playerId: number } }) {
+  const card = disputeCard(league, s);
+  const p = league.players[s.playerId];
+  const answer = (choice: DisputeChoice) => store.mutate((l) => answerDisputeLetter(l, s.playerId, choice));
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">This is no longer yours to answer.</span>
+      </Card>
+    );
+  if (card.state === 'answered')
+    return (
+      <Card>
+        <p style={{ margin: 0 }}>{card.said}</p>
+        {card.lost && (
+          <p className="muted" style={{ margin: 0 }}>
+            {card.lost}
+          </p>
+        )}
+        {/* You chose to talk: his contract talks open from here, when his deal is open to them. */}
+        {card.choice === 'negotiate' && p && (
+          <div className="row" style={{ gap: 8, marginTop: 6 }}>
+            <TalkContractButton league={league} player={p} />
+          </div>
+        )}
+      </Card>
+    );
+  return (
+    <Card title="Your answer">
+      {card.lost && (
+        <p className="muted small" style={{ marginTop: 0 }}>
+          {card.lost}
+        </p>
+      )}
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={() => answer('negotiate')}>
+          Negotiate
+        </button>
+        <button
+          className="btn btn-sm"
+          disabled={!card.trust}
+          title={card.trust ? 'A new deal by week 1 (two weeks on in season)' : undefined}
+          onClick={() => answer('promise')}
+        >
+          {card.trust ? 'Promise a deal' : 'He won’t take your word'}
+        </button>
+        <button className="btn btn-sm" onClick={() => answer('firm')}>
+          Hold firm
+        </button>
+        <button className="btn btn-sm" onClick={() => answer('shop')}>
+          Shop him
+        </button>
       </div>
     </Card>
   );

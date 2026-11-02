@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(78);
+    expect(SAVE_VERSION).toBe(79);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -219,7 +219,7 @@ describe('save v78', () => {
     l.version = 77;
     const before = JSON.stringify(l.games);
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(78);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(up.games)).toBe(before);
   });
 });
