@@ -23,6 +23,7 @@ import {
 } from './ai';
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
+import { demand } from './negotiation';
 
 /** A league at its re-sign window, after one season. */
 const window = (() => {
@@ -262,14 +263,17 @@ describe('GMs plan next year first', () => {
 
 describe('a GM makes the room he plans, or none', () => {
   /** `squeezed`'s keeper the only deal running out, next year set `room` (a share of his market) under the ceiling. */
-  const alone = (room: number) => {
+  const alone = (room: number, multiYear = false) => {
     const x = squeezed(0, 1);
     const { l, team, p } = x;
+    // A keeper who wants more than one year, so his new deal is on next year's books (`preferredYears` reads his age).
+    if (multiYear) p.age = Math.min(p.age, 29 + ageShift(p.position));
     for (const e of expiringPlayers(l, team.id)) if (e !== p) e.teamId = null;
     const cap = capFor(l, l.season + 1);
     const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * cap;
     const used = capSheet(l, team.id, l.season + 1).used;
-    const market = marketApy(leagueMarket(l), p);
+    // His own price, not the market's: his ask leans on his mood and his ties, so the market can sit well off it.
+    const market = demand(l, p, team.id).askApy;
     team.deadMoney.push({
       season: l.season + 1,
       amount: Math.round(ceiling - used - nextYearNeeds(l, team) - room * market),
@@ -302,7 +306,7 @@ describe('a GM makes the room he plans, or none', () => {
     // Next year has half his price of room after its needs: making room now would push his new deal past the ceiling.
     // The club's tag is spent, so it's his new deal or nothing (making room for a tag doesn't count next year's price
     // for him yet: a follow-up in docs/MVP.md).
-    const { l, team, p } = alone(0.5);
+    const { l, team, p } = alone(0.5, true);
     team.taggedId = teamPlayers(l, team.id).find((x) => x !== p)!.id;
     aiResignWindow(l, team, new Rng('room'));
     expect(restructures(l, team.id)).toBe(0);
