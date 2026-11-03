@@ -38,7 +38,7 @@ export const KNOBS = {
   outLine: 10.375,
   outGain: 2.125,
   /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
-  pad: 1.267,
+  pad: 1.617,
   /** Yards an outside run's read gives a heading toward the play side in his first second: he stretches the edge. */
   stretch: 0.625,
   /** Tackle odds added on a return (its coverage's own, against the returner). */
@@ -51,7 +51,7 @@ export const KNOBS = {
    * first free man meets the back further past the line. */
   meet: 0.4,
   /** Seconds added to a catch's clock beyond `pad` (its film runs from the throw). */
-  padCatch: -1.2,
+  padCatch: 0.1,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */
