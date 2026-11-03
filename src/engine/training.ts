@@ -197,6 +197,11 @@ function playerProblem(league: League, p: Player, to: Position): string | null {
   if (last && league.season < last.season + COOLDOWN) return 'Changed position too recently.';
   if (p.age < c.ages[0]) return 'Too young for this move.';
   if (p.age > c.ages[1]) return to === 'CB' ? "Too old: he won't get the speed back." : 'Too old for this move.';
+  // His height doesn't move with him: past the range a draft class could bring there, he'd be a build the league
+  // never fields (a long run turned a 6'7" edge rusher into a linebacker, where real rosters stop at 6'5").
+  const [short, tall] = sizeLimits(to, 'arrival').h;
+  if (p.heightIn > tall) return `Too tall to play ${to}.`;
+  if (p.heightIn < short) return `Too short to play ${to}.`;
   return null;
 }
 

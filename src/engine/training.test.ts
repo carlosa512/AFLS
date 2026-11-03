@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sizeLimits } from './size';
 import { skill, useKnocks } from './attributes';
 import {
   CONVERSIONS,
@@ -13,7 +14,7 @@ import { capSpace, releasePlayer } from './finance/cap';
 import { manageInjuries } from './injuries';
 import { offseasonBlockers } from './offseason';
 import { inSeasonReserve, needSigning } from './offseason/ai';
-import { demand, freeAgents, offerValue } from './offseason/negotiation';
+import { contractFromOffer, demand, freeAgents, offerValue } from './offseason/negotiation';
 import { minSalary } from './finance/market';
 import { Rng } from './rng';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
@@ -84,6 +85,20 @@ describe('conversions', () => {
 });
 
 describe('starting a plan', () => {
+  it('never for a build past the real range at the new position', () => {
+    // A 6'7" edge rusher moved to linebacker, where real rosters stop at 6'5" and drafts at 6'6".
+    const l = fresh();
+    const p = moverAt(l, 'EDGE', 'LB');
+    const [, tallest] = sizeLimits('LB', 'arrival').h;
+    const [shortest] = sizeLimits('LB', 'arrival').h;
+    p.heightIn = tallest + 1;
+    expect(moveProblem(l, p, 'LB')).toBe('Too tall to play LB.');
+    p.heightIn = shortest - 1;
+    expect(moveProblem(l, p, 'LB')).toBe('Too short to play LB.');
+    p.heightIn = tallest;
+    expect(moveProblem(l, p, 'LB')).toBeNull();
+  });
+
   it('only in the offseason, for a pair the coaches teach, at an age that suits it', () => {
     const l = fresh();
     const p = moverAt(l, 'CB', 'S');
@@ -446,6 +461,15 @@ describe('the cap in season', () => {
       .slice(2)) {
       p.position = 'K';
       for (const k of Object.keys(p.ratings)) p.ratings[k as keyof typeof p.ratings] = 1;
+      // On a minimum deal, so cutting one to open a spot frees no real room: on his receiver's pay, a cut made the room
+      // the test means the club not to have.
+      p.contract = contractFromOffer(l, p, {
+        years: 1,
+        apy: minSalary(p.experience, l.caps[l.season]),
+        bonusPct: 0,
+        gtdPct: 0,
+        voidYears: 0,
+      });
     }
     team.depthChart = buildAutoDepthChart(teamPlayers(l, team.id));
     l.caps[l.season] -= capSpace(l, team.id) - room;

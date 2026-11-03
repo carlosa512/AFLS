@@ -100,10 +100,11 @@ function drawHeight(u: number, pos: Position, tier: SizeTier): { inch: number; w
 
 /**
  * How much further out a player who arrives after the league is built may be: draft classes, the Pathway, squad and
- * depth signings. One curve for everyone, so the long-run league stays on it; its thin tail past the real extremes
- * is where the rare build comes from.
+ * depth signings. One inch of height, where the rare build comes from (`ARRIVAL_SLICE`); no weight past the real
+ * extremes, since a weight curve's tails ran past them for 0.4-2.3% of arrivals at most positions, more players past
+ * the real range in a long run than the real rosters ever carried.
  */
-export const ARRIVAL_STEP = { h: 1, w: 10 };
+export const ARRIVAL_STEP = { h: 1, w: 0 };
 
 /** Founding players (`createLeague`) or everyone after them. */
 export type SizeTier = 'founding' | 'arrival';
