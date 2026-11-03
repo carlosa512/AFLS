@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
-import { YEAR } from '../morale';
+import { moraleAdvance, YEAR } from '../morale';
+import { askOffer, demand, negotiationFor, signPlayer } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
 import { activeRoster } from '../roster';
 import { unitOf } from '../standing';
@@ -98,6 +99,34 @@ describe('meetings: commitments', () => {
     expect(a.morale!.talk?.broken).toBeUndefined();
     expect(joltOf(b, 'broken')).toBe(-3);
     expect(b.morale!.talk!.broken).toBe(1);
+  });
+
+  it('talks: a new deal signed between steps keeps it (the talks closed with a signature, not left unopened)', () => {
+    const l = league();
+    const p = wrs(l)[0];
+    l.teams[TEAM].meetings!.open.push({
+      backing: 'talks',
+      scope: 'WR',
+      opened: l.moraleAt!,
+      closes: l.moraleAt! + WINDOW.talks,
+      named: [p.id],
+      boughtIn: [p.id],
+      by: 'coach',
+      lift: { [p.id]: 2 },
+      coachId: headCoachOf(l, TEAM)!.id,
+    });
+    p.morale!.apy = p.contract!.apy;
+    // Talks opened and closed in the same week: signed, so no open negotiation is left for a step to see.
+    negotiationFor(l, p, TEAM);
+    const ask = askOffer(demand(l, p, TEAM));
+    signPlayer(l, p, TEAM, { ...ask, apy: Math.max(ask.apy, p.contract!.apy + 500) });
+    expect(l.negotiations[p.id]).toBeUndefined();
+    moraleAdvance(l, l.moraleAt! + 1);
+    judgeCommitments(l);
+    expect(l.teams[TEAM].meetings!.open).toEqual([]);
+    expect(joltOf(p, 'broken')).toBeUndefined();
+    expect(p.morale!.talk?.broken).toBeUndefined();
+    expect(p.morale!.talk?.kept).toBe(1);
   });
 
   it('a hurt named man pushes the window back a week for each week out', () => {

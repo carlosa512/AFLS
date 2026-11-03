@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.7',
+    date: '2026-11-03',
+    title: 'Re-signing keeps a meeting promise',
+    text:
+      "When a team meeting promised talks with a player's agent and you then re-signed him, the game missed " +
+      'it and counted the promise as broken, so he stayed upset with you. Signing him now keeps the promise. Saves ' +
+      "from this season are put right when they load. The head coach's note about how the players take his word now " +
+      'says so plainly, and what it means for your next team meeting.',
+  },
+  {
     version: '0.3.6',
     date: '2026-11-03',
     title: 'Real heights',
