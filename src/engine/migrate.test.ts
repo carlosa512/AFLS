@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from './generate';
 import { deliverMail, mailSubject } from './inbox';
 import { migrateLeague } from './migrate';
-import { moraleAdvance, moraleContext, moraleFactors, moraleTarget } from './morale';
+import { WINDOW } from './meetings/commitments';
+import { moraleAdvance, moraleContext, moraleFactors, moraleTarget, YEAR } from './morale';
+import { activeRoster } from './roster';
 import { nameCaptains } from './personality';
 import { playWeek } from './league';
 import { defenseCallAt } from './playActors';
@@ -15,7 +17,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(83);
+    expect(SAVE_VERSION).toBe(84);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -245,5 +247,58 @@ describe('save v82: meetings', () => {
       expect(c.newVoice).toBeUndefined();
     }
     expect(JSON.parse(JSON.stringify(l))).toEqual(l);
+  });
+});
+
+describe('save v84: talks kept by a signing', () => {
+  /** Week 2's receivers meeting promised talks with one man's agent; the window closed on it as broken. */
+  function brokenTalks(signedWeek: number) {
+    const l = createLeague({ seed: 'v84' });
+    l.phase = 'regular';
+    l.week = 9;
+    const opened = l.season * YEAR + 8 + 1;
+    const closes = opened + WINDOW.talks;
+    l.moraleAt = closes + 3;
+    const team = l.teams[l.userTeamId];
+    const [wr, other] = activeRoster(l, team.id).filter((p) => p.position === 'WR');
+    wr.contract!.signedSeason = l.season;
+    wr.contract!.signedWeek = signedWeek;
+    wr.morale = { level: -1, jolts: [{ kind: 'broken', size: -1.5, at: closes }], talk: { club: team.id, broken: 1 } };
+    other.morale = { level: 0, jolts: [{ kind: 'broken', size: -1.5, at: closes }] };
+    team.meetings = {
+      log: [
+        {
+          clock: opened,
+          scope: 'WR',
+          kind: 'trouble',
+          approach: 'standard',
+          backing: 'talks',
+          timing: 'monday',
+          outcomes: { lands: [wr.id, other.id], bristles: [] },
+        },
+      ],
+      open: [],
+      settled: [{ clock: opened, scope: 'WR', backing: 'talks', kept: false, named: [wr.id] }],
+    };
+    l.version = 83;
+    const up = migrateLeague(l)!;
+    return { up, wr: up.players[wr.id], other: up.players[other.id], team: up.teams[team.id] };
+  }
+
+  it('re-signed inside the window: kept, his record says so, and the room loses the dip', () => {
+    const { up, wr, other, team } = brokenTalks(2);
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(team.meetings!.settled![0].kept).toBe(true);
+    expect(wr.morale!.talk!.broken).toBeUndefined();
+    expect(wr.morale!.talk!.kept).toBe(1);
+    expect(wr.morale!.jolts).toBeUndefined();
+    expect(other.morale!.jolts).toBeUndefined();
+  });
+
+  it('signed only after the window closed: it stays broken', () => {
+    const { wr, team } = brokenTalks(8);
+    expect(team.meetings!.settled![0].kept).toBe(false);
+    expect(wr.morale!.talk!.broken).toBe(1);
+    expect(wr.morale!.jolts?.[0].kind).toBe('broken');
   });
 });

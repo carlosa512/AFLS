@@ -40,6 +40,7 @@ import type { Injury, League, StatLine, TradeMarket } from './types';
 import { POSITIONS } from './types';
 import { initialPersonnelState, PERSONNEL_RULES } from './personnel/rules';
 import { ensureService } from './personnel/service';
+import { repairSignedTalks } from './meetings/commitments';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -333,6 +334,12 @@ export function migrateLeague(league: League): League | null {
   // v83: what the meetings' letters remember (`TeamMeetings.settled`, `TeamMeetings.lastYear`): optional, and empty to
   // start. Nothing to rewrite.
   if (league.version < 83) league.version = 83;
+  // v84: a talks commitment (L2) is kept by a raise signed inside its window, not only by talks still open at a step.
+  // This year's broken ones whose man had signed are put right: his record with the club, and the room's dip.
+  if (league.version < 84) {
+    repairSignedTalks(league);
+    league.version = 84;
+  }
   return league;
 }
 
