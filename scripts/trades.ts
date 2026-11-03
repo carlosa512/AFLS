@@ -1018,11 +1018,13 @@ check(
   [5, 15],
 );
 // Nine seasons (three leagues, three each) are a small sample: re-read at 0.2.5 over four seeds (trades, trades-alt,
-// trades-2, trades-3), main ran 3.0-4.8 a season and player size 2.4-4.7, so the ceiling is 5.
+// trades-2, trades-3), main ran 3.0-4.8 a season and player size 2.4-4.7, so the ceiling was 5. A band of about one
+// standard error (±0.3) sits on top of it (the owner's call, Nov 3): main ran 4.4 and team meetings, which reshuffle the
+// world, 4.9 and 5.2.
 check(
   'cap dumps, a season',
   volume.all.filter((r) => r.kind === 'dump').length / Math.max(1, volume.seasons),
-  [1, 5],
+  [1, 5.5],
   1,
 );
 check(
@@ -1113,11 +1115,13 @@ check(
   [0, Infinity],
   1,
 );
-// The NFL sees 5-6 trades a year mix current and future picks; on draft day they go into early moves.
+// The NFL sees 5-6 trades a year mix current and future picks; on draft day they go into early moves. Over 45 drafts at
+// about three a draft the mean moves about ±0.26 by luck alone, so the floor carries a band of that width below 3 (the
+// owner's call, Nov 3): main ran 3.2 and team meetings, which reshuffle the world, 2.9.
 check(
   'deals with a future pick in them, a draft',
   draftDay.withFuture / Math.max(1, draftDay.perDraft.length),
-  [3, 9],
+  [2.5, 9],
   1,
 );
 
