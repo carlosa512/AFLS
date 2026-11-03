@@ -468,10 +468,8 @@ function roleAt(rank: number, pos: Position): number {
  * Overall points over which a depth-chart battle is a coin flip. Two players a fraction of a point
  * apart share the job in proportion, so a misread of a few tenths moves a player's value a little,
  * never across a cliff: shopping him to 31 teams can't find one that thinks he's a starter by a hair.
- * At 0.75, a room packed at its starter line let a +0.53 misread take a backup from a 0.57 role to a
- * full starter's and double his price.
  */
-const RANK_SPREAD = 1;
+const RANK_SPREAD = 0.75;
 
 /**
  * What a room of players at one position is worth to its team: each player's play and the market's
