@@ -127,7 +127,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       outspoken man, at once when he's refused and outspoken; then a rumor). Public, his club holds out for 15% less and
       buyers open 10-25% under their price; an AI club shopping him puts him on its block, a stubborn one refuses him.
       Refused and still Very poor at the next camp with a deal in reach, it hardens into a hold-in; it's withdrawn after
-      four calmer steps or when his snaps come. Your letter offers shop, refuse, and the promise his cause allows. Specs:
+      four calmer steps or when his snaps come. Your letter offers shop, refuse, and the promise his cause allows. Team meetings (0.3.4, L2 engine): head coaches hold them at the calendar's moments and when a room turns, players take
+      them well or bristle, commitments are kept or broken, and each head coach's credibility with his room rises and
+      wears thin (a small push on the hot seat); your coach's letters and screens follow. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,

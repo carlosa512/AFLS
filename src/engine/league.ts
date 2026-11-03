@@ -1,3 +1,5 @@
+import { credibilityWeek } from './meetings/credibility';
+import { meetingsStep } from './meetings';
 import { moraleWeek } from './morale';
 import { mentoringWeek } from './mentoring';
 import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
@@ -182,7 +184,12 @@ function playWeekControlled(league: League): Game[] {
     developWeek(league, gamesInWeek(league));
   }
   // Moods move after the week's games and moves (morale draws nothing, so it can't shift what follows).
-  if (league.phase === 'regular' || league.phase === 'playoffs') moraleWeek(league);
+  if (league.phase === 'regular' || league.phase === 'playoffs') {
+    moraleWeek(league);
+    // Then each head coach's word with his room (L2): the drift, and a streak's push; then the week's meetings.
+    credibilityWeek(league);
+    meetingsStep(league);
+  }
   league.week++;
   leadershipWeek(league);
   // The league moves the games worth watching into prime time, on the NFL's notice.

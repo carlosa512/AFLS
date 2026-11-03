@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.4',
+    date: '2026-11-03',
+    title: 'Team meetings around the league',
+    text:
+      'Head coaches around the league now hold team meetings: at camp, deadline week, the playoff push and the ' +
+      'season’s end, and when a room turns on itself. Each player takes it his own way, some promises behind them are ' +
+      'kept and some broken, and every head coach carries a word with his room that rises and wears thin; a coach who ' +
+      'has lost his room and keeps losing is a little closer to the door. Your own coach’s meetings, and his letters ' +
+      'about them, come in the next update.',
+  },
+  {
     version: '0.3.3',
     date: '2026-11-03',
     title: 'Runs that read like film',
