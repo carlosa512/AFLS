@@ -3,6 +3,7 @@
  * together, as one edge in rating points that the lineup adds to every man it sends out from that room. Centred on the
  * league each week, so however happy or settled the league runs, its totals hold. Nothing stored, nothing drawn.
  */
+import { moodPull } from './moodScale';
 import { moraleClock, moraleContext, moraleMean } from './morale';
 import { clamp } from './rng';
 import { starters } from './roster';
@@ -13,6 +14,8 @@ export type ChemRoom = Exclude<Unit, 'ST'>;
 export type ChemWord = 'Clicking' | 'Gelling' | 'Still learning each other' | 'Out of sync';
 
 export const CHEM_ROOMS: readonly ChemRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
+/** Every room's edge held at zero (`SimOptions.chemistry`, `buildLineup`): for tests that read something else. */
+export const NO_CHEM: Readonly<Record<ChemRoom, number>> = { QB: 0, RB: 0, WR: 0, OL: 0, DL: 0, LB: 0, DB: 0 };
 
 export const CHEM = {
   /** A room at its best or worst, in rating points: subtle (the owner's call), against a man's own mood's 0.5. */
@@ -86,8 +89,11 @@ function timeOf(league: League, team: Team, unit: ChemRoom): { years: number; ne
 
 /** The mood part: the room's level against the league's, less a divided room's cost, inside its reach. */
 export function moodPart(level: number, mean: number, split: boolean): number {
-  const part = CHEM.mood * clamp((level - mean) / CHEM.roomSpan, -1, 1) - (split ? CHEM.split : 0);
-  return clamp(part, -CHEM.mood, CHEM.mood);
+  // Read through the one scale every mood effect reads (`moodScale.ts`): a test that holds the effects at zero holds this
+  // too. `moodPull` spans six levels either side; a room's span is narrower, so it's widened back out here.
+  const pull = moodPull(level, mean) * (6 / CHEM.roomSpan);
+  const divided = split ? CHEM.split * Math.abs(moodPull(6, 0)) : 0;
+  return clamp(CHEM.mood * clamp(pull, -1, 1) - divided, -CHEM.mood, CHEM.mood);
 }
 
 export function wordOf(edge: number, together: number | null): ChemWord {
