@@ -108,7 +108,8 @@ describe('chemistry: game day', () => {
   const replay = (l: League, chemistry: NonNullable<SimOptions['chemistry']>, n = 40) =>
     Array.from({ length: n }, (_, i) => simulateGame(l, l.games[0], { seed: `c:${i}`, days: [0, 0], chemistry }));
 
-  it('a room forced to each end moves its own stats the right way', () => {
+  // Three tests, not one: each plays hundreds of games, and one long test can starve the test worker.
+  it('a line forced to each end allows fewer sacks and gains more a carry at its best', () => {
     const l = fresh();
     const lineUp = replay(l, [{ OL: 0.3 }, {}], 200);
     const lineDown = replay(l, [{ OL: -0.3 }, {}], 200);
@@ -117,8 +118,16 @@ describe('chemistry: game day', () => {
     const ypc = (rs: GameResult[]) => avg(rs.map((r) => r.home.rushYds / Math.max(1, r.home.rushAtt)));
     expect(sackRate(lineUp)).toBeLessThan(sackRate(lineDown));
     expect(ypc(lineUp)).toBeGreaterThan(ypc(lineDown));
+  }, 240_000);
+
+  it('a secondary at its best allows fewer yards a pass', () => {
+    const l = fresh();
     const ypa = (rs: GameResult[]) => avg(rs.map((r) => r.home.passYds / Math.max(1, r.home.passAtt)));
     expect(ypa(replay(l, [{}, { DB: 0.3 }]))).toBeLessThan(ypa(replay(l, [{}, { DB: -0.3 }])));
+  }, 240_000);
+
+  it('a passing game at its best completes more', () => {
+    const l = fresh();
     const cmp = (rs: GameResult[]) => avg(rs.map((r) => r.home.passCmp / Math.max(1, r.home.passAtt)));
     expect(cmp(replay(l, [{ QB: 0.3, WR: 0.3 }, {}], 200))).toBeGreaterThan(
       cmp(replay(l, [{ QB: -0.3, WR: -0.3 }, {}], 200)),
