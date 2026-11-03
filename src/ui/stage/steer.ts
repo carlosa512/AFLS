@@ -888,12 +888,14 @@ export function steer(a: SteerArgs): Float32Array {
         if (!offense[k] && k !== pk) {
           // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach. A blitzer comes
           // through the gaps the line's men leave: only the back picking him up, or a man assigned to him, holds him.
+          // A man the run's blocking leaves free has nobody sent to him: a lineman on his way to someone else doesn't
+          // stop him (held, then let go, he'd turn round and stand in the hole). Only a man sent to him holds him.
           const sent = !!a.blitz?.has(m.id);
           const holding =
             (a.dropback || a.run) &&
             blockerIdx.some(
               (b) =>
-                (!sent || members[b].role === 'RB' || blockOn.get(b) === k) &&
+                (blockOn.get(b) === k || (!lateMen.has(k) && (!sent || members[b].role === 'RB'))) &&
                 Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6,
             );
           // Once a blocker has a man who can't get off blocks, he stays blocked; a gap-shooter beats the first hands.
