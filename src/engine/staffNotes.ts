@@ -179,9 +179,11 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
                 : `From the staff: working on ${name(habit!.playerId)}`,
       body:
         own.length && !unitNote && !call && !habit
-          ? own.length > 1
-            ? 'Two things from me this week.'
-            : 'One thing from me this week.'
+          ? own.length === 1
+            ? 'One thing from me this week.'
+            : own.length === 2
+              ? 'Two things from me this week.'
+              : 'A few things from me this week.'
           : say(
               OPENER,
               { calls: call ? 1 : 0, habits: habit ? 1 : 0, units: unitNote ? 1 : 0 },

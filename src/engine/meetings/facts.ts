@@ -1,3 +1,4 @@
+import { temperamentOf } from '../traits';
 import { chairHolder, teamCoaches } from '../coaching';
 import { traitOf } from '../coachTraits';
 import { yearsLeft } from '../finance/contract';
@@ -211,6 +212,6 @@ export function reasonFor(
   if (dugIn(p)) return 'dugIn';
   if (g.has('deal') && r.backing !== 'talks') return 'money';
   if (sameAgain) return 'again';
-  if (r.approach === 'straight' && p.traits.temperament <= 7) return 'tone';
+  if (r.approach === 'straight' && temperamentOf(p) <= 7) return 'tone';
   return 'notHis';
 }

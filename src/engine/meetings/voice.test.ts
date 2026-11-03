@@ -18,6 +18,7 @@ import {
   WENT,
   yearParagraph,
 } from './voice';
+import { leadAndWhy } from './mail';
 
 const man = (last: string, o: Partial<ManFact> = {}): ManFact => ({
   id: 1,
@@ -124,7 +125,7 @@ describe('meetings: the coach’s words', () => {
           backing,
           noun: 'the D-line',
           named: [man('Mitchell'), man('Eze')].slice(0, backing === 'feud' ? 2 : 1),
-          window: 'four weeks',
+          window: 'within four weeks',
         },
         at,
       );
@@ -165,5 +166,32 @@ describe('meetings: the coach’s words', () => {
       expect(
         say(CAPTAIN_OPEN, { approach: 'ownIt', backing: 'jobs', went, record: 'losing' }, at).length,
       ).toBeGreaterThan(0);
+  });
+});
+
+describe('meetings: the review’s fixes', () => {
+  it('a plural room takes a plural verb, in every line and the subject', () => {
+    const f = fact({ scope: 'WR', noun: 'the receivers' });
+    expect(say(READ_LEAD, f, at)).toMatch(/the receivers are hearing about it/);
+    expect(say(READ_ROOM, f, at)).not.toMatch(/receivers is/);
+    expect(
+      say(
+        READ_LEAD,
+        fact({ scope: 'LB', noun: 'the linebackers', driver: undefined, dealMen: [], topic: 'none', word: 'Down' }),
+        at,
+      ),
+    ).toBe('The linebackers are down.');
+    expect(
+      say(NEXT, { backing: 'talks', noun: 'the receivers', named: [man('Mitchell')], window: 'within four weeks' }, at),
+    ).toMatch(/The receivers expect us/);
+  });
+
+  it('"He\'s…" follows only a lead that named him', () => {
+    const losing = fact({ scope: 'team', noun: 'the team', topic: 'losing', losingRun: true });
+    const [lead, why] = leadAndWhy(losing, at);
+    expect(lead).not.toMatch(/Mitchell/);
+    expect(why).toBe('');
+    const [, named] = leadAndWhy(fact(), at);
+    expect(named).toMatch(/^He's /);
   });
 });

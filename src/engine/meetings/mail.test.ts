@@ -8,6 +8,7 @@ import { simToEndOfSeason } from '../league';
 import type { League } from '../types';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
+import { meetingCard, meetingNeedsYou } from './mail';
 
 const base = (() => {
   const l = createLeague({ seed: 'meeting-mail' });
@@ -148,5 +149,34 @@ describe('meetings: the letters', () => {
     const report = ids(l, `locker:${l.season - 1}:end`).at(-1);
     expect(team.meetings?.lastYear?.held).toBeGreaterThan(0);
     expect(report?.body ?? '').toMatch(/We got the guys together/);
+  });
+});
+
+describe('meetings: one letter per suggestion', () => {
+  it('after you pass on his suggestion, you cannot ask for another the same week', () => {
+    const l = fresh();
+    const m = l.teams[l.userTeamId].meetings ?? (l.teams[l.userTeamId].meetings = { log: [], open: [] });
+    m.lastOffer = stepClock(l);
+    expect(requestMeeting(l, 'team')).toBeNull();
+  });
+
+  it('your address never takes over the coach’s letter for the same week and scope', () => {
+    const l = fresh();
+    const s = requestMeeting(l, 'team')!;
+    deliverMail(l);
+    answerMeeting(l, 'skip');
+    // A crisis opens the address the same week.
+    const m = l.teams[l.userTeamId].meetings!;
+    m.pending = {
+      ...s,
+      kind: 'gm',
+      approaches: ['ownIt', 'raiseBar'],
+      backings: ['jobs', 'words'],
+      timings: ['monday'],
+    };
+    expect(meetingCard(l, { clock: s.clock, scope: 'team' }).state).toBe('passed');
+    expect(meetingNeedsYou(l, { clock: s.clock, scope: 'team' })).toBe(false);
+    answerMeeting(l, { approach: 'ownIt', backing: 'words', timing: 'monday' });
+    expect(meetingCard(l, { clock: s.clock, scope: 'team' }).state).toBe('passed');
   });
 });

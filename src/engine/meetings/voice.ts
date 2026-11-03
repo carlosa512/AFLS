@@ -3,6 +3,9 @@ import type { Line } from '../voice';
 import type { ManFact, Reason, Record3, Style, SuggestFact } from './facts';
 import type { CredibilityRead } from './credibility';
 
+/** A room's verb: "the receivers are", "the D-line is" (the plural nouns end in s). */
+export const verb = (noun: string, one: string, many: string): string => (noun.endsWith('s') ? many : one);
+
 /**
  * The head coach's words about meetings (L2, spec §5; the writing rules are L1's §6.2): a judgment with the fact behind
  * it, the man before the room, count like a coach, no digits, and nothing the engine doesn't do. A meeting buys time;
@@ -27,23 +30,25 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
   {
     when: (f) => !!f.driver && f.topic === 'deal',
     reads: 2,
-    text: (f) => `${f.driver!.first} ${f.driver!.last} is unhappy about his deal, and ${f.noun} is hearing about it.`,
+    text: (f) =>
+      `${f.driver!.first} ${f.driver!.last} is unhappy about his deal, and ${f.noun} ${verb(f.noun, 'is', 'are')} hearing about it.`,
   },
   {
     when: (f) => !!f.driver && f.topic === 'snaps',
     reads: 2,
-    text: (f) => `${f.driver!.first} ${f.driver!.last} wants more snaps, and he's making sure ${f.noun} knows it.`,
+    text: (f) =>
+      `${f.driver!.first} ${f.driver!.last} wants more snaps, and he's making sure ${f.noun} ${verb(f.noun, 'knows', 'know')} it.`,
   },
   {
     when: (f) => !!f.feud,
     reads: 2,
     text: (f) =>
-      `${f.feud![0].first} ${f.feud![0].last} and ${f.feud![1].first} ${f.feud![1].last} aren't getting on, and ${f.noun} is picking sides.`,
+      `${f.feud![0].first} ${f.feud![0].last} and ${f.feud![1].first} ${f.feud![1].last} aren't getting on, and ${f.noun} ${verb(f.noun, 'is', 'are')} picking sides.`,
   },
   {
     when: (f) => f.scope === 'team' && f.losingRun,
     reads: 2,
-    text: () => `We've lost three in a row, and you can feel it in the building.`,
+    text: () => `We keep losing, and you can feel it in the building.`,
   },
   {
     when: (f) => f.topic === 'losing',
@@ -53,7 +58,8 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
   {
     when: (f) => f.topic === 'deal' && f.dealMen.length >= 2,
     reads: 1,
-    text: (f) => `${cap(list(f.dealMen))} want new deals, and ${f.noun} is talking about little else.`,
+    text: (f) =>
+      `${cap(list(f.dealMen))} want new deals, and ${f.noun} ${verb(f.noun, 'is', 'are')} talking about little else.`,
   },
   {
     when: (f) => f.topic === 'deal' && f.dealMen.length === 1,
@@ -68,7 +74,7 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
   {
     when: (f) => f.word === 'Down',
     reads: 1,
-    text: (f) => `${cap(f.noun)} is down.`,
+    text: (f) => `${cap(f.noun)} ${verb(f.noun, 'is', 'are')} down.`,
   },
   {
     when: (f) => !!f.asked && f.topic === 'none' && !f.word,
@@ -76,7 +82,12 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
     text: () => `Nothing's boiling over in there right now.`,
   },
   // After "You asked about the secondary", the noun again would echo.
-  { text: (f) => (f.asked ? `They've got something on their minds.` : `${cap(f.noun)} has something on its mind.`) },
+  {
+    text: (f) =>
+      f.asked
+        ? `They've got something on their minds.`
+        : `${cap(f.noun)} ${verb(f.noun, 'has something on its mind', 'have something on their minds')}.`,
+  },
 ];
 
 /** Why the man driving it matters: his years, his job, his deal. */
@@ -105,17 +116,19 @@ export const READ_ROOM: readonly Line<SuggestFact>[] = [
     when: (f) => f.word === 'Split' && !!f.driver && f.topic === 'deal' && !!f.driver.finalYear,
     reads: 4,
     text: (f) =>
-      `Half ${f.noun} is in a good place. ${f.driver!.last} and the guys around him aren't, and with his deal running out it won't sort itself out.`,
+      `Half ${f.noun} ${verb(f.noun, 'is', 'are')} in a good place. ${f.driver!.last} and the guys around him aren't, and with his deal running out it won't sort itself out.`,
   },
   {
     when: (f) => f.word === 'Split' && !!f.driver,
     reads: 3,
-    text: (f) => `Half ${f.noun} is in a good place. ${f.driver!.last} and the guys around him aren't.`,
+    text: (f) =>
+      `Half ${f.noun} ${verb(f.noun, 'is', 'are')} in a good place. ${f.driver!.last} and the guys around him aren't.`,
   },
   {
     when: (f) => f.word === 'Split',
     reads: 2,
-    text: (f) => `Half ${f.noun} is fine and half isn't, and they know it.`,
+    text: (f) =>
+      `Half ${f.noun} ${verb(f.noun, "is fine and half isn't", "are fine and half aren't")}, and they know it.`,
   },
   {
     when: (f) => f.word === 'Down',
@@ -416,25 +429,25 @@ export const NEXT: readonly Line<NextFact>[] = [
     when: (f) => f.backing === 'talks' && f.named.length === 1,
     reads: 2,
     text: (f) =>
-      `It buys us a few weeks, not more. ${cap(f.noun)} expects us to open talks with ${f.named[0].last}'s agent within ${f.window}. If we don't, he'll take it worse than if I'd said nothing.`,
+      `It buys us a few weeks, not more. ${cap(f.noun)} ${verb(f.noun, 'expects', 'expect')} us to open talks with ${f.named[0].last}'s agent ${f.window}. If we don't, he'll take it worse than if I'd said nothing.`,
   },
   {
     when: (f) => f.backing === 'talks',
     reads: 1,
     text: (f) =>
-      `It buys us a few weeks, not more. ${cap(f.noun)} expects talks with ${list(f.named)}'s agents within ${f.window}. If they don't happen, it'll go worse than if I'd said nothing.`,
+      `It buys us a few weeks, not more. ${cap(f.noun)} ${verb(f.noun, 'expects', 'expect')} talks with ${list(f.named)}'s agents ${f.window}. If they don't happen, it'll go worse than if I'd said nothing.`,
   },
   {
     when: (f) => f.backing === 'snaps' && f.named.length === 1,
     reads: 2,
     text: (f) =>
-      `${f.named[0].last} expects more snaps within ${f.window}. That's on the depth chart now, and the room will be watching.`,
+      `${f.named[0].last} expects more snaps ${f.window}. That's on the depth chart now, and the room will be watching.`,
   },
   {
     when: (f) => f.backing === 'feud' && f.named.length === 2,
     reads: 2,
     text: (f) =>
-      `They expect one of ${both(f.named[0], f.named[1])} to be gone within ${f.window}. If they're both still here, the room will notice.`,
+      `They expect one of ${both(f.named[0], f.named[1])} to be gone ${f.window}. If they're both still here, the room will notice.`,
   },
   {
     when: (f) => f.backing === 'move',
@@ -444,7 +457,7 @@ export const NEXT: readonly Line<NextFact>[] = [
   {
     when: (f) => f.backing === 'jobs',
     reads: 1,
-    text: (f) => `They expect the depth chart to move within ${f.window}. If it doesn't, the next speech won't land.`,
+    text: (f) => `They expect the depth chart to move ${f.window}. If it doesn't, the next speech won't land.`,
   },
   { text: () => `It buys us a little time. It doesn't change what's bothering them.` },
 ];

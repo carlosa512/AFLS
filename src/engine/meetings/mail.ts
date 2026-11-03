@@ -19,7 +19,7 @@ import type {
 import { recentBodies, say } from '../voice';
 import { credibilityRead, type CredibilityRead } from './credibility';
 import { deadlineClock } from './commitments';
-import { manFact, reasonFor, SCOPE_NOUN, styleOf, suggestFact, type ManFact } from './facts';
+import { manFact, reasonFor, SCOPE_NOUN, styleOf, suggestFact, type ManFact, type SuggestFact } from './facts';
 
 import { gmAddressOpen } from './address';
 import { COOLDOWN, headCoachOf, meetingsOf, membersOf, offCooldown, ROOMS, stepClock } from './suggest';
@@ -44,6 +44,7 @@ import {
   SNN_RUMOR,
   TIMING_LABEL,
   TOLD,
+  verb,
   WENT,
   yearParagraph,
   type YearFact,
@@ -89,17 +90,12 @@ function suggestionLetter(league: League, have: Set<string>): Draft[] {
   if (have.has(id)) return [];
   const f = suggestFact(league, teamId, s);
   const key = { key: id, recent: recentBodies(league, headCoach(league).from) };
+  const [lead, why] = leadAndWhy(f, key);
   const paragraphs =
     s.kind === 'moment' && s.moment
       ? [MOMENT_LEAD[s.moment], say(ASK, f, { ...key, slot: 'ask' })]
       : [
-          [
-            s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '',
-            say(READ_LEAD, f, { ...key, slot: 'lead' }),
-            say(READ_WHY, f, { ...key, slot: 'why' }),
-          ]
-            .filter(Boolean)
-            .join(' '),
+          [s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '', lead, why].filter(Boolean).join(' '),
           say(READ_ROOM, f, { ...key, slot: 'room' }),
           say(ASK, f, { ...key, slot: 'ask' }),
         ];
@@ -112,20 +108,25 @@ function suggestionLetter(league: League, have: Set<string>): Draft[] {
         ? SUBJECT_MOMENT[s.moment]
         : s.asked
           ? `About ${SCOPE_NOUN[s.scope]}`
-          : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : 'wants'} a word`,
+          : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : verb(SCOPE_NOUN[s.scope], 'wants', 'want')} a word`,
       body: paragraphs.filter(Boolean).join('\n\n'),
       actions: [{ kind: 'locker' }],
     },
   ];
 }
 
+/** The letter's opening and, only right after a lead that named him, why the man driving it matters ("He's…"). */
+export function leadAndWhy(f: SuggestFact, key: { key: string; recent?: readonly string[] }): [string, string] {
+  const lead = say(READ_LEAD, f, { ...key, slot: 'lead' });
+  return [lead, f.driver && lead.includes(f.driver.last) ? say(READ_WHY, f, { ...key, slot: 'why' }) : ''];
+}
+
 const WEEKS = ['', 'a week', 'two weeks', 'three weeks', 'four weeks', 'five weeks', 'six weeks'];
 
-/** The window in words: "four weeks", "the deadline". */
+/** The window in words, with its preposition: "within four weeks", "by the deadline". */
 function windowWords(opened: number, closes: number): string {
-  if (closes === deadlineClock(Math.floor(opened / YEAR))) return 'the deadline';
-  const n = closes - opened;
-  return WEEKS[n] ?? 'a few weeks';
+  if (closes === deadlineClock(Math.floor(opened / YEAR))) return 'by the deadline';
+  return `within ${WEEKS[closes - opened] ?? 'a few weeks'}`;
 }
 
 const men = (league: League, ids: number[]): ManFact[] =>
@@ -195,7 +196,7 @@ function resultLetter(league: League, r: MeetingRecord): Draft {
   const rest = restLine(Math.max(0, shrugs), noun);
   const next = say(
     NEXT,
-    { backing: r.backing, noun, named, window: c ? windowWords(c.opened, c.closes) : 'a few weeks' },
+    { backing: r.backing, noun, named, window: c ? windowWords(c.opened, c.closes) : 'within a few weeks' },
     { ...key, slot: 'next' },
   );
   const rows: MailSection['rows'] =
@@ -203,7 +204,7 @@ function resultLetter(league: League, r: MeetingRecord): Draft {
       ? named.map((n) => ({
           playerId: n.id,
           cells: [`${n.first} ${n.last}`],
-          note: `Talks with his agent: ${windowWords(c!.opened, c!.closes)}.`,
+          note: `Talks with his agent, ${windowWords(c!.opened, c!.closes)}.`,
           negotiate: { playerId: n.id },
         }))
       : [];
@@ -297,15 +298,18 @@ export function meetingCard(league: League, s: { clock: number; scope: MeetingSc
   const teamId = league.userTeamId;
   const m = league.teams[teamId]?.meetings;
   if (!m || !employed(league)) return { state: 'passed' };
-  const held = m.log.find((r) => r.clock === s.clock && r.scope === s.scope);
-  const p = m.pending;
+  // The coach's letter: never your own address, which can share its week and scope.
+  const held = m.log.find((r) => r.clock === s.clock && r.scope === s.scope && r.kind !== 'gm');
+  const p = m.pending?.kind === 'gm' ? undefined : m.pending;
   const sugg = held ? pendingFrom(league, held) : p && p.clock === s.clock && p.scope === s.scope ? p : null;
   const f = sugg ? suggestFact(league, teamId, sugg) : null;
   if (held && f) {
-    const parts = [approachLabel(held.approach, f), backingLabel(held.backing, f).toLowerCase()];
+    // The labels as you picked them (a name or a day keeps its capital).
+    const parts = [approachLabel(held.approach, f), backingLabel(held.backing, f)];
+    if (held.kind === 'trouble') parts.push(TIMING_LABEL[held.timing]);
     return {
       state: 'held',
-      said: `You went ahead: ${parts[0].toLowerCase()}, ${parts[1]}${held.kind === 'trouble' ? `, ${TIMING_LABEL[held.timing].toLowerCase()}` : ''}.`,
+      said: `You went ahead: ${parts.join(' · ')}`,
     };
   }
   if (!p || p.clock !== s.clock || p.scope !== s.scope || !f) return { state: 'passed' };
@@ -352,7 +356,7 @@ function pendingFrom(league: League, r: MeetingRecord): MeetingSuggestion {
 /** A suggestion letter still asks while its suggestion is the one waiting. */
 export function meetingNeedsYou(league: League, s: { clock: number; scope: MeetingScope }): boolean {
   const p = league.teams[league.userTeamId]?.meetings?.pending;
-  return !!p && p.clock === s.clock && p.scope === s.scope;
+  return !!p && p.kind !== 'gm' && p.clock === s.clock && p.scope === s.scope;
 }
 
 // ───────── the Locker Room screen ─────────
@@ -393,7 +397,9 @@ export function meetingsView(league: League): MeetingsView | null {
       ? 'Answer what the coach suggested first.'
       : metThisWeek
         ? "We've already had a meeting this week."
-        : undefined;
+        : m?.lastOffer !== undefined && clock - m.lastOffer < COOLDOWN.week
+          ? 'The coach brought you one this week already.'
+          : undefined;
   const rooms = ([...ROOMS, 'team'] as MeetingScope[]).map((scope): RoomMeetingView => {
     const why = blocked
       ? undefined
@@ -572,7 +578,7 @@ export function snnRumor(league: League, told: Set<string>): { key: string; text
           nickname: team.name,
           coach: `${hc.firstName} ${hc.lastName}`,
           winless: !!r && r.w === 0 && r.t === 0,
-          run: RUN[n] ?? 'many',
+          run: RUN[n] ?? 'more than ten',
         },
         { key, slot: 'rumor' },
       ),

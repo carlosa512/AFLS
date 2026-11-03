@@ -50,7 +50,7 @@ describe('meetings on screen', () => {
     const s = requestMeeting(l, 'DL')!;
     answerMeeting(l, { approach: 'straight', backing: 'words', timing: 'monday' });
     const html = renderToStaticMarkup(<MeetingChoices league={l} s={s} />);
-    expect(html).toMatch(/You went ahead: say it straight/);
+    expect(html).toMatch(/You went ahead: Say it straight · Nothing, just words · Monday, in film/);
     expect(html).not.toContain('Go ahead</button>');
   });
 

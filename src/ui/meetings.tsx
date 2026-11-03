@@ -18,7 +18,12 @@ export function MeetingChoices({ league, s }: { league: League; s: { clock: numb
   if (card.state === 'passed') return <p className="muted small">This one has passed.</p>;
   const timings = card.timings ?? [];
   const when = timings.length ? timing : card.timing;
-  const ready = !!approach && !!backing && !!when;
+  // A pick still on offer (the choices can change under a letter left open).
+  const offered = <T,>(v: T | undefined, xs?: { value: T }[]) => v !== undefined && !!xs?.some((x) => x.value === v);
+  const ready =
+    offered(approach, card.approaches) &&
+    offered(backing, card.backings) &&
+    (timings.length ? offered(timing, timings) : !!when);
   return (
     <div className="meeting-choices">
       <Pick label={card.questions!.approach} options={card.approaches!} value={approach} onPick={setApproach} />

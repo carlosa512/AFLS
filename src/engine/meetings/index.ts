@@ -110,6 +110,8 @@ export function requestMeeting(league: League, scope: MeetingScope): MeetingSugg
   const clock = stepClock(league);
   if (m.pending || !headCoachOf(league, teamId) || !offCooldown(league, teamId, scope)) return null;
   if (m.log.some((r) => clock - r.clock < COOLDOWN.week)) return null;
+  // He already brought you one this week (you said not now): one suggestion a week, and one letter for it.
+  if (m.lastOffer !== undefined && clock - m.lastOffer < COOLDOWN.week) return null;
   const ctx = moraleContext(league);
   const men = membersOf(league, teamId, scope);
   const topic = topicOf(league, men, ctx);
