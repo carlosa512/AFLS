@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.3.7',
+    version: '0.3.8',
     date: '2026-11-03',
     title: 'Re-signing keeps a meeting promise',
     text:
@@ -21,6 +21,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'it and counted the promise as broken, so he stayed upset with you. Signing him now keeps the promise. Saves ' +
       "from this season are put right when they load. The head coach's note about how the players take his word now " +
       'says so plainly, and what it means for your next team meeting.',
+  },
+  {
+    version: '0.3.7',
+    date: '2026-11-03',
+    title: 'Faster checks behind the scenes',
+    text:
+      'Nothing changes in the game. The checks every change runs through before it reaches you now finish sooner, ' +
+      'so fixes and new features can land without waiting on them.',
   },
   {
     version: '0.3.6',
