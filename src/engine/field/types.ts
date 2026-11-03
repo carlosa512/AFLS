@@ -59,6 +59,8 @@ export interface FieldPlayer {
 /** Everything the open field starts from: positions and motion at the moment of possession. */
 export interface FieldStart {
   kind: FieldKind;
+  /** A return's kick: a kickoff's coverage runs in lanes and its return team blocks them by lane. */
+  kick?: 'kickoff' | 'punt';
   /** Seconds from the snap. */
   t0: number;
   /** The carrier's direction: 1 toward x = 100. */

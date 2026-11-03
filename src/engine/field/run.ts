@@ -58,6 +58,14 @@ const STRETCH_T = 1;
 const GATHER = 0.2;
 /** Room for a move: no other defender this close (yards). */
 const ROOM = 2;
+/**
+ * Kickoff coverage runs in its lanes: each man keeps his slot across the field relative to the ball, squeezing in as he
+ * closes (all of it from `LANE_FAR` yards downfield of him, down to `LANE_FLOOR` of it), and breaks down on the ball
+ * once he's within `LANE_BREAK` yards of his depth. The outside man each side is the contain: he squeezes last.
+ */
+const LANE_FAR = 30;
+const LANE_FLOOR = 0.4;
+const LANE_BREAK = 8;
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -77,7 +85,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const offX = new Float64Array(n);
   const offY = new Float64Array(n);
   const regroupAt = new Float64Array(n);
+  const assigned = new Int16Array(n).fill(-1);
   const engage = (b: number, d: number, hold: number) => {
+    // A lane blocker's assignment is done once he's on a man: after that he picks like anyone else.
+    assigned[b] = -1;
     partner[b] = d;
     partner[d] = b;
     holdUntil[d] = hold;
@@ -96,6 +107,19 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (b === undefined || d === undefined || b === ci || defense[b] || !defense[d]) continue;
     if (partner[b] >= 0 || partner[d] >= 0) continue;
     engage(b, d, blk.holdFor);
+  }
+
+  // A kickoff: the coverage's lanes, and each return blocker's man, the cover man across from him (`laneMatch`).
+  const kickoff = start.kind === 'return' && start.kick === 'kickoff';
+  const lane = new Float64Array(n);
+  const contain = new Uint8Array(n);
+  if (kickoff) {
+    const cover = P.flatMap((p, i) => (defense[i] && p.role === 'ST' ? [i] : [])).sort((a, b) => B[a].y - B[b].y);
+    const mid = cover.reduce((sum, i) => sum + B[i].y, 0) / Math.max(1, cover.length);
+    for (const i of cover) lane[i] = B[i].y - mid;
+    if (cover.length) contain[cover[0]] = contain[cover[cover.length - 1]] = 1;
+    const blockers = P.flatMap((_, i) => (!defense[i] && i !== ci ? [i] : [])).sort((a, b) => B[a].y - B[b].y);
+    laneMatch(blockers, cover, (i) => B[i].y).forEach((d, k) => (assigned[blockers[k]] = d));
   }
 
   const noContest = new Float64Array(n);
@@ -264,6 +288,13 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           else if (d < 0) sliding = true;
         }
       }
+      // His slide has stopped him (short of the spot, everyone near him has had his try): he's down, the man on him with
+      // the tackle if there is one.
+      if (phase === 'live' && sliding && Math.hypot(c.vx, c.vy) < 0.2) {
+        tackler = nearestFree(ANCHOR_REACH, now);
+        spotX = c.x;
+        end(now, COAST.tackle);
+      }
       if (phase === 'live' && now >= MAX_FIELD) {
         // Never meant to happen (the tests hold it): the nearest defender has him.
         tackler = nearestDefender();
@@ -368,6 +399,16 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const vx = back > 0 ? (seen.x - before.x) / (back * STEP) : B[ci].vx;
     const vy = back > 0 ? (seen.y - before.y) / (back * STEP) : B[ci].vy;
     const role = P[i].role;
+    // A kickoff's cover man in his lane, still downfield of the ball by more than the break: down the field at full speed
+    // to the ball's depth, at his slot across from it. Inside the break he's on the ball like anyone.
+    const ahead = (d.x - B[ci].x) * dir;
+    if (kickoff && role === 'ST' && ahead > LANE_BREAK) {
+      const c = B[ci];
+      const squeeze = Math.min(1, Math.max(LANE_FLOOR, (ahead - LANE_BREAK) / (LANE_FAR - LANE_BREAK)));
+      const y = Math.max(1, Math.min(FIELD_W - 1, c.y + lane[i] * (contain[i] ? Math.sqrt(squeeze) : squeeze)));
+      const u = Math.hypot(c.x - d.x, y - d.y) || 1;
+      return stepBody(d, { vx: ((c.x - d.x) / u) * d.top, vy: ((y - d.y) / u) * d.top }, STEP);
+    }
     const behind = (B[ci].x - d.x) * dir > 10;
     // Playing to today's spot (call H): a free man of the second level downfield of him meets him there, where his path
     // crosses it.
@@ -401,6 +442,9 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
 
   function pickTarget(i: number, t: number): number {
     if (partner[i] >= 0 || t < regroupAt[i]) return -1;
+    // A kickoff's blocker goes for the man in his lane while that man is still free.
+    const a = assigned[i];
+    if (a >= 0 && partner[a] < 0 && t >= B[a].downUntil) return a;
     if (P[i].role === 'OL' && t < CLIMB && !hasHabit(P[i], 'secondLevel')) return -1;
     const c = B[ci];
     const sp = Math.hypot(c.vx, c.vy);
@@ -438,9 +482,14 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         engage(i, j, start.kind === 'return' ? t + KNOBS.retHold : t);
         return stepBody(b, { vx: 0, vy: 0 }, STEP);
       }
-      const g = dist(B[j], c) || 1;
-      const ax = B[j].x + ((c.x - B[j].x) / g) * ENGAGE;
-      const ay = B[j].y + ((c.y - B[j].y) / g) * ENGAGE;
+      // A kickoff's blocker takes an angle on his man (where he'll be by the time he gets there): a cover man squeezing
+      // to the ball at full speed runs away from one who goes at where he is.
+      const lead = kickoff ? Math.min(1, dist(b, B[j]) / Math.max(1, b.top + Math.hypot(B[j].vx, B[j].vy))) : 0;
+      const jx = B[j].x + B[j].vx * lead;
+      const jy = B[j].y + B[j].vy * lead;
+      const g = dist({ x: jx, y: jy }, c) || 1;
+      const ax = jx + ((c.x - jx) / g) * ENGAGE;
+      const ay = jy + ((c.y - jy) / g) * ENGAGE;
       const u = dist({ x: ax, y: ay }, b) || 1;
       return stepBody(b, { vx: ((ax - b.x) / u) * b.top, vy: ((ay - b.y) / u) * b.top }, STEP);
     }
@@ -520,4 +569,32 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     move = r.program;
     if (move) moveUntil = now + move.dur;
   }
+}
+
+/**
+ * Each blocker's man on a kickoff: blockers and cover men both in order across the field, paired in that order so no two
+ * blocks cross, leaving out whichever cover men pair worst (fewer blockers than cover men). Indexes into `cover`'s men.
+ */
+export function laneMatch(
+  blockers: readonly number[],
+  cover: readonly number[],
+  y: (i: number) => number = () => 0,
+): number[] {
+  const nb = blockers.length;
+  const nc = cover.length;
+  if (!nb || !nc) return [];
+  if (nb >= nc) return blockers.map((_, k) => (k < nc ? cover[k] : -1));
+  // cost[k][j]: the best pairing of the first k blockers into the first j cover men.
+  const cost: number[][] = Array.from({ length: nb + 1 }, () => new Array<number>(nc + 1).fill(Infinity));
+  for (let j = 0; j <= nc; j++) cost[0][j] = 0;
+  for (let k = 1; k <= nb; k++)
+    for (let j = k; j <= nc; j++)
+      cost[k][j] = Math.min(cost[k][j - 1], cost[k - 1][j - 1] + Math.abs(y(blockers[k - 1]) - y(cover[j - 1])));
+  const out = new Array<number>(nb);
+  for (let k = nb, j = nc; k > 0; j--)
+    if (cost[k][j] !== cost[k][j - 1]) {
+      out[k - 1] = cover[j - 1];
+      k--;
+    }
+  return out;
 }

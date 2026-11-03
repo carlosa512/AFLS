@@ -196,6 +196,7 @@ export function fieldStart(
         late.push({ id: p.id, until: KNOBS.meet * z });
   return {
     kind: m.kind,
+    ...(m.kick ? { kick: m.kick } : {}),
     t0: a.t0,
     dir: a.dir,
     yardLine: a.yardLine,

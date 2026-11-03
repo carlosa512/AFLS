@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Rng } from '../rng';
 import { man, randomStart, startOf, pinKnobs } from './fixtures';
 import { MID } from './geometry';
-import { runField } from './run';
+import { laneMatch, runField } from './run';
 import { aimAt } from './chase';
 import { bodyOf } from './body';
 import { KNOBS, MAX_FIELD, STEP } from './tuning';
@@ -250,5 +250,74 @@ describe('the open field', () => {
       if (r.tackler === 31) front++;
     }
     expect(front).toBeGreaterThanOrEqual(48);
+  });
+
+  describe('a kickoff return (the NFL from 2024: coverage at the 40, the setup zone at the 30 to the 35)', () => {
+    // The returner catches at the 5 and is credited to the 28. Ten cover men in five lanes a side at the 40, just off
+    // the line now the ball is down; seven blockers across the 30 and two at the 34; the kicker behind them.
+    const LANES = [4, 9, 14, 19, 23];
+    const kickoffStart = (): FieldStart => {
+      const players = [man(1, 0, 'RET', 5, MID)];
+      [-18, -12, -6, 0, 6, 12, 18].forEach((y, k) => players.push(man(10 + k, 0, 'ST', 30, MID + y)));
+      [-8, 8].forEach((y, k) => players.push(man(17 + k, 0, 'ST', 34, MID + y)));
+      LANES.flatMap((y) => [-y, y]).forEach((y, k) => players.push(man(30 + k, 1, 'ST', 40, MID + y, { vx: -3 })));
+      players.push(man(40, 1, 'K', 47, MID));
+      return startOf({ players, kind: 'return', kick: 'kickoff', target: { x: 28, touchdown: false } });
+    };
+    const cover = (st: FieldStart) => st.players.flatMap((p, k) => (p.side === 1 && p.role === 'ST' ? [k] : []));
+    const blockers = (st: FieldStart) => st.players.flatMap((p, k) => (p.side === 0 && p.role === 'ST' ? [k] : []));
+
+    it('covers in lanes: no two cover men bunch while they are still well short of him', () => {
+      for (const seed of ['ko-1', 'ko-2', 'ko-3', 'ko-4']) {
+        const st = kickoffStart();
+        const r = runField(st, new Rng(seed));
+        // He's down at his spot well inside the field's limit (a slide that stops short of it ends the play too).
+        expect(r.duration, seed).toBeLessThan(MAX_FIELD - 1);
+        expect(r.yards, seed).toBeGreaterThan(21);
+        const steps = r.frames.length / (st.players.length * 2);
+        const cs = cover(st);
+        for (let s = 0; s < steps; s++) {
+          const c = at(st, r.frames, s, 0);
+          // Free men in their lanes: well short of him and not in a block (no blocker within 2 yards).
+          const bl = blockers(st).map((k) => at(st, r.frames, s, k));
+          const far = cs
+            .map((k) => at(st, r.frames, s, k))
+            .filter(
+              (p) => Math.hypot(p.x - c.x, p.y - c.y) > 10 && bl.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > 2),
+            );
+          for (let a = 0; a < far.length; a++)
+            for (let b = a + 1; b < far.length; b++)
+              expect(Math.hypot(far[a].x - far[b].x, far[a].y - far[b].y), `${seed} step ${s}`).toBeGreaterThan(1.5);
+        }
+        // A second into it, the coverage still spans most of the field's width.
+        const ys = cs.map((k) => at(st, r.frames, 20, k).y);
+        expect(Math.max(...ys) - Math.min(...ys), seed).toBeGreaterThan(30);
+      }
+    });
+
+    it('blocks by lane: each blocker meets the cover man across from him', () => {
+      for (const seed of ['ko-1', 'ko-2', 'ko-3', 'ko-4']) {
+        const st = kickoffStart();
+        const r = runField(st, new Rng(seed));
+        const steps = r.frames.length / (st.players.length * 2);
+        // The man across from each blocker: blockers and cover men in order across the field, one cover man left over.
+        const bs = blockers(st).sort((a, b) => st.players[a].y - st.players[b].y);
+        const cs = cover(st).sort((a, b) => st.players[a].y - st.players[b].y);
+        const best = laneMatch(bs, cs, (k) => st.players[k].y);
+        // In order: no two blocks cross.
+        for (let k = 1; k < best.length; k++) expect(st.players[best[k]].y).toBeGreaterThan(st.players[best[k - 1]].y);
+        let met = 0;
+        bs.forEach((b, k) => {
+          let closest = Infinity;
+          for (let s = 0; s < steps; s++) {
+            const p = at(st, r.frames, s, b);
+            const d = at(st, r.frames, s, best[k]);
+            closest = Math.min(closest, Math.hypot(p.x - d.x, p.y - d.y));
+          }
+          if (closest <= 1.1) met++;
+        });
+        expect(met, seed).toBeGreaterThanOrEqual(7);
+      }
+    });
   });
 });

@@ -164,7 +164,8 @@ describe("the owner's call H: today's yards, the field's way there", () => {
         if (!t.result || t.moment.kind === 'return' || e.kind === 'penalty' || e.loose !== undefined) continue;
         const dir = e.offense === homeId ? 1 : -1;
         const logged = e.to! >= 100 || e.to! <= 0 ? t.today.yards : (e.to! - e.from!) * dir;
-        expect(logged, `play ${t.moment.index}`).toBe(t.today.yards);
+        // `+ 0`: a no-gain play going right to left works out to -0.
+        expect(logged + 0, `play ${t.moment.index}`).toBe(t.today.yards);
         n++;
       }
     expect(n).toBeGreaterThan(60);
