@@ -35,8 +35,7 @@ const STEPS: Record<Knob, (v: number, scale: number) => number[]> = {
   retTackle: (v, k) => [v - 0.06 * k, v + 0.06 * k],
   retHold: (v, k) => [Math.max(0, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
   carrier: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
-  diveReach: (v, k) => [Math.max(1.5, v - 0.5 * k), v + 0.5 * k],
-  dive: (v, k) => [v - 0.08 * k, v + 0.08 * k],
+  meet: (v, k) => [Math.max(0, v - 0.2 * k), v + 0.2 * k],
 };
 
 function score(): number {

@@ -140,28 +140,6 @@ describe('the open field', () => {
     expect(engaged).toBeGreaterThanOrEqual(0);
   });
 
-  it('lets a man closing from behind dive at the carrier: first contact comes sooner', () => {
-    const firstContact = (diveReach: number) => {
-      const was = KNOBS.diveReach;
-      KNOBS.diveReach = diveReach;
-      let t = 0;
-      for (let i = 0; i < 60; i++) {
-        // A faster man three yards behind, closing slowly.
-        const players = [
-          man(1, 0, 'RB', 40, MID, { vx: 8.5 }),
-          man(30, 1, 'S', 37, MID + 0.5, { vx: 9, s: { speed: 18 } }),
-          man(31, 1, 'S', 95, 5),
-        ];
-        const r = runField(startOf({ players }), new Rng(`dive:${i}`));
-        const miss = r.misses.find((m) => m.by === 30);
-        t += miss ? miss.t : r.duration;
-      }
-      KNOBS.diveReach = was;
-      return t / 60;
-    };
-    expect(firstContact(2.5)).toBeLessThan(firstContact(1.5) - 0.1);
-  });
-
   it('cuts off a carrier angling for the sideline at it, not past it', () => {
     let caught = 0;
     for (let i = 0; i < 40; i++) {
@@ -193,5 +171,21 @@ describe('the open field', () => {
       });
       expect(aim.y).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('keeps a man who reacts late flat-footed until then, and the back goes further', () => {
+    const players = [man(1, 0, 'RB', 40, MID, { vx: 5 }), man(30, 1, 'LB', 47, MID + 1), man(31, 1, 'S', 60, MID - 3)];
+    let late = 0;
+    let onTime = 0;
+    for (let i = 0; i < 100; i++) {
+      const held = startOf({ players, late: [{ id: 30, until: 0.8 }] });
+      const r = runField(held, new Rng(`late:${i}`));
+      // He hasn't moved toward the back before 0.8 s.
+      const k = Math.round(0.7 / STEP);
+      expect(Math.hypot(r.frames[(k * 3 + 1) * 2] - 47, r.frames[(k * 3 + 1) * 2 + 1] - (MID + 1))).toBeLessThan(0.3);
+      late += r.yards;
+      onTime += runField(startOf({ players }), new Rng(`late:${i}`)).yards;
+    }
+    expect(late / 100).toBeGreaterThan(onTime / 100 + 0.5);
   });
 });

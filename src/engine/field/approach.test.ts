@@ -9,7 +9,7 @@ import { MID } from './geometry';
 import { momentOf, type FieldMoment } from './moment';
 import { fieldSkills } from './skills';
 import { SPEED } from './speed';
-import { STEP } from './tuning';
+import { KNOBS, STEP } from './tuning';
 
 const league = createLeague({ seed: 'approach' });
 const games = league.games.filter((g) => g.week === 1).slice(0, 6);
@@ -187,5 +187,26 @@ describe('the approach: the snap to possession, blind', () => {
     }
     expect(heldHigh).toBeGreaterThan(heldLow * 1.5);
     expect(lbHigh).toBeGreaterThan(lbLow);
+  });
+
+  it('holds the free second level a beat on a clean roll, and not on an average one', () => {
+    let held = 0;
+    for (const s of of('run').slice(0, 40)) {
+      const a = approach(s.m, s.record, s.homeId, 'seed')!;
+      const at = (z: number) =>
+        fieldStart(a, { ...s.m, facts: { ...s.m.facts, z } }, skillsOf, new Rng(`m:${s.index}`))!;
+      expect(at(0).late ?? []).toHaveLength(0);
+      expect(at(-1).late ?? []).toHaveLength(0);
+      const clean = at(2);
+      for (const l of clean.late ?? []) {
+        const p = clean.players.find((x) => x.id === l.id)!;
+        expect(p.side).toBe(1);
+        expect(['LB', 'CB', 'S']).toContain(p.role);
+        expect(l.until).toBeCloseTo(2 * KNOBS.meet, 6);
+        expect(clean.blocks.some((b) => b.defender === l.id)).toBe(false);
+      }
+      held += clean.late?.length ?? 0;
+    }
+    expect(held).toBeGreaterThan(40);
   });
 });

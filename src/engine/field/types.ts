@@ -77,6 +77,8 @@ export interface FieldStart {
   tired: boolean;
   /** An outside run's play side across the field (field y): he stretches the edge first. */
   stretch?: 1 | -1;
+  /** Free defenders who react late on a clean run (seconds from `t0`): the second level held by the hole. */
+  late?: { id: number; until: number }[];
 }
 
 /** What the open field decided. */

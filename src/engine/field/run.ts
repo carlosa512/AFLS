@@ -43,8 +43,6 @@ const REGROUP = 1;
 const SHIELD = 1.2;
 /** Steps a defender reads the carrier's velocity over. */
 const SMOOTH = 6;
-/** A man gaining on the carrier slower than this (yards a second) dives rather than run him down. */
-const DIVE_CLOSE = 1.5;
 /** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
 const STRETCH_T = 1;
 /** After a catch he gathers this long (seconds) before he reads the field. */
@@ -92,6 +90,12 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   }
 
   const noContest = new Float64Array(n);
+  // Men a clean hole holds a beat (`FieldStart.late`): flat-footed until then.
+  const lateUntil = new Float64Array(n);
+  for (const l of start.late ?? []) {
+    const i = index.get(l.id);
+    if (i !== undefined) lateUntil[i] = l.until;
+  }
   const q = new Float64Array(n).fill(1);
   const target = new Int16Array(n).fill(-1);
   const hist: { x: number; y: number }[] = [];
@@ -134,7 +138,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     for (let i = 0; i < n; i++) {
       if (!defense[i]) continue;
       const d = B[i];
-      let late = d.react;
+      let late = d.react + Math.max(0, lateUntil[i] - t);
       if (t < d.downUntil) late += d.downUntil - t;
       if (partner[i] >= 0) late += BLOCK_DELAY + Math.max(0, holdUntil[i] - t);
       else if (shielded(i)) late += BLOCK_DELAY;
@@ -270,6 +274,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   function moveDefender(i: number, t: number, s: number) {
     const d = B[i];
     if (t < d.downUntil) return stepBody(d, { vx: 0, vy: 0 }, STEP, FALL);
+    if (t < lateUntil[i]) return stepBody(d, { vx: 0, vy: 0 }, STEP);
     const b = partner[i];
     if (b >= 0) {
       const mult = (hasHabit(P[i], 'unblockable') ? 1.5 : 1) * (hasHabit(P[i], 'stuckOnBlocks') ? 0.5 : 1);
@@ -393,20 +398,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const g = dist(B[i], c);
       if (g <= REACH && g < dd) [d, dd] = [i, g];
     }
-    // Nobody in arm's reach: a man closing on him from a little further may dive.
-    let dive = false;
-    if (d < 0) {
-      for (let i = 0; i < n; i++) {
-        if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil || now < noContest[i]) continue;
-        const g = dist(B[i], c);
-        if (g > KNOBS.diveReach || g >= dd) continue;
-        const closing = ((c.x - B[i].x) * (B[i].vx - c.vx) + (c.y - B[i].y) * (B[i].vy - c.vy)) / (g || 1);
-        // Only a man who can't otherwise get there leaves his feet: gaining, but barely (a chase from behind).
-        if (closing > 0 && closing < DIVE_CLOSE) [d, dd] = [i, g];
-      }
-      if (d < 0) return;
-      dive = true;
-    }
+    if (d < 0) return;
     let help = 0;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= 1.5) help++;
@@ -416,7 +408,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let room = true;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= ROOM) room = false;
-    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room, dive);
+    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
     if (r.out === 'tackle') {
       tackler = d;
       phase = 'pile';

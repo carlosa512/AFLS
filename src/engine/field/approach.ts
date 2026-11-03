@@ -30,6 +30,8 @@ export interface Approach {
 const STILL_ON = 2;
 /** A man in front of a blocker and this close to him (yards) at possession is engaged with him. */
 const ENGAGED = 1.2;
+/** The second level a clean hole holds: free men this close to the back at possession (yards). */
+const LATE_REACH = 12;
 /** A lineman climbs to a linebacker this close (yards). */
 const CLIMB_REACH = 7;
 /** The spread of a line block's hold (seconds). */
@@ -180,6 +182,18 @@ export function fieldStart(
       taken.add(best.id).add(pd.id);
     }
   }
+  // On a clean roll the second level is a beat late to it: the first free man meets the back further past the line.
+  const late: { id: number; until: number }[] = [];
+  const carrier = at.get(a.carrier)!;
+  if (m.kind === 'run' && z > 0)
+    for (const p of players)
+      if (
+        p.side === 1 &&
+        (p.role === 'LB' || p.role === 'CB' || p.role === 'S') &&
+        !taken.has(p.id) &&
+        Math.hypot(p.x - carrier.x, p.y - carrier.y) <= LATE_REACH
+      )
+        late.push({ id: p.id, until: KNOBS.meet * z });
   return {
     kind: m.kind,
     t0: a.t0,
@@ -191,6 +205,7 @@ export function fieldStart(
     clock: { outOfBounds: !!m.facts.out, stayIn: !!m.facts.stay },
     edge: m.facts.edge ?? 0,
     tired: !!m.facts.tired,
+    ...(late.length ? { late } : {}),
     ...(m.kind === 'run' && staged.run?.call === 'outsideZone'
       ? { stretch: (staged.dir * staged.run.side) as 1 | -1 }
       : {}),
