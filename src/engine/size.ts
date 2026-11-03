@@ -75,9 +75,10 @@ export function heightShare(pos: Position, inch: number): number {
 
 /**
  * The arrival tier's inch past each real extreme, as a share of the end inch it sits beside: a sliver, so the rare
- * build turns up about once in several drafts and the long run's tails hold (`npm run size`).
+ * build turns up about once a decade at a position. At 0.2 a long run carried 3.6 linebackers a season past the real
+ * 6'5" (their top inch is a crowded one, so its sliver ran large), against the check's 1.5.
  */
-export const ARRIVAL_SLICE = 0.2;
+export const ARRIVAL_SLICE = 0.1;
 
 /** A tier's heights as `[inch, weight]` pairs, shortest first: the real shares, and for arrivals a sliver past each end. */
 function heightTable(pos: Position, tier: SizeTier): [number, number][] {
