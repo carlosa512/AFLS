@@ -66,6 +66,13 @@ export const HEIGHTS: Record<Position, [number, readonly number[]]> = {
   P: [70, [3, 13, 16, 30, 33, 17, 22, 27, 1]],
 };
 
+/** The share of real rosters' players at `pos` who stand `inch` tall (0 past the real range). */
+export function heightShare(pos: Position, inch: number): number {
+  const [lo, counts] = HEIGHTS[pos];
+  const n = counts[inch - lo] ?? 0;
+  return n / counts.reduce((a, b) => a + b, 0);
+}
+
 /**
  * The arrival tier's inch past each real extreme, as a share of the end inch it sits beside: a sliver, so the rare
  * build turns up about once in several drafts and the long run's tails hold (`npm run size`).

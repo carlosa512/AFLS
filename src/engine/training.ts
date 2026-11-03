@@ -31,7 +31,7 @@ import { KEEP_MIN } from './offseason/ai';
 import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
 import { OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
-import { rollGem, sizeLimits, sizeZ } from './size';
+import { heightShare, rollGem, SIZE, sizeLimits, sizeZ } from './size';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
@@ -186,6 +186,9 @@ function slotProblem(league: League, teamId: number, running: number): string | 
 }
 
 /** Everything but the team's free slots. */
+/** The least share of real rosters at a position who stand a mover's height: under it, his coaches won't move him there. */
+export const MOVE_SHARE = 0.01;
+
 function playerProblem(league: League, p: Player, to: Position): string | null {
   const c = conversionOf(p.position, to);
   if (!c) return `The coaches won't teach a ${p.position} to play ${to}.`;
@@ -197,11 +200,11 @@ function playerProblem(league: League, p: Player, to: Position): string | null {
   if (last && league.season < last.season + COOLDOWN) return 'Changed position too recently.';
   if (p.age < c.ages[0]) return 'Too young for this move.';
   if (p.age > c.ages[1]) return to === 'CB' ? "Too old: he won't get the speed back." : 'Too old for this move.';
-  // His height doesn't move with him: past the range a draft class could bring there, he'd be a build the league
-  // never fields (a long run turned a 6'7" edge rusher into a linebacker, where real rosters stop at 6'5").
-  const [short, tall] = sizeLimits(to, 'arrival').h;
-  if (p.heightIn > tall) return `Too tall to play ${to}.`;
-  if (p.heightIn < short) return `Too short to play ${to}.`;
+  // His height doesn't move with him: coaches move him only to a height real rosters carry there (`MOVE_SHARE`). A long
+  // run allowing any height a draft could bring turned safeties into 5'10" linebackers (0.35% of real ones) and a 6'7"
+  // edge rusher into a linebacker: the rare build comes through the draft, not a coach's move.
+  if (heightShare(to, p.heightIn) < MOVE_SHARE)
+    return p.heightIn > SIZE[to].h[0] ? `Too tall to play ${to}.` : `Too short to play ${to}.`;
   return null;
 }
 

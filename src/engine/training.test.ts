@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sizeLimits } from './size';
+import { HEIGHTS } from './size';
 import { skill, useKnocks } from './attributes';
 import {
   CONVERSIONS,
@@ -85,17 +85,19 @@ describe('conversions', () => {
 });
 
 describe('starting a plan', () => {
-  it('never for a build past the real range at the new position', () => {
-    // A 6'7" edge rusher moved to linebacker, where real rosters stop at 6'5" and drafts at 6'6".
+  it('never for a height real rosters barely carry at the new position', () => {
+    // A long run turned safeties into 5'10" linebackers (0.35% of real ones) and linebackers into 6'5" safeties
+    // (none): the rare build comes through the draft, not a coach's move.
     const l = fresh();
     const p = moverAt(l, 'EDGE', 'LB');
-    const [, tallest] = sizeLimits('LB', 'arrival').h;
-    const [shortest] = sizeLimits('LB', 'arrival').h;
-    p.heightIn = tallest + 1;
+    const [lo, counts] = HEIGHTS.LB;
+    p.heightIn = lo + counts.length;
     expect(moveProblem(l, p, 'LB')).toBe('Too tall to play LB.');
-    p.heightIn = shortest - 1;
+    p.heightIn = lo;
     expect(moveProblem(l, p, 'LB')).toBe('Too short to play LB.');
-    p.heightIn = tallest;
+    p.heightIn = lo + counts.length - 1;
+    expect(moveProblem(l, p, 'LB')).toBeNull();
+    p.heightIn = lo + counts.indexOf(Math.max(...counts));
     expect(moveProblem(l, p, 'LB')).toBeNull();
   });
 
