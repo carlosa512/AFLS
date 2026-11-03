@@ -51,6 +51,9 @@ export const stepClock = (league: League): number => league.moraleAt ?? league.s
 
 const seasonOf = (clock: number) => Math.floor(clock / YEAR);
 
+/** In a dispute, or his talks have soured toward one (`disputes.ts`): a meeting or its follow-through doesn't win him back. */
+export const dugIn = (p: Player) => !!(p.morale?.dispute || p.morale?.talk?.sour);
+
 /** The men a meeting speaks to: a room's, or the whole 53. */
 export function membersOf(league: League, teamId: number, scope: MeetingScope): Player[] {
   const men = activeRoster(league, teamId);

@@ -1063,14 +1063,15 @@ export function fillCampRoster(league: League, team: Team, rng: Rng): void {
   // A position a cap cut left short fills first, then the 53 fills with whoever's best.
   const short = (pos: Position) =>
     activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
+  // Each signing leaves room for a second-year minimum in every spot still open after it: the room was made at that
+  // price (the cut-down flow's `aiCapCompliance`), and a veteran's dearer minimum in the first spot left a cap-tight
+  // club one short at kickoff once a waiver claim took one of its men.
+  const cheapest = minSalary(1, league.caps[league.season]);
+  const open = () => ROSTER_MAX - activeRoster(league, team.id).length;
+  const budget = () => capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest;
   for (const pos of POSITIONS)
-    while (short(pos) && activeRoster(league, team.id).length < ROSTER_MAX)
-      if (!signMinimum(league, team, rng, pos, capSpace(league, team.id))) break;
-  while (
-    activeRoster(league, team.id).length < ROSTER_MAX &&
-    capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
-  )
-    if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
+    while (short(pos) && open() > 0) if (!signMinimum(league, team, rng, pos, budget())) break;
+  while (open() > 0 && budget() >= cheapest) if (!signMinimum(league, team, rng, undefined, budget())) break;
   syncDepthChart(league, team);
 }
 

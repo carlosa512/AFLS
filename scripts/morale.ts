@@ -202,10 +202,9 @@ function meetings(clock: number) {
       const year = Math.floor(clock / YEAR) - (clock % YEAR === 0 ? 1 : 0);
       const key = `${year}:${t.id}`;
       meetingsBy.set(key, (meetingsBy.get(key) ?? 0) + 1);
-      const outs = Object.values(r.outcomes);
       menMet += membersOf(league, t.id, r.scope).length;
-      menLand += outs.filter((o) => o === 'lands').length;
-      menBristle += outs.filter((o) => o === 'bristles').length;
+      menLand += r.outcomes.lands.length;
+      menBristle += r.outcomes.bristles.length;
     }
 }
 function credibilitySample() {

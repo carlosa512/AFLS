@@ -205,7 +205,7 @@ describe('meetings: cooldowns', () => {
       approach: 'straight',
       backing: 'words',
       timing: 'monday',
-      outcomes: {},
+      outcomes: { lands: [], bristles: [] },
     });
 
   it('a room met with three weeks ago waits; four weeks ago it gets one', () => {

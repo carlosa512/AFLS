@@ -16,6 +16,7 @@ import {
   type Player,
 } from '../types';
 import { CRED, shiftCredibility } from './credibility';
+import { dugIn } from './suggest';
 
 /**
  * What's put behind a meeting (L2, spec §2.1): a promise to the room with a window. Kept, the men who bought in get a
@@ -55,10 +56,7 @@ export function openCommitment(
       : backing === 'talks' && before
         ? Math.min(opened + window, deadline)
         : opened + window;
-  const boughtIn = Object.entries(record.outcomes)
-    .filter(([, o]) => o === 'lands')
-    .map(([id]) => Number(id))
-    .sort((a, b) => a - b);
+  const boughtIn = [...record.outcomes.lands].sort((a, b) => a - b);
   return {
     backing,
     scope: record.scope,
@@ -142,11 +140,15 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
     // Each man feels it as far as the meeting reached him: a full lift (a coach's Monday meeting) earns the whole of a
     // kept one, a man it barely touched a little.
     const lift = c.lift?.[id] ?? 0;
+    // A man who has dug in since (a dispute, talks gone sour) isn't won back by it; he still feels it broken.
+    if (kept && dugIn(p)) continue;
     addJolt(p, kept ? 'kept' : 'broken', kept ? KEPT_LIFT * Math.min(1, lift / FULL_LIFT) : -BROKEN_DIP * lift, clock);
   }
   // A feud's two are named, but the one who goes is the keeping of it, not a promise to him.
   if (c.backing !== 'feud')
-    for (const id of c.named) if (onClub(league, teamId, id)) remember(league.players[id], teamId, kept);
+    for (const id of c.named)
+      if (onClub(league, teamId, id) && !(kept && dugIn(league.players[id])))
+        remember(league.players[id], teamId, kept);
   if (c.by !== 'coach' || c.coachId === undefined) return;
   const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
   if (hc && hc.id === c.coachId && hc.teamId === teamId) shiftCredibility(hc, kept ? CRED.kept : CRED.broken);

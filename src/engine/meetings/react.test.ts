@@ -7,7 +7,7 @@ import { unitOf } from '../standing';
 import type { League, MeetingSuggestion, Player } from '../types';
 import { headCoachOf, suggestMeeting } from './suggest';
 import { CRED } from './credibility';
-import { holdMeeting, JOLT, joltSize, REACT, reactionScore, type MeetingChoice } from './react';
+import { holdMeeting, JOLT, joltSize, outcomeEntries, REACT, reactionScore, type MeetingChoice } from './react';
 
 const base = createLeague({ seed: 'meetings-react' });
 const TEAM = 0;
@@ -96,7 +96,7 @@ describe('meetings: a reaction score', () => {
       approach: 'straight',
       backing: 'words',
       timing: 'monday',
-      outcomes: {},
+      outcomes: { lands: [], bristles: [] },
     });
     expect(reactionScore(l, TEAM, p, sugg(l), straight, ctx)).toBeLessThan(first);
   });
@@ -133,7 +133,7 @@ describe('meetings: holding one', () => {
     expect(ra).toEqual(rb);
     expect(a.teams[TEAM].meetings!.pending).toBeUndefined();
     expect(a.teams[TEAM].meetings!.log.at(-1)).toEqual(ra);
-    const moved = Object.entries(ra.outcomes);
+    const moved = outcomeEntries(ra);
     expect(moved.length).toBeGreaterThan(0);
     for (const [id, o] of moved) {
       const j = a.players[Number(id)].morale!.jolts!.find((j) => j.kind === 'meeting')!;
@@ -151,7 +151,7 @@ describe('meetings: holding one', () => {
     expect(after / wed).toBeCloseTo(1.5 / 0.6, 6);
     const l = ready();
     const r = holdMeeting(l, TEAM, { ...straight, timing: 'afterGame' });
-    const [id, o] = Object.entries(r.outcomes)[0];
+    const [id, o] = outcomeEntries(r)[0];
     const j = l.players[Number(id)].morale!.jolts!.find((j) => j.kind === 'meeting')!;
     expect([3, 3 * JOLT.content]).toContain(Math.abs(j.size));
     expect(o === 'lands' ? j.size > 0 : j.size < 0).toBe(true);
@@ -163,7 +163,7 @@ describe('meetings: holding one', () => {
     hc.newVoice = 2;
     const before = hc.credibility ?? 0;
     const r = holdMeeting(l, TEAM, straight);
-    const outs = Object.values(r.outcomes);
+    const outs = outcomeEntries(r).map(([, o]) => o);
     const net =
       outs.filter((o) => o === 'lands').length * CRED.meetingLands +
       outs.filter((o) => o === 'bristles').length * CRED.meetingBristles;
@@ -192,8 +192,8 @@ describe('meetings: a man who has dug in', () => {
         lean: () => 0,
       },
     );
-    expect(r.outcomes[a.id]).toBeUndefined();
-    expect(r.outcomes[b.id]).toBeUndefined();
-    expect(Object.values(r.outcomes).filter((o) => o === 'lands').length).toBeGreaterThan(0);
+    expect(r.outcomes.lands).not.toContain(a.id);
+    expect(r.outcomes.lands).not.toContain(b.id);
+    expect(r.outcomes.lands.length).toBeGreaterThan(0);
   });
 });

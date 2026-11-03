@@ -12,7 +12,7 @@ export const CRED = {
   kept: 0.15,
   broken: -0.3,
   winStreak: 0.035,
-  loseStreak: -0.08,
+  loseStreak: -0.07,
   drift: 0.975,
 };
 

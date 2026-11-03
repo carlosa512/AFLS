@@ -123,7 +123,7 @@ describe('meetings: commitments', () => {
         approach: 'straight',
         backing: 'talks',
         timing: 'monday',
-        outcomes: {},
+        outcomes: { lands: [], bristles: [] },
       },
       {
         clock: opened,
@@ -172,5 +172,24 @@ describe('meetings: commitments', () => {
     const a = run();
     expect(a).toEqual(run());
     expect(a.filter((x) => x !== undefined).length).toBe(1);
+  });
+});
+
+describe('meetings: a dug-in man and a commitment', () => {
+  it('a kept commitment lifts no one who has dug in, and adds nothing to his record; a broken one still costs', () => {
+    const l = league();
+    const { backup, other } = snapsFor(l);
+    backup.morale = { level: 0, dispute: { kind: 'trade', cause: 'snaps', since: l.moraleAt! - 1, club: TEAM } };
+    const chart = l.teams[TEAM].depthChart[backup.position]!;
+    l.teams[TEAM].depthChart[backup.position] = [backup.id, ...chart.filter((id) => id !== backup.id)];
+    step(l);
+    expect(joltOf(backup, 'kept')).toBeUndefined();
+    expect(backup.morale!.talk?.kept).toBeUndefined();
+    expect(joltOf(other, 'kept')).toBe(1);
+    const l2 = league();
+    const s2 = snapsFor(l2);
+    s2.backup.morale = { level: 0, talk: { club: TEAM, sour: { cause: 'snaps', at: l2.moraleAt! - 1, run: 1 } } };
+    step(l2, WINDOW.snaps);
+    expect(joltOf(s2.backup, 'broken')).toBe(-3);
   });
 });

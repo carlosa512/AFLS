@@ -95,8 +95,7 @@ export function holdGmAddress(league: League, teamId: number, choice: MeetingCho
   if (m.pending?.kind !== 'gm') throw new Error('No address is waiting.');
   const record = holdMeeting(league, teamId, { ...choice, timing: 'monday' }, gmTerms(league, choice));
   m.gmAddressSeason = league.season;
-  const outs = Object.values(record.outcomes);
-  const flop = outs.filter((o) => o === 'bristles').length > outs.filter((o) => o === 'lands').length;
+  const flop = record.outcomes.bristles.length > record.outcomes.lands.length;
   const hc = headCoachOf(league, teamId);
   if (hc && flop && credibilityRead(hc) === 'wornThin') shiftCredibility(hc, CRED.meetingBristles);
   return record;

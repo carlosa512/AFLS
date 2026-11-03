@@ -468,8 +468,8 @@ export interface MeetingRecord {
   approach: Approach;
   backing: Backing;
   timing: Timing;
-  /** How each man took it; a shrug is left out (most of a room), so the log stays small. */
-  outcomes: Record<number, Outcome>;
+  /** Who took it well and who bristled, by player id; a shrug is left out (most of a room), so the log stays small. */
+  outcomes: { lands: number[]; bristles: number[] };
   /** The leader who said it, or the man called out. */
   speaker?: number;
   moment?: Moment;

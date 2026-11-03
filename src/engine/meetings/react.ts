@@ -26,7 +26,7 @@ import type {
 } from '../types';
 import { CRED, credibilityOf, shiftCredibility } from './credibility';
 import { openCommitment } from './commitments';
-import { grievancesOf, headCoachOf, meetingsOf, membersOf } from './suggest';
+import { dugIn, grievancesOf, headCoachOf, meetingsOf, membersOf } from './suggest';
 
 /**
  * How each man takes a meeting (L2, spec §1.3): a score from facts the game already has, a seeded draw for luck, then
@@ -35,7 +35,7 @@ import { grievancesOf, headCoachOf, meetingsOf, membersOf } from './suggest';
  */
 export const REACT = {
   fit: 0.15,
-  noGrievance: 0.2,
+  noGrievance: 0.25,
   miss: -0.1,
   money: -0.6,
   backingMatch: 0.8,
@@ -190,8 +190,11 @@ const underpaid = (league: League, p: Player, ctx: MoraleContext) =>
 /** The contract factor past which his mood board says he wants a new deal (`moraleReasons`). */
 const MONEY_AT = 0.75;
 
-/** In a dispute, or his talks have soured toward one (`disputes.ts`). */
-const dugIn = (p: Player) => !!(p.morale?.dispute || p.morale?.talk?.sour);
+/** A meeting's reactions as [player id, outcome] pairs (shrugs left out). */
+export const outcomeEntries = (r: MeetingRecord): [number, Outcome][] => [
+  ...r.outcomes.lands.map((id): [number, Outcome] => [id, 'lands']),
+  ...r.outcomes.bristles.map((id): [number, Outcome] => [id, 'bristles']),
+];
 
 const outcomeOf = (score: number): Outcome =>
   score >= REACT.lands ? 'lands' : score <= REACT.bristles ? 'bristles' : 'shrug';
@@ -241,7 +244,7 @@ export function holdMeeting(
   }
   const ripple = REACT.ripple * Math.max(-RIPPLE_CAP, Math.min(RIPPLE_CAP, net));
   const size = joltSize(s, choice);
-  const outcomes: Record<number, Outcome> = {};
+  const outcomes: MeetingRecord['outcomes'] = { lands: [], bristles: [] };
   const lift: Record<number, number> = {};
   let lands = 0;
   let bristles = 0;
@@ -251,7 +254,7 @@ export function holdMeeting(
     // buys time; it doesn't end a holdout or take back a trade request.
     const o = raw === 'lands' && dugIn(x.p) ? 'shrug' : raw;
     if (o === 'shrug') continue;
-    outcomes[x.p.id] = o;
+    outcomes[o].push(x.p.id);
     const his = x.content ? size * JOLT.content : size;
     addJolt(x.p, 'meeting', o === 'lands' ? his : -his, s.clock);
     if (o === 'lands') {

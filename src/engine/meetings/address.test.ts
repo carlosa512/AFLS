@@ -4,7 +4,7 @@ import { moraleContext, YEAR } from '../morale';
 import { activeRoster } from '../roster';
 import type { League, MeetingSuggestion } from '../types';
 import { addressSuggestion, gmAddressOpen, gmTerms, holdGmAddress } from './address';
-import { joltSize, reactionScore } from './react';
+import { joltSize, outcomeEntries, reactionScore } from './react';
 import { headCoachOf } from './suggest';
 
 const base = createLeague({ seed: 'meetings-address' });
@@ -98,7 +98,7 @@ describe('meetings: the GM address', () => {
     expect(r.kind).toBe('gm');
     expect(l.teams[TEAM].meetings!.gmAddressSeason).toBe(l.season);
     expect(gmAddressOpen(l, TEAM)).toBe(false);
-    for (const [id, o] of Object.entries(r.outcomes)) {
+    for (const [id, o] of outcomeEntries(r)) {
       const j = l.players[Number(id)].morale!.jolts!.find((j) => j.kind === 'meeting')!;
       expect(j.size).toBe(o === 'lands' ? 4 : -4);
     }
