@@ -301,7 +301,9 @@ describe('migration and collection', () => {
     // them; the passing game's shape and a team's day move the result. `result` again
     // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean. `players` again with numbers
     // of their own (0.2.42): a club numbers its players by their choices, on their own streams; the stream, games,
-    // charts and result still match, so numbers cost no draw.
+    // charts and result still match, so numbers cost no draw. `players` and `result` again with captains named when a
+    // league is made (0.3.5): three captains' seasons a club, and the C in the room moves moods and so play; the
+    // stream, games and charts still match, so naming them costs no draw.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -313,9 +315,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '45d56bd234b1ed83581c6258e8bd725e5784e03864b5e32746ca0f8750d66cb2',
+  players: '847be7683b53a660007ea26fb8c6d6b639e6a4c77ab2e4deeea7a743985f0fc5',
   rng: [2055926919, 1351328155, 1663703320, 1664089055],
   games: 'b5750e3006072f8ec3774d01e0d365791ba983fb2956f308a79e313658d7c909',
-  result: 'e52aa95b31d9c73f42bfeb2e26efe0289a13c5558ec037a270bcee2e0278daa1',
+  result: '5da743d8a89a8d2de846a3887297552264a01d94b46b3cdac8088ce6249bf65a',
   charts: 'ea1530379664eddf11b03072e7d7c56eaffeb8ab6ba77fcf5f46c52ca45bb0e0',
 };

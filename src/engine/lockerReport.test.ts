@@ -308,6 +308,8 @@ describe('the locker room report', () => {
     }
     // Nothing told about the rooms either, so no room is coming back from anything.
     for (const k of Object.keys(l.mailTold ?? {})) if (k.startsWith('unit:')) delete l.mailTold![k];
+    // No captains to announce: a new league names them as it's made.
+    delete l.teams[l.userTeamId].captains;
     at(l, 'regular', 1);
     deliverMail(l);
     const [m] = reports(l);

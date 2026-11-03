@@ -284,7 +284,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`address.ts`), each head coach's hidden credibility (`credibility.ts`, read in words; a worn-thin word adds up to a
     quarter to a losing coach's heat, `credibilityHeat` in `ownerBag.ts`) and AI clubs' choices (`ai.ts`).
     `meetingsStep` runs after every morale step; your club's suggestion waits in `Team.meetings.pending` unless the head
-    coach handles them (`setMeetingsByCoach`)
+    coach handles them (`setMeetingsByCoach`). The letters (`mail.ts`, from `deliverMail`): the suggestion with your three
+    calls (`meetingCard`, rendered by `ui/meetings.tsx`), the result and what we owe, a captain's word after your address,
+    due and candid rows in the staff notes, the year in the season's-end report, an SNN rumor for a worn-thin coach on a
+    losing run; the Locker Room reads `meetingsView`. Facts in `facts.ts`, the head coach's words in `voice.ts`
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

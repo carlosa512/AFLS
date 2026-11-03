@@ -46,7 +46,7 @@ import { setTeam } from '../roster';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-c' });
+  const league = createLeague({ seed: 'draft-trades-d' });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
