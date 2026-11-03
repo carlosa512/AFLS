@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { playWeek } from '../src/engine/league';
 import { runField } from '../src/engine/field/run';
+import { KNOBS } from '../src/engine/field/tuning';
 import type { FieldStart } from '../src/engine/field/types';
 import { Rng } from '../src/engine/rng';
 import { harvest, type Totals } from './field-moments';
@@ -120,6 +121,8 @@ function seasonWorker(n: number): SeasonDone {
 }
 
 const role = process.argv[2];
+// A trial's knobs without editing tuning.ts: `FIELD_KNOBS='{"shed":1}' npm run parity` (workers read it too).
+if (process.env.FIELD_KNOBS) Object.assign(KNOBS, JSON.parse(process.env.FIELD_KNOBS));
 if (role === 'moments' || role === 'season') {
   const n = Number(process.argv[3]);
   process.send!(role === 'moments' ? momentsWorker(n) : seasonWorker(n), () => process.exit(0));

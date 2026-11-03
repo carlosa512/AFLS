@@ -48,6 +48,8 @@ const ANCHOR = 1;
 /** Past his spot by this much with nobody on him, he goes down; a man this close takes him. */
 const PAST = 0.5;
 const ANCHOR_REACH = 3;
+/** At his spot, a man behind him counts this many yards further off: the tackle is the man who meets him. */
+const BEHIND = 2;
 /** A man credited short of the goal line goes down this far short of it (yards). */
 const GOAL_SHORT = 0.3;
 /** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
@@ -290,14 +292,20 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     return spot ? (spot.x - B[ci].x) * dir : Infinity;
   }
 
-  /** The nearest defender free to make a play within `reach` yards of him, or -1. */
+  /**
+   * Who has him at his spot: the free defender within `reach` yards best placed to stop him, a man behind him counting
+   * as `BEHIND` yards further off (the tackle is the man who meets him, not one trailing him in), or -1.
+   */
   function nearestFree(reach: number, now: number): number {
     let best = -1;
-    let bd = reach;
+    let bd = Infinity;
+    const c = B[ci];
     for (let i = 0; i < n; i++) {
       if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil) continue;
-      const g = dist(B[i], B[ci]);
-      if (g <= bd) [best, bd] = [i, g];
+      const g = dist(B[i], c);
+      if (g > reach) continue;
+      const score = g + ((B[i].x - c.x) * dir < -0.5 ? BEHIND : 0);
+      if (score < bd) [best, bd] = [i, score];
     }
     return best;
   }
@@ -361,6 +369,19 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const vy = back > 0 ? (seen.y - before.y) / (back * STEP) : B[ci].vy;
     const role = P[i].role;
     const behind = (B[ci].x - d.x) * dir > 10;
+    // Playing to today's spot (call H): a free man of the second level downfield of him meets him there, where his path
+    // crosses it.
+    const second = role === 'LB' || role === 'CB' || role === 'S' || role === 'ST';
+    if (spot && !spot.touchdown && second && (d.x - B[ci].x) * dir > 0 && left() > 0) {
+      const c = B[ci];
+      const along = Math.max(0.5, c.vx * dir);
+      const y = Math.max(1, Math.min(FIELD_W - 1, c.y + c.vy * (left() / along)));
+      const gx = spot.x - c.x;
+      const meetX = spot.x + dir * Math.min(1, Math.abs(gx) * 0.1);
+      const g = Math.hypot(meetX - d.x, y - d.y) || 1;
+      const pace = Math.min(d.top, g / Math.max(0.2, left() / Math.max(1, Math.hypot(c.vx, c.vy))) + 1);
+      return stepBody(d, { vx: ((meetX - d.x) / g) * pace, vy: ((y - d.y) / g) * pace }, STEP);
+    }
     stepBody(
       d,
       chaseWant(d, {
@@ -475,7 +496,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (spot) {
       // At his spot (and no touchdown to come) this man has him, the pile carrying him the rest of the way; short of
       // it, or on his way to a touchdown, he drives through.
-      if (!spot.touchdown && left() <= ANCHOR) return tackleBy(d, Math.max(0, left()), sp);
+      if (!spot.touchdown && left() <= ANCHOR) {
+        const by = nearestFree(ANCHOR_REACH, now);
+        return tackleBy(by >= 0 ? by : d, Math.max(0, left()), sp);
+      }
       tried[d] = 1;
       // His try would have had him: short of the spot he's held off, no miss (the tackle is the spot's).
       if (r.out === 'tackle') return;

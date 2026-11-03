@@ -236,4 +236,19 @@ describe('the open field', () => {
     }
     expect(misses / runs).toBeLessThan(0.6);
   });
+
+  it('gives the tackle at the credited spot to the man in front of him, not one trailing', () => {
+    let front = 0;
+    for (let i = 0; i < 60; i++) {
+      // A lineman a step behind him and a safety three yards ahead: at his spot the safety has him.
+      const players = [
+        man(1, 0, 'RB', 50, MID, { vx: 4 }),
+        man(30, 1, 'DT', 49, MID + 0.6, { vx: 4 }),
+        man(31, 1, 'S', 55.5, MID + 1.5, { vx: -1 }),
+      ];
+      const r = runField(startOf({ players, target: { x: 54, touchdown: false } }), new Rng(`front:${i}`));
+      if (r.tackler === 31) front++;
+    }
+    expect(front).toBeGreaterThanOrEqual(48);
+  });
 });
