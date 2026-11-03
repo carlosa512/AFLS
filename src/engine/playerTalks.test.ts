@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleAdvance, moraleContext, type MoraleContext } from './morale';
 import { aiReply, answerTalk, canPromise, talksAt, talkStep } from './playerTalks';
-import { activeRoster } from './roster';
+import { activeRoster, setTeam } from './roster';
 import { POSITIONS, type League, type MoraleJolt, type Player } from './types';
 
 /**
@@ -265,7 +265,7 @@ describe('talks: promises kept and broken', () => {
   it('breaks an open promise when he is traded, and clears his record', () => {
     const l = fresh();
     const p = promised(l);
-    p.teamId = (l.userTeamId + 1) % 32;
+    setTeam(l, p, (l.userTeamId + 1) % 32);
     talkStep(l, played(l, 1), l.moraleAt! + 1, 9, false);
     expect(kinds(p)).toContain('broken');
     expect(p.morale!.talk?.promise).toBeUndefined();
@@ -277,7 +277,7 @@ describe('talks: promises kept and broken', () => {
     const other = (l.userTeamId + 1) % 32;
     const p = activeRoster(l, other)[0];
     p.morale = { level: 0, talk: { club: other, promise: { kind: 'deal', made: l.moraleAt!, due: l.moraleAt! + 40 } } };
-    p.teamId = l.userTeamId;
+    setTeam(l, p, l.userTeamId);
     talkStep(l, played(l, 1), l.moraleAt! + 1, 9, false);
     expect(kinds(p)).not.toContain('broken');
     expect(p.morale!.talk).toBeUndefined();
@@ -294,7 +294,7 @@ describe('talks: promises kept and broken', () => {
     expect(kinds(p)).not.toContain('broken');
     expect(p.morale!.talk).toBeUndefined();
     // You sign him the next step: nothing of theirs follows him in.
-    p.teamId = l.userTeamId;
+    setTeam(l, p, l.userTeamId);
     talkStep(l, played(l, 1), l.moraleAt! + 2, 9, false);
     expect(kinds(p)).not.toContain('broken');
   });

@@ -18,7 +18,15 @@ import {
   restructureOptions,
   restructurePlayer,
 } from '../finance/cap';
-import { capHit, futureProration, isExpired, lastSeason, remainingProration, yearOf } from '../finance/contract';
+import {
+  capHit,
+  futureProration,
+  isExpired,
+  lastSeason,
+  remainingProration,
+  yearOf,
+  yearsLeft,
+} from '../finance/contract';
 import type { RestructurePreview } from '../finance/contract';
 import {
   fifthYearOptionValue,
@@ -35,8 +43,9 @@ import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { teamOutlook } from '../outlook';
 import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
+import { favoriteJersey } from '../jerseys';
 import { clamp, Rng } from '../rng';
-import { activeRoster, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, addPlayer, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
 import type { GmTraits, League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
@@ -52,8 +61,10 @@ import {
   ROSTER_MAX,
   signPlayer,
   willExtend,
+  extensionBlocker,
   type Offer,
 } from './negotiation';
+import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
 export const KEEP_MIN: Record<Position, number> = {
@@ -512,8 +523,15 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);
+    // A promised deal (G4): the club meets his walk-away when it fits, and he doesn't go to see what the market pays
+    // (the draw is still made, so the window draws what it would have).
+    const promised = promisedDeal(p);
+    if (promised) {
+      const apy = walkAwayApy(league, p, team.id, offer, d);
+      if (offerCharge(league, p, team.id, { ...offer, apy }) <= budget()) offer.apy = apy;
+    }
     // Some players want to see what the market will pay, however loyal the club.
-    const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty));
+    const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty)) && !promised;
     // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
     const cost = offerCharge(league, p, team.id, offer);
     const wanted = !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
@@ -542,7 +560,53 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       }
     }
   }
+  // A man promised a deal with two years or fewer left gets it now, when the club would keep him and it fits (G4); one
+  // it just re-signed above has his deal.
+  for (const p of teamPlayers(league, team.id))
+    if (
+      promisedDeal(p) &&
+      p.contract &&
+      p.contract.signedSeason !== league.season &&
+      !isExpired(p.contract, league.season) &&
+      yearsLeft(p.contract, league.season) <= 2
+    )
+      aiSettle(league, team, p);
   aiCapCompliance(league, team);
+}
+
+/**
+ * The pay that meets a man's walk-away with this offer's other terms: what a deal is worth to him scales with its pay, so
+ * terms short of his asks (fewer years, less guaranteed) are made up in pay, never cut from it.
+ */
+export function walkAwayApy(
+  league: League,
+  p: Player,
+  teamId: number,
+  offer: Offer,
+  d = demand(league, p, teamId),
+): number {
+  const value = offerValue(league, p, teamId, offer, d);
+  return value >= d.walkAway || value <= 0 ? offer.apy : Math.ceil((offer.apy * d.walkAway) / value);
+}
+
+/**
+ * An AI club meets a man's walk-away (a dispute it settles, a deal it promised) when its own read would keep him and the
+ * deal fits what it can spend: his new deal, offered on his dispute stream so the club's own window draws what it would
+ * have (G4). Returns whether he signed.
+ */
+export function aiSettle(league: League, team: Team, p: Player): boolean {
+  if (!MOOD_ACTS.on || p.teamId !== team.id || !p.contract) return false;
+  // A deal the rules allow now (a rookie after three seasons), and one the club would make.
+  if (!isExpired(p.contract, league.season) && extensionBlocker(league, p)) return false;
+  if (resignCall(league, team.id, p).call === 'walk') return false;
+  const d = demand(league, p, team.id);
+  const offer = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
+  offer.apy = walkAwayApy(league, p, team.id, offer, d);
+  // A man it would keep, so it makes room as it does for a keeper in the re-sign window: restructures, then a cut.
+  const short = offerCharge(league, p, team.id, offer) - spendable(league, team.id);
+  if (short > 0 && makeRoom(league, team, short, p, offer.years > 1 ? offer.apy : 0) < short) return false;
+  signPlayer(league, p, team.id, offer);
+  return true;
 }
 
 /**
@@ -832,8 +896,9 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
     jerseysUsed: new Set(),
   });
   p.origin = collegeOrigin(league.seed, p.id, 3);
+  p.jersey = favoriteJersey(league.seed, p);
   recordRatings(p, league.season);
-  league.players[p.id] = p;
+  addPlayer(league, p);
   return p;
 }
 

@@ -2,10 +2,10 @@ import { personnelMoveLock } from './elevations';
 import { capSheet, logTransaction, paidShare, releasePlayer, releasePreview, weeksPaid } from '../finance/cap';
 import type { ReleasePreview } from '../finance/cap';
 import { deadMoney, isExpired } from '../finance/contract';
-import { freeJersey } from '../generate';
+import { numberOnArrival } from '../jerseys';
 import { rosterLimit } from '../offseason/negotiation';
 import { STARTERS } from '../positions';
-import { activeRoster, practiceSquad, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, practiceSquad, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { Rng } from '../rng';
 import { computeRecords, winPct } from '../season/standings';
 import type { Contract, League, Player } from '../types';
@@ -124,7 +124,7 @@ export function queueWaiver(league: League, p: Player, preview: ReleasePreview):
   if (t.playingAt) delete t.playingAt[p.id];
   if (t.taggedId === p.id) t.taggedId = null;
   p.waiver = { id: entry.id, fromTeamId: from };
-  p.teamId = null;
+  setTeam(league, p, null);
   p.tagCount = 0;
   delete league.negotiations[p.id];
   logTransaction(league, 'waiver', [from], `${t.abbrev} waived ${p.position} ${p.firstName} ${p.lastName}`);
@@ -137,6 +137,8 @@ export function assignedContract(entry: WaiverEntry): Contract {
   c.years = c.years.filter((y) => !y.void);
   const now = c.years.find((y) => y.season === entry.season);
   if (now) {
+    // A holdout's withheld checks were his old club's to keep (G4): the claiming club pays what's left.
+    delete now.withheld;
     const paid = now.base * entry.paid;
     now.base = Math.round(now.base - paid);
     now.guaranteed = Math.min(now.base, Math.round(Math.max(0, now.guaranteed - paid)));
@@ -304,19 +306,11 @@ export function resolveWaiverBatch(league: League, closing: number): WaiverResul
       }
       book(league, entry, entry.assigned, 'Waiver assignment');
       p.contract = assignedContract(entry);
-      p.teamId = teamId;
+      setTeam(league, p, teamId);
       p.waiverArrival = { season: league.season, week: league.week, phase: league.phase };
       delete p.waiver;
       delete p.ir;
-      p.jersey = freeJersey(
-        p.position,
-        new Set(
-          teamPlayers(league, teamId)
-            .filter((x) => x.id !== p.id)
-            .map((x) => x.jersey),
-        ),
-        p.jersey,
-      );
+      numberOnArrival(league, p);
       ensureService(p, league.season);
       syncDepthChart(league, league.teams[teamId]);
       completed.set(entry.id, teamId);

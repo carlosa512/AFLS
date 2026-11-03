@@ -12,9 +12,10 @@ import { moodLean } from '../moodScale';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
-import { freeJersey, rookieContract } from '../generate';
+import { rookieContract } from '../generate';
+import { numberOnArrival } from '../jerseys';
 import { clamp, Rng } from '../rng';
-import { activeRoster, syncDepthChart, teamPlayers, teamRatings } from '../roster';
+import { activeRoster, setTeam, syncDepthChart, teamRatings } from '../roster';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
 
@@ -186,8 +187,11 @@ export function contractFromOffer(
 /** Salary of the player's current deal already paid this season (it stays on the cap when the deal is replaced). */
 function paidUnderCurrentDeal(league: League, player: Player): number {
   const c = player.contract;
-  if (!c) return 0;
-  return (yearOf(c, league.season)?.base ?? 0) * paidShare(league, c);
+  const y = c && yearOf(c, league.season);
+  if (!y) return 0;
+  // A holdout's withheld game checks were never paid (G4).
+  const held = y.withheld ? (y.base * y.withheld) / 18 : 0;
+  return Math.max(0, y.base * paidShare(league, c) - held);
 }
 
 /**
@@ -385,22 +389,13 @@ export function signPlayer(
       noteDeparture(league, player, last, 'walked');
   }
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
-  player.teamId = teamId;
+  setTeam(league, player, teamId);
   // Paid over a starter in his room who's still on an older deal: it may not go down well.
   if (own && kind !== 'tag') snubCheck(league, player);
   if (kind !== 'tag') player.tagCount = 0; // a new deal ends any run of consecutive tags
   delete league.negotiations[player.id];
   const team = league.teams[teamId];
-  if (!own)
-    player.jersey = freeJersey(
-      player.position,
-      new Set(
-        teamPlayers(league, teamId)
-          .filter((p) => p.id !== player.id)
-          .map((p) => p.jersey),
-      ),
-      player.jersey,
-    );
+  if (!own) numberOnArrival(league, player);
   syncDepthChart(league, team);
   const money = `${offer.years} yr, $${((offer.apy * offer.years) / 1000).toFixed(1)}M`;
   const verb = extension ? 'extended' : own ? 're-signed' : 'signed';

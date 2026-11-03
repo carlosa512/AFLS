@@ -58,7 +58,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
 - `npm run careers` — age a draft class of every position and play four 16-season leagues in
-  parallel child processes (about 3 minutes on 4 cores, slower with fewer); checks peaks, declines,
+  parallel child processes, then four more for work ethic's lean on ceilings (about 6 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
   or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
@@ -105,7 +105,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   where one jump would for every player left alone that year, ratings on the scale all season, the tick's
   speed and what a save carries). Run it after changing `training.ts`, `familiarity.ts`, `development.ts`
   or the calendar steps that run them. Nothing may be flagged.
-- `npm run morale` — play four seasons and check the league's moods (`morale.ts`): band shares, underpaid
+- `npm run morale` — play eight seasons and check the league's moods (`morale.ts`): band shares, underpaid
   final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
   no drift and no level out of range; the talks (`playerTalks.ts`): asks per club per season, promises kept; and
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room
@@ -183,7 +183,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
     five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
-  - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings
+  - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
+    an index beside the league kept by `setTeam` and `addPlayer`)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
     the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
     size decides (`sizeEdge`: contested balls, the jam, a passer's lanes, contact; `rushSizeEdge` and `massEdge` in
@@ -249,7 +250,15 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
-    reads what a letter shows), his words in `playerVoice.ts` · `standing.ts` who runs the room (L1,
+    reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins, holdouts (G4a) and trade requests (G4b): who
+    escalates (`escalation`: a soured talk, four Very poor steps; a deal from the re-sign window to camp, snaps, the losing
+    or a feud whenever talks run), how a dispute runs and ends (a request private until it leaks, `LEAK_STEPS`, then a
+    rumor; refused, it hardens into a hold-in at camp), AI clubs' answers
+    (`aiAnswerDispute`, `aiReviewDispute` from camp to week 4, `aiSettle` in `offseason/ai.ts`) and kept promises, your answers (`answerDispute`) and what a screen
+    may show (`disputeView`); the readers the roster, training, development and lineup code need live in `disputeRead.ts`
+    (no engine imports: `MOOD_ACTS`, `onDidNotReport`, `notPracticing`, `rustKnock`, `promisedDeal`, `wantsOut`: the trade
+    market reads a public request through it, `WANTS_OUT` in `trade/judge.ts`); the head coach's
+    letters in `disputeMail.ts`, his words in `disputeVoice.ts` · `standing.ts` who runs the room (L1,
     `docs/superpowers/specs/2026-11-01-locker-room-voices-design.md`): a man's weight (leadership, the field, seniority,
     stature), leaders and voices (`tierOf`; captains always lead, last season's until camp), how a voice sounds (stirs,
     steadies: words only), units (the position coaches' rooms plus the specialists), each unit's read (`unitRead`: its
@@ -333,6 +342,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
   position (unit-tested) and move outcomes in `npm run audit`.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
+- **A player changes club through `setTeam`, and joins the league through `addPlayer`** (`roster.ts`), tests included:
+  `teamPlayers` reads an index those keep. A club cleared by hand is caught and read again; a club set by hand isn't.
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and
   add an upgrade step to `migrate.ts` (old saves are migrated on load, never thrown away).
 - `league.season` is the league year: it ticks over when the offseason begins (like the NFL's March

@@ -7,9 +7,11 @@ import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
+import { fumbleIn } from './fumble';
 import { lineUp } from './formations';
-import { sample, script, stagedPath } from './scripts';
-import { asRan, returned, stagePlay, type StagedPlay } from './stage';
+import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
+import { asRan, returned, SPRINT, stagePlay, type StagedPlay } from './stage';
+import { SPEED } from './speed';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
@@ -210,8 +212,15 @@ describe('scripts', () => {
     for (const { e, keys, end, total, who, cast } of all) {
       if (!end) continue;
       const qb = cast.offense.find((m) => m.role === 'QB')!.id;
-      const holder =
-        e.kind === 'int'
+      // A fumble ends with the man who recovered it: the engine's on a lost one, the man who fumbled on a kept one.
+      const f = fumbleIn(e);
+      const holder = f
+        ? f.lost
+          ? who.take
+          : e.kind === 'sack'
+            ? qb
+            : (who.ball ?? qb)
+        : e.kind === 'int'
           ? who.take
           : e.kind === 'pass' || e.kind === 'run'
             ? who.ball
@@ -235,7 +244,9 @@ describe('scripts', () => {
         e.kind === 'incomplete' ||
         e.kind === 'int' ||
         e.kind === 'kneel' ||
-        e.kind === 'spike'
+        e.kind === 'spike' ||
+        // A fumble's hit comes when the ball comes out, not at the whistle (the loose ball's own tests, below).
+        fumbleIn(e)
       )
         continue;
       const tackler = [...keys.keys()].find((id) => id === who.tackle) ?? (e.kind === 'sack' ? who.rush : undefined);
@@ -277,6 +288,48 @@ describe('the staged play', () => {
     y: p.pos[(step * p.ids.length + k) * 2 + 1],
   });
 
+  /** A man's quickest quarter-second on the play, yards a second, and when it ends. */
+  const quickest = (p: StagedPlay, k: number) => {
+    const w = Math.round(0.25 / p.dt);
+    let best = 0;
+    let when = 0;
+    for (let st = w; st < p.steps; st++) {
+      const a = pos(p, st, k);
+      const b = pos(p, st - w, k);
+      const v = Math.hypot(a.x - b.x, a.y - b.y) / (w * p.dt);
+      if (v > best) [best, when] = [v, st * p.dt];
+    }
+    return { v: best, t: when };
+  };
+  /**
+   * As quick as a man gets: his top speed and the pursuit edge, and a little for a shove (a carrier running into a man
+   * moves him, `steer`'s floor) and for rounding.
+   */
+  const legs = (role: string) => SPEED[role as keyof typeof SPEED] + 0.6 + 0.5;
+
+  it('never has anyone faster than his legs, on any play: nobody teleports, the tackler included', () => {
+    const fast: string[] = [];
+    for (const { e, p } of staged) {
+      const end = p.steps - 1;
+      const c = p.carrier === null ? -1 : p.ids.indexOf(p.carrier);
+      p.ids.forEach((_, k) => {
+        const q = quickest(p, k);
+        // Running a carrier down, the man who brings him down may sprint his last stretch: on him at the whistle,
+        // within the last two seconds, and never past the NFL's fastest.
+        const onHim =
+          c >= 0 &&
+          k !== c &&
+          Math.hypot(pos(p, end, k).x - pos(p, end, c).x, pos(p, end, k).y - pos(p, end, c).y) < 1.5;
+        const closing = onHim && q.t >= end * p.dt - 2;
+        const most = closing
+          ? Math.max(legs(p.roles[k]), Math.min(SPRINT, legs(p.roles[k]) + 1) + 0.4)
+          : legs(p.roles[k]);
+        if (q.v > most) fast.push(`${p.roles[k]} ${q.v.toFixed(1)} at ${q.t.toFixed(2)}: ${e.text}`);
+      });
+    }
+    expect(fast.slice(0, 5)).toEqual([]);
+  });
+
   it('stages every entry of 40 games without throwing, 22 ids each', () => {
     expect(staged.length).toBeGreaterThan(5000);
     for (const { p } of staged) {
@@ -291,7 +344,8 @@ describe('the staged play', () => {
     let passes = 0;
     for (const { e, p } of staged) {
       const qb = p.ids[p.roles.indexOf('QB')];
-      if (e.kind === 'run' && p.carrier !== qb) {
+      // A handoff: someone else ran it (who ends with the ball can be a man who recovered a fumble).
+      if (e.kind === 'run' && actorsIn(e).ball !== qb && p.carrier !== qb) {
         expect(p.keys).not.toContain(qb);
         expect(p.keys).toContain(p.carrier);
         runs++;
@@ -350,11 +404,17 @@ describe('the staged play', () => {
     for (const { p } of staged) {
       if (p.carrier === null) continue;
       const c = p.ids.indexOf(p.carrier);
+      // From when he has it: the throw or the handoff, a pick as he makes it, or a fumble's recovery (before, the man who
+      // ends up with it may have been in coverage).
+      // (The first step he has it: until then a receiver is on his route, and his man may be as close as he can get.)
+      const from = Math.ceil(
+        (p.loose ? p.loose.t : p.kind === 'int' && p.arrive !== null ? p.arrive : p.release) / p.dt - 1e-9,
+      );
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).
         if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k])) continue;
         let closest = Infinity;
-        for (let st = 0; st < p.steps - 1; st++) {
+        for (let st = from; st < p.steps - 1; st++) {
           const a = pos(p, st, k);
           const b = pos(p, st, c);
           closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
@@ -463,8 +523,9 @@ describe('off the ball', () => {
           : [],
       ),
     );
-  const moved = (p: StagedPlay, k: number) => {
-    const last = p.steps - 1;
+  /** How far a man got by the end of the play (or by `until`, a step). */
+  const moved = (p: StagedPlay, k: number, until = p.steps - 1) => {
+    const last = until;
     const x0 = p.pos[k * 2];
     const x1 = p.pos[(last * 22 + k) * 2];
     return { downfield: x1 - x0, dist: Math.hypot(x1 - x0, p.pos[(last * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]) };
@@ -482,19 +543,25 @@ describe('off the ball', () => {
       const dir = p.home[0] ? 1 : -1; // the offense attacks toward 100 when it is the home side
       p.ids.forEach((id, k) => {
         if (!p.offense[k] || p.keys.includes(id) || p.roles[k] !== 'WR') return;
-        expect(moved(p, k).downfield * dir, `${e.text}`).toBeGreaterThan(5);
+        // As far as his route took him before the rush got home (a strip-sack: before the ball came out, when
+        // everyone goes for it), not where he drifted to while the quarterback went down.
+        const until = p.loose ? Math.round(p.loose.t / p.dt) : p.steps - 1;
+        let furthest = 0;
+        for (let st = 1; st <= until; st++) furthest = Math.max(furthest, moved(p, k, st).downfield * dir);
+        expect(furthest, `${e.text}`).toBeGreaterThan(5);
         routes++;
       });
     }
     expect(routes).toBeGreaterThan(40);
   });
 
-  it('holds the pocket: blocked rushers stay off the quarterback for the first second and a half', () => {
+  it('holds the pocket: blocked rushers stay off the quarterback for the first second and a half he has it', () => {
     let rushers = 0;
     for (const kind of ['pass', 'incomplete', 'sack'])
       for (const { p } of picks(kind)) {
         const qb = p.roles.indexOf('QB');
-        const early = Math.min(p.steps - 1, Math.round(1.5 / p.dt));
+        // While he has the ball: a quick throw is gone before the first second and a half is up.
+        const early = Math.min(p.steps - 1, Math.round(Math.min(1.5, p.release) / p.dt));
         p.ids.forEach((id, k) => {
           if (p.offense[k] || p.keys.includes(id) || (p.roles[k] !== 'DT' && p.roles[k] !== 'EDGE')) return;
           for (let st = 0; st <= early; st++) {
@@ -869,5 +936,343 @@ describe('special teams', () => {
         });
       }
     expect(n).toBeGreaterThan(300);
+  });
+});
+
+describe('the loose ball', () => {
+  const stage = (g: Game, plays: PlayLogEntry[], i: number) =>
+    stagePlay({
+      plays,
+      index: i,
+      record: games.find((x) => x.g === g)!.r.field!,
+      homeId: g.homeId,
+      seed: `f${i}`,
+      snapY: 26,
+    });
+  const fumbles = games.flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      const f = fumbleIn(e);
+      return f && raw.down > 0 ? [{ e, f, g, i, plays: r.plays!, p: stage(g, r.plays!, i) }] : [];
+    }),
+  );
+  /** The man who had the ball when it came out. */
+  const fumbler = (e: PlayLogEntry, p: StagedPlay) => {
+    const qb = p.ids[p.roles.findIndex((r, k) => r === 'QB' && p.offense[k])];
+    return e.kind === 'sack' ? qb : (actorsIn(e).ball ?? qb);
+  };
+  const ballAt = (p: StagedPlay, step: number) => ({ x: p.ball[step * 3], y: p.ball[step * 3 + 1] });
+  const at = (p: StagedPlay, id: number, step: number) => {
+    const k = p.ids.indexOf(id);
+    return { x: p.pos[(step * p.ids.length + k) * 2], y: p.pos[(step * p.ids.length + k) * 2 + 1] };
+  };
+  const last = (p: StagedPlay) => p.steps - 1;
+
+  it('finds fumbles of both kinds in 40 games', () => {
+    expect(fumbles.filter((x) => x.f.lost).length).toBeGreaterThan(10);
+    expect(fumbles.filter((x) => !x.f.lost).length).toBeGreaterThan(5);
+  });
+
+  it('has the ball loose where the engine says, at the hit, and settled where it was recovered', () => {
+    for (const { e, f, p } of fumbles) {
+      expect(p.loose, e.text).toBeDefined();
+      const hit = Math.round(p.loose!.t / p.dt);
+      const b = ballAt(p, hit);
+      expect(Math.hypot(b.x - p.loose!.x, b.y - p.loose!.y), e.text).toBeLessThan(0.5);
+      expect(Math.abs(p.loose!.x - f.x)).toBeLessThanOrEqual(1.51);
+      // Lost and not returned, or kept: the ball's last spot is where the play ended.
+      if (!f.lost || Math.abs(e.to! - f.x) <= 0.5)
+        expect(Math.abs(ballAt(p, last(p)).x - e.to!), e.text).toBeLessThan(0.5);
+    }
+  });
+
+  it("gives the ball to the man who recovered it: the engine's on a lost one, the man who fumbled on a kept one", () => {
+    for (const { e, f, p } of fumbles) {
+      expect(p.carrier, e.text).toBe(f.lost ? actorsIn(e).take : fumbler(e, p));
+      expect(p.loose!.by).toBe(p.carrier);
+      const b = ballAt(p, last(p));
+      const c = at(p, p.carrier!, last(p));
+      expect(Math.hypot(b.x - c.x, b.y - c.y), e.text).toBeLessThan(1);
+    }
+  });
+
+  it('puts the man who fumbled down where it came out: no running on', () => {
+    let n = 0;
+    for (const { e, f, p } of fumbles) {
+      if (!f.lost) continue;
+      const id = fumbler(e, p);
+      for (let st = Math.round(p.loose!.t / p.dt) + 1; st <= last(p); st++) {
+        const q = at(p, id, st);
+        expect(Math.hypot(q.x - p.loose!.x, q.y - p.loose!.y), e.text).toBeLessThan(1.5);
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(10);
+  });
+
+  it("returns a lost one to the play's end, run down by the offense unless he scores", () => {
+    let n = 0;
+    for (const { e, f, p } of fumbles) {
+      if (!f.lost || Math.abs(e.to! - f.x) <= 0.5) continue;
+      const end = ballAt(p, last(p));
+      expect(Math.abs(end.x - e.to!), e.text).toBeLessThan(0.5);
+      const c = at(p, p.carrier!, last(p));
+      const near = p.ids.some(
+        (id, k) => p.offense[k] && Math.hypot(at(p, id, last(p)).x - c.x, at(p, id, last(p)).y - c.y) < 1.5,
+      );
+      expect(near, e.text).toBe(e.to! > 0 && e.to! < 100);
+      n++;
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it("stages a wiped snap's fumble from ran.loose", () => {
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    const wiped: PlayLogEntry = {
+      ...plays[i],
+      kind: 'penalty',
+      to: e.from,
+      loose: undefined,
+      ran: { kind: e.kind, to: e.to, air: e.air, who: e.who, loose: e.loose },
+    };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: wiped }), i);
+    expect(p.loose).toBeDefined();
+    expect(Math.abs(p.loose!.x - e.loose!)).toBeLessThanOrEqual(1.51);
+  });
+
+  it('ends a fumble returned for a touchdown in the end zone, untackled', () => {
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run')!;
+    const p0 = stage(g, plays, i);
+    // The fumbling offense's own end zone: behind it, the way it was driving.
+    const td: PlayLogEntry = { ...plays[i], to: p0.dir === 1 ? -3 : 103 };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: td }), i);
+    const end = ballAt(p, last(p));
+    expect(Math.abs(end.x - td.to!)).toBeLessThan(0.5);
+    const c = at(p, p.carrier!, last(p));
+    expect(
+      p.ids.some((id, k) => p.offense[k] && Math.hypot(at(p, id, last(p)).x - c.x, at(p, id, last(p)).y - c.y) < 1.2),
+    ).toBe(false);
+    expect(e.kind).toBe('run');
+  });
+
+  it('stages a fumble from a game before the spot was kept (v78): the ball ends where the play did', () => {
+    const { g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    const old: PlayLogEntry = { ...plays[i], loose: undefined };
+    const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
+    expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);
+    expect(p.carrier).toBe(actorsIn(old).take);
+  });
+});
+
+describe('the pocket', () => {
+  const drops = games.slice(0, 20).flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      if (raw.down <= 0 || !['pass', 'incomplete', 'int', 'sack', 'scramble'].includes(e.kind ?? '')) return [];
+      return [
+        {
+          e,
+          p: stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `pk${i}`, snapY: 26 }),
+        },
+      ];
+    }),
+  );
+  const P = (p: StagedPlay, k: number, st: number) => ({
+    x: p.pos[(st * 22 + k) * 2],
+    y: p.pos[(st * 22 + k) * 2 + 1],
+  });
+  const qbOf = (p: StagedPlay) => p.roles.findIndex((r, k) => r === 'QB' && p.offense[k]);
+  const stepAt = (p: StagedPlay, t: number) => Math.min(p.steps - 1, Math.max(0, Math.round(t / p.dt)));
+  const throws = drops.filter(({ e }) => e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int');
+
+  it('plans every dropback, and never has the quarterback past the line before he throws', () => {
+    expect(throws.length).toBeGreaterThan(1000);
+    for (const { e, p } of drops) {
+      expect(p.pocket, e.text).not.toBeNull();
+      const qb = qbOf(p);
+      const until = stepAt(p, e.kind === 'scramble' ? p.release : p.release);
+      for (let st = 0; st <= until; st++) expect((P(p, qb, st).x - p.ball[0]) * p.dir, e.text).toBeLessThan(0);
+    }
+  });
+
+  it('steps up into the throw from a deep drop in a clean pocket', () => {
+    let n = 0;
+    let up = 0;
+    for (const { p } of throws) {
+      const plan = p.pocket!;
+      if (plan.pressure !== 'none' || plan.bootleg || plan.drop < 5) continue;
+      const qb = qbOf(p);
+      const deepest = Math.min(
+        ...Array.from({ length: stepAt(p, p.release) + 1 }, (_, st) => (P(p, qb, st).x - p.ball[0]) * p.dir),
+      );
+      const atThrow = (P(p, qb, stepAt(p, p.release)).x - p.ball[0]) * p.dir;
+      if (atThrow > deepest + 0.7) up++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(50);
+    expect(up / n).toBeGreaterThan(0.9);
+  });
+
+  it('moves away from the rush that gets there, as the ball comes out', () => {
+    let n = 0;
+    let away = 0;
+    for (const { e, p } of throws) {
+      const rush = actorsIn(e).rush;
+      if (rush === undefined || p.pocket!.pressure === 'none') continue;
+      const qb = qbOf(p);
+      const r = p.ids.indexOf(rush);
+      const a = stepAt(p, p.release - 0.7);
+      const b = stepAt(p, p.release);
+      // His move takes him away from where the rusher was as he started it (the rusher still gets to him: the hit).
+      const d = (q: { x: number; y: number }) => Math.hypot(q.x - P(p, r, a).x, q.y - P(p, r, a).y);
+      if (d(P(p, qb, b)) > d(P(p, qb, a))) away++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(100);
+    expect(away / n).toBeGreaterThan(0.85);
+  });
+
+  it('forms a cup: in a clean pocket the quarterback is between his tackles and behind his line as he throws', () => {
+    let n = 0;
+    let inside = 0;
+    for (const { p } of throws) {
+      const plan = p.pocket!;
+      if (plan.pressure !== 'none' || plan.bootleg || plan.roll) continue;
+      const qb = qbOf(p);
+      const st = stepAt(p, p.release);
+      const line = p.ids.map((_, k) => k).filter((k) => p.offense[k] && p.roles[k] === 'OL');
+      const ys = line.map((k) => P(p, k, st).y);
+      const q = P(p, qb, st);
+      const behind = line.every((k) => (q.x - P(p, k, st).x) * p.dir < 0);
+      if (q.y > Math.min(...ys) - 0.5 && q.y < Math.max(...ys) + 0.5 && behind) inside++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(500);
+    expect(inside / n).toBeGreaterThan(0.9);
+  });
+
+  it('brings the sacker past the blocker the engine names, and down with the quarterback on the sack spot', () => {
+    let n = 0;
+    for (const { e, p } of drops) {
+      if (e.kind !== 'sack' || p.loose) continue;
+      const who = actorsIn(e);
+      if (who.rush === undefined) continue;
+      const r = p.ids.indexOf(who.rush);
+      const qb = qbOf(p);
+      const last = p.steps - 1;
+      const end = { x: p.ball[last * 3], y: p.ball[last * 3 + 1] };
+      expect(Math.hypot(P(p, qb, last).x - end.x, P(p, qb, last).y - end.y), e.text).toBeLessThan(0.5);
+      expect(Math.hypot(P(p, r, last).x - end.x, P(p, r, last).y - end.y), e.text).toBeLessThan(1.2);
+      // The engine's beaten block, when the formation lined the two up near enough to act it out (`BEAT_ACROSS`).
+      const lined = (k: number) => P(p, k, 0).y;
+      if (who.beat !== undefined && Math.abs(lined(p.ids.indexOf(who.beat)) - lined(r)) <= BEAT_ACROSS) {
+        const b = p.ids.indexOf(who.beat);
+        let passed = false;
+        for (let st = 0; st <= last; st++)
+          if (Math.hypot(P(p, r, st).x - P(p, b, st).x, P(p, r, st).y - P(p, b, st).y) < 2) passed = true;
+        expect(passed, e.text).toBe(true);
+        const dq = (k: number) => Math.hypot(P(p, k, last).x - P(p, qb, last).x, P(p, k, last).y - P(p, qb, last).y);
+        expect(dq(r)).toBeLessThan(dq(b));
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+});
+
+describe('the pattern', () => {
+  it('gives every throw to a receiver a concept and the route that fits his catch', () => {
+    let n = 0;
+    for (const { g, r } of games.slice(0, 10))
+      r.plays!.forEach((raw, i) => {
+        const e = asRan(raw);
+        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'incomplete' && e.kind !== 'int')) return;
+        if (actorsIn(e).ball === undefined || /throws it away/.test(e.text)) return;
+        const p = stagePlay({
+          plays: r.plays!,
+          index: i,
+          record: r.field!,
+          homeId: g.homeId,
+          seed: `pt${i}`,
+          snapY: 26,
+        });
+        expect(p.pattern, e.text).toBeDefined();
+        n++;
+      });
+    expect(n).toBeGreaterThan(300);
+  });
+
+  it('stages a game without actors (before v71): every play ends where the engine says', () => {
+    const { g, r } = games[3];
+    const bare = r.plays!.map((e) => {
+      const c: PlayLogEntry = { ...e };
+      delete c.who;
+      if (c.ran) c.ran = { ...c.ran, who: undefined };
+      return c;
+    });
+    bare.forEach((e, i) => {
+      const p = stagePlay({ plays: bare, index: i, record: r.field!, homeId: g.homeId, seed: `bare${i}`, snapY: 26 });
+      const segs = stagedPath(returned(asRan(e)), g.homeId, 26);
+      if (!segs.length) return;
+      const end = pointAt(segs[segs.length - 1], 1);
+      const last = (p.steps - 1) * 3;
+      expect(Math.abs(p.ball[last] - end.x), e.text).toBeLessThan(0.5);
+    });
+  });
+});
+
+describe('screens and throwaways', () => {
+  const all = games.flatMap(({ g, r }) =>
+    r.plays!.flatMap((raw, i) => {
+      const e = asRan(raw);
+      if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'incomplete')) return [];
+      return [
+        {
+          e,
+          p: stagePlay({ plays: r.plays!, index: i, record: r.field!, homeId: g.homeId, seed: `sc${i}`, snapY: 26 }),
+        },
+      ];
+    }),
+  );
+  const P = (p: StagedPlay, k: number, st: number) => ({
+    x: p.pos[(st * 22 + k) * 2],
+    y: p.pos[(st * 22 + k) * 2 + 1],
+  });
+
+  it('leads a screen to the back with the line: two or more linemen past the line, on its side, by the catch', () => {
+    let n = 0;
+    for (const { e, p } of all) {
+      const target = actorsIn(e).ball;
+      if (p.pattern?.route !== 'screen' || target === undefined || p.arrive === null) continue;
+      const t = p.ids.indexOf(target);
+      if (p.roles[t] !== 'RB' && p.roles[t] !== 'TE') continue;
+      // Out in front as he gets going: just after the catch.
+      const st = Math.min(p.steps - 1, Math.round((p.arrive + 0.6) / p.dt));
+      const catchAt = P(p, t, Math.min(p.steps - 1, Math.round(p.arrive / p.dt)));
+      // Its side, for a screen out to one: up the middle the lead blockers fan out both ways.
+      const side = Math.abs(catchAt.y - p.ball[1]) > 3 ? Math.sign(catchAt.y - p.ball[1]) : 0;
+      const leading = p.ids
+        .map((_, k) => k)
+        .filter((k) => p.offense[k] && p.roles[k] === 'OL')
+        .filter(
+          (k) => (P(p, k, st).x - p.ball[0]) * p.dir > 0 && (side === 0 || (P(p, k, st).y - p.ball[1]) * side > -1),
+        );
+      expect(leading.length, e.text).toBeGreaterThanOrEqual(2);
+      n++;
+    }
+    expect(n).toBeGreaterThan(3);
+  });
+
+  it('throws a throwaway out of bounds, downfield on the side he rolled to', () => {
+    let n = 0;
+    for (const { e, p } of all) {
+      if (!/throws it away/.test(e.text) || !p.pocket) continue;
+      const last = p.steps - 1;
+      const y = p.ball[last * 3 + 1];
+      expect(y < 0 || y > FIELD_W, e.text).toBe(true);
+      expect((p.ball[last * 3] - p.ball[0]) * p.dir).toBeGreaterThan(5);
+      n++;
+    }
+    expect(n).toBeGreaterThan(5);
   });
 });

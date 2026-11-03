@@ -18,6 +18,7 @@ import {
   claimMove,
   handOverMoves,
   isAvailable,
+  rosterList,
   placeAt,
   slotOf,
   spotNotes,
@@ -37,6 +38,7 @@ import { perceivedTeamRatings } from '../../engine/scouting';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, TeamUnit, viewOf } from '../scouting';
 import { store } from '../store';
 import { familiarityTone, knockAt, learnLine, lineupText, playAt, playAtLabel, positionChoices } from '../training';
+import { DisputeTag } from '../disputeTag';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
   if (!s || !s.gp) return '–';
@@ -459,6 +461,12 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               {players.some((p) => p.ir) && (
                 <span className="muted small">+{players.filter((p) => p.ir).length} on IR</span>
               )}
+              {/* A holdout is off the 53 like a man on reserve, on the Reserve/Did Not Report list (G4). */}
+              {players.some((p) => rosterList(p) === 'didNotReport') && (
+                <span className="muted small">
+                  +{players.filter((p) => rosterList(p) === 'didNotReport').length} did not report
+                </span>
+              )}
             </span>
           </span>
         </div>
@@ -730,6 +738,7 @@ function RosterRow({
           </span>
         )}
         <InjuryTag league={league} p={p} sub />
+        <DisputeTag league={league} p={p} sub />
       </td>
       <td className="num">
         <Ovr league={league} player={p} />

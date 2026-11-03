@@ -99,7 +99,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       rosters; small schools and the Pathway start on less film (`knowledge`). A Pathway class arrives after each
       draft (with a reserved practice squad place on profile `afls-2026-v2`) and CFL veterans at each new league year.
       Spec: `docs/superpowers/specs/2026-10-27-player-origins-design.md`.
-- [ ] **Morale and holdouts** · **Partial** (hooks into #6 and #8): every rostered player has a mood (0.2.21,
+- [x] **Morale and holdouts** · **Done** (0.3.0; hooks into #6 and #8): every rostered player has a mood (0.2.21,
       `morale.ts`): a weekly target from his contract against his market, the role he plays against the one he expects
       (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
       with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
@@ -114,10 +114,22 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       grievance it answers while it's open and a reassurance a quarter until he could ask again, and the head coach
       reminds you of open promises when the season ends. Fewer sulkers (0.2.37): paid 80% of his market or more a man has
       no complaint (a backup feels half of one below it), a rookie-deal star's grievance is capped, and before a season's
-      games a man the depth chart starts reads as a starter. Team meetings (0.2.41, L2 engine): head coaches hold them at
-      the calendar's moments and when a room turns, players take them well or bristle, commitments are kept or broken,
-      and each head coach's credibility with his room rises and wears thin (a small push on the hot seat); your coach's
-      letters and screens follow. Hold-ins, holdouts and trade requests (G4) are to come. Specs:
+      games a man the depth chart starts reads as a starter. Hold-ins and holdouts (G4a, `disputes.ts`): a deal talk that
+      ended badly and a man still Very poor four steps later, with his deal still his top reason, holds in (reports, won't
+      practice: no position learning, growth as if Abysmal) or, a greedy veteran starter, holds out (the Reserve/Did Not
+      Report list, a $2.25M camp fine, a game check a week withheld, the accrued season lost, rust when he reports) until
+      a deal, a trade, a promise he takes, giving in, or week 1 for a hold-in. AI clubs settle or hold firm by their GM's
+      tendencies, think a firm answer over each step from camp to week 4 (playing without him against his raise and the
+      GM's stubbornness), and keep the deal and snaps promises they make; your head coach writes when one starts and ends, with
+      your four answers (talks, a promise, firm, shop him), and the Locker Room, the Roster and the card show it. Trade
+      requests (G4b, 0.3.0): a talk soured over snaps, the losing or a feud (or a deal, in season, after a hold-in or
+      holdout that ended without one) becomes a request, private to his club until it leaks (six steps, three for an
+      outspoken man, at once when he's refused and outspoken; then a rumor). Public, his club holds out for 15% less and
+      buyers open 10-25% under their price; an AI club shopping him puts him on its block, a stubborn one refuses him.
+      Refused and still Very poor at the next camp with a deal in reach, it hardens into a hold-in; it's withdrawn after
+      four calmer steps or when his snaps come. Your letter offers shop, refuse, and the promise his cause allows. Team meetings (0.3.3, L2 engine): head coaches hold them at the calendar's moments and when a room turns, players take
+      them well or bristle, commitments are kept or broken, and each head coach's credibility with his room rises and
+      wears thin (a small push on the hot seat); your coach's letters and screens follow. Specs:
       `docs/superpowers/specs/2026-10-29-morale-core-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-talks-design.md`,
       `docs/superpowers/specs/2026-10-29-morale-effects-design.md`,
@@ -140,6 +152,15 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
+
+## Follow-up: what the speed pass left (0.2.41)
+
+- [ ] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
+      for each free agent are worked out again on every free-agency day and both late passes (7–9 times an
+      offseason), though most don't change between days: 10–15% of a multi-season league. A club's win-now lean does
+      change as it signs, so a cache must key on what each read uses, proven by an unchanged league fingerprint.
+- Considered and left (the owner's call): slimming retired players further. Retirement already drops what only a
+  developing player needs; traits, personality and combine stay for the card (about 13% of a save at season 6).
 
 ## Follow-up: what the front-office work left (0.2.36)
 
@@ -167,7 +188,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       next year before it borrows, but the tag path (and a one-year deal) counts nothing: a GM that just made no room
       for a keeper's new deal can then restructure to tag him, though next spring he's owed his price again, as
       `nextYearNeeds` counts him once tagged. Counting his market price there (`inPlans` keepers only) fixes it, but
-      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1) and
+      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1 then; the floor is 0.5 since G4) and
       `trades`' draft-day deals with a future pick (2.6 against 3–9). Measure both before it ships.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands

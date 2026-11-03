@@ -10,6 +10,7 @@
  * - Each first-round pick an AI sends past the second costs it more: a price, not a hard cap.
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
+import { wantsOut } from '../disputeRead';
 import { capFor, deadMoneyIn } from '../finance/cap';
 import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
 import { contenderScore, rosterLimit } from '../offseason/negotiation';
@@ -89,14 +90,18 @@ const RENTAL_FLOOR = { first: 0.65, deadline: 0.4 };
 /** Between two AI teams it holds out for less: the floor guards against being fleeced, and another GM isn't fishing. */
 const AI_RENTAL_FLOOR = { first: 0.5, deadline: 0.2 };
 
+/** How much less a club holds out for a man the league knows has asked out (G4b): he's worth less to a club he wants to leave. */
+export const WANTS_OUT = 0.15;
+
 /** Share of a player's market value a team holds out for when it sends him. */
 export function floorShare(league: League, team: Team, p: Player, vsUser: boolean): number {
+  const knock = p.teamId === team.id && wantsOut(p) === 'public' ? 1 - WANTS_OUT : 1;
   const selling =
     league.phase === 'regular' && contenderScore(league, team.id) <= 0.4 && yearsLeft(p.contract!, league.season) <= 1;
-  if (!selling) return 0.8;
+  if (!selling) return 0.8 * knock;
   const floor = vsUser ? RENTAL_FLOOR : AI_RENTAL_FLOOR;
   const late = clamp((league.week - 1) / (TRADE_DEADLINE_WEEK - 1), 0, 1);
-  return floor.first + (floor.deadline - floor.first) * late;
+  return (floor.first + (floor.deadline - floor.first) * late) * knock;
 }
 
 /** Picks at the league's going rate. */

@@ -224,7 +224,9 @@ describe('the tag keeps a star who’d walk', () => {
         const c = resignCall(l, t.id, p);
         return c.call !== 'walk' && c.reason === 'starter' && payTier(p.position, positionRank(market, p)) >= 0.75;
       })
-      .filter(({ p }) => p.age - ageShift(p.position) <= 30)[0];
+      .filter(({ p }) => p.age - ageShift(p.position) <= 30)
+      // Not one his club promised a deal: it keeps that promise, so he never reaches the tag (G4).
+      .filter(({ p }) => p.morale?.talk?.promise?.kind !== 'deal')[0];
     const { t, p } = pick;
     p.personality.loyalty = 0;
     if (ageOver !== undefined) p.age = ageShift(p.position) + ageOver;

@@ -1,11 +1,13 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { talkMail, talkNeedsYou } from './talkMail';
+import { disputeMail, disputeNeedsYou } from './disputeMail';
 import { promiseMail, promisesNeedYou } from './promiseMail';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
 import { contractLetterNeedsYou, contractMail } from './contractMail';
 import { recentBodies, say, toldKeys, type Line } from './voice';
+import { settleYear } from './development';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
 import { gmOfferTerms, userExtensionOffer } from './leadership';
@@ -736,6 +738,7 @@ export type MailSubject =
   | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
   | { kind: 'positionMoved'; season: number; playerId: number }
   | { kind: 'ceiling'; season: number; playerId: number }
+  | { kind: 'ceilingReview'; season: number }
   | { kind: 'covering'; season: number; week: number; playerId: number; pos: Position }
   | { kind: 'shortHanded'; season: number; week: number; pos: Position }
   | { kind: 'squadPoach'; season: number; week: number; playerId: number }
@@ -757,6 +760,8 @@ export type MailSubject =
   | { kind: 'expiring'; season: number }
   // A player of yours speaking up (talkMail.ts): it needs you while his ask is open.
   | { kind: 'talk'; season: number; clock: number; playerId?: number }
+  // A player of yours holding in or out (disputeMail.ts): the start letter needs you while it waits on your answer.
+  | { kind: 'dispute'; season: number; since: number; playerId: number; end?: true; leak?: true }
   // The head coach's season's-end reminder of open promises (promiseMail.ts).
   | { kind: 'promises'; season: number };
 
@@ -866,6 +871,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
     case 'ceiling':
       return { kind: 'ceiling', season, playerId: Number(a) };
+    case 'ceilingReview':
+      return { kind: 'ceilingReview', season };
     case 'mentor':
     case 'persona':
     case 'captains':
@@ -883,6 +890,12 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'lockerReport', season, checkin: a as 'camp' | 'cutdown' | 'deadline' | 'end' };
     case 'talk':
       return { kind: 'talk', season, clock: Number(a), ...(b === undefined ? {} : { playerId: Number(b) }) };
+    case 'dispute':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b) };
+    case 'dispute-end':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b), end: true };
+    case 'dispute-leak':
+      return { kind: 'dispute', season, since: Number(a), playerId: Number(b), leak: true };
     case 'promises':
       return { kind: 'promises', season };
     case 'waivers':
@@ -941,6 +954,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return contractLetterNeedsYou(league, m.sections);
     case 'talk':
       return talkNeedsYou(league, m);
+    case 'dispute':
+      return disputeNeedsYou(league, s);
     case 'promises':
       return promisesNeedYou(league, m);
     case 'contract':
@@ -2517,41 +2532,151 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
   });
 }
 
+type Verdict = 'ahead' | 'held' | 'behind';
+
+/** Our read on a young player after his ceiling settled, by his year (0 rookie, 1 second, 2 third). */
+const CEILING_READ: Record<Verdict, readonly string[]> = {
+  ahead: [
+    'Playing above his draft grade.',
+    'More upside than we gave him credit for.',
+    'Still climbing past our projection.',
+  ],
+  held: ['Right on his draft grade.'],
+  behind: [
+    'Behind where we had him coming out. Still early.',
+    "Hasn't taken the second-year step.",
+    'Close to his ceiling: what you see is about what you get.',
+  ],
+};
+
+const CEILING_TITLE: Record<Verdict, string> = {
+  ahead: 'Ahead of our grades',
+  held: 'Who we thought he was',
+  behind: 'Behind our grades',
+};
+
+interface ReviewFacts {
+  ahead: number;
+  behind: number;
+}
+const young = (n: number) => `${small(n)} of our young players`;
+const looks = (n: number) => (n === 1 ? 'looks' : 'look');
+const are = (n: number) => (n === 1 ? 'is' : 'are');
+const them = (n: number) => (n === 1 ? 'him' : 'them');
+const REVIEW_OPENER: readonly Line<ReviewFacts>[] = [
+  {
+    when: (f) => f.ahead > 0 && f.behind > 0,
+    reads: 2,
+    text: (f) =>
+      `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded ${them(f.ahead)} and ${small(f.behind)} ${are(f.behind)} behind where we had them.`,
+  },
+  {
+    when: (f) => f.ahead > 0 && f.behind > 0,
+    reads: 2,
+    text: (f) =>
+      `Now the season's over, ${young(f.ahead)} ${looks(f.ahead)} better than our grades, and ${small(f.behind)} ${are(f.behind)} behind them.`,
+  },
+  {
+    when: (f) => f.ahead === 0 && f.behind > 0,
+    reads: 1,
+    text: (f) => `With the season done, ${young(f.behind)} ${are(f.behind)} behind where we had them.`,
+  },
+  {
+    when: (f) => f.ahead === 0 && f.behind > 0,
+    reads: 1,
+    text: (f) => `Now the season's over, ${young(f.behind)} ${are(f.behind)} behind our grades.`,
+  },
+  {
+    when: (f) => f.ahead > 0 && f.behind === 0,
+    reads: 1,
+    text: (f) => `With the season done, ${young(f.ahead)} ${looks(f.ahead)} better than we graded ${them(f.ahead)}.`,
+  },
+  {
+    when: (f) => f.ahead > 0 && f.behind === 0,
+    reads: 1,
+    text: (f) => `Now the season's over, ${young(f.ahead)} ${looks(f.ahead)} better than our grades.`,
+  },
+  { text: () => "With the season done, this year's rookies are about who we thought they were." },
+];
+
+/** Our season is over: the season is complete, or we have no game left to play this season. */
+function seasonOver(league: League, teamId: number): boolean {
+  if (league.phase === 'complete') return true;
+  if (league.phase !== 'playoffs') return false;
+  return !league.games.some(
+    (g) => g.season === league.season && !g.result && (g.homeId === teamId || g.awayId === teamId),
+  );
+}
+
 /**
- * A young player's ceiling settled and moved our read by a point or more (`ceiling.ts`): the head coach when he has
- * stalled, the director when he is outplaying his grades. The condition is our read before and after, never the
- * true change; once per player and season.
+ * The director's review of the young players once our season is over (docs/superpowers/specs/
+ * 2026-11-02-ceiling-review-letter-design.md): whose ceiling settled a point or more ahead of or behind our read,
+ * and the rookies who are who we thought. The condition is our read before and after, never the true change, and
+ * the words follow his year: nobody is called done before his last settle. Once a season; a season that already
+ * filed the old one-off letters (`ceiling:${season}:${id}`) isn't told twice.
  */
-function ceilingMail(league: League, have: Set<string>): Draft[] {
+function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
   const team = league.teams[league.userTeamId];
-  const out: Draft[] = [];
+  const id = `ceilingReview:${season}`;
+  if (have.has(id) || !seasonOver(league, team.id)) return [];
+  if ((league.inbox ?? []).some((m) => m.id.startsWith(`ceiling:${season}:`))) return [];
+  const rows: Record<Verdict, { p: Player; year: number; moved: number }[]> = { ahead: [], held: [], behind: [] };
   for (const p of teamPlayers(league, team.id)) {
     const shift = p.ceilingShifts?.[season];
-    const id = `ceiling:${season}:${p.id}`;
-    if (shift === undefined || p.retired || have.has(id)) continue;
+    const year = settleYear(p);
+    if (shift === undefined || p.retired || year === null) continue;
     const now = perceive(league, team.id, p).potMid;
     const moved = now - perceive(league, team.id, { ...p, potential: p.potential - shift }).potMid;
-    if (Math.abs(moved) < 1) continue;
-    const down = moved < 0;
-    out.push({
+    const verdict: Verdict = moved >= 1 ? 'ahead' : moved <= -1 ? 'behind' : 'held';
+    if (verdict === 'held' && year !== 0) continue;
+    rows[verdict].push({ p, year, moved });
+  }
+  const { ahead, held, behind } = rows;
+  if (!ahead.length && !held.length && !behind.length) return [];
+  const sender = director(league);
+  const opener = say(
+    REVIEW_OPENER,
+    { ahead: ahead.length, behind: behind.length },
+    { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
+  );
+  // With nobody ahead or behind, the opener already says the rookies held.
+  const rest =
+    !ahead.length && !behind.length
+      ? ''
+      : held.length
+        ? " The rest of this year's class is about who we thought."
+        : behind.some((r) => r.year === 0)
+          ? " It's early for the rookies: their ceilings have two more seasons to settle."
+          : '';
+  const cameIn = (p: Player) => (p.draft ? `${p.draft.season} R${p.draft.round}, No. ${p.draft.pick}` : 'Undrafted');
+  const sections = (['ahead', 'held', 'behind'] as const)
+    .filter((v) => rows[v].length)
+    .map((v) => ({
+      title: CEILING_TITLE[v],
+      columns: ['Player', 'Pos', 'Age', 'Came in', 'Our read'],
+      rows: [...rows[v]]
+        .sort((a, b) => a.year - b.year || Math.abs(b.moved) - Math.abs(a.moved) || a.p.id - b.p.id)
+        .map(({ p, year }) => ({
+          playerId: p.id,
+          cells: [fullName(p), p.position, String(p.age), cameIn(p), CEILING_READ[v][year] ?? CEILING_READ[v][0]],
+        })),
+    }));
+  return [
+    {
       id,
       season,
       phase: league.phase,
-      week: league.phase === 'regular' ? league.week : 0,
-      ...(down ? headCoach(league) : director(league)),
+      week: league.week,
+      ...sender,
       category: 'staff',
-      subject: down ? `${fullName(p)} has hit a wall` : `${fullName(p)} is outplaying his grades`,
-      body: down
-        ? "He's hit a wall. What you see now is about what you'll get from him."
-        : "He's outplaying his grades. We may have had his ceiling too low.",
-      actions: [
-        { kind: 'player', playerId: p.id },
-        { kind: 'team', teamId: team.id },
-      ],
-    });
-  }
-  return out;
+      subject: "How the young players' year went",
+      body: `${opener}${rest}`,
+      sections,
+      covered: [...ahead, ...behind].map(({ p }) => `ceiling:${season}:${p.id}`),
+      actions: [{ kind: 'team', teamId: team.id }],
+    },
+  ];
 }
 
 /**
@@ -2886,6 +3011,7 @@ export function deliverMail(league: League): void {
       ...lockerMail(league, have),
       ...lockerReportMail(league, have),
       ...talkMail(league, have),
+      ...disputeMail(league, have),
       ...promiseMail(league, have),
     );
     if (league.phase === 'resign')
@@ -2912,7 +3038,7 @@ export function deliverMail(league: League): void {
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')
       fresh.push(...positionMovedMail(league, have));
     // Ceilings settle as each team's season ends.
-    if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...ceilingMail(league, have));
+    if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...ceilingReviewMail(league, have));
     if ((league.phase === 'draft' && draftComplete(league)) || league.phase === 'preseason')
       fresh.push(...draftClassMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs') {

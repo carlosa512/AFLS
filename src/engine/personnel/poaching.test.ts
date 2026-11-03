@@ -3,7 +3,7 @@ import { createLeague } from '../generate';
 import { capHit } from '../finance/contract';
 import { releasePreview } from '../finance/cap';
 import { minSalary } from '../finance/market';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, practiceSquad, setTeam } from '../roster';
 import { perceive } from '../scouting';
 import type { League } from '../types';
 import { STARTERS } from '../positions';
@@ -145,7 +145,7 @@ describe('poaching', () => {
     const p = target(from);
     submitPoachOffer(l, { playerId: p.id, teamId: 0, years: 1 });
     const back = Object.values(l.players).find((x) => x.teamId === null && x.contract === null && x.position === 'WR')!;
-    back.teamId = 0; // the place is gone again before the settle
+    setTeam(l, back, 0); // the place is gone again before the settle
     back.contract = poachContract(l, back, 1);
     settleWeek(l);
     expect(p.teamId).toBe(from);

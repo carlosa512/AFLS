@@ -36,6 +36,7 @@ import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
 import { activeRoster, isAvailable, syncDepthChart, teamPlayers } from './roster';
+import { numberAfterMove } from './jerseys';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { rosterOf, tradeContext, type TradeContext } from './trade/context';
 import { learnMult, workEthicOf } from './traits';
@@ -43,6 +44,7 @@ import { moraleLevel } from './morale';
 import { moodLean } from './moodScale';
 import type { Attribute, Coach, League, Learning, MoveReason, Player, Position, Team } from './types';
 import { OFFSEASON_PHASES, POSITIONS } from './types';
+import { notPracticing } from './disputeRead';
 
 // ───────── the moves the coaches will teach (data in familiarity.ts) ─────────
 
@@ -149,7 +151,8 @@ function tick(league: League, weeks: (c: Conversion, p: Player) => number): void
       delete p.learning;
       continue;
     }
-    const w = weeks(c, p);
+    // A man not practicing (holding in before week 1, holding out) learns nothing (G4).
+    const w = notPracticing(league, p) ? 0 : weeks(c, p);
     if (w > 0) l.done = Math.round((l.done + w * learnRate(league, p, l.to, l.pace)) * 100) / 100;
   }
 }
@@ -281,6 +284,8 @@ export function changePosition(league: League, p: Player, to: Position): void {
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
   const [lo, hi] = sizeLimits(to).w;
   p.weightLb = clamp(p.weightLb, lo, hi);
+  // His number goes with him if the rules allow it at the new spot (a receiver's 15 at corner), else he picks one.
+  numberAfterMove(league, p);
   // The gem is read against the position he plays: drawn from his own stream, so only the gate can change.
   if (rollGem(p)) p.playsBig = true;
   else delete p.playsBig;

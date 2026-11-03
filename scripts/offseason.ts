@@ -285,6 +285,8 @@ const kickoffStarters = (l: League) =>
   l.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos])));
 let lastStarters = kickoffStarters(league);
 const rows: Row[] = [];
+/** Feuds a team, each season: judged on their mean over the run (one season's count swings by half on any world). */
+const feudSeasons: number[] = [];
 const playerGrowth: number[] = [];
 /** The whole save's growth each season from the third: judged on average (one season's games swing it ±100 KB). */
 const saveGrowth: number[] = [];
@@ -616,6 +618,7 @@ for (let s = 0; s < seasons; s++) {
           .filter((p) => p.teamId === t.id)
           .reduce((n, p) => n + (p.ties?.filter((x) => x.kind === 'feud').length ?? 0), 0) / 2,
     );
+    feudSeasons.push(avg(feuds));
     const friends = league.teams.map(
       (t) =>
         rostered
@@ -623,7 +626,7 @@ for (let s = 0; s < seasons; s++) {
           .reduce((n, p) => n + (p.ties?.filter((x) => x.kind === 'friend').length ?? 0), 0) / 2,
     );
     console.log(
-      `  checks ${year} locker room: ${check('feuds/team', avg(feuds), 0.5, 1.8)} · ${check('teams past 3 feuds', feuds.filter((n) => n > 3).length / feuds.length, 0, 0.1)} · ${s >= 3 ? check('friendships/team', avg(friends), 1.5, 6) : `friendships/team ${avg(friends).toFixed(2)} (forming: four seasons together first)`}`,
+      `  checks ${year} locker room: feuds/team ${avg(feuds).toFixed(2)} · ${check('teams past 3 feuds', feuds.filter((n) => n > 3).length / feuds.length, 0, 0.1)} · ${s >= 3 ? check('friendships/team', avg(friends), 1.5, 6) : `friendships/team ${avg(friends).toFixed(2)} (forming: four seasons together first)`}`,
     );
   }
 
@@ -774,6 +777,11 @@ if (rows.length >= 5) {
     const all = [...r.k.space.map((x) => (100 * x) / r.k.cap), ...others.flatMap((run) => run.space[s])];
     return all.sort((a, b) => a - b)[all.length >> 1];
   });
+  // About one feud a team (spec §3), on the run's mean: a single season read 0.42 to 0.94 on two worlds of the same code,
+  // and main itself 0.66 to 0.92 (the owner's call, 2026-11-02).
+  console.log(
+    `\nlocker room: ${check(`feuds/team, mean of ${feudSeasons.length} seasons`, avg(feudSeasons), 0.5, 1.8)}`,
+  );
   console.log(`\ndrift, ${first.year} → ${end.year}:`);
   // The generated first league always settles upward by 0.1-0.3 OVR (obs +0.31; all seeds then +0.16 to +0.34), so the band
   // is lopsided; deflation would show as a negative change. After the 3rd kickoff it should hold (obs +0.17; all seeds

@@ -31,7 +31,9 @@ export function creditService(p: Player, season: number, week: number): void {
 /** Completed seasons before `season`: the season in progress never counts. */
 export function serviceSeasons(p: Player, season: number): number {
   const [through, seasons, mask] = p.service ?? initialService(p.experience, season - 1);
-  return seasons + (through + 1 < season && weeks(mask) >= PERSONNEL_RULES.accruedGames ? 1 : 0);
+  // A holdout who missed camp doesn't accrue the season, however many weeks he played after (G4).
+  const lost = p.lostAccrual === through + 1;
+  return seasons + (through + 1 < season && !lost && weeks(mask) >= PERSONNEL_RULES.accruedGames ? 1 : 0);
 }
 
 /** Close every season through `season` into the count. Safe to call twice. */

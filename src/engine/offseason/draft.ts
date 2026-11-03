@@ -9,17 +9,11 @@ import { pathwayClass } from './arrivals';
 import { bandForRank, collegeOrigin, filmScale } from '../origin';
 import { recordRatings } from '../development';
 import { logTransaction } from '../finance/cap';
-import {
-  createDraftPicks,
-  DRAFT_ROUNDS,
-  freeJersey,
-  generatePlayer,
-  MAX_FUTURE_DRAFT_YEARS,
-  rookieContract,
-} from '../generate';
+import { createDraftPicks, DRAFT_ROUNDS, generatePlayer, MAX_FUTURE_DRAFT_YEARS, rookieContract } from '../generate';
+import { favoriteJersey, numberOnArrival } from '../jerseys';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { clamp, Rng } from '../rng';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { addPlayer, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth } from '../scouting';
 import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
@@ -68,6 +62,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     p.experience = 0;
     // The generator makes the class best first, so the loop index is his rank (the consensus below reads origin).
     p.origin = collegeOrigin(league.seed, p.id, bandForRank(i + 1));
+    p.jersey = favoriteJersey(league.seed, p);
     ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth =
@@ -84,7 +79,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
       ceiling: Math.round((p.potential + rng.normal(0, CONSENSUS_SD.ceiling / film)) * 2) / 2,
     };
     recordRatings(p, league.season);
-    league.players[p.id] = p;
+    addPlayer(league, p);
     league.draftClass.push(p.id);
   }
 }
@@ -269,7 +264,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);
   const via = pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined;
-  player.teamId = team.id;
+  setTeam(league, player, team.id);
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = {
     season: league.season,
@@ -280,15 +275,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     ...(via !== undefined ? { via } : {}),
     ...(pick.moved ? { deal: pick.moved } : {}),
   };
-  player.jersey = freeJersey(
-    player.position,
-    new Set(
-      teamPlayers(league, team.id)
-        .filter((p) => p.id !== player.id)
-        .map((p) => p.jersey),
-    ),
-    player.jersey,
-  );
+  numberOnArrival(league, player);
   syncDepthChart(league, team);
   logTransaction(
     league,

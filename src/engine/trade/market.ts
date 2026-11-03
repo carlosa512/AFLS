@@ -211,6 +211,12 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
     made.push(record);
     listings = listingsOf(ctx);
   }
+  // A man who's asked out and been shopped, and the league knows: his club calls around (G4b).
+  const sold = wantsOutCalls(ctx, listings, rng.shuffle([...ai]), open, busy);
+  if (sold.length) {
+    made.push(...sold);
+    listings = listingsOf(ctx);
+  }
   // Before the AI lets players go, it calls around about the best of them.
   if (moment === 'leagueYear' || moment === 'camp') {
     made.push(...beforeCuts(ctx, moment, rng.shuffle([...ai]), open, busy));
@@ -263,6 +269,44 @@ const CUT_CALLS = 3;
  * gives a 6th or 7th; a cap casualty nobody wants goes as a dump when the guarantees a release would
  * leave on the books are worth more to his team than the pick it pays. One such deal a team.
  */
+/** Buyers a club calls about a man who's asked out (G4b): the keenest few, as a call tries three players. */
+const WANTS_OUT_CALLS = 3;
+
+/**
+ * A club shopping a man who's asked out, with the league knowing it (G4b), calls the buyers that want him most at
+ * every moment the window's open, at a price both sides take (`dealFor`, through `judge`); his floor is already
+ * lower (`WANTS_OUT`). Nobody who'd want him, and he stays on the block for the next moment.
+ */
+function wantsOutCalls(
+  ctx: TradeContext,
+  listings: readonly Listing[],
+  order: readonly Team[],
+  open: (t: Team) => boolean,
+  busy: Map<number, number>,
+): TradeRecord[] {
+  const { league } = ctx;
+  const made: TradeRecord[] = [];
+  for (const l of listings) {
+    if (l.entry.reason !== 'wantsOut' || !open(l.team)) continue;
+    const p = league.players[l.entry.playerId];
+    if (p.teamId !== l.team.id || !priceable(ctx, p)) continue;
+    const buyers = order
+      .filter((b) => b.id !== l.team.id && open(b))
+      .map((b) => ({ b, score: wanted(ctx, b, [l])[0]?.score ?? 0 }))
+      .filter((x) => x.score > 0)
+      .sort((x, y) => y.score - x.score)
+      .slice(0, WANTS_OUT_CALLS);
+    for (const { b } of buyers) {
+      const deal = dealFor(ctx, b, p);
+      if (!deal) continue;
+      const record = close(ctx, deal, busy);
+      if (record) made.push(record);
+      break;
+    }
+  }
+  return made;
+}
+
 function beforeCuts(
   ctx: TradeContext,
   moment: 'leagueYear' | 'camp',

@@ -13,8 +13,8 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.2.41',
-    date: '2026-11-02',
+    version: '0.3.3',
+    date: '2026-11-03',
     title: 'Team meetings around the league',
     text:
       'Head coaches around the league now hold team meetings: at camp, deadline week, the playoff push and the ' +
@@ -22,6 +22,108 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'kept and some broken, and every head coach carries a word with his room that rises and wears thin; a coach who ' +
       'has lost his room and keeps losing is a little closer to the door. Your own coach’s meetings, and his letters ' +
       'about them, come in the next update.',
+  },
+  {
+    version: '0.3.2',
+    date: '2026-11-02',
+    title: "The young players' review",
+    text:
+      'When your season ends, the director of scouting sends one letter on the young players instead of a letter ' +
+      'for each: who looks better than we graded him, which rookies are who we thought, and who is behind where we ' +
+      "had him. The words follow his year, so a rookie is never written off: it's early, and his ceiling has two " +
+      'more seasons to settle. The letter files in the week your season ends, with the rest of that week’s mail.',
+  },
+  {
+    version: '0.3.1',
+    date: '2026-11-02',
+    title: 'Nobody teleports',
+    text:
+      'In All-22, nobody moves faster than his own legs any more. Tacklers take an angle on the ball carrier, or run ' +
+      'him down from behind with a closing sprint no quicker than the fastest NFL players, and a man who misses ' +
+      'carries on past and goes down instead of freezing. Players pull up after the whistle. Kickoff coverage waits ' +
+      'for the ball to land. The victory formation looks like one: the quarterback under center, two up-backs, a man ' +
+      'deep, and a real kneel. Highlight rings show at the moment, so they no longer give away who makes the tackle.',
+  },
+  {
+    version: '0.3.0',
+    date: '2026-11-02',
+    title: 'Trade requests',
+    text:
+      'An unhappy player can now ask to be traded: over playing time, the losing, a feud with a teammate, or a deal ' +
+      'he never got after holding in or out. He tells his club first, and your head coach writes to you: shop him, ' +
+      'refuse, or promise him the snaps or the deal he wants. It stays private for a while, sooner with an outspoken ' +
+      'man, until it leaks; then every club knows, calls come in, and the offers come in low. Refused and still ' +
+      'unhappy at the next camp, he may hold in instead. Other clubs face the same, and you can buy their unhappy ' +
+      'players for less once the word is out. This finishes morale and holdouts on the road to alpha.',
+  },
+  {
+    version: '0.2.46',
+    date: '2026-11-02',
+    title: 'Routes',
+    text:
+      'Receivers now run real routes in All-22, as plays drawn up together: smash, flood, mesh, four verticals, ' +
+      'curl-flat, stick and more, leaning on what each offense likes. The man the ball goes to runs the route that ' +
+      'fits his catch, with a stem, a hard plant and a break, and everyone else runs his part and settles where it ' +
+      'ends. Wide receivers line up on the numbers. Man coverage is a step late out of a break, and receivers are as ' +
+      'open at the catch as the NFL’s are. On a screen to the back the line sells the pass, then leads the way, ' +
+      'and a throwaway sails out of bounds downfield. Under pressure the quarterback steps up or slides before the ' +
+      'rusher gets there and throws as he arrives.',
+  },
+  {
+    version: '0.2.45',
+    date: '2026-11-02',
+    title: 'Hold-ins and holdouts',
+    text:
+      'A player who is unhappy with his contract, and stays unhappy after talks go badly, can now dig in. Most hold in: ' +
+      'they report but sit out practice, and miss the work. A proud veteran starter may hold out instead: he goes on ' +
+      'the Did Not Report list, is fined for missing camp, loses a game check for every week he stays away, and comes ' +
+      'back rusty. Your head coach writes when one starts and asks how to answer: open talks, promise a new deal, hold ' +
+      'firm or shop him. Other clubs think it over as camp goes on, the way NFL teams do: most holdouts end by the ' +
+      'last week of camp, and a few run into the season until a deal is done. The Roster, the Locker Room and the ' +
+      'player card show who is holding out or in.',
+  },
+  {
+    version: '0.2.44',
+    date: '2026-11-02',
+    title: 'The pocket',
+    text:
+      'Quarterbacks now play the pocket in All-22. They drop deeper for deeper throws, fake to the back on about ' +
+      'three early downs in ten, roll out on bootlegs, step up into a clean pocket, and climb or slide away when the ' +
+      'rush gets there. The line forms a cup around them, and the rusher who got home loops around the man he beat. ' +
+      'Sacks take as long as the NFL’s, from quick ones to coverage sacks after five seconds, and the sacker takes ' +
+      'the quarterback down where the sack lands. Throws leave on the NFL’s timing, and a deep ball hangs in the ' +
+      'air. Play labels now say when a fumble was lost or kept, and when a fourth down turned the ball over.',
+  },
+  {
+    version: '0.2.43',
+    date: '2026-11-02',
+    title: 'Fumbles you can see',
+    text:
+      'A fumble now looks like one when you watch it. The ball pops loose where the hit lands and bounces a few ' +
+      'yards while players from both sides go for it, and the man who recovers it falls on it or picks it up. If ' +
+      'the defense gets it, it can return it, and the offense chases him down. The player who fumbled stays down ' +
+      'instead of running on backwards, in the broadcast view and in All-22. Strip-sacks look the same way.',
+  },
+  {
+    version: '0.2.42',
+    date: '2026-11-02',
+    title: 'Numbers of their own',
+    text:
+      'Players now pick their own numbers, the way NFL players do: receivers in the 80s and single digits, corners ' +
+      'in single digits, linemen in the 50s, each to the rules for his position. A newcomer takes his favourite if ' +
+      'it is free, or one close to it, instead of the next number up, and a player who changes position keeps his ' +
+      'number if the rules allow it there. In a career already under way, players move to their favourites as they ' +
+      'come free each new league year; a number you set yourself stays. In All-22, the line no longer steps up ' +
+      'before every snap, and motion and shifts follow the rules.',
+  },
+  {
+    version: '0.2.41',
+    date: '2026-11-02',
+    title: 'Long careers stay quick',
+    text:
+      'Nothing changes in play. Finding a club’s players no longer means reading every player the league has ever ' +
+      'had, retired ones too, so long careers slow down less: five seasons play about a tenth faster, and the gap ' +
+      'grows the longer a career runs.',
   },
   {
     version: '0.2.40',

@@ -42,7 +42,14 @@ const CHECKS = {
     detail: /\[warn\]/,
   },
   typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, secs: 10, summary: /error TS\d+.*/ },
-  test: { cmd: ['npm', 'test'], cores: CORES, secs: 55, summary: /Tests\s+.*/, detail: /FAIL|Error|Expected|Received/ },
+  // On CI a worker per core (vitest's default leaves one idle; the job has the runner to itself); locally its default.
+  test: {
+    cmd: ['npm', 'test', ...(process.env.CI ? ['--', `--maxWorkers=${CORES}`] : [])],
+    cores: CORES,
+    secs: 55,
+    summary: /Tests\s+.*/,
+    detail: /FAIL|Error|Expected|Received/,
+  },
   build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1, secs: 15 },
   sim: { cmd: ['npm', 'run', 'sim', '--', '60'], cores: 1, secs: 220, summary: /\d+ stat\(s\) outside target range/ },
   endings: {
@@ -63,21 +70,22 @@ const CHECKS = {
   careers: {
     cmd: ['npm', 'run', 'careers'],
     cores: 4,
-    secs: 180,
+    secs: 360,
     slow: true,
     summary: /\d+ number\(s\) outside target range/,
   },
+  // Every (position, attribute) pair replayed, in worker processes on every core.
   audit: {
     cmd: ['npm', 'run', 'audit'],
-    cores: 1,
+    cores: CORES,
     secs: 170,
     slow: true,
     summary: /Needs attention.*|Every attribute.*/,
   },
-  // The marble bag's churn and every quirk's effect, replayed on the same games.
+  // The marble bag's churn and every quirk's effect, replayed on the same games (the effects in worker processes).
   quirks: {
     cmd: ['npm', 'run', 'quirks', '--', '--effects'],
-    cores: 1,
+    cores: CORES,
     secs: 290,
     slow: true,
     summary: /Needs attention.*|Every quirk.*|▼ Nobody carries.*/,
@@ -98,6 +106,14 @@ const CHECKS = {
     secs: 420,
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
+  },
+  // All-22 against the NFL's tracking numbers: every dropback of 200 games staged and measured.
+  film: {
+    cmd: ['npm', 'run', 'film'],
+    cores: 1,
+    secs: 90,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /[▲▼✗]/,
   },
   // Officiating crews: the league stays at baseline, the crews spread like the NFL's, the rotation and drift hold.
   crews: {
@@ -148,7 +164,7 @@ const CHECKS = {
   morale: {
     cmd: ['npm', 'run', 'morale'],
     cores: 1,
-    secs: 80,
+    secs: 160,
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
   },
@@ -196,15 +212,18 @@ const RULES: [RegExp, Name[]][] = [
   // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
+  // All-22's staging, and the engine's play log it stages from.
+  [/^src\/ui\/stage\/(?!.*\.test\.ts$)|^src\/engine\/(match\/|playActors\.ts)|^scripts\/film\.ts$/, ['film']],
   // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate)/, ['size']],
   [/^scripts\/size\.ts$/, ['size']],
   // Crews: their tendencies and rotation, the penalty rolls they multiply, and what builds the leagues and schedules.
   [/^src\/engine\/(?!.*\.test\.ts$)(officials|match\/|generate|season\/schedule|offseason\/index)/, ['crews']],
   [/^scripts\/crews\.ts$/, ['crews']],
-  // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches).
+  // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches),
+  // and trade requests (G4b: a public one lowers his club's floor and draws calls).
   [
-    /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate)/,
+    /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate|disputes|disputeRead)/,
     ['trades'],
   ],
   [/^scripts\/trades(-prices)?\.ts$/, ['trades']],
@@ -217,7 +236,7 @@ const RULES: [RegExp, Name[]][] = [
   // Morale: the moods and the league check that holds them to range.
   // G2's effects too: the growth tilt, the game-day edge, learning and talks it measures.
   [
-    /^src\/engine\/(?!.*\.test\.ts$)(morale|playerTalks|development|match\/lineup|training|offseason\/negotiation)\.ts$|^scripts\/morale\.ts$/,
+    /^src\/engine\/(?!.*\.test\.ts$)(morale|playerTalks|disputes|disputeRead|disputeMail|development|match\/lineup|training|offseason\/negotiation)\.ts$|^scripts\/morale\.ts$/,
     ['morale'],
   ],
   // The harness itself, dependencies and compiler settings can break anything.

@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(77);
+    expect(SAVE_VERSION).toBe(81);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -202,12 +202,34 @@ describe('save v74', () => {
   });
 });
 
-describe('save v77: meetings', () => {
-  it('loads a v76 save with empty meeting logs and every head coach at credibility 0', () => {
+describe('save v77', () => {
+  it("a v76 save loads with every player's number as it was: numbers move only at the new league year", () => {
     const l = createLeague({ seed: 'v77' });
+    l.version = 76;
+    const before = Object.fromEntries(Object.values(l.players).map((p) => [p.id, p.jersey]));
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    for (const p of Object.values(up.players)) expect(p.jersey).toBe(before[p.id]);
+  });
+});
+
+describe('save v78', () => {
+  it("a v77 save loads at 78 with its games as they were (a fumble's spot is new and optional)", () => {
+    const l = createLeague({ seed: 'v78' });
+    l.version = 77;
+    const before = JSON.stringify(l.games);
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(JSON.stringify(up.games)).toBe(before);
+  });
+});
+
+describe('save v81: meetings', () => {
+  it('loads a v80 save with empty meeting logs and every head coach at credibility 0', () => {
+    const l = createLeague({ seed: 'v81' });
     for (const t of l.teams) delete t.meetings;
     for (const c of Object.values(l.coaches)) delete c.credibility;
-    l.version = 76;
+    l.version = 80;
     const up = migrateLeague(l)!;
     expect(up.version).toBe(SAVE_VERSION);
     for (const t of up.teams) expect(t.meetings).toEqual({ log: [], open: [] });
@@ -216,7 +238,7 @@ describe('save v77: meetings', () => {
     for (const c of heads) expect(c.credibility).toBe(0);
   });
   it('a new league starts the same, and stays plain JSON', () => {
-    const l = createLeague({ seed: 'v77-new' });
+    const l = createLeague({ seed: 'v81-new' });
     for (const t of l.teams) expect(t.meetings).toEqual({ log: [], open: [] });
     for (const c of Object.values(l.coaches).filter((c) => c.role === 'headCoach')) {
       expect(c.credibility).toBe(0);

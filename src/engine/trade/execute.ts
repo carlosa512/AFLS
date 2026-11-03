@@ -3,8 +3,8 @@ import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
 import { deadMoney } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
-import { freeJersey } from '../generate';
-import { syncDepthChart, teamPlayers } from '../roster';
+import { numberOnArrival } from '../jerseys';
+import { setTeam, syncDepthChart } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
@@ -59,9 +59,12 @@ export function executeTrade(
       if (paid > 0) {
         const y = c.years.find((x) => x.season === league.season);
         if (y) {
+          // A holdout's withheld checks were never paid (G4): they stay off the old team's charge.
+          const held = y.withheld ? Math.round((y.base * y.withheld) / 18) : 0;
+          delete y.withheld;
           from.deadMoney.push({
             season: league.season,
-            amount: Math.round(y.base * paid),
+            amount: Math.round(y.base * paid) - held,
             playerId: id,
             note: 'Salary paid before trade',
           });
@@ -81,16 +84,8 @@ export function executeTrade(
       c.bonuses = [];
       c.years = c.years.filter((y) => !y.void);
       noteDeparture(league, p, side.teamId, 'traded');
-      p.teamId = to;
-      p.jersey = freeJersey(
-        p.position,
-        new Set(
-          teamPlayers(league, to)
-            .filter((x) => x.id !== id)
-            .map((x) => x.jersey),
-        ),
-        p.jersey,
-      );
+      setTeam(league, p, to);
+      numberOnArrival(league, p);
       if (league.teams[side.teamId].taggedId === id) league.teams[side.teamId].taggedId = null;
       p.tagCount = 0; // a tag by the new team is not a consecutive one
       delete league.negotiations[id];

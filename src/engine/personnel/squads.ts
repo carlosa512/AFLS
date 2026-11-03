@@ -3,8 +3,9 @@ import { personnelMoveLock, markSquadDeparture, elevationPromotionCredit } from 
 import { capSpace, logTransaction, paidFraction } from '../finance/cap';
 import { capHit, buildContract } from '../finance/contract';
 import { minSalary } from '../finance/market';
-import { activeRoster, onGameRoster, practiceSquad, syncDepthChart } from '../roster';
+import { activeRoster, onGameRoster, practiceSquad, setTeam, syncDepthChart } from '../roster';
 import { STARTERS } from '../positions';
+import { numberOnArrival } from '../jerseys';
 import type { Contract, League, Player } from '../types';
 import type { SquadOffer } from './types';
 import { squadFit, squadRates, squadCategory, squadFormationCost } from './eligibility';
@@ -95,7 +96,8 @@ export function acceptSquadOffer(league: League, offer: SquadOffer): void {
   const p = league.players[offer.playerId];
   // Settle before assigning the new employer; no old rookie contract can be revived here.
   settleSquadPayroll(league);
-  p.teamId = offer.teamId;
+  setTeam(league, p, offer.teamId);
+  numberOnArrival(league, p);
   p.contract = null;
   delete p.ir;
   ensureService(p, league.season);
@@ -128,7 +130,7 @@ export function releaseSquadPlayer(league: League, p: Player): void {
   const id = p.teamId!;
   markSquadDeparture(league, p);
   delete p.squad;
-  p.teamId = null;
+  setTeam(league, p, null);
   p.contract = null;
   logTransaction(
     league,
@@ -252,7 +254,7 @@ export function expireSquadContracts(league: League): void {
   for (const p of Object.values(league.players)) {
     if (!p.squad) continue;
     delete p.squad;
-    p.teamId = null;
+    setTeam(league, p, null);
     p.contract = null;
   }
 }

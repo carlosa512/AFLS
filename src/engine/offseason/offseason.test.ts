@@ -5,7 +5,7 @@ import { leagueMarket, marketApy, maxBonusShare, minSalary, rookieApy } from '..
 import { createLeague, generatePlayer, rookieContract } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr, STARTERS } from '../positions';
-import { activeRoster, teamPlayers } from '../roster';
+import { activeRoster, addPlayer, teamPlayers } from '../roster';
 import type { League } from '../types';
 import { POSITIONS } from '../types';
 import {
@@ -190,7 +190,7 @@ describe('offseason calendar', () => {
       teamId: null,
       jerseysUsed: new Set(),
     });
-    league.players[candidate.id] = candidate;
+    addPlayer(league, candidate);
     const legs = freeAgents(league).filter((p) => p.position === 'K' && p.age < old.age && !p.injury);
     expect(Math.max(...legs.map(playerOvr)), 'a better free-agent kicker').toBeGreaterThan(playerOvr(old));
     aiTrainingCamp(league, team, new Rng('camp-leg'));

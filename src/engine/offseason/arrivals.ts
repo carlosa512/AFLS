@@ -6,10 +6,12 @@
 import { CFL_ORIGIN, PATHWAY_ORIGINS } from '../data/origins';
 import { recordRatings } from '../development';
 import { generatePlayer } from '../generate';
+import { favoriteJersey } from '../jerseys';
 import { ensureService } from '../personnel/service';
 import { playerOvr } from '../positions';
 import { clamp, Rng } from '../rng';
 import type { League, Player, Position } from '../types';
+import { addPlayer } from '../roster';
 
 /** The real program's yearly class (13–14 athletes). */
 export const PATHWAY_CLASS = 13;
@@ -55,6 +57,7 @@ function arrival(league: League, rng: Rng, position: Position, quality: number, 
     jerseysUsed: new Set(),
   });
   p.experience = 0;
+  p.jersey = favoriteJersey(league.seed, p);
   ensureService(p, league.season);
   return p;
 }
@@ -68,7 +71,7 @@ export function pathwayClass(league: League): Player[] {
     p.potential = Math.round(clamp(playerOvr(p) + rng.float(1, 5), playerOvr(p), 20) * 10) / 10;
     p.origin = rng.pick(PATHWAY_ORIGINS);
     recordRatings(p, league.season);
-    league.players[p.id] = p;
+    addPlayer(league, p);
     out.push(p);
   }
   return out;
@@ -85,7 +88,7 @@ export function cflArrivals(league: League): Player[] {
     p.origin = CFL_ORIGIN;
     p.cflSeasons = rng.int(1, 4);
     recordRatings(p, league.season);
-    league.players[p.id] = p;
+    addPlayer(league, p);
     out.push(p);
   }
   return out;

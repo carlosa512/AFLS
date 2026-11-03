@@ -9,12 +9,17 @@
  * A full run (no position filter) also rewrites docs/ATTRIBUTES.md: the registry's attributes and
  * contests plus these measurements, so the attribute-to-engine map never goes stale.
  *
- *   npm run audit              # 3 seasons per pair (9 for close calls, 27 before a flag), ~3 minutes
+ * The pairs are judged in worker processes, one per core (`AUDIT_WORKERS` sets how many).
+ *
+ *   npm run audit              # 3 seasons per pair (9 for close calls, 27 before a flag)
  *   npm run audit -- 5         # more seasons per pair (less noise)
  *   npm run audit -- 3 --all   # every attribute at every position (doesn't touch the doc)
  *   npm run audit -- 3 QB      # one position only (doesn't touch the doc)
  */
+import { fork } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { AGING_TEXT, ATTRIBUTE_INFO, CONTESTS, type Contest } from '../src/engine/attributes';
 import { OVR_WEIGHTS } from '../src/engine/positions';
 import { createLeague } from '../src/engine/generate';
@@ -111,9 +116,19 @@ function bumped(pos: Position, attr: Attribute): League {
   return league;
 }
 
-const t0 = Date.now();
-const baseLeague = createLeague({ seed: 'audit' });
-const base = run(baseLeague);
+/** One (position, attribute) pair's measurement. */
+interface Row {
+  pos: Position;
+  attr: Attribute;
+  weight: number;
+  verdict: string;
+  detail: string;
+  flag: string | null;
+}
+
+// The untouched league's games, read once a process: each worker replays the same ones.
+let baseLeague: League | null = null;
+let base: Sample | null = null;
 let extraBase: Sample | null = null;
 let deepBase: Sample | null = null;
 
@@ -129,60 +144,109 @@ function compare(test: Sample, against: Sample) {
 
 const merge = (a: Sample, b: Sample): Sample => ({ rows: a.rows.map((r, i) => [...r, ...b.rows[i]]) });
 
-console.log(
-  `\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls, ${seasons * 9} before a flag)\n`,
-);
-console.log('pos  attribute        weight  verdict      biggest moves (Δ, z)');
-
-const flagged: string[] = [];
-const results: { pos: Position; attr: Attribute; weight: number; verdict: string; detail: string }[] = [];
-for (const pos of POSITIONS) {
-  if (only && pos !== only) continue;
-  const weights = OVR_WEIGHTS[pos];
-  const attrs = all ? [...ATTRIBUTES] : (Object.keys(weights) as Attribute[]).sort((a, b) => weights[b]! - weights[a]!);
-  for (const attr of attrs) {
-    const league = bumped(pos, attr);
-    let test = run(league);
-    let moves = compare(test, base);
-    // Close calls get more seasons before a verdict, so small-but-real effects aren't called cosmetic.
-    if (Math.abs(moves[0].z) < 3) {
-      extraBase ??= merge(base, run(baseLeague, seasons, seasons * 3));
-      test = merge(test, run(league, seasons, seasons * 3));
-      moves = compare(test, extraBase);
-    }
-    const w = weights[attr] ?? 0;
-    // And before a pair is flagged it gets three times as many again: a small hook (a 10% share of one
-    // contest) can read as nothing in nine seasons when the league's play mix shifts a little.
-    const wouldFlag = (z: number) => w > 0 && (z < 2 || (z < 3 && w >= 1.5));
-    if (wouldFlag(Math.abs(moves[0].z))) {
-      deepBase ??= merge(extraBase!, run(baseLeague, seasons * 3, seasons * 9));
-      test = merge(test, run(league, seasons * 3, seasons * 9));
-      moves = compare(test, deepBase);
-    }
-    const top = Math.abs(moves[0].z);
-    const verdict = top >= 3 ? 'moves play' : top >= 2 ? 'weak' : 'NO EFFECT';
-    // Cosmetic: the overall counts it but play doesn't. Underpowered: it counts a lot but barely moves play.
-    if (w > 0 && (verdict === 'NO EFFECT' || (verdict === 'weak' && w >= 1.5)))
-      flagged.push(`${pos} ${attr} (${verdict.toLowerCase()})`);
-    const detail = moves
-      .filter((x) => Math.abs(x.z) >= 2)
-      .slice(0, 3)
-      .map((x) => `${x.m.label} ${x.delta >= 0 ? '+' : ''}${x.delta.toFixed(x.m.digits)} (z ${x.z.toFixed(1)})`)
-      .join(', ');
-    console.log(
-      `${pos.padEnd(4)} ${attr.padEnd(16)} ${w ? w.toFixed(2).padStart(6) : '     –'}  ${verdict.padEnd(11)}  ${detail}`,
-    );
-    results.push({ pos, attr, weight: w, verdict, detail });
+function judge(pos: Position, attr: Attribute): Row {
+  baseLeague ??= createLeague({ seed: 'audit' });
+  base ??= run(baseLeague);
+  const league = bumped(pos, attr);
+  let test = run(league);
+  let moves = compare(test, base);
+  // Close calls get more seasons before a verdict, so small-but-real effects aren't called cosmetic.
+  if (Math.abs(moves[0].z) < 3) {
+    extraBase ??= merge(base, run(baseLeague, seasons, seasons * 3));
+    test = merge(test, run(league, seasons, seasons * 3));
+    moves = compare(test, extraBase);
   }
+  const w = OVR_WEIGHTS[pos][attr] ?? 0;
+  // And before a pair is flagged it gets three times as many again: a small hook (a 10% share of one
+  // contest) can read as nothing in nine seasons when the league's play mix shifts a little.
+  const wouldFlag = (z: number) => w > 0 && (z < 2 || (z < 3 && w >= 1.5));
+  if (wouldFlag(Math.abs(moves[0].z))) {
+    deepBase ??= merge(extraBase!, run(baseLeague, seasons * 3, seasons * 9));
+    test = merge(test, run(league, seasons * 3, seasons * 9));
+    moves = compare(test, deepBase);
+  }
+  const top = Math.abs(moves[0].z);
+  const verdict = top >= 3 ? 'moves play' : top >= 2 ? 'weak' : 'NO EFFECT';
+  // Cosmetic: the overall counts it but play doesn't. Underpowered: it counts a lot but barely moves play.
+  const flag =
+    w > 0 && (verdict === 'NO EFFECT' || (verdict === 'weak' && w >= 1.5))
+      ? `${pos} ${attr} (${verdict.toLowerCase()})`
+      : null;
+  const detail = moves
+    .filter((x) => Math.abs(x.z) >= 2)
+    .slice(0, 3)
+    .map((x) => `${x.m.label} ${x.delta >= 0 ? '+' : ''}${x.delta.toFixed(x.m.digits)} (z ${x.z.toFixed(1)})`)
+    .join(', ');
+  return { pos, attr, weight: w, verdict, detail, flag };
 }
 
-console.log(`\n${((Date.now() - t0) / 1000).toFixed(0)}s`);
-if (flagged.length) {
-  console.log(`\nNeeds attention (${flagged.length}): ${flagged.join(', ')}`);
-  process.exitCode = 1;
-} else console.log('\nEvery attribute that counts toward an overall moves play.');
+/** Every pair to judge, in the order the table lists them. */
+const pairs = POSITIONS.filter((pos) => !only || pos === only).flatMap((pos) => {
+  const weights = OVR_WEIGHTS[pos];
+  const attrs = all ? [...ATTRIBUTES] : (Object.keys(weights) as Attribute[]).sort((a, b) => weights[b]! - weights[a]!);
+  return attrs.map((attr) => ({ pos, attr }));
+});
 
-if (!only && !all) {
+/**
+ * The pairs, judged by worker processes on every core (the audit is replayed games, and each pair's are its own: one
+ * core took a quarter of an hour on CI, against a 20-minute limit). A game never changes its league, so a worker's
+ * rows are the ones a single process would print. Rows are printed in the table's order as they come in.
+ */
+function judgeAll(onRow: (r: Row) => void): Promise<Row[]> {
+  const rows: Row[] = new Array(pairs.length);
+  let next = 0;
+  let printed = 0;
+  let done = 0;
+  const workers = Math.min(pairs.length, Number(process.env.AUDIT_WORKERS ?? availableParallelism()));
+  return new Promise((resolve, reject) => {
+    for (let w = 0; w < workers; w++) {
+      const child = fork(fileURLToPath(import.meta.url), args, { env: { ...process.env, AUDIT_WORKER: '1' } });
+      let retired = false;
+      const hand = () => {
+        if (next < pairs.length) child.send(next++);
+        else {
+          retired = true;
+          child.kill();
+        }
+      };
+      child.on('message', ({ i, row }: { i: number; row: Row }) => {
+        rows[i] = row;
+        while (printed < pairs.length && rows[printed]) onRow(rows[printed++]);
+        if (++done === pairs.length) resolve(rows);
+        hand();
+      });
+      child.once('error', reject);
+      // A worker that dies with pairs still out fails the audit by name.
+      child.once('exit', (code, signal) => {
+        if (!retired) reject(new Error(`audit worker exited (${signal ?? code}) with pairs still out`));
+      });
+      hand();
+    }
+  });
+}
+
+const rowLine = (r: Row) =>
+  `${r.pos.padEnd(4)} ${r.attr.padEnd(16)} ${r.weight ? r.weight.toFixed(2).padStart(6) : '     –'}  ${r.verdict.padEnd(11)}  ${r.detail}`;
+
+if (process.env.AUDIT_WORKER) {
+  process.on('message', (i: number) => process.send!({ i, row: judge(pairs[i].pos, pairs[i].attr) }));
+} else {
+  const t0 = Date.now();
+  console.log(
+    `\nAttribute audit: +${BUMP} to every player at the position, ${seasons} season(s) per pair (${seasons * 3} for close calls, ${seasons * 9} before a flag)\n`,
+  );
+  console.log('pos  attribute        weight  verdict      biggest moves (Δ, z)');
+  const results = await judgeAll((r) => console.log(rowLine(r)));
+  const flagged = results.flatMap((r) => (r.flag ? [r.flag] : []));
+  console.log(`\n${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  if (flagged.length) {
+    console.log(`\nNeeds attention (${flagged.length}): ${flagged.join(', ')}`);
+    process.exitCode = 1;
+  } else console.log('\nEvery attribute that counts toward an overall moves play.');
+  if (!only && !all) writeDoc(results);
+}
+
+function writeDoc(results: Row[]) {
   const pct = (w: number) => `${Math.round(w * 100)}%`;
   const lines = [
     '# Attributes and the match engine',

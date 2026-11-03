@@ -310,12 +310,23 @@ export function migrateLeague(league: League): League | null {
     if (games.length && !games.some((g) => g.uniform)) assignUniforms(league, games, league.season);
     league.version = 76;
   }
-  // v77: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
+  // v77: numbers by the players' own choices (`jerseys.ts`). `Player.numberEdited` is optional, and nobody's number
+  // changes on load: players move to their favourites as they come free, at each new league year.
+  if (league.version < 77) league.version = 77;
+  // v78: where a lost fumble came out (`PlayLogEntry.loose`, for All-22). Optional: older games keep their plays.
+  if (league.version < 78) league.version = 78;
+  // v79: disputes (G4): `Morale.dispute`, `disputeEnd`, `rust`, `Talk.sour`, `Talk.promise.dispute`,
+  // `ContractYear.withheld`, `Player.lostAccrual` and `Morale.reported` are all optional and absent to start; a save from
+  // before them has no dispute and nothing soured.
+  if (league.version < 79) league.version = 79;
+  // v80: trade requests (G4b): `Dispute.calm` and the market's `wantsOut` rumors are optional and absent to start.
+  if (league.version < 80) league.version = 80;
+  // v81: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
   // middle (`Coach.credibility`). `MoraleJolt` gains `meeting` and `League.lockerBeats` is optional: nothing to rewrite.
-  if (league.version < 77) {
+  if (league.version < 81) {
     for (const team of league.teams) team.meetings ??= { log: [], open: [] };
     for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
-    league.version = 77;
+    league.version = 81;
   }
   return league;
 }

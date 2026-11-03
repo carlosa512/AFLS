@@ -21,11 +21,13 @@ import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { overall, playerOvr } from './positions';
 import {
+  addPlayer,
   buildAutoDepthChart,
   claimMove,
   handOverMoves,
   placeAt,
   returnHome,
+  setTeam,
   slotOf,
   syncDepthChart,
   teamPlayers,
@@ -113,7 +115,7 @@ describe('starting a plan', () => {
     startMove(l, p.id, 'S');
     expect(activeLearning(l.players[p.id])).toBeDefined();
     const traded = copy(l);
-    traded.players[p.id].teamId = (l.userTeamId + 1) % l.teams.length;
+    setTeam(traded, traded.players[p.id], (l.userTeamId + 1) % l.teams.length);
     expect(activeLearning(traded.players[p.id])).toBeUndefined();
     const moved = copy(l);
     moved.players[p.id].moves = [{ season: l.season - 1, from: 'S', to: 'CB' }];
@@ -478,7 +480,7 @@ describe('the cap in season', () => {
       teamId: null,
       jerseysUsed: new Set(),
     });
-    l.players[p.id] = p;
+    addPlayer(l, p);
     return p;
   }
   const newWrs = (l: League, teamId: number, before: Set<number>) =>
