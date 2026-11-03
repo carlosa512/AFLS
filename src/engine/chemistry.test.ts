@@ -216,3 +216,15 @@ describe('chemistry: the review’s fixes', () => {
     expect(edges(chemistryWeek(b))).toEqual(edges(a));
   });
 });
+
+describe('chemistry: who counts', () => {
+  it('a hurt quarterback is no part of the passing game’s time together', () => {
+    const l = fresh();
+    const team = l.teams[0];
+    // Every quarterback out: starters() falls back to them for strength reads, but chemistry reads only who plays.
+    for (const id of team.depthChart.QB)
+      l.players[id].injury = { type: 'acl', severity: 'severe', weeksRemaining: 9 } as never;
+    expect(chemistryOf(l, team.id, 'QB')!.together).toBeNull();
+    expect(chemistryOf(l, team.id, 'WR')!.together).toBeNull();
+  });
+});
