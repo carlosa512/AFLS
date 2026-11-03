@@ -75,7 +75,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run size` — player size: builds against each position's curve (fitted to real rosters) inside each tier's bounds
   with no pile-up at a bound, the rare gem's rate, no edge past its cap,
   each lever replayed on the same games with one group's builds two sd out (it must move its own stat the right way),
-  the league at its medians against the league as built (totals must hold), and four 25-season leagues'
+  the league at its medians against the league as built (totals must hold), and four 20-season leagues'
   tails against real rosters' (`scripts/size-long.ts`, each in its own process). Run it after changing `size.ts`, the
   match engine or what builds a league. Nothing may be flagged.
 - `npm run weather` — roll many seasons of weather and check it looks like the NFL's (wind, rain and snow,
