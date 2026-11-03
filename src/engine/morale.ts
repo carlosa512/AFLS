@@ -31,6 +31,11 @@ export interface MoraleFactors {
   room: number;
   promises: number;
   rest: number;
+  /**
+   * The room rubbing off on him (L3): his voices, his friends, an Anchor's calm. Its own factor, never a grievance: it
+   * moves his mood, not what he'd say is wrong.
+   */
+  tone?: number;
 }
 
 /** What one pass over the league reads once, not once per player. */
@@ -258,11 +263,14 @@ function roomScore(league: League, p: Player, ctx: MoraleContext): number {
     (feud ? 1 : 0) +
     (isCaptain(league, p) ? 0.75 : 0) +
     (ctx.mentors.has(p.id) ? 0.25 : 0) +
-    (ctx.culture.get(p.teamId) ?? 0) +
-    // The voices in his room and his friends: their moods rub off (L3).
-    TONE.voices * toneOf(p, ctx) +
-    TONE.friends * friendPull(league, p, ctx) +
-    TONE.calm * calmOf(p, ctx);
+    (ctx.culture.get(p.teamId) ?? 0);
+  return clamp(score, -1.5, 1.5);
+}
+
+/** The voices in his room, his friends and an Anchor's calm: their moods rub off on his (L3). */
+function toneScore(league: League, p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const score = TONE.voices * toneOf(p, ctx) + TONE.friends * friendPull(league, p, ctx) + TONE.calm * calmOf(p, ctx);
   return clamp(score, -1.5, 1.5);
 }
 
@@ -283,6 +291,7 @@ export function moraleFactors(league: League, p: Player, ctx = moraleContext(lea
     room: heard('room', roomScore(league, p, ctx)),
     promises: promisesScore(p),
     rest: restScore(p),
+    tone: toneScore(league, p, ctx),
   };
 }
 
@@ -320,7 +329,7 @@ export function promisesScore(p: Player): number {
 }
 
 export function moraleTarget(f: MoraleFactors): number {
-  return clamp(f.contract + f.role + f.team + f.room + f.promises + f.rest, -10, 10);
+  return clamp(f.contract + f.role + f.team + f.room + f.promises + f.rest + (f.tone ?? 0), -10, 10);
 }
 
 // ───────── the clock and the jolts ─────────
@@ -408,6 +417,8 @@ const FACTOR_WORDS: Record<keyof MoraleFactors, [string, string]> = {
   // His makeup: a man who sits low or high for no reason the room can see still has one.
   rest: ['Hard to please', 'Takes things in stride'],
   promises: ["Doesn't trust your word", 'Trusts your word'],
+  // The room rubbing off on him (L3): the men he listens to, his friends, a calm hand.
+  tone: ['The room is dragging him down', 'The room lifts him'],
 };
 
 const JOLT_WORDS: Record<MoraleJolt, string> = {
@@ -465,10 +476,11 @@ export function moraleReasons(
 ): string[] {
   const out: { text: string; size: number }[] = [];
   for (const [k, [down, up]] of Object.entries(FACTOR_WORDS) as [keyof typeof FACTOR_WORDS, [string, string]][])
-    if (Math.abs(f[k]) >= 0.75) {
+    if (Math.abs(f[k] ?? 0) >= 0.75) {
+      const v = f[k] ?? 0;
       const wait = WAITING[k];
       const waiting = wait && p.morale?.talk?.promise?.kind === wait.kind;
-      out.push({ text: f[k] < 0 ? (waiting ? wait.text : down) : up, size: Math.abs(f[k]) });
+      out.push({ text: v < 0 ? (waiting ? wait.text : down) : up, size: Math.abs(v) });
     }
   for (const j of p.morale?.jolts ?? []) {
     const size = Math.abs(liveSize(j, clock));

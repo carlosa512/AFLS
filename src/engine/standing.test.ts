@@ -7,7 +7,6 @@ import { activeRoster, starters } from './roster';
 import {
   calmOf,
   toneOf,
-  TONE,
   isNewcomer,
   roomView,
   standingView,
@@ -218,7 +217,7 @@ describe('standing: who a room listens to', () => {
 });
 
 describe('standing: moods stay each man’s own (L1)', () => {
-  it("a room's voices pull a teammate's room score: a sour room's drag it, a happy one's lift it (L3)", () => {
+  it("a room's voices pull a teammate's mood: a sour room's drag it, a happy one's lift it (L3)", () => {
     const l = fresh();
     const p = wrOf(l);
     const voices = voicesOf(l, p.teamId!)
@@ -226,12 +225,12 @@ describe('standing: moods stay each man’s own (L1)', () => {
       .filter((v) => v.id !== p.id && unitOf(v.position) === 'WR');
     expect(voices.length).toBeGreaterThan(0);
     for (const v of voices) v.morale = { level: -9 };
-    const sour = moraleFactors(l, p, moraleContext(l)).room;
+    const sour = moraleFactors(l, p, moraleContext(l)).tone!;
     for (const v of voices) v.morale = { level: 9 };
-    const happy = moraleFactors(l, p, moraleContext(l)).room;
+    const happy = moraleFactors(l, p, moraleContext(l)).tone!;
     expect(happy).toBeGreaterThan(sour);
-    // Worth at most a captain's 0.75 each way, and a friend's quarter on top.
-    expect(happy - sour).toBeLessThanOrEqual(2 * (TONE.voices + TONE.friends) + 1e-9);
+    // Its own factor, inside its ±1.5: never a grievance he'd name.
+    expect(happy - sour).toBeLessThanOrEqual(3 + 1e-9);
   });
 });
 
