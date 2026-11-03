@@ -6,6 +6,13 @@
 /** Seconds a step: the replay's own frame (20 a second), so the replay of a spatial play is the simulation. */
 export const STEP = 0.05;
 
+/**
+ * The open field's version, kept in each spatial game's snapshot. A replay re-runs the field with today's code and
+ * knobs, so a game played on another version (a refit, a rule change) is staged as drawn instead: its film can never
+ * show a different tackler or a different end from its box score. Bump it with any change that moves the frames.
+ */
+export const FIELD_VERSION = 1;
+
 export const KNOBS = {
   /** Scales every reaction delay (0.3 s at 12 `reads`). */
   react: 1.204,

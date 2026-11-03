@@ -72,7 +72,7 @@ import type { FieldFacts, FieldMoment } from '../field/moment';
 import { runField } from '../field/run';
 import { fieldSkills } from '../field/skills';
 import { noteSkills, type FieldSnapshot } from '../field/snapshot';
-import { KNOBS, STEP } from '../field/tuning';
+import { FIELD_VERSION, KNOBS, STEP } from '../field/tuning';
 import type { FieldResult, FieldStart } from '../field/types';
 import { CALL_CHAR, packActors } from '../playActors';
 import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
@@ -789,7 +789,7 @@ class GameSim {
         changes: [],
       };
       for (const u of this.fieldRecord.units) this.noteJerseys(u);
-      if (options.field) this.fieldRecord.snap = this.fieldSnap = { seed, players: {} };
+      if (options.field) this.fieldRecord.snap = this.fieldSnap = { seed, v: FIELD_VERSION, players: {} };
     }
     // Form carried in from last week: a quarterback still shaken, a kicker in a slump.
     for (const l of this.lineups) {

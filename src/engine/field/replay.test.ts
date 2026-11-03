@@ -7,7 +7,7 @@ import { bodyOf } from './body';
 import { MID } from './geometry';
 import { stageField } from './replay';
 import { stagePlay } from './stage';
-import { STEP } from './tuning';
+import { FIELD_VERSION, STEP } from './tuning';
 
 const league = createLeague({ seed: 'field-replay' });
 const week1 = league.games.filter((g) => g.week === 1);
@@ -36,11 +36,10 @@ describe('the spatial replay', () => {
     expect(n).toBeGreaterThan(100);
   });
 
-  it('replays the same after a save round trip, and after the switch is turned off', () => {
+  // The replay reads only the stored game (never the league's switch), so turning the switch off can't change it.
+  it('replays the same after a save round trip', () => {
     const { r, taps, homeId } = played[0];
     const saved: GameResult = JSON.parse(JSON.stringify(r));
-    const off = createLeague({ seed: 'field-replay' });
-    off.settings = { spatialField: false };
     for (const t of taps.filter((x) => x.result).slice(0, 25)) {
       const a = stage(r, t.moment.index, homeId);
       const b = stage(saved, t.moment.index, homeId);
@@ -95,6 +94,15 @@ describe('the spatial replay', () => {
       expect(e.field).toBeUndefined();
       if (index < 40) expect(stage(r, index, week1[3].homeId).spatial).toBeUndefined();
     });
+  });
+
+  it('stages a game played on another version of the field as drawn, so its film never disagrees with its box score', () => {
+    const { r, taps, homeId } = played[0];
+    expect(r.field!.snap!.v).toBe(FIELD_VERSION);
+    const older: GameResult = JSON.parse(JSON.stringify(r));
+    older.field!.snap!.v = FIELD_VERSION - 1;
+    for (const t of taps.filter((x) => x.result).slice(0, 10))
+      expect(stage(older, t.moment.index, homeId).spatial, `play ${t.moment.index}`).toBeUndefined();
   });
 
   it("stages a live game's spatial plays as they come", () => {

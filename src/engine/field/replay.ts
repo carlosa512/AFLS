@@ -1,7 +1,7 @@
 /**
  * A spatial play's replay (spec §4): the approach staged again from the log, then the open field's own frames, re-run
  * from the game's snapshot on the play's stream, the same every time. A lost fumble, or a play the snapshot can't
- * start, is staged as drawn.
+ * start, is staged as drawn; so is a game played on another version of the field (`FIELD_VERSION`).
  */
 import { Rng } from '../rng';
 import type { FieldRecord, PlayLogEntry } from '../types';
@@ -11,7 +11,7 @@ import { momentOf } from './moment';
 import { runField } from './run';
 import { skillsAt } from './snapshot';
 import { asRan, type StagedPlay } from './stage';
-import { STEP } from './tuning';
+import { FIELD_VERSION, STEP } from './tuning';
 
 export function stageField(args: {
   plays: readonly PlayLogEntry[];
@@ -22,7 +22,7 @@ export function stageField(args: {
   const { plays, index, record, homeId } = args;
   const snap = record.snap;
   const e = asRan(plays[index]);
-  if (!snap || !e.field || e.loose !== undefined) return null;
+  if (!snap || snap.v !== FIELD_VERSION || !e.field || e.loose !== undefined) return null;
   const m = momentOf(plays[index], record, index, homeId);
   if (!m) return null;
   const a = approach(m, record, homeId, snap.seed);

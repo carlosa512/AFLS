@@ -8,6 +8,8 @@ import type { FieldSkills, FieldStart } from './types';
 export interface FieldSnapshot {
   /** The game's seed: a play's open field draws from `${seed}:field:${index}`. */
   seed: string;
+  /** The open field's version it was played on (`FIELD_VERSION`): a replay on another stages as drawn. */
+  v?: number;
   players: Record<number, FieldSkills>;
   later?: [index: number, id: number, s: FieldSkills][];
 }
