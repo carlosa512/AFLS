@@ -16,7 +16,7 @@ import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
-import { calmOf, friendPull, honouredSince, roomVoices, TONE, toneOf, unitOf, type VoiceRef } from './standing';
+import { calmOf, friendPull, honouredSince, TONE, toneOf, unitOf, voiceOf, type VoiceRef } from './standing';
 import { disputeStep } from './disputes';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
@@ -123,24 +123,25 @@ export function moraleContext(league: League): MoraleContext {
     voiceMean: 0,
     roomLeans: new Map(),
   };
-  // L3: each man's mood as the pass began (so voices can't feed on each other within it), then the voices, last:
-  // their weights read the records and snaps above.
+  // L3: each man's mood as the pass began (so voices can't feed on each other within it), his room's mean, and the
+  // voices, in one walk of each roster (weights read the records and snaps above).
   const mean = moraleMean(league);
-  for (const t of league.teams)
-    for (const p of activeRoster(league, t.id))
-      if (p.morale) ctx.leans.set(p.id, moodPull(moraleLevel(league, p), mean));
-  ctx.voices = roomVoices(league, ctx);
-  const voiceLeans = [...ctx.voices.values()].flat().map((v) => ctx.leans.get(v.id) ?? 0);
-  ctx.voiceMean = voiceLeans.length ? voiceLeans.reduce((a, b) => a + b, 0) / voiceLeans.length : 0;
   const roomLists = new Map<string, number[]>();
+  const voiceLeans: number[] = [];
   for (const t of league.teams)
     for (const p of activeRoster(league, t.id)) {
-      const lean = ctx.leans.get(p.id);
-      if (lean === undefined) continue;
+      if (!p.morale) continue;
+      const lean = moodPull(moraleLevel(league, p), mean);
+      ctx.leans.set(p.id, lean);
       const key = `${t.id}:${unitOf(p.position)}`;
       (roomLists.get(key) ?? roomLists.set(key, []).get(key)!).push(lean);
+      const v = voiceOf(league, p, ctx);
+      if (!v) continue;
+      (ctx.voices.get(key) ?? ctx.voices.set(key, []).get(key)!).push(v);
+      voiceLeans.push(lean);
     }
-  for (const [key, list] of roomLists) ctx.roomLeans.set(key, list.reduce((a, b) => a + b, 0) / list.length);
+  ctx.voiceMean = voiceLeans.length ? voiceLeans.reduce((x, y) => x + y, 0) / voiceLeans.length : 0;
+  for (const [key, list] of roomLists) ctx.roomLeans.set(key, list.reduce((x, y) => x + y, 0) / list.length);
   return ctx;
 }
 

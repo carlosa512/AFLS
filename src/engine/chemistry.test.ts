@@ -9,6 +9,7 @@ import {
   seasonsTogether,
   wordOf,
   type ChemRoom,
+  freshChemistry,
 } from './chemistry';
 import { createLeague } from './generate';
 import { playWeek } from './league';
@@ -199,6 +200,8 @@ describe('chemistry: the review’s fixes', () => {
       const p = l.players[id];
       if (p.teamId === l.userTeamId) p.morale = { level: -9, jolts: [] };
     }
+    // Game day reads the league fresh (playWeek and a live game's kickoff call this).
+    freshChemistry(l);
     expect(chemistryOf(l, l.userTeamId, 'OL')!.mood).toBeLessThan(before);
   });
 

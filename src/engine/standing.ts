@@ -132,16 +132,9 @@ export interface VoiceRef {
   sound: Sound | null;
 }
 
-/** Each club's leaders and voices by room (`teamId:unit`), for one pass over the league. */
-export function roomVoices(league: League, ctx: MoraleContext): Map<string, VoiceRef[]> {
-  const voices = new Map<string, VoiceRef[]>();
-  for (const team of league.teams)
-    for (const p of activeRoster(league, team.id)) {
-      if (!tierOf(league, p, weightOf(league, p, ctx))) continue;
-      const key = `${team.id}:${unitOf(p.position)}`;
-      (voices.get(key) ?? voices.set(key, []).get(key)!).push({ id: p.id, sound: soundOf(p) });
-    }
-  return voices;
+/** A leader or voice as the room hears him, or null for a man the room doesn't follow. */
+export function voiceOf(league: League, p: Player, ctx: MoraleContext): VoiceRef | null {
+  return tierOf(league, p, weightOf(league, p, ctx)) ? { id: p.id, sound: soundOf(p) } : null;
 }
 
 /** His room's voices' pull, −1…+1: their leans against the league's mood, weighted by how they sound; never himself. */

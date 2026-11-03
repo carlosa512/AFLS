@@ -103,7 +103,7 @@ export function moodPart(level: number, mean: number, split: boolean): number {
  * driven leader or voice stays hungry. It's also the brake on a loop: winning lifts moods and moods lift play, and
  * without it good teams pulled away from the league (win spread past the NFL's).
  */
-export const COMPLACENCY = { from: 0.5, full: 0.8, max: 0.75 };
+export const COMPLACENCY = { from: 0.5, full: 0.8, max: 1 };
 
 export function complacent(mood: number, winShare: number, hungry: boolean): number {
   if (mood <= 0 || hungry) return mood;
@@ -151,24 +151,17 @@ interface Week {
 const weeks = new WeakMap<League, Week>();
 
 /**
- * The week's read, keyed on what can move a mood between weeks too: a signing, a trade or a cut (the league's
- * transactions), and any man's mood itself (a talk answered, a meeting held). Read before Sunday or after, it's the
- * same week's read of the league as it stands, so no game reads a mood from before you acted.
+ * The week's read, keyed on the week. It's dropped (`freshChemistry`) at game day (`playWeek`, a live game's kickoff)
+ * and whenever you act in the app (`store.mutate`), so a trade, a signing or a talk you answered counts; the sim's own
+ * moves between games of one week (an injury signing) don't rebuild it, and those games share one read.
  */
 function weekKey(league: League): string {
-  let moods = 0;
-  for (const p of Object.values(league.players))
-    if (p.teamId !== null && p.morale) moods += p.morale.level * 7 + (p.morale.jolts?.length ?? 0);
-  const last = league.transactions[league.transactions.length - 1];
-  return [
-    league.season,
-    league.phase,
-    league.week,
-    league.moraleAt ?? moraleClock(league),
-    league.transactions.length,
-    last?.text ?? '',
-    moods.toFixed(6),
-  ].join(':');
+  return [league.season, league.phase, league.week, league.moraleAt ?? moraleClock(league)].join(':');
+}
+
+/** Forget the week's read: game day's first lineup reads the league as it stands. */
+export function freshChemistry(league: League): void {
+  weeks.delete(league);
 }
 
 /** A club's win share from the weeks before this one (three games at least, else .500): what complacency reads. */
