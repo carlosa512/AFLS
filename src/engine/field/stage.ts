@@ -35,6 +35,7 @@ import { holeAt, planRunBlocks, runCall, type RunBlocking, type RunCall } from '
 import { COVERAGES } from '../schemes';
 
 import { STEP } from './tuning';
+import { stageField } from './replay';
 
 export { STEP };
 /** Plays where the quarterback has the ball first, and the ones where he drops back to throw. */
@@ -111,6 +112,8 @@ export interface StagedPlay {
   blitz: number[];
   /** What each side runs, for the moments before the snap (`presnap.ts`). */
   schemes: { offense: FieldScheme; defense: FieldScheme };
+  /** A play the spatial engine played (`replay.ts`): its frames from step `k0` (possession) are the open field's own. */
+  spatial?: { k0: number; tackler: number | null };
 }
 
 /** The play as it ran: a flagged snap's own path (`PlayLogEntry.ran`), else the entry itself. */
@@ -144,6 +147,11 @@ export function stagePlay(args: {
 }): StagedPlay {
   const { record, homeId } = args;
   const index = args.index;
+  // A spatial play replays what was played (`replay.ts`); the blind approach itself never is one.
+  if (!args.blind && asRan(args.plays[index]).field) {
+    const field = stageField(args);
+    if (field) return field;
+  }
   // A snap a flag wiped out is staged as it ran (the walk-off is the official's, between plays); a punter roughed
   // before his punt was measured gets a punt to be roughed on.
   const ran = returned(asRan(args.plays[index]));

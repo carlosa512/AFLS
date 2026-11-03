@@ -177,12 +177,13 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     for (let i = 0; i < n; i++) {
       if (i === ci) continue;
       const b = B[i];
+      const was = { x: b.x, y: b.y };
       if (phase === 'pile' && i === tackler) {
         stepBody(b, { vx: (c.x + offX[i] - b.x) / STEP, vy: (c.y + offY[i] - b.y) / STEP }, STEP, pileBrake);
       } else if (phase !== 'live') stepBody(b, { vx: 0, vy: 0 }, STEP, t < b.downUntil ? FALL : BRAKE);
       else if (defense[i]) moveDefender(i, t, s);
       else moveTeammate(i, t);
-      keepOnField(b);
+      keepOnField(b, was);
     }
     // The carrier.
     if (phase === 'pile') stepBody(c, { vx: 0, vy: 0 }, STEP, pileBrake);
@@ -340,11 +341,23 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     stepBody(b, { vx: 0, vy: 0 }, STEP);
   }
 
-  function keepOnField(b: Body) {
-    if (b.y < 0.5) [b.y, b.vy] = [0.5, Math.max(0, b.vy)];
-    if (b.y > FIELD_W - 0.5) [b.y, b.vy] = [FIELD_W - 0.5, Math.min(0, b.vy)];
-    if (b.x < -10) [b.x, b.vx] = [-10, Math.max(0, b.vx)];
-    if (b.x > 110) [b.x, b.vx] = [110, Math.min(0, b.vx)];
+  /**
+   * Nobody but the carrier leaves the field: a step that would take a man over a line stops on it, and a man the
+   * approach left over one (a route run past the end line) can't go further out but walks back on his own legs.
+   */
+  function keepOnField(b: Body, was: { x: number; y: number }) {
+    const wall = (v: number, prev: number, lo: number, hi: number): [number, boolean] => {
+      if (v >= lo && v <= hi) return [v, false];
+      if (prev >= lo && prev <= hi) return [v < lo ? lo : hi, true];
+      // Already outside: no further out than he was.
+      return [v < lo ? Math.max(v, prev) : Math.min(v, prev), v < lo ? v < prev : v > prev];
+    };
+    const [y, hitY] = wall(b.y, was.y, 0.5, FIELD_W - 0.5);
+    const [x, hitX] = wall(b.x, was.x, -10, 110);
+    if (hitY) b.vy = y <= 0.5 ? Math.max(0, b.vy) : Math.min(0, b.vy);
+    if (hitX) b.vx = x <= -10 ? Math.max(0, b.vx) : Math.min(0, b.vx);
+    b.x = x;
+    b.y = y;
   }
 
   /** A free defender within reach makes his play. */
