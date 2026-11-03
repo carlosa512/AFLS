@@ -10,6 +10,8 @@ import type { CoverageId } from '../../engine/schemes';
 import { FIELD_W, MID } from './ballPath';
 import type { Cast, CastMember } from './cast';
 import { SPEED } from './speed';
+import { has, type Habits } from './habits';
+import type { RunBlocking } from './runBlocks';
 import type { Pt } from './formations';
 import { BEAT_ACROSS, sample, type Keyframe } from './scripts';
 
@@ -19,6 +21,8 @@ const ACCEL = 6;
 /** Men closer than this push apart, a little each step (a shove, not a jolt). */
 const ROOM = 1;
 const ROOM_PUSH = 0.12;
+/** A run's first steps by the call last this long (seconds from the snap) before the blocks take over. */
+const FIRST_STEP = 0.5;
 /** Where a steered man may aim, end line to end line (yards), short of the edge he's kept inside so he can pull up. */
 const GOAL_X: readonly [number, number] = [-9, 109];
 /** No one moves further than this in a step (yards: 11 a second), however he's pushed or knocked off. */
@@ -120,6 +124,10 @@ export interface SteerArgs {
   dropback: boolean;
   /** A handoff: the line drives its men off the ball, receivers stalk-block. */
   run: boolean;
+  /** A run's blocking by the call (`runBlocks.ts`): first steps, who blocks whom, who climbs, the free men. */
+  runBlocks?: RunBlocking;
+  /** The habits the engine noted in play (`habits.ts`), by man: the film shows them in how he moves. */
+  habits?: Habits;
   /** No play to run (a flag before the snap, a timeout): everyone holds his spot. */
   hold: boolean;
   /** A kick, and where and when it comes down. */
@@ -187,7 +195,9 @@ export function steer(a: SteerArgs): Float32Array {
   let missUntil = -1;
   const ballY0 = a.ball[1];
   /** Which way across the field the play goes (from the offense's start to where the ball ends): the flow. */
-  const side = Math.sign(a.ball[(a.steps - 1) * 3 + 1] - ballY0) || 1;
+  // The play side across the field: the run's blocking says (straight up the middle, where it ended can't), else where
+  // the ball ended up.
+  const side = a.run && a.runBlocks ? a.dir * a.runBlocks.side : Math.sign(a.ball[(a.steps - 1) * 3 + 1] - ballY0) || 1;
   const ballX0 = a.ball[0];
   /** The target of a throw (his index), whom the defense leaves open by the play's separation until the ball's there. */
   const openTo = a.target == null ? -1 : (index.get(a.target) ?? -1);
@@ -280,8 +290,22 @@ export function steer(a: SteerArgs): Float32Array {
     blockOn.set(b, d);
     blockers.set(d, [...(blockers.get(d) ?? []), b]);
   };
-  /** Linemen who come off a double-team to a linebacker on a run. */
+  /** Linemen who come off a double-team to a linebacker on a run, and (from the run's blocking) whom they climb to. */
   const climbs: number[] = [];
+  const climbTo = new Map<number, number>();
+  /** A run's free men (`RunBlocking.free`): they pursue a step late. */
+  const lateMen = new Set(
+    (a.run ? (a.runBlocks?.free ?? []) : []).map((id) => index.get(id)).filter((k) => k !== undefined),
+  );
+  /** A linebacker who can't get off blocks (`stuckOnBlocks`), and the blocker who has him. */
+  const stuckTo = new Map<number, number>();
+  /** A gap-shooting linebacker on a run, from the snap until just after the handoff: he beats the first hands. */
+  const shooting = (k: number, t: number) =>
+    a.run &&
+    !offense[k] &&
+    members[k].role === 'LB' &&
+    has(a.habits, members[k].id, 'gapShooter') &&
+    t < a.release + 0.6;
   /** A screen to the back or tight end: the three linemen nearest its side release to lead it, in order out. */
   const screenLead = new Map<number, number>();
   if (a.screen) {
@@ -310,6 +334,24 @@ export function steer(a: SteerArgs): Float32Array {
       assign(beatK, rushK);
       open.delete(beatK);
     }
+    const plan = a.run ? a.runBlocks : undefined;
+    if (plan) {
+      // The run's blocking by the call: who blocks whom, and the double-teamers who climb.
+      for (const [b, d] of plan.on) {
+        const bk = index.get(b);
+        const dk = index.get(d);
+        if (bk !== undefined && dk !== undefined && blockable(dk)) {
+          assign(bk, dk);
+          open.delete(bk);
+        }
+      }
+      for (const [b, lb] of plan.climb) {
+        const bk = index.get(b);
+        const lk = index.get(lb);
+        if (bk !== undefined && lk !== undefined) climbTo.set(bk, lk);
+      }
+      open.clear();
+    }
     for (const d of [...front].sort((i, j) => py[i] - py[j])) {
       if (blockers.has(d)) continue;
       const b = pick([...open], d);
@@ -322,7 +364,7 @@ export function steer(a: SteerArgs): Float32Array {
       const d = pick(front.length ? front : backers, b);
       if (d >= 0) assign(b, d);
     }
-    if (a.run && backers.length) climbs.push(...[...open].filter((b) => blockOn.has(b)));
+    if (a.run && backers.length) climbs.push(...[...open].filter((b) => blockOn.has(b)), ...climbTo.keys());
     if (a.maxProtect)
       for (const k of all)
         if (offense[k] && steered[k] && members[k].role === 'TE') {
@@ -338,7 +380,7 @@ export function steer(a: SteerArgs): Float32Array {
     }
     if (a.run)
       for (const k of all)
-        if (offense[k] && steered[k] && (members[k].role === 'WR' || members[k].role === 'TE')) {
+        if (offense[k] && steered[k] && !blockOn.has(k) && (members[k].role === 'WR' || members[k].role === 'TE')) {
           const d = pick(dbs, k);
           if (d >= 0) assign(k, d);
         }
@@ -424,9 +466,11 @@ export function steer(a: SteerArgs): Float32Array {
     return c < 0 || retIdx < 0 ? here : between(c, retIdx);
   }
   /** Everyone who blocks on this play: the line, a back staying in, receivers stalking on a run. */
+  // (Never the man with the ball: a back carrying it on a run blocks nobody, and a defender on him isn't held.)
   const blockerIdx = all.filter(
     (k) =>
       offense[k] &&
+      k !== carrierIdx &&
       (members[k].role === 'OL' || (members[k].role === 'RB' && !checkdowns.has(members[k].id)) || blockOn.has(k)),
   );
 
@@ -531,8 +575,9 @@ export function steer(a: SteerArgs): Float32Array {
         /** Below 1 for a man out of the play, easing off. */
         let beaten = 1;
         // A combo block's second man comes off the double a second after the handoff and climbs to a linebacker.
-        if (climbs.includes(k) && t > a.release + 1 && !climbed.has(k)) {
-          const lb = pick(backers, k);
+        const climbAt = a.release + (has(a.habits, m.id, 'secondLevel') ? 0.6 : 1);
+        if (climbs.includes(k) && t > climbAt && !climbed.has(k)) {
+          const lb = climbTo.get(k) ?? pick(backers, k);
           if (lb >= 0) {
             blockOn.set(k, lb);
             blockers.set(lb, [...(blockers.get(lb) ?? []), k]);
@@ -590,8 +635,21 @@ export function steer(a: SteerArgs): Float32Array {
               }
             }
           } else {
-            // Drive block: square up on his man's near side, push, and work him toward the play side.
-            goal = { x: px[on] - a.dir * 0.9, y: py[on] + side * 0.8 };
+            // Drive block: square up on his man's near side, push, and work him toward the play side. A second-level
+            // blocker who's climbed takes the angle that seals his linebacker off the hole, between the two.
+            const hole = a.runBlocks?.hole;
+            if (hole && climbed.has(k) && has(a.habits, m.id, 'secondLevel')) {
+              const dx = hole.x - px[on];
+              const dy = hole.y - py[on];
+              const d = Math.hypot(dx, dy) || 1;
+              goal = { x: px[on] + (dx / d) * 1.2, y: py[on] + (dy / d) * 1.2 };
+            } else {
+              // A zone block flows along the line with the play, working his man across, not straight back.
+              const zone = a.run && a.runBlocks && a.runBlocks.call !== 'power';
+              goal = zone
+                ? { x: px[on] - a.dir * 0.7, y: py[on] + side * 0.9 }
+                : { x: px[on] - a.dir * 0.9, y: py[on] + side * 0.8 };
+            }
           }
         } else if (offense[k]) {
           if (a.dropback && released && (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id)))) {
@@ -644,6 +702,14 @@ export function steer(a: SteerArgs): Float32Array {
             // chaser left behind gives his lane up and runs straight after him.
             const lane = LANES[k % LANES.length] * Math.min(1, d / 12) * Math.max(0, 1 - Math.max(0, past - 1) / 3);
             goal = { x: aim.x, y: aim.y + lane };
+            // The run's free man (nobody could block him, and he isn't the engine's tackler): his angle arrives a
+            // step late, two yards behind where the carrier's headed, so he's there at the end but never first.
+            if (lateMen.has(k) && carrierIdx >= 0) {
+              const hx = px[carrierIdx] - lastX[carrierIdx];
+              const hy = py[carrierIdx] - lastY[carrierIdx];
+              const hl = Math.hypot(hx, hy);
+              if (hl > 0.05) goal = { x: aim.x - (hx / hl) * 2, y: aim.y - (hy / hl) * 2 };
+            }
             // Beaten: he loses ground, more the further behind he is, so the chase thins out behind the play rather
             // than running alongside it. A big man well beaten eases right off.
             if (past > 1) beaten = Math.max(0.8, 0.95 - (past - 1) * 0.03);
@@ -665,6 +731,18 @@ export function steer(a: SteerArgs): Float32Array {
               step > MAN_LAG ? { x: out[(back * n + q) * 2], y: out[(back * n + q) * 2 + 1] } : { x: px[q], y: py[q] };
             goal = { x: was.x + a.dir * 1.5, y: was.y };
           } else goal = zoneSpot(m, s0);
+        }
+        // The run's blocking: each lineman's first step by the call, before he takes on his man.
+        const first = a.run ? a.runBlocks?.steps.get(m.id) : undefined;
+        if (first && t < FIRST_STEP) goal = first;
+        // A linebacker's habits, the film's way of showing them: a gap-shooter shoots his gap, a scraper flows over the
+        // top, slow flow waits to see it, a misread goes the wrong way first.
+        if (a.run && !offense[k] && k !== pk && m.role === 'LB' && a.habits?.has(m.id)) {
+          const r = a.release;
+          if (has(a.habits, m.id, 'slowFlow') && t < r + 0.4) goal = { x: px[k], y: py[k] };
+          else if (has(a.habits, m.id, 'misreadsKeys') && t < r + 0.4) goal = { x: s0.x, y: s0.y - side * 1.5 };
+          else if (shooting(k, t)) goal = { x: ballX0 - a.dir * 2, y: s0.y };
+          else if (has(a.habits, m.id, 'scraper') && t > 0.3 && t < r + 0.8) goal = { x: s0.x, y: s0.y + side * 5 };
         }
         if (a.kick) goal = kickGoal(k, t);
         // The tackler reads it, takes his angle and closes: aimed where the carrier is going, not where he is.
@@ -724,8 +802,12 @@ export function steer(a: SteerArgs): Float32Array {
                 (!sent || members[b].role === 'RB' || blockOn.get(b) === k) &&
                 Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6,
             );
-          const live = a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1;
-          if (holding && live) {
+          // Once a blocker has a man who can't get off blocks, he stays blocked; a gap-shooter beats the first hands.
+          const stuck = a.run && has(a.habits, m.id, 'stuckOnBlocks');
+          const live = stuck || (a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1);
+          // A scraper flows through the traffic: hands on him don't stop him while he does.
+          const scraping = a.run && has(a.habits, m.id, 'scraper') && t < a.release + 0.8;
+          if (holding && live && !shooting(k, t) && !scraping && !stuckTo.has(k)) {
             top = a.dropback ? 1.2 : 1;
             // Contact takes his momentum: a blocked man stops, then leans into it.
             const v = Math.hypot(vx[k], vy[k]);
@@ -734,6 +816,30 @@ export function steer(a: SteerArgs): Float32Array {
               vy[k] *= top / v;
             }
             if (a.run) goal = { x: px[k] + a.dir * 1, y: py[k] + side * 0.6 };
+          }
+          // He can't get off blocks: the first lineman, tight end or back (not the carrier) to get hands on him has
+          // him, and he's latched a step in front of that man wherever he goes.
+          if (stuck && !stuckTo.has(k) && t >= a.release) {
+            const b = all.find(
+              (j) =>
+                offense[j] &&
+                j !== carrierIdx &&
+                (members[j].role === 'OL' || members[j].role === 'TE' || members[j].role === 'RB') &&
+                Math.hypot(px[j] - px[k], py[j] - py[k]) < 1.6,
+            );
+            if (b !== undefined) stuckTo.set(k, b);
+          }
+          const latched = stuckTo.get(k);
+          if (stuck && latched !== undefined) {
+            // He goes where his blocker takes him: a yard off him on the side he's on, led by where the blocker's
+            // headed so he doesn't trail.
+            const rx = px[k] - px[latched];
+            const ry = py[k] - py[latched];
+            const rl = Math.hypot(rx, ry) || 1;
+            const bvx = (px[latched] - lastX[latched]) / a.dt;
+            const bvy = (py[latched] - lastY[latched]) / a.dt;
+            goal = { x: px[latched] + (rx / rl) * 1 + bvx * 0.25, y: py[latched] + (ry / rl) * 1 + bvy * 0.25 };
+            top = SPEED[m.role];
           }
         }
         // Steer: toward the goal at top speed, easing off inside a yard, within the acceleration limit.
@@ -784,11 +890,12 @@ export function steer(a: SteerArgs): Float32Array {
         px[k] += vx[k] * a.dt;
         py[k] += vy[k] * a.dt;
       }
-      // Room to move: steered men push off anyone closer than a yard.
+      // Room to move: steered men push off anyone closer than a yard (a gap-shooter slips between the blockers).
       for (let k = 0; k < n; k++) {
         if (!steered[k]) continue;
+        const slips = shooting(k, t);
         for (let j = 0; j < n; j++) {
-          if (j === k) continue;
+          if (j === k || (slips && offense[j]) || (offense[k] && shooting(j, t))) continue;
           const dx = px[k] - px[j];
           const dy = py[k] - py[j];
           const d = Math.hypot(dx, dy);
@@ -845,7 +952,8 @@ export function steer(a: SteerArgs): Float32Array {
       for (const r of new Set([hk, ck])) {
         if (r < 0) continue;
         for (let k = 0; k < n; k++) {
-          if (!steered[k] || k === pk || offense[k] === offense[r]) continue;
+          // (A man stuck on a block is blocked, not lunging at the carrier.)
+          if (!steered[k] || k === pk || offense[k] === offense[r] || stuckTo.has(k)) continue;
           const dx = px[k] - px[r];
           const dy = py[k] - py[r];
           const d = Math.hypot(dx, dy);

@@ -13,11 +13,24 @@ import { meshGap, pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
 import { castFor } from './cast';
 import { blitzersFor, isVictory, lineUp } from './formations';
-import { ballTrack, catchSpot, KNEEL_AT, passFlight, script, stagedPath, throwWindow, type Pattern } from './scripts';
+import {
+  ballTrack,
+  catchSpot,
+  KNEEL_AT,
+  passFlight,
+  sample,
+  script,
+  stagedPath,
+  throwWindow,
+  type Keyframe as ScriptKey,
+  type Pattern,
+} from './scripts';
 import { assign, conceptFor, spotOf, type ConceptId } from './concepts';
 import { routeFor, routeTime, type RouteId } from './routes';
 import { SPEED, steer } from './steer';
 import type { Pt } from './formations';
+import { habitsOf } from './habits';
+import { holeAt, planRunBlocks, runCall, type RunBlocking, type RunCall } from './runBlocks';
 import { COVERAGES } from '../../engine/schemes';
 
 export const STEP = 0.05;
@@ -62,6 +75,15 @@ export interface StagedPlay {
   pattern?: { concept: ConceptId; route: RouteId };
   /** The victory formation: the quarterback, down on a knee from `t` (seconds from the snap). */
   kneel?: { id: number; t: number };
+  /** A run's blocking by the call (`runBlocks.ts`): the call, the play side, the hole, the puller, who climbs, the free men. */
+  run?: {
+    call: RunCall;
+    side: 1 | -1;
+    hole: Pt;
+    puller: number | null;
+    climb: [number, number][];
+    free: number[];
+  };
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
@@ -240,6 +262,44 @@ export function stagePlay(args: {
   );
   const scripted = script(e, cast, start, segs, dir, pocket, pattern);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
+  // The habits the engine noted in play, and on a run its blocking by the call (`runBlocks.ts`), on streams of their
+  // own so nothing else on the play moves.
+  const habits = habitsOf(e, new Set(start.keys()));
+  let runBlocks: RunBlocking | undefined;
+  if (e.kind === 'run' && carrier !== null) {
+    const read = runCall(e, off.offense, new Rng(`${args.seed}:run`));
+    const hole = holeAt(read.call, read.side, { x: ballX, y: ballY }, dir, !!e.open?.bounce);
+    const back = keys.get(carrier);
+    runBlocks = planRunBlocks({
+      call: read.call,
+      side: read.side,
+      hole,
+      start,
+      cast,
+      dir,
+      exclude: new Set([who.tackle, e.open?.broke?.by].filter((id): id is number => id !== undefined)),
+      backAt: (t) => (back ? sample(back, t) : hole),
+      handoff: release,
+      carrier,
+      habits,
+      rng: new Rng(`${args.seed}:blocks`),
+    });
+    // The puller: behind the line to the hole and up through it at a lineman's pace, then he blocks his man.
+    const pull = runBlocks.puller;
+    if (pull && start.has(pull.id) && !keys.has(pull.id)) {
+      const pace = SPEED.OL - 0.5;
+      let t = 0;
+      let from = start.get(pull.id)!;
+      const legs: ScriptKey[] = [{ t: 0, x: from.x, y: from.y }];
+      for (const p of pull.path) {
+        t += Math.max(0.15, Math.hypot(p.x - from.x, p.y - from.y) / pace);
+        legs.push({ t, x: p.x, y: p.y });
+        from = p;
+      }
+      keys.set(pull.id, legs);
+      free.set(pull.id, t);
+    }
+  }
   const flight = segs.find((sg) => sg.peak > 0);
   const kick = e.kind === 'kickoff' || e.kind === 'punt' ? e.kind : e.kind === 'fg' || e.kind === 'xp' ? 'fg' : null;
   const total = segs.reduce((t, s) => t + s.dur, 0) || (e.kind === 'penalty' ? PRE_SNAP : STILL);
@@ -285,6 +345,8 @@ export function stagePlay(args: {
     separation: pattern?.separation,
     dropback: !!e.kind && DROPBACKS.has(e.kind),
     run: e.kind === 'run',
+    runBlocks,
+    habits,
     // Man coverage behind a blitz, as the engine plays it.
     man: !!(def.coverage && COVERAGES[def.coverage].man) || call === 'blitz',
     coverage: def.coverage,
@@ -331,6 +393,18 @@ export function stagePlay(args: {
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
     ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),
+    ...(runBlocks
+      ? {
+          run: {
+            call: runBlocks.call,
+            side: runBlocks.side,
+            hole: runBlocks.hole,
+            puller: runBlocks.puller?.id ?? null,
+            climb: [...runBlocks.climb],
+            free: runBlocks.free,
+          },
+        }
+      : {}),
     pocket,
     ...(pattern ? { pattern: { concept: pattern.concept.id, route: pattern.route } } : {}),
     keys: [...moments.keys()],

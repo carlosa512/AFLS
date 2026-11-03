@@ -5,6 +5,7 @@ import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
+import type { QuirkId } from '../../engine/quirks';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
 import { castFor, unitsAt } from './cast';
 import { fumbleIn } from './fumble';
@@ -586,7 +587,10 @@ describe('off the ball', () => {
         const front = kind === 'run' ? ['DT', 'EDGE', 'LB'] : ['DT', 'EDGE'];
         const rushers = p.ids.map((_, k) => k).filter((k) => !p.offense[k] && front.includes(p.roles[k]));
         p.ids.forEach((id, k) => {
-          if (p.roles[k] !== 'OL' || p.keys.includes(id)) return;
+          // (A pulling guard is crossing behind the line a second in, by design.)
+          // (Nor is a man climbing to a linebacker: he's on his way to his man.)
+          if (p.roles[k] !== 'OL' || p.keys.includes(id) || id === p.run?.puller) return;
+          if (p.run?.climb.some(([b]) => b === id)) return;
           const near = Math.min(
             ...rushers.map((j) =>
               Math.hypot(
@@ -644,7 +648,14 @@ describe('off the ball', () => {
       const st = Math.min(p.steps - 1, Math.round(1.6 / p.dt));
       p.ids.forEach((id, k) => {
         if (p.roles[k] !== 'OL' || p.keys.includes(id)) return;
-        const d = Math.hypot(p.pos[(st * 22 + k) * 2] - p.pos[k * 2], p.pos[(st * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]);
+        // The furthest he's got from his stance by then: a zone lineman's reach step can take him a yard across before
+        // he fits on a man who's slanted back over him.
+        let d = 0;
+        for (let s = 1; s <= st; s++)
+          d = Math.max(
+            d,
+            Math.hypot(p.pos[(s * 22 + k) * 2] - p.pos[k * 2], p.pos[(s * 22 + k) * 2 + 1] - p.pos[k * 2 + 1]),
+          );
         // Now and then one is stood up at the line: not every block wins.
         if (d > 1) moved++;
         linemen++;
@@ -1274,5 +1285,204 @@ describe('screens and throwaways', () => {
       n++;
     }
     expect(n).toBeGreaterThan(5);
+  });
+});
+
+describe('the run game', () => {
+  const runs = games.flatMap(({ g, r }) =>
+    r.plays!.flatMap((e, index) =>
+      e.kind === 'run' && e.down > 0 && e.from !== undefined
+        ? [{ g, r, e, index, snapY: snapYFor(e, 20 + (index % 14)) }]
+        : [],
+    ),
+  );
+  type Run = (typeof runs)[number];
+  const stage = (x: Run, e: PlayLogEntry = x.e) =>
+    stagePlay({
+      plays: Object.assign(x.r.plays!.slice(), { [x.index]: e }),
+      index: x.index,
+      record: x.r.field!,
+      homeId: x.g.homeId,
+      seed: `${x.g.id}:${x.index}`,
+      snapY: x.snapY,
+    });
+  /** The same run with one habit on one man (and nothing else noted). */
+  const withHabit = (x: Run, id: number, q: QuirkId): PlayLogEntry => ({
+    ...x.e,
+    open: { ...x.e.open, habits: [[id, q]] },
+  });
+  const without = (x: Run): PlayLogEntry => ({ ...x.e, open: { ...x.e.open, habits: [] } });
+  const at = (p: StagedPlay, t: number, id: number) => {
+    const k = p.ids.indexOf(id);
+    const st = Math.max(0, Math.min(p.steps - 1, Math.round(t / p.dt)));
+    return { x: p.pos[(st * p.ids.length + k) * 2], y: p.pos[(st * p.ids.length + k) * 2 + 1] };
+  };
+  /** A linebacker who's neither the tackler nor the man who misses. */
+  const freeBacker = (x: Run, p: StagedPlay) => {
+    const who = actorsIn(x.e);
+    return p.ids.find(
+      (id, k) => !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle && id !== x.e.open?.broke?.by,
+    );
+  };
+
+  // Needs the back pressing the hole on time (Task 4 of the Pass B plan): until then he can beat his own kick-out there.
+  it.skip('leaves no unblocked defender standing within 5 yards of the hole as the back goes through', () => {
+    let n = 0;
+    for (const x of runs.slice(0, 300)) {
+      const p = stage(x);
+      if (!p.run || p.carrier === null) continue;
+      const c = p.ids.indexOf(p.carrier);
+      const who = actorsIn(x.e);
+      let cross = -1;
+      for (let st = 0; st < p.steps; st++)
+        if ((p.pos[(st * p.ids.length + c) * 2] - p.run.hole.x) * p.dir > 0) {
+          cross = st;
+          break;
+        }
+      if (cross < 0) continue;
+      n++;
+      // (Not the last half second: that is the tackle, the chase converging.)
+      for (let st = Math.max(1, cross - 10); st < Math.min(p.steps - 10, cross + 10); st++)
+        p.ids.forEach((id, k) => {
+          if (p.offense[k] || id === who.tackle || id === x.e.open?.broke?.by) return;
+          const d = at(p, st * p.dt, id);
+          if (Math.hypot(d.x - p.run!.hole.x, d.y - p.run!.hole.y) > 5) return;
+          const was = at(p, (st - 1) * p.dt, id);
+          const moving = Math.hypot(d.x - was.x, d.y - was.y) / p.dt > 2;
+          // (At the carrier, in the pile as the tackle's made, is where a man should be; one who was at him in the last
+          // second has missed him and is going down.)
+          for (let back = 0; back <= 1; back += 0.1) {
+            const ball = at(p, st * p.dt - back, p.carrier!);
+            const was = at(p, st * p.dt - back, id);
+            if (Math.hypot(was.x - ball.x, was.y - ball.y) < (back ? 2.5 : 2)) return;
+          }
+          const blocked = p.ids.some(
+            (o, j) =>
+              p.offense[j] && j !== c && Math.hypot(at(p, st * p.dt, o).x - d.x, at(p, st * p.dt, o).y - d.y) < 2.2,
+          );
+          expect(moving || blocked, `${p.roles[k]} at ${(st * p.dt).toFixed(2)}: ${x.e.text}`).toBe(true);
+        });
+    }
+    expect(n).toBeGreaterThan(100);
+  });
+
+  it('runs a pulling guard behind the line, never through it', () => {
+    let pulls = 0;
+    for (const x of runs) {
+      const p = stage(x);
+      if (!p.run?.puller) continue;
+      pulls++;
+      const id = p.run.puller;
+      const ballX = p.ball[0];
+      for (let t = 0; t < 1.6; t += 0.05) {
+        const q = at(p, t, id);
+        if (Math.abs(q.y - p.run.hole.y) < 1) break;
+        expect((q.x - ballX) * p.dir).toBeLessThanOrEqual(0.2);
+      }
+    }
+    expect(pulls).toBeGreaterThan(20);
+  });
+
+  it('shows each linebacker habit: a gap-shooter shoots, a scraper flows, slow flow waits, a misread goes wrong', () => {
+    const seen = { gapShooter: 0, scraper: 0, slowFlow: 0, misreadsKeys: 0 };
+    // Runs with a side to them (straight up the middle the play side is the back's to choose: Task 4's press).
+    for (const x of runs.filter((r) => Math.abs(r.e.lane ?? 0) > 0.2).slice(0, 150)) {
+      const base = stage(x, without(x));
+      const lb = base.run && freeBacker(x, base);
+      if (lb === undefined || !base.run) continue;
+      const r = base.release;
+      const ballX = base.ball[0];
+      const fieldSide = base.dir * base.run.side;
+      const depth = (p: StagedPlay, t: number) => (at(p, t, lb).x - ballX) * p.dir;
+      const lateral = (p: StagedPlay, t: number) => (at(p, t, lb).y - at(p, 0, lb).y) * fieldSide;
+      const shoot = stage(x, withHabit(x, lb, 'gapShooter'));
+      const minDepth = (p: StagedPlay) => Math.min(...[0.2, 0.4, 0.6, 0.8].map((d) => depth(p, r + d)));
+      // (Where he'd have been in the backfield anyway, on a run stopped for a loss, there's nothing to tell apart.)
+      if (minDepth(base) > 0.5) {
+        expect(minDepth(shoot)).toBeLessThan(minDepth(base) - 1);
+        seen.gapShooter++;
+      }
+      // A scraper flows across over the top: at least as far across as he would have, without coming downhill.
+      const scrape = stage(x, withHabit(x, lb, 'scraper'));
+      expect(lateral(scrape, r + 0.6)).toBeGreaterThanOrEqual(lateral(base, r + 0.6) - 0.5);
+      expect(depth(scrape, r + 0.6)).toBeGreaterThan(depth(scrape, 0) - 1);
+      seen.scraper++;
+      const slow = stage(x, withHabit(x, lb, 'slowFlow'));
+      const moved = (p: StagedPlay) =>
+        Math.hypot(at(p, r + 0.4, lb).x - at(p, r, lb).x, at(p, r + 0.4, lb).y - at(p, r, lb).y);
+      expect(moved(slow)).toBeLessThan(0.5);
+      seen.slowFlow++;
+      const misread = stage(x, withHabit(x, lb, 'misreadsKeys'));
+      // His first steps go against the flow (the play side), a yard and more.
+      expect(lateral(misread, r + 0.4)).toBeLessThan(-0.8);
+      seen.misreadsKeys++;
+    }
+    for (const n of Object.values(seen)) expect(n).toBeGreaterThan(40);
+  });
+
+  it('keeps a linebacker stuck on blocks blocked, and sends a second-level blocker up early', () => {
+    let stuck = 0;
+    let climbs = 0;
+    const gained: number[] = [];
+    const held: number[] = [];
+    for (const x of runs.slice(0, 200)) {
+      const base = stage(x, without(x));
+      if (!base.run) continue;
+      const lb = freeBacker(x, base);
+      if (lb !== undefined) {
+        const p = stage(x, withHabit(x, lb, 'stuckOnBlocks'));
+        const near = (t: number) => {
+          const d = at(p, t, lb);
+          return p.ids.some(
+            (o, j) => p.offense[j] && o !== p.carrier && Math.hypot(at(p, t, o).x - d.x, at(p, t, o).y - d.y) < 2.2,
+          );
+        };
+        // Engaged: a blocker (a lineman, a tight end, a back who isn't carrying it) gets within 1.6 yards of him.
+        const hands = (t: number) => {
+          const d = at(p, t, lb);
+          return p.ids.some(
+            (o, j) =>
+              p.offense[j] &&
+              o !== p.carrier &&
+              ['OL', 'TE', 'RB'].includes(p.roles[j]) &&
+              Math.hypot(at(p, t, o).x - d.x, at(p, t, o).y - d.y) < 1.6,
+          );
+        };
+        let engaged = -1;
+        for (let t = p.release; t < p.steps * p.dt; t += 0.05)
+          if (hands(t)) {
+            engaged = t + 0.1;
+            break;
+          }
+        if (engaged >= 0) {
+          stuck++;
+          let on = 0;
+          let all = 0;
+          for (let t = engaged; t < (p.steps - 1) * p.dt; t += 0.1) {
+            all++;
+            if (near(t)) on++;
+          }
+          if (all) held.push(on / all);
+        }
+      }
+      const [climber, target] = base.run.climb[0] ?? [];
+      if (climber === undefined) continue;
+      const up = stage(x, withHabit(x, climber, 'secondLevel'));
+      // Sealed: a second later he's between his linebacker and the hole.
+      const sealed = (p: StagedPlay) => {
+        const h = p.run!.hole;
+        const c = at(p, p.release + 1.2, climber);
+        const l = at(p, p.release + 1.2, target);
+        return Math.hypot(l.x - h.x, l.y - h.y) > Math.hypot(c.x - h.x, c.y - h.y) ? 1 : 0;
+      };
+      gained.push(sealed(up) - sealed(base));
+      climbs++;
+    }
+    expect(stuck).toBeGreaterThan(10);
+    // Once a blocker has him, he stays on blocks: nearly all the rest of the play.
+    expect(held.reduce((t, h) => t + h, 0) / held.length).toBeGreaterThan(0.85);
+    expect(climbs).toBeGreaterThan(20);
+    // A second-level blocker leaves the double early and seals his man off the hole more often.
+    expect(gained.reduce((t, g) => t + g, 0) / gained.length).toBeGreaterThan(0.1);
   });
 });
