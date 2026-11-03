@@ -8,42 +8,42 @@ export const STEP = 0.05;
 
 export const KNOBS = {
   /** Scales every reaction delay (0.3 s at 12 `reads`). */
-  react: 1.047,
+  react: 1.361,
   /** Scales the spread of a defender's intercept estimate: a poor angle overruns and must come back. */
-  angle: 1,
+  angle: 0.805,
   /** Tackle odds at even skills, from the side. */
-  tackle: 0.82,
+  tackle: 0.74,
   /** A move's success at even skills. */
-  move: 0.02,
+  move: 0.033,
   /** Yards after contact at even skills, at 6 yd/s from the side. */
-  afterContact: 1.526,
+  afterContact: 1.919,
   /** Block sheds a second at even skills. */
-  shed: 0.819,
+  shed: 0.766,
   /** Seconds a line block holds past the line at z = 0. */
   hold: 0.6,
   /** How strongly the run's roll sets the line: a block holds `hold × e^(line × z)` (a clean hole holds longer). */
   line: 1,
   /** Top speed a point of `longSpeed` is worth (yards a second). */
-  speed: 0.195,
+  speed: 0.157,
   /** Scales every contest's per-point term (moves, tackles, power, sheds): how much a point of skill decides. */
-  skill: 1.322,
+  skill: 0.708,
   /** He steps out rather than take a hit when no lane is worth `outGain` yards and the sideline is within `outLine`. */
-  outLine: 10.5,
-  outGain: 5.625,
+  outLine: 12,
+  outGain: 4.125,
   /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
-  pad: 1.8,
+  pad: 1.6,
   /** Yards an outside run's read gives a heading toward the play side in his first second: he stretches the edge. */
   stretch: 0.625,
   /** Tackle odds added on a return (its coverage's own, against the returner). */
-  retTackle: 0.005,
+  retTackle: -0.045,
   /** Seconds a return team's block holds before its man may shed it. */
   retHold: 0.35,
   /** Scales the ball carrier's own per-point terms (top speed, power, moves) against the defense's. */
-  carrier: 0.65,
+  carrier: 0.425,
   /** A man closing on the carrier may leave his feet from this far (yards): a dive from behind or the side. */
   diveReach: 2.5,
   /** Tackle odds added on a dive (a lunge at his legs, often short). */
-  dive: -0.2,
+  dive: -0.173,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */
