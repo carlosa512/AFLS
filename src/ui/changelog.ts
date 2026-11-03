@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.3.8',
+    version: '0.3.9',
     date: '2026-11-03',
     title: 'Chemistry on Sunday',
     text:
@@ -23,6 +23,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'and an Anchor keeps a room steady. Winning clubs can get comfortable, unless a driven leader keeps them hungry. ' +
       'Each room in the Locker Room shows its chemistry and why, your Sparks and Anchors are tagged, and your head ' +
       'coach tells you when a room starts clicking or falls out of sync.',
+  },
+  {
+    version: '0.3.8',
+    date: '2026-11-03',
+    title: 'Re-signing keeps a meeting promise',
+    text:
+      "When a team meeting promised talks with a player's agent and you then re-signed him, the game missed " +
+      'it and counted the promise as broken, so he stayed upset with you. Signing him now keeps the promise. Saves ' +
+      "from this season are put right when they load. The head coach's note about how the players take his word now " +
+      'says so plainly, and what it means for your next team meeting.',
   },
   {
     version: '0.3.7',

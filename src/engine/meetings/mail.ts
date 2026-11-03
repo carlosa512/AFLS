@@ -476,7 +476,7 @@ export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] 
       const key = `cred:${hc.id}:${read}:${clock}`;
       rows.push({
         key,
-        label: 'The room',
+        label: 'My word with the players',
         note: say(
           CANDID,
           { read, better: !!lastRead && CRED_RANK[read] > CRED_RANK[lastRead] },

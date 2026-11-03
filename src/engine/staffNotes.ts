@@ -174,7 +174,10 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
       category: 'staff',
       subject:
         own.length && !unitNote && !call && !habit
-          ? 'From me: a word on the room'
+          ? // His word alone says what it's about; "the room" alone left a reader guessing.
+            own.every((r) => r.key.startsWith('cred:'))
+            ? 'From me: my word with the players'
+            : 'From me: a word on the room'
           : unitNote && !call && !habit
             ? `From the staff: ${UNIT_PHRASE[unitNote.unit as CoachRoom]}`
             : call && habit
