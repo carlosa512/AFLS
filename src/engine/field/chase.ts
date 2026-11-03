@@ -79,4 +79,4 @@ export function chaseWant(d: Body, a: Aim): { vx: number; vy: number } {
 
 /** The odds a blocked man sheds his block this step. */
 export const shedOdds = (shed: number, block: number, dt: number, mult = 1) =>
-  Math.min(1, KNOBS.shed * mult * Math.exp(0.12 * (shed - block)) * dt);
+  Math.min(1, KNOBS.shed * mult * Math.exp(0.12 * KNOBS.skill * (shed - block)) * dt);

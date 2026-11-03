@@ -6,7 +6,7 @@
 import type { Rng } from '../rng';
 import type { Body } from './body';
 import { FIELD_W, MID } from './geometry';
-import { FAN, FAN_STEP, LOOK, READ_NOISE } from './tuning';
+import { FAN, FAN_STEP, KNOBS, LOOK, READ_NOISE } from './tuning';
 
 export interface Reader {
   /** Where the defenders who can still make a play are, and when each could be anywhere: speed, reaction, a block. */
@@ -29,8 +29,6 @@ const COMMIT = 1.5;
 const HURRY_OUT = 5;
 /** In the hurry-up, a free defender this close (yards) sends him out when the sideline is near. */
 const HURRY_NEAR = 6;
-/** Cornered: no lane worth this many yards (with noise) and the sideline within 4. */
-const CORNERED = 3;
 /** What a run out of bounds is worth in the hurry-up over the same yards tackled in bounds (yards). */
 const OUT_BONUS = 5;
 
@@ -90,7 +88,7 @@ export function readField(c: Body, r: Reader, rng: Rng): { vx: number; vy: numbe
     const th = (side * FAN * Math.PI) / 180;
     return { vx: r.dir * Math.cos(th) * c.top, vy: Math.sin(th) * c.top };
   }
-  const cornered = best < CORNERED && toLine < 4;
+  const cornered = best < KNOBS.outGain && toLine < KNOBS.outLine;
   if (cornered && !r.clock.stayIn) return out();
   if (r.averse && !r.clock.stayIn && best < 2 && toLine < 6) return out();
   return { vx: bx * c.top, vy: by * c.top };

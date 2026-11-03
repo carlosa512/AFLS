@@ -19,8 +19,19 @@ export const KNOBS = {
   afterContact: 1.2,
   /** Block sheds a second at even skills. */
   shed: 0.9,
-  /** Seconds a line block holds past the line at z = 0 (each sd of the roll adds half of it). */
+  /** Seconds a line block holds past the line at z = 0. */
   hold: 0.6,
+  /** How strongly the run's roll sets the line: a block holds `hold × e^(line × z)` (a clean hole holds longer). */
+  line: 1,
+  /** Top speed a point of `longSpeed` is worth (yards a second). */
+  speed: 0.15,
+  /** Scales every contest's per-point term (moves, tackles, power, sheds): how much a point of skill decides. */
+  skill: 1,
+  /** He steps out rather than take a hit when no lane is worth `outGain` yards and the sideline is within `outLine`. */
+  outLine: 4,
+  outGain: 3,
+  /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
+  pad: 0,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */

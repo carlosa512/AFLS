@@ -135,7 +135,11 @@ export function fieldStart(
     if (!pb || !pd || pb.side !== 0 || pd.side !== 1 || taken.has(b) || taken.has(d)) continue;
     if (Math.hypot(pb.x - pd.x, pb.y - pd.y) > STILL_ON) continue;
     const preacher = pb.s.habits?.includes('pancakePreacher') ? 0.3 : 0;
-    blocks.push({ blocker: b, defender: d, holdFor: Math.max(0, KNOBS.hold * (1 + 0.5 * z) + spread) + preacher });
+    blocks.push({
+      blocker: b,
+      defender: d,
+      holdFor: Math.max(0, KNOBS.hold * Math.exp(KNOBS.line * z) + spread) + preacher,
+    });
     taken.add(b).add(d);
   }
   // Anyone else locked up at possession: a defender in front of a blocker and on him.

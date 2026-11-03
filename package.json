@@ -24,6 +24,8 @@
     "coach-quirks": "tsx scripts/coach-quirks.ts",
     "weather": "tsx scripts/weather.ts",
     "film": "tsx scripts/film.ts",
+    "parity": "tsx scripts/parity.ts",
+    "parity-fit": "tsx scripts/parity-fit.ts",
     "size": "tsx scripts/size.ts",
     "crews": "tsx scripts/crews.ts",
     "morale": "tsx scripts/morale.ts",

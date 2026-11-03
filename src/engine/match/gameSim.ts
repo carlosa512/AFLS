@@ -73,7 +73,7 @@ import { playYards } from '../field/play';
 import { runField } from '../field/run';
 import { fieldSkills } from '../field/skills';
 import { noteSkills, type FieldSnapshot } from '../field/snapshot';
-import { STEP } from '../field/tuning';
+import { KNOBS, STEP } from '../field/tuning';
 import type { FieldResult, FieldStart } from '../field/types';
 import { CALL_CHAR, packActors } from '../playActors';
 import { isExplosive, isSuccess, playEpa, type PlayState } from '../analytics';
@@ -1605,7 +1605,8 @@ class GameSim {
       buf.add(kr, 'krAtt');
       buf.add(kr, 'krYds', (block ? block.at : start) - 3);
       const kickTime = this.rng.int(5, 8);
-      this.playTime(kickSpatial ? this.fieldTime(kickField!.start, kickSpatial) : kickTime);
+      // Returns keep today's play time, as punts do: the engine's clock convention for kicks.
+      this.playTime(kickTime);
       this.kickWear(true);
       this.setAnim(kickingSide, 'kickoff', 35, returnTd && !block ? -3 : 100 - (block ? block.spot : start), 97);
       if (kickSpatial) this.anim!.field = kickMoment!.facts;
@@ -2509,7 +2510,7 @@ class GameSim {
 
   /** The play's time with the open field: from the snap to its whistle. */
   private fieldTime(start: FieldStart, result: FieldResult): number {
-    return Math.max(3, Math.round(start.t0 + result.duration));
+    return Math.max(3, Math.round(start.t0 + result.duration + KNOBS.pad));
   }
 
   /** The open field as the log keeps it: the bounce and habits as rolled, the first miss as the broken tackle. */

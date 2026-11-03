@@ -30,7 +30,7 @@ export const hasHabit = (p: FieldPlayer, q: QuirkId) => !!p.s.habits?.includes(q
 
 export function bodyOf(p: FieldPlayer, tired: boolean): Body {
   const base = SPEED[p.role];
-  let top = clamp(base + 0.15 * (p.s.speed - 12), base - 1.5, base + 1.5);
+  let top = clamp(base + KNOBS.speed * (p.s.speed - 12), base - 1.5, base + 1.5);
   if (tired && hasHabit(p, 'gassed')) top -= 0.5;
   const react =
     clamp(KNOBS.react * (0.3 - 0.02 * (p.s.reads - 12)), 0.12, 0.5) +
@@ -42,8 +42,9 @@ export function bodyOf(p: FieldPlayer, tired: boolean): Body {
     vx: p.vx,
     vy: p.vy,
     top,
-    accel: clamp(6 + 0.25 * (p.s.burst - 12), 4, 8),
-    cut: clamp(10 + 0.4 * (p.s.burst - 12), 5, 15),
+    // Agility's job in the open field is small on purpose: today's engine doesn't read it after the line (Decision 2).
+    accel: clamp(6 + 0.05 * (p.s.burst - 12), 4, 8),
+    cut: clamp(10 + 0.1 * (p.s.burst - 12), 5, 15),
     react: Math.max(0.05, react),
     downUntil: -1,
   };
