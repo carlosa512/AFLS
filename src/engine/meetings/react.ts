@@ -190,6 +190,9 @@ const underpaid = (league: League, p: Player, ctx: MoraleContext) =>
 /** The contract factor past which his mood board says he wants a new deal (`moraleReasons`). */
 const MONEY_AT = 0.75;
 
+/** In a dispute, or his talks have soured toward one (`disputes.ts`). */
+const dugIn = (p: Player) => !!(p.morale?.dispute || p.morale?.talk?.sour);
+
 const outcomeOf = (score: number): Outcome =>
   score >= REACT.lands ? 'lands' : score <= REACT.bristles ? 'bristles' : 'shrug';
 
@@ -243,7 +246,10 @@ export function holdMeeting(
   let lands = 0;
   let bristles = 0;
   for (const x of scored) {
-    const o = outcomeOf(x.tier ? x.score : x.score + ripple);
+    const raw = outcomeOf(x.tier ? x.score : x.score + ripple);
+    // A man who has dug in (a dispute, or talks gone sour: G4) isn't talked round: at best he shrugs it off. A meeting
+    // buys time; it doesn't end a holdout or take back a trade request.
+    const o = raw === 'lands' && dugIn(x.p) ? 'shrug' : raw;
     if (o === 'shrug') continue;
     outcomes[x.p.id] = o;
     const his = x.content ? size * JOLT.content : size;

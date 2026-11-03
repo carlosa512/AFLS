@@ -99,11 +99,12 @@ describe('GMs make room to keep their core', () => {
   it('pushes more into next year for a bold GM than a cautious one', () => {
     const cautious = squeezed(-0.6, 0);
     const bold = squeezed(-0.6, 1);
-    // Next year with room for both to borrow against (each GM's ceiling is what differs).
+    // Next year with room for both to borrow against, but not so much that neither GM's ceiling binds: the ceiling is
+    // what differs. With 40% of a cap spare both borrowed alike, and which came out ahead was the world's luck.
     for (const x of [cautious, bold])
       x.team.deadMoney.push({
         season: x.l.season + 1,
-        amount: -Math.round(0.4 * capFor(x.l, x.l.season + 1)),
+        amount: -Math.round(0.2 * capFor(x.l, x.l.season + 1)),
         playerId: -1,
         note: 'test',
       });

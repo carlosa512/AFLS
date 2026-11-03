@@ -1464,6 +1464,8 @@ export function generateCoachingWorld(league: League): void {
   // Budget fitting above establishes the initial ratings, not a career decline. Build
   // habit prehistories from those final qualities so formation weights reflect the actual staff.
   for (const c of Object.values(league.coaches).filter((c) => c.teamId !== null)) {
+    // Hired as the world was built (`signCoach`), but no head coach is new to his room (L2).
+    delete c.newVoice;
     delete c.quirks;
     delete c.quirkBag;
     generateCoachQuirks(league.seed, c);

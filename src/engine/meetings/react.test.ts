@@ -171,3 +171,29 @@ describe('meetings: holding one', () => {
     expect(hc.newVoice).toBe(1);
   });
 });
+
+describe('meetings: a man who has dug in', () => {
+  it('a man in a dispute or whose talks have soured is never reached: at best he shrugs', () => {
+    const l = calm();
+    const men = wrs(l);
+    men.forEach((p, i) => (p.morale = { level: i % 2 ? 2 : -2 }));
+    const s = suggestMeeting(l, TEAM, moraleContext(l))!;
+    l.teams[TEAM].meetings!.pending = s;
+    const [a, b] = men;
+    a.morale = { ...a.morale!, dispute: { kind: 'trade', cause: 'snaps', since: l.moraleAt! - 2, club: TEAM } };
+    b.morale = { ...b.morale!, talk: { club: TEAM, sour: { cause: 'snaps', at: l.moraleAt! - 1, run: 1 } } };
+    // Every man is pushed to land: only the two dug in may not.
+    const r = holdMeeting(
+      l,
+      TEAM,
+      { approach: 'straight', backing: 'words', timing: 'monday' },
+      {
+        trust: () => 5,
+        lean: () => 0,
+      },
+    );
+    expect(r.outcomes[a.id]).toBeUndefined();
+    expect(r.outcomes[b.id]).toBeUndefined();
+    expect(Object.values(r.outcomes).filter((o) => o === 'lands').length).toBeGreaterThan(0);
+  });
+});
