@@ -27,3 +27,29 @@ const NONE: ReadonlySet<QuirkId> = new Set();
 /** One man's habits on this play (none, if he showed none). */
 export const habitsFor = (h: Habits | undefined, id: number | undefined): ReadonlySet<QuirkId> =>
   (id !== undefined && h?.get(id)) || NONE;
+
+/**
+ * The habits the open field plays as behaviour (the plan's Task 4 table): how a carrier cuts and finishes, how a line
+ * blocks downfield, how a front sheds and chases, how a defender tackles and reads.
+ */
+export const FIELD_HABITS: ReadonlySet<QuirkId> = new Set<QuirkId>([
+  'jumpCutter',
+  'highKnee',
+  'contactAverse',
+  'yacSlasher',
+  'runsEastWest',
+  'softHands',
+  'finishesForward',
+  'secondLevel',
+  'pancakePreacher',
+  'unblockable',
+  'gassed',
+  'highMotor',
+  'armTackler',
+  'thumper',
+  'businessDecision',
+  'stuckOnBlocks',
+  'slowFlow',
+  'diagnoses',
+  'alleyCrusher',
+]);
