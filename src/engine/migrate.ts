@@ -40,6 +40,7 @@ import type { Injury, League, StatLine, TradeMarket } from './types';
 import { POSITIONS } from './types';
 import { initialPersonnelState, PERSONNEL_RULES } from './personnel/rules';
 import { ensureService } from './personnel/service';
+import { repairSignedTalks } from './meetings/commitments';
 
 /** Returns the upgraded league, or null if the save is from a newer (unknown) version. */
 export function migrateLeague(league: League): League | null {
@@ -333,11 +334,17 @@ export function migrateLeague(league: League): League | null {
   // v83: what the meetings' letters remember (`TeamMeetings.settled`, `TeamMeetings.lastYear`): optional, and empty to
   // start. Nothing to rewrite.
   if (league.version < 83) league.version = 83;
-  // v84: the spatial engine's switch (`League.settings`, off) and its games' snapshot (`FieldRecord.snap`) and facts
-  // (`PlayLogEntry.field`). Optional: older games keep the drawn replay.
+  // v84: a talks commitment (L2) is kept by a raise signed inside its window, not only by talks still open at a step.
+  // This year's broken ones whose man had signed are put right: his record with the club, and the room's dip.
   if (league.version < 84) {
-    league.settings ??= { spatialField: false };
+    repairSignedTalks(league);
     league.version = 84;
+  }
+  // v85: the spatial engine's switch (`League.settings`, off) and its games' snapshot (`FieldRecord.snap`) and facts
+  // (`PlayLogEntry.field`). Optional: older games keep the drawn replay.
+  if (league.version < 85) {
+    league.settings ??= { spatialField: false };
+    league.version = 85;
   }
   return league;
 }

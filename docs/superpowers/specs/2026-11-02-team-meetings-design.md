@@ -78,7 +78,7 @@ At most one suggestion a week. In a calm season about 4 suggestions, in a rough 
 | Commitment | Offered when | Kept when | Window |
 | --- | --- | --- | --- |
 | **His snaps are open** (names him) | a man in the room wants snaps and isn't starting | his role goes up (rotation or starter, `actualRole`) | 3 weeks |
-| **The front office is talking to agents** | eligible, upset men want a new deal (L1's `roomReasons`) | you open talks with each of them (`negotiationFor`) | 4 weeks or the deadline |
+| **The front office is talking to agents** | eligible, upset men want a new deal (L1's `roomReasons`) | you open talks with each of them (`negotiationFor`), or sign him to a raise (the signing closes the talks between steps) | 4 weeks or the deadline |
 | **One of them goes** | a feud in the room | one of the two leaves the room (traded, cut, or off the 53) | 4 weeks |
 | **We're making a move** | the team is losing, before the deadline | you add a starter by trade or signing | until the deadline |
 | **Words only** | always | nothing to keep | |

@@ -86,6 +86,12 @@ describe('meetings: the letters', () => {
       .flatMap((s) => s.rows)
       .filter((r) => /worn thin/.test(r.note ?? ''));
     expect(candid).toHaveLength(1);
+    // The row says what it's about, and so does the letter when it's the only thing in it.
+    expect(candid[0].cells[0]).toBe('My word with the players');
+    expect(candid[0].note).toMatch(/team meeting/);
+    const letter = (l.inbox ?? []).find((m) => m.sections?.some((s) => s.rows.includes(candid[0])))!;
+    if (letter.sections!.every((s) => s.rows.length === 1))
+      expect(letter.subject).toBe('From me: my word with the players');
   });
 
   it('your address to the team files a captain’s letter', () => {

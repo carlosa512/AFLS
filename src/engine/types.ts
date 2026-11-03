@@ -1808,7 +1808,7 @@ export interface PlayLogEntry {
   loose?: number;
   /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
   open?: OpenField;
-  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v84 have none. */
+  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v85 have none. */
   field?: FieldFacts;
 }
 
@@ -1880,7 +1880,7 @@ export interface FieldRecord {
    * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.32 have none.
    */
   calls?: string;
-  /** A spatial game's snapshot of what the open field read (`field/snapshot.ts`). Games before v84 have none. */
+  /** A spatial game's snapshot of what the open field read (`field/snapshot.ts`). Games before v85 have none. */
   snap?: FieldSnapshot;
 }
 

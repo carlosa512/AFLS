@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.3.8',
+    version: '0.3.9',
     date: '2026-11-03',
     title: 'A field under your games',
     text:
@@ -22,6 +22,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'bring him down, so the All-22 shows how he got where he got. The result of each play still comes from the ' +
       "engine you know, so nothing about winning or losing moves. It's behind a developer switch and stays off while " +
       "it's tested.",
+  },
+  {
+    version: '0.3.8',
+    date: '2026-11-03',
+    title: 'Re-signing keeps a meeting promise',
+    text:
+      "When a team meeting promised talks with a player's agent and you then re-signed him, the game missed " +
+      'it and counted the promise as broken, so he stayed upset with you. Signing him now keeps the promise. Saves ' +
+      "from this season are put right when they load. The head coach's note about how the players take his word now " +
+      'says so plainly, and what it means for your next team meeting.',
   },
   {
     version: '0.3.7',

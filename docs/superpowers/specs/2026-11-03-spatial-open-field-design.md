@@ -1,6 +1,6 @@
 # The spatial engine, slice one: the open field
 
-**Status:** built behind the switch (0.3.8); the gate decides when it turns on. Under the owner's call H, today's roll decides yards and the field plays out the way there.
+**Status:** built behind the switch (0.3.9); the gate decides when it turns on. Under the owner's call H, today's roll decides yards and the field plays out the way there.
 
 ## Why
 

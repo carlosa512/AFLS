@@ -517,23 +517,26 @@ export const CANDID: readonly Line<CandidFact>[] = [
   {
     when: (f) => f.read === 'believes',
     reads: 1,
-    text: () => `For what it's worth, the room believes me right now. That's worth spending carefully.`,
+    text: () =>
+      `The players believe what I tell them right now, so a team meeting from me will land. That's worth spending carefully.`,
   },
   {
     when: (f) => f.read === 'steady' && f.better,
     reads: 2,
-    text: () => `They're listening to me again. I'd like to keep it that way.`,
+    text: () =>
+      `The players are taking me at my word again, so a team meeting from me should land. Keep the promises we make them and it stays that way.`,
   },
   {
     when: (f) => f.read === 'heardBefore',
     reads: 1,
-    text: () => `Honestly, they've heard enough speeches from me. The next one had better have something behind it.`,
+    text: () =>
+      `Honestly, the players have heard enough speeches from me. A team meeting with nothing behind it won't land now; the next one needs a promise we keep.`,
   },
   {
     when: (f) => f.read === 'wornThin',
     reads: 1,
     text: () =>
-      `I'll be straight with you: my word's worn thin with this group. Another speech won't fix it; something has to change.`,
+      `I'll be straight with you: my word's worn thin with the players. Another team meeting won't fix it; something has to change.`,
   },
 ];
 

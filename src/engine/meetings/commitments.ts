@@ -96,6 +96,14 @@ const inRoom = (league: League, teamId: number, c: Commitment, id: number) =>
   onClub(league, teamId, id) && (c.scope === 'team' || unitOf(league.players[id].position) === c.scope);
 const startsNow = (league: League, teamId: number, p: Player) =>
   (league.teams[teamId].depthChart[p.position] ?? []).slice(0, STARTERS[p.position]).includes(p.id);
+/**
+ * Talks with his agent: open now, or already done with a raise since the meeting. A signing closes the talks between
+ * steps, so no step would see them open; the raise it lands (`paid`, the step after) is the talks having happened.
+ */
+const talked = (league: League, teamId: number, c: Commitment, id: number) =>
+  league.negotiations[id]?.teamId === teamId ||
+  (onClub(league, teamId, id) &&
+    !!league.players[id].morale?.jolts?.some((j) => j.kind === 'paid' && j.at >= c.opened));
 
 /** Kept already (true), or still undecided (null): broken is only ever the window closing on it. */
 export function isKept(league: League, teamId: number, c: Commitment, ctx?: MoraleContext): true | null {
@@ -110,7 +118,7 @@ export function isKept(league: League, teamId: number, c: Commitment, ctx?: Mora
       return c.named.every(up) ? true : null;
     }
     case 'talks':
-      return c.named.length && c.named.every((id) => league.negotiations[id]?.teamId === teamId) ? true : null;
+      return c.named.length && c.named.every((id) => talked(league, teamId, c, id)) ? true : null;
     case 'feud':
       return c.named.some((id) => !inRoom(league, teamId, c, id)) ? true : null;
     case 'move': {
@@ -157,6 +165,49 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
   if (c.by !== 'coach' || c.coachId === undefined) return;
   const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
   if (hc && hc.id === c.coachId && hc.teamId === teamId) shiftCredibility(hc, kept ? CRED.kept : CRED.broken);
+}
+
+/**
+ * Saves before v84: a talks commitment judged broken though its man signed a raise inside the window (the signing closed
+ * the talks between steps, so no step saw them open). Your club's record of this year's settled commitments says which;
+ * each is kept now, his record with the club put right, and the dip the room took on it taken back. An AI club keeps no
+ * record, and its word was its GM's draw anyway.
+ */
+export function repairSignedTalks(league: League): void {
+  const deadline = deadlineClock(league.season);
+  for (const team of league.teams) {
+    const m = team.meetings;
+    for (const s of m?.settled ?? []) {
+      if (s.backing !== 'talks' || s.kept || !s.named.length || Math.floor(s.clock / YEAR) !== league.season) continue;
+      const closes = s.clock < deadline ? Math.min(s.clock + WINDOW.talks, deadline) : s.clock + WINDOW.talks;
+      const signed = (id: number) => {
+        if (!onClub(league, team.id, id)) return false;
+        const p = league.players[id];
+        const c = p.contract;
+        // A deal signed in a week is signed before its games: the step after the week before (`moraleClock`).
+        const at =
+          c && c.signedSeason === league.season && c.signedWeek > 0 ? league.season * YEAR + 8 + c.signedWeek - 1 : -1;
+        const paid = p.morale?.jolts?.some((j) => j.kind === 'paid' && j.at >= s.clock && j.at <= closes);
+        return (at >= s.clock && at < closes) || !!paid;
+      };
+      if (!s.named.every(signed)) continue;
+      s.kept = true;
+      const room = m!.log.find((r) => r.clock === s.clock && r.scope === s.scope)?.outcomes.lands ?? [];
+      for (const id of new Set([...room, ...s.named])) {
+        const mood = league.players[id]?.morale;
+        if (!mood?.jolts) continue;
+        mood.jolts = mood.jolts.filter((j) => !(j.kind === 'broken' && j.at === closes));
+        if (!mood.jolts.length) delete mood.jolts;
+      }
+      for (const id of s.named) {
+        const t = league.players[id].morale?.talk;
+        if (!t?.broken || t.club !== team.id) continue;
+        t.broken -= 1;
+        if (!t.broken) delete t.broken;
+        t.kept = (t.kept ?? 0) + 1;
+      }
+    }
+  }
 }
 
 /**
