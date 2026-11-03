@@ -27,24 +27,31 @@ import {
 import type { LongRun } from './size-long';
 import { POSITIONS, type League, type Player, type Position } from '../src/engine/types';
 
-/** The long run: one league, 25 seasons, in its own process while the blocks below run here. */
+/**
+ * The long run: four leagues, 25 seasons each, each in its own process while the blocks below run here. Pooled: one
+ * league's 32 kickers hold their jobs for a decade or more, so a few tall ones drafted early sat over a line for its
+ * last five seasons, and each run flagged a different position by a hair with nothing in the draw changed.
+ */
 const LONG_SEASONS = 25;
-const longRun: Promise<LongRun> = new Promise((resolve, reject) => {
-  const child = fork(new URL('./size-long.ts', import.meta.url).pathname, [], {
-    env: { ...process.env, SIZE_LONG_SEED: 'size-long', SIZE_LONG_SEASONS: String(LONG_SEASONS) },
+const LONG_SEEDS = ['size-long', 'size-long-2', 'size-long-3', 'size-long-4'];
+const longLeague = (seed: string): Promise<LongRun> =>
+  new Promise((resolve, reject) => {
+    const child = fork(new URL('./size-long.ts', import.meta.url).pathname, [], {
+      env: { ...process.env, SIZE_LONG_SEED: seed, SIZE_LONG_SEASONS: String(LONG_SEASONS) },
+    });
+    let done = false;
+    child.once('message', (run) => {
+      done = true;
+      resolve(run as LongRun);
+      child.kill();
+    });
+    child.once('error', reject);
+    child.once(
+      'exit',
+      (code, signal) => done || reject(new Error(`long run ${seed} exited (${signal ?? code}) before reporting`)),
+    );
   });
-  let done = false;
-  child.once('message', (run) => {
-    done = true;
-    resolve(run as LongRun);
-    child.kill();
-  });
-  child.once('error', reject);
-  child.once(
-    'exit',
-    (code, signal) => done || reject(new Error(`the long run exited (${signal ?? code}) before reporting`)),
-  );
-});
+const longRuns: Promise<LongRun[]> = Promise.all(LONG_SEEDS.map(longLeague));
 
 let misses = 0;
 const flag = (ok: boolean) => {
@@ -251,10 +258,12 @@ const TAIL_TIMES = 2;
 const TAIL_SLACK = 1.5;
 /** Most players a position may carry past the founding bounds, a season on average. */
 const PAST_MOST = 1.5;
-const run = await longRun;
-const last = run.seasons.slice(-5);
+const runs = await longRuns;
+// Each league's last five seasons, pooled: the averages below are a season's in one league.
+const last = runs.flatMap((r) => r.seasons.slice(-5));
+const run = { strays: runs.reduce((a, r) => a + r.strays, 0), rare: runs.flatMap((r) => r.rare) };
 console.log(
-  `\nThe long run: one league, ${LONG_SEASONS} seasons; the last five against real rosters (at the extremes ≤ ${TAIL_TIMES}× real, scaled, +${TAIL_SLACK}; past them ≤ ${PAST_MOST})\n`,
+  `\nThe long run: ${LONG_SEEDS.length} leagues, ${LONG_SEASONS} seasons each; their last five pooled against real rosters (at the extremes ≤ ${TAIL_TIMES}× real, scaled, +${TAIL_SLACK}; past them ≤ ${PAST_MOST})\n`,
 );
 for (const pos of POSITIONS) {
   const avg = (k: 'n' | 'atMax' | 'atMin' | 'past') => mean(last.map((s) => s[pos][k]));
