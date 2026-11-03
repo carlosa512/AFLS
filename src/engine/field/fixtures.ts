@@ -148,6 +148,7 @@ export const RULE_KNOBS: typeof KNOBS = {
   retHold: 0.5,
   carrier: 1,
   meet: 0.4,
+  padCatch: 0,
 };
 
 /** Set the rule knobs for a test file; returns what puts the shipped ones back. */

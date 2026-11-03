@@ -78,6 +78,7 @@ async function fit() {
     retHold: (v, k) => [Math.max(0, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
     carrier: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
     meet: (v, k) => [Math.max(0, v - 0.2 * k), v + 0.2 * k],
+    padCatch: (v, k) => [v - 0.8 * k, v + 0.8 * k],
   };
 
   async function score(): Promise<number> {

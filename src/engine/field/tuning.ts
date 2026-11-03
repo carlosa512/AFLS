@@ -43,6 +43,8 @@ export const KNOBS = {
   /** Seconds a free second-level defender reacts late per sd of the run's roll above its mean: on a clean hole the
    * first free man meets the back further past the line. */
   meet: 0.4,
+  /** Seconds added to a catch's clock beyond `pad` (its film runs from the throw). */
+  padCatch: 0,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */

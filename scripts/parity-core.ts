@@ -78,7 +78,9 @@ export function resolve(row: MomentRow, key: string, seeds = SEEDS): Resolved {
     sp.oob += (row.today.oob ? 1 : 0) / seeds;
     const atSpot = row.today.td ? film.td : !film.td && Math.abs(film.yards - credited) <= 1.5;
     sp.film += (atSpot ? 1 : 0) / seeds;
-    sp.duration += Math.max(3, Math.round(row.start.t0 + r.duration + KNOBS.pad)) / seeds;
+    sp.duration +=
+      Math.max(3, Math.round(row.start.t0 + r.duration + KNOBS.pad + (row.kind === 'catch' ? KNOBS.padCatch : 0))) /
+      seeds;
     sp.misses += r.misses.length / seeds;
     sp.y10 += (gain >= 10 ? 1 : 0) / seeds;
     sp.y20 += (gain >= 20 ? 1 : 0) / seeds;

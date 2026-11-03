@@ -2509,7 +2509,8 @@ class GameSim {
 
   /** The play's time with the open field: from the snap to its whistle. */
   private fieldTime(start: FieldStart, result: FieldResult): number {
-    return Math.max(3, Math.round(start.t0 + result.duration + KNOBS.pad));
+    const pad = KNOBS.pad + (start.kind === 'catch' ? KNOBS.padCatch : 0);
+    return Math.max(3, Math.round(start.t0 + result.duration + pad));
   }
 
   /** The open field as the log keeps it: the bounce and habits as rolled, the first miss as the broken tackle. */
