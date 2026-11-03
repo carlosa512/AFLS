@@ -991,6 +991,7 @@ describe('special teams', () => {
   it('keeps the last man a step behind on a return touchdown', () => {
     // Return touchdowns are rare in a sample this size: real returns, taken to the house.
     let n = 0;
+    let angled = 0;
     for (const { g, r } of games.slice(0, 10))
       r.plays!.forEach((raw, i) => {
         if (
@@ -1012,14 +1013,21 @@ describe('special teams', () => {
         if (p.carrier === null) return;
         const c = p.ids.indexOf(p.carrier);
         const kicker = p.roles.findIndex((role, k) => p.offense[k] && (role === 'K' || role === 'P'));
+        let closest = Infinity;
         for (let st = 0; st < p.steps - 1; st++) {
           const a = at(p, st, kicker);
           const b = at(p, st, c);
-          expect(Math.hypot(a.x - b.x, a.y - b.y), `${e.text} at ${(st * p.dt).toFixed(2)}`).toBeGreaterThan(1);
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          expect(d, `${e.text} at ${(st * p.dt).toFixed(2)}`).toBeGreaterThan(1);
+          closest = Math.min(closest, d);
         }
+        // He has the last angle: a step short, under 2.1 yards off the returner as he goes by (left to his own
+        // pursuit, the kicker passes him about 2.2 yards off).
+        if (closest < 2.1) angled++;
         n++;
       });
     expect(n).toBeGreaterThan(10);
+    expect(angled / n).toBeGreaterThan(0.8);
   });
 });
 
@@ -1586,6 +1594,31 @@ describe('the run game', () => {
       p.ids.find((id, k) => !p.offense[k] && id !== who.tackle)!
     );
   };
+
+  it('keeps everyone off the back in the hole without pushing anyone faster than his legs, step by step', () => {
+    let n = 0;
+    const fast: string[] = [];
+    for (const x of runs) {
+      const p = stage(x);
+      if (p.carrier === null) continue;
+      const c = p.ids.indexOf(p.carrier);
+      n++;
+      // While the back is short of the crease's end (2.5 yards past the line), every step.
+      for (let st = 1; st < p.steps; st++) {
+        if ((at(p, st * p.dt, p.carrier).x - x.e.from!) * p.dir >= 2.5) break;
+        p.ids.forEach((id, k) => {
+          if (p.offense[k] || k === c || p.keys.includes(id) || id === p.move?.by) return;
+          const a = at(p, (st - 1) * p.dt, id);
+          const b = at(p, st * p.dt, id);
+          const v = Math.hypot(b.x - a.x, b.y - a.y) / p.dt;
+          if (v > SPEED[p.roles[k] as keyof typeof SPEED] + 0.8)
+            fast.push(`${p.roles[k]} ${v.toFixed(1)}: ${x.e.text}`);
+        });
+      }
+    }
+    expect(n).toBeGreaterThan(200);
+    expect(fast.slice(0, 5)).toEqual([]);
+  });
 
   it('crosses the line between 2.3 and 3.5 s on every handed-off run', () => {
     let n = 0;
