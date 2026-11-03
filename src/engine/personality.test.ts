@@ -136,6 +136,16 @@ describe('personality', () => {
     }
   });
 
+  it('a new league starts with its captains named, as if camp had just opened', () => {
+    const l = createLeague({ seed: 'captains-new' });
+    for (const t of l.teams) {
+      const c = t.captains!;
+      expect(c.season).toBe(l.season);
+      expect(new Set([c.offense, c.defense, c.specialTeams]).size).toBe(3);
+      expect(l.players[c.offense].captainSeasons).toEqual([l.season]);
+    }
+  });
+
   it("keeps each captain's seasons once, for his patch", () => {
     const l = createLeague({ seed: 'captains' });
     nameCaptains(l);

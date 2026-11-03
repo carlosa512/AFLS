@@ -214,7 +214,7 @@ export function markOffered(league: League, teamId: number, scope: MeetingScope)
 }
 
 /** A stirring voice who reads Poor or worse among these men: the man driving it. */
-function driverIn(league: League, men: Player[], ctx: MoraleContext): number | undefined {
+export function driverIn(league: League, men: Player[], ctx: MoraleContext): number | undefined {
   return men
     .filter(
       (p) =>

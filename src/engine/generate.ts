@@ -1,4 +1,5 @@
 import { seedMorale } from './morale';
+import { nameCaptains } from './personality';
 import { seedFoundingTrees } from './trees';
 import { fillOrigins } from './origin';
 import { generateCoachingWorld } from './coaching';
@@ -50,7 +51,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 82;
+export const SAVE_VERSION = 83;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -939,6 +940,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   generateStaffWorld(league);
   generateCoachingWorld(league);
   seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
+  // A new league opens as camp would have closed: each club's captains named (the C counts in his room's standing).
+  nameCaptains(league);
   // Every player starts where he stands: no jolts, nothing drawn.
   seedMorale(league);
   // Team meetings (L2): no log yet, and every head coach's word in the middle.

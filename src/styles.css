@@ -5299,3 +5299,53 @@ button.tip-pill {
 .room-fold[open] > summary {
   margin-bottom: 4px;
 }
+
+/* ───────── team meetings (L2) ───────── */
+.meeting-choices {
+  display: grid;
+  gap: 12px;
+}
+.meeting-q-label {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.meeting-q-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.meeting-q-options button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--ink);
+  min-height: 36px;
+}
+.meeting-q-options button[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+.meeting-said {
+  margin: 0;
+}
+.room-owed {
+  margin: 0;
+}
+.room-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.meeting-banner {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ink);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: grid;
+  gap: 10px;
+}

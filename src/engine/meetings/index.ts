@@ -15,6 +15,7 @@ import {
   offCooldown,
   stepClock,
   suggestMeeting,
+  driverIn,
   topicOf,
 } from './suggest';
 
@@ -37,6 +38,22 @@ export function meetingsStep(league: League): void {
   const ctx = moraleContext(league);
   for (const team of league.teams) {
     const m = meetingsOf(team);
+    // A new league year: last year's meetings leave the log, and what the re-sign window's report tells is kept.
+    const stale = m.log.filter((r) => Math.floor(r.clock / YEAR) < league.season);
+    // Only your club's year is told (the re-sign window's report); an AI club keeps none of it.
+    if (!managesTeam(league, team.id)) {
+      delete m.settled;
+      delete m.lastYear;
+    } else if (stale.length || m.settled?.some((x) => Math.floor(x.clock / YEAR) < league.season)) {
+      const last = league.season - 1;
+      m.lastYear = {
+        season: last,
+        held: stale.filter((r) => Math.floor(r.clock / YEAR) === last).length,
+        settled: (m.settled ?? []).filter((x) => Math.floor(x.clock / YEAR) === last),
+      };
+      m.settled = (m.settled ?? []).filter((x) => Math.floor(x.clock / YEAR) >= league.season);
+      if (!m.settled.length) delete m.settled;
+    }
     m.log = m.log.filter((r) => Math.floor(r.clock / YEAR) === league.season);
     const yours = managesTeam(league, team.id);
     if (m.pending && (m.pending.clock < clock || !yours)) delete m.pending;
@@ -97,14 +114,18 @@ export function requestMeeting(league: League, scope: MeetingScope): MeetingSugg
   const clock = stepClock(league);
   if (m.pending || !headCoachOf(league, teamId) || !offCooldown(league, teamId, scope)) return null;
   if (m.log.some((r) => clock - r.clock < COOLDOWN.week)) return null;
+  // He already brought you one this week (you said not now): one suggestion a week, and one letter for it.
+  if (m.lastOffer !== undefined && clock - m.lastOffer < COOLDOWN.week) return null;
   const ctx = moraleContext(league);
-  const topic = topicOf(league, membersOf(league, teamId, scope), ctx);
+  const men = membersOf(league, teamId, scope);
+  const topic = topicOf(league, men, ctx);
   const s: MeetingSuggestion = {
     clock,
     scope,
     kind: 'trouble',
     topic,
-    ...choicesFor(league, teamId, scope, 'trouble', topic, undefined, ctx),
+    asked: true,
+    ...choicesFor(league, teamId, scope, 'trouble', topic, driverIn(league, men, ctx), ctx),
   };
   markOffered(league, teamId, scope);
   m.pending = s;

@@ -153,8 +153,18 @@ describe('inbox', () => {
       medical: ['injury', 'cleared', 'covering', 'shortHanded'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
-      league: ['race', 'news', 'leadership', 'gazette', 'locker'],
-      staff: ['leadership', 'gmOffer', 'owner', 'rundown', 'locker', 'lockerReport', 'staffNotes', 'positionMoves'],
+      league: ['race', 'news', 'leadership', 'gazette', 'locker', 'rumor'],
+      staff: [
+        'leadership',
+        'gmOffer',
+        'owner',
+        'rundown',
+        'locker',
+        'lockerReport',
+        'staffNotes',
+        'positionMoves',
+        'meeting',
+      ],
       contracts: ['waivers', 'contract'],
     };
     for (const m of league.inbox!) {
@@ -437,12 +447,12 @@ describe('inbox', () => {
     if (fa.walked.length)
       expect(wrap.body.split(`${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}`).length).toBe(2);
     // (The coaches' position suggestion is staff mail that may still ask, through the draft and camp; so is a player who
-    // speaks up at camp, until you answer him.)
+    // speaks up at camp, until you answer him, and the head coach's meeting suggestion until you answer it.)
     for (const m of league.inbox!)
       expect(
         needsYou(league, m) &&
           m.category === 'staff' &&
-          !['positionOffer', 'talk'].includes(mailSubject(m)?.kind ?? ''),
+          !['positionOffer', 'talk', 'meeting'].includes(mailSubject(m)?.kind ?? ''),
       ).toBe(false);
   });
 

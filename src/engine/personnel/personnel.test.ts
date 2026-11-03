@@ -301,9 +301,11 @@ describe('migration and collection', () => {
     // them; the passing game's shape and a team's day move the result. `result` again
     // with fewer sulkers (0.2.37): a fresh league's starters are happier against its mean. `players` again with numbers
     // of their own (0.2.42): a club numbers its players by their choices, on their own streams; the stream, games,
-    // charts and result still match, so numbers cost no draw. `players`, `charts` and `result` again with real heights
-    // (0.3.3): builds from real rosters reseed hidden traits and line the starters up anew; the stream and games still
-    // match, so the truncated roll costs the same two draws.
+    // charts and result still match, so numbers cost no draw. `players` and `result` again with captains named when a
+    // league is made (0.3.5): three captains' seasons a club, and the C in the room moves moods and so play; the
+    // stream, games and charts still match, so naming them costs no draw. `players`, `charts` and `result`
+    // again with real heights (0.3.6): builds from real rosters reseed hidden traits and line the starters up anew; the
+    // stream and games still match, so the roll costs the same two draws.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -315,7 +317,7 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '2b9470cdfd287258c796b958f6f8628d91c6b8df8da4682394ae5b23934c43aa',
+  players: '55edd155854029d7d56182f2bd70dff0f35014028b40802832577614473cf5ba',
   rng: [2055926919, 1351328155, 1663703320, 1664089055],
   games: 'b5750e3006072f8ec3774d01e0d365791ba983fb2956f308a79e313658d7c909',
   result: '9cce7988e3b988ad72452783caa26ebeb4ee269aa2fe721ebd4e50132a35454d',
