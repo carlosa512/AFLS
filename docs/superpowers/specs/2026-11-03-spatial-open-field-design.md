@@ -169,9 +169,11 @@ budget, a median of 5 ms a play from possession to the whistle, fails CI past it
 
 ## 4. Rollout, replay and saves
 
-**The switch.** A league setting, `League.settings.spatialField` (off by default, shown only as a developer toggle
-on the settings screen), until the gate passes; then on by default for your team's games. The engine can run any game spatially (`simulateGame(..., { field: true })`),
-so a future "watch an AI game live" screen can use it; that screen is a later piece of work.
+**The switch.** A new league setting, `League.settings.spatialField`: the first entry of a new `settings` object on
+`League` (it changes results, so it lives in the save, not in the browser's preferences like the theme). Off by
+default and shown only as a developer toggle on the settings screen until the gate passes; then on by default for
+your team's games. The engine can run any game spatially (`simulateGame(..., { field: true })`), so a future "watch
+an AI game live" screen can use it; that screen is a later piece of work.
 
 **The replay.** For a spatial play, the viewer plays the sim's frames from possession on; before it, the same
 staging as today. AI games, your games played with the switch off, and old saves keep today's drawn replay.
@@ -181,7 +183,7 @@ differently. Each spatial game stores a compact **snapshot**: for each player wh
 size and habits the sim read (a handful of numbers each), with the game's `FieldRecord`. The replay rebuilds
 `FieldStart` from the play log, the field record and the snapshot, re-runs `runField` on the play's seed, and gets
 the same frames every time. Storing every frame instead would cost about half a million numbers a game. The
-snapshot is a change to `League`'s shape: `SAVE_VERSION` 81 → 82 with a `migrate.ts` step (older games have no
+snapshot and the setting change `League`'s shape: `SAVE_VERSION` 81 → 82 with a `migrate.ts` step (older games have no
 snapshot and use the drawn replay).
 
 ## 5. Testing
