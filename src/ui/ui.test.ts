@@ -477,3 +477,20 @@ describe('a position move’s scheme reason under an interim', () => {
     expect(coordinatorFor(league, 4, 'LB')?.coach.id).toBe(dc.id);
   });
 });
+
+describe('the spatial switch', () => {
+  it("shows the spatial switch only in developer mode, and it flips the league's setting", async () => {
+    const { devMode, setSpatialField } = await import('./dev');
+    expect(devMode('')).toBe(false);
+    expect(devMode('?season=3')).toBe(false);
+    expect(devMode('?dev')).toBe(true);
+    expect(devMode('?x=1&dev=1')).toBe(true);
+    const l = createLeague({ seed: 'dev-switch' });
+    expect(l.settings?.spatialField).toBe(false);
+    setSpatialField(l, true);
+    expect(l.settings?.spatialField).toBe(true);
+    delete l.settings;
+    setSpatialField(l, false);
+    expect(l.settings).toEqual({ spatialField: false });
+  });
+});
