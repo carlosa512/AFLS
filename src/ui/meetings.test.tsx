@@ -73,8 +73,17 @@ describe('meetings on screen', () => {
     answerMeeting(l, { approach: 'straight', backing: 'talks', timing: 'monday' });
     const owed = meetingsView(l)!.rooms.find((r) => r.scope === 'DB')!.owed;
     expect(owed).toHaveLength(1);
-    expect(owed[0]).toMatch(/^We told them /);
-    expect(owed[0]).not.toMatch(/\d/);
-    expect(locker(l)).toContain(owed[0].replace(/'/g, '&#x27;'));
+    expect(owed[0].text).toMatch(/^We told them /);
+    expect(owed[0].text).not.toMatch(/\d/);
+    // The men it names are links to their cards, inside the sentence.
+    const html = locker(l);
+    const line = html.match(/<p class="room-owed small">(.*?)<\/p>/)![1];
+    expect(line).toMatch(/^We told them /);
+    expect(owed[0].named.length).toBeGreaterThan(0);
+    for (const id of owed[0].named.slice(0, 2)) {
+      const named = l.players[id];
+      expect(owed[0].text).toContain(named.lastName);
+      expect(line).toMatch(new RegExp(`<button[^>]*class="linklike"[^>]*><span>${named.lastName}</span></button>`));
+    }
   });
 });

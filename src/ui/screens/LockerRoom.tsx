@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { whyFact } from '../../engine/roomFacts';
 import { STANDING_WHY, standsOut } from '../../engine/roomVoice';
@@ -357,7 +358,12 @@ export function LockerRoom({ league }: { league: League }) {
           </div>
         )}
         {meetings && (
-          <RoomAsk view={roomMeeting('team')} label="Ask the coach to talk to the team" note={meetings.blocked} />
+          <RoomAsk
+            league={league}
+            view={roomMeeting('team')}
+            label="Ask the coach to talk to the team"
+            note={meetings.blocked}
+          />
         )}
         <div className="room-cards">
           {cards.map((c) => (
@@ -377,7 +383,11 @@ export function LockerRoom({ league }: { league: League }) {
               {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
               {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
               {meetings && ROOMS.includes(c.unit as CoachRoom) && (
-                <RoomAsk view={roomMeeting(c.unit as CoachRoom)} label="Ask the coach to meet with them" />
+                <RoomAsk
+                  league={league}
+                  view={roomMeeting(c.unit as CoachRoom)}
+                  label="Ask the coach to meet with them"
+                />
               )}
               {c.follows.length > 0 && (
                 <div>
@@ -468,14 +478,39 @@ export function LockerRoom({ league }: { league: League }) {
   );
 }
 
+/** A sentence with each named man's surname as a link to his card (the first time it appears). */
+function NamesLinked({ league, text, ids }: { league: League; text: string; ids: number[] }) {
+  const parts: ReactNode[] = [];
+  let rest = text;
+  for (const id of ids) {
+    const p = league.players[id];
+    const at = p ? rest.indexOf(p.lastName) : -1;
+    if (!p || at < 0) continue;
+    parts.push(rest.slice(0, at), <PlayerLink key={id} league={league} player={p} surname />);
+    rest = rest.slice(at + p.lastName.length);
+  }
+  parts.push(rest);
+  return <>{parts}</>;
+}
+
 /** A room's meeting: what we told them and still owe, and your ask (or why not now). */
-function RoomAsk({ view, label, note }: { view?: RoomMeetingView; label: string; note?: string }) {
+function RoomAsk({
+  league,
+  view,
+  label,
+  note,
+}: {
+  league: League;
+  view?: RoomMeetingView;
+  label: string;
+  note?: string;
+}) {
   if (!view) return null;
   return (
     <div className="room-ask">
       {view.owed.map((line) => (
-        <p key={line} className="room-owed small">
-          {line}
+        <p key={line.text} className="room-owed small">
+          <NamesLinked league={league} text={line.text} ids={line.named} />
         </p>
       ))}
       <button

@@ -367,8 +367,8 @@ export interface RoomMeetingView {
   canAsk: boolean;
   /** Why not, in words, when you can't. */
   why?: string;
-  /** What we told them and still owe, a sentence each. */
-  owed: string[];
+  /** What we told them and still owe, a sentence each, with the men it names (a screen links them). */
+  owed: { text: string; named: number[] }[];
 }
 
 export interface MeetingsView {
@@ -418,7 +418,10 @@ export function meetingsView(league: League): MeetingsView | null {
             : left <= 1
               ? 'this week'
               : `${WEEKS[left] ?? 'a few weeks'} left`;
-        return `We told them ${promisePhrase(c.backing, men(league, c.named))}: ${when}.`;
+        return {
+          text: `We told them ${promisePhrase(c.backing, men(league, c.named))}: ${when}.`,
+          named: [...c.named],
+        };
       });
     return { scope, canAsk: !blocked && !why, ...(why ? { why } : {}), owed };
   });

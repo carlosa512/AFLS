@@ -577,7 +577,11 @@ export function yearParagraph(f: YearFact): string {
 export function promisePhrase(backing: Exclude<Backing, 'words'>, named: ManFact[]): string {
   switch (backing) {
     case 'talks':
-      return named.length === 1 ? `we'd open ${named[0].last}'s talks` : 'we would open talks with their agents';
+      return named.length === 1
+        ? `we'd open ${named[0].last}'s talks`
+        : named.length === 2
+          ? `we'd open talks with ${both(named[0], named[1])}'s agents`
+          : 'we would open talks with their agents';
     case 'snaps':
       return named.length === 1 ? `${named[0].last} would get his snaps` : 'the snaps would come';
     case 'feud':
