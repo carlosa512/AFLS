@@ -1,5 +1,13 @@
 import { personnelMoveLock } from './elevations';
-import { capSheet, logTransaction, paidShare, releasePlayer, releasePreview, weeksPaid } from '../finance/cap';
+import {
+  capSheet,
+  deadAmount,
+  logTransaction,
+  paidShare,
+  releasePlayer,
+  releasePreview,
+  weeksPaid,
+} from '../finance/cap';
 import type { ReleasePreview } from '../finance/cap';
 import { deadMoney, isExpired } from '../finance/contract';
 import { numberOnArrival } from '../jerseys';
@@ -114,8 +122,8 @@ export function queueWaiver(league: League, p: Player, preview: ReleasePreview):
     paid,
     paidBefore: weeksPaid(league),
     postJune1: preview.postJune1,
-    release: { thisYear: Math.round(preview.thisYear), nextYear: Math.round(preview.nextYear) },
-    assigned: { thisYear: Math.round(assigned.thisYear), nextYear: Math.round(assigned.nextYear) },
+    release: { thisYear: deadAmount(preview.thisYear), nextYear: deadAmount(preview.nextYear) },
+    assigned: { thisYear: deadAmount(assigned.thisYear), nextYear: deadAmount(assigned.nextYear) },
   };
   state.pending.push(entry);
   const t = league.teams[from];
@@ -258,7 +266,7 @@ function book(league: League, entry: WaiverEntry, split: { thisYear: number; nex
     if (amount > 0)
       league.teams[entry.fromTeamId].deadMoney.push({
         season,
-        amount: Math.round(amount),
+        amount: deadAmount(amount),
         playerId: entry.playerId,
         note,
       });
