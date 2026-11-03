@@ -1,5 +1,5 @@
 import { traitOf } from '../coachTraits';
-import { moraleContext } from '../morale';
+import { moraleContext, type MoraleContext } from '../morale';
 import type { Rng } from '../rng';
 import type { Approach, Backing, League, MeetingSuggestion } from '../types';
 import { gmTerms } from './address';
@@ -35,8 +35,14 @@ function backingFor(league: League, teamId: number, s: MeetingSuggestion): Backi
 }
 
 /** The approach the room would take best, on average (the second best now and then). */
-function bestApproach(league: League, teamId: number, s: MeetingSuggestion, backing: Backing, rng: Rng): Approach {
-  const ctx = moraleContext(league);
+function bestApproach(
+  league: League,
+  teamId: number,
+  s: MeetingSuggestion,
+  backing: Backing,
+  rng: Rng,
+  ctx: MoraleContext,
+): Approach {
   const men = membersOf(league, teamId, s.scope);
   const ranked = s.approaches
     .map((approach) => {
@@ -50,7 +56,13 @@ function bestApproach(league: League, teamId: number, s: MeetingSuggestion, back
 }
 
 /** An AI club's choice, or null when it lets a moment pass. Monday, always. */
-export function aiChoice(league: League, teamId: number, s: MeetingSuggestion, rng: Rng): MeetingChoice | null {
+export function aiChoice(
+  league: League,
+  teamId: number,
+  s: MeetingSuggestion,
+  rng: Rng,
+  ctx: MoraleContext = moraleContext(league),
+): MeetingChoice | null {
   if (s.kind === 'moment' && rng.chance(AI.skipMoment)) return null;
   const backing = backingFor(league, teamId, s);
   const has = (a: Approach) => s.approaches.includes(a);
@@ -60,6 +72,6 @@ export function aiChoice(league: League, teamId: number, s: MeetingSuggestion, r
   if (s.kind !== 'gm' && discipline >= AI.stern) approach = has('callout') ? 'callout' : 'straight';
   else if (s.kind !== 'gm' && discipline <= AI.soft)
     approach = has('leader') ? 'leader' : has('losing') ? 'losing' : has('standard') ? 'standard' : 'straight';
-  else approach = bestApproach(league, teamId, s, backing, rng);
+  else approach = bestApproach(league, teamId, s, backing, rng, ctx);
   return { approach, backing, timing: 'monday' };
 }

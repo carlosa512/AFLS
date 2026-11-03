@@ -13,8 +13,8 @@ import { STARTERS } from '../positions';
 import { activeRoster } from '../roster';
 import { causeOf } from '../roomVoice';
 import { REGULAR_SEASON_WEEKS } from '../season/schedule';
-import { computeRecords, playoffRace } from '../season/standings';
-import { soundOf, tierOf, unitOf, unitRead, weightOf } from '../standing';
+import { playoffRace } from '../season/standings';
+import { soundOf, tierOf, unitOf, unitRead, weightOf, type UnitRead } from '../standing';
 import { TRADE_DEADLINE_WEEK } from '../trade/rules';
 import type {
   Approach,
@@ -74,7 +74,12 @@ export function canTalk(league: League, p: Player): boolean {
  * about it (Poor or worse) and his deal can be talked about, as in the room's own read (`roomReasons`).
  */
 export function grievancesOf(league: League, p: Player, ctx: MoraleContext): Set<TalkCause> {
+  // Read once per man a step: a meeting's suggestion, its choices and every approach the AI weighs ask again.
+  const cache = grievanceCache.get(ctx) ?? grievanceCache.set(ctx, new Map()).get(ctx)!;
+  const hit = cache.get(p.id);
+  if (hit) return hit;
   const out = new Set<TalkCause>();
+  cache.set(p.id, out);
   if (!p.morale) return out;
   const upset = moraleStepOf(moraleLevel(league, p)) <= 3;
   for (const text of moraleReasons(league, p, moraleFactors(league, p, ctx))) {
@@ -85,6 +90,9 @@ export function grievancesOf(league: League, p: Player, ctx: MoraleContext): Set
   }
   return out;
 }
+
+/** Grievances by player, per morale context (one context a step: `meetingsStep`). */
+const grievanceCache = new WeakMap<MoraleContext, Map<number, Set<TalkCause>>>();
 
 /** The pair in a feud inside these men, if any (ties live inside a position room). */
 function feudIn(men: Player[], since?: number): [number, number] | null {
@@ -257,7 +265,7 @@ export function troubles(league: League, teamId: number, ctx: MoraleContext): Tr
     const men = membersOf(league, teamId, r.unit as CoachRoom);
     out.push({ scope: r.unit as CoachRoom, topic: topicOf(league, men, ctx), driver: driverIn(league, men, ctx) });
   }
-  const streak = computeRecords(league).get(teamId)?.streak ?? '';
+  const streak = ctx.records.get(teamId)?.streak ?? '';
   if (league.phase === 'regular' && streak[0] === 'L' && Number(streak.slice(1)) >= LOSING_RUN)
     out.push({ scope: 'team', topic: 'losing', driver: driverIn(league, membersOf(league, teamId, 'team'), ctx) });
   const seen = new Set(meetingsOf(team).feuds ?? []);
@@ -275,13 +283,19 @@ export function troubles(league: League, teamId: number, ctx: MoraleContext): Tr
   return out.filter((t, i) => out.findIndex((o) => o.scope === t.scope) === i);
 }
 
-/** The rooms reading Split or Down now. */
-function roomTrouble(league: League, teamId: number, ctx: MoraleContext) {
-  return ROOMS.flatMap((u) => {
+/** The rooms reading Split or Down now, read once a club a step (`troubles` and `noteRooms` both ask). */
+function roomTrouble(league: League, teamId: number, ctx: MoraleContext): UnitRead[] {
+  const cache = roomCache.get(ctx) ?? roomCache.set(ctx, new Map()).get(ctx)!;
+  const hit = cache.get(teamId);
+  if (hit) return hit;
+  const reads = ROOMS.flatMap((u): UnitRead[] => {
     const r = unitRead(league, teamId, u, ctx);
     return r && (r.word === 'Split' || r.word === 'Down') ? [r] : [];
   });
+  cache.set(teamId, reads);
+  return reads;
 }
+const roomCache = new WeakMap<MoraleContext, Map<number, UnitRead[]>>();
 
 const feudKey = (league: League, [a, b]: [number, number]) => `${league.season}:${a}-${b}`;
 
@@ -317,8 +331,8 @@ export function troubleScope(league: League, teamId: number, ctx: MoraleContext)
 
 // ───────── the choices offered ─────────
 
-const losing = (league: League, teamId: number) => {
-  const r = computeRecords(league).get(teamId);
+const losing = (ctx: MoraleContext, teamId: number) => {
+  const r = ctx.records.get(teamId);
   return !!r && r.l > r.w;
 };
 
@@ -342,7 +356,7 @@ export function choicesFor(
 ): Pick<MeetingSuggestion, 'approaches' | 'backings' | 'timings' | 'named' | 'namedFor' | 'leader' | 'driver'> {
   const men = membersOf(league, teamId, scope);
   const leader = leaderIn(league, men, ctx);
-  const losingNow = losing(league, teamId);
+  const losingNow = losing(ctx, teamId);
   const approaches: Approach[] = [];
   if (leader !== undefined) approaches.push('leader');
   approaches.push('straight');

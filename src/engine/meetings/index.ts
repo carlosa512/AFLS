@@ -44,10 +44,10 @@ export function meetingsStep(league: League): void {
       const s = addressSuggestion(league, team.id, ctx);
       const rng = meetingRng(league, team.id, s, 'gm:choice');
       if (rng.chance(AI_ADDRESS.chance)) {
-        const choice = aiChoice(league, team.id, s, rng);
+        const choice = aiChoice(league, team.id, s, rng, ctx);
         if (choice) {
           m.pending = s;
-          holdGmAddress(league, team.id, choice);
+          holdGmAddress(league, team.id, choice, ctx);
           m.lastOffer = clock;
           continue;
         }
@@ -59,10 +59,10 @@ export function meetingsStep(league: League): void {
       m.pending = s;
       continue;
     }
-    const choice = aiChoice(league, team.id, s, meetingRng(league, team.id, s, `${s.scope}:choice`));
+    const choice = aiChoice(league, team.id, s, meetingRng(league, team.id, s, `${s.scope}:choice`), ctx);
     if (!choice) continue;
     m.pending = s;
-    holdMeeting(league, team.id, choice);
+    holdMeeting(league, team.id, choice, undefined, ctx);
   }
   judgeCommitments(league);
 }

@@ -219,12 +219,12 @@ export function holdMeeting(
   teamId: number,
   choice: MeetingChoice,
   terms?: SpeakerTerms,
+  ctx: MoraleContext = moraleContext(league),
 ): MeetingRecord {
   const team = league.teams[teamId];
   const m = meetingsOf(team);
   const s = m.pending;
   if (!s) throw new Error('No meeting is waiting.');
-  const ctx = moraleContext(league);
   const rng = meetingRng(league, teamId, s, s.kind === 'gm' ? 'gm' : s.scope);
   const men = membersOf(league, teamId, s.scope)
     .map((p) => ({ p, w: weightOf(league, p, ctx) }))

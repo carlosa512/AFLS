@@ -90,10 +90,15 @@ export function gmTerms(league: League, choice: MeetingChoice): SpeakerTerms {
 }
 
 /** Hold it: twice a coach's stakes, spent for the season; a coach whose word has worn thin pays when it flops. */
-export function holdGmAddress(league: League, teamId: number, choice: MeetingChoice): MeetingRecord {
+export function holdGmAddress(
+  league: League,
+  teamId: number,
+  choice: MeetingChoice,
+  ctx?: MoraleContext,
+): MeetingRecord {
   const m = meetingsOf(league.teams[teamId]);
   if (m.pending?.kind !== 'gm') throw new Error('No address is waiting.');
-  const record = holdMeeting(league, teamId, { ...choice, timing: 'monday' }, gmTerms(league, choice));
+  const record = holdMeeting(league, teamId, { ...choice, timing: 'monday' }, gmTerms(league, choice), ctx);
   m.gmAddressSeason = league.season;
   const flop = record.outcomes.bristles.length > record.outcomes.lands.length;
   const hc = headCoachOf(league, teamId);
