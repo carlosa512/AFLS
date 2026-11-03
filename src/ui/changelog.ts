@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.7',
+    date: '2026-11-03',
+    title: 'Faster checks behind the scenes',
+    text:
+      'Nothing changes in the game. The checks every change runs through before it reaches you now finish sooner, ' +
+      'so fixes and new features can land without waiting on them.',
+  },
+  {
     version: '0.3.6',
     date: '2026-11-03',
     title: 'Real heights',
