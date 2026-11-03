@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { CHEM, chemistryOf, chemistryWeek, moodPart, seasonsTogether, wordOf, type ChemRoom } from './chemistry';
+import {
+  CHEM,
+  chemistryOf,
+  complacent,
+  COMPLACENCY,
+  chemistryWeek,
+  moodPart,
+  seasonsTogether,
+  wordOf,
+  type ChemRoom,
+} from './chemistry';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { buildLineup } from './match/lineup';
@@ -149,5 +159,25 @@ describe('chemistry: game day', () => {
     expect(inGame.knocks.get(ol.id) ?? 0).toBeLessThan(
       buildLineup(l, team, new Set(), l.games[0], 0, 0, { OL: 0 }).knocks.get(ol.id) ?? 0,
     );
+  });
+});
+
+describe('chemistry: complacency', () => {
+  it("a winning club's happy room loses part of its edge; a .500 club's keeps it", () => {
+    expect(complacent(0.4, 0.5, false)).toBe(0.4);
+    expect(complacent(0.4, 0.8, false)).toBeCloseTo(0.4 * (1 - COMPLACENCY.max), 9);
+    const partway = complacent(0.4, 0.65, false);
+    expect(partway).toBeLessThan(0.4);
+    expect(partway).toBeGreaterThan(0.4 * (1 - COMPLACENCY.max));
+  });
+
+  it('never softens a bad mood, and a driven voice keeps a room hungry', () => {
+    expect(complacent(-0.4, 0.9, false)).toBe(-0.4);
+    expect(complacent(0.4, 0.9, true)).toBe(0.4);
+  });
+
+  it('marks a room comfortable only when winning took something off it', () => {
+    const l = fresh();
+    for (const c of chemistryWeek(l).values()) if (c.comfortable) expect(c.mood).toBeGreaterThanOrEqual(0);
   });
 });

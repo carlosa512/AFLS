@@ -8,6 +8,7 @@ import { moraleClock, moraleContext, moraleMean } from './morale';
 import { clamp } from './rng';
 import { starters } from './roster';
 import { unitRead, type Unit } from './standing';
+import { isDriven } from './meetings/react';
 import type { League, Player, Team } from './types';
 
 export type ChemRoom = Exclude<Unit, 'ST'>;
@@ -96,6 +97,20 @@ export function moodPart(level: number, mean: number, split: boolean): number {
   return clamp(CHEM.mood * clamp(pull, -1, 1) - divided, -CHEM.mood, CHEM.mood);
 }
 
+/**
+ * Complacency: a winning club's happy rooms get comfortable (letdowns, trap games, a room that stops grinding). It eats
+ * into the good side of the mood part only, from a .500 record to `full`, where it takes `max` of it; a room with a
+ * driven leader or voice stays hungry. It's also the brake on a loop: winning lifts moods and moods lift play, and
+ * without it good teams pulled away from the league (win spread past the NFL's).
+ */
+export const COMPLACENCY = { from: 0.5, full: 0.8, max: 0.75 };
+
+export function complacent(mood: number, winShare: number, hungry: boolean): number {
+  if (mood <= 0 || hungry) return mood;
+  const how = clamp((winShare - COMPLACENCY.from) / (COMPLACENCY.full - COMPLACENCY.from), 0, 1);
+  return mood * (1 - COMPLACENCY.max * how);
+}
+
 export function wordOf(edge: number, together: number | null): ChemWord {
   if (edge >= CHEM.clicking) return 'Clicking';
   if (edge <= CHEM.outOfSync) return 'Out of sync';
@@ -113,6 +128,8 @@ export interface Chemistry {
   years: number | null;
   /** Starters with no season together with any other starter here (for words). */
   newStarters: number;
+  /** Winning took some of the good mood off it (complacency): the room is comfortable. */
+  comfortable: boolean;
   /** Centred on the league, ±`CHEM.cap`. */
   edge: number;
   word: ChemWord;
@@ -125,6 +142,8 @@ export interface Chemistry {
 interface Week {
   key: string;
   mood: Map<string, number>;
+  /** Rooms whose mood part complacency trimmed (`teamId:unit`). */
+  comfortable: Set<string>;
   /** Each room's league-typical seasons together, and its mean raw edge (what centring takes off). */
   typical: Map<ChemRoom, number>;
   centre: Map<ChemRoom, number>;
@@ -141,17 +160,27 @@ function week(league: League): Week {
   const ctx = moraleContext(league);
   const mean = moraleMean(league);
   const mood = new Map<string, number>();
+  const comfortable = new Set<string>();
   const years = new Map<ChemRoom, number[]>();
-  for (const team of league.teams)
+  for (const team of league.teams) {
+    const rec = ctx.records.get(team.id);
+    const games = rec ? rec.w + rec.l + rec.t : 0;
+    const share = rec && games >= 3 ? (rec.w + rec.t / 2) / games : 0.5;
     for (const unit of CHEM_ROOMS) {
+      const key = `${team.id}:${unit}`;
       const read = unitRead(league, team.id, unit, ctx);
-      mood.set(`${team.id}:${unit}`, read ? moodPart(read.level, mean, read.word === 'Split') : 0);
+      const part = read ? moodPart(read.level, mean, read.word === 'Split') : 0;
+      const hungry = (ctx.voices.get(key) ?? []).some((v) => league.players[v.id] && isDriven(league.players[v.id]));
+      const kept = complacent(part, share, hungry);
+      if (kept < part) comfortable.add(key);
+      mood.set(key, kept);
       const time = timeOf(league, team, unit);
       if (time) (years.get(unit) ?? years.set(unit, []).get(unit)!).push(time.years);
     }
+  }
   const typical = new Map<ChemRoom, number>();
   for (const [unit, list] of years) typical.set(unit, list.reduce((a, b) => a + b, 0) / list.length);
-  const w: Week = { key, mood, typical, centre: new Map() };
+  const w: Week = { key, mood, comfortable, typical, centre: new Map() };
   for (const unit of CHEM_ROOMS) {
     const raws = league.teams.map((t) => raw(league, w, t, unit).edge);
     w.centre.set(unit, raws.reduce((a, b) => a + b, 0) / Math.max(1, raws.length));
@@ -182,6 +211,7 @@ export function chemistryOf(league: League, teamId: number, unit: ChemRoom): Che
     together: r.together,
     years: r.time?.years ?? null,
     newStarters: r.time?.newStarters ?? 0,
+    comfortable: w.comfortable.has(`${teamId}:${unit}`),
     edge,
     word: wordOf(edge, r.together),
   };
