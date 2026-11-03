@@ -31,6 +31,8 @@ const HURRY_OUT = 5;
 const HURRY_NEAR = 6;
 /** What a run out of bounds is worth in the hurry-up over the same yards tackled in bounds (yards). */
 const OUT_BONUS = 5;
+/** A hit this close (seconds) sends a man near the sideline out. */
+const THREAT = 1;
 
 /** How far upfield he gets along heading `(ux, uy)` before somebody can be there. */
 function gain(c: Body, ux: number, uy: number, r: Reader): number {
@@ -88,7 +90,9 @@ export function readField(c: Body, r: Reader, rng: Rng): { vx: number; vy: numbe
     const th = (side * FAN * Math.PI) / 180;
     return { vx: r.dir * Math.cos(th) * c.top, vy: Math.sin(th) * c.top };
   }
-  const cornered = best < KNOBS.outGain && toLine < KNOBS.outLine;
+  // About to be hit (a free man can be on him within `THREAT` s) with the sideline near: he steps out.
+  const hit = r.chasers.some((d) => Math.hypot(d.x - c.x, d.y - c.y) / d.top + d.late < THREAT);
+  const cornered = (best < KNOBS.outGain || hit) && toLine < KNOBS.outLine;
   if (cornered && !r.clock.stayIn) return out();
   if (r.averse && !r.clock.stayIn && best < 2 && toLine < 6) return out();
   return { vx: bx * c.top, vy: by * c.top };

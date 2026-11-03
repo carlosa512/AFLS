@@ -30,6 +30,8 @@ export interface Approach {
 const STILL_ON = 2;
 /** A man in front of a blocker and this close to him (yards) at possession is engaged with him. */
 const ENGAGED = 1.2;
+/** A lineman climbs to a linebacker this close (yards). */
+const CLIMB_REACH = 7;
 /** The spread of a line block's hold (seconds). */
 const HOLD_SD = 0.25;
 
@@ -127,24 +129,44 @@ export function fieldStart(
   const blocks: FieldStart['blocks'] = [];
   const taken = new Set<number>();
   const z = m.facts.z ?? 0;
+  // The line as the roll left it (spec §1): a clean hole keeps its blocks and holds them longer; a stuffed one has
+  // front men already off theirs at the hole.
+  const holds = (k = 1) => KNOBS.hold * Math.exp(KNOBS.line * z) * k;
+  const sig = (x: number) => 1 / (1 + Math.exp(-x));
+  const freed = new Set<number>();
   for (const [b, d] of a.lineBlocks) {
-    // Every hold is drawn, kept or not, so one block never shifts another's.
+    // Every block's draws are taken, kept or not, so one block never shifts another's.
     const spread = hold.normal(0, HOLD_SD);
+    const kept = hold.next() < sig(KNOBS.line * (z + 1));
     const pb = at.get(b);
     const pd = at.get(d);
-    if (!pb || !pd || pb.side !== 0 || pd.side !== 1 || taken.has(b) || taken.has(d)) continue;
+    // Off his block at the hole: nobody picks him up again at possession.
+    if (!kept && pd) freed.add(pd.id);
+    if (!kept || !pb || !pd || pb.side !== 0 || pd.side !== 1 || taken.has(b) || taken.has(d)) continue;
     if (Math.hypot(pb.x - pd.x, pb.y - pd.y) > STILL_ON) continue;
     const preacher = pb.s.habits?.includes('pancakePreacher') ? 0.3 : 0;
-    blocks.push({
-      blocker: b,
-      defender: d,
-      holdFor: Math.max(0, KNOBS.hold * Math.exp(KNOBS.line * z) + spread) + preacher,
-    });
+    blocks.push({ blocker: b, defender: d, holdFor: Math.max(0, holds() + spread) + preacher });
     taken.add(b).add(d);
   }
+  // On a clean roll a lineman gets up to the second level: a linebacker near him is walled off.
+  if (m.kind === 'run')
+    for (const lb of players.filter((p) => p.side === 1 && p.role === 'LB')) {
+      const climbs = hold.next() < sig(KNOBS.line * (z - 1));
+      if (!climbs || taken.has(lb.id)) continue;
+      let ol: FieldPlayer | undefined;
+      let od = CLIMB_REACH;
+      for (const p of players)
+        if (p.side === 0 && p.role === 'OL' && !taken.has(p.id)) {
+          const g = Math.hypot(p.x - lb.x, p.y - lb.y);
+          if (g < od) [ol, od] = [p, g];
+        }
+      if (!ol) continue;
+      blocks.push({ blocker: ol.id, defender: lb.id, holdFor: holds(0.5) });
+      taken.add(ol.id).add(lb.id);
+    }
   // Anyone else locked up at possession: a defender in front of a blocker and on him.
   for (const pd of players) {
-    if (pd.side !== 1 || taken.has(pd.id)) continue;
+    if (pd.side !== 1 || taken.has(pd.id) || freed.has(pd.id)) continue;
     let best: FieldPlayer | undefined;
     let bd = ENGAGED;
     for (const pb of players) {

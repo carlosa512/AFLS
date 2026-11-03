@@ -59,4 +59,17 @@ describe("the carrier's read", () => {
     expect(gone).toBeGreaterThanOrEqual(12);
     expect(FIELD_W).toBeGreaterThan(53);
   });
+
+  it('steps out rather than take a hit when the sideline is near, and takes it when milking the clock', () => {
+    // A lane upfield, but a safety about to arrive and the sideline three yards off.
+    const players = [man(1, 0, 'RB', 50, 3.5, { vx: 5 }), man(30, 1, 'S', 57, 9, { vx: -3, vy: -3 })];
+    let out = 0;
+    for (let i = 0; i < 20; i++) {
+      if (runField(startOf({ players }), new Rng(`step:${i}`)).outOfBounds) out++;
+      expect(
+        runField(startOf({ players, clock: { outOfBounds: false, stayIn: true } }), new Rng(`stay:${i}`)).outOfBounds,
+      ).toBe(false);
+    }
+    expect(out).toBeGreaterThanOrEqual(14);
+  });
 });

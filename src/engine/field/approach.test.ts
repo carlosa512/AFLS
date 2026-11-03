@@ -163,4 +163,29 @@ describe('the approach: the snap to possession, blind', () => {
     const hold = (st: typeof withIt) => st.blocks.find((b) => b.blocker === lineBlock.blocker)!.holdFor;
     expect(hold(withIt) - hold(without)).toBeCloseTo(0.3, 6);
   });
+
+  it('frees the front at the hole on a stuffed roll, and climbs to the linebackers on a clean one', () => {
+    const runs = of('run').slice(0, 60);
+    let heldLow = 0;
+    let heldHigh = 0;
+    let lbLow = 0;
+    let lbHigh = 0;
+    for (const s of runs) {
+      const a = approach(s.m, s.record, s.homeId, 'seed')!;
+      const at = (z: number) =>
+        fieldStart(a, { ...s.m, facts: { ...s.m.facts, z } }, skillsOf, new Rng(`z:${s.index}`))!;
+      const low = at(-1);
+      const high = at(2);
+      const lb = (st: typeof low) =>
+        st.blocks.filter((b) => st.players.find((p) => p.id === b.defender)!.role === 'LB').length;
+      const line = (st: typeof low) =>
+        st.blocks.filter((b) => a.lineBlocks.some(([x, y]) => x === b.blocker && y === b.defender));
+      heldLow += line(low).length;
+      heldHigh += line(high).length;
+      lbLow += lb(low);
+      lbHigh += lb(high);
+    }
+    expect(heldHigh).toBeGreaterThan(heldLow * 1.5);
+    expect(lbHigh).toBeGreaterThan(lbLow);
+  });
 });
