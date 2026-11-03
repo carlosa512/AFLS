@@ -24,6 +24,8 @@ export interface Seg {
   dur: number;
   /** A ball carrier's move; the stager scripts the man who missed against it. */
   move?: MoveKind;
+  /** The tackle lands at this leg's start: the pair go on to its end together (a lunge forward, a slide into it). */
+  hit?: true;
 }
 
 export function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {

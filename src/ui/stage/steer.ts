@@ -29,6 +29,13 @@ const GOAL_X: readonly [number, number] = [-9, 109];
 const MAX_STEP = 0.55;
 /** A push can take a man this far past his own top speed (yards a second): a shove, never a sprint he hasn't got. */
 const LEGS_OVER = 0.3;
+/** On a run nobody gets within this of the back (yards) until he's this far past the line: the crease. */
+const CREASE = 2;
+const CREASE_PAST = 2.5;
+/** A pursuer on a run who'd get to the ball early flows there no slower than this (yards a second). */
+const FLOW_PACE = 2.5;
+/** A slipped man goes to the side the carrier slips him to unless that's this much further (yards) than the nearest. */
+const SLIP_GIVE = 0.15;
 /** How close a chaser may come to the man with the ball before the scripted tackler gets there. */
 const RING = 1.2;
 /** A chaser who gets there first whiffs: this long (seconds) at this share of his speed, finding his feet. */
@@ -293,6 +300,10 @@ export function steer(a: SteerArgs): Float32Array {
   /** Linemen who come off a double-team to a linebacker on a run, and (from the run's blocking) whom they climb to. */
   const climbs: number[] = [];
   const climbTo = new Map<number, number>();
+  /** Power's pulling guard and the man he's after (`RunBlocking.puller`, `on`). */
+  const pullerIdx = a.runBlocks?.puller ? (index.get(a.runBlocks.puller.id) ?? -1) : -1;
+  const pullerTarget = a.runBlocks?.puller ? a.runBlocks.on.get(a.runBlocks.puller.id) : undefined;
+  const pullerMan = pullerTarget === undefined ? -1 : (index.get(pullerTarget) ?? -1);
   /** A run's free men (`RunBlocking.free`): they pursue a step late. */
   const lateMen = new Set(
     (a.run ? (a.runBlocks?.free ?? []) : []).map((id) => index.get(id)).filter((k) => k !== undefined),
@@ -484,15 +495,28 @@ export function steer(a: SteerArgs): Float32Array {
    * where it will be in two seconds, the angle to the sideline or the pylon. A man in front of the carrier comes to
    * meet him; aiming further ahead would only have him back away in front of him, running with the play.
    */
+  /** How long the last `meet` gave him to get there (seconds; Infinity when he can't make it). */
+  let meetIn = Infinity;
   const meet = (k: number, step: number, speed: number): Pt => {
     const ahead = Math.round(2 / a.dt);
-    for (let j = 1; j <= ahead; j++) {
+    // On a run he meets the back past the crease (`CREASE_PAST`), not in the backfield: the spots short of it are
+    // passed over, looking as far on as it takes.
+    const crease = a.run && !offense[k];
+    const far = crease ? a.steps - step : ahead;
+    let past: Pt | undefined;
+    for (let j = 1; j <= far; j++) {
       const s = Math.min(a.steps - 1, step + j);
       if (a.ball[s * 3 + 2] > 0.5) continue;
       const b = ballAt(s);
-      if (Math.hypot(b.x - px[k], b.y - py[k]) <= speed * j * a.dt) return b;
+      if (crease && (b.x - ballX0) * a.dir < CREASE_PAST && s < a.steps - 1) continue;
+      past ??= b;
+      if (Math.hypot(b.x - px[k], b.y - py[k]) <= speed * j * a.dt) {
+        meetIn = j * a.dt;
+        return b;
+      }
     }
-    return ballAt(step + ahead);
+    meetIn = Infinity;
+    return past ?? ballAt(step + ahead);
   };
   /** The middle linebacker: the one lined up nearest the ball (in a Tampa 2 he carries the seam). */
   const mike = members
@@ -574,6 +598,8 @@ export function steer(a: SteerArgs): Float32Array {
         let goal: Pt = s0;
         /** Below 1 for a man out of the play, easing off. */
         let beaten = 1;
+        /** On a run, the pace that gets him to where he meets the ball as it gets there (no sooner: he'd stand). */
+        let onTime = Infinity;
         // A combo block's second man comes off the double a second after the handoff and climbs to a linebacker.
         const climbAt = a.release + (has(a.habits, m.id, 'secondLevel') ? 0.6 : 1);
         if (climbs.includes(k) && t > climbAt && !climbed.has(k)) {
@@ -688,6 +714,8 @@ export function steer(a: SteerArgs): Float32Array {
             // spreads out across the field instead of piling onto the carrier's back.
             const d = Math.hypot(chase.x - px[k], chase.y - py[k]);
             const aim = meet(k, step, SPEED[m.role] * 0.9);
+            if (a.run && k !== pk && Number.isFinite(meetIn))
+              onTime = Math.hypot(aim.x - px[k], aim.y - py[k]) / meetIn;
             // Once a man has the ball on the ground: how far past this chaser he is. A chaser he's gone by has lost his
             // angle; he can only run after him from behind, and a breakaway runs away from him.
             const now = ballAt(step);
@@ -735,6 +763,10 @@ export function steer(a: SteerArgs): Float32Array {
         // The run's blocking: each lineman's first step by the call, before he takes on his man.
         const first = a.run ? a.runBlocks?.steps.get(m.id) : undefined;
         if (first && t < FIRST_STEP) goal = first;
+        // The pulling guard's man (the end he kicks out, the linebacker he leads up on) comes to meet him while he's on
+        // his way, squeezing down to take him on, rather than waiting on his spot for the back.
+        if (a.run && released && k === pullerMan && pullerIdx >= 0 && !steered[pullerIdx])
+          goal = { x: px[pullerIdx], y: py[pullerIdx] };
         // A linebacker's habits, the film's way of showing them: a gap-shooter shoots his gap, a scraper flows over the
         // top, slow flow waits to see it, a misread goes the wrong way first.
         if (a.run && !offense[k] && k !== pk && m.role === 'LB' && a.habits?.has(m.id)) {
@@ -763,6 +795,8 @@ export function steer(a: SteerArgs): Float32Array {
         }
         // Engaged: a blocked man only leans into his block, slowly toward the ball on a dropback, driven back on a run.
         let top = (SPEED[m.role] + (k === pk ? PURSUIT : 0)) * beaten * (t < whiffed[k] ? STUMBLE : 1);
+        // A run still developing (a back pressing the hole): he flows to his spot on time, never early to stand there.
+        if (Number.isFinite(onTime)) top = Math.min(top, Math.max(FLOW_PACE, onTime * 1.15));
         /** The tackler, clear of the blocks and closing: within a few yards of the carrier. */
         const closing =
           pursuing && carrierIdx >= 0 && Math.hypot(px[carrierIdx] - px[k], py[carrierIdx] - py[k]) < CLOSING;
@@ -949,6 +983,20 @@ export function steer(a: SteerArgs): Float32Array {
       // The tackle is the scripted tackler's: chasers hold a ring around the quarterback and the man who ends up with
       // the ball, the whole play.
       const ck = a.carrier === null ? -1 : (index.get(a.carrier) ?? -1);
+      // A run, until the back is a step past the line: the hole is open, so nobody's on him in the backfield (the
+      // tackler included: a run stuffed there is his to make, at the end). Blocked men are driven off the crease, the
+      // rest wait on him a couple of yards off, each no quicker than his legs.
+      if (a.run && released && ck >= 0 && (px[ck] - ballX0) * a.dir < CREASE_PAST)
+        for (let k = 0; k < n; k++) {
+          if (!steered[k] || offense[k] || stuckTo.has(k)) continue;
+          const dx = px[k] - px[ck];
+          const dy = py[k] - py[ck];
+          const d = Math.hypot(dx, dy);
+          if (d >= CREASE || d === 0) continue;
+          const out = Math.min(CREASE - d, (SPEED[members[k].role] + LEGS_OVER) * a.dt);
+          px[k] += (dx / d) * out;
+          py[k] += (dy / d) * out;
+        }
       for (const r of new Set([hk, ck])) {
         if (r < 0) continue;
         for (let k = 0; k < n; k++) {
@@ -1036,8 +1084,17 @@ export function steer(a: SteerArgs): Float32Array {
               const across = -dx * hy + dy * hx;
               const side = Math.sign(across) || 1;
               const out = Math.sqrt(Math.max(0, FLOOR * FLOOR - along * along));
-              px[k] = px[r] + hx * along - hy * side * out;
-              py[k] = py[r] + hy * along + hx * side * out;
+              const slip = { x: px[r] + hx * along - hy * side * out, y: py[r] + hy * along + hx * side * out };
+              // A slip, not a throw: while the carrier's heading swings (a spin, a hard cut) the slip's spot swings round
+              // him with it, so he takes whichever spot a yard off is the shorter step from where he was.
+              const lx = lastX[k] - px[r];
+              const ly = lastY[k] - py[r];
+              const ld = Math.hypot(lx, ly);
+              const near = ld > 0 ? { x: px[r] + (lx / ld) * FLOOR, y: py[r] + (ly / ld) * FLOOR } : slip;
+              const far = (q: { x: number; y: number }) => Math.hypot(q.x - lastX[k], q.y - lastY[k]);
+              const to = far(slip) <= far(near) + SLIP_GIVE ? slip : near;
+              px[k] = to.x;
+              py[k] = to.y;
             } else {
               // Out to the floor on the side he came from: the least step there is (out from where the step left him
               // would drag him round the carrier, quicker than he runs).

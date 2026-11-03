@@ -7,7 +7,8 @@ import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import { Rng } from '../../engine/rng';
 import type { DefenseCall } from '../../engine/match/coach';
 import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
-import { MID, offenseSide } from './ballPath';
+import { MID, offenseSide, type Seg } from './ballPath';
+import type { MoveKind } from './carrier';
 import type { Role } from './cast';
 import { meshGap, pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
@@ -29,7 +30,7 @@ import { assign, conceptFor, spotOf, type ConceptId } from './concepts';
 import { routeFor, routeTime, type RouteId } from './routes';
 import { SPEED, steer } from './steer';
 import type { Pt } from './formations';
-import { habitsOf } from './habits';
+import { habitsFor, habitsOf } from './habits';
 import { holeAt, planRunBlocks, runCall, type RunBlocking, type RunCall } from './runBlocks';
 import { COVERAGES } from '../../engine/schemes';
 
@@ -73,6 +74,11 @@ export interface StagedPlay {
   pocket: PocketPlan | null;
   /** A pass's concept and the target's route (`concepts.ts`, `routes.ts`); absent on anything else. */
   pattern?: { concept: ConceptId; route: RouteId };
+  /**
+   * A broken tackle: the carrier's move (`carrier.ts`), when it starts and how long it lasts (seconds), and the man the
+   * engine says missed (on the carrier as the move starts, by design).
+   */
+  move?: { kind: MoveKind; t: number; dur: number; by?: number };
   /** The victory formation: the quarterback, down on a knee from `t` (seconds from the snap). */
   kneel?: { id: number; t: number };
   /** A run's blocking by the call (`runBlocks.ts`): the call, the play side, the hole, the puller, who climbs, the free men. */
@@ -251,24 +257,34 @@ export function stagePlay(args: {
   const runner = e.kind === 'int' ? who.take : e.kind === 'scramble' ? qbId : who.ball;
   const runnerRole = [...cast.offense, ...cast.defense].find((m) => m.id === runner)?.role;
   const tacklerRole = cast.defense.find((m) => m.id === who.tackle)?.role;
-  const segs = stagedPath(
-    e,
-    homeId,
-    args.snapY,
+  // The habits the engine noted in play, and on a run the call and the hole the back presses (`runBlocks.ts`), on
+  // streams of their own so nothing else on the play moves.
+  const habits = habitsOf(e, new Set(start.keys()));
+  const jet = e.kind === 'run' && (runnerRole === 'WR' || runnerRole === 'TE');
+  const called = e.kind === 'run' ? runCall(e, off.offense, new Rng(`${args.seed}:run`)) : undefined;
+  // A jet sweep goes wide whatever the log's gap: the line reaches for the edge.
+  const read = called && jet ? { ...called, call: 'outsideZone' as const } : called;
+  const hole = read && holeAt(read.call, read.side, { x: ballX, y: ballY }, dir, !!e.open?.bounce);
+  const missed = e.open?.broke?.by;
+  const missedRole = cast.defense.find((m) => m.id === missed)?.role;
+  const segs = stagedPath(e, homeId, args.snapY, {
     receiverAt,
-    qbPath,
-    runnerRole ? SPEED[runnerRole] + 0.3 : undefined,
-    tacklerRole ? SPEED[tacklerRole] + PURSUIT : undefined,
-  );
+    pocket: qbPath,
+    top: runnerRole ? SPEED[runnerRole] + 0.3 : undefined,
+    chaser: tacklerRole ? SPEED[tacklerRole] + PURSUIT : undefined,
+    seed: args.seed,
+    carrier: habitsFor(habits, runner),
+    missed: habitsFor(habits, missed),
+    tackler: habitsFor(habits, who.tackle),
+    hole,
+    missedAt: missed === undefined ? undefined : start.get(missed),
+    missedTop: missedRole && SPEED[missedRole] + PURSUIT,
+    jet,
+  });
   const scripted = script(e, cast, start, segs, dir, pocket, pattern);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
-  // The habits the engine noted in play, and on a run its blocking by the call (`runBlocks.ts`), on streams of their
-  // own so nothing else on the play moves.
-  const habits = habitsOf(e, new Set(start.keys()));
   let runBlocks: RunBlocking | undefined;
-  if (e.kind === 'run' && carrier !== null) {
-    const read = runCall(e, off.offense, new Rng(`${args.seed}:run`));
-    const hole = holeAt(read.call, read.side, { x: ballX, y: ballY }, dir, !!e.open?.bounce);
+  if (read && hole && carrier !== null) {
     const back = keys.get(carrier);
     runBlocks = planRunBlocks({
       call: read.call,
@@ -373,13 +389,23 @@ export function stagePlay(args: {
   );
   if (pursuer !== null) {
     const k = members.findIndex((m) => m.id === pursuer);
-    closeIn(pos, members.length, k, keys.get(pursuer)!, steps, earliest, {
-      carrier: carrier === null ? -1 : members.findIndex((m) => m.id === carrier),
+    const c = carrier === null ? -1 : members.findIndex((m) => m.id === carrier);
+    // A hit before the whistle (a lunge, a slide): he runs into it there, then goes on with the carrier.
+    const hitStep =
+      scripted.hitAt === undefined || c < 0 ? steps - 1 : Math.min(steps - 1, Math.round(scripted.hitAt / STEP));
+    const into = keys.get(pursuer)!.filter((key) => hitStep === steps - 1 || key.t <= scripted.hitAt! + 1e-6);
+    closeIn(pos, members.length, k, into, hitStep + 1, Math.min(earliest, hitStep), {
+      carrier: c,
       top: SPEED[members[k].role] + 1,
       legs: SPEED[members[k].role] + PURSUIT,
       burst: Math.min(SPRINT, SPEED[members[k].role] + PURSUIT + 1),
       kick: kick === 'kickoff',
     });
+    const n = members.length;
+    for (let st = hitStep + 1; st < steps; st++)
+      for (const i of [0, 1])
+        pos[(st * n + k) * 2 + i] =
+          pos[(st * n + c) * 2 + i] + pos[(hitStep * n + k) * 2 + i] - pos[(hitStep * n + c) * 2 + i];
   }
   const homeSide = cast.offSide === 0;
   return {
@@ -393,6 +419,7 @@ export function stagePlay(args: {
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
     ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),
+    ...moveIn(segs, e.open?.broke?.by),
     ...(runBlocks
       ? {
           run: {
@@ -757,4 +784,19 @@ function chaseDown(
     }
   }
   return true;
+}
+
+/** The carrier's move on the staged path, if it has one. */
+function moveIn(segs: readonly Seg[], by?: number): { move?: { kind: MoveKind; t: number; dur: number; by?: number } } {
+  let t = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const kind = segs[i].move;
+    if (kind) {
+      let dur = 0;
+      for (let j = i; j < segs.length && segs[j].move; j++) dur += segs[j].dur;
+      return { move: { kind, t, dur, ...(by !== undefined ? { by } : {}) } };
+    }
+    t += segs[i].dur;
+  }
+  return {};
 }

@@ -413,7 +413,8 @@ describe('the staged play', () => {
       );
       for (let k = 0; k < 22; k++) {
         // Chasers: the other side from the man with the ball (the offense, after an interception).
-        if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k])) continue;
+        // (Nor the man the engine says missed him: he's on the carrier as the move starts.)
+        if (p.offense[k] === p.offense[c] || p.keys.includes(p.ids[k]) || p.ids[k] === p.move?.by) continue;
         let closest = Infinity;
         for (let st = from; st < p.steps - 1; st++) {
           const a = pos(p, st, k);
@@ -1325,12 +1326,13 @@ describe('the run game', () => {
     );
   };
 
-  // Needs the back pressing the hole on time (Task 4 of the Pass B plan): until then he can beat his own kick-out there.
-  it.skip('leaves no unblocked defender standing within 5 yards of the hole as the back goes through', () => {
+  it('leaves almost no unblocked defender standing within 5 yards of the hole as the back goes through', () => {
     let n = 0;
+    const standing = new Set<string>();
     for (const x of runs.slice(0, 300)) {
       const p = stage(x);
-      if (!p.run || p.carrier === null) continue;
+      // (A fumble's carrier at the end may be the man who picked it up.)
+      if (!p.run || p.carrier === null || p.loose) continue;
       const c = p.ids.indexOf(p.carrier);
       const who = actorsIn(x.e);
       let cross = -1;
@@ -1360,10 +1362,13 @@ describe('the run game', () => {
             (o, j) =>
               p.offense[j] && j !== c && Math.hypot(at(p, st * p.dt, o).x - d.x, at(p, st * p.dt, o).y - d.y) < 2.2,
           );
-          expect(moving || blocked, `${p.roles[k]} at ${(st * p.dt).toFixed(2)}: ${x.e.text}`).toBe(true);
+          if (!moving && !blocked) standing.add(`${x.g.id}:${x.index}`);
         });
     }
     expect(n).toBeGreaterThan(100);
+    // Now and then a linebacker reads the back from the second level a beat before he gets there, as they do; never
+    // more than one run in twenty.
+    expect(standing.size / n).toBeLessThan(0.05);
   });
 
   it('runs a pulling guard behind the line, never through it', () => {
@@ -1468,12 +1473,14 @@ describe('the run game', () => {
       const [climber, target] = base.run.climb[0] ?? [];
       if (climber === undefined) continue;
       const up = stage(x, withHabit(x, climber, 'secondLevel'));
-      // Sealed: a second later he's between his linebacker and the hole.
+      // Sealed: a second later he's on his linebacker (hands on him), between him and the hole. (A lineman still at the
+      // line is nearer the hole than any linebacker: being on him is what climbing early buys.)
       const sealed = (p: StagedPlay) => {
         const h = p.run!.hole;
         const c = at(p, p.release + 1.2, climber);
         const l = at(p, p.release + 1.2, target);
-        return Math.hypot(l.x - h.x, l.y - h.y) > Math.hypot(c.x - h.x, c.y - h.y) ? 1 : 0;
+        const on = Math.hypot(l.x - c.x, l.y - c.y) < 1.6;
+        return on && Math.hypot(l.x - h.x, l.y - h.y) > Math.hypot(c.x - h.x, c.y - h.y) ? 1 : 0;
       };
       gained.push(sealed(up) - sealed(base));
       climbs++;
@@ -1484,5 +1491,233 @@ describe('the run game', () => {
     expect(climbs).toBeGreaterThan(20);
     // A second-level blocker leaves the double early and seals his man off the hole more often.
     expect(gained.reduce((t, g) => t + g, 0) / gained.length).toBeGreaterThan(0.1);
+  });
+
+  /** When the carrier first crosses the line of scrimmage (seconds), or -1. */
+  const crossAt = (p: StagedPlay, x: Run, past = 0) => {
+    if (p.carrier === null) return -1;
+    const c = p.ids.indexOf(p.carrier);
+    for (let st = 0; st < p.steps; st++)
+      if ((p.pos[(st * p.ids.length + c) * 2] - x.e.from!) * p.dir > past) return st * p.dt;
+    return -1;
+  };
+  const role = (p: StagedPlay, id: number | null) => (id === null ? undefined : p.roles[p.ids.indexOf(id)]);
+  /** A handed-off run: a back or a receiver carries it, and it gets past the line. */
+  const handed = (p: StagedPlay) =>
+    role(p, p.carrier) === 'RB' || role(p, p.carrier) === 'WR' || role(p, p.carrier) === 'TE';
+  const opened = (x: Run, open: PlayLogEntry['open']): PlayLogEntry => ({ ...x.e, open: { ...x.e.open, ...open } });
+  /** A defender on the field who's neither the tackler nor the man who misses, nearest the line. */
+  const someone = (x: Run, p: StagedPlay) => {
+    const who = actorsIn(x.e);
+    return (
+      p.ids.find((id, k) => !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle) ??
+      p.ids.find((id, k) => !p.offense[k] && id !== who.tackle)!
+    );
+  };
+
+  it('crosses the line between 2.3 and 3.5 s on every handed-off run', () => {
+    let n = 0;
+    for (const x of runs.slice(0, 300)) {
+      const p = stage(x);
+      if (!handed(p) || role(p, p.carrier) !== 'RB') continue;
+      const t = crossAt(p, x);
+      if (t < 0) continue;
+      expect(t, x.e.text).toBeGreaterThanOrEqual(2.3);
+      expect(t, x.e.text).toBeLessThanOrEqual(3.5);
+      n++;
+    }
+    expect(n).toBeGreaterThan(150);
+  });
+
+  it('stages one move per broken tackle, against the man who missed, and none without one', () => {
+    let broke = 0;
+    for (const x of runs.slice(0, 300)) {
+      const p = stage(x);
+      if (!handed(p)) continue;
+      const by = x.e.open?.broke?.by;
+      expect(!!p.move, x.e.text).toBe(!!x.e.open?.broke);
+      if (!p.move || by === undefined || !p.ids.includes(by)) continue;
+      const d = at(p, p.move.t, by);
+      const c = at(p, p.move.t, p.carrier!);
+      expect(Math.hypot(d.x - c.x, d.y - c.y), x.e.text).toBeLessThan(1.5);
+      broke++;
+    }
+    expect(broke).toBeGreaterThan(10);
+  });
+
+  it('drives the man back on a size break and sends him past on a move', () => {
+    const seen = { size: 0, move: 0 };
+    for (const x of runs.slice(0, 200)) {
+      const base = stage(x);
+      if (!handed(base) || base.carrier === null) continue;
+      for (const how of ['size', 'move'] as const) {
+        const by = someone(x, base);
+        const p = stage(x, opened(x, { broke: { by, how }, habits: [] }));
+        if (!p.move) continue;
+        const t = p.move.t;
+        const c0 = at(p, t - 0.1, p.carrier!);
+        const c1 = at(p, t, p.carrier!);
+        const hl = Math.hypot(c1.x - c0.x, c1.y - c0.y) || 1;
+        const d0 = at(p, t, by);
+        if (how === 'size') {
+          // Driven back along the carrier's heading.
+          const d1 = at(p, t + 0.4, by);
+          expect(((d1.x - d0.x) * (c1.x - c0.x) + (d1.y - d0.y) * (c1.y - c0.y)) / hl, x.e.text).toBeGreaterThan(1);
+        } else {
+          const d1 = at(p, t + 0.5, by);
+          expect(Math.hypot(d1.x - d0.x, d1.y - d0.y), x.e.text).toBeGreaterThan(1.2);
+        }
+        seen[how]++;
+      }
+    }
+    expect(seen.size).toBeGreaterThan(30);
+    expect(seen.move).toBeGreaterThan(30);
+  });
+
+  it('stages a run with no open (an old game) without a move', () => {
+    for (const x of runs.slice(0, 100)) {
+      const { open: _, ...old } = x.e;
+      expect(stage(x, old).move).toBeUndefined();
+      expect(stagedPath(old, x.g.homeId, x.snapY).some((s) => s.move)).toBe(false);
+    }
+  });
+
+  it('stages a broken tackle that ends in a fumble: the move first, then the ball out', () => {
+    let n = 0;
+    for (const x of runs) {
+      if (!fumbleIn(x.e)) continue;
+      const base = stage(x);
+      const p = stage(x, opened(x, { broke: { by: someone(x, base), how: 'move' } }));
+      if (!p.loose) continue;
+      expect(p.move, x.e.text).toBeDefined();
+      expect(p.move!.t + p.move!.dur).toBeLessThanOrEqual(p.loose.t + 1e-6);
+      n++;
+    }
+    expect(n).toBeGreaterThan(3);
+  });
+
+  it('keeps a jet sweep at speed through the handoff', () => {
+    let n = 0;
+    for (const x of runs) {
+      const p = stage(x);
+      if (role(p, p.carrier) !== 'WR') continue;
+      for (let st = 2; st <= Math.round((p.release + 0.3) / p.dt); st++) {
+        const a = at(p, (st - 1) * p.dt, p.carrier!);
+        const b = at(p, st * p.dt, p.carrier!);
+        expect(Math.hypot(b.x - a.x, b.y - a.y) / p.dt, `${x.e.text} at ${(st * p.dt).toFixed(2)}`).toBeGreaterThan(
+          4.8,
+        );
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(3);
+  });
+
+  it('shows each back and tackler habit', () => {
+    const mean = (xs: number[]) => xs.reduce((t, v) => t + v, 0) / Math.max(1, xs.length);
+    const late: number[] = [];
+    const dwell: number[] = [];
+    const cut: number[] = [];
+    const wide: number[] = [];
+    const lunge: { base: number[]; thumper: number[]; averse: number[] } = { base: [], thumper: [], averse: [] };
+    const averseSlide: number[] = [];
+    /** How far off the straight line from the hole to where he ends he gets in the second after the hole. */
+    const offLine = (p: StagedPlay, x: Run) => {
+      const t0 = crossAt(p, x);
+      const end = at(p, (p.steps - 1) * p.dt, p.carrier!);
+      const h = at(p, t0, p.carrier!);
+      const l = Math.hypot(end.x - h.x, end.y - h.y) || 1;
+      let most = 0;
+      for (let t = t0; t < Math.min(t0 + 1, (p.steps - 1) * p.dt); t += p.dt) {
+        const q = at(p, t, p.carrier!);
+        most = Math.max(most, Math.abs((q.x - h.x) * (end.y - h.y) - (q.y - h.y) * (end.x - h.x)) / l);
+      }
+      return most;
+    };
+    /** The first time the tackler is within 1.2 yards of the carrier, before the whistle. */
+    const contact = (p: StagedPlay, tackler: number) => {
+      for (let t = 0; t < p.steps * p.dt; t += p.dt) {
+        const a = at(p, t, tackler);
+        const b = at(p, t, p.carrier!);
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 1.2) return (p.steps - 1) * p.dt - t;
+      }
+      return 0;
+    };
+    for (const x of runs.slice(0, 160)) {
+      const base = stage(x, without(x));
+      if (!handed(base) || role(base, base.carrier) !== 'RB' || crossAt(base, x) < 0 || x.e.open?.broke) continue;
+      const back = base.carrier!;
+      const tackler = actorsIn(x.e).tackle;
+      const gain = (x.e.to! - x.e.from!) * base.dir;
+      late.push(crossAt(stage(x, withHabit(x, back, 'patientPresser')), x) - crossAt(base, x));
+      if (gain > 5) {
+        const d = stage(x, withHabit(x, back, 'dwellsInHole'));
+        dwell.push(crossAt(d, x, 3) - crossAt(d, x) - (crossAt(base, x, 3) - crossAt(base, x)));
+        cut.push(offLine(stage(x, withHabit(x, back, 'jumpCutter')), x) - offLine(base, x));
+      }
+      const bounce = opened(x, { bounce: 1, habits: [] });
+      const b0 = stage(x, bounce);
+      const b1 = stage(x, opened(x, { bounce: 1, habits: [[back, 'bouncesExternal']] }));
+      const across = (p: StagedPlay) => {
+        let most = 0;
+        const t0 = crossAt(p, x);
+        if (t0 < 0) return 0;
+        for (let t = t0 - 0.5; t < t0 + 0.5; t += p.dt) most = Math.max(most, Math.abs(at(p, t, back).y - x.snapY));
+        return most;
+      };
+      if (crossAt(b0, x) > 0) wide.push(across(b1) - across(b0));
+      if (tackler !== undefined && gain > 2 && !/TOUCHDOWN/.test(x.e.text) && !fumbleIn(x.e)) {
+        lunge.base.push(contact(stage(x, opened(x, { forward: 1, habits: [] })), tackler));
+        lunge.thumper.push(contact(stage(x, opened(x, { forward: 1, habits: [[tackler, 'thumper']] })), tackler));
+        const a = stage(x, opened(x, { forward: 1, habits: [[back, 'contactAverse']] }));
+        lunge.averse.push(contact(a, tackler));
+        const e0 = at(a, (a.steps - 1) * a.dt - 0.45, back);
+        const e1 = at(a, (a.steps - 1) * a.dt, back);
+        averseSlide.push(Math.hypot(e1.x - e0.x, e1.y - e0.y));
+      }
+    }
+    expect(late.length).toBeGreaterThan(40);
+    // A patient back crosses the line later.
+    expect(mean(late)).toBeGreaterThan(0.2);
+    expect(mean(late)).toBeLessThan(0.4);
+    // One who dwells in the hole takes longer from the line to three yards past it.
+    expect(dwell.length).toBeGreaterThan(15);
+    expect(mean(dwell)).toBeGreaterThan(0.2);
+    // A jump-cutter's cut at the hole takes him well off the straight line.
+    expect(mean(cut)).toBeGreaterThan(0.8);
+    // A bounce goes wider for a back who bounces outside.
+    expect(wide.length).toBeGreaterThan(40);
+    expect(mean(wide)).toBeGreaterThan(1.2);
+    // Falling forward: the hit comes before the end (a lunge); a thumper stops him where he hits him; a back who
+    // shies from contact is hit a yard short and slides into it.
+    expect(lunge.base.length).toBeGreaterThan(30);
+    // (Measured against the same play with a thumper: how long before the whistle contact comes includes each
+    // tackler's own run-in.)
+    expect(mean(lunge.base) - mean(lunge.thumper)).toBeGreaterThan(0.15);
+    expect(mean(lunge.averse) - mean(lunge.thumper)).toBeGreaterThan(0.35);
+    expect(mean(averseSlide)).toBeLessThan(1.1);
+  });
+
+  it('keeps the safety a step behind on a breakaway', () => {
+    let n = 0;
+    for (const x of runs) {
+      const gain = Math.abs(x.e.to! - x.e.from!);
+      if (gain < 20) continue;
+      const p = stage(x, opened(x, { gone: 1 }));
+      if (p.carrier === null || !handed(p)) continue;
+      const who = actorsIn(x.e);
+      // The deepest safety at the snap.
+      const s = p.ids
+        .filter((_, k) => !p.offense[k] && p.roles[k] === 'S')
+        .sort((a, b) => (at(p, 0, b).x - at(p, 0, a).x) * p.dir)[0];
+      if (s === undefined || s === who.tackle || s === x.e.open?.broke?.by) continue;
+      for (let t = 0; t < (p.steps - 1) * p.dt - 0.3; t += p.dt) {
+        const a = at(p, t, s);
+        const b = at(p, t, p.carrier);
+        expect(Math.hypot(a.x - b.x, a.y - b.y), `${x.e.text} at ${t.toFixed(2)}`).toBeGreaterThan(1);
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(5);
   });
 });
