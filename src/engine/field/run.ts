@@ -97,6 +97,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   }
 
   const noContest = new Float64Array(n);
+  /** Who has had his one try at him short of the credited spot (call H). */
+  const tried = new Uint8Array(n);
   // Men a clean hole holds a beat (`FieldStart.late`): flat-footed until then.
   const lateUntil = new Float64Array(n);
   for (const l of start.late ?? []) {
@@ -451,8 +453,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const c = B[ci];
     let d = -1;
     let dd = Infinity;
+    // Short of his credited spot each man gets one real try at him (call H): after it he shadows him.
+    const shy = !!spot && (spot.touchdown || left() > ANCHOR);
     for (let i = 0; i < n; i++) {
       if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil || now < noContest[i]) continue;
+      if (shy && tried[i]) continue;
       const g = dist(B[i], c);
       if (g <= REACH && g < dd) [d, dd] = [i, g];
     }
@@ -466,12 +471,14 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let room = true;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= ROOM) room = false;
-    let r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
+    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
     if (spot) {
       // At his spot (and no touchdown to come) this man has him, the pile carrying him the rest of the way; short of
       // it, or on his way to a touchdown, he drives through.
       if (!spot.touchdown && left() <= ANCHOR) return tackleBy(d, Math.max(0, left()), sp);
-      if (r.out === 'tackle') r = { out: 'broken', afterContact: 0, program: null };
+      tried[d] = 1;
+      // His try would have had him: short of the spot he's held off, no miss (the tackle is the spot's).
+      if (r.out === 'tackle') return;
     }
     if (r.out === 'tackle') return tackleBy(d, r.afterContact, sp);
     misses.push({

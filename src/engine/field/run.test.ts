@@ -215,4 +215,22 @@ describe('the open field', () => {
       expect(r.touchdown, `td ${i}`).toBe(true);
     }
   });
+
+  it('counts only real broken and missed tackles on the way to the credited spot', () => {
+    let misses = 0;
+    let runs = 0;
+    for (let i = 0; i < 300; i++) {
+      const start = randomStart(`count:${i}`);
+      const c = start.players.find((p) => p.id === start.carrier)!;
+      const own = start.dir === 1 ? start.yardLine : 100 - start.yardLine;
+      const yards = 8;
+      if (own + yards >= 99 || yards < (c.vx * c.vx + c.vy * c.vy) / 24 + 1) continue;
+      const r = runField({ ...start, target: { x: start.yardLine + yards * start.dir, touchdown: false } }, new Rng(`count:${i}`));
+      misses += r.misses.length;
+      runs++;
+      // No man misses him twice.
+      expect(new Set(r.misses.map((m) => m.by)).size).toBe(r.misses.length);
+    }
+    expect(misses / runs).toBeLessThan(0.6);
+  });
 });
