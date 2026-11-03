@@ -40,6 +40,10 @@ export const KNOBS = {
   retHold: 0.35,
   /** Scales the ball carrier's own per-point terms (top speed, power, moves) against the defense's. */
   carrier: 0.65,
+  /** A man closing on the carrier may leave his feet from this far (yards): a dive from behind or the side. */
+  diveReach: 2.5,
+  /** Tackle odds added on a dive (a lunge at his legs, often short). */
+  dive: -0.2,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */

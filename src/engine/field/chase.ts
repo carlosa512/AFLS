@@ -48,12 +48,11 @@ export interface Aim {
   react: number;
 }
 
-/** The velocity a free defender wants. */
-export function chaseWant(d: Body, a: Aim): { vx: number; vy: number } {
+/** Where a free defender aims, and whether he's holding a deep man's leverage point (`chaseWant`). */
+export function aimAt(d: Body, a: Aim): { aim: { x: number; y: number }; holding: boolean } {
   // Where the carrier is now, as best he can tell, and where they'd meet.
   const now = { x: a.seen.x + a.vx * a.react, y: a.seen.y + a.vy * a.react };
   const dist = Math.hypot(now.x - d.x, now.y - d.y);
-  const cap = d.top * (a.eased ? 0.85 : 1);
   let aim: { x: number; y: number };
   let holding = false;
   if (a.deep && (d.x - now.x) * a.dir >= 5 && dist > 6) {
@@ -68,8 +67,19 @@ export function chaseWant(d: Body, a: Aim): { vx: number; vy: number } {
   } else if (dist < 4) aim = { x: now.x + a.vx * CLOSE_LEAD, y: now.y + a.vy * CLOSE_LEAD };
   else {
     const tau = interceptTime(now, a.vx, a.vy, d, d.top);
-    aim = { x: now.x + a.vx * tau * a.q, y: now.y + a.vy * tau * a.q };
+    // Where they'd meet, on the field: a man running for the sideline is cut off at it, not chased past it.
+    aim = {
+      x: now.x + a.vx * tau * a.q,
+      y: Math.max(1, Math.min(FIELD_W - 1, now.y + a.vy * tau * a.q)),
+    };
   }
+  return { aim, holding };
+}
+
+/** The velocity a free defender wants. */
+export function chaseWant(d: Body, a: Aim): { vx: number; vy: number } {
+  const cap = d.top * (a.eased ? 0.85 : 1);
+  const { aim, holding } = aimAt(d, a);
   const u = unit(aim.x - d.x, aim.y - d.y);
   const close = Math.hypot(aim.x - d.x, aim.y - d.y);
   // Pull up on a spot he's already at (a deep man's leverage point), rather than overrun it.

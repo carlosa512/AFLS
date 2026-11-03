@@ -3,6 +3,8 @@ import { Rng } from '../rng';
 import { man, randomStart, startOf, pinKnobs } from './fixtures';
 import { MID } from './geometry';
 import { runField } from './run';
+import { aimAt } from './chase';
+import { bodyOf } from './body';
 import { KNOBS, MAX_FIELD, STEP } from './tuning';
 import type { FieldStart } from './types';
 
@@ -136,5 +138,60 @@ describe('the open field', () => {
         expect(gap, `step ${s}`).toBeLessThanOrEqual(2);
     }
     expect(engaged).toBeGreaterThanOrEqual(0);
+  });
+
+  it('lets a man closing from behind dive at the carrier: first contact comes sooner', () => {
+    const firstContact = (diveReach: number) => {
+      const was = KNOBS.diveReach;
+      KNOBS.diveReach = diveReach;
+      let t = 0;
+      for (let i = 0; i < 60; i++) {
+        // A faster man three yards behind, closing slowly.
+        const players = [
+          man(1, 0, 'RB', 40, MID, { vx: 8.5 }),
+          man(30, 1, 'S', 37, MID + 0.5, { vx: 9, s: { speed: 18 } }),
+          man(31, 1, 'S', 95, 5),
+        ];
+        const r = runField(startOf({ players }), new Rng(`dive:${i}`));
+        const miss = r.misses.find((m) => m.by === 30);
+        t += miss ? miss.t : r.duration;
+      }
+      KNOBS.diveReach = was;
+      return t / 60;
+    };
+    expect(firstContact(2.5)).toBeLessThan(firstContact(1.5) - 0.1);
+  });
+
+  it('cuts off a carrier angling for the sideline at it, not past it', () => {
+    let caught = 0;
+    for (let i = 0; i < 40; i++) {
+      // He angles for the sideline and stays in; the corner, inside and ahead, meets him at it.
+      const players = [
+        man(1, 0, 'WR', 40, 14, { vx: 6, vy: -5 }),
+        man(30, 1, 'CB', 47, 17, { vx: 2, vy: -3 }),
+        man(31, 1, 'S', 95, 45),
+      ];
+      const r = runField(startOf({ players, clock: { outOfBounds: false, stayIn: true } }), new Rng(`side:${i}`));
+      if (r.tackler === 30 || r.misses.some((m) => m.by === 30)) caught++;
+    }
+    expect(caught).toBeGreaterThanOrEqual(32);
+  });
+
+  it('never aims a defender at a spot off the field', () => {
+    const d = bodyOf(man(30, 1, 'CB', 50, 12), false);
+    // A carrier at the 3-yard line across the field, running hard for the sideline: the meeting point is cut off at it.
+    for (const q of [0.6, 1, 1.4]) {
+      const { aim } = aimAt(d, {
+        seen: { x: 44, y: 3 },
+        vx: 4,
+        vy: -8,
+        q,
+        deep: false,
+        dir: 1,
+        eased: false,
+        react: 0.3,
+      });
+      expect(aim.y).toBeGreaterThanOrEqual(1);
+    }
   });
 });

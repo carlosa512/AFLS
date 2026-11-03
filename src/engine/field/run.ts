@@ -43,6 +43,8 @@ const REGROUP = 1;
 const SHIELD = 1.2;
 /** Steps a defender reads the carrier's velocity over. */
 const SMOOTH = 6;
+/** A man gaining on the carrier slower than this (yards a second) dives rather than run him down. */
+const DIVE_CLOSE = 1.5;
 /** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
 const STRETCH_T = 1;
 /** After a catch he gathers this long (seconds) before he reads the field. */
@@ -391,7 +393,20 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const g = dist(B[i], c);
       if (g <= REACH && g < dd) [d, dd] = [i, g];
     }
-    if (d < 0) return;
+    // Nobody in arm's reach: a man closing on him from a little further may dive.
+    let dive = false;
+    if (d < 0) {
+      for (let i = 0; i < n; i++) {
+        if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil || now < noContest[i]) continue;
+        const g = dist(B[i], c);
+        if (g > KNOBS.diveReach || g >= dd) continue;
+        const closing = ((c.x - B[i].x) * (B[i].vx - c.vx) + (c.y - B[i].y) * (B[i].vy - c.vy)) / (g || 1);
+        // Only a man who can't otherwise get there leaves his feet: gaining, but barely (a chase from behind).
+        if (closing > 0 && closing < DIVE_CLOSE) [d, dd] = [i, g];
+      }
+      if (d < 0) return;
+      dive = true;
+    }
     let help = 0;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= 1.5) help++;
@@ -401,7 +416,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let room = true;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= ROOM) room = false;
-    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
+    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room, dive);
     if (r.out === 'tackle') {
       tackler = d;
       phase = 'pile';

@@ -68,6 +68,8 @@ export function contest(
   rng: Rng,
   /** No other defender within two yards: room for a move. */
   room: boolean,
+  /** He left his feet from beyond arm's reach: no move to beat (the carrier doesn't see it), worse odds. */
+  dive = false,
 ): Contact {
   const speed = Math.hypot(c.vx, c.vy);
   const size = sizeEdge(build(cp.s), 'contact', build(dp.s));
@@ -79,7 +81,7 @@ export function contest(
   const moveRoll = rng.next();
   const tackleRoll = rng.next();
 
-  if (room && speed >= 3 && tryRoll < 0.35 + 0.02 * (moveSkill - 12)) {
+  if (!dive && room && speed >= 3 && tryRoll < 0.35 + 0.02 * (moveSkill - 12)) {
     const success = clamp(
       KNOBS.move + 0.025 * KNOBS.skill * (KNOBS.carrier * (moveSkill - 12) - (dp.s.tackle - 12)),
       0.05,
@@ -105,6 +107,7 @@ export function contest(
     0.12 * help -
     0.02 * Math.max(0, speed - 6);
   if (start.kind === 'return') p += KNOBS.retTackle;
+  if (dive) p += KNOBS.dive;
   if (hasHabit(dp, 'armTackler')) p -= 0.08;
   if (hasHabit(cp, 'highKnee')) p -= 0.05;
   if (hasHabit(dp, 'businessDecision') && cp.s.w >= 225) p -= 0.15;
