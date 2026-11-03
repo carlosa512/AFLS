@@ -15,6 +15,7 @@ import { simulateGame } from '../src/engine/match/gameSim';
 import { Rng } from '../src/engine/rng';
 import {
   EDGE_CAP,
+  HEIGHTS,
   isOutlier,
   rollSize,
   SIZE,
@@ -73,11 +74,16 @@ for (const tier of ['founding', 'arrival'] as SizeTier[]) {
       Math.max(...h) <= lim.h[1] &&
       Math.min(...w) >= lim.w[0] &&
       Math.max(...w) <= lim.w[1];
-    // A clamp piles the tail onto the bound, so the bound outnumbers the inch inside it; a cut-off curve thins out.
-    const at = (x: number) => h.filter((v) => v === x).length;
-    const piled = at(lim.h[0]) >= at(lim.h[0] + 1) || at(lim.h[1]) >= at(lim.h[1] - 1);
+    // Founding heights come out in real rosters' shares, inch by inch (within 1.2 points each).
+    const [lo, counts] = HEIGHTS[pos];
+    const total = counts.reduce((a, b) => a + b, 0);
+    const off =
+      tier === 'founding'
+        ? Math.max(...counts.map((n, i) => Math.abs(h.filter((v) => v === lo + i).length / h.length - n / total)))
+        : 0;
+    const piled = off >= 0.012;
     console.log(
-      `    ${pos.padEnd(5)} ${mean(h).toFixed(2)} ± ${sd(h).toFixed(2)} in (${SIZE[pos].h.join(' ± ')}, ${ft(lim.h[0])}–${ft(lim.h[1])}) · ${mean(w).toFixed(1)} ± ${sd(w).toFixed(1)} lb (${SIZE[pos].w.join(' ± ')})${piled ? ' · piled at a bound' : ''}${flag(ok && !piled)}`,
+      `    ${pos.padEnd(5)} ${mean(h).toFixed(2)} ± ${sd(h).toFixed(2)} in (${SIZE[pos].h.join(' ± ')}, ${ft(lim.h[0])}–${ft(lim.h[1])}) · ${mean(w).toFixed(1)} ± ${sd(w).toFixed(1)} lb (${SIZE[pos].w.join(' ± ')})${piled ? ` · ${(100 * off).toFixed(1)} points off real shares` : ''}${flag(ok && !piled)}`,
     );
   }
 }

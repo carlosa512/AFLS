@@ -282,7 +282,9 @@ export function changePosition(league: League, p: Player, to: Position): void {
   for (const id of Object.keys(p.quirks ?? {}) as QuirkId[]) if (!pool.has(id)) delete p.quirks![id];
   if (p.quirks && !Object.keys(p.quirks).length) delete p.quirks;
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
-  const [lo, hi] = sizeLimits(to).w;
+  // A mover's weight lands inside the real range at his new position: clamped to the arrival tier's, linebackers moved
+  // to safety piled up at its 235 (a long run carried 7.8 safeties a season past the real 225).
+  const [lo, hi] = sizeLimits(to, 'founding').w;
   p.weightLb = clamp(p.weightLb, lo, hi);
   // His number goes with him if the rules allow it at the new spot (a receiver's 15 at corner), else he picks one.
   numberAfterMove(league, p);

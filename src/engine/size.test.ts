@@ -12,9 +12,11 @@ import { buildLineup } from './match/lineup';
 import { teamCoaches } from './coaching';
 import { changePosition, conversionRead } from './training';
 import {
+  ARRIVAL_SLICE,
   ARRIVAL_STEP,
   BOUNDS,
   FLAT_BODY,
+  HEIGHTS,
   isOutlier,
   massEdge,
   rollGem,
@@ -79,15 +81,21 @@ describe('rollSize', () => {
       }
   });
 
-  it('no bound collects a tail', () => {
-    const rng = new Rng('pile');
-    for (const pos of ['WR', 'OL', 'CB'] as const) {
+  it("draws heights in real rosters' shares, inch by inch, and a sliver past them for arrivals", () => {
+    const rng = new Rng('shares');
+    for (const pos of POSITIONS) {
+      const [lo, counts] = HEIGHTS[pos];
+      expect(BOUNDS[pos].h, pos).toEqual([lo, lo + counts.length - 1]);
+      const total = counts.reduce((x, y) => x + y, 0);
       const hs = Array.from({ length: 20_000 }, () => rollSize(rng, pos, 'founding').heightIn);
-      const [lo, hi] = sizeLimits(pos, 'founding').h;
-      // A clamp piled the tail onto the bound, so the bound outnumbered the inch inside it; a cut-off curve thins out.
-      const n = (x: number) => hs.filter((h) => h === x).length;
-      expect(n(lo), `${pos} low`).toBeLessThan(n(lo + 1));
-      expect(n(hi), `${pos} high`).toBeLessThan(n(hi - 1));
+      counts.forEach((n, i) => {
+        const share = hs.filter((h) => h === lo + i).length / hs.length;
+        expect(Math.abs(share - n / total), `${pos} ${lo + i}`).toBeLessThan(0.012);
+      });
+      const wide = Array.from({ length: 20_000 }, () => rollSize(rng, pos, 'arrival').heightIn);
+      const past = wide.filter((h) => h < lo || h > lo + counts.length - 1).length / wide.length;
+      expect(past, pos).toBeGreaterThan(0);
+      expect(past, pos).toBeLessThan((ARRIVAL_SLICE * (counts[0] + counts.at(-1)!)) / total + 0.005);
     }
   });
 
@@ -166,7 +174,8 @@ describe('generation', () => {
     const ol = teamPlayers(l, 0).find((p) => p.position === 'OL')!;
     ol.weightLb = 400;
     changePosition(l, ol, 'DT');
-    expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
+    // The real range at his new spot, not the arrival tier's: movers piled up at its cap.
+    expect(ol.weightLb).toBe(sizeLimits('DT', 'founding').w[1]);
   });
 });
 

@@ -45,6 +45,60 @@ export const BOUNDS: Record<Position, { h: [number, number]; w: [number, number]
 };
 
 /**
+ * Real rosters' heights, inch by inch (`docs/research/player-size-rosters.md`): `[shortest, counts]`, the players at
+ * each inch from the shortest up, five seasons pooled. Real rosters thin out at the ends faster than a bell curve does
+ * and lean one way (13 corners a season at 5'9", one at 5'8"), so heights are drawn from these shares, not a curve:
+ * on a curve a 25-season league ran 5.8 receivers a season at 6'6" against a real 0.8. One gap inside a range (no tight
+ * end listed at 6'1") is filled with a single player: a quirk of five seasons, not a height the league can't have.
+ */
+export const HEIGHTS: Record<Position, [number, readonly number[]]> = {
+  QB: [70, [6, 8, 7, 63, 67, 69, 54, 30, 20, 1]],
+  RB: [66, [6, 9, 30, 73, 111, 110, 105, 71, 29, 21, 2]],
+  WR: [66, [3, 6, 47, 54, 70, 80, 121, 154, 134, 70, 76, 22, 4]],
+  TE: [72, [4, 1, 25, 70, 142, 137, 94, 21, 8]],
+  OL: [73, [13, 46, 171, 304, 332, 260, 81, 65, 7]],
+  DT: [71, [2, 18, 48, 95, 186, 146, 70, 19, 13, 3]],
+  EDGE: [71, [5, 49, 69, 140, 282, 222, 186, 65, 26, 4]],
+  LB: [70, [2, 32, 106, 140, 172, 93, 22, 11]],
+  CB: [68, [5, 66, 114, 158, 179, 138, 83, 30, 5, 1]],
+  S: [68, [4, 22, 65, 143, 159, 140, 63, 28, 14]],
+  K: [67, [2, 5, 10, 22, 22, 39, 24, 16, 8, 5, 6]],
+  P: [70, [3, 13, 16, 30, 33, 17, 22, 27, 1]],
+};
+
+/**
+ * The arrival tier's inch past each real extreme, as a share of the end inch it sits beside: a sliver, so the rare
+ * build turns up about once in several drafts and the long run's tails hold (`npm run size`).
+ */
+export const ARRIVAL_SLICE = 0.2;
+
+/** A tier's heights as `[inch, weight]` pairs, shortest first: the real shares, and for arrivals a sliver past each end. */
+function heightTable(pos: Position, tier: SizeTier): [number, number][] {
+  const [lo, counts] = HEIGHTS[pos];
+  const rows: [number, number][] = counts.map((n, i) => [lo + i, n]);
+  if (tier === 'arrival') {
+    rows.unshift([lo - ARRIVAL_STEP.h, ARRIVAL_SLICE * counts[0]]);
+    rows.push([lo + counts.length - 1 + ARRIVAL_STEP.h, ARRIVAL_SLICE * counts[counts.length - 1]]);
+  }
+  return rows;
+}
+
+/**
+ * A height from the uniform `u`, and where inside its inch `u` fell (0–1): the inch by the tier's shares, the place
+ * inside it so weight can follow height smoothly rather than in whole-inch steps.
+ */
+function drawHeight(u: number, pos: Position, tier: SizeTier): { inch: number; within: number } {
+  const rows = heightTable(pos, tier);
+  const total = rows.reduce((a, [, n]) => a + n, 0);
+  let at = u * total;
+  for (const [inch, n] of rows) {
+    if (at < n) return { inch, within: at / n };
+    at -= n;
+  }
+  return { inch: rows[rows.length - 1][0], within: 1 };
+}
+
+/**
  * How much further out a player who arrives after the league is built may be: draft classes, the Pathway, squad and
  * depth signings. One curve for everyone, so the long-run league stays on it; its thin tail past the real extremes
  * is where the rare build comes from.
@@ -136,23 +190,21 @@ function truncated(u: number, mean: number, sd: number, [lo, hi]: [number, numbe
 }
 
 /**
- * A new player's build: height from his position's curve, then weight from the curve given that height, each cut
- * off at the tier's bounds. Two draws, as the old roll cost, so everything drawn after him (names, jerseys) keeps
- * its place in the stream.
+ * A new player's build: height from his position's real shares, then weight from the curve given that height, cut off
+ * at the tier's bounds. Two draws, as the old roll cost, so everything drawn after him (names, jerseys) keeps its place
+ * in the stream.
  */
 export function rollSize(rng: Rng, pos: Position, tier: SizeTier = 'arrival'): { heightIn: number; weightLb: number } {
   const u1 = rng.next();
   const u2 = rng.next();
   const { h, w, r } = SIZE[pos];
   const lim = sizeLimits(pos, tier);
-  const zh = truncated(u1, h[0], h[1], lim.h);
+  const { inch, within } = drawHeight(u1, pos, tier);
+  const zh = (inch - 0.5 + within - h[0]) / h[1];
   const wMean = w[0] + r * w[1] * zh;
   const wSd = w[1] * Math.sqrt(1 - r * r);
   const zw = truncated(u2, wMean, wSd, lim.w);
-  return {
-    heightIn: clamp(Math.round(h[0] + h[1] * zh), lim.h[0], lim.h[1]),
-    weightLb: clamp(Math.round(wMean + wSd * zw), lim.w[0], lim.w[1]),
-  };
+  return { heightIn: inch, weightLb: clamp(Math.round(wMean + wSd * zw), lim.w[0], lim.w[1]) };
 }
 
 /** The moments size decides on the field (see the spec's phase 2 table). */
