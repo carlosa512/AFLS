@@ -28,7 +28,7 @@ export const CHEM = {
   together: 0.1,
   maxSeasons: 3,
   /** A room's mood runs far narrower than a man's: this far from the league's mood is the whole mood part. */
-  roomSpan: 1.6,
+  roomSpan: 1.3,
   clicking: 0.15,
   outOfSync: -0.15,
   /** A time part this low, with the edge in between, reads as a room still learning each other. */

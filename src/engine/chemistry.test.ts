@@ -110,8 +110,8 @@ describe('chemistry: game day', () => {
 
   it('a room forced to each end moves its own stats the right way', () => {
     const l = fresh();
-    const lineUp = replay(l, [{ OL: 0.3 }, {}]);
-    const lineDown = replay(l, [{ OL: -0.3 }, {}]);
+    const lineUp = replay(l, [{ OL: 0.3 }, {}], 200);
+    const lineDown = replay(l, [{ OL: -0.3 }, {}], 200);
     const sackRate = (rs: GameResult[]) =>
       avg(rs.map((r) => r.home.sacked / Math.max(1, r.home.passAtt + r.home.sacked)));
     const ypc = (rs: GameResult[]) => avg(rs.map((r) => r.home.rushYds / Math.max(1, r.home.rushAtt)));
