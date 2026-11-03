@@ -1469,7 +1469,9 @@ describe('the run game', () => {
   it('leaves almost no unblocked defender standing within 5 yards of the hole as the back goes through', () => {
     let n = 0;
     const standing = new Set<string>();
-    for (const x of runs.slice(0, 300)) {
+    // Six hundred runs: over three hundred, a world's rate swung across the line with nothing in the staging changed
+    // (7.2% for the real-heights world, under 6% for main's).
+    for (const x of runs.slice(0, 600)) {
       const p = stage(x);
       // (A fumble's carrier at the end may be the man who picked it up.)
       if (!p.run || p.carrier === null || p.loose) continue;
