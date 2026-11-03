@@ -768,7 +768,8 @@ export type MailSubject =
   | { kind: 'promises'; season: number }
   // Team meetings (meetings/mail.ts): his suggestion needs you while it's the one waiting; its result and a captain's
   // word after your address ask nothing.
-  | { kind: 'meeting'; season: number; clock: number; scope?: MeetingScope; result?: true; captain?: true };
+  | { kind: 'meeting'; season: number; clock: number; scope?: MeetingScope; result?: true; captain?: true }
+  | { kind: 'rumor'; season: number; coachId: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -907,6 +908,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'meeting', season, clock: Number(a), scope: b as MeetingScope, result: true };
     case 'meeting-captain':
       return { kind: 'meeting', season, clock: Number(a), captain: true };
+    case 'rumor':
+      return { kind: 'rumor', season, coachId: Number(a) };
     case 'promises':
       return { kind: 'promises', season };
     case 'waivers':
