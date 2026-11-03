@@ -319,14 +319,14 @@ export const FLAT_BODY: Record<Position, [number, number, number, number]> = {
   P: [72, 77, 195, 230],
 };
 
+/** How far out (sd) an old flat roll's standing may land: the pre-real-rosters tail, kept for that one move. */
+const OLD_SAVE_TAIL = 2.5;
+
 /**
  * An older save's player, moved from his flat roll to the same standing on his position's curve: how far up the flat
  * range he sat becomes as many sd from the median, so every player keeps his rank and the league is centred on the
  * medians the matchup edges are measured from. His hidden traits and combine are stored, so nothing else moves.
  */
-/** How far out (sd) an old flat roll's standing may land: the pre-real-rosters tail, kept for that one move. */
-const OLD_SAVE_TAIL = 2.5;
-
 export function toCurve(p: Player): void {
   const [hMin, hMax, wMin, wMax] = FLAT_BODY[p.position];
   const lim = sizeLimits(p.position);

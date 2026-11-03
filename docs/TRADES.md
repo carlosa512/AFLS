@@ -924,8 +924,9 @@ Where the build departed from the plan, and why:
   is a cost. A starter-priced backup QB had been worth 3,800 points to a team that would bench him;
   now he's a liability. Points per $1K of surplus went from 1/30 to 1/40, so a dead $16M contract
   costs about a second to move (Osweiler).
-- **Depth-chart rank is soft** (0.75 OVR, "a camp battle"). Two near-equal players share the job in
-  proportion, so a misread of a few tenths never pushes a player across a cliff.
+- **Depth-chart rank is soft** (1 OVR, "a camp battle"). Two near-equal players share the job in
+  proportion, so a misread of a few tenths never pushes a player across a cliff. It was 0.75 until a room packed at
+  its starter line let a +0.53 misread lift a backup from about half a starter's role to a full one, doubling his price.
 - **Rank is on outlook, not today's overall** (`outlook.ts`). A room ranks players by the overall the
   club expects from each over the next three seasons: a young one climbing toward the ceiling its
   scouts read, a veteran fading on his position's aging curve, a body that breaks down marked down

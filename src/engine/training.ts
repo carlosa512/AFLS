@@ -185,10 +185,10 @@ function slotProblem(league: League, teamId: number, running: number): string | 
   return cap === 1 ? 'Already teaching a player a new position.' : `Already teaching ${cap} players new positions.`;
 }
 
-/** Everything but the team's free slots. */
 /** The least share of real rosters at a position who stand a mover's height: under it, his coaches won't move him there. */
 export const MOVE_SHARE = 0.01;
 
+/** Everything but the team's free slots. */
 function playerProblem(league: League, p: Player, to: Position): string | null {
   const c = conversionOf(p.position, to);
   if (!c) return `The coaches won't teach a ${p.position} to play ${to}.`;

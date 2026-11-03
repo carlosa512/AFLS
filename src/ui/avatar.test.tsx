@@ -176,8 +176,10 @@ describe('playerLook', () => {
       'heavy',
       'heavy',
     ]);
-    // a 212 lb corner is drawn like a safety
-    expect(playerLook({ ...median('CB'), weightLb: 212 }, 128).build).toBe(playerLook(median('S'), 128).build);
+    // a 212 lb corner is drawn like a 212 lb safety
+    expect(playerLook({ ...median('CB'), weightLb: 212 }, 128).build).toBe(
+      playerLook({ ...median('S'), weightLb: 212 }, 128).build,
+    );
   });
   it('keeps every build wider than the last, and gives each a waist', () => {
     for (let i = 1; i < BUILDS.length; i++) expect(BUILDS[i].knots[0][1]).toBeGreaterThan(BUILDS[i - 1].knots[0][1]);

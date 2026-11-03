@@ -160,9 +160,13 @@ describe('generation', () => {
   });
 
   it('rolls new players from the bell curve', () => {
+    // Real rosters' share of corners at 5'9" or under (and the arrival tier's sliver under that), from the table itself.
     const short = corners.filter((p) => p.heightIn <= 69).length / corners.length;
-    expect(short).toBeGreaterThan(0.05);
-    expect(short).toBeLessThan(0.1);
+    const [lo, counts] = HEIGHTS.CB;
+    const total = counts.reduce((a, b) => a + b, 0);
+    const real = (counts[0] + counts[1]) / total;
+    expect(Math.abs(short - real)).toBeLessThan(0.02);
+    expect(lo).toBe(68);
     expect(Math.min(...corners.map((p) => p.heightIn))).toBeGreaterThanOrEqual(sizeLimits('CB').h[0]);
     // The old flat roll stopped at 5'9" and 6'2": the tails are what the curve adds.
     expect(corners.some((p) => p.heightIn < 69)).toBe(true);
