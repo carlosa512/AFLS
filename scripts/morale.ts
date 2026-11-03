@@ -19,6 +19,10 @@
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
  *
+ * 10. Chemistry (L3): every room's edge centred on the league (worst room, worst week within ±0.02); Clicking and Out of
+ *    sync each 10–30% of read rooms; a room whose Spark reads Poor or worse sits lower than one whose Spark reads Good or
+ *    better; rooms with an Anchor spread less than rooms with only Sparks.
+ *
  * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
  *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 3–15 a
  *    season, 40–90% going public, 15–75% of those resolved ending in a trade (the floor lowered from 25%: small samples).
@@ -48,7 +52,8 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { computeRecords } from '../src/engine/season/standings';
 import { activeRoster } from '../src/engine/roster';
 import { isCaptain, moraleStepOf as stepOf } from '../src/engine/morale';
-import { tierOf, unitReads, weightOf, type UnitWord } from '../src/engine/standing';
+import { soundOf, tierOf, unitRead, unitReads, weightOf, type UnitWord } from '../src/engine/standing';
+import { CHEM_ROOMS, chemistryWeek, type ChemWord } from '../src/engine/chemistry';
 import { credibilityRead, setMeetingsByCoach } from '../src/engine/meetings';
 import { membersOf } from '../src/engine/meetings/suggest';
 import type { League, Phase, Player } from '../src/engine/types';
@@ -136,9 +141,45 @@ function sampleRoom(ctx: ReturnType<typeof moraleContext>) {
   }
 }
 
+// 10: chemistry (L3), read as the lineup reads it, at the same samples.
+const chemWords: ChemWord[] = [];
+let chemOffCentre = 0;
+const sparkSour: number[] = [];
+const sparkHappy: number[] = [];
+const anchorSd: number[] = [];
+const sparkOnlySd: number[] = [];
+const sd = (xs: number[]) => {
+  const m = mean(xs);
+  return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
+};
+function chemistrySample(ctx: ReturnType<typeof moraleContext>) {
+  const week = chemistryWeek(league);
+  for (const unit of CHEM_ROOMS) {
+    const edges = league.teams.map((t) => week.get(`${t.id}:${unit}`)?.edge ?? 0);
+    chemOffCentre = Math.max(chemOffCentre, Math.abs(mean(edges)));
+  }
+  for (const t of league.teams)
+    for (const unit of CHEM_ROOMS) {
+      const read = unitRead(league, t.id, unit, ctx);
+      if (!read) continue;
+      chemWords.push(week.get(`${t.id}:${unit}`)!.word);
+      const setter = read.setter === null ? undefined : league.players[read.setter];
+      if (setter && soundOf(setter) === 'stirs') {
+        const step = stepOf(moraleLevel(league, setter));
+        if (step <= 3) sparkSour.push(read.level);
+        else if (step >= 5) sparkHappy.push(read.level);
+      }
+      const sounds = (ctx.voices.get(`${t.id}:${unit}`) ?? []).map((v) => v.sound);
+      const spread = sd(read.members.map((id) => moraleLevel(league, league.players[id])));
+      if (sounds.includes('steadies')) anchorSd.push(spread);
+      else if (sounds.includes('stirs')) sparkOnlySd.push(spread);
+    }
+}
+
 function sample(atEnd: boolean) {
   const ctx = moraleContext(league);
   sampleRoom(ctx);
+  chemistrySample(ctx);
   // Built, not read from `leagueMarket`: filling that cache would change the AI's pay reads, and so the league.
   const market = buildMarket(league);
   const levels = new Map<number, number[]>();
@@ -413,6 +454,23 @@ check(
 );
 check('Game-day edge: league mean (worst week)', Math.max(...edgeMeans.map(Math.abs)), [0, 0.05], 3);
 check('Game-day edge: largest', edgeMax, [0, 0.5], 3);
+const chemShare = (w: ChemWord) => chemWords.filter((x) => x === w).length / Math.max(1, chemWords.length);
+check('Chemistry: league mean edge (worst room, worst week)', chemOffCentre, [0, 0.02], 3);
+check('Chemistry: Clicking share of read rooms', chemShare('Clicking'), [0.1, 0.3]);
+check('Chemistry: Out of sync share of read rooms', chemShare('Out of sync'), [0.1, 0.3]);
+console.log(
+  `  (Gelling ${chemShare('Gelling').toFixed(2)}, Still learning each other ${chemShare('Still learning each other').toFixed(2)}, n=${chemWords.length})`,
+);
+check(
+  `Sparks: a sour Spark's room below a happy one's (n=${sparkSour.length}/${sparkHappy.length})`,
+  mean(sparkSour) - mean(sparkHappy),
+  [-6, -0.1],
+);
+check(
+  `Anchors calm a room: spread with an Anchor ÷ with only Sparks (n=${anchorSd.length}/${sparkOnlySd.length})`,
+  mean(anchorSd) / mean(sparkOnlySd),
+  [0, 0.98],
+);
 check(`Growth tilt: league mean late in the season (n=${tilts.length})`, mean(tilts), [-0.01, 0.01], 4);
 check(
   `Growth tilt: Good or better minus Poor or worse (n=${tiltUp.length}, ${tiltDown.length})`,

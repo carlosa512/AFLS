@@ -359,6 +359,8 @@ describe('morale: moving the mood', () => {
   it('starts every rostered player of a new league at his target, with no jolts', () => {
     const l = createLeague({ seed: 'morale-seed' });
     const ctx = moraleContext(l);
+    // Seeded before anyone has a mood, so before any voice can pull (L3): rub-off starts with the first week.
+    ctx.leans.clear();
     for (const p of Object.values(l.players)
       .filter((x) => x.teamId !== null)
       .slice(0, 50)) {

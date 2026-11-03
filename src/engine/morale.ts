@@ -9,14 +9,14 @@
 import { yearsLeft } from './finance/contract';
 import { buildMarket, marketApy, type Market } from './finance/market';
 import { playerOvr, STARTERS } from './positions';
-import { moodLean } from './moodScale';
+import { moodLean, moodPull } from './moodScale';
 import { clamp } from './rng';
 import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
-import { honouredSince } from './standing';
+import { friendPull, honouredSince, roomVoices, TONE, toneOf, type VoiceRef } from './standing';
 import { disputeStep } from './disputes';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
@@ -51,6 +51,10 @@ export interface MoraleContext {
   culture: Map<number, number>;
   /** Players with a season award or an All-League team in the last three seasons (their word carries further). */
   honoured: Set<number>;
+  /** Every rostered man's mood against the league's as this pass began (L3): what a voice or a friend pulls with. */
+  leans: Map<number, number>;
+  /** Each club's leaders and voices by room (`teamId:unit`, L3). */
+  voices: Map<string, VoiceRef[]>;
 }
 
 const games = (r: { w: number; l: number; t: number } | undefined) => (r ? r.w + r.l + r.t : 0);
@@ -95,7 +99,7 @@ export function moraleContext(league: League): MoraleContext {
   const culture = new Map<number, number>();
   for (const c of Object.values(league.coaches ?? {}))
     if (c.role === 'headCoach' && c.teamId !== null && !culture.has(c.teamId)) culture.set(c.teamId, cultureRoom(c));
-  return {
+  const ctx: MoraleContext = {
     season,
     // Built here, not read from `leagueMarket`: filling that cache would change what the AI's pay reads see.
     market: buildMarket(league),
@@ -106,7 +110,17 @@ export function moraleContext(league: League): MoraleContext {
     mentors,
     culture,
     honoured: honouredSince(league, season - 3),
+    leans: new Map(),
+    voices: new Map(),
   };
+  // L3: each man's mood as the pass began (so voices can't feed on each other within it), then the voices, last:
+  // their weights read the records and snaps above.
+  const mean = moraleMean(league);
+  for (const t of league.teams)
+    for (const p of activeRoster(league, t.id))
+      if (p.morale) ctx.leans.set(p.id, moodPull(moraleLevel(league, p), mean));
+  ctx.voices = roomVoices(league, ctx);
+  return ctx;
 }
 
 /** 2 starter, 1 rotation, 0 backup or didn't play. */
@@ -228,7 +242,10 @@ function roomScore(league: League, p: Player, ctx: MoraleContext): number {
     (feud ? 1 : 0) +
     (isCaptain(league, p) ? 0.75 : 0) +
     (ctx.mentors.has(p.id) ? 0.25 : 0) +
-    (ctx.culture.get(p.teamId) ?? 0);
+    (ctx.culture.get(p.teamId) ?? 0) +
+    // The voices in his room and his friends: their moods rub off (L3).
+    TONE.voices * toneOf(p, ctx) +
+    TONE.friends * friendPull(league, p, ctx);
   return clamp(score, -1.5, 1.5);
 }
 
@@ -520,6 +537,7 @@ const rateOf = (p: Player) => clamp(0.25 - 0.05 * z(temperamentOf(p)), 0.15, 0.4
 
 /** Every rostered player at his target with no jolts: a new league, or a save from before morale. */
 export function seedMorale(league: League): void {
+  // Read before the moods it seeds: no voice pulls a new league's men yet (L3), each starts at his own target.
   const ctx = moraleContext(league);
   const clock = moraleClock(league);
   const week = clock - league.season * YEAR;

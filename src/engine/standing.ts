@@ -117,6 +117,62 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
 }
 
 /** How his mood travels: a man who stirs says it out loud; a calm leader keeps a bad week to himself. */
+// ───────── a voice rubs off on his room (L3) ─────────
+
+/**
+ * The pull's size (L3 spec §2.2): the voices' share of the room score (as much as being a captain) and friends' (a third of
+ * that), and each voice's weight: a Spark's mood spreads, an Anchor's and a plain voice's count half as much, and an
+ * Anchor in the room halves every Spark's.
+ */
+export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5 };
+
+/** A leader or voice as one pass of the league reads him (his lean is in `MoraleContext.leans`). */
+export interface VoiceRef {
+  id: number;
+  sound: Sound | null;
+}
+
+/** Each club's leaders and voices by room (`teamId:unit`), for one pass over the league. */
+export function roomVoices(league: League, ctx: MoraleContext): Map<string, VoiceRef[]> {
+  const voices = new Map<string, VoiceRef[]>();
+  for (const team of league.teams)
+    for (const p of activeRoster(league, team.id)) {
+      if (!tierOf(league, p, weightOf(league, p, ctx))) continue;
+      const key = `${team.id}:${unitOf(p.position)}`;
+      (voices.get(key) ?? voices.set(key, []).get(key)!).push({ id: p.id, sound: soundOf(p) });
+    }
+  return voices;
+}
+
+/** His room's voices' pull, −1…+1: their leans against the league's mood, weighted by how they sound; never himself. */
+export function toneOf(p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const around = ctx.voices.get(`${p.teamId}:${unitOf(p.position)}`) ?? [];
+  const anchored = around.some((v) => v.sound === 'steadies');
+  let sum = 0;
+  let weights = 0;
+  for (const v of around) {
+    if (v.id === p.id) continue;
+    const w =
+      v.sound === 'stirs' ? TONE.spark * (anchored ? 0.5 : 1) : v.sound === 'steadies' ? TONE.anchor : TONE.plain;
+    sum += w * (ctx.leans.get(v.id) ?? 0);
+    weights += w;
+  }
+  return weights ? Math.max(-1, Math.min(1, sum / weights)) : 0;
+}
+
+/** His friends on the club, −1…+1: their moods against the league's, averaged. */
+export function friendPull(league: League, p: Player, ctx: MoraleContext): number {
+  let sum = 0;
+  let n = 0;
+  for (const t of p.ties ?? []) {
+    if (t.kind !== 'friend' || league.players[t.with]?.teamId !== p.teamId) continue;
+    sum += ctx.leans.get(t.with) ?? 0;
+    n++;
+  }
+  return n ? sum / n : 0;
+}
+
 /** What a screen and the coach call a voice's sound (L3): his mood spreads (a Spark) or he keeps a room calm (an Anchor). */
 export type VoiceName = 'Spark' | 'Anchor';
 export const voiceName = (s: Sound | null): VoiceName | null =>
