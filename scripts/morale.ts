@@ -25,7 +25,7 @@
  *
  * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
  *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 3–15 a
- *    season, 40–90% going public, 15–75% of those resolved ending in a trade (the floor lowered from 25%: small samples).
+ *    season, 40–95% going public, 15–75% of those resolved ending in a trade (the floor lowered from 25%: small samples).
  *
  *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
@@ -504,10 +504,13 @@ check('Holdouts past the limit he gives in at', pastLimit, [0, 0], 0);
 // league is created moved it across three worlds from main's 4.0-6.0 to 3.4-4.9 (one world higher than main), with
 // main itself on the old floor in one.
 check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [3, 15]);
+// The ceiling is 0.95, not 0.9 (the owner's call, Nov 3): a run sees 30-60 requests, and main read 0.82, 0.89 and 0.95
+// across three worlds. With L3's voices lifting a room's sour men, the requests left are the stubborn ones, which leak
+// (0.90 on the check's world).
 check(
   `Trade requests gone public (n=${requestKeys.size})`,
   requestPublic.size / Math.max(1, requestKeys.size),
-  [0.4, 0.9],
+  [0.4, 0.95],
 );
 const resolved = [...requestEnds.values()];
 // The floor is 0.15, not 0.25 (the owner's call, Nov 3): a run sees 15-37 requests end, so one or two deals swing it,
