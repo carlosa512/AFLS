@@ -107,7 +107,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   where one jump would for every player left alone that year, ratings on the scale all season, the tick's
   speed and what a save carries). Run it after changing `training.ts`, `familiarity.ts`, `development.ts`
   or the calendar steps that run them. Nothing may be flagged.
-- `npm run morale` — play eight seasons and check the league's moods (`morale.ts`): band shares, underpaid
+- `npm run morale` — play eight seasons (three more leagues alongside in child processes, for the head coaches' worn-thin
+  line) and check the league's moods (`morale.ts`): band shares, underpaid
   final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
   no drift and no level out of range; the talks (`playerTalks.ts`): asks per club per season, promises kept; and
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room

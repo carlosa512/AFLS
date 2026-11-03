@@ -12,8 +12,9 @@
  * 6. Talks (G3): asks per club per season 4–30, every club counted alike (yours answered by the AI's rule, since nobody
  *    clicks), and 25–85% of the promises that resolve are kept (85% since AI clubs keep their promises, G4).
  * 8. Meetings (L2): meetings per club per season 3–6 (yours held by your coach, since nobody clicks); of the men in
- *    them, 35–60% take it well and 10–30% bristle; 5–20% of head coaches' word worn thin at season's end, and some of
- *    those recover within a season.
+ *    them, 35–60% take it well and 10–30% bristle; 5–20% of head coaches' word worn thin at season's end (judged over
+ *    four leagues: three more play in child processes alongside, since one league read 0.16–0.21 from seed to seed),
+ *    and some of those recover within a season.
  * 7. Effects (G2): the game-day edge averages out (every week's league mean within ±0.05 rating points, none past ±0.5);
  *    the growth tilt's league mean late in the season (after week 17: the year closes in week 18) within ±0.01, and young
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
@@ -25,6 +26,7 @@
  *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
+import { fork } from 'node:child_process';
 import { yearsLeft } from '../src/engine/finance/contract';
 import { buildMarket, marketApy } from '../src/engine/finance/market';
 import { aiReply, answerTalk } from '../src/engine/playerTalks';
@@ -58,6 +60,27 @@ const arg = (name: string, fallback: string) => {
 // Eight seasons: four left trade requests' outcomes to about ten cases (G4b).
 const SEASONS = Number(arg('seasons', '8'));
 const SEED = arg('seed', 'morale-check');
+/** A child league: plays the same seasons and reports only its worn-thin shares. */
+const WORKER = !!process.env.MORALE_WORN_ONLY && !!process.send;
+/** Three more leagues' worn-thin shares, playing alongside this one. */
+const wornPool: Promise<number[][]> = Promise.all(
+  (WORKER ? [] : [2, 3, 4].map((i) => `${SEED}-${i}`)).map(
+    (seed) =>
+      new Promise<number[]>((resolve, reject) => {
+        const child = fork(new URL(import.meta.url).pathname, ['--seed', seed, '--seasons', String(SEASONS)], {
+          env: { ...process.env, MORALE_WORN_ONLY: '1' },
+        });
+        let done = false;
+        child.once('message', (w) => {
+          done = true;
+          resolve(w as number[]);
+          child.kill();
+        });
+        child.once('error', reject);
+        child.once('exit', (code, sig) => done || reject(new Error(`morale league ${seed} exited (${sig ?? code})`)));
+      }),
+  ),
+);
 
 let misses = 0;
 const check = (label: string, value: number, [lo, hi]: [number, number], digits = 2) => {
@@ -343,6 +366,10 @@ for (let s = 0; s < SEASONS; s++) {
   while ((league.phase as Phase) !== 'regular') step(() => advanceOffseason(league, { autoUser: true }));
 }
 
+if (WORKER) {
+  process.send!(wornShare);
+  await new Promise(() => {});
+}
 const share = (f: (s: number) => boolean) => steps.filter(f).length / steps.length;
 console.log(
   `Morale: ${SEASONS} season(s), seed ${SEED}, ${steps.length} samples, ${((Date.now() - t0) / 1000).toFixed(0)}s\n`,
@@ -440,7 +467,8 @@ const counts = league.teams.flatMap((t) => {
 check(`Meetings per club per season (${counts.length} club-seasons)`, mean(counts), [3, 6]);
 check(`Reactions: lands (n=${menMet})`, menLand / menMet, [0.35, 0.6]);
 check('Reactions: bristles', menBristle / menMet, [0.1, 0.3]);
-check("Head coaches worn thin at season's end", mean(wornShare), [0.05, 0.2]);
+const wornAll = [wornShare, ...(await wornPool)];
+check(`Head coaches worn thin at season's end (${wornAll.length} leagues)`, mean(wornAll.map(mean)), [0.05, 0.2]);
 check(
   `Worn-thin coaches who recover within a season (n=${wornSeen})`,
   wornSeen ? wornRecovered / wornSeen : 0,
