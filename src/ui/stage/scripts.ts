@@ -15,7 +15,7 @@ import { FAKE, PRESSURE_REACT, type PocketPlan } from './pocket';
 import { runnable, SPEED } from './speed';
 import { decoyEnd, type Assignment, type Concept } from './concepts';
 import { routeKeys, routeTime, type RouteId } from './routes';
-import { moveSegs, pickMove } from './carrier';
+import { moveSegs, pickMove, type MoveKind } from './carrier';
 
 /** The pass's pattern (`concepts.ts`): the target's route, everyone else's, which way is in for each, their speeds. */
 export interface Pattern {
@@ -172,6 +172,11 @@ const PRESS_ACROSS = 4;
 const BOUNCE_WIDER = 2;
 /** A broken tackle on a run comes this many yards past the line. */
 const MOVE_PAST = [4, 6] as const;
+/** After the catch, an east-west runner's first moments: across, barely on (yards), and how long (seconds). */
+const EAST_WEST = { across: 2.5, on: 0.5, t: 0.6 };
+/** A return this long (yards) or a touchdown can show a miss, this often. */
+const LONG_RETURN = 30;
+const RETURN_MISS = 1 / 3;
 /** A stuffed run: he's met this far short of the hole (yards), then driven to where he goes down at this pace. */
 const MET_SHORT = 0.5;
 const DRIVEN_PACE = 3;
@@ -320,7 +325,55 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
     const pace = carryPace(l, caught, top, chaser);
     // (When the catch is made: the legs before this one.)
     const t0 = segsBefore.reduce((t, sg) => t + (sg?.dur ?? 0), 0);
+    if (opts.carrier?.has('runsEastWest') && l > 3) {
+      // East-west: his first moments after the catch go across the field (toward the middle), not up it.
+      const toward = first.y0 < FIELD_W / 2 ? 1 : -1;
+      const w = { x: first.x0 + dir * EAST_WEST.on, y: first.y0 + toward * EAST_WEST.across };
+      const rest: Seg = { ...first, x0: w.x, y0: w.y };
+      const rl = Math.hypot(rest.x1 - rest.x0, rest.y1 - rest.y0);
+      return [
+        { x0: first.x0, y0: first.y0, x1: w.x, y1: w.y, peak: 0, dur: EAST_WEST.t },
+        ...withMove(rest, Math.min(4, 0.3 * rl), carryPace(rl, caught, top, chaser), t0 + EAST_WEST.t),
+        ...more.map((sg) => carry(sg, caught, top, chaser)),
+      ];
+    }
     return [...withMove(first, Math.min(4, 0.3 * l), pace, t0), ...more.map((sg) => carry(sg, caught, top, chaser))];
+  };
+  /**
+   * A long return (30 yards and more, or a touchdown): now and then a cover man is made to miss, at 40% of the way; never
+   * more than one. Its own stream, both draws always taken.
+   */
+  const longReturn = (back: Seg[]): Seg[] => {
+    const rr = new Rng(`${opts.seed ?? e.text}:return`);
+    const chance = rr.next();
+    const pick = rr.next();
+    const total = back.reduce((t, sg) => t + Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0), 0);
+    if (!back.length || (total < LONG_RETURN && !/TOUCHDOWN/.test(e.text)) || chance >= RETURN_MISS) return back;
+    const mk: MoveKind = pick < 0.5 ? 'juke' : 'jumpCut';
+    let along = total * 0.4;
+    const out: Seg[] = [];
+    let done = false;
+    for (const sg of back) {
+      const l = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0);
+      if (done || along > l || l < 1) {
+        along -= l;
+        out.push(sg);
+        continue;
+      }
+      done = true;
+      const g = along / l;
+      const p = { x: sg.x0 + (sg.x1 - sg.x0) * g, y: sg.y0 + (sg.y1 - sg.y0) * g };
+      const h = { x: (sg.x1 - sg.x0) / l, y: (sg.y1 - sg.y0) / l };
+      const pace = l / sg.dur;
+      const move = moveSegs(mk, p, h, pace, pick < 0.25 || pick > 0.75 ? 1 : -1);
+      const after = move[move.length - 1];
+      out.push(
+        ...(g > 0 ? [paced({ ...sg, x1: p.x, y1: p.y }, pace)] : []),
+        ...move,
+        paced({ x0: after.x1, y0: after.y1, x1: sg.x1, y1: sg.y1, peak: 0, dur: 0 }, pace),
+      );
+    }
+    return out;
   };
   if (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') {
     const drop = segs[0];
@@ -375,14 +428,14 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       const took = back.reduce((t, sg) => t + sg.dur, 0);
       if (took < reach) for (const sg of back) sg.dur *= reach / took;
     }
-    return [hold(tee, KICK_RUN_UP), flight, ...back];
+    return [hold(tee, KICK_RUN_UP), flight, ...longReturn(back)];
   }
   if (e.kind === 'punt') {
     const a = segs.findIndex((sg) => sg.peak > 0);
     if (a < 1) return segs.map(returnPace); // blocked: no flight
     const snap = { ...segs[0], dur: 0.75 };
     const flight = { ...segs[a], dur: Math.max(3.4, Math.min(4.6, len(segs[a]) / 11)) };
-    return [snap, hold({ x: snap.x1, y: snap.y1 }, 0.45), flight, ...segs.slice(a + 1).map(returnPace)];
+    return [snap, hold({ x: snap.x1, y: snap.y1 }, 0.45), flight, ...longReturn(segs.slice(a + 1).map(returnPace))];
   }
   if (e.kind === 'fg' || e.kind === 'xp') {
     // The snap back to the holder, the hold, then the kick. The engine logs a field goal from the holder's spot and
@@ -533,6 +586,8 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
 const GONE_FILL = 4;
 const GONE_BEHIND = 1.5;
 const GONE_OFF = 1.5;
+/** A return touchdown's last man gets this far off the returner's line (yards), a step behind him. */
+const LAST_OFF = 1.5;
 
 /** The tackler runs this much over his top speed in pursuit (`steer`'s edge): as quick as he ever gets. */
 const PURSUIT = 0.6;
@@ -605,6 +660,8 @@ export interface Scripted {
   stalk: Set<number>;
   /** A finish where the tackle lands before the whistle (a lunge, a slide): when it lands. */
   hitAt?: number;
+  /** The man made to miss (the engine's, or a long return's cover man): on the carrier as the move starts. */
+  missed?: number;
 }
 
 export function script(
@@ -932,8 +989,26 @@ export function script(
 
   // The man who missed: on the carrier as the move starts, a yard off on his side, then sent on past him (a move) or
   // driven back (size), and on his own again a moment after the move. No ring: the move is the carrier's.
-  const by = e.open?.broke?.by;
   const mi = segs.findIndex((sg) => sg.move);
+  /** A long return's miss: the cover man who can get there at the pace nearest a cover man's, off the ball being down. */
+  const kickMiss = (): number | undefined => {
+    if (catchAt === undefined || mi < 0) return undefined;
+    const p = pointAt(segs[mi], 0);
+    const [tMove] = ts[mi];
+    const react = e.kind === 'kickoff' ? catchAt : (kickAt ?? 0);
+    let best: number | undefined;
+    let off = Infinity;
+    for (const m of cast.offense) {
+      if (m.role === 'K' || m.role === 'P' || m.id === who.tackle || keys.has(m.id) || !start.has(m.id)) continue;
+      const s0 = start.get(m.id)!;
+      const pace = Math.hypot(p.x - s0.x, p.y - s0.y) / Math.max(0.1, tMove - react);
+      if (pace <= topOf(m.id) && Math.abs(pace - COVER_PACE) < off) [off, best] = [Math.abs(pace - COVER_PACE), m.id];
+    }
+    return best;
+  };
+  const by = e.open?.broke?.by ?? kickMiss();
+  let missed: number | undefined;
+  const how = e.open?.broke?.how ?? 'move';
   // (He can be the tackler too: he misses him, gets up and runs him down, from where the miss left him.)
   if (by !== undefined && mi >= 0 && start.has(by) && by !== carrier) {
     let mj = mi;
@@ -948,26 +1023,34 @@ export function script(
     const his = Math.sign(-h.y * (s0.x - p.x) + h.x * (s0.y - p.y)) || 1;
     const spot = { x: p.x - h.y * his, y: p.y + h.x * his };
     // His own part until he reads it (a cover man's route), then from where that left him, as late as his legs allow.
-    const react = Math.min(tMove, (e.kind === 'run' ? ts[0][1] : outT) + 0.3);
-    const prior = (keys.get(by) ?? []).filter((k) => k.t > 0 && k.t < react - 1e-6);
+    // On a return he's off once the ball's down (a kickoff) or kicked (a punt), straight at the spot at the pace that
+    // gets him there.
+    const kicked = catchAt !== undefined;
+    const react = kicked
+      ? e.kind === 'kickoff'
+        ? catchAt!
+        : (kickAt ?? 0)
+      : Math.min(tMove, (e.kind === 'run' ? ts[0][1] : outT) + 0.3);
+    const prior = kicked ? [at(react, s0)] : (keys.get(by) ?? []).filter((k) => k.t > 0 && k.t < react - 1e-6);
     const last = prior.length ? prior[prior.length - 1] : at(0, s0);
     const pace = topOf(by) + PURSUIT;
     const need = Math.hypot(spot.x - last.x, spot.y - last.y) / pace;
     if (need <= tMove - last.t) {
-      const go = tMove - need;
+      const go = kicked ? last.t : tMove - need;
       const run: Keyframe[] = [...prior, ...(go > last.t + 0.05 ? [at(go, last)] : []), at(tMove, spot)];
       const was = sample([at(0, s0), ...run], tMove - 0.15);
       const al = Math.hypot(spot.x - was.x, spot.y - was.y);
       const a = al > 0.1 ? { x: (spot.x - was.x) / al, y: (spot.y - was.y) / al } : h;
       const on = (p: Pt, v: Pt, d: number): Pt => ({ x: p.x + v.x * d, y: p.y + v.y * d });
       const tail =
-        e.open!.broke!.how === 'size'
+        how === 'size'
           ? [at(tMove + 0.4, on(spot, h, 1.5))]
           : [at(tMove + 0.25, on(spot, a, 1.5)), at(tMove + 0.5, on(spot, a, 2))];
       const rest = tail[tail.length - 1];
       const loose = Math.max(rest.t, tEnd + 0.6);
       keys.set(by, [from(by), ...run, ...tail, at(loose, rest)]);
       free.set(by, loose);
+      missed = by;
     }
   }
 
@@ -1136,6 +1219,44 @@ export function script(
       moment(tackler, tHit);
     }
   }
+  // A return touchdown: the kicker has the last angle and is a step short, behind the returner as he goes by.
+  if (touchdown && catchAt !== undefined && carrier !== undefined && keys.has(carrier)) {
+    const kicker = cast.offense.find((m) => m.role === (e.kind === 'punt' ? 'P' : 'K'))?.id;
+    const kk = kicker === undefined ? undefined : keys.get(kicker);
+    if (kicker !== undefined && kk) {
+      const cKeys = keys.get(carrier)!;
+      let tp = -1;
+      for (let t = catchAt; t <= total; t += 0.05)
+        if ((sample(cKeys, t).x - sample(kk, t).x) * dir <= 0) {
+          tp = t;
+          break;
+        }
+      if (tp > catchAt) {
+        const c = sample(cKeys, tp);
+        const b = sample(cKeys, Math.max(0, tp - 0.1));
+        const hl = Math.hypot(c.x - b.x, c.y - b.y) || 1;
+        const h = { x: (c.x - b.x) / hl, y: (c.y - b.y) / hl };
+        const k0 = sample(kk, tp);
+        const side = Math.sign(-h.y * (k0.x - c.x) + h.x * (k0.y - c.y)) || 1;
+        const spot = {
+          x: c.x - h.x * GONE_BEHIND - h.y * side * LAST_OFF,
+          y: c.y - h.y * GONE_BEHIND + h.x * side * LAST_OFF,
+        };
+        let go = -1;
+        for (let t = tp - 0.05; t >= (kickAt ?? 0); t -= 0.05) {
+          const q = sample(kk, t);
+          if (Math.hypot(spot.x - q.x, spot.y - q.y) <= topOf(kicker) * 0.9 * (tp - t)) {
+            go = t;
+            break;
+          }
+        }
+        if (go >= 0) {
+          keys.set(kicker, [...kk.filter((k) => k.t < go - 1e-6), at(go, sample(kk, go)), at(tp, spot)]);
+          free.set(kicker, tp);
+        }
+      }
+    }
+  }
   // When the defense reads the ball out: the handoff, the throw (after the pocket), the scramble breaking out. A sack
   // never releases: the rush is on the quarterback and the coverage stays on the routes the whole play.
   const release =
@@ -1162,6 +1283,7 @@ export function script(
     ...(catchAt !== undefined ? { catchAt } : {}),
     ...(loose ? { loose } : {}),
     ...(hitAt !== undefined ? { hitAt } : {}),
+    ...(missed !== undefined ? { missed } : {}),
     settle,
     stalk,
   };

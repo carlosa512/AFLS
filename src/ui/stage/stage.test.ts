@@ -949,6 +949,78 @@ describe('special teams', () => {
       }
     expect(n).toBeGreaterThan(300);
   });
+
+  /** How far a kick was run back (yards), as the stage draws it. */
+  const returnLength = (x: PlayLogEntry) => {
+    const e = returned(x);
+    return Math.abs((e.to ?? 0) - (e.air ?? 0));
+  };
+  const allKicks = [...kickoffs, ...punts];
+
+  it('ends most tackled returns in a pile: two or more cover men within 2 yards at the whistle', () => {
+    let n = 0;
+    let piles = 0;
+    for (const { e, p } of allKicks) {
+      if (!ranBack(e) || /TOUCHDOWN|BLOCKED|onside|fumble/i.test(e.text) || p.carrier === null) continue;
+      const last = p.steps - 1;
+      const end = at(p, last, p.ids.indexOf(p.carrier));
+      const near = p.ids.filter(
+        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 2,
+      ).length;
+      if (near >= 2) piles++;
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
+    expect(piles / n).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('never stages a miss on a return under 30 yards, and at most one on a long one', () => {
+    let long = 0;
+    for (const { e, segs, p } of allKicks) {
+      if (!ranBack(e) || /BLOCKED|onside/i.test(e.text)) continue;
+      const big = returnLength(e) >= 30 || /TOUCHDOWN/.test(e.text);
+      if (!big) expect(p.move, e.text).toBeUndefined();
+      // Distinct moves on the path: a move's legs run back to back.
+      const starts = segs.filter((s, i) => s.move && !segs[i - 1]?.move).length;
+      expect(starts).toBeLessThanOrEqual(1);
+      if (big) long++;
+    }
+    expect(long).toBeGreaterThan(3);
+  });
+
+  it('keeps the last man a step behind on a return touchdown', () => {
+    // Return touchdowns are rare in a sample this size: real returns, taken to the house.
+    let n = 0;
+    for (const { g, r } of games.slice(0, 10))
+      r.plays!.forEach((raw, i) => {
+        if (
+          (raw.kind !== 'kickoff' && raw.kind !== 'punt') ||
+          !ranBack(raw) ||
+          /PENALTY|BLOCKED|onside|TOUCHDOWN|fumble/i.test(raw.text)
+        )
+          return;
+        const back = Math.sign((raw.from ?? 0) - (raw.air ?? 0));
+        const e = { ...raw, to: back > 0 ? 101 : -1, text: `${raw.text}, TOUCHDOWN` };
+        const p = stagePlay({
+          plays: Object.assign(r.plays!.slice(), { [i]: e }),
+          index: i,
+          record: r.field!,
+          homeId: g.homeId,
+          seed: `k${i}`,
+          snapY: 26,
+        });
+        if (p.carrier === null) return;
+        const c = p.ids.indexOf(p.carrier);
+        const kicker = p.roles.findIndex((role, k) => p.offense[k] && (role === 'K' || role === 'P'));
+        for (let st = 0; st < p.steps - 1; st++) {
+          const a = at(p, st, kicker);
+          const b = at(p, st, c);
+          expect(Math.hypot(a.x - b.x, a.y - b.y), `${e.text} at ${(st * p.dt).toFixed(2)}`).toBeGreaterThan(1);
+        }
+        n++;
+      });
+    expect(n).toBeGreaterThan(10);
+  });
 });
 
 describe('the loose ball', () => {
@@ -1719,5 +1791,79 @@ describe('the run game', () => {
       n++;
     }
     expect(n).toBeGreaterThan(5);
+  });
+
+  /** Completed passes with room after the catch. */
+  const catches = games
+    .slice(0, 20)
+    .flatMap(({ g, r }) =>
+      r.plays!.flatMap((e, index) =>
+        e.kind === 'pass' && e.down > 0 && e.air !== undefined && e.to !== undefined && !fumbleIn(e)
+          ? [{ g, r, e, index, snapY: snapYFor(e, 20 + (index % 14)) }]
+          : [],
+      ),
+    );
+  /** Yards after the catch. */
+  const yac = (x: (typeof catches)[number]) => (x.e.to! - x.e.air!) * (x.e.offense === x.g.homeId ? 1 : -1);
+  const stageCatch = (x: (typeof catches)[number], e: PlayLogEntry = x.e) =>
+    stagePlay({
+      plays: Object.assign(x.r.plays!.slice(), { [x.index]: e }),
+      index: x.index,
+      record: x.r.field!,
+      homeId: x.g.homeId,
+      seed: `${x.g.id}:${x.index}`,
+      snapY: x.snapY,
+    });
+  /** How long after the catch he's going upfield at 2 yd/s or more (seconds), or Infinity. */
+  const upfieldAfter = (p: StagedPlay) => {
+    const c = p.ids.indexOf(p.carrier!);
+    const t0 = p.arrive!;
+    for (let t = t0 + p.dt; t < (p.steps - 1) * p.dt; t += p.dt) {
+      const a = at(p, t - p.dt, p.carrier!);
+      const b = at(p, t, p.carrier!);
+      if (((b.x - a.x) * p.dir) / p.dt >= 2) return t - t0;
+    }
+    return c < 0 ? Infinity : Infinity;
+  };
+
+  it('turns a catch upfield and stages its broken tackle as a move', () => {
+    let n = 0;
+    let moves = 0;
+    for (const x of catches) {
+      if (yac(x) < 4) continue;
+      const p = stageCatch(x, { ...x.e, open: { habits: [] } });
+      if (p.carrier === null || p.arrive === null) continue;
+      expect(upfieldAfter(p), x.e.text).toBeLessThanOrEqual(0.4 + 1e-6);
+      n++;
+      const by = p.ids.find((id, k) => !p.offense[k] && id !== actorsIn(x.e).tackle && p.roles[k] === 'S');
+      if (by === undefined) continue;
+      const b = stageCatch(x, { ...x.e, open: { broke: { by, how: 'move' }, habits: [] } });
+      expect(b.move, x.e.text).toBeDefined();
+      const d = at(b, b.move!.t, by);
+      const c = at(b, b.move!.t, b.carrier!);
+      if (Math.hypot(d.x - c.x, d.y - c.y) < 1.5) moves++;
+    }
+    expect(n).toBeGreaterThan(40);
+    // (A safety a long way off can't always get there: the move comes where he can, on most catches.)
+    expect(moves / n).toBeGreaterThan(0.6);
+  });
+
+  it("shows the receiver's habits: a slasher turns at once, an east-west runner goes sideways first", () => {
+    let n = 0;
+    for (const x of catches) {
+      if (yac(x) < 5) continue;
+      const base = stageCatch(x, { ...x.e, open: { habits: [] } });
+      if (base.carrier === null || base.arrive === null) continue;
+      const id = base.carrier;
+      const slash = stageCatch(x, { ...x.e, open: { habits: [[id, 'yacSlasher']] } });
+      expect(upfieldAfter(slash), x.e.text).toBeLessThanOrEqual(0.2 + 1e-6);
+      const ew = stageCatch(x, { ...x.e, open: { habits: [[id, 'runsEastWest']] } });
+      const a = at(ew, ew.arrive!, id);
+      const b = at(ew, ew.arrive! + 0.6, id);
+      expect(Math.abs(b.y - a.y), x.e.text).toBeGreaterThanOrEqual(2 - 1e-6);
+      expect(Math.abs((b.x - a.x) * ew.dir), x.e.text).toBeLessThan(1);
+      n++;
+    }
+    expect(n).toBeGreaterThan(30);
   });
 });

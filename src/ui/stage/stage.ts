@@ -312,8 +312,10 @@ export function stagePlay(args: {
         legs.push({ t, x: p.x, y: p.y });
         from = p;
       }
+      // He gathers at the end of his pull (fitting up on his man), not carrying on past him.
+      legs.push({ t: t + PULL_SET, x: from.x, y: from.y });
       keys.set(pull.id, legs);
-      free.set(pull.id, t);
+      free.set(pull.id, t + PULL_SET);
     }
   }
   const flight = segs.find((sg) => sg.peak > 0);
@@ -407,6 +409,67 @@ export function stagePlay(args: {
         pos[(st * n + k) * 2 + i] =
           pos[(st * n + c) * 2 + i] + pos[(hitStep * n + k) * 2 + i] - pos[(hitStep * n + c) * 2 + i];
   }
+  // A tackled return ends in a pile: the two cover men nearest the tackle when the ball came down close in beside the
+  // tackler (at 60 degrees either side of him, a yard and a half off), each only if his legs get him there.
+  if (kick && catchAt !== undefined && carrier !== null && tackler !== null && !loose && !/TOUCHDOWN/.test(e.text)) {
+    const n = members.length;
+    const last = steps - 1;
+    const c = members.findIndex((m) => m.id === carrier);
+    const tk = members.findIndex((m) => m.id === tackler);
+    const P = (st: number, k: number) => ({ x: pos[(st * n + k) * 2], y: pos[(st * n + k) * 2 + 1] });
+    const end = P(last, c);
+    const from = P(last, tk);
+    const ul = Math.hypot(from.x - end.x, from.y - end.y) || 1;
+    const u = { x: (from.x - end.x) / ul, y: (from.y - end.y) / ul };
+    const caughtStep = Math.min(last, Math.ceil(catchAt / STEP));
+    const left = (last - caughtStep) * STEP;
+    const spots = [PILE_ANGLE, -PILE_ANGLE].map((a) => ({
+      x: end.x + (u.x * Math.cos(a) - u.y * Math.sin(a)) * PILE_OFF,
+      y: end.y + (u.x * Math.sin(a) + u.y * Math.cos(a)) * PILE_OFF,
+    }));
+    const pool = members
+      .map((_, k) => k)
+      .filter(
+        (k) =>
+          k < cast.offense.length &&
+          k !== tk &&
+          !keys.has(members[k].id) &&
+          members[k].role !== 'K' &&
+          members[k].role !== 'P',
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(P(caughtStep, a).x - end.x, P(caughtStep, a).y - end.y) -
+          Math.hypot(P(caughtStep, b).x - end.x, P(caughtStep, b).y - end.y),
+      );
+    for (const spot of spots)
+      for (let i = 0; i < pool.length; i++) {
+        const k = pool[i];
+        const p = P(caughtStep, k);
+        if (Math.hypot(spot.x - p.x, spot.y - p.y) > (SPEED[members[k].role] + PURSUIT) * 0.9 * left) continue;
+        const was = Array.from({ length: steps }, (_, st) => P(st, k));
+        closeIn(pos, n, k, [{ t: last * STEP, ...spot }], steps, caughtStep, {
+          carrier: -1,
+          top: SPEED[members[k].role] + 1,
+          legs: SPEED[members[k].role] + PURSUIT,
+          burst: Math.min(SPRINT, SPEED[members[k].role] + PURSUIT + 1),
+          kick: kick === 'kickoff',
+        });
+        // Not through the returner on his way: a run-in that passes within a yard of him before the whistle is put
+        // back, and the next man tries.
+        let clear = true;
+        for (let st = caughtStep; st < last && clear; st++)
+          clear = Math.hypot(P(st, k).x - P(st, c).x, P(st, k).y - P(st, c).y) >= 1;
+        if (clear) {
+          pool.splice(i, 1);
+          break;
+        }
+        was.forEach((q, st) => {
+          pos[(st * n + k) * 2] = q.x;
+          pos[(st * n + k) * 2 + 1] = q.y;
+        });
+      }
+  }
   const homeSide = cast.offSide === 0;
   return {
     dt: STEP,
@@ -419,7 +482,7 @@ export function stagePlay(args: {
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
     ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),
-    ...moveIn(segs, e.open?.broke?.by),
+    ...moveIn(segs, scripted.missed ?? e.open?.broke?.by),
     ...(runBlocks
       ? {
           run: {
@@ -500,6 +563,11 @@ const LONG_CLOSE = 1.2;
 /** A run-down: he stays this far behind the carrier (yards) until the last `CLOSE_IN` seconds, then closes. */
 const TRAIL = 2.6;
 const CLOSE_IN = 1;
+/** The pulling guard sets himself this long (seconds) at the end of his pull before he blocks. */
+const PULL_SET = 0.15;
+/** A return's pile: the two men beside the tackler, this far off the returner (yards) and this far round (radians). */
+const PILE_OFF = 1.5;
+const PILE_ANGLE = Math.PI / 3;
 /** The last stretch of a run-down, eased onto the spot the script has the hit at (seconds). */
 const INTO = 0.6;
 /** How quickly a man gets up to speed (yards a second, each second). */

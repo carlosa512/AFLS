@@ -474,8 +474,7 @@ info(
   'the engine sets it',
 );
 check('dead stops in the open, per 50 runs', (stops * 50) / Math.max(1, plays), [0, 1], 'none');
-// (Dropbacks' are Pass A's coverage and rush, judged once the open field after the catch is staged: Task 5.)
-info('  per 50 dropbacks', ((passStops * 50) / Math.max(1, passPlays)).toFixed(2), 'none (judged from Pass B Task 5)');
+check('dead stops in the open, per 50 dropbacks', (passStops * 50) / Math.max(1, passPlays), [0, 1], 'none');
 
 // ───────── reported only: the engine decides these ─────────
 

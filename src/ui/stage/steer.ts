@@ -34,6 +34,8 @@ const CREASE = 2;
 const CREASE_PAST = 2.5;
 /** A pursuer on a run who'd get to the ball early flows there no slower than this (yards a second). */
 const FLOW_PACE = 2.5;
+/** The return's wall takes the men in coverage this close to the return's lane (yards). */
+const WALL_LANE = 6;
 /** A slipped man goes to the side the carrier slips him to unless that's this much further (yards) than the nearest. */
 const SLIP_GIVE = 0.15;
 /** How close a chaser may come to the man with the ball before the scripted tackler gets there. */
@@ -431,11 +433,45 @@ export function steer(a: SteerArgs): Float32Array {
     const gs = a.start.get(members[g].id)!;
     return { x: px[g] + a.dir * 1, y: py[g] + (Math.sign(s0.y - gs.y) || 1) };
   };
+  /** The return's wall: blocker → the cover man he takes, set as the ball comes down (`buildWall`). */
+  let wall: Map<number, number> | undefined;
+  function buildWall(): Map<number, number> {
+    const out = new Map<number, number>();
+    const end = { x: a.ball[(a.steps - 1) * 3], y: a.ball[(a.steps - 1) * 3 + 1] };
+    const r = { x: px[retIdx], y: py[retIdx] };
+    const lx = end.x - r.x;
+    const ly = end.y - r.y;
+    const ll = Math.hypot(lx, ly) || 1;
+    /** How far a man is from the lane, the returner to where the return ends. */
+    const offLane = (j: number) => {
+      const g = Math.max(0, Math.min(1, ((px[j] - r.x) * lx + (py[j] - r.y) * ly) / (ll * ll)));
+      return Math.hypot(px[j] - (r.x + lx * g), py[j] - (r.y + ly * g));
+    };
+    const threats = all
+      .filter((j) => offense[j] && j !== kickerIdx && offLane(j) <= WALL_LANE)
+      .sort((p, q) => Math.hypot(px[p] - r.x, py[p] - r.y) - Math.hypot(px[q] - r.x, py[q] - r.y));
+    const blockers = new Set(all.filter((j) => !offense[j] && j !== retIdx && steered[j]));
+    for (const c of threats) {
+      let best = -1;
+      let d = Infinity;
+      for (const b of blockers) {
+        const dd = Math.hypot(px[b] - px[c], py[b] - py[c]);
+        if (dd < d) [d, best] = [dd, b];
+      }
+      if (best < 0) break;
+      out.set(best, c);
+      blockers.delete(best);
+    }
+    return out;
+  }
   function kickGoal(k: number, t: number): Pt {
     const s0 = a.start.get(members[k].id)!;
     const here = { x: px[k], y: py[k] };
     const caught = t >= a.catchAt;
     if (offense[k]) {
+      // A kicker let go of his script (a return touchdown's last angle) chases the returner from there.
+      if (k === kickerIdx && caught && a.kick !== 'fg' && retIdx >= 0 && a.carrier !== null)
+        return { x: px[retIdx], y: py[retIdx] };
       if (k === kickerIdx || k === holderIdx) return here;
       if (a.kick === 'fg') {
         // Protection: hold the line, square to the nearest rusher.
@@ -472,8 +508,11 @@ export function steer(a: SteerArgs): Float32Array {
       // Fall back toward the returner and set up the return.
       return { x: s0.x + (landX - s0.x) * 0.55, y: s0.y + (landY - s0.y) * 0.3 };
     }
-    // The return: get between the nearest man in coverage and the returner.
-    const c = nearestOf(k, (j) => offense[j] && j !== kickerIdx);
+    // The return: the wall. Each blocker takes a man in coverage within 6 yards of the return's lane (the nearest to
+    // the returner first, each to the blocker nearest him); the rest get between the nearest man and the returner.
+    if (!wall && retIdx >= 0) wall = buildWall();
+    const mine = wall?.get(k);
+    const c = mine ?? nearestOf(k, (j) => offense[j] && j !== kickerIdx);
     return c < 0 || retIdx < 0 ? here : between(c, retIdx);
   }
   /** Everyone who blocks on this play: the line, a back staying in, receivers stalking on a run. */
@@ -577,8 +616,10 @@ export function steer(a: SteerArgs): Float32Array {
     for (let k = 0; k < n; k++)
       if (!steered[k] && t >= freeAt[k] && step > 0) {
         steered[k] = true;
-        vx[k] = (px[k] - lastX[k]) / a.dt;
-        vy[k] = (py[k] - lastY[k]) / a.dt;
+        // (From his last two steps on film: by now the step's start and the last step are the same spot.)
+        const b = Math.max(0, step - 2);
+        vx[k] = (out[((step - 1) * n + k) * 2] - out[(b * n + k) * 2]) / ((step - 1 - b || 1) * a.dt);
+        vy[k] = (out[((step - 1) * n + k) * 2 + 1] - out[(b * n + k) * 2 + 1]) / ((step - 1 - b || 1) * a.dt);
       }
     // Scripted men are where their script says.
     for (let k = 0; k < n; k++)
@@ -937,6 +978,19 @@ export function steer(a: SteerArgs): Float32Array {
             const push = Math.min(ROOM_PUSH, (ROOM - d) * (steered[j] ? 0.5 : 1));
             px[k] += (dx / d) * push;
             py[k] += (dy / d) * push;
+            // A defender bumped by a scripted man (a receiver releasing past a pressed corner) takes the bump into his
+            // own stride and gathers himself, rather than being moved a step and stopping dead.
+            if (
+              !offense[k] &&
+              !steered[j] &&
+              offense[j] &&
+              a.dropback &&
+              (members[j].role === 'WR' || members[j].role === 'TE' || members[j].role === 'RB') &&
+              (members[k].role === 'CB' || members[k].role === 'S' || members[k].role === 'LB')
+            ) {
+              vx[k] += ((dx / d) * push) / a.dt;
+              vy[k] += ((dy / d) * push) / a.dt;
+            }
           }
         }
       }
