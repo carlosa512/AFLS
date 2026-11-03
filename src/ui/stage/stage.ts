@@ -383,10 +383,14 @@ export function stagePlay(args: {
   });
   const members = [...cast.offense, ...cast.defense];
   // No earlier than he may move: the ball down on a kick, the ball out on a snap.
+  // His way to the tackle starts when the carrier has the ball: the ball down on a kick, the catch (or the pick) on a
+  // pass, the handoff on a run.
+  // (The man who missed him, when he's the tackler too, from where the miss leaves him.)
   const earliest = Math.ceil(
     Math.max(
       kick ? (catchAt ?? 0) : Number.isFinite(release) ? release : 0,
-      pursuer !== null ? (free.get(pursuer) ?? 0) : 0,
+      passArrives(e, segs) ?? 0,
+      pursuer !== null && pursuer === scripted.missed ? (free.get(pursuer) ?? 0) : 0,
     ) / STEP,
   );
   if (pursuer !== null) {
@@ -614,11 +618,12 @@ function closeIn(
         break;
       }
   }
-  if ((last - from) * STEP > LONG_CLOSE && chase.carrier >= 0) {
-    // Beside or ahead of the carrier, he takes an angle on him; well behind him, he runs him down.
-    if (angleIn(pos, n, k, chase, end, Math.min(earliest, last - 1), last)) return;
-    if (chaseDown(pos, n, k, chase, end, from, last)) return;
-  }
+  // Once the carrier has the ball, the tackler's way to the tackle is one story, decided by where he is then: behind
+  // the carrier he runs him down; in front of him with the tackle between them, he comes to meet him there (from his
+  // side: the angle tackle); in front with the tackle beyond him, he gives ground, keeping him in front, the gap
+  // closing as the tackle comes. Never past the carrier and back, never away from him, never on him early.
+  const start = Math.min(earliest, last - 1);
+  if (chase.carrier >= 0 && (last - start) * STEP > LONG_CLOSE && tackleRun(pos, n, k, chase, end, start, last)) return;
   const p0 = at(from);
   for (let st = from + 1; st <= last; st++) {
     const g = (st - from) / (last - from);
@@ -627,79 +632,176 @@ function closeIn(
   }
 }
 
-/** An angle tackle: he comes in from this far off the carrier's line, a little ahead of where he meets him (yards). */
-const ANGLE_OFF = 3.2;
-const ANGLE_AHEAD = 2.4;
-/** Behind the carrier by more than this (yards, along his line) when he'd set off, it's a run-down instead. */
-const BEHIND_FOR_CHASE = 2.5;
+/** Level with the carrier (within a yard, along his line) with longer than this left (s), he's beaten: a run-down. */
+const BESIDE_FOR = 1.5;
+
+/** The carrier's heading over the next half second from step `st` (null when he's barely moving). */
+function headingAt(pos: Float32Array, n: number, c: number, st: number, last: number): Pt | null {
+  const a = { x: pos[(st * n + c) * 2], y: pos[(st * n + c) * 2 + 1] };
+  const s2 = Math.min(last, st + Math.round(0.5 / STEP));
+  const b = { x: pos[(s2 * n + c) * 2], y: pos[(s2 * n + c) * 2 + 1] };
+  const l = Math.hypot(b.x - a.x, b.y - a.y);
+  return l < 0.3 ? null : { x: (b.x - a.x) / l, y: (b.y - a.y) / l };
+}
 
 /**
- * An angle tackle: from where he is, to a spot off the carrier's line a little ahead of the hit, then into him from
- * the side, at no more than his legs; he sets off as late as that lets him (from `earliest` on, or sooner if he must).
- * False when he's well behind the carrier (a run-down), when no start gets him there, or when the angle would have him
- * at the carrier's side on the way (a run alongside is what this is for).
+ * The tackler's run to the tackle from step `start` (the carrier has the ball) to `last`, by where he is then
+ * (`closeIn`). False when the carrier is barely moving or no story fits his legs: the caller's straight run stands.
  */
-function angleIn(
+function tackleRun(
   pos: Float32Array,
   n: number,
   k: number,
-  chase: { carrier: number; legs: number; kick?: boolean },
+  chase: { carrier: number; top: number; legs: number; burst: number },
   end: Pt,
-  earliest: number,
+  start: number,
   last: number,
 ): boolean {
   const c = chase.carrier;
   const P = (st: number, j: number): Pt => ({ x: pos[(st * n + j) * 2], y: pos[(st * n + j) * 2 + 1] });
-  const back = P(Math.max(0, last - 6), c);
-  const car = P(last, c);
-  const hl = Math.hypot(car.x - back.x, car.y - back.y);
-  if (hl < 0.3) return false;
-  const h = { x: (car.x - back.x) / hl, y: (car.y - back.y) / hl };
-  // He comes from his own side of the carrier's line, as he stood when he could first move.
-  const me0 = P(earliest, k);
-  const behind = (P(earliest, c).x - me0.x) * h.x + (P(earliest, c).y - me0.y) * h.y;
-  if (behind > BEHIND_FOR_CHASE) return false;
-  const side = Math.sign(-h.y * (me0.x - car.x) + h.x * (me0.y - car.y)) || 1;
-  const A = {
-    x: end.x + h.x * ANGLE_AHEAD - h.y * side * ANGLE_OFF,
-    y: end.y + h.y * ANGLE_AHEAD + h.x * side * ANGLE_OFF,
-  };
-  const cut = Math.hypot(end.x - A.x, end.y - A.y);
-  const run = (st: number) => Math.hypot(A.x - P(st, k).x, A.y - P(st, k).y) + cut;
-  // The latest start that gets him there: after the moment he may move if he can, sooner if he must (never on a kickoff).
-  let from = -1;
-  for (let st = last - 1; st >= (chase.kick ? earliest : 0); st--)
-    if (run(st) <= chase.legs * 0.95 * (last - st) * STEP) {
-      from = st;
-      break;
-    }
-  if (from < 0) return false;
-  const p0 = P(from, k);
-  const total = run(from);
-  const T = (last - from) * STEP;
-  const was = pos.slice((from + 1) * n * 2, (last + 1) * n * 2);
-  for (let st = from + 1; st <= last; st++) {
-    const d = (total * (st - from) * STEP) / T;
-    const leg1 = total - cut;
-    const p =
-      d <= leg1
-        ? { x: p0.x + ((A.x - p0.x) * d) / (leg1 || 1), y: p0.y + ((A.y - p0.y) * d) / (leg1 || 1) }
-        : { x: A.x + ((end.x - A.x) * (d - leg1)) / cut, y: A.y + ((end.y - A.y) * (d - leg1)) / cut };
-    pos[(st * n + k) * 2] = p.x;
-    pos[(st * n + k) * 2 + 1] = p.y;
+  const h = headingAt(pos, n, c, start, last);
+  if (!h) return false;
+  const me = P(start, k);
+  const car = P(start, c);
+  const aheadMe = (me.x - car.x) * h.x + (me.y - car.y) * h.y;
+  const aheadHit = (end.x - car.x) * h.x + (end.y - car.y) * h.y;
+  const T = (last - start) * STEP;
+  const ran =
+    aheadMe < -1 || (aheadMe <= 1 && T > BESIDE_FOR)
+      ? chaseDown(pos, n, k, chase, end, start, last)
+      : aheadMe > aheadHit
+        ? meet(pos, n, k, chase, end, start, last)
+        : giveGround(pos, n, k, chase, end, start, last) || meet(pos, n, k, chase, end, start, last);
+  if (ran) {
+    const was = pos.slice(start * n * 2, (last + 1) * n * 2);
+    easeOut(pos, n, k, start, last);
+    if (!withinLegs(pos, n, k, start, last, chase.legs)) pos.set(was, start * n * 2);
   }
-  // Not at his side on the way: within two yards of the carrier only in the last moment before the hit.
-  let near = 0;
-  for (let st = from + 1; st <= last; st++) {
-    const a = P(st, k);
-    const b = P(st, c);
-    near = Math.hypot(a.x - b.x, a.y - b.y) < 2 ? near + STEP : 0;
-    if (near > 1.2 && last - st > 2) {
-      pos.set(was, (from + 1) * n * 2);
-      return false;
-    }
+  return ran;
+}
+
+/** Coming to meet the carrier he runs at least this pace (yards a second), setting off later if he has time. */
+const MEET_PACE = 5.5;
+
+/** How long (s) a man's new run takes over from the way he was already going: a turn, not a snap. */
+const EASE = 0.3;
+
+/**
+ * The first `EASE` seconds of his new run, blended from where his momentum (his last step before `start`) would have
+ * carried him: he turns into it rather than snapping onto it.
+ */
+function easeOut(pos: Float32Array, n: number, k: number, start: number, last: number) {
+  if (start < 1) return;
+  const P = (st: number): Pt => ({ x: pos[(st * n + k) * 2], y: pos[(st * n + k) * 2 + 1] });
+  const p0 = P(start);
+  const prev = P(start - 1);
+  const v = { x: p0.x - prev.x, y: p0.y - prev.y };
+  const span = Math.min(last - start, Math.round(EASE / STEP));
+  for (let j = 1; j < span; j++) {
+    const w = j / span;
+    const blend = w * w * (3 - 2 * w);
+    const run = P(start + j);
+    const coast = { x: p0.x + v.x * j * (1 - j / (2 * span)), y: p0.y + v.y * j * (1 - j / (2 * span)) };
+    pos[((start + j) * n + k) * 2] = coast.x + (run.x - coast.x) * blend;
+    pos[((start + j) * n + k) * 2 + 1] = coast.y + (run.y - coast.y) * blend;
+  }
+}
+
+/** Every step from `start` to `last` within his legs (and a hair for rounding). */
+function withinLegs(pos: Float32Array, n: number, k: number, start: number, last: number, legs: number): boolean {
+  for (let st = start + 1; st <= last; st++) {
+    const d = Math.hypot(
+      pos[(st * n + k) * 2] - pos[((st - 1) * n + k) * 2],
+      pos[(st * n + k) * 2 + 1] - pos[((st - 1) * n + k) * 2 + 1],
+    );
+    if (d > legs * STEP * 1.02) return false;
   }
   return true;
+}
+
+/** Comes to meet him: a straight run from where he is to the tackle, at the one pace that gets him there with him. */
+function meet(
+  pos: Float32Array,
+  n: number,
+  k: number,
+  chase: { legs: number },
+  end: Pt,
+  start: number,
+  last: number,
+): boolean {
+  const dist0 = Math.hypot(end.x - pos[(start * n + k) * 2], end.y - pos[(start * n + k) * 2 + 1]);
+  if (dist0 > chase.legs * (last - start) * STEP) return false;
+  // Not a crawl to the spot: with time to spare he sets off later (where he'd got to by then), at a runner's pace.
+  const go = Math.max(start, Math.min(last - 1, last - Math.ceil(dist0 / MEET_PACE / STEP)));
+  const p0 = { x: pos[(go * n + k) * 2], y: pos[(go * n + k) * 2 + 1] };
+  if (Math.hypot(end.x - p0.x, end.y - p0.y) > chase.legs * (last - go) * STEP) return false;
+  for (let st = go + 1; st <= last; st++) {
+    const g = (st - go) / (last - go);
+    pos[(st * n + k) * 2] = p0.x + (end.x - p0.x) * g;
+    pos[(st * n + k) * 2 + 1] = p0.y + (end.y - p0.y) * g;
+  }
+  return true;
+}
+
+/**
+ * Gives ground in front of him: he stays on the carrier's path ahead of him (where the carrier will be a moment from
+ * now, a moment that shrinks to nothing), coming across from wherever he stood, so the gap closes as the tackle comes
+ * and he's never on him early or running away from him. False when it would ask more of his legs (nothing written).
+ */
+function giveGround(
+  pos: Float32Array,
+  n: number,
+  k: number,
+  chase: { carrier: number; legs: number },
+  end: Pt,
+  start: number,
+  last: number,
+): boolean {
+  const c = chase.carrier;
+  const P = (st: number, j: number): Pt => ({ x: pos[(st * n + j) * 2], y: pos[(st * n + j) * 2 + 1] });
+  const me = P(start, k);
+  const h = headingAt(pos, n, c, start, last);
+  if (!h) return false;
+  // How far ahead on the carrier's path he is: the first step the carrier reaches his depth.
+  let lag = last - start;
+  for (let j = 0; j <= last - start; j++) {
+    const q = P(start + j, c);
+    if ((q.x - me.x) * h.x + (q.y - me.y) * h.y >= 0) {
+      lag = j;
+      break;
+    }
+  }
+  const off = { x: me.x - P(start + lag, c).x, y: me.y - P(start + lag, c).y };
+  const hit = { x: end.x - P(last, c).x, y: end.y - P(last, c).y };
+  // The carrier's path by distance run: he keeps his lead along it, measured in yards (in time, he'd back off ahead of
+  // a burst still to come), the lead closing as the tackle comes.
+  const S = new Float64Array(last - start + 1);
+  for (let j = 1; j <= last - start; j++) {
+    const q0 = P(start + j - 1, c);
+    const q1 = P(start + j, c);
+    S[j] = S[j - 1] + Math.hypot(q1.x - q0.x, q1.y - q0.y);
+  }
+  const along = (s: number): Pt => {
+    const v = Math.max(0, Math.min(S[last - start], s));
+    let j = 1;
+    while (j < last - start && S[j] < v) j++;
+    const q0 = P(start + j - 1, c);
+    const q1 = P(start + j, c);
+    const u = S[j] > S[j - 1] ? (v - S[j - 1]) / (S[j] - S[j - 1]) : 1;
+    return { x: q0.x + (q1.x - q0.x) * u, y: q0.y + (q1.y - q0.y) * u };
+  };
+  const lead = S[lag];
+  const was = pos.slice(start * n * 2, (last + 1) * n * 2);
+  for (let st = start + 1; st <= last; st++) {
+    // The lead holds, then closes late (the square of the share of the run gone): not a long last stretch at his side.
+    const g = ((st - start) / (last - start)) ** 2;
+    const on = along(S[st - start] + lead * (1 - g));
+    pos[(st * n + k) * 2] = on.x + off.x * (1 - g) + hit.x * g;
+    pos[(st * n + k) * 2 + 1] = on.y + off.y * (1 - g) + hit.y * g;
+  }
+  if (withinLegs(pos, n, k, start, last, chase.legs)) return true;
+  pos.set(was, start * n * 2);
+  return false;
 }
 
 /**

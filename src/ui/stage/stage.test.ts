@@ -484,6 +484,64 @@ describe('the staged play', () => {
     expect(worst).toBeLessThan(2);
   });
 
+  it('never has the tackler run past the carrier, or away in front of him, on his way to the tackle', () => {
+    let n = 0;
+    const bad: string[] = [];
+    for (const { e, p } of staged) {
+      if (p.carrier === null || p.loose || /TOUCHDOWN/.test(e.text)) continue;
+      const c = p.ids.indexOf(p.carrier);
+      const last = p.steps - 1;
+      // The tackler: the engine's on a run or a catch; on a return, the cover man on the returner at the whistle.
+      const named = actorsIn(e).tackle;
+      const t =
+        named !== undefined && (e.kind === 'run' || e.kind === 'pass')
+          ? p.ids.indexOf(named)
+          : (e.kind === 'kickoff' || e.kind === 'punt') && p.arrive !== null
+            ? p.ids.findIndex(
+                (_, k) =>
+                  p.offense[k] &&
+                  Math.hypot(pos(p, last, k).x - pos(p, last, c).x, pos(p, last, k).y - pos(p, last, c).y) <= 1.2,
+              )
+            : -1;
+      if (t < 0) continue;
+      n++;
+      // From when the carrier has the ball (before, a cover man running with a receiver on his route is covering him)
+      // to the last half second (the hit itself).
+      // (A few steps after he has it, so his heading is his run with the ball, not his route.)
+      const has = Math.max(4, Math.ceil((p.arrive ?? p.release) / p.dt) + 4);
+      let side = 0;
+      let nearest = Infinity;
+      const spot = pos(p, last, c);
+      for (let st = has; st < last - Math.round(0.5 / p.dt); st++) {
+        const b = pos(p, st, c);
+        // Which side of him the tackler is on, along the line from the carrier to where the tackle comes (his heading
+        // swings on a curving run; where he's going doesn't): between him and that spot, or behind him.
+        const tl = Math.hypot(spot.x - b.x, spot.y - b.y);
+        if (tl < 3) break;
+        const h = { x: (spot.x - b.x) / tl, y: (spot.y - b.y) / tl };
+        const d = pos(p, st, t);
+        const ahead = (d.x - b.x) * h.x + (d.y - b.y) * h.y;
+        const gap = Math.hypot(d.x - b.x, d.y - b.y);
+        // Clearly behind the carrier, or clearly in front of him (two yards either way of level is neither).
+        const now = ahead < -2 ? -1 : ahead > 2 ? 1 : 0;
+        // (Beaten, a man in front ends up behind and chases: that happens. Behind him and then out in front is a man
+        // who ran past the carrier, which never does.)
+        if (now === 1 && side === -1) bad.push(`passes him at ${(st * p.dt).toFixed(2)}: ${e.text}`);
+        if (now) side = now;
+        // In front of him and close, he's coming to meet him or giving ground: he never opens the gap back up himself
+        // (the carrier pressing away from him across the field is the carrier's doing, not his).
+        const d0 = pos(p, st - 4, t);
+        const away = gap > 0 ? ((d.x - d0.x) * (d.x - b.x) + (d.y - d0.y) * (d.y - b.y)) / gap / (4 * p.dt) : 0;
+        if (now === 1 && gap < 8) {
+          if (gap > nearest + 1.5 && away > 1) bad.push(`runs away in front at ${(st * p.dt).toFixed(2)}: ${e.text}`);
+          nearest = Math.min(nearest, gap);
+        } else if (now !== 1) nearest = Infinity;
+      }
+    }
+    expect(n).toBeGreaterThan(1000);
+    expect([...new Set(bad)].slice(0, 6)).toEqual([]);
+  });
+
   it('stages the same play the same way every time', () => {
     const { g, r } = games[3];
     const a = stagePlay({ plays: r.plays!, index: 40, record: r.field!, homeId: g.homeId, seed: 'same', snapY: 26 });

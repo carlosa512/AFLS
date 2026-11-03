@@ -474,7 +474,16 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       return [
         mesh,
         ...withMove({ x0: hand.x, y0: hand.y, x1: met.x, y1: met.y, peak: 0, dur }, d * 0.5, d / dur, MESH),
-        { x0: met.x, y0: met.y, x1: end.x, y1: end.y, peak: 0, dur: Math.max(DRIVEN_T, driven / DRIVEN_PACE) },
+        // (The tackle is the meeting: he's hit there, and the two of them go on to where he's down.)
+        {
+          x0: met.x,
+          y0: met.y,
+          x1: end.x,
+          y1: end.y,
+          peak: 0,
+          dur: Math.max(DRIVEN_T, driven / DRIVEN_PACE),
+          ...(caught && !fumbled ? { hit: true as const } : {}),
+        },
       ];
     }
     const out: Seg[] = [mesh];
@@ -1171,6 +1180,20 @@ export function script(
         : cast.defense;
     let tackler =
       !loose && who.tackle !== undefined && start.has(who.tackle) && who.tackle !== carrier ? who.tackle : undefined;
+    if (tackler === undefined && kickReturn && !loose && catchAt !== undefined) {
+      // A return the log names no tackler for: the cover man whose lane gets him to where it ends as the returner does,
+      // at a cover man's sprint (off the ball being down on a kickoff, the kick on a punt), not the man who happened to
+      // line up nearest that spot (he'd be there seconds early, waiting).
+      const react = e.kind === 'kickoff' ? catchAt : (kickAt ?? 0);
+      let off = Infinity;
+      for (const m of side) {
+        if (m.id === carrier || m.id === missed || !start.has(m.id)) continue;
+        const p = start.get(m.id)!;
+        const pace = Math.hypot(p.x - end.x, p.y - end.y) / Math.max(0.1, total - react);
+        if (pace <= topOf(m.id) && Math.abs(pace - COVER_PACE) < off)
+          [off, tackler] = [Math.abs(pace - COVER_PACE), m.id];
+      }
+    }
     if (tackler === undefined && (e.kind !== 'int' || kickReturn || loose)) {
       let best = Infinity;
       for (const m of side) {
