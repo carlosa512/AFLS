@@ -7,6 +7,7 @@ import { SIZE } from '../size';
 import type { Position } from '../types';
 import type { Role } from './cast';
 import { FIELD_W } from './geometry';
+import { KNOBS } from './tuning';
 import type { FieldPlayer, FieldSkills, FieldStart } from './types';
 
 const POS_OF: Record<Role, Position> = {
@@ -122,4 +123,35 @@ export function randomStart(seed: string): FieldStart {
     blocks.push({ blocker: b.id, defender: d.id, holdFor: rng.float(0, 1.5) });
   }
   return startOf({ players, dir, blocks, carrier: 1 });
+}
+
+/**
+ * The knobs the rule tests are written against (the starting values, before any fit): a rule test checks the rule, not
+ * the fitted numbers, which parity and film judge.
+ */
+export const RULE_KNOBS: typeof KNOBS = {
+  react: 1,
+  angle: 1,
+  tackle: 0.72,
+  move: 0.25,
+  afterContact: 1.2,
+  shed: 0.9,
+  hold: 0.6,
+  line: 1,
+  speed: 0.15,
+  skill: 1,
+  outLine: 4,
+  outGain: 3,
+  pad: 0,
+  stretch: 3,
+  retTackle: 0,
+  retHold: 0.5,
+  carrier: 1,
+};
+
+/** Set the rule knobs for a test file; returns what puts the shipped ones back. */
+export function pinKnobs(): () => void {
+  const was = { ...KNOBS };
+  Object.assign(KNOBS, RULE_KNOBS);
+  return () => Object.assign(KNOBS, was);
 }

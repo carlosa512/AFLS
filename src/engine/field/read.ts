@@ -19,6 +19,8 @@ export interface Reader {
   eastWest: boolean;
   /** He'd rather run out than take a hit (`contactAverse`). */
   averse: boolean;
+  /** An outside run's play side across the field (field y): early on he stretches toward it. */
+  stretch?: 1 | -1;
   /** The heading he's on (unit vector): he keeps it unless another is clearly better. */
   prev?: { x: number; y: number };
 }
@@ -78,6 +80,7 @@ export function readField(c: Body, r: Reader, rng: Rng): { vx: number; vy: numbe
     const g = gain(c, ux, uy, r);
     let score = g + rng.normal(0, sd * (0.3 + 0.7 * Math.min(1, Math.max(0, g) / 10)));
     if (r.eastWest && Math.abs(a) > 40) score += 1;
+    if (r.stretch) score += KNOBS.stretch * Math.max(0, uy * r.stretch);
     if (r.prev && ux * r.prev.x + uy * r.prev.y > Math.cos(((FAN_STEP / 2) * Math.PI) / 180)) score += COMMIT;
     if (a === side * FAN) sidelineScore = score;
     if (score > best) [best, bx, by] = [score, ux, uy];

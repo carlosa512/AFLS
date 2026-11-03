@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { QuirkId } from '../quirks';
 import { Rng } from '../rng';
 import { bodyOf } from './body';
 import { contest } from './contest';
-import { man, startOf } from './fixtures';
+import { man, startOf, pinKnobs } from './fixtures';
 import { MID } from './geometry';
 import { FIELD_HABITS } from './habits';
 import { runField } from './run';
@@ -224,6 +224,12 @@ const TABLE: Record<string, { up: boolean; measure: (q: QuirkId | null) => numbe
 };
 
 describe('field habits', () => {
+  let restore: () => void;
+  beforeAll(() => {
+    restore = pinKnobs();
+  });
+  afterAll(() => restore());
+
   it('plays each field habit the way its table says', () => {
     expect(new Set(Object.keys(TABLE))).toEqual(new Set(FIELD_HABITS));
     for (const [q, { up, measure }] of Object.entries(TABLE)) {

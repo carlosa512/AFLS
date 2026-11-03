@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Rng } from '../rng';
-import { man, startOf } from './fixtures';
+import { man, startOf, pinKnobs } from './fixtures';
 import { FIELD_W, MID } from './geometry';
 import { runField } from './run';
 
 describe("the carrier's read", () => {
+  let restore: () => void;
+  beforeAll(() => {
+    restore = pinKnobs();
+  });
+  afterAll(() => restore());
+
   it('takes the open lane', () => {
     // A wall to his left (low y), nothing to his right.
     const players = [
@@ -71,5 +77,18 @@ describe("the carrier's read", () => {
       ).toBe(false);
     }
     expect(out).toBeGreaterThanOrEqual(14);
+  });
+
+  it('stretches an outside run toward the play side before he turns up', () => {
+    const players = [man(1, 0, 'RB', 50, MID, { vx: 5 }), man(30, 1, 'LB', 58, MID - 3), man(31, 1, 'S', 65, MID + 2)];
+    let wide = 0;
+    let plain = 0;
+    for (let i = 0; i < 40; i++) {
+      const y = (stretch?: 1) =>
+        runField(startOf({ players, ...(stretch ? { stretch } : {}) }), new Rng(`stretch:${i}`)).frames[16 * 3 * 2 + 1];
+      wide += y(1) - MID;
+      plain += y() - MID;
+    }
+    expect(wide / 40).toBeGreaterThan(plain / 40 + 0.5);
   });
 });

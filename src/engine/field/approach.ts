@@ -191,5 +191,8 @@ export function fieldStart(
     clock: { outOfBounds: !!m.facts.out, stayIn: !!m.facts.stay },
     edge: m.facts.edge ?? 0,
     tired: !!m.facts.tired,
+    ...(m.kind === 'run' && staged.run?.call === 'outsideZone'
+      ? { stretch: (staged.dir * staged.run.side) as 1 | -1 }
+      : {}),
   };
 }

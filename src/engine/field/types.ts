@@ -75,6 +75,8 @@ export interface FieldStart {
   edge: number;
   /** The front is tired (a long drive, the hurry-up): `gassed` men shed and run slower. */
   tired: boolean;
+  /** An outside run's play side across the field (field y): he stretches the edge first. */
+  stretch?: 1 | -1;
 }
 
 /** What the open field decided. */

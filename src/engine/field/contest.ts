@@ -49,7 +49,7 @@ export function afterContactYards(cp: FieldPlayer, speed: number, dp: FieldPlaye
   if (hasHabit(dp, 'thumper')) return 0;
   let y =
     KNOBS.afterContact * (speed / 6) * CARRY[angle] +
-    0.1 * KNOBS.skill * (cp.s.power - dp.s.tackle) +
+    0.1 * KNOBS.skill * (KNOBS.carrier * (cp.s.power - 12) - (dp.s.tackle - 12)) +
     0.2 * sizeEdge(build(cp.s), 'contact', build(dp.s));
   if (hasHabit(cp, 'finishesForward')) y += 0.8;
   if (hasHabit(cp, 'contactAverse')) y *= 0.5;
@@ -80,7 +80,11 @@ export function contest(
   const tackleRoll = rng.next();
 
   if (room && speed >= 3 && tryRoll < 0.35 + 0.02 * (moveSkill - 12)) {
-    const success = clamp(KNOBS.move + 0.025 * KNOBS.skill * (moveSkill - dp.s.tackle), 0.05, 0.6);
+    const success = clamp(
+      KNOBS.move + 0.025 * KNOBS.skill * (KNOBS.carrier * (moveSkill - 12) - (dp.s.tackle - 12)),
+      0.05,
+      0.6,
+    );
     if (moveRoll < success)
       return {
         out: how === 'size' && kind !== 'juke' ? 'broken' : 'missed',
@@ -95,11 +99,12 @@ export function contest(
 
   let p =
     KNOBS.tackle +
-    0.025 * KNOBS.skill * (dp.s.tackle - cp.s.power) -
+    0.025 * KNOBS.skill * (dp.s.tackle - 12 - KNOBS.carrier * (cp.s.power - 12)) -
     0.03 * size +
     ANGLE[angle] +
     0.12 * help -
     0.02 * Math.max(0, speed - 6);
+  if (start.kind === 'return') p += KNOBS.retTackle;
   if (hasHabit(dp, 'armTackler')) p -= 0.08;
   if (hasHabit(cp, 'highKnee')) p -= 0.05;
   if (hasHabit(dp, 'businessDecision') && cp.s.w >= 225) p -= 0.15;

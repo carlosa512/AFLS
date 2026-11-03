@@ -1,18 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Rng } from '../rng';
 import { bodyOf, stepBody } from './body';
-import { man, randomStart } from './fixtures';
+import { man, randomStart, pinKnobs } from './fixtures';
 import { FIELD_W } from './geometry';
 import { runField } from './run';
 import { STEP } from './tuning';
 
 describe('bodies on the field', () => {
+  let restore: () => void;
+  beforeAll(() => {
+    restore = pinKnobs();
+  });
+  afterAll(() => restore());
+
   it('never lets a man run faster than his top speed, or leave the field unless he carries the ball', () => {
     for (let i = 0; i < 500; i++) {
       const start = randomStart(`body:${i}`);
       const r = runField(start, new Rng(`body:${i}`));
       const n = start.players.length;
-      const tops = start.players.map((p) => bodyOf(p, start.tired).top);
+      const tops = start.players.map((p) => bodyOf(p, start.tired, p.id === start.carrier).top);
       const steps = r.frames.length / (n * 2);
       let over = 0;
       let off = 0;

@@ -10,7 +10,19 @@ import { angleSpread, chaseWant, shedOdds } from './chase';
 import { contest, type Contact } from './contest';
 import { FIELD_W, MID } from './geometry';
 import { readField, type Reader } from './read';
-import { BLOCK_DELAY, BRAKE, DOWN_FOR, FALL, JUMP_READ, MAX_FIELD, REACH, READ_EVERY, RECONTEST, STEP } from './tuning';
+import {
+  BLOCK_DELAY,
+  BRAKE,
+  KNOBS,
+  DOWN_FOR,
+  FALL,
+  JUMP_READ,
+  MAX_FIELD,
+  REACH,
+  READ_EVERY,
+  RECONTEST,
+  STEP,
+} from './tuning';
 import type { FieldResult, FieldStart } from './types';
 
 /** How long the film runs on past a touchdown or a man going out of bounds, and past a pile settling (seconds). */
@@ -31,6 +43,8 @@ const REGROUP = 1;
 const SHIELD = 1.2;
 /** Steps a defender reads the carrier's velocity over. */
 const SMOOTH = 6;
+/** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
+const STRETCH_T = 1;
 /** After a catch he gathers this long (seconds) before he reads the field. */
 const GATHER = 0.2;
 /** Room for a move: no other defender this close (yards). */
@@ -41,7 +55,7 @@ const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.
 export function runField(start: FieldStart, rng: Rng): FieldResult {
   const P = start.players;
   const n = P.length;
-  const B: Body[] = P.map((p) => bodyOf(p, start.tired));
+  const B: Body[] = P.map((p) => bodyOf(p, start.tired, p.id === start.carrier));
   const ci = P.findIndex((p) => p.id === start.carrier);
   const dir = start.dir;
   const goalX = dir === 1 ? 100 : 0;
@@ -61,6 +75,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const g = dist(B[d], B[b]) || 1;
     offX[d] = ((B[d].x - B[b].x) / g) * HOLD_GAP;
     offY[d] = ((B[d].y - B[b].y) / g) * HOLD_GAP;
+    // They meet: the collision takes both men's momentum into one (a block stops a man running through it).
+    const vx = (B[b].vx + B[d].vx) / 2;
+    const vy = (B[b].vy + B[d].vy) / 2;
+    B[b].vx = B[d].vx = vx;
+    B[b].vy = B[d].vy = vy;
   };
   for (const blk of start.blocks) {
     const b = index.get(blk.blocker);
@@ -128,6 +147,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       eastWest: start.kind === 'catch' && hasHabit(P[ci], 'runsEastWest'),
       averse: hasHabit(P[ci], 'contactAverse'),
       prev: heading(),
+      ...(start.stretch && t < STRETCH_T ? { stretch: start.stretch } : {}),
     };
   };
   /** The carrier's heading now, or none when he's barely moving. */
@@ -326,7 +346,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const j = target[i];
     if (j >= 0 && partner[j] < 0 && t >= B[j].downUntil) {
       if (dist(b, B[j]) <= ENGAGE) {
-        engage(i, j, t);
+        // A return team's block holds a beat (its own wall); a scrimmage block downfield can be shed at once.
+        engage(i, j, start.kind === 'return' ? t + KNOBS.retHold : t);
         return stepBody(b, { vx: 0, vy: 0 }, STEP);
       }
       const g = dist(B[j], c) || 1;

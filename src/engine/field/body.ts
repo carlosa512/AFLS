@@ -28,9 +28,11 @@ const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x
 
 export const hasHabit = (p: FieldPlayer, q: QuirkId) => !!p.s.habits?.includes(q);
 
-export function bodyOf(p: FieldPlayer, tired: boolean): Body {
+/** `carrier`: he has the ball, and his skill counts by `KNOBS.carrier`. */
+export function bodyOf(p: FieldPlayer, tired: boolean, carrier = false): Body {
   const base = SPEED[p.role];
-  let top = clamp(base + KNOBS.speed * (p.s.speed - 12), base - 1.5, base + 1.5);
+  const perPoint = KNOBS.speed * (carrier ? KNOBS.carrier : 1);
+  let top = clamp(base + perPoint * (p.s.speed - 12), base - 1.5, base + 1.5);
   if (tired && hasHabit(p, 'gassed')) top -= 0.5;
   const react =
     clamp(KNOBS.react * (0.3 - 0.02 * (p.s.reads - 12)), 0.12, 0.5) +

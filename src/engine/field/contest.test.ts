@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Rng } from '../rng';
 import { bodyOf } from './body';
 import { afterContactYards, contest, type Angle } from './contest';
-import { man, randomStart, startOf } from './fixtures';
+import { man, randomStart, startOf, pinKnobs } from './fixtures';
 import { MID } from './geometry';
 import { runField } from './run';
-import { STEP } from './tuning';
+import { KNOBS, STEP } from './tuning';
 import type { FieldPlayer, FieldSkills } from './types';
 
 const N = 4000;
@@ -46,6 +46,12 @@ function rates(
 }
 
 describe('contests', () => {
+  let restore: () => void;
+  beforeAll(() => {
+    restore = pinKnobs();
+  });
+  afterAll(() => restore());
+
   it('tackles more with better tackling, head-on, and with help', () => {
     expect(rates({ d: { tackle: 18 } }).tackle).toBeGreaterThan(rates({ d: { tackle: 6 } }).tackle + 0.05);
     const head = rates({ angle: 'head' }).tackle;
@@ -132,5 +138,35 @@ describe('contests', () => {
     }
     expect(total).toBeGreaterThan(30);
     expect(moves).toBeGreaterThan(0);
+  });
+
+  it("gives returns their own coverage: a return's tackle odds move with retTackle", () => {
+    const was = KNOBS.retTackle;
+    KNOBS.retTackle = 0.1;
+    const firm = rates({ kind: 'return' }).tackle;
+    KNOBS.retTackle = -0.1;
+    const soft = rates({ kind: 'return' }).tackle;
+    KNOBS.retTackle = was;
+    expect(firm).toBeGreaterThan(soft + 0.1);
+    // Scrimmage contests don't read it.
+    KNOBS.retTackle = 0.1;
+    const run = rates({ kind: 'run' }).tackle;
+    KNOBS.retTackle = was;
+    expect(rates({ kind: 'run' }).tackle).toBeCloseTo(run, 6);
+  });
+
+  it("scales the carrier's own skill by the carrier knob, not the defense's", () => {
+    const was = KNOBS.carrier;
+    const fast = man(1, 0, 'RB', 50, MID, { s: { speed: 18 } });
+    const d = man(30, 1, 'S', 60, MID, { s: { speed: 18 } });
+    KNOBS.carrier = 1;
+    const full = bodyOf(fast, false, true).top;
+    const dFull = bodyOf(d, false, false).top;
+    KNOBS.carrier = 0.5;
+    const half = bodyOf(fast, false, true).top;
+    const dHalf = bodyOf(d, false, false).top;
+    KNOBS.carrier = was;
+    expect(half).toBeLessThan(full);
+    expect(dHalf).toBe(dFull);
   });
 });

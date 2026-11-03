@@ -57,7 +57,7 @@ describe('the spatial replay', () => {
         const k0 = s.spatial.k0;
         const men = s.ids.length;
         t.start.players.forEach((p, k) => {
-          const top = bodyOf(p, t.start.tired).top;
+          const top = bodyOf(p, t.start.tired, p.id === t.start.carrier).top;
           const d = Math.hypot(
             s.pos[((k0 + 1) * men + k) * 2] - s.pos[(k0 * men + k) * 2],
             s.pos[((k0 + 1) * men + k) * 2 + 1] - s.pos[(k0 * men + k) * 2 + 1],

@@ -31,6 +31,10 @@ const STEPS: Record<Knob, (v: number, scale: number) => number[]> = {
   outLine: (v, k) => [Math.max(1, v - 1.5 * k), v + 1.5 * k],
   outGain: (v, k) => [Math.max(0.5, v - 1.5 * k), v + 1.5 * k],
   pad: (v, k) => [v - 0.8 * k, v + 0.8 * k],
+  stretch: (v, k) => [Math.max(0, v - 1.5 * k), v + 1.5 * k],
+  retTackle: (v, k) => [v - 0.06 * k, v + 0.06 * k],
+  retHold: (v, k) => [Math.max(0, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
+  carrier: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
 };
 
 function score(): number {
