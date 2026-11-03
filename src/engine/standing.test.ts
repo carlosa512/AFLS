@@ -225,3 +225,24 @@ describe('standing: moods stay each man’s own (L1)', () => {
     expect(moraleFactors(l, p, moraleContext(l)).room).toBe(before);
   });
 });
+
+describe('L3: what chemistry reads off a room', () => {
+  it('a unit read carries its weighted mood level', async () => {
+    const { unitReads } = await import('./standing');
+    const { moraleStepOf } = await import('./morale');
+    const l = fresh();
+    const reads = unitReads(l, l.teams[0].id, moraleContext(l));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const r of reads) {
+      expect(Number.isFinite(r.level)).toBe(true);
+      expect(moraleStepOf(r.level)).toBe(r.mood);
+    }
+  });
+
+  it('names a voice plainly', async () => {
+    const { voiceName } = await import('./standing');
+    expect(voiceName('stirs')).toBe('Spark');
+    expect(voiceName('steadies')).toBe('Anchor');
+    expect(voiceName(null)).toBeNull();
+  });
+});

@@ -117,6 +117,11 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
 }
 
 /** How his mood travels: a man who stirs says it out loud; a calm leader keeps a bad week to himself. */
+/** What a screen and the coach call a voice's sound (L3): his mood spreads (a Spark) or he keeps a room calm (an Anchor). */
+export type VoiceName = 'Spark' | 'Anchor';
+export const voiceName = (s: Sound | null): VoiceName | null =>
+  s === 'stirs' ? 'Spark' : s === 'steadies' ? 'Anchor' : null;
+
 export function soundOf(p: Player): Sound | null {
   if (z(p.traits.controversy) >= 1) return 'stirs';
   if (z(p.traits.leads) >= 1 && z(temperamentOf(p)) >= 0.5) return 'steadies';
@@ -162,6 +167,8 @@ export interface UnitRead {
   members: number[];
   /** The room's mood on the seven-step scale, the voices counting more. */
   mood: MoraleStep;
+  /** The same weighted mean mood as a level (chemistry, L3, reads it against the league's). */
+  level: number;
   /** Who sets the tone: the unit's heaviest leader or voice, or no one. */
   setter: number | null;
   pulling: 'up' | 'down' | 'even' | null;
@@ -213,6 +220,7 @@ export function unitRead(league: League, teamId: number, unit: Unit, ctx: Morale
     word,
     members: men.map((p) => p.id),
     mood: moraleStepOf(mean),
+    level: mean,
     setter: lead?.id ?? null,
     pulling: lead ? pullOf(moodLean(moraleLevel(league, lead))) : null,
     noVoice,
