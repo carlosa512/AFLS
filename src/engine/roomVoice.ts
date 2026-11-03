@@ -160,7 +160,7 @@ export interface WhyFact {
 
 // ───────── grammar ─────────
 
-const SINGULAR = new Set(['the line', 'the D-line', 'the secondary', 'the room']);
+const SINGULAR = new Set(['the line', 'the D-line', 'the secondary', 'the room', 'the passing game']);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "The line is", "The receivers are", with "still" when it's still so. */
 const isAre = (unit: string, still = false) => `${SINGULAR.has(unit) ? 'is' : 'are'}${still ? ' still' : ''}`;
@@ -538,7 +538,7 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
   {
     when: (f) => f.word === 'Out of sync' && !!f.spark?.sour,
     reads: 3,
-    text: (f) => `${f.spark!.last}'s sour, and he's a spark. ${feeling(f.unit)}.`,
+    text: (f) => `${isOf(f.spark!.last)} sour, and he's a spark. ${feeling(f.unit)}.`,
   },
   {
     when: (f) => f.word === 'Out of sync' && f.split,
@@ -565,7 +565,7 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
   {
     when: (f) => f.word === 'Gelling' && !!f.anchor,
     reads: 1,
-    text: (f) => `${unitIs_(f.unit)} gelling. ${f.anchor}'s holding them together.`,
+    text: (f) => `${unitIs_(f.unit)} gelling. ${isOf(f.anchor!)} holding them together.`,
   },
   { text: (f) => `${unitIs_(f.unit)} gelling.` },
 ];
@@ -573,7 +573,7 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
 /** The Locker Room card's short reason beside the word; empty when nothing stands out. */
 export const CHEM_REASON: readonly Line<ChemFact>[] = [
   { when: (f) => f.word === 'Clicking' && (f.years ?? 0) >= 2, reads: 3, text: (f) => yearsTogether(f.years!) },
-  { when: (f) => !!f.spark?.sour && f.word === 'Out of sync', reads: 3, text: (f) => `${f.spark!.last}'s sour` },
+  { when: (f) => !!f.spark?.sour && f.word === 'Out of sync', reads: 3, text: (f) => `${isOf(f.spark!.last)} sour` },
   { when: (f) => f.split && f.word === 'Out of sync', reads: 2, text: () => 'divided room' },
   {
     when: (f) => f.newStarters >= 1 && (f.word === 'Still learning each other' || f.word === 'Out of sync'),
@@ -581,6 +581,10 @@ export const CHEM_REASON: readonly Line<ChemFact>[] = [
     text: (f) => starters_(f.newStarters),
   },
   { when: (f) => f.comfortable, reads: 1, text: () => 'comfortable' },
-  { when: (f) => !!f.anchor && f.word !== 'Out of sync', reads: 1, text: (f) => `${f.anchor}'s holding them together` },
+  {
+    when: (f) => !!f.anchor && f.word !== 'Out of sync',
+    reads: 1,
+    text: (f) => `${isOf(f.anchor!)} holding them together`,
+  },
   { text: () => '' },
 ];

@@ -150,8 +150,42 @@ interface Week {
 }
 const weeks = new WeakMap<League, Week>();
 
-const weekKey = (league: League) =>
-  `${league.season}:${league.phase}:${league.week}:${league.moraleAt ?? moraleClock(league)}`;
+/**
+ * The week's read, keyed on what can move a mood between weeks too: a signing, a trade or a cut (the league's
+ * transactions), and any man's mood itself (a talk answered, a meeting held). Read before Sunday or after, it's the
+ * same week's read of the league as it stands, so no game reads a mood from before you acted.
+ */
+function weekKey(league: League): string {
+  let moods = 0;
+  for (const p of Object.values(league.players))
+    if (p.teamId !== null && p.morale) moods += p.morale.level * 7 + (p.morale.jolts?.length ?? 0);
+  const last = league.transactions[league.transactions.length - 1];
+  return [
+    league.season,
+    league.phase,
+    league.week,
+    league.moraleAt ?? moraleClock(league),
+    league.transactions.length,
+    last?.text ?? '',
+    moods.toFixed(6),
+  ].join(':');
+}
+
+/** A club's win share from the weeks before this one (three games at least, else .500): what complacency reads. */
+function shareBefore(league: League, teamId: number): number {
+  let w = 0;
+  let n = 0;
+  for (const g of league.games) {
+    if (g.season !== league.season || g.playoffRound || !g.result) continue;
+    if (league.phase === 'regular' && g.week >= league.week) continue;
+    if (g.homeId !== teamId && g.awayId !== teamId) continue;
+    const mine = g.homeId === teamId ? g.result.homeScore : g.result.awayScore;
+    const theirs = g.homeId === teamId ? g.result.awayScore : g.result.homeScore;
+    w += mine > theirs ? 1 : mine === theirs ? 0.5 : 0;
+    n++;
+  }
+  return n >= 3 ? w / n : 0.5;
+}
 
 function week(league: League): Week {
   const key = weekKey(league);
@@ -163,9 +197,8 @@ function week(league: League): Week {
   const comfortable = new Set<string>();
   const years = new Map<ChemRoom, number[]>();
   for (const team of league.teams) {
-    const rec = ctx.records.get(team.id);
-    const games = rec ? rec.w + rec.l + rec.t : 0;
-    const share = rec && games >= 3 ? (rec.w + rec.t / 2) / games : 0.5;
+    // From the weeks before this one: a result played this week doesn't change this week's read.
+    const share = shareBefore(league, team.id);
     for (const unit of CHEM_ROOMS) {
       const key = `${team.id}:${unit}`;
       const read = unitRead(league, team.id, unit, ctx);

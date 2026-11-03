@@ -116,7 +116,6 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
   return weight >= LEADER_AT ? 'leader' : weight >= VOICE_AT ? 'voice' : null;
 }
 
-/** How his mood travels: a man who stirs says it out loud; a calm leader keeps a bad week to himself. */
 // ───────── a voice rubs off on his room (L3) ─────────
 
 /**
@@ -191,6 +190,7 @@ export type VoiceName = 'Spark' | 'Anchor';
 export const voiceName = (s: Sound | null): VoiceName | null =>
   s === 'stirs' ? 'Spark' : s === 'steadies' ? 'Anchor' : null;
 
+/** How his mood travels: a man who stirs says it out loud; a calm leader keeps a bad week to himself. */
 export function soundOf(p: Player): Sound | null {
   if (z(p.traits.controversy) >= 1) return 'stirs';
   if (z(p.traits.leads) >= 1 && z(temperamentOf(p)) >= 0.5) return 'steadies';

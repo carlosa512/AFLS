@@ -200,10 +200,12 @@ export function chemFact(league: League, c: Chemistry, ctx: MoraleContext): Chem
     .map((v) => league.players[v.id])
     .find((p) => p && p.teamId === c.teamId);
   return {
-    unit: UNIT_PHRASE[c.unit],
+    // The QB room's time together is his with his targets: the passing game, not the quarterbacks.
+    unit: c.unit === 'QB' ? 'the passing game' : UNIT_PHRASE[c.unit],
     word: c.word,
     years: c.years,
-    newStarters: c.newStarters,
+    // New starters only count where time together costs the room: in a new league nobody has history, so nobody's new.
+    newStarters: c.together !== null && c.together < 0 ? c.newStarters : 0,
     split: read?.word === 'Split',
     comfortable: c.comfortable,
     ...(setter && soundOf(setter) === 'stirs'

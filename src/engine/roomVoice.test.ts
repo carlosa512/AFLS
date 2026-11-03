@@ -485,6 +485,10 @@ describe('chemistry in the coach’s words (L3)', () => {
     );
     expect(say(CHEM_REASON, chem({ word: 'Clicking', years: 3 }), at)).toBe('three years together');
     expect(say(CHEM_REASON, chem({ anchor: 'Okafor' }), at)).toBe("Okafor's holding them together");
+    // A name ending in s takes "is", as the rest of the room's words do.
+    expect(say(CHEM_REASON, chem({ word: 'Out of sync', spark: { last: 'Owens', sour: true } }), at)).toBe(
+      'Owens is sour',
+    );
   });
 
   it('every case reads clean: no digits, no engine words', () => {

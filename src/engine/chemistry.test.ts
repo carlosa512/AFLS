@@ -181,3 +181,26 @@ describe('chemistry: complacency', () => {
     for (const c of chemistryWeek(l).values()) if (c.comfortable) expect(c.mood).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('chemistry: the review’s fixes', () => {
+  it('a mood changed after the week was read reaches Sunday', () => {
+    const l = fresh();
+    const before = chemistryOf(l, l.userTeamId, 'OL')!.mood;
+    for (const id of l.teams[l.userTeamId].depthChart.OL) {
+      const p = l.players[id];
+      if (p.teamId === l.userTeamId) p.morale = { level: -9, jolts: [] };
+    }
+    expect(chemistryOf(l, l.userTeamId, 'OL')!.mood).toBeLessThan(before);
+  });
+
+  it('this week’s results don’t change this week’s read', () => {
+    const l = fresh();
+    for (let i = 0; i < 3; i++) playWeek(l);
+    const a = chemistryWeek(l);
+    const b: League = JSON.parse(JSON.stringify(l));
+    const g = b.games.find((x) => x.season === b.season && x.week === b.week && !x.result)!;
+    g.result = { ...b.games.find((x) => x.result)!.result!, homeScore: 60, awayScore: 0 };
+    const edges = (m: Map<string, { edge: number }>) => [...m.values()].map((c) => c.edge.toFixed(9));
+    expect(edges(chemistryWeek(b))).toEqual(edges(a));
+  });
+});
