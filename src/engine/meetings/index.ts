@@ -15,6 +15,7 @@ import {
   offCooldown,
   stepClock,
   suggestMeeting,
+  driverIn,
   topicOf,
 } from './suggest';
 
@@ -110,13 +111,15 @@ export function requestMeeting(league: League, scope: MeetingScope): MeetingSugg
   if (m.pending || !headCoachOf(league, teamId) || !offCooldown(league, teamId, scope)) return null;
   if (m.log.some((r) => clock - r.clock < COOLDOWN.week)) return null;
   const ctx = moraleContext(league);
-  const topic = topicOf(league, membersOf(league, teamId, scope), ctx);
+  const men = membersOf(league, teamId, scope);
+  const topic = topicOf(league, men, ctx);
   const s: MeetingSuggestion = {
     clock,
     scope,
     kind: 'trouble',
     topic,
-    ...choicesFor(league, teamId, scope, 'trouble', topic, undefined, ctx),
+    asked: true,
+    ...choicesFor(league, teamId, scope, 'trouble', topic, driverIn(league, men, ctx), ctx),
   };
   markOffered(league, teamId, scope);
   m.pending = s;

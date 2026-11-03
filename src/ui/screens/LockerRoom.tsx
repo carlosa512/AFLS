@@ -30,6 +30,12 @@ import {
   viewContext,
 } from '../../engine/morale';
 import { MoodCell, MoodFace, ReasonChip } from '../morale';
+import { requestAddress, requestMeeting } from '../../engine/meetings';
+import { SCOPE_NOUN } from '../../engine/meetings/facts';
+import { meetingsView, type RoomMeetingView } from '../../engine/meetings/mail';
+import { ROOMS } from '../../engine/meetings/suggest';
+import type { CoachRoom, MeetingScope } from '../../engine/types';
+import { MeetingChoices } from '../meetings';
 
 /**
  * Your locker room, the way your coaches see it: who leads it and who is mentoring whom. Your club only; you can't see
@@ -116,6 +122,9 @@ export function LockerRoom({ league }: { league: League }) {
     // His makeup is his own, not something the room is talking about.
     for (const r of view.reasons) if (!TEMPERAMENT_REASONS.has(r)) byReason.set(r, [...(byReason.get(r) ?? []), p]);
   const minds = [...byReason.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 6);
+  // Team meetings (L2): what waits on your call, your address when a crisis opens it, each room's ask.
+  const meetings = meetingsView(league);
+  const roomMeeting = (scope: MeetingScope) => meetings?.rooms.find((r) => r.scope === scope);
 
   return (
     <div className="screen">
@@ -318,6 +327,33 @@ export function LockerRoom({ league }: { league: League }) {
           />{' '}
           Let the coaches handle the mentoring
         </label>
+        {meetings?.pending && (
+          <div className="meeting-banner">
+            <b>
+              {league.teams[team.id].meetings?.pending?.kind === 'gm'
+                ? 'Your word to the team'
+                : `The coach wants your call on a word with ${SCOPE_NOUN[meetings.pending.scope]}`}
+            </b>
+            <MeetingChoices
+              key={`${meetings.pending.clock}:${meetings.pending.scope}`}
+              league={league}
+              s={meetings.pending}
+            />
+          </div>
+        )}
+        {meetings?.address && (
+          <div className="meeting-banner">
+            <span>Things have gone far enough that you can talk to the team yourself, once this season.</span>
+            <div>
+              <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => void requestAddress(l))}>
+                Address the team
+              </button>
+            </div>
+          </div>
+        )}
+        {meetings && (
+          <RoomAsk view={roomMeeting('team')} label="Ask the coach to talk to the team" note={meetings.blocked} />
+        )}
         <div className="room-cards">
           {cards.map((c) => (
             <div key={c.unit} className={`room-card${c.trouble ? ' is-trouble' : ''}`}>
@@ -334,6 +370,9 @@ export function LockerRoom({ league }: { league: League }) {
                 </div>
               </div>
               {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
+              {meetings && ROOMS.includes(c.unit as CoachRoom) && (
+                <RoomAsk view={roomMeeting(c.unit as CoachRoom)} label="Ask the coach to meet with them" />
+              )}
               {c.follows.length > 0 && (
                 <div>
                   <h4>Who they follow</h4>
@@ -418,6 +457,29 @@ export function LockerRoom({ league }: { league: League }) {
           ))}
         </div>
       </Section>
+    </div>
+  );
+}
+
+/** A room's meeting: what we told them and still owe, and your ask (or why not now). */
+function RoomAsk({ view, label, note }: { view?: RoomMeetingView; label: string; note?: string }) {
+  if (!view) return null;
+  return (
+    <div className="room-ask">
+      {view.owed.map((line) => (
+        <p key={line} className="room-owed small">
+          {line}
+        </p>
+      ))}
+      <button
+        className="btn btn-sm"
+        disabled={!view.canAsk}
+        title={view.why ?? note}
+        onClick={() => store.mutate((l) => void requestMeeting(l, view.scope))}
+      >
+        {label}
+      </button>
+      {(view.why ?? note) && <span className="muted small">{view.why ?? note}</span>}
     </div>
   );
 }

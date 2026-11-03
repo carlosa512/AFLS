@@ -4,16 +4,31 @@ import { moraleContext, YEAR } from '../morale';
 import { captainsNow, weightOf } from '../standing';
 import { headCoach, type Draft } from '../senders';
 import { computeRecords } from '../season/standings';
-import type { League, MailSection, MeetingRecord, MeetingScope, Player, TeamMeetings } from '../types';
+import type {
+  Approach,
+  Backing,
+  League,
+  MailSection,
+  MeetingSuggestion,
+  Timing,
+  MeetingRecord,
+  MeetingScope,
+  Player,
+  TeamMeetings,
+} from '../types';
 import { recentBodies, say } from '../voice';
 import { credibilityRead, type CredibilityRead } from './credibility';
 import { deadlineClock } from './commitments';
 import { manFact, reasonFor, SCOPE_NOUN, styleOf, suggestFact, type ManFact } from './facts';
 
-import { headCoachOf, meetingsOf, membersOf, stepClock } from './suggest';
+import { gmAddressOpen } from './address';
+import { COOLDOWN, headCoachOf, meetingsOf, membersOf, offCooldown, ROOMS, stepClock } from './suggest';
 import { traitOf } from '../coachTraits';
 import {
+  approachLabel,
   ASK,
+  ASKED,
+  backingLabel,
   CANDID,
   CAPTAIN_CLOSE,
   CAPTAIN_OPEN,
@@ -21,11 +36,13 @@ import {
   MOMENT_LEAD,
   NEXT,
   promisePhrase,
+  QUESTION,
   READ_LEAD,
   READ_ROOM,
   READ_WHY,
   restLine,
   SNN_RUMOR,
+  TIMING_LABEL,
   TOLD,
   WENT,
   yearParagraph,
@@ -76,7 +93,11 @@ function suggestionLetter(league: League, have: Set<string>): Draft[] {
     s.kind === 'moment' && s.moment
       ? [MOMENT_LEAD[s.moment], say(ASK, f, { ...key, slot: 'ask' })]
       : [
-          [say(READ_LEAD, f, { ...key, slot: 'lead' }), say(READ_WHY, f, { ...key, slot: 'why' })]
+          [
+            s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '',
+            say(READ_LEAD, f, { ...key, slot: 'lead' }),
+            say(READ_WHY, f, { ...key, slot: 'why' }),
+          ]
             .filter(Boolean)
             .join(' '),
           say(READ_ROOM, f, { ...key, slot: 'room' }),
@@ -89,7 +110,9 @@ function suggestionLetter(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       subject: s.moment
         ? SUBJECT_MOMENT[s.moment]
-        : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : 'wants'} a word`,
+        : s.asked
+          ? `About ${SCOPE_NOUN[s.scope]}`
+          : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : 'wants'} a word`,
       body: paragraphs.filter(Boolean).join('\n\n'),
       actions: [{ kind: 'locker' }],
     },
@@ -148,17 +171,24 @@ function resultLetter(league: League, r: MeetingRecord): Draft {
     ...byWeight(r.outcomes.bristles)
       .slice(0, 1)
       .map((p) => ({ p, outcome: 'bristles' as const })),
-  ].map(({ p, outcome }) =>
-    say(
-      WENT,
-      {
-        man: manFact(league, p),
-        outcome,
-        reason: reasonFor(league, teamId, p, r, outcome === 'lands', ctx),
-        topic: r.topic ?? 'none',
-      },
-      { ...key, slot: `went:${p.id}` },
-    ),
+  ].map(({ p, outcome }) => ({
+    p,
+    outcome,
+    // The man a commitment names was answered by it, even though the meeting has since eased what he wanted.
+    reason:
+      outcome === 'lands' && c?.named.includes(p.id)
+        ? ('answered' as const)
+        : reasonFor(league, teamId, p, r, outcome === 'lands', ctx),
+  }));
+  // Two who took it the same way share a line: "Same with Harden." rather than the sentence twice.
+  const wentLines = went.map(({ p, outcome, reason }, i) =>
+    i > 0 && went[i - 1].outcome === outcome && went[i - 1].reason === reason
+      ? `Same with ${p.lastName}.`
+      : say(
+          WENT,
+          { man: manFact(league, p), outcome, reason, topic: r.topic ?? 'none' },
+          { ...key, slot: `went:${p.id}` },
+        ),
   );
   const room = membersOf(league, teamId, r.scope).length;
   const shrugs = room - r.outcomes.lands.length - r.outcomes.bristles.length;
@@ -182,7 +212,7 @@ function resultLetter(league: League, r: MeetingRecord): Draft {
     id,
     ...headCoach(league),
     subject: `How it went with ${noun}`,
-    body: [`What I told them: “${told}”`, [...went, rest].filter(Boolean).join(' '), next].join('\n\n'),
+    body: [`What I told them: “${told}”`, [...wentLines, rest].filter(Boolean).join(' '), next].join('\n\n'),
     ...(rows.length ? { sections: [{ title: 'What we owe them', rows }] } : {}),
     actions: [{ kind: 'locker' }],
   };
@@ -245,10 +275,154 @@ export function meetingMail(league: League, have: Set<string>): Draft[] {
   return out;
 }
 
+export interface MeetingCardView {
+  /** Open: it waits on your call. Held: what you went ahead with. Passed: you said not now, or it lapsed. */
+  state: 'open' | 'held' | 'passed';
+  questions?: { approach: string; backing: string; timing: string };
+  approaches?: { value: Approach; label: string }[];
+  backings?: { value: Backing; label: string }[];
+  timings?: { value: Timing; label: string }[];
+  /** Your own address to the team: yours to give, not the coach's. */
+  gm?: boolean;
+  /** The time it's held when there's no choosing (a moment, your address). */
+  timing?: Timing;
+  /** Your club leaves these to the head coach. */
+  byCoach?: boolean;
+  /** What you went ahead with, in a sentence. */
+  said?: string;
+}
+
+/** What a suggestion letter shows now, read off the league: your club only. */
+export function meetingCard(league: League, s: { clock: number; scope: MeetingScope }): MeetingCardView {
+  const teamId = league.userTeamId;
+  const m = league.teams[teamId]?.meetings;
+  if (!m || !employed(league)) return { state: 'passed' };
+  const held = m.log.find((r) => r.clock === s.clock && r.scope === s.scope);
+  const p = m.pending;
+  const sugg = held ? pendingFrom(league, held) : p && p.clock === s.clock && p.scope === s.scope ? p : null;
+  const f = sugg ? suggestFact(league, teamId, sugg) : null;
+  if (held && f) {
+    const parts = [approachLabel(held.approach, f), backingLabel(held.backing, f).toLowerCase()];
+    return {
+      state: 'held',
+      said: `You went ahead: ${parts[0].toLowerCase()}, ${parts[1]}${held.kind === 'trouble' ? `, ${TIMING_LABEL[held.timing].toLowerCase()}` : ''}.`,
+    };
+  }
+  if (!p || p.clock !== s.clock || p.scope !== s.scope || !f) return { state: 'passed' };
+  const gm = p.kind === 'gm';
+  return {
+    state: 'open',
+    questions: {
+      approach: gm ? QUESTION.gmApproach : QUESTION.approach,
+      backing: gm ? QUESTION.gmBacking : QUESTION.backing,
+      timing: QUESTION.timing,
+    },
+    approaches: p.approaches.map((value) => ({ value, label: approachLabel(value, f) })),
+    backings: p.backings.map((value) => ({ value, label: backingLabel(value, f) })),
+    // One time on offer (your address is Monday's) isn't a question.
+    timings: p.timings.length > 1 ? p.timings.map((value) => ({ value, label: TIMING_LABEL[value] })) : [],
+    timing: p.timings[0] ?? 'monday',
+    ...(gm ? { gm: true } : {}),
+    ...(m.byCoach ? { byCoach: true } : {}),
+  };
+}
+
+/** A held meeting's suggestion as far as its labels need it: who was named, from the commitment it opened. */
+function pendingFrom(league: League, r: MeetingRecord): MeetingSuggestion {
+  const c = league.teams[league.userTeamId].meetings?.open.find((x) => x.opened === r.clock && x.scope === r.scope);
+  const settled = league.teams[league.userTeamId].meetings?.settled?.find(
+    (x) => x.clock === r.clock && x.scope === r.scope,
+  );
+  const named = c?.named ?? settled?.named ?? [];
+  return {
+    clock: r.clock,
+    scope: r.scope,
+    kind: r.kind,
+    topic: r.topic ?? 'none',
+    approaches: [r.approach],
+    backings: [r.backing],
+    timings: [r.timing],
+    named,
+    ...(r.backing !== 'words' ? { namedFor: { [r.backing]: named } } : {}),
+    ...(r.approach === 'callout' && r.speaker !== undefined ? { driver: r.speaker } : {}),
+    ...(r.approach === 'leader' && r.speaker !== undefined ? { leader: r.speaker } : {}),
+  };
+}
+
 /** A suggestion letter still asks while its suggestion is the one waiting. */
 export function meetingNeedsYou(league: League, s: { clock: number; scope: MeetingScope }): boolean {
   const p = league.teams[league.userTeamId]?.meetings?.pending;
   return !!p && p.clock === s.clock && p.scope === s.scope;
+}
+
+// ───────── the Locker Room screen ─────────
+
+export interface RoomMeetingView {
+  scope: MeetingScope;
+  /** You can ask the head coach to meet with them now. */
+  canAsk: boolean;
+  /** Why not, in words, when you can't. */
+  why?: string;
+  /** What we told them and still owe, a sentence each. */
+  owed: string[];
+}
+
+export interface MeetingsView {
+  rooms: RoomMeetingView[];
+  /** Why no room can be asked right now, said once (a room's own `why` is only its cooldown). */
+  blocked?: string;
+  /** A crisis has opened your address to the team, and nothing else waits on you. */
+  address: boolean;
+  /** What waits on your call, if anything: its letter's key. */
+  pending?: { clock: number; scope: MeetingScope };
+  byCoach: boolean;
+}
+
+/** What the Locker Room shows of meetings: each room's ask and what we owe it. Your club only. */
+export function meetingsView(league: League): MeetingsView | null {
+  const teamId = league.userTeamId;
+  const team = league.teams[teamId];
+  if (!team || !employed(league)) return null;
+  const m = team.meetings;
+  const clock = stepClock(league);
+  const hc = headCoachOf(league, teamId);
+  const metThisWeek = !!m?.log.some((r) => clock - r.clock < COOLDOWN.week);
+  const blocked = !hc
+    ? "We don't have a head coach to hold one."
+    : m?.pending
+      ? 'Answer what the coach suggested first.'
+      : metThisWeek
+        ? "We've already had a meeting this week."
+        : undefined;
+  const rooms = ([...ROOMS, 'team'] as MeetingScope[]).map((scope): RoomMeetingView => {
+    const why = blocked
+      ? undefined
+      : !offCooldown(league, teamId, scope)
+        ? scope === 'team'
+          ? 'The team met not long ago.'
+          : 'They met not long ago.'
+        : undefined;
+    const owed = (m?.open ?? [])
+      .filter((c) => c.scope === scope)
+      .map((c) => {
+        const left = c.closes - clock;
+        const when =
+          c.closes === deadlineClock(league.season)
+            ? 'by the deadline'
+            : left <= 1
+              ? 'this week'
+              : `${WEEKS[left] ?? 'a few weeks'} left`;
+        return `We told them ${promisePhrase(c.backing, men(league, c.named))}: ${when}.`;
+      });
+    return { scope, canAsk: !blocked && !why, ...(why ? { why } : {}), owed };
+  });
+  return {
+    rooms,
+    ...(blocked ? { blocked } : {}),
+    address: !m?.pending && gmAddressOpen(league, teamId),
+    ...(m?.pending ? { pending: { clock: m.pending.clock, scope: m.pending.scope } } : {}),
+    byCoach: !!m?.byCoach,
+  };
 }
 
 // ───────── what the staff notes add ─────────

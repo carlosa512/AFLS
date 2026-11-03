@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.5',
+    date: '2026-11-03',
+    title: 'Your coach asks for a word',
+    text:
+      'Your head coach now comes to you when a room needs a meeting: what he sees, what he’d say, and three quick ' +
+      'calls for you (how to put it, what to tell them, when). Afterwards he writes what he told them, how each man ' +
+      'took it and what you now owe them, and he reminds you a week before a promise comes due. The Locker Room lets ' +
+      'you ask for a meeting with any room, shows what each room is still owed, and in a real crisis lets you address ' +
+      'the team yourself, with a captain telling you how it went down. New leagues start with their captains named.',
+  },
+  {
     version: '0.3.4',
     date: '2026-11-03',
     title: 'Team meetings around the league',

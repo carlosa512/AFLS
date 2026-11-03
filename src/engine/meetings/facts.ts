@@ -98,6 +98,8 @@ export interface SuggestFact {
   /** Losses in a row, three or more. */
   losingRun: boolean;
   credibility: CredibilityRead;
+  /** You asked for it: his letter opens by answering you. */
+  asked?: boolean;
   /** The commitment that answers the topic, when one is on offer: the coach's advice names it. */
   advice?: Exclude<Backing, 'words'>;
 }
@@ -135,6 +137,7 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
     scope: s.scope,
     noun: SCOPE_NOUN[s.scope],
     kind: s.kind,
+    ...(s.asked ? { asked: true } : {}),
     ...(s.moment ? { moment: s.moment } : {}),
     topic: s.topic,
     ...(read && (read.word === 'Split' || read.word === 'Down') ? { word: read.word } : {}),

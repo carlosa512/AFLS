@@ -56,11 +56,27 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
     text: (f) => `${cap(list(f.dealMen))} want new deals, and ${f.noun} is talking about little else.`,
   },
   {
+    when: (f) => f.topic === 'deal' && f.dealMen.length === 1,
+    reads: 1,
+    text: (f) => `${f.dealMen[0].first} ${f.dealMen[0].last} wants a new deal, and the room knows it.`,
+  },
+  {
+    when: (f) => f.topic === 'snaps' && !!f.snapsMan,
+    reads: 1,
+    text: (f) => `${f.snapsMan!.first} ${f.snapsMan!.last} wants more snaps, and the room knows it.`,
+  },
+  {
     when: (f) => f.word === 'Down',
     reads: 1,
     text: (f) => `${cap(f.noun)} is down.`,
   },
-  { text: (f) => `${cap(f.noun)} has something on its mind.` },
+  {
+    when: (f) => !!f.asked && f.topic === 'none' && !f.word,
+    reads: 1,
+    text: () => `Nothing's boiling over in there right now.`,
+  },
+  // After "You asked about the secondary", the noun again would echo.
+  { text: (f) => (f.asked ? `They've got something on their minds.` : `${cap(f.noun)} has something on its mind.`) },
 ];
 
 /** Why the man driving it matters: his years, his job, his deal. */
@@ -107,6 +123,13 @@ export const READ_ROOM: readonly Line<SuggestFact>[] = [
     text: () => `Nobody in that room is in a good place right now.`,
   },
   { text: () => '' },
+];
+
+/** His answer when you asked for the meeting: it comes first. */
+export const ASKED: readonly Line<Pick<SuggestFact, 'style' | 'noun'>>[] = [
+  { when: (f) => f.style === 'terse', reads: 1, text: (f) => `You asked about ${f.noun}.` },
+  { when: (f) => f.style === 'warm', reads: 1, text: (f) => `Glad you asked about ${f.noun}.` },
+  { reads: 0, text: (f) => `You asked about ${f.noun}.` },
 ];
 
 /** A calendar moment's opening. */

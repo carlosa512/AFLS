@@ -495,6 +495,8 @@ export interface MeetingSuggestion {
   driver?: number;
   /** The leader who could say it. */
   leader?: number;
+  /** You asked for it (from the Locker Room): his letter answers your ask. */
+  asked?: boolean;
 }
 
 /** A club's meetings: this season's log, open commitments, the one waiting on you. */
