@@ -10,32 +10,32 @@ export const KNOBS = {
   /** Scales every reaction delay (0.3 s at 12 `reads`). */
   react: 1.047,
   /** Scales the spread of a defender's intercept estimate: a poor angle overruns and must come back. */
-  angle: 1,
+  angle: 0.85,
   /** Tackle odds at even skills, from the side. */
-  tackle: 0.82,
+  tackle: 0.9,
   /** A move's success at even skills. */
   move: 0.02,
   /** Yards after contact at even skills, at 6 yd/s from the side. */
-  afterContact: 1.526,
+  afterContact: 0.988,
   /** Block sheds a second at even skills. */
-  shed: 0.819,
+  shed: 1.065,
   /** Seconds a line block holds past the line at z = 0. */
   hold: 0.6,
   /** How strongly the run's roll sets the line: a block holds `hold × e^(line × z)` (a clean hole holds longer). */
   line: 1,
   /** Top speed a point of `longSpeed` is worth (yards a second). */
-  speed: 0.195,
+  speed: 0.254,
   /** Scales every contest's per-point term (moves, tackles, power, sheds): how much a point of skill decides. */
   skill: 1.322,
   /** He steps out rather than take a hit when no lane is worth `outGain` yards and the sideline is within `outLine`. */
   outLine: 10.5,
-  outGain: 5.625,
+  outGain: 3,
   /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
   pad: 1.8,
   /** Yards an outside run's read gives a heading toward the play side in his first second: he stretches the edge. */
-  stretch: 0.625,
+  stretch: 2.125,
   /** Tackle odds added on a return (its coverage's own, against the returner). */
-  retTackle: 0.005,
+  retTackle: -0.01,
   /** Seconds a return team's block holds before its man may shed it. */
   retHold: 0.35,
   /** Scales the ball carrier's own per-point terms (top speed, power, moves) against the defense's. */
