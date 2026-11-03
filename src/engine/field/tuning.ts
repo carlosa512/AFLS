@@ -12,7 +12,7 @@ export const KNOBS = {
   /** Scales the spread of a defender's intercept estimate: a poor angle overruns and must come back. */
   angle: 0.56,
   /** Tackle odds at even skills, from the side. */
-  tackle: 0.867,
+  tackle: 0.8,
   /** A move's success at even skills. */
   move: 0.18,
   /** Yards after contact at even skills, at 6 yd/s from the side. */

@@ -58,12 +58,15 @@ describe('the engine plays the open field', () => {
   });
 
   it('plays about as many snaps as the same games with the switch off', () => {
+    // Over the games, not each one: once a spatial game's clock moves it on, it's a different game.
+    const snaps = (x: GameResult) => x.home.plays + x.away.plays;
+    let on = 0;
+    let off = 0;
     games.forEach(({ r }, i) => {
-      const off = simulateGame(league, week1[i], { keepPlays: true });
-      const snaps = (x: GameResult) => x.home.plays + x.away.plays;
-      // ±25% until the knobs are fitted to parity (Task 9 tightens it to the plan's ±15%).
-      expect(Math.abs(snaps(r) - snaps(off)) / snaps(off)).toBeLessThan(0.25);
+      on += snaps(r);
+      off += snaps(simulateGame(league, week1[i], { keepPlays: true }));
     });
+    expect(Math.abs(on - off) / off).toBeLessThan(0.08);
   });
 
   it('changes nothing with the switch off or the tap on', () => {
