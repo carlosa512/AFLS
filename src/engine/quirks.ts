@@ -684,6 +684,31 @@ const SPECIAL_BLANKS = 0.75;
  * The quirks the engine applies, strongest grip first: up to three, and a fourth for a special
  * player. A quirk past the cap is held but dormant until another fades.
  */
+/**
+ * The habits All-22 can show on a run or a catch (how a man moves, never a label): the engine notes these when it finds
+ * them in play (`OpenField.habits`).
+ */
+export const FILM_HABITS: ReadonlySet<QuirkId> = new Set<QuirkId>([
+  'patientPresser',
+  'dwellsInHole',
+  'jumpCutter',
+  'bouncesExternal',
+  'highKnee',
+  'contactAverse',
+  'yacSlasher',
+  'runsEastWest',
+  'secondLevel',
+  'pancakePreacher',
+  'pullsSoft',
+  'armTackler',
+  'gapShooter',
+  'scraper',
+  'thumper',
+  'stuckOnBlocks',
+  'slowFlow',
+  'misreadsKeys',
+]);
+
 export function activeQuirks(p: Player): QuirkId[] {
   const held = (Object.entries(p.quirks ?? {}) as [QuirkId, number][])
     .filter(([, g]) => g >= GRIP_ACTIVE)

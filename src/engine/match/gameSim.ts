@@ -42,7 +42,7 @@ import {
 import { departmentFor, type Department } from '../medical';
 import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
-import { activeQuirks, formFor, type QuirkId } from '../quirks';
+import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import type {
   Crew,
@@ -58,6 +58,7 @@ import type {
   PackedActors,
   PlayActors,
   PlayKind,
+  OpenField,
   PlayLogEntry,
   Player,
   StatKey,
@@ -141,7 +142,7 @@ function qbLeans(league: League, qbs: [Player, Player]): [number, number] {
   return [lean(qbs[0]), lean(qbs[1])];
 }
 
-type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran' | 'loose'>;
+type Anim = Pick<PlayLogEntry, 'kind' | 'from' | 'air' | 'to' | 'lane' | 'who' | 'ran' | 'loose' | 'open'>;
 
 /**
  * Who a scrimmage play was about, read off what the engine already chose: its stat lines, the man in coverage, the
@@ -357,6 +358,8 @@ interface PlayResult {
   rusher?: Player;
   lane?: number;
   turnover?: { kind: 'int' | 'fumble'; spot: number; returnYds: number; by: Player };
+  /** What the engine decided in the open field (a run, a catch), for All-22. */
+  open?: OpenField;
 }
 
 function emptyTeamStats(): TeamGameStats {
@@ -1206,12 +1209,15 @@ class GameSim {
       );
       // Where the ball came out: the log's `to` is where the return ended, so without it All-22 can't drop the ball.
       if (!isInt) anim.loose = this.fieldX(side, spot);
+      if (result.open) anim.open = result.open;
       return anim;
     }
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const ran = start + result.yards;
     const end = kind === 'incomplete' ? start : ran >= 100 ? 102 : Math.max(-4, ran);
-    return this.animOf(side, kind, start, end, airAt, result.lane, who);
+    const anim = this.animOf(side, kind, start, end, airAt, result.lane, who);
+    if (result.open && (kind === 'run' || kind === 'pass')) anim.open = result.open;
+    return anim;
   }
 
   private takeSnapshot(down = this.down) {
@@ -2294,7 +2300,19 @@ class GameSim {
     if (!p?.quirks) return false;
     let set = this.quirkSets.get(p.id);
     if (!set) this.quirkSets.set(p.id, (set = new Set(activeQuirks(p))));
-    return set.has(q);
+    const found = set.has(q);
+    // A habit film can show, in play: noted for All-22 (`OpenField.habits`). Reading it draws nothing.
+    if (found && FILM_HABITS.has(q)) this.noted.set(`${p.id}:${q}`, [p.id, q]);
+    return found;
+  }
+
+  /** The film habits `has()` found since `noted` was last cleared (the start of a run or a pass). */
+  private noted = new Map<string, [number, QuirkId]>();
+
+  /** A play's open field as written to its result: its rolls and the habits noted, or nothing at all. */
+  private openOf(open: OpenField): { open?: OpenField } {
+    if (this.noted.size) open.habits = [...this.noted.values()];
+    return Object.keys(open).length ? { open } : {};
   }
 
   /** How many of a unit carry a quirk. */
@@ -2318,6 +2336,9 @@ class GameSim {
   }
 
   private runPlay(s: Situation, defCall: DefenseCall): PlayResult {
+    // What the open field held, for All-22 (`OpenField`): the rolls below, and the habits found in play.
+    const open: OpenField = {};
+    this.noted.clear();
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
     const rng = this.rng;
@@ -2350,6 +2371,7 @@ class GameSim {
     // A back who bounces everything takes some inside calls to the edge, where nobody is blocking.
     const bounce = !called && this.has(rusher, 'bouncesExternal') && rng.chance(0.35);
     const outside = called || bounce;
+    if (bounce) open.bounce = 1;
     // Near the goal the call is the story: a goal-line front chokes the run, a pass shell gets run on.
     const tight = shrink(yardsToGoal);
     const boxAdj = { base: 0, runD: 1.5, passD: -1.5, blitz: 0.6 }[defCall] * (1 + RED_ZONE_CALL * tight);
@@ -2387,9 +2409,14 @@ class GameSim {
         0.36,
       );
       if (rng.chance(pBreak)) {
+        // Written down for All-22: who missed, and whether the back's size won it.
+        if (lb) open.broke = { by: lb.id, how: contact > 0 ? 'size' : 'move' };
         yards += rng.exponential(Math.max(2.5, 5 + 0.25 * (speed - 12)));
         // A back who gets past the safety is often gone (NFL 2021–25: 0.64 runs of 20+ a team-game, 19% of them touchdowns).
-        if (rng.chance(clamp(0.18 + 0.008 * (speed - 12), 0.05, 0.3))) yards += rng.exponential(26);
+        if (rng.chance(clamp(0.18 + 0.008 * (speed - 12), 0.05, 0.3))) {
+          yards += rng.exponential(26);
+          open.gone = 1;
+        }
       }
     }
     // A run stopped at the line is a tackle too: tackles who wrap up hold a short gain short, ones who don't give up
@@ -2397,7 +2424,10 @@ class GameSim {
     if (yards < 4) yards -= DT_WRAP_PER_POINT * (avgOf(def.dt, (p) => skill(p, 'tackling')) - DT_WRAP);
     yards = Math.round(Math.max(yards, -6));
     // He falls forward: a short gain often gets one more yard.
-    if (yards >= -1 && yards <= 3 && this.has(rusher, 'finishesForward') && rng.chance(0.5)) yards++;
+    if (yards >= -1 && yards <= 3 && this.has(rusher, 'finishesForward') && rng.chance(0.5)) {
+      yards++;
+      open.forward = 1;
+    }
     if (this.yardLine + yards < 0) yards = -this.yardLine;
     const td = yards >= yardsToGoal;
     if (td) yards = yardsToGoal;
@@ -2411,6 +2441,7 @@ class GameSim {
     if (td) {
       buf.add(rusher, 'rushTd');
       return {
+        ...this.openOf(open),
         kind: 'run',
         yards,
         text: `${text}, TOUCHDOWN`,
@@ -2437,6 +2468,7 @@ class GameSim {
         buf.add(recoverer, 'fumRec');
         const returnYds = rng.chance(0.1) ? rng.int(5, 40) : rng.int(0, 3);
         return {
+          ...this.openOf(open),
           kind: 'run',
           lane,
           yards,
@@ -2453,6 +2485,7 @@ class GameSim {
     const oob = rng.chance((outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1));
     if (oob) text += ', out of bounds';
     return {
+      ...this.openOf(open),
       kind: 'run',
       yards,
       text,
@@ -2464,6 +2497,9 @@ class GameSim {
   }
 
   private passPlay(s: Situation, defCall: DefenseCall): PlayResult {
+    // What the open field held after a catch, for All-22 (`OpenField`).
+    const open: OpenField = {};
+    this.noted.clear();
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
     const rng = this.rng;
@@ -2765,7 +2801,11 @@ class GameSim {
       );
       // Most catches are tackled where they're made and a few break into the open and go a long way (NFL
       // 2021–25: 15% of 20+ yard completions score, and three passing touchdowns in ten come from 21 yards or more).
-      if (rng.chance(clamp((0.05 + 0.009 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.08))) yac += rng.exponential(22);
+      if (rng.chance(clamp((0.05 + 0.009 * yacSkill) * (coverage?.yac ?? 1), 0.01, 0.08))) {
+        yac += rng.exponential(22);
+        // Written down for All-22: he broke the man who'd have tackled him, by size or by a move.
+        open.broke = { by: tackler.id, how: sizeEdge(receiver, 'contact', tackler) > 0 ? 'size' : 'move' };
+      }
       gain = Math.min(air + Math.round(yac), yardsToGoal);
     }
     const td = gain >= yardsToGoal;
@@ -2778,7 +2818,14 @@ class GameSim {
     if (td) {
       buf.add(qb, 'passTd');
       buf.add(receiver, 'recTd');
-      return { ...base, yards: gain, complete: true, clockStops: true, text: `${text}, TOUCHDOWN` };
+      return {
+        ...base,
+        ...this.openOf(open),
+        yards: gain,
+        complete: true,
+        clockStops: true,
+        text: `${text}, TOUCHDOWN`,
+      };
     }
     if (this.yardLine + gain <= 0) gain = -this.yardLine;
     buf.add(tackler!, 'tackles');
@@ -2797,6 +2844,7 @@ class GameSim {
         buf.add(recoverer, 'fumRec');
         return {
           ...base,
+          ...this.openOf(open),
           yards: gain,
           complete: true,
           clockStops: true,
@@ -2809,7 +2857,14 @@ class GameSim {
     const t = coach.tempo(s);
     const oob = rng.chance(t === 'hurry' ? 0.35 : t === 'milk' ? 0.05 : 0.18);
     if (oob) text += ', out of bounds';
-    return { ...base, yards: gain, complete: true, clockStops: oob && this.oobStopsClock(), text };
+    return {
+      ...base,
+      ...this.openOf(open),
+      yards: gain,
+      complete: true,
+      clockStops: oob && this.oobStopsClock(),
+      text,
+    };
   }
 
   /** Ball-skill points a defender's quirks add: a zone hawk in zone, a ball hawk anywhere, a baiter on short throws. */
@@ -3193,6 +3248,7 @@ class GameSim {
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const end = kind === 'incomplete' ? startYardLine : this.yardLine >= 100 ? 102 : this.yardLine;
     this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane, who);
+    if (result.open && (kind === 'run' || kind === 'pass')) this.anim!.open = result.open;
 
     if (this.yardLine >= 100) {
       if (downBefore === 3) ts.thirdDownConv++;
@@ -3373,6 +3429,7 @@ class GameSim {
         to: ran.to,
         ...(ran.air !== undefined ? { air: ran.air } : {}),
         ...(ran.loose !== undefined ? { loose: ran.loose } : {}),
+        ...(ran.open ? { open: ran.open } : {}),
         ...(ran.who ? { who: ran.who } : {}),
       };
       this.log(`${result.text}. Offsetting penalties: ${fouls.map(named).join(', ')}. Replay the down.`);
@@ -3435,6 +3492,7 @@ class GameSim {
       to: ran.to,
       ...(ran.air !== undefined ? { air: ran.air } : {}),
       ...(ran.loose !== undefined ? { loose: ran.loose } : {}),
+      ...(ran.open ? { open: ran.open } : {}),
       ...(ran.who ? { who: ran.who } : {}),
     };
     const what = FOULS[f.foul].yards === 'spot' ? '' : ' No play.';

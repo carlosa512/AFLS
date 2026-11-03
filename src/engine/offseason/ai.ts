@@ -105,25 +105,31 @@ export const inSeasonReserve = (league: League, teamId: number) =>
  * walk read as nearly full, spent their replacements' room on re-signs, and paid for 22 minimum deals at camp out of
  * the room it planned to carry into the season).
  */
-function openSpots(league: League, teamId: number, without?: Player): number {
+function openSpots(league: League, teamId: number): number {
   const picks = league.draftPicks.filter(
     (p) => p.season === league.season && p.ownerId === teamId && p.playerId === undefined,
   ).length;
-  const signed = activeRoster(league, teamId).filter(
-    (p) => p !== without && p.contract && !isExpired(p.contract, league.season),
-  );
+  const signed = activeRoster(league, teamId).filter((p) => p.contract && !isExpired(p.contract, league.season));
   return Math.max(0, ROSTER_MAX - signed.length - picks);
+}
+
+/** Whether cutting him opens a spot `openSpots` counts (one signed for the league year, with the 53 at or past full). */
+function opensSpot(league: League, teamId: number, p: Player): number {
+  if (!p.contract || isExpired(p.contract, league.season) || p.ir || p.squad) return 0;
+  const before = openSpots(league, teamId);
+  const picks = league.draftPicks.filter(
+    (d) => d.season === league.season && d.ownerId === teamId && d.playerId === undefined,
+  ).length;
+  const signed = activeRoster(league, teamId).filter((x) => x.contract && !isExpired(x.contract, league.season)).length;
+  return Math.max(0, ROSTER_MAX - (signed - 1) - picks) - before;
 }
 
 /**
  * What cutting `cut` frees this league year: the cap he saves, less the minimum deal his spot then has to be kept at
- * while the 53 has room for one (`fillReserve`). Counted as savings alone, a cut saving $1.3M opened a spot kept at
- * $1.5M: a club cut two veterans for a keeper, still couldn't fit him, and ended the window short.
+ * while the 53 has room for one (`fillReserve`, `opensSpot`). `makeRoom` reads it.
  */
-export function cutRoom(league: League, teamId: number, cut: Player): number {
-  const opened = openSpots(league, teamId, cut) - openSpots(league, teamId);
-  return releasePreview(league, cut).savings - opened * topMinimum(league.caps[league.season]);
-}
+export const cutRoom = (league: League, teamId: number, cut: Player): number =>
+  releasePreview(league, cut).savings - opensSpot(league, teamId, cut) * topMinimum(league.caps[league.season]);
 
 /**
  * Room to keep for the minimum deals that fill the open spots. Camp signs the best free agents left, mostly veterans
@@ -420,8 +426,11 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, next
   if (plan.saved >= need) return restructureRoom(league, team, plan);
   const cut = capCut(league, team);
   if (!cut || playerOvr(cut) >= playerOvr(keeper)) return 0;
+  // A cut opens a spot on the 53, and an open spot keeps a minimum deal's room (`fillReserve`): the room he frees is
+  // his savings less that. Counted whole, a cut that saved less than a minimum deal left the club under what it can
+  // spend, and the keeper still walked.
   const savings = cutRoom(league, team.id, cut);
-  if (savings <= 0 || plan.saved + savings < need) return 0;
+  if (plan.saved + savings < need) return 0;
   const gained = restructureRoom(league, team, plan) + savings;
   releasePlayer(league, cut);
   return gained;
@@ -1060,14 +1069,15 @@ export function fillCampRoster(league: League, team: Team, rng: Rng): void {
   // A position a cap cut left short fills first, then the 53 fills with whoever's best.
   const short = (pos: Position) =>
     activeRoster(league, team.id).filter((p) => p.position === pos).length < KEEP_MIN[pos];
+  // Each signing leaves room for a second-year minimum in every spot still open after it: the room was made at that
+  // price (the cut-down flow's `aiCapCompliance`), and a veteran's dearer minimum in the first spot left a cap-tight
+  // club one short at kickoff once a waiver claim took one of its men.
+  const cheapest = minSalary(1, league.caps[league.season]);
+  const open = () => ROSTER_MAX - activeRoster(league, team.id).length;
+  const budget = () => capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest;
   for (const pos of POSITIONS)
-    while (short(pos) && activeRoster(league, team.id).length < ROSTER_MAX)
-      if (!signMinimum(league, team, rng, pos, capSpace(league, team.id))) break;
-  while (
-    activeRoster(league, team.id).length < ROSTER_MAX &&
-    capSpace(league, team.id) >= minSalary(1, league.caps[league.season])
-  )
-    if (!signMinimum(league, team, rng, undefined, capSpace(league, team.id))) break;
+    while (short(pos) && open() > 0) if (!signMinimum(league, team, rng, pos, budget())) break;
+  while (open() > 0 && budget() >= cheapest) if (!signMinimum(league, team, rng, undefined, budget())) break;
   syncDepthChart(league, team);
 }
 

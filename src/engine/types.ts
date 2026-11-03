@@ -387,7 +387,9 @@ export type MoraleJolt =
   | 'firm'
   | 'ignored'
   // G4: a holdout who gave in.
-  | 'gaveIn';
+  | 'gaveIn'
+  // L2: a team meeting landing or bristling (`meetings/react.ts`).
+  | 'meeting';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -421,6 +423,100 @@ export interface Dispute {
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+// ───────── team meetings (L2, `meetings/`) ─────────
+
+/** A meeting's room, or the whole team. */
+export type MeetingScope = CoachRoom | 'team';
+/** What the meeting is about and who says it: the coach's five, then the GM address's three. */
+export type Approach = 'leader' | 'straight' | 'callout' | 'losing' | 'standard' | 'ownIt' | 'raiseBar' | 'freshStart';
+/** What's put behind it: a commitment, or words only. */
+export type Backing = 'snaps' | 'talks' | 'feud' | 'move' | 'jobs' | 'words';
+/** When a trouble meeting is held (a moment sets its own). */
+export type Timing = 'afterGame' | 'monday' | 'wednesday';
+export type MeetingKind = 'moment' | 'trouble' | 'gm';
+/** The calendar's fixed points that always bring a suggestion. */
+export type Moment = 'camp' | 'newCoach' | 'deadline' | 'push' | 'final' | 'end';
+/** How one man took it. */
+export type Outcome = 'lands' | 'shrug' | 'bristles';
+
+/** A promise to the room, judged at each step until `closes` (a clock). */
+export interface Commitment {
+  backing: Exclude<Backing, 'words'>;
+  scope: MeetingScope;
+  opened: number;
+  closes: number;
+  /** The men it names (snaps: him; talks: those who want a deal; feud: the two). */
+  named: number[];
+  /** Who it landed with: they feel it kept or broken. */
+  boughtIn: number[];
+  by: 'coach' | 'gm';
+  /** What each man who bought in got from the meeting: a broken one costs him more than that. */
+  lift?: Record<number, number>;
+  /** The starters when it opened (`jobs`, `move`): kept when they change. */
+  starters?: number[];
+  /** The 53 when it opened (`move`): a starter from outside it is the move. */
+  roster?: number[];
+  /** The head coach who made it: his word gains or loses by it only while he's still in the chair. */
+  coachId?: number;
+}
+
+/** A meeting held, this season. */
+export interface MeetingRecord {
+  clock: number;
+  scope: MeetingScope;
+  kind: MeetingKind;
+  approach: Approach;
+  backing: Backing;
+  timing: Timing;
+  /** Who took it well and who bristled, by player id; a shrug is left out (most of a room), so the log stays small. */
+  outcomes: { lands: number[]; bristles: number[] };
+  /** The leader who said it, or the man called out. */
+  speaker?: number;
+  moment?: Moment;
+  /** What it was about: a feud met about once isn't trouble again. */
+  topic?: TalkCause | 'none';
+}
+
+/** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */
+export interface MeetingSuggestion {
+  clock: number;
+  scope: MeetingScope;
+  kind: MeetingKind;
+  moment?: Moment;
+  topic: TalkCause | 'none';
+  approaches: Approach[];
+  backings: Backing[];
+  /** Empty for a moment: it sets its own. */
+  timings: Timing[];
+  named: number[];
+  /** The men each commitment would name (`named` is all of them, for the letter). */
+  namedFor?: Partial<Record<Exclude<Backing, 'words'>, number[]>>;
+  /** The man driving it (a stirring voice). */
+  driver?: number;
+  /** The leader who could say it. */
+  leader?: number;
+}
+
+/** A club's meetings: this season's log, open commitments, the one waiting on you. */
+export interface TeamMeetings {
+  log: MeetingRecord[];
+  open: Commitment[];
+  pending?: MeetingSuggestion;
+  /** This league year's moments already offered (`2026:camp`, `2026:newCoach:41`): each comes once, held or skipped. */
+  moments?: string[];
+  /** The clock of the last suggestion: one a week at most. */
+  lastOffer?: number;
+  /** The rooms reading Split or Down when the coach last looked: trouble is a room turning, not one staying, that way. */
+  reads?: Partial<Record<CoachRoom, 'Split' | 'Down'>>;
+  /** Feuds the coach has seen start this league year (`2026:12-40`): each is trouble once. */
+  feuds?: string[];
+  /** When each room (or the team) was last offered a trouble meeting, held or not: its cooldown runs from there. */
+  offeredAt?: Partial<Record<MeetingScope, number>>;
+  gmAddressSeason?: number;
+  /** Your club: the head coach holds them himself. */
+  byCoach?: boolean;
+}
+
 /** How a club answers him. */
 export type TalkReply = 'promise' | 'reassure' | 'firm';
 
@@ -881,6 +977,10 @@ export interface Coach {
   actingAs?: 'offCoord' | 'defCoord';
   /** A head coach runs a side whose coordinator chair is empty, unless his team switched it off for that side. */
   coverOff?: ('offCoord' | 'defCoord')[];
+  /** Head coaches: his word with the room, −1…1, hidden (`meetings/credibility.ts`); unset reads as 0. */
+  credibility?: number;
+  /** A new head coach's first meetings land a little easier while this counts down. */
+  newVoice?: number;
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
   interimAppointments?: { season: number; teamId: number; week: number }[];
   /** A former player: his playing career is that player's record in `league.players`. */
@@ -1026,6 +1126,8 @@ export interface Team {
    * a team on the line doesn't flip between buying and selling from one week to the next.
    */
   stance?: { mode: Stance; since: number };
+  /** Team meetings (L2, `meetings/`). */
+  meetings?: TeamMeetings;
 }
 
 /** Contend, bubble, retool or rebuild: it decides who buys and who sells. */
@@ -1684,12 +1786,31 @@ export interface PlayLogEntry {
    * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
    * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
    */
-  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose'>;
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose' | 'open'>;
   /**
    * Where the ball came out on a fumble the defense recovered (field yards, as `from` and `to`): `to` is where its
    * return ended. Games before v78 have none.
    */
   loose?: number;
+  /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
+  open?: OpenField;
+}
+
+/**
+ * The open field as the engine played it: the rolls it already made on a run or a catch, written down (never a new
+ * draw), and the film-visible habits it found in play.
+ */
+export interface OpenField {
+  /** An inside call the back took to the edge (`bouncesExternal`). */
+  bounce?: 1;
+  /** The tackle he broke: who missed (a player id), and whether size won it or a move did. */
+  broke?: { by: number; how: 'size' | 'move' };
+  /** He got past the deep safety. */
+  gone?: 1;
+  /** He fell forward for the extra yard (`finishesForward`). */
+  forward?: 1;
+  /** The film-visible habits (`FILM_HABITS`) the engine checked and found, as [player id, quirk], once each. */
+  habits?: [number, QuirkId][];
 }
 
 /** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */
@@ -1876,6 +1997,8 @@ export interface League {
   moraleAt?: number;
   /** Clubs that clinched a playoff place this season, so the playoffs jolt lands once (`morale.ts`). */
   moraleClinched?: { season: number; teams: number[] };
+  /** The week's locker-room stories SNN can tell (L2): a room lost or won back, a coach struggling, a GM address. */
+  lockerBeats?: { season: number; week: number; teamId: number; kind: 'lost' | 'won' | 'struggling' | 'address' }[];
   userTeamId: number;
   /** The user's persistent identity; does not change when a different team is viewed or managed. */
   userGmId: number;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chairHolder, teamCoaches } from './coaching';
 import { createLeague } from './generate';
-import { coachBlame, drawOffseason, ownerBag, ownerCalm, seasonHeat } from './ownerBag';
+import { coachBlame, credibilityHeat, drawOffseason, heatSoFar, ownerBag, ownerCalm, seasonHeat } from './ownerBag';
 import { Rng } from './rng';
 import type { League, OwnerBag, SeasonSummary } from './types';
 
@@ -121,5 +121,31 @@ describe("the owner's marble bag", () => {
     const b = bag({ calm: 3 });
     drawOffseason(b, 3, new Rng('spend'));
     expect(b.calm).toBe(0);
+  });
+});
+
+describe('the hot seat: a worn-thin word (L2)', () => {
+  it('adds nothing to a coach with no record heat, however worn thin', () => {
+    expect(credibilityHeat(0, -1)).toBe(0);
+  });
+  it('adds a quarter to a losing coach whose word is gone', () => {
+    expect(credibilityHeat(2, -1)).toBeCloseTo(2.5, 6);
+    expect(credibilityHeat(2, -0.5)).toBeCloseTo(2.25, 6);
+  });
+  it('leaves a believed coach as he is', () => {
+    expect(credibilityHeat(2, 0.6)).toBe(2);
+  });
+  it("reaches the owner's split of a losing season", () => {
+    const l = createLeague({ seed: 'hotseat-cred' });
+    const t = l.teams[3];
+    const hc = chairHolder(teamCoaches(l, t.id), { role: 'headCoach' })!;
+    hc.since = l.season - 2;
+    const rec = { w: 2, l: 12, t: 0 };
+    hc.credibility = 0;
+    const steady = heatSoFar(l, t, rec, 0).coach;
+    hc.credibility = -1;
+    const worn = heatSoFar(l, t, rec, 0).coach;
+    expect(worn).toBeGreaterThan(steady);
+    expect(worn).toBeLessThanOrEqual(Math.ceil(steady * 1.25));
   });
 });
