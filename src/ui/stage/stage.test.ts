@@ -522,8 +522,10 @@ describe('the staged play', () => {
         const d = pos(p, st, t);
         const ahead = (d.x - b.x) * h.x + (d.y - b.y) * h.y;
         const gap = Math.hypot(d.x - b.x, d.y - b.y);
-        // Clearly behind the carrier, or clearly in front of him (two yards either way of level is neither).
-        const now = ahead < -2 ? -1 : ahead > 2 ? 1 : 0;
+        // Clearly behind the carrier, or clearly in front of him (two yards either way of level is neither), on his line:
+        // a man wide of it coming across the field to meet him is neither (he isn't going by him).
+        const wide = Math.abs((d.x - b.x) * h.y - (d.y - b.y) * h.x) > 4;
+        const now = wide ? 0 : ahead < -2 ? -1 : ahead > 2 ? 1 : 0;
         // (Beaten, a man in front ends up behind and chases: that happens. Behind him and then out in front is a man
         // who ran past the carrier, which never does.)
         if (now === 1 && side === -1) bad.push(`passes him at ${(st * p.dt).toFixed(2)}: ${e.text}`);

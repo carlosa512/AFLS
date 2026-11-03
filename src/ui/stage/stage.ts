@@ -666,12 +666,16 @@ function tackleRun(
   const aheadMe = (me.x - car.x) * h.x + (me.y - car.y) * h.y;
   const aheadHit = (end.x - car.x) * h.x + (end.y - car.y) * h.y;
   const T = (last - start) * STEP;
+  // (A run-down his legs can't plan, or no other story fits: straight at the tackle at the one pace that gets him there
+  // with the carrier. Two straight runs that end at the same spot at the same moment never cross: from behind, he stays
+  // behind.)
   const ran =
-    aheadMe < -1 || (aheadMe <= 1 && T > BESIDE_FOR)
+    (aheadMe < -1 || (aheadMe <= 1 && T > BESIDE_FOR)
       ? chaseDown(pos, n, k, chase, end, start, last)
       : aheadMe > aheadHit
         ? meet(pos, n, k, chase, end, start, last)
-        : giveGround(pos, n, k, chase, end, start, last) || meet(pos, n, k, chase, end, start, last);
+        : giveGround(pos, n, k, chase, end, start, last) || meet(pos, n, k, chase, end, start, last)) ||
+    meet(pos, n, k, chase, end, start, last, true, chase.carrier);
   if (ran) {
     const was = pos.slice(start * n * 2, (last + 1) * n * 2);
     easeOut(pos, n, k, start, last);
@@ -730,23 +734,38 @@ function meet(
   end: Pt,
   start: number,
   last: number,
+  uniform = false,
+  /** The carrier (his place on the field keeps a man coming from behind behind him), or -1. */
+  c = -1,
 ): boolean {
   const p0 = { x: pos[(start * n + k) * 2], y: pos[(start * n + k) * 2 + 1] };
   const D = Math.hypot(end.x - p0.x, end.y - p0.y);
+  const behind = c >= 0 && D > Math.hypot(end.x - pos[(start * n + c) * 2], end.y - pos[(start * n + c) * 2 + 1]);
   const T = (last - start) * STEP;
   if (D > chase.legs * T) return false;
-  // With time to spare he comes on at a walk, then at a runner's pace for the last of it (never a crawl the whole way,
-  // and never handed back to the pursuit to wander off the line to the tackle).
+  // With time to spare he comes on at a walk, then gets up to a runner's pace (no quicker than a man gets up to speed,
+  // `ACCEL`) for the last of it: never a crawl the whole way, never a snap from one to the other, and never handed back
+  // to the pursuit to wander off the line to the tackle. `uniform`: one pace the whole way.
   const quick = Math.max(MEET_PACE, D / T);
-  const fast = D / T >= MEET_JOG ? Math.min(T, Math.max(0, (D - MEET_JOG * T) / (quick - MEET_JOG))) : 0;
-  const jog = fast > 0 ? MEET_JOG : D / T;
+  const ramp = (quick - MEET_JOG) / ACCEL;
+  const t1 = uniform || D / T < MEET_JOG ? -1 : T - ramp / 2 - (D - MEET_JOG * T) / (quick - MEET_JOG);
   for (let st = start + 1; st <= last; st++) {
     const t = (st - start) * STEP;
-    const slow = T - fast;
-    const run = t <= slow ? jog * t : jog * slow + quick * (t - slow);
-    const g = D > 0 ? Math.min(1, run / D) : 1;
-    pos[(st * n + k) * 2] = p0.x + (end.x - p0.x) * g;
-    pos[(st * n + k) * 2 + 1] = p0.y + (end.y - p0.y) * g;
+    const run =
+      t1 < 0
+        ? (D / T) * t
+        : t <= t1
+          ? MEET_JOG * t
+          : t <= t1 + ramp
+            ? MEET_JOG * t + 0.5 * ACCEL * (t - t1) ** 2
+            : MEET_JOG * t + (quick - MEET_JOG) * (t - t1 - ramp / 2);
+    let g = D > 0 ? Math.min(1, run / D) : 1;
+    // From behind (further from the spot than the carrier as it began), never nearer it than the carrier is: on a
+    // curving run a straight line would cut inside him and come out ahead.
+    if (behind)
+      g = Math.min(g, D > 0 ? 1 - Math.hypot(end.x - pos[(st * n + c) * 2], end.y - pos[(st * n + c) * 2 + 1]) / D : 1);
+    pos[(st * n + k) * 2] = p0.x + (end.x - p0.x) * Math.max(0, g);
+    pos[(st * n + k) * 2 + 1] = p0.y + (end.y - p0.y) * Math.max(0, g);
   }
   return true;
 }

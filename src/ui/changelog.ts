@@ -23,7 +23,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'cut, a spin, a stiff arm or a run through the hit) against the man who missed. A breakaway leaves the safety a ' +
       'step late, and a back who falls forward lunges for the last yard. Habits show too: a patient runner, a ' +
       'linebacker who shoots his gap, a guard who pulls soft. Returns end in a pile rather than one man, and a long ' +
-      "one can show a cover man made to miss. Defenders no longer stop dead when a play's turn is over.",
+      'one can show a cover man made to miss. The man who makes the tackle either comes to meet the ball carrier or ' +
+      'runs him down from behind; he never runs past him and back. Defenders no longer stop dead when their part is over.',
   },
   {
     version: '0.3.2',
