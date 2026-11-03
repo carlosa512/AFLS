@@ -20,7 +20,7 @@
  *
  * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
  *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 4–15 a
- *    season, 40–90% going public, 25–75% of those resolved ending in a trade.
+ *    season, 40–90% going public, 15–75% of those resolved ending in a trade (the floor lowered from 25%: small samples).
  *
  *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
@@ -422,10 +422,13 @@ check(
   [0.4, 0.9],
 );
 const resolved = [...requestEnds.values()];
+// The floor is 0.15, not 0.25 (the owner's call, Nov 3): a run sees 15-37 requests end, so one or two deals swing it,
+// and across three worlds main read 0.33-0.42 and the meetings branch 0.18-0.47. It still flags a market where requests
+// almost never end in a trade; the NFL's "roughly half" stays the target.
 check(
   `Trade requests resolved by a trade (n=${resolved.length})`,
   resolved.filter((h) => h === 'traded').length / Math.max(1, resolved.length),
-  [0.25, 0.75],
+  [0.15, 0.75],
 );
 // 8: meetings (L2). A season counts once its re-sign window is in (the last season played has none).
 const lastYear = league.season;
