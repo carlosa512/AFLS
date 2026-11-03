@@ -24,7 +24,7 @@ export const CHEM = {
   mood: 0.2,
   split: 0.05,
   /** The time-together part's reach; a pair counts at most this many seasons (gains flatten). */
-  together: 0.15,
+  together: 0.1,
   maxSeasons: 3,
   /** A room's mood runs far narrower than a man's: this far from the league's mood is the whole mood part. */
   roomSpan: 1.6,
