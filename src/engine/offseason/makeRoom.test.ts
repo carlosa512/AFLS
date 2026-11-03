@@ -304,6 +304,9 @@ describe('a GM makes the room he plans, or none', () => {
     // for him yet: a follow-up in docs/MVP.md).
     const { l, team, p } = alone(0.5);
     team.taggedId = teamPlayers(l, team.id).find((x) => x !== p)!.id;
+    // A keeper in his prime, so his new deal runs into next year: a veteran offered one year owes next year nothing,
+    // and borrowing for him is right (which keeper the fixture picks depends on the world a season of play leaves).
+    p.age = Math.min(p.age, 27);
     aiResignWindow(l, team, new Rng('room'));
     expect(restructures(l, team.id)).toBe(0);
   });
