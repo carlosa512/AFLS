@@ -1,6 +1,6 @@
 # The spatial engine, slice one: the open field
 
-**Status:** approved by the owner 2026-11-03. Next: the implementation plan (superpowers:writing-plans).
+**Status:** built behind the switch (0.3.8); the gate decides when it turns on. Under the owner's call H, today's roll decides yards and the field plays out the way there.
 
 ## Why
 

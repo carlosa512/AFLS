@@ -32,7 +32,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 
 - **`npm run check`** reads what changed (vs `origin/main`, committed or not), runs the checks below
   that the change calls for side by side, and prints one ✓/✗ line each; full logs land in `.check/`.
-  `--quick` skips the slow three (careers, audit, quirks), `--all` runs everything,
+  `--quick` skips the slow four (careers, audit, quirks, parity), `--all` runs everything,
   `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
@@ -72,6 +72,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
   `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
   quirks module, the match engine or what builds a league changes.
+- `npm run parity` — the spatial open field (`src/engine/field/`) against today's engine on the same moments: four
+  leagues' runs, catches and returns resolved both ways (yards by situation, tackles and misses, the film ending at the
+  credited spot), the spatial-only reads, your team's season on each engine (eight salts) and the speed budget. Run it
+  after changing `src/engine/field/`, `match/`, `attributes.ts`, `size.ts` or `quirks.ts`. Nothing may be ✗.
+  `npm run parity-fit [-- rounds]` refits the field's knobs (`field/tuning.ts`) against the same judge; paste what it
+  prints, then run parity.
 - `npm run size` — player size: builds against each position's curve (fitted to real rosters) inside each tier's bounds
   with no pile-up at a bound, the rare gem's rate, no edge past its cap,
   each lever replayed on the same games with one group's builds two sd out (it must move its own stat the right way),
@@ -291,6 +297,15 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     calls (`meetingCard`, rendered by `ui/meetings.tsx`), the result and what we owe, a captain's word after your address,
     due and candid rows in the staff notes, the year in the season's-end report, an SNN rumor for a worn-thin coach on a
     losing run; the Locker Room reads `meetingsView`. Facts in `facts.ts`, the head coach's words in `voice.ts`
+  - `field/` the spatial engine (slice one, the open field; spec `docs/superpowers/specs/2026-11-03-spatial-open-field-design.md`),
+    behind `League.settings.spatialField` and only for your games (`spatialFor` in `league.ts`; AI games never touch
+    it). At a moment of possession (a run past the line, a catch, a return) the stager plays the approach blind
+    (`approach.ts`, from `momentEntry`), then `runField` (`run.ts`) steps bodies at 20 a second: the carrier's read
+    (`read.ts`), the chase (`chase.ts`), blocks, contests (`contest.ts`, skills from the `burst`/`reads` contests and
+    `sizeEdge`), habits. Today's roll still decides yards, touchdowns and out of bounds (`FieldStart.target`): the
+    field plays out how he got there and who made the tackle. It draws only from `${seed}:field:${index}`, so today's
+    dice are untouched; `FieldRecord.snap` keeps what a replay needs (`replay.ts`). Knobs in `tuning.ts`, fitted by
+    `npm run parity-fit`. The stager and its helpers (`stage.ts`, `routes.ts`, `pocket.ts`…) live here too
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

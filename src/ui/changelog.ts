@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.8',
+    date: '2026-11-03',
+    title: 'A field under your games',
+    text:
+      'Nothing changes in your saves yet. Underneath, your own games can now be played on a real field: every player ' +
+      'has a body, a speed and a read, the back picks his hole and his cuts, and defenders take angles and try to ' +
+      'bring him down, so the All-22 shows how he got where he got. The result of each play still comes from the ' +
+      "engine you know, so nothing about winning or losing moves. It's behind a developer switch and stays off while " +
+      "it's tested.",
+  },
+  {
     version: '0.3.7',
     date: '2026-11-03',
     title: 'Faster checks behind the scenes',
