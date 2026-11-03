@@ -10,6 +10,7 @@ import { preparePersonnelGame } from '../personnel/flow';
  */
 import { skill, useKnocks } from '../attributes';
 import { moraleMean } from '../morale';
+import type { ChemRoom } from '../chemistry';
 import { activeCoachQuirks, type CoachQuirkId } from '../coachQuirks';
 import {
   habitCalls,
@@ -107,6 +108,8 @@ export interface SimOptions {
   crew?: Crew | null;
   /** Override each team's day, home then away (defaults to the game's own draw, `teamDay`). */
   days?: [home: number, away: number];
+  /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
+  chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
 }
 
 const QUARTER_SECONDS = 900;
@@ -725,8 +728,8 @@ class GameSim {
     // The league's mood at kickoff: every lineup this game builds, the rebuild after an injury too, reads the same one.
     this.moodMean = moraleMean(league);
     this.lineups = [
-      buildLineup(league, team(game.homeId), undefined, game, this.moodMean, this.days[0]),
-      buildLineup(league, team(game.awayId), undefined, game, this.moodMean, this.days[1]),
+      buildLineup(league, team(game.homeId), undefined, game, this.moodMean, this.days[0], options.chemistry?.[0]),
+      buildLineup(league, team(game.awayId), undefined, game, this.moodMean, this.days[1], options.chemistry?.[1]),
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -1061,6 +1064,7 @@ class GameSim {
         this.game,
         this.moodMean,
         this.days[side],
+        this.options.chemistry?.[side],
       );
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);

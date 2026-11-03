@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { CHEM, chemistryOf, chemistryWeek, moodPart, seasonsTogether, wordOf, type ChemRoom } from './chemistry';
 import { createLeague } from './generate';
 import { playWeek } from './league';
+import { buildLineup } from './match/lineup';
+import { simulateGame, type SimOptions } from './match/gameSim';
 import { starters } from './roster';
-import type { League } from './types';
+import type { GameResult, League } from './types';
 
 const ROOMS: ChemRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 const base = (() => {
@@ -88,5 +90,64 @@ describe('chemistry: the week', () => {
     expect(wordOf(-0.15, 0)).toBe('Out of sync');
     expect(wordOf(0, -0.06)).toBe('Still learning each other');
     expect(wordOf(0, null)).toBe('Gelling');
+  });
+});
+
+describe('chemistry: game day', () => {
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const replay = (l: League, chemistry: NonNullable<SimOptions['chemistry']>, n = 40) =>
+    Array.from({ length: n }, (_, i) => simulateGame(l, l.games[0], { seed: `c:${i}`, days: [0, 0], chemistry }));
+
+  it('a room forced to each end moves its own stats the right way', () => {
+    const l = fresh();
+    const lineUp = replay(l, [{ OL: 0.3 }, {}]);
+    const lineDown = replay(l, [{ OL: -0.3 }, {}]);
+    const sackRate = (rs: GameResult[]) =>
+      avg(rs.map((r) => r.home.sacked / Math.max(1, r.home.passAtt + r.home.sacked)));
+    const ypc = (rs: GameResult[]) => avg(rs.map((r) => r.home.rushYds / Math.max(1, r.home.rushAtt)));
+    expect(sackRate(lineUp)).toBeLessThan(sackRate(lineDown));
+    expect(ypc(lineUp)).toBeGreaterThan(ypc(lineDown));
+    const ypa = (rs: GameResult[]) => avg(rs.map((r) => r.home.passYds / Math.max(1, r.home.passAtt)));
+    expect(ypa(replay(l, [{}, { DB: 0.3 }]))).toBeLessThan(ypa(replay(l, [{}, { DB: -0.3 }])));
+    const cmp = (rs: GameResult[]) => avg(rs.map((r) => r.home.passCmp / Math.max(1, r.home.passAtt)));
+    expect(cmp(replay(l, [{ QB: 0.3, WR: 0.3 }, {}], 200))).toBeGreaterThan(
+      cmp(replay(l, [{ QB: -0.3, WR: -0.3 }, {}], 200)),
+    );
+  }, 240_000);
+
+  it('plays the same game twice with chemistry on', () => {
+    const a = simulateGame(fresh(), fresh().games[0]);
+    const l = fresh();
+    const b = simulateGame(l, l.games[0]);
+    expect([b.homeScore, b.awayScore, b.home.totalYds]).toEqual([a.homeScore, a.awayScore, a.home.totalYds]);
+  }, 60_000);
+
+  it('reads the depth chart as it is now', () => {
+    const l = fresh();
+    const team = l.teams[0];
+    const before = chemistryOf(l, team.id, 'OL')!;
+    expect(chemistryWeek(l).size).toBeGreaterThan(0);
+    // A rookie with no history replaces a starter after the week is cached: the line's time together drops.
+    const chart = team.depthChart.OL;
+    const sixth = l.players[chart[5]];
+    sixth.statTeams = {};
+    [chart[0], chart[5]] = [chart[5], chart[0]];
+    for (const id of chart.slice(0, 5)) if (id !== sixth.id) l.players[id].statTeams ??= {};
+    const after = chemistryOf(l, team.id, 'OL')!;
+    expect(after.newStarters).toBeGreaterThanOrEqual(before.newStarters);
+    expect(after.years!).toBeLessThanOrEqual(before.years!);
+  });
+
+  it('gives no edge outside a game', () => {
+    const l = fresh();
+    const team = l.teams[0];
+    expect([...buildLineup(l, team).knocks]).toEqual([
+      ...buildLineup(l, team, new Set(), undefined, undefined, 0).knocks,
+    ]);
+    const inGame = buildLineup(l, team, new Set(), l.games[0], 0, 0, { OL: 0.3 });
+    const ol = starters(l, team, 'OL')[0];
+    expect(inGame.knocks.get(ol.id) ?? 0).toBeLessThan(
+      buildLineup(l, team, new Set(), l.games[0], 0, 0, { OL: 0 }).knocks.get(ol.id) ?? 0,
+    );
   });
 });
