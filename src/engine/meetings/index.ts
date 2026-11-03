@@ -37,6 +37,18 @@ export function meetingsStep(league: League): void {
   const ctx = moraleContext(league);
   for (const team of league.teams) {
     const m = meetingsOf(team);
+    // A new league year: last year's meetings leave the log, and what the re-sign window's report tells is kept.
+    const stale = m.log.filter((r) => Math.floor(r.clock / YEAR) < league.season);
+    if (stale.length || m.settled?.some((x) => Math.floor(x.clock / YEAR) < league.season)) {
+      const last = league.season - 1;
+      m.lastYear = {
+        season: last,
+        held: stale.filter((r) => Math.floor(r.clock / YEAR) === last).length,
+        settled: (m.settled ?? []).filter((x) => Math.floor(x.clock / YEAR) === last),
+      };
+      m.settled = (m.settled ?? []).filter((x) => Math.floor(x.clock / YEAR) >= league.season);
+      if (!m.settled.length) delete m.settled;
+    }
     m.log = m.log.filter((r) => Math.floor(r.clock / YEAR) === league.season);
     const yours = managesTeam(league, team.id);
     if (m.pending && (m.pending.clock < clock || !yours)) delete m.pending;

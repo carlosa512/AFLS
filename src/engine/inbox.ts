@@ -1,6 +1,7 @@
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { talkMail, talkNeedsYou } from './talkMail';
+import { meetingMail, meetingNeedsYou } from './meetings/mail';
 import { disputeMail, disputeNeedsYou } from './disputeMail';
 import { promiseMail, promisesNeedYou } from './promiseMail';
 import { director, doctor, headCoach, type Draft } from './senders';
@@ -110,6 +111,7 @@ import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './tra
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
 import { leadPlayer, tradeIdentity } from './tradeNews';
 import type {
+  MeetingScope,
   Coach,
   TradeRecord,
   Transaction,
@@ -763,7 +765,10 @@ export type MailSubject =
   // A player of yours holding in or out (disputeMail.ts): the start letter needs you while it waits on your answer.
   | { kind: 'dispute'; season: number; since: number; playerId: number; end?: true; leak?: true }
   // The head coach's season's-end reminder of open promises (promiseMail.ts).
-  | { kind: 'promises'; season: number };
+  | { kind: 'promises'; season: number }
+  // Team meetings (meetings/mail.ts): his suggestion needs you while it's the one waiting; its result and a captain's
+  // word after your address ask nothing.
+  | { kind: 'meeting'; season: number; clock: number; scope?: MeetingScope; result?: true; captain?: true };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -896,6 +901,12 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'dispute', season, since: Number(a), playerId: Number(b), end: true };
     case 'dispute-leak':
       return { kind: 'dispute', season, since: Number(a), playerId: Number(b), leak: true };
+    case 'meeting':
+      return { kind: 'meeting', season, clock: Number(a), scope: b as MeetingScope };
+    case 'meeting-result':
+      return { kind: 'meeting', season, clock: Number(a), scope: b as MeetingScope, result: true };
+    case 'meeting-captain':
+      return { kind: 'meeting', season, clock: Number(a), captain: true };
     case 'promises':
       return { kind: 'promises', season };
     case 'waivers':
@@ -958,6 +969,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return disputeNeedsYou(league, s);
     case 'promises':
       return promisesNeedYou(league, m);
+    case 'meeting':
+      return !s.result && !s.captain && !!s.scope && meetingNeedsYou(league, { clock: s.clock, scope: s.scope });
     case 'contract':
       return league.phase === 'resign' && expiringPlayers(league, user).some((p) => p.id === s.playerId);
     case 'combine':
@@ -3011,6 +3024,7 @@ export function deliverMail(league: League): void {
       ...lockerMail(league, have),
       ...lockerReportMail(league, have),
       ...talkMail(league, have),
+      ...meetingMail(league, have),
       ...disputeMail(league, have),
       ...promiseMail(league, have),
     );

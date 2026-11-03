@@ -8,6 +8,7 @@ import { coachAdviceObservation, teachingNoteFor } from './coachReports';
 import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from './coaching';
 import { moraleClock, moraleContext } from './morale';
 import { reportTellsRooms } from './lockerReport';
+import { meetingStaffRows } from './meetings/mail';
 import { lastTold, unitFact, unitKey } from './roomFacts';
 import { UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
@@ -101,7 +102,9 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
   const habit = found && !told.has(habitKey!) ? found : undefined;
   // In season the rooms are the position coaches' to tell, except on the day the season's first report tells them.
   const unitNote = reportTellsRooms(league, have) ? null : unitTurnFor(league, told);
-  if (!call && !habit && !unitNote) return [];
+  // The head coach's own rows (L2): a commitment coming due, and his word with the room when it has moved.
+  const own = meetingStaffRows(league, told);
+  if (!call && !habit && !unitNote && !own.length) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];
     return c ? COACH_ROLE_LABEL[c.role] : 'Coach';
@@ -144,7 +147,14 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
     });
   }
   const sender = headCoach(league);
-  const covered = [...(habit ? [habitKey!] : []), ...(unitNote ? [unitNote.key] : [])];
+  for (const r of own)
+    rows.push({
+      ...(r.playerId !== undefined ? { playerId: r.playerId } : {}),
+      cells: [r.label, `${sender.from}`],
+      note: r.note,
+      ...(r.negotiate !== undefined ? { negotiate: { playerId: r.negotiate } } : {}),
+    });
+  const covered = [...(habit ? [habitKey!] : []), ...(unitNote ? [unitNote.key] : []), ...own.map((r) => r.key)];
   const actions: InboxAction[] = [
     ...rows.flatMap((r) => (r.playerId === undefined ? [] : [{ kind: 'player' as const, playerId: r.playerId }])),
     { kind: 'team', teamId: league.userTeamId },
@@ -158,18 +168,25 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
       ...sender,
       category: 'staff',
       subject:
-        unitNote && !call && !habit
-          ? `From the staff: ${UNIT_PHRASE[unitNote.unit as CoachRoom]}`
-          : call && habit
-            ? 'From the staff: a depth-chart call and habit work'
-            : call
-              ? `From the staff: ${name(call.playerId)}`
-              : `From the staff: working on ${name(habit!.playerId)}`,
-      body: say(
-        OPENER,
-        { calls: call ? 1 : 0, habits: habit ? 1 : 0, units: unitNote ? 1 : 0 },
-        { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
-      ),
+        own.length && !unitNote && !call && !habit
+          ? 'From me: a word on the room'
+          : unitNote && !call && !habit
+            ? `From the staff: ${UNIT_PHRASE[unitNote.unit as CoachRoom]}`
+            : call && habit
+              ? 'From the staff: a depth-chart call and habit work'
+              : call
+                ? `From the staff: ${name(call.playerId)}`
+                : `From the staff: working on ${name(habit!.playerId)}`,
+      body:
+        own.length && !unitNote && !call && !habit
+          ? own.length > 1
+            ? 'Two things from me this week.'
+            : 'One thing from me this week.'
+          : say(
+              OPENER,
+              { calls: call ? 1 : 0, habits: habit ? 1 : 0, units: unitNote ? 1 : 0 },
+              { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
+            ),
       sections: [{ title: 'From the staff', columns: ['Player', 'Coach'], rows }],
       ...(covered.length ? { covered } : {}),
       ...(call

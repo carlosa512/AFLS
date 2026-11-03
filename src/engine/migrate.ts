@@ -330,6 +330,9 @@ export function migrateLeague(league: League): League | null {
     for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
     league.version = 82;
   }
+  // v83: what the meetings' letters remember (`TeamMeetings.settled`, `TeamMeetings.lastYear`): optional, and empty to
+  // start. Nothing to rewrite.
+  if (league.version < 83) league.version = 83;
   return league;
 }
 
