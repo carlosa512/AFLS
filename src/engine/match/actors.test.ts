@@ -3,6 +3,7 @@ import { createLeague } from '../generate';
 import { playWeek } from '../league';
 import type { FieldUnits, GameResult, PlayLogEntry } from '../types';
 import { actorsIn, packActors } from '../playActors';
+import { activeQuirks, FILM_HABITS } from '../quirks';
 import { simulateGame } from './gameSim';
 
 const league = createLeague({ seed: 'actors' });
@@ -104,6 +105,60 @@ describe('who each play was about', () => {
         expect(back).toBeLessThanOrEqual(44);
       }
     expect(lost).toBeGreaterThan(5);
+  });
+
+  it('writes the run facts the engine rolled, and only on runs and catches', () => {
+    let broke = 0;
+    let caught = 0;
+    for (const { g, r } of games)
+      for (const e of r.plays ?? []) {
+        const open = e.open;
+        if (!open) continue;
+        expect(['run', 'pass', 'penalty']).toContain(e.kind);
+        expect(Object.keys(open).length).toBeGreaterThan(0);
+        if (open.broke) {
+          const defense = e.offense === g.homeId ? g.awayId : g.homeId;
+          expect(league.players[open.broke.by]?.teamId).toBe(defense);
+          expect(['size', 'move']).toContain(open.broke.how);
+          if (e.kind === 'run') broke++;
+          if (e.kind === 'pass') caught++;
+        }
+      }
+    expect(broke).toBeGreaterThanOrEqual(40);
+    expect(caught).toBeGreaterThan(0);
+  });
+
+  it('notes the film habits in play, once each, and only habits the man has that day', () => {
+    let backs = 0;
+    let lbs = 0;
+    each((e) => {
+      const habits = e.open?.habits;
+      if (!habits) return;
+      const seen = new Set<string>();
+      for (const [id, q] of habits) {
+        expect(FILM_HABITS.has(q)).toBe(true);
+        expect(activeQuirks(league.players[id])).toContain(q);
+        const key = `${id}:${q}`;
+        expect(seen.has(key)).toBe(false);
+        seen.add(key);
+        const pos = league.players[id].position;
+        if (e.kind === 'run' && pos === 'RB') backs++;
+        if (pos === 'LB') lbs++;
+      }
+    });
+    expect(backs).toBeGreaterThan(0);
+    expect(lbs).toBeGreaterThan(0);
+  });
+
+  it('carries the run facts on a snap a flag wiped out', () => {
+    let n = 0;
+    each((e) => {
+      if (e.ran?.kind !== 'run' || !e.ran.open) return;
+      n++;
+      const o = e.ran.open;
+      expect(!!(o.broke || o.bounce || o.gone || o.forward || o.habits)).toBe(true);
+    });
+    expect(n).toBeGreaterThan(0);
   });
 
   it('plays the same game with the log kept or not', () => {

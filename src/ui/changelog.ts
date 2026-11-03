@@ -13,6 +13,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.3',
+    date: '2026-11-03',
+    title: 'Runs that read like film',
+    text:
+      'In All-22 the run game now plays out like it does on Sundays. The line blocks by the call (zone steps, a ' +
+      'pulling guard on power, the edge sealed or kicked out) and the back presses the hole, reaching the line about ' +
+      'three seconds after the snap, then cuts and bursts. When he breaks a tackle you see the move (a juke, a jump ' +
+      'cut, a spin, a stiff arm or a run through the hit) against the man who missed. A breakaway leaves the safety a ' +
+      'step late, and a back who falls forward lunges for the last yard. Habits show too: a patient runner, a ' +
+      'linebacker who shoots his gap, a guard who pulls soft. Returns end in a pile rather than one man, and a long ' +
+      'one can show a cover man made to miss. The man who makes the tackle either comes to meet the ball carrier or ' +
+      'runs him down from behind; he never runs past him and back. Defenders no longer stop dead when their part is over.',
+  },
+  {
     version: '0.3.2',
     date: '2026-11-02',
     title: "The young players' review",
