@@ -105,7 +105,7 @@ Never a number, always through the user's view (`viewOf`), under `docs/UI.md`'s 
   range is honestly wide and tightens as he settles. The centre doesn't move, so boards and valuations read the
   same; the scout report's "could become" tier reads the range without the unsettled part, so a rookie isn't
   called a future star for being unsettled.
-- **Mail** (`inbox.ts`), one message per player per season, keyed so it never doubles up, when your own young
+- **Mail** (`inbox.ts`; since replaced by one season-end letter, `2026-11-02-ceiling-review-letter-design.md`), one message per player per season, keyed so it never doubles up, when your own young
   player's ceiling read (`viewOf` before and after the shift) moved a point or more:
   - Down: the head coach, direct. "He's hit a wall. What you see now is about what you'll get."
   - Up: the scouting director, analytical and hedged. "He's outplaying his grades. We may have had his ceiling
