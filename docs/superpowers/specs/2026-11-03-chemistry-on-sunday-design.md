@@ -118,7 +118,8 @@ both measured against the league. Its checks are in §4.1.
 - **Each room card** gets a chemistry line under its mood: the word and the biggest reason, from what the room shows.
   Examples: "Clicking · three years together", "Gelling", "Still learning each other · two new starters", "Out of
   sync · divided room", "Out of sync · Mitchell's sour", "Gelling · Okafor's holding them together".
-- **Spark and Anchor tags** beside the names under "Who they follow", and on his player card where his standing shows.
+- **Spark and Anchor tags** beside the names under "Who they follow". (The player card shows no standing today;
+  adding it there is out of scope.)
 - A year count is spelled out ("three years together"). The ±0.3 number never shows.
 
 ### 3.2 The head coach's words
@@ -163,7 +164,7 @@ Other clubs' chemistry, Sparks or Anchors; the number; anything in the oppositio
 
 1. **The engine:** `chemistry.ts`, the knock in `buildLineup`, the Sparks' and Anchors' pull, `UnitRead.level`, the
    checks and the replay test. A patch bump.
-2. **The words and screens:** the Locker Room line and tags, the player card tag, the coach's report lines, with
+2. **The words and screens:** the Locker Room line and tags, the coach's report lines, with
    screenshots shown to the owner before the PR opens. A patch bump.
 
 ## 6. Out of scope
@@ -184,5 +185,5 @@ Other clubs' chemistry, Sparks or Anchors; the number; anything in the oppositio
 | `src/engine/match/lineup.ts` | the room's edge in the knocks |
 | `scripts/morale.ts` | the §4.1 checks |
 | `src/engine/roomVoice.ts`, `roomFacts.ts`, `lockerReport.ts` | PR 2: the coach's lines |
-| `src/ui/screens/LockerRoom.tsx`, `src/ui/screens/PlayerCard.tsx` | PR 2: the card line and tags |
+| `src/ui/screens/LockerRoom.tsx` | PR 2: the card line and tags |
 | `CLAUDE.md`, `docs/MVP.md`, `src/ui/changelog.ts`, `package.json` | notes, the MVP line, the version |
