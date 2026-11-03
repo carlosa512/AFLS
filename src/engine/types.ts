@@ -16,6 +16,7 @@ import type {
 } from './personnel/types';
 import type { Weather } from './weather';
 import type { FieldFacts } from './field/moment';
+import type { FieldSnapshot } from './field/snapshot';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
 export type Position = (typeof POSITIONS)[number];
@@ -1795,7 +1796,7 @@ export interface PlayLogEntry {
   loose?: number;
   /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
   open?: OpenField;
-  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v82 have none. */
+  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v83 have none. */
   field?: FieldFacts;
 }
 
@@ -1867,6 +1868,8 @@ export interface FieldRecord {
    * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.32 have none.
    */
   calls?: string;
+  /** A spatial game's snapshot of what the open field read (`field/snapshot.ts`). Games before v83 have none. */
+  snap?: FieldSnapshot;
 }
 
 /** Who a play was about, by player id: what All-22 stages. Recorded only, never drawn: the sim already chose them. */
@@ -1982,7 +1985,14 @@ export interface SeasonSummary {
   playoffs?: Record<number, { w: number; l: number; round: PlayoffRound }>;
 }
 
+/** League settings that change results, so they live in the save (the theme and other display choices don't). */
+export interface LeagueSettings {
+  /** Your games' open field played by the spatial engine (`field/`). Off until its checks pass. */
+  spatialField?: boolean;
+}
+
 export interface League {
+  settings?: LeagueSettings;
   /** Foundation profile; transactions stay disabled until the complete personnel lifecycle ships. */
   personnel?: PersonnelState;
   /** Save-format version; bump and add a migration when the shape changes. */

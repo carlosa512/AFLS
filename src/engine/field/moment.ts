@@ -43,8 +43,8 @@ export interface FieldMoment {
   /** The back or the target (a return's man is the cast's returner). */
   ball?: number;
   cover?: number;
+  /** The rusher who got to the passer (the blocker he beat is chosen after the play, so the moment can't hold it). */
   rush?: number;
-  beat?: number;
   call: DefenseCall;
   shot?: 1;
   bounce?: 1;
@@ -66,7 +66,7 @@ export function momentEntry(m: FieldMoment, homeId: number): PlayLogEntry {
   const kind: PlayLogEntry['kind'] = m.kind === 'run' ? 'run' : m.kind === 'catch' ? 'pass' : m.kick!;
   const dir = m.offense === homeId ? 1 : -1;
   const to = m.kind === 'run' ? m.from + dir * RUN_ON : (m.air ?? m.from);
-  const who = packActors({ ball: m.ball, cover: m.cover, rush: m.rush, beat: m.beat });
+  const who = packActors({ ball: m.ball, cover: m.cover, rush: m.rush });
   return {
     quarter: m.quarter,
     clock: m.clock,
@@ -111,13 +111,16 @@ export function momentOf(e0: PlayLogEntry, record: FieldRecord, index: number, _
     call: defenseCallAt(record, index),
     facts,
   };
-  if (kind === 'return') m.kick = e.kind as 'kickoff' | 'punt';
+  if (kind === 'return') {
+    m.kick = e.kind as 'kickoff' | 'punt';
+    // A kick's entry opens with the clock and spot after the return: a return's moment keeps none of them.
+    Object.assign(m, { quarter: 0, clock: 0, down: 0, distance: 0, yardLine: 0 });
+  }
   if (e.air !== undefined) m.air = e.air;
   if (kind !== 'return' && who.ball !== undefined) m.ball = who.ball;
   if (kind === 'catch') {
     if (who.cover !== undefined) m.cover = who.cover;
     if (who.rush !== undefined) m.rush = who.rush;
-    if (who.beat !== undefined) m.beat = who.beat;
   }
   if (/^Designed shot:/.test(e.text)) m.shot = 1;
   if (e.open?.bounce) m.bounce = 1;

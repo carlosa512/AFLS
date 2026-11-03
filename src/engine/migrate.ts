@@ -330,6 +330,12 @@ export function migrateLeague(league: League): League | null {
     for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
     league.version = 82;
   }
+  // v83: the spatial engine's switch (`League.settings`, off) and its games' snapshot (`FieldRecord.snap`) and facts
+  // (`PlayLogEntry.field`). Optional: older games keep the drawn replay.
+  if (league.version < 83) {
+    league.settings ??= { spatialField: false };
+    league.version = 83;
+  }
   return league;
 }
 

@@ -50,7 +50,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 82;
+export const SAVE_VERSION = 83;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -764,6 +764,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
 
   const league: League = {
     version: SAVE_VERSION,
+    settings: { spatialField: false },
     name: options.name ?? 'National Gridiron League',
     seed,
     rngState: rng.getState(),
