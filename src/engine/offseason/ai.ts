@@ -1068,10 +1068,17 @@ export function fillCampRoster(league: League, team: Team, rng: Rng): void {
   // club one short at kickoff once a waiver claim took one of its men.
   const cheapest = minSalary(1, league.caps[league.season]);
   const open = () => ROSTER_MAX - activeRoster(league, team.id).length;
-  const budget = () => capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest;
+  // When the room can't cover every open spot, the cheapest deal still signs: a squeezed club fills what it can.
+  const floor = minSalary(0, league.caps[league.season]);
+  const budget = () =>
+    Math.min(
+      capSpace(league, team.id),
+      Math.max(floor, capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest),
+    );
+  const room = () => capSpace(league, team.id) >= floor;
   for (const pos of POSITIONS)
-    while (short(pos) && open() > 0) if (!signMinimum(league, team, rng, pos, budget())) break;
-  while (open() > 0 && budget() >= cheapest) if (!signMinimum(league, team, rng, undefined, budget())) break;
+    while (short(pos) && open() > 0 && room()) if (!signMinimum(league, team, rng, pos, budget())) break;
+  while (open() > 0 && room()) if (!signMinimum(league, team, rng, undefined, budget())) break;
   syncDepthChart(league, team);
 }
 

@@ -11,7 +11,7 @@ import { Draft, SimTheRest } from './screens/Draft';
 import { setTeam } from '../engine/roster';
 
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-c' });
+  const league = createLeague({ seed: 'draft-trades-d' });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
