@@ -340,6 +340,9 @@ export function migrateLeague(league: League): League | null {
     repairSignedTalks(league);
     league.version = 84;
   }
+  // v85: a settled promise records who made it (`by: 'gm'` for your address). Absent reads as the coach's, as every
+  // earlier one was told: nothing to fill.
+  if (league.version < 85) league.version = 85;
   return league;
 }
 

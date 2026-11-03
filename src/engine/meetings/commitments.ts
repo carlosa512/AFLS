@@ -146,7 +146,14 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
   // and thirty-one clubs' worth would grow the save for nothing.
   const m = league.teams[teamId].meetings;
   if (m && managesTeam(league, teamId))
-    (m.settled ??= []).push({ clock: c.opened, scope: c.scope, backing: c.backing, kept, named: [...c.named] });
+    (m.settled ??= []).push({
+      clock: c.opened,
+      scope: c.scope,
+      backing: c.backing,
+      kept,
+      named: [...c.named],
+      ...(c.by === 'gm' ? { by: 'gm' as const } : {}),
+    });
   for (const id of c.boughtIn) {
     const p = league.players[id];
     if (!p || !onClub(league, teamId, id)) continue;

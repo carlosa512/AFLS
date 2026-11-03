@@ -522,6 +522,8 @@ export interface TeamMeetings {
     backing: Exclude<Backing, 'words'>;
     kept: boolean;
     named: number[];
+    /** Who made it: your address to the team ('gm'), else the head coach's meeting. */
+    by?: 'gm';
   }[];
   /** Last league year's meetings, kept past the log's clearing for the re-sign window's report. */
   lastYear?: { season: number; held: number; settled: NonNullable<TeamMeetings['settled']> };

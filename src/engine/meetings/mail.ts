@@ -518,6 +518,7 @@ export function yearFact(league: League): YearFact | null {
             month: monthOfClock(kept.clock),
             promise: promisePhrase(kept.backing, named(kept.named)),
             ...(kept.named.length === 1 ? { named: 'he' } : {}),
+            ...(kept.by === 'gm' ? { you: true } : {}),
           },
         }
       : {}),
@@ -526,6 +527,7 @@ export function yearFact(league: League): YearFact | null {
           broken: {
             when: broken.backing === 'move' ? 'the deadline' : monthOfClock(broken.clock),
             promise: promisePhrase(broken.backing, named(broken.named)),
+            ...(broken.by === 'gm' ? { you: true } : {}),
           },
         }
       : {}),

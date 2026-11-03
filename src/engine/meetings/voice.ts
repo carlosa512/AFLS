@@ -544,8 +544,9 @@ export const CANDID: readonly Line<CandidFact>[] = [
 
 export interface YearFact {
   held: number;
-  kept?: { noun: string; month: string; promise: string; named?: string };
-  broken?: { when: string; promise: string };
+  /** `you`: the promise was yours, from your address to the team, not the coach's. */
+  kept?: { noun: string; month: string; promise: string; named?: string; you?: boolean };
+  broken?: { when: string; promise: string; you?: boolean };
 }
 
 const COUNT = [
@@ -566,11 +567,14 @@ export function yearParagraph(f: YearFact): string {
   const out = [`We got the guys together ${times} this year.`];
   if (f.kept)
     out.push(
-      `Talking to ${f.kept.noun} in ${f.kept.month} worked: I told them ${f.kept.promise}, we did, and ${f.kept.named ? `${f.kept.named} still listens to me for it` : 'they still listen to me for it'}.`,
+      f.kept.you
+        ? `When you talked to the team in ${f.kept.month}, you told them ${f.kept.promise}, and we did. They noticed.`
+        : `Talking to ${f.kept.noun} in ${f.kept.month} worked: I told them ${f.kept.promise}, we did, and ${f.kept.named ? `${f.kept.named} still listens to me for it` : 'they still listen to me for it'}.`,
     );
   const first = out.join(' ');
   if (!f.broken) return first;
-  return `${first}\n\n${cap(f.broken.when)} was another story. I said ${f.broken.promise}, it didn't happen, and a couple of the vets haven't let it go.`;
+  const said = f.broken.you ? 'You told them' : 'I said';
+  return `${first}\n\n${cap(f.broken.when)} was another story. ${said} ${f.broken.promise}, it didn't happen, and a couple of the vets haven't let it go.`;
 }
 
 /** A kept or broken commitment as the coach tells it: "we'd open Mitchell's talks". */
