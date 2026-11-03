@@ -16,7 +16,7 @@ import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { talkStep } from './playerTalks';
-import { friendPull, honouredSince, roomVoices, TONE, toneOf, type VoiceRef } from './standing';
+import { calmOf, friendPull, honouredSince, roomVoices, TONE, toneOf, unitOf, type VoiceRef } from './standing';
 import { disputeStep } from './disputes';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, MoraleJolt, Player, Position, TalkCause } from './types';
@@ -55,6 +55,9 @@ export interface MoraleContext {
   leans: Map<number, number>;
   /** Each club's leaders and voices by room (`teamId:unit`, L3). */
   voices: Map<string, VoiceRef[]>;
+  /** The league's typical voice's lean (what a voice's pull is measured against), and each room's mean lean. */
+  voiceMean: number;
+  roomLeans: Map<string, number>;
 }
 
 const games = (r: { w: number; l: number; t: number } | undefined) => (r ? r.w + r.l + r.t : 0);
@@ -112,6 +115,8 @@ export function moraleContext(league: League): MoraleContext {
     honoured: honouredSince(league, season - 3),
     leans: new Map(),
     voices: new Map(),
+    voiceMean: 0,
+    roomLeans: new Map(),
   };
   // L3: each man's mood as the pass began (so voices can't feed on each other within it), then the voices, last:
   // their weights read the records and snaps above.
@@ -120,6 +125,17 @@ export function moraleContext(league: League): MoraleContext {
     for (const p of activeRoster(league, t.id))
       if (p.morale) ctx.leans.set(p.id, moodPull(moraleLevel(league, p), mean));
   ctx.voices = roomVoices(league, ctx);
+  const voiceLeans = [...ctx.voices.values()].flat().map((v) => ctx.leans.get(v.id) ?? 0);
+  ctx.voiceMean = voiceLeans.length ? voiceLeans.reduce((a, b) => a + b, 0) / voiceLeans.length : 0;
+  const roomLists = new Map<string, number[]>();
+  for (const t of league.teams)
+    for (const p of activeRoster(league, t.id)) {
+      const lean = ctx.leans.get(p.id);
+      if (lean === undefined) continue;
+      const key = `${t.id}:${unitOf(p.position)}`;
+      (roomLists.get(key) ?? roomLists.set(key, []).get(key)!).push(lean);
+    }
+  for (const [key, list] of roomLists) ctx.roomLeans.set(key, list.reduce((a, b) => a + b, 0) / list.length);
   return ctx;
 }
 
@@ -245,7 +261,8 @@ function roomScore(league: League, p: Player, ctx: MoraleContext): number {
     (ctx.culture.get(p.teamId) ?? 0) +
     // The voices in his room and his friends: their moods rub off (L3).
     TONE.voices * toneOf(p, ctx) +
-    TONE.friends * friendPull(league, p, ctx);
+    TONE.friends * friendPull(league, p, ctx) +
+    TONE.calm * calmOf(p, ctx);
   return clamp(score, -1.5, 1.5);
 }
 

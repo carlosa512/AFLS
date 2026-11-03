@@ -122,9 +122,10 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
 /**
  * The pull's size (L3 spec §2.2): the voices' share of the room score (as much as being a captain) and friends' (a third of
  * that), and each voice's weight: a Spark's mood spreads, an Anchor's and a plain voice's count half as much, and an
- * Anchor in the room halves every Spark's.
+ * Anchor in the room halves every Spark's. An Anchor's room is also drawn toward its own average (`calm`): the outliers
+ * come in, so the room spreads less.
  */
-export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5 };
+export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5, calm: 0.5 };
 
 /** A leader or voice as one pass of the league reads him (his lean is in `MoraleContext.leans`). */
 export interface VoiceRef {
@@ -155,10 +156,22 @@ export function toneOf(p: Player, ctx: MoraleContext): number {
     if (v.id === p.id) continue;
     const w =
       v.sound === 'stirs' ? TONE.spark * (anchored ? 0.5 : 1) : v.sound === 'steadies' ? TONE.anchor : TONE.plain;
-    sum += w * (ctx.leans.get(v.id) ?? 0);
+    // Against the league's typical voice: voices run happier than the league, and a pull that lifted every room would
+    // lift the league with it. Measured this way it moves moods around a league without raising it.
+    sum += w * ((ctx.leans.get(v.id) ?? 0) - ctx.voiceMean);
     weights += w;
   }
   return weights ? Math.max(-1, Math.min(1, sum / weights)) : 0;
+}
+
+/** An Anchor's room draws a man toward its own average, −1…+1 (0 with no Anchor there, or for the Anchor himself). */
+export function calmOf(p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const key = `${p.teamId}:${unitOf(p.position)}`;
+  const anchors = (ctx.voices.get(key) ?? []).filter((v) => v.sound === 'steadies' && v.id !== p.id);
+  const room = ctx.roomLeans.get(key);
+  if (!anchors.length || room === undefined) return 0;
+  return Math.max(-1, Math.min(1, room - (ctx.leans.get(p.id) ?? 0)));
 }
 
 /** His friends on the club, −1…+1: their moods against the league's, averaged. */

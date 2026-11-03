@@ -5,6 +5,7 @@ import { releasePlayer } from './finance/cap';
 import { nameCaptains } from './personality';
 import { activeRoster, starters } from './roster';
 import {
+  calmOf,
   toneOf,
   TONE,
   isNewcomer,
@@ -252,6 +253,7 @@ describe('L3: what chemistry reads off a room', () => {
     const p = wrOf(l);
     const ctx = moraleContext(l);
     const key = `${p.teamId}:WR`;
+    ctx.voiceMean = 0;
     ctx.leans.set(9001, 1).set(9002, -1).set(9003, 1);
     ctx.voices.set(key, [{ id: 9001, sound: 'stirs' }]);
     expect(toneOf(p, ctx)).toBeCloseTo(1, 9);
@@ -272,9 +274,25 @@ describe('L3: what chemistry reads off a room', () => {
     const l = fresh();
     const p = wrOf(l);
     const ctx = moraleContext(l);
+    ctx.voiceMean = 0;
     ctx.leans.set(p.id, 1);
     ctx.voices.set(`${p.teamId}:WR`, [{ id: p.id, sound: 'stirs' }]);
     expect(toneOf(p, ctx)).toBe(0);
+  });
+
+  it("an Anchor's room draws a man toward its average; no Anchor, no draw", () => {
+    const l = fresh();
+    const p = wrOf(l);
+    const ctx = moraleContext(l);
+    const key = `${p.teamId}:WR`;
+    ctx.leans.set(p.id, -1);
+    ctx.roomLeans.set(key, 0.2);
+    ctx.voices.set(key, [{ id: 9004, sound: 'steadies' }]);
+    expect(calmOf(p, ctx)).toBeCloseTo(1, 9);
+    ctx.leans.set(p.id, 0.6);
+    expect(calmOf(p, ctx)).toBeCloseTo(-0.4, 9);
+    ctx.voices.set(key, [{ id: 9004, sound: 'stirs' }]);
+    expect(calmOf(p, ctx)).toBe(0);
   });
 
   it('names a voice plainly', async () => {

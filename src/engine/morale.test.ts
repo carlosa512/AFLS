@@ -361,6 +361,7 @@ describe('morale: moving the mood', () => {
     const ctx = moraleContext(l);
     // Seeded before anyone has a mood, so before any voice can pull (L3): rub-off starts with the first week.
     ctx.leans.clear();
+    ctx.voices.clear();
     for (const p of Object.values(l.players)
       .filter((x) => x.teamId !== null)
       .slice(0, 50)) {
