@@ -66,7 +66,7 @@ function gain(c: Body, ux: number, uy: number, r: Reader): number {
 export function readField(c: Body, r: Reader, rng: Rng): { vx: number; vy: number } {
   const sd = Math.max(0.5, READ_NOISE * (1 - 0.05 * (r.reads - 12)));
   let best = -Infinity;
-  let bx = r.dir;
+  let bx: number = r.dir;
   let by = 0;
   const side = c.y < MID ? -1 : 1;
   let sidelineScore = -Infinity;

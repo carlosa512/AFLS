@@ -83,7 +83,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const every = hasHabit(P[ci], 'jumpCutter') ? JUMP_READ : READ_EVERY;
   const misses: FieldResult['misses'] = [];
 
-  let phase: 'live' | 'pile' | 'over' = 'live';
+  let phase = 'live' as 'live' | 'pile' | 'over';
   let touchdown = false;
   let outOfBounds = false;
   let tackler = -1;
@@ -91,11 +91,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   let coastUntil = 0;
   let spotX = 0;
   let pileBrake = 0;
-  let move: Contact['program'] = null;
+  let move = null as Contact['program'];
 
   /** Who can still make a play, and how late, as the carrier reads it. */
   const reader = (t: number): Reader => {
-    const c = B[ci];
     const chasers: Reader['chasers'] = [];
     for (let i = 0; i < n; i++) {
       if (!defense[i]) continue;
