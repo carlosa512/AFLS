@@ -321,12 +321,14 @@ export function migrateLeague(league: League): League | null {
   if (league.version < 79) league.version = 79;
   // v80: trade requests (G4b): `Dispute.calm` and the market's `wantsOut` rumors are optional and absent to start.
   if (league.version < 80) league.version = 80;
-  // v81: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
+  // v81: the open field on a run or a catch (`PlayLogEntry.open`, for All-22). Optional: older games keep their plays.
+  if (league.version < 81) league.version = 81;
+  // v82: team meetings (L2). Every club starts with no meetings and nothing promised, every head coach's word in the
   // middle (`Coach.credibility`). `MoraleJolt` gains `meeting` and `League.lockerBeats` is optional: nothing to rewrite.
-  if (league.version < 81) {
+  if (league.version < 82) {
     for (const team of league.teams) team.meetings ??= { log: [], open: [] };
     for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility ??= 0;
-    league.version = 81;
+    league.version = 82;
   }
   return league;
 }

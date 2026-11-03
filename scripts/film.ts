@@ -158,8 +158,88 @@ function measure(e: PlayLogEntry, p: StagedPlay): Seen {
 
 // ───────── stage the games ─────────
 
+// ───────── measuring a staged run (and every play's dead stops) ─────────
+
+interface RunSeen {
+  /** When the carrier crossed the line (s), or null. */
+  tlos: number | null;
+  /** Yards past the line when a defender first got within `CONTACT` of him, or null. */
+  contact: number | null;
+  move: string | undefined;
+}
+/** First contact: a defender this close to the carrier (yd). */
+const CONTACT = 1.2;
+const at = (p: StagedPlay, st: number, k: number) => ({
+  x: p.pos[(st * p.ids.length + k) * 2],
+  y: p.pos[(st * p.ids.length + k) * 2 + 1],
+});
+
+function measureRun(e: PlayLogEntry, p: StagedPlay): RunSeen {
+  const c = p.carrier === null ? -1 : p.ids.indexOf(p.carrier);
+  let tlos: number | null = null;
+  let contact: number | null = null;
+  for (let st = Math.round(p.release / p.dt); c >= 0 && st < p.steps; st++) {
+    const b = at(p, st, c);
+    if (tlos === null && (b.x - e.from!) * p.dir > 0) tlos = st * p.dt;
+    if (contact === null)
+      for (let k = 0; k < p.ids.length; k++) {
+        if (p.offense[k]) continue;
+        const d = at(p, st, k);
+        if (Math.hypot(d.x - b.x, d.y - b.y) < CONTACT) {
+          contact = (b.x - e.from!) * p.dir;
+          break;
+        }
+      }
+  }
+  return { tlos, contact, move: p.move?.kind };
+}
+
+/**
+ * Dead stops: a defender going from 5 yd/s to under 1.2 within 0.3 s with nobody within 2.2 yd of him, away from the
+ * ball, before the whistle (a man who stops dead in the open for no reason reads as a glitch).
+ */
+function deadStops(p: StagedPlay): number {
+  const n = p.ids.length;
+  const v = (st: number, k: number) => {
+    const a = at(p, st - 1, k);
+    const b = at(p, st, k);
+    return Math.hypot(b.x - a.x, b.y - a.y) / p.dt;
+  };
+  const window = Math.round(0.3 / p.dt);
+  const whistle = p.steps - 1 - window;
+  let stops = 0;
+  for (let k = 0; k < n; k++) {
+    if (p.offense[k]) continue;
+    for (let st = 1; st < whistle; st++) {
+      if (v(st, k) < 5) continue;
+      let stopped = -1;
+      for (let s2 = st + 1; s2 <= Math.min(whistle, st + window); s2++)
+        if (v(s2, k) < 1.2) {
+          stopped = s2;
+          break;
+        }
+      if (stopped < 0) continue;
+      const me = at(p, stopped, k);
+      const ball = { x: p.ball[stopped * 3], y: p.ball[stopped * 3 + 1] };
+      const alone = p.ids.every(
+        (_, j) => j === k || Math.hypot(at(p, stopped, j).x - me.x, at(p, stopped, j).y - me.y) > 2.2,
+      );
+      if (alone && Math.hypot(ball.x - me.x, ball.y - me.y) > 3) {
+        stops++;
+        break;
+      }
+    }
+  }
+  return stops;
+}
+
 const league = createLeague({ seed: 'film' });
 const seen: Seen[] = [];
+const runs: RunSeen[] = [];
+let plays = 0;
+let stops = 0;
+let passPlays = 0;
+let passStops = 0;
 const started = Date.now();
 for (let i = 0; i < GAMES; i++) {
   const g = league.games[i % league.games.length];
@@ -178,8 +258,27 @@ for (let i = 0; i < GAMES; i++) {
         snapY,
       });
       seen.push(measure(e, p));
+      passPlays++;
+      passStops += deadStops(p);
       lastY = p.ball[(p.steps - 1) * 3 + 1];
-    } else if (raw.kind) lastY = 26.65;
+    } else if (raw.kind) {
+      if (raw.down > 0 && e.kind === 'run' && e.from !== undefined) {
+        const p = stagePlay({
+          plays: r.plays!,
+          index,
+          record: r.field!,
+          homeId: g.homeId,
+          seed: `film:${i}:${index}`,
+          snapY,
+        });
+        const role = p.carrier === null ? undefined : p.roles[p.ids.indexOf(p.carrier)];
+        // Handed off: a back or a receiver carries it.
+        if (role === 'RB' || role === 'WR' || role === 'TE') runs.push(measureRun(e, p));
+        plays++;
+        stops += deadStops(p);
+      }
+      lastY = 26.65;
+    }
   });
 }
 const secs = (Date.now() - started) / 1000;
@@ -339,6 +438,43 @@ info(
   pct(tops.get('tackler') ?? [], 0.99).toFixed(2),
   'the open field: Pass B',
 );
+
+// ───────── the run game (Pass B) ─────────
+
+console.log(`\nThe run game (${runs.length} handed-off runs)`);
+check(
+  "a back's time to the line (s)",
+  mean(runs.flatMap((r) => (r.tlos === null ? [] : [r.tlos]))),
+  [2.5, 3.1],
+  '2.78 (NGS RBs 2022–24)',
+);
+check(
+  'yards before first contact a run',
+  mean(runs.flatMap((r) => (r.contact === null ? [] : [r.contact]))),
+  [1.3, 2.6],
+  'about half the gain',
+);
+const caught = seen.filter((s) => s.e.kind === 'pass');
+const moves = [...runs.map((r) => r.move), ...caught.map((s) => s.p.move?.kind)].filter((m): m is string => !!m);
+info(
+  'the move mix',
+  '',
+  ['juke', 'jumpCut', 'spin', 'runThrough', 'stiffArm']
+    .map((k) => `${k} ${Math.round((100 * moves.filter((m) => m === k).length) / Math.max(1, moves.length))}%`)
+    .join(', '),
+);
+info(
+  'broken tackles a handed-off run',
+  share(runs.filter((r) => r.move).length, runs.length).toFixed(3),
+  'about 0.18 missed tackles a RB touch (SIS 2021); the engine sets it',
+);
+info(
+  'broken tackles a catch',
+  share(caught.filter((s) => s.p.move).length, caught.length).toFixed(3),
+  'the engine sets it',
+);
+check('dead stops in the open, per 50 runs', (stops * 50) / Math.max(1, plays), [0, 1], 'none');
+check('dead stops in the open, per 50 dropbacks', (passStops * 50) / Math.max(1, passPlays), [0, 1], 'none');
 
 // ───────── reported only: the engine decides these ─────────
 

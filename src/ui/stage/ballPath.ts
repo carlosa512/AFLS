@@ -4,6 +4,7 @@
  */
 import type { PlayLogEntry } from '../../engine/types';
 import { bounce, fumbleIn } from './fumble';
+import type { MoveKind } from './carrier';
 
 export const FIELD_W = 53.3;
 export const MID = FIELD_W / 2;
@@ -21,6 +22,10 @@ export interface Seg {
   /** Peak height for passes and kicks; 0 on the ground. */
   peak: number;
   dur: number;
+  /** A ball carrier's move; the stager scripts the man who missed against it. */
+  move?: MoveKind;
+  /** The tackle lands at this leg's start: the pair go on to its end together (a lunge forward, a slide into it). */
+  hit?: true;
 }
 
 export function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {

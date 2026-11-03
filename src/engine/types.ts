@@ -1786,12 +1786,31 @@ export interface PlayLogEntry {
    * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
    * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
    */
-  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose'>;
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose' | 'open'>;
   /**
    * Where the ball came out on a fumble the defense recovered (field yards, as `from` and `to`): `to` is where its
    * return ended. Games before v78 have none.
    */
   loose?: number;
+  /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
+  open?: OpenField;
+}
+
+/**
+ * The open field as the engine played it: the rolls it already made on a run or a catch, written down (never a new
+ * draw), and the film-visible habits it found in play.
+ */
+export interface OpenField {
+  /** An inside call the back took to the edge (`bouncesExternal`). */
+  bounce?: 1;
+  /** The tackle he broke: who missed (a player id), and whether size won it or a move did. */
+  broke?: { by: number; how: 'size' | 'move' };
+  /** He got past the deep safety. */
+  gone?: 1;
+  /** He fell forward for the extra yard (`finishesForward`). */
+  forward?: 1;
+  /** The film-visible habits (`FILM_HABITS`) the engine checked and found, as [player id, quirk], once each. */
+  habits?: [number, QuirkId][];
 }
 
 /** One side's players by group: the eleven each way, the rush rotation and the kick units (ids). */
