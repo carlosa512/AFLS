@@ -682,6 +682,8 @@ function tackleRun(
 
 /** Coming to meet the carrier he runs at least this pace (yards a second), setting off later if he has time. */
 const MEET_PACE = 5.5;
+/** ...and until then comes on at a walk (yards a second). */
+const MEET_JOG = 1.5;
 
 /** How long (s) a man's new run takes over from the way he was already going: a turn, not a snap. */
 const EASE = 0.3;
@@ -729,14 +731,20 @@ function meet(
   start: number,
   last: number,
 ): boolean {
-  const dist0 = Math.hypot(end.x - pos[(start * n + k) * 2], end.y - pos[(start * n + k) * 2 + 1]);
-  if (dist0 > chase.legs * (last - start) * STEP) return false;
-  // Not a crawl to the spot: with time to spare he sets off later (where he'd got to by then), at a runner's pace.
-  const go = Math.max(start, Math.min(last - 1, last - Math.ceil(dist0 / MEET_PACE / STEP)));
-  const p0 = { x: pos[(go * n + k) * 2], y: pos[(go * n + k) * 2 + 1] };
-  if (Math.hypot(end.x - p0.x, end.y - p0.y) > chase.legs * (last - go) * STEP) return false;
-  for (let st = go + 1; st <= last; st++) {
-    const g = (st - go) / (last - go);
+  const p0 = { x: pos[(start * n + k) * 2], y: pos[(start * n + k) * 2 + 1] };
+  const D = Math.hypot(end.x - p0.x, end.y - p0.y);
+  const T = (last - start) * STEP;
+  if (D > chase.legs * T) return false;
+  // With time to spare he comes on at a walk, then at a runner's pace for the last of it (never a crawl the whole way,
+  // and never handed back to the pursuit to wander off the line to the tackle).
+  const quick = Math.max(MEET_PACE, D / T);
+  const fast = D / T >= MEET_JOG ? Math.min(T, Math.max(0, (D - MEET_JOG * T) / (quick - MEET_JOG))) : 0;
+  const jog = fast > 0 ? MEET_JOG : D / T;
+  for (let st = start + 1; st <= last; st++) {
+    const t = (st - start) * STEP;
+    const slow = T - fast;
+    const run = t <= slow ? jog * t : jog * slow + quick * (t - slow);
+    const g = D > 0 ? Math.min(1, run / D) : 1;
     pos[(st * n + k) * 2] = p0.x + (end.x - p0.x) * g;
     pos[(st * n + k) * 2 + 1] = p0.y + (end.y - p0.y) * g;
   }
@@ -798,6 +806,19 @@ function giveGround(
     const on = along(S[st - start] + lead * (1 - g));
     pos[(st * n + k) * 2] = on.x + off.x * (1 - g) + hit.x * g;
     pos[(st * n + k) * 2 + 1] = on.y + off.y * (1 - g) + hit.y * g;
+  }
+  // Whatever the carrier's path does (a bend toward the corner, a stall in the hole), he never opens the gap to him: no
+  // further off the carrier than he was a step before, toward where the plan has him.
+  let most = Infinity;
+  for (let st = start; st <= last; st++) {
+    const car = P(st, c);
+    const me1 = P(st, k);
+    const d = Math.hypot(me1.x - car.x, me1.y - car.y);
+    if (d > most && d > 0) {
+      pos[(st * n + k) * 2] = car.x + ((me1.x - car.x) / d) * most;
+      pos[(st * n + k) * 2 + 1] = car.y + ((me1.y - car.y) / d) * most;
+    }
+    most = Math.min(most, d);
   }
   if (withinLegs(pos, n, k, start, last, chase.legs)) return true;
   pos.set(was, start * n * 2);
