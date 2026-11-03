@@ -73,9 +73,10 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // Team meetings (0.3.4, L2): each club's meetings this league year (who took one well, who bristled, two id lists),
   // open commitments, the rooms and feuds its coach has seen, and each head coach's credibility, about 40 KB in the first
   // season; meeting jolts are a few KB more. The rest is the world they reshuffle: measured on the offseason check's seed
-  // against main, first season 8,865 KB against 8,717 (+148; +131 and +89 on alt-1 and alt-2), retained seasons inside
-  // their budget. Agreed by the owner (Nov 3).
-  meetings: { firstSeason: 150, retainedSeasons: 0, games: 0, annualGrowth: 0, playersGrowth: 0 },
+  // against main, first season 8,865 KB against 8,717 (+148; +131 and +89 on alt-1 and alt-2). A league year's log is
+  // kept in every later save too: the sixth season read 17,815 KB against 17,800, so retained seasons carry the 40 KB and
+  // the 15 over, rounded up. Agreed by the owner (Nov 3).
+  meetings: { firstSeason: 150, retainedSeasons: 60, games: 0, annualGrowth: 0, playersGrowth: 0 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
