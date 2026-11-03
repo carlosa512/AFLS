@@ -13,6 +13,9 @@ import { SPEED } from './speed';
 import type { Pt } from './formations';
 import { BEAT_ACROSS, sample, type Keyframe } from './scripts';
 
+/** The least a back in pass protection steps toward his man, in yards. */
+const PICKUP_STEP = 2;
+
 export { SPEED } from './speed';
 /** Yards a second gained or shed in a second. */
 const ACCEL = 6;
@@ -606,6 +609,16 @@ export function steer(a: SteerArgs): Float32Array {
             const ry = j < 0 ? qy : py[j];
             const d = Math.hypot(rx - qx, ry - qy) || 1;
             goal = { x: qx + ((rx - qx) / d) * 2.5, y: qy + ((ry - qy) / d) * 2.5 };
+            // A back already lined up near that spot still steps up to meet his man: shuffling a yard and a half, he
+            // read on film as standing still.
+            const fromStart = Math.hypot(goal.x - s0.x, goal.y - s0.y);
+            if (fromStart < PICKUP_STEP) {
+              const toRusher = Math.hypot(rx - s0.x, ry - s0.y) || 1;
+              goal = {
+                x: s0.x + ((rx - s0.x) / toRusher) * PICKUP_STEP,
+                y: s0.y + ((ry - s0.y) / toRusher) * PICKUP_STEP,
+              };
+            }
           } else if (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id))) {
             // Engage the nearest defender a step in front of where he lined up.
             const j = nearest(k);
@@ -784,9 +797,12 @@ export function steer(a: SteerArgs): Float32Array {
         px[k] += vx[k] * a.dt;
         py[k] += vy[k] * a.dt;
       }
-      // Room to move: steered men push off anyone closer than a yard.
+      // Room to move: steered men push off anyone closer than a yard, by no more in all than one man's push. Added up,
+      // a lineman in the pile round a loose ball was shoved by four men at once and crossed it at 7.7 yards a second.
       for (let k = 0; k < n; k++) {
         if (!steered[k]) continue;
+        let sx = 0;
+        let sy = 0;
         for (let j = 0; j < n; j++) {
           if (j === k) continue;
           const dx = px[k] - px[j];
@@ -794,10 +810,14 @@ export function steer(a: SteerArgs): Float32Array {
           const d = Math.hypot(dx, dy);
           if (d > 0 && d < ROOM) {
             const push = Math.min(ROOM_PUSH, (ROOM - d) * (steered[j] ? 0.5 : 1));
-            px[k] += (dx / d) * push;
-            py[k] += (dy / d) * push;
+            sx += (dx / d) * push;
+            sy += (dy / d) * push;
           }
         }
+        const total = Math.hypot(sx, sy);
+        const f = total > ROOM_PUSH ? ROOM_PUSH / total : 1;
+        px[k] += sx * f;
+        py[k] += sy * f;
       }
       // Stay near the field; the ring below may push a chaser a step further out, never in.
       for (let k = 0; k < n; k++)
