@@ -9,13 +9,13 @@ import type { QuirkId } from '../../engine/quirks';
 import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
 import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type Seg } from './ballPath';
-import type { Cast } from './cast';
+import type { Cast } from '../../engine/field/cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
-import { FAKE, PRESSURE_REACT, type PocketPlan } from './pocket';
-import { runnable, SPEED } from './speed';
-import { decoyEnd, type Assignment, type Concept } from './concepts';
-import { routeKeys, routeTime, type RouteId } from './routes';
-import { moveSegs, pickMove, type MoveKind } from './carrier';
+import { FAKE, PRESSURE_REACT, type PocketPlan } from '../../engine/field/pocket';
+import { runnable, SPEED } from '../../engine/field/speed';
+import { decoyEnd, type Assignment, type Concept } from '../../engine/field/concepts';
+import { routeKeys, routeTime, type RouteId } from '../../engine/field/routes';
+import { moveSegs, pickMove, type MoveKind } from '../../engine/field/carrier';
 
 /** The pass's pattern (`concepts.ts`): the target's route, everyone else's, which way is in for each, their speeds. */
 export interface Pattern {
@@ -29,48 +29,10 @@ export interface Pattern {
 }
 /** A decoy runs his route at this pace (or his top speed, if lower). */
 const DECOY_PACE = 8.5;
-import { isVictory, type Pt } from './formations';
+import { isVictory, type Pt } from '../../engine/field/formations';
+import { ballTrack, BEAT_ACROSS, passFlight, sample, type Keyframe } from '../../engine/field/keys';
 
-/** A spot at a time: seconds from the snap. */
-export interface Keyframe {
-  t: number;
-  x: number;
-  y: number;
-}
-
-/** Where a scripted player is at `t`: straight lines between keyframes, held before the first and after the last. */
-export function sample(keys: readonly Keyframe[], t: number): Pt {
-  if (t <= keys[0].t) return keys[0];
-  for (let i = 1; i < keys.length; i++) {
-    const b = keys[i];
-    if (t <= b.t) {
-      const a = keys[i - 1];
-      const k = b.t === a.t ? 1 : (t - a.t) / (b.t - a.t);
-      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
-    }
-  }
-  return keys[keys.length - 1];
-}
-
-/** The ball at each step: x, y and height, `dt` apart from the snap to the end of its path. */
-export function ballTrack(segs: readonly Seg[], dt: number): Float32Array {
-  const total = segs.reduce((t, s) => t + s.dur, 0);
-  const steps = Math.max(1, Math.ceil(total / dt) + 1);
-  const out = new Float32Array(steps * 3);
-  for (let i = 0; i < steps; i++) {
-    let t = Math.min(total, i * dt);
-    let p = segs.length ? pointAt(segs[segs.length - 1], 1) : { x: 0, y: 0, h: 0 };
-    for (const s of segs) {
-      if (t <= s.dur) {
-        p = pointAt(s, s.dur ? t / s.dur : 1);
-        break;
-      }
-      t -= s.dur;
-    }
-    out.set([p.x, p.y, p.h], i * 3);
-  }
-  return out;
-}
+export { ballTrack, BEAT_ACROSS, passFlight, sample, type Keyframe };
 
 /** Each segment's start and end time from the snap. */
 const times = (segs: readonly Seg[]) => {
@@ -95,8 +57,6 @@ const KICK_RUN_UP = 0.9;
 const MESH = 0.8;
 /** A receiver's pace down the field once he's up to speed (yards a second). */
 const ROUTE_PACE = 8.5;
-/** The engine's beaten block is acted out when the two lined up within this many yards of each other across the field. */
-export const BEAT_ACROSS = 6;
 /** A rusher's get-off: at his man this long after the snap, before he fights him and wins. */
 const ENGAGE = 0.45;
 /** The victory formation: where he takes the snap, the step back, down on a knee by this long, held till the whistle. */
@@ -219,12 +179,6 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number, opts:
   // ball carrier's pace (a tackled one's: someone brings the returner down, or he scores).
   return loosen(e, stageCarried(carried(e), homeId, snapY, opts, !!fumbleIn(e)), (sg) => carry(sg, true));
 }
-
-/**
- * A pass's time in the air, by how far it goes: about a second at 20 yards, two at 45 (a deep ball is lofted). The
- * broadcast view keeps its own quicker flight.
- */
-export const passFlight = (yards: number) => 0.3 + yards * 0.037;
 
 /** The ball's flight to the catch, and the run the target needs to get there (seconds from the snap). */
 function flightAndRoute(e: PlayLogEntry, homeId: number, snapY: number, receiverAt?: Pt) {

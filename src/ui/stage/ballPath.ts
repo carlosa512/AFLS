@@ -4,29 +4,21 @@
  */
 import type { PlayLogEntry } from '../../engine/types';
 import { bounce, fumbleIn } from './fumble';
-import type { MoveKind } from './carrier';
+import {
+  clampY,
+  FIELD_W,
+  HASH_HI,
+  HASH_LO,
+  laneY,
+  MID,
+  offenseSide,
+  pointAt,
+  SNAPPED,
+  snapYFor,
+  type Seg,
+} from '../../engine/field/geometry';
 
-export const FIELD_W = 53.3;
-export const MID = FIELD_W / 2;
-
-// NFL hash marks sit 70'9" in from each sideline; the ball is spotted between them.
-export const HASH_LO = 23.6;
-export const HASH_HI = FIELD_W - 23.6;
-export const clampY = (y: number) => Math.max(1.5, Math.min(FIELD_W - 1.5, y));
-
-export interface Seg {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  /** Peak height for passes and kicks; 0 on the ground. */
-  peak: number;
-  dur: number;
-  /** A ball carrier's move; the stager scripts the man who missed against it. */
-  move?: MoveKind;
-  /** The tackle lands at this leg's start: the pair go on to its end together (a lunge forward, a slide into it). */
-  hit?: true;
-}
+export { clampY, FIELD_W, HASH_HI, HASH_LO, laneY, MID, offenseSide, pointAt, SNAPPED, snapYFor, type Seg };
 
 export function ground(x0: number, y0: number, x1: number, y1: number, pace = 1): Seg {
   return { x0, y0, x1, y1, peak: 0, dur: (0.3 + Math.min(1.9, Math.hypot(x1 - x0, y1 - y0) * 0.04)) * pace };
@@ -35,21 +27,6 @@ function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?:
   const dist = Math.hypot(x1 - x0, y1 - y0);
   return { x0, y0, x1, y1, peak, dur: dur ?? 0.5 + dist * 0.018 };
 }
-
-/** Plays snapped from scrimmage start on the hash nearest to where the last play ended. */
-export const SNAPPED = new Set([
-  'run',
-  'pass',
-  'incomplete',
-  'int',
-  'sack',
-  'scramble',
-  'kneel',
-  'spike',
-  'penalty',
-  'punt',
-  'fg',
-]);
 
 /** The ball's path for a play, in both views: the play as it was carried, then any fumble (`loosen`). */
 export function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
@@ -68,7 +45,7 @@ export function basePath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] 
   const { from, to } = e;
   const dir = e.offense === homeId ? 1 : -1;
   // Home drives toward screen-left, so its left hand is the near sideline; away is the reverse.
-  const laneY = clampY(snapY + (e.lane ?? 0) * dir * 16);
+  const laneAt = laneY(snapY, e.lane ?? 0, dir);
   const segs: Seg[] = [];
   switch (e.kind) {
     case 'pass':
@@ -77,17 +54,17 @@ export function basePath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] 
       const qbX = from - dir * 6;
       segs.push(ground(from, snapY, qbX, snapY, 0.8));
       const target = e.air ?? from + dir * 2;
-      const targetY = e.air === undefined ? (laneY > MID ? FIELD_W + 2 : -2) : laneY;
+      const targetY = e.air === undefined ? (laneAt > MID ? FIELD_W + 2 : -2) : laneAt;
       segs.push(air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
       if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5)
-        segs.push(ground(target, targetY, to, clampY(laneY + (e.lane ?? 0) * 3)));
+        segs.push(ground(target, targetY, to, clampY(laneAt + (e.lane ?? 0) * 3)));
       break;
     }
     case 'run':
     case 'scramble': {
       const handoff = from - dir * 3;
       segs.push(ground(from, snapY, handoff, snapY, 0.6));
-      segs.push(ground(handoff, snapY, to, laneY));
+      segs.push(ground(handoff, snapY, to, laneAt));
       break;
     }
     case 'spike':
@@ -144,24 +121,4 @@ export function loosen(e: PlayLogEntry, segs: Seg[], pace: (s: Seg) => Seg = gro
     ...hops,
     ...(back ? [pace(ground(at.x, at.y, e.to!, clampY(at.y + (MID - at.y) * 0.2)))] : []),
   ];
-}
-
-export function pointAt(seg: Seg, s: number) {
-  return { x: seg.x0 + (seg.x1 - seg.x0) * s, y: seg.y0 + (seg.y1 - seg.y0) * s, h: 4 * seg.peak * s * (1 - s) };
-}
-
-/** Where the ball is snapped: plays from scrimmage on the hash nearest where the last play ended, others mid-field. */
-export function snapYFor(e: PlayLogEntry | undefined, lastY: number): number {
-  return e?.kind && SNAPPED.has(e.kind) ? Math.max(HASH_LO, Math.min(HASH_HI, lastY)) : MID;
-}
-
-/**
- * The side with the ball: 0 home, 1 away. A kick's log entry can name the receiving team (the engine logs it after
- * possession changes on a touchback), so a kick reads its side off the ball's flight, which always goes away from
- * the kicking team.
- */
-export function offenseSide(e: PlayLogEntry, homeId: number): 0 | 1 {
-  const kick = e.kind === 'kickoff' || e.kind === 'punt' || e.kind === 'fg' || e.kind === 'xp';
-  if (kick && e.air !== undefined && e.from !== undefined && e.air !== e.from) return e.air > e.from ? 0 : 1;
-  return e.offense === homeId ? 0 : 1;
 }

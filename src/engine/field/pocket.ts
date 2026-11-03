@@ -4,13 +4,13 @@
  * escape. Pure and seeded like the rest of the stager. Spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-
  * design.md §2 and §6; the numbers are the NFL's (`npm run film` holds the staging to them).
  */
-import type { Rng } from '../../engine/rng';
-import { OFF_SCHEMES, type OffSchemeId } from '../../engine/schemes';
-import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W } from './ballPath';
+import type { Rng } from '../rng';
+import { OFF_SCHEMES, type OffSchemeId } from '../schemes';
+import type { PlayLogEntry } from '../types';
+import { FIELD_W } from './geometry';
 import type { Role } from './cast';
 import type { Pt } from './formations';
-import type { Keyframe } from './scripts';
+import type { Keyframe } from './keys';
 
 /**
  * A drop by its depth, counted in steps from under center (PFF's buckets): 1 a quick set, 3 sets 4–6 yards deep,

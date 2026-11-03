@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Rng } from '../../engine/rng';
+import { Rng } from '../rng';
 import { ROUTES, routeFor, routeKeys, routeTime, type RouteId, type Spot } from './routes';
 
 const from = { x: 30, y: 6 };

@@ -6,7 +6,7 @@
 import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
 import { FIELD_W, offenseSide } from './ballPath';
-import type { Pt } from './formations';
+import type { Pt } from '../../engine/field/formations';
 
 /** A jog, in yards a second. */
 export const JOG = 4.5;

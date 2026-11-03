@@ -3,12 +3,12 @@
  * for the defense, in yards; `dir` is 1 when the offense attacks toward x = 100, and "across" is from the offense's
  * view, so its right hand is +dir in y (as `buildPath` reads a play's lane).
  */
-import type { DefenseCall } from '../../engine/match/coach';
-import type { Rng } from '../../engine/rng';
-import { actorsIn } from '../../engine/playActors';
-import { COVERAGES } from '../../engine/schemes';
-import type { FieldScheme, PlayLogEntry } from '../../engine/types';
-import { FIELD_W, MID } from './ballPath';
+import type { DefenseCall } from '../match/coach';
+import type { Rng } from '../rng';
+import { actorsIn } from '../playActors';
+import { COVERAGES } from '../schemes';
+import type { FieldScheme, PlayLogEntry } from '../types';
+import { FIELD_W, MID } from './geometry';
 import type { Cast, CastMember, Role } from './cast';
 
 export interface Pt {

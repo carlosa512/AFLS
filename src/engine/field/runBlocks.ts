@@ -5,10 +5,10 @@
  * kicked out, and the free man picked up by whoever can get to him first. The engine's tackler and the man the
  * engine says missed are never blocked (they make their plays). `steer.ts` plays it out.
  */
-import type { Rng } from '../../engine/rng';
-import type { OffSchemeId } from '../../engine/schemes';
-import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W } from './ballPath';
+import type { Rng } from '../rng';
+import type { OffSchemeId } from '../schemes';
+import type { PlayLogEntry } from '../types';
+import { FIELD_W } from './geometry';
 import type { Cast } from './cast';
 import type { Pt } from './formations';
 import { has, type Habits } from './habits';

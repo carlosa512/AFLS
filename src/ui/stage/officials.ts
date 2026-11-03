@@ -6,7 +6,7 @@
  */
 import type { PlayLogEntry } from '../../engine/types';
 import { FIELD_W, MID } from './ballPath';
-import type { Pt } from './formations';
+import type { Pt } from '../../engine/field/formations';
 
 /** Referee, umpire, down judge (near sideline), line judge (far sideline), back judge. */
 export const CREW = ['R', 'U', 'DJ', 'LJ', 'BJ'] as const;

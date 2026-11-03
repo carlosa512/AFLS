@@ -3,9 +3,9 @@
  * snap, the kick units on a kick. A player the play was about who isn't among the eleven (a back spelling the
  * starter, a rotation rusher) takes the spot of the man in his group for that snap.
  */
-import { actorsIn } from '../../engine/playActors';
-import { offenseSide } from './ballPath';
-import type { FieldRecord, FieldUnits, PlayLogEntry } from '../../engine/types';
+import { actorsIn } from '../playActors';
+import { offenseSide } from './geometry';
+import type { FieldRecord, FieldUnits, PlayLogEntry } from '../types';
 
 export type Role = 'QB' | 'OL' | 'RB' | 'WR' | 'TE' | 'DT' | 'EDGE' | 'LB' | 'CB' | 'S' | 'K' | 'P' | 'RET' | 'ST';
 

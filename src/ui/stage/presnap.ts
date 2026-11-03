@@ -16,7 +16,7 @@ import type { PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
 import type { OffSchemeId } from '../../engine/schemes';
 import { FIELD_W } from './ballPath';
-import type { Pt } from './formations';
+import type { Pt } from '../../engine/field/formations';
 import type { StagedPlay } from './stage';
 
 /** One stretch of a man's movement before the snap: it starts `at` seconds before the snap and takes `dur`. */

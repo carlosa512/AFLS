@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Rng } from '../../engine/rng';
-import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W } from './ballPath';
+import { Rng } from '../rng';
+import type { PlayLogEntry } from '../types';
+import { FIELD_W } from './geometry';
 import { pocketPath, pocketPlan, sackTime, type Drop, type PocketContext } from './pocket';
 
 const play = (over: Partial<PlayLogEntry> = {}): PlayLogEntry => ({

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createLeague } from '../../engine/generate';
-import { simulateGame } from '../../engine/match/gameSim';
-import { actorsIn } from '../../engine/playActors';
-import { Rng } from '../../engine/rng';
-import type { QuirkId } from '../../engine/quirks';
-import { snapYFor } from './ballPath';
+import { createLeague } from '../generate';
+import { simulateGame } from '../match/gameSim';
+import { actorsIn } from '../playActors';
+import { Rng } from '../rng';
+import type { QuirkId } from '../quirks';
+import { snapYFor } from './geometry';
 import { castFor } from './cast';
 import { lineUp } from './formations';
 import { holeAt, planRunBlocks, runCall, type RunCall } from './runBlocks';

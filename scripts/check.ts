@@ -213,7 +213,7 @@ const RULES: [RegExp, Name[]][] = [
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
   // All-22's staging, and the engine's play log it stages from.
-  [/^src\/ui\/stage\/(?!.*\.test\.ts$)|^src\/engine\/(match\/|playActors\.ts)|^scripts\/film\.ts$/, ['film']],
+  [/^src\/ui\/stage\/(?!.*\.test\.ts$)|^src\/engine\/(match\/|field\/|playActors\.ts)|^scripts\/film\.ts$/, ['film']],
   // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate)/, ['size']],
   [/^scripts\/size\.ts$/, ['size']],

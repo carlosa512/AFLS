@@ -7,7 +7,7 @@
 import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
 import { FIELD_W, MID } from './ballPath';
-import type { Pt } from './formations';
+import type { Pt } from '../../engine/field/formations';
 import { BENCH, type Mark } from './transition';
 
 export type FinaleKind = 'walkoff' | 'win' | 'tie';

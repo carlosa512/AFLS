@@ -2,8 +2,8 @@
  * The habits the engine found in play on a run or a catch (`OpenField.habits`), by man: the film shows them in how he
  * moves (spec: docs/superpowers/specs/2026-11-02-all-22-open-field-design.md §3a). Older games noted none.
  */
-import type { QuirkId } from '../../engine/quirks';
-import type { PlayLogEntry } from '../../engine/types';
+import type { QuirkId } from '../quirks';
+import type { PlayLogEntry } from '../types';
 
 export type Habits = ReadonlyMap<number, ReadonlySet<QuirkId>>;
 

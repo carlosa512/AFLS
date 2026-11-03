@@ -7,12 +7,12 @@ import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import type { QuirkId } from '../../engine/quirks';
 import { FIELD_W, pointAt, snapYFor } from './ballPath';
-import { castFor, unitsAt } from './cast';
+import { castFor, unitsAt } from '../../engine/field/cast';
 import { fumbleIn } from './fumble';
-import { lineUp } from './formations';
+import { lineUp } from '../../engine/field/formations';
 import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
 import { asRan, returned, SPRINT, stagePlay, type StagedPlay } from './stage';
-import { SPEED } from './speed';
+import { SPEED } from '../../engine/field/speed';
 
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {

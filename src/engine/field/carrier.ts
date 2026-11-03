@@ -4,9 +4,9 @@
  * it as the carrier's path, every segment tagged with the move so the stager can script the man who missed against
  * it. Path only: no new marks or icons, the move reads off how the dot runs. Pure: no draws but the one it's given.
  */
-import type { QuirkId } from '../../engine/quirks';
-import type { Rng } from '../../engine/rng';
-import { FIELD_W, type Seg } from './ballPath';
+import type { QuirkId } from '../quirks';
+import type { Rng } from '../rng';
+import { FIELD_W, type Seg } from './geometry';
 import type { Pt } from './formations';
 
 export type MoveKind = 'juke' | 'jumpCut' | 'spin' | 'runThrough' | 'stiffArm';

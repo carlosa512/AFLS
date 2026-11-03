@@ -6,7 +6,7 @@
 import { Rng } from '../../engine/rng';
 import { FIELD_W } from './ballPath';
 import type { Exit } from './calls';
-import type { Pt } from './formations';
+import type { Pt } from '../../engine/field/formations';
 import { BENCH, type Mark } from './transition';
 
 /** Everyone where the play left him, before anything moves. */

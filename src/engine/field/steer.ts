@@ -4,16 +4,16 @@
  * out. Worked out once when a play loads, at a fixed step, on its own seeded stream: the same play always moves the
  * same way, at any playback speed.
  */
-import type { Rng } from '../../engine/rng';
-import type { DefenseCall } from '../../engine/match/coach';
-import type { CoverageId } from '../../engine/schemes';
-import { FIELD_W, MID } from './ballPath';
+import type { Rng } from '../rng';
+import type { DefenseCall } from '../match/coach';
+import type { CoverageId } from '../schemes';
+import { FIELD_W, MID } from './geometry';
 import type { Cast, CastMember } from './cast';
 import { SPEED } from './speed';
 import { has, type Habits } from './habits';
 import type { RunBlocking } from './runBlocks';
 import type { Pt } from './formations';
-import { BEAT_ACROSS, sample, type Keyframe } from './scripts';
+import { BEAT_ACROSS, sample, type Keyframe } from './keys';
 
 export { SPEED } from './speed';
 /** Yards a second gained or shed in a second. */

@@ -4,10 +4,10 @@
  * the ball does. Pure: the same catch, the same route. Spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-
  * design.md §3 and §6 (the NFL's air yards and times by route, 2022).
  */
-import type { Rng } from '../../engine/rng';
-import { FIELD_W } from './ballPath';
+import type { Rng } from '../rng';
+import { FIELD_W } from './geometry';
 import type { Pt } from './formations';
-import type { Keyframe } from './scripts';
+import type { Keyframe } from './keys';
 
 export type RouteId =
   | 'screen'

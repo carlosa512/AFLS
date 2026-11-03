@@ -13,10 +13,10 @@ import { simulateGame } from '../src/engine/match/gameSim';
 import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
 import { snapYFor } from '../src/ui/stage/ballPath';
-import type { Drop } from '../src/ui/stage/pocket';
-import type { Role } from '../src/ui/stage/cast';
-import type { RouteId } from '../src/ui/stage/routes';
-import { SPEED } from '../src/ui/stage/steer';
+import type { Drop } from '../src/engine/field/pocket';
+import type { Role } from '../src/engine/field/cast';
+import type { RouteId } from '../src/engine/field/routes';
+import { SPEED } from '../src/engine/field/steer';
 import { asRan, stagePlay, type StagedPlay } from '../src/ui/stage/stage';
 
 const GAMES = Number(process.argv[2] ?? 200);

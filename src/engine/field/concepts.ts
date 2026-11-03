@@ -4,9 +4,9 @@
  * The target's route comes first (it fits his catch, `routeFor`); the pick favours concepts that have it at his spot,
  * and he runs it whatever the pick. Spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-design.md §3.
  */
-import type { Rng } from '../../engine/rng';
-import type { OffSchemeId } from '../../engine/schemes';
-import { FIELD_W } from './ballPath';
+import type { Rng } from '../rng';
+import type { OffSchemeId } from '../schemes';
+import { FIELD_W } from './geometry';
 import { WIDE_SPLIT, type Pt } from './formations';
 import { ROUTES, type RouteId, type Spot } from './routes';
 

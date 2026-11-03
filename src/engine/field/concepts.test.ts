@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Rng } from '../../engine/rng';
-import type { OffSchemeId } from '../../engine/schemes';
+import { Rng } from '../rng';
+import type { OffSchemeId } from '../schemes';
 import { assign, conceptFor, decoyEnd, type ConceptId } from './concepts';
 import { ROUTES, type RouteId, type Spot } from './routes';
 

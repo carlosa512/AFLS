@@ -2,7 +2,7 @@
  * How fast a man runs, by his role: the steering's top speeds and the scripts' limits share one table. Yards a second,
  * roughly the NFL's tracking data (spec §6: the fastest ball carriers 10.2–10.9 yd/s; linemen 6–7).
  */
-import type { Keyframe } from './scripts';
+import type { Keyframe } from './keys';
 import type { Role } from './cast';
 import type { Pt } from './formations';
 

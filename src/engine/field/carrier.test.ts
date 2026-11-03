@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { QuirkId } from '../../engine/quirks';
-import { Rng } from '../../engine/rng';
-import { FIELD_W } from './ballPath';
+import type { QuirkId } from '../quirks';
+import { Rng } from '../rng';
+import { FIELD_W } from './geometry';
 import { clampToField, moveSegs, pickMove, type MoveKind } from './carrier';
 
 const KINDS: MoveKind[] = ['juke', 'jumpCut', 'spin', 'runThrough', 'stiffArm'];
