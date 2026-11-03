@@ -14,9 +14,9 @@ export const KNOBS = {
   /** Tackle odds at even skills, from the side. */
   tackle: 0.887,
   /** A move's success at even skills. */
-  move: 0.063,
+  move: 0.103,
   /** Yards after contact at even skills, at 6 yd/s from the side. */
-  afterContact: 1.206,
+  afterContact: 1.526,
   /** Block sheds a second at even skills. */
   shed: 0.63,
   /** Seconds a line block holds past the line at z = 0. */
@@ -28,8 +28,8 @@ export const KNOBS = {
   /** Scales every contest's per-point term (moves, tackles, power, sheds): how much a point of skill decides. */
   skill: 1.15,
   /** He steps out rather than take a hit when no lane is worth `outGain` yards and the sideline is within `outLine`. */
-  outLine: 6.375,
-  outGain: 6.875,
+  outLine: 10.25,
+  outGain: 8.375,
   /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
   pad: 1.867,
 };
