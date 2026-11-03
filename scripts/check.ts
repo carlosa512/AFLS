@@ -115,6 +115,16 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /[▲▼✗]/,
   },
+  // The spatial open field against today's engine, matchup by matchup, the season's fairness and the speed budget: four
+  // leagues' moments and the season's runs in child processes.
+  parity: {
+    cmd: ['npm', 'run', 'parity'],
+    cores: 4,
+    secs: 300,
+    slow: true,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /[▲▼✗]/,
+  },
   // Officiating crews: the league stays at baseline, the crews spread like the NFL's, the rotation and drift hold.
   crews: {
     cmd: ['npm', 'run', 'crews'],
@@ -214,6 +224,11 @@ const RULES: [RegExp, Name[]][] = [
   [/^scripts\/weather\.ts$/, ['weather']],
   // All-22's staging, and the engine's play log it stages from.
   [/^src\/ui\/stage\/(?!.*\.test\.ts$)|^src\/engine\/(match\/|field\/|playActors\.ts)|^scripts\/film\.ts$/, ['film']],
+  // The spatial engine's parity: the open field, the engine that starts it, and what it reads.
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(field\/|match\/|attributes|size|quirks|generate)|^scripts\/(parity|parity-fit|parity-core|field-moments|targets)\.ts$/,
+    ['parity'],
+  ],
   // Size: the curves and edges, the gem, and what builds the leagues and plays the games they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(size|match\/|generate)/, ['size']],
   [/^scripts\/size\.ts$/, ['size']],
