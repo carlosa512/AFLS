@@ -125,7 +125,7 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
  * Anchor in the room halves every Spark's. An Anchor's room is also drawn toward its own average (`calm`): the outliers
  * come in, so the room spreads less.
  */
-export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5, calm: 0.5 };
+export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5, calm: 1 };
 
 /** A leader or voice as one pass of the league reads him (his lean is in `MoraleContext.leans`). */
 export interface VoiceRef {
