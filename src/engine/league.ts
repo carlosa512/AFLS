@@ -1,3 +1,4 @@
+import { freshChemistry } from './chemistry';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
 import { moraleWeek } from './morale';
@@ -135,6 +136,8 @@ export function playGame(league: League, game: Game): void {
 /** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
 export function startLiveGame(league: League, game: Game): LiveGame {
   if (game.result) throw new Error('This game has already been played.');
+  // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
+  freshChemistry(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
   prepareGame(league, game);
@@ -161,6 +164,8 @@ function playWeekControlled(league: League): Game[] {
   if (league.phase === 'complete') return [];
   // Offers you didn't answer lapse when you play on.
   expireOffers(league);
+  // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
+  freshChemistry(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);

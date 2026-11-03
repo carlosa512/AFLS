@@ -135,8 +135,10 @@ describe('save v60', () => {
     const l = draftDay();
     const { mine, team } = picksFor(l);
     // A drafted pick that came from another team, and one that never moved.
+    // Two picks that never changed hands (the first is given a past owner below): a world where the AI traded one on
+    // draft day mustn't make the second's "never moved" untrue.
     const used = draftOrder(l)
-      .filter((p) => p.ownerId !== l.userTeamId)
+      .filter((p) => p.ownerId !== l.userTeamId && (p.originalTeamId ?? p.ownerId) === p.ownerId)
       .slice(0, 2);
     const prospects = l.draftClass.map((id) => l.players[id]).slice(0, 2);
     used.forEach((pk, i) => {

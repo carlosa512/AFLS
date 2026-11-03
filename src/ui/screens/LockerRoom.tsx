@@ -36,6 +36,11 @@ import { meetingsView, type RoomMeetingView } from '../../engine/meetings/mail';
 import { ROOMS } from '../../engine/meetings/suggest';
 import type { CoachRoom, MeetingScope } from '../../engine/types';
 import { MeetingChoices } from '../meetings';
+import { chemistryOf, type ChemRoom } from '../../engine/chemistry';
+import { chemFact } from '../../engine/roomFacts';
+import { CHEM_REASON } from '../../engine/roomVoice';
+import { soundOf, voiceName } from '../../engine/standing';
+import type { MoraleContext } from '../../engine/morale';
 
 /**
  * Your locker room, the way your coaches see it: who leads it and who is mentoring whom. Your club only; you can't see
@@ -370,6 +375,7 @@ export function LockerRoom({ league }: { league: League }) {
                 </div>
               </div>
               {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
+              {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
               {meetings && ROOMS.includes(c.unit as CoachRoom) && (
                 <RoomAsk view={roomMeeting(c.unit as CoachRoom)} label="Ask the coach to meet with them" />
               )}
@@ -380,6 +386,7 @@ export function LockerRoom({ league }: { league: League }) {
                     {c.follows.map((p) => (
                       <li key={p.id}>
                         <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
+                        <VoiceTag p={p} />
                         <div className="muted small">{whyLine(league, p)}</div>
                       </li>
                     ))}
@@ -482,6 +489,20 @@ function RoomAsk({ view, label, note }: { view?: RoomMeetingView; label: string;
       {(view.why ?? note) && <span className="muted small">{view.why ?? note}</span>}
     </div>
   );
+}
+
+/** A room's chemistry (L3), in words: the word, and the biggest reason behind it when one stands out. */
+function ChemLine({ league, unit, ctx }: { league: League; unit: ChemRoom; ctx: MoraleContext }) {
+  const c = chemistryOf(league, league.userTeamId, unit);
+  if (!c) return null;
+  const reason = say(CHEM_REASON, chemFact(league, c, ctx), { key: `chem:${unit}`, slot: 'reason' });
+  return <p className="room-chem">{reason ? `${c.word} · ${reason}` : c.word}</p>;
+}
+
+/** A Spark or an Anchor, by name (L3); a plain voice has no tag. */
+function VoiceTag({ p }: { p: Player }) {
+  const name = voiceName(soundOf(p));
+  return name ? <span className="tag-pill voice-tag">{name}</span> : null;
 }
 
 /** Worst first: the rooms that need you on top. */

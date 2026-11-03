@@ -614,3 +614,29 @@ describe('the locker room report: disputes (G4)', () => {
     expect(section(reports(l)[0], 'Disputes')).toBeUndefined();
   });
 });
+
+describe('the locker report: chemistry (L3)', () => {
+  const CHEM_WORD = /clicking|out of sync|gelling|still learning each other|comfortable/i;
+  const chemRows = (m: InboxMessage) =>
+    (section(m, 'The room')?.rows ?? []).filter((r) => CHEM_WORD.test(r.cells[1] ?? ''));
+
+  it('tells Clicking and Out of sync first, then only a room whose word changed, once', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const line = ours(l).filter((p) => unitOf(p.position) === 'OL');
+    for (const p of line) p.morale = { level: -9, jolts: [] };
+    deliverMail(l);
+    const first = reports(l).at(-1)!;
+    const told = new Map(chemRows(first).map((r) => [r.cells[0], r.cells[1]]));
+    expect(told.get(ROOM_LABEL.OL)).toBe('Out of sync');
+    for (const word of told.values()) expect(['Clicking', 'Out of sync']).toContain(word);
+    for (const r of chemRows(first)) expect(r.note ?? '').not.toMatch(/\d/);
+    // The line comes around: told once at the next report, and nothing else repeats.
+    for (const p of line) p.morale = { level: 0, jolts: [] };
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const second = reports(l).find((x) => x.id.endsWith(':deadline'))!;
+    for (const r of chemRows(second)) expect(told.get(r.cells[0])).not.toBe(r.cells[1]);
+    expect(chemRows(second).find((r) => r.cells[0] === ROOM_LABEL.OL)?.cells[1]).not.toBe('Out of sync');
+  });
+});

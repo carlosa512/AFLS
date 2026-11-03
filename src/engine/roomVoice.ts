@@ -160,7 +160,7 @@ export interface WhyFact {
 
 // ───────── grammar ─────────
 
-const SINGULAR = new Set(['the line', 'the D-line', 'the secondary', 'the room']);
+const SINGULAR = new Set(['the line', 'the D-line', 'the secondary', 'the room', 'the passing game']);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "The line is", "The receivers are", with "still" when it's still so. */
 const isAre = (unit: string, still = false) => `${SINGULAR.has(unit) ? 'is' : 'are'}${still ? ' still' : ''}`;
@@ -496,3 +496,95 @@ export function standsOut(
   if (room.mood >= 5 && room.reasons[0]?.text === WINNING) return 'Winning keeps them happy.';
   return 'Nothing to flag.';
 }
+
+// ───────── chemistry (L3) ─────────
+
+/** What a chemistry line may read: the room's word and the reasons behind it, all from what our staff see. */
+export interface ChemFact {
+  unit: string;
+  word: 'Clicking' | 'Gelling' | 'Still learning each other' | 'Out of sync';
+  /** Seasons the room's starters have played together, on average; null where it doesn't count. */
+  years: number | null;
+  newStarters: number;
+  split: boolean;
+  comfortable: boolean;
+  /** The room's Spark (a voice whose mood spreads), and whether he's sour. */
+  spark?: { last: string; sour: boolean };
+  /** An Anchor in the room. */
+  anchor?: string;
+}
+
+/** "The line's", "The receivers are". */
+const unitIs_ = (unit: string) => `${cap(unit)}${SINGULAR.has(unit) ? "'s" : ' are'}`;
+/** Where a room's new men line up, the way a coach says it. */
+const where = (unit: string) =>
+  unit === 'the secondary' ? 'back there' : unit === 'the line' || unit === 'the D-line' ? 'up front' : 'out there';
+const starters_ = (n: number) => `${inWords(n)} new starter${n === 1 ? '' : 's'}`;
+const yearsTogether = (y: number) => `${inWords(Math.floor(y))} years together`;
+const feeling = (unit: string) => `${cap(unit)}${SINGULAR.has(unit) ? "'s" : "'re"} feeling it`;
+
+export const CHEM_NOTE: readonly Line<ChemFact>[] = [
+  {
+    when: (f) => f.word === 'Clicking' && (f.years ?? 0) >= 2,
+    reads: 2,
+    text: (f) => `${unitIs_(f.unit)} clicking. ${cap(yearsTogether(f.years!))} shows.`,
+  },
+  {
+    when: (f) => f.word === 'Clicking' && !!f.anchor,
+    reads: 2,
+    text: (f) => `${unitIs_(f.unit)} clicking, and ${f.anchor} keeps them steady.`,
+  },
+  { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `${unitIs_(f.unit)} clicking right now.` },
+  {
+    when: (f) => f.word === 'Out of sync' && !!f.spark?.sour,
+    reads: 3,
+    text: (f) => `${isOf(f.spark!.last)} sour, and he's a spark. ${feeling(f.unit)}.`,
+  },
+  {
+    when: (f) => f.word === 'Out of sync' && f.split,
+    reads: 2,
+    text: (f) => `${unitIs_(f.unit)} out of sync. When a room's divided, it shows on the field.`,
+  },
+  {
+    when: (f) => f.word === 'Out of sync' && f.newStarters >= 2,
+    reads: 2,
+    text: (f) => `${unitIs_(f.unit)} out of sync. ${cap(starters_(f.newStarters))}, and it shows.`,
+  },
+  { when: (f) => f.word === 'Out of sync', reads: 1, text: (f) => `${unitIs_(f.unit)} out of sync right now.` },
+  {
+    when: (f) => f.word === 'Still learning each other' && f.newStarters >= 1,
+    reads: 2,
+    text: (f) => `${U(f)} still learning each other. ${cap(starters_(f.newStarters))} ${where(f.unit)}.`,
+  },
+  { when: (f) => f.word === 'Still learning each other', reads: 1, text: (f) => `${U(f)} still learning each other.` },
+  {
+    when: (f) => f.word === 'Gelling' && f.comfortable,
+    reads: 2,
+    text: (f) => `${unitIs_(f.unit)} comfortable. Winning does that.`,
+  },
+  {
+    when: (f) => f.word === 'Gelling' && !!f.anchor,
+    reads: 1,
+    text: (f) => `${unitIs_(f.unit)} gelling. ${isOf(f.anchor!)} holding them together.`,
+  },
+  { text: (f) => `${unitIs_(f.unit)} gelling.` },
+];
+
+/** The Locker Room card's short reason beside the word; empty when nothing stands out. */
+export const CHEM_REASON: readonly Line<ChemFact>[] = [
+  { when: (f) => f.word === 'Clicking' && (f.years ?? 0) >= 2, reads: 3, text: (f) => yearsTogether(f.years!) },
+  { when: (f) => !!f.spark?.sour && f.word === 'Out of sync', reads: 3, text: (f) => `${isOf(f.spark!.last)} sour` },
+  { when: (f) => f.split && f.word === 'Out of sync', reads: 2, text: () => 'divided room' },
+  {
+    when: (f) => f.newStarters >= 1 && (f.word === 'Still learning each other' || f.word === 'Out of sync'),
+    reads: 2,
+    text: (f) => starters_(f.newStarters),
+  },
+  { when: (f) => f.comfortable, reads: 1, text: () => 'comfortable' },
+  {
+    when: (f) => !!f.anchor && f.word !== 'Out of sync',
+    reads: 1,
+    text: (f) => `${isOf(f.anchor!)} holding them together`,
+  },
+  { text: () => '' },
+];

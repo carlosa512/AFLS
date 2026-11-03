@@ -32,6 +32,9 @@ describe('save v67', () => {
     const up = migrateLeague(l)!;
     expect(up.version).toBe(SAVE_VERSION);
     const ctx = moraleContext(up);
+    // Seeded before anyone has a mood: no voice pulls yet (L3).
+    ctx.leans.clear();
+    ctx.voices.clear();
     for (const p of Object.values(up.players)) {
       if (p.teamId === null) {
         expect(p.morale).toBeUndefined();

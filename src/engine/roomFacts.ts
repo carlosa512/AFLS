@@ -3,7 +3,8 @@
  * our staff use. What the report and the staff notes told before is read back from their `covered` keys, stamped
  * with morale's clock, so the two speak from one memory.
  */
-import { moraleLevel, moraleStepOf, viewContext } from './morale';
+import { moraleLevel, moraleStepOf, viewContext, type MoraleContext } from './morale';
+import type { Chemistry, ChemRoom, ChemWord } from './chemistry';
 import { personalityRead, personalityTone } from './personality';
 import { starters } from './roster';
 import {
@@ -11,6 +12,7 @@ import {
   countOf,
   SPECIALISTS,
   UNIT_PHRASE,
+  type ChemFact,
   type StandingFact,
   type UnitFact,
   type WhyFact,
@@ -37,6 +39,10 @@ const UNIT_KEY = /^unit:(\d+):(\d+):(\w+):(\w+)$/;
 const STANDING_KEY = /^standing:(\d+):(\d+):(\d+):(leader|voice)$/;
 export const unitKey = (clock: number, teamId: number, unit: Unit, word: UnitWord) =>
   `unit:${clock}:${teamId}:${unit}:${word}`;
+const CHEM_KEY = /^chem:(\d+):(\d+):(\w+):(.+)$/;
+/** What the report told of a room's chemistry (L3): club-named, like the rest. */
+export const chemKey = (clock: number, teamId: number, unit: ChemRoom, word: ChemWord) =>
+  `chem:${clock}:${teamId}:${unit}:${word}`;
 export const standingKey = (clock: number, teamId: number, playerId: number, tier: Tier) =>
   `standing:${clock}:${teamId}:${playerId}:${tier}`;
 
@@ -47,10 +53,20 @@ export function lastTold(
 ): {
   units: Map<Unit, { word: UnitWord; clock: number }>;
   standing: { clock: number; tiers: Map<number, Tier> } | null;
+  chem: Map<ChemRoom, { word: ChemWord; clock: number }>;
 } {
   const units = new Map<Unit, { word: UnitWord; clock: number }>();
+  const chem = new Map<ChemRoom, { word: ChemWord; clock: number }>();
   let standing: { clock: number; tiers: Map<number, Tier> } | null = null;
   for (const k of told) {
+    const c = k.match(CHEM_KEY);
+    if (c) {
+      if (Number(c[2]) !== teamId) continue;
+      const clock = Number(c[1]);
+      const have = chem.get(c[3] as ChemRoom);
+      if (!have || clock >= have.clock) chem.set(c[3] as ChemRoom, { word: c[4] as ChemWord, clock });
+      continue;
+    }
     const u = k.match(UNIT_KEY);
     if (u) {
       if (Number(u[2]) !== teamId) continue;
@@ -65,7 +81,7 @@ export function lastTold(
     if (!standing || clock > standing.clock) standing = { clock, tiers: new Map() };
     if (clock === standing.clock) standing.tiers.set(Number(s[3]), s[4] as Tier);
   }
-  return { units, standing };
+  return { units, standing, chem };
 }
 
 const phraseOf = (unit: Unit) => (unit === 'ST' ? SPECIALISTS : UNIT_PHRASE[unit]);
@@ -173,4 +189,28 @@ export function standingFact(
 /** What the screen's one-line reason may read. */
 export function whyFact(_league: League, p: Player, view: StandingView): WhyFact {
   return { parts: view.parts, experience: p.experience, unit: phraseOf(unitOf(p.position)) };
+}
+
+/** What a chemistry line may read about one of our rooms (L3): the word, and what's behind it that our staff see. */
+export function chemFact(league: League, c: Chemistry, ctx: MoraleContext): ChemFact {
+  const read = unitRead(league, c.teamId, c.unit, ctx);
+  const setter = read?.setter === null || read?.setter === undefined ? undefined : league.players[read.setter];
+  const anchor = (ctx.voices.get(`${c.teamId}:${c.unit}`) ?? [])
+    .filter((v) => v.sound === 'steadies')
+    .map((v) => league.players[v.id])
+    .find((p) => p && p.teamId === c.teamId);
+  return {
+    // The QB room's time together is his with his targets: the passing game, not the quarterbacks.
+    unit: c.unit === 'QB' ? 'the passing game' : UNIT_PHRASE[c.unit],
+    word: c.word,
+    years: c.years,
+    // New starters only count where time together costs the room: in a new league nobody has history, so nobody's new.
+    newStarters: c.together !== null && c.together < 0 ? c.newStarters : 0,
+    split: read?.word === 'Split',
+    comfortable: c.comfortable,
+    ...(setter && soundOf(setter) === 'stirs'
+      ? { spark: { last: setter.lastName, sour: moraleStepOf(moraleLevel(league, setter)) <= 3 } }
+      : {}),
+    ...(anchor ? { anchor: anchor.lastName } : {}),
+  };
 }

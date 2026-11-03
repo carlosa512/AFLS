@@ -5,6 +5,8 @@ import { releasePlayer } from './finance/cap';
 import { nameCaptains } from './personality';
 import { activeRoster, starters } from './roster';
 import {
+  calmOf,
+  toneOf,
   isNewcomer,
   roomView,
   standingView,
@@ -215,13 +217,87 @@ describe('standing: who a room listens to', () => {
 });
 
 describe('standing: moods stay each man’s own (L1)', () => {
-  it("a voice's mood doesn't move a teammate's target: that waits for chemistry (L3)", () => {
+  it("a room's voices pull a teammate's mood: a sour room's drag it, a happy one's lift it (L3)", () => {
+    const l = fresh();
+    const p = wrOf(l);
+    const voices = voicesOf(l, p.teamId!)
+      .concat(leadersOf(l, p.teamId!))
+      .filter((v) => v.id !== p.id && unitOf(v.position) === 'WR');
+    expect(voices.length).toBeGreaterThan(0);
+    for (const v of voices) v.morale = { level: -9 };
+    const sour = moraleFactors(l, p, moraleContext(l)).tone!;
+    for (const v of voices) v.morale = { level: 9 };
+    const happy = moraleFactors(l, p, moraleContext(l)).tone!;
+    expect(happy).toBeGreaterThan(sour);
+    // Its own factor, inside its ±1.5: never a grievance he'd name.
+    expect(happy - sour).toBeLessThanOrEqual(3 + 1e-9);
+  });
+});
+
+describe('L3: what chemistry reads off a room', () => {
+  it('a unit read carries its weighted mood level', async () => {
+    const { unitReads } = await import('./standing');
+    const { moraleStepOf } = await import('./morale');
+    const l = fresh();
+    const reads = unitReads(l, l.teams[0].id, moraleContext(l));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const r of reads) {
+      expect(Number.isFinite(r.level)).toBe(true);
+      expect(moraleStepOf(r.level)).toBe(r.mood);
+    }
+  });
+
+  it("a Spark's mood pulls his room, an Anchor's half as hard, and an Anchor takes the edge off a Spark", () => {
     const l = fresh();
     const p = wrOf(l);
     const ctx = moraleContext(l);
-    const before = moraleFactors(l, p, ctx).room;
-    for (const v of voicesOf(l, p.teamId!).concat(leadersOf(l, p.teamId!)))
-      if (v.id !== p.id && unitOf(v.position) === 'WR') v.morale = { level: -9 };
-    expect(moraleFactors(l, p, moraleContext(l)).room).toBe(before);
+    const key = `${p.teamId}:WR`;
+    ctx.voiceMean = 0;
+    ctx.leans.set(9001, 1).set(9002, -1).set(9003, 1);
+    ctx.voices.set(key, [{ id: 9001, sound: 'stirs' }]);
+    expect(toneOf(p, ctx)).toBeCloseTo(1, 9);
+    ctx.voices.set(key, [
+      { id: 9002, sound: 'stirs' },
+      { id: 9003, sound: null },
+    ]);
+    const noAnchor = toneOf(p, ctx);
+    expect(noAnchor).toBeCloseTo(-1 / 3, 9);
+    ctx.voices.set(key, [
+      { id: 9002, sound: 'stirs' },
+      { id: 9003, sound: 'steadies' },
+    ]);
+    expect(toneOf(p, ctx)).toBeCloseTo(0, 9);
+  });
+
+  it('never pulls a man by himself', () => {
+    const l = fresh();
+    const p = wrOf(l);
+    const ctx = moraleContext(l);
+    ctx.voiceMean = 0;
+    ctx.leans.set(p.id, 1);
+    ctx.voices.set(`${p.teamId}:WR`, [{ id: p.id, sound: 'stirs' }]);
+    expect(toneOf(p, ctx)).toBe(0);
+  });
+
+  it("an Anchor's room draws a man toward its average; no Anchor, no draw", () => {
+    const l = fresh();
+    const p = wrOf(l);
+    const ctx = moraleContext(l);
+    const key = `${p.teamId}:WR`;
+    ctx.leans.set(p.id, -1);
+    ctx.roomLeans.set(key, 0.2);
+    ctx.voices.set(key, [{ id: 9004, sound: 'steadies' }]);
+    expect(calmOf(p, ctx)).toBeCloseTo(1, 9);
+    ctx.leans.set(p.id, 0.6);
+    expect(calmOf(p, ctx)).toBeCloseTo(-0.4, 9);
+    ctx.voices.set(key, [{ id: 9004, sound: 'stirs' }]);
+    expect(calmOf(p, ctx)).toBe(0);
+  });
+
+  it('names a voice plainly', async () => {
+    const { voiceName } = await import('./standing');
+    expect(voiceName('stirs')).toBe('Spark');
+    expect(voiceName('steadies')).toBe('Anchor');
+    expect(voiceName(null)).toBeNull();
   });
 });
