@@ -43,6 +43,13 @@ const REGROUP = 1;
 const SHIELD = 1.2;
 /** Steps a defender reads the carrier's velocity over. */
 const SMOOTH = 6;
+/** At his spot: within this many yards of it the next man to him has the tackle. */
+const ANCHOR = 1;
+/** Past his spot by this much with nobody on him, he goes down; a man this close takes him. */
+const PAST = 0.5;
+const ANCHOR_REACH = 3;
+/** A man credited short of the goal line goes down this far short of it (yards). */
+const GOAL_SHORT = 0.3;
 /** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
 const STRETCH_T = 1;
 /** After a catch he gathers this long (seconds) before he reads the field. */
@@ -130,6 +137,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   let spotX = 0;
   let pileBrake = 0;
   let move = null as Contact['program'];
+  /** Today's spot (call H): he plays to it. */
+  const spot = start.target;
+  /** Past his spot with nobody on him: going down. */
+  let sliding = false;
   let moveUntil = 0;
 
   /** Who can still make a play, and how late, as the carrier reads it. */
@@ -148,7 +159,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       chasers,
       dir,
       goalX,
-      clock: start.clock,
+      // Playing to today's spot he stays in bounds to it: the engine keeps today's out-of-bounds call.
+      clock: start.target ? { outOfBounds: false, stayIn: true } : start.clock,
       reads: P[ci].s.reads,
       eastWest: start.kind === 'catch' && hasHabit(P[ci], 'runsEastWest'),
       averse: hasHabit(P[ci], 'contactAverse'),
@@ -215,13 +227,21 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (phase === 'pile') stepBody(c, { vx: 0, vy: 0 }, STEP, pileBrake);
     else if (phase === 'over' && touchdown) stepBody(c, { vx: c.vx, vy: c.vy }, STEP);
     else if (phase === 'over') stepBody(c, { vx: 0, vy: 0 }, STEP);
+    else if (sliding) stepBody(c, { vx: 0, vy: 0 }, STEP, FALL);
     else stepBody(c, want, STEP);
     record();
     hist.push({ x: c.x, y: c.y });
     const now = s * STEP;
 
     if (phase === 'live') {
-      if ((c.x - goalX) * dir >= 0) {
+      if (spot && !spot.touchdown && (c.x - goalX) * dir >= -GOAL_SHORT) {
+        // Credited short of the goal line: he goes down at it, the nearest man on him.
+        c.x = goalX - dir * GOAL_SHORT;
+        c.vx = c.vy = 0;
+        tackler = nearestDefender();
+        spotX = c.x;
+        end(now, COAST.tackle);
+      } else if ((c.x - goalX) * dir >= 0) {
         touchdown = true;
         spotX = goalX;
         end(now, COAST.touchdown);
@@ -230,6 +250,16 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         spotX = c.x;
         end(now, COAST.out);
       } else contact(now);
+      // Reaching his spot with nobody on him: he goes down in time to stop at it (a man close by takes him), and the
+      // first man to him has the tackle (`contact`).
+      if (phase === 'live' && spot && !spot.touchdown && !sliding) {
+        const v = Math.hypot(c.vx, c.vy);
+        if (left() <= (v * v) / (2 * FALL) + PAST) {
+          const d = nearestFree(ANCHOR_REACH, now);
+          if (d >= 0 && left() <= PAST) tackleBy(d, Math.max(0, left()), v);
+          else if (d < 0) sliding = true;
+        }
+      }
       if (phase === 'live' && now >= MAX_FIELD) {
         // Never meant to happen (the tests hold it): the nearest defender has him.
         tackler = nearestDefender();
@@ -252,6 +282,34 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     duration: whistle,
     frames: Float32Array.from(frames),
   };
+
+  /** Yards he has left to his credited spot (negative: past it). */
+  function left(): number {
+    return spot ? (spot.x - B[ci].x) * dir : Infinity;
+  }
+
+  /** The nearest defender free to make a play within `reach` yards of him, or -1. */
+  function nearestFree(reach: number, now: number): number {
+    let best = -1;
+    let bd = reach;
+    for (let i = 0; i < n; i++) {
+      if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil) continue;
+      const g = dist(B[i], B[ci]);
+      if (g <= bd) [best, bd] = [i, g];
+    }
+    return best;
+  }
+
+  /** Defender `d` brings him down, the pile carrying `on` yards at the speed he had. */
+  function tackleBy(d: number, on: number, sp: number) {
+    tackler = d;
+    phase = 'pile';
+    const g = dist(B[d], B[ci]) || 1;
+    offX[d] = ((B[d].x - B[ci].x) / g) * 0.6;
+    offY[d] = ((B[d].y - B[ci].y) / g) * 0.6;
+    // He carries the pile on `on` yards, slowing evenly to a stop.
+    pileBrake = Math.max(FALL, (sp * sp) / (2 * Math.max(0.3, on)));
+  }
 
   function end(now: number, coast: number) {
     phase = 'over';
@@ -408,17 +466,14 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let room = true;
     for (let i = 0; i < n; i++)
       if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= ROOM) room = false;
-    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
-    if (r.out === 'tackle') {
-      tackler = d;
-      phase = 'pile';
-      const g = dist(B[d], c) || 1;
-      offX[d] = ((B[d].x - c.x) / g) * 0.6;
-      offY[d] = ((B[d].y - c.y) / g) * 0.6;
-      // He carries the pile on `afterContact` yards, slowing evenly to a stop.
-      pileBrake = Math.max(FALL, (sp * sp) / (2 * Math.max(0.3, r.afterContact)));
-      return;
+    let r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
+    if (spot) {
+      // At his spot (and no touchdown to come) this man has him, the pile carrying him the rest of the way; short of
+      // it, or on his way to a touchdown, he drives through.
+      if (!spot.touchdown && left() <= ANCHOR) return tackleBy(d, Math.max(0, left()), sp);
+      if (r.out === 'tackle') r = { out: 'broken', afterContact: 0, program: null };
     }
+    if (r.out === 'tackle') return tackleBy(d, r.afterContact, sp);
     misses.push({
       by: P[d].id,
       how: r.out === 'broken' ? 'size' : 'move',

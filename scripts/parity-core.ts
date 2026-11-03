@@ -34,6 +34,8 @@ export interface Resolved {
     y10: number;
     y20: number;
     y40: number;
+    /** The film ends at the credited spot (within a yard and a half; a touchdown scores). */
+    film: number;
   };
   /** The open field's own times (ms), one a seed. */
   ms: number[];
@@ -59,17 +61,23 @@ export function resolve(row: MomentRow, key: string, seeds = SEEDS): Resolved {
     y10: 0,
     y20: 0,
     y40: 0,
+    film: 0,
   };
   const ms: number[] = [];
+  // The owner's call H: the yards, touchdowns and out-of-bounds are today's (credited); the open field plays out how
+  // he got there, so what it decides is who tackles, who misses, the time, and whether the film ends at the spot.
+  const credited = row.today.yards;
+  const gain = row.kind === 'catch' ? credited - row.air : credited;
   for (let k = 0; k < seeds; k++) {
     const t = performance.now();
     const r = runField(row.start, new Rng(`${key}:${k}`));
     ms.push(performance.now() - t);
-    const { yards, td } = spatialYards(row.start, r);
-    const gain = row.kind === 'catch' ? yards - row.air : yards;
-    sp.yards += yards / seeds;
-    sp.td += (td ? 1 : 0) / seeds;
-    sp.oob += (r.outOfBounds ? 1 : 0) / seeds;
+    const film = spatialYards(row.start, r);
+    sp.yards += credited / seeds;
+    sp.td += (row.today.td ? 1 : 0) / seeds;
+    sp.oob += (row.today.oob ? 1 : 0) / seeds;
+    const atSpot = row.today.td ? film.td : !film.td && Math.abs(film.yards - credited) <= 1.5;
+    sp.film += (atSpot ? 1 : 0) / seeds;
     sp.duration += Math.max(3, Math.round(row.start.t0 + r.duration + KNOBS.pad)) / seeds;
     sp.misses += r.misses.length / seeds;
     sp.y10 += (gain >= 10 ? 1 : 0) / seeds;
@@ -154,6 +162,9 @@ export function judge(all: Resolved[], totals?: Totals): Line[] {
   const punts = all.filter((r) => r.kick === 'punt');
   const returns = [...kicks, ...punts];
   const tg = (totals?.games ?? 0) * 2;
+
+  // The film ends where the play is credited (call H).
+  add('the film ends at the credited spot (share)', mean(all.map((r) => r.sp.film)), [0.9, 1], 'call H');
 
   // After the catch.
   const yac = (r: Resolved, y: number) => y - r.air;

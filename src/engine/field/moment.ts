@@ -22,6 +22,9 @@ export interface FieldFacts {
   stay?: 1;
   /** A return's special-teams coaching edge, in rating points. */
   edge?: number;
+  /** Today's result (the owner's call H): the credited yards (from the line, or a return's catch) and a touchdown. */
+  to?: number;
+  td?: 1;
 }
 
 export interface FieldMoment {

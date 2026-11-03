@@ -77,6 +77,11 @@ export interface FieldStart {
   tired: boolean;
   /** An outside run's play side across the field (field y): he stretches the edge first. */
   stretch?: 1 | -1;
+  /**
+   * Where today's engine ended the play (field x) and whether it scored: the open field plays out how he gets there
+   * (the path, the cuts, who misses, who tackles) and ends there. The owner's call H: the yards stay today's.
+   */
+  target?: { x: number; touchdown: boolean };
   /** Free defenders who react late on a clean run (seconds from `t0`): the second level held by the hole. */
   late?: { id: number; until: number }[];
 }

@@ -205,6 +205,7 @@ export function fieldStart(
     clock: { outOfBounds: !!m.facts.out, stayIn: !!m.facts.stay },
     edge: m.facts.edge ?? 0,
     tired: !!m.facts.tired,
+    ...(m.facts.to !== undefined ? { target: { x: a.yardLine + m.facts.to * a.dir, touchdown: !!m.facts.td } } : {}),
     ...(late.length ? { late } : {}),
     ...(m.kind === 'run' && staged.run?.call === 'outsideZone'
       ? { stretch: (staged.dir * staged.run.side) as 1 | -1 }

@@ -188,4 +188,31 @@ describe('the open field', () => {
     }
     expect(late / 100).toBeGreaterThan(onTime / 100 + 0.5);
   });
+
+  it('plays to the credited spot: tackled there, by a defender, and only a touchdown spot scores', () => {
+    let near = 0;
+    let total = 0;
+    for (let i = 0; i < 400; i++) {
+      const start = randomStart(`anchor:${i}`);
+      const yards = Math.round(new Rng(`y:${i}`).float(-1, 12));
+      const own = start.dir === 1 ? start.yardLine : 100 - start.yardLine;
+      if (own + yards >= 99 || own + yards <= 1) continue;
+      // A spot he can stop at from the speed he has (real moments start at the line or the catch).
+      const c = start.players.find((p) => p.id === start.carrier)!;
+      if (yards < (c.vx * c.vx + c.vy * c.vy) / 24 + 1) continue;
+      const anchored = { ...start, target: { x: start.yardLine + yards * start.dir, touchdown: false } };
+      const r = runField(anchored, new Rng(`anchor:${i}`));
+      total++;
+      expect(r.touchdown, `start ${i}`).toBe(false);
+      if (r.tackler !== null) expect(anchored.players.find((p) => p.id === r.tackler)!.side).toBe(1);
+      if (Math.abs(r.yards - yards) <= 1.5) near++;
+    }
+    expect(near / total).toBeGreaterThanOrEqual(0.95);
+    // A touchdown spot: he scores, whoever's there.
+    for (let i = 0; i < 50; i++) {
+      const start = randomStart(`td:${i}`);
+      const r = runField({ ...start, target: { x: start.dir === 1 ? 100 : 0, touchdown: true } }, new Rng(`td:${i}`));
+      expect(r.touchdown, `td ${i}`).toBe(true);
+    }
+  });
 });

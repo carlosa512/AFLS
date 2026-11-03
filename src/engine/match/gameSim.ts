@@ -69,7 +69,6 @@ import { MAX_STATS } from '../types';
 import { approach, fieldStart } from '../field/approach';
 import { MID, HASH_HI, HASH_LO } from '../field/geometry';
 import type { FieldFacts, FieldMoment } from '../field/moment';
-import { playYards } from '../field/play';
 import { runField } from '../field/run';
 import { fieldSkills } from '../field/skills';
 import { noteSkills, type FieldSnapshot } from '../field/snapshot';
@@ -1578,20 +1577,16 @@ class GameSim {
         8,
         60,
       );
-      let returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
+      const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
       if (returnTd) start = 100;
       // The open field (`field/`): caught at the 3 (the engine's own spot for a returned kickoff), run back from there.
       const kickMoment = this.fielding
-        ? this.returnMoment('kickoff', 35, 97, kickingSide, receiving, kicking)
+        ? this.returnMoment('kickoff', 35, 97, kickingSide, receiving, kicking, start - 3, start >= 100)
         : undefined;
       const kickField = kickMoment ? this.openField(kickMoment) : null;
       const kickSpatial = kickField?.result;
       const todayStart = start;
-      if (kickSpatial) {
-        const played = playYards(kickSpatial, 3);
-        returnTd = played.touchdown;
-        start = played.touchdown ? 100 : Math.max(1, 3 + played.yards);
-      }
+      // The owner's call H: the return's length is today's; the open field plays it out.
       let block = this.rng.chance(RETURN_FOUL * this.unitLoose(receiving) * all)
         ? this.blockSpot(1, start, receiving)
         : null;
@@ -1822,15 +1817,11 @@ class GameSim {
     if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
     // The open field (`field/`): from the catch. (The punt's play time was taken before the kick, as today.)
     const puntMoment = this.fielding
-      ? this.returnMoment('punt', this.yardLine, landing, this.offense, def, off)
+      ? this.returnMoment('punt', this.yardLine, landing, this.offense, def, off, ret, receiveAt + ret >= 100)
       : undefined;
     const puntField = puntMoment ? this.openField(puntMoment) : null;
     const puntSpatial = puntField?.result;
     const todayRet = ret;
-    if (puntSpatial) {
-      const played = playYards(puntSpatial, receiveAt);
-      ret = played.touchdown ? 100 - receiveAt : Math.max(1 - receiveAt, played.yards);
-    }
     const block = this.rng.chance(RETURN_FOUL * this.unitLoose(def) * all)
       ? this.blockSpot(receiveAt, receiveAt + ret, def)
       : null;
@@ -2483,6 +2474,9 @@ class GameSim {
     kickingSide: Side,
     receiving: Lineup,
     kicking: Lineup,
+    /** Today's return: its yards from the catch, and whether it scored (the owner's call H). */
+    to: number,
+    td: boolean,
   ): FieldMoment {
     // A coaching point is worth what today's roll gives it, in points of the returner's `returns`.
     const perPoint = kick === 'kickoff' ? 0.6 : 0.5;
@@ -2504,7 +2498,12 @@ class GameSim {
       air: this.fieldX(kickingSide, land),
       lane: 0,
       call: 'base',
-      facts: { y: kick === 'kickoff' ? MID : this.fieldY, ...(edge ? { edge } : {}) },
+      facts: {
+        y: kick === 'kickoff' ? MID : this.fieldY,
+        ...(edge ? { edge } : {}),
+        to,
+        ...(td ? { td: 1 as const } : {}),
+      },
     };
   }
 
@@ -2665,12 +2664,18 @@ class GameSim {
         ball: rusher.id,
         call: defCall,
         ...(open.bounce ? { bounce: 1 as const } : {}),
-        facts: { ...this.scrimmageFacts(s), z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000 },
+        facts: {
+          ...this.scrimmageFacts(s),
+          z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000,
+          to: yards,
+          ...(td ? { td: 1 as const } : {}),
+        },
       };
       field = this.openField(moment);
     }
     const spatial = field?.result;
-    const played = spatial ? playYards(spatial, this.yardLine) : { yards, touchdown: td };
+    // The owner's call H: the yards are today's; the open field played how he got there, and who brought him down.
+    const played = { yards, touchdown: td };
     const gain = played.yards;
     const runOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
@@ -2746,7 +2751,8 @@ class GameSim {
     }
     // Ball carriers protecting a lead stay in bounds.
     const oobRoll = rng.chance((outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1));
-    const oob = spatial ? spatial.outOfBounds : oobRoll;
+    // The owner's call H: out of bounds is today's call too.
+    const oob = oobRoll;
     if (oob) text += ', out of bounds';
     const duration = rng.int(4, 7);
     if (moment) this.tap(field, moment, today(shadow, oobRoll, duration));
@@ -3097,16 +3103,13 @@ class GameSim {
         ...(this.pressureBy ? { rush: this.pressureBy.id } : {}),
         call: defCall,
         ...(this.designedShot ? { shot: 1 as const } : {}),
-        facts: this.scrimmageFacts(s),
+        facts: { ...this.scrimmageFacts(s), to: gain, ...(gain >= yardsToGoal ? { td: 1 as const } : {}) },
       };
       field = this.openField(moment);
     }
     const spatial = field?.result;
-    if (spatial) {
-      const played = playYards(spatial, this.yardLine);
-      gain = played.yards;
-      tackler = spatial.tackler === null ? null : this.league.players[spatial.tackler];
-    }
+    // The owner's call H: today's yards; the open field's tackler (today's if it named none).
+    if (spatial && spatial.tackler !== null) tackler = this.league.players[spatial.tackler];
     const catchOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
     const timed = spatial ? { duration: this.fieldTime(field!.start, spatial) } : {};
@@ -3117,7 +3120,7 @@ class GameSim {
       outOfBounds,
       duration,
     });
-    const td = spatial ? spatial.touchdown : gain >= yardsToGoal;
+    const td = gain >= yardsToGoal;
     buf.add(qb, 'passCmp');
     buf.add(qb, 'passYds', gain);
     buf.add(receiver, 'rec');
@@ -3175,7 +3178,8 @@ class GameSim {
     }
     const t = coach.tempo(s);
     const oobRoll = rng.chance(t === 'hurry' ? 0.35 : t === 'milk' ? 0.05 : 0.18);
-    const oob = spatial ? spatial.outOfBounds : oobRoll;
+    // The owner's call H: out of bounds is today's call too.
+    const oob = oobRoll;
     if (oob) text += ', out of bounds';
     if (moment) this.tap(field, moment, today(oobRoll));
     return {

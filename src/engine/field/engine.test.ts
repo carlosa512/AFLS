@@ -132,6 +132,42 @@ describe('the engine plays the open field', () => {
   });
 });
 
+describe("the owner's call H: today's yards, the field's way there", () => {
+  it("credits each spatial play today's yards, and the film ends near them", () => {
+    let near = 0;
+    let n = 0;
+    for (const { taps } of [0, 1, 2].map((i) => spatial(i)))
+      for (const t of taps) {
+        if (!t.result) continue;
+        n++;
+        // The start carries today's spot, and the field ends there (the pile within a yard and a half).
+        expect(t.moment.facts.to).toBe(t.today.yards);
+        expect(t.start.target).toBeDefined();
+        const ok = t.today.touchdown
+          ? t.result.touchdown
+          : !t.result.touchdown && Math.abs(t.result.yards - t.today.yards) <= 1.5;
+        if (ok) near++;
+        if (t.today.touchdown) expect(t.result.touchdown).toBe(true);
+      }
+    expect(n).toBeGreaterThan(100);
+    expect(near / n).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it("logs today's yards on every spatial run and catch", () => {
+    let n = 0;
+    for (const { r, taps, homeId } of [0, 1].map((i) => spatial(i)))
+      for (const t of taps) {
+        const e = r.plays![t.moment.index];
+        if (!t.result || t.moment.kind === 'return' || e.kind === 'penalty' || e.loose !== undefined) continue;
+        const dir = e.offense === homeId ? 1 : -1;
+        const logged = e.to! >= 100 || e.to! <= 0 ? t.today.yards : (e.to! - e.from!) * dir;
+        expect(logged, `play ${t.moment.index}`).toBe(t.today.yards);
+        n++;
+      }
+    expect(n).toBeGreaterThan(60);
+  });
+});
+
 describe('a spatial play to yards', () => {
   it('calls a tackle in the end zone a safety, and a run stopped at the goal line short of it', () => {
     // At his own 2, thrown for a three-yard loss: the engine's own clamp, a safety.
