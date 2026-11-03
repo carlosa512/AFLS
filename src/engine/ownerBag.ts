@@ -14,6 +14,7 @@
  */
 import { chairHolder, ownerTrigger, teamCoaches } from './coaching';
 import { teamGm } from './gm';
+import { credibilityOf } from './meetings/credibility';
 import { teamRatings } from './roster';
 import { clamp, type Rng } from './rng';
 import type { Coach, League, OwnerBag, Team } from './types';
@@ -61,6 +62,14 @@ function coachedThatYear(c: Coach, teamId: number, season: number): boolean {
   return c.teamId === teamId && c.role === 'headCoach' && (c.since ?? Infinity) <= season;
 }
 
+/**
+ * A head coach whose word has worn thin with his room (L2, `meetings/credibility.ts`) carries a little more of a losing
+ * season: up to a quarter more, by how far gone it is. A small push, never the deciding factor: no record heat, none.
+ */
+export const CRED_HEAT = 0.25;
+export const credibilityHeat = (coachHeat: number, credibility: number): number =>
+  coachHeat * (1 + CRED_HEAT * clamp(-credibility, 0, 1));
+
 /** Split a season's heat between GM and head coach, halving each one's share in his first year (it isn't all his yet). */
 function heatSplit(l: League, t: Team, season: number, rec: Rec, rank: number) {
   const heat = seasonHeat(rec);
@@ -75,7 +84,7 @@ function heatSplit(l: League, t: Team, season: number, rec: Rec, rank: number) {
   const hcFirst = hcThere && !coachedThatYear(hc!, t.id, season - 1);
   return {
     gm: gmThere ? Math.round(heat * (1 - share) * (gmFirst ? 0.5 : 1)) : 0,
-    coach: hcThere ? Math.round(heat * share * (hcFirst ? 0.5 : 1)) : 0,
+    coach: hcThere ? Math.round(credibilityHeat(heat * share * (hcFirst ? 0.5 : 1), credibilityOf(hc!))) : 0,
   };
 }
 

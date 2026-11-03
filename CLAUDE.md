@@ -109,9 +109,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
   no drift and no level out of range; the talks (`playerTalks.ts`): asks per club per season, promises kept; and
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room
-  (L1): leaders and voices per club, unit reads (Split, Down, Tight shares) and club rooms not running away. Run it after
-  changing `morale.ts`, `standing.ts`, `playerTalks.ts`, `development.ts`, `match/lineup.ts`, `training.ts` or
-  `offseason/negotiation.ts`. Nothing may be flagged ✗.
+  (L1): leaders and voices per club, unit reads (Split, Down, Tight shares) and club rooms not running away; and team
+  meetings (L2): meetings per club per season, how many take one well or bristle, head coaches whose word has worn thin
+  at season's end and their recovery. Run it after changing `morale.ts`, `standing.ts`, `playerTalks.ts`,
+  `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
+  flagged ✗.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -272,7 +274,17 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     homecomings, grudges); their marbles (`relationshipMarbles`) and price nudges (`contractLean`, read by `demand` and
     `offerValue`), and who speaks out (`speaksOut`) · `trees.ts` coaching trees worked out from careers (three-season links,
     `Coach.pastUnder` for founding trees only), standing, and the carousel's terms (`keepBonus`, `treeLean`,
-    `inheritedScheme`) that `coaching.ts` reads
+    `inheritedScheme`) that `coaching.ts` reads · `meetings/` team meetings (L2,
+    `docs/superpowers/specs/2026-11-02-team-meetings-design.md`): when a head coach suggests one (`suggest.ts`: calendar
+    moments once a season; trouble when a room turns Split or Down, three straight losses, a feud starting, a leader
+    benched or traded; cooldowns per room, team and club), the choices offered (approach, what's behind it, timing),
+    how each man takes it (`react.ts`: a score from fit, the coach against his makeup, the backing, the coach's word and
+    history, luck on the meeting's own stream; a `meeting` jolt, a quarter as far for a man with nothing wrong),
+    commitments kept or broken (`commitments.ts`; AI clubs by their GM's tendencies), the GM address in a crisis
+    (`address.ts`), each head coach's hidden credibility (`credibility.ts`, read in words; a worn-thin word adds up to a
+    quarter to a losing coach's heat, `credibilityHeat` in `ownerBag.ts`) and AI clubs' choices (`ai.ts`).
+    `meetingsStep` runs after every morale step; your club's suggestion waits in `Team.meetings.pending` unless the head
+    coach handles them (`setMeetingsByCoach`)
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

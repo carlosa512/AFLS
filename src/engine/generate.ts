@@ -50,7 +50,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 81;
+export const SAVE_VERSION = 82;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -937,6 +937,9 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
   // Every player starts where he stands: no jolts, nothing drawn.
   seedMorale(league);
+  // Team meetings (L2): no log yet, and every head coach's word in the middle.
+  for (const team of league.teams) team.meetings = { log: [], open: [] };
+  for (const c of Object.values(league.coaches)) if (c.role === 'headCoach') c.credibility = 0;
   generateMedicalWorld(league);
   league.userTeamId = options.userTeamId ?? 0;
   generateCrews(league);

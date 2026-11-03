@@ -292,7 +292,7 @@ export function moraleTarget(f: MoraleFactors): number {
 // ───────── the clock and the jolts ─────────
 
 /** Morale steps in a league year: the offseason's calendar steps, then camp, then each week played. */
-const YEAR = 32;
+export const YEAR = 32;
 const REGULAR = 8;
 const CAMP = 7;
 
@@ -390,7 +390,14 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   firm: "Didn't like your answer",
   ignored: 'Feels ignored',
   gaveIn: 'Gave in on his holdout',
+  meeting: 'The coach got through to him',
 };
+
+/** A meeting jolt is the one kind that goes either way (L2): one that bristled reads as this. */
+const MEETING_DOWN = "Didn't like the meeting";
+
+/** A jolt in words: a meeting reads by which way it went. */
+const joltText = (j: Jolt) => (j.kind === 'meeting' && j.size < 0 ? MEETING_DOWN : JOLT_WORDS[j.kind]);
 
 /** While a promise is open, the grievance it answered reads as waiting on it (G4). */
 const WAITING: Partial<Record<keyof MoraleFactors, { kind: 'deal' | 'snaps'; text: string }>> = {
@@ -411,6 +418,7 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.firm,
   JOLT_WORDS.ignored,
   JOLT_WORDS.gaveIn,
+  MEETING_DOWN,
   ...Object.values(WAITING).map((w) => w!.text),
 ]);
 
@@ -430,7 +438,8 @@ export function moraleReasons(
     }
   for (const j of p.morale?.jolts ?? []) {
     const size = Math.abs(liveSize(j, clock));
-    if (size >= 0.75 && !out.some((o) => o.text === JOLT_WORDS[j.kind])) out.push({ text: JOLT_WORDS[j.kind], size });
+    const text = joltText(j);
+    if (size >= 0.75 && !out.some((o) => o.text === text)) out.push({ text, size });
   }
   return out
     .sort((a, b) => b.size - a.size)

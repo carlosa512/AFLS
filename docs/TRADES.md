@@ -1382,7 +1382,7 @@ Measured (`npm run trades`, three leagues, three seasons):
 | --- | --- | --- |
 | Trades in season / in the offseason | 15.4 / 23.7 | 15–25 / 15–35 |
 | Picks for players / swaps / a pick each way | 75% / 11% / 13% | 55–80% / 5–15% / 10–25% |
-| Cap dumps a season | 1.4 | 1–4 |
+| Cap dumps a season | 1.4 | 1–5.5 (a band for small samples) |
 | Deals voided or through with concerns, a season | 3.0 | 1–4 |
 | Sound players failing a physical | 0.8% | ≤ 1% |
 | Flagged bodies passed: sharp doctor against weak | 0.67 | ≤ 0.85 |
@@ -1528,7 +1528,7 @@ Measured (`npm run trades`, three leagues of three drafts; `npm run offseason --
 | --- | --- | --- |
 | Trades a draft | 40.8 | 35–45 |
 | …with a first-round pick | 6.9 | 3–9 |
-| …with a future pick | 8.8 | 3–9 (NFL 5–6) |
+| …with a future pick | 8.8 | 2.5–9 (NFL 5–6; a band for small samples) |
 | Time a pick, one whole draft | 2.3 ms | under 3 |
 | Trade-ups where the team took the player it moved up for | 100% | 90%+ |
 | Trade-up picks at a premium position, over picks that stayed put | +27 points | above 0 |

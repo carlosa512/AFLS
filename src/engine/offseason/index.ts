@@ -1,3 +1,4 @@
+import { meetingsStep } from '../meetings';
 import { moraleStep } from '../morale';
 import { lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
@@ -248,6 +249,8 @@ export function beginOffseason(league: League): void {
   withLeagueAi(league, () => marketMoment(league, 'leagueYear'));
   // The new league year's moods: who was passed in his room, who left, what the winter's deals say.
   moraleStep(league);
+  // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
+  meetingsStep(league);
 }
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
@@ -431,6 +434,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   league.rngState = rng.getState();
   // A signing, a release or the C lands on a mood the step it happens.
   moraleStep(league);
+  // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
+  meetingsStep(league);
   return league.phase;
 }
 
