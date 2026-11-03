@@ -66,6 +66,8 @@ must show it moving play.
 | Ball skills (`ballSkills`) | CB, S, LB | Hands 100% | interceptions |
 | Open-field tackling (`tackling`) | DT, EDGE, LB, CB, S | Tackling 60%, Speed 40% | yards after the catch, broken tackles, and who makes the stop |
 | Pursuit (`pursuit`) | S | Speed 50%, Tackling 25%, Awareness 25% | running down a back who breaks loose |
+| Burst (`burst`) | QB, RB, WR, OL, DT, EDGE, CB | Agility 100% | acceleration and cuts in the open field |
+| Reading the field (`reads`) | QB, RB, WR, OL, DT, LB, CB, S | Awareness 100% | reacting to a cut, a defender's angle, a runner's lane |
 | Field goals (`fieldGoal`) | K | Kick accuracy 48%, Kick power 52% | field-goal and extra-point range and accuracy |
 | Kickoffs (`kickoffDistance`) | K | Kick power 100% | touchbacks |
 | Punt distance (`puntDistance`) | P | Kick power 100% | gross punt yards |
