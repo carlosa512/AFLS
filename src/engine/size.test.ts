@@ -12,7 +12,11 @@ import { buildLineup } from './match/lineup';
 import { teamCoaches } from './coaching';
 import { changePosition, conversionRead } from './training';
 import {
+  ARRIVAL_SLICE,
+  ARRIVAL_STEP,
+  BOUNDS,
   FLAT_BODY,
+  HEIGHTS,
   isOutlier,
   massEdge,
   rollGem,
@@ -32,54 +36,90 @@ const stats = (xs: number[]) => {
 };
 
 describe('rollSize', () => {
-  it('costs exactly two draws', () => {
-    const a = new Rng('x');
-    const b = new Rng('x');
-    rollSize(a, 'CB');
-    b.next();
-    b.next();
-    expect(a.next()).toBe(b.next());
-  });
-
-  it('matches the table at every position', () => {
-    const rng = new Rng('size');
-    for (const pos of POSITIONS) {
-      const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, pos));
-      const h = stats(rolls.map((r) => r.heightIn));
-      const w = stats(rolls.map((r) => r.weightLb));
-      const lim = sizeLimits(pos);
-      expect(Math.abs(h.mean - SIZE[pos].h[0]), pos).toBeLessThan(0.2);
-      expect(Math.abs(w.mean - SIZE[pos].w[0]), pos).toBeLessThan(2);
-      expect(Math.abs(h.sd / SIZE[pos].h[1] - 1), pos).toBeLessThan(0.1);
-      const hs = rolls.map((r) => r.heightIn);
-      const ws = rolls.map((r) => r.weightLb);
-      expect(Math.min(...hs), pos).toBeGreaterThanOrEqual(lim.h[0]);
-      expect(Math.max(...hs), pos).toBeLessThanOrEqual(lim.h[1]);
-      expect(Math.min(...ws), pos).toBeGreaterThanOrEqual(lim.w[0]);
-      expect(Math.max(...ws), pos).toBeLessThanOrEqual(lim.w[1]);
+  it('costs exactly two draws, either tier', () => {
+    for (const tier of ['founding', 'arrival'] as const) {
+      const a = new Rng('x');
+      const b = new Rng('x');
+      rollSize(a, 'CB', tier);
+      b.next();
+      b.next();
+      expect(a.next(), tier).toBe(b.next());
     }
   });
 
-  it('ties weight to height', () => {
+  it('bounds the founding tier by real rosters, and arrivals one step wider', () => {
+    for (const pos of POSITIONS) {
+      expect(sizeLimits(pos, 'founding'), pos).toEqual(BOUNDS[pos]);
+      const wide = sizeLimits(pos, 'arrival');
+      expect(wide.h, pos).toEqual([BOUNDS[pos].h[0] - ARRIVAL_STEP.h, BOUNDS[pos].h[1] + ARRIVAL_STEP.h]);
+      expect(wide.w, pos).toEqual([BOUNDS[pos].w[0] - ARRIVAL_STEP.w, BOUNDS[pos].w[1] + ARRIVAL_STEP.w]);
+      expect(sizeLimits(pos), pos).toEqual(wide);
+    }
+    expect(BOUNDS.WR.h).toEqual([66, 78]);
+    expect(BOUNDS.OL.h).toEqual([73, 81]);
+  });
+
+  it('matches the table at every position, inside each tier', () => {
+    const rng = new Rng('size');
+    for (const tier of ['founding', 'arrival'] as const)
+      for (const pos of POSITIONS) {
+        const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, pos, tier));
+        const hs = rolls.map((r) => r.heightIn);
+        const ws = rolls.map((r) => r.weightLb);
+        const h = stats(hs);
+        const w = stats(ws);
+        const lim = sizeLimits(pos, tier);
+        const at = `${pos} ${tier}`;
+        expect(Math.abs(h.mean - SIZE[pos].h[0]), at).toBeLessThan(0.2);
+        expect(Math.abs(w.mean - SIZE[pos].w[0]), at).toBeLessThan(2);
+        expect(Math.abs(h.sd / SIZE[pos].h[1] - 1), at).toBeLessThan(0.1);
+        expect(Math.abs(w.sd / SIZE[pos].w[1] - 1), at).toBeLessThan(0.1);
+        expect(Math.min(...hs), at).toBeGreaterThanOrEqual(lim.h[0]);
+        expect(Math.max(...hs), at).toBeLessThanOrEqual(lim.h[1]);
+        expect(Math.min(...ws), at).toBeGreaterThanOrEqual(lim.w[0]);
+        expect(Math.max(...ws), at).toBeLessThanOrEqual(lim.w[1]);
+      }
+  });
+
+  it("draws heights in real rosters' shares, inch by inch, and a sliver past them for arrivals", () => {
+    const rng = new Rng('shares');
+    for (const pos of POSITIONS) {
+      const [lo, counts] = HEIGHTS[pos];
+      expect(BOUNDS[pos].h, pos).toEqual([lo, lo + counts.length - 1]);
+      const total = counts.reduce((x, y) => x + y, 0);
+      const hs = Array.from({ length: 20_000 }, () => rollSize(rng, pos, 'founding').heightIn);
+      counts.forEach((n, i) => {
+        const share = hs.filter((h) => h === lo + i).length / hs.length;
+        expect(Math.abs(share - n / total), `${pos} ${lo + i}`).toBeLessThan(0.012);
+      });
+      const wide = Array.from({ length: 20_000 }, () => rollSize(rng, pos, 'arrival').heightIn);
+      const past = wide.filter((h) => h < lo || h > lo + counts.length - 1).length / wide.length;
+      expect(past, pos).toBeGreaterThan(0);
+      expect(past, pos).toBeLessThan((ARRIVAL_SLICE * (counts[0] + counts.at(-1)!)) / total + 0.005);
+    }
+  });
+
+  it("ties weight to height by each position's own link", () => {
     const rng = new Rng('corr');
-    const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, 'CB'));
-    const h = stats(rolls.map((r) => r.heightIn));
-    const w = stats(rolls.map((r) => r.weightLb));
-    const cov = rolls.reduce((a, r) => a + (r.heightIn - h.mean) * (r.weightLb - w.mean), 0) / rolls.length;
-    const r = cov / (h.sd * w.sd);
-    expect(r).toBeGreaterThan(0.4);
-    expect(r).toBeLessThan(0.6);
+    for (const pos of ['WR', 'CB', 'DT'] as const) {
+      const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, pos));
+      const h = stats(rolls.map((r) => r.heightIn));
+      const w = stats(rolls.map((r) => r.weightLb));
+      const cov = rolls.reduce((a, r) => a + (r.heightIn - h.mean) * (r.weightLb - w.mean), 0) / rolls.length;
+      expect(Math.abs(cov / (h.sd * w.sd) - SIZE[pos].r), pos).toBeLessThan(0.1);
+    }
   });
 });
 
 describe('sizeZ and isOutlier', () => {
   it('is zero at the median', () => {
-    expect(sizeZ({ position: 'CB', heightIn: 72, weightLb: 195 })).toEqual({ h: 0, w: 0 });
-    expect(sizeZ({ position: 'CB', heightIn: 69.7, weightLb: 195 }).h).toBeCloseTo(-1, 5);
+    const [h, sd] = SIZE.CB.h;
+    expect(sizeZ({ position: 'CB', heightIn: h, weightLb: SIZE.CB.w[0] })).toEqual({ h: 0, w: 0 });
+    expect(sizeZ({ position: 'CB', heightIn: h - sd, weightLb: SIZE.CB.w[0] }).h).toBeCloseTo(-1, 5);
   });
 
   it('reads against another position when asked', () => {
-    expect(sizeZ({ position: 'CB', heightIn: 72.5, weightLb: 210 }, 'S')).toEqual({ h: 0, w: 0 });
+    expect(sizeZ({ position: 'CB', heightIn: SIZE.S.h[0], weightLb: SIZE.S.w[0] }, 'S')).toEqual({ h: 0, w: 0 });
   });
 
   it('flags the tails only', () => {
@@ -100,10 +140,33 @@ describe('generation', () => {
     });
   const corners = Array.from({ length: 2_000 }, (_, i) => make('CB', i));
 
+  it("a new league's players sit inside the founding bounds", () => {
+    const l = createLeague({ seed: 'real-heights' });
+    for (const p of Object.values(l.players)) {
+      const lim = sizeLimits(p.position, 'founding');
+      expect(p.heightIn, p.position).toBeGreaterThanOrEqual(lim.h[0]);
+      expect(p.heightIn, p.position).toBeLessThanOrEqual(lim.h[1]);
+      expect(p.weightLb, p.position).toBeGreaterThanOrEqual(lim.w[0]);
+      expect(p.weightLb, p.position).toBeLessThanOrEqual(lim.w[1]);
+    }
+  });
+
+  it('a player generated after the league rolls on the arrival tier', () => {
+    const wrs = Array.from({ length: 5_000 }, (_, i) => make('WR', i));
+    const wide = sizeLimits('WR', 'arrival');
+    const tight = sizeLimits('WR', 'founding');
+    expect(wrs.every((p) => p.heightIn >= wide.h[0] && p.heightIn <= wide.h[1])).toBe(true);
+    expect(wrs.some((p) => p.heightIn < tight.h[0] || p.heightIn > tight.h[1])).toBe(true);
+  });
+
   it('rolls new players from the bell curve', () => {
+    // Real rosters' share of corners at 5'9" or under (and the arrival tier's sliver under that), from the table itself.
     const short = corners.filter((p) => p.heightIn <= 69).length / corners.length;
-    expect(short).toBeGreaterThan(0.11);
-    expect(short).toBeLessThan(0.17);
+    const [lo, counts] = HEIGHTS.CB;
+    const total = counts.reduce((a, b) => a + b, 0);
+    const real = (counts[0] + counts[1]) / total;
+    expect(Math.abs(short - real)).toBeLessThan(0.02);
+    expect(lo).toBe(68);
     expect(Math.min(...corners.map((p) => p.heightIn))).toBeGreaterThanOrEqual(sizeLimits('CB').h[0]);
     // The old flat roll stopped at 5'9" and 6'2": the tails are what the curve adds.
     expect(corners.some((p) => p.heightIn < 69)).toBe(true);
@@ -113,9 +176,10 @@ describe('generation', () => {
   it('clamps weight to the new curve on a position move', () => {
     const l = createLeague({ seed: 'size-move' });
     const ol = teamPlayers(l, 0).find((p) => p.position === 'OL')!;
-    ol.weightLb = 380;
+    ol.weightLb = 400;
     changePosition(l, ol, 'DT');
-    expect(ol.weightLb).toBe(sizeLimits('DT').w[1]);
+    // The real range at his new spot, not the arrival tier's: movers piled up at its cap.
+    expect(ol.weightLb).toBe(sizeLimits('DT', 'founding').w[1]);
   });
 });
 
@@ -206,11 +270,14 @@ describe('the rare gem', () => {
 describe('rushSizeEdge', () => {
   const at = (position: Position, heightIn: number, weightLb = SIZE[position].w[0]) =>
     ({ position, heightIn, weightLb, ratings: { speed: 12 } }) as unknown as Player;
-  const line = (h: number) => [at('OL', h), at('OL', 76.75), at('OL', 76.75), at('OL', 76.75), at('OL', h)];
+  const mid = SIZE.OL.h[0];
+  const line = (h: number) => [at('OL', h), at('OL', mid), at('OL', mid), at('OL', mid), at('OL', h)];
 
   it('is zero for median units and grows against short tackles', () => {
-    expect(rushSizeEdge(line(76.75), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBe(0);
-    expect(rushSizeEdge(line(74), [at('EDGE', 76.5), at('EDGE', 76.5)], [at('DT', 75.5)])).toBeGreaterThan(0);
+    const front = [at('EDGE', SIZE.EDGE.h[0]), at('EDGE', SIZE.EDGE.h[0])];
+    const dt = [at('DT', SIZE.DT.h[0])];
+    expect(rushSizeEdge(line(SIZE.OL.h[0]), front, dt)).toBe(0);
+    expect(rushSizeEdge(line(SIZE.OL.h[0] - 3), front, dt)).toBeGreaterThan(0);
   });
 
   it('copes with missing players without NaN', () => {
@@ -346,8 +413,9 @@ describe('a move for his build', () => {
     // The safeties ahead of him stay ahead: a backup's move costs his old room nothing.
     for (const p of safeties.filter((x) => x !== backup))
       for (const a of ['coverage', 'awareness', 'tackling', 'speed', 'catching', 'runStop'] as const) p.ratings[a] = 20;
-    backup.heightIn = 74;
-    backup.weightLb = 242;
+    // A median backer's build: a big outlier at safety.
+    backup.heightIn = Math.round(SIZE.LB.h[0]);
+    backup.weightLb = SIZE.LB.w[0];
     expect(conversionRead(l, backup, 'LB').motives.map((m) => m.reason)).toContain('build');
     backup.heightIn = SIZE.S.h[0];
     backup.weightLb = SIZE.S.w[0];

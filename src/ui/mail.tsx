@@ -150,6 +150,7 @@ import {
 import { store } from './store';
 import { answerTalk } from '../engine/playerTalks';
 import { talkCard } from '../engine/talkMail';
+import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
 import { wireClaim } from '../engine/waiverMail';
@@ -177,6 +178,12 @@ export function MailCards({ league, message }: { league: League; message: InboxM
       return <AwardCards league={league} s={s} />;
     case 'contract':
       return <ContractCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'meeting':
+      return s.result || s.captain ? null : (
+        <Card title="Your call">
+          <MeetingChoices key={`${s.clock}:${s.scope}`} league={league} s={{ clock: s.clock, scope: s.scope! }} />
+        </Card>
+      );
     case 'talk':
       // A step's group shows each man's answers in his own row (`MailSections`); a letter alone, below his words.
       return s.playerId === undefined ? null : (

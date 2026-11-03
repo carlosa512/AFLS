@@ -497,6 +497,8 @@ export interface MeetingSuggestion {
   driver?: number;
   /** The leader who could say it. */
   leader?: number;
+  /** You asked for it (from the Locker Room): his letter answers your ask. */
+  asked?: boolean;
 }
 
 /** A club's meetings: this season's log, open commitments, the one waiting on you. */
@@ -515,6 +517,16 @@ export interface TeamMeetings {
   /** When each room (or the team) was last offered a trouble meeting, held or not: its cooldown runs from there. */
   offeredAt?: Partial<Record<MeetingScope, number>>;
   gmAddressSeason?: number;
+  /** This league year's commitments as they closed: what the season's-end report tells. */
+  settled?: {
+    clock: number;
+    scope: MeetingScope;
+    backing: Exclude<Backing, 'words'>;
+    kept: boolean;
+    named: number[];
+  }[];
+  /** Last league year's meetings, kept past the log's clearing for the re-sign window's report. */
+  lastYear?: { season: number; held: number; settled: NonNullable<TeamMeetings['settled']> };
   /** Your club: the head coach holds them himself. */
   byCoach?: boolean;
 }
@@ -1796,7 +1808,7 @@ export interface PlayLogEntry {
   loose?: number;
   /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
   open?: OpenField;
-  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v83 have none. */
+  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v84 have none. */
   field?: FieldFacts;
 }
 
@@ -1868,7 +1880,7 @@ export interface FieldRecord {
    * base call; trailing base calls left off): read it with `defenseCallAt`. Games before 0.2.32 have none.
    */
   calls?: string;
-  /** A spatial game's snapshot of what the open field read (`field/snapshot.ts`). Games before v83 have none. */
+  /** A spatial game's snapshot of what the open field read (`field/snapshot.ts`). Games before v84 have none. */
   snap?: FieldSnapshot;
 }
 

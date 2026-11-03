@@ -1,4 +1,5 @@
 import { seedMorale } from './morale';
+import { nameCaptains } from './personality';
 import { seedFoundingTrees } from './trees';
 import { fillOrigins } from './origin';
 import { generateCoachingWorld } from './coaching';
@@ -50,7 +51,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 83;
+export const SAVE_VERSION = 84;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -141,6 +142,8 @@ interface PlayerSpec {
   age: number;
   teamId: number | null;
   jerseysUsed: Set<number>;
+  /** A founding player (`createLeague`): his build stays inside the real rosters' extremes. Everyone later is an arrival. */
+  founding?: boolean;
 }
 
 export function generatePersonality(rng: Rng): Personality {
@@ -162,7 +165,7 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
 
   const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
   // Drawn where the old flat rolls were, so names and jerseys keep their draws.
-  const build = rollSize(rng, position);
+  const build = rollSize(rng, position, spec.founding ? 'founding' : 'arrival');
   const player: Player = {
     id: spec.id,
     firstName,
@@ -861,6 +864,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           age: slotAge(probe, slot < STARTERS[position]),
           teamId: team.id,
           jerseysUsed: probeJerseys,
+          founding: true,
         });
       }
     const dealt = evenDeal(
@@ -884,6 +888,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           age: slotAge(rng, isStarter),
           teamId: team.id,
           jerseysUsed,
+          founding: true,
         });
         recordRatings(player, season);
         roster.push(player);
@@ -936,6 +941,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
   generateStaffWorld(league);
   generateCoachingWorld(league);
   seedFoundingTrees(league, (id) => teamRatings(league, league.teams[id]).overall);
+  // A new league opens as camp would have closed: each club's captains named (the C counts in his room's standing).
+  nameCaptains(league);
   // Every player starts where he stands: no jolts, nothing drawn.
   seedMorale(league);
   // Team meetings (L2): no log yet, and every head coach's word in the middle.

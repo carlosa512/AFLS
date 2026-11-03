@@ -1,16 +1,57 @@
 /**
- * Player size (docs/superpowers/specs/2026-10-27-player-size-design.md): builds come out of each position's bell
- * curve, the rare gem turns up in about a quarter of the outliers, no edge leaves its cap, and each lever, replayed
- * on the same games with one group's builds pushed two sd out, moves its own stat the right way. Then the whole
- * league at its medians against the league as built: the edges are centred, so league totals hold.
+ * Player size (docs/superpowers/specs/2026-10-27-player-size-design.md, 2026-11-02-real-heights-design.md): builds
+ * come out of each position's curve, fitted to real rosters, inside each tier's bounds (the founding league at the
+ * real extremes, arrivals one step wider), with no bound collecting a tail; the rare gem turns up in about a quarter
+ * of the outliers, no edge leaves its cap, and each lever, replayed on the same games with one group's builds pushed
+ * two sd out, moves its own stat the right way. Then the whole league at its medians against the league as built:
+ * the edges are centred, so league totals hold. And the long run: a league played 25 seasons in its own process,
+ * whose tails at and past the real extremes stay near real rosters' once the founding players are gone.
  *
  *   npm run size
  */
+import { fork } from 'node:child_process';
 import { createLeague, generatePlayer } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import { Rng } from '../src/engine/rng';
-import { EDGE_CAP, isOutlier, rollSize, SIZE, sizeEdge, sizeLimits, type Lever } from '../src/engine/size';
+import {
+  EDGE_CAP,
+  HEIGHTS,
+  isOutlier,
+  rollSize,
+  SIZE,
+  sizeEdge,
+  sizeLimits,
+  type Lever,
+  type SizeTier,
+} from '../src/engine/size';
+import type { LongRun } from './size-long';
 import { POSITIONS, type League, type Player, type Position } from '../src/engine/types';
+
+/**
+ * The long run: four leagues, 25 seasons each, each in its own process while the blocks below run here. Pooled: one
+ * league's 32 kickers hold their jobs for a decade or more, so a few tall ones drafted early sat over a line for its
+ * last five seasons, and each run flagged a different position by a hair with nothing in the draw changed.
+ */
+const LONG_SEASONS = 25;
+const LONG_SEEDS = ['size-long', 'size-long-2', 'size-long-3', 'size-long-4'];
+const longLeague = (seed: string): Promise<LongRun> =>
+  new Promise((resolve, reject) => {
+    const child = fork(new URL('./size-long.ts', import.meta.url).pathname, [], {
+      env: { ...process.env, SIZE_LONG_SEED: seed, SIZE_LONG_SEASONS: String(LONG_SEASONS) },
+    });
+    let done = false;
+    child.once('message', (run) => {
+      done = true;
+      resolve(run as LongRun);
+      child.kill();
+    });
+    child.once('error', reject);
+    child.once(
+      'exit',
+      (code, signal) => done || reject(new Error(`long run ${seed} exited (${signal ?? code}) before reporting`)),
+    );
+  });
+const longRuns: Promise<LongRun[]> = Promise.all(LONG_SEEDS.map(longLeague));
 
 let misses = 0;
 const flag = (ok: boolean) => {
@@ -18,27 +59,40 @@ const flag = (ok: boolean) => {
   return ok ? '' : '  ✗';
 };
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+/** Inches as feet and inches. */
+const ft = (h: number) => `${Math.floor(h / 12)}'${h % 12}"`;
 const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)));
 
 // ── The curves ──
-console.log('Builds: 20,000 rolls a position against the table (mean ±0.2 in / ±2 lb, sd within 10%)\n');
+console.log('Builds: 20,000 rolls a position and tier against the table (mean ±0.2 in / ±2 lb, sd within 10%)\n');
 const rng = new Rng('size-check');
-for (const pos of POSITIONS) {
-  const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, pos));
-  const h = rolls.map((r) => r.heightIn);
-  const w = rolls.map((r) => r.weightLb);
-  const lim = sizeLimits(pos);
-  const ok =
-    Math.abs(mean(h) - SIZE[pos].h[0]) <= 0.2 &&
-    Math.abs(mean(w) - SIZE[pos].w[0]) <= 2 &&
-    Math.abs(sd(h) / SIZE[pos].h[1] - 1) <= 0.1 &&
-    Math.min(...h) >= lim.h[0] &&
-    Math.max(...h) <= lim.h[1] &&
-    Math.min(...w) >= lim.w[0] &&
-    Math.max(...w) <= lim.w[1];
-  console.log(
-    `  ${pos.padEnd(5)} ${mean(h).toFixed(2)} ± ${sd(h).toFixed(2)} in (${SIZE[pos].h.join(' ± ')}) · ${mean(w).toFixed(1)} ± ${sd(w).toFixed(1)} lb (${SIZE[pos].w.join(' ± ')})${flag(ok)}`,
-  );
+for (const tier of ['founding', 'arrival'] as SizeTier[]) {
+  console.log(`  ${tier}`);
+  for (const pos of POSITIONS) {
+    const rolls = Array.from({ length: 20_000 }, () => rollSize(rng, pos, tier));
+    const h = rolls.map((r) => r.heightIn);
+    const w = rolls.map((r) => r.weightLb);
+    const lim = sizeLimits(pos, tier);
+    const ok =
+      Math.abs(mean(h) - SIZE[pos].h[0]) <= 0.2 &&
+      Math.abs(mean(w) - SIZE[pos].w[0]) <= 2 &&
+      Math.abs(sd(h) / SIZE[pos].h[1] - 1) <= 0.1 &&
+      Math.min(...h) >= lim.h[0] &&
+      Math.max(...h) <= lim.h[1] &&
+      Math.min(...w) >= lim.w[0] &&
+      Math.max(...w) <= lim.w[1];
+    // Founding heights come out in real rosters' shares, inch by inch (within 1.2 points each).
+    const [lo, counts] = HEIGHTS[pos];
+    const total = counts.reduce((a, b) => a + b, 0);
+    const off =
+      tier === 'founding'
+        ? Math.max(...counts.map((n, i) => Math.abs(h.filter((v) => v === lo + i).length / h.length - n / total)))
+        : 0;
+    const piled = off >= 0.012;
+    console.log(
+      `    ${pos.padEnd(5)} ${mean(h).toFixed(2)} ± ${sd(h).toFixed(2)} in (${SIZE[pos].h.join(' ± ')}, ${ft(lim.h[0])}–${ft(lim.h[1])}) · ${mean(w).toFixed(1)} ± ${sd(w).toFixed(1)} lb (${SIZE[pos].w.join(' ± ')})${piled ? ` · ${(100 * off).toFixed(1)} points off real shares` : ''}${flag(ok && !piled)}`,
+    );
+  }
 }
 
 // ── The rare gem ──
@@ -179,6 +233,55 @@ for (const [label, read, tol] of HOLD) {
     `  ${label.padEnd(12)} ${read(medians).toFixed(2)} → ${read(asBuilt).toFixed(2)} (±${tol})${flag(Math.abs(d) <= tol)}`,
   );
 }
+
+// ── The long run ──
+/**
+ * Real rosters, 2020–24 (docs/research/player-size-rosters.md): players a season at each position, and how many stood
+ * at the five seasons' tallest and shortest height (the founding bounds).
+ */
+const REAL: Record<Position, { n: number; atMax: number; atMin: number }> = {
+  QB: { n: 65, atMax: 0.2, atMin: 1.2 },
+  RB: { n: 113, atMax: 0.4, atMin: 1.2 },
+  WR: { n: 168, atMax: 0.8, atMin: 0.6 },
+  TE: { n: 100, atMax: 1.6, atMin: 0.8 },
+  OL: { n: 256, atMax: 1.4, atMin: 2.6 },
+  DT: { n: 120, atMax: 0.6, atMin: 0.4 },
+  EDGE: { n: 210, atMax: 0.8, atMin: 1.0 },
+  LB: { n: 116, atMax: 2.2, atMin: 0.4 },
+  CB: { n: 156, atMax: 0.2, atMin: 1.0 },
+  S: { n: 128, atMax: 2.8, atMin: 0.8 },
+  K: { n: 32, atMax: 1.2, atMin: 0.4 },
+  P: { n: 32, atMax: 0.2, atMin: 0.6 },
+};
+/** How far a tail may run past real rosters' (twice the rate, scaled to our rosters) and the slack small counts need. */
+const TAIL_TIMES = 2;
+const TAIL_SLACK = 1.5;
+/** Most players a position may carry past the founding bounds, a season on average. */
+const PAST_MOST = 1.5;
+const runs = await longRuns;
+// Each league's last five seasons, pooled: the averages below are a season's in one league.
+const last = runs.flatMap((r) => r.seasons.slice(-5));
+const run = { strays: runs.reduce((a, r) => a + r.strays, 0), rare: runs.flatMap((r) => r.rare) };
+console.log(
+  `\nThe long run: ${LONG_SEEDS.length} leagues, ${LONG_SEASONS} seasons each; their last five pooled against real rosters (at the extremes ≤ ${TAIL_TIMES}× real, scaled, +${TAIL_SLACK}; past them ≤ ${PAST_MOST})\n`,
+);
+for (const pos of POSITIONS) {
+  const avg = (k: 'n' | 'atMax' | 'atMin' | 'past') => mean(last.map((s) => s[pos][k]));
+  const scale = avg('n') / REAL[pos].n;
+  const maxCap = TAIL_TIMES * REAL[pos].atMax * scale + TAIL_SLACK;
+  const minCap = TAIL_TIMES * REAL[pos].atMin * scale + TAIL_SLACK;
+  const lim = sizeLimits(pos, 'founding').h;
+  const ok = avg('atMax') <= maxCap && avg('atMin') <= minCap && avg('past') <= PAST_MOST;
+  console.log(
+    `  ${pos.padEnd(5)} ${avg('n').toFixed(0).padStart(4)} a season · at ${ft(lim[1])}+ ${avg('atMax').toFixed(1)} (≤ ${maxCap.toFixed(1)}) · at ${ft(lim[0])}- ${avg('atMin').toFixed(1)} (≤ ${minCap.toFixed(1)}) · past the bounds ${avg('past').toFixed(1)} (≤ ${PAST_MOST})${flag(ok)}`,
+  );
+}
+console.log(`  Outside the arrival bounds, any season: ${run.strays} (0)${flag(run.strays === 0)}`);
+console.log(`\n  The rare builds that came through (${run.rare.length}):`);
+for (const r of run.rare)
+  console.log(
+    `    ${r.pos.padEnd(5)} ${ft(r.heightIn)}, ${r.weightLb} lb${r.drafted === null ? '' : ` · drafted ${r.drafted}`}`,
+  );
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

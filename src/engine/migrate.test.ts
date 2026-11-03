@@ -15,7 +15,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(83);
+    expect(SAVE_VERSION).toBe(84);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -248,14 +248,14 @@ describe('save v82: meetings', () => {
   });
 });
 
-describe('save v83', () => {
-  it('upgrades v82: the switch off, games kept', () => {
-    const l = createLeague({ seed: 'v83' });
+describe('save v84', () => {
+  it('upgrades v83: the switch off, games kept', () => {
+    const l = createLeague({ seed: 'v84' });
     delete l.settings;
-    l.version = 82;
+    l.version = 83;
     const before = JSON.stringify(l.games);
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(83);
+    expect(up.version).toBe(84);
     expect(up.settings).toEqual({ spatialField: false });
     expect(JSON.stringify(up.games)).toBe(before);
   });

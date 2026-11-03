@@ -125,6 +125,13 @@ function opensSpot(league: League, teamId: number, p: Player): number {
 }
 
 /**
+ * What cutting `cut` frees this league year: the cap he saves, less the minimum deal his spot then has to be kept at
+ * while the 53 has room for one (`fillReserve`, `opensSpot`). `makeRoom` reads it.
+ */
+export const cutRoom = (league: League, teamId: number, cut: Player): number =>
+  releasePreview(league, cut).savings - opensSpot(league, teamId, cut) * topMinimum(league.caps[league.season]);
+
+/**
  * Room to keep for the minimum deals that fill the open spots. Camp signs the best free agents left, mostly veterans
  * on a veteran's minimum (1.27-1.30x a second-year player's on 'offseason-audit'), so each spot is kept at the highest
  * minimum, which covers any of them; kept at the second-year minimum, a team with twenty spots to fill paid the
@@ -422,8 +429,7 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, next
   // A cut opens a spot on the 53, and an open spot keeps a minimum deal's room (`fillReserve`): the room he frees is
   // his savings less that. Counted whole, a cut that saved less than a minimum deal left the club under what it can
   // spend, and the keeper still walked.
-  const savings =
-    releasePreview(league, cut).savings - opensSpot(league, team.id, cut) * topMinimum(league.caps[league.season]);
+  const savings = cutRoom(league, team.id, cut);
   if (plan.saved + savings < need) return 0;
   const gained = restructureRoom(league, team, plan) + savings;
   releasePlayer(league, cut);
@@ -1068,10 +1074,17 @@ export function fillCampRoster(league: League, team: Team, rng: Rng): void {
   // club one short at kickoff once a waiver claim took one of its men.
   const cheapest = minSalary(1, league.caps[league.season]);
   const open = () => ROSTER_MAX - activeRoster(league, team.id).length;
-  const budget = () => capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest;
+  // When the room can't cover every open spot, the cheapest deal still signs: a squeezed club fills what it can.
+  const floor = minSalary(0, league.caps[league.season]);
+  const budget = () =>
+    Math.min(
+      capSpace(league, team.id),
+      Math.max(floor, capSpace(league, team.id) - Math.max(0, open() - 1) * cheapest),
+    );
+  const room = () => capSpace(league, team.id) >= floor;
   for (const pos of POSITIONS)
-    while (short(pos) && open() > 0) if (!signMinimum(league, team, rng, pos, budget())) break;
-  while (open() > 0 && budget() >= cheapest) if (!signMinimum(league, team, rng, undefined, budget())) break;
+    while (short(pos) && open() > 0 && room()) if (!signMinimum(league, team, rng, pos, budget())) break;
+  while (open() > 0 && room()) if (!signMinimum(league, team, rng, undefined, budget())) break;
   syncDepthChart(league, team);
 }
 

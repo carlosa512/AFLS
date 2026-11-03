@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { capSheet, capSpace, releasePlayer } from '../finance/cap';
+import { capSheet, capSpace, deadAmount, releasePlayer } from '../finance/cap';
 import { createLeague, SAVE_VERSION } from '../generate';
 import { playGame, playWeek, startLiveGame } from '../league';
 import { migrateLeague } from '../migrate';
@@ -93,6 +93,34 @@ describe('preserved contracts and financial settlement', () => {
     expect(availableProspects(l)).not.toContain(p);
   });
 
+  it('never charges more than it frees: a club with no room is never pushed over the cap by rounding', () => {
+    // A playoff club with $84 of room waived a corner whose remaining hit, all guaranteed, was $1,162.5K: rounded to
+    // $1,163K, his hold put it $416 over the cap and the next kickoff refused it.
+    const guaranteed = (): Contract => ({
+      kind: 'veteran',
+      signedSeason: l.season,
+      signedWeek: -1,
+      apy: 1162.5,
+      length: 1,
+      years: [{ season: l.season, base: 1162.5, guaranteed: 1162.5 }],
+      bonuses: [],
+    });
+    const p = player();
+    p.contract = guaranteed();
+    const before = capSpace(l, 3);
+    const e = waive(p);
+    expect(capSpace(l, 3)).toBeGreaterThanOrEqual(before - 1e-9);
+    resolveWaiverBatch(l, e.batch);
+    expect(capSpace(l, 3)).toBeGreaterThanOrEqual(before - 1e-9);
+    // And a plain release, with the waiver wire off.
+    l.personnel!.enabled = false;
+    const q = player(4);
+    q.contract = guaranteed();
+    const was = capSpace(l, 4);
+    releasePlayer(l, q);
+    expect(capSpace(l, 4)).toBeGreaterThanOrEqual(was - 1e-9);
+  });
+
   it('holds the worst-case release liability until unclaimed clearance, then books it once', () => {
     const p = player();
     const e = waive(p);
@@ -142,7 +170,7 @@ describe('preserved contracts and financial settlement', () => {
     resolveWaiverBatch(l, e.batch);
     expect(p.contract).toEqual(assigned);
     expect(l.teams[3].deadMoney.filter((d) => d.season === 2026 && d.playerId === p.id)[0].amount).toBe(
-      Math.round(400 + (1000 * 7) / 18),
+      deadAmount(400 + (1000 * 7) / 18),
     );
   });
 

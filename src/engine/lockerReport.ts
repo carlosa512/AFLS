@@ -32,6 +32,7 @@ import { mottoOf, recentBodies, say, toldKeys } from './voice';
 import { teamCoaches } from './coaching';
 import { DOWN_REASONS, MORALE_WORDS, moraleClock, moraleContext, moraleView } from './morale';
 import { DISPUTE_LABEL, disputeStanding } from './disputeVoice';
+import { yearParagraphFor } from './meetings/mail';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
@@ -510,7 +511,9 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       subject: SUBJECT[checkin],
       body:
         (motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict) +
-        (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs: ${pairsLine}.` : ''),
+        (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs: ${pairsLine}.` : '') +
+        // The season's end looks back on the year's meetings (L2): how many, a promise kept and one broken.
+        (checkin === 'end' && yearParagraphFor(league) ? `\n\n${yearParagraphFor(league)}` : ''),
       ...(sections.length ? { sections } : {}),
       covered,
       actions: [{ kind: 'locker' }],

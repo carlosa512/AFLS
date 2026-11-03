@@ -89,7 +89,7 @@ describe('the spatial replay', () => {
     expect(flagged).toBeGreaterThan(0);
   });
 
-  it('stages games played with the switch off, or before v83, as drawn', () => {
+  it('stages games played with the switch off, or before v84, as drawn', () => {
     const r = simulateGame(league, week1[3], { keepPlays: true });
     r.plays!.forEach((e, index) => {
       expect(e.field).toBeUndefined();

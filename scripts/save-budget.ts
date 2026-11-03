@@ -75,8 +75,11 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // season; meeting jolts are a few KB more. The rest is the world they reshuffle: measured on the offseason check's seed
   // against main, first season 8,865 KB against 8,717 (+148; +131 and +89 on alt-1 and alt-2). A league year's log is
   // kept in every later save too: the sixth season read 17,815 KB against 17,800, so retained seasons carry the 40 KB and
-  // the 15 over, rounded up. Agreed by the owner (Nov 3).
-  meetings: { firstSeason: 150, retainedSeasons: 60, games: 0, annualGrowth: 0, playersGrowth: 0 },
+  // the 15 over, rounded up. Agreed by the owner (Nov 3). Part 2 (0.3.5) names captains when a league is created, which
+  // reshuffles the world again: the sixth season read 17,883 KB against main's 17,815, all of it game records (+60) and
+  // players (+25, 49 more retirees kept) while the stored meeting data shrank (settled promises for your club only).
+  // Retained seasons +40 (23 over, rounded up, plus 10). Agreed by the owner (Nov 3).
+  meetings: { firstSeason: 150, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 0 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(

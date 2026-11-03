@@ -72,9 +72,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
   `match/gameSim.ts`. Nothing may be flagged. `npm run check` runs it (with `--effects`) when the
   quirks module, the match engine or what builds a league changes.
-- `npm run size` — player size: builds against each position's curve, the rare gem's rate, no edge past its cap,
+- `npm run size` — player size: builds against each position's curve (fitted to real rosters) inside each tier's bounds
+  with no pile-up at a bound, the rare gem's rate, no edge past its cap,
   each lever replayed on the same games with one group's builds two sd out (it must move its own stat the right way),
-  and the league at its medians against the league as built (totals must hold). Run it after changing `size.ts`, the
+  the league at its medians against the league as built (totals must hold), and four 25-season leagues'
+  tails against real rosters' (`scripts/size-long.ts`, each in its own process). Run it after changing `size.ts`, the
   match engine or what builds a league. Nothing may be flagged.
 - `npm run weather` — roll many seasons of weather and check it looks like the NFL's (wind, rain and snow,
   roofs), that shown rain chances come true as often as they say, that `TYPICAL` in `weather.ts` is still
@@ -105,7 +107,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   where one jump would for every player left alone that year, ratings on the scale all season, the tick's
   speed and what a save carries). Run it after changing `training.ts`, `familiarity.ts`, `development.ts`
   or the calendar steps that run them. Nothing may be flagged.
-- `npm run morale` — play eight seasons and check the league's moods (`morale.ts`): band shares, underpaid
+- `npm run morale` — play eight seasons (three more leagues alongside in child processes, for the head coaches' worn-thin
+  line) and check the league's moods (`morale.ts`): band shares, underpaid
   final-year starters reading Poor or worse, a benching's dip and recovery, winning rooms happier than losing ones,
   no drift and no level out of range; the talks (`playerTalks.ts`): asks per club per season, promises kept; and
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room
@@ -284,7 +287,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`address.ts`), each head coach's hidden credibility (`credibility.ts`, read in words; a worn-thin word adds up to a
     quarter to a losing coach's heat, `credibilityHeat` in `ownerBag.ts`) and AI clubs' choices (`ai.ts`).
     `meetingsStep` runs after every morale step; your club's suggestion waits in `Team.meetings.pending` unless the head
-    coach handles them (`setMeetingsByCoach`)
+    coach handles them (`setMeetingsByCoach`). The letters (`mail.ts`, from `deliverMail`): the suggestion with your three
+    calls (`meetingCard`, rendered by `ui/meetings.tsx`), the result and what we owe, a captain's word after your address,
+    due and candid rows in the staff notes, the year in the season's-end report, an SNN rumor for a worn-thin coach on a
+    losing run; the Locker Room reads `meetingsView`. Facts in `facts.ts`, the head coach's words in `voice.ts`
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

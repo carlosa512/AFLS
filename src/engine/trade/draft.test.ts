@@ -46,7 +46,7 @@ import { setTeam } from '../roster';
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-c' });
+  const league = createLeague({ seed: 'draft-trades-d' });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
@@ -370,7 +370,15 @@ describe('offers to you on the clock', () => {
       const o = l.market!.offers.find((x) => x.id === id)!;
       expect(o.status).toBe('expired');
       expect(o.outcome).toBe('It lapsed when you picked.');
-      expect(l.market!.talks[o.teamId]?.cooldowns ?? {}).toEqual({});
+      // Quietly: his draft offer leaves no cooldown. One the same club's other offers left when they lapsed (a bid for
+      // one of your players, at the next moment) is theirs, not this one's.
+      const others = new Set(
+        l
+          .market!.offers.filter((x) => x.teamId === o.teamId && x.reason !== 'draft')
+          .flatMap((x) => [...x.sides[0].players, ...x.sides[1].players]),
+      );
+      const left = Object.keys(l.market!.talks[o.teamId]?.cooldowns ?? {}).map(Number);
+      expect(left.filter((pid) => !others.has(pid))).toEqual([]);
     }
     expect(l.market!.offers.slice(before).filter((o) => o.reason === 'draft')).toHaveLength(0);
   });
