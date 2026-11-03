@@ -8,7 +8,7 @@
  */
 import type { FoulPhase } from './calls';
 import type { Pt } from '../../engine/field/formations';
-import type { StagedPlay } from './stage';
+import type { StagedPlay } from '../../engine/field/stage';
 
 /** A foul on the play: who (null when he isn't on the field), when (seconds from the snap) and where. */
 export interface StagedFoul {

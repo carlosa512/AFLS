@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import type { PlayLogEntry } from '../../engine/types';
-import { snapYFor } from './ballPath';
+import { snapYFor } from '../../engine/field/ballPath';
 import { preMoveAt, presnapPlan, SET, type Presnap } from './presnap';
-import { stagePlay, type StagedPlay } from './stage';
+import { stagePlay, type StagedPlay } from '../../engine/field/stage';
 
 const league = createLeague({ seed: 'presnap' });
 const snaps: { e: PlayLogEntry; s: StagedPlay; plan: Presnap; offense?: string }[] = [];

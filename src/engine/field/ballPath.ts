@@ -2,7 +2,7 @@
  * The ball's path for a play, in field coordinates: x from -10 (home end zone) to 110, y from 0 (near sideline) to
  * 53.3. Both views draw it (the broadcast view in 2.5D, All-22 from above), so both throw the same ball.
  */
-import type { PlayLogEntry } from '../../engine/types';
+import type { PlayLogEntry } from '../types';
 import { bounce, fumbleIn } from './fumble';
 import {
   clampY,
@@ -16,7 +16,7 @@ import {
   SNAPPED,
   snapYFor,
   type Seg,
-} from '../../engine/field/geometry';
+} from './geometry';
 
 export { clampY, FIELD_W, HASH_HI, HASH_LO, laneY, MID, offenseSide, pointAt, SNAPPED, snapYFor, type Seg };
 

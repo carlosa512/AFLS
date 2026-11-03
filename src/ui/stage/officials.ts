@@ -5,7 +5,7 @@
  * the rest of the stager: where each is at any step.
  */
 import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W, MID } from './ballPath';
+import { FIELD_W, MID } from '../../engine/field/ballPath';
 import type { Pt } from '../../engine/field/formations';
 
 /** Referee, umpire, down judge (near sideline), line judge (far sideline), back judge. */

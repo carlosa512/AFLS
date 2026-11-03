@@ -5,7 +5,7 @@
  */
 import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W, offenseSide } from './ballPath';
+import { FIELD_W, offenseSide } from '../../engine/field/ballPath';
 import type { Pt } from '../../engine/field/formations';
 
 /** A jog, in yards a second. */

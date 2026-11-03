@@ -4,18 +4,18 @@
  * spot. Timing comes from the ball's own path (`buildPath`), so both views tell the same play. Everyone else steers
  * (`steer.ts`).
  */
-import { actorsIn } from '../../engine/playActors';
-import type { QuirkId } from '../../engine/quirks';
-import { Rng } from '../../engine/rng';
-import type { PlayLogEntry } from '../../engine/types';
+import { actorsIn } from '../playActors';
+import type { QuirkId } from '../quirks';
+import { Rng } from '../rng';
+import type { PlayLogEntry } from '../types';
 import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type Seg } from './ballPath';
-import type { Cast } from '../../engine/field/cast';
+import type { Cast } from './cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
-import { FAKE, PRESSURE_REACT, type PocketPlan } from '../../engine/field/pocket';
-import { runnable, SPEED } from '../../engine/field/speed';
-import { decoyEnd, type Assignment, type Concept } from '../../engine/field/concepts';
-import { routeKeys, routeTime, type RouteId } from '../../engine/field/routes';
-import { moveSegs, pickMove, type MoveKind } from '../../engine/field/carrier';
+import { FAKE, PRESSURE_REACT, type PocketPlan } from './pocket';
+import { runnable, SPEED } from './speed';
+import { decoyEnd, type Assignment, type Concept } from './concepts';
+import { routeKeys, routeTime, type RouteId } from './routes';
+import { moveSegs, pickMove, type MoveKind } from './carrier';
 
 /** The pass's pattern (`concepts.ts`): the target's route, everyone else's, which way is in for each, their speeds. */
 export interface Pattern {
@@ -29,8 +29,8 @@ export interface Pattern {
 }
 /** A decoy runs his route at this pace (or his top speed, if lower). */
 const DECOY_PACE = 8.5;
-import { isVictory, type Pt } from '../../engine/field/formations';
-import { ballTrack, BEAT_ACROSS, passFlight, sample, type Keyframe } from '../../engine/field/keys';
+import { isVictory, type Pt } from './formations';
+import { ballTrack, BEAT_ACROSS, passFlight, sample, type Keyframe } from './keys';
 
 export { ballTrack, BEAT_ACROSS, passFlight, sample, type Keyframe };
 

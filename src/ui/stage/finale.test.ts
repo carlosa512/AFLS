@@ -3,7 +3,7 @@ import { createLeague } from '../../engine/generate';
 import { playWeek } from '../../engine/league';
 import type { PlayLogEntry } from '../../engine/types';
 import { finaleBanner, finaleKind, finaleScene } from './finale';
-import { FIELD_W } from './ballPath';
+import { FIELD_W } from '../../engine/field/ballPath';
 import type { Mark } from './transition';
 
 const play = (o: Partial<PlayLogEntry>): PlayLogEntry => ({

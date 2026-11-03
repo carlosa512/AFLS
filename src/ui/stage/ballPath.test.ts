@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath } from './ballPath';
+import { buildPath } from '../../engine/field/ballPath';
 
 describe('the ball path', () => {
   it('draws the same path for one play of each kind as before the move', () => {

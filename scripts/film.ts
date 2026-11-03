@@ -12,12 +12,12 @@ import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
-import { snapYFor } from '../src/ui/stage/ballPath';
+import { snapYFor } from '../src/engine/field/ballPath';
 import type { Drop } from '../src/engine/field/pocket';
 import type { Role } from '../src/engine/field/cast';
 import type { RouteId } from '../src/engine/field/routes';
 import { SPEED } from '../src/engine/field/steer';
-import { asRan, stagePlay, type StagedPlay } from '../src/ui/stage/stage';
+import { asRan, stagePlay, type StagedPlay } from '../src/engine/field/stage';
 
 const GAMES = Number(process.argv[2] ?? 200);
 const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);

@@ -5,11 +5,11 @@ import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
-import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../stage/ballPath';
+import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
-import { asRan } from '../stage/stage';
-import { fumbleIn } from '../stage/fumble';
+import { asRan } from '../../engine/field/stage';
+import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 
 // ───────── 2.5D field projection ─────────

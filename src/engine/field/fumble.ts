@@ -3,8 +3,8 @@
  * where it was recovered. Seeded from the play itself, so the broadcast view and All-22 bounce it the same way.
  * Spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-design.md §5.
  */
-import { Rng } from '../../engine/rng';
-import type { PlayLogEntry } from '../../engine/types';
+import { Rng } from '../rng';
+import type { PlayLogEntry } from '../types';
 import type { Seg } from './ballPath';
 
 /** A fumble on a play: lost to the defense or kept, and where it was recovered (field yards). */

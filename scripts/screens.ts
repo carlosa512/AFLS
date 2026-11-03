@@ -30,7 +30,7 @@ import { renameSync } from 'node:fs';
 import { createServer } from 'vite';
 import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
-import { fumbleIn } from '../src/ui/stage/fumble';
+import { fumbleIn } from '../src/engine/field/fumble';
 
 // ───────── the slice of Playwright's API this script uses (it isn't a project dependency, so no types) ─────────
 

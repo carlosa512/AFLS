@@ -3,17 +3,17 @@
  * steered rest, as tracks of every dot at 20 steps a second. Pure and seeded: the same play stages the same way.
  * Spec: docs/superpowers/specs/2026-10-31-all-22-view-design.md §3.
  */
-import { actorsIn, defenseCallAt } from '../../engine/playActors';
-import { Rng } from '../../engine/rng';
-import type { DefenseCall } from '../../engine/match/coach';
-import type { FieldRecord, FieldScheme, PlayLogEntry } from '../../engine/types';
+import { actorsIn, defenseCallAt } from '../playActors';
+import { Rng } from '../rng';
+import type { DefenseCall } from '../match/coach';
+import type { FieldRecord, FieldScheme, PlayLogEntry } from '../types';
 import { MID, offenseSide, type Seg } from './ballPath';
-import type { MoveKind } from '../../engine/field/carrier';
-import type { Role } from '../../engine/field/cast';
-import { meshGap, pocketPath, pocketPlan, type PocketPlan } from '../../engine/field/pocket';
+import type { MoveKind } from './carrier';
+import type { Role } from './cast';
+import { meshGap, pocketPath, pocketPlan, type PocketPlan } from './pocket';
 import { HOP_PEAK } from './fumble';
-import { castFor } from '../../engine/field/cast';
-import { blitzersFor, isVictory, lineUp } from '../../engine/field/formations';
+import { castFor } from './cast';
+import { blitzersFor, isVictory, lineUp } from './formations';
 import {
   ballTrack,
   catchSpot,
@@ -26,15 +26,17 @@ import {
   type Keyframe as ScriptKey,
   type Pattern,
 } from './scripts';
-import { assign, conceptFor, spotOf, type ConceptId } from '../../engine/field/concepts';
-import { routeFor, routeTime, type RouteId } from '../../engine/field/routes';
-import { SPEED, steer } from '../../engine/field/steer';
-import type { Pt } from '../../engine/field/formations';
-import { habitsFor, habitsOf } from '../../engine/field/habits';
-import { holeAt, planRunBlocks, runCall, type RunBlocking, type RunCall } from '../../engine/field/runBlocks';
-import { COVERAGES } from '../../engine/schemes';
+import { assign, conceptFor, spotOf, type ConceptId } from './concepts';
+import { routeFor, routeTime, type RouteId } from './routes';
+import { SPEED, steer } from './steer';
+import type { Pt } from './formations';
+import { habitsFor, habitsOf } from './habits';
+import { holeAt, planRunBlocks, runCall, type RunBlocking, type RunCall } from './runBlocks';
+import { COVERAGES } from '../schemes';
 
-export const STEP = 0.05;
+import { STEP } from './tuning';
+
+export { STEP };
 /** Plays where the quarterback has the ball first, and the ones where he drops back to throw. */
 const HOLDERS: ReadonlySet<string> = new Set(['run', 'pass', 'incomplete', 'int', 'sack', 'scramble']);
 const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);

@@ -6,12 +6,12 @@ import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/ty
 import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import type { QuirkId } from '../../engine/quirks';
-import { FIELD_W, pointAt, snapYFor } from './ballPath';
+import { FIELD_W, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { castFor, unitsAt } from '../../engine/field/cast';
-import { fumbleIn } from './fumble';
+import { fumbleIn } from '../../engine/field/fumble';
 import { lineUp } from '../../engine/field/formations';
-import { BEAT_ACROSS, sample, script, stagedPath } from './scripts';
-import { asRan, returned, SPRINT, stagePlay, type StagedPlay } from './stage';
+import { BEAT_ACROSS, sample, script, stagedPath } from '../../engine/field/scripts';
+import { asRan, returned, SPRINT, stagePlay, type StagedPlay } from '../../engine/field/stage';
 import { SPEED } from '../../engine/field/speed';
 
 const league = createLeague({ seed: 'stage' });

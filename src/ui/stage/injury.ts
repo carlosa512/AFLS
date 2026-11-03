@@ -4,7 +4,7 @@
  * with a trainer, helped off by two, or on the cart. Pure: where everyone is at any moment of the stoppage.
  */
 import { Rng } from '../../engine/rng';
-import { FIELD_W } from './ballPath';
+import { FIELD_W } from '../../engine/field/ballPath';
 import type { Exit } from './calls';
 import type { Pt } from '../../engine/field/formations';
 import { BENCH, type Mark } from './transition';
