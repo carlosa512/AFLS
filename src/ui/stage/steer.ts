@@ -777,7 +777,13 @@ export function steer(a: SteerArgs): Float32Array {
               const hx = px[carrierIdx] - lastX[carrierIdx];
               const hy = py[carrierIdx] - lastY[carrierIdx];
               const hl = Math.hypot(hx, hy);
-              if (hl > 0.05) goal = { x: aim.x - (hx / hl) * 2, y: aim.y - (hy / hl) * 2 };
+              // Until the back is through the line he comes at the back's heels, never waiting in front of him.
+              const through = (px[carrierIdx] - ballX0) * a.dir >= CREASE_PAST;
+              if (hl > 0.05) {
+                const from = through ? aim : { x: px[carrierIdx], y: py[carrierIdx] };
+                goal = { x: from.x - (hx / hl) * 2, y: from.y - (hy / hl) * 2 };
+                if (!through) onTime = Infinity;
+              }
             }
             // Beaten: he loses ground, more the further behind he is, so the chase thins out behind the play rather
             // than running alongside it. A big man well beaten eases right off.
@@ -811,6 +817,8 @@ export function steer(a: SteerArgs): Float32Array {
         // A linebacker's habits, the film's way of showing them: a gap-shooter shoots his gap, a scraper flows over the
         // top, slow flow waits to see it, a misread goes the wrong way first.
         if (a.run && !offense[k] && k !== pk && m.role === 'LB' && a.habits?.has(m.id)) {
+          // (Playing his habit, he isn't paced to where pursuit would meet the back.)
+          onTime = Infinity;
           const r = a.release;
           if (has(a.habits, m.id, 'slowFlow') && t < r + 0.4) goal = { x: px[k], y: py[k] };
           else if (has(a.habits, m.id, 'misreadsKeys') && t < r + 0.4) goal = { x: s0.x, y: s0.y - side * 1.5 };
@@ -879,7 +887,10 @@ export function steer(a: SteerArgs): Float32Array {
             );
           // Once a blocker has a man who can't get off blocks, he stays blocked; a gap-shooter beats the first hands.
           const stuck = a.run && has(a.habits, m.id, 'stuckOnBlocks');
-          const live = stuck || (a.dropback ? t < a.release + 0.3 : a.run && t < a.release + 1);
+          // On a run the blocks hold until the back is through the line (he presses it for the best part of two seconds
+          // after the handoff), not a set second: let go sooner, the whole front would converge on him in the hole.
+          const through = carrierIdx >= 0 && (px[carrierIdx] - ballX0) * a.dir >= CREASE_PAST;
+          const live = stuck || (a.dropback ? t < a.release + 0.3 : a.run && (t < a.release + 1 || !through));
           // A scraper flows through the traffic: hands on him don't stop him while he does.
           const scraping = a.run && has(a.habits, m.id, 'scraper') && t < a.release + 0.8;
           if (holding && live && !shooting(k, t) && !scraping && !stuckTo.has(k)) {

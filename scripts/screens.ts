@@ -15,7 +15,7 @@
  *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
- *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`,
+ *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
  *
@@ -231,7 +231,19 @@ const FILM: Record<string, (e: PlayLogEntry) => number> = {
   throwaway: (e) => (/throws it away/.test(e.text) ? 1 : 0),
   kneel: (e) => (e.kind === 'kneel' && /kneels\./.test(e.text) ? 1 : 0),
   long: (e) => (e.kind === 'run' && !/TOUCHDOWN/.test(e.text) && Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 20 ? 1 : 0),
+  // A run the engine says broke a tackle (a longer one first: more of the move and the man carrying on past).
+  move: (e) => (e.kind === 'run' && e.open?.broke ? 1 + Math.min(1, Math.abs((e.to ?? 0) - (e.from ?? 0)) / 20) : 0),
+  // A kickoff run back 30 yards and more, not to the house: the wall, maybe a miss, and the pile.
+  return: (e) =>
+    e.kind === 'kickoff' &&
+    !/TOUCHDOWN|PENALTY/.test(e.text) &&
+    e.air !== undefined &&
+    Math.abs((e.to ?? 0) - e.air) >= 30
+      ? 1
+      : 0,
 };
+/** Kinds that aren't snapped from scrimmage (no down). */
+const UNDOWNED: ReadonlySet<string> = new Set(['return']);
 /** Long enough for the line-up, the moments at the line, the play and its hold. */
 const CLIP_MS = 12_000;
 
@@ -343,7 +355,10 @@ async function main() {
         for (const g of games)
           g.result!.plays!.forEach((e, index) => {
             // Between the 25s where it can: a play squeezed against a goal line shows less.
-            const s = e.down > 0 && score(e) > 0 ? score(e) + (e.yardLine >= 25 && e.yardLine <= 75 ? 0.5 : 0) : 0;
+            const s =
+              (e.down > 0 || UNDOWNED.has(kind)) && score(e) > 0
+                ? score(e) + (e.yardLine >= 25 && e.yardLine <= 75 ? 0.5 : 0)
+                : 0;
             if (s > (best?.s ?? 0)) best = { gameId: g.id, index, s };
           });
         if (!best) {
