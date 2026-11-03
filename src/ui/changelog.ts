@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.10',
+    date: '2026-11-04',
+    title: 'Locker room touch-ups',
+    text:
+      "In the Locker Room, the players a team meeting's promise names are now links to their cards, and a promise of " +
+      "talks with two players names them both. The head coach's season's-end report now tells a promise you made in " +
+      'your own address to the team as yours, not his. And a hurt quarterback no longer counts toward how long the ' +
+      'passing game has played together.',
+  },
+  {
     version: '0.3.9',
     date: '2026-11-03',
     title: 'Chemistry on Sunday',
