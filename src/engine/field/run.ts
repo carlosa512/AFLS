@@ -10,7 +10,7 @@ import { angleSpread, chaseWant, shedOdds } from './chase';
 import { contest, type Contact } from './contest';
 import { FIELD_W, MID } from './geometry';
 import { readField, type Reader } from './read';
-import { BLOCK_DELAY, DOWN_FOR, FALL, JUMP_READ, MAX_FIELD, REACH, READ_EVERY, RECONTEST, STEP } from './tuning';
+import { BLOCK_DELAY, BRAKE, DOWN_FOR, FALL, JUMP_READ, MAX_FIELD, REACH, READ_EVERY, RECONTEST, STEP } from './tuning';
 import type { FieldResult, FieldStart } from './types';
 
 /** How long the film runs on past a touchdown or a man going out of bounds, and past a pile settling (seconds). */
@@ -31,6 +31,10 @@ const REGROUP = 1;
 const SHIELD = 1.2;
 /** Steps a defender reads the carrier's velocity over. */
 const SMOOTH = 6;
+/** After a catch he gathers this long (seconds) before he reads the field. */
+const GATHER = 0.2;
+/** Room for a move: no other defender this close (yards). */
+const ROOM = 2;
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -77,8 +81,17 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   record();
   hist.push({ x: B[ci].x, y: B[ci].y });
 
+  // A catch: he gathers a beat before he reads the field (a slasher turns upfield at once), and soft hands catch a short
+  // ball in stride.
+  const caught = start.kind === 'catch';
+  if (caught && hasHabit(P[ci], 'softHands') && (B[ci].x - start.yardLine) * dir < 10) {
+    const v = Math.hypot(B[ci].vx, B[ci].vy);
+    const k = v > 0.1 ? (v + 1) / v : 1;
+    B[ci].vx = v > 0.1 ? B[ci].vx * k : dir;
+    B[ci].vy *= k;
+  }
   let want = { vx: B[ci].vx, vy: B[ci].vy };
-  let nextRead = 0;
+  let nextRead = caught && !hasHabit(P[ci], 'yacSlasher') ? GATHER : 0;
   let nextAim = 0;
   const every = hasHabit(P[ci], 'jumpCutter') ? JUMP_READ : READ_EVERY;
   const misses: FieldResult['misses'] = [];
@@ -92,6 +105,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   let spotX = 0;
   let pileBrake = 0;
   let move = null as Contact['program'];
+  let moveUntil = 0;
 
   /** Who can still make a play, and how late, as the carrier reads it. */
   const reader = (t: number): Reader => {
@@ -143,7 +157,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const c = B[ci];
     if (phase === 'live') {
       // The carrier: his read, or the move he's in the middle of.
-      if (move && t < move.until) want = move.want(t, c);
+      if (move && t < moveUntil) want = move.want;
       else {
         move = null;
         if (t >= nextRead) {
@@ -165,7 +179,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const b = B[i];
       if (phase === 'pile' && i === tackler) {
         stepBody(b, { vx: (c.x + offX[i] - b.x) / STEP, vy: (c.y + offY[i] - b.y) / STEP }, STEP, pileBrake);
-      } else if (phase !== 'live') stepBody(b, { vx: 0, vy: 0 }, STEP);
+      } else if (phase !== 'live') stepBody(b, { vx: 0, vy: 0 }, STEP, t < b.downUntil ? FALL : BRAKE);
       else if (defense[i]) moveDefender(i, t, s);
       else moveTeammate(i, t);
       keepOnField(b);
@@ -350,7 +364,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const sp = Math.hypot(c.vx, c.vy);
     const cos = sp > 0.3 ? ((B[d].x - c.x) * c.vx + (B[d].y - c.y) * c.vy) / (sp * (dd || 1)) : 1;
     const angle = cos > 0.5 ? 'head' : cos < -0.5 ? 'behind' : 'side';
-    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng);
+    let room = true;
+    for (let i = 0; i < n; i++)
+      if (i !== d && defense[i] && partner[i] < 0 && now >= B[i].downUntil && dist(B[i], c) <= ROOM) room = false;
+    const r = contest(P[ci], c, P[d], B[d], help, angle, start, rng, room);
     if (r.out === 'tackle') {
       tackler = d;
       phase = 'pile';
@@ -374,5 +391,6 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       c.vy *= 0.6;
     }
     move = r.program;
+    if (move) moveUntil = now + move.dur;
   }
 }

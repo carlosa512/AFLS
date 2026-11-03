@@ -51,7 +51,12 @@ describe('the open field', () => {
     for (let i = 0; i < 100; i++) {
       const players = [man(1, 0, 'RB', 40, MID, { vx: 7 }), man(30, 1, 'S', 55, MID)];
       const r = runField(startOf({ players }), new Rng(`deep:${i}`));
-      expect(r.touchdown, `seed ${i}`).toBe(false);
+      // He may beat him with a move or break his tackle, but never get by untouched.
+      if (r.touchdown)
+        expect(
+          r.misses.some((m) => m.by === 30),
+          `seed ${i}`,
+        ).toBe(true);
     }
   });
 
