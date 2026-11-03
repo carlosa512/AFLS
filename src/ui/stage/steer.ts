@@ -21,6 +21,8 @@ const ACCEL = 6;
 /** Men closer than this push apart, a little each step (a shove, not a jolt). */
 const ROOM = 1;
 const ROOM_PUSH = 0.12;
+/** The least a back in pass protection steps toward his man, in yards. */
+const PICKUP_STEP = 2;
 /** A run's first steps by the call last this long (seconds from the snap) before the blocks take over. */
 const FIRST_STEP = 0.5;
 /** Where a steered man may aim, end line to end line (yards), short of the edge he's kept inside so he can pull up. */
@@ -731,6 +733,15 @@ export function steer(a: SteerArgs): Float32Array {
             const ry = j < 0 ? qy : py[j];
             const d = Math.hypot(rx - qx, ry - qy) || 1;
             goal = { x: qx + ((rx - qx) / d) * 2.5, y: qy + ((ry - qy) / d) * 2.5 };
+            // A back already lined up near that spot still steps up to meet his man: shuffling a yard and a half, he
+            // read on film as standing still.
+            if (Math.hypot(goal.x - s0.x, goal.y - s0.y) < PICKUP_STEP) {
+              const toRusher = Math.hypot(rx - s0.x, ry - s0.y) || 1;
+              goal = {
+                x: s0.x + ((rx - s0.x) / toRusher) * PICKUP_STEP,
+                y: s0.y + ((ry - s0.y) / toRusher) * PICKUP_STEP,
+              };
+            }
           } else if (m.role === 'OL' || (m.role === 'RB' && !checkdowns.has(m.id))) {
             // Engage the nearest defender a step in front of where he lined up.
             const j = nearest(k);
@@ -877,12 +888,14 @@ export function steer(a: SteerArgs): Float32Array {
         if (!offense[k] && k !== pk) {
           // Held by whoever is on him (the matchups only aim the blockers): any blocker within reach. A blitzer comes
           // through the gaps the line's men leave: only the back picking him up, or a man assigned to him, holds him.
+          // A man the run's blocking leaves free has nobody sent to him: a lineman on his way to someone else doesn't
+          // stop him (held, then let go, he'd turn round and stand in the hole). Only a man sent to him holds him.
           const sent = !!a.blitz?.has(m.id);
           const holding =
             (a.dropback || a.run) &&
             blockerIdx.some(
               (b) =>
-                (!sent || members[b].role === 'RB' || blockOn.get(b) === k) &&
+                (blockOn.get(b) === k || (!lateMen.has(k) && (!sent || members[b].role === 'RB'))) &&
                 Math.hypot(px[b] - px[k], py[b] - py[k]) < 1.6,
             );
           // Once a blocker has a man who can't get off blocks, he stays blocked; a gap-shooter beats the first hands.

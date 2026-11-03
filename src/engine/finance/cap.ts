@@ -196,6 +196,12 @@ export function releaseBlocker(league: League, player: Player): string | null {
   return null;
 }
 
+/**
+ * Dead money as it's booked: whole thousands, rounded down. Rounded to the nearest, a cut whose remaining hit was all
+ * guaranteed ($1,162.5K) booked $500 more than it freed, and a playoff club with $84 of room went over the cap.
+ */
+export const deadAmount = (x: number): number => Math.floor(x + 1e-6);
+
 /** Cut a player: he becomes a free agent and the team books the dead money. */
 export function releasePlayer(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
   const personnelLock = personnelMoveLock(league, player);
@@ -215,9 +221,9 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   const team = league.teams[player.teamId];
   const note = preview.postJune1 && !autoPostJune1(league.phase) ? 'Released (post-June 1)' : 'Released';
   if (preview.thisYear > 0)
-    team.deadMoney.push({ season: league.season, amount: Math.round(preview.thisYear), playerId: player.id, note });
+    team.deadMoney.push({ season: league.season, amount: deadAmount(preview.thisYear), playerId: player.id, note });
   if (preview.nextYear > 0)
-    team.deadMoney.push({ season: league.season + 1, amount: Math.round(preview.nextYear), playerId: player.id, note });
+    team.deadMoney.push({ season: league.season + 1, amount: deadAmount(preview.nextYear), playerId: player.id, note });
   if (preview.postJune1 && !autoPostJune1(league.phase)) team.postJune1Used++;
   // Wherever he was lined up (a player can be at another position on a hand-sorted chart).
   for (const pos of POSITIONS) team.depthChart[pos] = team.depthChart[pos].filter((id) => id !== player.id);

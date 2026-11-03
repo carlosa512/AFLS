@@ -6,7 +6,7 @@ import { playerOvr, STARTERS } from '../positions';
 import { teamPlayers } from '../roster';
 import type { League, Position } from '../types';
 import { POSITIONS } from '../types';
-import { capSheet, releasePlayer, releasePreview, restructurePlayer } from './cap';
+import { capSheet, releasePlayer, releasePreview, restructurePlayer, deadAmount } from './cap';
 import {
   buildContract,
   capHit,
@@ -568,8 +568,10 @@ describe('team cap', () => {
     const preview = releasePreview(league, star);
     releasePlayer(league, star);
     const after = capSheet(league, team.id);
-    expect(after.dead).toBeCloseTo(before.dead + preview.thisYear, 0);
-    expect(after.space - before.space).toBeCloseTo(preview.savings, 0);
+    // Booked in whole thousands, rounded down (`deadAmount`): never more than the preview, so never less room.
+    expect(after.dead).toBe(before.dead + deadAmount(preview.thisYear));
+    expect(after.space - before.space).toBeGreaterThanOrEqual(preview.savings - 1e-9);
+    expect(after.space - before.space).toBeLessThan(preview.savings + 1);
     expect(star.teamId).toBeNull();
     expect(team.depthChart[star.position]).not.toContain(star.id);
   });

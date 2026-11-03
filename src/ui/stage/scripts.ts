@@ -170,6 +170,8 @@ const JET_PACE = 5;
 const PRESS_ACROSS = 4;
 /** A bounce by a back who bounces outside goes this much wider (yards). */
 const BOUNCE_WIDER = 2;
+/** A jump cut is made this far past the line (yards), so its step back stays in front of it. */
+const JUMP_PAST = 1.5;
 /** A broken tackle on a run comes this many yards past the line. */
 const MOVE_PAST = [4, 6] as const;
 /** After the catch, an east-west runner's first moments: across, barely on (yards), and how long (seconds). */
@@ -507,7 +509,13 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
     const L = dist(at, end);
     const pace = carryPace(L, caught, top, chaser);
     if (habit('jumpCutter') && L > 3) {
-      // The cut at the hole is a jump cut (not a broken tackle: no one's beaten by it).
+      // The cut at the hole is a jump cut (not a broken tackle: no one's beaten by it). He makes it just past the line:
+      // made at the hole, its step back took him behind the line and he crossed it a second time at 3.75 s.
+      if ((at.x - e.from) * dir < JUMP_PAST) {
+        const through = { x: e.from + dir * JUMP_PAST, y: at.y };
+        out.push(paced({ x0: at.x, y0: at.y, x1: through.x, y1: through.y, peak: 0, dur: 0 }, pace));
+        at = through;
+      }
       const h = heading(at);
       const across = Math.sign(-h.y * (end.x - hole.x) + h.x * (end.y - hole.y)) || coin;
       const cut = moveSegs('jumpCut', at, h, pace, across >= 0 ? 1 : -1).map(({ move: _, ...sg }) => sg);

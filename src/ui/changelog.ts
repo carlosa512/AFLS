@@ -13,6 +13,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.6',
+    date: '2026-11-03',
+    title: 'Real heights',
+    text:
+      "Players' heights now follow real NFL rosters, inch by inch, position by position, so a new league no longer has " +
+      'a dozen 6\'9" linemen or 5\'7" corners piled at the edges. Weights stay inside the real range for each position. ' +
+      'Draft classes can still bring the rare build one inch past the real extremes, about once a decade at a ' +
+      'position. Coaches only move a player to a position where real rosters carry his height, and a moved player ' +
+      "ends up at a weight that position really plays at. Existing saves keep their players' builds; new arrivals " +
+      'come in on the real curves. ' +
+      "On the All-22, a defender the run's blocking leaves free is no longer grabbed by a lineman on his way to someone " +
+      'else, so he no longer stands in the hole.',
+  },
+  {
     version: '0.3.5',
     date: '2026-11-03',
     title: 'Your coach asks for a word',

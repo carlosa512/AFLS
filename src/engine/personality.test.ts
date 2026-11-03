@@ -49,15 +49,23 @@ describe('personality', () => {
   const players = Object.values(league.players).filter((p) => !p.retired);
 
   it('spreads names like FM: Even-Keeled for a quarter or so, every other name 1.5–9%', () => {
+    // Four leagues pooled: one league's Even-Keeled share swung 0.30–0.35 from seed to seed (eight seeds, 2026-11-02)
+    // around a 0.33 mean, so one seed's re-rolled world sat on the 0.35 line with nothing in the naming changed.
+    const pool = [
+      ...players,
+      ...['personality-spread-2', 'personality-spread-3', 'personality-spread-4'].flatMap((seed) =>
+        Object.values(createLeague({ seed }).players).filter((p) => !p.retired),
+      ),
+    ];
     for (const on of [TRAITS_ON, ALL]) {
       // Until mentoring and feuds ship, five names are switched off and their players read as Even-Keeled.
       const partial = on !== ALL;
       const counts = new Map<string, number>();
-      for (const p of players) {
+      for (const p of pool) {
         const name = personalityOf(trueCharacter(p), on);
         counts.set(name, (counts.get(name) ?? 0) + 1);
       }
-      const share = (n: string) => (counts.get(n) ?? 0) / players.length;
+      const share = (n: string) => (counts.get(n) ?? 0) / pool.length;
       expect(share('Even-Keeled')).toBeGreaterThan(0.2);
       expect(share('Even-Keeled')).toBeLessThan(partial ? 0.45 : 0.35);
       for (const [n] of counts)

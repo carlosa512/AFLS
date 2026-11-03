@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { capFor, capSheet, capSpace, restructureOptions } from '../finance/cap';
+import { capFor, capSheet, capSpace, releasePreview, restructureOptions } from '../finance/cap';
 import { capHit, isExpired, lastSeason } from '../finance/contract';
-import { marketApy, leagueMarket } from '../finance/market';
+import { marketApy, leagueMarket, topMinimum } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -11,6 +11,7 @@ import type { League, Player } from '../types';
 import {
   aiCapCompliance,
   aiResignWindow,
+  cutRoom,
   expiringPlayers,
   inPlans,
   nextYearCeiling,
@@ -22,6 +23,7 @@ import {
 } from './ai';
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
+import { demand } from './negotiation';
 
 /** A league at its re-sign window, after one season. */
 const window = (() => {
@@ -262,14 +264,17 @@ describe('GMs plan next year first', () => {
 
 describe('a GM makes the room he plans, or none', () => {
   /** `squeezed`'s keeper the only deal running out, next year set `room` (a share of his market) under the ceiling. */
-  const alone = (room: number) => {
+  const alone = (room: number, multiYear = false) => {
     const x = squeezed(0, 1);
     const { l, team, p } = x;
+    // A keeper who wants more than one year, so his new deal is on next year's books (`preferredYears` reads his age).
+    if (multiYear) p.age = Math.min(p.age, 29 + ageShift(p.position));
     for (const e of expiringPlayers(l, team.id)) if (e !== p) e.teamId = null;
     const cap = capFor(l, l.season + 1);
     const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * cap;
     const used = capSheet(l, team.id, l.season + 1).used;
-    const market = marketApy(leagueMarket(l), p);
+    // His own price, not the market's: his ask leans on his mood and his ties, so the market can sit well off it.
+    const market = demand(l, p, team.id).askApy;
     team.deadMoney.push({
       season: l.season + 1,
       amount: Math.round(ceiling - used - nextYearNeeds(l, team) - room * market),
@@ -302,7 +307,7 @@ describe('a GM makes the room he plans, or none', () => {
     // Next year has half his price of room after its needs: making room now would push his new deal past the ceiling.
     // The club's tag is spent, so it's his new deal or nothing (making room for a tag doesn't count next year's price
     // for him yet: a follow-up in docs/MVP.md).
-    const { l, team, p } = alone(0.5);
+    const { l, team, p } = alone(0.5, true);
     team.taggedId = teamPlayers(l, team.id).find((x) => x !== p)!.id;
     // A keeper in his prime, so his new deal runs into next year: a veteran offered one year owes next year nothing,
     // and borrowing for him is right (which keeper the fixture picks depends on the world a season of play leaves).
@@ -374,5 +379,30 @@ describe('a club over the cap gets under it the way it makes room', () => {
     aiCapCompliance(l, team);
     expect(capSpace(l, team.id)).toBeGreaterThanOrEqual(0);
     expect(biggest.teamId === team.id ? biggest.contract!.bonuses.length : before).toBe(before);
+  });
+});
+
+describe('what a cut frees', () => {
+  /** An AI club at the window and one of its veterans under contract this year. */
+  const setup = () => {
+    const l: League = JSON.parse(window);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cut = teamPlayers(l, team.id).find((p) => p.contract && !isExpired(p.contract, l.season))!;
+    return { l, team, cut };
+  };
+
+  it('is his savings less the minimum deal his open spot then needs', () => {
+    // A cut that saved $1.3M opened a spot kept at $1.5M: the club cut two veterans for a keeper and lost room.
+    const { l, team, cut } = setup();
+    const savings = releasePreview(l, cut).savings;
+    expect(cutRoom(l, team.id, cut)).toBeCloseTo(savings - topMinimum(l.caps[l.season]), 6);
+  });
+
+  it('is his whole savings when the 53 has no spot to keep for him', () => {
+    const { l, team, cut } = setup();
+    // Enough of this year's picks to fill the 53 on their own: no spot is kept open for a minimum deal.
+    for (let i = 0; i < 60; i++)
+      l.draftPicks.push({ id: -1 - i, season: l.season, round: 7, ownerId: team.id, originalTeamId: team.id });
+    expect(cutRoom(l, team.id, cut)).toBeCloseTo(releasePreview(l, cut).savings, 6);
   });
 });

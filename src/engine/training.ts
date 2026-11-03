@@ -31,7 +31,7 @@ import { KEEP_MIN } from './offseason/ai';
 import { trueUp } from './development';
 import { conversionOf, targetsFor, type Conversion } from './familiarity';
 import { OVR_WEIGHTS, overall, playerOvr, STARTERS } from './positions';
-import { rollGem, sizeLimits, sizeZ } from './size';
+import { heightShare, rollGem, SIZE, sizeLimits, sizeZ } from './size';
 import { fillBag, QUIRKS_FOR, type QuirkId } from './quirks';
 import { fitContests, type TeamScheme } from './schemes';
 import { clamp, Rng } from './rng';
@@ -185,6 +185,9 @@ function slotProblem(league: League, teamId: number, running: number): string | 
   return cap === 1 ? 'Already teaching a player a new position.' : `Already teaching ${cap} players new positions.`;
 }
 
+/** The least share of real rosters at a position who stand a mover's height: under it, his coaches won't move him there. */
+export const MOVE_SHARE = 0.01;
+
 /** Everything but the team's free slots. */
 function playerProblem(league: League, p: Player, to: Position): string | null {
   const c = conversionOf(p.position, to);
@@ -197,6 +200,11 @@ function playerProblem(league: League, p: Player, to: Position): string | null {
   if (last && league.season < last.season + COOLDOWN) return 'Changed position too recently.';
   if (p.age < c.ages[0]) return 'Too young for this move.';
   if (p.age > c.ages[1]) return to === 'CB' ? "Too old: he won't get the speed back." : 'Too old for this move.';
+  // His height doesn't move with him: coaches move him only to a height real rosters carry there (`MOVE_SHARE`). A long
+  // run allowing any height a draft could bring turned safeties into 5'10" linebackers (0.35% of real ones) and a 6'7"
+  // edge rusher into a linebacker: the rare build comes through the draft, not a coach's move.
+  if (heightShare(to, p.heightIn) < MOVE_SHARE)
+    return p.heightIn > SIZE[to].h[0] ? `Too tall to play ${to}.` : `Too short to play ${to}.`;
   return null;
 }
 
@@ -282,7 +290,9 @@ export function changePosition(league: League, p: Player, to: Position): void {
   for (const id of Object.keys(p.quirks ?? {}) as QuirkId[]) if (!pool.has(id)) delete p.quirks![id];
   if (p.quirks && !Object.keys(p.quirks).length) delete p.quirks;
   if (p.quirkBag) p.quirkBag = fillBag(p, coachingFor(league, p.teamId, to).rate);
-  const [lo, hi] = sizeLimits(to).w;
+  // A mover's weight lands inside the real range at his new position: clamped to the arrival tier's, linebackers moved
+  // to safety piled up at its 235 (a long run carried 7.8 safeties a season past the real 225).
+  const [lo, hi] = sizeLimits(to, 'founding').w;
   p.weightLb = clamp(p.weightLb, lo, hi);
   // His number goes with him if the rules allow it at the new spot (a receiver's 15 at corner), else he picks one.
   numberAfterMove(league, p);

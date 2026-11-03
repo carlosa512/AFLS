@@ -42,12 +42,16 @@ describe('the final whistle', () => {
     expect(finaleKind([play({}), play({ homeScore: 20, awayScore: 20, quarter: 5 })], 1)).toBe('tie');
   });
 
-  it('finds the walk-offs in a week of games', () => {
+  it('finds the walk-offs in a few weeks of games', () => {
+    // A walk-off ends about one game in twenty, so one week's sixteen may hold none: play until there is one (or six).
     const league = createLeague({ seed: 'look' });
-    playWeek(league);
-    const kinds = league.games
-      .filter((g) => g.result?.plays?.length)
-      .map((g) => finaleKind(g.result!.plays!, g.result!.plays!.length - 1));
+    let kinds: string[] = [];
+    for (let w = 0; w < 6 && !kinds.includes('walkoff'); w++) {
+      playWeek(league);
+      kinds = league.games
+        .filter((g) => g.result?.plays?.length)
+        .map((g) => finaleKind(g.result!.plays!, g.result!.plays!.length - 1));
+    }
     expect(kinds).toContain('walkoff');
     expect(kinds).toContain('win');
   });

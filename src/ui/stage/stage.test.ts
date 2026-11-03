@@ -1469,7 +1469,10 @@ describe('the run game', () => {
   it('leaves almost no unblocked defender standing within 5 yards of the hole as the back goes through', () => {
     let n = 0;
     const standing = new Set<string>();
-    for (const x of runs.slice(0, 300)) {
+    // Six hundred runs: over three hundred, a world's rate swung across the line with nothing in the staging changed.
+    // (Held by any lineman passing, the real-heights world's free men stood here in 6.6% of them; held only by their
+    // own blocker, 3.4%.)
+    for (const x of runs.slice(0, 600)) {
       const p = stage(x);
       // (A fumble's carrier at the end may be the man who picked it up.)
       if (!p.run || p.carrier === null || p.loose) continue;
@@ -1509,6 +1512,45 @@ describe('the run game', () => {
     // Now and then a linebacker reads the back from the second level a beat before he gets there, as they do; never
     // more than about one run in seventeen.
     expect(standing.size / n).toBeLessThan(0.06);
+  });
+
+  it("lets the run's free men go: a lineman blocking someone else never holds a man the blocking left free", () => {
+    let men = 0;
+    let held = 0;
+    for (const x of runs) {
+      const p = stage(x);
+      if (!p.run || p.carrier === null || p.loose) continue;
+      const c = p.ids.indexOf(p.carrier);
+      const pos = (st: number, k: number) => ({
+        x: p.pos[(st * p.ids.length + k) * 2],
+        y: p.pos[(st * p.ids.length + k) * 2 + 1],
+      });
+      for (const id of p.run.free) {
+        const k = p.ids.indexOf(id);
+        men++;
+        // From the handoff until the back is two and a half yards past the line: a block's pace (1 yd/s on a run)
+        // beside a lineman for a fifth of a second is a hold.
+        let streak = 0;
+        for (let st = Math.round(p.release / p.dt) + 1; st < p.steps; st++) {
+          if ((pos(st, c).x - p.ball[0]) * p.dir >= 2.5) break;
+          const v = Math.hypot(pos(st, k).x - pos(st - 1, k).x, pos(st, k).y - pos(st - 1, k).y) / p.dt;
+          const lineman = p.ids.some(
+            (_, j) =>
+              p.offense[j] &&
+              p.roles[j] === 'OL' &&
+              Math.hypot(pos(st, j).x - pos(st, k).x, pos(st, j).y - pos(st, k).y) < 1.6,
+          );
+          streak = v <= 1.05 && lineman ? streak + 1 : 0;
+          if (streak === 4) {
+            held++;
+            break;
+          }
+        }
+      }
+    }
+    expect(men).toBeGreaterThan(2000);
+    // (A man pushed off a lineman for a moment, or reaching his spot beside one, is the odd exception.)
+    expect(held / men).toBeLessThan(0.01);
   });
 
   it('runs a pulling guard behind the line, never through it', () => {

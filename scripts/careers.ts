@@ -494,8 +494,12 @@ console.log(
   // Live trees are read in the steady state, as the biggest tree is: a new league starts with none, and a tree needs a
   // head coach's three seasons and two disciples hired before it counts, so the early seasons only dragged the mean
   // (the owner's call, 0.2.24: G2 read 1.9 over all sixteen seasons, against main's 2.2).
+  // Trees born is a count a league's sixteen seasons swing from 0 to 7 with the same founding staffs (main's four
+  // careers leagues read 4, 2, 1 and 0; the real-heights world's 4, 1, 7 and 6): it's judged over the work-ethic
+  // leagues' trees too, eight leagues, as they're played anyway.
+  const born = [...t, ...(await ethicLeagues).map((r) => r.trees)].map((x) => x.born);
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check('trees born per league', mean(t.map((x) => x.born)), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
