@@ -10,7 +10,7 @@
  *   npm run check -- --base HEAD~3 # changes since another ref
  *
  * CI calls `node scripts/check.ts --plan` for the plan as JSON (through npm, the banner would get in
- * the way). Full logs go to .check/<name>.log; a failure prints the lines that flagged it.
+ * the way); there `test` is two jobs, `test-1` and `test-2`, each half the files (vitest's --shard). Full logs go to .check/<name>.log; a failure prints the lines that flagged it.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -32,6 +32,23 @@ interface Check {
 
 const CORES = availableParallelism();
 
+/** How many runners CI splits the unit tests over. */
+const TEST_SHARDS = 2;
+/** The unit tests: all of them, or one shard of `TEST_SHARDS` (CI). */
+function testCheck(shard?: number): Check {
+  const args = [
+    ...(shard ? [`--shard=${shard}/${TEST_SHARDS}`] : []),
+    ...(process.env.CI ? [`--maxWorkers=${CORES}`] : []),
+  ];
+  return {
+    cmd: ['npm', 'test', ...(args.length ? ['--', ...args] : [])],
+    cores: CORES,
+    secs: 55,
+    summary: /Tests\s+.*/,
+    detail: /FAIL|Error|Expected|Received/,
+  };
+}
+
 const CHECKS = {
   // Prettier, with the repo's .prettierrc.json; `npm run format` fixes what it flags.
   format: {
@@ -43,13 +60,11 @@ const CHECKS = {
   },
   typecheck: { cmd: ['npm', 'run', 'typecheck'], cores: 1, secs: 10, summary: /error TS\d+.*/ },
   // On CI a worker per core (vitest's default leaves one idle; the job has the runner to itself); locally its default.
-  test: {
-    cmd: ['npm', 'test', ...(process.env.CI ? ['--', `--maxWorkers=${CORES}`] : [])],
-    cores: CORES,
-    secs: 55,
-    summary: /Tests\s+.*/,
-    detail: /FAIL|Error|Expected|Received/,
-  },
+  test: testCheck(),
+  // CI's halves of `test` (vitest's --shard), each on its own runner: on one, the suite had reached 18m39s against the
+  // job's 20-minute limit (2026-11-03). The plan CI reads swaps `test` for these; a local run keeps the one `test`.
+  'test-1': testCheck(1),
+  'test-2': testCheck(2),
   build: { cmd: ['npx', 'vite', 'build', '--logLevel', 'error'], cores: 1, secs: 15 },
   sim: { cmd: ['npm', 'run', 'sim', '--', '60'], cores: 1, secs: 220, summary: /\d+ stat\(s\) outside target range/ },
   endings: {
@@ -181,7 +196,9 @@ const CHECKS = {
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
-const NAMES = Object.keys(CHECKS) as Name[];
+/** CI's shards of `test`: asked for by name on a CI runner, never planned or run locally. */
+const SHARD_NAMES: Name[] = ['test-1', 'test-2'];
+const NAMES = (Object.keys(CHECKS) as Name[]).filter((n) => !SHARD_NAMES.includes(n));
 
 /**
  * Which checks a changed file calls for; a file collects every rule it matches. CLAUDE.md's
@@ -299,7 +316,7 @@ if (flag('--help') || flag('-h')) {
 }
 const bad = [
   ...argv.filter((a) => a.startsWith('-') && !FLAGS.includes(a)),
-  ...asked.filter((a) => !(NAMES as string[]).includes(a)),
+  ...asked.filter((a) => !([...NAMES, ...SHARD_NAMES] as string[]).includes(a)),
 ];
 if (bad.length || (baseAt >= 0 && !argv[baseAt + 1])) {
   console.error(
@@ -323,7 +340,8 @@ const skipped = flag('--quick') ? names.filter((n) => (CHECKS[n] as Check).slow)
 names = names.filter((n) => !skipped.includes(n));
 
 if (flag('--plan')) {
-  console.log(JSON.stringify(names));
+  // CI: one job per check, with the unit tests split over two runners.
+  console.log(JSON.stringify(names.flatMap((n) => (n === 'test' ? SHARD_NAMES : [n]))));
   process.exit(0);
 }
 

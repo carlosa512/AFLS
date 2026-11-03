@@ -1,7 +1,7 @@
 /**
  * One league for the size check's long run (`scripts/size.ts`): play `seasons` seasons and count, after each offseason,
  * each position's rostered players at and past the founding bounds (`sizeLimits(pos, 'founding')`), and anyone outside
- * the arrival bounds. Every founding player is gone within about fifteen seasons, so the last seasons show the league
+ * the arrival bounds. Every founding player is gone within about twenty seasons, so the last seasons show the league
  * the arrival curve makes on its own. The check runs it in its own process and judges the counts.
  */
 import { createLeague } from '../src/engine/generate';
@@ -69,5 +69,5 @@ export function runLong(seed: string, seasons: number): LongRun {
 }
 
 if (process.env.SIZE_LONG_SEED && process.send) {
-  process.send(runLong(process.env.SIZE_LONG_SEED, Number(process.env.SIZE_LONG_SEASONS ?? 25)));
+  process.send(runLong(process.env.SIZE_LONG_SEED, Number(process.env.SIZE_LONG_SEASONS ?? 20)));
 }

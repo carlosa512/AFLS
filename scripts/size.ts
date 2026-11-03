@@ -4,7 +4,7 @@
  * real extremes, arrivals one step wider), with no bound collecting a tail; the rare gem turns up in about a quarter
  * of the outliers, no edge leaves its cap, and each lever, replayed on the same games with one group's builds pushed
  * two sd out, moves its own stat the right way. Then the whole league at its medians against the league as built:
- * the edges are centred, so league totals hold. And the long run: a league played 25 seasons in its own process,
+ * the edges are centred, so league totals hold. And the long run: a league played 20 seasons in its own process,
  * whose tails at and past the real extremes stay near real rosters' once the founding players are gone.
  *
  *   npm run size
@@ -28,11 +28,13 @@ import type { LongRun } from './size-long';
 import { POSITIONS, type League, type Player, type Position } from '../src/engine/types';
 
 /**
- * The long run: four leagues, 25 seasons each, each in its own process while the blocks below run here. Pooled: one
+ * The long run: four leagues, 20 seasons each, each in its own process while the blocks below run here. Pooled: one
  * league's 32 kickers hold their jobs for a decade or more, so a few tall ones drafted early sat over a line for its
  * last five seasons, and each run flagged a different position by a hair with nothing in the draw changed.
  */
-const LONG_SEASONS = 25;
+// Twenty: the founding players are gone by then (each league kept 2–4 of about 1,700 after eighteen seasons, 0–1 after
+// twenty), so seasons 16–20 are the arrivals' league; played to 25, seasons 21–25 read the same (2026-11-03).
+const LONG_SEASONS = 20;
 const LONG_SEEDS = ['size-long', 'size-long-2', 'size-long-3', 'size-long-4'];
 const longLeague = (seed: string): Promise<LongRun> =>
   new Promise((resolve, reject) => {
