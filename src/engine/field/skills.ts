@@ -3,7 +3,7 @@
  * counts has a job and the audit proves it. Size comes from `size.ts`.
  */
 import { CONTESTS, skill, type ContestName } from '../attributes';
-import type { QuirkId } from '../quirks';
+import { FILM_HABITS, type QuirkId } from '../quirks';
 import type { Attribute, Player, Position } from '../types';
 import { FIELD_HABITS } from './habits';
 import type { FieldSkills } from './types';
@@ -29,7 +29,10 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 const shedContest = (pos: Position): ContestName =>
   pos === 'DT' || pos === 'EDGE' ? 'runDefense' : pos === 'LB' || pos === 'S' ? 'runFit' : 'tackling';
 
-/** One man as the open field reads him; `habits` gives his active quirks (the engine's `activeQuirks`). */
+/**
+ * One man as the open field reads him; `habits` gives his active quirks (the engine's `activeQuirks`). He keeps the
+ * ones the field plays and the ones the film shows before possession (the approach stages them).
+ */
 export function fieldSkills(p: Player, habits: (p: Player) => readonly QuirkId[]): FieldSkills {
   const s: FieldSkills = {
     pos: p.position,
@@ -48,7 +51,7 @@ export function fieldSkills(p: Player, habits: (p: Player) => readonly QuirkId[]
   };
   if (p.playsBig) s.big = 1;
   const field = habits(p)
-    .filter((q) => FIELD_HABITS.has(q))
+    .filter((q) => FIELD_HABITS.has(q) || FILM_HABITS.has(q))
     .sort();
   if (field.length) s.habits = field;
   return s;

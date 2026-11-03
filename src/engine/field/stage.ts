@@ -91,6 +91,8 @@ export interface StagedPlay {
     puller: number | null;
     climb: [number, number][];
     free: number[];
+    /** Who blocks whom on the line (blocker, defender). */
+    on: [number, number][];
   };
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
   loose?: { t: number; x: number; y: number; by: number };
@@ -137,6 +139,8 @@ export function stagePlay(args: {
   seed: string;
   /** Where the ball is snapped across the field (`snapYFor`). */
   snapY: number;
+  /** Staged blind to the result (the open field's approach, `approach.ts`): nobody is scripted to make the tackle. */
+  blind?: boolean;
 }): StagedPlay {
   const { record, homeId } = args;
   const index = args.index;
@@ -283,7 +287,7 @@ export function stagePlay(args: {
     missedTop: missedRole && SPEED[missedRole] + PURSUIT,
     jet,
   });
-  const scripted = script(e, cast, start, segs, dir, pocket, pattern);
+  const scripted = script(e, cast, start, segs, dir, pocket, pattern, args.blind);
   const { keys, carrier, tackler, pursuer, release, catchAt, moments, until, free, loose } = scripted;
   let runBlocks: RunBlocking | undefined;
   if (read && hole && carrier !== null) {
@@ -497,6 +501,7 @@ export function stagePlay(args: {
             hole: runBlocks.hole,
             puller: runBlocks.puller?.id ?? null,
             climb: [...runBlocks.climb],
+            on: [...runBlocks.on],
             free: runBlocks.free,
           },
         }

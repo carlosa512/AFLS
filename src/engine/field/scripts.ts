@@ -637,6 +637,8 @@ export function script(
   pocket?: PocketPlan | null,
   /** A pass's routes (`concepts.ts`). */
   pattern?: Pattern,
+  /** Blind to the result (the open field's approach): nobody is scripted to make the tackle. */
+  blind = false,
 ): Scripted {
   const keys = new Map<number, Keyframe[]>();
   const moments = new Map<number, number>();
@@ -1119,6 +1121,7 @@ export function script(
   // A fumble's tackle was the hit: only a lost one's return is run down, and not into the end zone.
   const scores = e.to !== undefined && (e.to < 0 || e.to > 100);
   if (
+    !blind &&
     carrier !== undefined &&
     !touchdown &&
     (loose

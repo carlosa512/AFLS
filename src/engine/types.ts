@@ -15,6 +15,7 @@ import type {
   GameDayList,
 } from './personnel/types';
 import type { Weather } from './weather';
+import type { FieldFacts } from './field/moment';
 
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S', 'K', 'P'] as const;
 export type Position = (typeof POSITIONS)[number];
@@ -1684,7 +1685,7 @@ export interface PlayLogEntry {
    * A snap a flag wiped out (an accepted foul, `kind` 'penalty', or offsetting fouls): the play as it ran, so All-22
    * can stage it before the walk-off. It starts where the entry does (`from`, `lane`). Games before v72 have none.
    */
-  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose' | 'open'>;
+  ran?: Pick<PlayLogEntry, 'kind' | 'air' | 'to' | 'who' | 'loose' | 'open' | 'field'>;
   /**
    * Where the ball came out on a fumble the defense recovered (field yards, as `from` and `to`): `to` is where its
    * return ended. Games before v78 have none.
@@ -1692,6 +1693,8 @@ export interface PlayLogEntry {
   loose?: number;
   /** What the engine decided in the open field on a run or a catch, for All-22 to show. Games before v81 have none. */
   open?: OpenField;
+  /** A play the spatial engine played (`field/`): what its replay needs to start it again. Games before v82 have none. */
+  field?: FieldFacts;
 }
 
 /**

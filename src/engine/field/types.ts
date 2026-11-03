@@ -40,7 +40,7 @@ export interface FieldSkills {
   ret: number;
   /** `breakTackles`: breaking a tackle, yards after contact. */
   power: number;
-  /** His active quirks the field plays as behaviour (`FIELD_HABITS`), sorted. */
+  /** His active quirks the field plays (`FIELD_HABITS`) or the film shows before possession (`FILM_HABITS`), sorted. */
   habits?: QuirkId[];
 }
 
