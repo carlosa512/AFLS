@@ -8,10 +8,11 @@ league), Sparks and Anchors rub off on their rooms' moods, and your club sees it
 **Architecture:** A new `src/engine/chemistry.ts` works out each club's rooms once a week (mood part from L1's
 `unitRead`, time together from `Player.statTeams`), centres them on the league, and hands `buildLineup` one edge per
 room that joins the knocks every contest already reads. The Spark/Anchor pull is two new terms in `roomScore`
-(`morale.ts`), read from a snapshot in `MoraleContext`. PR 2 adds the Locker Room line, the tags and the coach's report
-lines.
+(`morale.ts`), read from a snapshot in `MoraleContext`. Then the Locker Room line, the tags and the coach's report
+lines. **One PR** (the owner's call): part 1 the engine (Tasks 1–5), part 2 the words and screens (Tasks 6–7), one
+version bump, CI tuned once against the final state.
 
-**Tech Stack:** TypeScript, Vitest, React (PR 2 only), the `scripts/morale.ts` check.
+**Tech Stack:** TypeScript, Vitest, React (part 2 only), the `scripts/morale.ts` check.
 
 **Spec:** `docs/superpowers/specs/2026-11-03-chemistry-on-sunday-design.md`
 
@@ -28,8 +29,8 @@ lines.
 - No `Math.random`, nothing drawn from any stream, nothing new stored: no `SAVE_VERSION` bump.
 - Your club only on screen, in words. Letters: no digits, no engine words (L1 §6.2 list, "chemistry" included).
 - Never loosen a check range without the owner's call; measure against main first.
-- Prettier before every commit; commit trailer as in CLAUDE.md's session rules. Push to the branch freely; open each PR
-  only when the owner says go.
+- Prettier before every commit; commit trailer as in CLAUDE.md's session rules. Push to the branch freely; open the one
+  PR only when the owner says go.
 
 ## Review Focus
 
@@ -44,7 +45,7 @@ lines.
 
 ---
 
-## PR 1: the engine
+## Part 1: the engine
 
 ### Task 1: `UnitRead.level` and the voices' plain names
 
@@ -208,12 +209,11 @@ Rules the tests pin (from the spec, §1):
   that move because moods moved (say which in the commit body).
 - [ ] **Step 5:** commit `Morale: a voice's mood rubs off on his room (Sparks and Anchors), and friends' a little`.
 
-### Task 5: the checks, calibration and PR 1
+### Task 5: the checks and calibration
 
 **Files:**
-- Modify: `scripts/morale.ts` (header list, a `chemistrySample()` at weeks 9 and 18, the checks), `package.json`,
-  `src/ui/changelog.ts`, `CLAUDE.md` (architecture note for `chemistry.ts` and the pull; the `npm run morale` line),
-  `docs/MVP.md` (the locker room line)
+- Modify: `scripts/morale.ts` (header list, a `chemistrySample()` at weeks 9 and 18, the checks), `CLAUDE.md`
+  (architecture note for `chemistry.ts` and the pull; the `npm run morale` line)
 
 - [ ] **Step 1: Add the checks** (spec §4.1), each through the script's `check(label, value, [lo, hi])`:
   - `Chemistry: league mean edge (worst room, worst week)` in [0, 0.02].
@@ -227,15 +227,13 @@ Rules the tests pin (from the spec, §1):
   `node_modules`), and `npm run sim -- 10` on the branch. Calibrate `CHEM.roomSpan` (only) until the shares sit inside
   their bands on the default seed and two others (`--seed m2`, `--seed m3`). Any existing line that leaves its range:
   compare with main's on the same seeds and bring the numbers to the owner; never loosen a range without his call.
-- [ ] **Step 3:** patch bump in `package.json`, a changelog entry (what changed for the player: rooms that click play a
-  little better; a sour Spark drags his room), the CLAUDE.md and MVP lines. `npm run format`, `npm run typecheck`.
-- [ ] **Step 4:** commit `Morale check: chemistry and the voices' pull (L3)`; push; open PR 1 when the owner says go
-  (template headings; the check section lists the checks run locally and the numbers near an edge).
-- [ ] **Step 5:** read CI; fix what's red per CLAUDE.md.
+- [ ] **Step 3:** the CLAUDE.md notes. `npm run format`, `npm run typecheck`. Commit `Morale check: chemistry and the
+  voices' pull (L3)`; push (no PR). Report the calibration numbers to the owner; anything near an edge waits on his
+  call before Task 6.
 
 ---
 
-## PR 2: the words and screens
+## Part 2: the words and screens
 
 ### Task 6: the coach's words
 
@@ -275,11 +273,12 @@ Rules the tests pin (from the spec, §1):
 - [ ] **Step 4:** run the touched tests → PASS; `npm run typecheck`.
 - [ ] **Step 5:** commit `Locker report: the coach tells a room's chemistry when it changes`.
 
-### Task 7: the Locker Room, screenshots and PR 2
+### Task 7: the Locker Room, screenshots and the PR
 
 **Files:**
 - Modify: `src/ui/screens/LockerRoom.tsx` (the card line under the mood; a tag beside each name under "Who they
-  follow"), `src/styles.css` (the tag reuses `.tag-pill`; a `.room-chem` line)
+  follow"), `src/styles.css` (the tag reuses `.tag-pill`; a `.room-chem` line), `package.json`, `src/ui/changelog.ts`,
+  `docs/MVP.md` (the locker room line)
 - Test: `src/ui/meetings.test.tsx` neighbour: new `src/ui/chemistry.test.tsx`; the screen contract in `ui.test.ts`
 
 - [ ] **Step 1: Write the failing tests** (`renderToStaticMarkup` with `NavContext`, as `meetings.test.tsx`):
@@ -290,5 +289,9 @@ Rules the tests pin (from the spec, §1):
 - [ ] **Step 3:** implement; names through `PlayerLink`; your club only (the screen already is).
 - [ ] **Step 4:** run `npx vitest run src/ui/chemistry.test.tsx src/ui/ui.test.ts` → PASS; `npm run typecheck`.
 - [ ] **Step 5:** shoot the Locker Room and a locker report from the real build (desktop and phone), send them to the
-  owner, adjust words on his notes; patch bump and changelog entry; commit `Locker Room: each room's chemistry, and
-  Sparks and Anchors by name`; push; open PR 2 when the owner says go; read CI.
+  owner, adjust words on his notes. One patch bump in `package.json`, a changelog entry (rooms that click play a little
+  better; a sour Spark drags his room; you see each room's chemistry), the MVP line. Commit `Locker Room: each room's
+  chemistry, and Sparks and Anchors by name`; push.
+- [ ] **Step 6:** run the final whole-branch review (fresh reviewer); fix what it finds. Open the one PR when the owner
+  says go (template headings; the check section lists the checks run locally and the numbers near an edge). Read CI
+  and fix what's red per CLAUDE.md.

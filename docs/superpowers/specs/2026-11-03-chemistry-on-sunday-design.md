@@ -160,12 +160,14 @@ Other clubs' chemistry, Sparks or Anchors; the number; anything in the oppositio
 - `chemistryWeek` runs once per club a week and is cached; time together reads a handful of starters' `statTeams`.
   The aim is sim speed within about 5% of main.
 
-## 5. Pull requests
+## 5. Pull request
+
+One PR in two parts (the owner's call): CI is tuned once against the final state, and one patch bump covers it.
 
 1. **The engine:** `chemistry.ts`, the knock in `buildLineup`, the Sparks' and Anchors' pull, `UnitRead.level`, the
-   checks and the replay test. A patch bump.
-2. **The words and screens:** the Locker Room line and tags, the coach's report lines, with
-   screenshots shown to the owner before the PR opens. A patch bump.
+   checks and the replay test. The calibration numbers go to the owner before part 2 starts.
+2. **The words and screens:** the Locker Room line and tags, the coach's report lines, with screenshots shown to the
+   owner before the PR opens.
 
 ## 6. Out of scope
 
@@ -184,6 +186,6 @@ Other clubs' chemistry, Sparks or Anchors; the number; anything in the oppositio
 | `src/engine/morale.ts` | the voices' and friends' pull in `roomScore`; the snapshot in `MoraleContext` |
 | `src/engine/match/lineup.ts` | the room's edge in the knocks |
 | `scripts/morale.ts` | the §4.1 checks |
-| `src/engine/roomVoice.ts`, `roomFacts.ts`, `lockerReport.ts` | PR 2: the coach's lines |
-| `src/ui/screens/LockerRoom.tsx` | PR 2: the card line and tags |
+| `src/engine/roomVoice.ts`, `roomFacts.ts`, `lockerReport.ts` | part 2: the coach's lines |
+| `src/ui/screens/LockerRoom.tsx` | part 2: the card line and tags |
 | `CLAUDE.md`, `docs/MVP.md`, `src/ui/changelog.ts`, `package.json` | notes, the MVP line, the version |
