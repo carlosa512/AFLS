@@ -15,7 +15,7 @@
  *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
- *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`,
+ *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`, `field-run`, `field-catch`, `kickoff`, `punt`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
  *
@@ -241,9 +241,42 @@ const FILM: Record<string, (e: PlayLogEntry) => number> = {
     Math.abs((e.to ?? 0) - e.air) >= 30
       ? 1
       : 0,
+  // The spatial open field (`src/engine/field/`, a save with the switch on): a run of 8 yards and more and a catch with
+  // room after it, not to the house (the chase and the pile), and a kickoff and a punt run back.
+  'field-run': (e) =>
+    e.field &&
+    e.kind === 'run' &&
+    !/TOUCHDOWN|PENALTY|FUMBLE|Fumble/.test(e.text) &&
+    Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 8
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - (e.from ?? 0)) / 20)
+      : 0,
+  'field-catch': (e) =>
+    e.field &&
+    e.kind === 'pass' &&
+    e.air !== undefined &&
+    !/TOUCHDOWN|PENALTY|FUMBLE|Fumble/.test(e.text) &&
+    Math.abs((e.to ?? 0) - e.air) >= 6
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 20)
+      : 0,
+  kickoff: (e) =>
+    e.field &&
+    e.kind === 'kickoff' &&
+    !/TOUCHDOWN|PENALTY/.test(e.text) &&
+    e.air !== undefined &&
+    Math.abs((e.to ?? 0) - e.air) >= 15
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 40)
+      : 0,
+  punt: (e) =>
+    e.field &&
+    e.kind === 'punt' &&
+    !/TOUCHDOWN|PENALTY/.test(e.text) &&
+    e.air !== undefined &&
+    Math.abs((e.to ?? 0) - e.air) >= 3
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 15)
+      : 0,
 };
 /** Kinds that aren't snapped from scrimmage (no down). */
-const UNDOWNED: ReadonlySet<string> = new Set(['return']);
+const UNDOWNED: ReadonlySet<string> = new Set(['return', 'kickoff', 'punt']);
 /** Long enough for the line-up, the moments at the line, the play and its hold. */
 const CLIP_MS = 12_000;
 
