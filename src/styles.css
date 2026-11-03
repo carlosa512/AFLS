@@ -5349,3 +5349,12 @@ button.tip-pill {
   display: grid;
   gap: 10px;
 }
+
+/* ───────── chemistry (L3) ───────── */
+.room-chem {
+  margin: 0;
+  font-weight: 600;
+}
+.voice-tag {
+  margin-left: 4px;
+}

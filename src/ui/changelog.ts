@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.8',
+    date: '2026-11-03',
+    title: 'Chemistry on Sunday',
+    text:
+      'How a room feels now shows a little on the field. A position group that is clicking plays slightly better and ' +
+      'one that is out of sync slightly worse, and a line, a secondary or a quarterback and his receivers who have ' +
+      'played together for years gel. The men a room listens to rub off on it: a Spark spreads his mood, good or bad, ' +
+      'and an Anchor keeps a room steady. Winning clubs can get comfortable, unless a driven leader keeps them hungry. ' +
+      'Each room in the Locker Room shows its chemistry and why, your Sparks and Anchors are tagged, and your head ' +
+      'coach tells you when a room starts clicking or falls out of sync.',
+  },
+  {
     version: '0.3.7',
     date: '2026-11-03',
     title: 'Faster checks behind the scenes',

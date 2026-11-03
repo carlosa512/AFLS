@@ -6,11 +6,13 @@
  */
 import { coachAdviceObservation, teachingNoteFor } from './coachReports';
 import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from './coaching';
-import { moraleClock, moraleContext } from './morale';
+import { moraleClock, moraleContext, viewContext } from './morale';
 import { reportTellsRooms } from './lockerReport';
 import { meetingStaffRows } from './meetings/mail';
-import { lastTold, unitFact, unitKey } from './roomFacts';
-import { UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
+import { chemFact, chemKey, lastTold, unitFact, unitKey } from './roomFacts';
+import { CHEM_ROOMS, chemistryOf } from './chemistry';
+import type { StaffRow } from './meetings/mail';
+import { CHEM_NOTE, UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
 import { QUIRKS, type QuirkId } from './quirks';
 import { headCoach, type Draft } from './senders';
@@ -103,7 +105,10 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
   // In season the rooms are the position coaches' to tell, except on the day the season's first report tells them.
   const unitNote = reportTellsRooms(league, have) ? null : unitTurnFor(league, told);
   // The head coach's own rows (L2): a commitment coming due, and his word with the room when it has moved.
-  const own = meetingStaffRows(league, told);
+  const own = [
+    ...meetingStaffRows(league, told),
+    ...(reportTellsRooms(league, have) ? [] : chemistryRows(league, told)),
+  ];
   if (!call && !habit && !unitNote && !own.length) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];
@@ -246,4 +251,34 @@ export function unitTurnFor(
     key: unitKey(clock, league.userTeamId, view.unit, view.word),
     fact: unitFact(league, view, best.last, null, ctx),
   };
+}
+
+/**
+ * Chemistry in season (L3): a room of ours turning Clicking or Out of sync, or coming back from Out of sync, since it
+ * was last told; once each, in the head coach's own words. Gelling and still learning each other wait for the report.
+ */
+export function chemistryRows(league: League, told: Set<string>): StaffRow[] {
+  const user = league.userTeamId;
+  const memory = lastTold(told, user);
+  const clock = moraleClock(league);
+  const ctx = viewContext(league);
+  const rows: StaffRow[] = [];
+  for (const unit of CHEM_ROOMS) {
+    const c = chemistryOf(league, user, unit);
+    if (!c) continue;
+    const last = memory.chem.get(unit)?.word;
+    const news = c.word === 'Clicking' || c.word === 'Out of sync' || last === 'Out of sync';
+    if (last === c.word || !news) continue;
+    const key = chemKey(clock, user, unit, c.word);
+    rows.push({
+      key,
+      label: ROOM_LABEL[unit],
+      note: say(CHEM_NOTE, chemFact(league, c, ctx), {
+        key,
+        slot: 'chem',
+        recent: recentBodies(league, headCoach(league).from),
+      }),
+    });
+  }
+  return rows;
 }

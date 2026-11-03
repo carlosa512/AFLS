@@ -249,3 +249,25 @@ describe('staff notes: the position coach on his unit', () => {
     expect(unitTurnFor(l, toldKeys(l))?.unit).not.toBe('WR');
   });
 });
+
+describe('staff notes: chemistry (L3)', () => {
+  it('tells a room turning out of sync in season, once, in the head coach’s own words', () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    l.week = 5;
+    const line = activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === 'OL');
+    deliverMail(l);
+    for (const p of line) p.morale = { level: -9, jolts: [] };
+    l.week = 6;
+    deliverMail(l);
+    l.week = 7;
+    deliverMail(l);
+    const rows = notes(l)
+      .flatMap((m) => m.sections ?? [])
+      .flatMap((s) => s.rows)
+      .filter((r) => /out of sync/i.test(r.note ?? ''));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cells[0]).toBe(ROOM_LABEL.OL);
+    expect(rows[0].note).not.toMatch(/\d|chemistry/i);
+  });
+});
