@@ -40,7 +40,11 @@ export function meetingsStep(league: League): void {
     const m = meetingsOf(team);
     // A new league year: last year's meetings leave the log, and what the re-sign window's report tells is kept.
     const stale = m.log.filter((r) => Math.floor(r.clock / YEAR) < league.season);
-    if (stale.length || m.settled?.some((x) => Math.floor(x.clock / YEAR) < league.season)) {
+    // Only your club's year is told (the re-sign window's report); an AI club keeps none of it.
+    if (!managesTeam(league, team.id)) {
+      delete m.settled;
+      delete m.lastYear;
+    } else if (stale.length || m.settled?.some((x) => Math.floor(x.clock / YEAR) < league.season)) {
       const last = league.season - 1;
       m.lastYear = {
         season: last,

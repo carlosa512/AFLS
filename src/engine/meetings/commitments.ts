@@ -134,9 +134,11 @@ function remember(p: Player, teamId: number, kept: boolean) {
 }
 
 function settle(league: League, teamId: number, c: Commitment, kept: boolean, clock: number) {
-  // What the season's-end report tells: the promise, and whether it held.
+  // What the season's-end report tells: the promise, and whether it held. Your club's only: no one reads an AI club's,
+  // and thirty-one clubs' worth would grow the save for nothing.
   const m = league.teams[teamId].meetings;
-  if (m) (m.settled ??= []).push({ clock: c.opened, scope: c.scope, backing: c.backing, kept, named: [...c.named] });
+  if (m && managesTeam(league, teamId))
+    (m.settled ??= []).push({ clock: c.opened, scope: c.scope, backing: c.backing, kept, named: [...c.named] });
   for (const id of c.boughtIn) {
     const p = league.players[id];
     if (!p || !onClub(league, teamId, id)) continue;
