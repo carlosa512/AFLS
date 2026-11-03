@@ -8,17 +8,17 @@ export const STEP = 0.05;
 
 export const KNOBS = {
   /** Scales every reaction delay (0.3 s at 12 `reads`). */
-  react: 0.805,
+  react: 1.047,
   /** Scales the spread of a defender's intercept estimate: a poor angle overruns and must come back. */
   angle: 1,
   /** Tackle odds at even skills, from the side. */
-  tackle: 0.887,
+  tackle: 0.82,
   /** A move's success at even skills. */
-  move: 0.103,
+  move: 0.02,
   /** Yards after contact at even skills, at 6 yd/s from the side. */
   afterContact: 1.526,
   /** Block sheds a second at even skills. */
-  shed: 0.63,
+  shed: 0.819,
   /** Seconds a line block holds past the line at z = 0. */
   hold: 0.6,
   /** How strongly the run's roll sets the line: a block holds `hold × e^(line × z)` (a clean hole holds longer). */
@@ -26,20 +26,20 @@ export const KNOBS = {
   /** Top speed a point of `longSpeed` is worth (yards a second). */
   speed: 0.195,
   /** Scales every contest's per-point term (moves, tackles, power, sheds): how much a point of skill decides. */
-  skill: 1.15,
+  skill: 1.322,
   /** He steps out rather than take a hit when no lane is worth `outGain` yards and the sideline is within `outLine`. */
-  outLine: 10.25,
-  outGain: 8.375,
+  outLine: 10.5,
+  outGain: 5.625,
   /** Seconds the clock runs past the open field's whistle on a run or a catch (the engine's play time convention). */
-  pad: 1.867,
+  pad: 1.8,
   /** Yards an outside run's read gives a heading toward the play side in his first second: he stretches the edge. */
-  stretch: 3,
+  stretch: 0.625,
   /** Tackle odds added on a return (its coverage's own, against the returner). */
-  retTackle: 0,
+  retTackle: 0.005,
   /** Seconds a return team's block holds before its man may shed it. */
-  retHold: 0.5,
+  retHold: 0.35,
   /** Scales the ball carrier's own per-point terms (top speed, power, moves) against the defense's. */
-  carrier: 0.5,
+  carrier: 0.65,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */
