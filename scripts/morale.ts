@@ -19,7 +19,7 @@
  *    players who spent the season Good or better out-tilt those who spent it Poor or worse by 0.04 or more.
  *
  * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
- *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 4–15 a
+ *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 3–15 a
  *    season, 40–90% going public, 15–75% of those resolved ending in a trade (the floor lowered from 25%: small samples).
  *
  *   npm run morale                        # 8 seasons, seed morale-check
@@ -415,7 +415,10 @@ check('Holdouts a season', perWindow(holdouts), [0.5, 5]);
 check('Holdouts still out after week 1, a season', perWindow(outAfterWeek1), [0, 2]);
 check('Holdouts past the limit he gives in at', pastLimit, [0, 0], 0);
 // The NFL: about 5-10 public trade requests a year, roughly half traded within the year (spec Part 2).
-check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [4, 15]);
+// The floor is 3, not 4 (the owner's call, Nov 3): this line swings with the world, and naming captains when a
+// league is created moved it across three worlds from main's 4.0-6.0 to 3.4-4.9 (one world higher than main), with
+// main itself on the old floor in one.
+check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [3, 15]);
 check(
   `Trade requests gone public (n=${requestKeys.size})`,
   requestPublic.size / Math.max(1, requestKeys.size),
