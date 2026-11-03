@@ -1,6 +1,6 @@
 # The spatial engine, slice one: the open field
 
-**Status:** design, approved in conversation 2026-11-03; awaiting the owner's review of this document.
+**Status:** approved by the owner 2026-11-03. Next: the implementation plan (superpowers:writing-plans).
 
 ## Why
 
