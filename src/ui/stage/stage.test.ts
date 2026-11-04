@@ -3,6 +3,7 @@ import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 // The plays these draw were picked on a world with no chemistry (L3): held at zero, they stay those plays.
 import { NO_CHEM } from '../../engine/chemistry';
+import { NO_STAFF } from '../../engine/staffEdge';
 import { actorsIn, defenseCallAt } from '../../engine/playActors';
 import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/types';
 import { Rng } from '../../engine/rng';
@@ -19,7 +20,15 @@ import { SPEED } from '../../engine/field/speed';
 const league = createLeague({ seed: 'stage' });
 const games: { g: Game; r: GameResult }[] = Array.from({ length: 40 }, (_, i) => {
   const g = league.games[i];
-  return { g, r: simulateGame(league, g, { keepPlays: true, seed: `st-${i}`, chemistry: [NO_CHEM, NO_CHEM] }) };
+  return {
+    g,
+    r: simulateGame(league, g, {
+      keepPlays: true,
+      seed: `st-${i}`,
+      chemistry: [NO_CHEM, NO_CHEM],
+      staff: [NO_STAFF, NO_STAFF],
+    }),
+  };
 });
 const eleven = (u: FieldUnits) => [u.qb, ...u.ol, u.rb, ...u.wr, ...u.te, ...u.dt, ...u.edge, ...u.lb, ...u.cb, ...u.s];
 
