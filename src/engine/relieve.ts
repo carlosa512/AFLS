@@ -19,11 +19,14 @@ import {
 } from './coaching';
 import { managesTeam } from './employment';
 import { leadershipEvent } from './leadership';
-import { ordinal } from './opposition';
 import { heatSoFar, talentRanks } from './ownerBag';
 import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
 import type { Coach, League } from './types';
+
+/** "1st", "22nd": local, not the opposition report's, which would pull the inbox (and the draft) into what loads coaching. */
+const ordinal = (n: number) =>
+  `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th')}`;
 
 /** His side's rank in the league this regular season: points scored for an offense, allowed for a defense (1 = best). */
 export function sideRank(league: League, teamId: number, role: 'offCoord' | 'defCoord'): number {
