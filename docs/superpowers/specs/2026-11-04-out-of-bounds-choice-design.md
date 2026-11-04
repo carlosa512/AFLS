@@ -142,8 +142,9 @@ the late `oobRoll`. AI games and yours decide it the same way from the same fact
 **The field plays it out.** `FieldFacts.oob` widens from `1` to `1 | 2`:
 
 - `1`, pushed out: as today. `escortFor` sends the free defender who can reach the exit soonest to drive him out.
-- `2`, stepped out: no escort. He heads out on his own read; the carrier read already leans to the sideline in the
-  hurry-up (`read.ts`, `HURRY_OUT`, `OUT_BONUS`).
+- `2`, stepped out: in normal play he steps out because someone is closing, so the escort still closes and he gets out
+  before the hit. In the hurry-up (`FieldFacts.out`) he is getting out to stop the clock: no escort, he heads out on his
+  own read (`read.ts`, `HURRY_OUT`, `OUT_BONUS`).
 
 Old saves' film carries only `1` and plays as it does now. Widening the value needs no save upgrade.
 
@@ -189,8 +190,8 @@ Lockett on 21% of his sideline catches) and no wider.
 
 - **Credit and hit are decoupled.** `wear` treats any credited tackle as the carrier being hit; a stepped-out play needs
   a marker for "credited, no hit". The league's injury rate stays inside `docs/INJURIES.md`'s range.
-- **Your games:** pushed out credits `escortFor`'s man (today your games credit nobody on out of bounds); stepped out
-  credits the nearest chaser in the last second, when a tackle is credited.
+- **Your games:** on out of bounds the field reports a man to credit (today it reports nobody): `escortFor`'s man when
+  pushed, the nearest defender when he stepped out. The engine credits him by the rules above.
 - **Text:** both endings still contain "out of bounds", so what reads that phrase (the film's calls, `ui/stage/calls.ts`)
   keeps working. Old saves' play text is untouched.
 
