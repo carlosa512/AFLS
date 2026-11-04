@@ -21,6 +21,7 @@ import type {
   MeetingSuggestion,
   Outcome,
   Player,
+  MeetingTopic,
   TalkCause,
   Timing,
 } from '../types';
@@ -97,7 +98,7 @@ const friendsWith = (p: Player, id: number | undefined, league: League) =>
     (league.players[id]?.ties ?? []).some((t) => t.kind === 'friend' && t.with === p.id));
 
 /** The grievance an approach is about. */
-const aboutOf = (approach: Approach, s: MeetingSuggestion): TalkCause | 'none' =>
+const aboutOf = (approach: Approach, s: MeetingSuggestion): MeetingTopic =>
   approach === 'losing' ? 'losing' : approach === 'standard' || approach === 'raiseBar' ? 'none' : s.topic;
 
 /** The grievance a commitment answers. */
@@ -107,6 +108,7 @@ const ANSWERS: Record<Exclude<Backing, 'words'>, TalkCause> = {
   feud: 'feud',
   move: 'losing',
   jobs: 'losing',
+  notice: 'losing',
 };
 
 /** The coach's words against the man's makeup, by approach (the plan's speaker terms). */
@@ -159,7 +161,11 @@ export function reactionScore(
   const grievances = grievancesOf(league, p, ctx);
   const about = aboutOf(choice.approach, s);
   let score =
-    grievances.size === 0 ? REACT.noGrievance : about !== 'none' && grievances.has(about) ? REACT.fit : REACT.miss;
+    grievances.size === 0
+      ? REACT.noGrievance
+      : about !== 'none' && about !== 'coordinator' && grievances.has(about)
+        ? REACT.fit
+        : REACT.miss;
   // A man who wants a new deal can't be talked out of it: only talks behind the meeting reach him.
   if ((grievances.has('deal') || underpaid(league, p, ctx)) && choice.backing !== 'talks') score += REACT.money;
   score += speakerTerm(league, teamId, p, s, choice.approach);

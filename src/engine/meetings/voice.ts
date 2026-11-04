@@ -1,4 +1,4 @@
-import type { Approach, Backing, Moment, Outcome, TalkCause, Timing } from '../types';
+import type { Approach, Backing, MeetingTopic, Moment, Outcome, Timing } from '../types';
 import type { Line } from '../voice';
 import type { ManFact, Reason, Record3, Style, SuggestFact } from './facts';
 import type { CredibilityRead } from './credibility';
@@ -222,6 +222,8 @@ export function approachLabel(a: Approach, f: Pick<SuggestFact, 'driver' | 'lead
       return 'Raise the bar';
     case 'freshStart':
       return 'A fresh start';
+    case 'backHim':
+      return 'Stand behind him';
   }
 }
 
@@ -237,6 +239,8 @@ export function backingLabel(b: Backing, f: Pick<SuggestFact, 'dealMen' | 'snaps
       return "We're making a move";
     case 'jobs':
       return "No one's job is safe";
+    case 'notice':
+      return "He's on notice";
     case 'words':
       return f.kind === 'gm' ? 'Words only' : 'Nothing, just words';
   }
@@ -254,7 +258,7 @@ export interface ToldFact {
   style: Style;
   approach: Approach;
   backing: Backing;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   noun: string;
   speaker?: ManFact;
   named: ManFact[];
@@ -340,7 +344,7 @@ export interface WentFact {
   man: ManFact;
   outcome: Exclude<Outcome, 'shrug'>;
   reason: Reason;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
 }
 
 /** One man's reaction, always with its reason. */
@@ -594,6 +598,8 @@ export function promisePhrase(backing: Exclude<Backing, 'words'>, named: ManFact
       return 'we were buying';
     case 'jobs':
       return "nobody's job was safe";
+    case 'notice':
+      return 'things would change';
   }
 }
 
@@ -644,6 +650,7 @@ export const CAPTAIN_CLOSE: Record<Backing, string> = {
   talks: '',
   snaps: '',
   feud: '',
+  notice: '',
 };
 
 // ───────── SNN: a rumor, now and then ─────────

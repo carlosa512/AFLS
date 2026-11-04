@@ -15,6 +15,7 @@ import type {
   MeetingSuggestion,
   Moment,
   Player,
+  MeetingTopic,
   TalkCause,
 } from '../types';
 import { credibilityRead, type CredibilityRead } from './credibility';
@@ -86,7 +87,7 @@ export interface SuggestFact {
   noun: string;
   kind: MeetingSuggestion['kind'];
   moment?: Moment;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   /** The room's read, when it's a room's trouble. */
   word?: 'Split' | 'Down';
   driver?: ManFact;
@@ -132,7 +133,7 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
       ? unitRead(league, teamId, s.scope as CoachRoom, ctx ?? moraleContext(league))
       : null;
   const named = s.namedFor ?? {};
-  const answer = s.topic !== 'none' ? ANSWERS[s.topic] : undefined;
+  const answer = s.topic !== 'none' && s.topic !== 'coordinator' ? ANSWERS[s.topic] : undefined;
   return {
     style: styleOf(hc ? traitOf(hc, 'discipline') : 10.5),
     scope: s.scope,
@@ -180,6 +181,7 @@ const BACKED: Record<Exclude<Backing, 'words'>, TalkCause> = {
   feud: 'feud',
   move: 'losing',
   jobs: 'losing',
+  notice: 'losing',
 };
 
 /** The reason a man reacted as he did: read off the same facts the score was. */
@@ -203,7 +205,7 @@ export function reasonFor(
   );
   if (landed) {
     if (r.backing !== 'words' && g.has(BACKED[r.backing])) return 'answered';
-    if (r.topic && r.topic !== 'none' && g.has(r.topic)) return 'heard';
+    if (r.topic && r.topic !== 'none' && r.topic !== 'coordinator' && g.has(r.topic)) return 'heard';
     if (r.approach === 'leader' && speaker && (friends(p, speaker) || p.id !== speaker.id)) return 'leader';
     return g.size ? 'heard' : 'content';
   }

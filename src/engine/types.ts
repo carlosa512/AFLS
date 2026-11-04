@@ -423,14 +423,26 @@ export interface Dispute {
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+/** What a meeting is about: a grievance, nothing in particular, or a room's doubt in its coordinator (L4). */
+export type MeetingTopic = TalkCause | 'none' | 'coordinator';
 // ───────── team meetings (L2, `meetings/`) ─────────
 
 /** A meeting's room, or the whole team. */
 export type MeetingScope = CoachRoom | 'team';
 /** What the meeting is about and who says it: the coach's five, then the GM address's three. */
-export type Approach = 'leader' | 'straight' | 'callout' | 'losing' | 'standard' | 'ownIt' | 'raiseBar' | 'freshStart';
+export type Approach =
+  | 'leader'
+  | 'straight'
+  | 'callout'
+  | 'losing'
+  | 'standard'
+  | 'ownIt'
+  | 'raiseBar'
+  | 'freshStart'
+  /** L4: the head coach backs his coordinator to a doubting room. */
+  | 'backHim';
 /** What's put behind it: a commitment, or words only. */
-export type Backing = 'snaps' | 'talks' | 'feud' | 'move' | 'jobs' | 'words';
+export type Backing = 'snaps' | 'talks' | 'feud' | 'move' | 'jobs' | 'notice' | 'words';
 /** When a trouble meeting is held (a moment sets its own). */
 export type Timing = 'afterGame' | 'monday' | 'wednesday';
 export type MeetingKind = 'moment' | 'trouble' | 'gm';
@@ -458,6 +470,8 @@ export interface Commitment {
   roster?: number[];
   /** The head coach who made it: his word gains or loses by it only while he's still in the chair. */
   coachId?: number;
+  /** A notice (L4): the coordinator it's about, by coach id. */
+  coord?: number;
 }
 
 /** A meeting held, this season. */
@@ -474,7 +488,7 @@ export interface MeetingRecord {
   speaker?: number;
   moment?: Moment;
   /** What it was about: a feud met about once isn't trouble again. */
-  topic?: TalkCause | 'none';
+  topic?: MeetingTopic;
 }
 
 /** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */
@@ -483,7 +497,7 @@ export interface MeetingSuggestion {
   scope: MeetingScope;
   kind: MeetingKind;
   moment?: Moment;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   approaches: Approach[];
   backings: Backing[];
   /** Empty for a moment: it sets its own. */
@@ -510,6 +524,8 @@ export interface TeamMeetings {
   lastOffer?: number;
   /** The rooms reading Split or Down when the coach last looked: trouble is a room turning, not one staying, that way. */
   reads?: Partial<Record<CoachRoom, 'Split' | 'Down'>>;
+  /** The rooms doubting their coordinator when the coach last looked (L4): trouble is a room turning, not staying. */
+  doubts?: CoachRoom[];
   /** Feuds the coach has seen start this league year (`2026:12-40`): each is trouble once. */
   feuds?: string[];
   /** When each room (or the team) was last offered a trouble meeting, held or not: its cooldown runs from there. */
@@ -524,6 +540,8 @@ export interface TeamMeetings {
     named: number[];
     /** Who made it: your address to the team ('gm'), else the head coach's meeting. */
     by?: 'gm';
+    /** A notice: the coordinator it was about. */
+    coord?: number;
   }[];
   /** Last league year's meetings, kept past the log's clearing for the re-sign window's report. */
   lastYear?: { season: number; held: number; settled: NonNullable<TeamMeetings['settled']> };
@@ -993,6 +1011,8 @@ export interface Coach {
   coverOff?: ('offCoord' | 'defCoord')[];
   /** Head coaches: his word with the room, −1…1, hidden (`meetings/credibility.ts`); unset reads as 0. */
   credibility?: number;
+  /** Whoever runs a side (a coordinator, or a head coach covering): each room's belief in him, −1…1, hidden (`belief.ts`). */
+  belief?: Partial<Record<CoachRoom, number>>;
   /** A new head coach's first meetings land a little easier while this counts down. */
   newVoice?: number;
   /** Observed interim takeovers survive dismissal, permanent hiring and retirement. */
@@ -1055,6 +1075,8 @@ export interface PlayingAt {
 }
 
 export interface Team {
+  /** Rooms whose belief in their coordinator fell past the warning line after a bad game in the last step (L4). */
+  beliefFell?: { clock: number; rooms: CoachRoom[] };
   coachAdvice?: CoachAdvice[];
   /** Season-long suppression is independent of the six readable threads and the coach who proposed them. */
   coachAdviceMemory?: {
@@ -1407,7 +1429,9 @@ export interface LeadershipEvent {
     | 'coachInterim'
     | 'coachPermanent'
     | 'warning'
-    | 'coachChange';
+    | 'coachChange'
+    /** A coordinator relieved in season (L4). */
+    | 'coachRelieved';
   gmId?: number;
   coachId?: number;
   /** Confirmed public news or explicitly qualified reporting. Never the private instruction. */

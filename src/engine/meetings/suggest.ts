@@ -25,6 +25,7 @@ import type {
   MeetingSuggestion,
   Moment,
   Player,
+  MeetingTopic,
   TalkCause,
   Team,
   TeamMeetings,
@@ -105,11 +106,11 @@ function feudIn(men: Player[], since?: number): [number, number] | null {
 }
 
 /** The most-felt grievance among these men, or none. */
-export function topicOf(league: League, men: Player[], ctx: MoraleContext): TalkCause | 'none' {
+export function topicOf(league: League, men: Player[], ctx: MoraleContext): MeetingTopic {
   const counts = new Map<TalkCause, number>();
   for (const p of men) for (const c of grievancesOf(league, p, ctx)) counts.set(c, (counts.get(c) ?? 0) + 1);
   const order: TalkCause[] = ['feud', 'deal', 'snaps', 'losing'];
-  let best: TalkCause | 'none' = 'none';
+  let best: MeetingTopic = 'none';
   let n = 0;
   for (const c of order) if ((counts.get(c) ?? 0) > n) [best, n] = [c, counts.get(c)!];
   return best;
@@ -178,7 +179,7 @@ export function dueMoment(league: League, teamId: number): Moment | null {
 
 export interface Trouble {
   scope: MeetingScope;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   driver?: number;
 }
 
@@ -350,7 +351,7 @@ export function choicesFor(
   teamId: number,
   scope: MeetingScope,
   kind: 'moment' | 'trouble',
-  topic: TalkCause | 'none',
+  topic: MeetingTopic,
   driver: number | undefined,
   ctx: MoraleContext,
 ): Pick<MeetingSuggestion, 'approaches' | 'backings' | 'timings' | 'named' | 'namedFor' | 'leader' | 'driver'> {

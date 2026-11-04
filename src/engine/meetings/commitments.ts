@@ -22,7 +22,7 @@ import { dugIn } from './suggest';
  * What's put behind a meeting (L2, spec §2.1): a promise to the room with a window. Kept, the men who bought in get a
  * further lift and the coach's word gains; broken, they get a dip bigger than the meeting gave and his word loses.
  */
-export const WINDOW = { snaps: 3, talks: 4, feud: 4, move: Infinity, jobs: 3 };
+export const WINDOW = { snaps: 3, talks: 4, feud: 4, move: Infinity, jobs: 3, notice: 4 };
 
 /** Morale's clock at the step after deadline week's games: deadline day's deals are done by then. */
 export const deadlineClock = (season: number): number => season * YEAR + 8 + TRADE_DEADLINE_WEEK + 1;
@@ -130,6 +130,8 @@ export function isKept(league: League, teamId: number, c: Commitment, ctx?: Mora
       const was = c.starters ?? [];
       return now.length !== was.length || now.some((id, i) => id !== was[i]) ? true : null;
     }
+    case 'notice':
+      return null;
   }
 }
 
