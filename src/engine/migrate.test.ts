@@ -313,7 +313,7 @@ describe('save v85', () => {
     l.version = 84;
     const before = JSON.stringify(l.games);
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(85);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.settings).toEqual({ spatialField: true });
     expect(JSON.stringify(up.games)).toBe(before);
   });
