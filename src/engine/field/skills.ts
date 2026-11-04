@@ -5,7 +5,7 @@
 import { CONTESTS, skill, type ContestName } from '../attributes';
 import { FILM_HABITS, type QuirkId } from '../quirks';
 import type { Attribute, Player, Position } from '../types';
-import { FIELD_HABITS } from './habits';
+import { FIELD_HABITS, POCKET_HABITS } from './habits';
 import type { FieldSkills } from './types';
 
 /** Every contest the open field reads. */
@@ -21,6 +21,11 @@ export const FIELD_CONTESTS: readonly ContestName[] = [
   'afterCatch',
   'returns',
   'breakTackles',
+  'edgeRush',
+  'interiorRush',
+  'passPro',
+  'pocketPresence',
+  'scrambling',
 ];
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -48,10 +53,14 @@ export function fieldSkills(p: Player, habits: (p: Player) => readonly QuirkId[]
     move: r2(skill(p, 'afterCatch')),
     ret: r2(skill(p, 'returns')),
     power: r2(skill(p, 'breakTackles')),
+    rush: r2(skill(p, p.position === 'DT' ? 'interiorRush' : 'edgeRush')),
+    pro: r2(skill(p, 'passPro')),
+    poise: r2(skill(p, 'pocketPresence')),
+    scram: r2(skill(p, 'scrambling')),
   };
   if (p.playsBig) s.big = 1;
   const field = habits(p)
-    .filter((q) => FIELD_HABITS.has(q) || FILM_HABITS.has(q))
+    .filter((q) => FIELD_HABITS.has(q) || POCKET_HABITS.has(q) || FILM_HABITS.has(q))
     .sort();
   if (field.length) s.habits = field;
   return s;

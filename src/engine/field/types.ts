@@ -41,6 +41,14 @@ export interface FieldSkills {
   ret: number;
   /** `breakTackles`: breaking a tackle, yards after contact. */
   power: number;
+  /** The pocket: getting after the passer (`interiorRush` for a DT, `edgeRush` for anyone else). */
+  rush: number;
+  /** `passPro`: holding a rusher off. */
+  pro: number;
+  /** `pocketPresence`: feeling the rush and moving away from it. */
+  poise: number;
+  /** `scrambling`: getting out of the pocket. */
+  scram: number;
   /** His active quirks the field plays (`FIELD_HABITS`) or the film shows before possession (`FILM_HABITS`), sorted. */
   habits?: QuirkId[];
 }

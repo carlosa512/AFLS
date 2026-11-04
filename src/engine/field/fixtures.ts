@@ -44,6 +44,10 @@ export function skillsOf(role: Role, o: Partial<FieldSkills> = {}): FieldSkills 
     move: 12,
     ret: 12,
     power: 12,
+    rush: 12,
+    pro: 12,
+    poise: 12,
+    scram: 12,
     ...o,
   };
 }
