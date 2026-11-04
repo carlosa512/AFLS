@@ -354,6 +354,9 @@ export function migrateLeague(league: League): League | null {
   // v87: the pocket on the field (slice two): a dropback's facts gain the pocket's outcome (`FieldFacts.pk`, `nb`, a
   // scramble's slide `sl`) and the snapshot's skills the pocket's four. Optional, nothing to rewrite.
   if (league.version < 87) league.version = 87;
+  // v88: a GM appointment keeps the meetings' step clock it began at (`GmAppointment.clock`), so a new club's earlier
+  // meetings file no letters. Optional: older appointments file as before (their letters were filed when they began).
+  if (league.version < 88) league.version = 88;
   return league;
 }
 

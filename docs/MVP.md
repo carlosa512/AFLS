@@ -264,9 +264,10 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
 ## Follow-up: what the locker-room work left (0.3.10)
 
-- [ ] **Letters about meetings held before you arrived.** Meeting ids carry no club, so after a club change (or a save
-      loaded mid-season from before v82) the result letters for meetings already held that year can file. Put the club
-      in the ids and file only meetings held after you arrived (`meetings/mail.ts`).
+- [x] **Letters about meetings held before you arrived.** **Fixed (0.4.2):** a GM appointment keeps the step it began
+      (`GmAppointment.clock`), and `heldLetters` in `meetings/mail.ts` files only meetings held after it. The ids keep
+      no club: every letter now comes from your own time at a club, so they can't collide, and a new id would have
+      re-filed every meeting letter already in the inbox.
 - [ ] **Spark and Anchor tags read the truth.** The tags come from `soundOf`, which reads true hidden traits, so a tag
       can disagree with the personality our scouts show beside it. The L3 spec allows the tags; whether to gate them
       on our read (as L1's "warns" line does) is the owner's call (`ui/screens/LockerRoom.tsx`, `roomFacts.chemFact`).

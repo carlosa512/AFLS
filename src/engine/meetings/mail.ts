@@ -253,8 +253,11 @@ function captainLetter(league: League, r: MeetingRecord): Draft | null {
 /** Results and the captain's word for meetings held at your club this league year, each once. */
 function heldLetters(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
+  // A meeting at or before the step you took the job was held before you came: it isn't yours to hear about.
+  const job = league.gms[league.userGmId]?.appointments.at(-1);
+  const arrived = job?.teamId === league.userTeamId ? (job.clock ?? -Infinity) : -Infinity;
   for (const r of meetingsOf(league.teams[league.userTeamId]).log) {
-    if (Math.floor(r.clock / YEAR) !== league.season) continue;
+    if (Math.floor(r.clock / YEAR) !== league.season || r.clock <= arrived) continue;
     if (r.kind === 'gm') {
       const id = captainId(league.season, r.clock);
       if (have.has(id)) continue;

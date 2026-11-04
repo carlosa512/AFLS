@@ -189,7 +189,14 @@ export function appointGm(league: League, teamId: number, gmId: number, offer: G
   league.teams[teamId].gmId = gm.id;
   delete gm.traits;
   gm.teamId = teamId;
-  gm.appointments.push({ teamId, start: careerDate(league), interim: offer.interim ?? false, through: offer.through });
+  gm.appointments.push({
+    teamId,
+    start: careerDate(league),
+    // The last morale step (what the meetings' `stepClock` reads): his club's meetings up to it were held before him.
+    clock: league.moraleAt,
+    interim: offer.interim ?? false,
+    through: offer.through,
+  });
 }
 
 /** Only an explicit offseason offer turns a midseason interim spell into a permanent job. */
