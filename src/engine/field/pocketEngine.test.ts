@@ -5,7 +5,11 @@ import { activeQuirks } from '../quirks';
 import type { GameResult } from '../types';
 import { pocketFrom, pocketMomentOf, pocketStage } from './pocketMoment';
 import { fieldSkills } from './skills';
-import { STEP } from './tuning';
+import { FIELD_VERSION, STEP } from './tuning';
+import { MID } from './geometry';
+import { bodyOf } from './body';
+import { stagePlay } from './stage';
+import { skillsAt } from './snapshot';
 
 const league = createLeague({ seed: 'field-engine' });
 const week1 = league.games.filter((g) => g.week === 1).slice(0, 4);
@@ -108,5 +112,74 @@ describe('the engine plays the pocket', () => {
     expect(Math.abs(qx - goal)).toBeLessThanOrEqual(1);
     expect((qx - goal) * dir).toBeLessThanOrEqual(0.5);
     void STEP;
+  });
+});
+
+describe('the replay plays the pocket', () => {
+  const stage = (r: GameResult, index: number, homeId: number) =>
+    stagePlay({ plays: r.plays!, index, record: r.field!, homeId, seed: 'x', snapY: MID });
+
+  it('replays a pocket exactly as it was played', () => {
+    let n = 0;
+    for (const { r, taps, homeId } of played)
+      for (const t of taps) {
+        if (!t.result) continue;
+        const s = stage(r, t.moment.index, homeId);
+        expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
+        const men = s.ids.length;
+        const pn = t.start.players.length;
+        // The pocket's own frames, up to its hand-over (a catch's or a scramble's open field takes it from there).
+        const handOver = s.spatial!.k0 > 0 ? s.spatial!.k0 + 1 : Infinity;
+        const steps = Math.min(s.steps, t.result.frames.length / (pn * 2), handOver);
+        t.start.players.forEach((p, j) => {
+          const k = s.ids.indexOf(p.id);
+          for (let st = 0; st < steps; st += 5) {
+            expect(s.pos[(st * men + k) * 2], `play ${t.moment.index} man ${p.id} step ${st}`).toBe(
+              t.result!.frames[(st * pn + j) * 2],
+            );
+          }
+        });
+        n++;
+      }
+    expect(n).toBeGreaterThan(80);
+  });
+
+  it('replays a catch after a pocket with no jump at the hand-over', () => {
+    let n = 0;
+    for (const { r, taps, homeId } of played)
+      for (const t of taps) {
+        const e = r.plays![t.moment.index];
+        if (!t.result || e.kind !== 'pass' || e.field?.to === undefined) continue;
+        const s = stage(r, t.moment.index, homeId);
+        const k0 = s.spatial!.k0;
+        if (k0 < 1) continue;
+        n++;
+        const men = s.ids.length;
+        s.ids.forEach((id, k) => {
+          const sk = skillsAt(r.field!.snap!, id, t.moment.index);
+          if (!sk) return;
+          const top = bodyOf({ id, side: 0, role: s.roles[k], x: 0, y: 0, vx: 0, vy: 0, s: sk }, false).top;
+          for (const st of [k0, k0 + 1]) {
+            const d = Math.hypot(
+              s.pos[(st * men + k) * 2] - s.pos[((st - 1) * men + k) * 2],
+              s.pos[(st * men + k) * 2 + 1] - s.pos[((st - 1) * men + k) * 2 + 1],
+            );
+            expect(d, `play ${t.moment.index} man ${id} step ${st}`).toBeLessThanOrEqual(top * STEP + 0.05);
+          }
+        });
+      }
+    expect(n).toBeGreaterThan(10);
+  });
+
+  it('stages a pocket played on an older field version as drawn, and the same after a save round trip', () => {
+    const { r, taps, homeId } = played[0];
+    const t = taps.find((x) => x.result)!;
+    const saved: GameResult = JSON.parse(JSON.stringify(r));
+    expect(Array.from(stage(saved, t.moment.index, homeId).pos)).toEqual(
+      Array.from(stage(r, t.moment.index, homeId).pos),
+    );
+    saved.field!.snap!.v = FIELD_VERSION - 1;
+    expect(stage(saved, t.moment.index, homeId).spatial).toBeUndefined();
+    expect(r.field!.snap!.v).toBe(7);
   });
 });
