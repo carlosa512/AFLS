@@ -1,5 +1,6 @@
 import { BELIEF, beliefOf, beliefRead, runnerOf, shiftBelief } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
+import { aiRelieveNow } from '../relieve';
 import { managesTeam } from '../employment';
 import { actualRole, addJolt, moraleContext, YEAR, type MoraleContext } from '../morale';
 import { STARTERS } from '../positions';
@@ -267,10 +268,13 @@ export function judgeCommitments(league: League): void {
         continue;
       }
       // An AI club's word at the window's end: kept by its GM's tendencies (it doesn't make its moves for the room).
-      if (!kept && !managesTeam(league, team.id))
+      if (!kept && !managesTeam(league, team.id)) {
         kept = new Rng(`${league.seed}:meeting:${league.season}:${c.closes}:${team.id}:commit:${c.opened}`).chance(
           aiKeepChance(team.gm),
         );
+        // A notice an AI club keeps, it keeps for real (L4): it relieves the man, or it's broken after all.
+        if (kept && c.backing === 'notice' && c.coord !== undefined) kept = aiRelieveNow(league, team.id, c.coord);
+      }
       settle(league, team.id, c, kept, clock);
     }
     m.open = keep;

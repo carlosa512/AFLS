@@ -3,9 +3,25 @@
  * agency. `relieveCoordinator` is the move (yours or an AI club's) and its news; `coaching.ts` holds its rules
  * (`relieveProblem`) and the move itself (`relieveMove`). The AI's call to use it is below.
  */
-import { coachName, coachTitle, relieveMove, type Cover } from './coaching';
+import { beliefOf, beliefRead, SIDE_ROOMS } from './belief';
+import { coachValue } from './coachRatings';
+import {
+  chairHolder,
+  coachName,
+  coachTitle,
+  COVER_COST,
+  interimCandidates,
+  relieveMove,
+  relieveProblem,
+  teamCoaches,
+  VACANT,
+  type Cover,
+} from './coaching';
+import { managesTeam } from './employment';
 import { leadershipEvent } from './leadership';
 import { ordinal } from './opposition';
+import { heatSoFar, talentRanks } from './ownerBag';
+import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
 import type { Coach, League } from './types';
 
@@ -50,4 +66,93 @@ export function relieveCoordinator(league: League, teamId: number, coachId: numb
   const report = c ? relievedReport(league, teamId, c) : '';
   relieveMove(league, teamId, coachId, cover);
   leadershipEvent(league, { teamId, kind: 'coachRelieved', coachId, report });
+}
+
+// ───────── the AI's call (spec §3.5) ─────────
+
+/**
+ * When an AI club lets a coordinator go in season: a losing club whose side is among the league's worst and whose rooms
+ * have turned on him, then a weekly draw leaned by its GM (win-now up, loyalty down) and the heat on its head coach.
+ * The NFL does it about once or twice a year league-wide; `npm run morale` holds the rate to that.
+ */
+export const RELIEVE = {
+  chance: 0.15,
+  /** The weeks it's on the table: not before a side has shown what it is, not in the last month. */
+  from: 5,
+  to: 14,
+  games: 5,
+  share: 0.4,
+  /** The worst quarter of clubs on that side of the ball. */
+  bottom: 0.25,
+  winNow: 0.5,
+  loyalty: 0.5,
+  heat: 0.5,
+};
+
+const thisSeason = (league: League, teamId: number, kind: string) =>
+  league.leadership.events.some((e) => e.teamId === teamId && e.date.season === league.season && e.kind === kind);
+
+/** All three hold: the club is losing, his side is among the league's worst, and most of his rooms doubt him. */
+export function onTheTable(
+  league: League,
+  teamId: number,
+  role: 'offCoord' | 'defCoord',
+  records = computeRecords(league),
+): boolean {
+  const c = chairHolder(teamCoaches(league, teamId), { role });
+  if (!c) return false;
+  if (thisSeason(league, teamId, 'coachRelieved') || thisSeason(league, teamId, 'coachInterim')) return false;
+  const rec = records.get(teamId);
+  const n = rec ? rec.w + rec.l + rec.t : 0;
+  if (!rec || n < RELIEVE.games || (rec.w + rec.t / 2) / n > RELIEVE.share) return false;
+  if (sideRank(league, teamId, role) <= Math.round(league.teams.length * (1 - RELIEVE.bottom))) return false;
+  const rooms = SIDE_ROOMS[role];
+  const doubting = rooms.filter((r) => {
+    const read = beliefRead(beliefOf(c, r));
+    return read === 'doubts' || read === 'lost';
+  }).length;
+  return doubting > rooms.length / 2;
+}
+
+/** Who an AI club hands the side to: the better of its head coach covering and the best position coach who'd step up. */
+export function aiCover(league: League, teamId: number, role: 'offCoord' | 'defCoord'): Cover {
+  const pc = interimCandidates(league, teamId, role)[0];
+  const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+  const covers = hc ? Math.max(VACANT, coachValue(hc) - COVER_COST) : VACANT;
+  return pc && coachValue(pc) > covers ? pc.id : 'headCoach';
+}
+
+/** An AI club relieves him now, if nothing stands in the way (one a season, the owner's mandate): whether it did. */
+export function aiRelieveNow(league: League, teamId: number, coachId: number): boolean {
+  if (thisSeason(league, teamId, 'coachRelieved')) return false;
+  const c = league.coaches[coachId];
+  if (!c || (c.role !== 'offCoord' && c.role !== 'defCoord')) return false;
+  const cover = aiCover(league, teamId, c.role);
+  if (relieveProblem(league, teamId, coachId, cover, false)) return false;
+  relieveCoordinator(league, teamId, coachId, cover);
+  return true;
+}
+
+/** The league's week, after belief's: each AI club with a coordinator on the table draws whether it lets him go. */
+export function aiRelieve(league: League): void {
+  if (league.phase !== 'regular' || league.week < RELIEVE.from || league.week > RELIEVE.to) return;
+  let ranks: Map<number, number> | undefined;
+  const records = computeRecords(league);
+  for (const team of league.teams) {
+    if (managesTeam(league, team.id)) continue;
+    const rng = new Rng(`${league.seed}:relieve:${league.season}:${league.week}:${team.id}`);
+    for (const role of ['offCoord', 'defCoord'] as const) {
+      if (!onTheTable(league, team.id, role, records)) continue;
+      const rec = records.get(team.id)!;
+      const heat = heatSoFar(league, team, rec, (ranks ??= talentRanks(league)).get(team.id)!).coach;
+      const lean =
+        1 +
+        RELIEVE.winNow * (team.gm.winNow - 0.5) * 2 -
+        RELIEVE.loyalty * (team.gm.loyalty - 0.5) * 2 +
+        (RELIEVE.heat * heat) / 4;
+      if (!rng.chance(RELIEVE.chance * clamp(lean, 0.25, 2))) continue;
+      const c = chairHolder(teamCoaches(league, team.id), { role })!;
+      if (aiRelieveNow(league, team.id, c.id)) break;
+    }
+  }
 }

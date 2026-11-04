@@ -1,4 +1,5 @@
 import { beliefWeek } from './belief';
+import { aiRelieve } from './relieve';
 import { freshChemistry } from './chemistry';
 import { freshStaff } from './staffEdge';
 import { credibilityWeek } from './meetings/credibility';
@@ -206,6 +207,8 @@ function playWeekControlled(league: League): Game[] {
     credibilityWeek(league);
     // Then each room's belief in whoever runs its side (L4): the drift, the game, the streak.
     beliefWeek(league);
+    // An AI club whose rooms have turned on a coordinator, losing and among the worst on his side, may let him go.
+    aiRelieve(league);
     meetingsStep(league);
   }
   league.week++;
