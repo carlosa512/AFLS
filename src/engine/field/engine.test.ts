@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { NO_STAFF } from '../staffEdge';
 import { createLeague } from '../generate';
 import { playWeek } from '../league';
@@ -20,7 +20,14 @@ function spatial(i: number, l: League = league): { r: GameResult; taps: FieldTap
 }
 
 describe('the engine plays the open field', () => {
-  const games = [0, 1, 2, 3].map((i) => spatial(i));
+  // Played before the tests, a game at a time with a yield between (a long synchronous block starves vitest's worker).
+  const games: ReturnType<typeof spatial>[] = [];
+  beforeAll(async () => {
+    for (const i of [0, 1, 2, 3]) {
+      games.push(spatial(i));
+      await new Promise((done) => setTimeout(done, 0));
+    }
+  }, 300_000);
 
   it('plays spatial games to valid results', () => {
     for (const { r, taps, homeId, awayId } of games) {
@@ -95,9 +102,11 @@ describe('the engine plays the open field', () => {
     expect(again.r.plays).toEqual(games[0].r.plays);
   });
 
-  it("rolls fumbles at the sim's tackle", () => {
+  // Twelve more spatial games, a game at a time with a yield between: one synchronous stretch starves vitest's worker.
+  it("rolls fumbles at the sim's tackle", async () => {
     let fumbles = 0;
     for (let i = 0; i < 16; i++) {
+      if (i >= 4) await new Promise((done) => setTimeout(done, 0));
       const { r } = i < 4 ? games[i] : spatial(i % week1.length);
       for (const e of r.plays!) {
         // A carry's fumble (a strip-sack's recovery is a turnover's own field: `turnover.test.ts`).
