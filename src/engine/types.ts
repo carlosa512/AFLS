@@ -1361,6 +1361,9 @@ export interface GmTraits {
 export interface GmAppointment {
   teamId: number;
   start: CareerDate;
+  /** The last morale step when it began (`League.moraleAt`, what the meetings' `stepClock` reads): his club's meetings
+   * at or before it were held before he came, so they file no letters. Absent before v88 or any morale step. */
+  clock?: number;
   end?: CareerDate;
   interim: boolean;
   through: number;

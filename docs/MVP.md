@@ -151,6 +151,47 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
   route is letting the community make roster mods.
 
 
+## Follow-up: out of bounds on the field (0.4.2)
+
+- [x] **A man who goes out of bounds is chased out.** The engine still calls out of bounds at its odds (18% of catches,
+      35% hurrying, 5% protecting a lead), knowing nothing of where anyone is; the field now sends the free defender
+      who can reach the exit soonest to run him out (`escortFor` in `field/run.ts`). Over 60 games, catches out of bounds
+      with nobody within 3 yards in the last second fell from 18% to 11%, alone (5+ yards) from 25 to 11. Left: those 11,
+      where nobody could get there; letting the engine's odds read the field (alone, he'd stay in) is a bigger change.
+- [ ] **Out of bounds as the player's choice, not a flat roll.** Today `pOut` in `match/gameSim.ts` is 18% of catches
+      (35% hurrying, 5% protecting a lead) whatever the field: nobody chooses it, so a lone receiver in open field can
+      be sent out. A real carrier weighs trying to win (clock, score, the room in front of him), staying healthy (his
+      condition, injury history, the hit coming; going out skips that hit's injury chance) and his makeup
+      (`contactAverse`, `finishesForward`, toughness). In your games the field knows who's near him; AI games need a
+      stand-in. It moves every game (clock stops, plays per game, leaders), so it needs a spec and the full sim checks.
+
+## Follow-up: choices and situations, not flat odds (audit 0.4.2)
+
+The goal: games that play like the NFL's because the people in them choose, with the odds coming out of those choices
+and the situation (down, distance, clock, score, who's near), calibrated against NGS, nflverse and charting data. An
+audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.2). Out of bounds on a
+catch or run is the item above.
+
+- [ ] **High: the passer under pressure** (L3096, L3101, L3120). Scramble and throwaway are dice: a throwaway is 12% for
+      any non-gunslinger, reading neither his decisions nor down, distance, score or field position. Calibrate with NGS
+      time to throw, throwaway rate under pressure, nflverse `qb_scramble`.
+- [ ] **High: fumbles on contact** (L2988, L3455). They read ball security and the tackler, but not the hit (a gang
+      tackle, a strip try), fatigue or condition, or a carrier stretching late. Calibrate: nflverse fumbles per touch.
+- [ ] **Medium-High: a play's time** (L2963, L3001, L3022). 4–7 seconds whatever the yards, the throw's depth or the
+      tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
+- [ ] **Medium-High: after an interception** (L3300–3315). The odds of a pick are rich; who catches it (65% the cover man)
+      and the return (normal 9 ± 10, a 6% long one) are flat. Calibrate: return yards by air yards, pick-six rate.
+- [ ] **Medium: fumble recoveries** (L2808): 52% the defense's, whoever is near the ball. In your games the field knows.
+- [ ] **Medium: a sack's yards and strip** (L3696): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
+      reads one habit, not ball security or a hit from behind.
+- [ ] **Medium: a scramble's end** (L3821): out of bounds 20% (55% hurrying) and a slide 40%, the same gap as a catch's.
+- [ ] **Medium: the two-point try** (L1511): one roll on short accuracy, outside the run and pass engines.
+- [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3326); return touchdowns as small edge-scaled rates.
+
+Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
+Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled
+does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a separate gap.
+
 ## Follow-up: rate-stat qualification
 
 - [ ] Use shared, scope-aware minimum opportunities for rate leaders (passer rating, completion percentage,
@@ -264,13 +305,18 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
 ## Follow-up: what the locker-room work left (0.3.10)
 
-- [ ] **Letters about meetings held before you arrived.** Meeting ids carry no club, so after a club change (or a save
-      loaded mid-season from before v82) the result letters for meetings already held that year can file. Put the club
-      in the ids and file only meetings held after you arrived (`meetings/mail.ts`).
+- [x] **Letters about meetings held before you arrived.** **Fixed (0.4.2):** a GM appointment keeps the step it began
+      (`GmAppointment.clock`), and `heldLetters` in `meetings/mail.ts` files only meetings held after it. The ids keep
+      no club: every letter now comes from your own time at a club, so they can't collide, and a new id would have
+      re-filed every meeting letter already in the inbox.
 - [ ] **Spark and Anchor tags read the truth.** The tags come from `soundOf`, which reads true hidden traits, so a tag
       can disagree with the personality our scouts show beside it. The L3 spec allows the tags; whether to gate them
       on our read (as L1's "warns" line does) is the owner's call (`ui/screens/LockerRoom.tsx`, `roomFacts.chemFact`).
-- [ ] **All-22 stage tests pass only on their own world.** On main, `src/ui/stage/stage.test.ts` fails with seeds
-      stage-b, stage-c and stage-d (a steered defender reaching the carrier first, linemen engaged 0.978 against 0.98,
-      a quarterback past the line on a sack-fumble). L3 holds chemistry at zero there to keep the world those tests
-      were tuned on; the drawing bugs are All-22's.
+- [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
+      `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
+      where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
+      rusher, a lineman tracking his man to the quarterback); a receiver slid past the sideline to a ball thrown out of
+      bounds; a jump-cutter's broken tackle never showed on a short carry. Left: the bounce habit's width is measured on
+      runs that go wide anyway (now 1.11 on stage-b against 1.2: its sweeps to the sideline leave little room), and
+      the line a second in on stage-d (0.979 engaged against 0.98). A beaten blocker now sets before he turns and chases
+      his man (he stood frozen at the snap on a quick pressure).

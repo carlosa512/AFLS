@@ -5,7 +5,9 @@ import { deliverMail } from '../inbox';
 import { playWeek } from '../league';
 import { beginOffseason } from '../offseason';
 import { simToEndOfSeason } from '../league';
-import type { League } from '../types';
+import { acceptGmOffer, beginGmSearch } from '../leadership';
+import { endGmAppointment } from '../gm';
+import type { League, MeetingRecord } from '../types';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
 import { meetingCard, meetingNeedsYou, yearParagraphFor } from './mail';
@@ -198,5 +200,34 @@ describe('meetings: whose promise the year tells', () => {
     };
     expect(yearParagraphFor(l)).toMatch(/You told them nobody's job was safe/);
     expect(yearParagraphFor(l)).not.toMatch(/I said/);
+  });
+});
+
+describe('meetings: letters from a new club', () => {
+  it('files no letter for a meeting held before you took the job, and does for one after', () => {
+    const l = fresh();
+    l.phase = 'resign';
+    const held = (clock: number): MeetingRecord => ({
+      clock,
+      scope: 'team',
+      kind: 'trouble',
+      approach: 'straight',
+      backing: 'words',
+      timing: 'monday',
+      outcomes: { lands: [], bristles: [] },
+    });
+    // The club held a meeting this step, before you arrived.
+    l.teams[1].meetings!.log.push(held(stepClock(l)));
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    endGmAppointment(l, l.teams[1].gmId!, 'dismissed');
+    beginGmSearch(l);
+    l.leadership.search!.offers = [{ teamId: 1, through: l.season + 2, expiresRound: 2 }];
+    acceptGmOffer(l, 1);
+    deliverMail(l);
+    expect(ids(l, 'meeting-result:')).toHaveLength(0);
+    // The next one is yours.
+    l.teams[1].meetings!.log.push(held(stepClock(l) + 1));
+    deliverMail(l);
+    expect(ids(l, 'meeting-result:')).toHaveLength(1);
   });
 });

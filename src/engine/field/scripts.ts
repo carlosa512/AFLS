@@ -61,6 +61,8 @@ const ROUTE_PACE = 8.5;
 const ENGAGE = 0.45;
 /** The victory formation: where he takes the snap, the step back, down on a knee by this long, held till the whistle. */
 const QB_UNDER = 2;
+/** The beaten back on play action plants this long at the mesh before he takes his man (seconds). */
+const PLANT = 0.3;
 const KNEEL_STEP = 0.8;
 export const KNEEL_AT = 0.75;
 const KNEEL_HOLD = 1.3;
@@ -462,6 +464,7 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
     }
     const L = dist(at, end);
     const pace = carryPace(L, caught, top, chaser);
+    const cutBreaks = kind === 'jumpCut' && habit('jumpCutter') && L > 3;
     if (habit('jumpCutter') && L > 3) {
       // The cut at the hole is a jump cut (not a broken tackle: no one's beaten by it). He makes it just past the line:
       // made at the hole, its step back took him behind the line and he crossed it a second time at 3.75 s.
@@ -472,25 +475,37 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       }
       const h = heading(at);
       const across = Math.sign(-h.y * (end.x - hole.x) + h.x * (end.y - hole.y)) || coin;
-      const cut = moveSegs('jumpCut', at, h, pace, across >= 0 ? 1 : -1).map(({ move: _, ...sg }) => sg);
+      // With a tackle broken by a move, the cut is that move (`pickMove` gives a jump-cutter his cut): no second one
+      // later, where a short carry would leave it no room.
+      const cut = moveSegs('jumpCut', at, h, pace, across >= 0 ? 1 : -1).map((sg) =>
+        cutBreaks ? sg : (({ move: _, ...rest }) => rest)(sg),
+      );
       out.push(...cut);
       at = { x: cut[cut.length - 1].x1, y: cut[cut.length - 1].y1 };
     } else if (e.open?.bounce && habit('bouncesExternal')) {
-      // A bounce that goes further outside before it turns up.
+      // A bounce that goes further outside before it turns up: a yard on, wider than his way to the end would have him
+      // there (a run already headed outside drifts that far on its own; the bounce takes him past it).
       const out1 = Math.sign(hole.y - snapY) || coin;
-      const wide = { x: at.x + dir, y: Math.max(1, Math.min(FIELD_W - 1, at.y + out1 * BOUNCE_WIDER)) };
+      const h = heading(at);
+      const drift = Math.max(0, (out1 * h.y) / Math.max(Math.abs(h.x), 0.33));
+      const wide = {
+        x: at.x + dir,
+        y: Math.max(1, Math.min(FIELD_W - 1, at.y + out1 * (drift + BOUNCE_WIDER))),
+      };
       out.push(paced({ x0: at.x, y0: at.y, x1: wide.x, y1: wide.y, peak: 0, dur: 0 }, pace));
       at = wide;
     }
     // The carry to the end: the broken tackle a few yards past the line, and the finish.
     const leg: Seg = { x0: at.x, y0: at.y, x1: end.x, y1: end.y, peak: 0, dur: 0 };
     const ahead = Math.max(0, past - (at.x - e.from) * dir);
-    const carried = withMove(
-      leg,
-      ahead,
-      pace,
-      out.reduce((t, sg) => t + sg.dur, 0),
-    );
+    const carried = cutBreaks
+      ? [paced(leg, pace)]
+      : withMove(
+          leg,
+          ahead,
+          pace,
+          out.reduce((t, sg) => t + sg.dur, 0),
+        );
     // The finish: a back who falls forward lunges the last yard as he's hit; one who shies from contact is hit a yard
     // short and slides into it; a thumper stops him where he hits him.
     const last = carried[carried.length - 1];
@@ -627,6 +642,8 @@ export interface Scripted {
   loose?: { t: number; x: number; y: number; settle: number; by: number };
   /** Decoys let go at the end of their routes, and where they settle (`SteerArgs.settle`). */
   settle: Map<number, Pt>;
+  /** A sack: when the rusher's script has him past the man he beat (`SteerArgs.beatAt`). */
+  beatAt?: number;
   /** A screen's other receivers, who block the nearest defensive back. */
   stalk: Set<number>;
   /** A finish where the tackle lands before the whistle (a lunge, a slide): when it lands. */
@@ -693,6 +710,7 @@ export function script(
   let carrier: number | undefined;
   let kickAt: number | undefined;
   let catchAt: number | undefined;
+  let beatAt: number | undefined;
 
   switch (e.kind) {
     case 'run': {
@@ -727,6 +745,7 @@ export function script(
         const qbAt = (t: number) => sample(keys.get(qb)!, t);
         const beat = beatenNear(who.beat, s0);
         const mid: Keyframe[] = beat ? [at(contact * 0.6, toward(beat, qbAt(contact * 0.6), 1))] : [];
+        if (beat) beatAt = contact * 0.6;
         setRun(who.rush, [...mid, at(contact, toward(qbAt(contact), s0, 0.8)), at(total, toward(end, s0, 0.6))]);
         moment(who.rush, Math.max(0, contact - 0.4));
       }
@@ -952,12 +971,16 @@ export function script(
     const meet = { x: mesh.x + dir * 0.4, y: mesh.y + side * 0.9 };
     // At the mesh as soon as his legs get him there (from deep in the I, a beat after the quarterback turns).
     const there = Math.max(FAKE, Math.hypot(meet.x - b0.x, meet.y - b0.y) / topOf(back.id));
+    // The back the engine says the rush beat sells it at the mesh and stays there to pick him up: the rusher's script
+    // comes past where he'd be in protection, not where a fake into the line would leave him.
+    const blocks = back.id === who.beat;
     keys.set(back.id, [
       from(back.id),
       at(there, meet),
-      at(there + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
+      // (Planted at the mesh first: let go at the speed of his sprint to it, he'd run on yards past his man.)
+      blocks ? at(there + PLANT, meet) : at(there + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
     ]);
-    free.set(back.id, there + 0.7);
+    free.set(back.id, there + (blocks ? PLANT : 0.7));
   }
 
   // The man who missed: on the carrier as the move starts, a yard off on his side, then sent on past him (a move) or
@@ -1115,6 +1138,10 @@ export function script(
         keys.set(fumbler, [...upTo(fumbler, tHit), at(tHit, hit), at(total, hit)]);
       }
       moment(by, tSettle);
+      // A lost one: the quarterback's handoff script ends as the ball comes out, and he plays on from there (steered),
+      // so the play keeps him off the man who takes it instead of leaving him where the defense lands on it.
+      if (f.lost && qb !== undefined && qb !== fumbler && qb !== by && qb !== hitter && !free.has(qb))
+        free.set(qb, tHit);
       carrier = by;
       returned = back.length > 0;
       loose = { t: tHit, x: hit.x, y: hit.y, settle: tSettle, by };
@@ -1272,6 +1299,7 @@ export function script(
     ...(loose ? { loose } : {}),
     ...(hitAt !== undefined ? { hitAt } : {}),
     ...(missed !== undefined ? { missed } : {}),
+    ...(beatAt !== undefined ? { beatAt } : {}),
     settle,
     stalk,
   };

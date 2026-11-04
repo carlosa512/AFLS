@@ -214,10 +214,8 @@ export function routeKeys(
   inward: 1 | -1,
   top: number,
 ): Keyframe[] {
-  const pts = [from, ...shape(route, from, to, dir, inward)].map((p) => ({
-    x: p.x,
-    y: Math.max(0.5, Math.min(FIELD_W - 0.5, p.y)),
-  }));
+  const inside = (p: Pt) => ({ x: p.x, y: Math.max(0.5, Math.min(FIELD_W - 0.5, p.y)) });
+  const pts = [from, ...shape(route, from, to, dir, inward)].map(inside);
   const need = effort(pts);
   const pace = Math.max(MIN_PACE, Math.min(top, need / Math.max(0.1, arrive)));
   // At his pace he gets there at `done`: early on a route he has time for. A sit route settles at the spot; any other
@@ -255,6 +253,7 @@ export function routeKeys(
     run += l;
   }
   if (keys.length) keys[keys.length - 1] = { ...keys[keys.length - 1], t: scale };
-  if (scale < arrive) keys.push({ t: arrive, x: to.x, y: to.y });
+  // Kept in bounds like the route: a ball thrown past the sideline doesn't take him there (from a sit, he'd slide over).
+  if (scale < arrive) keys.push({ t: arrive, ...inside(to) });
   return keys.filter((k, i) => k.t > 0 && (i === 0 || k.t > keys[i - 1].t + 1e-6));
 }

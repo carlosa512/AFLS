@@ -17,7 +17,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(87);
+    expect(SAVE_VERSION).toBe(88);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -325,7 +325,19 @@ describe('save v87', () => {
     l.version = 86;
     const before = JSON.stringify(l.games);
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(87);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(JSON.stringify(up.games)).toBe(before);
+  });
+});
+
+describe('save v88', () => {
+  it('upgrades v87: appointments kept as they were (no arrival clock invented)', () => {
+    const l = createLeague({ seed: 'v88' });
+    for (const g of Object.values(l.gms)) for (const a of g.appointments) delete a.clock;
+    l.version = 87;
+    const before = JSON.stringify(l.gms);
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(88);
+    expect(JSON.stringify(up.gms)).toBe(before);
   });
 });
