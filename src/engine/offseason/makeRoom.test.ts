@@ -27,7 +27,7 @@ import { demand } from './negotiation';
 
 /** A league at its re-sign window, after one season. */
 const window = (() => {
-  const l = createLeague({ seed: 'make-room' });
+  const l = createLeague({ seed: 'make-room-5' });
   simToEndOfSeason(l);
   beginOffseason(l);
   return JSON.stringify(l);
