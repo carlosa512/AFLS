@@ -28,8 +28,9 @@ them: a great hire helps only as far as his rooms follow him.
    land bring it back.
 5. **You answer it in a meeting,** through L2's letter and three calls, with two new choices: "Stand behind him" and
    "He's on notice".
-6. **You can relieve a coordinator mid-season** (new: coaching moves are window-only today). The head coach covers
-   his side, or one of your position coaches steps up as interim; you hire for real in the window.
+6. **Coordinators can be relieved mid-season,** by you and by AI clubs, as NFL clubs do (coaching moves are
+   window-only today). The head coach covers his side, or a position coach steps up as interim; the real hire waits
+   for the window. AI clubs do it about as often as the NFL's, and SNN reports it.
 7. **Belief is stored per room,** on the coordinator, like a head coach's credibility: doubt builds and lingers, so a
    lawyer and a meeting both matter. (Worked out from moods each week, it would only be mood again; as a part of each
    man's mood, it would leak into every morale check.)
@@ -163,13 +164,14 @@ Through L2 (`meetings/`), with no new letter or screen of its own.
 - A new `Backing`, `'notice'`: a promise to the room that things change, with a four-week window. The commitment
   keeps the coordinator it's about (`Commitment.coord`, his coach id).
 - **Kept** (`isKept`): the room's belief climbs back out of doubt (`steady` or better), or the man is gone from his
-  chair (relieved mid-season, §3.4, or replaced in the window). L2's `settle` then gives the room its kept lift and the head coach
-  his word's gain, and the room's belief rises by `BELIEF.kept` = +0.15.
+  chair (relieved mid-season, §3.4, or replaced in the window). L2's `settle` then gives the room its kept lift and
+  the head coach his word's gain, and the room's belief rises by `BELIEF.kept` = +0.15.
 - **Broken:** the window closes with the room still in doubt and the same man in the chair. L2's broken dip and the
   head coach's word's loss, and the room's belief falls by `BELIEF.broken` = −0.15.
-- AI clubs choose "Stand behind him" and "He's on notice" by their GM's tendencies (`meetings/ai.ts`) and settle the
-  notice the way they settle every promise: by their GM's tendencies at the window's end. They don't fire anyone for
-  the room.
+- AI clubs choose "Stand behind him" and "He's on notice" by their GM's tendencies (`meetings/ai.ts`). At the
+  window's end an unkept notice is settled the way they settle every promise, by their GM's tendencies; when that
+  says kept, they keep it for real by relieving the man (§3.5), unless an owner's mandate protects him (then it's
+  broken).
 - "Nothing, just words" stays on offer. You can still ask for a meeting yourself from the Locker Room.
 
 ### 3.4 Relieving a coordinator mid-season
@@ -190,7 +192,34 @@ it, so "He's on notice" can be kept the way NFL clubs keep it.
     chair stays empty until the window.
   - Whoever takes the side starts its rooms at 0 belief (§2.1).
 - **Hires from outside wait for the window,** as today. There you can keep the interim, promote someone or hire.
-- The transaction log reads "relieved … of his duties". AI clubs don't use the move (§7).
+- The transaction log reads "relieved … of his duties", and the change is a leadership event (§3.5) so SNN reports
+  it.
+
+### 3.5 AI clubs relieve coordinators too
+
+NFL clubs let a coordinator go in season about once or twice a year league-wide, nearly always a losing club whose
+side of the ball is among the league's worst (the Colts' offensive coordinator in 2022; the Commanders' defensive
+coordinator and the Steelers' offensive coordinator in 2023; the Bears' offensive coordinator in 2024). The plan
+gathers the recent seasons' list before tuning, and the band in §5.1 is set from it with the owner's say.
+
+- **Weekly, for AI clubs** (`aiRelieve`, run after belief's step), weeks 5 through 14 of the regular season. It uses
+  the same move as you do (`relieveCoordinator`), with the same limits.
+- **On the table only when all three hold:**
+  - the club is losing: five games played or more, and a win share of .400 or worse;
+  - his side is among the league's worst this season: the offense's points a game (for the offensive coordinator) or
+    the points it allows (for the defensive one) in the league's bottom quarter;
+  - his rooms have turned on him: most of them read `doubts` or worse, or a notice about him was broken.
+- **Then a draw** on its own stream (`${seed}:relieve:${season}:${week}:${teamId}`), each week it stays on the table:
+  `RELIEVE.chance` = 0.15 a week to start, raised by the GM's win-now and the heat on the head coach (a head coach on
+  the hot seat gives up a coordinator before he goes himself, `heatSoFar`), lowered by the GM's loyalty.
+- **At most one coordinator a club a season,** and none once the owner has let the head coach go this season (the
+  interim makes his own staff).
+- **Who takes the side:** the better of the head coach covering (his value less `COVER_COST`) and the best position
+  coach on that side who'd take it. Its rooms start at 0 belief.
+- **The news:** a new leadership event, `'coordRelieved'` (`LeadershipEvent.kind`), so SNN's in-season roundup
+  (`leadershipMail`) carries it with the owners' changes: "PIT relieved offensive coordinator … of his duties." Public
+  words only: the record and the side's ranking, never belief.
+- The relieved man goes to the market, available to every club in the window.
 
 ## 4. What you see (your club only, in words)
 
@@ -234,12 +263,17 @@ Other clubs' belief; any number, a coach's game-day edge included; anything in t
   - Rooms reading `doubts` or worse at some point in a season: 10–25%. `lost`: 8% or fewer.
   - Rooms with a lawyer reach `doubts` more often than rooms without.
   - "He's on notice": kept and broken both happen, and neither is more than four in five.
+  - AI clubs relieve coordinators in season at the NFL's rate (about one or two a season league-wide; the band is
+    set from the plan's list of recent seasons), every one of them a losing club whose side ranks in the bottom
+    quarter, and no club more than once a season.
   - The existing L1–L3 lines still hold.
 - **A unit test** (`staffEdge.test.ts`) replays the same games with one side's staff edge forced to +0.5 and to −0.5,
   and checks it moves that side's own stats the right way: the offense's points and yards, the defense's yards
   allowed. Others cover the edge's parts, centring, an empty chair, belief's weekly moves (`belief.test.ts`), the
   lawyer, the new meeting choices, and relieving a coordinator (only in camp and the regular season, blocked by an
-  owner's mandate, severance booked, the head coach's cover or the interim taking the side at 0, a notice kept by it).
+  owner's mandate, severance booked, the head coach's cover or the interim taking the side at 0, a notice kept by it),
+  and the AI's call (`aiRelieve`: off the table unless all three conditions hold, at most once a season, the better of
+  cover and interim, the SNN event).
 - **The sim** (60 seasons in CI): win spread and parity hold. Richer clubs hire better coaches, so the staff edge can
   widen the gap between good and bad teams; anything near an edge is measured against main and brought to the owner,
   never loosened without his call.
@@ -248,8 +282,8 @@ Other clubs' belief; any number, a coach's game-day edge included; anything in t
 
 ### 5.2 Cost and data
 
-- `Coach.belief` and `Commitment.coord` are new: `SAVE_VERSION` 86, with a no-op step in `migrate.ts` (unset reads
-  the middle). A few numbers per club.
+- `Coach.belief`, `Commitment.coord` and the `'coordRelieved'` event are new: `SAVE_VERSION` 86, with a no-op step
+  in `migrate.ts` (unset reads the middle). A few numbers per club.
 - The staff edge is cached weekly like chemistry; belief's step reads one game and a room's voices per club. The aim
   is sim speed within about 5% of main.
 
@@ -271,7 +305,6 @@ becomes 15 Done · 0 Partial), with a changelog entry and the CLAUDE.md notes.
 
 - AI front offices weighing belief or a coach's game-day edge in hiring, firing or trades beyond what `coachValue`
   already drives.
-- AI clubs relieving a coordinator mid-season.
 - Relieving your head coach mid-season, or hiring from outside the club before the window.
 - Belief in position coaches, the strength coach or the special teams coordinator.
 - Other clubs' belief in the opposition report or SNN.
@@ -285,10 +318,11 @@ becomes 15 Done · 0 Partial), with a changelog entry and the CLAUDE.md notes.
 | `src/engine/staffEdge.ts` (new) | each room's staff edge: quality, the coordinator's and head coach's parts, centring |
 | `src/engine/belief.ts` (new) | `Coach.belief`: its weekly step, the lawyer, meetings' and notices' moves, its words |
 | `src/engine/staffEdge.test.ts`, `src/engine/belief.test.ts` (new) | the parts, centring, the replay test, the moves |
-| `src/engine/types.ts` | `Coach.belief`, `Commitment.coord`, `Approach` `'backHim'`, `Backing` `'notice'` |
+| `src/engine/types.ts` | `Coach.belief`, `Commitment.coord`, `'backHim'`, `'notice'`, the `'coordRelieved'` event |
 | `src/engine/match/lineup.ts`, `match/gameSim.ts` (`SimOptions.staff`) | the room's staff edge in the knocks |
-| `src/engine/league.ts` | belief's weekly step beside `credibilityWeek` |
-| `src/engine/coaching.ts` | `startCoordinator` on taking a side; `relieveCoordinator`; the new league year's halving |
+| `src/engine/league.ts` | belief's weekly step beside `credibilityWeek`, then `aiRelieve` |
+| `src/engine/coaching.ts` | `startCoordinator` on taking a side; `relieveCoordinator`, `aiRelieve`; the new year's halving |
+| `src/engine/leadership.ts`, `inbox.ts` | the `'coordRelieved'` event logged, and SNN's roundup line |
 | `src/engine/meetings/suggest.ts`, `react.ts`, `commitments.ts`, `ai.ts` | the trouble, the two choices, the notice |
 | `src/engine/generate.ts`, `migrate.ts` | `SAVE_VERSION` 86 and its step |
 | `scripts/morale.ts`, the CI planner | the §5.1 checks; the new modules' triggers |
