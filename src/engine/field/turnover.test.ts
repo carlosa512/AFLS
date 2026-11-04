@@ -82,4 +82,13 @@ describe('a turnover returned on the open field', () => {
       expect(e.field?.to, `play ${t.moment.index}`).toBe(t.today.yards);
     }
   });
+
+  it('ends a real return with a man on him, not the carrier pulling up alone at his spot', () => {
+    // Today's spot is where a pursuer meets him: after a turnover that's the old offense (receivers, backs, the line and
+    // the passer), not only the second level.
+    const runs = turnovers.filter(({ t }) => t.today.yards >= 5 && !t.today.touchdown);
+    const met = runs.filter(({ t }) => t.result!.tackler !== null).length;
+    expect(runs.length).toBeGreaterThanOrEqual(8);
+    expect(met / runs.length).toBeGreaterThanOrEqual(0.9);
+  });
 });

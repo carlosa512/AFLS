@@ -50,6 +50,13 @@ const PAST = 0.5;
 const ANCHOR_REACH = 3;
 /** At his spot, a man behind him counts this many yards further off: the tackle is the man who meets him. */
 const BEHIND = 2;
+/**
+ * Stopped by his slide with a man still coming within `WAIT_REACH` yards: the play waits up to `WAIT` seconds for him to
+ * get on him (within `ON_HIM` yards).
+ */
+const WAIT_REACH = 6;
+const WAIT = 1;
+const ON_HIM = 1.2;
 /** A man credited short of the goal line goes down this far short of it (yards). */
 const GOAL_SHORT = 0.3;
 /** An outside run stretches the edge for this long (seconds) before he reads purely for ground. */
@@ -169,6 +176,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const spot = start.target;
   /** Past his spot with nobody on him: going down. */
   let sliding = false;
+  /** When his slide stopped him (-1: still moving). */
+  let stoppedAt = -1;
+  let stopX = 0;
+  let stopY = 0;
   let moveUntil = 0;
 
   /** Who can still make a play, and how late, as the carrier reads it. */
@@ -282,7 +293,9 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       // first man to him has the tackle (`contact`).
       if (phase === 'live' && spot && !spot.touchdown && !sliding) {
         const v = Math.hypot(c.vx, c.vy);
-        if (left() <= (v * v) / (2 * FALL) + PAST) {
+        // His stop runs along his heading: running at an angle, only its downfield share eats up the yards left.
+        const along = v > 0 ? Math.max(0, c.vx * dir) / v : 0;
+        if (left() <= ((v * v) / (2 * FALL)) * along + PAST) {
           const d = nearestFree(ANCHOR_REACH, now);
           if (d >= 0 && left() <= PAST) tackleBy(d, Math.max(0, left()), v);
           else if (d < 0) sliding = true;
@@ -291,9 +304,16 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       // His slide has stopped him (short of the spot, everyone near him has had his try): he's down, the man on him with
       // the tackle if there is one.
       if (phase === 'live' && sliding && Math.hypot(c.vx, c.vy) < 0.2) {
-        tackler = nearestFree(ANCHOR_REACH, now);
-        spotX = c.x;
-        end(now, COAST.tackle);
+        // A man still coming gets to him (up to `WAIT`): the film's tackle is the man who arrives, not one standing off.
+        if (stoppedAt < 0) [stoppedAt, stopX, stopY] = [now, c.x, c.y];
+        // He's down: a man arriving doesn't carry him on.
+        [c.x, c.y, c.vx, c.vy] = [stopX, stopY, 0, 0];
+        const on = nearestFree(ON_HIM, now);
+        if (on >= 0 || now - stoppedAt >= WAIT || nearestFree(WAIT_REACH, now) < 0) {
+          tackler = on >= 0 ? on : nearestFree(ANCHOR_REACH, now);
+          spotX = c.x;
+          end(now, COAST.tackle);
+        }
       }
       if (phase === 'live' && now >= MAX_FIELD) {
         // Never meant to happen (the tests hold it): the nearest defender has him.
@@ -412,7 +432,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     const behind = (B[ci].x - d.x) * dir > 10;
     // Playing to today's spot (call H): a free man of the second level downfield of him meets him there, where his path
     // crosses it.
-    const second = role === 'LB' || role === 'CB' || role === 'S' || role === 'ST';
+    // After a turnover the pursuit is the old offense (receivers, backs, the line, the passer): any of them ahead of him.
+    const second = role === 'LB' || role === 'CB' || role === 'S' || role === 'ST' || start.kind === 'turnover';
     if (spot && !spot.touchdown && second && (d.x - B[ci].x) * dir > 0 && left() > 0) {
       const c = B[ci];
       const along = Math.max(0.5, c.vx * dir);
