@@ -55,7 +55,10 @@ export function stageField(args: {
     }
   }
   // The pocket alone (a sack, an incompletion, a throwaway, a catch the field didn't run on): its frames from the snap.
-  if (!a || !result) return composed ? { ...composed, spatial: { k0: 0, tackler: null } } : null;
+  if (!a || !result)
+    return composed && pocket
+      ? { ...composed, spatial: { k0: 0, tackler: null, moved: pocket.start.players.map((p) => p.id) } }
+      : null;
 
   const s = a.staged;
   const n = s.ids.length;

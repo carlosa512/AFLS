@@ -114,7 +114,12 @@ export interface StagedPlay {
   /** What each side runs, for the moments before the snap (`presnap.ts`). */
   schemes: { offense: FieldScheme; defense: FieldScheme };
   /** A play the spatial engine played (`replay.ts`): its frames from step `k0` (possession) are the open field's own. */
-  spatial?: { k0: number; tackler: number | null };
+  spatial?: {
+    k0: number;
+    tackler: number | null;
+    /** The pocket alone: the men it moved (the rest keep the stager's drawn routes until the routes slice). */
+    moved?: number[];
+  };
 }
 
 /** The play as it ran: a flagged snap's own path (`PlayLogEntry.ran`), else the entry itself. */

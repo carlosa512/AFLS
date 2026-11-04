@@ -457,6 +457,18 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
           r.y = b.y + (r.y - b.y) * k;
         }
       }
+    // The push never carries a man faster than his legs: held to his top speed from where the last frame had him.
+    for (const ri of rushing) {
+      const r = B[ri];
+      const px = frames[((s - 1) * n + ri) * 2];
+      const py = frames[((s - 1) * n + ri) * 2 + 1];
+      const g = Math.hypot(r.x - px, r.y - py);
+      const most = r.top * STEP;
+      if (g > most) {
+        r.x = px + ((r.x - px) * most) / g;
+        r.y = py + ((r.y - py) * most) / g;
+      }
+    }
     record();
   }
 
