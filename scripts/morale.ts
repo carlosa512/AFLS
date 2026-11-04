@@ -561,11 +561,7 @@ check(
   noticesKept / Math.max(1, noticesKept + noticesBroken),
   [0.2, 0.8],
 );
-check(
-  `AI clubs relieved coordinators a season (${relieved.length} in ${SEASONS})`,
-  relieved.length / SEASONS,
-  [1, 3],
-);
+check(`AI clubs relieved coordinators a season (${relieved.length} in ${SEASONS})`, relieved.length / SEASONS, [1, 3]);
 check(
   '…every one a losing club whose side ranks in the bottom quarter',
   fair.length / Math.max(1, relieved.length),
