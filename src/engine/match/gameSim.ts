@@ -703,6 +703,8 @@ class GameSim {
   private quarter = 1;
   private clock = QUARTER_SECONDS;
   private clockRunning = false;
+  /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
+  private spotted = false;
   private twoMinuteWarned = false;
   private offense: Side = 0;
   private yardLine = 25;
@@ -1364,6 +1366,13 @@ class GameSim {
     return this.quarter === 2 || this.quarter === 4;
   }
 
+  /** A runoff after a man went out of bounds outside the late windows loses the spot's pause; the flag is spent. */
+  private spotRunoff(seconds: number): number {
+    const out = this.spotted ? coach.afterOutOfBounds(seconds) : seconds;
+    this.spotted = false;
+    return out;
+  }
+
   /** Time between snaps while the clock is running. */
   private preSnapRunoff(seconds: number) {
     if (this.inTwoMinutePeriod() && !this.twoMinuteWarned && this.clock > 120 && this.clock - seconds <= 120) {
@@ -1402,6 +1411,7 @@ class GameSim {
   private useTimeout(side: Side) {
     this.timeouts[side]--;
     this.clockRunning = false;
+    this.spotted = false;
     this.snapshot = null;
     this.log(`Timeout ${this.abbrev(side)} (${this.timeouts[side]} left).`);
   }
@@ -2071,7 +2081,7 @@ class GameSim {
       const s = this.situation();
       if (coach.playForFieldGoal(s)) {
         // Bleed the clock to the last few seconds, then stop it for a kick at the gun.
-        const runoff = this.rng.int(coach.MILK_RUNOFF_MIN, 41);
+        const runoff = this.spotRunoff(this.rng.int(coach.MILK_RUNOFF_MIN, 41));
         const leave = this.rng.int(2, 4);
         // If the next snap would come with too little time for a play and a kick, stop at the gun instead.
         if (s.clock - runoff <= 10) {
@@ -2127,16 +2137,18 @@ class GameSim {
         this.evidence(this.offense, 'offCoord', 'upTempo', fast, fast);
       }
       this.preSnapRunoff(
-        fast
-          ? this.rng.int(...UP_TEMPO_RUNOFF)
-          : t === 'hurry'
-            ? this.rng.int(8, 16)
-            : t === 'milk'
-              ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-              : // 28–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
-                // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
-                // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
-                this.rng.int(28, 38),
+        this.spotRunoff(
+          fast
+            ? this.rng.int(...UP_TEMPO_RUNOFF)
+            : t === 'hurry'
+              ? this.rng.int(8, 16)
+              : t === 'milk'
+                ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
+                : // 28–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
+                  // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
+                  // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
+                  this.rng.int(28, 38),
+        ),
       );
     }
     if (this.clock <= 0 && !this.untimed) return;
@@ -4044,6 +4056,8 @@ class GameSim {
 
     this.yardLine += result.yards;
     this.clockRunning = !(result.clockStops || warning);
+    // Out of bounds outside the late windows: the clock waits for the spot, then runs (`coach.afterOutOfBounds`).
+    this.spotted = this.clockRunning && !!result.outOfBounds;
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const end = kind === 'incomplete' ? startYardLine : this.yardLine >= 100 ? 102 : this.yardLine;
     this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane, who);

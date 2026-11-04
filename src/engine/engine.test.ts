@@ -424,6 +424,36 @@ describe('coach decisions', () => {
     fgMakeProb: 0.2,
   };
 
+  it('takes the spot off the runoff after a man goes out, never below zero', () => {
+    expect(coach.afterOutOfBounds(30)).toBe(30 - coach.SPOT_PAUSE);
+    expect(coach.afterOutOfBounds(2)).toBe(0);
+  });
+
+  it('stops the clock to the snap inside the windows, and pauses only for the spot outside them', () => {
+    const league = createLeague({ seed: 'test-spot' });
+    const gaps = { out: [] as number[], in: [] as number[] };
+    for (let i = 0; i < 40; i++) {
+      const plays = simulateGame(league, league.games[i], { keepPlays: true }).plays!;
+      for (let k = 0; k + 1 < plays.length; k++) {
+        const [p, n] = [plays[k], plays[k + 1]];
+        if (p.kind !== 'pass' && p.kind !== 'run') continue;
+        if (n.quarter !== p.quarter || n.offense !== p.offense || n.down <= 0 || /TOUCHDOWN|FUMBLE/.test(p.text))
+          continue;
+        if (/Timeout|Two-minute|PENALTY/i.test(n.text) || n.kind === 'penalty') continue;
+        const out = /out of bounds/.test(p.text);
+        const gap = p.clock - n.clock;
+        const late = (p.quarter === 2 && p.clock <= 120) || (p.quarter >= 4 && p.clock <= 300);
+        // Inside the windows the clock waits for the snap: the gap is the play alone.
+        if (out && late) expect(gap).toBeLessThanOrEqual(10);
+        if (p.quarter <= 3 && !(p.quarter === 2 && p.clock <= 240)) (out ? gaps.out : gaps.in).push(gap);
+      }
+    }
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    // Outside them it runs again once the ball is spotted: a few seconds less than after a tackle in bounds.
+    expect(mean(gaps.out)).toBeLessThan(mean(gaps.in) - 2);
+    expect(mean(gaps.out)).toBeGreaterThan(15);
+  });
+
   it('kneels out the clock only when the defense cannot stop it', () => {
     expect(coach.shouldKneel(base)).toBe(true);
     expect(coach.shouldKneel({ ...base, defTimeouts: 3 })).toBe(false);
