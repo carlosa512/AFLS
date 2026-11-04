@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_STAFF } from '../staffEdge';
 import { createLeague } from '../generate';
 import { playWeek } from '../league';
 import { simulateGame, type FieldTap } from '../match/gameSim';
@@ -180,7 +181,13 @@ describe('a field the open field cannot play', () => {
     const l = createLeague({ seed: 'film' });
     const g = l.games[24];
     const taps: FieldTap[] = [];
-    const r = simulateGame(l, g, { field: true, seed: 'film-spatial-24', fieldTap: (t) => taps.push(t) });
+    const r = simulateGame(l, g, {
+      field: true,
+      seed: 'film-spatial-24',
+      fieldTap: (t) => taps.push(t),
+      // The pinned play is today's engine without coaches' Sunday edge (L4): held at zero, as it reads something else.
+      staff: [NO_STAFF, NO_STAFF],
+    });
     expect(r.plays![71].text).toMatch(/for 0 yards/);
     expect(taps.find((t) => t.moment.index === 71)).toBeUndefined();
     expect(r.plays![71].field).toBeUndefined();

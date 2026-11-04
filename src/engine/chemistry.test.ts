@@ -212,8 +212,15 @@ describe('chemistry: the review’s fixes', () => {
     const b: League = JSON.parse(JSON.stringify(l));
     const g = b.games.find((x) => x.season === b.season && x.week === b.week && !x.result)!;
     g.result = { ...b.games.find((x) => x.result)!.result!, homeScore: 60, awayScore: 0 };
-    const edges = (m: Map<string, { edge: number }>) => [...m.values()].map((c) => c.edge.toFixed(9));
-    expect(edges(chemistryWeek(b))).toEqual(edges(a));
+    // Complacency reads the weeks before this one: no room turns comfortable (or stops) on this week's result. (The two
+    // clubs in the hand-set game also gain a game with none of its snaps, which moves their men's weights; a real result
+    // comes with its stats, so only their comfort is compared.)
+    const after = chemistryWeek(b);
+    const playing = new Set([g.homeId, g.awayId]);
+    for (const [k, c] of a) {
+      expect(after.get(k)!.comfortable).toBe(c.comfortable);
+      if (!playing.has(c.teamId)) expect(after.get(k)!.mood.toFixed(9)).toBe(c.mood.toFixed(9));
+    }
   });
 });
 
