@@ -174,6 +174,19 @@ describe("the owner's call H: today's yards, the field's way there", () => {
   });
 });
 
+describe('a field the open field cannot play', () => {
+  it("leaves a catch made past the goal line it's credited short of to today's film (no teleport back)", () => {
+    // Film's league, game 24: a pass at the 1 credited for no gain, the blind staging catching it a yard deep.
+    const l = createLeague({ seed: 'film' });
+    const g = l.games[24];
+    const taps: FieldTap[] = [];
+    const r = simulateGame(l, g, { field: true, seed: 'film-spatial-24', fieldTap: (t) => taps.push(t) });
+    expect(r.plays![71].text).toMatch(/for 0 yards/);
+    expect(taps.find((t) => t.moment.index === 71)).toBeUndefined();
+    expect(r.plays![71].field).toBeUndefined();
+  });
+});
+
 describe('a spatial play to yards', () => {
   it('calls a tackle in the end zone a safety, and a run stopped at the goal line short of it', () => {
     // At his own 2, thrown for a three-yard loss: the engine's own clamp, a safety.

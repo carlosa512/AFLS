@@ -188,9 +188,12 @@ export function fieldStart(
       taken.add(best.id).add(pd.id);
     }
   }
+  const carrier = at.get(a.carrier)!;
+  // Credited short of the goal line he already stands on or past (a catch the blind staging made in the end zone): the
+  // field could only put him back by a jump, so the play keeps today's film.
+  if (m.facts.to !== undefined && !m.facts.td && (carrier.x - (a.dir === 1 ? 100 : 0)) * a.dir >= 0) return null;
   // On a clean roll the second level is a beat late to it: the first free man meets the back further past the line.
   const late: { id: number; until: number }[] = [];
-  const carrier = at.get(a.carrier)!;
   if (m.kind === 'run' && z > 0)
     for (const p of players)
       if (

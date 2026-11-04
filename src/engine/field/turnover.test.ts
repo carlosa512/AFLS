@@ -1,20 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { simulateGame, type FieldTap } from '../match/gameSim';
+import type { GameResult } from '../types';
 import { MID } from './geometry';
 import { stagePlay } from './stage';
 
 // Week 1 of this league holds 31 interceptions and two lost strip-sacks.
 const league = createLeague({ seed: 'field-engine' });
 const week1 = league.games.filter((g) => g.week === 1);
-const games = week1.map((g) => {
-  const taps: FieldTap[] = [];
-  const r = simulateGame(league, g, { field: true, fieldTap: (t) => taps.push(t) });
-  return { r, taps, homeId: g.homeId };
-});
-const turnovers = games.flatMap(({ r, taps, homeId }) =>
-  taps.filter((t) => t.result && t.moment.kind === 'turnover').map((t) => ({ r, t, homeId })),
-);
+const turnovers: { r: GameResult; t: FieldTap; homeId: number }[] = [];
+// Played before the tests, one game at a time with a yield between: sixteen spatial games in one synchronous block
+// would starve vitest's worker of its own messages on a slow runner.
+beforeAll(async () => {
+  for (const g of week1) {
+    const taps: FieldTap[] = [];
+    const r = simulateGame(league, g, { field: true, fieldTap: (t) => taps.push(t) });
+    for (const t of taps) if (t.result && t.moment.kind === 'turnover') turnovers.push({ r, t, homeId: g.homeId });
+    await new Promise((done) => setTimeout(done, 0));
+  }
+}, 300_000);
 
 describe('a turnover returned on the open field', () => {
   it('plays interception and strip-sack returns on the field', () => {
