@@ -756,6 +756,11 @@ export interface NewLeagueOptions {
    * staff grades on New Game are what he inherits. Off by default: scripts and tests keep the typical start.
    */
   inheritStaff?: boolean;
+  /**
+   * Your games' open field played by the spatial engine (`League.settings.spatialField`). New Game turns it on; off by
+   * default so scripts and tests keep today's engine (and its speed) unless they ask.
+   */
+  spatialField?: boolean;
   /** The name and age you start as (New Game). Omitted: the club's own GM, as generated. */
   gm?: StartingGm;
 }
@@ -767,6 +772,7 @@ export function createLeague(options: NewLeagueOptions = {}): League {
 
   const league: League = {
     version: SAVE_VERSION,
+    settings: { spatialField: !!options.spatialField },
     name: options.name ?? 'National Gridiron League',
     seed,
     rngState: rng.getState(),

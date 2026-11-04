@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FIELD_W } from './ballPath';
+import { FIELD_W } from '../../engine/field/ballPath';
 import type { PlayLogEntry } from '../../engine/types';
 import { BENCH, celebrates, JOG, SPRINT, transition, type Mark } from './transition';
 

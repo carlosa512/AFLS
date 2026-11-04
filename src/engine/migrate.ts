@@ -340,11 +340,16 @@ export function migrateLeague(league: League): League | null {
     repairSignedTalks(league);
     league.version = 84;
   }
-  // v85: a settled promise records who made it (`by: 'gm'` for your address). Absent reads as the coach's, as every
-  // earlier one was told: nothing to fill.
-  if (league.version < 85) league.version = 85;
-  // v86: rooms' belief in their coordinators (`Coach.belief`), a notice's coordinator, the doubts the coach has seen and
-  // a relieved coordinator's event (L4). Absent reads as the middle, nothing seen: nothing to fill.
+  // v85: the spatial engine's switch (`League.settings`, on: a career's games from here play their open field on it) and
+  // its games' snapshot (`FieldRecord.snap`) and facts (`PlayLogEntry.field`). Optional: older games keep the drawn
+  // replay.
+  if (league.version < 85) {
+    league.settings ??= { spatialField: true };
+    league.version = 85;
+  }
+  // v86: a settled promise records who made it (`by: 'gm'` for your address), and the locker room's last part (L4):
+  // rooms' belief in their coordinators (`Coach.belief`), a notice's coordinator, the doubts the coach has seen and a
+  // relieved coordinator's event. Absent reads as the coach's promise, the middle, nothing seen: nothing to fill.
   if (league.version < 86) league.version = 86;
   return league;
 }

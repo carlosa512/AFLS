@@ -394,6 +394,19 @@ export const CONTESTS = {
     weights: { speed: 0.5, tackling: 0.25, awareness: 0.25 },
     decides: 'running down a back who breaks loose',
   },
+  // ── The open field (the spatial engine, `field/`) ──
+  burst: {
+    label: 'Burst',
+    positions: ['QB', 'RB', 'WR', 'OL', 'DT', 'EDGE', 'CB'],
+    weights: { agility: 1 },
+    decides: 'acceleration and cuts in the open field',
+  },
+  reads: {
+    label: 'Reading the field',
+    positions: ['QB', 'RB', 'WR', 'OL', 'DT', 'LB', 'CB', 'S'],
+    weights: { awareness: 1 },
+    decides: "reacting to a cut, a defender's angle, a runner's lane",
+  },
   // ── Special teams ──
   fieldGoal: {
     label: 'Field goals',

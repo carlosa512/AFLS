@@ -32,6 +32,7 @@ import { WinnerCell } from './Stats';
 import { CrewNote } from './Officials';
 import { BackupButton, LoadBackupButton } from '../saves';
 import { ThemeSelect } from '../theme';
+import { FieldSwitch } from '../dev';
 import { store } from '../store';
 import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
@@ -475,6 +476,7 @@ function StartOver({ league }: { league: League }) {
       ) : (
         <>
           <ThemeSelect />
+          <FieldSwitch league={league} />
           <BackupButton league={league} />
           <LoadBackupButton />
           <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(true)}>

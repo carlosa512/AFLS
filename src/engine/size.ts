@@ -228,6 +228,8 @@ const FULL_WEIGHT = 30;
 const FULL_QB_HEIGHT = 4;
 
 type Build = Pick<Player, 'position' | 'heightIn' | 'weightLb'>;
+/** A build and whether he plays bigger than it: all `sizeEdge` reads (a player, or a snapshot of one). */
+export type SizedBuild = Build & Pick<Player, 'playsBig'>;
 /** Inches or pounds over his own position's median: two medians are level whatever their positions. */
 const devH = (p: Build) => p.heightIn - SIZE[p.position].h[0];
 const devW = (p: Build) => p.weightLb - SIZE[p.position].w[0];
@@ -248,7 +250,7 @@ function rushEdge(rusher: Build, blocker: Build, lever: 'edgeLength' | 'leverage
  * bigger than his size, on either side, gives up half of what he'd lose, and gains nothing extra. In the pass rush
  * `p` is the rusher and `opp` the blocker.
  */
-export function sizeEdge(p: Player, lever: Lever, opp?: Player): number {
+export function sizeEdge(p: SizedBuild, lever: Lever, opp?: SizedBuild): number {
   let e: number;
   if (lever === 'lanes') e = points(devH(p), FULL_QB_HEIGHT);
   else if (!opp) return 0;

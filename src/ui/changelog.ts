@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.3.10',
+    version: '0.3.11',
     date: '2026-11-04',
     title: 'Locker room touch-ups',
     text:
@@ -21,6 +21,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "talks with two players names them both. The head coach's season's-end report now tells a promise you made in " +
       'your own address to the team as yours, not his. And a hurt quarterback no longer counts toward how long the ' +
       'passing game has played together.',
+  },
+  {
+    version: '0.3.10',
+    date: '2026-11-04',
+    title: 'A field under your games',
+    text:
+      'Your own games now play out on a real field: every player has a body, a speed and a read, the back picks his ' +
+      'hole and his cuts, defenders take angles and try to bring him down, kickoff coverage runs in lanes against ' +
+      'the return team, and after a pick or a strip-sack the offense turns and chases. The All-22 shows how he got ' +
+      'where he got. The result of each play still comes from the engine you know, so winning and losing work as ' +
+      'before. Games played earlier keep their old replay.',
   },
   {
     version: '0.3.9',

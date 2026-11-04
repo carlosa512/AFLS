@@ -305,3 +305,16 @@ describe('save v84: talks kept by a signing', () => {
     expect(wr.morale!.jolts?.[0].kind).toBe('broken');
   });
 });
+
+describe('save v85', () => {
+  it('upgrades v84: your games on the field, games kept', () => {
+    const l = createLeague({ seed: 'v85' });
+    delete l.settings;
+    l.version = 84;
+    const before = JSON.stringify(l.games);
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(85);
+    expect(up.settings).toEqual({ spatialField: true });
+    expect(JSON.stringify(up.games)).toBe(before);
+  });
+});

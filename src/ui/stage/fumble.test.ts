@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath, pointAt } from './ballPath';
-import { bounce, fumbleIn } from './fumble';
+import { buildPath, pointAt } from '../../engine/field/ballPath';
+import { bounce, fumbleIn } from '../../engine/field/fumble';
 
 const play = (over: Partial<PlayLogEntry>): PlayLogEntry => ({
   quarter: 2,
