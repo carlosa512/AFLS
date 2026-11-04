@@ -52,6 +52,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 60: over 10, the
   #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four, and over 30 a
   change to moods alone (which reshuffles every game) moved overtime and the leaders' rows by a block's width.
+- `npm run sideline [-- games]` — out of bounds on catches, runs and scrambles by bucket (the clock, the side of the
+  field, the gain, the sticks) against nflverse 2021–25 (`scripts/research-sideline.py` measures the NFL), the clock
+  between snaps after a man goes out, and how far the league's men differ; AI games, fast (3,000 in under a minute).
+  Run it after changing `match/sideline.ts` or the out-of-bounds code in `match/gameSim.ts`; `npm run sim` judges the
+  same lines. Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -333,7 +338,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `pocketMoment.ts`). Today's rolls decide clean, pressure, hit, sack, scramble or throwaway; the field picks the
     rusher within today's group and the beaten blocker at today's spot (`FieldFacts.rg`/`bs`), and when and how. A
     scramble hands over to the open field (`scrambleStart`), a catch's open field starts from the pocket's last frame
-  - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
+  - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions) · `match/sideline.ts`
+    out of bounds as the carrier's choice: pushed out or stepped out as odds from the play, the clock and the men in
+    it (spec `docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md`); one draw in every game, the field
+    plays it out (`FieldFacts.oob` 1 pushed, 2 stepped)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'
