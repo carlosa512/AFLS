@@ -12,6 +12,7 @@ import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { playWeek } from '../src/engine/league';
+import { STAFF_ON } from '../src/engine/staffEdge';
 import { runField } from '../src/engine/field/run';
 import { KNOBS } from '../src/engine/field/tuning';
 import type { FieldStart } from '../src/engine/field/types';
@@ -90,6 +91,9 @@ function momentsWorker(n: number): MomentsDone {
 }
 
 function seasonWorker(n: number): SeasonDone {
+  // The field engine against today's on your team's season: the coaches' Sunday edge (L4) held at zero, since belief
+  // would feed the field's own head start back into the season (the owner's call, 2026-11-04).
+  STAFF_ON.on = false;
   const lines: SeasonDone['lines'] = [];
   for (let salt = n; salt < SALTS; salt += SEASON_WORKERS)
     for (const spatial of [false, true]) {

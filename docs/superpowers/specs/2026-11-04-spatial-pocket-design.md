@@ -117,7 +117,7 @@ instead of its own staging, so nobody jumps when the film hands over.
 - A replay re-runs the pocket from these and gets the same frames. A replay whose sacker would differ from the box
   score falls back to the drawn film (`FIELD_VERSION`, as after a refit).
 
-**Saves.** `SAVE_VERSION` 86: the facts and skills gain optional fields, with nothing to rewrite. `FIELD_VERSION` 7.
+**Saves.** `SAVE_VERSION` 87: the facts and skills gain optional fields, with nothing to rewrite. `FIELD_VERSION` 7.
 Games played earlier keep their drawn pocket.
 
 **The clock.** A sack's whistle comes at the field's sack time plus a fitted pad (`padSack`, as `padCatch`). A

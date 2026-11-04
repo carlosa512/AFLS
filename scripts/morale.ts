@@ -22,6 +22,11 @@
  * 10. Chemistry (L3): every room's edge centred on the league (worst room, worst week within ±0.02); Clicking and Out of
  *    sync each 10–30% of read rooms; a room whose Spark reads Poor or worse sits lower than one whose Spark reads Good or
  *    better; rooms with an Anchor spread less than rooms with only Sparks.
+ * 11. Backing the staff (L4): the staff edge centred on the league (worst room, worst week within ±0.02); 10–25% of
+ *    rooms doubt whoever runs their side at some point in a season, and 8% or fewer have lost him; rooms with a lawyer
+ *    voice doubt more often than rooms without; notices both kept and broken (kept 20–80%); AI clubs relieve
+ *    coordinators in season at the NFL's rate, every one a losing club whose side ranks in the bottom quarter, never
+ *    two in a club's season.
  *
  * 9. Disputes (G4): contract disputes started a season 3–12, holdouts 0.5–5, holdouts still out after week 1 at most 2,
  *    and none past the limit he gives in at (yours answered by the AI's rule, as for talks); trade requests (G4b) 3–15 a
@@ -54,6 +59,8 @@ import { activeRoster } from '../src/engine/roster';
 import { isCaptain, moraleStepOf as stepOf } from '../src/engine/morale';
 import { soundOf, tierOf, unitRead, unitReads, weightOf, type UnitWord } from '../src/engine/standing';
 import { CHEM_ROOMS, chemistryWeek, type ChemWord } from '../src/engine/chemistry';
+import { beliefOf, beliefRead, lawyerIn, runnerOf } from '../src/engine/belief';
+import { staffWeek } from '../src/engine/staffEdge';
 import { credibilityRead, setMeetingsByCoach } from '../src/engine/meetings';
 import { membersOf } from '../src/engine/meetings/suggest';
 import type { League, Phase, Player } from '../src/engine/types';
@@ -174,6 +181,50 @@ function chemistrySample(ctx: ReturnType<typeof moraleContext>) {
       if (sounds.includes('steadies')) anchorSd.push(spread);
       else if (sounds.includes('stirs')) sparkOnlySd.push(spread);
     }
+}
+
+// 11: backing the staff (L4), read every regular-season week.
+let staffOffCentre = 0;
+/** Each room's season (`season:team:room`): its worst read, and whether a lawyer voice was in it. */
+const roomSeasons = new Map<string, { worst: 'steady' | 'doubts' | 'lost'; lawyer: boolean }>();
+/** Open notices as of the last week, by `team:opened:coord`, and how they ended. */
+let openNotices = new Map<string, { team: number; scope: string; coord: number }>();
+let noticesKept = 0;
+let noticesBroken = 0;
+function staffSample() {
+  const week = staffWeek(league);
+  for (const unit of CHEM_ROOMS) {
+    const edges = league.teams.map((t) => week.get(`${t.id}:${unit}`)?.edge ?? 0);
+    staffOffCentre = Math.max(staffOffCentre, Math.abs(mean(edges)));
+  }
+  const ctx = moraleContext(league);
+  for (const t of league.teams)
+    for (const room of CHEM_ROOMS) {
+      const key = `${league.season}:${t.id}:${room}`;
+      const read = beliefRead(beliefOf(runnerOf(league, t.id, room), room));
+      const was = roomSeasons.get(key) ?? { worst: 'steady' as const, lawyer: false };
+      const worst =
+        read === 'lost' || was.worst === 'lost'
+          ? 'lost'
+          : read === 'doubts' || was.worst === 'doubts'
+            ? 'doubts'
+            : 'steady';
+      roomSeasons.set(key, { worst, lawyer: was.lawyer || !!lawyerIn(league, t.id, room, ctx) });
+    }
+  // Notices that closed since last week: kept if the man is gone or the room climbed out, as `isKept` reads it.
+  const now = new Map<string, { team: number; scope: string; coord: number }>();
+  for (const t of league.teams)
+    for (const c of t.meetings?.open ?? [])
+      if (c.backing === 'notice' && c.coord !== undefined && c.scope !== 'team')
+        now.set(`${t.id}:${c.opened}:${c.coord}`, { team: t.id, scope: c.scope, coord: c.coord });
+  for (const [k, n] of openNotices) {
+    if (now.has(k)) continue;
+    const runner = runnerOf(league, n.team, n.scope as (typeof CHEM_ROOMS)[number]);
+    const read = beliefRead(beliefOf(runner, n.scope as (typeof CHEM_ROOMS)[number]));
+    if (runner?.id !== n.coord || read === 'steady' || read === 'believes') noticesKept++;
+    else noticesBroken++;
+  }
+  openNotices = now;
 }
 
 function sample(atEnd: boolean) {
@@ -394,6 +445,7 @@ for (let s = 0; s < SEASONS; s++) {
     const regular = league.phase === 'regular';
     if (regular) effects();
     step(() => playWeek(league));
+    if (regular) staffSample();
     if (regular && week === 17) readTilts();
     if (regular && week === 9) sample(false);
     if (regular && week === 18) {
@@ -471,6 +523,51 @@ check(
   mean(anchorSd) / mean(sparkOnlySd),
   [0, 0.98],
 );
+const rs = [...roomSeasons.values()];
+const ofRooms = (f: (r: (typeof rs)[number]) => boolean, among = rs) =>
+  among.filter(f).length / Math.max(1, among.length);
+const withLawyer = rs.filter((r) => r.lawyer);
+const noLawyer = rs.filter((r) => !r.lawyer);
+const relieved = league.leadership.events.filter((e) => e.kind === 'coachRelieved' && e.teamId !== league.userTeamId);
+const fair = relieved.filter((e) => {
+  const m = e.report.match(/\((\d+)–(\d+)(?:–(\d+))?; (\d+)\w+ of (\d+)/);
+  if (!m) return false;
+  const [w, l, t, rank, n] = [m[1], m[2], m[3] ?? '0', m[4], m[5]].map(Number);
+  return (w + t / 2) / Math.max(1, w + l + t) <= 0.4 && rank > n * 0.75;
+});
+const perClubSeason = new Map<string, number>();
+for (const e of relieved) {
+  const k = `${e.date.season}:${e.teamId}`;
+  perClubSeason.set(k, (perClubSeason.get(k) ?? 0) + 1);
+}
+check('Staff edge: league mean (worst room, worst week)', staffOffCentre, [0, 0.02], 3);
+check(
+  `Belief: rooms in doubt at some point in a season (n=${rs.length})`,
+  ofRooms((r) => r.worst !== 'steady'),
+  [0.1, 0.25],
+);
+check(
+  'Belief: rooms that lost him',
+  ofRooms((r) => r.worst === 'lost'),
+  [0, 0.08],
+);
+check(
+  `Belief: rooms with a lawyer doubt more (n=${withLawyer.length}/${noLawyer.length})`,
+  ofRooms((r) => r.worst !== 'steady', withLawyer) - ofRooms((r) => r.worst !== 'steady', noLawyer),
+  [0.01, 1],
+);
+check(
+  `Notice: kept share (kept ${noticesKept}, broken ${noticesBroken})`,
+  noticesKept / Math.max(1, noticesKept + noticesBroken),
+  [0.2, 0.8],
+);
+check(`AI clubs relieved coordinators a season (${relieved.length} in ${SEASONS})`, relieved.length / SEASONS, [1, 3]);
+check(
+  '…every one a losing club whose side ranks in the bottom quarter',
+  fair.length / Math.max(1, relieved.length),
+  [1, 1],
+);
+check('…most in one club’s season', Math.max(0, ...perClubSeason.values()), [0, 1], 0);
 check(`Growth tilt: league mean late in the season (n=${tilts.length})`, mean(tilts), [-0.01, 0.01], 4);
 check(
   `Growth tilt: Good or better minus Poor or worse (n=${tiltUp.length}, ${tiltDown.length})`,

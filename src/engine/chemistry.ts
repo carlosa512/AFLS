@@ -6,10 +6,10 @@
 import { moodPull } from './moodScale';
 import { moraleClock, moraleContext, moraleMean } from './morale';
 import { clamp } from './rng';
-import { starters } from './roster';
+import { isAvailable, starters as startersOf } from './roster';
 import { unitRead, type Unit } from './standing';
 import { isDriven } from './meetings/react';
-import type { League, Player, Team } from './types';
+import type { League, Player, Position, Team } from './types';
 
 export type ChemRoom = Exclude<Unit, 'ST'>;
 export type ChemWord = 'Clicking' | 'Gelling' | 'Still learning each other' | 'Out of sync';
@@ -61,6 +61,8 @@ export function seasonsTogether(league: League, a: Player, b: Player, teamId: nu
 
 /** The pairs whose time together a room reads, from the depth chart as it is now. */
 function pairsOf(league: League, team: Team, unit: ChemRoom): [Player, Player][] {
+  // Only men who can play: `starters` falls back to hurt ones for strength reads when nobody healthy is left.
+  const starters = (l: League, t: Team, pos: Position) => startersOf(l, t, pos).filter(isAvailable);
   const all = (men: Player[]) => men.flatMap((a, i) => men.slice(i + 1).map((b): [Player, Player] => [a, b]));
   if (unit === 'OL') return all(starters(league, team, 'OL'));
   if (unit === 'DB') return all([...starters(league, team, 'CB'), ...starters(league, team, 'S')]);

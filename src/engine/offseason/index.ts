@@ -1,3 +1,4 @@
+import { beliefNewYear } from '../belief';
 import { meetingsStep } from '../meetings';
 import { moraleStep } from '../morale';
 import { lockVerdicts } from '../draftGrade';
@@ -123,6 +124,8 @@ export function beginOffseason(league: League): void {
 
   league.season++;
   ageGms(league);
+  // Rooms' belief in their coordinators carries into the new year at half (L4).
+  beliefNewYear(league);
   // The cap's path is drawn on its own stream: on the shared one, any change in what a season draws
   // reshuffled every later cap (a revenue shock landing or not), and the offseason audit's numbers with it.
   league.caps[league.season] = nextCap(new Rng(`${league.seed}:cap:${league.season}`), league.caps[last]);

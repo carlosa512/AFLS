@@ -80,7 +80,15 @@ import {
   coordinatorOf,
   coveringHeadCoach,
   setHeadCoachCover,
+  interimCandidates,
+  relieveProblem,
+  type Cover,
 } from '../../engine/coaching';
+import { SIDE_ROOMS } from '../../engine/belief';
+import { relieveCoordinator } from '../../engine/relieve';
+import { beliefFact } from '../../engine/roomFacts';
+import { beliefStaffLine } from '../../engine/roomVoice';
+import { viewContext } from '../../engine/morale';
 import { kickCoaching } from '../../engine/match/lineup';
 import { coachRecord, formatRecord } from '../../engine/records';
 import {
@@ -979,7 +987,10 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
     announce(`Extended ${name} for ${years(term)}.`, 'mine');
   };
   const pay = coachSeverance(league, c);
-  const why = expiring ? extendProblem : releaseProblem;
+  // In season a coordinator is relieved, not dismissed (L4): one button, its own block.
+  const inSeasonCoord =
+    (league.phase === 'preseason' || league.phase === 'regular') && (c.role === 'offCoord' || c.role === 'defCoord');
+  const why = expiring ? extendProblem : inSeasonCoord ? null : releaseProblem;
   const taker = expiring ? replaces(league, teamId, c) : null;
   const ask2 = coachAsk(league, c, 2);
   return (
@@ -1012,6 +1023,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         </span>
       </div>
       <SchemeRow league={league} c={c} compact />
+      {!theirs && <BeliefStaff league={league} c={c} />}
       {c.teamId !== null && <OwnerMandates league={league} teamId={c.teamId} coachId={c.id} />}
       <CoachTags c={c} />
       <VisionLine league={league} c={c} />
@@ -1071,7 +1083,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
             </button>
           </div>
         </>
-      ) : (
+      ) : inSeasonCoord ? null : (
         <div className="staff-actions">
           {confirming ? (
             <>
@@ -1113,6 +1125,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
           )}
         </div>
       )}
+      {!theirs && (league.phase === 'preseason' || league.phase === 'regular') && <Relieve league={league} c={c} />}
       {!theirs && open && why && (
         <p className="small muted staff-why">
           <CoachNote league={league} text={why} />
@@ -1967,7 +1980,14 @@ export function CoachesScreen({ league }: { league: League }) {
         <p className="visually-hidden" role="status" aria-live="polite">
           {status}
         </p>
-        {!open && <div className="notice">Coaching moves open in the re-sign window and free agency.</div>}
+        {!open && (
+          <div className="notice">
+            Coaching moves open in the re-sign window and free agency.
+            {league.phase === 'preseason' || league.phase === 'regular'
+              ? ' From camp through the regular season you can relieve a coordinator.'
+              : ''}
+          </div>
+        )}
 
         <Panel title="Coaching staff">
           <div className="facts">
@@ -2441,5 +2461,79 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
         )}
       </details>
     </Panel>
+  );
+}
+
+// ───────── backing the staff (L4) ─────────
+
+/** How your coordinator's rooms take him, in words; nothing when every room is steady. */
+function BeliefStaff({ league, c }: { league: League; c: Coach }) {
+  if (c.role !== 'offCoord' && c.role !== 'defCoord') return null;
+  const ctx = viewContext(league);
+  const facts = SIDE_ROOMS[c.role].flatMap((room) => {
+    const f = beliefFact(league, league.userTeamId, room, ctx);
+    return f ? [f] : [];
+  });
+  const line = beliefStaffLine(facts);
+  return line ? <p className="small staff-note belief-line">{line}</p> : null;
+}
+
+/**
+ * Relieve a coordinator in season (L4): who runs his side for the rest of it (the head coach, or a position coach who'd
+ * step up), the severance shown before you confirm, or why it can't be done.
+ */
+function Relieve({ league, c }: { league: League; c: Coach }) {
+  const [cover, setCover] = useState<Cover>('headCoach');
+  const [confirming, setConfirming] = useState(false);
+  const announce = useContext(Announce);
+  if (c.role !== 'offCoord' && c.role !== 'defCoord') return null;
+  const teamId = league.userTeamId;
+  const side = c.role === 'offCoord' ? 'offense' : 'defense';
+  const candidates = interimCandidates(league, teamId, c.role);
+  const problem = relieveProblem(league, teamId, c.id, cover);
+  const pay = coachSeverance(league, c);
+  const name = coachName(c);
+  const go = () => {
+    store.mutate((l) => relieveCoordinator(l, l.userTeamId, c.id, cover));
+    announce(`Relieved ${name}${pay > 0 ? `; ${money(pay)} severance booked` : ''}.`, 'mine');
+  };
+  return (
+    <div className="relieve">
+      {confirming && (
+        <div className="seg seg-sm" role="group" aria-label={`Who runs the ${side} if ${name} goes`}>
+          <button aria-pressed={cover === 'headCoach'} onClick={() => setCover('headCoach')}>
+            Head coach
+          </button>
+          {candidates.map((pc) => (
+            <button key={pc.id} aria-pressed={cover === pc.id} onClick={() => setCover(pc.id)}>
+              {pc.lastName} steps up
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="staff-actions">
+        {confirming ? (
+          <>
+            <button className="btn btn-sm btn-danger" disabled={!!problem} title={problem ?? undefined} onClick={go}>
+              {pay > 0 ? `Pay ${money(pay)} and relieve ${c.firstName}` : `Relieve ${c.firstName}`}
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setConfirming(false)}>
+              Keep him
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn btn-sm"
+            aria-label={`Relieve him${pay > 0 ? ` · ${money(pay)} severance` : ''}, ${name}`}
+            disabled={!!problem}
+            title={problem ?? undefined}
+            onClick={() => setConfirming(true)}
+          >
+            Relieve him{pay > 0 ? ` · ${money(pay)} severance` : ''}
+          </button>
+        )}
+      </div>
+      {problem && <p className="small muted staff-why">{problem}</p>}
+    </div>
   );
 }

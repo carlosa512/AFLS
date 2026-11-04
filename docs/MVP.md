@@ -3,7 +3,7 @@
 Alpha means every item below works end to end. Status was read off the code on 2026-10-20, at version 0.1.0.
 Each MVP item finished from here bumps the middle version number (`docs/VERSIONING.md`).
 
-**Score: 13 Done · 2 Partial · 0 Missing.**
+**Score: 15 Done · 0 Partial · 0 Missing.** Alpha (0.4.0).
 
 ## The season
 
@@ -38,11 +38,13 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       some Day 3 picks break out (`npm run careers`, `docs/research/draft-outcomes.md`).
 - [x] **10. Trades with AI teams** · **Done**: one judge for every deal, with pick charts, contract value and seller
       floors (`trade/judge.ts`, `value.ts`). `npm run trades` fails on lopsided deals and exploit probes.
-- [ ] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Partial**: their ratings (youth, veterans) drive
-      development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
-      windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). HC/OC/DC numeric ratings
-      still do not directly supply a general game-day quality edge; the special teams coordinator has one
-      (`specialTeamsEdge`).
+- [x] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Done** (0.4.0): their ratings (youth, veterans)
+      drive development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
+      windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). On Sunday a side's coach
+      lifts his rooms by up to ±0.2 rating points and the head coach every room by up to ±0.1, from their quality and how
+      far each room believes in them (`staffEdge.ts`, `belief.ts`); losses and a Locker-Room Lawyer wear belief down,
+      meetings answer it, and coordinators can be relieved in season, by you or by AI clubs at the NFL's rate
+      (`relieve.ts`). The special teams coordinator keeps his own edge (`specialTeamsEdge`).
 - [x] **12. AI teams that manage their rosters sensibly** · **Done** (0.2.0): AI front offices draft, sign, cut, trade
       and stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. Practice
       squads (`personnel/`, `docs/PRACTICE_SQUADS.md`), on for every new career, give them ready cover: waivers on a
@@ -259,3 +261,16 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       leagues: live trees 3.1, head coaches in a tree 0.24, hires from a tree 0.23, born 3.3; record carryover 0.30 a
       season on, 0.01 three on (NFL 0.34 and 0.18). **Left:** three-season carryover; owners' spending; contenders
       selling their stars (a trade-AI question); dead money from trading restructured players.
+
+## Follow-up: what the locker-room work left (0.3.10)
+
+- [ ] **Letters about meetings held before you arrived.** Meeting ids carry no club, so after a club change (or a save
+      loaded mid-season from before v82) the result letters for meetings already held that year can file. Put the club
+      in the ids and file only meetings held after you arrived (`meetings/mail.ts`).
+- [ ] **Spark and Anchor tags read the truth.** The tags come from `soundOf`, which reads true hidden traits, so a tag
+      can disagree with the personality our scouts show beside it. The L3 spec allows the tags; whether to gate them
+      on our read (as L1's "warns" line does) is the owner's call (`ui/screens/LockerRoom.tsx`, `roomFacts.chemFact`).
+- [ ] **All-22 stage tests pass only on their own world.** On main, `src/ui/stage/stage.test.ts` fails with seeds
+      stage-b, stage-c and stage-d (a steered defender reaching the carrier first, linemen engaged 0.978 against 0.98,
+      a quarterback past the line on a sack-fumble). L3 holds chemistry at zero there to keep the world those tests
+      were tuned on; the drawing bugs are All-22's.

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 // These read a man's own mood edge: each room's chemistry (L3) held at zero.
 import { NO_CHEM } from './chemistry';
+import { NO_STAFF } from './staffEdge';
 
 // Every lineup the sim builds, with the mean it was handed: the rebuild after an injury must get the kickoff's.
 const calls = vi.hoisted(() => [] as (number | undefined)[]);
@@ -38,7 +39,7 @@ describe('game day (G2)', () => {
   it('plays a happy man up and an unhappy one down, half a point at most', () => {
     const { l, team, qb, cb } = setup();
     const mean = moraleMean(l);
-    const lineup = buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM);
+    const lineup = buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM, NO_STAFF);
     expect(lineup.knocks.get(qb.id)).toBeCloseTo(-0.5 * moodPull(10, mean), 9);
     expect(lineup.knocks.get(cb.id)).toBeCloseTo(-0.5 * moodPull(-10, mean), 9);
     const plain = buildLineup(l, team);
@@ -55,7 +56,7 @@ describe('game day (G2)', () => {
     const { l, team, qb, cb } = setup();
     qb.morale = { level: 0, jolts: [] };
     cb.morale = { level: 0, jolts: [] };
-    expect([...buildLineup(l, team, new Set(), undefined, moraleMean(l), 0, NO_CHEM).knocks]).toEqual([
+    expect([...buildLineup(l, team, new Set(), undefined, moraleMean(l), 0, NO_CHEM, NO_STAFF).knocks]).toEqual([
       ...buildLineup(l, team).knocks,
     ]);
   });
@@ -70,7 +71,7 @@ describe('game day (G2)', () => {
     const mean = moraleMean(l);
     const knock = buildLineup(l, team).knocks.get(wr.id)!;
     expect(knock).toBeGreaterThan(0);
-    expect(buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM).knocks.get(wr.id)).toBeCloseTo(
+    expect(buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM, NO_STAFF).knocks.get(wr.id)).toBeCloseTo(
       knock - 0.5 * moodPull(10, mean),
       9,
     );
@@ -265,7 +266,7 @@ describe('disputes (G4)', () => {
   it('plays a man back from a holdout a point down his first week and half the next, on top of his mood', () => {
     const { l, team, qb } = setup();
     const mean = moraleMean(l);
-    const knock = () => buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM).knocks.get(qb.id) ?? 0;
+    const knock = () => buildLineup(l, team, new Set(), undefined, mean, 0, NO_CHEM, NO_STAFF).knocks.get(qb.id) ?? 0;
     const plain = knock();
     qb.morale!.rust = { season: l.season, week: l.week };
     expect(knock()).toBeCloseTo(plain + 1, 9);
