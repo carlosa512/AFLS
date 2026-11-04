@@ -76,7 +76,8 @@ export function relieveCoordinator(league: League, teamId: number, coachId: numb
  * The NFL does it about once or twice a year league-wide; `npm run morale` holds the rate to that.
  */
 export const RELIEVE = {
-  chance: 0.15,
+  // The owner's call (2026-11-04): at 0.15 the league relieved about ten a season, against the NFL's one or two.
+  chance: 0.08,
   /** The weeks it's on the table: not before a side has shown what it is, not in the last month. */
   from: 5,
   to: 14,

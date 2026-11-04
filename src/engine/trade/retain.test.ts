@@ -38,6 +38,14 @@ const second = () => {
   for (let w = 0; w < 4; w++) playWeek(l);
   return (secondBase = JSON.stringify(l));
 };
+let thirdBase: string | undefined;
+/** A third, for the closing test: two leagues' cases read half closing within a case of the bar, either side of it. */
+const third = () => {
+  if (thirdBase) return thirdBase;
+  const l = createLeague({ seed: 'retain-3' });
+  for (let w = 0; w < 4; w++) playWeek(l);
+  return (thirdBase = JSON.stringify(l));
+};
 const richest = (l: League, teamId: number) =>
   activeRoster(l, teamId)
     .filter((p) => p.contract)
@@ -102,18 +110,19 @@ describe('retained salary', () => {
     expect(judge(ctx, 4, kept).get).toBeGreaterThan(judge(ctx, 4, plain).get);
   });
 
-  it('gets a capped buyer his man, and is paid for the money it keeps in picks', { timeout: 30_000 }, () => {
+  it('gets a capped buyer his man, and is paid for the money it keeps in picks', { timeout: 60_000 }, () => {
     // Expiring veterans whose teams could keep more than they're worth (so next year's money is out
     // of it), each with a buyer that has the room and buys him outright.
-    // Two leagues: one opening league holds as few as four such players (its last-year deals paid past their market,
-    // fewer have a roomy buyer), too few to read half of them closing.
+    // Three leagues: one opening league holds as few as four such players (its last-year deals paid past their market,
+    // fewer have a roomy buyer), too few to read half of them closing; two read it within a case of the bar (the
+    // owner's call, 2026-11-04, when the staff edge reshuffled them: 6 of 14).
     const cases: { league: string; seller: number; player: number; buyer: number; floor: number }[] = [];
-    for (const league of [base, second()]) {
+    for (const league of [base, second(), third()]) {
       const l: League = JSON.parse(league);
       const ctx = tradeContext(l);
       for (const seller of l.teams.filter((t) => t.id !== l.userTeamId)) {
         for (const p of activeRoster(l, seller.id)) {
-          if (cases.length >= 8 * (league === base ? 1 : 2)) break;
+          if (cases.length >= 8 * (league === base ? 1 : league === secondBase ? 2 : 3)) break;
           if (!p.contract || playerTradeBlocker(l, p) || yearsLeft(p.contract, l.season) > 1) continue;
           const worth = marketValue(ctx, seller, p);
           if (worth <= 20 || POINTS_PER_K * maxRetain(l, p) < 1.5 * worth) continue;

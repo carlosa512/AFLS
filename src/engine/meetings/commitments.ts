@@ -1,6 +1,6 @@
 import { BELIEF, beliefOf, beliefRead, runnerOf, shiftBelief } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
-import { aiRelieveNow } from '../relieve';
+import { aiRelieveNow, onTheTable } from '../relieve';
 import { managesTeam } from '../employment';
 import { actualRole, addJolt, moraleContext, YEAR, type MoraleContext } from '../morale';
 import { STARTERS } from '../positions';
@@ -273,7 +273,14 @@ export function judgeCommitments(league: League): void {
           aiKeepChance(team.gm),
         );
         // A notice an AI club keeps, it keeps for real (L4): it relieves the man, or it's broken after all.
-        if (kept && c.backing === 'notice' && c.coord !== undefined) kept = aiRelieveNow(league, team.id, c.coord);
+        // Only when it's come to that (`onTheTable`: losing, his side among the worst, his rooms turned).
+        if (kept && c.backing === 'notice' && c.coord !== undefined) {
+          const role = league.coaches[c.coord]?.role;
+          kept =
+            (role === 'offCoord' || role === 'defCoord') &&
+            onTheTable(league, team.id, role) &&
+            aiRelieveNow(league, team.id, c.coord);
+        }
       }
       settle(league, team.id, c, kept, clock);
     }

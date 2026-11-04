@@ -13,10 +13,12 @@ import type { CoachRoom, Coach, League, MeetingRecord, Player } from './types';
 
 export const BELIEF = {
   drift: 0.975,
-  badGame: -0.06,
-  goodGame: 0.03,
-  loseStreak: -0.04,
-  winStreak: 0.02,
+  // Tuned in `npm run morale` (the owner's call, 2026-11-04): at −0.06 and −0.04 half the league's rooms doubted their
+  // coordinator at some point in a season. Winning heals half as fast as losing hurts.
+  badGame: -0.02,
+  goodGame: 0.01,
+  loseStreak: -0.02,
+  winStreak: 0.01,
   /** A lawyer who's a voice in the room makes a bad game's drop this many times as big; sour, half again. */
   lawyer: 3,
   sour: 1.5,

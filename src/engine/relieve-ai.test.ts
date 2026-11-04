@@ -130,8 +130,10 @@ describe('AI clubs relieve coordinators', () => {
   it('an AI notice kept by its GM is kept by relieving him', () => {
     const l = fresh();
     const t = AI(l);
+    // Only when it's come to that: losing, the offense among the worst, its rooms turned.
+    sink(l, t);
     const oc = runnerOf(l, t, 'OL')!;
-    oc.belief = { OL: -0.4 };
+    oc.belief = { QB: -0.4, RB: -0.4, WR: -0.4, OL: -0.4 };
     l.moraleAt ??= l.season * 32;
     const closes = l.moraleAt;
     // An opening clock whose draw keeps it (the AI's word at the window's end is its GM's draw).
@@ -154,5 +156,32 @@ describe('AI clubs relieve coordinators', () => {
     judgeCommitments(l);
     expect(oc.teamId).toBeNull();
     expect(l.leadership.events.some((e) => e.kind === 'coachRelieved' && e.coachId === oc.id)).toBe(true);
+  });
+
+  it('an AI notice kept by its GM at a club that is winning is broken, and nobody goes', () => {
+    const l = fresh();
+    const t = AI(l);
+    sink(l, t, 30, 3);
+    const oc = runnerOf(l, t, 'OL')!;
+    oc.belief = { QB: -0.4, RB: -0.4, WR: -0.4, OL: -0.4 };
+    l.moraleAt ??= l.season * 32;
+    const closes = l.moraleAt;
+    let opened = closes - 4;
+    while (
+      !new Rng(`${l.seed}:meeting:${l.season}:${closes}:${t}:commit:${opened}`).chance(aiKeepChance(l.teams[t].gm))
+    )
+      opened--;
+    meetingsOf(l.teams[t]).open.push({
+      backing: 'notice',
+      scope: 'OL',
+      opened,
+      closes,
+      named: [],
+      boughtIn: [],
+      by: 'coach',
+      coord: oc.id,
+    });
+    judgeCommitments(l);
+    expect(oc.teamId).toBe(t);
   });
 });

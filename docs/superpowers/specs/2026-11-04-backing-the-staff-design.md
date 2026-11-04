@@ -98,10 +98,10 @@ and playoffs). Nothing is drawn.
 | What | Change to each of his rooms | Starting value |
 |---|---|---|
 | Drift toward the middle | belief × `BELIEF.drift` | 0.975 |
-| A bad game on his side | `BELIEF.badGame` | −0.06 |
-| A good game on his side | `BELIEF.goodGame` (half a bad game's) | +0.03 |
-| Each week of a losing streak of three or more | `BELIEF.loseStreak` | −0.04 |
-| Each week of a winning streak of three or more | `BELIEF.winStreak` | +0.02 |
+| A bad game on his side | `BELIEF.badGame` | −0.02 (tuned from −0.06) |
+| A good game on his side | `BELIEF.goodGame` (half a bad game's) | +0.01 (tuned from +0.03) |
+| Each week of a losing streak of three or more | `BELIEF.loseStreak` | −0.02 (tuned from −0.04) |
+| Each week of a winning streak of three or more | `BELIEF.winStreak` | +0.01 (tuned from +0.02) |
 
 - **A bad game:** for the offense, a loss scoring 13 or fewer; for the defense, a loss allowing 30 or more; a loss by
   21 or more is a bad game for both sides.
@@ -210,7 +210,7 @@ gathers the recent seasons' list before tuning, and the band in §5.1 is set fro
     the points it allows (for the defensive one) in the league's bottom quarter;
   - his rooms have turned on him: most of them read `doubts` or worse, or a notice about him was broken.
 - **Then a draw** on its own stream (`${seed}:relieve:${season}:${week}:${teamId}`), each week it stays on the table:
-  `RELIEVE.chance` = 0.15 a week to start, raised by the GM's win-now and the heat on the head coach (a head coach on
+  `RELIEVE.chance` = 0.08 a week (tuned from 0.15), raised by the GM's win-now and the heat on the head coach (a head coach on
   the hot seat gives up a coordinator before he goes himself, `heatSoFar`), lowered by the GM's loyalty.
 - **At most one coordinator a club a season,** and none once the owner has let the head coach go this season (the
   interim makes his own staff).
