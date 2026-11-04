@@ -77,7 +77,8 @@ describe('the spatial replay', () => {
           flagged++;
           expect(stage(r, index, g.homeId).spatial).toBeDefined();
         }
-        if (e.field && e.loose !== undefined) {
+        // A lost fumble after a carry (a strip-sack's recovery is a turnover's own field).
+        if (e.field && e.loose !== undefined && e.kind !== 'sack') {
           fumbles++;
           const args = { plays: r.plays!, index, record: r.field!, homeId: g.homeId, seed: 'f', snapY: MID };
           expect(stageField(args)).toBeNull();

@@ -5,14 +5,15 @@ import type { GameResult } from '../types';
 import { MID } from './geometry';
 import { stagePlay } from './stage';
 
-// Week 1 of this league holds 31 interceptions and two lost strip-sacks.
+// Three weeks of this league (48 games): about sixty interceptions run back, and a few strip-sacks. One week's twenty
+// returns swing a share by 0.2 with nothing changed (the owner's call: judge the shares over three).
 const league = createLeague({ seed: 'field-engine' });
-const week1 = league.games.filter((g) => g.week === 1);
+const weeks = league.games.filter((g) => g.week <= 3);
 const turnovers: { r: GameResult; t: FieldTap; homeId: number }[] = [];
 // Played before the tests, one game at a time with a yield between: sixteen spatial games in one synchronous block
 // would starve vitest's worker of its own messages on a slow runner.
 beforeAll(async () => {
-  for (const g of week1) {
+  for (const g of weeks) {
     const taps: FieldTap[] = [];
     const r = simulateGame(league, g, { field: true, fieldTap: (t) => taps.push(t) });
     for (const t of taps) if (t.result && t.moment.kind === 'turnover') turnovers.push({ r, t, homeId: g.homeId });

@@ -25,7 +25,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'on the road to alpha is done.',
   },
   {
-    version: '0.3.11',
+    version: '0.3.12',
     date: '2026-11-04',
     title: 'Locker room touch-ups',
     text:
@@ -33,6 +33,15 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "talks with two players names them both. The head coach's season's-end report now tells a promise you made in " +
       'your own address to the team as yours, not his. And a hurt quarterback no longer counts toward how long the ' +
       'passing game has played together.',
+  },
+  {
+    version: '0.3.11',
+    date: '2026-11-04',
+    title: 'Out of bounds is out of bounds',
+    text:
+      'On the field under your games, a run or a catch that ends out of bounds now ends with the ball carrier stepping ' +
+      'out at his spot, a defender chasing him or coming at him, and nobody is credited with a tackle. A catch the ' +
+      'field ends with nobody on him no longer names a tackler either, just as a run already did.',
   },
   {
     version: '0.3.10',

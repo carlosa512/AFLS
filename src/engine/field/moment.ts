@@ -25,6 +25,8 @@ export interface FieldFacts {
   /** Today's result (the owner's call H): the credited yards (from the line, or a return's catch) and a touchdown. */
   to?: number;
   td?: 1;
+  /** Today's out-of-bounds call (with the switch on, drawn before the field): he goes out at his spot. */
+  oob?: 1;
 }
 
 export interface FieldMoment {
