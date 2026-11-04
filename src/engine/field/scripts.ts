@@ -464,6 +464,7 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
     }
     const L = dist(at, end);
     const pace = carryPace(L, caught, top, chaser);
+    const cutBreaks = kind === 'jumpCut' && habit('jumpCutter') && L > 3;
     if (habit('jumpCutter') && L > 3) {
       // The cut at the hole is a jump cut (not a broken tackle: no one's beaten by it). He makes it just past the line:
       // made at the hole, its step back took him behind the line and he crossed it a second time at 3.75 s.
@@ -474,7 +475,11 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       }
       const h = heading(at);
       const across = Math.sign(-h.y * (end.x - hole.x) + h.x * (end.y - hole.y)) || coin;
-      const cut = moveSegs('jumpCut', at, h, pace, across >= 0 ? 1 : -1).map(({ move: _, ...sg }) => sg);
+      // With a tackle broken by a move, the cut is that move (`pickMove` gives a jump-cutter his cut): no second one
+      // later, where a short carry would leave it no room.
+      const cut = moveSegs('jumpCut', at, h, pace, across >= 0 ? 1 : -1).map((sg) =>
+        cutBreaks ? sg : (({ move: _, ...rest }) => rest)(sg),
+      );
       out.push(...cut);
       at = { x: cut[cut.length - 1].x1, y: cut[cut.length - 1].y1 };
     } else if (e.open?.bounce && habit('bouncesExternal')) {
@@ -487,12 +492,14 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
     // The carry to the end: the broken tackle a few yards past the line, and the finish.
     const leg: Seg = { x0: at.x, y0: at.y, x1: end.x, y1: end.y, peak: 0, dur: 0 };
     const ahead = Math.max(0, past - (at.x - e.from) * dir);
-    const carried = withMove(
-      leg,
-      ahead,
-      pace,
-      out.reduce((t, sg) => t + sg.dur, 0),
-    );
+    const carried = cutBreaks
+      ? [paced(leg, pace)]
+      : withMove(
+          leg,
+          ahead,
+          pace,
+          out.reduce((t, sg) => t + sg.dur, 0),
+        );
     // The finish: a back who falls forward lunges the last yard as he's hit; one who shies from contact is hit a yard
     // short and slides into it; a thumper stops him where he hits him.
     const last = carried[carried.length - 1];
