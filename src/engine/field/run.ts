@@ -176,6 +176,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const spot = start.target;
   /** Past his spot with nobody on him: going down. */
   let sliding = false;
+  /** The man within reach as he nears his spot (-1: none). */
+  let closing = -1;
   /** Credited out of bounds: on his way out at the spot. */
   let goingOut = false;
   /** When his slide stopped him (-1: still moving). */
@@ -305,7 +307,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         const along = v > 0 ? Math.max(0, c.vx * dir) / v : 0;
         if (left() <= ((v * v) / (2 * FALL)) * along + PAST) {
           // A quarterback who slides gives himself up: down at his spot, nobody's tackle.
-          const d = spot.slide ? -1 : nearestFree(ANCHOR_REACH, now);
+          // The man who was closing keeps him while he's still within a stride of reach: a chaser a hair out of reach
+          // at the last step would leave him braking too late, past his spot.
+          let d = spot.slide ? -1 : nearestFree(ANCHOR_REACH, now);
+          if (d < 0 && closing >= 0 && dist(B[closing], c) <= ANCHOR_REACH + v * STEP) d = closing;
+          closing = d;
           if (d >= 0 && left() <= PAST) tackleBy(d, Math.max(0, left()), v);
           else if (d < 0) sliding = true;
         }

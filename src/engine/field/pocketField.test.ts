@@ -270,5 +270,22 @@ describe('the pocket', () => {
       }
       expect(won.size).toBeGreaterThan(1);
     });
+
+    it("anchors who gets home to today's group, and who lost him to today's spot", () => {
+      for (let k = 0; k < 30; k++) {
+        const outcome = (['pressure', 'hit', 'sack'] as const)[k % 3];
+        // Today's credit: an interior man, beaten at center (the field picks which tackle and how).
+        const st = pocketStartOf({
+          outcome,
+          throwAt: 2.4 + (k % 4) * 0.3,
+          end: 3.6,
+          sackX: 33,
+          want: { rushers: [31, 32], blockers: [12] },
+        });
+        const r = runPocket(st, new Rng(`anchor:${k}`));
+        expect([31, 32], `${outcome} ${k}`).toContain(r.rusher);
+        expect(r.beat, `${outcome} ${k}`).toBe(12);
+      }
+    });
   });
 });

@@ -59,7 +59,6 @@ export const KNOBS = {
   double: 0.411,
   padSack: 1.7,
   inside: 0.6,
-  lbRush: 0.01,
   chip: 0.3,
 };
 

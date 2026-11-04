@@ -2665,6 +2665,8 @@ class GameSim {
     o: { air?: number; to?: number; lane: number; ball?: number; cover?: number; take?: number },
     called: PocketOutcome,
     extra: Partial<FieldFacts> = {},
+    /** Today's man who got home (a sack's; a pressure's is `pressureBy`). */
+    todayBy: Player | null = this.pressureBy,
   ): { m: PocketMoment; staged: StagedPlay; start: PocketStart; result: PocketResult } | null {
     if (this.pocketNow) return this.pocketNow;
     if (!this.fielding || !this.fieldRecord) return null;
@@ -2688,7 +2690,13 @@ class GameSim {
       ...(o.take !== undefined ? { take: o.take } : {}),
       call: this.callNow ?? 'base',
       ...(this.designedShot ? { shot: 1 as const } : {}),
-      facts: { y: this.fieldY, ...extra, pk: outcome, ...(nb ? { nb: 1 as const } : {}) },
+      facts: {
+        y: this.fieldY,
+        ...extra,
+        pk: outcome,
+        ...(nb ? { nb: 1 as const } : {}),
+        ...this.pocketAnchor(outcome, nb, todayBy, stream('spot')),
+      },
     };
     const staged = pocketStage(m, this.fieldRecord, this.game.homeId, this.gameSeed);
     const pocket =
@@ -2706,6 +2714,24 @@ class GameSim {
     if (this.options.field && this.fieldSnap) noteSkills(this.fieldSnap, pocket.start, index);
     this.pocketNow = { m, staged: composePocket(staged, pocket), ...pocket };
     return this.pocketNow;
+  }
+
+  /**
+   * Today's credit as the pocket's anchor: the group of today's man who got home, and the spot of the blocker today's
+   * rule charges with him (`blockerFor`, on the play's own stream at today's odds). The field picks the men within them.
+   */
+  private pocketAnchor(outcome: PocketOutcome, nb: boolean, by: Player | null, rng: Rng): Partial<FieldFacts> {
+    if (!by || outcome === 'clean' || outcome === 'escape') return {};
+    const rg = by.position === 'EDGE' ? 'e' : by.position === 'DT' ? 'i' : by.position === 'LB' ? 'l' : 'd';
+    if (nb) return { rg };
+    const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
+    const b = blockerFor(off, def, by, this.callNow === 'blitz', rng);
+    if (!b) return { rg };
+    const k = off.ol.indexOf(b);
+    const n = off.ol.length;
+    const bs = k < 0 ? 'b' : k === 0 || k === n - 1 ? 't' : k === 1 || k === n - 2 ? 'g' : 'c';
+    return { rg, bs };
   }
 
   /** The pocket's credit, with the switch on: who got home, who lost him, whether he hit him, whether it's charged. */
@@ -3380,7 +3406,12 @@ class GameSim {
           ...(outEarly ? { oob: 1 as const } : {}),
           // The pocket it came out of, as the log keeps it (with the switch on).
           ...(this.options.field && this.pocketNow
-            ? { pk: this.pocketNow.m.facts.pk, ...(this.pocketNow.m.facts.nb ? { nb: 1 as const } : {}) }
+            ? (({ pk, nb, rg, bs }) => ({
+                pk,
+                ...(nb ? { nb } : {}),
+                ...(rg ? { rg } : {}),
+                ...(bs ? { bs } : {}),
+              }))(this.pocketNow.m.facts)
             : {}),
         },
       };
@@ -3672,7 +3703,7 @@ class GameSim {
     // pocket plays it (not a strip-sack lost: the turnover's own field takes that ball) and its man has the sack.
     const pocket = lost
       ? null
-      : this.pocketFor('sack', { to: this.fieldX(this.offense, this.yardLine - loss), lane: 0 }, 'sack');
+      : this.pocketFor('sack', { to: this.fieldX(this.offense, this.yardLine - loss), lane: 0 }, 'sack', {}, sacker0);
     const pocketBy = this.pocketCredit();
     const sacker = pocketBy?.rusher ?? sacker0;
     if (pocket) this.pocketToday = { ...this.pocketToday, rusher: null, beat: null, hit: true, blamed: true, duration };

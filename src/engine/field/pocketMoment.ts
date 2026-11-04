@@ -150,8 +150,7 @@ export function pocketFrom(
   const plan = staged.pocket;
   const outcome = m.facts.pk;
   if (!cast || !plan || !outcome) return null;
-  // The protection's call, each on its own stream: the slide's side; on a straight rush a back who stays in to chip,
-  // and a linebacker who comes late (the pressure today's roll already counts, put on a man the play can show).
+  // The protection's call on its own stream: the slide's side.
   const side = new Rng(`${gameSeed}:field:${m.index}:slide`).next() < 0.5 ? -1 : 1;
   const straight = staged.call !== 'blitz';
   const ofRole = (role: string, offense: boolean) =>
@@ -165,18 +164,35 @@ export function pocketFrom(
       (b, id) => (b === undefined || Math.abs(yOf(id) - qbY) < Math.abs(yOf(b) - qbY) ? id : b),
       undefined,
     );
-  const chipDraw = new Rng(`${gameSeed}:field:${m.index}:chip`).next();
-  const lbDraw = new Rng(`${gameSeed}:field:${m.index}:lb`).next();
-  const chip =
-    straight && chipDraw < KNOBS.chip
-      ? nearest(ofRole('RB', true).filter((id) => !cast.blockers.includes(id)))
+  // A back may stay in to chip; today's credit on a back or tight end keeps one in, and on a linebacker or a defensive
+  // back sends one (late, on a straight rush) when the play has none coming.
+  const { rg, bs } = m.facts;
+  const roleOf = (id: number) => staged.roles[staged.ids.indexOf(id)];
+  const keptIn = (ids: number[]) => ids.filter((id) => !cast.blockers.includes(id));
+  let chip =
+    straight && new Rng(`${gameSeed}:field:${m.index}:chip`).next() < KNOBS.chip
+      ? nearest(keptIn(ofRole('RB', true)))
       : undefined;
-  const late =
-    straight && lbDraw < KNOBS.lbRush
-      ? nearest(ofRole('LB', false).filter((id) => !cast.rushers.includes(id)))
-      : undefined;
+  if (bs === 'b' && chip === undefined && cast.blockers.every((id) => roleOf(id) === 'OL'))
+    chip = nearest(keptIn(ofRole('RB', true))) ?? nearest(keptIn(ofRole('TE', true)));
   if (chip !== undefined) cast.blockers.push(chip);
+  const groupRoles = rg === 'l' ? ['LB'] : rg === 'd' ? ['S', 'CB'] : rg === 'e' ? ['EDGE'] : rg === 'i' ? ['DT'] : [];
+  let late: number | undefined;
+  if ((rg === 'l' || rg === 'd') && !cast.rushers.some((id) => groupRoles.includes(roleOf(id))))
+    late = nearest(groupRoles.flatMap((r) => ofRole(r, false)).filter((id) => !cast.rushers.includes(id)));
   if (late !== undefined) cast.rushers.push(late);
+  // The anchor: today's group may get home, today's spot may lose him (across the line by where they stand: the ends
+  // are the tackles, then the guards, the middle man the center).
+  const line = cast.blockers.filter((id) => roleOf(id) === 'OL').sort((a, b) => yOf(a) - yOf(b));
+  const spot = (id: number) => {
+    const k = line.indexOf(id);
+    if (k < 0) return 'b';
+    return k === 0 || k === line.length - 1 ? 't' : k === 1 || k === line.length - 2 ? 'g' : 'c';
+  };
+  const want: PocketStart['want'] = {
+    ...(rg ? { rushers: cast.rushers.filter((id) => groupRoles.includes(roleOf(id))) } : {}),
+    ...(bs ? { blockers: cast.blockers.filter((id) => spot(id) === bs) } : {}),
+  };
   const players: FieldPlayer[] = [];
   for (const id of [cast.qb, ...cast.blockers, ...cast.rushers]) {
     const k = staged.ids.indexOf(id);
@@ -219,6 +235,7 @@ export function pocketFrom(
     slide: side,
     ...(chip !== undefined ? { chip } : {}),
     ...(late !== undefined ? { delayed: [late] } : {}),
+    ...(rg || bs ? { want } : {}),
     setDepth: plan.setDepth,
     throwAt,
     end,

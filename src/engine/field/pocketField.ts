@@ -43,6 +43,8 @@ export interface PocketStart {
   chip?: number;
   /** Rushers who hold a beat before they come (a linebacker's delayed rush): free once they go. */
   delayed?: number[];
+  /** Today's credit, as the anchor: who may get home (his group) and who may lose him (the spot). */
+  want?: { rushers?: number[]; blockers?: number[] };
 }
 
 export interface PocketResult {
@@ -226,10 +228,37 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const q = B[qi];
 
   const reach = (ri: number) => Math.hypot(q.x - B[ri].x, q.y - B[ri].y) / B[ri].top + SHED;
-  const choose = (ri: number, t: number) => {
+  // Today's credit, kept only when the pocket has one of its men (else the field picks freely).
+  const present = (ids: number[] | undefined, among: readonly number[]) => {
+    const got = (ids ?? []).map((id) => index.get(id)!).filter((i) => i !== undefined && among.includes(i));
+    return got.length ? new Set(got) : null;
+  };
+  const wantR = present(start.want?.rushers, rushing);
+  const wantB = start.blamed
+    ? present(
+        start.want?.blockers,
+        start.blockers.map((id) => index.get(id)!),
+      )
+    : null;
+  /** A man today's credit lets get home. */
+  const may = (ri: number) => !wantR || wantR.has(ri);
+  const choose = (ri: number, t: number, loser = on[ri]) => {
     chosen = ri;
     if (wonAt[ri] < 0) wonAt[ri] = t;
-    if (on[ri] >= 0) lostTo[ri] = on[ri];
+    if (loser >= 0) lostTo[ri] = loser;
+    // Today's spot charged: the man at it who lost him, or (a free man, a slide the wrong way) the nearest of them, who
+    // was his to pick up.
+    if (wantB && !wantB.has(lostTo[ri])) {
+      let best = -1;
+      for (const bi of wantB)
+        if (
+          bi !== undefined &&
+          (best < 0 ||
+            Math.hypot(B[bi].x - B[ri].x, B[bi].y - B[ri].y) < Math.hypot(B[best].x - B[ri].x, B[best].y - B[ri].y))
+        )
+          best = bi;
+      if (best >= 0) lostTo[ri] = best;
+    }
     on[ri] = -1;
   };
 
@@ -246,26 +275,39 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       const bi = on[ri];
       if (bi < 0 || wonAt[ri] >= 0) continue;
       const pWin = winChance(P[ri], P[bi], helper[ri] >= 0, t);
+      if (!may(ri)) continue;
       if (pWin > bestRate) [best, bestRate] = [ri, pWin];
       odds.push([ri, pWin]);
       if (roll >= pWin) continue;
-      // A win today's outcome wants: the first in time to get there; any other is held off.
+      // A win today's outcome wants: the first in time to get there by a man today's credit allows, lost by a man at
+      // today's spot; any other is held off. A doubled rep is lost by either man: the helper half the time (the low
+      // half of the winning roll), or whichever of the two is at the spot.
       if (arrive !== undefined && chosen < 0 && reach(ri) <= homeT - t + 0.3) {
-        choose(ri, t);
-        // A doubled rep is lost by either man: the helper half the time (the low half of the winning roll).
-        if (helper[ri] >= 0 && roll < pWin / 2) lostTo[ri] = helper[ri];
+        const both = helper[ri] >= 0 ? [bi, helper[ri]] : [bi];
+        const at = wantB ? both.filter((b) => wantB.has(b)) : both;
+        if (!at.length) continue;
+        choose(ri, t, at.length > 1 && roll < pWin / 2 ? at[1] : at[0]);
       }
     }
     // A free man the outcome can use: from the snap, or a delayed one once he's gone.
     if (arrive !== undefined && chosen < 0)
       for (const ri of [...free.map((r) => index.get(r)!), ...late.filter(() => t >= DELAY)]) {
-        if (reach(ri) <= homeT - t + 0.3) {
+        if (may(ri) && reach(ri) <= homeT - t + 0.3) {
           choose(ri, Math.max(0, wonAt[ri]));
           break;
         }
       }
     // Nobody won in time: a rep is won as late as still gets him there, drawn by its odds among those that still can
     // (the best rusher most often, not always).
+    // Today's group has nobody engaged (a free man held up, a late one not gone yet): its free man is sent in time.
+    if (arrive !== undefined && chosen < 0 && best < 0 && wantR) {
+      const ready = [...free.map((r) => index.get(r)!), ...late].filter((ri) => may(ri));
+      if (ready.length && homeT - t <= Math.min(...ready.map(reach)) + (outcome === 'sack' ? 0 : FEEL))
+        choose(
+          ready.reduce((a, b) => (reach(b) < reach(a) ? b : a)),
+          t,
+        );
+    }
     if (arrive !== undefined && chosen < 0 && best >= 0) {
       const need = reach(best) + (outcome === 'sack' ? 0 : FEEL);
       if (homeT - t <= need) {

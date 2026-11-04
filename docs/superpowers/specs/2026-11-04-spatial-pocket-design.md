@@ -1,6 +1,6 @@
 # The spatial engine, slice two: the pocket (and the clock and ends in the viewer)
 
-**Status:** written for the owner's review, 2026-11-04. Next: the implementation plan (superpowers:writing-plans).
+**Status:** the pocket is built (2026-11-04). The viewer's clock, timeouts and ends (§4) are left for a later pass.
 
 ## Why
 
@@ -36,8 +36,10 @@ game credits the field's sacker and beaten blocker instead.
 
 **The field decides** (its own stream per play, `${seed}:field:${index}:pocket`, told today's outcome):
 
-- which rusher got home: sacks, pressures and hits are credited to him;
-- which blocker lost him: sacks and pressures allowed;
+- which rusher got home, within the group today's credit picks (edge, interior, linebacker, defensive back): sacks,
+  pressures and hits are credited to him;
+- which blocker lost him, at the spot today's rule charges (tackle, guard, center, a back or tight end; `blockerFor`
+  on the play's own stream): sacks and pressures allowed;
 - when: a sack's play time follows the film (§4);
 - how the quarterback moved, and on a scramble, where he broke out.
 
@@ -58,6 +60,13 @@ Receivers and coverage keep the stager's routes until the routes slice.
 **AI games, the switch off and the tap alone** keep today's game exactly (the same rule and tests as slice one).
 
 ## 2. The trenches
+
+**The anchor (the owner's call, after the first fits).** Free choice of rusher and blocker left the shares by group
+and by spot outside today's after three fits (linebackers and centers too rarely charged, edges and tackles too
+often). The field now keeps today's group and spot and chooses the man within them. When today's group has nobody
+rushing (a linebacker on a straight rush) its nearest man comes late; when today's spot is a back and none stayed in,
+the nearest back or tight end stays in to chip. On every dropback the man over the ball slides to a side drawn on its
+own stream, and on a straight rush a back stays in to chip at a fitted rate (`chip`).
 
 **Matchups at the snap.** Protection follows the scheme's spots, the same assignments that today charge a blocker
 (`blockerFor`): the right end takes the left tackle, the inside rushers take the guards and the center. A lineman with

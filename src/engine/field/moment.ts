@@ -33,6 +33,10 @@ export interface FieldFacts {
   nb?: 1;
   /** A scramble that ends with him sliding (today's call): down at his spot, nobody's tackle. */
   sl?: 1;
+  /** Today's credit the pocket is anchored to: the rusher's group (edge, interior, linebacker, defensive back) and the
+   * beaten blocker's spot (tackle, guard, center, a back or tight end). The field picks the man within them. */
+  rg?: 'e' | 'i' | 'l' | 'd';
+  bs?: 't' | 'g' | 'c' | 'b';
 }
 
 export interface FieldMoment {
