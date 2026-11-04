@@ -25,6 +25,9 @@ import {
 } from './tuning';
 import type { FieldResult, FieldStart } from './types';
 
+/** A man run out of bounds slows toward the sideline for the man running him out, to no less than this share of his
+ * top speed (the yards and the spot are today's: only the film's timing moves). */
+const RUN_DOWN = 0.6;
 /** How long the film runs on past a touchdown or a man going out of bounds, and past a pile settling (seconds). */
 const COAST = { touchdown: 0.5, out: 0.4, tackle: 0.2 };
 /** A blocker downfield takes men this close to the carrier's line (yards), and engages at this distance. */
@@ -248,7 +251,15 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           goingOut = true;
           const side = c.y < MID ? -1.5 : FIELD_W + 1.5;
           const u = Math.hypot(spot.x + dir * 0.5 - c.x, side - c.y) || 1;
-          want = { vx: ((spot.x + dir * 0.5 - c.x) / u) * B[ci].top, vy: ((side - c.y) / u) * B[ci].top };
+          // Run out by a man still coming: he doesn't outrun him to the sideline by more than a step (never under
+          // RUN_DOWN of his top speed), so the film shows the man who ran him out on him as he crosses.
+          let pace = B[ci].top;
+          if (escort >= 0 && !spot.stepped) {
+            const a = escortAim();
+            const theirs = Math.hypot(a.x - B[escort].x, a.y - B[escort].y) / Math.max(1, B[escort].top);
+            pace = Math.max(B[ci].top * RUN_DOWN, Math.min(B[ci].top, u / Math.max(0.2, theirs - STEP)));
+          }
+          want = { vx: ((spot.x + dir * 0.5 - c.x) / u) * pace, vy: ((side - c.y) / u) * pace };
         } else if (t >= nextRead) {
           want = readField(c, reader(t), rng);
           nextRead = t + every;
@@ -485,7 +496,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const c = B[ci];
       const g = Math.hypot(a.x - d.x, a.y - d.y) || 1;
       const theirs = Math.hypot(e.x - c.x, e.y - c.y) / Math.max(1, Math.hypot(c.vx, c.vy), c.top * 0.5);
-      const pace = Math.min(d.top, g / Math.max(0.2, theirs) + 1);
+      // Running him out, he comes flat out (the carrier waits for him); a man stepping out he only shadows.
+      const pace = spot.stepped ? Math.min(d.top, g / Math.max(0.2, theirs) + 1) : d.top;
       return stepBody(d, { vx: ((a.x - d.x) / g) * pace, vy: ((a.y - d.y) / g) * pace }, STEP);
     }
     const behind = (B[ci].x - d.x) * dir > 10;

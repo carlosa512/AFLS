@@ -298,6 +298,23 @@ describe('the open field', () => {
     }
   });
 
+  it('a man pushed out from open field is run down by his escort before he crosses', () => {
+    // A back loose down the sideline, credited twenty yards and pushed out; the nearest defender twelve yards inside.
+    for (const seed of ['run-down-1', 'run-down-2', 'run-down-3', 'run-down-4']) {
+      const players = [man(1, 0, 'RB', 30, 8, { vx: 7 }), man(31, 1, 'S', 34, 20, { vx: 2 })];
+      const start = startOf({ players, target: { x: 50, touchdown: false, out: true } });
+      const r = runField(start, new Rng(seed));
+      expect(r.outOfBounds, seed).toBe(true);
+      const steps = r.frames.length / (players.length * 2);
+      let s = 0;
+      while (s < steps - 1 && at(start, r.frames, s, 0).y > 0) s++;
+      const c = at(start, r.frames, s, 0);
+      const d = at(start, r.frames, s, 1);
+      // Not alone (the film check's five yards): the man running him out is on him as he crosses.
+      expect(Math.hypot(c.x - d.x, c.y - d.y), seed).toBeLessThan(5);
+    }
+  });
+
   it('a stepped-out man in the hurry-up gets no escort; in normal play the escort still closes', () => {
     // The tight end near the sideline, credited fifteen yards and stepping out; a safety eight yards inside.
     const gapAtCrossing = (seed: string, hurry: boolean) => {

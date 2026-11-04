@@ -75,7 +75,8 @@ export const SIDELINE_NFL: Record<Kind, Record<string, [out: number, pushed: num
 /** Totals are judged tighter than buckets (spec §6). */
 const TOTAL = 'all';
 /** The real spread between players, sd ÷ average of each man's stepped-out share. */
-const SPREAD_NFL: Record<Kind, number> = { catch: 0.49, run: 0.93, scramble: 0.39 };
+/** Runs: backs only (quarterbacks' designed runs out), as the engine's side reads each club's top back. */
+const SPREAD_NFL: Record<Kind, number> = { catch: 0.49, run: 0.65, scramble: 0.39 };
 /** Game clock between snaps, a tackle in bounds less out of bounds, Q1–Q3 normal play (seconds). */
 const CLOCK_GAP_NFL = { catch: 4.0, run: 2.6 };
 
@@ -208,11 +209,14 @@ export function judgeSideline(t: SidelineTally): Line[] {
       if (split) parts.push(['pushed', c.pushed, nfl[1]], ['stepped', c.stepped, nfl[2]]);
       for (const [what, k, real] of parts) {
         const tol = b === TOTAL ? 1.5 : Math.max(3, 0.2 * real);
+        // Too few plays to judge: luck alone moves the share by more than the tolerance allows (3.5 standard errors: a judged line fails by luck about once in 2,000).
+        const se = 100 * Math.sqrt(((real / 100) * (1 - real / 100)) / Math.max(1, c.n));
         lines.push({
           label: `${NAMES[kind]}, ${b}: ${what} %`,
           value: pct(k, c.n),
           range: [Math.max(0, real - tol), real + tol],
-          note: `NFL ${real} (n=${c.n})`,
+          note: `NFL ${real} (n=${c.n})${tol < 3.5 * se ? ', too few to judge' : ''}`,
+          ...(tol < 3.5 * se ? { info: true } : {}),
         });
       }
     }
@@ -255,7 +259,7 @@ function facts(kind: SidelineKind, p: League['players'][number]): SidelineFacts 
 }
 
 /** How far the league's men differ: each man's stepped-out share (pushed odds out) at a typical moment, sd ÷ mean,
- * against the NFL's real spread ± 30%. Every club's top three receivers and top tight end (catches), top back (runs)
+ * against the NFL's real spread ± 30%. Every club's top three receivers and top tight end (catches), top two backs (runs; the NFL's 100-carry list holds backups too)
  * and starting quarterback (scrambles). */
 export function spreadLines(league: League): Line[] {
   const groups: Record<Kind, number[]> = { catch: [], run: [], scramble: [] };
@@ -271,7 +275,7 @@ export function spreadLines(league: League): Line[] {
         .sort((a, b) => playerOvr(b) - playerOvr(a))
         .slice(0, n);
     for (const p of [...top('WR', 3), ...top('TE', 1)]) groups.catch.push(share('catch', p));
-    for (const p of top('RB', 1)) groups.run.push(share('run', p));
+    for (const p of top('RB', 2)) groups.run.push(share('run', p));
     for (const p of top('QB', 1)) groups.scramble.push(share('scramble', p));
   }
   return (Object.keys(groups) as Kind[]).map((k) => {

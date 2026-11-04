@@ -391,6 +391,18 @@ const DT_WRAP_PER_POINT = 0.05;
 const avgOf = (ps: readonly Player[], f: (p: Player) => number) =>
   ps.length ? ps.reduce((n, p) => n + f(p), 0) / ps.length : DT_WRAP;
 
+/**
+ * A contact fumble's base chance on a run and on a catch tackled in bounds. A ball loose at the sideline goes out and
+ * stays the offense's, so every lost fumble happens in bounds; out of bounds rolls none (`sideline.ts`), and the
+ * in-bounds chance carries the league's (was 0.013 and 0.0065 over every tackle; about 5% of tackled runs and 17% of
+ * tackled catches go out).
+ */
+const RUN_FUMBLE = 0.0146;
+const CATCH_FUMBLE = 0.0086;
+
+/** Separation (receiver against cover man, rating points) past which a catch has nobody near him (`sideline.ts`). */
+const FREE_SEP = 4;
+
 /** A flag thrown during a play: the foul, who drew it, and how far downfield a spot foul happened. */
 interface LiveFoul {
   foul: Foul;
@@ -2144,10 +2156,12 @@ class GameSim {
               ? this.rng.int(8, 16)
               : t === 'milk'
                 ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-                : // 28–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
+                : // 29–39 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
                   // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
                   // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
-                  this.rng.int(28, 38),
+                  // 28–38 until 0.4.3: the clock now waits only for the spot after a man goes out of bounds
+                  // (`coach.afterOutOfBounds`), and the play that freed up let the stronger side win more often.
+                  this.rng.int(29, 39),
         ),
       );
     }
@@ -2534,8 +2548,8 @@ class GameSim {
       wide: Math.min(1, Math.abs(o.lane)),
       run: o.run,
       free: o.free,
-      // The clock only asks when going out stops it.
-      clock: !this.oobStopsClock() ? 'none' : tempo === 'hurry' ? 'out' : tempo === 'milk' ? 'in' : 'none',
+      // Hurrying, he steps out when it stops the clock; milking, he stays in whenever (a man out still waits for the spot).
+      clock: tempo === 'hurry' && this.oobStopsClock() ? 'out' : tempo === 'milk' ? 'in' : 'none',
       shortOfSticks: s.down >= 3 && o.gain < s.distance,
       edge: kind === 'run' && def.edge.length ? Math.max(...def.edge.map((p) => skill(p, 'setEdge'))) : TYPICAL.edge,
       carrier: {
@@ -3077,7 +3091,7 @@ class GameSim {
     // jarred loose at the sideline goes out with him and stays the offense's.
     const pFumble =
       tackler && call === 'in'
-        ? 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
+        ? RUN_FUMBLE * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
         : 0;
     if (tackler && call === 'in' && rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
@@ -3462,7 +3476,8 @@ class GameSim {
             chaser: tackler,
             lane,
             run: gain - air,
-            free: !!open.broke,
+            // Nobody near: he broke the tackle, or caught it well clear of his man (`sep`, in rating points).
+            free: !!open.broke || sep >= FREE_SEP,
             gain,
           })
         : null;
@@ -3564,7 +3579,9 @@ class GameSim {
       tackler &&
       call === 'in' &&
       rng.chance(
-        0.0065 * Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) * this.fumbleOdds(receiver, tackler, false),
+        CATCH_FUMBLE *
+          Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) *
+          this.fumbleOdds(receiver, tackler, false),
       )
     ) {
       buf.add(receiver, 'fumbles');

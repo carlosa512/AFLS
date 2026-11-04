@@ -28,7 +28,7 @@ COLS = ['game_id', 'play_id', 'drive', 'season', 'season_type', 'play_type', 'qb
         'complete_pass', 'touchdown', 'fumble_lost', 'penalty', 'timeout', 'two_point_attempt', 'aborted_play',
         'lateral_reception', 'lateral_rush', 'qtr', 'quarter_seconds_remaining', 'score_differential', 'yardline_100',
         'desc', 'pass_location', 'run_gap', 'air_yards', 'yards_after_catch', 'yards_gained', 'ydstogo', 'down',
-        'receiver_player_id', 'receiver_player_name', 'rusher_player_id', 'rusher_player_name',
+        'receiver_player_id', 'receiver_player_name', 'rusher_player_id', 'passer_player_id', 'rusher_player_name',
         'solo_tackle_1_player_id', 'assist_tackle_1_player_id']
 raw = pd.concat([pd.read_csv(f, usecols=COLS, low_memory=False) for f in sorted(root.glob('play_by_play_*.csv.gz'))])
 raw = raw[raw.season_type == 'REG'].sort_values(['game_id', 'play_id'])
@@ -104,12 +104,17 @@ tg = 2 * raw.game_id.nunique()
 print(f'\nPer team-game: catches out {catch.oob.sum()/tg:.2f}, runs {run.oob.sum()/tg:.2f}, scrambles {scr.oob.sum()/tg:.2f}')
 
 print('\n== Between players (normal play; stepped-out share, its spread net of luck)')
+passers = set(raw[raw.play_type == 'pass'].groupby('passer_player_id').size().loc[lambda x: x >= 50].index)
 normal = p[~p.two_min]
 for title, d, who, name, minn in [
     ('sideline catches (150+)', normal[(normal.play_type == 'pass') & (normal.complete_pass == 1)
                                       & normal.pass_location.isin(['left', 'right'])], 'receiver_player_id', 'receiver_player_name', 150),
     ('runs to the end (100+)', normal[(normal.play_type == 'run') & (normal.qb_scramble != 1) & (normal.qb_kneel != 1)
                                      & (normal.run_gap == 'end')], 'rusher_player_id', 'rusher_player_name', 100),
+    # The engine's measure reads each club's top back: quarterbacks' designed runs (anyone who threw 50+ passes) out.
+    ("backs' runs to the end (100+)", normal[(normal.play_type == 'run') & (normal.qb_scramble != 1) & (normal.qb_kneel != 1)
+                                            & (normal.run_gap == 'end') & ~normal.rusher_player_id.isin(passers)],
+     'rusher_player_id', 'rusher_player_name', 100),
     ('scrambles (60+)', normal[(normal.play_type == 'run') & (normal.qb_scramble == 1)], 'rusher_player_id', 'rusher_player_name', 60),
 ]:
     gr = d.groupby(who).agg(n=('ran', 'size'), ran=('ran', 'mean'), nm=(name, 'first'))

@@ -15,7 +15,7 @@ import { clamp } from '../rng';
 import type { Position } from '../types';
 
 export type SidelineKind = 'run' | 'catch' | 'scramble';
-/** What the clock asks of him, only when going out stops it (`oobStopsClock`): out (hurrying), in (milking), none. */
+/** What the clock asks of him: out (hurrying, when going out stops it), in (milking), none. */
 export type ClockAsk = 'out' | 'in' | 'none';
 
 export interface SidelineCarrier {
@@ -73,14 +73,14 @@ type ByKind = Record<SidelineKind, number>;
 
 // ── Pushed out ──
 /** In the middle: catches 2.9%; inside runs 0.6%. Scrambles always head wide: 14.6% of them are pushed out. */
-const PUSH_BASE: ByKind = { catch: -4.1, run: -6.1, scramble: -1.77 };
+const PUSH_BASE: ByKind = { catch: -3.4, run: -6.1, scramble: -1.6 };
 /** At the sideline (`wide` 1): catches to the sideline 20.6%; outside runs 9.2%. */
-const PUSH_WIDE: ByKind = { catch: 3.9, run: 3.8, scramble: 0 };
-/** Per yard past four, to twenty: long gains drift to the sideline as the pursuit angles close (outside runs 4.3% with
+const PUSH_WIDE: ByKind = { catch: 2.55, run: 3.8, scramble: 0 };
+/** Per yard past four, to eighteen: long gains drift to the sideline as the pursuit angles close (outside runs 4.3% with
  * no gain, 26.0% at 10+, 38.0% at 20+; catches 11.9% / 17.8% / 26.6% by yards after the catch). */
-const PUSH_RUN: ByKind = { catch: 0.07, run: 0.1, scramble: 0 };
+const PUSH_RUN: ByKind = { catch: 0.09, run: 0.16, scramble: 0 };
 /** Protecting a lead late he cuts back inside: catches in the last 5:00 leading, 11.4% against 16.8%. */
-const PUSH_IN: ByKind = { catch: -0.45, run: -0.45, scramble: -0.2 };
+const PUSH_IN: ByKind = { catch: -0.2, run: -0.45, scramble: -0.5 };
 /** Per rating point: the chaser's angle runs him out, his tackle brings him down first; the carrier's speed gets him
  * to the edge; a good edge setter turns a run back inside before it reaches the sideline. */
 const PUSH_PURSUIT = 0.05;
@@ -92,36 +92,44 @@ const PUSH_HABIT = 0.3;
 
 // ── Stepped out (given not pushed) ──
 /** In the middle: catches 0.9%; inside runs 0.1%; scrambles 24.9% (21.3% of all, 14.6% pushed). */
-const STEP_BASE: ByKind = { catch: -4.6, run: -7.0, scramble: -1.1 };
+const STEP_BASE: ByKind = { catch: -4.25, run: -7.0, scramble: -1.22 };
 /** At the sideline: catches 8.8%; outside runs 2.1%. */
 const STEP_WIDE: ByKind = { catch: 2.3, run: 3.0, scramble: 0 };
-/** Per yard past four, to twenty, on the ground: a long run ends at the sideline with the pursuit there (outside runs:
+/** Per yard past four, to eighteen, on the ground: a long run ends at the sideline with the pursuit there (outside runs:
  * 0.6% stepped with no gain, 5.8% at 10+). */
-const STEP_GAIN: ByKind = { catch: 0, run: 0.08, scramble: 0.03 };
+const STEP_GAIN: ByKind = { catch: 0.06, run: 0.15, scramble: 0.03 };
 /** The clock wants it stopped and it stops: catches 5.0% → 9.2% hurrying, scrambles 20.8% → 26.1%. */
-const STEP_OUT: ByKind = { catch: 0.66, run: 0.3, scramble: 0.31 };
+const STEP_OUT: ByKind = { catch: 0.6, run: 0.3, scramble: 0.31 };
 /** The clock wants to run: protecting a lead, catches 4.5% (against 5.0%), outside runs 0.9% (2.0%), scrambles 12.8%. */
-const STEP_IN: ByKind = { catch: -0.1, run: -0.8, scramble: -0.6 };
+const STEP_IN: ByKind = { catch: -0.1, run: -0.8, scramble: -0.7 };
 /** Catches: tight ends and backs stay in and fight (Kelce 1%, Kittle 2%, Ekeler 1% against receivers' 7.9%). */
-const STEP_POS: Partial<Record<Position, number>> = { TE: -1.2, RB: -0.8 };
+const STEP_POS: Partial<Record<Position, number>> = { TE: -0.7, RB: -0.7 };
 /** A catch with the hit right there (two yards after it or fewer): stepped-out catches gain a median of one. */
 const STEP_ROOM_SHORT = 0.8;
-/** Room ahead and nobody on him: he keeps going. */
-const STEP_FREE = -2.0;
+/** Room ahead and nobody on him: he keeps going. On the ground the pursuit is still there at the end of a long run
+ * (outside runs of 10+ yards: 5.8% step out). */
+const STEP_FREE: ByKind = { catch: -2.0, run: -0.3, scramble: -1.0 };
+/** Nobody near him (a broken tackle, well clear of his man): nobody to run him out. */
+const PUSH_FREE = -0.5;
+/** Short of the sticks on 3rd or 4th he cuts back for the marker rather than get run out: catches 8.9% pushed out short
+ * of them against 18.2% past. */
+const PUSH_STICKS = -0.8;
+/** On the ground a long run ends near a sideline wherever it started: the lane widens a yard in forty-five past four. */
+const DRIFT = 45;
 /** Short of the sticks on 3rd or 4th he fights for the marker: 1.4% stepped against 7.1% past them. */
 const STEP_STICKS = -1.4;
 const STEP_HABITS: Partial<Record<QuirkId, number>> = {
-  contactAverse: 0.6,
+  contactAverse: 1.1,
   hearsFootsteps: 0.5,
   runsEastWest: 0.4,
-  finishesForward: -0.6,
+  finishesForward: -1.1,
   yacSlasher: -0.4,
   highKnee: -0.4,
 };
 /** A scrambler who bails early heads for the sideline, not the hit. */
-const STEP_BAILS = 0.4;
+const STEP_BAILS = 0.5;
 /** Per sd of weight for his position: big men stay in and fight. */
-const STEP_BUILD = -0.35;
+const STEP_BUILD = -0.45;
 /** Per point of energy under `TYPICAL.energy`: a worn man takes the sideline over the hit. */
 const STEP_TIRED = 0.03;
 /** Per injury this season and last: a man who's been hurt protects himself. */
@@ -134,19 +142,22 @@ const CREDIT_STEPPED_CATCH = 0.55;
 const CREDIT_STEPPED_FREE = 0.15;
 
 const logistic = (x: number) => 1 / (1 + Math.exp(-x));
-/** Yards past four, to twenty: the room term's reach. */
-const past4 = (run: number) => clamp(run, 0, 20) - 4;
+/** Yards past four, to eighteen: the room term's reach (past it a long gain is a long gain). */
+const past4 = (run: number) => clamp(run, 0, 18) - 4;
 
 export function sidelineOdds(f: SidelineFacts): SidelineOdds {
   const { kind, carrier: c, chaser: d } = f;
   // How hard he reads the clock: poise 10 reads it as the league does, a rattled man barely, a cool one sharper.
   const clockRead = (0.5 + c.poise / 20) * (c.has('noHuddle') ? NO_HUDDLE : 1);
 
-  let push = PUSH_BASE[kind] + PUSH_WIDE[kind] * f.wide + PUSH_RUN[kind] * past4(f.run);
+  const wide = kind === 'run' ? Math.min(1, f.wide + Math.max(0, past4(f.run)) / DRIFT) : f.wide;
+  let push = PUSH_BASE[kind] + PUSH_WIDE[kind] * wide + PUSH_RUN[kind] * past4(f.run);
   if (f.clock === 'in') push += PUSH_IN[kind];
+  if (f.shortOfSticks) push += PUSH_STICKS;
+  if (f.free) push += PUSH_FREE;
   push += PUSH_PURSUIT * (d.pursuit - TYPICAL.pursuit) + PUSH_TACKLING * (d.tackling - TYPICAL.tackling);
   push += PUSH_SPEED * (c.speed - TYPICAL.speed);
-  if (kind === 'run') push += PUSH_EDGE * (f.edge - TYPICAL.edge) * f.wide;
+  if (kind === 'run') push += PUSH_EDGE * (f.edge - TYPICAL.edge) * wide;
   for (const q of ['alleyCrusher', 'scraper', 'businessDecision'] as const) if (d.has(q)) push += PUSH_HABIT;
   if (d.has('thumper')) push -= PUSH_HABIT;
   if (c.has('runsEastWest')) push += PUSH_HABIT;
@@ -159,7 +170,7 @@ export function sidelineOdds(f: SidelineFacts): SidelineOdds {
     step += STEP_POS[c.position] ?? 0;
     if (f.run <= 2) step += STEP_ROOM_SHORT;
   }
-  if (f.free) step += STEP_FREE;
+  if (f.free) step += STEP_FREE[kind];
   if (f.shortOfSticks) step += STEP_STICKS;
   for (const [q, v] of Object.entries(STEP_HABITS) as [QuirkId, number][]) if (c.has(q)) step += v;
   if (kind === 'scramble' && c.has('bailsEarly')) step += STEP_BAILS;

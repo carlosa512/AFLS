@@ -1,5 +1,5 @@
 /**
- * `npm run sideline [-- games]`: out of bounds against the NFL's, fast. Plays AI games (no field) in two leagues and
+ * `npm run sideline [-- games]`: out of bounds against the NFL's, fast. Plays AI games (no field) across as many leagues as it takes and
  * judges the buckets, the clock gaps and the spread between players (`sideline-core.ts`). Run it after changing
  * `match/sideline.ts` or the out-of-bounds code in `match/gameSim.ts`; `npm run sim` judges the same lines.
  */
@@ -11,11 +11,14 @@ const GAMES = Number(process.argv[2] ?? 200);
 const tally = newSidelineTally();
 let spread = null as ReturnType<typeof spreadLines> | null;
 const t0 = Date.now();
-for (const seed of ['sideline-a', 'sideline-b']) {
+// As many leagues as the games asked for (a league's regular season is 272 games).
+let played = 0;
+for (let k = 0; played < GAMES; k++) {
+  const seed = `sideline-${k}`;
   const league = createLeague({ seed });
   spread ??= spreadLines(league);
-  const games = league.games.filter((g) => !g.playoffRound).slice(0, Math.ceil(GAMES / 2));
-  for (const g of games) {
+  for (const g of league.games.filter((g) => !g.playoffRound)) {
+    if (played++ >= GAMES) break;
     const r = simulateGame(league, g, { keepPlays: true, seed: `sideline:${seed}:${g.id}` });
     tallyGame(tally, r.plays!, g.homeId);
   }

@@ -64,7 +64,8 @@ interface FilmDone {
   /** Stepped out in normal play: nobody within 5 yd in the last second, of how many. */
   steppedAlone: number;
   stepped: number;
-  /** Pushed out: the nearest defender within 2 yd as he crosses, of how many. */
+  /** Pushed out: nobody within 5 yd in the last second, and the nearest within 2 yd then (reported), of how many. */
+  pushedAlone: number;
   pushedClose: number;
   pushed: number;
 }
@@ -153,10 +154,10 @@ function seasonWorker(n: number): SeasonDone {
 /**
  * Out of bounds on film (spec: docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md §6): games with the
  * field on, every run or catch that went out read off its staged film. A man who steps out in normal play does it with
- * someone closing; a man pushed out has his man on him as he crosses.
+ * someone closing; a man pushed out has the man running him out on him (nobody alone).
  */
 function filmWorker(): FilmDone {
-  const done: FilmDone = { type: 'film', steppedAlone: 0, stepped: 0, pushedClose: 0, pushed: 0 };
+  const done: FilmDone = { type: 'film', steppedAlone: 0, stepped: 0, pushedAlone: 0, pushedClose: 0, pushed: 0 };
   for (const seed of ['oob-a', 'oob-b']) {
     const league = createLeague({ seed });
     for (let gi = 0; gi < FILM_GAMES / 2; gi++) {
@@ -195,15 +196,16 @@ function filmWorker(): FilmDone {
                 : Math.hypot(at(st, k).x - at(st, c).x, at(st, k).y - at(st, c).y),
             ),
           );
+        let near = Infinity;
+        for (let st = Math.max(0, cross - Math.round(1 / p.dt)); st <= cross; st++) near = Math.min(near, nearAt(st));
         if (/steps out of bounds/.test(e.text)) {
           if (e.field?.out || e.field?.stay) return;
           done.stepped++;
-          let near = Infinity;
-          for (let st = Math.max(0, cross - Math.round(1 / p.dt)); st <= cross; st++) near = Math.min(near, nearAt(st));
           if (near >= 5) done.steppedAlone++;
         } else {
           done.pushed++;
-          if (nearAt(cross) < 2) done.pushedClose++;
+          if (near >= 5) done.pushedAlone++;
+          if (near < 2) done.pushedClose++;
         }
       });
     }
@@ -299,10 +301,17 @@ async function main() {
     note: `${film.steppedAlone} of ${film.stepped}`,
   });
   print({
-    label: 'pushed out with a defender within 2 yd as he crosses',
+    label: 'pushed out with nobody within 5 yd',
+    value: film.pushedAlone / Math.max(1, film.pushed),
+    range: [0, 0.02],
+    note: `${film.pushedAlone} of ${film.pushed}`,
+  });
+  print({
+    label: 'pushed out with a defender within 2 yd',
     value: film.pushedClose / Math.max(1, film.pushed),
-    range: [0.8, 1],
-    note: `${film.pushedClose} of ${film.pushed}`,
+    range: [0, 1],
+    info: true,
+    note: `${film.pushedClose} of ${film.pushed} (0.4.2: 82% of catches)`,
   });
 
   console.log('\n── Speed ──');
