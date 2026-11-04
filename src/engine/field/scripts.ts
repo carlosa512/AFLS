@@ -1115,6 +1115,10 @@ export function script(
         keys.set(fumbler, [...upTo(fumbler, tHit), at(tHit, hit), at(total, hit)]);
       }
       moment(by, tSettle);
+      // A lost one: the quarterback's handoff script ends as the ball comes out, and he plays on from there (steered),
+      // so the play keeps him off the man who takes it instead of leaving him where the defense lands on it.
+      if (f.lost && qb !== undefined && qb !== fumbler && qb !== by && qb !== hitter && !free.has(qb))
+        free.set(qb, tHit);
       carrier = by;
       returned = back.length > 0;
       loose = { t: tHit, x: hit.x, y: hit.y, settle: tSettle, by };
