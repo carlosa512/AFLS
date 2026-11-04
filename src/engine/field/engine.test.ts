@@ -167,7 +167,7 @@ describe("the owner's call H: today's yards, the field's way there", () => {
     expect(near / n).toBeGreaterThanOrEqual(0.9);
   });
 
-  it('takes a run or a catch credited out of bounds out at its spot, nobody credited with a tackle', () => {
+  it('takes a run or a catch credited out of bounds out at its spot, crediting the man who forced him', () => {
     let n = 0;
     for (const { r, taps } of [0, 1, 2, 3].map((i) => spatial(i)))
       for (const t of taps) {
@@ -175,10 +175,15 @@ describe("the owner's call H: today's yards, the field's way there", () => {
         const e = r.plays![t.moment.index];
         expect(e.text, `play ${t.moment.index}`).toMatch(/out of bounds/);
         expect(t.result.outOfBounds, `play ${t.moment.index}`).toBe(true);
-        expect(t.result.tackler, `play ${t.moment.index}`).toBeNull();
+        // Film before 0.4.3 carries only oob 1, staged as pushed out; 2 is a man stepping out.
+        expect(t.start.target?.out, `play ${t.moment.index}`).toBe(true);
+        expect(!!t.start.target?.stepped, `play ${t.moment.index}`).toBe(t.moment.facts.oob === 2);
+        // The field names the man who forced him out; the scorer credits him (pushed, or a run stepping out), and on
+        // a catch he stepped out on, only when someone was closing.
+        expect(t.result.tackler, `play ${t.moment.index}`).not.toBeNull();
         expect(Math.abs(t.result.yards - t.today.yards), `play ${t.moment.index}`).toBeLessThanOrEqual(1.5);
-        // The play's own sentence names no tackler (a flag's sentence after it may name its man).
-        expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
+        if (t.moment.facts.oob === 1 || t.moment.kind === 'run')
+          expect(e.text.split('. ')[0], `play ${t.moment.index}`).toMatch(/\([A-Z]\.[^)]*\)/);
         n++;
       }
     expect(n).toBeGreaterThanOrEqual(10);
@@ -219,19 +224,28 @@ describe("the owner's call H: today's yards, the field's way there", () => {
 
 describe('a field the open field cannot play', () => {
   it("leaves a catch made past the goal line it's credited short of to today's film (no teleport back)", () => {
-    // Film's league, game 24: a pass at the 1 credited for no gain, the blind staging catching it a yard deep.
+    // Film's league: no field start ever has a carrier standing on or past a goal line he's credited short of (the
+    // field could only put him back by a jump). The one example the old dice made (game 24, play 71) moved with 0.4.3's
+    // reshuffle, so every start of a dozen games is checked instead.
     const l = createLeague({ seed: 'film' });
-    const g = l.games[24];
-    const taps: FieldTap[] = [];
-    // The tap alone keeps today's game (with the switch on, an earlier play's field could change what comes later); the
-    // coaches' Sunday edge (L4) held at zero, as it reads something else.
-    const r = simulateGame(l, g, {
-      seed: 'film-spatial-24',
-      fieldTap: (t) => taps.push(t),
-      staff: [NO_STAFF, NO_STAFF],
-    });
-    expect(r.plays![71].text).toMatch(/for 0 yards/);
-    expect(taps.find((t) => t.moment.index === 71)).toBeUndefined();
+    let n = 0;
+    for (let gi = 20; gi < 32; gi++) {
+      const taps: FieldTap[] = [];
+      simulateGame(l, l.games[gi], {
+        seed: `film-spatial-${gi}`,
+        fieldTap: (t) => taps.push(t),
+        staff: [NO_STAFF, NO_STAFF],
+      });
+      for (const t of taps) {
+        if (t.moment.facts.to === undefined || t.moment.facts.td) continue;
+        const c = t.start.players.find((p) => p.id === t.start.carrier)!;
+        expect((c.x - (t.start.dir === 1 ? 100 : 0)) * t.start.dir, `game ${gi} play ${t.moment.index}`).toBeLessThan(
+          0,
+        );
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThan(100);
   });
 });
 

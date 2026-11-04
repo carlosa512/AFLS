@@ -68,7 +68,7 @@ describe('the engine plays the pocket', () => {
     expect(tapped.playerStats).toEqual(plain.playerStats);
   });
 
-  it("ends a scramble at today's yards, with no tackle on a slide or out of bounds", () => {
+  it("ends a scramble at today's yards, with no tackle on a slide, the man who forced him credited out of bounds", () => {
     let n = 0;
     for (const { r, taps } of played)
       for (const t of taps) {
@@ -76,8 +76,11 @@ describe('the engine plays the pocket', () => {
         const e = r.plays![t.moment.index];
         if (e.kind !== 'scramble') continue;
         n++;
-        if (/slides|out of bounds/.test(e.text))
+        if (/slides/.test(e.text))
           expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
+        // The scorer credits whoever forced a scrambler out (NFL: every one).
+        if (/out of bounds/.test(e.text))
+          expect(e.text.split('. ')[0], `play ${t.moment.index}`).toMatch(/\([A-Z]\.[^)]*\)/);
       }
     expect(n).toBeGreaterThan(0);
   });
@@ -123,7 +126,8 @@ describe('the replay plays the pocket', () => {
     let n = 0;
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
-        if (!t.result) continue;
+        // A lost fumble after a catch is drawn, never replayed (`replay.ts`).
+        if (!t.result || (r.plays![t.moment.index].loose !== undefined && t.today.outcome !== 'sack')) continue;
         const s = stage(r, t.moment.index, homeId);
         expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
         const men = s.ids.length;
@@ -149,7 +153,7 @@ describe('the replay plays the pocket', () => {
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
         const e = r.plays![t.moment.index];
-        if (!t.result || e.kind !== 'pass' || e.field?.to === undefined) continue;
+        if (!t.result || e.kind !== 'pass' || e.field?.to === undefined || e.loose !== undefined) continue;
         const s = stage(r, t.moment.index, homeId);
         const k0 = s.spatial!.k0;
         if (k0 < 1) continue;

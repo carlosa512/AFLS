@@ -260,7 +260,9 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         // Blockers downfield pick their men.
         for (let i = 0; i < n; i++) if (!defense[i] && i !== ci) target[i] = pickTarget(i, t);
         nextAim = t + READ_EVERY;
-        if (spot?.out) escort = escortFor(t);
+        // Pushed out, or stepping out with someone closing: a defender runs him out. Stepping out in the hurry-up he's
+        // getting out to stop the clock, with nobody sent.
+        if (spot?.out && !(spot.stepped && start.clock.outOfBounds)) escort = escortFor(t);
       }
     }
     // Everyone else moves.
@@ -300,6 +302,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       } else if (c.y < 0 || c.y > FIELD_W) {
         outOfBounds = true;
         spotX = c.x;
+        // The man the scorer credits (the engine decides whether to): the one who ran him out, else the nearest.
+        if (tackler < 0) tackler = escort >= 0 && !spot?.stepped ? escort : nearestDefender();
         end(now, COAST.out);
       } else contact(now);
       // Reaching his spot with nobody on him: he goes down in time to stop at it (a man close by takes him), and the
