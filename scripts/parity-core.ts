@@ -158,6 +158,10 @@ export function judge(all: Resolved[], totals?: Totals): Line[] {
   const lines: Line[] = [];
   const add = (label: string, value: number, range: [number, number], note: string, info = false) =>
     lines.push({ label, value, range, note, info });
+  // Against the NFL, reported only (the owner's call): under call H a rebuilt league number is today's engine's, which
+  // `npm run sim` judges against the same targets over 60 seasons; parity's own rows judge the field against today.
+  const nfl = (label: string, value: number, range: readonly [number, number]) =>
+    add(label, value, [range[0], range[1]], `NFL ${range[0]}–${range[1]} (sim judges it)`, true);
   const runs = all.filter((r) => r.kind === 'run');
   const catches = all.filter((r) => r.kind === 'catch');
   const kicks = all.filter((r) => r.kick === 'kickoff');
@@ -213,7 +217,7 @@ export function judge(all: Resolved[], totals?: Totals): Line[] {
     const ypc =
       (totals.rushYds - sum(stoodRuns, (r) => r.today.yards) + sum(stoodRuns, (r) => r.sp.yards)) / totals.rushAtt;
     add("the league's yards a carry, rebuilt", ypc, near(ypcToday, 0.15), `today ${ypcToday.toFixed(2)}`);
-    add("the league's yards a carry, rebuilt (NFL)", ypc, TARGETS.ypc, 'NFL');
+    nfl("the league's yards a carry, rebuilt (NFL)", ypc, TARGETS.ypc);
     const r10t = sum(runs, (r) => (r.today.yards >= 10 ? 1 : 0)) / totals.rushAtt;
     const r20t = sum(runs, (r) => (r.today.yards >= 20 ? 1 : 0)) / totals.rushAtt;
     add(
@@ -231,18 +235,18 @@ export function judge(all: Resolved[], totals?: Totals): Line[] {
     const rtdToday = totals.rushTd / tg;
     const rtd = (totals.rushTd - sum(stoodRuns, (r) => (r.today.td ? 1 : 0)) + sum(stoodRuns, (r) => r.sp.td)) / tg;
     add('rushing TDs a team-game, rebuilt', rtd, near(rtdToday, 0.08), `today ${rtdToday.toFixed(2)}`);
-    add('rushing TDs a team-game, rebuilt (NFL)', rtd, TARGETS.rushTd, 'NFL');
+    nfl('rushing TDs a team-game, rebuilt (NFL)', rtd, TARGETS.rushTd);
     const ypaToday = totals.passYds / totals.passAtt;
     const ypa =
       (totals.passYds - sum(stoodCatches, (r) => r.today.yards) + sum(stoodCatches, (r) => r.sp.yards)) /
       totals.passAtt;
     add('yards an attempt, rebuilt', ypa, near(ypaToday, 0.15), `today ${ypaToday.toFixed(2)}`);
-    add('yards an attempt, rebuilt (NFL)', ypa, TARGETS.ypa, 'NFL');
+    nfl('yards an attempt, rebuilt (NFL)', ypa, TARGETS.ypa);
     const ptdToday = totals.passTd / tg;
     const ptd =
       (totals.passTd - sum(stoodCatches, (r) => (r.today.td ? 1 : 0)) + sum(stoodCatches, (r) => r.sp.td)) / tg;
     add('passing TDs a team-game, rebuilt', ptd, near(ptdToday, 0.1), `today ${ptdToday.toFixed(2)}`);
-    add('passing TDs a team-game, rebuilt (NFL)', ptd, TARGETS.passTd, 'NFL');
+    nfl('passing TDs a team-game, rebuilt (NFL)', ptd, TARGETS.passTd);
   }
 
   // Returns.
