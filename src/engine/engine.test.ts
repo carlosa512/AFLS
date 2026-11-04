@@ -165,7 +165,7 @@ describe('game simulation', () => {
     expect(a.playerStats).toEqual(b.playerStats);
   });
 
-  it('ends plays out of bounds as pushed or stepped out, never on a touchdown, a lost fumble or a stepped-out fumble', () => {
+  it('ends plays out of bounds as pushed or stepped out, never on a touchdown or a fumble', () => {
     let pushed = 0;
     let stepped = 0;
     for (let i = 0; i < 40; i++)
@@ -173,7 +173,8 @@ describe('game simulation', () => {
         if (!/out of bounds/.test(p.text) || /kicks off|punt|throws it away/i.test(p.text)) continue;
         expect(p.text).toMatch(/, (pushed|steps) out of bounds/);
         expect(p.text).not.toMatch(/TOUCHDOWN|FUMBLE/);
-        if (/steps out of bounds/.test(p.text)) expect(p.text).not.toMatch(/Fumble/);
+        // A ball loose at the sideline goes out with him and stays the offense's: no fumble on a play out of bounds.
+        expect(p.text).not.toMatch(/Fumble/);
         if (/pushed out of bounds/.test(p.text)) pushed++;
         else stepped++;
       }

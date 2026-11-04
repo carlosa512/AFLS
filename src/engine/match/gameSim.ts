@@ -3073,12 +3073,13 @@ class GameSim {
       text += ` (${short(tackler)})`;
     }
 
-    // A man who steps out takes no hit, so nothing knocks the ball loose.
+    // On a play out of bounds nothing knocks the ball loose in play: a man who steps out takes no hit, and a ball
+    // jarred loose at the sideline goes out with him and stays the offense's.
     const pFumble =
-      tackler && call !== 'stepped'
+      tackler && call === 'in'
         ? 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
         : 0;
-    if (tackler && call !== 'stepped' && rng.chance(pFumble)) {
+    if (tackler && call === 'in' && rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
       buf.add(tackler, 'forcedFum');
       if (this.fumbleRecoveredByDefense()) {
@@ -3558,10 +3559,10 @@ class GameSim {
       text += ` (${short(tackler)})`;
     }
 
-    // A man who steps out takes no hit, so nothing knocks the ball loose.
+    // On a play out of bounds nothing knocks the ball loose in play (as on a run).
     if (
       tackler &&
-      call !== 'stepped' &&
+      call === 'in' &&
       rng.chance(
         0.0065 * Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) * this.fumbleOdds(receiver, tackler, false),
       )
