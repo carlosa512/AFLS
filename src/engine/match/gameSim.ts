@@ -399,11 +399,35 @@ interface LiveFoul {
 }
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
-class StatBuffer {
+export class StatBuffer {
   entries: [Player, StatKey, number][] = [];
   add(p: Player, key: StatKey, value = 1) {
     this.entries.push([p, key, value]);
   }
+}
+
+/**
+ * The collisions a play records, read from its stat line: a ball carrier brought down, his tackler, a sack, a hit on
+ * the quarterback (`qb`), a return, a kick. `unhit`: he stepped out of bounds before the hit, so the tackle credited to
+ * the man who forced him out is nobody's collision, and he carries only a free runner's risk.
+ */
+export function collisions(entries: StatBuffer['entries'], qb: Player, unhit: boolean): [Player, ContactEvent][] {
+  const tackled = !unhit && entries.some(([, k]) => k === 'tackles');
+  const sacked = entries.some(([, k]) => k === 'sacked');
+  const gained = (p: Player) => entries.some(([x, k, v]) => x === p && (k === 'rushYds' || k === 'recYds') && v > 0);
+  const out: [Player, ContactEvent][] = [];
+  for (const [p, key] of entries) {
+    if (key === 'rushAtt' || key === 'rec') {
+      if (tackled) out.push([p, 'carrier']);
+      else if (gained(p)) out.push([p, 'free']);
+    } else if (key === 'tackles') {
+      if (!unhit) out.push([p, 'tackler']);
+    } else if (key === 'sacked') out.push([p, 'sacked']);
+    else if (key === 'qbHits' && !sacked) out.push([qb, 'hit']);
+    else if (key === 'krAtt' || key === 'prAtt') out.push([p, 'returner']);
+    else if (key === 'punts' || key === 'fgAtt' || key === 'xpAtt') out.push([p, 'kick']);
+  }
+  return out;
 }
 
 interface PlayResult {
@@ -1031,13 +1055,13 @@ class GameSim {
     line.snaps = (line.snaps ?? 0) + 1;
   }
 
-  private credit(buf: StatBuffer) {
+  private credit(buf: StatBuffer, unhit = false) {
     for (const [p, key, value] of buf.entries) {
       const line = (this.playerStats[p.id] ??= {});
       if (MAX_STATS.has(key)) line[key] = Math.max(line[key] ?? 0, value);
       else line[key] = (line[key] ?? 0) + value;
     }
-    this.wear(buf);
+    this.wear(buf, unhit);
   }
 
   // ───────────────────────── wear and injuries ─────────────────────────
@@ -1047,38 +1071,20 @@ class GameSim {
    * on the field (and rests everyone off it) and carries the snap's injury risk, and each collision
    * it records (a ball carrier brought down, a sack, a hit on the quarterback, a return) adds its own.
    */
-  private wear(buf: StatBuffer) {
+  private wear(buf: StatBuffer, unhit = false) {
     const rb2 = this.lineups[this.offense].rbs[1];
     let scrimmage = false;
-    let tackled = false;
-    let sacked = false;
     let spell = false;
     let passing = false;
     for (const [p, key] of buf.entries) {
       if (key === 'passAtt' || key === 'rushAtt') scrimmage = true;
-      else if (key === 'sacked') scrimmage = sacked = true;
+      else if (key === 'sacked') scrimmage = true;
       if (key === 'passAtt' || key === 'sacked') passing = true;
-      else if (key === 'tackles') tackled = true;
       // The second back is on the field for the plays he's part of, spelling the lead back.
       if (p === rb2) spell = true;
     }
     if (scrimmage) this.snap(spell, passing);
-    for (const [p, key] of buf.entries) {
-      if (key === 'rushAtt' || key === 'rec') {
-        if (tackled) this.collide(p, 'carrier');
-        else if (this.gained(buf, p)) this.collide(p, 'free');
-      } else if (key === 'tackles') this.collide(p, 'tackler');
-      else if (key === 'sacked') this.collide(p, 'sacked');
-      else if (key === 'qbHits' && !sacked) this.collide(this.lineups[this.offense].qb, 'hit');
-      else if (key === 'krAtt' || key === 'prAtt') this.collide(p, 'returner');
-      else if (key === 'punts' || key === 'fgAtt' || key === 'xpAtt') this.collide(p, 'kick');
-    }
-  }
-
-  /** Did he gain ground on the play (a carry or catch nobody tackled him on: a score or out of bounds)? */
-  private gained(buf: StatBuffer, p: Player): boolean {
-    for (const [x, k, v] of buf.entries) if (x === p && (k === 'rushYds' || k === 'recYds') && v > 0) return true;
-    return false;
+    for (const [p, event] of collisions(buf.entries, this.lineups[this.offense].qb, unhit)) this.collide(p, event);
   }
 
   private dept(p: Player): Department {
@@ -3988,7 +3994,7 @@ class GameSim {
     }
     ts.plays++;
 
-    this.credit(result.stats);
+    this.credit(result.stats, result.outOfBounds === 'stepped');
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {
