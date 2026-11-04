@@ -3,7 +3,7 @@
 Alpha means every item below works end to end. Status was read off the code on 2026-10-20, at version 0.1.0.
 Each MVP item finished from here bumps the middle version number (`docs/VERSIONING.md`).
 
-**Score: 13 Done · 2 Partial · 0 Missing.**
+**Score: 15 Done · 0 Partial · 0 Missing.** Alpha (0.4.0).
 
 ## The season
 
@@ -38,11 +38,13 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       some Day 3 picks break out (`npm run careers`, `docs/research/draft-outcomes.md`).
 - [x] **10. Trades with AI teams** · **Done**: one judge for every deal, with pick charts, contract value and seller
       floors (`trade/judge.ts`, `value.ts`). `npm run trades` fails on lopsided deals and exploit probes.
-- [ ] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Partial**: their ratings (youth, veterans) drive
-      development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
-      windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). HC/OC/DC numeric ratings
-      still do not directly supply a general game-day quality edge; the special teams coordinator has one
-      (`specialTeamsEdge`).
+- [x] **11. Coaches (HC, OC, DC) whose ratings affect results** · **Done** (0.4.0): their ratings (youth, veterans)
+      drive development and aging. Their styles, schemes and evolving quirks affect game decisions and specific execution
+      windows, with player fit, career history and staff reports (`docs/COACH_QUIRKS.md`). On Sunday a side's coach
+      lifts his rooms by up to ±0.2 rating points and the head coach every room by up to ±0.1, from their quality and how
+      far each room believes in them (`staffEdge.ts`, `belief.ts`); losses and a Locker-Room Lawyer wear belief down,
+      meetings answer it, and coordinators can be relieved in season, by you or by AI clubs at the NFL's rate
+      (`relieve.ts`). The special teams coordinator keeps his own edge (`specialTeamsEdge`).
 - [x] **12. AI teams that manage their rosters sensibly** · **Done** (0.2.0): AI front offices draft, sign, cut, trade
       and stay cap-legal (`offseason/ai.ts`), keeping a cap reserve for the season by their GM's cap style. Practice
       squads (`personnel/`, `docs/PRACTICE_SQUADS.md`), on for every new career, give them ready cover: waivers on a
