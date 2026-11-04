@@ -7,8 +7,9 @@ import type { Position } from '../types';
 import type { Role } from './cast';
 import type { MoveKind } from './carrier';
 
-/** What the man with the ball is doing: running past the line, running after a catch, or returning a kick. */
-export type FieldKind = 'run' | 'catch' | 'return';
+/** What the man with the ball is doing: running past the line, running after a catch, returning a kick, or running back a
+ * ball his side took away (a pick, a strip-sack's recovery). */
+export type FieldKind = 'run' | 'catch' | 'return' | 'turnover';
 
 /**
  * Everything the open field reads about one man, from contests (`skill`) and his build: the numbers a game's snapshot

@@ -22,7 +22,8 @@ export function stageField(args: {
   const { plays, index, record, homeId } = args;
   const snap = record.snap;
   const e = asRan(plays[index]);
-  if (!snap || snap.v !== FIELD_VERSION || !e.field || e.loose !== undefined) return null;
+  // A lost fumble after a carry is drawn (the field played the carry, not the return); a strip-sack's is the field's.
+  if (!snap || snap.v !== FIELD_VERSION || !e.field || (e.loose !== undefined && e.kind !== 'sack')) return null;
   const m = momentOf(plays[index], record, index, homeId);
   if (!m) return null;
   const a = approach(m, record, homeId, snap.seed);

@@ -167,6 +167,16 @@ export function judge(all: Resolved[], totals?: Totals): Line[] {
 
   // The film ends where the play is credited (call H).
   add('the film ends at the credited spot (share)', mean(all.map((r) => r.sp.film)), [0.9, 1], 'call H');
+  // Picks and strip-sacks run back on the field, held to the same spot (a few dozen a run: their own row, so a miss
+  // there can't hide in the share above).
+  const turnovers = all.filter((r) => r.kind === 'turnover');
+  if (turnovers.length)
+    add(
+      'turnover returns: the film ends at the credited spot (share)',
+      mean(turnovers.map((r) => r.sp.film)),
+      [0.9, 1],
+      `${turnovers.length} picks and strip-sacks`,
+    );
 
   // After the catch.
   const yac = (r: Resolved, y: number) => y - r.air;

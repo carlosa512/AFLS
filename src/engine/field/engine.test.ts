@@ -99,7 +99,8 @@ describe('the engine plays the open field', () => {
     for (let i = 0; i < 16; i++) {
       const { r } = i < 4 ? games[i] : spatial(i % week1.length);
       for (const e of r.plays!) {
-        if (!e.field || !/fumble/i.test(e.text)) continue;
+        // A carry's fumble (a strip-sack's recovery is a turnover's own field: `turnover.test.ts`).
+        if (!e.field || (e.kind !== 'run' && e.kind !== 'pass') || !/fumble/i.test(e.text)) continue;
         fumbles++;
         // The man who forced it is the one the play's tackle went to: named in the text's parentheses.
         expect(e.text).toMatch(/\(([A-Z]\.[^)]+)\)\. (FUMBLE|Fumble)/);
@@ -161,7 +162,8 @@ describe("the owner's call H: today's yards, the field's way there", () => {
     for (const { r, taps, homeId } of [0, 1].map((i) => spatial(i)))
       for (const t of taps) {
         const e = r.plays![t.moment.index];
-        if (!t.result || t.moment.kind === 'return' || e.kind === 'penalty' || e.loose !== undefined) continue;
+        if (!t.result || t.moment.kind === 'return' || t.moment.kind === 'turnover') continue;
+        if (e.kind === 'penalty' || e.loose !== undefined) continue;
         const dir = e.offense === homeId ? 1 : -1;
         const logged = e.to! >= 100 || e.to! <= 0 ? t.today.yards : (e.to! - e.from!) * dir;
         // `+ 0`: a no-gain play going right to left works out to -0.

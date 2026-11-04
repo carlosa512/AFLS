@@ -154,7 +154,7 @@ async function main() {
   );
   const counts = (k: Resolved['kind']) => rows.filter((r) => r.kind === k).length;
   console.log(
-    `Parity: ${rows.length} moments from ${totals.games} games (${counts('run')} runs, ${counts('catch')} catches, ${counts('return')} returns), ${moments.length ? rows[0].ms.length : 0} seeds each\n`,
+    `Parity: ${rows.length} moments from ${totals.games} games (${counts('run')} runs, ${counts('catch')} catches, ${counts('return')} returns, ${counts('turnover')} turnovers), ${moments.length ? rows[0].ms.length : 0} seeds each\n`,
   );
 
   console.log('── League and matchups (spatial against today, on the same moments) ──');

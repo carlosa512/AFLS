@@ -64,7 +64,8 @@ export function approach(m: FieldMoment, record: FieldRecord, homeId: number, ga
   const n = staged.ids.length;
   const offense = staged.offense.filter(Boolean).length;
   if (offense < 11 || n - offense < 11) return null;
-  const carrier = m.kind === 'return' ? staged.ids[staged.roles.indexOf('RET')] : m.ball;
+  const carrier =
+    m.kind === 'return' ? staged.ids[staged.roles.indexOf('RET')] : m.kind === 'turnover' ? m.take : m.ball;
   const k = carrier === undefined ? -1 : staged.ids.indexOf(carrier);
   if (k < 0 || carrier === undefined) return null;
   if (m.kind !== 'return' && !staged.roles.includes('QB')) return null;
@@ -80,18 +81,23 @@ export function approach(m: FieldMoment, record: FieldRecord, homeId: number, ga
         break;
       }
     if (k0 < 0) return null;
+  } else if (m.lost === 'sack') {
+    // A strip-sack's: the loose ball settles in his hands.
+    if (!staged.loose || staged.loose.by !== carrier) return null;
+    k0 = Math.min(staged.steps - 1, Math.round(staged.loose.settle / STEP));
   } else {
     if (staged.arrive === null) return null;
     k0 = Math.min(staged.steps - 1, Math.round(staged.arrive / STEP));
   }
-  const dir = m.kind === 'return' ? (-staged.dir as 1 | -1) : staged.dir;
+  // A return, or a turnover, runs back the other way.
+  const dir = m.kind === 'return' || m.kind === 'turnover' ? (-staged.dir as 1 | -1) : staged.dir;
   return {
     staged,
     k0,
     t0: k0 * STEP,
     carrier,
     dir,
-    yardLine: m.kind === 'return' ? (m.air ?? x(k0)) : m.from,
+    yardLine: m.kind === 'return' || m.kind === 'turnover' ? (m.air ?? x(k0)) : m.from,
     lineBlocks: staged.run?.on ?? [],
   };
 }

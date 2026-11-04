@@ -68,7 +68,7 @@ import type {
 import { MAX_STATS } from '../types';
 import { approach, fieldStart } from '../field/approach';
 import { MID, HASH_HI, HASH_LO } from '../field/geometry';
-import type { FieldFacts, FieldMoment } from '../field/moment';
+import { momentOf, type FieldFacts, type FieldMoment } from '../field/moment';
 import { runField } from '../field/run';
 import { fieldSkills } from '../field/skills';
 import { noteSkills, type FieldSnapshot } from '../field/snapshot';
@@ -2507,6 +2507,41 @@ class GameSim {
     };
   }
 
+  /**
+   * A turnover the open field runs back: a pick short of the end zone, or a strip-sack's ball recovered in the field of
+   * play. Today's return is its result (the owner's call H): its yards from where the ball changed hands, and whether
+   * it scored. Null for any other turnover (a pick in the end zone, a lost fumble after a carry).
+   */
+  private turnoverFacts(result: PlayResult): FieldFacts | null {
+    const t = result.turnover!;
+    const pick = t.kind === 'int' && result.kind === 'pass' && t.spot < 100;
+    const strip = t.kind === 'fumble' && result.kind === 'sack' && t.spot > 0;
+    if (!pick && !strip) return null;
+    // From where it changed hands, the goal line is `spot` yards off.
+    const td = t.returnYds >= t.spot;
+    return { y: this.fieldY, to: td ? t.spot : t.returnYds, ...(td ? { td: 1 as const } : {}) };
+  }
+
+  /**
+   * The turnover's return on the open field, read off its own log entry just written (`momentOf`, as the replay reads
+   * it). With the switch on the entry keeps the facts only if the field could start it; tapped alone it's untouched.
+   */
+  private turnoverField(index: number, facts: FieldFacts, duration: number) {
+    const e = this.plays[index];
+    if (!e || !this.fieldRecord) return;
+    const m = momentOf(this.options.field ? e : { ...e, field: facts }, this.fieldRecord, index, this.game.homeId);
+    const field = m ? this.openField(m) : null;
+    if (this.options.field && !field?.result) delete e.field;
+    if (m && field)
+      this.tap(field, m, {
+        yards: facts.to!,
+        tackler: null,
+        touchdown: !!facts.td,
+        outOfBounds: false,
+        duration,
+      });
+  }
+
   /** The play's time with the open field: from the snap to its whistle. */
   private fieldTime(start: FieldStart, result: FieldResult): number {
     const pad = KNOBS.pad + (start.kind === 'catch' ? KNOBS.padCatch : 0);
@@ -3549,7 +3584,11 @@ class GameSim {
       ts.turnovers++;
       const { spot, returnYds, by } = result.turnover;
       this.anim = this.ranAnim(result, startYardLine, airAt, who);
+      const index = this.plays.length;
+      const turned = this.fielding ? this.turnoverFacts(result) : null;
+      if (turned && this.options.field) this.anim.field = turned;
       this.log(text);
+      if (turned) this.turnoverField(index, turned, result.duration);
       if (spot >= 100 && result.turnover.kind === 'int') {
         this.changePossession(20);
         this.snapshot = null;

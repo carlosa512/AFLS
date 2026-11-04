@@ -96,7 +96,8 @@ export interface StagedPlay {
     on: [number, number][];
   };
   /** A fumble: when (seconds from the snap) and where the ball came out, and who recovered it. */
-  loose?: { t: number; x: number; y: number; by: number };
+  /** A fumble: when and where the ball came out, who recovers it, and when it settles in his hands. */
+  loose?: { t: number; x: number; y: number; by: number; settle: number };
   /** Per id: the spot he lined up at (QB, OL, WR...). */
   roles: Role[];
   /** Which way the offense (the kicking team on a kick) is going. */
@@ -498,7 +499,7 @@ export function stagePlay(args: {
     pos,
     ball: ball.subarray(0, steps * 3),
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
-    ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by } } : {}),
+    ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by, settle: loose.settle } } : {}),
     ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),
     ...moveIn(segs, scripted.missed ?? e.open?.broke?.by),
     ...(runBlocks

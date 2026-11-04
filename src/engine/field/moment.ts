@@ -49,6 +49,10 @@ export interface FieldMoment {
   /** The rusher who got to the passer (the blocker he beat is chosen after the play, so the moment can't hold it). */
   rush?: number;
   call: DefenseCall;
+  /** A turnover's play: picked off, or a strip-sack's loose ball recovered (its `air` is where the ball came out). */
+  lost?: 'int' | 'sack';
+  /** The man who took the ball away (a turnover's carrier). */
+  take?: number;
   shot?: 1;
   bounce?: 1;
   facts: FieldFacts;
@@ -59,6 +63,8 @@ const KINDS: Partial<Record<NonNullable<PlayLogEntry['kind']>, FieldKind>> = {
   pass: 'catch',
   kickoff: 'return',
   punt: 'return',
+  int: 'turnover',
+  sack: 'turnover',
 };
 
 /**
@@ -66,6 +72,7 @@ const KINDS: Partial<Record<NonNullable<PlayLogEntry['kind']>, FieldKind>> = {
  * itself (a run a few yards on along its lane, a catch where it's made, a kick where it comes down), never the result.
  */
 export function momentEntry(m: FieldMoment, homeId: number): PlayLogEntry {
+  if (m.kind === 'turnover') return turnoverEntry(m);
   const kind: PlayLogEntry['kind'] = m.kind === 'run' ? 'run' : m.kind === 'catch' ? 'pass' : m.kick!;
   const dir = m.offense === homeId ? 1 : -1;
   const to = m.kind === 'run' ? m.from + dir * RUN_ON : (m.air ?? m.from);
@@ -87,6 +94,32 @@ export function momentEntry(m: FieldMoment, homeId: number): PlayLogEntry {
     lane: m.lane,
     ...(who ? { who } : {}),
     ...(m.bounce ? { open: { bounce: 1 } } : {}),
+  };
+}
+
+/**
+ * A turnover's blind entry: the pick made where it's caught, or the strip-sack's ball recovered where it came out, and no
+ * return (its `to` is the change of possession itself).
+ */
+function turnoverEntry(m: FieldMoment): PlayLogEntry {
+  const int = m.lost === 'int';
+  const who = packActors({ ball: m.ball, cover: m.cover, rush: m.rush, take: m.take });
+  return {
+    quarter: m.quarter,
+    clock: m.clock,
+    offense: m.offense,
+    down: m.down,
+    distance: m.distance,
+    yardLine: m.yardLine,
+    text: `${m.shot ? 'Designed shot: ' : ''}${int ? 'INTERCEPTED' : 'SACKED. FUMBLE, recovered by'}`,
+    homeScore: 0,
+    awayScore: 0,
+    kind: int ? 'int' : 'sack',
+    from: m.from,
+    ...(int ? { air: m.air } : { loose: m.air }),
+    to: m.air,
+    lane: m.lane,
+    ...(who ? { who } : {}),
   };
 }
 
@@ -121,9 +154,14 @@ export function momentOf(e0: PlayLogEntry, record: FieldRecord, index: number, _
   }
   if (e.air !== undefined) m.air = e.air;
   if (kind !== 'return' && who.ball !== undefined) m.ball = who.ball;
-  if (kind === 'catch') {
+  if (kind === 'catch' || kind === 'turnover') {
     if (who.cover !== undefined) m.cover = who.cover;
     if (who.rush !== undefined) m.rush = who.rush;
+  }
+  if (kind === 'turnover') {
+    m.lost = e.kind === 'int' ? 'int' : 'sack';
+    if (m.lost === 'sack' && e.loose !== undefined) m.air = e.loose;
+    if (who.take !== undefined) m.take = who.take;
   }
   if (/^Designed shot:/.test(e.text)) m.shot = 1;
   if (e.open?.bounce) m.bounce = 1;
