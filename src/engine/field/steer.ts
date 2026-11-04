@@ -111,6 +111,8 @@ export interface SteerArgs {
   /** The rusher the engine named and the blocker it says he beat: that block is the one that loses. */
   rush?: number | null;
   beat?: number | null;
+  /** When the rusher's script has him past that blocker (a sack): the block is lost from then, wherever the two are. */
+  beatAt?: number;
   /** A designed shot: the tight end and the back stay in to block. */
   maxProtect?: boolean;
   /** Decoys let go where their routes end: they settle there until the ball's out (`Scripted.settle`). */
@@ -695,10 +697,11 @@ export function steer(a: SteerArgs): Float32Array {
               const deepest = set + 0.5 + GIVE * Math.max(0, t - SET_TIME);
               if ((ballX0 - goal.x) * a.dir > deepest) goal = { x: ballX0 - a.dir * deepest, y: goal.y };
             }
-            // Beaten: his man is past him, closer to the quarterback than he is. He turns and is out of the play.
+            // Beaten: his man is past him, closer to the quarterback than he is, or the rusher's script has him by (a
+            // block he tracks all the way to the quarterback never reads as past). He turns and is out of the play.
             if (k === index.get(a.beat ?? -1) && on === index.get(a.rush ?? -1)) {
               const mine = Math.hypot(px[hk] - px[k], py[hk] - py[k]);
-              if (Math.hypot(dx, dy) < mine) {
+              if (Math.hypot(dx, dy) < mine || t >= (a.beatAt ?? Infinity)) {
                 goal = { x: px[k], y: py[k] };
                 beaten = 0.5;
               }

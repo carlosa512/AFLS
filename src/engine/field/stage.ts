@@ -367,6 +367,7 @@ export function stagePlay(args: {
     holder: e.kind && HOLDERS.has(e.kind) ? qb : null,
     rush: who.rush ?? null,
     beat: who.beat ?? null,
+    beatAt: scripted.beatAt,
     maxProtect: /^Designed shot:/.test(e.text),
     settle: scripted.settle,
     stalk: scripted.stalk,

@@ -61,6 +61,8 @@ const ROUTE_PACE = 8.5;
 const ENGAGE = 0.45;
 /** The victory formation: where he takes the snap, the step back, down on a knee by this long, held till the whistle. */
 const QB_UNDER = 2;
+/** The beaten back on play action plants this long at the mesh before he takes his man (seconds). */
+const PLANT = 0.3;
 const KNEEL_STEP = 0.8;
 export const KNEEL_AT = 0.75;
 const KNEEL_HOLD = 1.3;
@@ -627,6 +629,8 @@ export interface Scripted {
   loose?: { t: number; x: number; y: number; settle: number; by: number };
   /** Decoys let go at the end of their routes, and where they settle (`SteerArgs.settle`). */
   settle: Map<number, Pt>;
+  /** A sack: when the rusher's script has him past the man he beat (`SteerArgs.beatAt`). */
+  beatAt?: number;
   /** A screen's other receivers, who block the nearest defensive back. */
   stalk: Set<number>;
   /** A finish where the tackle lands before the whistle (a lunge, a slide): when it lands. */
@@ -693,6 +697,7 @@ export function script(
   let carrier: number | undefined;
   let kickAt: number | undefined;
   let catchAt: number | undefined;
+  let beatAt: number | undefined;
 
   switch (e.kind) {
     case 'run': {
@@ -727,6 +732,7 @@ export function script(
         const qbAt = (t: number) => sample(keys.get(qb)!, t);
         const beat = beatenNear(who.beat, s0);
         const mid: Keyframe[] = beat ? [at(contact * 0.6, toward(beat, qbAt(contact * 0.6), 1))] : [];
+        if (beat) beatAt = contact * 0.6;
         setRun(who.rush, [...mid, at(contact, toward(qbAt(contact), s0, 0.8)), at(total, toward(end, s0, 0.6))]);
         moment(who.rush, Math.max(0, contact - 0.4));
       }
@@ -952,12 +958,16 @@ export function script(
     const meet = { x: mesh.x + dir * 0.4, y: mesh.y + side * 0.9 };
     // At the mesh as soon as his legs get him there (from deep in the I, a beat after the quarterback turns).
     const there = Math.max(FAKE, Math.hypot(meet.x - b0.x, meet.y - b0.y) / topOf(back.id));
+    // The back the engine says the rush beat sells it at the mesh and stays there to pick him up: the rusher's script
+    // comes past where he'd be in protection, not where a fake into the line would leave him.
+    const blocks = back.id === who.beat;
     keys.set(back.id, [
       from(back.id),
       at(there, meet),
-      at(there + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
+      // (Planted at the mesh first: let go at the speed of his sprint to it, he'd run on yards past his man.)
+      blocks ? at(there + PLANT, meet) : at(there + 0.7, { x: mesh.x + dir * 3.5, y: mesh.y + side * 1.5 }),
     ]);
-    free.set(back.id, there + 0.7);
+    free.set(back.id, there + (blocks ? PLANT : 0.7));
   }
 
   // The man who missed: on the carrier as the move starts, a yard off on his side, then sent on past him (a move) or
@@ -1276,6 +1286,7 @@ export function script(
     ...(loose ? { loose } : {}),
     ...(hitAt !== undefined ? { hitAt } : {}),
     ...(missed !== undefined ? { missed } : {}),
+    ...(beatAt !== undefined ? { beatAt } : {}),
     settle,
     stalk,
   };
