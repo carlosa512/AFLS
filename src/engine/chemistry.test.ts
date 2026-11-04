@@ -106,14 +106,21 @@ describe('chemistry: the week', () => {
 
 describe('chemistry: game day', () => {
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-  const replay = (l: League, chemistry: NonNullable<SimOptions['chemistry']>, n = 40) =>
-    Array.from({ length: n }, (_, i) => simulateGame(l, l.games[0], { seed: `c:${i}`, days: [0, 0], chemistry }));
+  // Yields to the test worker every twenty games: hundreds played in one stretch starve its reports (an RPC timeout).
+  const replay = async (l: League, chemistry: NonNullable<SimOptions['chemistry']>, n = 40) => {
+    const out: GameResult[] = [];
+    for (let i = 0; i < n; i++) {
+      if (i % 20 === 0) await new Promise((r) => setTimeout(r, 0));
+      out.push(simulateGame(l, l.games[0], { seed: `c:${i}`, days: [0, 0], chemistry }));
+    }
+    return out;
+  };
 
   // Three tests, not one: each plays hundreds of games, and one long test can starve the test worker.
-  it('a line forced to each end allows fewer sacks and gains more a carry at its best', () => {
+  it('a line forced to each end allows fewer sacks and gains more a carry at its best', async () => {
     const l = fresh();
-    const lineUp = replay(l, [{ OL: 0.3 }, {}], 200);
-    const lineDown = replay(l, [{ OL: -0.3 }, {}], 200);
+    const lineUp = await replay(l, [{ OL: 0.3 }, {}], 200);
+    const lineDown = await replay(l, [{ OL: -0.3 }, {}], 200);
     const sackRate = (rs: GameResult[]) =>
       avg(rs.map((r) => r.home.sacked / Math.max(1, r.home.passAtt + r.home.sacked)));
     const ypc = (rs: GameResult[]) => avg(rs.map((r) => r.home.rushYds / Math.max(1, r.home.rushAtt)));
@@ -121,17 +128,17 @@ describe('chemistry: game day', () => {
     expect(ypc(lineUp)).toBeGreaterThan(ypc(lineDown));
   }, 240_000);
 
-  it('a secondary at its best allows fewer yards a pass', () => {
+  it('a secondary at its best allows fewer yards a pass', async () => {
     const l = fresh();
     const ypa = (rs: GameResult[]) => avg(rs.map((r) => r.home.passYds / Math.max(1, r.home.passAtt)));
-    expect(ypa(replay(l, [{}, { DB: 0.3 }], 200))).toBeLessThan(ypa(replay(l, [{}, { DB: -0.3 }], 200)));
+    expect(ypa(await replay(l, [{}, { DB: 0.3 }], 200))).toBeLessThan(ypa(await replay(l, [{}, { DB: -0.3 }], 200)));
   }, 240_000);
 
-  it('a passing game at its best completes more', () => {
+  it('a passing game at its best completes more', async () => {
     const l = fresh();
     const cmp = (rs: GameResult[]) => avg(rs.map((r) => r.home.passCmp / Math.max(1, r.home.passAtt)));
-    expect(cmp(replay(l, [{ QB: 0.3, WR: 0.3 }, {}], 200))).toBeGreaterThan(
-      cmp(replay(l, [{ QB: -0.3, WR: -0.3 }, {}], 200)),
+    expect(cmp(await replay(l, [{ QB: 0.3, WR: 0.3 }, {}], 200))).toBeGreaterThan(
+      cmp(await replay(l, [{ QB: -0.3, WR: -0.3 }, {}], 200)),
     );
   }, 240_000);
 

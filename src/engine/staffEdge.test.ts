@@ -92,27 +92,32 @@ describe('staff edge: the switch a check can turn off', () => {
 
 describe('staff edge: game day', () => {
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-  const replay = (l: League, staff: [Record<string, number>, Record<string, number>], n = 200) =>
-    Array.from({ length: n }, (_, i) =>
-      simulateGame(l, l.games[0], { seed: `s:${i}`, days: [0, 0], chemistry: [NO_CHEM, NO_CHEM], staff }),
-    );
+  // Yields to the test worker every twenty games: hundreds played in one stretch starve its reports (an RPC timeout).
+  const replay = async (l: League, staff: [Record<string, number>, Record<string, number>], n = 200) => {
+    const out: GameResult[] = [];
+    for (let i = 0; i < n; i++) {
+      if (i % 20 === 0) await new Promise((r) => setTimeout(r, 0));
+      out.push(simulateGame(l, l.games[0], { seed: `s:${i}`, days: [0, 0], chemistry: [NO_CHEM, NO_CHEM], staff }));
+    }
+    return out;
+  };
   const off = (x: number) => ({ QB: x, RB: x, WR: x, OL: x });
   const def = (x: number) => ({ DL: x, LB: x, DB: x });
 
-  it('an offense whose staff is at its best scores and gains more', () => {
+  it('an offense whose staff is at its best scores and gains more', async () => {
     const l = fresh();
-    const up = replay(l, [off(0.5), {}]);
-    const down = replay(l, [off(-0.5), {}]);
+    const up = await replay(l, [off(0.5), {}]);
+    const down = await replay(l, [off(-0.5), {}]);
     const pts = (rs: GameResult[]) => avg(rs.map((r) => r.homeScore));
     const yds = (rs: GameResult[]) => avg(rs.map((r) => r.home.totalYds));
     expect(pts(up)).toBeGreaterThan(pts(down));
     expect(yds(up)).toBeGreaterThan(yds(down));
   }, 240_000);
 
-  it('a defense whose staff is at its best gives up fewer yards', () => {
+  it('a defense whose staff is at its best gives up fewer yards', async () => {
     const l = fresh();
     const yds = (rs: GameResult[]) => avg(rs.map((r) => r.home.totalYds));
-    expect(yds(replay(l, [{}, def(0.5)]))).toBeLessThan(yds(replay(l, [{}, def(-0.5)])));
+    expect(yds(await replay(l, [{}, def(0.5)]))).toBeLessThan(yds(await replay(l, [{}, def(-0.5)])));
   }, 240_000);
 
   it('plays the same game twice with staff edges on', () => {
