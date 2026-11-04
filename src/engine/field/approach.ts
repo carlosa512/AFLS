@@ -38,29 +38,41 @@ const CLIMB_REACH = 7;
 const HOLD_SD = 0.25;
 
 /** The record with this play's defensive call written in, as the log will write it. */
-function withCall(record: FieldRecord, m: FieldMoment): FieldRecord {
+export function withCall(record: FieldRecord, m: Pick<FieldMoment, 'call' | 'index'>): FieldRecord {
   const ch = m.call === 'base' ? '.' : CALL_CHAR[m.call];
   const calls = (record.calls ?? '').padEnd(m.index + 1, '.');
   return { ...record, calls: calls.slice(0, m.index) + ch + calls.slice(m.index + 1) };
 }
 
-export function approach(m: FieldMoment, record: FieldRecord, homeId: number, gameSeed: string): Approach | null {
+/**
+ * `pocketStaged`: a dropback's staging with the pocket already composed into it (`composePocket`): the open field starts
+ * from the pocket's frames rather than staging its own.
+ */
+export function approach(
+  m: FieldMoment,
+  record: FieldRecord,
+  homeId: number,
+  gameSeed: string,
+  pocketStaged?: StagedPlay,
+): Approach | null {
   const plays: PlayLogEntry[] = [];
   plays[m.index] = momentEntry(m, homeId);
   let staged: StagedPlay;
-  try {
-    staged = stagePlay({
-      plays,
-      index: m.index,
-      record: withCall(record, m),
-      homeId,
-      seed: `${gameSeed}:field:${m.index}:approach`,
-      snapY: m.facts.y,
-      blind: true,
-    });
-  } catch {
-    return null;
-  }
+  if (pocketStaged) staged = pocketStaged;
+  else
+    try {
+      staged = stagePlay({
+        plays,
+        index: m.index,
+        record: withCall(record, m),
+        homeId,
+        seed: `${gameSeed}:field:${m.index}:approach`,
+        snapY: m.facts.y,
+        blind: true,
+      });
+    } catch {
+      return null;
+    }
   const n = staged.ids.length;
   const offense = staged.offense.filter(Boolean).length;
   if (offense < 11 || n - offense < 11) return null;

@@ -7,6 +7,7 @@ import type { DefenseCall } from '../match/coach';
 import { actorsIn, defenseCallAt, packActors } from '../playActors';
 import type { FieldRecord, PlayLogEntry } from '../types';
 import { asRan } from './stage';
+import type { PocketOutcome } from './pocketField';
 import type { FieldKind } from './types';
 
 /** What a spatial play's log entry keeps that a replay can't read anywhere else (`PlayLogEntry.field`). */
@@ -27,6 +28,9 @@ export interface FieldFacts {
   td?: 1;
   /** Today's out-of-bounds call (with the switch on, drawn before the field): he goes out at his spot. */
   oob?: 1;
+  /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
+  pk?: PocketOutcome;
+  nb?: 1;
 }
 
 export interface FieldMoment {
