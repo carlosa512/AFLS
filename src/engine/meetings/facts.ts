@@ -1,4 +1,5 @@
 import { temperamentOf } from '../traits';
+import { beliefOf, beliefRead, runnerOf } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
 import { traitOf } from '../coachTraits';
 import { yearsLeft } from '../finance/contract';
@@ -104,6 +105,8 @@ export interface SuggestFact {
   asked?: boolean;
   /** The commitment that answers the topic, when one is on offer: the coach's advice names it. */
   advice?: Exclude<Backing, 'words'>;
+  /** A room in doubt about whoever runs its side (L4): his last name, and whether they've given up on him. */
+  coord?: { last: string; lost: boolean };
 }
 
 function recordOf(league: League, teamId: number): { record: Record3; losingRun: boolean } {
@@ -153,6 +156,7 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
     ...recordOf(league, teamId),
     credibility: hc ? credibilityRead(hc) : 'steady',
     ...(answer && s.backings.includes(answer) ? { advice: answer } : {}),
+    ...coordFact(league, teamId, s),
   };
 }
 
@@ -216,4 +220,10 @@ export function reasonFor(
   if (sameAgain) return 'again';
   if (r.approach === 'straight' && temperamentOf(p) <= 7) return 'tone';
   return 'notHis';
+}
+
+function coordFact(league: League, teamId: number, s: MeetingSuggestion): Pick<SuggestFact, 'coord'> {
+  if (s.topic !== 'coordinator' || s.scope === 'team') return {};
+  const runner = runnerOf(league, teamId, s.scope);
+  return runner ? { coord: { last: runner.lastName, lost: beliefRead(beliefOf(runner, s.scope)) === 'lost' } } : {};
 }

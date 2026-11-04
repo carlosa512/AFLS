@@ -27,6 +27,23 @@ const list = (men: ManFact[]) =>
 
 /** Who and what: the opening line of a trouble letter. */
 export const READ_LEAD: readonly Line<SuggestFact>[] = [
+  // A room turning on whoever runs its side (L4).
+  {
+    when: (f) => !!f.coord && !!f.driver,
+    reads: 3,
+    text: (f) =>
+      `${f.driver!.first} ${f.driver!.last} has been stirring up ${f.noun} about ${f.coord!.last}'s calls, and ${verb(f.noun, "it's", "they're")} listening.`,
+  },
+  {
+    when: (f) => !!f.coord?.lost,
+    reads: 2,
+    text: (f) => `${cap(f.noun)} ${verb(f.noun, 'has', 'have')} stopped believing in ${f.coord!.last}.`,
+  },
+  {
+    when: (f) => !!f.coord,
+    reads: 2,
+    text: (f) => `${cap(f.noun)} ${verb(f.noun, 'has', 'have')} doubts about ${f.coord!.last}'s calls.`,
+  },
   {
     when: (f) => !!f.driver && f.topic === 'deal',
     reads: 2,
@@ -157,6 +174,12 @@ export const MOMENT_LEAD: Record<Moment, string> = {
 
 /** His ask, and his read on what would reach the room when one thing would. */
 export const ASK: readonly Line<SuggestFact>[] = [
+  {
+    when: (f) => !!f.coord,
+    reads: 3,
+    text: (f) =>
+      `I want to get ${f.noun} together this week. Before I do, I need your call. My read: either we stand behind ${f.coord!.last}, or we tell them it changes.`,
+  },
   {
     when: (f) => f.advice === 'talks' && f.dealMen.length === 1,
     reads: 3,

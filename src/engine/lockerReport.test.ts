@@ -4,6 +4,7 @@ import { deliverMail, mailSubject } from './inbox';
 import { dueCheckin } from './lockerReport';
 import { moraleClock, moraleView } from './morale';
 import { ROOM_LABEL } from './coaching';
+import { runnerOf } from './belief';
 import { leadersOf, unitOf, voicesOf, type Unit } from './standing';
 import { playerOvr } from './positions';
 import { betterMentor, mentoringWeek, mentorStatus } from './mentoring';
@@ -638,5 +639,29 @@ describe('the locker report: chemistry (L3)', () => {
     const second = reports(l).find((x) => x.id.endsWith(':deadline'))!;
     for (const r of chemRows(second)) expect(told.get(r.cells[0])).not.toBe(r.cells[1]);
     expect(chemRows(second).find((r) => r.cells[0] === ROOM_LABEL.OL)?.cells[1]).not.toBe('Out of sync');
+  });
+});
+
+describe('the locker report: backing the staff (L4)', () => {
+  const BELIEF_CELL = /^(Believe in him|Back on board|Doubts|Lost them)$/;
+  const beliefRows = (m: InboxMessage) =>
+    (section(m, 'The room')?.rows ?? []).filter((r) => BELIEF_CELL.test(r.cells[1] ?? ''));
+
+  it('tells a room in doubt, then only when its read has changed, once', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const oc = runnerOf(l, l.userTeamId, 'WR')!;
+    oc.belief = { WR: -0.3 };
+    deliverMail(l);
+    const first = reports(l).at(-1)!;
+    const wr = beliefRows(first).find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    expect(wr.cells[1]).toBe('Doubts');
+    expect(wr.note).toContain(oc.lastName);
+    for (const r of beliefRows(first)) expect(r.note ?? '').not.toMatch(/\d|belief|chemistry/i);
+    // Still in doubt at the next report: not told again.
+    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    deliverMail(l);
+    const second = reports(l).find((x) => x.id.endsWith(':deadline'))!;
+    expect(beliefRows(second).some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(false);
   });
 });

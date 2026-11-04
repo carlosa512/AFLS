@@ -32,7 +32,9 @@ import {
   type UnitView,
   type UnitWord,
 } from './standing';
-import type { League, Player } from './types';
+import { beliefOf, beliefRead, lawyerIn, runnerOf, sideRoleOf, type BeliefRead } from './belief';
+import type { BeliefFact } from './roomVoice';
+import type { CoachRoom, League, Player } from './types';
 
 /** Memory keys name the club: a GM hired across the league starts with none of his old club's rooms. */
 const UNIT_KEY = /^unit:(\d+):(\d+):(\w+):(\w+)$/;
@@ -43,6 +45,13 @@ const CHEM_KEY = /^chem:(\d+):(\d+):(\w+):(.+)$/;
 /** What the report told of a room's chemistry (L3): club-named, like the rest. */
 export const chemKey = (clock: number, teamId: number, unit: ChemRoom, word: ChemWord) =>
   `chem:${clock}:${teamId}:${unit}:${word}`;
+const BELIEF_KEY = /^belief:(\d+):(\d+):(\w+):(\w+)$/;
+/** What the report told of a room's belief in whoever runs its side (L4): club-named, like the rest. */
+export const beliefKey = (clock: number, teamId: number, unit: CoachRoom, read: BeliefRead) =>
+  `belief:${clock}:${teamId}:${unit}:${read}`;
+/** A position coach's warning that his room is slipping on its coordinator (L4), once a fall. */
+export const beliefWarnKey = (clock: number, teamId: number, unit: CoachRoom) =>
+  `belief-warn:${clock}:${teamId}:${unit}`;
 export const standingKey = (clock: number, teamId: number, playerId: number, tier: Tier) =>
   `standing:${clock}:${teamId}:${playerId}:${tier}`;
 
@@ -54,11 +63,21 @@ export function lastTold(
   units: Map<Unit, { word: UnitWord; clock: number }>;
   standing: { clock: number; tiers: Map<number, Tier> } | null;
   chem: Map<ChemRoom, { word: ChemWord; clock: number }>;
+  belief: Map<CoachRoom, { read: BeliefRead; clock: number }>;
 } {
+  const belief = new Map<CoachRoom, { read: BeliefRead; clock: number }>();
   const units = new Map<Unit, { word: UnitWord; clock: number }>();
   const chem = new Map<ChemRoom, { word: ChemWord; clock: number }>();
   let standing: { clock: number; tiers: Map<number, Tier> } | null = null;
   for (const k of told) {
+    const b = k.match(BELIEF_KEY);
+    if (b) {
+      if (Number(b[2]) !== teamId) continue;
+      const clock = Number(b[1]);
+      const have = belief.get(b[3] as CoachRoom);
+      if (!have || clock >= have.clock) belief.set(b[3] as CoachRoom, { read: b[4] as BeliefRead, clock });
+      continue;
+    }
     const c = k.match(CHEM_KEY);
     if (c) {
       if (Number(c[2]) !== teamId) continue;
@@ -81,7 +100,7 @@ export function lastTold(
     if (!standing || clock > standing.clock) standing = { clock, tiers: new Map() };
     if (clock === standing.clock) standing.tiers.set(Number(s[3]), s[4] as Tier);
   }
-  return { units, standing, chem };
+  return { units, standing, chem, belief };
 }
 
 const phraseOf = (unit: Unit) => (unit === 'ST' ? SPECIALISTS : UNIT_PHRASE[unit]);
@@ -212,5 +231,22 @@ export function chemFact(league: League, c: Chemistry, ctx: MoraleContext): Chem
       ? { spark: { last: setter.lastName, sour: moraleStepOf(moraleLevel(league, setter)) <= 3 } }
       : {}),
     ...(anchor ? { anchor: anchor.lastName } : {}),
+  };
+}
+
+/**
+ * What a line about one of our rooms' belief in whoever runs its side may read (L4): the read, the man, and a lawyer
+ * voice stirring it, when our staff can see one. Null when nobody runs the side.
+ */
+export function beliefFact(league: League, teamId: number, unit: CoachRoom, ctx: MoraleContext): BeliefFact | null {
+  const runner = runnerOf(league, teamId, unit);
+  if (!runner) return null;
+  const lawyer = lawyerIn(league, teamId, unit, ctx);
+  return {
+    unit: UNIT_PHRASE[unit],
+    read: beliefRead(beliefOf(runner, unit)),
+    coach: runner.lastName,
+    side: sideRoleOf(unit) === 'offCoord' ? 'offense' : 'defense',
+    ...(lawyer ? { lawyer: lawyer.lastName } : {}),
   };
 }

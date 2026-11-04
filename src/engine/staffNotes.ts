@@ -9,10 +9,10 @@ import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from
 import { moraleClock, moraleContext, viewContext } from './morale';
 import { reportTellsRooms } from './lockerReport';
 import { meetingStaffRows } from './meetings/mail';
-import { chemFact, chemKey, lastTold, unitFact, unitKey } from './roomFacts';
+import { beliefFact, beliefWarnKey, chemFact, chemKey, lastTold, unitFact, unitKey } from './roomFacts';
 import { CHEM_ROOMS, chemistryOf } from './chemistry';
 import type { StaffRow } from './meetings/mail';
-import { CHEM_NOTE, UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
+import { BELIEF_WARN, CHEM_NOTE, UNIT_PHRASE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
 import { QUIRKS, type QuirkId } from './quirks';
 import { headCoach, type Draft } from './senders';
@@ -109,7 +109,8 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
     ...meetingStaffRows(league, told),
     ...(reportTellsRooms(league, have) ? [] : chemistryRows(league, told)),
   ];
-  if (!call && !habit && !unitNote && !own.length) return [];
+  const warns = reportTellsRooms(league, have) ? [] : beliefRows(league, told);
+  if (!call && !habit && !unitNote && !own.length && !warns.length) return [];
   const chair = (coachId: number) => {
     const c = league.coaches[coachId];
     return c ? COACH_ROLE_LABEL[c.role] : 'Coach';
@@ -151,6 +152,10 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
       }),
     });
   }
+  for (const w of warns) {
+    const c = league.coaches[w.coachId];
+    rows.push({ cells: [ROOM_LABEL[w.unit], `${coachName(c)}, ${coachTitle(c)}`], note: w.note });
+  }
   const sender = headCoach(league);
   for (const r of own)
     rows.push({
@@ -159,7 +164,12 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
       note: r.note,
       ...(r.negotiate !== undefined ? { negotiate: { playerId: r.negotiate } } : {}),
     });
-  const covered = [...(habit ? [habitKey!] : []), ...(unitNote ? [unitNote.key] : []), ...own.map((r) => r.key)];
+  const covered = [
+    ...(habit ? [habitKey!] : []),
+    ...(unitNote ? [unitNote.key] : []),
+    ...warns.map((w) => w.key),
+    ...own.map((r) => r.key),
+  ];
   const actions: InboxAction[] = [
     ...rows.flatMap((r) => (r.playerId === undefined ? [] : [{ kind: 'player' as const, playerId: r.playerId }])),
     { kind: 'team', teamId: league.userTeamId },
@@ -173,20 +183,22 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
       ...sender,
       category: 'staff',
       subject:
-        own.length && !unitNote && !call && !habit
+        own.length && !unitNote && !call && !habit && !warns.length
           ? // His word alone says what it's about; "the room" alone left a reader guessing.
             own.every((r) => r.key.startsWith('cred:'))
             ? 'From me: my word with the players'
             : 'From me: a word on the room'
           : unitNote && !call && !habit
             ? `From the staff: ${UNIT_PHRASE[unitNote.unit as CoachRoom]}`
-            : call && habit
-              ? 'From the staff: a depth-chart call and habit work'
-              : call
-                ? `From the staff: ${name(call.playerId)}`
-                : `From the staff: working on ${name(habit!.playerId)}`,
+            : warns.length && !call && !habit && !unitNote
+              ? `From the staff: ${UNIT_PHRASE[warns[0].unit]}`
+              : call && habit
+                ? 'From the staff: a depth-chart call and habit work'
+                : call
+                  ? `From the staff: ${name(call.playerId)}`
+                  : `From the staff: working on ${name(habit!.playerId)}`,
       body:
-        own.length && !unitNote && !call && !habit
+        own.length && !unitNote && !call && !habit && !warns.length
           ? own.length === 1
             ? 'One thing from me this week.'
             : own.length === 2
@@ -194,7 +206,7 @@ export function staffNotesMail(league: League, have: Set<string>): Draft[] {
               : 'A few things from me this week.'
           : say(
               OPENER,
-              { calls: call ? 1 : 0, habits: habit ? 1 : 0, units: unitNote ? 1 : 0 },
+              { calls: call ? 1 : 0, habits: habit ? 1 : 0, units: (unitNote ? 1 : 0) + warns.length },
               { key: id, slot: 'opener', recent: recentBodies(league, sender.from) },
             ),
       sections: [{ title: 'From the staff', columns: ['Player', 'Coach'], rows }],
@@ -284,4 +296,36 @@ export function chemistryRows(league: League, told: Set<string>): StaffRow[] {
     });
   }
   return rows;
+}
+
+/**
+ * The position coach's warning (L4): one of his rooms fell past the warning line on whoever runs its side after a bad
+ * game this step (`Team.beliefFell`), before it reads in doubt; once each fall, in his words.
+ */
+export function beliefRows(
+  league: League,
+  told: Set<string>,
+): { key: string; unit: CoachRoom; coachId: number; note: string }[] {
+  const team = league.teams[league.userTeamId];
+  const fell = team.beliefFell;
+  const clock = moraleClock(league);
+  if (!fell || fell.clock !== clock) return [];
+  const ctx = moraleContext(league);
+  const staff = teamCoaches(league, league.userTeamId);
+  const out: { key: string; unit: CoachRoom; coachId: number; note: string }[] = [];
+  for (const unit of fell.rooms) {
+    const key = beliefWarnKey(clock, league.userTeamId, unit);
+    if (told.has(key)) continue;
+    const coach = staff.find((c) => c.role === 'positionCoach' && c.room === unit);
+    const fact = beliefFact(league, league.userTeamId, unit, ctx);
+    // Already past the warning into doubt: that's the head coach's to tell (a meeting, the report).
+    if (!coach || !fact || fact.read !== 'steady') continue;
+    out.push({
+      key,
+      unit,
+      coachId: coach.id,
+      note: say(BELIEF_WARN, fact, { key, slot: 'belief', recent: recentBodies(league, headCoach(league).from) }),
+    });
+  }
+  return out;
 }
