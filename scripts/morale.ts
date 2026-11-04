@@ -564,7 +564,7 @@ check(
 check(
   `AI clubs relieved coordinators a season (${relieved.length} in ${SEASONS})`,
   relieved.length / SEASONS,
-  [0.5, 3],
+  [1, 3],
 );
 check(
   '…every one a losing club whose side ranks in the bottom quarter',

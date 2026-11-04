@@ -221,6 +221,35 @@ gathers the recent seasons' list before tuning, and the band in §5.1 is set fro
   words only: the record and the side's ranking, never belief.
 - The relieved man goes to the market, available to every club in the window.
 
+#### The NFL's list (gathered for the plan, 2015–2024)
+
+In-season coordinator firings where the head coach stayed, from news reports. A lower bound: no source lists them all,
+and 2019–2020 found none verified (likely gaps). "≈" marks a date or record from a snippet, not yet checked.
+
+| Season | Club | Role | Coach | When | Record then |
+|---|---|---|---|---|---|
+| 2015 | Lions | OC | Joe Lombardi | ≈ Nov 2 | ≈ 1–6 |
+| 2015 | Dolphins | OC | Bill Lazor | ≈ fall | ≈ |
+| 2016 | Bills | OC | Greg Roman | Sep 16 | 0–2 |
+| 2016 | Jaguars | OC | Greg Olson | ≈ early Nov | 2–5 |
+| 2016 | Ravens | OC | Marc Trestman | in season | ≈ |
+| 2017 | Bengals | OC | Ken Zampese | ≈ late Sep | ≈ 0–2 |
+| 2018 | Cardinals | OC | Mike McCoy | Oct 19 | ≈ 1–6 |
+| 2018 | Buccaneers | DC | Mike Smith | ≈ Oct | ≈ |
+| 2018 | Bengals | DC | Teryl Austin | Nov 12 | ≈ 5–4 |
+| 2018 | Jaguars | OC | Nathaniel Hackett | Nov 26 | ≈ 3–8 |
+| 2018 | Vikings | OC | John DeFilippo | ≈ Dec 10 | ≈ 6–5–1 |
+| 2021 | Panthers | OC | Joe Brady | ≈ Nov 29 | ≈ 5–7 |
+| 2022 | Colts | OC | Marcus Brady | Nov 1 | 3–4–1 |
+| 2023 | Bills | OC | Ken Dorsey | Nov 14 | ≈ 5–5 |
+| 2023 | Steelers | OC | Matt Canada | Nov 21 | 6–4 |
+| 2023 | Commanders | DC | Jack Del Rio | Nov 24 | ≈ 4–8 |
+| 2024 | Raiders | OC | Luke Getsy | ≈ Nov 5 | ≈ 2–7 |
+| 2024 | Bears | OC | Shane Waldron | Nov 12 | 4–5 |
+
+Per season 0–5, about 1.8 on average (18 in ten seasons); most are offensive coordinators, and several came at a club
+near .500, not only a losing one. The check's band (§5.1) is a mean of 1–3 a season.
+
 ## 4. What you see (your club only, in words)
 
 ### 4.1 The warning first
@@ -263,8 +292,8 @@ Other clubs' belief; any number, a coach's game-day edge included; anything in t
   - Rooms reading `doubts` or worse at some point in a season: 10–25%. `lost`: 8% or fewer.
   - Rooms with a lawyer reach `doubts` more often than rooms without.
   - "He's on notice": kept and broken both happen, and neither is more than four in five.
-  - AI clubs relieve coordinators in season at the NFL's rate (about one or two a season league-wide; the band is
-    set from the plan's list of recent seasons), every one of them a losing club whose side ranks in the bottom
+  - AI clubs relieve coordinators in season at the NFL's rate (a mean of 1–3 a season league-wide, from the list in
+    §3.5), every one of them a losing club whose side ranks in the bottom
     quarter, and no club more than once a season.
   - The existing L1–L3 lines still hold.
 - **A unit test** (`staffEdge.test.ts`) replays the same games with one side's staff edge forced to +0.5 and to −0.5,
