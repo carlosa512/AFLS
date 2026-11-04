@@ -271,7 +271,10 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [ ] **Spark and Anchor tags read the truth.** The tags come from `soundOf`, which reads true hidden traits, so a tag
       can disagree with the personality our scouts show beside it. The L3 spec allows the tags; whether to gate them
       on our read (as L1's "warns" line does) is the owner's call (`ui/screens/LockerRoom.tsx`, `roomFacts.chemFact`).
-- [ ] **All-22 stage tests pass only on their own world.** On main, `src/ui/stage/stage.test.ts` fails with seeds
-      stage-b, stage-c and stage-d (a steered defender reaching the carrier first, linemen engaged 0.978 against 0.98,
-      a quarterback past the line on a sack-fumble). L3 holds chemistry at zero there to keep the world those tests
-      were tuned on; the drawing bugs are All-22's.
+- [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
+      `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
+      where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
+      rusher, a lineman tracking his man to the quarterback); a receiver slid past the sideline to a ball thrown out of
+      bounds; a jump-cutter's broken tackle never showed on a short carry. Left: the bounce habit's width is measured on
+      runs that go wide anyway (0.96–1.27 across worlds against 1.2), and the line a second in (one lineman at 4.04
+      yards against 4 on stage-b; 0.979 engaged against 0.98 on stage-d).
