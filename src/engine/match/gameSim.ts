@@ -110,6 +110,8 @@ export interface SimOptions {
   days?: [home: number, away: number];
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
+  /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
+  staff?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
 }
 
 const QUARTER_SECONDS = 900;
@@ -728,8 +730,26 @@ class GameSim {
     // The league's mood at kickoff: every lineup this game builds, the rebuild after an injury too, reads the same one.
     this.moodMean = moraleMean(league);
     this.lineups = [
-      buildLineup(league, team(game.homeId), undefined, game, this.moodMean, this.days[0], options.chemistry?.[0]),
-      buildLineup(league, team(game.awayId), undefined, game, this.moodMean, this.days[1], options.chemistry?.[1]),
+      buildLineup(
+        league,
+        team(game.homeId),
+        undefined,
+        game,
+        this.moodMean,
+        this.days[0],
+        options.chemistry?.[0],
+        options.staff?.[0],
+      ),
+      buildLineup(
+        league,
+        team(game.awayId),
+        undefined,
+        game,
+        this.moodMean,
+        this.days[1],
+        options.chemistry?.[1],
+        options.staff?.[1],
+      ),
     ];
     this.syncKnocks();
     this.styles = [callerStyle(league, game.homeId), callerStyle(league, game.awayId)];
@@ -1065,6 +1085,7 @@ class GameSim {
         this.moodMean,
         this.days[side],
         this.options.chemistry?.[side],
+        this.options.staff?.[side],
       );
       this.syncKnocks();
       this.fields[side] = units(this.lineups[side]);

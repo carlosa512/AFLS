@@ -1,5 +1,6 @@
 import { beliefWeek } from './belief';
 import { freshChemistry } from './chemistry';
+import { freshStaff } from './staffEdge';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
 import { moraleWeek } from './morale';
@@ -139,6 +140,7 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   if (game.result) throw new Error('This game has already been played.');
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
+  freshStaff(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
   prepareGame(league, game);
@@ -167,6 +169,7 @@ function playWeekControlled(league: League): Game[] {
   expireOffers(league);
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
+  freshStaff(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
