@@ -77,7 +77,9 @@ import type { CapRun } from './offseason-league';
 import { chairKey, chairSnap, hcOrigin } from './carousel';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
-const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit';
+// The default world (the owner's call, 2026-11-04): offseason-audit's 2031 free agency let fewer starters walk once the
+// staff edge (L4) moved its world, a one-season talent swing of +0.25 against ±0.25 that reversed the next season.
+const SEED = process.argv.includes('--seed') ? process.argv[process.argv.indexOf('--seed') + 1] : 'offseason-audit-3';
 const league = createLeague({ seed: SEED, personnel: true });
 
 /**
