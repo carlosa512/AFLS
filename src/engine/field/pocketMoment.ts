@@ -11,9 +11,9 @@ import { withCall } from './approach';
 import type { FieldFacts } from './moment';
 import { SCRAMBLE_OPEN, SCRAMBLE_PRESSURED } from './pocket';
 import { runPocket, type PocketResult, type PocketStart } from './pocketField';
-import { stagePlay, type StagedPlay } from './stage';
+import { asRan, stagePlay, type StagedPlay } from './stage';
 import { STEP } from './tuning';
-import type { FieldPlayer, FieldSkills } from './types';
+import type { FieldPlayer, FieldSkills, FieldStart } from './types';
 
 type DropKind = 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble';
 const DROPS: ReadonlySet<string> = new Set<DropKind>(['pass', 'incomplete', 'int', 'sack', 'scramble']);
@@ -68,8 +68,10 @@ export function pocketEntry(m: PocketMoment): PlayLogEntry {
   };
 }
 
-/** The moment a logged dropback was played from, or null for a play the pocket didn't play (or a flagged snap). */
-export function pocketMomentOf(e: PlayLogEntry, record: FieldRecord, index: number): PocketMoment | null {
+/** The moment a logged dropback was played from (a flagged snap's as it ran), or null for one the pocket didn't play. */
+export function pocketMomentOf(e0: PlayLogEntry, record: FieldRecord, index: number): PocketMoment | null {
+  // A flagged snap: the play as it ran.
+  const e = asRan(e0);
   const facts = e.field;
   if (!facts?.pk || !e.kind || !DROPS.has(e.kind) || e.from === undefined) return null;
   const kind = e.kind as DropKind;
@@ -122,7 +124,7 @@ export function pocketStage(m: PocketMoment, record: FieldRecord, homeId: number
 /** Who the pocket moves: the quarterback, his blockers and the rush; null on a screen or without five linemen. */
 export function pocketCast(
   staged: StagedPlay,
-  m: Pick<PocketMoment, 'air' | 'from'>,
+  m: Pick<PocketMoment, 'air' | 'from' | 'ball' | 'take'>,
 ): { qb: number; blockers: number[]; rushers: number[] } | null {
   if (m.air !== undefined && (m.air - m.from) * staged.dir < 0) return null;
   const ofRole = (role: string, offense: boolean) =>
@@ -131,10 +133,11 @@ export function pocketCast(
   const ol = ofRole('OL', true);
   if (qb === undefined || ol.length < 5) return null;
   const blitz = staged.call === 'blitz' && staged.blitz.length > 0;
+  // The target and an interceptor run their routes (the play is about them), never the pocket.
   const back = blitz ? ofRole('RB', true).slice(0, 1) : [];
   const front = [...ofRole('DT', false), ...ofRole('EDGE', false)];
-  const rushers = [...new Set([...front, ...staged.blitz])];
-  return { qb, blockers: [...ol, ...back], rushers };
+  const rushers = [...new Set([...front, ...staged.blitz])].filter((id) => id !== m.take);
+  return { qb, blockers: [...ol, ...back].filter((id) => id !== m.ball), rushers };
 }
 
 /** The pocket's start off the staging at the snap, and the pocket played on the play's own stream; null if it can't. */
@@ -247,4 +250,55 @@ export function composePocket(staged: StagedPlay, pocket: { start: PocketStart; 
     }
   }
   return { ...staged, steps, pos, ball };
+}
+
+/**
+ * A scramble's open field: everyone where the pocket (and the routes) left him as the quarterback crosses the line,
+ * moving as he was, today's yards his spot (out of bounds or a slide as today called it). Null before he's across.
+ */
+export function scrambleStart(
+  composed: StagedPlay,
+  pocket: { start: PocketStart; result: PocketResult },
+  m: PocketMoment,
+  skillsOf: (id: number) => FieldSkills | undefined,
+): FieldStart | null {
+  const k = pocket.result.breakout;
+  if (k === null || k < 1 || k >= composed.steps || m.facts.to === undefined) return null;
+  const n = composed.ids.length;
+  const players: FieldPlayer[] = [];
+  for (let i = 0; i < n; i++) {
+    const s = skillsOf(composed.ids[i]);
+    if (!s) return null;
+    const x = composed.pos[(k * n + i) * 2];
+    const y = composed.pos[(k * n + i) * 2 + 1];
+    players.push({
+      id: composed.ids[i],
+      side: composed.offense[i] ? 0 : 1,
+      role: composed.roles[i],
+      x,
+      y,
+      vx: (x - composed.pos[((k - 1) * n + i) * 2]) / STEP,
+      vy: (y - composed.pos[((k - 1) * n + i) * 2 + 1]) / STEP,
+      s,
+    });
+  }
+  const f = m.facts;
+  return {
+    kind: 'run',
+    t0: k * STEP,
+    dir: composed.dir,
+    yardLine: m.from,
+    carrier: pocket.start.qb,
+    players,
+    blocks: [],
+    clock: { outOfBounds: !!f.out, stayIn: !!f.stay },
+    edge: 0,
+    tired: !!f.tired,
+    target: {
+      x: m.from + f.to! * composed.dir,
+      touchdown: !!f.td,
+      ...(f.oob ? { out: true } : {}),
+      ...(f.sl ? { slide: true } : {}),
+    },
+  };
 }

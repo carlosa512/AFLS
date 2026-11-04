@@ -101,4 +101,14 @@ describe("the pocket's moment", () => {
       ).toBeLessThanOrEqual(0.5);
     }
   });
+
+  it('leaves the target and an interceptor to their routes, never the pocket', () => {
+    const { pm } = catches[0];
+    const staged = pocketStage(pm, record, g.homeId, seed)!;
+    const cast = pocketCast(staged, pm)!;
+    const rusher = cast.rushers[0];
+    const picked = pocketCast(staged, { ...pm, take: rusher })!;
+    expect(picked.rushers).not.toContain(rusher);
+    expect(pocketCast(staged, { ...pm, ball: cast.blockers[0] })!.blockers).not.toContain(cast.blockers[0]);
+  });
 });

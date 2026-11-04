@@ -304,7 +304,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         // His stop runs along his heading: running at an angle, only its downfield share eats up the yards left.
         const along = v > 0 ? Math.max(0, c.vx * dir) / v : 0;
         if (left() <= ((v * v) / (2 * FALL)) * along + PAST) {
-          const d = nearestFree(ANCHOR_REACH, now);
+          // A quarterback who slides gives himself up: down at his spot, nobody's tackle.
+          const d = spot.slide ? -1 : nearestFree(ANCHOR_REACH, now);
           if (d >= 0 && left() <= PAST) tackleBy(d, Math.max(0, left()), v);
           else if (d < 0) sliding = true;
         }
@@ -316,9 +317,9 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         if (stoppedAt < 0) [stoppedAt, stopX, stopY] = [now, c.x, c.y];
         // He's down: a man arriving doesn't carry him on.
         [c.x, c.y, c.vx, c.vy] = [stopX, stopY, 0, 0];
-        const on = nearestFree(ON_HIM, now);
-        if (on >= 0 || now - stoppedAt >= WAIT || nearestFree(WAIT_REACH, now) < 0) {
-          tackler = on >= 0 ? on : nearestFree(ANCHOR_REACH, now);
+        const on = spot?.slide ? -1 : nearestFree(ON_HIM, now);
+        if (spot?.slide || on >= 0 || now - stoppedAt >= WAIT || nearestFree(WAIT_REACH, now) < 0) {
+          tackler = spot?.slide ? -1 : on >= 0 ? on : nearestFree(ANCHOR_REACH, now);
           spotX = c.x;
           end(now, COAST.tackle);
         }
@@ -554,7 +555,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let dd = Infinity;
     // Short of his credited spot each man gets one real try at him (call H): after it he shadows him.
     // Credited out of bounds, nobody has him: every try is held off and he goes out.
-    const shy = !!spot && (spot.touchdown || !!spot.out || left() > ANCHOR);
+    const shy = !!spot && (spot.touchdown || !!spot.out || !!spot.slide || left() > ANCHOR);
     for (let i = 0; i < n; i++) {
       if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil || now < noContest[i]) continue;
       if (shy && tried[i]) continue;
@@ -575,7 +576,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (spot) {
       // At his spot (and no touchdown to come) this man has him, the pile carrying him the rest of the way; short of
       // it, or on his way to a touchdown, he drives through.
-      if (!spot.touchdown && !spot.out && left() <= ANCHOR) {
+      if (!spot.touchdown && !spot.out && !spot.slide && left() <= ANCHOR) {
         const by = nearestFree(ANCHOR_REACH, now);
         return tackleBy(by >= 0 ? by : d, Math.max(0, left()), sp);
       }

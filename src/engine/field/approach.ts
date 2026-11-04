@@ -184,8 +184,9 @@ export function fieldStart(
       blocks.push({ blocker: ol.id, defender: lb.id, holdFor: holds(0.5) });
       taken.add(ol.id).add(lb.id);
     }
-  // Anyone else locked up at possession: a defender in front of a blocker and on him.
-  for (const pd of players) {
+  // Anyone else locked up at possession: a defender in front of a blocker and on him. Not at a change of possession:
+  // the men face to face then were the old offense's blocks (the pocket's), and they end as the ball changes hands.
+  for (const pd of m.kind === 'turnover' ? [] : players) {
     if (pd.side !== 1 || taken.has(pd.id) || freed.has(pd.id)) continue;
     let best: FieldPlayer | undefined;
     let bd = ENGAGED;

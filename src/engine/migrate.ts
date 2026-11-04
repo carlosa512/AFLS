@@ -347,6 +347,9 @@ export function migrateLeague(league: League): League | null {
     league.settings ??= { spatialField: true };
     league.version = 85;
   }
+  // v86: the pocket on the field (slice two): a dropback's facts gain the pocket's outcome (`FieldFacts.pk`, `nb`, a
+  // scramble's slide `sl`) and the snapshot's skills the pocket's four. Optional, nothing to rewrite.
+  if (league.version < 86) league.version = 86;
   return league;
 }
 

@@ -31,6 +31,8 @@ export interface FieldFacts {
   /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
   pk?: PocketOutcome;
   nb?: 1;
+  /** A scramble that ends with him sliding (today's call): down at his spot, nobody's tackle. */
+  sl?: 1;
 }
 
 export interface FieldMoment {

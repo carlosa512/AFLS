@@ -41,10 +41,11 @@ game credits the field's sacker and beaten blocker instead.
 - when: a sack's play time follows the film (§4);
 - how the quarterback moved, and on a scramble, where he broke out.
 
-**Today's, as rolled:** whether it was clean, pressure, a sack, a scramble or a throwaway; whether a pressure is a
-hit (`QB_HIT_SHARE`, the credit stream, read before the pocket runs); whether a sack or pressure is charged to nobody
-(`UNBLAMED_SACK`, `UNBLAMED_PRESSURE`: the coverage held or he held the ball); the sack's yards and fumble; the
-scramble's yards, touchdown, slide or out of bounds; the throw and everything after it.
+**Today's, as rolled:** whether it was clean, pressure, a sack, a scramble (or an escape, when nothing came open) or a
+throwaway; the sack's yards and fumble; the scramble's yards, touchdown, slide or out of bounds; the throw and everything
+after it. Whether a pressure is a hit, and whether a sack or pressure is charged to nobody (the coverage held or he held
+the ball), are rolled at today's odds (`QB_HIT_SHARE`, `UNBLAMED_SACK`, `UNBLAMED_PRESSURE`) on the play's own streams
+before the pocket runs; today's credit-stream draws are still taken in their place, so the game's dice never shift.
 
 **Where it starts and stops.** At the snap. It ends when the ball is out, the sack lands, or the quarterback crosses
 the line on a scramble. A catch's open field (slice one) then starts from where the pocket left everyone. A
@@ -109,7 +110,7 @@ instead of its own staging, so nobody jumps when the film hands over.
 **What the log keeps.**
 
 - The play's field facts (`FieldFacts`) gain the pocket outcome today rolled (`clean`, `pressure`, `hit`, `sack`,
-  `scramble`, `away`) and whether it was unblamed.
+  `scramble`, `escape`, `away`) and whether it was unblamed.
 - The field's sacker and beaten blocker go where the log already keeps them (`who.rush`, `who.beat`).
 - The snapshot's skills (`FieldSkills`) gain pass rush, pass protection, pocket presence and scrambling.
 - A replay re-runs the pocket from these and gets the same frames. A replay whose sacker would differ from the box
