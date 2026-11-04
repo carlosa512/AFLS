@@ -1,3 +1,4 @@
+import { beliefWeek } from './belief';
 import { freshChemistry } from './chemistry';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
@@ -193,6 +194,8 @@ function playWeekControlled(league: League): Game[] {
     moraleWeek(league);
     // Then each head coach's word with his room (L2): the drift, and a streak's push; then the week's meetings.
     credibilityWeek(league);
+    // Then each room's belief in whoever runs its side (L4): the drift, the game, the streak.
+    beliefWeek(league);
     meetingsStep(league);
   }
   league.week++;

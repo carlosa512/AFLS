@@ -83,6 +83,7 @@ import type {
 import { POSITIONS } from './types';
 import { computeRecords } from './season/standings';
 import { startHeadCoach } from './meetings/credibility';
+import { dropSide, startCoordinator } from './belief';
 
 export const COACH_ROOMS: CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 export const ROOM_OF: Record<Position, CoachRoom | null> = {
@@ -187,7 +188,7 @@ export const coachMarket = (league: League): Coach[] => Object.values(league.coa
 /** A coach with these ratings changes nothing: the league's typical staff. */
 export const TYPICAL = 10.5;
 /** An empty chair works like a replacement-level assistant. */
-const VACANT = 6;
+export const VACANT = 6;
 /** Growth per point of youth development: the same slope as a point of work ethic (`growthMult`). */
 const GROWTH_PER_POINT = 0.065;
 /** Decline per point of veteran care, for the body (S&C-led) and for technique and the mental game. */
@@ -229,7 +230,7 @@ export function coordinatorOf(coaches: readonly Coach[], role: 'offCoord' | 'def
 }
 
 /** Rating points a head coach gives up running a side himself: he has a whole team to run as well. */
-const COVER_COST = 3;
+export const COVER_COST = 3;
 
 /**
  * The head coach running a side whose coordinator chair is empty, as his team has it by default, or null (the chair
@@ -959,6 +960,8 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   const salary = coachAskTo(league, c, years, teamId);
   // A head coach new to the club (hired, or promoted into the chair: `promoteInto`) starts with a new voice (L2).
   if (c.role === 'headCoach' && c.teamId !== teamId) startHeadCoach(c);
+  // New to the club: his rooms here have no history with him (L4).
+  if (c.teamId !== teamId) startCoordinator(c);
   if (c.teamId !== teamId) c.since = league.season;
   c.teamId = teamId;
   c.contract = { salary, through: league.season + years - 1 };
@@ -970,6 +973,8 @@ function signCoach(league: League, teamId: number, c: Coach, years: number): voi
   if (c.role === 'offCoord' || c.role === 'defCoord')
     for (const hc of teamCoaches(league, teamId)) {
       if (hc.actingAs === c.role) delete hc.actingAs;
+      // His cover ends: the rooms he ran answer to the new man now.
+      if (hc.role === 'headCoach') dropSide(hc, c.role);
       const off = hc.coverOff?.filter((r) => r !== c.role);
       if (off?.length) hc.coverOff = off;
       else delete hc.coverOff;
@@ -1056,6 +1061,7 @@ function dismiss(league: League, c: Coach, why?: string): void {
   c.lastJob = `${coachTitle(c)}, ${team.abbrev}${why ? ` (${why})` : ''}`;
   c.teamId = null;
   c.contract = null;
+  startCoordinator(c);
   delete c.interim;
   delete c.actingAs;
   delete c.since;
@@ -1167,6 +1173,7 @@ function promoteInto(league: League, teamId: number, c: Coach, years: number): v
   const team = league.teams[teamId];
   Object.assign(c, asPromoted(league, c, chair));
   delete c.room;
+  startCoordinator(c);
   if (chair.role === 'headCoach' && from === teamId) startHeadCoach(c);
   if (from !== teamId) {
     c.teamId = null;
