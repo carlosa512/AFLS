@@ -120,7 +120,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   the effects (G2): the game-day edge averaging out, the growth tilt centred and leaning the right way; and the room
   (L1): leaders and voices per club, unit reads (Split, Down, Tight shares) and club rooms not running away; and team
   meetings (L2): meetings per club per season, how many take one well or bristle, head coaches whose word has worn thin
-  at season's end and their recovery. Run it after changing `morale.ts`, `standing.ts`, `playerTalks.ts`,
+  at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
+  way, Anchors calming a room. Run it after changing `morale.ts`, `standing.ts`, `chemistry.ts`, `playerTalks.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
 - `npm run build` — web build to `dist/`
@@ -272,7 +273,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     stature), leaders and voices (`tierOf`; captains always lead, last season's until camp), how a voice sounds (stirs,
     steadies: words only), units (the position coaches' rooms plus the specialists), each unit's read (`unitRead`: its
     men's moods with the voices counting more; Tight, Settled, Restless, Down, Split) and your club's views (`roomView`,
-    `standingView`, `roomReasons`; words and ids only). It moves no one's mood: a voice rubbing off on his room is L3's.
+    `standingView`, `roomReasons`; words and ids only). A voice rubs off on his room (L3, `TONE` in `roomScore`): a Spark's
+    mood (`soundOf` stirs) spreads, an Anchor's (steadies) counts half and halves a Spark's, an Anchor's room draws in toward its
+    average (`calmOf`), friends a little; read against the league's typical voice, so the league doesn't drift.
+    `chemistry.ts` (L3, `docs/superpowers/specs/2026-11-03-chemistry-on-sunday-design.md`): each room's edge on game day,
+    ±0.3 rating points in `buildLineup`'s knocks (`SimOptions.chemistry`, `NO_CHEM` to hold it at zero in tests): its mood
+    against the league's through `moodScale` (less for a divided room; complacency trims a winning club's happy rooms unless a
+    driven voice keeps them hungry) plus time together (the line, the secondary, the QB with his top targets, from
+    `statTeams`), centred on the league each week; the words Clicking, Gelling, Still learning each other, Out of sync.
     `roomFacts.ts` builds what a line may read, `roomVoice.ts` the head coach's, position coaches' and screen's words; the
     report and the staff notes remember what they told in clock-stamped, club-named `unit:`/`standing:` keys;
     `TalkContractButton` (`ui/negotiation.tsx`) opens contract talks anywhere for a player `talksOpen` allows · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a

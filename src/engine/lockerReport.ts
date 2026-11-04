@@ -7,8 +7,9 @@
  */
 import { betterMentor, mentorStatus } from './mentoring';
 import { personalityOf, personalityRead, personalityTone, trueCharacter } from './personality';
-import { lastTold, standingFact, standingKey, unitFact, unitKey } from './roomFacts';
-import { STANDING_NOTE, UNIT_NOTE, UNIT_PHRASE } from './roomVoice';
+import { chemFact, chemKey, lastTold, standingFact, standingKey, unitFact, unitKey } from './roomFacts';
+import { CHEM_ROOMS, chemistryOf } from './chemistry';
+import { CHEM_NOTE, STANDING_NOTE, UNIT_NOTE, UNIT_PHRASE } from './roomVoice';
 import { captainsNow, roomView, unitOf, type Tier, type Unit } from './standing';
 import {
   CAPTAIN_WHY,
@@ -29,7 +30,7 @@ import { activeRoster, starters } from './roster';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
-import { teamCoaches } from './coaching';
+import { ROOM_LABEL, teamCoaches } from './coaching';
 import { DOWN_REASONS, MORALE_WORDS, moraleClock, moraleContext, moraleView } from './morale';
 import { DISPUTE_LABEL, disputeStanding } from './disputeVoice';
 import { yearParagraphFor } from './meetings/mail';
@@ -250,6 +251,19 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       // The screen's own words: Divided, or the room's mood.
       cells: [u.label, u.word === 'Split' ? 'Divided' : MORALE_WORDS[u.mood]],
       note: say(UNIT_NOTE, unitFact(league, u, last, gone?.lastName ?? null, roomCtx), at(`unit:${u.unit}`)),
+    });
+  }
+  // Chemistry (L3): a room clicking or out of sync on a GM's first report, then any room whose word changed since it was
+  // told; once each. The word is the screen's own.
+  for (const unit of roomTalk ? CHEM_ROOMS : []) {
+    const c = chemistryOf(league, user, unit);
+    if (!c) continue;
+    covered.push(chemKey(clock, user, unit, c.word));
+    const last = memory.chem.get(unit);
+    if (last ? last.word === c.word : c.word !== 'Clicking' && c.word !== 'Out of sync') continue;
+    roomRows.push({
+      cells: [ROOM_LABEL[unit], c.word],
+      note: say(CHEM_NOTE, chemFact(league, c, roomCtx), at(`chem:${unit}`)),
     });
   }
   if (roomRows.length) sections.push({ title: 'The room', columns: ['Unit', 'Read'], rows: roomRows });

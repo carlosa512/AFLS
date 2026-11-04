@@ -116,6 +116,73 @@ export function tierOf(league: League, p: Player, weight: number): Tier | null {
   return weight >= LEADER_AT ? 'leader' : weight >= VOICE_AT ? 'voice' : null;
 }
 
+// ───────── a voice rubs off on his room (L3) ─────────
+
+/**
+ * The pull's size (L3 spec §2.2): the voices' share of the room score (as much as being a captain) and friends' (a third of
+ * that), and each voice's weight: a Spark's mood spreads, an Anchor's and a plain voice's count half as much, and an
+ * Anchor in the room halves every Spark's. An Anchor's room is also drawn toward its own average (`calm`): the outliers
+ * come in, so the room spreads less.
+ */
+export const TONE = { voices: 0.75, friends: 0.25, spark: 1, anchor: 0.5, plain: 0.5, calm: 1 };
+
+/** A leader or voice as one pass of the league reads him (his lean is in `MoraleContext.leans`). */
+export interface VoiceRef {
+  id: number;
+  sound: Sound | null;
+}
+
+/** A leader or voice as the room hears him, or null for a man the room doesn't follow. */
+export function voiceOf(league: League, p: Player, ctx: MoraleContext): VoiceRef | null {
+  return tierOf(league, p, weightOf(league, p, ctx)) ? { id: p.id, sound: soundOf(p) } : null;
+}
+
+/** His room's voices' pull, −1…+1: their leans against the league's mood, weighted by how they sound; never himself. */
+export function toneOf(p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const around = ctx.voices.get(`${p.teamId}:${unitOf(p.position)}`) ?? [];
+  const anchored = around.some((v) => v.sound === 'steadies');
+  let sum = 0;
+  let weights = 0;
+  for (const v of around) {
+    if (v.id === p.id) continue;
+    const w =
+      v.sound === 'stirs' ? TONE.spark * (anchored ? 0.5 : 1) : v.sound === 'steadies' ? TONE.anchor : TONE.plain;
+    // Against the league's typical voice: voices run happier than the league, and a pull that lifted every room would
+    // lift the league with it. Measured this way it moves moods around a league without raising it.
+    sum += w * ((ctx.leans.get(v.id) ?? 0) - ctx.voiceMean);
+    weights += w;
+  }
+  return weights ? Math.max(-1, Math.min(1, sum / weights)) : 0;
+}
+
+/** An Anchor's room draws a man toward its own average, −1…+1 (0 with no Anchor there, or for the Anchor himself). */
+export function calmOf(p: Player, ctx: MoraleContext): number {
+  if (p.teamId === null) return 0;
+  const key = `${p.teamId}:${unitOf(p.position)}`;
+  const anchors = (ctx.voices.get(key) ?? []).filter((v) => v.sound === 'steadies' && v.id !== p.id);
+  const room = ctx.roomLeans.get(key);
+  if (!anchors.length || room === undefined) return 0;
+  return Math.max(-1, Math.min(1, room - (ctx.leans.get(p.id) ?? 0)));
+}
+
+/** His friends on the club, −1…+1: their moods against the league's, averaged. */
+export function friendPull(league: League, p: Player, ctx: MoraleContext): number {
+  let sum = 0;
+  let n = 0;
+  for (const t of p.ties ?? []) {
+    if (t.kind !== 'friend' || league.players[t.with]?.teamId !== p.teamId) continue;
+    sum += ctx.leans.get(t.with) ?? 0;
+    n++;
+  }
+  return n ? sum / n : 0;
+}
+
+/** What a screen and the coach call a voice's sound (L3): his mood spreads (a Spark) or he keeps a room calm (an Anchor). */
+export type VoiceName = 'Spark' | 'Anchor';
+export const voiceName = (s: Sound | null): VoiceName | null =>
+  s === 'stirs' ? 'Spark' : s === 'steadies' ? 'Anchor' : null;
+
 /** How his mood travels: a man who stirs says it out loud; a calm leader keeps a bad week to himself. */
 export function soundOf(p: Player): Sound | null {
   if (z(p.traits.controversy) >= 1) return 'stirs';
@@ -162,6 +229,8 @@ export interface UnitRead {
   members: number[];
   /** The room's mood on the seven-step scale, the voices counting more. */
   mood: MoraleStep;
+  /** The same weighted mean mood as a level (chemistry, L3, reads it against the league's). */
+  level: number;
   /** Who sets the tone: the unit's heaviest leader or voice, or no one. */
   setter: number | null;
   pulling: 'up' | 'down' | 'even' | null;
@@ -213,6 +282,7 @@ export function unitRead(league: League, teamId: number, unit: Unit, ctx: Morale
     word,
     members: men.map((p) => p.id),
     mood: moraleStepOf(mean),
+    level: mean,
     setter: lead?.id ?? null,
     pulling: lead ? pullOf(moodLean(moraleLevel(league, lead))) : null,
     noVoice,

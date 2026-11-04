@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from 'react';
 import { SAVE_VERSION } from '../engine/generate';
 import { deliverMail } from '../engine/inbox';
+import { freshChemistry } from '../engine/chemistry';
 import type { League } from '../engine/types';
 
 let league: League | null = null;
@@ -27,6 +28,8 @@ export const store = {
   mutate(fn: (l: League) => void) {
     if (!league) return;
     fn(league);
+    // Whatever you just did (a trade, a signing, a talk answered) counts in each room's chemistry from here on.
+    freshChemistry(league);
     deliverMail(league);
     emit();
     scheduleSave();

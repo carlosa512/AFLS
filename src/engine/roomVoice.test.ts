@@ -15,6 +15,9 @@ import {
   UNIT_TURN,
   type StandingFact,
   type UnitFact,
+  CHEM_NOTE,
+  CHEM_REASON,
+  type ChemFact,
 } from './roomVoice';
 import { roomView, type UnitWord } from './standing';
 import { say } from './voice';
@@ -454,6 +457,60 @@ describe('claims only what the engine does (L1: a voice moves no one’s mood)',
             const f = unit({ word, setter: 'Reyes', setterSound: sound, pulling, losingRun: 3, setterCaptain: true });
             expect(say(UNIT_NOTE, f, { key: k, slot: word })).not.toMatch(CLAIM);
             expect(say(UNIT_TURN, f, { key: k, slot: word })).not.toMatch(CLAIM);
+          }
+  });
+});
+
+describe('chemistry in the coach’s words (L3)', () => {
+  const chem = (o: Partial<ChemFact> = {}): ChemFact => ({
+    unit: 'the line',
+    word: 'Gelling',
+    years: null,
+    newStarters: 0,
+    split: false,
+    comfortable: false,
+    ...o,
+  });
+  const at = { key: 'k', slot: 's' };
+
+  it('reads the spec’s examples', () => {
+    expect(say(CHEM_NOTE, chem({ word: 'Clicking', years: 3 }), at)).toBe(
+      "The line's clicking. Three years together shows.",
+    );
+    expect(
+      say(CHEM_NOTE, chem({ unit: 'the D-line', word: 'Out of sync', spark: { last: 'Mitchell', sour: true } }), at),
+    ).toBe("Mitchell's sour, and he's a spark. The D-line's feeling it.");
+    expect(say(CHEM_NOTE, chem({ unit: 'the secondary', word: 'Still learning each other', newStarters: 2 }), at)).toBe(
+      'The secondary is still learning each other. Two new starters back there.',
+    );
+    expect(say(CHEM_REASON, chem({ word: 'Clicking', years: 3 }), at)).toBe('three years together');
+    expect(say(CHEM_REASON, chem({ anchor: 'Okafor' }), at)).toBe("Okafor's holding them together");
+    // A name ending in s takes "is", as the rest of the room's words do.
+    expect(say(CHEM_REASON, chem({ word: 'Out of sync', spark: { last: 'Owens', sour: true } }), at)).toBe(
+      'Owens is sour',
+    );
+  });
+
+  it('every case reads clean: no digits, no engine words', () => {
+    const words: ChemFact['word'][] = ['Clicking', 'Gelling', 'Still learning each other', 'Out of sync'];
+    for (const word of words)
+      for (const unit of ['the line', 'the receivers', 'the secondary', 'the quarterbacks'])
+        for (const years of [null, 0, 1.5, 3])
+          for (const extra of [
+            {},
+            { split: true },
+            { spark: { last: 'Mitchell', sour: true } },
+            { anchor: 'Okafor' },
+            { comfortable: true },
+            { newStarters: 1 },
+            { newStarters: 3 },
+          ]) {
+            const f = chem({ word, unit, years, ...extra });
+            for (const s of [say(CHEM_NOTE, f, at), say(CHEM_REASON, f, at)]) {
+              expect(s).not.toMatch(BANNED);
+              expect(s).not.toMatch(/\d/);
+            }
+            expect(say(CHEM_NOTE, f, at).length).toBeGreaterThan(0);
           }
   });
 });

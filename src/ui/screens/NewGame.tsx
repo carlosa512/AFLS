@@ -20,7 +20,7 @@ type Grades = Map<number, { rank: number; grade: string }>;
  * played). The same seed rebuilds the preview's league, staffs included, with the picked club as the user's.
  */
 export function startCareer(seed: string, teamId: number, gm?: StartingGm) {
-  // Every new career has practice squads (0.2.0), and your games' open field on the spatial engine (0.3.9).
+  // Every new career has practice squads (0.2.0), and your games' open field on the spatial engine (0.3.10).
   const league = createLeague({
     seed,
     userTeamId: teamId,
