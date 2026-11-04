@@ -13,9 +13,9 @@ import {
   weeklyAwards,
 } from './awards';
 import { createLeague, SAVE_VERSION } from './generate';
-import { playWeek, simToEndOfRegularSeason, simToEndOfSeason } from './league';
+import { playWeek, simToEndOfRegularSeason } from './league';
 import { migrateLeague } from './migrate';
-import { simOffseason } from './offseason';
+import { advanceOffseason, beginOffseason } from './offseason';
 import { ATTRIBUTES, type League } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -94,11 +94,25 @@ describe('comeback player', () => {
 });
 
 describe('save migration to v7', () => {
-  it('works out past seasons from the stats a save already has', () => {
+  it('works out past seasons from the stats a save already has', async () => {
     const league = createLeague({ seed: 'awards-migrate' });
-    simToEndOfSeason(league);
-    simOffseason(league);
-    simToEndOfRegularSeason(league);
+    // Two seasons, a week (or an offseason step) at a time with a yield between: played in one stretch they kept the
+    // test worker from reporting for over a minute (an RPC timeout). The same calls simToEndOfSeason, simOffseason and
+    // simToEndOfRegularSeason make, in the same order.
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    while (league.phase !== 'complete') {
+      playWeek(league);
+      await tick();
+    }
+    beginOffseason(league);
+    for (let guard = 0; guard < 256 && (league.phase as League['phase']) !== 'regular'; guard++) {
+      advanceOffseason(league, { autoUser: true });
+      await tick();
+    }
+    while ((league.phase as League['phase']) === 'regular') {
+      playWeek(league);
+      await tick();
+    }
     const first = league.season - 1;
     expect(league.awards.map((a) => a.season)).toEqual([first, league.season]);
 

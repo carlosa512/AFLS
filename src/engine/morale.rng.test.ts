@@ -16,6 +16,12 @@ vi.mock('./morale', async (load) => {
 // Every effect at zero: the scale they all read, mocked in its own module so no import order can slip past it.
 vi.mock('./moodScale', () => ({ moodLean: () => 0, moodPull: () => 0 }));
 
+// The staff edge on Sunday (L4) is fed by moods too (a sour lawyer's bad-game doubt, how meetings land): held at zero.
+vi.mock('./staffEdge', async (load) => {
+  const real = await load<typeof import('./staffEdge')>();
+  return { ...real, staffEdgeOf: () => null };
+});
+
 // And what moods do (G4): disputes and the AI keeping its promises move rosters and games, so they're off here too.
 vi.mock('./disputeRead', async (load) => {
   const real = await load<typeof import('./disputeRead')>();

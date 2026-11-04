@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { canMentor, MAX_MENTEES, mentorStatus, setMentor, setMentoringByYou } from '../../engine/mentoring';
 import { whyFact } from '../../engine/roomFacts';
 import { STANDING_WHY, standsOut } from '../../engine/roomVoice';
@@ -37,8 +38,11 @@ import { ROOMS } from '../../engine/meetings/suggest';
 import type { CoachRoom, MeetingScope } from '../../engine/types';
 import { MeetingChoices } from '../meetings';
 import { chemistryOf, type ChemRoom } from '../../engine/chemistry';
-import { chemFact } from '../../engine/roomFacts';
-import { CHEM_REASON } from '../../engine/roomVoice';
+import { beliefFact, chemFact } from '../../engine/roomFacts';
+import { BELIEF_LINE, CHEM_REASON } from '../../engine/roomVoice';
+import { runnerOf } from '../../engine/belief';
+import { useNav } from '../nav';
+import { nameAt } from '../nameAt';
 import { soundOf, voiceName } from '../../engine/standing';
 import type { MoraleContext } from '../../engine/morale';
 
@@ -357,7 +361,12 @@ export function LockerRoom({ league }: { league: League }) {
           </div>
         )}
         {meetings && (
-          <RoomAsk view={roomMeeting('team')} label="Ask the coach to talk to the team" note={meetings.blocked} />
+          <RoomAsk
+            league={league}
+            view={roomMeeting('team')}
+            label="Ask the coach to talk to the team"
+            note={meetings.blocked}
+          />
         )}
         <div className="room-cards">
           {cards.map((c) => (
@@ -376,8 +385,13 @@ export function LockerRoom({ league }: { league: League }) {
               </div>
               {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
               {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
+              {c.unit !== 'ST' && <BeliefLine league={league} unit={c.unit} ctx={ctx} />}
               {meetings && ROOMS.includes(c.unit as CoachRoom) && (
-                <RoomAsk view={roomMeeting(c.unit as CoachRoom)} label="Ask the coach to meet with them" />
+                <RoomAsk
+                  league={league}
+                  view={roomMeeting(c.unit as CoachRoom)}
+                  label="Ask the coach to meet with them"
+                />
               )}
               {c.follows.length > 0 && (
                 <div>
@@ -468,14 +482,39 @@ export function LockerRoom({ league }: { league: League }) {
   );
 }
 
+/** A sentence with each named man's surname as a link to his card (the first time it appears). */
+function NamesLinked({ league, text, ids }: { league: League; text: string; ids: number[] }) {
+  const parts: ReactNode[] = [];
+  let rest = text;
+  for (const id of ids) {
+    const p = league.players[id];
+    const at = p ? nameAt(rest, p.lastName) : -1;
+    if (!p || at < 0) continue;
+    parts.push(rest.slice(0, at), <PlayerLink key={id} league={league} player={p} surname />);
+    rest = rest.slice(at + p.lastName.length);
+  }
+  parts.push(rest);
+  return <>{parts}</>;
+}
+
 /** A room's meeting: what we told them and still owe, and your ask (or why not now). */
-function RoomAsk({ view, label, note }: { view?: RoomMeetingView; label: string; note?: string }) {
+function RoomAsk({
+  league,
+  view,
+  label,
+  note,
+}: {
+  league: League;
+  view?: RoomMeetingView;
+  label: string;
+  note?: string;
+}) {
   if (!view) return null;
   return (
     <div className="room-ask">
       {view.owed.map((line) => (
-        <p key={line} className="room-owed small">
-          {line}
+        <p key={line.text} className="room-owed small">
+          <NamesLinked league={league} text={line.text} ids={line.named} />
         </p>
       ))}
       <button
@@ -497,6 +536,27 @@ function ChemLine({ league, unit, ctx }: { league: League; unit: ChemRoom; ctx: 
   if (!c) return null;
   const reason = say(CHEM_REASON, chemFact(league, c, ctx), { key: `chem:${unit}`, slot: 'reason' });
   return <p className="room-chem">{reason ? `${c.word} · ${reason}` : c.word}</p>;
+}
+
+/** A room's read of whoever runs its side (L4), when there's something to say; his name opens his card. */
+function BeliefLine({ league, unit, ctx }: { league: League; unit: CoachRoom; ctx: MoraleContext }) {
+  const nav = useNav();
+  const f = beliefFact(league, league.userTeamId, unit, ctx);
+  if (!f) return null;
+  const text = say(BELIEF_LINE, f, { key: `belief:${unit}`, slot: 'line' });
+  if (!text) return null;
+  const runner = runnerOf(league, league.userTeamId, unit)!;
+  const at = nameAt(text, f.coach);
+  if (at < 0) return <p className="room-chem room-belief">{text}</p>;
+  return (
+    <p className="room-chem room-belief">
+      {text.slice(0, at)}
+      <button className="linklike" onClick={() => nav.openStaff('coach', runner.id)}>
+        {f.coach}
+      </button>
+      {text.slice(at + f.coach.length)}
+    </p>
+  );
 }
 
 /** A Spark or an Anchor, by name (L3); a plain voice has no tag. */

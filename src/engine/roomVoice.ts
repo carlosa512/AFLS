@@ -588,3 +588,92 @@ export const CHEM_REASON: readonly Line<ChemFact>[] = [
   },
   { text: () => '' },
 ];
+
+// ───────── backing the staff (L4): a room's belief in whoever runs its side ─────────
+
+/** What a belief line may read: the room, its read of the man running its side, and a lawyer voice stirring it. */
+export interface BeliefFact {
+  unit: string;
+  read: 'believes' | 'steady' | 'doubts' | 'lost';
+  /** The coordinator's (or the head coach's) last name. */
+  coach: string;
+  side: 'offense' | 'defense';
+  lawyer?: string;
+}
+/** "the receivers' ears", "the line's ears". */
+const ears = (unit: string) => `${unit}${unit.endsWith('s') ? "'" : "'s"} ears`;
+const calls = (f: BeliefFact) => (f.side === 'offense' ? 'the play-calling' : 'the calls');
+
+/** The position coach's warning in the staff notes, before the room reads in doubt: the room has started to slip. */
+export const BELIEF_WARN: readonly Line<BeliefFact>[] = [
+  {
+    when: (f) => !!f.lawyer,
+    reads: 2,
+    text: (f) => `${f.lawyer} has been in ${ears(f.unit)} about ${calls(f)} since Sunday.`,
+  },
+  {
+    reads: 1,
+    text: (f) =>
+      `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'is' : 'are'} quieter in meetings with ${f.coach}. Nothing said yet.`,
+  },
+  { text: (f) => `I'm hearing some grumbling in ${f.unit} about ${calls(f)}. Nothing loud yet.` },
+];
+
+/** The head coach's report, when a room's read of the man running its side has changed since he last told it. */
+export const BELIEF_NOTE: readonly Line<BeliefFact>[] = [
+  {
+    when: (f) => f.read === 'lost' && !!f.lawyer,
+    reads: 3,
+    text: (f) => `${f.coach} has lost ${f.unit}, and ${f.lawyer} made sure of it.`,
+  },
+  { when: (f) => f.read === 'lost', reads: 2, text: (f) => `${f.coach} has lost ${f.unit}.` },
+  {
+    when: (f) => f.read === 'doubts' && !!f.lawyer,
+    reads: 3,
+    text: (f) => `${has_(f.unit)} doubts about ${f.coach}'s calls, and ${isOf(f.lawyer!)} stirring it.`,
+  },
+  { when: (f) => f.read === 'doubts', reads: 2, text: (f) => `${has_(f.unit)} doubts about ${f.coach}'s calls.` },
+  {
+    when: (f) => f.read === 'believes',
+    reads: 2,
+    text: (f) => `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'believes' : 'believe'} in ${f.coach}.`,
+  },
+  { text: (f) => `${U(f)} back on board with ${f.coach}.` },
+];
+
+/** The Locker Room card's line, when there's something to say. */
+export const BELIEF_LINE: readonly Line<BeliefFact>[] = [
+  { when: (f) => f.read === 'lost', reads: 2, text: (f) => `${f.coach} has lost them` },
+  {
+    when: (f) => f.read === 'doubts' && !!f.lawyer,
+    reads: 3,
+    text: (f) => `Doubts about ${f.coach}'s calls · ${isOf(f.lawyer!)} stirring it`,
+  },
+  { when: (f) => f.read === 'doubts', reads: 2, text: (f) => `Doubts about ${f.coach}'s calls` },
+  { when: (f) => f.read === 'believes', reads: 2, text: (f) => `Believe in ${f.coach}` },
+  { text: () => '' },
+];
+
+/** The Coaches screen's line on one of our coordinators: how his rooms take him, rooms grouped by read. */
+export function beliefStaffLine(facts: readonly BeliefFact[]): string {
+  const by = (r: BeliefFact['read']) => facts.filter((f) => f.read === r).map((f) => f.unit);
+  const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+  const parts: string[] = [];
+  const believe = by('believes');
+  const doubt = by('doubts');
+  const lost = by('lost');
+  if (believe.length)
+    parts.push(`${list(believe)} ${believe.length === 1 && SINGULAR.has(believe[0]) ? 'believes' : 'believe'} in him`);
+  if (doubt.length)
+    parts.push(`${list(doubt)} ${doubt.length === 1 && SINGULAR.has(doubt[0]) ? 'has' : 'have'} doubts`);
+  if (lost.length) parts.push(`he's lost ${list(lost)}`);
+  return parts.length ? `${cap(parts.join('; '))}.` : '';
+}
+
+/** The report's and the card's short read of a room's belief, in the screen's own words. */
+export const BELIEF_WORD: Record<BeliefFact['read'], string> = {
+  believes: 'Believe in him',
+  steady: 'Back on board',
+  doubts: 'Doubts',
+  lost: 'Lost them',
+};

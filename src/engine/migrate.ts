@@ -347,6 +347,10 @@ export function migrateLeague(league: League): League | null {
     league.settings ??= { spatialField: true };
     league.version = 85;
   }
+  // v86: a settled promise records who made it (`by: 'gm'` for your address), and the locker room's last part (L4):
+  // rooms' belief in their coordinators (`Coach.belief`), a notice's coordinator, the doubts the coach has seen and a
+  // relieved coordinator's event. Absent reads as the coach's promise, the middle, nothing seen: nothing to fill.
+  if (league.version < 86) league.version = 86;
   return league;
 }
 

@@ -121,7 +121,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   (L1): leaders and voices per club, unit reads (Split, Down, Tight shares) and club rooms not running away; and team
   meetings (L2): meetings per club per season, how many take one well or bristle, head coaches whose word has worn thin
   at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
-  way, Anchors calming a room. Run it after changing `morale.ts`, `standing.ts`, `chemistry.ts`, `playerTalks.ts`,
+  way, Anchors calming a room; and backing the staff (L4): the staff edge centred, rooms in doubt and lost, lawyers'
+  rooms doubting more, notices kept, AI clubs relieving coordinators at the NFL's rate. Run it after changing
+  `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
 - `npm run build` — web build to `dist/`
@@ -281,6 +283,17 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     against the league's through `moodScale` (less for a divided room; complacency trims a winning club's happy rooms unless a
     driven voice keeps them hungry) plus time together (the line, the secondary, the QB with his top targets, from
     `statTeams`), centred on the league each week; the words Clicking, Gelling, Still learning each other, Out of sync.
+    `belief.ts` and `staffEdge.ts` (L4, `docs/superpowers/specs/2026-11-04-backing-the-staff-design.md`; MVP #11): each
+    room's hidden belief in whoever runs its side (`Coach.belief`, −1…1, on the coordinator or a head coach covering):
+    bad games wear it down (three times as far with a Locker-Room Lawyer voice in the room), streaks and meetings move
+    it, winning lifts it less the more a club wins, it drifts to the middle and halves at the new league year; read in
+    words (they believe in him, doubts about his calls, he's lost them). The staff edge on Sunday, ±0.2 for a side's
+    coach and ±0.1 for the head coach in `buildLineup`'s knocks (`SimOptions.staff`, `NO_STAFF`), from each coach's
+    quality (`coachValue`) and the room's belief (the head coach's credibility), centred on the league each week. Doubt
+    is a meeting trouble with "Stand behind him" and "He's on notice"; `relieve.ts` relieves a coordinator in season,
+    yours (`relieveCoordinator`, the move's rules in `coaching.ts`: `relieveProblem`, `relieveMove`) or an AI club's
+    (`aiRelieve`: losing, his side in the bottom quarter, his rooms turned, a weekly draw by its GM; a `coachRelieved`
+    leadership event SNN reports).
     `roomFacts.ts` builds what a line may read, `roomVoice.ts` the head coach's, position coaches' and screen's words; the
     report and the staff notes remember what they told in clock-stamped, club-named `unit:`/`standing:` keys;
     `TalkContractButton` (`ui/negotiation.tsx`) opens contract talks anywhere for a player `talksOpen` allows · `mentoring.ts` veterans mentoring players 21–24: work ethic, temperament and poise move at most a

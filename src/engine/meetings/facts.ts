@@ -1,4 +1,5 @@
 import { temperamentOf } from '../traits';
+import { beliefOf, beliefRead, runnerOf } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
 import { traitOf } from '../coachTraits';
 import { yearsLeft } from '../finance/contract';
@@ -15,6 +16,7 @@ import type {
   MeetingSuggestion,
   Moment,
   Player,
+  MeetingTopic,
   TalkCause,
 } from '../types';
 import { credibilityRead, type CredibilityRead } from './credibility';
@@ -86,7 +88,7 @@ export interface SuggestFact {
   noun: string;
   kind: MeetingSuggestion['kind'];
   moment?: Moment;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   /** The room's read, when it's a room's trouble. */
   word?: 'Split' | 'Down';
   driver?: ManFact;
@@ -103,6 +105,8 @@ export interface SuggestFact {
   asked?: boolean;
   /** The commitment that answers the topic, when one is on offer: the coach's advice names it. */
   advice?: Exclude<Backing, 'words'>;
+  /** A room in doubt about whoever runs its side (L4): his last name, and whether they've given up on him. */
+  coord?: { last: string; lost: boolean };
 }
 
 function recordOf(league: League, teamId: number): { record: Record3; losingRun: boolean } {
@@ -132,7 +136,7 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
       ? unitRead(league, teamId, s.scope as CoachRoom, ctx ?? moraleContext(league))
       : null;
   const named = s.namedFor ?? {};
-  const answer = s.topic !== 'none' ? ANSWERS[s.topic] : undefined;
+  const answer = s.topic !== 'none' && s.topic !== 'coordinator' ? ANSWERS[s.topic] : undefined;
   return {
     style: styleOf(hc ? traitOf(hc, 'discipline') : 10.5),
     scope: s.scope,
@@ -152,6 +156,7 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
     ...recordOf(league, teamId),
     credibility: hc ? credibilityRead(hc) : 'steady',
     ...(answer && s.backings.includes(answer) ? { advice: answer } : {}),
+    ...coordFact(league, teamId, s),
   };
 }
 
@@ -180,6 +185,7 @@ const BACKED: Record<Exclude<Backing, 'words'>, TalkCause> = {
   feud: 'feud',
   move: 'losing',
   jobs: 'losing',
+  notice: 'losing',
 };
 
 /** The reason a man reacted as he did: read off the same facts the score was. */
@@ -203,7 +209,7 @@ export function reasonFor(
   );
   if (landed) {
     if (r.backing !== 'words' && g.has(BACKED[r.backing])) return 'answered';
-    if (r.topic && r.topic !== 'none' && g.has(r.topic)) return 'heard';
+    if (r.topic && r.topic !== 'none' && r.topic !== 'coordinator' && g.has(r.topic)) return 'heard';
     if (r.approach === 'leader' && speaker && (friends(p, speaker) || p.id !== speaker.id)) return 'leader';
     return g.size ? 'heard' : 'content';
   }
@@ -214,4 +220,10 @@ export function reasonFor(
   if (sameAgain) return 'again';
   if (r.approach === 'straight' && temperamentOf(p) <= 7) return 'tone';
   return 'notHis';
+}
+
+function coordFact(league: League, teamId: number, s: MeetingSuggestion): Pick<SuggestFact, 'coord'> {
+  if (s.topic !== 'coordinator' || s.scope === 'team') return {};
+  const runner = runnerOf(league, teamId, s.scope);
+  return runner ? { coord: { last: runner.lastName, lost: beliefRead(beliefOf(runner, s.scope)) === 'lost' } } : {};
 }

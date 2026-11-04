@@ -175,24 +175,27 @@ describe('the offer card', () => {
 });
 
 /** A league with a filed offer message, found by playing on; `want` picks the offer. */
-function withFiledOffer(
+// Yields to the test worker each week: a search through several seeds' seasons in one stretch starves its reports (an
+// RPC timeout on CI).
+async function withFiledOffer(
   want: (o: TradeOffer, league: League) => boolean,
   seed = SEEDS[0],
-): { league: League; offer: TradeOffer } {
+): Promise<{ league: League; offer: TradeOffer }> {
   const league = createLeague({ seed });
   for (let w = 0; w < 9; w++) {
+    await new Promise((r) => setTimeout(r, 0));
     deliverMail(league);
     const offer = openOffers(league).find((o) => want(o, league) && mailForOffer(league, o));
     if (offer) return { league, offer };
     playWeek(league);
   }
   if (SEEDS.indexOf(seed) + 1 >= SEEDS.length) throw new Error('no seed in SEEDS had a matching filed offer by week 9');
-  return withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
+  return await withFiledOffer(want, SEEDS[SEEDS.indexOf(seed) + 1]);
 }
 
 describe('staff notes on an offer', () => {
-  it('link every player they name', () => {
-    const { league, offer } = withFiledOffer(
+  it('link every player they name', async () => {
+    const { league, offer } = await withFiledOffer(
       (o, l) => o.kind !== 'enquiry' && dealAdvice(l, o.sides).some((a) => a.who === 'coach'),
     );
     const named = dealAdvice(league, offer.sides).flatMap((a) =>
@@ -228,8 +231,8 @@ describe('the note under an offer', () => {
 });
 
 describe('offer mail', () => {
-  it('still reads after the offer is pruned from the market', () => {
-    const { league, offer } = withFiledOffer(() => true);
+  it('still reads after the offer is pruned from the market', async () => {
+    const { league, offer } = await withFiledOffer(() => true);
     const message = mailForOffer(league, offer)!;
     league.market!.offers = league.market!.offers.filter((o) => o.id !== offer.id);
     let html = '';
@@ -239,8 +242,10 @@ describe('offer mail', () => {
     expect(html).toMatch(/no longer on file/i);
   });
 
-  it('links every player on both sides of the offer', () => {
-    const { league, offer } = withFiledOffer((o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0);
+  it('links every player on both sides of the offer', async () => {
+    const { league, offer } = await withFiledOffer(
+      (o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0,
+    );
     const message = mailForOffer(league, offer)!;
     const about = aboutOf(league, message);
     for (const id of [...offer.sides[0].players, ...offer.sides[1].players]) {

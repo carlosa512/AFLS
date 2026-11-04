@@ -12,6 +12,7 @@ import { POSITIONS } from '../types';
 import { Rng } from '../rng';
 import { rustKnock } from '../disputeRead';
 import { chemistryOf, type ChemRoom } from '../chemistry';
+import { staffEdgeOf } from '../staffEdge';
 import { unitOf } from '../standing';
 
 /** The 22 starters plus the depth the engine draws on, with unit composites. */
@@ -190,6 +191,7 @@ export function buildLineup(
   mean?: number,
   today = 0,
   chem?: Partial<Record<ChemRoom, number>>,
+  staff?: Partial<Record<ChemRoom, number>>,
 ): Lineup {
   const day = game?.personnel?.lists?.[team.id];
   if (game && day) team = gameDayTeam(league, game, team);
@@ -299,8 +301,16 @@ export function buildLineup(
     if (!roomEdge.has(room)) roomEdge.set(room, chem?.[room] ?? chemistryOf(league, team.id, room)?.edge ?? 0);
     return roomEdge.get(room)!;
   };
+  // The staff (L4): his side's coach and the head coach, by their quality and the room's belief in them.
+  const staffEdge = new Map<ChemRoom, number>();
+  const staffOf = (p: Player): number => {
+    const room = unitOf(p.position);
+    if (mean === undefined || room === 'ST') return 0;
+    if (!staffEdge.has(room)) staffEdge.set(room, staff?.[room] ?? staffEdgeOf(league, team.id, room)?.edge ?? 0);
+    return staffEdge.get(room)!;
+  };
   for (const p of slots.keys()) {
-    const edge = mean === undefined ? 0 : MOOD_EDGE * moodPull(moraleLevel(league, p), mean) + chemOf(p);
+    const edge = mean === undefined ? 0 : MOOD_EDGE * moodPull(moraleLevel(league, p), mean) + chemOf(p) + staffOf(p);
     // Rust after missing camp (G4): a point in every contest his first week back, half a point the next.
     const k = (knocks.get(p.id) ?? 0) - edge - today + rustKnock(league, p);
     if (k) knocks.set(p.id, k);

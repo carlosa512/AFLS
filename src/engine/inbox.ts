@@ -2851,6 +2851,8 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
         .map((x) => x.id),
     );
     const outsideThen = !personal && (!inside || e.id < joined);
+    // Your own coordinator relieved (L4) is your own move: no letter back about it.
+    if (inside && e.kind === 'coachRelieved') continue;
     if (outsideThen && (covered(e) || coveredStep(e))) continue;
     // The owner's letter for the league year carries our own verdict and contract: no straggling mails about them,
     // also after the user turns the extension down and the club is no longer his.

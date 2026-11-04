@@ -7,9 +7,20 @@
  */
 import { betterMentor, mentorStatus } from './mentoring';
 import { personalityOf, personalityRead, personalityTone, trueCharacter } from './personality';
-import { chemFact, chemKey, lastTold, standingFact, standingKey, unitFact, unitKey } from './roomFacts';
+import { runnerOf } from './belief';
+import {
+  beliefFact,
+  beliefKey,
+  chemFact,
+  chemKey,
+  lastTold,
+  standingFact,
+  standingKey,
+  unitFact,
+  unitKey,
+} from './roomFacts';
 import { CHEM_ROOMS, chemistryOf } from './chemistry';
-import { CHEM_NOTE, STANDING_NOTE, UNIT_NOTE, UNIT_PHRASE } from './roomVoice';
+import { BELIEF_NOTE, BELIEF_WORD, CHEM_NOTE, STANDING_NOTE, UNIT_NOTE, UNIT_PHRASE } from './roomVoice';
 import { captainsNow, roomView, unitOf, type Tier, type Unit } from './standing';
 import {
   CAPTAIN_WHY,
@@ -30,7 +41,7 @@ import { activeRoster, starters } from './roster';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { League, MailSection, Player } from './types';
 import { mottoOf, recentBodies, say, toldKeys } from './voice';
-import { ROOM_LABEL, teamCoaches } from './coaching';
+import { COACH_ROOMS, ROOM_LABEL, teamCoaches } from './coaching';
 import { DOWN_REASONS, MORALE_WORDS, moraleClock, moraleContext, moraleView } from './morale';
 import { DISPUTE_LABEL, disputeStanding } from './disputeVoice';
 import { yearParagraphFor } from './meetings/mail';
@@ -265,6 +276,20 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       cells: [ROOM_LABEL[unit], c.word],
       note: say(CHEM_NOTE, chemFact(league, c, roomCtx), at(`chem:${unit}`)),
     });
+  }
+  // Backing the staff (L4): a room's read of whoever runs its side, when it has changed since it was told (a room in
+  // doubt on a GM's first report); once each. "Steady" is said only coming back from doubt.
+  for (const unit of roomTalk ? COACH_ROOMS : []) {
+    const f = beliefFact(league, user, unit, roomCtx);
+    const runner = runnerOf(league, user, unit);
+    if (!f || !runner) continue;
+    covered.push(beliefKey(clock, user, unit, f.read, runner.id));
+    // What was told is about the man it was told of: a new man running the side starts the room's story over.
+    const told_ = memory.belief.get(unit);
+    const last = told_ && (told_.coach === undefined || told_.coach === runner.id) ? told_ : undefined;
+    if (last ? last.read === f.read : f.read !== 'doubts' && f.read !== 'lost') continue;
+    if (f.read === 'steady' && last?.read !== 'doubts' && last?.read !== 'lost') continue;
+    roomRows.push({ cells: [ROOM_LABEL[unit], BELIEF_WORD[f.read]], note: say(BELIEF_NOTE, f, at(`belief:${unit}`)) });
   }
   if (roomRows.length) sections.push({ title: 'The room', columns: ['Unit', 'Read'], rows: roomRows });
 

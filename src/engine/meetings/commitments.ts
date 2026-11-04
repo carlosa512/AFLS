@@ -1,4 +1,6 @@
+import { BELIEF, beliefOf, beliefRead, runnerOf, shiftBelief } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
+import { aiRelieveNow, onTheTable } from '../relieve';
 import { managesTeam } from '../employment';
 import { actualRole, addJolt, moraleContext, YEAR, type MoraleContext } from '../morale';
 import { STARTERS } from '../positions';
@@ -22,7 +24,7 @@ import { dugIn } from './suggest';
  * What's put behind a meeting (L2, spec §2.1): a promise to the room with a window. Kept, the men who bought in get a
  * further lift and the coach's word gains; broken, they get a dip bigger than the meeting gave and his word loses.
  */
-export const WINDOW = { snaps: 3, talks: 4, feud: 4, move: Infinity, jobs: 3 };
+export const WINDOW = { snaps: 3, talks: 4, feud: 4, move: Infinity, jobs: 3, notice: 4 };
 
 /** Morale's clock at the step after deadline week's games: deadline day's deals are done by then. */
 export const deadlineClock = (season: number): number => season * YEAR + 8 + TRADE_DEADLINE_WEEK + 1;
@@ -68,6 +70,9 @@ export function openCommitment(
     ...(record.kind !== 'gm' && hcId !== undefined ? { coachId: hcId } : {}),
     lift: Object.fromEntries(boughtIn.map((id) => [id, lift[id] ?? 0])),
     ...(backing === 'jobs' || backing === 'move' ? { starters: startersOf(league, teamId) } : {}),
+    ...(backing === 'notice' && record.scope !== 'team' && runnerOf(league, teamId, record.scope)
+      ? { coord: runnerOf(league, teamId, record.scope)!.id }
+      : {}),
     ...(backing === 'move'
       ? {
           roster: activeRoster(league, teamId)
@@ -130,6 +135,14 @@ export function isKept(league: League, teamId: number, c: Commitment, ctx?: Mora
       const was = c.starters ?? [];
       return now.length !== was.length || now.some((id, i) => id !== was[i]) ? true : null;
     }
+    case 'notice': {
+      // Kept when the room climbs out of doubt, or the man it was about no longer runs its side (relieved, gone).
+      if (c.scope === 'team') return null;
+      const now = runnerOf(league, teamId, c.scope);
+      if (c.coord === undefined || !league.coaches[c.coord] || now?.id !== c.coord) return true;
+      const read = beliefRead(beliefOf(now, c.scope));
+      return read === 'steady' || read === 'believes' ? true : null;
+    }
   }
 }
 
@@ -146,7 +159,20 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
   // and thirty-one clubs' worth would grow the save for nothing.
   const m = league.teams[teamId].meetings;
   if (m && managesTeam(league, teamId))
-    (m.settled ??= []).push({ clock: c.opened, scope: c.scope, backing: c.backing, kept, named: [...c.named] });
+    (m.settled ??= []).push({
+      clock: c.opened,
+      scope: c.scope,
+      backing: c.backing,
+      kept,
+      named: [...c.named],
+      ...(c.by === 'gm' ? { by: 'gm' as const } : {}),
+      ...(c.coord !== undefined ? { coord: c.coord } : {}),
+    });
+  // A notice (L4): the room sees it kept or broken in whoever runs its side now.
+  if (c.backing === 'notice' && c.scope !== 'team') {
+    const runner = runnerOf(league, teamId, c.scope);
+    if (runner) shiftBelief(runner, c.scope, kept ? BELIEF.kept : BELIEF.broken);
+  }
   for (const id of c.boughtIn) {
     const p = league.players[id];
     if (!p || !onClub(league, teamId, id)) continue;
@@ -242,10 +268,20 @@ export function judgeCommitments(league: League): void {
         continue;
       }
       // An AI club's word at the window's end: kept by its GM's tendencies (it doesn't make its moves for the room).
-      if (!kept && !managesTeam(league, team.id))
+      if (!kept && !managesTeam(league, team.id)) {
         kept = new Rng(`${league.seed}:meeting:${league.season}:${c.closes}:${team.id}:commit:${c.opened}`).chance(
           aiKeepChance(team.gm),
         );
+        // A notice an AI club keeps, it keeps for real (L4): it relieves the man, or it's broken after all.
+        // Only when it's come to that (`onTheTable`: losing, his side among the worst, his rooms turned).
+        if (kept && c.backing === 'notice' && c.coord !== undefined) {
+          const role = league.coaches[c.coord]?.role;
+          kept =
+            (role === 'offCoord' || role === 'defCoord') &&
+            onTheTable(league, team.id, role) &&
+            aiRelieveNow(league, team.id, c.coord);
+        }
+      }
       settle(league, team.id, c, kept, clock);
     }
     m.open = keep;

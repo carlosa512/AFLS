@@ -8,7 +8,7 @@ import { simToEndOfSeason } from '../league';
 import type { League } from '../types';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
-import { meetingCard, meetingNeedsYou } from './mail';
+import { meetingCard, meetingNeedsYou, yearParagraphFor } from './mail';
 
 const base = (() => {
   const l = createLeague({ seed: 'meeting-mail' });
@@ -184,5 +184,19 @@ describe('meetings: one letter per suggestion', () => {
     expect(meetingNeedsYou(l, { clock: s.clock, scope: 'team' })).toBe(false);
     answerMeeting(l, { approach: 'ownIt', backing: 'words', timing: 'monday' });
     expect(meetingCard(l, { clock: s.clock, scope: 'team' }).state).toBe('passed');
+  });
+});
+
+describe('meetings: whose promise the year tells', () => {
+  it('tells a promise from your own address as yours', () => {
+    const l = fresh();
+    const m = l.teams[l.userTeamId].meetings ?? (l.teams[l.userTeamId].meetings = { log: [], open: [] });
+    m.lastYear = {
+      season: l.season - 1,
+      held: 1,
+      settled: [{ clock: (l.season - 1) * 32 + 14, scope: 'team', backing: 'jobs', kept: false, named: [], by: 'gm' }],
+    };
+    expect(yearParagraphFor(l)).toMatch(/You told them nobody's job was safe/);
+    expect(yearParagraphFor(l)).not.toMatch(/I said/);
   });
 });

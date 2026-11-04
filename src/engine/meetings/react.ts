@@ -1,4 +1,6 @@
+import { beliefOf, beliefRead, isLawyer, meetingBelief, runnerOf, sideRoleOf } from '../belief';
 import { traitLean, traitOf } from '../coachTraits';
+import { quality, sideValue } from '../staffEdge';
 import {
   addJolt,
   moodLean,
@@ -21,6 +23,7 @@ import type {
   MeetingSuggestion,
   Outcome,
   Player,
+  MeetingTopic,
   TalkCause,
   Timing,
 } from '../types';
@@ -49,6 +52,10 @@ export const REACT = {
   luck: 0.5,
   lands: 0.5,
   bristles: -0.5,
+  /** Standing behind a coordinator (L4): a fresh doubt under a good one, a lost room or a poor one, the lawyer himself. */
+  backFresh: 0.2,
+  backLost: -0.25,
+  backLawyer: -0.5,
 };
 
 /** The jolt on the mood level: a base, the timing, then a moment or the standard smaller and the GM's address bigger. */
@@ -97,7 +104,7 @@ const friendsWith = (p: Player, id: number | undefined, league: League) =>
     (league.players[id]?.ties ?? []).some((t) => t.kind === 'friend' && t.with === p.id));
 
 /** The grievance an approach is about. */
-const aboutOf = (approach: Approach, s: MeetingSuggestion): TalkCause | 'none' =>
+const aboutOf = (approach: Approach, s: MeetingSuggestion): MeetingTopic =>
   approach === 'losing' ? 'losing' : approach === 'standard' || approach === 'raiseBar' ? 'none' : s.topic;
 
 /** The grievance a commitment answers. */
@@ -107,6 +114,7 @@ const ANSWERS: Record<Exclude<Backing, 'words'>, TalkCause> = {
   feud: 'feud',
   move: 'losing',
   jobs: 'losing',
+  notice: 'losing',
 };
 
 /** The coach's words against the man's makeup, by approach (the plan's speaker terms). */
@@ -129,6 +137,14 @@ function speakerTerm(league: League, teamId: number, p: Player, s: MeetingSugges
     }
     case 'standard':
       return 0.1;
+    case 'backHim': {
+      if (s.scope === 'team') return 0;
+      const runner = runnerOf(league, teamId, s.scope);
+      const fresh =
+        beliefRead(beliefOf(runner, s.scope)) === 'doubts' &&
+        quality(sideValue(league, teamId, sideRoleOf(s.scope))) >= 0;
+      return (fresh ? REACT.backFresh : REACT.backLost) + (p.id === s.driver && isLawyer(p) ? REACT.backLawyer : 0);
+    }
     default:
       // Keep it about the losing: the fit on the losing cause is the whole of it. The GM's approaches lean in `terms`.
       return 0;
@@ -159,7 +175,11 @@ export function reactionScore(
   const grievances = grievancesOf(league, p, ctx);
   const about = aboutOf(choice.approach, s);
   let score =
-    grievances.size === 0 ? REACT.noGrievance : about !== 'none' && grievances.has(about) ? REACT.fit : REACT.miss;
+    grievances.size === 0
+      ? REACT.noGrievance
+      : about !== 'none' && about !== 'coordinator' && grievances.has(about)
+        ? REACT.fit
+        : REACT.miss;
   // A man who wants a new deal can't be talked out of it: only talks behind the meeting reach him.
   if ((grievances.has('deal') || underpaid(league, p, ctx)) && choice.backing !== 'talks') score += REACT.money;
   score += speakerTerm(league, teamId, p, s, choice.approach);
@@ -291,6 +311,8 @@ export function holdMeeting(
       }
     }
   }
+  // Each room it reached moves its belief in whoever runs its side, by how its men took it (L4).
+  meetingBelief(league, teamId, record, new Map(men.map((x) => [x.p.id, x.w])));
   delete m.pending;
   return record;
 }

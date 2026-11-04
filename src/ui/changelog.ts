@@ -13,6 +13,28 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.0',
+    date: '2026-11-04',
+    title: 'Coaches matter on Sunday (alpha)',
+    text:
+      'Your coordinators and head coach now lift their players on game day, as far as the room believes in them. Bad ' +
+      'losses wear that belief down, faster when a locker-room lawyer is stirring it, and your position coaches warn ' +
+      'you when a room starts to slip. Your head coach can ask to meet the room: stand behind his coordinator, or put ' +
+      'him on notice. From camp through the regular season you can relieve a coordinator and hand his side to the ' +
+      'head coach or a position coach, and other clubs now do the same when it comes to that. With this, every item ' +
+      'on the road to alpha is done.',
+  },
+  {
+    version: '0.3.12',
+    date: '2026-11-04',
+    title: 'Locker room touch-ups',
+    text:
+      "In the Locker Room, the players a team meeting's promise names are now links to their cards, and a promise of " +
+      "talks with two players names them both. The head coach's season's-end report now tells a promise you made in " +
+      'your own address to the team as yours, not his. And a hurt quarterback no longer counts toward how long the ' +
+      'passing game has played together.',
+  },
+  {
     version: '0.3.11',
     date: '2026-11-04',
     title: 'Out of bounds is out of bounds',

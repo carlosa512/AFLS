@@ -1,4 +1,4 @@
-import type { Approach, Backing, Moment, Outcome, TalkCause, Timing } from '../types';
+import type { Approach, Backing, MeetingTopic, Moment, Outcome, Timing } from '../types';
 import type { Line } from '../voice';
 import type { ManFact, Reason, Record3, Style, SuggestFact } from './facts';
 import type { CredibilityRead } from './credibility';
@@ -14,6 +14,8 @@ export const verb = (noun: string, one: string, many: string): string => (noun.e
  */
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Sanders's", "Hill's". */
+const possessive = (name: string) => `${name}'s`;
 const both = (a: ManFact, b: ManFact) => `${a.last} and ${b.last}`;
 const list = (men: ManFact[]) =>
   men.length === 1
@@ -27,6 +29,23 @@ const list = (men: ManFact[]) =>
 
 /** Who and what: the opening line of a trouble letter. */
 export const READ_LEAD: readonly Line<SuggestFact>[] = [
+  // A room turning on whoever runs its side (L4).
+  {
+    when: (f) => !!f.coord && !!f.driver,
+    reads: 3,
+    text: (f) =>
+      `${f.driver!.first} ${f.driver!.last} has been stirring up ${f.noun} about ${f.coord!.last}'s calls, and ${verb(f.noun, "it's", "they're")} listening.`,
+  },
+  {
+    when: (f) => !!f.coord?.lost,
+    reads: 2,
+    text: (f) => `${cap(f.noun)} ${verb(f.noun, 'has', 'have')} stopped believing in ${f.coord!.last}.`,
+  },
+  {
+    when: (f) => !!f.coord,
+    reads: 2,
+    text: (f) => `${cap(f.noun)} ${verb(f.noun, 'has', 'have')} doubts about ${f.coord!.last}'s calls.`,
+  },
   {
     when: (f) => !!f.driver && f.topic === 'deal',
     reads: 2,
@@ -158,6 +177,12 @@ export const MOMENT_LEAD: Record<Moment, string> = {
 /** His ask, and his read on what would reach the room when one thing would. */
 export const ASK: readonly Line<SuggestFact>[] = [
   {
+    when: (f) => !!f.coord,
+    reads: 3,
+    text: (f) =>
+      `I want to get ${f.noun} together this week. Before I do, I need your call. My read: either we stand behind ${f.coord!.last}, or we tell them it changes.`,
+  },
+  {
     when: (f) => f.advice === 'talks' && f.dealMen.length === 1,
     reads: 3,
     text: (f) =>
@@ -222,13 +247,20 @@ export function approachLabel(a: Approach, f: Pick<SuggestFact, 'driver' | 'lead
       return 'Raise the bar';
     case 'freshStart':
       return 'A fresh start';
+    case 'backHim':
+      return 'Stand behind him';
   }
 }
 
 export function backingLabel(b: Backing, f: Pick<SuggestFact, 'dealMen' | 'snapsMan' | 'feud' | 'kind'>): string {
   switch (b) {
     case 'talks':
-      return f.dealMen.length === 1 ? "We're talking to his agent" : "We're talking to their agents";
+      // Named: in a room's meeting, "his agent" left the room asking whose.
+      return f.dealMen.length === 1
+        ? `We're talking to ${possessive(f.dealMen[0].last)} agent`
+        : f.dealMen.length === 2
+          ? `We're talking to ${possessive(f.dealMen[0].last)} and ${possessive(f.dealMen[1].last)} agents`
+          : "We're talking to their agents";
     case 'snaps':
       return f.snapsMan ? `${f.snapsMan.last} will get his snaps` : "He'll get his snaps";
     case 'feud':
@@ -237,6 +269,8 @@ export function backingLabel(b: Backing, f: Pick<SuggestFact, 'dealMen' | 'snaps
       return "We're making a move";
     case 'jobs':
       return "No one's job is safe";
+    case 'notice':
+      return "He's on notice";
     case 'words':
       return f.kind === 'gm' ? 'Words only' : 'Nothing, just words';
   }
@@ -254,7 +288,7 @@ export interface ToldFact {
   style: Style;
   approach: Approach;
   backing: Backing;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
   noun: string;
   speaker?: ManFact;
   named: ManFact[];
@@ -340,7 +374,7 @@ export interface WentFact {
   man: ManFact;
   outcome: Exclude<Outcome, 'shrug'>;
   reason: Reason;
-  topic: TalkCause | 'none';
+  topic: MeetingTopic;
 }
 
 /** One man's reaction, always with its reason. */
@@ -544,8 +578,9 @@ export const CANDID: readonly Line<CandidFact>[] = [
 
 export interface YearFact {
   held: number;
-  kept?: { noun: string; month: string; promise: string; named?: string };
-  broken?: { when: string; promise: string };
+  /** `you`: the promise was yours, from your address to the team, not the coach's. */
+  kept?: { noun: string; month: string; promise: string; named?: string; you?: boolean };
+  broken?: { when: string; promise: string; you?: boolean };
 }
 
 const COUNT = [
@@ -566,18 +601,25 @@ export function yearParagraph(f: YearFact): string {
   const out = [`We got the guys together ${times} this year.`];
   if (f.kept)
     out.push(
-      `Talking to ${f.kept.noun} in ${f.kept.month} worked: I told them ${f.kept.promise}, we did, and ${f.kept.named ? `${f.kept.named} still listens to me for it` : 'they still listen to me for it'}.`,
+      f.kept.you
+        ? `When you talked to the team in ${f.kept.month}, you told them ${f.kept.promise}, and we did. They noticed.`
+        : `Talking to ${f.kept.noun} in ${f.kept.month} worked: I told them ${f.kept.promise}, we did, and ${f.kept.named ? `${f.kept.named} still listens to me for it` : 'they still listen to me for it'}.`,
     );
   const first = out.join(' ');
   if (!f.broken) return first;
-  return `${first}\n\n${cap(f.broken.when)} was another story. I said ${f.broken.promise}, it didn't happen, and a couple of the vets haven't let it go.`;
+  const said = f.broken.you ? 'You told them' : 'I said';
+  return `${first}\n\n${cap(f.broken.when)} was another story. ${said} ${f.broken.promise}, it didn't happen, and a couple of the vets haven't let it go.`;
 }
 
 /** A kept or broken commitment as the coach tells it: "we'd open Mitchell's talks". */
 export function promisePhrase(backing: Exclude<Backing, 'words'>, named: ManFact[]): string {
   switch (backing) {
     case 'talks':
-      return named.length === 1 ? `we'd open ${named[0].last}'s talks` : 'we would open talks with their agents';
+      return named.length === 1
+        ? `we'd open ${named[0].last}'s talks`
+        : named.length === 2
+          ? `we'd open talks with ${both(named[0], named[1])}'s agents`
+          : 'we would open talks with their agents';
     case 'snaps':
       return named.length === 1 ? `${named[0].last} would get his snaps` : 'the snaps would come';
     case 'feud':
@@ -586,6 +628,8 @@ export function promisePhrase(backing: Exclude<Backing, 'words'>, named: ManFact
       return 'we were buying';
     case 'jobs':
       return "nobody's job was safe";
+    case 'notice':
+      return 'things would change';
   }
 }
 
@@ -636,6 +680,7 @@ export const CAPTAIN_CLOSE: Record<Backing, string> = {
   talks: '',
   snaps: '',
   feud: '',
+  notice: '',
 };
 
 // ───────── SNN: a rumor, now and then ─────────

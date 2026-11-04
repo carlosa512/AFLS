@@ -1,4 +1,7 @@
+import { beliefWeek } from './belief';
+import { aiRelieve } from './relieve';
 import { freshChemistry } from './chemistry';
+import { freshStaff } from './staffEdge';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
 import { moraleWeek } from './morale';
@@ -144,6 +147,7 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   if (game.result) throw new Error('This game has already been played.');
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
+  freshStaff(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
   prepareGame(league, game);
@@ -173,6 +177,7 @@ function playWeekControlled(league: League): Game[] {
   expireOffers(league);
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
+  freshStaff(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
@@ -200,6 +205,10 @@ function playWeekControlled(league: League): Game[] {
     moraleWeek(league);
     // Then each head coach's word with his room (L2): the drift, and a streak's push; then the week's meetings.
     credibilityWeek(league);
+    // Then each room's belief in whoever runs its side (L4): the drift, the game, the streak.
+    beliefWeek(league);
+    // An AI club whose rooms have turned on a coordinator, losing and among the worst on his side, may let him go.
+    aiRelieve(league);
     meetingsStep(league);
   }
   league.week++;

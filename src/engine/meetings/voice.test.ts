@@ -90,7 +90,7 @@ describe('meetings: the coach’s words', () => {
 
   it('labels every choice briefly, naming the man when there is one', () => {
     expect(approachLabel('callout', fact())).toBe('Call Mitchell out');
-    expect(backingLabel('talks', fact())).toBe("We're talking to his agent");
+    expect(backingLabel('talks', fact())).toBe("We're talking to Mitchell's agent");
     expect(backingLabel('words', fact())).toBe('Nothing, just words');
     for (const b of ['talks', 'snaps', 'feud', 'move', 'jobs', 'words'] as Backing[])
       expect(backingLabel(b, fact()).split(' ').length).toBeLessThanOrEqual(6);
@@ -162,6 +162,16 @@ describe('meetings: the coach’s words', () => {
     expect(year).toMatch(/^We got the guys together four times this year\./);
     expect(year.match(/\bthe one\b/gi)).toBeNull();
     clean(year);
+    // A promise from your own address is yours, not the coach's.
+    const yours = yearParagraph({
+      held: 2,
+      kept: { noun: 'the team', month: 'October', promise: "nobody's job was safe", you: true },
+      broken: { when: 'the deadline', promise: 'we were buying', you: true },
+    });
+    expect(yours).toMatch(/you told them nobody's job was safe/i);
+    expect(yours).toMatch(/You told them we were buying/);
+    expect(yours).not.toMatch(/\bI (told|said)\b/);
+    clean(yours);
     for (const went of ['landed', 'mixed', 'flopped'] as const)
       expect(
         say(CAPTAIN_OPEN, { approach: 'ownIt', backing: 'jobs', went, record: 'losing' }, at).length,
