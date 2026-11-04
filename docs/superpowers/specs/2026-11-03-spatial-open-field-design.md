@@ -1,6 +1,7 @@
 # The spatial engine, slice one: the open field
 
-**Status:** built behind the switch (0.3.9); the gate decides when it turns on. Under the owner's call H, today's roll decides yards and the field plays out the way there.
+**Status:** built (0.3.9), the gate passed: on by default for your games (new careers and upgraded saves), with a
+developer switch (`?dev`) to turn it off. Turnover returns (picks, strip-sacks) were added in the same slice. Under the owner's call H, today's roll decides yards and the field plays out the way there.
 
 ## Why
 

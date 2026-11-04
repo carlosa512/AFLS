@@ -1,5 +1,5 @@
 /**
- * Developer-only switches: shown with `?dev` in the address. The spatial engine's switch lives in the save
+ * Developer-only switches: shown with `?dev` in the address (the spatial engine is on by default; this turns it off). The spatial engine's switch lives in the save
  * (`League.settings`: it changes results), the only part of it that's the browser's is whether it's shown.
  */
 import type { League } from '../engine/types';
@@ -15,7 +15,7 @@ export function setSpatialField(league: League, on: boolean): void {
   (league.settings ??= {}).spatialField = on;
 }
 
-/** The spatial engine's switch, for developers until its checks pass. */
+/** The spatial engine's switch, for developers: on by default, off to compare with today's drawn replay. */
 export function FieldSwitch({ league }: { league: League }) {
   if (!devMode()) return null;
   return (
@@ -28,7 +28,7 @@ export function FieldSwitch({ league }: { league: League }) {
           store.mutate((l) => setSpatialField(l, on));
         }}
       />{' '}
-      Spatial open field (in development)
+      Spatial open field
     </label>
   );
 }

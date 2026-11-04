@@ -298,8 +298,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     due and candid rows in the staff notes, the year in the season's-end report, an SNN rumor for a worn-thin coach on a
     losing run; the Locker Room reads `meetingsView`. Facts in `facts.ts`, the head coach's words in `voice.ts`
   - `field/` the spatial engine (slice one, the open field; spec `docs/superpowers/specs/2026-11-03-spatial-open-field-design.md`),
-    behind `League.settings.spatialField` and only for your games (`spatialFor` in `league.ts`; AI games never touch
-    it). At a moment of possession (a run past the line, a catch, a return) the stager plays the approach blind
+    on for your games by `League.settings.spatialField` (New Game and the v85 upgrade turn it on, a `?dev` switch
+    turns it off; `createLeague` leaves it off unless asked, so scripts keep today's speed) and only for your games
+    (`spatialFor` in `league.ts`; AI games never touch it). At a moment of possession (a run past the line, a catch, a return, a pick or a strip-sack's recovery) the stager plays the approach blind
     (`approach.ts`, from `momentEntry`), then `runField` (`run.ts`) steps bodies at 20 a second: the carrier's read
     (`read.ts`), the chase (`chase.ts`), blocks, contests (`contest.ts`, skills from the `burst`/`reads` contests and
     `sizeEdge`), habits. Today's roll still decides yards, touchdowns and out of bounds (`FieldStart.target`): the

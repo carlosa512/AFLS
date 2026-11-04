@@ -340,10 +340,11 @@ export function migrateLeague(league: League): League | null {
     repairSignedTalks(league);
     league.version = 84;
   }
-  // v85: the spatial engine's switch (`League.settings`, off) and its games' snapshot (`FieldRecord.snap`) and facts
-  // (`PlayLogEntry.field`). Optional: older games keep the drawn replay.
+  // v85: the spatial engine's switch (`League.settings`, on: a career's games from here play their open field on it) and
+  // its games' snapshot (`FieldRecord.snap`) and facts (`PlayLogEntry.field`). Optional: older games keep the drawn
+  // replay.
   if (league.version < 85) {
-    league.settings ??= { spatialField: false };
+    league.settings ??= { spatialField: true };
     league.version = 85;
   }
   return league;

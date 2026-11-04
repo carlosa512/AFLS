@@ -304,14 +304,14 @@ describe('save v84: talks kept by a signing', () => {
 });
 
 describe('save v85', () => {
-  it('upgrades v84: the switch off, games kept', () => {
+  it('upgrades v84: your games on the field, games kept', () => {
     const l = createLeague({ seed: 'v85' });
     delete l.settings;
     l.version = 84;
     const before = JSON.stringify(l.games);
     const up = migrateLeague(l)!;
     expect(up.version).toBe(85);
-    expect(up.settings).toEqual({ spatialField: false });
+    expect(up.settings).toEqual({ spatialField: true });
     expect(JSON.stringify(up.games)).toBe(before);
   });
 });
