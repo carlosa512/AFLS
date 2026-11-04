@@ -109,8 +109,8 @@ const UNDER_CENTER = 0.4;
 /** Under pressure he can't climb from, he rolls out this often (and a throwaway always does). */
 const ROLL = 0.25;
 /** A scramble: under pressure he goes once the rush gets there; with nothing open, after a long look (NFL ~4.4 s). */
-const SCRAMBLE_PRESSURED = [2.4, 3.2] as const;
-const SCRAMBLE_OPEN = [3.2, 4.4] as const;
+export const SCRAMBLE_PRESSURED = [2.4, 3.2] as const;
+export const SCRAMBLE_OPEN = [3.2, 4.4] as const;
 /**
  * Snap to sack: the NFL's median 2.9 s, a tenth of them past 5.3 (2023–25), so a long right tail (a log-normal); a
  * blitz gets there a little quicker. Never before the rush could have.

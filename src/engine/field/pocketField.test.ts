@@ -90,4 +90,136 @@ describe('the pocket', () => {
         }
     }
   });
+
+  describe("today's outcome steers it", () => {
+    const qbAt = (st: PocketStart, r: { frames: Float32Array }, s: number) =>
+      at(
+        st,
+        r.frames,
+        s,
+        st.players.findIndex((p) => p.id === st.qb),
+      );
+    const manAt = (st: PocketStart, r: { frames: Float32Array }, s: number, id: number) =>
+      at(
+        st,
+        r.frames,
+        s,
+        st.players.findIndex((p) => p.id === id),
+      );
+    const stepOf = (t: number) => Math.round(t / STEP);
+
+    it('holds a clean pocket to the throw, even with a free blitzer', () => {
+      for (let k = 0; k < 20; k++) {
+        const st = pocketStartOf({
+          outcome: 'clean',
+          blitz: true,
+          extra: [man(40, 1, 'LB', 44, MID - 1), man(41, 1, 'LB', 44, MID + 1)],
+        });
+        const r = runPocket(st, new Rng(`clean:${k}`));
+        expect(r.rusher, `seed ${k}`).toBeNull();
+        for (let s = 0; s <= stepOf(st.throwAt); s++) {
+          const q = qbAt(st, r, s);
+          for (const id of st.rushers) {
+            const m = manAt(st, r, s, id);
+            expect(Math.hypot(m.x - q.x, m.y - q.y), `seed ${k} rusher ${id} step ${s}`).toBeGreaterThan(1);
+          }
+        }
+      }
+    });
+
+    it('gets a hit to him as he throws, and a hurry a step short', () => {
+      for (let k = 0; k < 20; k++)
+        for (const outcome of ['hit', 'pressure'] as const) {
+          const st = pocketStartOf({ outcome });
+          const r = runPocket(st, new Rng(`press:${outcome}:${k}`));
+          expect(r.rusher, `${outcome} ${k}`).not.toBeNull();
+          const q = qbAt(st, r, stepOf(st.throwAt));
+          const m = manAt(st, r, stepOf(st.throwAt), r.rusher!);
+          const g = Math.hypot(m.x - q.x, m.y - q.y);
+          if (outcome === 'hit') expect(g, `${outcome} ${k}`).toBeLessThanOrEqual(1.2);
+          else {
+            expect(g, `${outcome} ${k}`).toBeGreaterThan(1.2);
+            expect(g, `${outcome} ${k}`).toBeLessThanOrEqual(3);
+          }
+        }
+    });
+
+    it('lands a sack at its time, the quarterback at the spot', () => {
+      for (let k = 0; k < 20; k++) {
+        const st = pocketStartOf({ outcome: 'sack', throwAt: 2.4 + (k % 4) * 0.3, sackX: 32, end: 4.5 });
+        const r = runPocket(st, new Rng(`sack:${k}`));
+        expect(Math.abs(r.at! - st.throwAt), `seed ${k}`).toBeLessThanOrEqual(0.3);
+        const last = r.frames.length / (st.players.length * 2) - 1;
+        expect(Math.abs(qbAt(st, r, last).x - 32), `seed ${k}`).toBeLessThanOrEqual(1);
+        const free = pocketStartOf({ outcome: 'sack', throwAt: 2.6, sackX: 32, end: 5, blamed: false });
+        const u = runPocket(free, new Rng(`unblamed:${k}`));
+        expect(u.beat).toBeNull();
+        expect(Math.abs(u.at! - 3.5), `seed ${k}`).toBeLessThanOrEqual(0.3);
+      }
+    });
+
+    it('breaks a scramble out away from the pressure', () => {
+      for (let k = 0; k < 20; k++) {
+        const st = pocketStartOf({ outcome: 'scramble', throwAt: 2.8, end: 6 });
+        const r = runPocket(st, new Rng(`scr:${k}`));
+        expect(r.breakout, `seed ${k}`).not.toBeNull();
+        expect(qbAt(st, r, r.breakout!).x, `seed ${k}`).toBeGreaterThanOrEqual(st.los);
+        // At the break he heads away from the rusher who got to him.
+        const b = stepOf(st.throwAt);
+        const q0 = qbAt(st, r, b);
+        const q1 = qbAt(st, r, b + 6);
+        const m = manAt(st, r, b, r.rusher!);
+        expect(Math.sign(q1.y - q0.y), `seed ${k}`).toBe(Math.sign(q0.y - m.y) || Math.sign(q1.y - q0.y));
+        const esc = pocketStartOf({ outcome: 'escape', throwAt: 3.6, end: 7 });
+        const e = runPocket(esc, new Rng(`esc:${k}`));
+        expect(e.breakout, `seed ${k}`).not.toBeNull();
+        const qe = qbAt(esc, e, stepOf(esc.throwAt));
+        for (const id of esc.rushers) {
+          const m2 = manAt(esc, e, stepOf(esc.throwAt), id);
+          expect(Math.hypot(m2.x - qe.x, m2.y - qe.y), `seed ${k} rusher ${id}`).toBeGreaterThan(2);
+        }
+      }
+    });
+
+    it('slides away from an edge rusher and steps up into a clean pocket', () => {
+      const clean = pocketStartOf({ outcome: 'clean', throwAt: 3.2, end: 3.2 });
+      const rc = runPocket(clean, new Rng('up'));
+      const set = clean.los - clean.setDepth;
+      expect(qbAt(clean, rc, stepOf(3.2)).x).toBeGreaterThan(set + 0.4);
+      let away = 0;
+      for (let k = 0; k < 20; k++) {
+        const st = pocketStartOf({
+          outcome: 'pressure',
+          throwAt: 3.4,
+          end: 3.4,
+          s: { 30: { rush: 20 }, 10: { pro: 4 } },
+        });
+        const r = runPocket(st, new Rng(`slide:${k}`));
+        if (r.rusher !== 30) continue;
+        const q = qbAt(st, r, stepOf(3.4));
+        if (q.y > MID + 0.3) away++;
+      }
+      expect(away).toBeGreaterThanOrEqual(10);
+    });
+
+    it('moves each habit the right way', () => {
+      const share = (o: Parameters<typeof pocketStartOf>[0], id: number, tag: string) => {
+        let n = 0;
+        for (let k = 0; k < 60; k++)
+          if (
+            runPocket(pocketStartOf({ outcome: 'pressure', throwAt: 3.2, end: 3.2, ...o }), new Rng(`${tag}:${k}`))
+              .rusher === id
+          )
+            n++;
+        return n;
+      };
+      expect(share({ s: { 30: { habits: ['bendsArc'] } } }, 30, 'bend')).toBeGreaterThan(share({}, 30, 'bend'));
+      expect(share({ s: { 10: { habits: ['heavyPunch'] } } }, 30, 'punch')).toBeLessThan(share({}, 30, 'punch'));
+      const breakAt = (habits: 'bailsEarly'[]) => {
+        const st = pocketStartOf({ outcome: 'escape', throwAt: 3.6, end: 7, s: { 1: { habits } } });
+        return runPocket(st, new Rng('bail')).breakout!;
+      };
+      expect(breakAt(['bailsEarly'])).toBeLessThan(breakAt([]));
+    });
+  });
 });
