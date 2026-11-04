@@ -90,7 +90,7 @@ describe('meetings: the coach’s words', () => {
 
   it('labels every choice briefly, naming the man when there is one', () => {
     expect(approachLabel('callout', fact())).toBe('Call Mitchell out');
-    expect(backingLabel('talks', fact())).toBe("We're talking to his agent");
+    expect(backingLabel('talks', fact())).toBe("We're talking to Mitchell's agent");
     expect(backingLabel('words', fact())).toBe('Nothing, just words');
     for (const b of ['talks', 'snaps', 'feud', 'move', 'jobs', 'words'] as Backing[])
       expect(backingLabel(b, fact()).split(' ').length).toBeLessThanOrEqual(6);

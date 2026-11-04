@@ -38,8 +38,10 @@ import { ROOMS } from '../../engine/meetings/suggest';
 import type { CoachRoom, MeetingScope } from '../../engine/types';
 import { MeetingChoices } from '../meetings';
 import { chemistryOf, type ChemRoom } from '../../engine/chemistry';
-import { chemFact } from '../../engine/roomFacts';
-import { CHEM_REASON } from '../../engine/roomVoice';
+import { beliefFact, chemFact } from '../../engine/roomFacts';
+import { BELIEF_LINE, CHEM_REASON } from '../../engine/roomVoice';
+import { runnerOf } from '../../engine/belief';
+import { useNav } from '../nav';
 import { soundOf, voiceName } from '../../engine/standing';
 import type { MoraleContext } from '../../engine/morale';
 
@@ -382,6 +384,7 @@ export function LockerRoom({ league }: { league: League }) {
               </div>
               {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
               {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
+              {c.unit !== 'ST' && <BeliefLine league={league} unit={c.unit} ctx={ctx} />}
               {meetings && ROOMS.includes(c.unit as CoachRoom) && (
                 <RoomAsk
                   league={league}
@@ -532,6 +535,26 @@ function ChemLine({ league, unit, ctx }: { league: League; unit: ChemRoom; ctx: 
   if (!c) return null;
   const reason = say(CHEM_REASON, chemFact(league, c, ctx), { key: `chem:${unit}`, slot: 'reason' });
   return <p className="room-chem">{reason ? `${c.word} · ${reason}` : c.word}</p>;
+}
+
+/** A room's read of whoever runs its side (L4), when there's something to say; his name opens his card. */
+function BeliefLine({ league, unit, ctx }: { league: League; unit: CoachRoom; ctx: MoraleContext }) {
+  const nav = useNav();
+  const f = beliefFact(league, league.userTeamId, unit, ctx);
+  if (!f) return null;
+  const text = say(BELIEF_LINE, f, { key: `belief:${unit}`, slot: 'line' });
+  if (!text) return null;
+  const runner = runnerOf(league, league.userTeamId, unit)!;
+  const at = text.indexOf(f.coach);
+  return (
+    <p className="room-chem room-belief">
+      {text.slice(0, at)}
+      <button className="linklike" onClick={() => nav.openStaff('coach', runner.id)}>
+        {f.coach}
+      </button>
+      {text.slice(at + f.coach.length)}
+    </p>
+  );
 }
 
 /** A Spark or an Anchor, by name (L3); a plain voice has no tag. */

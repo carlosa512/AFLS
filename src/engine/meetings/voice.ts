@@ -14,6 +14,8 @@ export const verb = (noun: string, one: string, many: string): string => (noun.e
  */
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Sanders's", "Hill's". */
+const possessive = (name: string) => `${name}'s`;
 const both = (a: ManFact, b: ManFact) => `${a.last} and ${b.last}`;
 const list = (men: ManFact[]) =>
   men.length === 1
@@ -253,7 +255,12 @@ export function approachLabel(a: Approach, f: Pick<SuggestFact, 'driver' | 'lead
 export function backingLabel(b: Backing, f: Pick<SuggestFact, 'dealMen' | 'snapsMan' | 'feud' | 'kind'>): string {
   switch (b) {
     case 'talks':
-      return f.dealMen.length === 1 ? "We're talking to his agent" : "We're talking to their agents";
+      // Named: in a room's meeting, "his agent" left the room asking whose.
+      return f.dealMen.length === 1
+        ? `We're talking to ${possessive(f.dealMen[0].last)} agent`
+        : f.dealMen.length === 2
+          ? `We're talking to ${possessive(f.dealMen[0].last)} and ${possessive(f.dealMen[1].last)} agents`
+          : "We're talking to their agents";
     case 'snaps':
       return f.snapsMan ? `${f.snapsMan.last} will get his snaps` : "He'll get his snaps";
     case 'feud':

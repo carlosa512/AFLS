@@ -34,7 +34,9 @@ describe('meetings: a room doubting its coordinator', () => {
     const ctx = moraleContext(l);
     const c = choicesFor(l, t, 'OL', 'trouble', 'coordinator', undefined, ctx);
     expect(c.approaches[0]).toBe('backHim');
-    expect(c.backings).toContain('notice');
+    // About the coordinator, so only what answers that: the notice, or words. No agent talks, no snaps.
+    expect(c.backings).toEqual(['notice', 'words']);
+    expect(c.namedFor).toBeUndefined();
     const other = choicesFor(l, t, 'OL', 'trouble', 'losing', undefined, ctx);
     expect(other.approaches).not.toContain('backHim');
     expect(other.backings).not.toContain('notice');
