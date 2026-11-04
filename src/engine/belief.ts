@@ -8,8 +8,8 @@ import { sideCoach, teamCoaches } from './coaching';
 import { moraleClock, moraleContext, moraleLevel, moraleStepOf, type MoraleContext } from './morale';
 import { personalityOf, trueCharacter } from './personality';
 import { computeRecords } from './season/standings';
-import { weightOf } from './standing';
-import type { CoachRoom, Coach, League, Player } from './types';
+import { unitOf, weightOf } from './standing';
+import type { CoachRoom, Coach, League, MeetingRecord, Player } from './types';
 
 export const BELIEF = {
   drift: 0.975,
@@ -156,4 +156,48 @@ export function beliefNewYear(league: League): void {
     if (!c.belief) continue;
     for (const room of Object.keys(c.belief) as CoachRoom[]) c.belief[room] = round(c.belief[room]! / 2);
   }
+}
+
+const ROOMS: readonly CoachRoom[] = [...SIDE_ROOMS.offCoord, ...SIDE_ROOMS.defCoord];
+
+/**
+ * A meeting held (L2) moves each room it reached by how its men took it: the share of the room's weight that took it
+ * well, less the share that bristled. Standing behind him (L4) moves it twice as far. A team meeting counts for every
+ * room, each by its own men.
+ */
+export function meetingBelief(
+  league: League,
+  teamId: number,
+  record: MeetingRecord,
+  weights: Map<number, number>,
+): void {
+  const lands = new Set(record.outcomes.lands);
+  const bristles = new Set(record.outcomes.bristles);
+  const rooms = record.scope === 'team' ? ROOMS : [record.scope];
+  for (const room of rooms) {
+    const runner = runnerOf(league, teamId, room);
+    if (!runner) continue;
+    let all = 0;
+    let up = 0;
+    let down = 0;
+    for (const [id, w] of weights) {
+      const p = league.players[id];
+      if (!p || unitOf(p.position) !== room) continue;
+      all += w;
+      if (lands.has(id)) up += w;
+      if (bristles.has(id)) down += w;
+    }
+    if (!all) continue;
+    const by = (BELIEF.lands * up - BELIEF.bristles * down) / all;
+    if (by) shiftBelief(runner, room, by * (record.approach === 'backHim' ? 2 : 1));
+  }
+}
+
+/** The rooms in doubt about whoever runs their side now, the worst first. */
+export function doubtRooms(league: League, teamId: number): { room: CoachRoom; read: BeliefRead; v: number }[] {
+  return ROOMS.flatMap((room) => {
+    const v = beliefOf(runnerOf(league, teamId, room), room);
+    const read = beliefRead(v);
+    return read === 'doubts' || read === 'lost' ? [{ room, read, v }] : [];
+  }).sort((a, b) => a.v - b.v);
 }

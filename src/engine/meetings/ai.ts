@@ -31,6 +31,8 @@ function backingFor(league: League, teamId: number, s: MeetingSuggestion): Backi
   // Never talks: an AI front office deals with contracts on its own calendar (`offseason/ai.ts`), so a promise of talks
   // would be kept or broken by a draw with nothing behind it, lifting an underpaid man for nothing.
   if (gm.loyalty >= AI.lean && has('snaps')) return 'snaps';
+  // A GM with little loyalty to his staff puts a doubted coordinator on notice (L4).
+  if (gm.loyalty <= 1 - AI.lean && has('notice')) return 'notice';
   return 'words';
 }
 

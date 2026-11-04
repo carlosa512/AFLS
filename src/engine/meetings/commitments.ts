@@ -1,3 +1,4 @@
+import { BELIEF, beliefOf, beliefRead, runnerOf, shiftBelief } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
 import { managesTeam } from '../employment';
 import { actualRole, addJolt, moraleContext, YEAR, type MoraleContext } from '../morale';
@@ -68,6 +69,9 @@ export function openCommitment(
     ...(record.kind !== 'gm' && hcId !== undefined ? { coachId: hcId } : {}),
     lift: Object.fromEntries(boughtIn.map((id) => [id, lift[id] ?? 0])),
     ...(backing === 'jobs' || backing === 'move' ? { starters: startersOf(league, teamId) } : {}),
+    ...(backing === 'notice' && record.scope !== 'team' && runnerOf(league, teamId, record.scope)
+      ? { coord: runnerOf(league, teamId, record.scope)!.id }
+      : {}),
     ...(backing === 'move'
       ? {
           roster: activeRoster(league, teamId)
@@ -130,8 +134,14 @@ export function isKept(league: League, teamId: number, c: Commitment, ctx?: Mora
       const was = c.starters ?? [];
       return now.length !== was.length || now.some((id, i) => id !== was[i]) ? true : null;
     }
-    case 'notice':
-      return null;
+    case 'notice': {
+      // Kept when the room climbs out of doubt, or the man it was about no longer runs its side (relieved, gone).
+      if (c.scope === 'team') return null;
+      const now = runnerOf(league, teamId, c.scope);
+      if (c.coord === undefined || !league.coaches[c.coord] || now?.id !== c.coord) return true;
+      const read = beliefRead(beliefOf(now, c.scope));
+      return read === 'steady' || read === 'believes' ? true : null;
+    }
   }
 }
 
@@ -155,7 +165,13 @@ function settle(league: League, teamId: number, c: Commitment, kept: boolean, cl
       kept,
       named: [...c.named],
       ...(c.by === 'gm' ? { by: 'gm' as const } : {}),
+      ...(c.coord !== undefined ? { coord: c.coord } : {}),
     });
+  // A notice (L4): the room sees it kept or broken in whoever runs its side now.
+  if (c.backing === 'notice' && c.scope !== 'team') {
+    const runner = runnerOf(league, teamId, c.scope);
+    if (runner) shiftBelief(runner, c.scope, kept ? BELIEF.kept : BELIEF.broken);
+  }
   for (const id of c.boughtIn) {
     const p = league.players[id];
     if (!p || !onClub(league, teamId, id)) continue;

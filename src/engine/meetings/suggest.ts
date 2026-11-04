@@ -1,3 +1,4 @@
+import { doubtRooms, lawyerIn } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
 import { extensionBlocker } from '../offseason/negotiation';
 import {
@@ -259,12 +260,20 @@ export function troubles(league: League, teamId: number, ctx: MoraleContext): Tr
   const team = league.teams[teamId];
   const was = meetingsOf(team).reads ?? {};
   // A room turning Split or Down is trouble; one that stays that way was already told.
-  const reads = roomTrouble(league, teamId, ctx)
-    .filter((r) => !was[r.unit as CoachRoom])
-    .sort((a, b) => (a.word === 'Down' ? 0 : 1) - (b.word === 'Down' ? 0 : 1) || a.mood - b.mood);
-  for (const r of reads) {
-    const men = membersOf(league, teamId, r.unit as CoachRoom);
-    out.push({ scope: r.unit as CoachRoom, topic: topicOf(league, men, ctx), driver: driverIn(league, men, ctx) });
+  // A room turning on whoever runs its side (L4) ranks with them: lost with Down, doubts between Down and Split.
+  const doubted = new Set(meetingsOf(team).doubts ?? []);
+  const ranked = [
+    ...roomTrouble(league, teamId, ctx)
+      .filter((r) => !was[r.unit as CoachRoom])
+      .map((r) => ({ room: r.unit as CoachRoom, rank: r.word === 'Down' ? 0 : 2, tie: 0, key: r.mood, isRead: true })),
+    ...doubtRooms(league, teamId)
+      .filter((d) => !doubted.has(d.room))
+      .map((d) => ({ room: d.room, rank: d.read === 'lost' ? 0 : 1, tie: 1, key: d.v, isRead: false })),
+  ].sort((a, b) => a.rank - b.rank || a.tie - b.tie || a.key - b.key);
+  for (const r of ranked) {
+    const men = membersOf(league, teamId, r.room);
+    if (r.isRead) out.push({ scope: r.room, topic: topicOf(league, men, ctx), driver: driverIn(league, men, ctx) });
+    else out.push({ scope: r.room, topic: 'coordinator', driver: lawyerIn(league, teamId, r.room, ctx)?.id });
   }
   const streak = ctx.records.get(teamId)?.streak ?? '';
   if (league.phase === 'regular' && streak[0] === 'L' && Number(streak.slice(1)) >= LOSING_RUN)
@@ -307,6 +316,9 @@ function noteRooms(league: League, teamId: number, ctx: MoraleContext): void {
   for (const r of roomTrouble(league, teamId, ctx)) reads[r.unit as CoachRoom] = r.word as 'Split' | 'Down';
   if (Object.keys(reads).length) m.reads = reads;
   else delete m.reads;
+  const doubts = doubtRooms(league, teamId).map((d) => d.room);
+  if (doubts.length) m.doubts = doubts.sort();
+  else delete m.doubts;
   const feuds = new Set((m.feuds ?? []).filter((k) => k.startsWith(`${league.season}:`)));
   for (const room of ROOMS) {
     const pair = feudIn(membersOf(league, teamId, room), league.season);
@@ -359,6 +371,8 @@ export function choicesFor(
   const leader = leaderIn(league, men, ctx);
   const losingNow = losing(ctx, teamId);
   const approaches: Approach[] = [];
+  // A room in doubt about its coordinator (L4): the head coach can stand behind him.
+  if (topic === 'coordinator') approaches.push('backHim');
   if (leader !== undefined) approaches.push('leader');
   approaches.push('straight');
   if (driver !== undefined) approaches.push('callout');
@@ -380,6 +394,7 @@ export function choicesFor(
   const feud = feudIn(men);
   if (feud) backings.push('feud');
   if (league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK && losingNow) backings.push('move');
+  if (topic === 'coordinator' && scope !== 'team') backings.push('notice');
   backings.push('words');
   // The men each commitment would name, in the order the commitments are offered.
   const namedFor: NonNullable<MeetingSuggestion['namedFor']> = {};
