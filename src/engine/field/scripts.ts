@@ -483,9 +483,15 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       out.push(...cut);
       at = { x: cut[cut.length - 1].x1, y: cut[cut.length - 1].y1 };
     } else if (e.open?.bounce && habit('bouncesExternal')) {
-      // A bounce that goes further outside before it turns up.
+      // A bounce that goes further outside before it turns up: a yard on, wider than his way to the end would have him
+      // there (a run already headed outside drifts that far on its own; the bounce takes him past it).
       const out1 = Math.sign(hole.y - snapY) || coin;
-      const wide = { x: at.x + dir, y: Math.max(1, Math.min(FIELD_W - 1, at.y + out1 * BOUNCE_WIDER)) };
+      const h = heading(at);
+      const drift = Math.max(0, (out1 * h.y) / Math.max(Math.abs(h.x), 0.33));
+      const wide = {
+        x: at.x + dir,
+        y: Math.max(1, Math.min(FIELD_W - 1, at.y + out1 * (drift + BOUNCE_WIDER))),
+      };
       out.push(paced({ x0: at.x, y0: at.y, x1: wide.x, y1: wide.y, peak: 0, dur: 0 }, pace));
       at = wide;
     }
