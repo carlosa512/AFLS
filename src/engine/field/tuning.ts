@@ -52,6 +52,12 @@ export const KNOBS = {
   meet: 0.4,
   /** Seconds added to a catch's clock beyond `pad` (its film runs from the throw). */
   padCatch: 0.1,
+  /** The pocket (`pocketField.ts`): a rep's win rate a second at even skills, its log-rate a point of rush over
+   * protection, the share left on a double team, and the clock past a sack's whistle (seconds). */
+  rushWin: 0.25,
+  rushSkill: 0.15,
+  double: 0.25,
+  padSack: 1.5,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */

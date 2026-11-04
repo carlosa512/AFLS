@@ -9,6 +9,8 @@ import type { Role } from './cast';
 import { FIELD_W } from './geometry';
 import { KNOBS } from './tuning';
 import type { FieldPlayer, FieldSkills, FieldStart } from './types';
+import type { PocketStart } from './pocketField';
+import { MID as MID_Y } from './geometry';
 
 const POS_OF: Record<Role, Position> = {
   QB: 'QB',
@@ -153,6 +155,10 @@ export const RULE_KNOBS: typeof KNOBS = {
   carrier: 1,
   meet: 0.4,
   padCatch: 0,
+  rushWin: 0.25,
+  rushSkill: 0.15,
+  double: 0.25,
+  padSack: 0,
 };
 
 /** Set the rule knobs for a test file; returns what puts the shipped ones back. */
@@ -160,4 +166,47 @@ export function pinKnobs(): () => void {
   const was = { ...KNOBS };
   Object.assign(KNOBS, RULE_KNOBS);
   return () => Object.assign(KNOBS, was);
+}
+
+/**
+ * A dropback at the snap on the 40 going up the field: five linemen a yard off the ball, two edges outside the tackles,
+ * two tackles over the guards, the quarterback in the shotgun; `extra` adds men (blitzers, a back). Ids: QB 1, OL 10–14
+ * (left to right across the field), EDGE 30 and 33, DT 31 and 32.
+ */
+export function pocketStartOf(
+  o: Partial<PocketStart> & { extra?: FieldPlayer[]; s?: Record<number, Partial<FieldSkills>> } = {},
+): PocketStart {
+  const los = 40;
+  const sk = (id: number) => o.s?.[id] ?? {};
+  const players: FieldPlayer[] = [man(1, 0, 'QB', los - 5, MID_Y, { s: sk(1) })];
+  [-4.6, -2.3, 0, 2.3, 4.6].forEach((y, k) =>
+    players.push(man(10 + k, 0, 'OL', los - 1, MID_Y + y, { s: sk(10 + k) })),
+  );
+  [
+    [30, 'EDGE', -6.5],
+    [31, 'DT', -1.6],
+    [32, 'DT', 1.6],
+    [33, 'EDGE', 6.5],
+  ].forEach(([id, role, y]) =>
+    players.push(man(id as number, 1, role as Role, los + 1, MID_Y + (y as number), { s: sk(id as number) })),
+  );
+  players.push(...(o.extra ?? []));
+  const { extra: _e, s: _s, ...rest } = o;
+  void _e;
+  void _s;
+  return {
+    dir: 1,
+    los,
+    qb: 1,
+    players,
+    blockers: [10, 11, 12, 13, 14, ...(o.extra ?? []).filter((p) => p.side === 0).map((p) => p.id)],
+    rushers: [30, 31, 32, 33, ...(o.extra ?? []).filter((p) => p.side === 1).map((p) => p.id)],
+    outcome: 'clean',
+    blamed: true,
+    blitz: false,
+    setDepth: 7,
+    throwAt: 2.8,
+    end: 3.5,
+    ...rest,
+  };
 }

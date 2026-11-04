@@ -79,6 +79,10 @@ async function fit() {
     carrier: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
     meet: (v, k) => [Math.max(0, v - 0.2 * k), v + 0.2 * k],
     padCatch: (v, k) => [v - 0.8 * k, v + 0.8 * k],
+    rushWin: (v, k) => [Math.max(0.02, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
+    rushSkill: (v, k) => [Math.max(0.01, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
+    double: (v, k) => [Math.max(0.02, v * (1 - 0.3 * k)), Math.min(1, v * (1 + 0.3 * k))],
+    padSack: (v, k) => [v - 0.8 * k, v + 0.8 * k],
   };
 
   async function score(): Promise<number> {
