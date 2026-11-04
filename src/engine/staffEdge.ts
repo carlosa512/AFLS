@@ -27,6 +27,13 @@ export const STAFF = {
 };
 const CAP = STAFF.coord + STAFF.head;
 
+/**
+ * The staff edge league-wide, on unless a check that reads something else turns it off for a whole season it plays
+ * (`npm run parity`'s team-season replay: the field engine against today's, where belief would amplify the field's
+ * own head start). Like `MOOD_ACTS` in `disputeRead.ts`; the game never turns it off.
+ */
+export const STAFF_ON = { on: true };
+
 /** Every room's staff edge held at zero (`SimOptions.staff`, `buildLineup`): for tests that read something else. */
 export const NO_STAFF: Readonly<Record<ChemRoom, number>> = { QB: 0, RB: 0, WR: 0, OL: 0, DL: 0, LB: 0, DB: 0 };
 
@@ -104,7 +111,7 @@ function week(league: League): Week {
 
 /** One room's staff edge this week (null for a club that isn't in the league). */
 export function staffEdgeOf(league: League, teamId: number, unit: ChemRoom): StaffEdge | null {
-  if (!league.teams[teamId]) return null;
+  if (!STAFF_ON.on || !league.teams[teamId]) return null;
   const w = week(league);
   const p = w.parts.get(`${teamId}:${unit}`) ?? raw(league, teamId, unit);
   const edge = clamp(p.coord + p.head - (w.centre.get(unit) ?? 0), -CAP, CAP);

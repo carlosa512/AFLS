@@ -5,7 +5,7 @@ import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { simulateGame } from './match/gameSim';
-import { STAFF, staffEdgeOf, staffWeek, sideValue } from './staffEdge';
+import { STAFF, STAFF_ON, staffEdgeOf, staffWeek, sideValue } from './staffEdge';
 import type { GameResult, League } from './types';
 
 const base = (() => {
@@ -76,6 +76,19 @@ function fresh2(l: League): League {
   l.moraleAt = (l.moraleAt ?? 0) + 0.0001;
   return l;
 }
+
+describe('staff edge: the switch a check can turn off', () => {
+  it('reads no edge while it is off, and comes back on', () => {
+    const l = fresh();
+    STAFF_ON.on = false;
+    try {
+      expect(staffEdgeOf(l, 0, 'OL')).toBeNull();
+    } finally {
+      STAFF_ON.on = true;
+    }
+    expect(staffEdgeOf(l, 0, 'OL')).not.toBeNull();
+  });
+});
 
 describe('staff edge: game day', () => {
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
