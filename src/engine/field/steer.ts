@@ -698,11 +698,13 @@ export function steer(a: SteerArgs): Float32Array {
               if ((ballX0 - goal.x) * a.dir > deepest) goal = { x: ballX0 - a.dir * deepest, y: goal.y };
             }
             // Beaten: his man is past him, closer to the quarterback than he is, or the rusher's script has him by (a
-            // block he tracks all the way to the quarterback never reads as past). He turns and is out of the play.
-            if (k === index.get(a.beat ?? -1) && on === index.get(a.rush ?? -1)) {
+            // block he tracks all the way to the quarterback never reads as past). Not before he's kicked to his set (a
+            // quick win still finds him in his stance, not frozen at the snap); then he turns and chases his man, a
+            // beaten man's pace behind him.
+            if (k === index.get(a.beat ?? -1) && on === index.get(a.rush ?? -1) && t >= SET_TIME) {
               const mine = Math.hypot(px[hk] - px[k], py[hk] - py[k]);
               if (Math.hypot(dx, dy) < mine || t >= (a.beatAt ?? Infinity)) {
-                goal = { x: px[k], y: py[k] };
+                goal = { x: px[on], y: py[on] };
                 beaten = 0.5;
               }
             }
