@@ -108,7 +108,7 @@ const STEP_POS: Partial<Record<Position, number>> = { TE: -0.7, RB: -0.7 };
 const STEP_ROOM_SHORT = 0.8;
 /** Room ahead and nobody on him: he keeps going. On the ground the pursuit is still there at the end of a long run
  * (outside runs of 10+ yards: 5.8% step out). */
-const STEP_FREE: ByKind = { catch: -2.0, run: -0.3, scramble: -1.0 };
+const STEP_FREE: ByKind = { catch: -2.7, run: -0.3, scramble: -1.0 };
 /** Nobody near him (a broken tackle, well clear of his man): nobody to run him out. */
 const PUSH_FREE = -0.5;
 /** Short of the sticks on 3rd or 4th he cuts back for the marker rather than get run out: catches 8.9% pushed out short

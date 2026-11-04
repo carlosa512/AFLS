@@ -46,7 +46,9 @@ const odds = (kind: SidelineKind, over: Over = {}) => sidelineOdds(typical(kind,
 describe('out of bounds as the carrier’s choice', () => {
   it('a free carrier in normal play rarely steps out', () => {
     expect(odds('catch', { free: true, run: 12 }).stepped).toBeLessThan(0.02);
-    expect(odds('run', { free: true, run: 15 }).stepped).toBeLessThan(0.02);
+    // On the ground the pursuit is still there at the end of a long run (NFL outside runs of 10+ yards: 5.8% step out),
+    // and most long runs in the engine broke a tackle: free only leans him to keep going.
+    expect(odds('run', { free: true, run: 15 }).stepped).toBeLessThan(odds('run', { run: 15 }).stepped);
   });
 
   it('the sideline raises both odds over the middle', () => {

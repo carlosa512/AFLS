@@ -425,6 +425,13 @@ describe('coach decisions', () => {
     fgMakeProb: 0.2,
   };
 
+  it('keeps the game clock in whole seconds after a man goes out', () => {
+    const league = createLeague({ seed: 'test-spot' });
+    for (let i = 0; i < 8; i++)
+      for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!)
+        expect(Number.isInteger(p.clock), p.text).toBe(true);
+  });
+
   it('takes the spot off the runoff after a man goes out, never below zero', () => {
     expect(coach.afterOutOfBounds(30)).toBe(30 - coach.SPOT_PAUSE);
     expect(coach.afterOutOfBounds(2)).toBe(0);

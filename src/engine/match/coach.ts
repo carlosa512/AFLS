@@ -88,7 +88,7 @@ export const MILK_RUNOFF_MIN = 36;
  * ready, then runs it to the snap (Rule 4-3). nflverse 2021–25, Q1–Q3: a sideline catch that ends out of bounds leaves
  * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot.
  */
-export const SPOT_PAUSE = 3.5;
+export const SPOT_PAUSE = 3;
 
 /** The running clock to the next snap after a man went out of bounds outside the late windows. */
 export function afterOutOfBounds(runoff: number): number {
