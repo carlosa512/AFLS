@@ -37,6 +37,12 @@ export interface PocketStart {
   end: number;
   /** A sack's spot (field x). */
   sackX?: number;
+  /** The slide: the side (field y) the man over the ball turns to help. */
+  slide?: 1 | -1;
+  /** A back who stays in to chip the edge away from the slide. */
+  chip?: number;
+  /** Rushers who hold a beat before they come (a linebacker's delayed rush): free once they go. */
+  delayed?: number[];
 }
 
 export interface PocketResult {
@@ -62,6 +68,8 @@ const BULL = 1.6;
 const PUNCH = 0.5;
 /** A bend round the corner, or a two-tap set against speed: the rep goes this much sooner. */
 const HABIT_EDGE = 1.3;
+/** A delayed rusher holds this long before he comes (seconds). */
+const DELAY = 1;
 /** A won rusher is off his man this long after the win before he's at full speed for the quarterback. */
 const SHED = 0.2;
 
@@ -82,24 +90,42 @@ export function pairUp(start: PocketStart): {
   free: number[];
 } {
   const y = new Map(start.players.map((p) => [p.id, p.y]));
+  const role = new Map(start.players.map((p) => [p.id, p.role]));
   const across = (ids: readonly number[]) => [...ids].sort((a, b) => y.get(a)! - y.get(b)!);
+  const delayed = new Set(start.delayed ?? []);
   const blockers = across(start.blockers.filter((id) => y.has(id)));
-  const rushers = across(start.rushers.filter((id) => y.has(id)));
+  const rushers = across(start.rushers.filter((id) => y.has(id) && !delayed.has(id)));
+  const line = blockers.filter((id) => role.get(id) === 'OL');
   const pairs: [number, number][] = [];
   const doubles: [number, number][] = [];
-  if (blockers.length >= rushers.length) {
-    // Each rusher to a blocker across from him; the blockers left over help.
-    const mine = laneMatch(rushers, blockers, (id) => y.get(id)!);
+  if (line.length >= rushers.length) {
+    // Each rusher to a lineman across from him; the men left over help.
+    const mine = laneMatch(rushers, line, (id) => y.get(id)!);
     const used = new Set<number>();
     rushers.forEach((r, k) => {
       pairs.push([mine[k], r]);
       used.add(mine[k]);
     });
+    if (!rushers.length) return { pairs, doubles, free: [] };
+    const mid = mean(line.map((id) => y.get(id)!));
+    const nearest = (b: number, ids: number[]) =>
+      ids.reduce((best, r) => (Math.abs(y.get(r)! - y.get(b)!) < Math.abs(y.get(best)! - y.get(b)!) ? r : best));
+    // A slide: the man over the ball turns to the side the play calls, onto the tackle there; a back chipping helps
+    // the edge on the other side.
+    const onSide = (want: string, side: number) =>
+      rushers.filter((r) => role.get(r) === want && (y.get(r)! - mid) * side > 0);
     for (const b of blockers) {
-      if (used.has(b) || !rushers.length) continue;
-      let best = rushers[0];
-      for (const r of rushers) if (Math.abs(y.get(r)! - y.get(b)!) < Math.abs(y.get(best)! - y.get(b)!)) best = r;
-      doubles.push([b, best]);
+      if (used.has(b)) continue;
+      let to = nearest(b, rushers);
+      if (start.slide && role.get(b) === 'OL') {
+        const inside = onSide('DT', start.slide);
+        if (inside.length) to = nearest(b, inside);
+      }
+      if (start.chip === b) {
+        const edge = onSide('EDGE', start.slide ? -start.slide : y.get(b)! >= mid ? 1 : -1);
+        if (edge.length) to = nearest(b, edge);
+      }
+      doubles.push([b, to]);
     }
     return { pairs, doubles, free: [] };
   }
@@ -108,6 +134,8 @@ export function pairUp(start: PocketStart): {
   blockers.forEach((b, k) => pairs.push([b, mine[k]]));
   return { pairs, doubles, free: rushers.filter((r) => !taken.has(r)) };
 }
+
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 
 /** A rep's chance to be won this step. */
 function winChance(r: FieldPlayer, b: FieldPlayer, doubled: boolean, t: number): number {
@@ -162,6 +190,9 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const first = Int16Array.from(on);
   for (const [b, r] of doubles) helper[index.get(r)!] = index.get(b)!;
   for (const r of free) wonAt[index.get(r)!] = 0;
+  // A delayed rusher holds a beat, then comes free.
+  const late = (start.delayed ?? []).map((id) => index.get(id)).filter((i): i is number => i !== undefined);
+  for (const ri of late) wonAt[ri] = DELAY;
   const rushing = start.rushers.map((id) => index.get(id)).filter((i): i is number => i !== undefined);
 
   const outcome = start.outcome;
@@ -209,12 +240,14 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
     // The reps: every draw taken, won or not, so one rep never shifts another.
     let best = -1;
     let bestRate = -1;
+    const odds: [number, number][] = [];
     for (const ri of rushing) {
       const roll = rng.next();
       const bi = on[ri];
       if (bi < 0 || wonAt[ri] >= 0) continue;
       const pWin = winChance(P[ri], P[bi], helper[ri] >= 0, t);
       if (pWin > bestRate) [best, bestRate] = [ri, pWin];
+      odds.push([ri, pWin]);
       if (roll >= pWin) continue;
       // A win today's outcome wants: the first in time to get there; any other is held off.
       if (arrive !== undefined && chosen < 0 && reach(ri) <= homeT - t + 0.3) {
@@ -223,19 +256,31 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
         if (helper[ri] >= 0 && roll < pWin / 2) lostTo[ri] = helper[ri];
       }
     }
-    // A free man the outcome can use from the snap.
+    // A free man the outcome can use: from the snap, or a delayed one once he's gone.
     if (arrive !== undefined && chosen < 0)
-      for (const r of free) {
-        const ri = index.get(r)!;
+      for (const ri of [...free.map((r) => index.get(r)!), ...late.filter(() => t >= DELAY)]) {
         if (reach(ri) <= homeT - t + 0.3) {
-          choose(ri, 0);
+          choose(ri, Math.max(0, wonAt[ri]));
           break;
         }
       }
-    // Nobody won in time: the likeliest rep is won as late as still gets him there.
+    // Nobody won in time: a rep is won as late as still gets him there, drawn by its odds among those that still can
+    // (the best rusher most often, not always).
     if (arrive !== undefined && chosen < 0 && best >= 0) {
       const need = reach(best) + (outcome === 'sack' ? 0 : FEEL);
-      if (homeT - t <= need) choose(best, t);
+      if (homeT - t <= need) {
+        const can = odds.filter(([ri]) => reach(ri) <= homeT - t + 0.3);
+        const pool = can.length ? can : [[best, bestRate] as [number, number]];
+        const total = pool.reduce((n, [, w]) => n + w, 0);
+        let pick = rng.next() * total;
+        let ri = pool[pool.length - 1][0];
+        for (const [id, w] of pool)
+          if ((pick -= w) <= 0) {
+            ri = id;
+            break;
+          }
+        choose(ri, t);
+      }
     }
 
     // The quarterback.
@@ -310,6 +355,11 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
           r.vy *= push / sp;
         }
         stepBody(r, { vx: (dx / d) * push, vy: (dy / d) * push }, STEP);
+        continue;
+      }
+      // A delayed rusher stands until he goes.
+      if (late.includes(ri) && t < DELAY) {
+        stepBody(r, { vx: 0, vy: 0 }, STEP);
         continue;
       }
       let pace = wonAt[ri] >= 0 && t - wonAt[ri] < SHED ? r.top * 0.5 : r.top;

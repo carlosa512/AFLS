@@ -6,7 +6,7 @@
  * Prints the knobs to paste.
  *
  *   npm run parity-fit [-- <rounds>]
- *   FIT_POCKET=1 FIT_KNOBS=rushWin,rushSkill,double,inside,padSack npm run parity-fit   (the pocket's alone)
+ *   FIT_POCKET=1 FIT_KNOBS=rushWin,rushSkill,double,inside,padSack,lbRush,chip npm run parity-fit   (the pocket's alone)
  */
 import { fork, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -88,6 +88,8 @@ async function fit() {
     double: (v, k) => [Math.max(0.02, v * (1 - 0.3 * k)), Math.min(1, v * (1 + 0.3 * k))],
     padSack: (v, k) => [v - 0.8 * k, v + 0.8 * k],
     inside: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), Math.min(2, v * (1 + 0.3 * k))],
+    lbRush: (v, k) => [Math.max(0, v - 0.06 * k), Math.min(0.5, v + 0.06 * k)],
+    chip: (v, k) => [Math.max(0, v - 0.1 * k), Math.min(0.8, v + 0.1 * k)],
   };
 
   async function score(): Promise<number> {

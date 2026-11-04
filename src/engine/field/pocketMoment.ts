@@ -12,7 +12,7 @@ import type { FieldFacts } from './moment';
 import { SCRAMBLE_OPEN, SCRAMBLE_PRESSURED } from './pocket';
 import { runPocket, type PocketResult, type PocketStart } from './pocketField';
 import { asRan, stagePlay, type StagedPlay } from './stage';
-import { STEP } from './tuning';
+import { KNOBS, STEP } from './tuning';
 import type { FieldPlayer, FieldSkills, FieldStart } from './types';
 
 type DropKind = 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble';
@@ -150,7 +150,33 @@ export function pocketFrom(
   const plan = staged.pocket;
   const outcome = m.facts.pk;
   if (!cast || !plan || !outcome) return null;
-  const n = staged.ids.length;
+  // The protection's call, each on its own stream: the slide's side; on a straight rush a back who stays in to chip,
+  // and a linebacker who comes late (the pressure today's roll already counts, put on a man the play can show).
+  const side = new Rng(`${gameSeed}:field:${m.index}:slide`).next() < 0.5 ? -1 : 1;
+  const straight = staged.call !== 'blitz';
+  const ofRole = (role: string, offense: boolean) =>
+    staged.ids.filter(
+      (id, k) => staged.roles[k] === role && staged.offense[k] === offense && id !== m.ball && id !== m.take,
+    );
+  const yOf = (id: number) => staged.pos[staged.ids.indexOf(id) * 2 + 1];
+  const qbY = yOf(cast.qb);
+  const nearest = (ids: number[]) =>
+    ids.reduce<number | undefined>(
+      (b, id) => (b === undefined || Math.abs(yOf(id) - qbY) < Math.abs(yOf(b) - qbY) ? id : b),
+      undefined,
+    );
+  const chipDraw = new Rng(`${gameSeed}:field:${m.index}:chip`).next();
+  const lbDraw = new Rng(`${gameSeed}:field:${m.index}:lb`).next();
+  const chip =
+    straight && chipDraw < KNOBS.chip
+      ? nearest(ofRole('RB', true).filter((id) => !cast.blockers.includes(id)))
+      : undefined;
+  const late =
+    straight && lbDraw < KNOBS.lbRush
+      ? nearest(ofRole('LB', false).filter((id) => !cast.rushers.includes(id)))
+      : undefined;
+  if (chip !== undefined) cast.blockers.push(chip);
+  if (late !== undefined) cast.rushers.push(late);
   const players: FieldPlayer[] = [];
   for (const id of [cast.qb, ...cast.blockers, ...cast.rushers]) {
     const k = staged.ids.indexOf(id);
@@ -167,7 +193,6 @@ export function pocketFrom(
       s,
     });
   }
-  void n;
   const rng = new Rng(`${gameSeed}:field:${m.index}:pocket`);
   const runs = outcome === 'scramble' || outcome === 'escape';
   const [lo, hi] = outcome === 'scramble' ? SCRAMBLE_PRESSURED : SCRAMBLE_OPEN;
@@ -191,6 +216,9 @@ export function pocketFrom(
     outcome,
     blamed,
     blitz: staged.call === 'blitz',
+    slide: side,
+    ...(chip !== undefined ? { chip } : {}),
+    ...(late !== undefined ? { delayed: [late] } : {}),
     setDepth: plan.setDepth,
     throwAt,
     end,

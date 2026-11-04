@@ -223,4 +223,52 @@ describe('the pocket', () => {
       expect(breakAt(['bailsEarly'])).toBeLessThan(breakAt([]));
     });
   });
+
+  describe('slide, chip, the delayed rusher and the late win', () => {
+    it('slides the center to the side the play calls, and chips the edge away from it', () => {
+      for (const slide of [-1, 1] as const) {
+        const st = pocketStartOf({ slide, extra: [man(5, 0, 'RB', 34, MID + 1)], chip: 5 });
+        const { doubles } = pairUp(st);
+        const center = doubles.find(([b]) => b === 12)!;
+        expect(center[1], `slide ${slide}`).toBe(slide === -1 ? 31 : 32);
+        const back = doubles.find(([b]) => b === 5)!;
+        expect(back[1], `slide ${slide}`).toBe(slide === -1 ? 33 : 30);
+      }
+    });
+
+    it('holds a delayed rusher a beat, then sends him, and he can get home', () => {
+      let home = 0;
+      for (let k = 0; k < 30; k++) {
+        const st = pocketStartOf({
+          outcome: 'pressure',
+          throwAt: 3.4,
+          end: 3.4,
+          extra: [man(40, 1, 'LB', 45, MID)],
+          delayed: [40],
+        });
+        const r = runPocket(st, new Rng(`delay:${k}`));
+        const j = st.players.findIndex((p) => p.id === 40);
+        const s0 = at(st, r.frames, 0, j);
+        const s15 = at(st, r.frames, 15, j);
+        expect(Math.hypot(s15.x - s0.x, s15.y - s0.y), `seed ${k}`).toBeLessThan(0.3);
+        if (r.rusher === 40) home++;
+      }
+      expect(home).toBeGreaterThan(0);
+    });
+
+    it('picks a late win by its odds, not always the best rusher', () => {
+      const won = new Set<number | null>();
+      for (let k = 0; k < 40; k++) {
+        // Nobody wins on his own in time: the late win is drawn among the reps by their odds.
+        const st = pocketStartOf({
+          outcome: 'pressure',
+          throwAt: 2.6,
+          end: 2.6,
+          s: { 30: { rush: 13 }, 10: { pro: 12 } },
+        });
+        won.add(runPocket(st, new Rng(`late:${k}`)).rusher);
+      }
+      expect(won.size).toBeGreaterThan(1);
+    });
+  });
 });

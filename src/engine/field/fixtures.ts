@@ -160,6 +160,8 @@ export const RULE_KNOBS: typeof KNOBS = {
   double: 0.25,
   padSack: 0,
   inside: 1,
+  lbRush: 0,
+  chip: 0,
 };
 
 /** Set the rule knobs for a test file; returns what puts the shipped ones back. */
