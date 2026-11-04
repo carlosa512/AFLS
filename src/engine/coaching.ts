@@ -1026,6 +1026,73 @@ export function releaseCoach(league: League, teamId: number, coachId: number): v
   dismiss(league, c);
 }
 
+// ───────── relieving a coordinator in season (L4) ─────────
+
+/** Who runs the side once its coordinator is relieved: the head coach covering it, or a position coach's id. */
+export type Cover = 'headCoach' | number;
+
+/** Your position coaches on that side who'd step up into the chair now, best first. */
+export function interimCandidates(league: League, teamId: number, role: 'offCoord' | 'defCoord'): Coach[] {
+  return teamCoaches(league, teamId)
+    .filter(
+      (c) =>
+        c.role === 'positionCoach' &&
+        promotionFor(c)?.role === role &&
+        !!c.career?.length &&
+        !coachMandate(league, c) &&
+        !refusal(league, c, { role }),
+    )
+    .sort((a, b) => coachValue(b) - coachValue(a) || a.id - b.id);
+}
+
+/** Why `coachId` can't be relieved now, or null: camp through the regular season, a coordinator, no owner's mandate. */
+export function relieveProblem(
+  league: League,
+  teamId: number,
+  coachId: number,
+  cover: Cover = 'headCoach',
+  budget = true,
+): string | null {
+  if (league.phase !== 'preseason' && league.phase !== 'regular')
+    return 'Coordinators can be relieved from camp through the regular season.';
+  const c = league.coaches[coachId];
+  if (!c || c.teamId !== teamId || (c.role !== 'offCoord' && c.role !== 'defCoord'))
+    return 'Only your offensive or defensive coordinator can be relieved in season.';
+  const mandate = ownerCoachProblem(league, c);
+  if (mandate) return mandate;
+  if (cover === 'headCoach') return null;
+  const pc = interimCandidates(league, teamId, c.role).find((x) => x.id === cover);
+  if (!pc) return 'He won’t step up into that chair.';
+  return budget
+    ? budgetProblem(
+        league,
+        teamId,
+        { role: c.role },
+        moveOverspend(league, teamId, pc, 1, 'promote') - freedBy(league, c),
+        c,
+      )
+    : null;
+}
+
+/**
+ * The move (`relieveCoordinator` in `relieve.ts` adds the news): he's dismissed (severance booked), and the side goes to
+ * the head coach's cover or to the position coach who steps up on a one-year deal. Its rooms start fresh either way.
+ */
+export function relieveMove(league: League, teamId: number, coachId: number, cover: Cover = 'headCoach'): void {
+  const problem = relieveProblem(league, teamId, coachId, cover, false);
+  if (problem) throw new Error(problem);
+  const c = league.coaches[coachId];
+  const role = c.role as 'offCoord' | 'defCoord';
+  dismiss(league, c, undefined, { quiet: true });
+  if (cover === 'headCoach') {
+    const hc = chairHolder(teamCoaches(league, teamId), { role: 'headCoach' });
+    if (hc) {
+      setHeadCoachCover(league, teamId, role, true);
+      dropSide(hc, role);
+    }
+  } else promoteInto(league, teamId, league.coaches[cover], 1);
+}
+
 /** Dismiss the man in his chair and hire `coachId` in one move. */
 export function replaceCoach(league: League, teamId: number, coachId: number, years = 2): void {
   const c = league.coaches[coachId];
@@ -1041,7 +1108,7 @@ export function replaceCoach(league: League, teamId: number, coachId: number, ye
   );
 }
 
-function dismiss(league: League, c: Coach, why?: string): void {
+function dismiss(league: League, c: Coach, why?: string, opts: { quiet?: boolean } = {}): void {
   const problem = ownerCoachProblem(league, c);
   if (problem) throw new Error(problem);
   touch();
@@ -1052,12 +1119,14 @@ function dismiss(league: League, c: Coach, why?: string): void {
   if (team.coachDepartures?.season !== league.season) team.coachDepartures = { season: league.season, ids: [] };
   if (!team.coachDepartures.ids.includes(c.id)) team.coachDepartures.ids.push(c.id);
   if (owed > 0) team.coachDead.push({ season: league.season, amount: owed, name: coachName(c) });
-  logCoach(
-    league,
-    teamId,
-    c,
-    `${team.abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${titleLower(c)} ${coachName(c)}${why ? ` ${why}` : ''}`,
-  );
+  // A relief in season is logged once, as the league's news (`relieve.ts`).
+  if (!opts.quiet)
+    logCoach(
+      league,
+      teamId,
+      c,
+      `${team.abbrev} ${owed > 0 ? 'dismissed' : 'let go'} ${titleLower(c)} ${coachName(c)}${why ? ` ${why}` : ''}`,
+    );
   c.lastJob = `${coachTitle(c)}, ${team.abbrev}${why ? ` (${why})` : ''}`;
   c.teamId = null;
   c.contract = null;
