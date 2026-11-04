@@ -81,7 +81,9 @@ describe('belief: the week', () => {
     const withVoice = rooms.find((r) => (ctx.voices.get(`${t}:${r}`) ?? []).length)!;
     const lawyer = l.players[ctx.voices.get(`${t}:${withVoice}`)![0].id];
     lawyer.traits = { ...lawyer.traits, leads: 20, controversy: 20 };
-    lawyer.morale = { level: 2, jolts: [] };
+    lawyer.morale = { ...lawyer.morale!, level: 2 };
+    // A captain always leads: the game set below by hand carries none of his snaps, which his weight reads.
+    l.teams[t].captains = { ...l.teams[t].captains!, season: l.season, offense: lawyer.id };
     expect(isLawyer(lawyer)).toBe(true);
     const plain = rooms.find(
       (r) => r !== withVoice && !(ctx.voices.get(`${t}:${r}`) ?? []).some((v) => isLawyer(l.players[v.id])),
