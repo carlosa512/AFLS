@@ -180,6 +180,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   let closing = -1;
   /** Credited out of bounds: on his way out at the spot. */
   let goingOut = false;
+  /** Credited out of bounds: the free defender who runs him out (`escortFor`), picked afresh each re-aim; -1 for none. */
+  let escort = -1;
   /** When his slide stopped him (-1: still moving). */
   let stoppedAt = -1;
   let stopX = 0;
@@ -258,6 +260,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         // Blockers downfield pick their men.
         for (let i = 0; i < n; i++) if (!defense[i] && i !== ci) target[i] = pickTarget(i, t);
         nextAim = t + READ_EVERY;
+        if (spot?.out) escort = escortFor(t);
       }
     }
     // Everyone else moves.
@@ -405,6 +408,33 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     return hasHabit(P[i], 'alleyCrusher') && Math.abs(B[ci].y - MID) > 4 ? 0.6 : 1;
   }
 
+  /** Where a man credited out of bounds leaves the field: his spot, at the nearer sideline. */
+  function exitPoint(): { x: number; y: number } {
+    return { x: spot!.x + dir * 0.5, y: B[ci].y < MID ? 0 : FIELD_W };
+  }
+
+  /** Where the man who runs him out aims: a yard inside the sideline, a yard short of where he leaves. */
+  function escortAim(): { x: number; y: number } {
+    const e = exitPoint();
+    return { x: e.x - dir, y: e.y === 0 ? 1 : FIELD_W - 1 };
+  }
+
+  /**
+   * The free defender who can get to where he leaves the field soonest, on his own legs: he runs him out (call H keeps
+   * the tackle off), so a man going out of bounds goes with someone on him rather than alone.
+   */
+  function escortFor(now: number): number {
+    const a = escortAim();
+    let best = -1;
+    let bt = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil) continue;
+      const time = Math.hypot(a.x - B[i].x, a.y - B[i].y) / Math.max(1, B[i].top);
+      if (time < bt) [best, bt] = [i, time];
+    }
+    return best;
+  }
+
   function moveDefender(i: number, t: number, s: number) {
     const d = B[i];
     if (t < d.downUntil) return stepBody(d, { vx: 0, vy: 0 }, STEP, FALL);
@@ -443,6 +473,16 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const y = Math.max(1, Math.min(FIELD_W - 1, c.y + lane[i] * (contain[i] ? Math.sqrt(squeeze) : squeeze)));
       const u = Math.hypot(c.x - d.x, y - d.y) || 1;
       return stepBody(d, { vx: ((c.x - d.x) / u) * d.top, vy: ((y - d.y) / u) * d.top }, STEP);
+    }
+    // Credited out of bounds: the man picked to run him out heads for where he leaves, there as he gets there.
+    if (i === escort && spot?.out && phase === 'live') {
+      const a = escortAim();
+      const e = exitPoint();
+      const c = B[ci];
+      const g = Math.hypot(a.x - d.x, a.y - d.y) || 1;
+      const theirs = Math.hypot(e.x - c.x, e.y - c.y) / Math.max(1, Math.hypot(c.vx, c.vy), c.top * 0.5);
+      const pace = Math.min(d.top, g / Math.max(0.2, theirs) + 1);
+      return stepBody(d, { vx: ((a.x - d.x) / g) * pace, vy: ((a.y - d.y) / g) * pace }, STEP);
     }
     const behind = (B[ci].x - d.x) * dir > 10;
     // Playing to today's spot (call H): a free man of the second level downfield of him meets him there, where his path

@@ -20,7 +20,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Take over a new club and your inbox no longer fills with letters about team meetings it held before you ' +
       'arrived, written as if you had made the calls. You hear about the meetings held on your watch. On the All-22, ' +
       'a quarterback no longer stands where the defense falls on a fumble, the blocker who gave up a sack is the one ' +
-      'beaten, a receiver no longer slides out of bounds after an overthrow, and a jump-cutter shows his broken tackle.',
+      'beaten, a receiver no longer slides out of bounds after an overthrow, and a jump-cutter shows his broken tackle. ' +
+      'On the field under your games, a man who goes out of bounds is chased out by a defender, not left to step out alone.',
   },
   {
     version: '0.4.1',

@@ -151,6 +151,14 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
   route is letting the community make roster mods.
 
 
+## Follow-up: out of bounds on the field (0.4.2)
+
+- [x] **A man who goes out of bounds is chased out.** The engine still calls out of bounds at its odds (18% of catches,
+      35% hurrying, 5% protecting a lead), knowing nothing of where anyone is; the field now sends the free defender
+      who can reach the exit soonest to run him out (`escortFor` in `field/run.ts`). Over 60 games, catches out of bounds
+      with nobody within 3 yards in the last second fell from 18% to 11%, alone (5+ yards) from 25 to 11. Left: those 11,
+      where nobody could get there; letting the engine's odds read the field (alone, he'd stay in) is a bigger change.
+
 ## Follow-up: rate-stat qualification
 
 - [ ] Use shared, scope-aware minimum opportunities for rate leaders (passer rating, completion percentage,

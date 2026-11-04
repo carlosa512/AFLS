@@ -274,6 +274,28 @@ describe('the open field', () => {
     }
   });
 
+  it('chases a man credited out of bounds out: the defender who can get there closes on him, not left alone', () => {
+    // A tight end near the sideline, credited fifteen yards and out; the only defender a safety eight yards inside.
+    for (const seed of ['out-1', 'out-2', 'out-3', 'out-4']) {
+      const players = [man(1, 0, 'TE', 30, 10, { vx: 6 }), man(31, 1, 'S', 32, 18, { vx: 2 })];
+      const start = startOf({ players, target: { x: 45, touchdown: false, out: true } });
+      const r = runField(start, new Rng(seed));
+      expect(r.outOfBounds, seed).toBe(true);
+      expect(r.tackler, seed).toBeNull();
+      const steps = r.frames.length / (players.length * 2);
+      let s = 0;
+      while (s < steps - 1 && at(start, r.frames, s, 0).y > 0) s++;
+      // Chased out, not left alone: he's closed on him by the time he steps out (no set distance, only not alone).
+      const gap = (k: number) => {
+        const c = at(start, r.frames, k, 0);
+        const d = at(start, r.frames, k, 1);
+        return Math.hypot(c.x - d.x, c.y - d.y);
+      };
+      expect(gap(s), seed).toBeLessThan(gap(0));
+      expect(gap(s), seed).toBeLessThan(5);
+    }
+  });
+
   it('lets a sliding quarterback go down at his spot, nobody credited', () => {
     for (const seed of ['slide-1', 'slide-2', 'slide-3']) {
       const players = [
