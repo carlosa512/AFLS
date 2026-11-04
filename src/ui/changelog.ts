@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.1',
+    date: '2026-11-04',
+    title: 'The pocket on the field',
+    text:
+      'On the field under your games, every dropback now plays out in the trenches: linemen take their men, the ' +
+      'center slides to help, a back stays in to chip, linebackers come late, and the quarterback sets, steps up, ' +
+      'slides away from the rush or breaks out to scramble. Who gets home and who lost him are the men the film shows, ' +
+      'and a sack takes as long on the clock as it does on the field. Games played before keep their old pocket.',
+  },
+  {
     version: '0.4.0',
     date: '2026-11-04',
     title: 'Coaches matter on Sunday (alpha)',
