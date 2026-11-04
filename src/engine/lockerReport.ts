@@ -7,6 +7,7 @@
  */
 import { betterMentor, mentorStatus } from './mentoring';
 import { personalityOf, personalityRead, personalityTone, trueCharacter } from './personality';
+import { runnerOf } from './belief';
 import {
   beliefFact,
   beliefKey,
@@ -280,9 +281,12 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   // doubt on a GM's first report); once each. "Steady" is said only coming back from doubt.
   for (const unit of roomTalk ? COACH_ROOMS : []) {
     const f = beliefFact(league, user, unit, roomCtx);
-    if (!f) continue;
-    covered.push(beliefKey(clock, user, unit, f.read));
-    const last = memory.belief.get(unit);
+    const runner = runnerOf(league, user, unit);
+    if (!f || !runner) continue;
+    covered.push(beliefKey(clock, user, unit, f.read, runner.id));
+    // What was told is about the man it was told of: a new man running the side starts the room's story over.
+    const told_ = memory.belief.get(unit);
+    const last = told_ && (told_.coach === undefined || told_.coach === runner.id) ? told_ : undefined;
     if (last ? last.read === f.read : f.read !== 'doubts' && f.read !== 'lost') continue;
     if (f.read === 'steady' && last?.read !== 'doubts' && last?.read !== 'lost') continue;
     roomRows.push({ cells: [ROOM_LABEL[unit], BELIEF_WORD[f.read]], note: say(BELIEF_NOTE, f, at(`belief:${unit}`)) });

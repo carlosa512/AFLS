@@ -28,6 +28,16 @@ describe('meetings: a room doubting its coordinator', () => {
     expect(troubles(l, t, ctx).some((x) => x.scope === 'OL' && x.topic === 'coordinator')).toBe(false);
   });
 
+  it('a head coach running a side himself is never put on notice by his own meeting', () => {
+    const l = fresh();
+    const t = l.userTeamId;
+    relieveCoordinator(l, t, runnerOf(l, t, 'OL')!.id);
+    const hc = runnerOf(l, t, 'OL')!;
+    expect(hc.role).toBe('headCoach');
+    shiftBelief(hc, 'OL', -0.4);
+    expect(troubles(l, t, moraleContext(l)).some((x) => x.topic === 'coordinator')).toBe(false);
+  });
+
   it("offers Stand behind him and He's on notice for it", () => {
     const l = fresh();
     const t = l.userTeamId;

@@ -45,10 +45,10 @@ const CHEM_KEY = /^chem:(\d+):(\d+):(\w+):(.+)$/;
 /** What the report told of a room's chemistry (L3): club-named, like the rest. */
 export const chemKey = (clock: number, teamId: number, unit: ChemRoom, word: ChemWord) =>
   `chem:${clock}:${teamId}:${unit}:${word}`;
-const BELIEF_KEY = /^belief:(\d+):(\d+):(\w+):(\w+)$/;
+const BELIEF_KEY = /^belief:(\d+):(\d+):(\w+):(\w+)(?::(\d+))?$/;
 /** What the report told of a room's belief in whoever runs its side (L4): club-named, like the rest. */
-export const beliefKey = (clock: number, teamId: number, unit: CoachRoom, read: BeliefRead) =>
-  `belief:${clock}:${teamId}:${unit}:${read}`;
+export const beliefKey = (clock: number, teamId: number, unit: CoachRoom, read: BeliefRead, coachId: number) =>
+  `belief:${clock}:${teamId}:${unit}:${read}:${coachId}`;
 /** A position coach's warning that his room is slipping on its coordinator (L4), once a fall. */
 export const beliefWarnKey = (clock: number, teamId: number, unit: CoachRoom) =>
   `belief-warn:${clock}:${teamId}:${unit}`;
@@ -63,9 +63,9 @@ export function lastTold(
   units: Map<Unit, { word: UnitWord; clock: number }>;
   standing: { clock: number; tiers: Map<number, Tier> } | null;
   chem: Map<ChemRoom, { word: ChemWord; clock: number }>;
-  belief: Map<CoachRoom, { read: BeliefRead; clock: number }>;
+  belief: Map<CoachRoom, { read: BeliefRead; clock: number; coach?: number }>;
 } {
-  const belief = new Map<CoachRoom, { read: BeliefRead; clock: number }>();
+  const belief = new Map<CoachRoom, { read: BeliefRead; clock: number; coach?: number }>();
   const units = new Map<Unit, { word: UnitWord; clock: number }>();
   const chem = new Map<ChemRoom, { word: ChemWord; clock: number }>();
   let standing: { clock: number; tiers: Map<number, Tier> } | null = null;
@@ -75,7 +75,8 @@ export function lastTold(
       if (Number(b[2]) !== teamId) continue;
       const clock = Number(b[1]);
       const have = belief.get(b[3] as CoachRoom);
-      if (!have || clock >= have.clock) belief.set(b[3] as CoachRoom, { read: b[4] as BeliefRead, clock });
+      if (!have || clock >= have.clock)
+        belief.set(b[3] as CoachRoom, { read: b[4] as BeliefRead, clock, ...(b[5] ? { coach: Number(b[5]) } : {}) });
       continue;
     }
     const c = k.match(CHEM_KEY);

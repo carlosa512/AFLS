@@ -42,6 +42,7 @@ import { beliefFact, chemFact } from '../../engine/roomFacts';
 import { BELIEF_LINE, CHEM_REASON } from '../../engine/roomVoice';
 import { runnerOf } from '../../engine/belief';
 import { useNav } from '../nav';
+import { nameAt } from '../nameAt';
 import { soundOf, voiceName } from '../../engine/standing';
 import type { MoraleContext } from '../../engine/morale';
 
@@ -487,7 +488,7 @@ function NamesLinked({ league, text, ids }: { league: League; text: string; ids:
   let rest = text;
   for (const id of ids) {
     const p = league.players[id];
-    const at = p ? rest.indexOf(p.lastName) : -1;
+    const at = p ? nameAt(rest, p.lastName) : -1;
     if (!p || at < 0) continue;
     parts.push(rest.slice(0, at), <PlayerLink key={id} league={league} player={p} surname />);
     rest = rest.slice(at + p.lastName.length);
@@ -545,7 +546,8 @@ function BeliefLine({ league, unit, ctx }: { league: League; unit: CoachRoom; ct
   const text = say(BELIEF_LINE, f, { key: `belief:${unit}`, slot: 'line' });
   if (!text) return null;
   const runner = runnerOf(league, league.userTeamId, unit)!;
-  const at = text.indexOf(f.coach);
+  const at = nameAt(text, f.coach);
+  if (at < 0) return <p className="room-chem room-belief">{text}</p>;
   return (
     <p className="room-chem room-belief">
       {text.slice(0, at)}

@@ -206,7 +206,11 @@ export function meetingBelief(
 /** The rooms in doubt about whoever runs their side now, the worst first. */
 export function doubtRooms(league: League, teamId: number): { room: CoachRoom; read: BeliefRead; v: number }[] {
   return ROOMS.flatMap((room) => {
-    const v = beliefOf(runnerOf(league, teamId, room), room);
+    const runner = runnerOf(league, teamId, room);
+    // A head coach running a side himself (covering, or an interim still in his old chair) isn't put on notice in his
+    // own meeting: his rooms' doubt is his word's to carry (credibility), not a coordinator trouble.
+    if (!runner || runner.role === 'headCoach') return [];
+    const v = beliefOf(runner, room);
     const read = beliefRead(v);
     return read === 'doubts' || read === 'lost' ? [{ room, read, v }] : [];
   }).sort((a, b) => a.v - b.v);

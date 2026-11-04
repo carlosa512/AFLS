@@ -6,7 +6,7 @@ import { leadershipMail } from './inbox';
 import { playWeek } from './league';
 import { aiKeepChance, judgeCommitments } from './meetings/commitments';
 import { meetingsOf } from './meetings/suggest';
-import { aiCover, aiRelieve, onTheTable, RELIEVE } from './relieve';
+import { aiCover, aiRelieve, aiRelieveNow, onTheTable, RELIEVE } from './relieve';
 import { Rng } from './rng';
 import type { Commitment, League } from './types';
 
@@ -183,5 +183,17 @@ describe('AI clubs relieve coordinators', () => {
     });
     judgeCommitments(l);
     expect(oc.teamId).toBe(t);
+  });
+
+  it('relieves only in weeks five to fourteen, by the weekly draw or a notice alike', () => {
+    const l = fresh();
+    const t = AI(l);
+    sink(l, t);
+    const oc = runnerOf(l, t, 'OL')!;
+    l.week = RELIEVE.to + 2;
+    expect(aiRelieveNow(l, t, oc.id)).toBe(false);
+    expect(oc.teamId).toBe(t);
+    l.week = RELIEVE.from + 1;
+    expect(aiRelieveNow(l, t, oc.id)).toBe(true);
   });
 });

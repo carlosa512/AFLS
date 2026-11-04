@@ -5,6 +5,7 @@ import { dueCheckin } from './lockerReport';
 import { moraleClock, moraleView } from './morale';
 import { ROOM_LABEL } from './coaching';
 import { runnerOf } from './belief';
+import { relieveCoordinator } from './relieve';
 import { leadersOf, unitOf, voicesOf, type Unit } from './standing';
 import { playerOvr } from './positions';
 import { betterMentor, mentoringWeek, mentorStatus } from './mentoring';
@@ -658,10 +659,26 @@ describe('the locker report: backing the staff (L4)', () => {
     expect(wr.cells[1]).toBe('Doubts');
     expect(wr.note).toContain(oc.lastName);
     for (const r of beliefRows(first)) expect(r.note ?? '').not.toMatch(/\d|belief|chemistry/i);
-    // Still in doubt at the next report: not told again.
-    at(l, 'regular', TRADE_DEADLINE_WEEK);
+    // Still in doubt at the next report that tells the rooms (the season's end): not told again.
+    at(l, 'resign');
     deliverMail(l);
-    const second = reports(l).find((x) => x.id.endsWith(':deadline'))!;
+    const second = reports(l).find((x) => x.id.endsWith(':end'))!;
+    expect(second).toBeDefined();
+    expect(beliefRows(second).some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(false);
+  });
+
+  it('after a new man takes the side, the room is not "back on board" with someone it never doubted', () => {
+    const l = copy(template);
+    at(l, 'regular', 3);
+    const oc = runnerOf(l, l.userTeamId, 'WR')!;
+    oc.belief = { WR: -0.6 };
+    deliverMail(l);
+    expect(beliefRows(reports(l).at(-1)!).find((r) => r.cells[0] === ROOM_LABEL.WR)?.cells[1]).toBe('Lost them');
+    relieveCoordinator(l, l.userTeamId, oc.id);
+    at(l, 'resign');
+    deliverMail(l);
+    const second = reports(l).find((x) => x.id.endsWith(':end'))!;
+    expect(second).toBeDefined();
     expect(beliefRows(second).some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(false);
   });
 });

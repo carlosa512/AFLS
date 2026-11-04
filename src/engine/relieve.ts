@@ -125,7 +125,10 @@ export function aiCover(league: League, teamId: number, role: 'offCoord' | 'defC
 
 /** An AI club relieves him now, if nothing stands in the way (one a season, the owner's mandate): whether it did. */
 export function aiRelieveNow(league: League, teamId: number, coachId: number): boolean {
-  if (thisSeason(league, teamId, 'coachRelieved')) return false;
+  // The same window and limits whether the weekly draw or a notice brings it: weeks five to fourteen, once a season,
+  // and not once the owner has let the head coach go (the interim makes his own staff).
+  if (league.phase !== 'regular' || league.week < RELIEVE.from || league.week > RELIEVE.to) return false;
+  if (thisSeason(league, teamId, 'coachRelieved') || thisSeason(league, teamId, 'coachInterim')) return false;
   const c = league.coaches[coachId];
   if (!c || (c.role !== 'offCoord' && c.role !== 'defCoord')) return false;
   const cover = aiCover(league, teamId, c.role);
