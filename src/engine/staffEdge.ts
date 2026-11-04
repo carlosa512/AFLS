@@ -15,9 +15,10 @@ import type { League } from './types';
 
 export const STAFF = {
   /** A side's coach at his best with his rooms behind him, and the head coach for every room, in rating points. */
-  // The owner's call (2026-11-04): at ±0.5 and ±0.25 the league's win spread ran 3.63 against the NFL's 3.0–3.4.
-  coord: 0.3,
-  head: 0.15,
+  // The owner's call (2026-11-04): at ±0.5 and ±0.25 the win spread ran 3.63 against the NFL's 3.0–3.4, and at ±0.3
+  // and ±0.15 3.46 over 30 seasons.
+  coord: 0.2,
+  head: 0.1,
   /** How the two halves weigh inside each part: his quality, and the room's belief in him. */
   quality: 0.6,
   belief: 0.4,
