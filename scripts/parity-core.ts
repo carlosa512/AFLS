@@ -68,11 +68,16 @@ export function resolve(row: MomentRow, key: string, seeds = SEEDS): Resolved {
   // he got there, so what it decides is who tackles, who misses, the time, and whether the film ends at the spot.
   const credited = row.today.yards;
   const gain = row.kind === 'catch' ? credited - row.air : credited;
+  // With the switch on, today's out-of-bounds call reaches the field first: he goes out at his spot.
+  const start =
+    row.today.oob && row.start.target && row.kind !== 'return' && row.kind !== 'turnover'
+      ? { ...row.start, target: { ...row.start.target, out: true } }
+      : row.start;
   for (let k = 0; k < seeds; k++) {
     const t = performance.now();
-    const r = runField(row.start, new Rng(`${key}:${k}`));
+    const r = runField(start, new Rng(`${key}:${k}`));
     ms.push(performance.now() - t);
-    const film = spatialYards(row.start, r);
+    const film = spatialYards(start, r);
     sp.yards += credited / seeds;
     sp.td += (row.today.td ? 1 : 0) / seeds;
     sp.oob += (row.today.oob ? 1 : 0) / seeds;

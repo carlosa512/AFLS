@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.11',
+    date: '2026-11-04',
+    title: 'Out of bounds is out of bounds',
+    text:
+      'On the field under your games, a run or a catch that ends out of bounds now ends with the ball carrier stepping ' +
+      'out at his spot, a defender chasing him or coming at him, and nobody is credited with a tackle. A catch the ' +
+      'field ends with nobody on him no longer names a tackler either, just as a run already did.',
+  },
+  {
     version: '0.3.10',
     date: '2026-11-04',
     title: 'A field under your games',
