@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.3.10',
+    date: '2026-11-04',
+    title: 'A field under your games',
+    text:
+      'Your own games now play out on a real field: every player has a body, a speed and a read, the back picks his ' +
+      'hole and his cuts, defenders take angles and try to bring him down, kickoff coverage runs in lanes against ' +
+      'the return team, and after a pick or a strip-sack the offense turns and chases. The All-22 shows how he got ' +
+      'where he got. The result of each play still comes from the engine you know, so winning and losing work as ' +
+      'before. Games played earlier keep their old replay.',
+  },
+  {
     version: '0.3.9',
     date: '2026-11-03',
     title: 'Chemistry on Sunday',

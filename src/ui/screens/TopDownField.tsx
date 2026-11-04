@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FieldRecord, FieldUnits, Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { kitFor } from '../color';
 import { PlayerLink } from '../components';
-import { FIELD_W, MID, offenseSide, snapYFor } from '../stage/ballPath';
+import { FIELD_W, MID, offenseSide, snapYFor } from '../../engine/field/ballPath';
 import { cameraCenter, cameraSpan, easeCamera, layoutFor, type Layout } from '../stage/camera';
 import {
   exitFor,
@@ -24,7 +24,7 @@ import { stageFouls, type FouledPlay } from '../stage/fouls';
 import { injuryScene } from '../stage/injury';
 import { preMoveAt, presnapPlan } from '../stage/presnap';
 import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UMPIRE } from '../stage/officials';
-import { asRan, stagePlay, type StagedPlay } from '../stage/stage';
+import { asRan, stagePlay, type StagedPlay } from '../../engine/field/stage';
 import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
 import { FieldPaint } from './FieldPaint';
 import { downLines } from './GameViewer';

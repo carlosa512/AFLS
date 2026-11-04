@@ -128,9 +128,15 @@ export function playGame(league: League, game: Game): void {
     simulateGame(league, game, {
       keepPlays: true,
       playoff: !!game.playoffRound,
+      field: spatialFor(league, game),
       ...(league.simulationSalt ? { seed: `${league.seed}:${league.simulationSalt}:${game.season}:${game.id}` } : {}),
     }),
   );
+}
+
+/** Your games' open field plays spatially when the league's switch is on (`League.settings.spatialField`). */
+function spatialFor(league: League, game: Game): boolean {
+  return !!league.settings?.spatialField && (game.homeId === league.userTeamId || game.awayId === league.userTeamId);
 }
 
 /** Begin a game to be watched play by play; finish it with recordResult, then playWeek. */
@@ -143,6 +149,7 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   prepareGame(league, game);
   return startGame(league, game, {
     playoff: !!game.playoffRound,
+    field: spatialFor(league, game),
     ...(league.simulationSalt ? { seed: `${league.seed}:${league.simulationSalt}:${game.season}:${game.id}` } : {}),
   });
 }

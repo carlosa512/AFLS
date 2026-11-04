@@ -6,7 +6,7 @@
  */
 import { STADIUMS, type Surface } from '../../engine/data/stadiums';
 import type { Team } from '../../engine/types';
-import { FIELD_W, HASH_HI, HASH_LO, MID } from '../stage/ballPath';
+import { FIELD_W, HASH_HI, HASH_LO, MID } from '../../engine/field/ballPath';
 
 /** The greens: the playing surface, its alternating stripe, and the apron round it. */
 const GREENS: Record<Surface, { field: string; stripe: string; apron: string; every: number }> = {

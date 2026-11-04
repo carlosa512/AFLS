@@ -4,7 +4,7 @@ import { simulateGame } from '../../engine/match/gameSim';
 // The plays these draw were picked on a world with no chemistry (L3): held at zero, they stay those plays.
 import { NO_CHEM } from '../../engine/chemistry';
 import type { PlayLogEntry } from '../../engine/types';
-import { buildPath } from './ballPath';
+import { buildPath } from '../../engine/field/ballPath';
 
 describe('the ball path', () => {
   it('draws the same path for one play of each kind as before the move', () => {

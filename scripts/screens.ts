@@ -15,7 +15,7 @@
  *              (your roster's first player's card).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
- *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`,
+ *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`, `field-run`, `field-catch`, `kickoff`, `punt`, `pick-six`, `strip-sack`, `long-td`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
  *
@@ -30,7 +30,7 @@ import { renameSync } from 'node:fs';
 import { createServer } from 'vite';
 import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
-import { fumbleIn } from '../src/ui/stage/fumble';
+import { fumbleIn } from '../src/engine/field/fumble';
 
 // ───────── the slice of Playwright's API this script uses (it isn't a project dependency, so no types) ─────────
 
@@ -213,7 +213,7 @@ async function closeCard(page: Page) {
 // ───────── All-22 recordings ─────────
 
 /** What each `--film` kind looks for in a kept game's plays (a lost fumble with a return first, if there is one). */
-const FILM: Record<string, (e: PlayLogEntry) => number> = {
+const FILM: Record<string, (e: PlayLogEntry, next?: PlayLogEntry) => number> = {
   fumble: (e) => {
     const f = fumbleIn(e);
     return !f ? 0 : f.lost && e.loose !== undefined && Math.abs((e.to ?? 0) - e.loose) > 3 ? 2 : 1;
@@ -228,6 +228,25 @@ const FILM: Record<string, (e: PlayLogEntry) => number> = {
       ? 1
       : 0,
   int: (e) => (e.kind === 'int' ? 1 : 0),
+  // The interception's entry; the return's touchdown is logged as the next one.
+  // (A spatial one first: the field runs it back.)
+  'pick-six': (e, next) =>
+    e.kind === 'int' && /returns it .*TOUCHDOWN/.test(next?.text ?? '') ? 1 + (e.field ? 1 : 0) : 0,
+  // A sack that knocks the ball loose: a lost one run back on the field first, then a lost one, then a kept one.
+  'strip-sack': (e) => {
+    const f = e.kind === 'sack' ? fumbleIn(e) : null;
+    if (!f) return 0;
+    const back = f.lost && e.to !== undefined ? Math.abs(e.to - f.x) : 0;
+    return !f.lost ? 1 : 2 + (e.field ? 1 + Math.min(1, back / 10) : 0);
+  },
+  // A run or catch to the house from 30 yards and more (a spatial one first).
+  'long-td': (e) =>
+    (e.kind === 'run' || e.kind === 'pass') &&
+    /TOUCHDOWN/.test(e.text) &&
+    !/PENALTY/.test(e.text) &&
+    Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 30
+      ? 1 + (e.field ? 1 : 0)
+      : 0,
   throwaway: (e) => (/throws it away/.test(e.text) ? 1 : 0),
   kneel: (e) => (e.kind === 'kneel' && /kneels\./.test(e.text) ? 1 : 0),
   long: (e) => (e.kind === 'run' && !/TOUCHDOWN/.test(e.text) && Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 20 ? 1 : 0),
@@ -241,11 +260,44 @@ const FILM: Record<string, (e: PlayLogEntry) => number> = {
     Math.abs((e.to ?? 0) - e.air) >= 30
       ? 1
       : 0,
+  // The spatial open field (`src/engine/field/`, a save with the switch on): a run of 8 yards and more and a catch with
+  // room after it, not to the house (the chase and the pile), and a kickoff and a punt run back.
+  'field-run': (e) =>
+    e.field &&
+    e.kind === 'run' &&
+    !/TOUCHDOWN|PENALTY|FUMBLE|Fumble/.test(e.text) &&
+    Math.abs((e.to ?? 0) - (e.from ?? 0)) >= 8
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - (e.from ?? 0)) / 20)
+      : 0,
+  'field-catch': (e) =>
+    e.field &&
+    e.kind === 'pass' &&
+    e.air !== undefined &&
+    !/TOUCHDOWN|PENALTY|FUMBLE|Fumble/.test(e.text) &&
+    Math.abs((e.to ?? 0) - e.air) >= 6
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 20)
+      : 0,
+  kickoff: (e) =>
+    e.field &&
+    e.kind === 'kickoff' &&
+    !/TOUCHDOWN|PENALTY/.test(e.text) &&
+    e.air !== undefined &&
+    Math.abs((e.to ?? 0) - e.air) >= 15
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 40)
+      : 0,
+  punt: (e) =>
+    e.field &&
+    e.kind === 'punt' &&
+    !/TOUCHDOWN|PENALTY/.test(e.text) &&
+    e.air !== undefined &&
+    Math.abs((e.to ?? 0) - e.air) >= 3
+      ? 1 + Math.min(1, Math.abs((e.to ?? 0) - e.air) / 15)
+      : 0,
 };
 /** Kinds that aren't snapped from scrimmage (no down). */
-const UNDOWNED: ReadonlySet<string> = new Set(['return']);
+const UNDOWNED: ReadonlySet<string> = new Set(['return', 'kickoff', 'punt']);
 /** Long enough for the line-up, the moments at the line, the play and its hold. */
-const CLIP_MS = 12_000;
+const CLIP_MS = Number(process.env.FILM_MS ?? 12_000);
 
 // ───────── run ─────────
 
@@ -353,11 +405,11 @@ async function main() {
         }
         let best: { gameId: number; index: number; s: number } | null = null;
         for (const g of games)
-          g.result!.plays!.forEach((e, index) => {
+          g.result!.plays!.forEach((e, index, plays) => {
             // Between the 25s where it can: a play squeezed against a goal line shows less.
             const s =
-              (e.down > 0 || UNDOWNED.has(kind)) && score(e) > 0
-                ? score(e) + (e.yardLine >= 25 && e.yardLine <= 75 ? 0.5 : 0)
+              (e.down > 0 || UNDOWNED.has(kind)) && score(e, plays[index + 1]) > 0
+                ? score(e, plays[index + 1]) + (e.yardLine >= 25 && e.yardLine <= 75 ? 0.5 : 0)
                 : 0;
             if (s > (best?.s ?? 0)) best = { gameId: g.id, index, s };
           });

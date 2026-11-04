@@ -12,12 +12,15 @@ import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import { actorsIn } from '../src/engine/playActors';
 import type { PlayLogEntry } from '../src/engine/types';
-import { snapYFor } from '../src/ui/stage/ballPath';
-import type { Drop } from '../src/ui/stage/pocket';
-import type { Role } from '../src/ui/stage/cast';
-import type { RouteId } from '../src/ui/stage/routes';
-import { SPEED } from '../src/ui/stage/steer';
-import { asRan, stagePlay, type StagedPlay } from '../src/ui/stage/stage';
+import { snapYFor } from '../src/engine/field/ballPath';
+import type { Drop } from '../src/engine/field/pocket';
+import type { Role } from '../src/engine/field/cast';
+import type { RouteId } from '../src/engine/field/routes';
+import { SPEED } from '../src/engine/field/steer';
+import { asRan, stagePlay, type StagedPlay } from '../src/engine/field/stage';
+import { bodyOf } from '../src/engine/field/body';
+import { skillsAt } from '../src/engine/field/snapshot';
+import { STEP } from '../src/engine/field/tuning';
 
 const GAMES = Number(process.argv[2] ?? 200);
 const DROPBACKS: ReadonlySet<string> = new Set(['pass', 'incomplete', 'int', 'sack', 'scramble']);
@@ -512,6 +515,81 @@ info(
   rate((s) => rushers(s) === 4),
   '64–69%',
 );
+
+// ───────── spatial plays: the open field's own frames (docs/superpowers/specs/2026-11-03-spatial-open-field-design.md §3) ─────────
+
+{
+  const games = Math.max(10, Math.round(GAMES / 5));
+  let n = 0;
+  let fast = 0;
+  let stopsSpatial = 0;
+  let past = 0;
+  let jumps = 0;
+  const toLine: number[] = [];
+  for (let i = 0; i < games; i++) {
+    const g = league.games[i % league.games.length];
+    const r = simulateGame(league, g, { field: true, seed: `film-spatial-${i}` });
+    const snap = r.field!.snap!;
+    r.plays!.forEach((raw, index) => {
+      const e = asRan(raw);
+      if (!e.field) return;
+      const p = stagePlay({ plays: r.plays!, index, record: r.field!, homeId: g.homeId, seed: 'film', snapY: 26.65 });
+      if (!p.spatial) return;
+      n++;
+      const men = p.ids.length;
+      const { k0, tackler } = p.spatial;
+      const carrier = p.carrier!;
+      const at = (st: number, k: number) => ({ x: p.pos[(st * men + k) * 2], y: p.pos[(st * men + k) * 2 + 1] });
+      // Each man's legs from possession on, as the open field gave them to him.
+      let tooFast = false;
+      p.ids.forEach((id, k) => {
+        const s = skillsAt(snap, id, index);
+        if (!s) return;
+        const top = bodyOf(
+          { id, side: 0, role: p.roles[k], x: 0, y: 0, vx: 0, vy: 0, s },
+          !!e.field!.tired,
+          id === carrier,
+        ).top;
+        for (let st = k0 + 1; st < p.steps; st++) {
+          const a = at(st - 1, k);
+          const b = at(st, k);
+          const step = Math.hypot(b.x - a.x, b.y - a.y);
+          if (step / STEP > top + 0.05) tooFast = true;
+          if (st === k0 + 1 && step > top * STEP + 0.05) jumps++;
+        }
+      });
+      if (tooFast) fast++;
+      stopsSpatial += deadStops(p);
+      // The tackler never runs past the carrier: in the last second before the whistle he never goes from level with
+      // him (or behind) to a yard beyond him along his line of run (a man meeting him head-on is ahead all along).
+      if (tackler !== null) {
+        const tk = p.ids.indexOf(tackler);
+        const ck = p.ids.indexOf(carrier);
+        let wasLevel = false;
+        for (let st = Math.max(k0 + 1, p.steps - 1 - Math.round(1.2 / STEP)); st < p.steps; st++) {
+          const c = at(st, ck);
+          const c0 = at(st - 1, ck);
+          const v = Math.hypot(c.x - c0.x, c.y - c0.y);
+          if (v / STEP < 1) continue;
+          const t = at(st, tk);
+          const along = ((t.x - c.x) * (c.x - c0.x) + (t.y - c.y) * (c.y - c0.y)) / v;
+          if (along <= 0) wasLevel = true;
+          else if (wasLevel && along > 1) {
+            past++;
+            break;
+          }
+        }
+      }
+      if (e.kind === 'run') toLine.push(k0 * STEP);
+    });
+  }
+  console.log(`\nSpatial plays (the open field's own frames): ${n} plays from ${games} games`);
+  check('men faster than their legs, spatial plays', fast, [0, 0], 'none', 0);
+  check('dead stops in the open, per 50 spatial plays', (stopsSpatial * 50) / Math.max(1, n), [0, 1], 'none');
+  check('tacklers who run past the carrier, per 50 spatial plays', (past * 50) / Math.max(1, n), [0, 1], 'none');
+  check('jumps at possession, spatial plays', jumps, [0, 0], 'none', 0);
+  check("a back's time to the line, spatial runs (s)", mean(toLine), [2.5, 3.1], '2.78 (NGS RBs 2022–24)');
+}
 
 console.log(`\n${misses} number(s) outside target range`);
 process.exit(misses ? 1 : 0);

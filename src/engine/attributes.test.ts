@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CONTESTS, contestsFor, relevantAttributes, skill, type Contest, type ContestName } from './attributes';
 import { createLeague } from './generate';
@@ -27,7 +27,10 @@ describe('attribute registry', () => {
   });
 
   it('declares only contests the match engine actually reads', () => {
-    const src = ['match/gameSim.ts', 'match/lineup.ts']
+    const field = readdirSync(new URL('field/', import.meta.url))
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .map((f) => `field/${f}`);
+    const src = ['match/gameSim.ts', 'match/lineup.ts', ...field]
       .map((f) => readFileSync(new URL(f, import.meta.url), 'utf8'))
       .join('\n');
     for (const name of Object.keys(CONTESTS)) expect(src, name).toContain(`'${name}'`);

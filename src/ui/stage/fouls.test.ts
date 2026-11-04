@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
 import type { PlayLogEntry } from '../../engine/types';
-import { FIELD_W, snapYFor } from './ballPath';
+import { FIELD_W, snapYFor } from '../../engine/field/ballPath';
 import { foulersOn, foulsIn, type FoulPhase } from './calls';
 import { stageFouls, type FouledPlay } from './fouls';
-import { stagePlay, type StagedPlay } from './stage';
+import { stagePlay, type StagedPlay } from '../../engine/field/stage';
 
 const league = createLeague({ seed: 'fouls' });
 const team = (id: number) => league.teams.find((t) => t.id === id)!;
