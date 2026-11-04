@@ -6,9 +6,10 @@
 import { playYards } from '../src/engine/field/play';
 import { runField } from '../src/engine/field/run';
 import { KNOBS } from '../src/engine/field/tuning';
-import type { FieldResult, FieldStart } from '../src/engine/field/types';
+import { runPocket, type PocketStart } from '../src/engine/field/pocketField';
+import type { FieldPlayer, FieldResult, FieldStart } from '../src/engine/field/types';
 import { Rng } from '../src/engine/rng';
-import { groupOf, type Group, type MomentRow, type Totals } from './field-moments';
+import { groupOf, type Group, type MomentRow, type PocketRow, type Totals } from './field-moments';
 import { TARGETS } from './targets';
 
 export const SEEDS = 3;
@@ -424,4 +425,202 @@ export function loss(lines: Line[]): number {
     else s += ((l.value - mid) / half) ** 2;
   }
   return s;
+}
+
+// ───────── the pocket (slice two) ─────────
+
+/** Who got home, by where he rushed from. */
+type RushGroup = 'edge' | 'interior' | 'linebacker' | 'secondary';
+const RUSH_GROUPS: RushGroup[] = ['edge', 'interior', 'linebacker', 'secondary'];
+const rushGroup = (role: string): RushGroup =>
+  role === 'EDGE' ? 'edge' : role === 'DT' ? 'interior' : role === 'LB' ? 'linebacker' : 'secondary';
+/** Who lost him, by his spot: the line by alignment, a back or a tight end kept in. */
+type Spot = 'tackle' | 'guard' | 'center' | 'back';
+const SPOTS: Spot[] = ['tackle', 'guard', 'center', 'back'];
+
+export interface ResolvedPocket {
+  outcome: PocketStart['outcome'];
+  /** Today's credit: the rusher's group, the blocker's spot. */
+  today: { group: RushGroup | null; spot: Spot | null; rusher: number | null; beat: number | null; duration: number };
+  /** The field's, averaged over the seeds. */
+  sp: {
+    groups: number[];
+    spots: number[];
+    rusher: Record<number, number>;
+    beat: Record<number, number>;
+    at: number[];
+    duration: number;
+  };
+  /** Each rusher's rush and each blocker's protection, centred on the play's own men. */
+  rush: Record<number, number>;
+  pro: Record<number, number>;
+  ms: number[];
+}
+
+/** One dropback's pocket, played on parity's own streams (its first `seeds`). */
+export function resolvePocket(row: PocketRow, key: string, seeds = SEEDS): ResolvedPocket {
+  const { start, today } = row;
+  const role = new Map(start.players.map((p) => [p.id, p.role]));
+  const across = start.players
+    .filter((p) => p.role === 'OL')
+    .sort((a, b) => a.y - b.y)
+    .map((p) => p.id);
+  const spotOf = (id: number | null): Spot | null => {
+    if (id === null) return null;
+    const k = across.indexOf(id);
+    if (k < 0) return 'back';
+    const n = across.length;
+    return k === 0 || k === n - 1 ? 'tackle' : k === 1 || k === n - 2 ? 'guard' : 'center';
+  };
+  const groupOfId = (id: number | null) => (id === null ? null : rushGroup(role.get(id) ?? 'S'));
+  // Today's credit by position (today credits men off the field too): an edge or a tackle by his position.
+  const todayGroup: RushGroup | null =
+    row.rusherPos === null ? null : rushGroup(row.rusherPos === 'CB' ? 'S' : row.rusherPos);
+  const todaySpot: Spot | null =
+    !today.blamed || today.beat === null ? null : row.beatPos === 'OL' ? spotOf(today.beat) : 'back';
+  const centred = (ids: number[], f: (s: FieldPlayer['s']) => number) => {
+    const xs = ids.map((id) => f(start.players.find((p) => p.id === id)!.s));
+    const m = mean(xs);
+    return Object.fromEntries(ids.map((id, k) => [id, xs[k] - m])) as Record<number, number>;
+  };
+  const sp: ResolvedPocket['sp'] = {
+    groups: RUSH_GROUPS.map(() => 0),
+    spots: SPOTS.map(() => 0),
+    rusher: {},
+    beat: {},
+    at: [],
+    duration: 0,
+  };
+  const ms: number[] = [];
+  for (let k = 0; k < seeds; k++) {
+    const t = performance.now();
+    const r = runPocket(start, new Rng(`${key}:${k}`));
+    ms.push(performance.now() - t);
+    const g = groupOfId(r.rusher);
+    if (g) sp.groups[RUSH_GROUPS.indexOf(g)] += 1 / seeds;
+    const s = spotOf(r.beat);
+    if (s) sp.spots[SPOTS.indexOf(s)] += 1 / seeds;
+    if (r.rusher !== null) sp.rusher[r.rusher] = (sp.rusher[r.rusher] ?? 0) + 1 / seeds;
+    if (r.beat !== null) sp.beat[r.beat] = (sp.beat[r.beat] ?? 0) + 1 / seeds;
+    if (start.outcome === 'sack' && r.at !== null) {
+      sp.at.push(r.at);
+      sp.duration += Math.max(3, Math.round(r.at + KNOBS.padSack)) / seeds;
+    }
+  }
+  return {
+    outcome: start.outcome,
+    today: {
+      group: todayGroup,
+      spot: todaySpot,
+      rusher: today.rusher,
+      beat: today.blamed ? today.beat : null,
+      duration: today.duration,
+    },
+    sp,
+    rush: centred(
+      start.rushers.filter((id) => role.has(id)),
+      (s) => s.rush,
+    ),
+    pro: centred(
+      start.blockers.filter((id) => role.has(id)),
+      (s) => s.pro,
+    ),
+    ms,
+  };
+}
+
+const quantile = (xs: number[], q: number) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : NaN;
+};
+
+/** The pocket's rows: the field against today's engine on the same dropbacks (spec §5). */
+export function judgePocket(all: ResolvedPocket[]): Line[] {
+  const lines: Line[] = [];
+  const add = (label: string, value: number, range: [number, number], note: string, info = false) =>
+    lines.push({ label, value, range, note, info });
+  const sacks = all.filter((r) => r.outcome === 'sack');
+  // Who got home: each group's share of the sacks.
+  RUSH_GROUPS.forEach((g, i) => {
+    const t = sacks.filter((r) => r.today.group === g).length / Math.max(1, sacks.length);
+    const f = sacks.reduce((n, r) => n + r.sp.groups[i], 0) / Math.max(1, sacks.length);
+    add(`pocket: sacks by the ${g} (share)`, f, near(t, 0.05), `today ${t.toFixed(3)}`);
+  });
+  // Who lost him: each spot's share of the sacks and pressures charged.
+  const charged = all.filter((r) => r.outcome === 'sack' || r.outcome === 'pressure' || r.outcome === 'hit');
+  const tAll = charged.filter((r) => r.today.spot).length;
+  const fAll = charged.reduce((n, r) => n + r.sp.spots.reduce((a, b) => a + b, 0), 0);
+  SPOTS.forEach((s, i) => {
+    const t = charged.filter((r) => r.today.spot === s).length / Math.max(1, tAll);
+    const f = charged.reduce((n, r) => n + r.sp.spots[i], 0) / Math.max(1, fAll);
+    add(`pocket: sacks and pressures allowed, ${s} (share)`, f, near(t, 0.05), `today ${t.toFixed(3)}`);
+  });
+  // The ratings: a rusher's sacks against his rush, a blocker's against his protection (the field's slope over today's).
+  const slope = (
+    rows: ResolvedPocket[],
+    skill: (r: ResolvedPocket) => Record<number, number>,
+    who: 'rusher' | 'beat',
+  ) => {
+    const x: number[][] = [];
+    const yt: number[] = [];
+    const yf: number[] = [];
+    for (const r of rows)
+      for (const [k, v] of Object.entries(skill(r))) {
+        const id = Number(k);
+        x.push([v]);
+        yt.push(r.today[who] === id ? 1 : 0);
+        yf.push((who === 'rusher' ? r.sp.rusher : r.sp.beat)[id] ?? 0);
+      }
+    if (x.length < 3) return { t: NaN, f: NaN, st: NaN, sf: NaN };
+    const t = ols(x, yt);
+    const f = ols(x, yf);
+    return { t: t.b[1], f: f.b[1], st: t.se[1], sf: f.se[1] };
+  };
+  /**
+   * The field's slope over today's in 0.6–1.5; when today's can't be told from zero (|t| < 2: today barely reads the
+   * rating there), the field's within 2.5 standard errors of today's, as the season rows judge.
+   */
+  const slopeRow = (label: string, x: { t: number; f: number; st: number; sf: number }) => {
+    const note = `today ${x.t.toFixed(4)} (se ${x.st.toFixed(4)}), spatial ${x.f.toFixed(4)} (se ${x.sf.toFixed(4)})`;
+    if (Math.abs(x.t) >= 2 * x.st) add(`${label}, spatial ÷ today`, x.f / x.t, [0.6, 1.5], note);
+    else {
+      const band = 2.5 * Math.hypot(x.st, x.sf);
+      add(`${label}, spatial − today (today ~0)`, x.f - x.t, [-band, band], note);
+    }
+  };
+  slopeRow(
+    "pocket: a rusher's sacks on his rush",
+    slope(sacks, (r) => r.rush, 'rusher'),
+  );
+  slopeRow(
+    "pocket: a blocker's sacks allowed on his protection",
+    slope(
+      sacks.filter((r) => r.today.beat !== null),
+      (r) => r.pro,
+      'beat',
+    ),
+  );
+  // When: the NFL's snap to sack, and the play's clock on a sack.
+  const at = sacks.flatMap((r) => r.sp.at);
+  add('pocket: seconds from the snap to a sack, median', quantile(at, 0.5), [2.6, 3.2], 'NFL 2.9 (NGS 2023–25)');
+  add(
+    'pocket: seconds from the snap to a sack, 90th percentile',
+    quantile(at, 0.9),
+    [4.8, 5.8],
+    'NFL 5.3 (NGS 2023–25)',
+  );
+  const td = mean(sacks.map((r) => r.today.duration));
+  add(
+    'pocket: seconds from the snap to the whistle, sacks',
+    mean(sacks.map((r) => r.sp.duration)),
+    near(td, 0.6),
+    `today ${td.toFixed(2)}`,
+  );
+  // Today's by construction: reported.
+  const share = (o: string) => all.filter((r) => r.outcome === o).length / Math.max(1, all.length);
+  for (const o of ['sack', 'pressure', 'hit', 'scramble', 'escape', 'away'] as const)
+    add(`pocket: ${o} (share of dropbacks)`, share(o), [0, 1], "today's, by construction", true);
+  const ms = all.flatMap((r) => r.ms);
+  add('pocket: median ms a dropback', quantile(ms, 0.5), [0, 5], `p90 ${quantile(ms, 0.9).toFixed(2)} ms`);
+  return lines;
 }

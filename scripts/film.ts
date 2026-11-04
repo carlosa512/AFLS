@@ -537,14 +537,15 @@ info(
       if (!p.spatial) return;
       n++;
       const men = p.ids.length;
-      const { k0, tackler } = p.spatial;
+      const { k0, tackler, moved } = p.spatial;
       const carrier = p.carrier!;
       const at = (st: number, k: number) => ({ x: p.pos[(st * men + k) * 2], y: p.pos[(st * men + k) * 2 + 1] });
       // Each man's legs from possession on, as the open field gave them to him.
       let tooFast = false;
       p.ids.forEach((id, k) => {
         const s = skillsAt(snap, id, index);
-        if (!s) return;
+        // The pocket alone: only the men it moved are the field's (receivers and coverage run drawn routes).
+        if (!s || (moved && !moved.includes(id))) return;
         const top = bodyOf(
           { id, side: 0, role: p.roles[k], x: 0, y: 0, vx: 0, vy: 0, s },
           !!e.field!.tired,

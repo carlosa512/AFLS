@@ -5,6 +5,11 @@ vi.mock('./approach', async (original) => ({
   ...(await original<typeof import('./approach')>()),
   approach: () => null,
 }));
+// Nor any pocket.
+vi.mock('./pocketMoment', async (original) => ({
+  ...(await original<typeof import('./pocketMoment')>()),
+  pocketStage: () => null,
+}));
 
 const { createLeague } = await import('../generate');
 const { simulateGame } = await import('../match/gameSim');

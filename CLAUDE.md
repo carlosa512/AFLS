@@ -327,7 +327,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `sizeEdge`), habits. Today's roll still decides yards, touchdowns and out of bounds (`FieldStart.target`): the
     field plays out how he got there and who made the tackle. It draws only from `${seed}:field:${index}`, so today's
     dice are untouched; `FieldRecord.snap` keeps what a replay needs (`replay.ts`). Knobs in `tuning.ts`, fitted by
-    `npm run parity-fit`. The stager and its helpers (`stage.ts`, `routes.ts`, `pocket.ts`…) live here too
+    `npm run parity-fit`. The stager and its helpers (`stage.ts`, `routes.ts`, `pocket.ts`…) live here too. Slice two,
+    the pocket (spec `docs/superpowers/specs/2026-11-04-spatial-pocket-design.md`): every dropback in your games plays
+    the line, the rush and the quarterback (`runPocket` in `pocketField.ts`; its moment, staging and composed film in
+    `pocketMoment.ts`). Today's rolls decide clean, pressure, hit, sack, scramble or throwaway; the field picks the
+    rusher within today's group and the beaten blocker at today's spot (`FieldFacts.rg`/`bs`), and when and how. A
+    scramble hands over to the open field (`scrambleStart`), a catch's open field starts from the pocket's last frame
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a

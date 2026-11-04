@@ -22,7 +22,7 @@ export function skillsAt(snap: FieldSnapshot, id: number, index: number): FieldS
 }
 
 /** Keep what this play's field read, for its replay. */
-export function noteSkills(snap: FieldSnapshot, start: FieldStart, index: number): void {
+export function noteSkills(snap: FieldSnapshot, start: Pick<FieldStart, 'players'>, index: number): void {
   for (const p of start.players) {
     const had = skillsAt(snap, p.id, index);
     if (!had) snap.players[p.id] = p.s;

@@ -18,7 +18,17 @@ import { KNOBS } from '../src/engine/field/tuning';
 import type { FieldStart } from '../src/engine/field/types';
 import { Rng } from '../src/engine/rng';
 import { harvest, type Totals } from './field-moments';
-import { judge, missCount, print, resolve, spatialYards, type Resolved } from './parity-core';
+import {
+  judge,
+  judgePocket,
+  missCount,
+  print,
+  resolve,
+  resolvePocket,
+  spatialYards,
+  type Resolved,
+  type ResolvedPocket,
+} from './parity-core';
 
 const MOMENT_WORKERS = 4;
 const GAMES = 75;
@@ -31,6 +41,7 @@ type Bumps = Record<'carrierBurst' | 'carrierReads' | 'defenseBurst' | 'defenseR
 interface MomentsDone {
   type: 'moments';
   rows: Resolved[];
+  pockets: ResolvedPocket[];
   totals: Totals;
   bumps: Bumps;
   bumpN: number;
@@ -59,8 +70,9 @@ function bumped(s: FieldStart, who: 'carrier' | 'defense', skill: 'burst' | 'rea
 }
 
 function momentsWorker(n: number): MomentsDone {
-  const { rows, totals } = harvest(`parity:${n}`, GAMES);
+  const { rows, pockets, totals } = harvest(`parity:${n}`, GAMES);
   const resolved = rows.map((r, i) => resolve(r, `parity:${n}:${i}`));
+  const pocketsResolved = pockets.map((p, i) => resolvePocket(p, `parity:${n}:pocket:${i}`));
   const bumps: Bumps = { carrierBurst: 0, carrierReads: 0, defenseBurst: 0, defenseReads: 0 };
   const take = rows.slice(0, BUMPED);
   for (const [i, r] of take.entries()) {
@@ -75,7 +87,7 @@ function momentsWorker(n: number): MomentsDone {
     bumps.defenseBurst += yards(bumped(r.start, 'defense', 'burst')) - base;
     bumps.defenseReads += yards(bumped(r.start, 'defense', 'reads')) - base;
   }
-  return { type: 'moments', rows: resolved, totals, bumps, bumpN: take.length };
+  return { type: 'moments', rows: resolved, pockets: pocketsResolved, totals, bumps, bumpN: take.length };
 }
 
 function seasonWorker(n: number): SeasonDone {
@@ -163,6 +175,9 @@ async function main() {
 
   console.log('── League and matchups (spatial against today, on the same moments) ──');
   for (const l of judge(rows, totals)) print(l);
+
+  console.log(`\n── The pocket (${moments.reduce((n, m) => n + m.pockets.length, 0)} dropbacks) ──`);
+  for (const l of judgePocket(moments.flatMap((m) => m.pockets))) print(l);
 
   console.log('\n── Spatial-only reads (+5, yards a touch, Decision 2) ──');
   const n = moments.reduce((s, m) => s + m.bumpN, 0);

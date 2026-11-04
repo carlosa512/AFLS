@@ -351,6 +351,9 @@ export function migrateLeague(league: League): League | null {
   // rooms' belief in their coordinators (`Coach.belief`), a notice's coordinator, the doubts the coach has seen and a
   // relieved coordinator's event. Absent reads as the coach's promise, the middle, nothing seen: nothing to fill.
   if (league.version < 86) league.version = 86;
+  // v87: the pocket on the field (slice two): a dropback's facts gain the pocket's outcome (`FieldFacts.pk`, `nb`, a
+  // scramble's slide `sl`) and the snapshot's skills the pocket's four. Optional, nothing to rewrite.
+  if (league.version < 87) league.version = 87;
   return league;
 }
 

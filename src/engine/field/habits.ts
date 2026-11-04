@@ -53,3 +53,16 @@ export const FIELD_HABITS: ReadonlySet<QuirkId> = new Set<QuirkId>([
   'diagnoses',
   'alleyCrusher',
 ]);
+
+/** The quirks the pocket plays (`pocketField.ts`; tested there). */
+export const POCKET_HABITS: ReadonlySet<QuirkId> = new Set<QuirkId>([
+  'bullRush',
+  'anchor',
+  'heavyPunch',
+  'bendsArc',
+  'twoTapSet',
+  'losesContainment',
+  'muddyPockets',
+  'bailsEarly',
+  'blitzPickup',
+]);

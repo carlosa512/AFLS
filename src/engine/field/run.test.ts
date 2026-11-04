@@ -274,6 +274,21 @@ describe('the open field', () => {
     }
   });
 
+  it('lets a sliding quarterback go down at his spot, nobody credited', () => {
+    for (const seed of ['slide-1', 'slide-2', 'slide-3']) {
+      const players = [
+        man(1, 0, 'QB', 40, MID, { vx: 6 }),
+        man(30, 1, 'LB', 37, MID + 2, { vx: 6 }),
+        man(31, 1, 'S', 52, MID + 4),
+      ];
+      const start = startOf({ players, target: { x: 46, touchdown: false, slide: true } });
+      const r = runField(start, new Rng(seed));
+      expect(r.tackler, seed).toBeNull();
+      expect(r.outOfBounds, seed).toBe(false);
+      expect(Math.abs(r.yards - 6), seed).toBeLessThanOrEqual(1.5);
+    }
+  });
+
   describe('a kickoff return (the NFL from 2024: coverage at the 40, the setup zone at the 30 to the 35)', () => {
     // The returner catches at the 5 and is credited to the 28. Ten cover men in five lanes a side at the 40, just off
     // the line now the ball is down; seven blockers across the 30 and two at the 34; the kicker behind them.

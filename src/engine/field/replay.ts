@@ -6,11 +6,13 @@
 import { Rng } from '../rng';
 import type { FieldRecord, PlayLogEntry } from '../types';
 import { approach, fieldStart } from './approach';
+import { composePocket, pocketFrom, pocketMomentOf, pocketStage, scrambleStart } from './pocketMoment';
 import { moveDuration } from './contest';
 import { momentOf } from './moment';
 import { runField } from './run';
 import { skillsAt } from './snapshot';
 import { asRan, type StagedPlay } from './stage';
+import type { FieldResult } from './types';
 import { FIELD_VERSION, STEP } from './tuning';
 
 export function stageField(args: {
@@ -24,13 +26,39 @@ export function stageField(args: {
   const e = asRan(plays[index]);
   // A lost fumble after a carry is drawn (the field played the carry, not the return); a strip-sack's is the field's.
   if (!snap || snap.v !== FIELD_VERSION || !e.field || (e.loose !== undefined && e.kind !== 'sack')) return null;
-  const m = momentOf(plays[index], record, index, homeId);
-  if (!m) return null;
-  const a = approach(m, record, homeId, snap.seed);
-  if (!a) return null;
-  const start = fieldStart(a, m, (id) => skillsAt(snap, id, index), new Rng(`${snap.seed}:field:${index}:hold`));
-  if (!start) return null;
-  const result = runField(start, new Rng(`${snap.seed}:field:${index}`));
+  const skillsOf = (id: number) => skillsAt(snap, id, index);
+  // A dropback the pocket played: the pocket from the snap, composed into the staging the open field (if any) starts from.
+  const pm = e.field.pk ? pocketMomentOf(plays[index], record, index) : null;
+  let composed: StagedPlay | undefined;
+  let pocket: ReturnType<typeof pocketFrom> = null;
+  if (pm) {
+    const staged = pocketStage(pm, record, homeId, snap.seed);
+    pocket = staged && pocketFrom(pm, staged, skillsOf, snap.seed);
+    if (!staged || !pocket) return null;
+    composed = composePocket(staged, pocket);
+  }
+  let a: { staged: StagedPlay; k0: number; t0: number; carrier: number } | null = null;
+  let result: FieldResult | null = null;
+  if (pm && pocket && composed && pm.kind === 'scramble') {
+    const start = scrambleStart(composed, pocket, pm, skillsOf);
+    if (start) {
+      result = runField(start, new Rng(`${snap.seed}:field:${index}`));
+      a = { staged: composed, k0: pocket.result.breakout!, t0: start.t0, carrier: start.carrier };
+    }
+  } else {
+    const m = momentOf(plays[index], record, index, homeId);
+    const ap = m && (m.facts.to !== undefined || !pm) ? approach(m, record, homeId, snap.seed, composed) : null;
+    const start = ap && m ? fieldStart(ap, m, skillsOf, new Rng(`${snap.seed}:field:${index}:hold`)) : null;
+    if (ap && start) {
+      result = runField(start, new Rng(`${snap.seed}:field:${index}`));
+      a = ap;
+    }
+  }
+  // The pocket alone (a sack, an incompletion, a throwaway, a catch the field didn't run on): its frames from the snap.
+  if (!a || !result)
+    return composed && pocket
+      ? { ...composed, spatial: { k0: 0, tackler: null, moved: pocket.start.players.map((p) => p.id) } }
+      : null;
 
   const s = a.staged;
   const n = s.ids.length;

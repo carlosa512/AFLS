@@ -70,6 +70,9 @@ import { MAX_STATS } from '../types';
 import { approach, fieldStart } from '../field/approach';
 import { MID, HASH_HI, HASH_LO } from '../field/geometry';
 import { momentOf, type FieldFacts, type FieldMoment } from '../field/moment';
+import type { PocketOutcome, PocketResult, PocketStart } from '../field/pocketField';
+import { composePocket, pocketFrom, pocketStage, scrambleStart, type PocketMoment } from '../field/pocketMoment';
+import type { StagedPlay } from '../field/stage';
 import { runField } from '../field/run';
 import { fieldSkills } from '../field/skills';
 import { noteSkills, type FieldSnapshot } from '../field/snapshot';
@@ -121,10 +124,27 @@ export interface SimOptions {
   /** Called at the end of each eligible play with what its open field started from and what today's rolls gave
    * (and, with `field`, what the open field decided). Draws nothing. Keeps the plays. */
   fieldTap?: (tap: FieldTap) => void;
+  /** Called at the end of each dropback the pocket could play, with today's credit and (with `field`) the pocket's. */
+  pocketTap?: (tap: PocketTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
   staff?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
+}
+
+/** A dropback the pocket played (`field/pocketField.ts`): its moment and start, today's credit, the pocket's result. */
+export interface PocketTap {
+  moment: PocketMoment;
+  start: PocketStart;
+  today: {
+    outcome: PocketOutcome;
+    rusher: number | null;
+    beat: number | null;
+    hit: boolean;
+    blamed: boolean;
+    duration: number;
+  };
+  result?: PocketResult;
 }
 
 /** What today's engine rolled for an open field: the shadow a spatial play replaces (parity reads it, tests too). */
@@ -683,6 +703,18 @@ class GameSim {
   private pressureBy: Player | null = null;
   /** The blocker charged on this snap's pressure or sack, if any: recorded for All-22, never read by the sim. */
   private beatBy: Player | null = null;
+  /** Today's outcome for the dropback being played, for the pocket (`pocketFor`). */
+  private dropOutcome: PocketOutcome | null = null;
+  /** The pocket on the dropback being played: its moment, its composed staging, start and result. */
+  private pocketNow: { m: PocketMoment; staged: StagedPlay; start: PocketStart; result: PocketResult } | null = null;
+  /** Today's pressure credit on it, as `creditPressure` drew it (the tap's). */
+  private pocketToday: {
+    rusher: number | null;
+    beat: number | null;
+    hit: boolean;
+    blamed: boolean;
+    duration?: number;
+  } | null = null;
   /** Who was on the field, kept with the plays for All-22 (only when `keepPlays`). */
   private fieldRecord: FieldRecord | null = null;
   /**
@@ -1213,6 +1245,13 @@ class GameSim {
       awayScore: this.score[1],
     };
     if (scoring) entry.scoring = true;
+    // The dropback the pocket played keeps its facts; a flagged snap, on the play as it ran (its open field started
+    // from the pocket's frames too).
+    const pn = this.pocketNow;
+    if (pn && this.options.field && this.anim && this.plays.length === pn.m.index) {
+      if (this.anim.kind !== 'penalty') this.anim.field = { ...this.anim.field, ...pn.m.facts };
+      else if (this.anim.ran) this.anim.ran = { ...this.anim.ran, field: { ...this.anim.ran.field, ...pn.m.facts } };
+    }
     if (this.anim) Object.assign(entry, this.anim);
     this.anim = null;
     if (this.options.keepPlays || scoring) {
@@ -2174,6 +2213,9 @@ class GameSim {
     this.endZoneShot = calls.endZoneShot;
     this.pressureBy = null;
     this.beatBy = null;
+    this.dropOutcome = null;
+    this.pocketNow = null;
+    this.pocketToday = null;
     const passing = this.rng.chance(clamp(coach.passProbability(s) + calls.passShift, 0, 1)) || this.designedShot;
     const result = passing ? this.passPlay(s, defCall) : this.runPlay(s, defCall);
     if (calls.settling)
@@ -2229,7 +2271,41 @@ class GameSim {
         calls.protectDeep && result.depth !== undefined,
       );
     if (this.designedShot) result.text = `Designed shot: ${result.text}`;
-    if (this.pressureBy) this.creditPressure(result.stats, this.pressureBy, defCall, false);
+    // A throw the pocket hasn't played yet (an incompletion, a pick, a throwaway, a catch in the end zone) plays it now.
+    if (passing && this.dropOutcome && result.kind === 'pass' && !this.pocketNow) {
+      const actors = actorsOf({
+        entries: result.stats.entries,
+        defender: result.defender,
+        rusher: null,
+        beat: null,
+        take: result.turnover?.by,
+      });
+      const int = result.turnover?.kind === 'int';
+      // As the log keeps it: a pick's spot always (`ranAnim`), a throw's air when it has some.
+      const air = int
+        ? this.fieldX(this.offense, Math.min(this.yardLine + (result.airYards ?? 0), 100))
+        : result.airYards
+          ? this.fieldX(this.offense, this.yardLine + result.airYards)
+          : undefined;
+      this.pocketFor(
+        int ? 'int' : result.complete ? 'pass' : 'incomplete',
+        {
+          ...(air !== undefined ? { air } : {}),
+          lane: result.lane ?? 0,
+          ...(actors.ball !== undefined ? { ball: actors.ball } : {}),
+          ...(actors.cover !== undefined ? { cover: actors.cover } : {}),
+          ...(int && actors.take !== undefined ? { take: actors.take } : {}),
+        },
+        this.dropOutcome,
+      );
+    }
+    const pocketBy = this.pocketCredit();
+    if (this.pressureBy) {
+      this.creditPressure(result.stats, this.pressureBy, defCall, false, pocketBy);
+      // The log names the man the pocket sent.
+      if (pocketBy) this.pressureBy = pocketBy.rusher;
+    }
+    this.pocketTapNow(result.duration);
     const beforePlays = this.teamStats[offSide].plays;
     const beforeTurnovers = this.teamStats[offSide].turnovers;
     const beforePoints = this.score[offSide];
@@ -2425,7 +2501,7 @@ class GameSim {
 
   /** Plays the open field spatially, or taps it for parity. */
   private get fielding(): boolean {
-    return !!(this.options.field || this.options.fieldTap);
+    return !!(this.options.field || this.options.fieldTap || this.options.pocketTap);
   }
 
   /** What the play's log entry will open with (`log`, `takeSnapshot`): a moment says the same. */
@@ -2464,7 +2540,9 @@ class GameSim {
    */
   private openField(m: FieldMoment): { start: FieldStart; result?: FieldResult } | null {
     if (!this.fieldRecord) return null;
-    const a = approach(m, this.fieldRecord, this.game.homeId, this.gameSeed);
+    // A catch's or a pick's open field starts from the pocket's frames (one staging for both).
+    const pocketStaged = this.pocketNow?.m.index === m.index ? this.pocketNow.staged : undefined;
+    const a = approach(m, this.fieldRecord, this.game.homeId, this.gameSeed, pocketStaged);
     if (!a) return null;
     const start = fieldStart(
       a,
@@ -2574,6 +2652,120 @@ class GameSim {
    */
   private outFirst(p: number): boolean {
     return new Rng(`${this.gameSeed}:field:${this.plays.length}:out`).chance(p);
+  }
+
+  /**
+   * The pocket at this dropback (`field/pocketField.ts`), staged blind from the snap and played on the play's own
+   * stream; once a play, cached. Whether a pressure is a hit, and whether it (or a sack) is charged to nobody, are rolled
+   * on the play's own streams at today's odds (today's credit draws are still taken in their place). Null when the
+   * pocket can't play it (a screen, a short line, a staging that fails).
+   */
+  private pocketFor(
+    kind: PocketMoment['kind'],
+    o: { air?: number; to?: number; lane: number; ball?: number; cover?: number; take?: number },
+    called: PocketOutcome,
+    extra: Partial<FieldFacts> = {},
+    /** Today's man who got home (a sack's; a pressure's is `pressureBy`). */
+    todayBy: Player | null = this.pressureBy,
+  ): { m: PocketMoment; staged: StagedPlay; start: PocketStart; result: PocketResult } | null {
+    if (this.pocketNow) return this.pocketNow;
+    if (!this.fielding || !this.fieldRecord) return null;
+    const index = this.plays.length;
+    const stream = (k: string) => new Rng(`${this.gameSeed}:field:${index}:${k}`);
+    const outcome: PocketOutcome = called === 'pressure' && stream('hit').chance(QB_HIT_SHARE) ? 'hit' : called;
+    const nb =
+      outcome !== 'clean' &&
+      outcome !== 'escape' &&
+      stream('blame').chance(outcome === 'sack' ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
+    const m: PocketMoment = {
+      index,
+      ...this.head(),
+      kind,
+      from: this.fieldX(this.offense, this.yardLine),
+      ...(o.air !== undefined ? { air: o.air } : {}),
+      ...(o.to !== undefined ? { to: o.to } : {}),
+      lane: o.lane,
+      ...(o.ball !== undefined ? { ball: o.ball } : {}),
+      ...(o.cover !== undefined ? { cover: o.cover } : {}),
+      ...(o.take !== undefined ? { take: o.take } : {}),
+      call: this.callNow ?? 'base',
+      ...(this.designedShot ? { shot: 1 as const } : {}),
+      facts: {
+        y: this.fieldY,
+        ...extra,
+        pk: outcome,
+        ...(nb ? { nb: 1 as const } : {}),
+        ...this.pocketAnchor(outcome, nb, todayBy, stream('spot')),
+      },
+    };
+    const staged = pocketStage(m, this.fieldRecord, this.game.homeId, this.gameSeed);
+    const pocket =
+      staged &&
+      pocketFrom(
+        m,
+        staged,
+        (id) => {
+          const p = this.league.players[id];
+          return p ? fieldSkills(p, activeQuirks) : undefined;
+        },
+        this.gameSeed,
+      );
+    if (!staged || !pocket) return null;
+    if (this.options.field && this.fieldSnap) noteSkills(this.fieldSnap, pocket.start, index);
+    this.pocketNow = { m, staged: composePocket(staged, pocket), ...pocket };
+    return this.pocketNow;
+  }
+
+  /**
+   * Today's credit as the pocket's anchor: the group of today's man who got home, and the spot of the blocker today's
+   * rule charges with him (`blockerFor`, on the play's own stream at today's odds). The field picks the men within them.
+   */
+  private pocketAnchor(outcome: PocketOutcome, nb: boolean, by: Player | null, rng: Rng): Partial<FieldFacts> {
+    if (!by || outcome === 'clean' || outcome === 'escape') return {};
+    const rg = by.position === 'EDGE' ? 'e' : by.position === 'DT' ? 'i' : by.position === 'LB' ? 'l' : 'd';
+    if (nb) return { rg };
+    const off = this.lineups[this.offense];
+    const def = this.lineups[this.def];
+    const b = blockerFor(off, def, by, this.callNow === 'blitz', rng);
+    if (!b) return { rg };
+    const k = off.ol.indexOf(b);
+    const n = off.ol.length;
+    const bs = k < 0 ? 'b' : k === 0 || k === n - 1 ? 't' : k === 1 || k === n - 2 ? 'g' : 'c';
+    return { rg, bs };
+  }
+
+  /** The pocket's credit, with the switch on: who got home, who lost him, whether he hit him, whether it's charged. */
+  private pocketCredit(): { rusher: Player; beat: Player | null; hit: boolean; blamed: boolean } | undefined {
+    const pn = this.pocketNow;
+    if (!pn || !this.options.field || pn.result.rusher === null) return undefined;
+    const rusher = this.league.players[pn.result.rusher];
+    if (!rusher) return undefined;
+    return {
+      rusher,
+      beat: pn.result.beat === null ? null : (this.league.players[pn.result.beat] ?? null),
+      hit: pn.m.facts.pk === 'hit',
+      blamed: !pn.m.facts.nb,
+    };
+  }
+
+  /** The tap for the dropback just played, once today's credit is in. */
+  private pocketTapNow(duration: number) {
+    const pn = this.pocketNow;
+    if (!pn || !this.options.pocketTap) return;
+    const t = this.pocketToday;
+    this.options.pocketTap({
+      moment: pn.m,
+      start: pn.start,
+      today: {
+        outcome: pn.m.facts.pk!,
+        rusher: t?.rusher ?? null,
+        beat: t?.beat ?? null,
+        hit: t?.hit ?? false,
+        blamed: t?.blamed ?? true,
+        duration: t?.duration ?? duration,
+      },
+      ...(this.options.field ? { result: pn.result } : {}),
+    });
   }
 
   /** The play's time with the open field: from the snap to its whistle. */
@@ -2895,13 +3087,19 @@ class GameSim {
         (1 + 0.08 * this.stack(def.edge, 'bendsArc')) *
         (1 + 0.03 * this.stack(off.ol, 'twoTapSet')) *
         (defCall === 'blitz' && this.has(off.rbs[0], 'blitzPickup') ? 0.8 : 1);
-      if (rng.chance(pSack)) return this.sack(def, defCall);
+      if (rng.chance(pSack)) {
+        this.dropOutcome = 'sack';
+        return this.sack(def, defCall);
+      }
       this.pressureBy = this.creditRng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
       const bail = this.has(qb, 'bailsEarly') ? 1.7 : 1;
-      if (rng.chance(clamp((0.16 + 0.02 * (skill(qb, 'scrambling') - 9)) * bail, 0.06, 0.55)))
+      if (rng.chance(clamp((0.16 + 0.02 * (skill(qb, 'scrambling') - 9)) * bail, 0.06, 0.55))) {
+        this.dropOutcome = 'scramble';
         return this.scramble(def, s);
+      }
       // A gunslinger never throws it away.
       if (!this.has(qb, 'gunslinger') && rng.chance(0.12)) {
+        this.dropOutcome = 'away';
         buf.add(qb, 'passAtt');
         return {
           kind: 'pass',
@@ -2919,8 +3117,12 @@ class GameSim {
     }
 
     // Coverage holds and nothing comes open: a quarterback with legs takes off anyway.
-    if (!pressured && rng.chance(clamp(0.015 + 0.004 * (skill(qb, 'scrambling') - 9), 0.005, 0.05)))
+    if (!pressured && rng.chance(clamp(0.015 + 0.004 * (skill(qb, 'scrambling') - 9), 0.005, 0.05))) {
+      this.dropOutcome = 'escape';
       return this.scramble(def, s);
+    }
+    // A throw: clean, or under pressure (a hit or a hurry: the pocket's own roll, `pocketFor`).
+    this.dropOutcome = pressured ? 'pressure' : 'clean';
 
     const ordinaryDepth = coach.passDepth(s, rng);
     const depth = this.designedShot
@@ -2931,7 +3133,10 @@ class GameSim {
           ? 'medium'
           : ordinaryDepth;
     // He leaves before the deep route comes open.
-    if (depth === 'deep' && !pressured && this.has(qb, 'bailsEarly') && rng.chance(0.15)) return this.scramble(def, s);
+    if (depth === 'deep' && !pressured && this.has(qb, 'bailsEarly') && rng.chance(0.15)) {
+      this.dropOutcome = 'escape';
+      return this.scramble(def, s);
+    }
     // Targets: [receiver, base weight by depth, coverage defender]
     const lbCover = def.lb[1] ?? def.lb[0];
     const scheme = off.scheme.offense;
@@ -3165,6 +3370,18 @@ class GameSim {
     const pOut = tempo === 'hurry' ? 0.35 : tempo === 'milk' ? 0.05 : 0.18;
     const outEarly = this.options.field && air < yardsToGoal && gain < yardsToGoal ? this.outFirst(pOut) : undefined;
     if (this.fielding && air < yardsToGoal) {
+      // The pocket first: the catch's open field starts from where it left everyone.
+      if (this.dropOutcome)
+        this.pocketFor(
+          'pass',
+          {
+            ...(air ? { air: this.fieldX(this.offense, this.yardLine + air) } : {}),
+            lane,
+            ball: receiver.id,
+            cover: defender.id,
+          },
+          this.dropOutcome,
+        );
       const h = this.head();
       moment = {
         kind: 'catch',
@@ -3176,7 +3393,10 @@ class GameSim {
         lane,
         ball: receiver.id,
         cover: defender.id,
-        ...(this.pressureBy ? { rush: this.pressureBy.id } : {}),
+        // The man who got to him, as the log names him: the pocket's with the switch on.
+        ...((this.pocketCredit()?.rusher ?? this.pressureBy)
+          ? { rush: (this.pocketCredit()?.rusher ?? this.pressureBy)!.id }
+          : {}),
         call: defCall,
         ...(this.designedShot ? { shot: 1 as const } : {}),
         facts: {
@@ -3184,6 +3404,15 @@ class GameSim {
           to: gain,
           ...(gain >= yardsToGoal ? { td: 1 as const } : {}),
           ...(outEarly ? { oob: 1 as const } : {}),
+          // The pocket it came out of, as the log keeps it (with the switch on).
+          ...(this.options.field && this.pocketNow
+            ? (({ pk, nb, rg, bs }) => ({
+                pk,
+                ...(nb ? { nb } : {}),
+                ...(rg ? { rg } : {}),
+                ...(bs ? { bs } : {}),
+              }))(this.pocketNow.m.facts)
+            : {}),
         },
       };
       field = this.openField(moment);
@@ -3463,15 +3692,27 @@ class GameSim {
     const buf = new StatBuffer();
     // Sacks spread like the NFL's: the starting edges get the most, but the rotation, the
     // linebackers and, on blitzes, the secondary all get home, so one rusher can't take half.
-    const sacker = this.rng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
+    const sacker0 = this.rng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
     let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
     if (this.yardLine - loss < 0) loss = this.yardLine;
+    const duration = this.rng.int(4, 6);
+    // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
+    const fumbled = this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1);
+    const lost = fumbled && this.fumbleRecoveredByDefense();
+    // Today's draws are all in (a lost one's recoverer and return below keep their place); with the switch on the
+    // pocket plays it (not a strip-sack lost: the turnover's own field takes that ball) and its man has the sack.
+    const pocket = lost
+      ? null
+      : this.pocketFor('sack', { to: this.fieldX(this.offense, this.yardLine - loss), lane: 0 }, 'sack', {}, sacker0);
+    const pocketBy = this.pocketCredit();
+    const sacker = pocketBy?.rusher ?? sacker0;
+    if (pocket) this.pocketToday = { ...this.pocketToday, rusher: null, beat: null, hit: true, blamed: true, duration };
     buf.add(qb, 'sacked');
     buf.add(qb, 'sackYds', loss);
     buf.add(sacker, 'sacks');
     buf.add(sacker, 'tackles');
     buf.add(sacker, 'tfl');
-    this.creditPressure(buf, sacker, defCall, true);
+    this.creditPressure(buf, sacker0, defCall, true, pocketBy);
     let text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
     const taken = (this.sacksTaken.get(qb.id) ?? 0) + 1;
     this.sacksTaken.set(qb.id, taken);
@@ -3481,20 +3722,21 @@ class GameSim {
       this.streak.set(qb.id, 0);
       text += `. ${short(qb)} looks rattled`;
     }
+    const at = pocket && this.options.field ? pocket.result.at : null;
     const result: PlayResult = {
       kind: 'sack',
       yards: -loss,
       text,
-      duration: this.rng.int(4, 6),
+      // With the switch on, the sack lands when the pocket says (and a pad past the whistle).
+      duration: at !== null ? Math.max(3, Math.round(at + KNOBS.padSack)) : duration,
       clockStops: false,
       stats: buf,
       rusher: sacker,
     };
-    // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
-    if (this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1)) {
+    if (fumbled) {
       buf.add(qb, 'fumbles');
       buf.add(sacker, 'forcedFum');
-      if (this.fumbleRecoveredByDefense()) {
+      if (lost) {
         const recoverer = this.rng.chance(0.5) ? sacker : this.pickTackler(def, 0);
         buf.add(qb, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
@@ -3518,16 +3760,34 @@ class GameSim {
    * the right end rushes the left tackle, the tackles take on the guards and center, an unblocked
    * blitzer is the back's to pick up). A sack is also a pressure and a hit.
    */
-  private creditPressure(buf: StatBuffer, rusher: Player, defCall: DefenseCall, sack: boolean) {
+  private creditPressure(
+    buf: StatBuffer,
+    rusher: Player,
+    defCall: DefenseCall,
+    sack: boolean,
+    /** With the switch on, the pocket's man and blocker: credited instead, today's draws still taken (with today's man). */
+    field?: { rusher: Player; beat: Player | null; hit: boolean; blamed: boolean },
+  ) {
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
     const rng = this.creditRng;
-    const hit = sack || rng.chance(QB_HIT_SHARE);
-    buf.add(rusher, 'pressures');
-    if (hit) buf.add(rusher, 'qbHits');
+    const hitToday = sack || rng.chance(QB_HIT_SHARE);
     // Coverage sacks and a quarterback holding the ball: nobody up front lost (charting services blame no blocker on about a third of sacks).
-    if (rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE)) return;
-    const blocker = blockerFor(off, def, rusher, defCall === 'blitz', rng);
+    const unblamed = rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
+    const blockerToday = unblamed ? null : blockerFor(off, def, rusher, defCall === 'blitz', rng);
+    if (this.pocketNow)
+      this.pocketToday = {
+        ...this.pocketToday,
+        rusher: rusher.id,
+        beat: blockerToday?.id ?? null,
+        hit: hitToday,
+        blamed: !unblamed,
+      };
+    const by = field?.rusher ?? rusher;
+    const hit = field ? sack || field.hit : hitToday;
+    const blocker = field ? (field.blamed ? field.beat : null) : blockerToday;
+    buf.add(by, 'pressures');
+    if (hit) buf.add(by, 'qbHits');
     if (!blocker) return;
     this.beatBy = blocker;
     buf.add(blocker, 'pressuresAllowed');
@@ -3553,26 +3813,59 @@ class GameSim {
     buf.add(qb, 'rushYds', yards);
     buf.add(qb, 'rushLong', yards);
     let text = `${short(qb)} scrambles for ${yards} yard${Math.abs(yards) === 1 ? '' : 's'}`;
+    const tackler0 = td ? null : this.pickTackler(def, yards);
+    const lane = this.rng.pick([-0.9, 0.9]);
+    const tdDuration = td ? this.rng.int(5, 8) : 0;
+    // A quarterback in a two-minute drill heads for the sideline; one protecting a lead stays in.
+    const t = coach.tempo(s);
+    const oob = !td && this.rng.chance(t === 'hurry' ? 0.55 : t === 'milk' ? 0.05 : 0.2);
+    const slide = !td && !oob && this.rng.chance(0.4);
+    const duration0 = td ? tdDuration : this.rng.int(5, 8);
+    // Today's draws are all in. With the switch on (a scramble that crosses the line), the pocket plays the escape and
+    // the open field takes him from the line to today's yards; out of bounds or a slide is nobody's tackle.
+    const called = this.dropOutcome === 'escape' ? 'escape' : 'scramble';
+    const pocket =
+      yards >= 1
+        ? this.pocketFor('scramble', { lane }, called, {
+            ...this.scrimmageFacts(s),
+            to: yards,
+            ...(td ? { td: 1 as const } : {}),
+            ...(oob ? { oob: 1 as const } : {}),
+            ...(slide ? { sl: 1 as const } : {}),
+          })
+        : null;
+    let field: { start: FieldStart; result: FieldResult } | null = null;
+    if (pocket && this.options.field) {
+      const start = scrambleStart(pocket.staged, pocket, pocket.m, (id) => {
+        const p = this.league.players[id];
+        return p ? fieldSkills(p, activeQuirks) : undefined;
+      });
+      if (start) {
+        const result = runField(start, new Rng(`${this.gameSeed}:field:${pocket.m.index}`));
+        if (this.fieldSnap) noteSkills(this.fieldSnap, start, pocket.m.index);
+        field = { start, result };
+      }
+    }
+    const tackler = field
+      ? field.result.tackler === null
+        ? null
+        : this.league.players[field.result.tackler]
+      : tackler0;
     if (td) {
       buf.add(qb, 'rushTd');
       text += ', TOUCHDOWN';
-    } else {
-      const tackler = this.pickTackler(def, yards);
+    } else if (tackler && !(field && (oob || slide))) {
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
-    const lane = this.rng.pick([-0.9, 0.9]);
-    if (td) return { kind: 'scramble', yards, text, duration: this.rng.int(5, 8), clockStops: true, stats: buf, lane };
-    // A quarterback in a two-minute drill heads for the sideline; one protecting a lead stays in.
-    const t = coach.tempo(s);
-    const oob = this.rng.chance(t === 'hurry' ? 0.55 : t === 'milk' ? 0.05 : 0.2);
-    const slide = !oob && this.rng.chance(0.4);
+    const duration = field ? this.fieldTime(field.start, field.result) : duration0;
+    if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
     const ending = oob ? ', out of bounds' : slide ? ', slides' : '';
     return {
       kind: 'scramble',
       yards,
       text: text + ending,
-      duration: this.rng.int(5, 8),
+      duration,
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,

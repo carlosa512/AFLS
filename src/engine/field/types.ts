@@ -41,6 +41,14 @@ export interface FieldSkills {
   ret: number;
   /** `breakTackles`: breaking a tackle, yards after contact. */
   power: number;
+  /** The pocket: getting after the passer (`interiorRush` for a DT, `edgeRush` for anyone else). */
+  rush: number;
+  /** `passPro`: holding a rusher off. */
+  pro: number;
+  /** `pocketPresence`: feeling the rush and moving away from it. */
+  poise: number;
+  /** `scrambling`: getting out of the pocket. */
+  scram: number;
   /** His active quirks the field plays (`FIELD_HABITS`) or the film shows before possession (`FILM_HABITS`), sorted. */
   habits?: QuirkId[];
 }
@@ -84,7 +92,7 @@ export interface FieldStart {
    * Where today's engine ended the play (field x) and whether it scored: the open field plays out how he gets there
    * (the path, the cuts, who misses, who tackles) and ends there. The owner's call H: the yards stay today's.
    */
-  target?: { x: number; touchdown: boolean; out?: boolean };
+  target?: { x: number; touchdown: boolean; out?: boolean; slide?: boolean };
   /** Free defenders who react late on a clean run (seconds from `t0`): the second level held by the hole. */
   late?: { id: number; until: number }[];
 }

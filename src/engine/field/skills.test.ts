@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CONTESTS, relevantAttributes } from '../attributes';
+import { CONTESTS, relevantAttributes, skill } from '../attributes';
 import { createLeague } from '../generate';
 import { OVR_WEIGHTS } from '../positions';
 import type { Attribute, Player, Position } from '../types';
 import { POSITIONS } from '../types';
-import { FIELD_HABITS } from './habits';
+import { FIELD_HABITS, POCKET_HABITS } from './habits';
 import { FIELD_CONTESTS, fieldJobs, fieldSkills } from './skills';
 
 const league = createLeague({ seed: 'field-skills' });
@@ -51,6 +51,20 @@ describe('the field reads players through contests', () => {
     expect(s.habits).toEqual(['jumpCutter', 'thumper']);
     expect(fieldSkills(p, none).habits).toBeUndefined();
     expect([...FIELD_HABITS]).toHaveLength(19);
+    expect([...POCKET_HABITS]).toHaveLength(9);
+  });
+
+  it('reads the pocket skills from their contests', () => {
+    const r2 = (x: number) => Math.round(x * 100) / 100;
+    expect(fieldSkills(at('DT'), none).rush).toBe(r2(skill(at('DT'), 'interiorRush')));
+    expect(fieldSkills(at('EDGE'), none).rush).toBe(r2(skill(at('EDGE'), 'edgeRush')));
+    expect(fieldSkills(at('LB'), none).rush).toBe(r2(skill(at('LB'), 'edgeRush')));
+    expect(fieldSkills(at('OL'), none).pro).toBe(r2(skill(at('OL'), 'passPro')));
+    expect(fieldSkills(at('QB'), none).poise).toBe(r2(skill(at('QB'), 'pocketPresence')));
+    expect(fieldSkills(at('QB'), none).scram).toBe(r2(skill(at('QB'), 'scrambling')));
+    expect(fieldSkills(at('EDGE'), () => ['bendsArc']).habits).toEqual(['bendsArc']);
+    for (const c of ['edgeRush', 'interiorRush', 'passPro', 'pocketPresence', 'scrambling'] as const)
+      expect(FIELD_CONTESTS).toContain(c);
   });
 
   it("leaves every position's relevant attributes as they were", () => {
@@ -78,6 +92,6 @@ describe('the field reads players through contests', () => {
     expect(fieldJobs('CB')).toEqual(expect.arrayContaining(['tackling', 'speed']));
     expect(fieldJobs('OL')).toEqual(expect.arrayContaining(['runBlock']));
     for (const pos of POSITIONS) expect(fieldJobs(pos)).not.toContain('throwAccShort');
-    expect(FIELD_CONTESTS).toHaveLength(11);
+    expect(FIELD_CONTESTS).toHaveLength(16);
   });
 });
