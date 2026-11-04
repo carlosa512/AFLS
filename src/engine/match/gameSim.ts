@@ -2546,6 +2546,15 @@ class GameSim {
       });
   }
 
+  /**
+   * Today's out-of-bounds call for a play the open field is about to run (the switch on): today's odds, on the play's
+   * own stream so the game's is the same whether the field plays it or not (today's roll is still taken, in its
+   * place). The field takes him out at his spot (call H).
+   */
+  private outFirst(p: number): boolean {
+    return new Rng(`${this.gameSeed}:field:${this.plays.length}:out`).chance(p);
+  }
+
   /** The play's time with the open field: from the snap to its whistle. */
   private fieldTime(start: FieldStart, result: FieldResult): number {
     const pad = KNOBS.pad + (start.kind === 'catch' ? KNOBS.padCatch : 0);
@@ -2692,6 +2701,9 @@ class GameSim {
     let shadow: Player | undefined;
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
+    // Ball carriers protecting a lead stay in bounds.
+    const pOut = (outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1);
+    const outEarly = this.options.field && raw >= 1 && !td ? this.outFirst(pOut) : undefined;
     if (this.fielding && raw >= 1) {
       if (!td) shadow = this.pickTackler(def, yards);
       const h = this.head();
@@ -2709,6 +2721,7 @@ class GameSim {
           z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000,
           to: yards,
           ...(td ? { td: 1 as const } : {}),
+          ...(outEarly ? { oob: 1 as const } : {}),
         },
       };
       field = this.openField(moment);
@@ -2749,9 +2762,9 @@ class GameSim {
       };
     }
 
-    // The tackle: today's man, or the one the open field put on him (none when he went out untouched).
+    // The tackle: today's man, or the one the open field put on him; none when he went out of bounds, or nobody had him.
     const tackler = spatial
-      ? spatial.tackler === null
+      ? outEarly || spatial.tackler === null
         ? null
         : this.league.players[spatial.tackler]
       : (shadow ?? this.pickTackler(def, yards));
@@ -2789,13 +2802,12 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    // Ball carriers protecting a lead stay in bounds.
-    const oobRoll = rng.chance((outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1));
-    // The owner's call H: out of bounds is today's call too.
-    const oob = oobRoll;
+    const oobRoll = rng.chance(pOut);
+    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
+    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
     if (oob) text += ', out of bounds';
     const duration = rng.int(4, 7);
-    if (moment) this.tap(field, moment, today(shadow, oobRoll, duration));
+    if (moment) this.tap(field, moment, today(shadow, oob, duration));
     return {
       ...this.openOf(runOpen),
       ...facts,
@@ -3128,6 +3140,9 @@ class GameSim {
     const shadow = tackler;
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
+    const tempo = coach.tempo(s);
+    const pOut = tempo === 'hurry' ? 0.35 : tempo === 'milk' ? 0.05 : 0.18;
+    const outEarly = this.options.field && air < yardsToGoal && gain < yardsToGoal ? this.outFirst(pOut) : undefined;
     if (this.fielding && air < yardsToGoal) {
       const h = this.head();
       moment = {
@@ -3143,13 +3158,18 @@ class GameSim {
         ...(this.pressureBy ? { rush: this.pressureBy.id } : {}),
         call: defCall,
         ...(this.designedShot ? { shot: 1 as const } : {}),
-        facts: { ...this.scrimmageFacts(s), to: gain, ...(gain >= yardsToGoal ? { td: 1 as const } : {}) },
+        facts: {
+          ...this.scrimmageFacts(s),
+          to: gain,
+          ...(gain >= yardsToGoal ? { td: 1 as const } : {}),
+          ...(outEarly ? { oob: 1 as const } : {}),
+        },
       };
       field = this.openField(moment);
     }
     const spatial = field?.result;
-    // The owner's call H: today's yards; the open field's tackler (today's if it named none).
-    if (spatial && spatial.tackler !== null) tackler = this.league.players[spatial.tackler];
+    // The owner's call H: today's yards; the open field's tackler, none when he went out of bounds or nobody had him.
+    if (spatial) tackler = outEarly || spatial.tackler === null ? null : this.league.players[spatial.tackler];
     const catchOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
     const timed = spatial ? { duration: this.fieldTime(field!.start, spatial) } : {};
@@ -3216,12 +3236,11 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const t = coach.tempo(s);
-    const oobRoll = rng.chance(t === 'hurry' ? 0.35 : t === 'milk' ? 0.05 : 0.18);
-    // The owner's call H: out of bounds is today's call too.
-    const oob = oobRoll;
+    const oobRoll = rng.chance(pOut);
+    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
+    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
     if (oob) text += ', out of bounds';
-    if (moment) this.tap(field, moment, today(oobRoll));
+    if (moment) this.tap(field, moment, today(oob));
     return {
       ...base,
       ...this.openOf(catchOpen),

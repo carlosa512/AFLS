@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Rng } from '../rng';
 import { man, randomStart, startOf, pinKnobs } from './fixtures';
-import { MID } from './geometry';
+import { FIELD_W, MID } from './geometry';
 import { laneMatch, runField } from './run';
 import { aimAt } from './chase';
 import { bodyOf } from './body';
@@ -250,6 +250,28 @@ describe('the open field', () => {
       if (r.tackler === 31) front++;
     }
     expect(front).toBeGreaterThanOrEqual(48);
+  });
+
+  it('takes a man credited out of bounds out at his spot, nobody credited, a defender chasing or in front', () => {
+    // From the 30 in the middle, credited ten yards and out of bounds: a man on his heels and one waiting downfield.
+    for (const seed of ['oob-1', 'oob-2', 'oob-3', 'oob-4']) {
+      const players = [
+        man(1, 0, 'RB', 30, MID, { vx: 6 }),
+        man(30, 1, 'LB', 27, MID + 2, { vx: 6 }),
+        man(31, 1, 'S', 48, MID + 6),
+      ];
+      const start = startOf({ players, target: { x: 40, touchdown: false, out: true } });
+      const r = runField(start, new Rng(seed));
+      expect(r.outOfBounds, seed).toBe(true);
+      expect(r.tackler, seed).toBeNull();
+      expect(Math.abs(r.yards - 10), seed).toBeLessThanOrEqual(1.5);
+      // In bounds until he's nearly there.
+      const steps = r.frames.length / (players.length * 2);
+      for (let s = 0; s < steps; s++) {
+        const c = at(start, r.frames, s, 0);
+        if (c.x < 37) expect(c.y > 0 && c.y < FIELD_W, `${seed} step ${s}`).toBe(true);
+      }
+    }
   });
 
   describe('a kickoff return (the NFL from 2024: coverage at the 40, the setup zone at the 30 to the 35)', () => {

@@ -157,6 +157,39 @@ describe("the owner's call H: today's yards, the field's way there", () => {
     expect(near / n).toBeGreaterThanOrEqual(0.9);
   });
 
+  it('takes a run or a catch credited out of bounds out at its spot, nobody credited with a tackle', () => {
+    let n = 0;
+    for (const { r, taps } of [0, 1, 2, 3].map((i) => spatial(i)))
+      for (const t of taps) {
+        if (!t.result || !t.moment.facts.oob) continue;
+        const e = r.plays![t.moment.index];
+        expect(e.text, `play ${t.moment.index}`).toMatch(/out of bounds/);
+        expect(t.result.outOfBounds, `play ${t.moment.index}`).toBe(true);
+        expect(t.result.tackler, `play ${t.moment.index}`).toBeNull();
+        expect(Math.abs(t.result.yards - t.today.yards), `play ${t.moment.index}`).toBeLessThanOrEqual(1.5);
+        // The play's own sentence names no tackler (a flag's sentence after it may name its man).
+        expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
+        n++;
+      }
+    expect(n).toBeGreaterThanOrEqual(10);
+  });
+
+  it('credits no tackle when the field ends a run or a catch with nobody on him, as the film shows', () => {
+    let n = 0;
+    for (const { r, taps } of [0, 1, 2, 3].map((i) => spatial(i)))
+      for (const t of taps) {
+        if (!t.result || t.result.tackler !== null || t.result.touchdown) continue;
+        if (t.moment.kind !== 'run' && t.moment.kind !== 'catch') continue;
+        const e = r.plays![t.moment.index];
+        if (e.kind === 'penalty' || e.loose !== undefined) continue;
+        // No man named in parentheses after the yards, and so no fumble forced by one.
+        // The play's own sentence names no tackler (a flag's sentence after it may name its man).
+        expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
+        n++;
+      }
+    expect(n).toBeGreaterThan(0);
+  });
+
   it("logs today's yards on every spatial run and catch", () => {
     let n = 0;
     for (const { r, taps, homeId } of [0, 1].map((i) => spatial(i)))
@@ -180,10 +213,10 @@ describe('a field the open field cannot play', () => {
     const l = createLeague({ seed: 'film' });
     const g = l.games[24];
     const taps: FieldTap[] = [];
-    const r = simulateGame(l, g, { field: true, seed: 'film-spatial-24', fieldTap: (t) => taps.push(t) });
+    // The tap alone keeps today's game (with the switch on, an earlier play's field could change what comes later).
+    const r = simulateGame(l, g, { seed: 'film-spatial-24', fieldTap: (t) => taps.push(t) });
     expect(r.plays![71].text).toMatch(/for 0 yards/);
     expect(taps.find((t) => t.moment.index === 71)).toBeUndefined();
-    expect(r.plays![71].field).toBeUndefined();
   });
 });
 

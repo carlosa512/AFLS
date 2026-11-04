@@ -176,6 +176,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const spot = start.target;
   /** Past his spot with nobody on him: going down. */
   let sliding = false;
+  /** Credited out of bounds: on his way out at the spot. */
+  let goingOut = false;
   /** When his slide stopped him (-1: still moving). */
   let stoppedAt = -1;
   let stopX = 0;
@@ -237,7 +239,13 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       if (move && t < moveUntil) want = move.want;
       else {
         move = null;
-        if (t >= nextRead) {
+        // Credited out of bounds (call H): once his spot is no further off than the sideline, he takes it out there.
+        if (spot?.out && (goingOut || left() <= Math.min(c.y, FIELD_W - c.y) + 1)) {
+          goingOut = true;
+          const side = c.y < MID ? -1.5 : FIELD_W + 1.5;
+          const u = Math.hypot(spot.x + dir * 0.5 - c.x, side - c.y) || 1;
+          want = { vx: ((spot.x + dir * 0.5 - c.x) / u) * B[ci].top, vy: ((side - c.y) / u) * B[ci].top };
+        } else if (t >= nextRead) {
           want = readField(c, reader(t), rng);
           nextRead = t + every;
         }
@@ -291,7 +299,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       } else contact(now);
       // Reaching his spot with nobody on him: he goes down in time to stop at it (a man close by takes him), and the
       // first man to him has the tackle (`contact`).
-      if (phase === 'live' && spot && !spot.touchdown && !sliding) {
+      if (phase === 'live' && spot && !spot.touchdown && !spot.out && !sliding) {
         const v = Math.hypot(c.vx, c.vy);
         // His stop runs along his heading: running at an angle, only its downfield share eats up the yards left.
         const along = v > 0 ? Math.max(0, c.vx * dir) / v : 0;
@@ -545,7 +553,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     let d = -1;
     let dd = Infinity;
     // Short of his credited spot each man gets one real try at him (call H): after it he shadows him.
-    const shy = !!spot && (spot.touchdown || left() > ANCHOR);
+    // Credited out of bounds, nobody has him: every try is held off and he goes out.
+    const shy = !!spot && (spot.touchdown || !!spot.out || left() > ANCHOR);
     for (let i = 0; i < n; i++) {
       if (!defense[i] || partner[i] >= 0 || now < B[i].downUntil || now < noContest[i]) continue;
       if (shy && tried[i]) continue;
@@ -566,7 +575,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (spot) {
       // At his spot (and no touchdown to come) this man has him, the pile carrying him the rest of the way; short of
       // it, or on his way to a touchdown, he drives through.
-      if (!spot.touchdown && left() <= ANCHOR) {
+      if (!spot.touchdown && !spot.out && left() <= ANCHOR) {
         const by = nearestFree(ANCHOR_REACH, now);
         return tackleBy(by >= 0 ? by : d, Math.max(0, left()), sp);
       }
