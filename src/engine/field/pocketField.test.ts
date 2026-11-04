@@ -151,10 +151,11 @@ describe('the pocket', () => {
         expect(Math.abs(r.at! - st.throwAt), `seed ${k}`).toBeLessThanOrEqual(0.3);
         const last = r.frames.length / (st.players.length * 2) - 1;
         expect(Math.abs(qbAt(st, r, last).x - 32), `seed ${k}`).toBeLessThanOrEqual(1);
+        // Unblamed: the NFL's sack times already hold the coverage sacks; nobody up front is charged.
         const free = pocketStartOf({ outcome: 'sack', throwAt: 2.6, sackX: 32, end: 5, blamed: false });
         const u = runPocket(free, new Rng(`unblamed:${k}`));
         expect(u.beat).toBeNull();
-        expect(Math.abs(u.at! - 3.5), `seed ${k}`).toBeLessThanOrEqual(0.3);
+        expect(Math.abs(u.at! - 2.6), `seed ${k}`).toBeLessThanOrEqual(0.3);
       }
     });
 

@@ -83,7 +83,8 @@ team cuts it sharply. Habits shape it:
 - **Sack:** a sack time is drawn from the NFL's spread (`sackTime` in `pocket.ts`: median 2.9 s, a tenth past 5.3,
   a blitz quicker). The sacker is the first rusher whose rep is won early enough for him to reach the quarterback by
   then. If none is, the rep with the highest win chance is won just in time for its rusher to get there. The
-  quarterback tries to get away and is caught. An unblamed sack comes from the long tail (the coverage held), and no blocker is charged.
+  quarterback tries to get away and is caught. An unblamed sack (the coverage held, or he held the ball) charges no
+  blocker; its time is the NFL's spread like any sack's, which already holds the coverage sacks.
 - **Scramble:** pressure arrives as the stager times it (`pocket.ts`: 2.4–3.2 s under pressure, 3.2–4.4 s when nothing
   comes open), and he breaks out away from it, through the lane the rush left, then across the line.
 - **Throwaway:** pressure arrives, and he rolls out and throws it away.

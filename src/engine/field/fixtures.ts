@@ -159,6 +159,7 @@ export const RULE_KNOBS: typeof KNOBS = {
   rushSkill: 0.15,
   double: 0.25,
   padSack: 0,
+  inside: 1,
 };
 
 /** Set the rule knobs for a test file; returns what puts the shipped ones back. */

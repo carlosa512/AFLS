@@ -6,12 +6,13 @@
  * Prints the knobs to paste.
  *
  *   npm run parity-fit [-- <rounds>]
+ *   FIT_POCKET=1 FIT_KNOBS=rushWin,rushSkill,double,inside,padSack npm run parity-fit   (the pocket's alone)
  */
 import { fork, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { KNOBS } from '../src/engine/field/tuning';
 import { harvest, type Totals } from './field-moments';
-import { judge, loss, resolve, type Resolved } from './parity-core';
+import { judge, judgePocket, loss, resolve, resolvePocket, type Resolved, type ResolvedPocket } from './parity-core';
 
 const LEAGUES = 4;
 const GAMES = 75;
@@ -20,6 +21,7 @@ const FIT_SEEDS = 2;
 type Knob = keyof typeof KNOBS;
 interface Trial {
   rows: Resolved[];
+  pockets: ResolvedPocket[];
   totals: Totals;
 }
 
@@ -27,12 +29,14 @@ interface Trial {
 
 if (process.argv[2] === 'worker') {
   const n = Number(process.argv[3]);
-  const { rows, totals } = harvest(`parity:${n}`, GAMES);
+  const { rows, pockets, totals } = harvest(`parity:${n}`, GAMES);
   process.on('message', (knobs: Partial<typeof KNOBS>) => {
     Object.assign(KNOBS, knobs);
     // The same keys parity resolves them on: its first two seeds.
-    const done = rows.map((r, i) => resolve(r, `parity:${n}:${i}`, FIT_SEEDS));
-    process.send!({ rows: done, totals } satisfies Trial);
+    // `FIT_POCKET=1`: the pocket's rows alone (its knobs move nothing else), a trial in seconds.
+    const done = process.env.FIT_POCKET ? [] : rows.map((r, i) => resolve(r, `parity:${n}:${i}`, FIT_SEEDS));
+    const pocketDone = pockets.map((p, i) => resolvePocket(p, `parity:${n}:pocket:${i}`, FIT_SEEDS));
+    process.send!({ rows: done, pockets: pocketDone, totals } satisfies Trial);
   });
   process.send!('ready');
 } else await fit();
@@ -83,6 +87,7 @@ async function fit() {
     rushSkill: (v, k) => [Math.max(0.01, v * (1 - 0.3 * k)), v * (1 + 0.3 * k)],
     double: (v, k) => [Math.max(0.02, v * (1 - 0.3 * k)), Math.min(1, v * (1 + 0.3 * k))],
     padSack: (v, k) => [v - 0.8 * k, v + 0.8 * k],
+    inside: (v, k) => [Math.max(0.05, v * (1 - 0.3 * k)), Math.min(2, v * (1 + 0.3 * k))],
   };
 
   async function score(): Promise<number> {
@@ -95,14 +100,17 @@ async function fit() {
       },
       { games: 0, rushAtt: 0, rushYds: 0, rushTd: 0, rbCarries: 0, passAtt: 0, passYds: 0, passTd: 0 },
     );
-    return loss(judge(rows, totals));
+    const pocket = loss(judgePocket(parts.flatMap((p) => p.pockets)));
+    return process.env.FIT_POCKET ? pocket : loss(judge(rows, totals)) + pocket;
   }
 
   let best = await score();
   console.log(`start: loss ${best.toFixed(2)}`, JSON.stringify(KNOBS));
   for (let round = 0; round < ROUNDS + 2; round++) {
     const scale = round < ROUNDS ? 1 / (1 + round) : 0.25;
-    for (const k of Object.keys(KNOBS) as Knob[]) {
+    // `FIT_KNOBS=a,b`: step only these.
+    const only = process.env.FIT_KNOBS?.split(',');
+    for (const k of (Object.keys(KNOBS) as Knob[]).filter((x) => !only || only.includes(x))) {
       const was = KNOBS[k];
       for (const v of STEPS[k](was, scale)) {
         KNOBS[k] = v;

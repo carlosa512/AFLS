@@ -4,7 +4,8 @@
  * with the field's tap on and the switch off, so every game is today's own.
  */
 import { createLeague } from '../src/engine/generate';
-import { simulateGame, type FieldTap } from '../src/engine/match/gameSim';
+import { simulateGame, type FieldTap, type PocketTap } from '../src/engine/match/gameSim';
+import type { PocketStart } from '../src/engine/field/pocketField';
 import type { FieldStart } from '../src/engine/field/types';
 import type { League, Position } from '../src/engine/types';
 
@@ -25,6 +26,15 @@ export interface MomentRow {
   today: { yards: number; td: boolean; oob: boolean; duration: number; group: Group | null; broke: boolean };
   /** What parity bins by: the carrier's skill, the defense's tackling and pursuit, the line state, the coaching edge. */
   f: { carrier: number; defense: number; z: number; edge: number };
+}
+
+/** A dropback the pocket could play: its start and what today's engine credited. */
+export interface PocketRow {
+  start: PocketStart;
+  today: PocketTap['today'];
+  /** Today's rusher's and blocker's positions (today credits men off the field too: the rush rotation). */
+  rusherPos: Position | null;
+  beatPos: Position | null;
 }
 
 export interface Totals {
@@ -57,10 +67,12 @@ export function harvest(
   league: League = createLeague({ seed }),
 ): {
   rows: MomentRow[];
+  pockets: PocketRow[];
   totals: Totals;
   league: League;
 } {
   const rows: MomentRow[] = [];
+  const pockets: PocketRow[] = [];
   const totals: Totals = {
     games: 0,
     rushAtt: 0,
@@ -73,7 +85,17 @@ export function harvest(
   };
   for (const g of league.games.slice(0, games)) {
     const taps: FieldTap[] = [];
-    const r = simulateGame(league, g, { fieldTap: (t) => taps.push(t) });
+    const r = simulateGame(league, g, {
+      fieldTap: (t) => taps.push(t),
+      // A flagged snap's pocket is judged too: the dropback ran.
+      pocketTap: (t) =>
+        pockets.push({
+          start: t.start,
+          today: t.today,
+          rusherPos: t.today.rusher === null ? null : (league.players[t.today.rusher]?.position ?? null),
+          beatPos: t.today.beat === null ? null : (league.players[t.today.beat]?.position ?? null),
+        }),
+    });
     totals.games++;
     for (const t of [r.home, r.away]) {
       totals.rushAtt += t.rushAtt;
@@ -114,5 +136,5 @@ export function harvest(
       });
     }
   }
-  return { rows, totals, league };
+  return { rows, pockets, totals, league };
 }

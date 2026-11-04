@@ -58,6 +58,7 @@ export const KNOBS = {
   rushSkill: 0.15,
   double: 0.25,
   padSack: 1.5,
+  inside: 0.6,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */

@@ -43,7 +43,6 @@ export interface PocketMoment {
 
 /** A sack's pocket runs this far past the sack, a throwaway's past the throw, a scramble's past the break (seconds). */
 const AFTER = { sack: 0.6, away: 0.8, run: 1 };
-const COVERAGE_SACK = 3.5;
 
 /** The blind dropback: the play to the snap and the routes, nobody named for the rush. */
 export function pocketEntry(m: PocketMoment): PlayLogEntry {
@@ -176,7 +175,7 @@ export function pocketFrom(
   const blamed = !m.facts.nb;
   const end =
     outcome === 'sack'
-      ? (blamed ? throwAt : Math.max(throwAt, COVERAGE_SACK)) + AFTER.sack
+      ? throwAt + AFTER.sack
       : outcome === 'away'
         ? throwAt + AFTER.away
         : runs

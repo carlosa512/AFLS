@@ -117,6 +117,8 @@ function winChance(r: FieldPlayer, b: FieldPlayer, doubled: boolean, t: number):
   if (r.role === 'EDGE' && hasHabit(r, 'bendsArc')) rate *= HABIT_EDGE;
   if (hasHabit(b, 'twoTapSet')) rate *= HABIT_EDGE;
   if (doubled) rate *= KNOBS.double;
+  // Inside, the pocket is short and help is never far: an interior rep goes at the fitted share of an edge's.
+  if (r.role === 'DT') rate *= KNOBS.inside;
   return 1 - Math.exp(-rate * STEP);
 }
 
@@ -124,8 +126,6 @@ function winChance(r: FieldPlayer, b: FieldPlayer, doubled: boolean, t: number):
 const ARRIVE: Partial<Record<PocketOutcome, number>> = { hit: 0.4, pressure: 2, away: 2, scramble: 2.5, sack: 0.6 };
 /** He feels a won rep this long before the throw at the latest: a pressure's rep is won by then (`PRESSURE_REACT`). */
 const FEEL = 0.9;
-/** An unblamed sack comes no sooner than this: the coverage held, or he held the ball. */
-const COVERAGE_SACK = 3.5;
 /** Nobody but the man today's outcome sends gets this close to him before his moment. */
 const KEEP_OFF = 2.5;
 /** Footwork in the pocket (yards a second): a step up, a slide, a climb. */
@@ -158,6 +158,8 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const wonAt = new Float64Array(n).fill(-1);
   const lostTo = new Int16Array(n).fill(-1);
   for (const [b, r] of pairs) on[index.get(r)!] = index.get(b)!;
+  /** The man who first had him: nobody runs through him, whoever's charged with the rep. */
+  const first = Int16Array.from(on);
   for (const [b, r] of doubles) helper[index.get(r)!] = index.get(b)!;
   for (const r of free) wonAt[index.get(r)!] = 0;
   const rushing = start.rushers.map((id) => index.get(id)).filter((i): i is number => i !== undefined);
@@ -169,9 +171,7 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const breakT = runs ? Math.max(0.6, start.throwAt - (hasHabit(QP, 'bailsEarly') ? BAIL : 0)) : Infinity;
   const homeT =
     outcome === 'sack'
-      ? start.blamed
-        ? start.throwAt
-        : Math.max(start.throwAt, COVERAGE_SACK)
+      ? start.throwAt
       : outcome === 'scramble'
         ? breakT
         : outcome === 'clean' || outcome === 'escape'
@@ -217,7 +217,11 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       if (pWin > bestRate) [best, bestRate] = [ri, pWin];
       if (roll >= pWin) continue;
       // A win today's outcome wants: the first in time to get there; any other is held off.
-      if (arrive !== undefined && chosen < 0 && reach(ri) <= homeT - t + 0.3) choose(ri, t);
+      if (arrive !== undefined && chosen < 0 && reach(ri) <= homeT - t + 0.3) {
+        choose(ri, t);
+        // A doubled rep is lost by either man: the helper half the time (the low half of the winning roll).
+        if (helper[ri] >= 0 && roll < pWin / 2) lostTo[ri] = helper[ri];
+      }
     }
     // A free man the outcome can use from the snap.
     if (arrive !== undefined && chosen < 0)
@@ -350,7 +354,7 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
 
     // Nobody through anybody: a rusher never closer than half a yard to the man on him, or the man he beat.
     for (const ri of rushing)
-      for (const bi of [on[ri], lostTo[ri], helper[ri]]) {
+      for (const bi of [on[ri], first[ri], lostTo[ri], helper[ri]]) {
         if (bi < 0) continue;
         const r = B[ri];
         const b = B[bi];
