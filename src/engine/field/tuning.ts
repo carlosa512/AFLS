@@ -54,13 +54,13 @@ export const KNOBS = {
   padCatch: 0.1,
   /** The pocket (`pocketField.ts`): a rep's win rate a second at even skills, its log-rate a point of rush over
    * protection, the share left on a double team, and the clock past a sack's whistle (seconds). */
-  rushWin: 0.25,
-  rushSkill: 0.15,
-  double: 0.25,
-  padSack: 1.5,
+  rushWin: 0.201,
+  rushSkill: 0.135,
+  double: 0.411,
+  padSack: 1.7,
   inside: 0.6,
-  lbRush: 0.12,
-  chip: 0.2,
+  lbRush: 0.01,
+  chip: 0.3,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */
