@@ -27,11 +27,13 @@ them: a great hire helps only as far as his rooms follow him.
    down; a Locker-Room Lawyer who's a voice in the room makes a bad game's drop far bigger; winning and meetings that
    land bring it back.
 5. **You answer it in a meeting,** through L2's letter and three calls, with two new choices: "Stand behind him" and
-   "He's on notice". Letting a coordinator go stays your call on the Coaches screen.
-6. **Belief is stored per room,** on the coordinator, like a head coach's credibility: doubt builds and lingers, so a
+   "He's on notice".
+6. **You can relieve a coordinator mid-season** (new: coaching moves are window-only today). The head coach covers
+   his side, or one of your position coaches steps up as interim; you hire for real in the window.
+7. **Belief is stored per room,** on the coordinator, like a head coach's credibility: doubt builds and lingers, so a
    lawyer and a meeting both matter. (Worked out from moods each week, it would only be mood again; as a part of each
    man's mood, it would leak into every morale check.)
-7. **You see it, your club only, in words:** a staff note warns first, then the head coach's meeting letter and
+8. **You see it, your club only, in words:** a staff note warns first, then the head coach's meeting letter and
    report; a line on the Locker Room cards and on the Coaches screen. Never a number.
 
 ## 1. What coaches add on Sunday
@@ -49,8 +51,10 @@ A new module, `src/engine/staffEdge.ts`, gives each room of each club its staff 
 
 - **A coordinator, for each room he runs** (the offensive coordinator: QB, RB, WR, OL; the defensive coordinator: DL,
   LB, DB; `sideOf`): `STAFF.coord × clamp(STAFF.quality × q + STAFF.belief × belief, −1, 1)`, with `STAFF.coord` =
-  0.5, `STAFF.quality` = 0.6 and `STAFF.belief` = 0.4. `belief` is that room's belief in him (§2); an empty chair has
-  none (0).
+  0.5, `STAFF.quality` = 0.6 and `STAFF.belief` = 0.4. `belief` is that room's belief in him (§2).
+- **Who that is:** whoever runs the side (`sideCoach`): the coordinator, or the head coach covering an empty chair,
+  read as development already reads him there (his value less `COVER_COST` = 3, never below `VACANT`). An empty chair
+  with the cover switched off reads `VACANT` and a belief of 0.
 - **The head coach, for every room on offense and defense:** `STAFF.head × clamp(STAFF.quality × q +
   STAFF.belief × credibility, −1, 1)`, with `STAFF.head` = 0.25 and `credibility` his L2 word with the room
   (`credibilityOf`). An empty chair reads `VACANT` and 0.
@@ -78,10 +82,11 @@ A new module, `src/engine/belief.ts`: each room's belief in its coordinator, how
 
 ### 2.1 Stored
 
-- `Coach.belief?: Partial<Record<CoachRoom, number>>` on offensive and defensive coordinators, each −1…1, rounded like
-  credibility. Unset reads 0.
-- A coordinator taking a job (hired, promoted, or moved by the carousel) starts every room at 0
-  (`startCoordinator`, beside `startHeadCoach`). Replacing a man his rooms have lost clears the doubt.
+- `Coach.belief?: Partial<Record<CoachRoom, number>>` on whoever runs a side (`sideCoach`): a coordinator, or a head
+  coach covering an empty coordinator chair. Each −1…1, rounded like credibility. Unset reads 0.
+- A man taking a side (a coordinator hired, promoted or moved by the carousel, an interim stepping up, a head coach
+  starting to cover) starts its rooms at 0 (`startCoordinator`, beside `startHeadCoach`); a head coach's cover ending
+  drops his. Replacing a man his rooms have lost clears the doubt.
 - At the new league year every room's belief moves halfway back to 0: a new season is a fresh start, not a clean one.
 
 ### 2.2 Each week
@@ -158,7 +163,7 @@ Through L2 (`meetings/`), with no new letter or screen of its own.
 - A new `Backing`, `'notice'`: a promise to the room that things change, with a four-week window. The commitment
   keeps the coordinator it's about (`Commitment.coord`, his coach id).
 - **Kept** (`isKept`): the room's belief climbs back out of doubt (`steady` or better), or the man is gone from his
-  chair (let go or replaced on the Coaches screen). L2's `settle` then gives the room its kept lift and the head coach
+  chair (relieved mid-season, §3.4, or replaced in the window). L2's `settle` then gives the room its kept lift and the head coach
   his word's gain, and the room's belief rises by `BELIEF.kept` = +0.15.
 - **Broken:** the window closes with the room still in doubt and the same man in the chair. L2's broken dip and the
   head coach's word's loss, and the room's belief falls by `BELIEF.broken` = −0.15.
@@ -166,6 +171,26 @@ Through L2 (`meetings/`), with no new letter or screen of its own.
   notice the way they settle every promise: by their GM's tendencies at the window's end. They don't fire anyone for
   the room.
 - "Nothing, just words" stays on offer. You can still ask for a meeting yourself from the Locker Room.
+
+### 3.4 Relieving a coordinator mid-season
+
+Coaching moves are open only in the re-sign window and free agency today (`staffWindowOpen`). L4 adds one move outside
+it, so "He's on notice" can be kept the way NFL clubs keep it.
+
+- **`relieveCoordinator`** (`coaching.ts`): your offensive or defensive coordinator, from camp through the regular
+  season (`preseason`, `regular`). Not in the playoffs, and not your head coach (his job is the owner's call,
+  `leadership.ts`).
+- **The same limits as any dismissal:** an owner's mandate blocks it (`ownerCoachProblem`), and it books his severance
+  (`dismiss`, half a year's salary while he's under contract). He goes to the market.
+- **Who runs the side for the rest of the season:**
+  - **By default, the head coach covers it,** as he already does for an empty chair (`coveringHeadCoach`), at his
+    value less `COVER_COST` for that side.
+  - **Or you name an interim:** one of your position coaches on that side steps up (`promoteInto`, opened in season for
+    this one case; his say, `refusal`, and the rule that he's had a season in a chair still apply). His own room's
+    chair stays empty until the window.
+  - Whoever takes the side starts its rooms at 0 belief (§2.1).
+- **Hires from outside wait for the window,** as today. There you can keep the interim, promote someone or hire.
+- The transaction log reads "relieved … of his duties". AI clubs don't use the move (§7).
 
 ## 4. What you see (your club only, in words)
 
@@ -186,6 +211,9 @@ Through L2 (`meetings/`), with no new letter or screen of its own.
   it", "Harris has lost them". The coordinator's name links to his card.
 - **The Coaches screen** (your coordinators only) says how his rooms take him: "The O-line and receivers believe in
   him; the backs have doubts." Nothing when every room is `steady`.
+- **"Relieve him"** on the Coaches screen beside each coordinator from camp through the regular season, with the
+  choice of who runs the side (the head coach, or a position coach on that side) and the severance shown before you
+  confirm, or the reason it can't be done (an owner's mandate).
 
 ### 4.3 The words
 
@@ -210,7 +238,8 @@ Other clubs' belief; any number, a coach's game-day edge included; anything in t
 - **A unit test** (`staffEdge.test.ts`) replays the same games with one side's staff edge forced to +0.5 and to −0.5,
   and checks it moves that side's own stats the right way: the offense's points and yards, the defense's yards
   allowed. Others cover the edge's parts, centring, an empty chair, belief's weekly moves (`belief.test.ts`), the
-  lawyer, and the new meeting choices.
+  lawyer, the new meeting choices, and relieving a coordinator (only in camp and the regular season, blocked by an
+  owner's mandate, severance booked, the head coach's cover or the interim taking the side at 0, a notice kept by it).
 - **The sim** (60 seasons in CI): win spread and parity hold. Richer clubs hire better coaches, so the staff edge can
   widen the gap between good and bad teams; anything near an edge is measured against main and brought to the owner,
   never loosened without his call.
@@ -229,10 +258,10 @@ Other clubs' belief; any number, a coach's game-day edge included; anything in t
 One PR on this branch in two parts, as L3 did: CI is tuned once against the final state. The held 0.3.10 fixes on
 this branch ride along.
 
-1. **The engine:** `staffEdge.ts`, `belief.ts`, the knock in `buildLineup`, the meeting choices, the checks and the
-   replay test. The calibration numbers go to the owner before part 2 starts.
+1. **The engine:** `staffEdge.ts`, `belief.ts`, the knock in `buildLineup`, the meeting choices,
+   `relieveCoordinator`, the checks and the replay test. The calibration numbers go to the owner before part 2 starts.
 2. **The words and screens:** the staff notes row, the head coach's report lines and meeting words, the Locker Room
-   line and the Coaches screen line, with screenshots shown to the owner before the PR opens.
+   line, the Coaches screen line and "Relieve him", with screenshots shown to the owner before the PR opens.
 
 **Version 0.4.0:** MVP #11 goes to Done, the last item short of alpha (`docs/VERSIONING.md`: the middle number).
 `docs/MVP.md`'s #11 line and its score line move (the score line reads 13 Done · 2 Partial today, one behind: it
@@ -242,7 +271,8 @@ becomes 15 Done · 0 Partial), with a changelog entry and the CLAUDE.md notes.
 
 - AI front offices weighing belief or a coach's game-day edge in hiring, firing or trades beyond what `coachValue`
   already drives.
-- AI clubs firing a coordinator mid-season for his rooms.
+- AI clubs relieving a coordinator mid-season.
+- Relieving your head coach mid-season, or hiring from outside the club before the window.
 - Belief in position coaches, the strength coach or the special teams coordinator.
 - Other clubs' belief in the opposition report or SNN.
 - A lawyer stirring doubt about the head coach himself (his word moves as L2 has it).
@@ -258,11 +288,11 @@ becomes 15 Done · 0 Partial), with a changelog entry and the CLAUDE.md notes.
 | `src/engine/types.ts` | `Coach.belief`, `Commitment.coord`, `Approach` `'backHim'`, `Backing` `'notice'` |
 | `src/engine/match/lineup.ts`, `match/gameSim.ts` (`SimOptions.staff`) | the room's staff edge in the knocks |
 | `src/engine/league.ts` | belief's weekly step beside `credibilityWeek` |
-| `src/engine/coaching.ts` | `startCoordinator` on a coordinator's new job; the new league year's halving |
+| `src/engine/coaching.ts` | `startCoordinator` on taking a side; `relieveCoordinator`; the new league year's halving |
 | `src/engine/meetings/suggest.ts`, `react.ts`, `commitments.ts`, `ai.ts` | the trouble, the two choices, the notice |
 | `src/engine/generate.ts`, `migrate.ts` | `SAVE_VERSION` 86 and its step |
 | `scripts/morale.ts`, the CI planner | the §5.1 checks; the new modules' triggers |
 | `src/engine/staffNotes.ts`, `lockerReport.ts`, `roomVoice.ts`, `roomFacts.ts` | part 2: the warning and the report |
 | `src/engine/meetings/voice.ts`, `meetings/facts.ts`, `ui/meetings.tsx` | part 2: the meeting's new words |
-| `src/ui/screens/LockerRoom.tsx`, `src/ui/screens/Coaches.tsx` | part 2: the card line and the coordinator line |
+| `src/ui/screens/LockerRoom.tsx`, `src/ui/screens/Coaches.tsx` | part 2: the card line, the coordinator line, "Relieve him" |
 | `CLAUDE.md`, `docs/MVP.md`, `src/ui/changelog.ts`, `package.json` | notes, #11 and the score line, the version |
