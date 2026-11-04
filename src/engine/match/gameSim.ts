@@ -1,4 +1,4 @@
-import { massEdge, rushSizeEdge, sizeEdge } from '../size';
+import { massEdge, rushSizeEdge, sizeEdge, sizeZ } from '../size';
 import { preparePersonnelGame } from '../personnel/flow';
 /**
  * Play-by-play game simulation.
@@ -45,6 +45,7 @@ import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
+import { poiseOf } from '../traits';
 import type {
   Crew,
   Coach,
@@ -90,6 +91,15 @@ import {
   type WeatherCost,
 } from '../weather';
 import * as coach from './coach';
+import {
+  sidelineCall,
+  sidelineOdds,
+  steppedCredit,
+  TYPICAL,
+  type SidelineCall,
+  type SidelineFacts,
+  type SidelineKind,
+} from './sideline';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
@@ -418,6 +428,8 @@ interface PlayResult {
   open?: OpenField;
   /** A play the spatial engine played: what its replay needs. */
   field?: FieldFacts;
+  /** How a run, catch or scramble went out of bounds (`sideline.ts`); absent in bounds. */
+  outOfBounds?: 'pushed' | 'stepped';
 }
 
 function emptyTeamStats(): TeamGameStats {
@@ -2477,6 +2489,60 @@ class GameSim {
     return this.rng.weighted(pool, ([, w]) => w)[0];
   }
 
+  /** Whether he brings a habit, without noting it for All-22: the sideline call reads every habit that could lean it,
+   * and film shows only the ones that decided something. */
+  private holds(p: Player, q: QuirkId): boolean {
+    if (!p.quirks) return false;
+    let set = this.quirkSets.get(p.id);
+    if (!set) this.quirkSets.set(p.id, (set = new Set(activeQuirks(p))));
+    return set.has(q);
+  }
+
+  /**
+   * Out of bounds (`sideline.ts`): pushed out, stepped out or in bounds, one draw on the game's stream from the play's
+   * facts, the same in every game; the open field plays it out. Returns the call and the facts (a stepped-out catch's
+   * tackle credit reads them).
+   */
+  private sideline(
+    kind: SidelineKind,
+    s: Situation,
+    o: { carrier: Player; chaser: Player; lane: number; run: number; free: boolean; gain: number },
+  ): { call: SidelineCall; facts: SidelineFacts } {
+    const tempo = coach.tempo(s);
+    const def = this.lineups[this.def];
+    const c = o.carrier;
+    const facts: SidelineFacts = {
+      kind,
+      wide: Math.min(1, Math.abs(o.lane)),
+      run: o.run,
+      free: o.free,
+      // The clock only asks when going out stops it.
+      clock: !this.oobStopsClock() ? 'none' : tempo === 'hurry' ? 'out' : tempo === 'milk' ? 'in' : 'none',
+      shortOfSticks: s.down >= 3 && o.gain < s.distance,
+      edge: kind === 'run' && def.edge.length ? Math.max(...def.edge.map((p) => skill(p, 'setEdge'))) : TYPICAL.edge,
+      carrier: {
+        position: c.position,
+        speed: skill(c, 'longSpeed'),
+        build: sizeZ(c).w,
+        energy: this.body(c).energy,
+        hurt: Math.min(3, (c.injuries ?? []).filter((i) => i.season >= this.game.season - 1).length),
+        poise: poiseOf(c),
+        has: (q) => this.holds(c, q),
+      },
+      chaser: {
+        pursuit: skill(o.chaser, 'pursuit'),
+        tackling: skill(o.chaser, 'tackling'),
+        has: (q) => this.holds(o.chaser, q),
+      },
+    };
+    return { call: sidelineCall(sidelineOdds(facts), this.rng.next()), facts };
+  }
+
+  /** The text a play out of bounds ends with. */
+  private static outText(call: SidelineCall): string {
+    return call === 'pushed' ? ', pushed out of bounds' : call === 'stepped' ? ', steps out of bounds' : '';
+  }
+
   /** Whether a player brings an established quirk to this game (`quirks.ts`). */
   private has(p: Player | undefined, q: QuirkId): boolean {
     if (!p?.quirks) return false;
@@ -2650,9 +2716,6 @@ class GameSim {
    * own stream so the game's is the same whether the field plays it or not (today's roll is still taken, in its
    * place). The field takes him out at his spot (call H).
    */
-  private outFirst(p: number): boolean {
-    return new Rng(`${this.gameSeed}:field:${this.plays.length}:out`).chance(p);
-  }
 
   /**
    * The pocket at this dropback (`field/pocketField.ts`), staged blind from the snap and played on the play's own
@@ -2911,14 +2974,22 @@ class GameSim {
 
     // The open field (`field/`): a run the line got past. Today's rolls are all taken first (the tackler too), so the
     // game's stream is the same to here whether the field plays it or not; from here it follows the play's result.
-    let shadow: Player | undefined;
+    // Today's tackler, then the sideline call (`sideline.ts`): both before the field, the same in every game.
+    const shadow = td ? undefined : this.pickTackler(def, yards);
+    const side = shadow
+      ? this.sideline('run', s, {
+          carrier: rusher,
+          chaser: shadow,
+          lane,
+          run: yards,
+          free: !!(open.broke || open.gone),
+          gain: yards,
+        })
+      : null;
+    const call: SidelineCall = side?.call ?? 'in';
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
-    // Ball carriers protecting a lead stay in bounds.
-    const pOut = (outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1);
-    const outEarly = this.options.field && raw >= 1 && !td ? this.outFirst(pOut) : undefined;
     if (this.fielding && raw >= 1) {
-      if (!td) shadow = this.pickTackler(def, yards);
       const h = this.head();
       moment = {
         kind: 'run',
@@ -2934,7 +3005,7 @@ class GameSim {
           z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000,
           to: yards,
           ...(td ? { td: 1 as const } : {}),
-          ...(outEarly ? { oob: 1 as const } : {}),
+          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
         },
       };
       field = this.openField(moment);
@@ -2975,22 +3046,21 @@ class GameSim {
       };
     }
 
-    // The tackle: today's man, or the one the open field put on him; none when he went out of bounds, or nobody had him.
-    const tackler = spatial
-      ? outEarly || spatial.tackler === null
-        ? null
-        : this.league.players[spatial.tackler]
-      : (shadow ?? this.pickTackler(def, yards));
+    // The tackle: today's man, or the one the open field put on him (on out of bounds, the man who forced him); none
+    // when nobody had him. The scorer credits whoever forced a runner out, pushed or stepped (NFL: every time).
+    const tackler = spatial ? (spatial.tackler === null ? null : this.league.players[spatial.tackler]) : shadow;
     if (tackler) {
       buf.add(tackler, 'tackles');
       if (gain < 0) buf.add(tackler, 'tfl');
       text += ` (${short(tackler)})`;
     }
 
-    const pFumble = tackler
-      ? 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
-      : 0;
-    if (tackler && rng.chance(pFumble)) {
+    // A man who steps out takes no hit, so nothing knocks the ball loose.
+    const pFumble =
+      tackler && call !== 'stepped'
+        ? 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
+        : 0;
+    if (tackler && call !== 'stepped' && rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
       buf.add(tackler, 'forcedFum');
       if (this.fumbleRecoveredByDefense()) {
@@ -3015,10 +3085,8 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const oobRoll = rng.chance(pOut);
-    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
-    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
-    if (oob) text += ', out of bounds';
+    const oob = call !== 'in';
+    text += GameSim.outText(call);
     const duration = rng.int(4, 7);
     if (moment) this.tap(field, moment, today(shadow, oob, duration));
     return {
@@ -3031,6 +3099,7 @@ class GameSim {
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 
@@ -3366,9 +3435,19 @@ class GameSim {
     const shadow = tackler;
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
-    const tempo = coach.tempo(s);
-    const pOut = tempo === 'hurry' ? 0.35 : tempo === 'milk' ? 0.05 : 0.18;
-    const outEarly = this.options.field && air < yardsToGoal && gain < yardsToGoal ? this.outFirst(pOut) : undefined;
+    // The sideline call (`sideline.ts`) before the field, the same in every game; a touchdown has none.
+    const side =
+      gain < yardsToGoal && tackler
+        ? this.sideline('catch', s, {
+            carrier: receiver,
+            chaser: tackler,
+            lane,
+            run: gain - air,
+            free: !!open.broke,
+            gain,
+          })
+        : null;
+    const call: SidelineCall = side?.call ?? 'in';
     if (this.fielding && air < yardsToGoal) {
       // The pocket first: the catch's open field starts from where it left everyone.
       if (this.dropOutcome)
@@ -3403,7 +3482,7 @@ class GameSim {
           ...this.scrimmageFacts(s),
           to: gain,
           ...(gain >= yardsToGoal ? { td: 1 as const } : {}),
-          ...(outEarly ? { oob: 1 as const } : {}),
+          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
           // The pocket it came out of, as the log keeps it (with the switch on).
           ...(this.options.field && this.pocketNow
             ? (({ pk, nb, rg, bs }) => ({
@@ -3418,8 +3497,9 @@ class GameSim {
       field = this.openField(moment);
     }
     const spatial = field?.result;
-    // The owner's call H: today's yards; the open field's tackler, none when he went out of bounds or nobody had him.
-    if (spatial) tackler = outEarly || spatial.tackler === null ? null : this.league.players[spatial.tackler];
+    // The owner's call H: today's yards; the open field's tackler (on out of bounds, the man who forced him), none when
+    // nobody had him.
+    if (spatial) tackler = spatial.tackler === null ? null : this.league.players[spatial.tackler];
     const catchOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
     const timed = spatial ? { duration: this.fieldTime(field!.start, spatial) } : {};
@@ -3453,13 +3533,17 @@ class GameSim {
       };
     }
     if (!spatial && this.yardLine + gain <= 0) gain = -this.yardLine;
+    // A catch he stepped out on credits a tackle only when someone forced it (NFL: half of them).
+    if (call === 'stepped' && tackler && !rng.chance(steppedCredit(side!.facts))) tackler = null;
     if (tackler) {
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
 
+    // A man who steps out takes no hit, so nothing knocks the ball loose.
     if (
       tackler &&
+      call !== 'stepped' &&
       rng.chance(
         0.0065 * Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) * this.fumbleOdds(receiver, tackler, false),
       )
@@ -3486,10 +3570,8 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const oobRoll = rng.chance(pOut);
-    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
-    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
-    if (oob) text += ', out of bounds';
+    const oob = call !== 'in';
+    text += GameSim.outText(call);
     if (moment) this.tap(field, moment, today(oob));
     return {
       ...base,
@@ -3500,6 +3582,7 @@ class GameSim {
       complete: true,
       clockStops: oob && this.oobStopsClock(),
       text,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 
@@ -3816,9 +3899,13 @@ class GameSim {
     const tackler0 = td ? null : this.pickTackler(def, yards);
     const lane = this.rng.pick([-0.9, 0.9]);
     const tdDuration = td ? this.rng.int(5, 8) : 0;
-    // A quarterback in a two-minute drill heads for the sideline; one protecting a lead stays in.
-    const t = coach.tempo(s);
-    const oob = !td && this.rng.chance(t === 'hurry' ? 0.55 : t === 'milk' ? 0.05 : 0.2);
+    // The sideline call (`sideline.ts`): a scrambler always heads wide; the clock, his habits and the chase decide.
+    const call: SidelineCall =
+      td || !tackler0
+        ? 'in'
+        : this.sideline('scramble', s, { carrier: qb, chaser: tackler0, lane, run: yards, free: false, gain: yards })
+            .call;
+    const oob = call !== 'in';
     const slide = !td && !oob && this.rng.chance(0.4);
     const duration0 = td ? tdDuration : this.rng.int(5, 8);
     // Today's draws are all in. With the switch on (a scramble that crosses the line), the pocket plays the escape and
@@ -3830,7 +3917,7 @@ class GameSim {
             ...this.scrimmageFacts(s),
             to: yards,
             ...(td ? { td: 1 as const } : {}),
-            ...(oob ? { oob: 1 as const } : {}),
+            ...(oob ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
             ...(slide ? { sl: 1 as const } : {}),
           })
         : null;
@@ -3854,13 +3941,14 @@ class GameSim {
     if (td) {
       buf.add(qb, 'rushTd');
       text += ', TOUCHDOWN';
-    } else if (tackler && !(field && (oob || slide))) {
+    } else if (tackler && !(field && slide)) {
+      // Out of bounds credits the man who forced him (NFL: every scramble), pushed or stepped.
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
     const duration = field ? this.fieldTime(field.start, field.result) : duration0;
     if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
-    const ending = oob ? ', out of bounds' : slide ? ', slides' : '';
+    const ending = oob ? GameSim.outText(call) : slide ? ', slides' : '';
     return {
       kind: 'scramble',
       yards,
@@ -3869,6 +3957,7 @@ class GameSim {
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 

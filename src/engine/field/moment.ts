@@ -26,8 +26,9 @@ export interface FieldFacts {
   /** Today's result (the owner's call H): the credited yards (from the line, or a return's catch) and a touchdown. */
   to?: number;
   td?: 1;
-  /** Today's out-of-bounds call (with the switch on, drawn before the field): he goes out at his spot. */
-  oob?: 1;
+  /** The sideline call (`match/sideline.ts`, drawn before the field): he goes out at his spot, pushed out (1) or
+   * stepping out (2). Film before 0.4.3 has only 1. */
+  oob?: 1 | 2;
   /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
   pk?: PocketOutcome;
   nb?: 1;
