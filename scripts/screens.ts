@@ -229,11 +229,15 @@ const FILM: Record<string, (e: PlayLogEntry, next?: PlayLogEntry) => number> = {
       : 0,
   int: (e) => (e.kind === 'int' ? 1 : 0),
   // The interception's entry; the return's touchdown is logged as the next one.
-  'pick-six': (e, next) => (e.kind === 'int' && /returns it .*TOUCHDOWN/.test(next?.text ?? '') ? 1 : 0),
-  // A sack that knocks the ball loose (a lost one first).
+  // (A spatial one first: the field runs it back.)
+  'pick-six': (e, next) =>
+    e.kind === 'int' && /returns it .*TOUCHDOWN/.test(next?.text ?? '') ? 1 + (e.field ? 1 : 0) : 0,
+  // A sack that knocks the ball loose: a lost one run back on the field first, then a lost one, then a kept one.
   'strip-sack': (e) => {
     const f = e.kind === 'sack' ? fumbleIn(e) : null;
-    return !f ? 0 : f.lost ? 2 : 1;
+    if (!f) return 0;
+    const back = f.lost && e.to !== undefined ? Math.abs(e.to - f.x) : 0;
+    return !f.lost ? 1 : 2 + (e.field ? 1 + Math.min(1, back / 10) : 0);
   },
   // A run or catch to the house from 30 yards and more (a spatial one first).
   'long-td': (e) =>
