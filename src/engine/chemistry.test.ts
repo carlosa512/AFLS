@@ -124,7 +124,7 @@ describe('chemistry: game day', () => {
   it('a secondary at its best allows fewer yards a pass', () => {
     const l = fresh();
     const ypa = (rs: GameResult[]) => avg(rs.map((r) => r.home.passYds / Math.max(1, r.home.passAtt)));
-    expect(ypa(replay(l, [{}, { DB: 0.3 }]))).toBeLessThan(ypa(replay(l, [{}, { DB: -0.3 }])));
+    expect(ypa(replay(l, [{}, { DB: 0.3 }], 200))).toBeLessThan(ypa(replay(l, [{}, { DB: -0.3 }], 200)));
   }, 240_000);
 
   it('a passing game at its best completes more', () => {

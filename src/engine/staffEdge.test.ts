@@ -27,10 +27,10 @@ describe('staff edge: the parts', () => {
       oc.belief = { OL: belief };
       return staffEdgeOf(fresh2(l), 0, 'OL')!.coord;
     };
-    expect(at(13.5, 1)).toBeCloseTo(0.5, 9);
-    expect(at(13.5, -1)).toBeCloseTo(0.1, 9);
-    expect(at(10.5, -1)).toBeCloseTo(-0.2, 9);
-    expect(at(7.5, -1)).toBeCloseTo(-0.5, 9);
+    expect(at(13.5, 1)).toBeCloseTo(STAFF.coord, 9);
+    expect(at(13.5, -1)).toBeCloseTo(STAFF.coord * 0.2, 9);
+    expect(at(10.5, -1)).toBeCloseTo(STAFF.coord * -0.4, 9);
+    expect(at(7.5, -1)).toBeCloseTo(-STAFF.coord, 9);
   });
 
   it('the head coach counts for all seven rooms at half the reach', () => {
@@ -52,7 +52,7 @@ describe('staff edge: the parts', () => {
       const edges = l.teams.map((t) => week.get(`${t.id}:${r}`)!.edge);
       expect(Math.abs(edges.reduce((a, b) => a + b, 0) / edges.length)).toBeLessThan(0.01);
     }
-    for (const e of week.values()) expect(Math.abs(e.edge)).toBeLessThanOrEqual(0.75 + 1e-9);
+    for (const e of week.values()) expect(Math.abs(e.edge)).toBeLessThanOrEqual(STAFF.coord + STAFF.head + 1e-9);
   });
 
   it('reads a vacant side as a replacement and never throws', () => {

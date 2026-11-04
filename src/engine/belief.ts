@@ -4,6 +4,7 @@
  * only in words. Bad games wear it down, a Locker-Room Lawyer louder; good games, streaks and meetings move it; it
  * drifts back toward the middle. The staff edge on Sunday reads it (`staffEdge.ts`).
  */
+import { complacent } from './chemistry';
 import { sideCoach, teamCoaches } from './coaching';
 import { moraleClock, moraleContext, moraleLevel, moraleStepOf, type MoraleContext } from './morale';
 import { personalityOf, trueCharacter } from './personality';
@@ -125,6 +126,9 @@ export function beliefWeek(league: League): void {
     const pts = g?.result ? (home ? g.result.homeScore : g.result.awayScore) : 0;
     const opp = g?.result ? (home ? g.result.awayScore : g.result.homeScore) : 0;
     const streak = records.get(team.id)?.streak ?? '';
+    const rec = records.get(team.id);
+    const n = rec ? rec.w + rec.l + rec.t : 0;
+    const share = n >= 3 ? (rec!.w + rec!.t / 2) / n : 0.5;
     const run = Number(streak.slice(1)) >= STREAK ? streak[0] : '';
     const fell: CoachRoom[] = [];
     for (const role of ['offCoord', 'defCoord'] as const) {
@@ -134,7 +138,10 @@ export function beliefWeek(league: League): void {
       for (const room of SIDE_ROOMS[role]) {
         const was = beliefOf(c, room);
         let by = was * BELIEF.drift - was;
-        if (day === 'good') by += BELIEF.goodGame;
+        // Winning lifts a room less the more a club wins (L3's complacency curve): without the brake, belief, the edge and
+        // the wins fed each other and good teams pulled away from the league.
+        let gain = 0;
+        if (day === 'good') gain += BELIEF.goodGame;
         if (day === 'bad') {
           ctx ??= moraleContext(league);
           const lawyer = lawyerIn(league, team.id, room, ctx);
@@ -142,7 +149,8 @@ export function beliefWeek(league: League): void {
           by += BELIEF.badGame * (lawyer ? BELIEF.lawyer : 1) * (sour ? BELIEF.sour : 1);
         }
         if (run === 'L') by += BELIEF.loseStreak;
-        if (run === 'W') by += BELIEF.winStreak;
+        if (run === 'W') gain += BELIEF.winStreak;
+        by += complacent(gain, share, false);
         if (by) shiftBelief(c, room, by);
         if (day === 'bad' && was > BELIEF.warn && beliefOf(c, room) <= BELIEF.warn) fell.push(room);
       }

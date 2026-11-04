@@ -1,3 +1,4 @@
+import { computeRecords } from './season/standings';
 import { describe, expect, it } from 'vitest';
 import {
   BELIEF,
@@ -24,6 +25,8 @@ const base = (() => {
   return JSON.stringify(l);
 })();
 const fresh = (): League => JSON.parse(base);
+/** A club with no streak of three running: only its games and the drift move its rooms. */
+const calm = (l: League) => l.teams.find((t) => Number((computeRecords(l).get(t.id)?.streak ?? '').slice(1)) < 3)!.id;
 
 describe('belief: the store', () => {
   it('reads the four words at their thresholds', () => {
@@ -37,6 +40,7 @@ describe('belief: the store', () => {
   it('holds belief inside ±1 and reads 0 when unset or vacant', () => {
     const l = fresh();
     const oc = teamCoaches(l, 0).find((c) => c.role === 'offCoord')!;
+    delete oc.belief;
     expect(beliefOf(oc, 'OL')).toBe(0);
     shiftBelief(oc, 'OL', 5);
     expect(beliefOf(oc, 'OL')).toBe(1);
@@ -102,8 +106,8 @@ describe('belief: the week', () => {
 
   it('drifts back toward the middle and halves at the new league year', () => {
     const l = fresh();
-    const oc = runnerOf(l, 0, 'OL')!;
-    shiftBelief(oc, 'OL', -0.5);
+    const oc = runnerOf(l, calm(l), 'OL')!;
+    oc.belief = { OL: -0.5 };
     for (const g of gamesInWeek(l)) delete g.result;
     beliefWeek(l);
     expect(beliefOf(oc, 'OL')).toBeCloseTo(-0.4875, 4);
