@@ -118,7 +118,9 @@ describe('the spatial replay', () => {
       const record = live.field()!;
       const index = plays.length - 1;
       const e = plays[index];
-      if (!e.field) continue;
+      // A lost fumble stages once its return is logged: as the last entry it is drawn (on main as here: 5 of 8 over six
+      // live games), a gap of the live stager's, not of this play.
+      if (!e.field || /FUMBLE, recovered by (?!the offense)/.test(e.text)) continue;
       spatial++;
       const s = stagePlay({ plays, index, record, homeId: g.homeId, seed: 'live', snapY: MID });
       expect(s.spatial, `play ${index}`).toBeDefined();

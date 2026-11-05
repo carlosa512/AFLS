@@ -30,6 +30,28 @@ describe('penalty enforcement', () => {
   });
 });
 
+describe('intentional grounding', () => {
+  it('costs the down and 10 yards, or the spot of the pass when that is worse', () => {
+    expect(enforce('grounding', at(40, 2), 7)).toEqual({ yardLine: 30, down: 3, lineToGain: 50, yards: 10 });
+    expect(enforce('grounding', at(40, 2), 14)).toEqual({ yardLine: 26, down: 3, lineToGain: 50, yards: 14 });
+  });
+
+  it('halves the 10 near its own goal, but a spot past it stands: a safety from the end zone', () => {
+    expect(enforce('grounding', at(12), 7)).toMatchObject({ yardLine: 6, yards: 6 });
+    expect(enforce('grounding', at(5), 8).yardLine).toBeLessThanOrEqual(0);
+  });
+
+  it('loses the down: on 4th it turns the ball over on downs', () => {
+    expect(enforce('grounding', at(50, 4), 7).down).toBe(5);
+  });
+
+  it('leaves the other fouls as they were', () => {
+    expect(enforce('holding', at(40, 2), 7)).toEqual({ yardLine: 30, down: 2, lineToGain: 50, yards: 10 });
+    expect(enforce('defHolding', at(40, 2))).toEqual({ yardLine: 45, down: 1, lineToGain: 55, yards: 5 });
+    expect(FOULS.grounding).toMatchObject({ side: 'offense', lossOfDown: true, stands: true });
+  });
+});
+
 describe('take the penalty or the play', () => {
   it('values field position, downs and yards to go the way coaches do', () => {
     expect(downValue(60, 1, 10)).toBeGreaterThan(downValue(40, 1, 10));

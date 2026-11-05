@@ -59,6 +59,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   between snaps after a man goes out, and how far the league's men differ; AI games, fast (3,000 in under a minute).
   Run it after changing `match/sideline.ts` or the out-of-bounds code in `match/gameSim.ts`; `npm run sim` judges the
   same lines. Nothing may be ✗.
+- `npm run passer [-- games]` — the passer's choices (sacked, scrambled, thrown away) by pressure and situation (the down,
+  the red zone, his own end, trailing late) against FTN charting and NGS pressure 2023–25 (`scripts/research-passer.py`),
+  throwaways from outside the pocket, intentional grounding a game, and how far passers differ; AI games, fast (3,000
+  in under a minute). Run it after changing `match/pocketChoice.ts` or the dropback in `match/gameSim.ts`; `npm run
+  sim` judges the buckets and grounding. Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -343,7 +348,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions) · `match/sideline.ts`
     out of bounds as the carrier's choice: pushed out or stepped out as odds from the play, the clock and the men in
     it (spec `docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md`); one draw in every game, the field
-    plays it out (`FieldFacts.oob` 1 pushed, 2 stepped)
+    plays it out (`FieldFacts.oob` 1 pushed, 2 stepped) · `match/pocketChoice.ts` the passer's choice after his read
+    (spec `docs/superpowers/specs/2026-11-05-passer-under-pressure-design.md`): throw it, throw it away or take off as
+    odds from the pressure, his read, the situation and the man, one draw; a throwaway from inside the pocket or rolled
+    out, and its intentional grounding odds (`penalties.ts`: loss of down, the spot, a safety); the field stages it
+    (`PocketOutcome` 'away', 'awayClean', 'awayOut'; `FieldFacts.gr`)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

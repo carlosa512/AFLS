@@ -66,8 +66,9 @@ export const QUIRKS = {
     label: 'Gunslinger',
     positions: ['QB'],
     tone: 'style',
-    clause: 'never throws it away, even when the play breaks down',
-    effect: 'No throwaways: under pressure he forces it into coverage, so fewer completions and more interceptions.',
+    clause: 'rarely throws it away, even when the play breaks down',
+    effect:
+      'Rarely throws it away: under pressure he forces it into coverage, so fewer completions and more interceptions.',
   },
   safetyEyes: {
     label: 'Manipulates Safety Eyes',

@@ -179,6 +179,8 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
   const spot = start.target;
   /** Past his spot with nobody on him: going down. */
   let sliding = false;
+  /** How hard he goes down once he's sliding: a fall, or harder when the slide comes late, so he stops at his spot. */
+  let slideBrake = FALL;
   /** The man within reach as he nears his spot (-1: none). */
   let closing = -1;
   /** Credited out of bounds: on his way out at the spot. */
@@ -251,10 +253,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           goingOut = true;
           const side = c.y < MID ? -1.5 : FIELD_W + 1.5;
           const u = Math.hypot(spot.x + dir * 0.5 - c.x, side - c.y) || 1;
-          // Run out by a man still coming: he doesn't outrun him to the sideline by more than a step (never under
-          // RUN_DOWN of his top speed), so the film shows the man who ran him out on him as he crosses.
+          // Run out by a man still coming, or stepping out with him closing (normal play: the hurry-up sends nobody): he
+          // doesn't outrun him to the sideline by more than a step (never under RUN_DOWN of his top speed), so the film
+          // shows the man on him as he crosses.
           let pace = B[ci].top;
-          if (escort >= 0 && !spot.stepped) {
+          if (escort >= 0) {
             const a = escortAim();
             const theirs = Math.hypot(a.x - B[escort].x, a.y - B[escort].y) / Math.max(1, B[escort].top);
             pace = Math.max(B[ci].top * RUN_DOWN, Math.min(B[ci].top, u / Math.max(0.2, theirs - STEP)));
@@ -292,7 +295,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
     if (phase === 'pile') stepBody(c, { vx: 0, vy: 0 }, STEP, pileBrake);
     else if (phase === 'over' && touchdown) stepBody(c, { vx: c.vx, vy: c.vy }, STEP);
     else if (phase === 'over') stepBody(c, { vx: 0, vy: 0 }, STEP);
-    else if (sliding) stepBody(c, { vx: 0, vy: 0 }, STEP, FALL);
+    else if (sliding) stepBody(c, { vx: 0, vy: 0 }, STEP, slideBrake);
     else stepBody(c, want, STEP);
     record();
     hist.push({ x: c.x, y: c.y });
@@ -331,7 +334,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           if (d < 0 && closing >= 0 && dist(B[closing], c) <= ANCHOR_REACH + v * STEP) d = closing;
           closing = d;
           if (d >= 0 && left() <= PAST) tackleBy(d, Math.max(0, left()), v);
-          else if (d < 0) sliding = true;
+          else if (d < 0) {
+            sliding = true;
+            // The man closing slipped out of reach at the last stride: he goes down short of his spot, never past it.
+            slideBrake = Math.max(FALL, (v * v * along) / (2 * Math.max(0.3, left())));
+          }
         }
       }
       // His slide has stopped him (short of the spot, everyone near him has had his try): he's down, the man on him with

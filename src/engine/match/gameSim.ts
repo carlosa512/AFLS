@@ -46,6 +46,7 @@ import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf } from '../traits';
+import { groundingOdds, outsideOdds, pocketCall, pocketOdds, type PocketFacts, type PocketKind } from './pocketChoice';
 import type {
   Crew,
   Coach,
@@ -136,6 +137,8 @@ export interface SimOptions {
   fieldTap?: (tap: FieldTap) => void;
   /** Called at the end of each dropback the pocket could play, with today's credit and (with `field`) the pocket's. */
   pocketTap?: (tap: PocketTap) => void;
+  /** Each dropback's choice as the engine made it (`pocketChoice.ts`), for the passer check; nothing is stored. */
+  dropbackTap?: (tap: DropbackTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -143,6 +146,21 @@ export interface SimOptions {
 }
 
 /** A dropback the pocket played (`field/pocketField.ts`): its moment and start, today's credit, the pocket's result. */
+/** A dropback as the engine decided it: sacked, or what he chose after his read, and where a throwaway came from. */
+export interface DropbackTap {
+  qb: number;
+  pressured: boolean;
+  down: number;
+  toGo: number;
+  toGoal: number;
+  trailingLate: boolean;
+  call: PocketKind | 'sack';
+  outside?: boolean;
+  grounded?: boolean;
+  /** What the choice read (absent on a sack), for fitting `pocketChoice.ts`. */
+  facts?: PocketFacts;
+}
+
 export interface PocketTap {
   moment: PocketMoment;
   start: PocketStart;
@@ -355,7 +373,15 @@ function rushers(def: Lineup, blitz: boolean): [Player, number][] {
  * The blocker charged when `rusher` gets home. Line spots follow the depth chart (LT, LG, C, RG, RT);
  * among the men who could have had him, the weaker pass protector is more often the one who lost.
  */
-function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rng: Rng): Player | null {
+function blockerFor(
+  off: Lineup,
+  def: Lineup,
+  rusher: Player,
+  blitz: boolean,
+  rng: Rng,
+  /** The pass's target: out on his route, he can't be the man beaten (the draws are taken all the same). */
+  target: Player | null = null,
+): Player | null {
   const ol = off.ol;
   if (!ol.length) return null;
   const at = (i: number) => ol[Math.min(i, ol.length - 1)];
@@ -363,15 +389,15 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
   const te = off.scheme.offense.personnel === '10' ? null : off.tes[0];
   const back = off.rbs[0];
   let candidates: Player[];
-  if (rusher === def.edge[0]) candidates = te && rng.chance(0.12) ? [te] : [lt];
-  else if (rusher === def.edge[1]) candidates = te && rng.chance(0.12) ? [te] : [rt];
+  if (rusher === def.edge[0]) candidates = te && rng.chance(0.12) && te !== target ? [te] : [lt];
+  else if (rusher === def.edge[1]) candidates = te && rng.chance(0.12) && te !== target ? [te] : [rt];
   // The center helps both ways, so he is the man beaten less often than the guard he slides to.
   else if (rusher === def.dt[0]) candidates = [lg, lg, c];
   else if (rusher === def.dt[1]) candidates = [rg, rg, c];
   else if (rusher.position === 'EDGE') candidates = [lt, rt];
   else if (rusher.position === 'DT') candidates = [lg, rg];
   // Linebackers and defensive backs: the back's to pick up on a blitz, otherwise a lineman sliding late.
-  else candidates = blitz && rng.chance(0.6) ? [back] : [lg, c, rg];
+  else candidates = blitz && rng.chance(0.6) && back !== target ? [back] : [lg, c, rg];
   return rng.weighted(candidates, (p) => Math.max(1, 22 - skill(p, 'passPro')));
 }
 /**
@@ -386,10 +412,11 @@ function creditDraws(
   rusher: Player,
   blitz: boolean,
   sack: boolean,
+  target: Player | null = null,
 ): { hit: boolean; unblamed: boolean; blocker: Player | null } {
   const hit = sack || rng.chance(QB_HIT_SHARE);
   const unblamed = rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
-  return { hit, unblamed, blocker: unblamed ? null : blockerFor(off, def, rusher, blitz, rng) };
+  return { hit, unblamed, blocker: unblamed ? null : blockerFor(off, def, rusher, blitz, rng, target) };
 }
 
 /** Separation beyond which the defense rolls a safety over. */
@@ -462,6 +489,8 @@ export function collisions(entries: StatBuffer['entries'], qb: Player, unhit: bo
 
 interface PlayResult {
   kind: 'run' | 'pass' | 'sack' | 'scramble' | 'kneel' | 'spike';
+  /** A throwaway the engine flagged as intentional grounding: how far behind the line it was thrown. */
+  grounding?: { back: number };
   yards: number;
   text: string;
   duration: number;
@@ -769,6 +798,8 @@ class GameSim {
   private creditRng: Rng;
   /** The rusher who got home on the current snap without a sack, credited once the play resolves. */
   private pressureBy: Player | null = null;
+  /** This dropback's target, once he's read (`passPlay`): out on his route, never the blocker charged. */
+  private passTarget: Player | null = null;
   /** The blocker charged on this snap's pressure or sack, if any: recorded for All-22, never read by the sim. */
   private beatBy: Player | null = null;
   /** Today's outcome for the dropback being played, for the pocket (`pocketFor`). */
@@ -2274,6 +2305,7 @@ class GameSim {
     this.deepProtection = calls.protectDeep;
     this.endZoneShot = calls.endZoneShot;
     this.pressureBy = null;
+    this.passTarget = null;
     this.beatBy = null;
     this.dropOutcome = null;
     this.pocketNow = null;
@@ -2359,6 +2391,11 @@ class GameSim {
           ...(int && actors.take !== undefined ? { take: actors.take } : {}),
         },
         this.dropOutcome,
+        {
+          ...(result.grounding ? { gr: 1 as const } : {}),
+          // A rollout thrown away from a clean pocket: nobody got home, and the film sends nobody.
+          ...(this.dropOutcome === 'awayOut' && !this.pressureBy ? { cq: 1 as const } : {}),
+        },
       );
     }
     const pocketBy = this.pocketCredit();
@@ -2787,7 +2824,9 @@ class GameSim {
     const stream = (k: string) => new Rng(`${this.gameSeed}:field:${index}:${k}`);
     // Today's own credit, read off a copy of its stream (the real draws come after, the same): whether a pressure was a
     // hit, whether it's charged, and to whom. Without today's man, the play's own streams at today's odds.
-    const credited = called !== 'clean' && called !== 'escape' && todayBy !== null;
+    const quiet =
+      called === 'clean' || called === 'escape' || called === 'awayClean' || (called === 'awayOut' && !!extra.cq);
+    const credited = !quiet && todayBy !== null;
     const today = credited
       ? creditDraws(
           new Rng(this.creditRng.getState()),
@@ -2796,13 +2835,13 @@ class GameSim {
           todayBy,
           this.callNow === 'blitz',
           called === 'sack',
+          this.passTarget,
         )
       : null;
     const outcome: PocketOutcome =
       called === 'pressure' && (today ? today.hit : stream('hit').chance(QB_HIT_SHARE)) ? 'hit' : called;
     const nb =
-      outcome !== 'clean' &&
-      outcome !== 'escape' &&
+      !quiet &&
       (today ? today.unblamed : stream('blame').chance(outcome === 'sack' ? UNBLAMED_SACK : UNBLAMED_PRESSURE));
     const m: PocketMoment = {
       index,
@@ -3176,6 +3215,16 @@ class GameSim {
     };
   }
 
+  /** What the passer's choice reads off the situation (and the check tallies it by). */
+  private dropbackSituation(s: Situation): Pick<DropbackTap, 'down' | 'toGo' | 'toGoal' | 'trailingLate'> {
+    return {
+      down: s.down,
+      toGo: s.distance,
+      toGoal: 100 - s.yardLine,
+      trailingLate: s.quarter >= 4 && s.clock <= 300 && s.scoreDiff <= -1 && s.scoreDiff >= -16,
+    };
+  }
+
   private passPlay(s: Situation, defCall: DefenseCall): PlayResult {
     // What the open field held after a catch, for All-22 (`OpenField`).
     const open: OpenField = {};
@@ -3231,40 +3280,11 @@ class GameSim {
         (defCall === 'blitz' && this.has(off.rbs[0], 'blitzPickup') ? 0.8 : 1);
       if (rng.chance(pSack)) {
         this.dropOutcome = 'sack';
+        this.options.dropbackTap?.({ ...this.dropbackSituation(s), qb: qb.id, pressured: true, call: 'sack' });
         return this.sack(def, defCall);
       }
       this.pressureBy = this.creditRng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
-      const bail = this.has(qb, 'bailsEarly') ? 1.7 : 1;
-      if (rng.chance(clamp((0.16 + 0.02 * (skill(qb, 'scrambling') - 9)) * bail, 0.06, 0.55))) {
-        this.dropOutcome = 'scramble';
-        return this.scramble(def, s);
-      }
-      // A gunslinger never throws it away.
-      if (!this.has(qb, 'gunslinger') && rng.chance(0.12)) {
-        this.dropOutcome = 'away';
-        buf.add(qb, 'passAtt');
-        return {
-          kind: 'pass',
-          yards: 0,
-          text: `${short(qb)} under pressure, throws it away`,
-          duration: rng.int(4, 6),
-          clockStops: true,
-          stats: buf,
-          passAttempt: true,
-          complete: false,
-          airYards: 0,
-          depth: 'short',
-        };
-      }
     }
-
-    // Coverage holds and nothing comes open: a quarterback with legs takes off anyway.
-    if (!pressured && rng.chance(clamp(0.015 + 0.004 * (skill(qb, 'scrambling') - 9), 0.005, 0.05))) {
-      this.dropOutcome = 'escape';
-      return this.scramble(def, s);
-    }
-    // A throw: clean, or under pressure (a hit or a hurry: the pocket's own roll, `pocketFor`).
-    this.dropOutcome = pressured ? 'pressure' : 'clean';
 
     const ordinaryDepth = coach.passDepth(s, rng);
     const depth = this.designedShot
@@ -3274,11 +3294,6 @@ class GameSim {
         : this.endZoneShot && ordinaryDepth === 'short' && this.habitRng.chance(0.12)
           ? 'medium'
           : ordinaryDepth;
-    // He leaves before the deep route comes open.
-    if (depth === 'deep' && !pressured && this.has(qb, 'bailsEarly') && rng.chance(0.15)) {
-      this.dropOutcome = 'escape';
-      return this.scramble(def, s);
-    }
     // Targets: [receiver, base weight by depth, coverage defender]
     const lbCover = def.lb[1] ?? def.lb[0];
     const scheme = off.scheme.offense;
@@ -3321,6 +3336,7 @@ class GameSim {
       ([p, w]) => w[depth] * (0.6 + 0.032 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1),
     );
     const isBack = receiver.position === 'RB';
+    this.passTarget = receiver;
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
     const coverage = def.scheme.coverage;
@@ -3375,6 +3391,67 @@ class GameSim {
     if (sep > SEP_ROLL) sep = SEP_ROLL + (sep - SEP_ROLL) * 0.5;
     sep = fade(sep, tight);
 
+    // His read made, he chooses (`pocketChoice.ts`): throw it, throw it away, or take off. One draw.
+    const situation = this.dropbackSituation(s);
+    const choiceFacts: PocketFacts = {
+      pressured,
+      sep,
+      depth,
+      down: situation.down,
+      toGo: situation.toGo,
+      toGoal: situation.toGoal,
+      trailingLate: situation.trailingLate,
+      passer: {
+        decisions,
+        scrambling: skill(qb, 'scrambling'),
+        pocket: skill(qb, 'pocketPresence') + (this.has(qb, 'muddyPockets') ? 1.5 : 0),
+        poise: poiseOf(qb),
+        energy: this.body(qb).energy,
+        hurt: Math.min(3, (qb.injuries ?? []).filter((i) => i.season >= this.game.season - 1).length),
+        rattled: ghosts,
+        has: (q) => this.has(qb, q),
+      },
+    };
+    const choice = pocketCall(pocketOdds(choiceFacts), rng.next());
+    if (choice === 'run') {
+      this.dropOutcome = pressured ? 'scramble' : 'escape';
+      this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'run', facts: choiceFacts });
+      return this.scramble(def, s);
+    }
+    if (choice === 'away') {
+      // From outside the pocket (rolled out past the tackle) or inside it, and maybe flagged: grounding.
+      const outside = rng.chance(outsideOdds(choiceFacts));
+      const grounded = rng.chance(Math.min(1, groundingOdds(pressured, outside) * this.calls.all));
+      this.dropOutcome = outside ? 'awayOut' : pressured ? 'away' : 'awayClean';
+      this.options.dropbackTap?.({
+        ...situation,
+        qb: qb.id,
+        pressured,
+        call: 'away',
+        outside,
+        grounded,
+        facts: choiceFacts,
+      });
+      buf.add(qb, 'passAtt');
+      return {
+        kind: 'pass',
+        yards: 0,
+        text: `${short(qb)} ${outside ? 'rolls out and throws it away' : pressured ? 'under pressure, throws it away' : 'throws it away'}`,
+        duration: rng.int(4, 6),
+        clockStops: true,
+        stats: buf,
+        passAttempt: true,
+        complete: false,
+        airYards: 0,
+        depth: 'short',
+        // Thrown from his drop, about 7 yards back; rolled out, near the line.
+        ...(grounded ? { grounding: { back: outside ? 2 : 7 } } : {}),
+      };
+    }
+    // A throw: clean, or under pressure (a hit or a hurry: the pocket's own roll, `pocketFor`).
+    this.dropOutcome = pressured ? 'pressure' : 'clean';
+    this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'throw', facts: choiceFacts });
+
     // Every point of accuracy counts in full: no cap on what an elite passer can do.
     const acc =
       skill(qb, depth === 'short' ? 'shortAccuracy' : depth === 'medium' ? 'midAccuracy' : 'deepAccuracy') +
@@ -3387,14 +3464,16 @@ class GameSim {
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give most of it back.
     // By depth as the NFL completes them (nflverse 2019–24: 81% behind the line, 70% at 0–9, 55% at 10–19, 36% deep),
-    // before the passer, the separation and the hands.
+    // before the passer, the separation and the hands. Those shares count throwaways (nflverse gives them air yards: 4%
+    // of attempts, FTN 2023–24) and a throw here is never one, so each sits 1.5 points higher (NFL completion without
+    // throwaways 67.2–68.0% against 64.5–65.3% with them).
     let pComplete =
-      (depth === 'short' && air < 0 ? 0.81 : { short: 0.74, medium: 0.54, deep: 0.371 }[depth]) +
+      (depth === 'short' && air < 0 ? 0.825 : { short: 0.755, medium: 0.555, deep: 0.386 }[depth]) +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);
     if (pressured) pComplete -= 0.17 - 0.01 * (decisions - 12);
-    // A gunslinger who won't throw it away forces it into coverage instead.
+    // A gunslinger who threw it rather than throw it away forces it into coverage.
     if (pressured && this.has(qb, 'gunslinger')) pComplete -= 0.1;
     // The field shrinks: no room behind the coverage, and less underneath.
     pComplete -= RED_ZONE_SQUEEZE * tight;
@@ -3934,7 +4013,7 @@ class GameSim {
       hit: hitToday,
       unblamed,
       blocker: blockerToday,
-    } = creditDraws(this.creditRng, off, def, rusher, defCall === 'blitz', sack);
+    } = creditDraws(this.creditRng, off, def, rusher, defCall === 'blitz', sack, this.passTarget);
     if (this.pocketNow)
       this.pocketToday = {
         ...this.pocketToday,
@@ -4056,12 +4135,14 @@ class GameSim {
     const who = this.actorsFor(result);
 
     let late: { yardLine: number; text: string } | undefined;
+    let ground: (Spot & { text: string }) | undefined;
     if (fouls.length) {
       const call = this.callFouls(result, fouls, this.ranAnim(result, startYardLine, airAt, who));
       // Taken (or offsetting): the play never happened, though the snap still wore the defense down.
       if (call === true) return;
       text += call.note;
       late = call.late;
+      ground = call.ground;
     }
     ts.plays++;
 
@@ -4122,6 +4203,25 @@ class GameSim {
     this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane, who);
     if (result.open && (kind === 'run' || kind === 'pass')) this.anim!.open = result.open;
     if (result.field) this.anim!.field = result.field;
+
+    if (ground) {
+      // Grounding: the incompletion stands, the ball goes back and the down is lost.
+      this.yardLine = ground.yardLine;
+      if (this.yardLine <= 0) {
+        this.log(`${text}. ${ground.text} Thrown from the end zone: safety.`);
+        this.safety();
+        return;
+      }
+      this.log(`${text}. ${ground.text}`);
+      if (ground.down > 4) {
+        if (this.clock === 0 && (this.quarter === 2 || this.quarter === 4)) return;
+        this.log('Turnover on downs.');
+        this.changePossession(100 - this.yardLine);
+        return;
+      }
+      this.down = ground.down;
+      return;
+    }
 
     if (this.yardLine >= 100) {
       if (downBefore === 3) ts.thirdDownConv++;
@@ -4184,6 +4284,9 @@ class GameSim {
     const fouls: LiveFoul[] = [];
     if (this.offsideFlag) fouls.push({ foul: 'offside' });
     this.offsideFlag = false;
+    // The passer's own: a throwaway the engine flagged as he threw it (`passPlay`).
+    if (result.grounding)
+      fouls.push({ foul: 'grounding', by: this.lineups[this.offense].qb, spotYards: result.grounding.back });
     if (result.kind === 'kneel' || result.kind === 'spike') return fouls;
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
@@ -4284,7 +4387,14 @@ class GameSim {
     fouls: LiveFoul[],
     /** The snap as it ran: logged with a play the flags wipe out, so All-22 shows it before the walk-off. */
     ran: Anim,
-  ): true | { note: string; late?: { yardLine: number; text: string } } {
+  ):
+    | true
+    | {
+        note: string;
+        late?: { yardLine: number; text: string };
+        /** A foul that lets the play stand and is enforced besides (grounding): where the ball goes, and the call. */
+        ground?: Spot & { text: string };
+      } {
     const offSide = this.offense;
     const defSide = this.def;
     const sideOf = (f: LiveFoul): Side => (FOULS[f.foul].side === 'offense' ? offSide : defSide);
@@ -4311,7 +4421,13 @@ class GameSim {
     }
 
     const fouled = FOULS[fouls[0].foul].side === 'offense' ? 'defense' : 'offense';
-    const worth = (s: Spot) => coach.downValue(s.yardLine, s.down, Math.min(s.lineToGain, 100) - s.yardLine);
+    // A spot behind the goal line is a safety, a down past the 4th a turnover on downs (grounding's loss of down).
+    const worth = (s: Spot) =>
+      s.yardLine <= 0
+        ? -2 - coach.downValue(40, 1, 10)
+        : s.down > 4
+          ? -coach.downValue(100 - s.yardLine, 1, 10)
+          : coach.downValue(s.yardLine, s.down, Math.min(s.lineToGain, 100) - s.yardLine);
     // A foul at the end of a run or a catch past the line (or after the whistle) goes on from where the
     // play ended, and the play stands; one that ended in the end zone can't (the NFL would carry it to
     // the kickoff or the try, which the engine doesn't), so it's declined.
@@ -4341,6 +4457,11 @@ class GameSim {
     const { f, spot } = best;
     const side = sideOf(f);
     const called = `PENALTY on ${this.flagged(side, f.by)}: ${FOULS[f.foul].label}, ${spot.yards} yards.`;
+    if (FOULS[f.foul].stands) {
+      // The play stays in the book (grounding: an incompletion and an attempt); the ball goes back, the down is lost.
+      this.flag(side, f.foul, f.by, 'accepted', spot.yards);
+      return { note, ground: { ...spot, text: `${called} Loss of down.` } };
+    }
     if (best.late) {
       // The rusher who drew it hit the passer, whatever the credit stream said.
       if (

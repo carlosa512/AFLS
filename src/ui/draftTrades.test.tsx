@@ -10,25 +10,37 @@ import { offseasonStep } from './App';
 import { Draft, SimTheRest } from './screens/Draft';
 import { setTeam } from '../engine/roster';
 
-const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-d' });
+/** A league on draft day, its season played. */
+function draftDayOf(seed: string): string {
+  const league = createLeague({ seed });
   simToEndOfSeason(league);
   beginOffseason(league);
   while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
   return JSON.stringify(league);
-})();
-const draftDay = (): League => JSON.parse(atDraft);
+}
 
 /** Your first pick that draws offers, on the clock (an offer still open from earlier, for another pick, isn't one). */
-function offered(): League {
-  const l = draftDay();
+function firstOffered(json: string): League | null {
+  const l: League = JSON.parse(json);
   for (let i = 0; i < 7; i++) {
     draftToUserPick(l);
     if (draftDayOffers(l).some((o) => o.sides[1].picks.includes(nextPick(l)!.id))) return l;
     draftForUser(l);
   }
-  throw new Error('No pick of yours drew an offer');
+  return null;
 }
+
+// The first of these worlds where a pick of yours draws an offer: whether one does turns on how the season went, which
+// any change to the engine reshuffles.
+const atDraft = (() => {
+  for (const seed of ['draft-trades-d', 'draft-trades-e', 'draft-trades-f', 'draft-trades-g']) {
+    const json = draftDayOf(seed);
+    if (firstOffered(json)) return json;
+  }
+  throw new Error('No pick of yours drew an offer');
+})();
+const draftDay = (): League => JSON.parse(atDraft);
+const offered = (): League => firstOffered(atDraft)!;
 
 describe('draft room on draft day', () => {
   it('shows the banner and an offer card for each team that wants your pick', () => {
