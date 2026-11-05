@@ -20,6 +20,7 @@ import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 const seasons = Number(process.argv[2] ?? 3);
 
 import { TARGETS } from './targets';
+import { judgeFumbles, newFumbleTally, tapContact } from './fumbles-core';
 import { groundingLines, judgePasser, newPasserTally, tapDropback } from './passer-core';
 import { judgeSideline, newSidelineTally, printLine, spreadLines, tallyGame } from './sideline-core';
 
@@ -158,6 +159,8 @@ const sideline = newSidelineTally();
 let sidelineSpread: ReturnType<typeof spreadLines> | null = null;
 /** The passer's choices by bucket against FTN and NGS (`passer-core.ts`), from the same replayed weeks. The spread
  * between passers is `npm run passer`'s: here a passer's sampled weeks pile up over a career, not a season. */
+/** Contact fumbles by bucket (`fumbles-core.ts`), from the same replayed weeks; the backs' spread is `npm run fumbles`'s. */
+const fumbles = newFumbleTally();
 const passer = newPasserTally();
 let passerGames = 0;
 
@@ -168,6 +171,7 @@ function sampleDepth(league: League) {
     const r = simulateGame(league, g, {
       keepPlays: true,
       dropbackTap: (tap) => tapDropback(passer, tap, String(tap.qb)),
+      contactTap: (tap) => tapContact(fumbles, tap, String(tap.carrier)),
     });
     passerGames++;
     tallyGame(sideline, r.plays ?? [], g.homeId);
@@ -528,6 +532,9 @@ for (const l of [...judgeSideline(sideline), ...(sidelineSpread ?? [])]) if (!pr
 
 console.log('\nThe passer under pressure (weeks 1 and 10 replayed; NFL from FTN and NGS 2023–25)');
 for (const l of [...judgePasser(passer), ...groundingLines(passer, passerGames)]) if (!printLine(l)) misses++;
+
+console.log('\nFumbles on contact (weeks 1 and 10 replayed; NFL from nflverse 2021–25)');
+for (const l of judgeFumbles(fumbles)) if (!printLine(l)) misses++;
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).
