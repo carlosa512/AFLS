@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
   base: './',
   build: { outDir: mode === 'single' ? 'dist-single' : 'dist' },
   test: {
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
     setupFiles: ['src/vitest.setup.ts'],
     // Engine tests build whole leagues and walk seasons: a draft test takes four seconds on an idle
     // machine and more on a shared CI runner, so vitest's five-second default fails them at random,
