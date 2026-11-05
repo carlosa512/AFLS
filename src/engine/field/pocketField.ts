@@ -223,6 +223,7 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
 
   const outcome = start.outcome;
   const runs = outcome === 'scramble' || outcome === 'escape';
+  const thrownAway = outcome === 'away' || outcome === 'awayClean' || outcome === 'awayOut';
   const arrive = ARRIVE[outcome];
   // His moment: the ball out, the sack, or the break.
   const breakT = runs ? Math.max(0.6, start.throwAt - (hasHabit(QP, 'bailsEarly') ? BAIL : 0)) : Infinity;
@@ -435,6 +436,11 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
           r.vy *= push / sp;
         }
         stepBody(r, { vx: (dx / d) * push, vy: (dy / d) * push }, STEP);
+        continue;
+      }
+      // Thrown away: the ball's gone, and the rush pulls up (braking as a body does, never a dead stop).
+      if (thrownAway && t >= start.throwAt) {
+        stepBody(r, { vx: 0, vy: 0 }, STEP);
         continue;
       }
       // A delayed rusher stands until he goes.

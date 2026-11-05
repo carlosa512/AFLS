@@ -3445,9 +3445,11 @@ class GameSim {
     // Base odds are tuned with injuries on: backups throw and catch about a tenth of the passes, as in the NFL.
     // The red zone's squeeze takes about a point off the league's rate, and short throws elsewhere give most of it back.
     // By depth as the NFL completes them (nflverse 2019–24: 81% behind the line, 70% at 0–9, 55% at 10–19, 36% deep),
-    // before the passer, the separation and the hands.
+    // before the passer, the separation and the hands. Those shares count throwaways (nflverse gives them air yards: 4%
+    // of attempts, FTN 2023–24) and a throw here is never one, so each sits 1.5 points higher (NFL completion without
+    // throwaways 67.2–68.0% against 64.5–65.3% with them).
     let pComplete =
-      (depth === 'short' && air < 0 ? 0.81 : { short: 0.74, medium: 0.54, deep: 0.371 }[depth]) +
+      (depth === 'short' && air < 0 ? 0.825 : { short: 0.755, medium: 0.555, deep: 0.386 }[depth]) +
       0.018 * (acc - 12) +
       0.019 * sep +
       0.012 * (skill(receiver, 'hands') - 12);

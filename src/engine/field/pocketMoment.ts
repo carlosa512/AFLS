@@ -13,7 +13,7 @@ import type { FieldFacts } from './moment';
 import { SCRAMBLE_OPEN, SCRAMBLE_PRESSURED } from './pocket';
 import { runPocket, type PocketOutcome, type PocketResult, type PocketStart } from './pocketField';
 import { asRan, stagePlay, type StagedPlay } from './stage';
-import { KNOBS, STEP } from './tuning';
+import { BRAKE, KNOBS, STEP } from './tuning';
 import type { FieldPlayer, FieldSkills, FieldStart } from './types';
 
 type DropKind = 'pass' | 'incomplete' | 'int' | 'sack' | 'scramble';
@@ -43,7 +43,8 @@ export interface PocketMoment {
 }
 
 /** A sack's pocket runs this far past the sack, a throwaway's past the throw, a scramble's past the break (seconds). */
-const AFTER = { sack: 0.6, away: 0.8, run: 1 };
+/** After his moment: a sack's fall, a throwaway's rush braking to a stop (a second from flat out), a run's start. */
+const AFTER = { sack: 0.6, away: 1, run: 1 };
 /** A throwaway leaves his hand later than a throw: he gives up on the play only once it's dead (NFL 4.3 s to a throw's
  * 2.6, FTN and NGS 2023–25). */
 const AWAY_HOLD = 1.2;
@@ -287,6 +288,28 @@ export function composePocket(staged: StagedPlay, pocket: { start: PocketStart; 
     pos.set(staged.pos.subarray(from * n * 2, (from + 1) * n * 2), s * n * 2);
     ball.set(staged.ball.subarray(from * 3, from * 3 + 3), s * 3);
   }
+  // The pocket can outlast the drawn routes (a throwaway's hold): a man the pocket doesn't move coasts on from his last
+  // drawn step, braking as a body does, rather than stopping dead where his route ended.
+  const last = staged.steps - 1;
+  if (steps > staged.steps && last >= 1)
+    for (let k = 0; k < n; k++) {
+      let vx = (staged.pos[(last * n + k) * 2] - staged.pos[((last - 1) * n + k) * 2]) / STEP;
+      let vy = (staged.pos[(last * n + k) * 2 + 1] - staged.pos[((last - 1) * n + k) * 2 + 1]) / STEP;
+      let x = staged.pos[(last * n + k) * 2];
+      let y = staged.pos[(last * n + k) * 2 + 1];
+      for (let s = staged.steps; s < steps; s++) {
+        const sp = Math.hypot(vx, vy);
+        const slower = Math.max(0, sp - BRAKE * STEP);
+        if (sp > 0) {
+          vx *= slower / sp;
+          vy *= slower / sp;
+        }
+        x += vx * STEP;
+        y += vy * STEP;
+        pos[(s * n + k) * 2] = x;
+        pos[(s * n + k) * 2 + 1] = y;
+      }
+    }
   const at = (s: number, j: number) => {
     const f = Math.min(s, pSteps - 1);
     return [pocket.result.frames[(f * pn + j) * 2], pocket.result.frames[(f * pn + j) * 2 + 1]];
