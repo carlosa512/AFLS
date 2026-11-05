@@ -38,6 +38,6 @@ describe('a line that swings with the league', () => {
     expect(bandMark(1, USUAL, NORMAL)).toBe('  ▼ LOW');
     expect(bandMark(30, USUAL, NORMAL)).toBe('  ▲ HIGH');
     expect(bandMark(4, USUAL, NORMAL)).toBe('');
-    expect(bandMark(NaN, USUAL, NORMAL)).toBe('');
+    expect(bandMark(NaN, USUAL, NORMAL)).toBe('  ✗ NOT MEASURED');
   });
 });

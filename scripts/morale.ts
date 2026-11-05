@@ -103,7 +103,7 @@ const check = (label: string, value: number, usual: [number, number], digits = 2
   if (band === 'abnormal' || band === 'none') misses++;
   const mark = band === 'usual' ? '✓' : band === 'unusual' ? '⚠' : '✗';
   console.log(
-    `${mark} ${label.padEnd(54)} ${value.toFixed(digits).padStart(7)}   ${usual[0]}–${usual[1]}${band === 'none' ? '  ✗ NOT MEASURED' : bandMark(value, usual, normal)}`,
+    `${mark} ${label.padEnd(54)} ${value.toFixed(digits).padStart(7)}   ${usual[0]}–${usual[1]}${bandMark(value, usual, normal)}`,
   );
 };
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);

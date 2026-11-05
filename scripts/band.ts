@@ -16,10 +16,12 @@ export function bandOf(value: number, usual: [number, number], normal?: [number,
   return normal && inside(value, normal) ? 'unusual' : 'abnormal';
 }
 
-/** What a line carries after its range: nothing, a warning (no arrow: it isn't a miss), or the miss's direction. */
+/** What a line carries after its range: nothing, a warning (no arrow: it isn't a miss), the miss's direction, or that
+ * it wasn't measured (a script counts that as a miss: say so on the line). */
 export function bandMark(value: number, usual: [number, number], normal?: [number, number]): string {
   const band = bandOf(value, usual, normal);
   if (band === 'unusual') return `  ⚠ unusual for a league (fails outside ${normal![0]}–${normal![1]})`;
   if (band === 'abnormal') return value < usual[0] ? '  ▼ LOW' : '  ▲ HIGH';
+  if (band === 'none') return '  ✗ NOT MEASURED';
   return '';
 }
