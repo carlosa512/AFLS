@@ -54,36 +54,40 @@ export type PocketOdds = Record<PocketKind, number>;
 export const TYPICAL = { decisions: 12, scrambling: 12, pocket: 12, poise: 10, energy: 85 } as const;
 
 /** The separation (the engine's own scale) at which his read counts as open: below it he's covered. */
-export const OPEN = 1.5;
+export const OPEN = 0.34;
 
 type ByPressure = { pressured: number; clean: number };
 
 /** Log odds against throwing it. Pressured, past the sack: 9.1% thrown away, 7.6% scrambles of all pressured dropbacks
  * (22% sacked); clean: 1.23% and 4.25%. */
-const AWAY: ByPressure = { pressured: -1.91, clean: -4.34 };
-const RUN: ByPressure = { pressured: -2.08, clean: -3.1 };
+const AWAY: ByPressure = { pressured: -2.12, clean: -4.7 };
+const RUN: ByPressure = { pressured: -2.06, clean: -3.03 };
 /** Per point his read is covered (below `OPEN`), and per point it's open (above). */
-const COVERED_AWAY = 0.35;
-const COVERED_RUN = 0.25;
-const OPEN_AWAY = -0.1;
-const OPEN_RUN = -0.1;
+const COVERED_AWAY = 0.19;
+const COVERED_RUN = 0.18;
+const OPEN_AWAY = -0.05;
+const OPEN_RUN = -0.05;
 /** 3rd down: he holds it for the sticks (pressured, thrown away 6.3–7.7% against 10.5% on early downs) and runs for
- * them (clean 5.1–5.5% against 3.9%); a little more the further he has to go. */
-const THIRD_AWAY = -0.42;
-const THIRD_RUN = 0.2;
-const TO_GO_RUN = 0.03;
-/** 4th down: the drive ends either way (pressured, thrown away 3.1%). */
-const FOURTH_AWAY = -1.3;
-const FOURTH_RUN = 0.3;
+ * them (clean 5.1–5.5% against 3.9%), however far he has to go. */
+const THIRD_AWAY = -0.38;
+const THIRD_RUN = 0.18;
+/** 3rd and 1–3: the sticks are right there (scrambles 9.2% pressured, 5.5% clean, the most of any down). */
+const SHORT_RUN = 0.2;
+/** 4th down under pressure: the drive ends either way (thrown away 3.1%). From a clean pocket he still throws it away
+ * when nothing's there (1.5%, as on early downs). */
+const FOURTH_AWAY = -1.31;
+const FOURTH_RUN = 0.25;
 /** The red zone: the field is tight and a sack costs the kick (thrown away 13.5% pressured, 2.1% clean). */
-const RED_ZONE_AWAY: ByPressure = { pressured: 0.28, clean: 0.45 };
-/** Backed up in his own end, clean: he doesn't leave the pocket into his own end zone (2.9% against 3.9%). */
-const BACKED_UP_RUN = -0.3;
+const RED_ZONE_AWAY: ByPressure = { pressured: 0.47, clean: 0.77 };
+/** Backed up in his own end: clean, he doesn't leave the pocket toward his own end zone (2.9% against 3.9%); pressured,
+ * he gets rid of it rather than take a sack there (thrown away 11.3%). */
+const BACKED_UP_RUN = -0.39;
+const BACKED_UP_AWAY = 0.25;
 /** Trailing late: a run that stays in bounds runs the clock (pressured, 6.6% against 7.4%). */
-const TRAILING_RUN = -0.15;
+const TRAILING_RUN = -0.25;
 /** Per rating point: legs take him out; pocket presence keeps him in it under pressure; a good decision-maker throws it
  * away rather than force it; a cool head throws on time. */
-const SCRAMBLING_RUN = 0.12;
+const SCRAMBLING_RUN = 0.16;
 const POCKET_RUN = -0.05;
 const DECISIONS_AWAY = 0.04;
 const POISE_AWAY = -0.04;
@@ -102,12 +106,12 @@ const GHOSTS: { away: number; run: number } = { away: 0.6, run: 0.4 };
 
 /** Outside the pocket: 60% of throwaways (68% pressured, 38% clean); a scrambler or a man who bails gets there. */
 const OUTSIDE_BASE = -0.49;
-const OUTSIDE_PRESSURED = 1.22;
+const OUTSIDE_PRESSURED = 1.4;
 const OUTSIDE_SCRAMBLING = 0.08;
 const OUTSIDE_BAILS = 0.5;
 
 /** Intentional grounding on a throwaway, before the crew's flag volume (0.19 a game, 88% under pressure). */
-const GROUNDING = { inside: 0.11, outside: 0.04, clean: 0.015 } as const;
+const GROUNDING = { inside: 0.13, outside: 0.05, clean: 0.035 } as const;
 
 const logistic = (x: number) => 1 / (1 + Math.exp(-x));
 
@@ -129,13 +133,16 @@ function utilities(f: PocketFacts): { away: number; run: number } {
   let sitRun = 0;
   if (f.down === 3) {
     sitAway += THIRD_AWAY;
-    sitRun += THIRD_RUN + TO_GO_RUN * (clamp(f.toGo, 3, 15) - 3);
+    sitRun += THIRD_RUN + (f.toGo <= 3 ? SHORT_RUN : 0);
   } else if (f.down === 4) {
-    sitAway += FOURTH_AWAY;
+    if (f.pressured) sitAway += FOURTH_AWAY;
     sitRun += FOURTH_RUN;
   }
   if (f.toGoal <= 20) sitAway += RED_ZONE_AWAY[side];
-  if (f.toGoal >= 90 && !f.pressured) sitRun += BACKED_UP_RUN;
+  if (f.toGoal >= 90) {
+    if (f.pressured) sitAway += BACKED_UP_AWAY;
+    else sitRun += BACKED_UP_RUN;
+  }
   if (f.trailingLate) sitRun += TRAILING_RUN;
   away += sharp * sitAway;
   run += sharp * sitRun;

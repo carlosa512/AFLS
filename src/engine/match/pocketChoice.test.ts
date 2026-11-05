@@ -90,7 +90,9 @@ describe('the passer’s choice', () => {
       const fourth = odds({ pressured, down: 4, toGo: 7 });
       expect(third.away).toBeLessThan(first.away);
       expect(third.run).toBeGreaterThan(first.run);
-      expect(fourth.away).toBeLessThan(third.away);
+      // Under pressure 4th down ends it either way; from a clean pocket he still throws it away when nothing's there.
+      if (pressured) expect(fourth.away).toBeLessThan(third.away);
+      else expect(fourth.away).toBeGreaterThan(third.away);
     }
   });
 
@@ -120,8 +122,8 @@ describe('the passer’s choice', () => {
   });
 
   it('decision-making sharpens the read of the situation', () => {
-    const fourth = (decisions: number) => odds({ down: 4, toGo: 7, passer: { decisions } }).away;
-    const first = (decisions: number) => odds({ passer: { decisions } }).away;
+    const fourth = (decisions: number) => odds({ ...P, down: 4, toGo: 7, passer: { decisions } }).away;
+    const first = (decisions: number) => odds({ ...P, passer: { decisions } }).away;
     // How far 4th down takes his throwaways down, against 1st: further for a sharp man.
     expect(Math.log(first(18) / fourth(18))).toBeGreaterThan(Math.log(first(4) / fourth(4)));
   });
@@ -159,6 +161,7 @@ describe('the passer’s choice', () => {
   it('grounding is called most inside the pocket under pressure', () => {
     expect(groundingOdds(true, false)).toBeGreaterThan(groundingOdds(true, true));
     expect(groundingOdds(true, true)).toBeGreaterThan(groundingOdds(false, false));
-    expect(groundingOdds(false, false)).toBeLessThanOrEqual(0.02);
+    // Rare from a clean pocket: a few in a hundred (the NFL's flags a game and their pressured share set it).
+    expect(groundingOdds(false, false)).toBeLessThanOrEqual(0.04);
   });
 });

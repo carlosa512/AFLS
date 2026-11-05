@@ -251,10 +251,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           goingOut = true;
           const side = c.y < MID ? -1.5 : FIELD_W + 1.5;
           const u = Math.hypot(spot.x + dir * 0.5 - c.x, side - c.y) || 1;
-          // Run out by a man still coming: he doesn't outrun him to the sideline by more than a step (never under
-          // RUN_DOWN of his top speed), so the film shows the man who ran him out on him as he crosses.
+          // Run out by a man still coming, or stepping out with him closing (normal play: the hurry-up sends nobody): he
+          // doesn't outrun him to the sideline by more than a step (never under RUN_DOWN of his top speed), so the film
+          // shows the man on him as he crosses.
           let pace = B[ci].top;
-          if (escort >= 0 && !spot.stepped) {
+          if (escort >= 0) {
             const a = escortAim();
             const theirs = Math.hypot(a.x - B[escort].x, a.y - B[escort].y) / Math.max(1, B[escort].top);
             pace = Math.max(B[ci].top * RUN_DOWN, Math.min(B[ci].top, u / Math.max(0.2, theirs - STEP)));
