@@ -73,16 +73,18 @@ const THIRD_AWAY = -0.38;
 const THIRD_RUN = 0.18;
 /** 3rd and 1–3: the sticks are right there (scrambles 9.2% pressured, 5.5% clean, the most of any down). */
 const SHORT_RUN = 0.2;
-/** 4th down under pressure: the drive ends either way (thrown away 3.1%). From a clean pocket he still throws it away
- * when nothing's there (1.5%, as on early downs). */
+/** 4th down under pressure: the drive ends either way (thrown away 3.1%), and he runs no more than on early downs
+ * (7.2% against 7.4%). From a clean pocket he still throws it away when nothing's there (1.5%, as on early downs) and
+ * takes off for the sticks (5.2% against 3.9%). */
 const FOURTH_AWAY = -1.31;
-const FOURTH_RUN = 0.25;
+const FOURTH_RUN = 0.3;
 /** The red zone: the field is tight and a sack costs the kick (thrown away 13.5% pressured, 2.1% clean). */
 const RED_ZONE_AWAY: ByPressure = { pressured: 0.47, clean: 0.77 };
 /** Backed up in his own end: clean, he doesn't leave the pocket toward his own end zone (2.9% against 3.9%); pressured,
- * he gets rid of it rather than take a sack there (thrown away 11.3%). */
+ * he gets out of there rather than take a sack in it (thrown away 11.3%, scrambles 8.4% against 10.5% and 7.4%). */
 const BACKED_UP_RUN = -0.39;
 const BACKED_UP_AWAY = 0.25;
+const BACKED_UP_ESCAPE = 0.2;
 /** Trailing late: a run that stays in bounds runs the clock (pressured, 6.6% against 7.4%). */
 const TRAILING_RUN = -0.25;
 /** Per rating point: legs take him out; pocket presence keeps him in it under pressure; a good decision-maker throws it
@@ -136,12 +138,14 @@ function utilities(f: PocketFacts): { away: number; run: number } {
     sitRun += THIRD_RUN + (f.toGo <= 3 ? SHORT_RUN : 0);
   } else if (f.down === 4) {
     if (f.pressured) sitAway += FOURTH_AWAY;
-    sitRun += FOURTH_RUN;
+    else sitRun += FOURTH_RUN;
   }
   if (f.toGoal <= 20) sitAway += RED_ZONE_AWAY[side];
   if (f.toGoal >= 90) {
-    if (f.pressured) sitAway += BACKED_UP_AWAY;
-    else sitRun += BACKED_UP_RUN;
+    if (f.pressured) {
+      sitAway += BACKED_UP_AWAY;
+      sitRun += BACKED_UP_ESCAPE;
+    } else sitRun += BACKED_UP_RUN;
   }
   if (f.trailingLate) sitRun += TRAILING_RUN;
   away += sharp * sitAway;
