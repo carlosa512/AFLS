@@ -22,6 +22,14 @@ vi.mock('./staffEdge', async (load) => {
   return { ...real, staffEdgeOf: () => null };
 });
 
+// Relieving a coordinator in season (L4) reads the room's belief, which a sour lawyer's mood wears down, and a meeting's
+// broken "on notice" (meetings follow moods): both held. On main it passed by timing (no relief landed in the season);
+// 0.4.3's dice put one in week 16.
+vi.mock('./relieve', async (load) => {
+  const real = await load<typeof import('./relieve')>();
+  return { ...real, aiRelieve: () => undefined, aiRelieveNow: () => false };
+});
+
 // And what moods do (G4): disputes and the AI keeping its promises move rosters and games, so they're off here too.
 vi.mock('./disputeRead', async (load) => {
   const real = await load<typeof import('./disputeRead')>();
