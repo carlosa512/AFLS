@@ -47,6 +47,7 @@ import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf } from '../traits';
 import { groundingOdds, outsideOdds, pocketCall, pocketOdds, type PocketFacts, type PocketKind } from './pocketChoice';
+import { forcedOdds, fumbleOdds, fumbleWhy, type ContactFacts, type ContactKind, type FumbleWhy } from './fumbleOdds';
 import type {
   Crew,
   Coach,
@@ -139,6 +140,9 @@ export interface SimOptions {
   pocketTap?: (tap: PocketTap) => void;
   /** Each dropback's choice as the engine made it (`pocketChoice.ts`), for the passer check; nothing is stored. */
   dropbackTap?: (tap: DropbackTap) => void;
+  /** Each tackle in bounds on a run, a catch or a scramble, and whether the ball came out (`fumbleOdds.ts`), for the
+   * fumbles check; nothing is stored. */
+  contactTap?: (tap: ContactTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -146,6 +150,20 @@ export interface SimOptions {
 }
 
 /** A dropback the pocket played (`field/pocketField.ts`): its moment and start, today's credit, the pocket's result. */
+/** A tackle in bounds as the engine decided it: whether he fumbled, whether a defender forced it, and why. */
+export interface ContactTap {
+  kind: ContactKind;
+  down: number;
+  toGo: number;
+  trailingLate: boolean;
+  leadingLate: boolean;
+  carrier: number;
+  fumbled: boolean;
+  forced?: boolean;
+  why?: FumbleWhy;
+  facts: ContactFacts;
+}
+
 /** A dropback as the engine decided it: sacked, or what he chose after his read, and where a throwaway came from. */
 export interface DropbackTap {
   qb: number;
@@ -339,8 +357,6 @@ const QB_HIT_SHARE = 0.35;
 /** Sacks and pressures charged to no blocker: the coverage held, or the quarterback held the ball. */
 const UNBLAMED_SACK = 0.35;
 const UNBLAMED_PRESSURE = 0.15;
-/** Fumble odds for a back who carries it loose. */
-const LOOSE_CARRIAGE = 1.6;
 /** How strongly a matchup brings a habit out: 0 for a rating of 10 or less, up to 1.5 for an elite one. */
 const pull = (rating: number) => clamp((rating - 10) / 5, 0, 1.5);
 const unitAvg = (players: readonly Player[], contest: Parameters<typeof skill>[1]) =>
@@ -435,15 +451,6 @@ const DT_WRAP_PER_POINT = 0.05;
 /** Mean of `f` over a unit; a unit with nobody in it reads as typical. */
 const avgOf = (ps: readonly Player[], f: (p: Player) => number) =>
   ps.length ? ps.reduce((n, p) => n + f(p), 0) / ps.length : DT_WRAP;
-
-/**
- * A contact fumble's base chance on a run and on a catch tackled in bounds. A ball loose at the sideline goes out and
- * stays the offense's, so every lost fumble happens in bounds; out of bounds rolls none (`sideline.ts`), and the
- * in-bounds chance carries the league's (was 0.013 and 0.0065 over every tackle; about 5% of tackled runs and 17% of
- * tackled catches go out).
- */
-const RUN_FUMBLE = 0.0146;
-const CATCH_FUMBLE = 0.0086;
 
 /** Separation (receiver against cover man, rating points) past which a catch has nobody near him (`sideline.ts`). */
 const FREE_SEP = 4;
@@ -3168,13 +3175,11 @@ class GameSim {
 
     // On a play out of bounds nothing knocks the ball loose in play: a man who steps out takes no hit, and a ball
     // jarred loose at the sideline goes out with him and stays the offense's.
-    const pFumble =
-      tackler && call === 'in'
-        ? RUN_FUMBLE * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
-        : 0;
-    if (tackler && call === 'in' && rng.chance(pFumble)) {
+    const loose = tackler && call === 'in' ? this.contact('run', s, rusher, tackler) : null;
+    if (tackler && loose) {
       buf.add(rusher, 'fumbles');
-      buf.add(tackler, 'forcedFum');
+      if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
+      text += GameSim.looseText(loose.why, tackler);
       if (this.fumbleRecoveredByDefense()) {
         const recoverer = this.pickTackler(def, gain);
         buf.add(rusher, 'fumblesLost');
@@ -3695,17 +3700,11 @@ class GameSim {
     }
 
     // On a play out of bounds nothing knocks the ball loose in play (as on a run).
-    if (
-      tackler &&
-      call === 'in' &&
-      rng.chance(
-        CATCH_FUMBLE *
-          Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) *
-          this.fumbleOdds(receiver, tackler, false),
-      )
-    ) {
+    const loose = tackler && call === 'in' ? this.contact('catch', s, receiver, tackler) : null;
+    if (tackler && loose) {
       buf.add(receiver, 'fumbles');
-      buf.add(tackler, 'forcedFum');
+      if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
+      text += GameSim.looseText(loose.why, tackler);
       if (this.fumbleRecoveredByDefense()) {
         const recoverer = this.pickTackler(def, gain);
         buf.add(receiver, 'fumblesLost');
@@ -3904,13 +3903,53 @@ class GameSim {
     return y;
   }
 
-  /** Fumble odds from the ball carrier's and tackler's quirks. */
-  private fumbleOdds(carrier: Player, tackler: Player, run: boolean): number {
-    let m = (this.has(carrier, 'looseCarriage') ? LOOSE_CARRIAGE : 1) * this.wx.fumble;
-    if (run && this.has(carrier, 'highKnee')) m *= 1.3;
-    if (run && this.has(carrier, 'contactAverse')) m *= 0.7;
-    if (this.has(tackler, 'ballStripper')) m *= 1.5;
-    return m;
+  /**
+   * A tackle in bounds (`fumbleOdds.ts`): whether the ball comes out, whether a defender forced it, and why. Draws on the
+   * game's stream; taps every tackle for the fumbles check. Null when he held on.
+   */
+  private contact(kind: ContactKind, s: Situation, carrier: Player, tackler: Player): { why: FumbleWhy } | null {
+    const late = s.quarter >= 4 && s.clock <= 300;
+    const facts: ContactFacts = {
+      kind,
+      down: s.down,
+      toGo: s.distance,
+      trailingLate: late && s.scoreDiff < 0,
+      leadingLate: late && s.scoreDiff > 0,
+      weather: this.wx.fumble,
+      carrier: {
+        ballSecurity: skill(carrier, 'ballSecurity'),
+        energy: this.body(carrier).energy,
+        has: (q) => this.has(carrier, q),
+      },
+      size: sizeEdge(tackler, 'contact', carrier),
+      tackler: { tackling: skill(tackler, 'tackling'), has: (q) => this.has(tackler, q) },
+    };
+    const fumbled = this.rng.chance(fumbleOdds(facts));
+    const forced = fumbled ? this.rng.chance(forcedOdds(kind)) : undefined;
+    const why: FumbleWhy | undefined = fumbled ? (forced ? fumbleWhy(facts, this.rng.next()) : 'own') : undefined;
+    this.options.contactTap?.({
+      kind,
+      down: facts.down,
+      toGo: facts.toGo,
+      trailingLate: facts.trailingLate,
+      leadingLate: facts.leadingLate,
+      carrier: carrier.id,
+      fumbled,
+      ...(fumbled ? { forced, why } : {}),
+      facts,
+    });
+    return why ? { why } : null;
+  }
+
+  /** How the ball came out, as the play says it (`field/fumble.ts` reads it back for the film). */
+  private static looseText(why: FumbleWhy, tackler: Player): string {
+    return why === 'strip'
+      ? `, stripped by ${short(tackler)}`
+      : why === 'hit'
+        ? ', jarred loose by the hit'
+        : why === 'fight'
+          ? ', fighting for the extra yard, the ball comes out'
+          : ', puts it on the ground';
   }
 
   /** Linebackers who undercut throws in zone, whoever the ball is meant for. */
@@ -4104,6 +4143,30 @@ class GameSim {
     }
     const duration = field ? this.fieldTime(field.start, field.result) : duration0;
     if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
+    // Tackled in bounds without a slide, the ball can come out (`fumbleOdds.ts`): a lost one turns it over at the spot.
+    const loose = tackler && !oob && !slide ? this.contact('scramble', s, qb, tackler) : null;
+    if (tackler && loose) {
+      buf.add(qb, 'fumbles');
+      if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
+      text += GameSim.looseText(loose.why, tackler);
+      if (this.fumbleRecoveredByDefense()) {
+        const recoverer = this.pickTackler(def, yards);
+        buf.add(qb, 'fumblesLost');
+        buf.add(recoverer, 'fumRec');
+        const returnYds = this.rng.chance(0.1) ? this.rng.int(5, 40) : this.rng.int(0, 3);
+        return {
+          kind: 'scramble',
+          yards,
+          text: `${text}. FUMBLE, recovered by ${short(recoverer)}`,
+          duration,
+          clockStops: true,
+          stats: buf,
+          lane,
+          turnover: { kind: 'fumble', spot: this.yardLine + yards, returnYds, by: recoverer },
+        };
+      }
+      text += '. Fumble, recovered by the offense';
+    }
     const ending = oob ? GameSim.outText(call) : slide ? ', slides' : '';
     return {
       kind: 'scramble',

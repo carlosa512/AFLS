@@ -113,7 +113,8 @@ describe('the engine plays the open field', () => {
         if (!e.field || (e.kind !== 'run' && e.kind !== 'pass') || !/fumble/i.test(e.text)) continue;
         fumbles++;
         // The man who forced it is the one the play's tackle went to: named in the text's parentheses.
-        expect(e.text).toMatch(/\(([A-Z]\.[^)]+)\)\. (FUMBLE|Fumble)/);
+        // (Its reason, when it has one, comes between: stripped, jarred loose, fighting forward, his own.)
+        expect(e.text).toMatch(/\(([A-Z]\.[^)]+)\)(, .+?)?\. (FUMBLE|Fumble)/);
       }
     }
     expect(fumbles).toBeGreaterThan(0);

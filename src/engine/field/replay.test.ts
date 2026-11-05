@@ -24,7 +24,9 @@ describe('the spatial replay', () => {
     let n = 0;
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
-        if (!t.result || r.plays![t.moment.index].loose !== undefined) continue;
+        // A lost fumble is drawn, its own or under a flag that wiped it out (`ran.loose`).
+        const e = r.plays![t.moment.index];
+        if (!t.result || (e.loose ?? e.ran?.loose) !== undefined) continue;
         const s = stage(r, t.moment.index, homeId);
         expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
         const k0 = s.spatial!.k0;
@@ -73,7 +75,7 @@ describe('the spatial replay', () => {
       const g = week1[i % week1.length];
       const r = i < 3 ? played[i].r : simulateGame(league, g, { field: true });
       r.plays!.forEach((e: PlayLogEntry, index) => {
-        if (e.kind === 'penalty' && e.ran?.field) {
+        if (e.kind === 'penalty' && e.ran?.field && e.ran.loose === undefined) {
           flagged++;
           expect(stage(r, index, g.homeId).spatial).toBeDefined();
         }
