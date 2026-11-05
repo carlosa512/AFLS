@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.5',
+    date: '2026-11-05',
+    title: 'The passer chooses',
+    text:
+      'A quarterback now decides what to do once he has read the play: throw it, throw it away or take off, as NFL ' +
+      'passers do. Under pressure or with nobody open he may scramble or get rid of it, more on third down for the ' +
+      'sticks and in the red zone, almost never on fourth down under pressure, and trailing late he stays in the pocket. ' +
+      'Quarterbacks with legs run more, good decision-makers give up on a dead play rather than force it, and a ' +
+      'gunslinger rarely throws it away. A throwaway from inside the pocket can be flagged for intentional grounding: ' +
+      'loss of down and ten yards, or a safety from his own end zone.',
+  },
+  {
     version: '0.4.4',
     date: '2026-11-05',
     title: 'Out of bounds is a choice',
