@@ -19,6 +19,7 @@ import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 const seasons = Number(process.argv[2] ?? 3);
 
 import { TARGETS } from './targets';
+import { groundingLines, judgePasser, newPasserTally, tapDropback } from './passer-core';
 import { judgeSideline, newSidelineTally, printLine, spreadLines, tallyGame } from './sideline-core';
 
 /**
@@ -150,12 +151,20 @@ const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa:
 /** Out of bounds by bucket against nflverse (`sideline-core.ts`), read off the same replayed weeks. */
 const sideline = newSidelineTally();
 let sidelineSpread: ReturnType<typeof spreadLines> | null = null;
+/** The passer's choices by bucket against FTN and NGS (`passer-core.ts`), from the same replayed weeks. The spread
+ * between passers is `npm run passer`'s: here a passer's sampled weeks pile up over a career, not a season. */
+const passer = newPasserTally();
+let passerGames = 0;
 
 function sampleDepth(league: League) {
   const untouched = JSON.stringify(league);
   sidelineSpread ??= spreadLines(league);
   for (const g of gamesInWeek(league)) {
-    const r = simulateGame(league, g, { keepPlays: true });
+    const r = simulateGame(league, g, {
+      keepPlays: true,
+      dropbackTap: (tap) => tapDropback(passer, tap, String(tap.qb)),
+    });
+    passerGames++;
     tallyGame(sideline, r.plays ?? [], g.homeId);
     for (const p of r.plays ?? []) {
       // A throw away has no target (nflverse leaves its air yards blank too); a throw caught at the line logs no air.
@@ -511,6 +520,9 @@ for (const b of bands) {
 
 console.log('\nOut of bounds (weeks 1 and 10 replayed; NFL from nflverse 2021–25)');
 for (const l of [...judgeSideline(sideline), ...(sidelineSpread ?? [])]) if (!printLine(l)) misses++;
+
+console.log('\nThe passer under pressure (weeks 1 and 10 replayed; NFL from FTN and NGS 2023–25)');
+for (const l of [...judgePasser(passer), ...groundingLines(passer, passerGames)]) if (!printLine(l)) misses++;
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).
