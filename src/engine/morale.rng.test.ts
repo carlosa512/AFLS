@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { League } from './types';
 
 // Morale reads the league and draws nothing: a season with it switched off must play out the same, game for game. G2
 // gives moods their effects, read only through `moodScale.ts`; held at zero here, so what this checks is
@@ -30,15 +31,26 @@ vi.mock('./disputeRead', async (load) => {
 });
 
 const { createLeague } = await import('./generate');
-const { simToEndOfSeason } = await import('./league');
+const { playWeek } = await import('./league');
 const { beginOffseason, advanceOffseason } = await import('./offseason');
 
-function play(withMorale: boolean) {
+/** A turn for the test worker: two seasons' worth in one stretch kept it from reporting for over a minute (an RPC timeout
+ * that failed CI's test-2 on main with every test passing). */
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+async function play(withMorale: boolean) {
   on.value = withMorale;
   const l = createLeague({ seed: 'morale-rng' });
-  simToEndOfSeason(l);
+  // The same calls simToEndOfSeason makes, a week at a time with a yield between.
+  while (l.phase !== 'complete') {
+    playWeek(l);
+    await tick();
+  }
   beginOffseason(l);
-  while (l.phase !== 'regular') advanceOffseason(l, { autoUser: true });
+  while ((l.phase as League['phase']) !== 'regular') {
+    advanceOffseason(l, { autoUser: true });
+    await tick();
+  }
   return {
     games: l.games.map((g) => [g.id, g.result?.homeScore, g.result?.awayScore]),
     rosters: Object.values(l.players).map((p) => [p.id, p.teamId, p.contract?.apy ?? null]),
@@ -49,9 +61,9 @@ function play(withMorale: boolean) {
 }
 
 describe('morale draws nothing', () => {
-  it('plays a season and an offseason the same with it and without it', () => {
-    const a = play(true);
-    const b = play(false);
+  it('plays a season and an offseason the same with it and without it', async () => {
+    const a = await play(true);
+    const b = await play(false);
     expect(a.moods).toBeGreaterThan(1000);
     // Switched off, the draft class never got a mood: the switch did switch.
     expect(a.moods).toBeGreaterThan(b.moods);
