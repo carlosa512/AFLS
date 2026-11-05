@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { PlayLogEntry } from '../../engine/types';
 import { buildPath, pointAt } from '../../engine/field/ballPath';
 import { bounce, fumbleIn } from '../../engine/field/fumble';
+import { createLeague } from '../../engine/generate';
+import { simulateGame } from '../../engine/match/gameSim';
+import { actorsIn } from '../../engine/playActors';
+import { stagePlay } from '../../engine/field/stage';
+import type { GameResult } from '../../engine/types';
 
 const play = (over: Partial<PlayLogEntry>): PlayLogEntry => ({
   quarter: 2,
@@ -28,11 +33,11 @@ const length = (segs: ReturnType<typeof bounce>) => segs.reduce((d, s) => d + Ma
 
 describe('the loose ball', () => {
   it('reads a fumble off the play: lost (where it came out, or its end before v78), kept, or none', () => {
-    expect(fumbleIn(lostRun)).toEqual({ lost: true, x: 40 });
-    expect(fumbleIn({ ...lostRun, loose: undefined })).toEqual({ lost: true, x: 28 });
+    expect(fumbleIn(lostRun)).toEqual({ lost: true, x: 40, why: 'hit' });
+    expect(fumbleIn({ ...lostRun, loose: undefined })).toEqual({ lost: true, x: 28, why: 'hit' });
     expect(
       fumbleIn(play({ text: 'A. Back rush left for 3 yards (B. Backer). Fumble, recovered by the offense' })),
-    ).toEqual({ lost: false, x: 36 });
+    ).toEqual({ lost: false, x: 36, why: 'hit' });
     expect(fumbleIn(play({}))).toBeNull();
     // An interception is a turnover, not a fumble.
     expect(fumbleIn(play({ kind: 'int', text: 'Pass intercepted by C. Corner', to: 50 }))).toBeNull();
@@ -69,6 +74,21 @@ describe('the loose ball', () => {
           expect(h.y0).toBeLessThanOrEqual(52.8);
         }
       }
+  });
+
+  it("reads a fumble's reason off the play (an old one with none reads as the hit)", () => {
+    const said = (reason: string) =>
+      fumbleIn(
+        play({
+          ...lostRun,
+          text: `A. Back rush up the middle for 10 yards (B. Backer)${reason}. FUMBLE, recovered by C. Corner`,
+        }),
+      )?.why;
+    expect(said(', stripped by B. Backer')).toBe('strip');
+    expect(said(', jarred loose by the hit')).toBe('hit');
+    expect(said(', fighting for the extra yard, the ball comes out')).toBe('fight');
+    expect(said(', puts it on the ground')).toBe('own');
+    expect(said('')).toBe('hit');
   });
 
   it('draws a lost fumble in both views: the carry, the ball loose where it came out, the return to its end', () => {
@@ -123,5 +143,68 @@ describe('the loose ball', () => {
     // The throw is still the throw: the drop, then the flight to the catch.
     expect(c[1].x1).toBe(42);
     expect(c[c.length - 1].x1).toBeCloseTo(41, 6);
+  });
+});
+
+describe('a fumble on film', () => {
+  // A real lost fumble after a carry, staged as each reason would say it.
+  const league = createLeague({ seed: 'fumble-film' });
+  let found: { r: GameResult; i: number; homeId: number } | null = null;
+  for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 30)) {
+    const r = simulateGame(league, g, { keepPlays: true });
+    const i = r.plays!.findIndex(
+      (e) =>
+        (e.kind === 'run' || e.kind === 'pass') &&
+        /FUMBLE, recovered by/.test(e.text) &&
+        actorsIn(e).tackle !== undefined,
+    );
+    if (i >= 0) {
+      found = { r, i, homeId: g.homeId };
+      break;
+    }
+  }
+  const REASONS = {
+    strip: ', stripped by B.Weber',
+    hit: ', jarred loose by the hit',
+    fight: ', fighting for the extra yard, the ball comes out',
+    own: ', puts it on the ground',
+  } as const;
+  const staged = (why: keyof typeof REASONS) => {
+    const { r, i, homeId } = found!;
+    const e = r.plays![i];
+    const text = e.text.replace(/(\([A-Z][^)]*\))(, .+?)?(\. FUMBLE, recovered by)/, `$1${REASONS[why]}$3`);
+    const plays = r.plays!.map((x, k) => (k === i ? { ...x, text } : x));
+    return { p: stagePlay({ plays, index: i, record: r.field!, homeId, seed: 'film', snapY: 26.65 }), e };
+  };
+  const at = (p: ReturnType<typeof stagePlay>, step: number, k: number) => ({
+    x: p.pos[(step * p.ids.length + k) * 2],
+    y: p.pos[(step * p.ids.length + k) * 2 + 1],
+  });
+
+  it('shows each reason: stripped from behind, the hit head-on, a second man on a fighter, nobody on his own', () => {
+    expect(found).not.toBeNull();
+    const look = (why: keyof typeof REASONS) => {
+      const { p, e } = staged(why);
+      const step = Math.round(p.loose!.t / p.dt);
+      const c = p.ids.indexOf(actorsIn(e).ball!);
+      const h = p.ids.indexOf(actorsIn(e).tackle!);
+      const ball = { x: p.ball[step * 3], y: p.ball[step * 3 + 1] };
+      const was = at(p, Math.max(0, step - 6), c);
+      const now = at(p, step, c);
+      const run = { x: now.x - was.x, y: now.y - was.y };
+      const hit = at(p, step, h);
+      const ahead = (hit.x - now.x) * run.x + (hit.y - now.y) * run.y;
+      const near = (k: number) => Math.hypot(at(p, step, k).x - ball.x, at(p, step, k).y - ball.y);
+      const others = p.ids.filter((_, k) => !p.offense[k] && k !== h && near(k) <= 2.5).length;
+      return { ahead, dist: near(h), others };
+    };
+    const strip = look('strip');
+    expect(strip.dist).toBeLessThanOrEqual(1.2);
+    expect(strip.ahead).toBeLessThanOrEqual(0);
+    const hit = look('hit');
+    expect(hit.dist).toBeLessThanOrEqual(1.2);
+    expect(hit.ahead).toBeGreaterThan(0);
+    expect(look('fight').others).toBeGreaterThanOrEqual(1);
+    expect(look('own').dist).toBeGreaterThan(1);
   });
 });

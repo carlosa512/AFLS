@@ -1472,8 +1472,10 @@ describe('the run game', () => {
   /** A linebacker who's neither the tackler nor the man who misses. */
   const freeBacker = (x: Run, p: StagedPlay) => {
     const who = actorsIn(x.e);
+    // (Not a man the play scripts: the tackler, the man who missed, a fumble's recoverer. His habits can't show.)
     return p.ids.find(
-      (id, k) => !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle && id !== x.e.open?.broke?.by,
+      (id, k) =>
+        !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle && id !== x.e.open?.broke?.by && !p.keys.includes(id),
     );
   };
 
@@ -1597,7 +1599,7 @@ describe('the run game', () => {
       const minDepth = (p: StagedPlay) => Math.min(...[0.2, 0.4, 0.6, 0.8].map((d) => depth(p, r + d)));
       // (Where he'd have been in the backfield anyway, on a run stopped for a loss, there's nothing to tell apart.)
       if (minDepth(base) > 0.5) {
-        expect(minDepth(shoot)).toBeLessThan(minDepth(base) - 1);
+        expect(minDepth(shoot), x.e.text).toBeLessThan(minDepth(base) - 1);
         seen.gapShooter++;
       }
       // A scraper flows across over the top: at least as far across as he would have, without coming downhill.

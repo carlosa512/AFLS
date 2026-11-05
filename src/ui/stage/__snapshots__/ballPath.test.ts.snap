@@ -78,8 +78,8 @@ exports[`the ball path > draws the same path for one play of each kind as before
     {
       "dur": 0.33999999999999997,
       "peak": 0,
-      "x0": 88,
-      "x1": 87,
+      "x0": 54,
+      "x1": 53,
       "y0": 26.65,
       "y1": 26.65,
     },
