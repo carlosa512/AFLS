@@ -36,7 +36,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
-  season and first vs last): never loosen a range to get green. `⚠` lines are warnings that don't fail
+  season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests and rooms in doubt in
+  `morale`, live trees in `careers`, win spread in `sim`): outside their usual band they warn (⚠: this league drifted),
+  outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs
   `format:check` on every pull request. `npm run check` includes it.

@@ -5,6 +5,7 @@
  *   npm run sim            # 3 seasons
  *   npm run sim -- 10      # 10 seasons
  */
+import { bandMark, bandOf } from './band';
 import { callerStyle, teamScheme } from '../src/engine/coaching';
 import { createLeague } from '../src/engine/generate';
 import { gamesInWeek, playWeek } from '../src/engine/league';
@@ -70,6 +71,10 @@ const PARITY_TARGETS: Record<string, [number, number]> = {
   'margin spread around strength': [12.3, 13.3],
   'win spread (SD)': [3.0, 3.4],
 };
+/** Lines that swing with the league (`band.ts`): ⚠ outside the range above, fail outside this (the owner's call, Nov 5).
+ * Win spread: NFL seasons 2021–25 read 2.84, 3.01, 2.70, 3.65 and 3.41 (nflverse); a 60-season mean sits a little inside
+ * the single seasons' range. */
+const PARITY_NORMAL: Partial<Record<string, [number, number]>> = { 'win spread (SD)': [2.8, 3.6] };
 const inj: Record<string, number> = {};
 const injAdd = (k: string, v = 1) => (inj[k] = (inj[k] ?? 0) + v);
 const bySeverity: Record<string, number> = {};
@@ -478,9 +483,9 @@ console.log('\nParity');
 console.log('stat'.padEnd(30), 'sim'.padStart(8), '  NFL range');
 for (const [k, v] of Object.entries(parityResults)) {
   const [lo, hi] = PARITY_TARGETS[k];
-  const ok = v >= lo && v <= hi;
-  if (!ok) misses++;
-  console.log(k.padEnd(30), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, ok ? '' : v < lo ? '  ▼ LOW' : '  ▲ HIGH');
+  const band = bandOf(v, [lo, hi], PARITY_NORMAL[k]);
+  if (band === 'abnormal' || band === 'none') misses++;
+  console.log(k.padEnd(30), v.toFixed(2).padStart(8), `  ${lo}–${hi}`, bandMark(v, [lo, hi], PARITY_NORMAL[k]));
 }
 console.log(
   `Margin strength predicts: SD ${(slope * gapSd).toFixed(2)} (the line's 6.0), ${slope.toFixed(1)} points per rating point (informational)`,

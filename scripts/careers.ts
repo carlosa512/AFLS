@@ -17,6 +17,7 @@
  * 38+ count, so a single seed can miss a band by noise alone. ▲/▼ marks a number outside its target
  * range; "n/a" a sample too small to judge.
  */
+import { bandOf } from './band';
 import { fork } from 'node:child_process';
 import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
 import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
@@ -63,10 +64,16 @@ const ethicLeagues: Promise<LeagueRun[]> = Promise.all(leagues).then(() => Promi
 const COHORT = 1200;
 let misses = 0;
 
-function check(label: string, value: number, lo: number, hi: number, digits = 2): string {
+/** Live trees swing with the league: ⚠ outside 2–5, fail outside 1–6 (the owner's call, Nov 5): the NFL had one big tree
+ * at a time before 2017 and 4–5 in 2025 (spec 2026-10-28 §4.6); under 1 they've died out. */
+const LIVE_TREES_NORMAL: [number, number] = [1, 6];
+/** A number against its range; with a normal band (a line that swings with the league, `band.ts`) outside the range it
+ * warns (⚠) and fails only outside the normal band. */
+function check(label: string, value: number, lo: number, hi: number, digits = 2, normal?: [number, number]): string {
   if (!Number.isFinite(value)) return `${label} n/a (${lo}–${hi})`;
-  const flag = value < lo ? ' ▼' : value > hi ? ' ▲' : '';
-  if (flag) misses++;
+  const band = bandOf(value, [lo, hi], normal);
+  const flag = band === 'unusual' ? ' ⚠' : band === 'abnormal' ? (value < lo ? ' ▼' : ' ▲') : '';
+  if (band === 'abnormal') misses++;
   return `${label} ${value.toFixed(digits)} (${lo}–${hi})${flag}`;
 }
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
@@ -499,7 +506,7 @@ console.log(
   // leagues' trees too, eight leagues, as they're played anyway.
   const born = [...t, ...(await ethicLeagues).map((r) => r.trees)].map((x) => x.born);
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check('founding trees alive at the end (fewest)', Math.min(...t.map((x) => x.foundingAlive)), 1, Infinity, 0)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
