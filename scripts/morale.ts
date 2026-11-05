@@ -35,6 +35,7 @@
  *   npm run morale                        # 8 seasons, seed morale-check
  *   npm run morale -- --seasons 6 --seed x
  */
+import { bandMark, bandOf } from './band';
 import { fork } from 'node:child_process';
 import { yearsLeft } from '../src/engine/finance/contract';
 import { buildMarket, marketApy } from '../src/engine/finance/market';
@@ -95,11 +96,14 @@ const wornPool: Promise<number[][]> = Promise.all(
 );
 
 let misses = 0;
-const check = (label: string, value: number, [lo, hi]: [number, number], digits = 2) => {
-  const ok = value >= lo && value <= hi;
-  if (!ok) misses++;
+/** A line in range; with a normal band (a line that swings with the league, `band.ts`) outside its range it warns and
+ * fails only outside the normal band. */
+const check = (label: string, value: number, usual: [number, number], digits = 2, normal?: [number, number]) => {
+  const band = bandOf(value, usual, normal);
+  if (band === 'abnormal' || band === 'none') misses++;
+  const mark = band === 'usual' ? '✓' : band === 'unusual' ? '⚠' : '✗';
   console.log(
-    `${ok ? '✓' : '✗'} ${label.padEnd(54)} ${value.toFixed(digits).padStart(7)}   ${lo}–${hi}${ok ? '' : value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+    `${mark} ${label.padEnd(54)} ${value.toFixed(digits).padStart(7)}   ${usual[0]}–${usual[1]}${band === 'none' ? '  ✗ NOT MEASURED' : bandMark(value, usual, normal)}`,
   );
 };
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
@@ -541,10 +545,13 @@ for (const e of relieved) {
   perClubSeason.set(k, (perClubSeason.get(k) ?? 0) + 1);
 }
 check('Staff edge: league mean (worst room, worst week)', staffOffCentre, [0, 0.02], 3);
+// Swings with the league: ⚠ outside the usual band, fails outside the normal (the owner's call, Nov 5).
 check(
   `Belief: rooms in doubt at some point in a season (n=${rs.length})`,
   ofRooms((r) => r.worst !== 'steady'),
   [0.1, 0.25],
+  2,
+  [0.05, 0.35],
 );
 check(
   'Belief: rooms that lost him',
@@ -600,7 +607,8 @@ check('Holdouts past the limit he gives in at', pastLimit, [0, 0], 0);
 // The floor is 3, not 4 (the owner's call, Nov 3): this line swings with the world, and naming captains when a
 // league is created moved it across three worlds from main's 4.0-6.0 to 3.4-4.9 (one world higher than main), with
 // main itself on the old floor in one.
-check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [3, 15]);
+// Swings with the league: ⚠ outside the usual band, fails outside the normal (the owner's call, Nov 5).
+check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [3, 15], 2, [1.5, 20]);
 // The ceiling is 0.95, not 0.9 (the owner's call, Nov 3): a run sees 30-60 requests, and main read 0.82, 0.89 and 0.95
 // across three worlds. With L3's voices lifting a room's sour men, the requests left are the stubborn ones, which leak
 // (0.90 on the check's world).
