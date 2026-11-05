@@ -184,6 +184,6 @@ describe('the replay plays the pocket', () => {
     );
     saved.field!.snap!.v = FIELD_VERSION - 1;
     expect(stage(saved, t.moment.index, homeId).spatial).toBeUndefined();
-    expect(r.field!.snap!.v).toBe(8);
+    expect(r.field!.snap!.v).toBe(FIELD_VERSION);
   });
 });

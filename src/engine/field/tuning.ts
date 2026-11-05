@@ -11,7 +11,7 @@ export const STEP = 0.05;
  * knobs, so a game played on another version (a refit, a rule change) is staged as drawn instead: its film can never
  * show a different tackler or a different end from its box score. Bump it with any change that moves the frames.
  */
-export const FIELD_VERSION = 8;
+export const FIELD_VERSION = 9;
 
 export const KNOBS = {
   /** Scales every reaction delay (0.3 s at 12 `reads`). */
@@ -54,12 +54,12 @@ export const KNOBS = {
   padCatch: 0.1,
   /** The pocket (`pocketField.ts`): a rep's win rate a second at even skills, its log-rate a point of rush over
    * protection, the share left on a double team, and the clock past a sack's whistle (seconds). */
-  rushWin: 0.201,
-  rushSkill: 0.135,
+  rushWin: 0.146,
+  rushSkill: 0.176,
   double: 0.411,
-  padSack: 1.7,
-  inside: 0.6,
-  chip: 0.3,
+  padSack: 1.967,
+  inside: 0.384,
+  chip: 0.242,
 };
 
 /** The carrier re-reads the field this often (seconds); a jump-cutter more often. */
