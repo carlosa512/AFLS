@@ -170,6 +170,15 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       alone among 376 pushed out (0.4.2: 11 of 561 catches alone) and 2 of 77 normal-play step-outs. Spec:
       `docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md`.
 
+## Follow-up: the pocket's blocker blame (0.4.3)
+
+- [ ] **Blame for a sack barely follows the linemen's ratings in your games.** The field picks the beaten blocker at
+      the spot today's engine charges (`FieldFacts.bs`), but which man at that spot loses hardly reads his protection:
+      `npm run parity`'s "a blocker's sacks allowed on his protection, spatial ÷ today" is 0.27 on 0.4.3 (range 0.6–1.5).
+      Not new: main at 0.4.2 fails it too with twice the games a league (0.55); 0.4.3's pocket refit fixed the rusher's
+      line (0.24 → 0.86) but its knobs can't reach this one. Only stat lines move (sacks allowed in your games), never a
+      result. Blocks 0.4.3's parity check until fixed.
+
 ## Follow-up: choices and situations, not flat odds (audit 0.4.2)
 
 The goal: games that play like the NFL's because the people in them choose, with the odds coming out of those choices
