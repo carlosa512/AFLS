@@ -12,7 +12,7 @@
  */
 import type { QuirkId } from '../quirks';
 import { clamp } from '../rng';
-import type { PassDepth } from '../types';
+import type { PassDepth } from './coach';
 
 export type PocketKind = 'throw' | 'away' | 'run';
 

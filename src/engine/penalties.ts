@@ -27,10 +27,23 @@ export interface FoulInfo {
   late?: 'always' | 'pastLine';
   /** A special-teams foul: rolled and enforced on the kick itself (`kickoff`, `punt` in the engine), never by `enforce`. */
   special?: boolean;
+  /** The down counts: it isn't replayed (intentional grounding). */
+  lossOfDown?: boolean;
+  /** The play stays in the book as it ran, the foul enforced besides (intentional grounding: an incompletion). */
+  stands?: boolean;
 }
 
 export const FOULS: Record<Foul, FoulInfo> = {
   falseStart: { label: 'False start', side: 'offense', yards: 5, deadBall: true, tendency: null },
+  // Rolled on the throwaway itself (`passPlay`), scaled there by the crew's flag volume.
+  grounding: {
+    label: 'Intentional grounding',
+    side: 'offense',
+    yards: 10,
+    lossOfDown: true,
+    stands: true,
+    tendency: null,
+  },
   offside: { label: 'Offside', side: 'defense', yards: 5, tendency: null },
   holding: { label: 'Offensive holding', side: 'offense', yards: 10, tendency: 'holding' },
   passInterference: {
@@ -118,10 +131,19 @@ export interface Spot {
  * Where a foul leaves the ball, enforced from the previous spot. Half the distance to the goal caps
  * every penalty but a spot foul, which stops at the 1. A defensive foul moves the chains if it's an
  * automatic first down or reaches the line to gain; an offensive one replays the down. `spotYards` is
- * how far downfield a spot foul happened.
+ * how far downfield a spot foul happened, or for a loss-of-down foul how far behind the line he threw it.
  */
 export function enforce(foul: Foul, at: Spot, spotYards = 0): Spot & { yards: number } {
   const info = FOULS[foul];
+  if (info.lossOfDown) {
+    // Grounding: 10 yards (half the distance near his goal), or the spot of the pass when it's further back, never
+    // halved; thrown from his own end zone it's a safety (a yard line at or behind 0). The down is lost.
+    const yards =
+      at.yardLine - spotYards <= 0 || spotYards > (info.yards as number)
+        ? spotYards
+        : Math.min(info.yards as number, Math.floor(at.yardLine / 2));
+    return { yardLine: at.yardLine - yards, down: at.down + 1, lineToGain: at.lineToGain, yards };
+  }
   if (info.side === 'offense') {
     const yards = Math.min(info.yards as number, Math.floor(at.yardLine / 2));
     return { yardLine: at.yardLine - yards, down: at.down, lineToGain: at.lineToGain, yards };
