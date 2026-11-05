@@ -32,6 +32,8 @@ export interface FieldFacts {
   /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
   pk?: PocketOutcome;
   nb?: 1;
+  /** A throwaway flagged as intentional grounding (0.4.5). */
+  gr?: 1;
   /** A scramble that ends with him sliding (today's call): down at his spot, nobody's tackle. */
   sl?: 1;
   /** Today's credit the pocket is anchored to: the rusher's group (edge, interior, linebacker, defensive back) and the

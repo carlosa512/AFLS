@@ -157,6 +157,8 @@ export interface DropbackTap {
   call: PocketKind | 'sack';
   outside?: boolean;
   grounded?: boolean;
+  /** What the choice read (absent on a sack), for fitting `pocketChoice.ts`. */
+  facts?: PocketFacts;
 }
 
 export interface PocketTap {
@@ -2377,6 +2379,7 @@ class GameSim {
           ...(int && actors.take !== undefined ? { take: actors.take } : {}),
         },
         this.dropOutcome,
+        result.grounding ? { gr: 1 } : {},
       );
     }
     const pocketBy = this.pocketCredit();
@@ -2805,7 +2808,8 @@ class GameSim {
     const stream = (k: string) => new Rng(`${this.gameSeed}:field:${index}:${k}`);
     // Today's own credit, read off a copy of its stream (the real draws come after, the same): whether a pressure was a
     // hit, whether it's charged, and to whom. Without today's man, the play's own streams at today's odds.
-    const credited = called !== 'clean' && called !== 'escape' && todayBy !== null;
+    const quiet = called === 'clean' || called === 'escape' || called === 'awayClean';
+    const credited = !quiet && todayBy !== null;
     const today = credited
       ? creditDraws(
           new Rng(this.creditRng.getState()),
@@ -2819,8 +2823,7 @@ class GameSim {
     const outcome: PocketOutcome =
       called === 'pressure' && (today ? today.hit : stream('hit').chance(QB_HIT_SHARE)) ? 'hit' : called;
     const nb =
-      outcome !== 'clean' &&
-      outcome !== 'escape' &&
+      !quiet &&
       (today ? today.unblamed : stream('blame').chance(outcome === 'sack' ? UNBLAMED_SACK : UNBLAMED_PRESSURE));
     const m: PocketMoment = {
       index,
@@ -3393,16 +3396,23 @@ class GameSim {
     const choice = pocketCall(pocketOdds(choiceFacts), rng.next());
     if (choice === 'run') {
       this.dropOutcome = pressured ? 'scramble' : 'escape';
-      this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'run' });
+      this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'run', facts: choiceFacts });
       return this.scramble(def, s);
     }
     if (choice === 'away') {
       // From outside the pocket (rolled out past the tackle) or inside it, and maybe flagged: grounding.
       const outside = rng.chance(outsideOdds(choiceFacts));
       const grounded = rng.chance(Math.min(1, groundingOdds(pressured, outside) * this.calls.all));
-      // Task 5: the pocket stages 'awayOut' and 'awayClean'; until then every throwaway plays as today's.
-      this.dropOutcome = 'away';
-      this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'away', outside, grounded });
+      this.dropOutcome = outside ? 'awayOut' : pressured ? 'away' : 'awayClean';
+      this.options.dropbackTap?.({
+        ...situation,
+        qb: qb.id,
+        pressured,
+        call: 'away',
+        outside,
+        grounded,
+        facts: choiceFacts,
+      });
       buf.add(qb, 'passAtt');
       return {
         kind: 'pass',
@@ -3421,7 +3431,7 @@ class GameSim {
     }
     // A throw: clean, or under pressure (a hit or a hurry: the pocket's own roll, `pocketFor`).
     this.dropOutcome = pressured ? 'pressure' : 'clean';
-    this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'throw' });
+    this.options.dropbackTap?.({ ...situation, qb: qb.id, pressured, call: 'throw', facts: choiceFacts });
 
     // Every point of accuracy counts in full: no cap on what an elite passer can do.
     const acc =

@@ -5,12 +5,13 @@
  */
 import type { DefenseCall } from '../match/coach';
 import { actorsIn, defenseCallAt, packActors } from '../playActors';
-import { Rng } from '../rng';
+import { clamp, Rng } from '../rng';
+import { FIELD_W } from './geometry';
 import type { FieldRecord, PlayLogEntry } from '../types';
 import { withCall } from './approach';
 import type { FieldFacts } from './moment';
 import { SCRAMBLE_OPEN, SCRAMBLE_PRESSURED } from './pocket';
-import { runPocket, type PocketResult, type PocketStart } from './pocketField';
+import { runPocket, type PocketOutcome, type PocketResult, type PocketStart } from './pocketField';
 import { asRan, stagePlay, type StagedPlay } from './stage';
 import { KNOBS, STEP } from './tuning';
 import type { FieldPlayer, FieldSkills, FieldStart } from './types';
@@ -43,11 +44,23 @@ export interface PocketMoment {
 
 /** A sack's pocket runs this far past the sack, a throwaway's past the throw, a scramble's past the break (seconds). */
 const AFTER = { sack: 0.6, away: 0.8, run: 1 };
+/** A throwaway leaves his hand later than a throw: he gives up on the play only once it's dead (NFL 4.3 s to a throw's
+ * 2.6, FTN and NGS 2023–25). */
+const AWAY_HOLD = 1.2;
+/** A grounded ball's flight, in steps (half a second). */
+const GROUNDED_FLIGHT = 10;
+/** Thrown away from any of its shapes. */
+const AWAY: readonly PocketOutcome[] = ['away', 'awayClean', 'awayOut'];
 
 /** The blind dropback: the play to the snap and the routes, nobody named for the rush. */
 export function pocketEntry(m: PocketMoment): PlayLogEntry {
   const who = packActors({ ball: m.ball, cover: m.cover, take: m.take });
-  const away = m.facts.pk === 'away' ? 'throws it away' : '';
+  const away =
+    m.facts.pk === 'awayOut'
+      ? 'rolls out and throws it away'
+      : m.facts.pk && AWAY.includes(m.facts.pk)
+        ? 'throws it away'
+        : '';
   return {
     quarter: m.quarter,
     clock: m.clock,
@@ -225,12 +238,12 @@ export function pocketFrom(
   const rng = new Rng(`${gameSeed}:field:${m.index}:pocket`);
   const runs = outcome === 'scramble' || outcome === 'escape';
   const [lo, hi] = outcome === 'scramble' ? SCRAMBLE_PRESSURED : SCRAMBLE_OPEN;
-  const throwAt = runs ? rng.float(lo, hi) : plan.throwAt;
+  const throwAt = runs ? rng.float(lo, hi) : plan.throwAt + (AWAY.includes(outcome) ? AWAY_HOLD : 0);
   const blamed = !m.facts.nb;
   const end =
     outcome === 'sack'
       ? throwAt + AFTER.sack
-      : outcome === 'away'
+      : AWAY.includes(outcome)
         ? throwAt + AFTER.away
         : runs
           ? throwAt + AFTER.run
@@ -252,6 +265,7 @@ export function pocketFrom(
     setDepth: plan.setDepth,
     throwAt,
     end,
+    ...(m.facts.gr ? { grounded: true } : {}),
     ...(m.kind === 'sack' && m.to !== undefined ? { sackX: m.to } : {}),
   };
   return { start, result: runPocket(start, rng) };
@@ -288,14 +302,37 @@ export function composePocket(staged: StagedPlay, pocket: { start: PocketStart; 
   });
   const qj = pocket.start.players.findIndex((p) => p.id === pocket.start.qb);
   const outcome = pocket.start.outcome;
-  const throws = outcome === 'clean' || outcome === 'pressure' || outcome === 'hit' || outcome === 'away';
+  const throws = outcome === 'clean' || outcome === 'pressure' || outcome === 'hit' || AWAY.includes(outcome);
   const held = throws ? Math.min(steps - 1, Math.round(pocket.start.throwAt / STEP)) : pSteps - 1;
   for (let s = 0; s <= held; s++) {
     const [x, y] = at(s, qj);
     ball[s * 3] = x;
     ball[s * 3 + 1] = y;
   }
-  if (throws && staged.arrive !== null) {
+  if (throws && pocket.start.grounded) {
+    // Grounded: thrown into open grass a few yards off, wherever no receiver is near when it lands.
+    const land = Math.min(steps - 1, held + GROUNDED_FLIGHT);
+    const [x0, y0] = at(held, qj);
+    const eligible = staged.ids.flatMap((id, k) =>
+      staged.offense[k] && id !== pocket.start.qb && staged.roles[k] !== 'OL' ? [k] : [],
+    );
+    const room = (x: number, y: number) =>
+      Math.min(...eligible.map((k) => Math.hypot(pos[(land * n + k) * 2] - x, pos[(land * n + k) * 2 + 1] - y)));
+    let best = { x: x0, y: y0, room: -1 };
+    for (const ahead of [2, 5, 8])
+      for (const across of [-12, -8, -4, 0, 4, 8, 12]) {
+        const x = x0 + pocket.start.dir * ahead;
+        const y = clamp(y0 + across, 1, FIELD_W - 1);
+        const r = room(x, y);
+        if (r > best.room) best = { x, y, room: r };
+      }
+    for (let s = held + 1; s < steps; s++) {
+      const k = Math.min(1, (s - held) / (land - held));
+      ball[s * 3] = x0 + (best.x - x0) * k;
+      ball[s * 3 + 1] = y0 + (best.y - y0) * k;
+      ball[s * 3 + 2] = s >= land ? 0 : ball[s * 3 + 2];
+    }
+  } else if (throws && staged.arrive !== null) {
     const land = Math.min(steps - 1, Math.round(staged.arrive / STEP));
     const [x0, y0] = at(held, qj);
     const x1 = ball[land * 3];
