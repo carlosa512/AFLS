@@ -331,7 +331,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     the pocket (spec `docs/superpowers/specs/2026-11-04-spatial-pocket-design.md`): every dropback in your games plays
     the line, the rush and the quarterback (`runPocket` in `pocketField.ts`; its moment, staging and composed film in
     `pocketMoment.ts`). Today's rolls decide clean, pressure, hit, sack, scramble or throwaway; the field picks the
-    rusher within today's group and the beaten blocker at today's spot (`FieldFacts.rg`/`bs`), and when and how. A
+    rusher within today's group and loses today's own charged blocker (`FieldFacts.rg`/`bb`), and when and how. A
     scramble hands over to the open field (`scrambleStart`), a catch's open field starts from the pocket's last frame
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
