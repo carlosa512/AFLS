@@ -131,7 +131,7 @@ describe('chemistry: game day', () => {
   it('a secondary at its best allows fewer yards a pass', async () => {
     const l = fresh();
     const ypa = (rs: GameResult[]) => avg(rs.map((r) => r.home.passYds / Math.max(1, r.home.passAtt)));
-    // 600 replays a side: the edge is about a tenth of a yard a pass, and 200 replays swing by more than that (0.4.3's
+    // 600 replays a side: the edge is about a tenth of a yard a pass, and 200 replays swing by more than that (0.4.4's
     // world: +0.01, −0.15, −0.07, −0.12 in four blocks of 200; −0.09 over 800).
     expect(ypa(await replay(l, [{}, { DB: 0.3 }], 600))).toBeLessThan(ypa(await replay(l, [{}, { DB: -0.3 }], 600)));
   }, 600_000);

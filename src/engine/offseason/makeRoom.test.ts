@@ -103,7 +103,7 @@ describe('GMs make room to keep their core', () => {
     const bold = squeezed(-0.6, 1);
     // Next year with room for both to borrow against, but not so much that neither GM's ceiling binds: the ceiling is
     // what differs. With 40% of a cap spare both borrowed alike, and which came out ahead was the world's luck; 20% did
-    // the same in 0.4.3's world (three restructures each). At 10% the cautious GM stops at one, the bold one does three.
+    // the same in 0.4.4's world (three restructures each). At 10% the cautious GM stops at one, the bold one does three.
     for (const x of [cautious, bold])
       x.team.deadMoney.push({
         season: x.l.season + 1,

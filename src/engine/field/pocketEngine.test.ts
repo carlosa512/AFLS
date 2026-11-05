@@ -47,6 +47,32 @@ describe('the engine plays the pocket', () => {
     expect(n).toBeGreaterThan(0);
   });
 
+  it("blames the man today's credit blames, or nobody when it blames nobody", () => {
+    let blamed = 0;
+    let misses = 0;
+    let n = 0;
+    for (const { taps } of played)
+      for (const t of taps) {
+        if (!t.result || (t.today.outcome !== 'sack' && t.today.outcome !== 'pressure' && t.today.outcome !== 'hit'))
+          continue;
+        if (t.result.rusher === null) continue;
+        n++;
+        // The pocket's anchor is today's own draw, not a parallel one at the same odds.
+        expect(t.start.blamed, `play ${t.moment.index}`).toBe(t.today.blamed);
+        if (!t.today.blamed || t.today.beat === null) {
+          expect(t.result.beat, `play ${t.moment.index}`).toBeNull();
+          continue;
+        }
+        // Today's man: a back or tight end today blames stays in to block, so the man charged is the man who lost (only a
+        // man not on the field at all can't be).
+        blamed++;
+        if (t.result.beat !== t.today.beat) misses++;
+      }
+    expect(n).toBeGreaterThan(20);
+    expect(blamed).toBeGreaterThan(10);
+    expect(misses / blamed).toBeLessThanOrEqual(0.01);
+  });
+
   it('reads a logged dropback back into the moment it was played from', () => {
     for (const { r, taps } of played)
       for (const t of taps) {

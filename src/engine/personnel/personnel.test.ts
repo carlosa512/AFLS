@@ -307,7 +307,7 @@ describe('migration and collection', () => {
     // again with real heights (0.3.6): builds from real rosters reseed hidden traits and line the starters up anew; the
     // stream and games still match, so the roll costs the same two draws. `result` again with coaches on Sunday (L4): a
     // side's coach and the head coach lift their rooms by quality and belief; the stream, players, games and charts
-    // still match, so it costs no draw. `result` again with out of bounds as the carrier's choice (0.4.3): pushed or
+    // still match, so it costs no draw. `result` again with out of bounds as the carrier's choice (0.4.4): pushed or
     // stepped out from the play, the clock waiting for the spot; the stream, players, games and charts still match.
     expect({
       players: hash(l.players),

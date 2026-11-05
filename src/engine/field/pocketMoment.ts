@@ -166,13 +166,22 @@ export function pocketFrom(
     );
   // A back may stay in to chip; today's credit on a back or tight end keeps one in, and on a linebacker or a defensive
   // back sends one (late, on a straight rush) when the play has none coming.
-  const { rg, bs } = m.facts;
+  const { rg, bs, bb } = m.facts;
   const roleOf = (id: number) => staged.roles[staged.ids.indexOf(id)];
   const keptIn = (ids: number[]) => ids.filter((id) => !cast.blockers.includes(id));
-  let chip =
-    straight && new Rng(`${gameSeed}:field:${m.index}:chip`).next() < KNOBS.chip
-      ? nearest(keptIn(ofRole('RB', true)))
+  // Today's charged man a back or tight end on the field the pocket hadn't kept in (a tight end chipping an edge,
+  // today's 12%): he stays in, so the man charged is the man who lost. The chip's draw is taken either way.
+  const chipDraw = new Rng(`${gameSeed}:field:${m.index}:chip`).next();
+  const charged =
+    bb !== undefined &&
+    !cast.blockers.includes(bb) &&
+    bb !== m.ball &&
+    bb !== m.take &&
+    staged.offense[staged.ids.indexOf(bb)] &&
+    (roleOf(bb) === 'RB' || roleOf(bb) === 'TE')
+      ? bb
       : undefined;
+  let chip = charged ?? (straight && chipDraw < KNOBS.chip ? nearest(keptIn(ofRole('RB', true))) : undefined);
   if (bs === 'b' && chip === undefined && cast.blockers.every((id) => roleOf(id) === 'OL'))
     chip = nearest(keptIn(ofRole('RB', true))) ?? nearest(keptIn(ofRole('TE', true)));
   if (chip !== undefined) cast.blockers.push(chip);
@@ -191,7 +200,11 @@ export function pocketFrom(
   };
   const want: PocketStart['want'] = {
     ...(rg ? { rushers: cast.rushers.filter((id) => groupRoles.includes(roleOf(id))) } : {}),
-    ...(bs ? { blockers: cast.blockers.filter((id) => spot(id) === bs) } : {}),
+    ...(bb !== undefined && cast.blockers.includes(bb)
+      ? { blockers: [bb] }
+      : bs
+        ? { blockers: cast.blockers.filter((id) => spot(id) === bs) }
+        : {}),
   };
   const players: FieldPlayer[] = [];
   for (const id of [cast.qb, ...cast.blockers, ...cast.rushers]) {

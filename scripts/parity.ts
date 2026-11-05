@@ -37,7 +37,7 @@ const MOMENT_WORKERS = 4;
 const GAMES = 75;
 const SALTS = 8;
 const SEASON_WORKERS = 4;
-/** Games the film check plays with the field on (out of bounds on film, 0.4.3). */
+/** Games the film check plays with the field on (out of bounds on film, 0.4.4). */
 const FILM_GAMES = 40;
 /** Moments a worker bumps for the spatial-only reads. */
 const BUMPED = 1500;

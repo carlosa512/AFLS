@@ -158,7 +158,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       who can reach the exit soonest to run him out (`escortFor` in `field/run.ts`). Over 60 games, catches out of bounds
       with nobody within 3 yards in the last second fell from 18% to 11%, alone (5+ yards) from 25 to 11. Left: those 11,
       where nobody could get there; letting the engine's odds read the field (alone, he'd stay in) is a bigger change.
-- [x] **Out of bounds as the player's choice, not a flat roll (0.4.3).** The flat `pOut` is gone: out of bounds is
+- [x] **Out of bounds as the player's choice, not a flat roll (0.4.4).** The flat `pOut` is gone: out of bounds is
       pushed out (where he is across the field, how far he got, who's chasing: pursuit, tackling, the edge setter,
       `alleyCrusher`, `scraper`, `businessDecision`, `thumper`) or stepped out (the clock, a lead, the first-down marker,
       the room and the hit coming, his habits, build, condition and injury history, poise), one call from the play in
@@ -172,18 +172,17 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 ## Follow-up: the pocket's blocker blame (0.4.3)
 
-- [ ] **Blame for a sack barely follows the linemen's ratings in your games.** The field picks the beaten blocker at
-      the spot today's engine charges (`FieldFacts.bs`), but which man at that spot loses hardly reads his protection:
-      `npm run parity`'s "a blocker's sacks allowed on his protection, spatial ÷ today" is 0.27 on 0.4.3 (range 0.6–1.5).
-      Not new: main at 0.4.2 fails it too with twice the games a league (0.55); 0.4.3's pocket refit fixed the rusher's
-      line (0.24 → 0.86) but its knobs can't reach this one. Only stat lines move (sacks allowed in your games), never a
-      result. Blocks 0.4.3's parity check until fixed.
+- [x] **Blame for a sack follows the engine's own man (0.4.3, #150).** The pocket anchored to a second draw at today's
+      odds, so a third of the sacks today charged were charged to nobody, and within a spot it lost the matchup; parity's
+      "a blocker's sacks allowed on his protection, spatial ÷ today" was 0.27 (0.55 on 0.4.2 with twice the games). It now
+      reads today's own draws off a copy of the credit stream (`creditDraws`) and loses that man (`FieldFacts.bb`); a tight
+      end or back today charges stays in to block. Parity's line 1.000; AI games take the same draws.
 
 ## Follow-up: choices and situations, not flat odds (audit 0.4.2)
 
 The goal: games that play like the NFL's because the people in them choose, with the odds coming out of those choices
 and the situation (down, distance, clock, score, who's near), calibrated against NGS, nflverse and charting data. An
-audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.3). Out of bounds on a
+audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.4). Out of bounds on a
 catch or run is the item above.
 
 - [ ] **High: the passer under pressure** (L3199, L3204, L3223). Scramble and throwaway are dice: a throwaway is 12% for
@@ -199,7 +198,7 @@ catch or run is the item above.
 - [ ] **Medium: a sack's yards and strip** (L3815): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
       reads one habit, not ball security or a hit from behind.
 - [ ] **Medium: a scramble's slide** (L3945): a flat 40% of scrambles that stay in bounds (out of bounds is the
-      sideline call since 0.4.3). The NFL's play text doesn't record slides.
+      sideline call since 0.4.4). The NFL's play text doesn't record slides.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
 - [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
 

@@ -229,7 +229,7 @@ within 1.5 points; the real spread between players within ±30% of the NFL's; th
 
 ## 7. Delivery
 
-- Built on top of #148 (0.4.2), as **0.4.3** (a follow-up: the last number, `docs/VERSIONING.md`).
+- Built on top of #148 (0.4.2), as **0.4.4** (a follow-up, after the pocket fix took 0.4.3: the last number, `docs/VERSIONING.md`).
 - `docs/MVP.md`: the "Out of bounds as the player's choice" item ticked with what was measured; the audit list's line
   numbers refreshed. A changelog entry (`ui/changelog.ts`).
 - No save upgrade: `FieldFacts.oob` only widens, and old play text stays as it is.

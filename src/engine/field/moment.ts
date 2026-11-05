@@ -27,7 +27,7 @@ export interface FieldFacts {
   to?: number;
   td?: 1;
   /** The sideline call (`match/sideline.ts`, drawn before the field): he goes out at his spot, pushed out (1) or
-   * stepping out (2). Film before 0.4.3 has only 1. */
+   * stepping out (2). Film before 0.4.4 has only 1. */
   oob?: 1 | 2;
   /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
   pk?: PocketOutcome;
@@ -38,6 +38,8 @@ export interface FieldFacts {
    * beaten blocker's spot (tackle, guard, center, a back or tight end). The field picks the man within them. */
   rg?: 'e' | 'i' | 'l' | 'd';
   bs?: 't' | 'g' | 'c' | 'b';
+  /** Today's charged blocker himself (his id): the pocket's anchor when he's among its men. Film before 9 has none. */
+  bb?: number;
 }
 
 export interface FieldMoment {

@@ -38,8 +38,8 @@ game credits the field's sacker and beaten blocker instead.
 
 - which rusher got home, within the group today's credit picks (edge, interior, linebacker, defensive back): sacks,
   pressures and hits are credited to him;
-- which blocker lost him, at the spot today's rule charges (tackle, guard, center, a back or tight end; `blockerFor`
-  on the play's own stream): sacks and pressures allowed;
+- which blocker lost him: today's own charged man (`creditDraws`, read off a copy of the credit stream; 0.4.3), his spot
+  when he isn't among the pocket's men: sacks and pressures allowed;
 - when: a sack's play time follows the film (§4);
 - how the quarterback moved, and on a scramble, where he broke out.
 
@@ -65,7 +65,14 @@ Receivers and coverage keep the stager's routes until the routes slice.
 and by spot outside today's after three fits (linebackers and centers too rarely charged, edges and tackles too
 often). The field now keeps today's group and spot and chooses the man within them. When today's group has nobody
 rushing (a linebacker on a straight rush) its nearest man comes late; when today's spot is a back and none stayed in,
-the nearest back or tight end stays in to chip. On every dropback the man over the ball slides to a side drawn on its
+the nearest back or tight end stays in to chip.
+
+**The blocker is today's own man (0.4.3, the owner's call).** The spot came from a second draw at today's odds, so play by
+play it disagreed with today's credit: on a third of the sacks today charged, the field charged nobody, and it chose
+between the men at a spot by its reps, losing the matchup today's rule reads. Parity's blocker slope fell to 0.27 (0.55
+on 0.4.2 with twice the games). The pocket now reads today's draws themselves (hit, charged or not, the man) off a copy of
+the credit stream, so AI games take the same draws as before, and loses the man today charges; a tight end or back
+today charges stays in to block. On every dropback the man over the ball slides to a side drawn on its
 own stream, and on a straight rush a back stays in to chip at a fitted rate (`chip`).
 
 **Matchups at the snap.** Protection follows the scheme's spots, the same assignments that today charge a blocker

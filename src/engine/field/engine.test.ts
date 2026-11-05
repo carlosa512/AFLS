@@ -175,7 +175,7 @@ describe("the owner's call H: today's yards, the field's way there", () => {
         const e = r.plays![t.moment.index];
         expect(e.text, `play ${t.moment.index}`).toMatch(/out of bounds/);
         expect(t.result.outOfBounds, `play ${t.moment.index}`).toBe(true);
-        // Film before 0.4.3 carries only oob 1, staged as pushed out; 2 is a man stepping out.
+        // Film before 0.4.4 carries only oob 1, staged as pushed out; 2 is a man stepping out.
         expect(t.start.target?.out, `play ${t.moment.index}`).toBe(true);
         expect(!!t.start.target?.stepped, `play ${t.moment.index}`).toBe(t.moment.facts.oob === 2);
         // The field names the man who forced him out; the scorer credits him (pushed, or a run stepping out), and on
@@ -225,7 +225,7 @@ describe("the owner's call H: today's yards, the field's way there", () => {
 describe('a field the open field cannot play', () => {
   it("leaves a catch made past the goal line it's credited short of to today's film (no teleport back)", async () => {
     // Film's league: no field start ever has a carrier standing on or past a goal line he's credited short of (the
-    // field could only put him back by a jump). The one example the old dice made (game 24, play 71) moved with 0.4.3's
+    // field could only put him back by a jump). The one example the old dice made (game 24, play 71) moved with 0.4.4's
     // reshuffle, so every start of a dozen games is checked instead.
     const l = createLeague({ seed: 'film' });
     let n = 0;
