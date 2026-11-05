@@ -221,6 +221,12 @@ export function stagePlay(args: {
     // The ball can go once the route will get him there with it: his route's time at his speed, less the flight.
     const flight = passFlight(Math.hypot(land.x - (ballX - dir * 6), land.y - ballY));
     routeNeed = routeTime(route, receiverAt, land, dir, inwardOf(receiverAt), SPEED[roleOf(who.ball)]) - flight;
+    // A pick: nor before the man who takes it can be there (a safety from deep on a throw to the flat).
+    const taker = e.kind === 'int' && who.take !== undefined ? start.get(who.take) : undefined;
+    if (taker) {
+      const top = SPEED[cast.defense.find((m) => m.id === who.take)?.role ?? 'S'];
+      routeNeed = Math.max(routeNeed, Math.hypot(land.x - taker.x, land.y - taker.y) / (0.95 * top) - flight);
+    }
   }
   // A dropback: his drop and pocket (`pocket.ts`), on its own stream.
   const qbId = cast.offense.find((m) => m.role === 'QB')?.id;
