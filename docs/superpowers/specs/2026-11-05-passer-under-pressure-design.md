@@ -1,6 +1,6 @@
 # The passer under pressure
 
-**Status:** designed (2026-11-05), not built. Follows 0.4.4 (#149: out of bounds as the carrier's choice).
+**Status:** built (0.4.5). Seasons 2023–25, not 2022–24: 2022's NGS file reads no pressure on any sack or scramble. Follows 0.4.4 (#149: out of bounds as the carrier's choice).
 
 ## Why
 

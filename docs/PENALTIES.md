@@ -47,7 +47,7 @@ is special teams, after the 2024 kickoff rules took kickoff returns from 22% of 
 | Roughing the passer | 0.33 | 15 yards, automatic first down | Phase 2 |
 | Offensive pass interference | about 0.2–0.26 | 10 yards from the previous spot | Phase 4 |
 | Illegal use of hands | 0.21 (mostly defense) | 5 + first down (defense), 10 (offense) | Phase 4 |
-| Intentional grounding | 0.21 | Loss of down, 10 yards or the spot, whichever is worse; safety from the end zone | Phase 4 |
+| Intentional grounding | 0.19 (FTN/NGS 2023–25) | Loss of down, 10 yards or the spot, whichever is worse; safety from the end zone | Built (0.4.5: `match/pocketChoice.ts`) |
 | Illegal block above the waist / in the back | 0.20 | 10 yards from the spot of the foul | Phase 3 |
 | Illegal shift / motion | 0.18 / about 0.06 | 5 yards | Phase 4 |
 | Ineligible man downfield | 0.16 (+0.18 declined) | 5 yards | Phase 4 |

@@ -185,9 +185,17 @@ and the situation (down, distance, clock, score, who's near), calibrated against
 audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.4). Out of bounds on a
 catch or run is the item above.
 
-- [ ] **High: the passer under pressure** (L3199, L3204, L3223). Scramble and throwaway are dice: a throwaway is 12% for
-      any non-gunslinger, reading neither his decisions nor down, distance, score or field position. Calibrate with NGS
-      time to throw, throwaway rate under pressure, nflverse `qb_scramble`.
+- [x] **High: the passer under pressure (0.4.5).** The flat scramble, throwaway and escape rolls are gone: after his read
+      (depth, target, separation) the passer chooses to throw it, throw it away or take off (`match/pocketChoice.ts`),
+      under pressure or from a clean pocket when he's covered, leaned by the down (3rd for the sticks, 4th under
+      pressure he throws it up), the red zone, his own end, the clock late, his decisions, legs, pocket presence, poise,
+      health and habits (a gunslinger throws it away a third as often). A throwaway comes from inside the pocket or after
+      rolling out, and can be flagged: intentional grounding (loss of down, 10 yards or the spot, a safety from the end
+      zone). Fitted to FTN charting and NGS pressure 2023–25 by bucket (`npm run passer`, also judged in `npm run sim`):
+      pressured 7.4% scrambles and 9.4% thrown away (NFL 7.6, 9.1), clean 4.3% and 1.1% (4.3, 1.2), grounding 0.19 a
+      game (0.19), the spread between passers as the NFL's. On film a clean throwaway, a roll-out and a grounded ball;
+      a man stepping out in normal play now paces himself for his escort (parity: 0 of 272 alone over 160 games).
+      Spec: `docs/superpowers/specs/2026-11-05-passer-under-pressure-design.md`.
 - [ ] **High: fumbles on contact** (L3094, L3582). They read ball security and the tackler, but not the hit (a gang
       tackle, a strip try), fatigue or condition, or a carrier stretching late. Calibrate: nflverse fumbles per touch.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
