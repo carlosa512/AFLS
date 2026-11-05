@@ -354,7 +354,7 @@ export function scrambleStart(
     target: {
       x: m.from + f.to! * composed.dir,
       touchdown: !!f.td,
-      ...(f.oob ? { out: true } : {}),
+      ...(f.oob ? { out: true, ...(f.oob === 2 ? { stepped: true } : {}) } : {}),
       ...(f.sl ? { slide: true } : {}),
     },
   };

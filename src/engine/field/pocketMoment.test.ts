@@ -37,6 +37,9 @@ const catches = plays.flatMap((e, index) => {
   return pm && fm ? [{ index, e: withPk, pm, fm }] : [];
 });
 
+/** The first catch the pocket can cast: a throw behind the line (a screen) never has a pocket to play. */
+const castable = () => catches.find(({ pm }) => pocketCast(pocketStage(pm, record, g.homeId, seed)!, pm))!;
+
 describe("the pocket's anchor", () => {
   it("keeps today's charged tight end or back in to block, so the man charged is the man who lost", () => {
     let n = 0;
@@ -73,7 +76,7 @@ describe("the pocket's moment", () => {
   });
 
   it("keeps today's film for a dropback without a full line", () => {
-    const { pm } = catches[0];
+    const { pm } = castable();
     const staged = pocketStage(pm, record, g.homeId, seed)!;
     expect(pocketCast(staged, pm)).not.toBeNull();
     const short = {
@@ -129,7 +132,7 @@ describe("the pocket's moment", () => {
   });
 
   it('leaves the target and an interceptor to their routes, never the pocket', () => {
-    const { pm } = catches[0];
+    const { pm } = castable();
     const staged = pocketStage(pm, record, g.homeId, seed)!;
     const cast = pocketCast(staged, pm)!;
     const rusher = cast.rushers[0];

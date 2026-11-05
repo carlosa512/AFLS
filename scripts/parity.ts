@@ -11,6 +11,9 @@
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
+import { simulateGame } from '../src/engine/match/gameSim';
+import { FIELD_W, snapYFor } from '../src/engine/field/ballPath';
+import { asRan, stagePlay } from '../src/engine/field/stage';
 import { playWeek } from '../src/engine/league';
 import { STAFF_ON } from '../src/engine/staffEdge';
 import { runField } from '../src/engine/field/run';
@@ -34,6 +37,8 @@ const MOMENT_WORKERS = 4;
 const GAMES = 75;
 const SALTS = 8;
 const SEASON_WORKERS = 4;
+/** Games the film check plays with the field on (out of bounds on film, 0.4.4). */
+const FILM_GAMES = 40;
 /** Moments a worker bumps for the spatial-only reads. */
 const BUMPED = 1500;
 
@@ -53,6 +58,16 @@ interface SeasonLine {
   ypc: number;
   ypr: number;
   kr: number;
+}
+interface FilmDone {
+  type: 'film';
+  /** Stepped out in normal play: nobody within 5 yd in the last second, of how many. */
+  steppedAlone: number;
+  stepped: number;
+  /** Pushed out: nobody within 5 yd in the last second, and the nearest within 2 yd then (reported), of how many. */
+  pushedAlone: number;
+  pushedClose: number;
+  pushed: number;
 }
 interface SeasonDone {
   type: 'season';
@@ -136,20 +151,84 @@ function seasonWorker(n: number): SeasonDone {
   return { type: 'season', lines };
 }
 
+/**
+ * Out of bounds on film (spec: docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md §6): games with the
+ * field on, every run or catch that went out read off its staged film. A man who steps out in normal play does it with
+ * someone closing; a man pushed out has the man running him out on him (nobody alone).
+ */
+function filmWorker(): FilmDone {
+  const done: FilmDone = { type: 'film', steppedAlone: 0, stepped: 0, pushedAlone: 0, pushedClose: 0, pushed: 0 };
+  for (const seed of ['oob-a', 'oob-b']) {
+    const league = createLeague({ seed });
+    for (let gi = 0; gi < FILM_GAMES / 2; gi++) {
+      const g = league.games[gi];
+      const r = simulateGame(league, g, { keepPlays: true, field: true, seed: `oob-${gi}` });
+      r.plays!.forEach((raw, i) => {
+        const e = asRan(raw);
+        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'run') || !/out of bounds/.test(e.text)) return;
+        const p = stagePlay({
+          plays: r.plays!,
+          index: i,
+          record: r.field!,
+          homeId: g.homeId,
+          seed: `${g.id}:${i}`,
+          snapY: snapYFor(e, 26),
+        });
+        if (!p.spatial || p.carrier === null) return;
+        const c = p.ids.indexOf(p.carrier);
+        const at = (st: number, k: number) => ({
+          x: p.pos[(st * p.ids.length + k) * 2],
+          y: p.pos[(st * p.ids.length + k) * 2 + 1],
+        });
+        let cross = p.steps - 1;
+        for (let st = 0; st < p.steps; st++) {
+          const y = at(st, c).y;
+          if (y <= 0 || y >= FIELD_W) {
+            cross = st;
+            break;
+          }
+        }
+        const nearAt = (st: number) =>
+          Math.min(
+            ...p.ids.map((_, k) =>
+              p.offense[k] === p.offense[c]
+                ? Infinity
+                : Math.hypot(at(st, k).x - at(st, c).x, at(st, k).y - at(st, c).y),
+            ),
+          );
+        let near = Infinity;
+        for (let st = Math.max(0, cross - Math.round(1 / p.dt)); st <= cross; st++) near = Math.min(near, nearAt(st));
+        if (/steps out of bounds/.test(e.text)) {
+          if (e.field?.out || e.field?.stay) return;
+          done.stepped++;
+          if (near >= 5) done.steppedAlone++;
+        } else {
+          done.pushed++;
+          if (near >= 5) done.pushedAlone++;
+          if (near < 2) done.pushedClose++;
+        }
+      });
+    }
+  }
+  return done;
+}
+
 const role = process.argv[2];
 // A trial's knobs without editing tuning.ts: `FIELD_KNOBS='{"shed":1}' npm run parity` (workers read it too).
 if (process.env.FIELD_KNOBS) Object.assign(KNOBS, JSON.parse(process.env.FIELD_KNOBS));
-if (role === 'moments' || role === 'season') {
+if (role === 'moments' || role === 'season' || role === 'film') {
   const n = Number(process.argv[3]);
-  process.send!(role === 'moments' ? momentsWorker(n) : seasonWorker(n), () => process.exit(0));
+  process.send!(role === 'moments' ? momentsWorker(n) : role === 'season' ? seasonWorker(n) : filmWorker(), () =>
+    process.exit(0),
+  );
 }
 
 async function main() {
   const self = fileURLToPath(import.meta.url);
   const run = (args: string[]) =>
-    new Promise<MomentsDone | SeasonDone>((done, fail) => {
+    new Promise<MomentsDone | SeasonDone | FilmDone>((done, fail) => {
       const child = fork(self, args, { execArgv: process.execArgv });
-      child.on('message', (m) => done(m as MomentsDone | SeasonDone));
+      child.on('message', (m) => done(m as MomentsDone | SeasonDone | FilmDone));
       child.on('exit', (code) => code && fail(new Error(`worker ${args.join(' ')} exited ${code}`)));
     });
 
@@ -157,7 +236,9 @@ async function main() {
   const results = await Promise.all([
     ...Array.from({ length: MOMENT_WORKERS }, (_, n) => run(['moments', String(n)])),
     ...Array.from({ length: SEASON_WORKERS }, (_, n) => run(['season', String(n)])),
+    run(['film', '0']),
   ]);
+  const film = results.find((r): r is FilmDone => r.type === 'film')!;
   const moments = results.filter((r): r is MomentsDone => r.type === 'moments');
   const seasons = results.filter((r): r is SeasonDone => r.type === 'season').flatMap((r) => r.lines);
   const rows = moments.flatMap((m) => m.rows);
@@ -212,6 +293,27 @@ async function main() {
     });
   }
 
+  console.log(`\n── Out of bounds on film (${FILM_GAMES} games, the field on) ──`);
+  print({
+    label: 'stepped out in normal play with nobody within 5 yd',
+    value: film.steppedAlone / Math.max(1, film.stepped),
+    range: [0, 0.03],
+    note: `${film.steppedAlone} of ${film.stepped}`,
+  });
+  print({
+    label: 'pushed out with nobody within 5 yd',
+    value: film.pushedAlone / Math.max(1, film.pushed),
+    range: [0, 0.02],
+    note: `${film.pushedAlone} of ${film.pushed}`,
+  });
+  print({
+    label: 'pushed out with a defender within 2 yd',
+    value: film.pushedClose / Math.max(1, film.pushed),
+    range: [0, 1],
+    info: true,
+    note: `${film.pushedClose} of ${film.pushed} (0.4.2: 82% of catches)`,
+  });
+
   console.log('\n── Speed ──');
   const ms = rows.flatMap((r) => r.ms).sort((a, b) => a - b);
   print({
@@ -225,4 +327,4 @@ async function main() {
   process.exit(missCount() ? 1 : 0);
 }
 
-if (role !== 'moments' && role !== 'season') await main();
+if (role !== 'moments' && role !== 'season' && role !== 'film') await main();

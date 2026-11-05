@@ -158,35 +158,49 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       who can reach the exit soonest to run him out (`escortFor` in `field/run.ts`). Over 60 games, catches out of bounds
       with nobody within 3 yards in the last second fell from 18% to 11%, alone (5+ yards) from 25 to 11. Left: those 11,
       where nobody could get there; letting the engine's odds read the field (alone, he'd stay in) is a bigger change.
-- [ ] **Out of bounds as the player's choice, not a flat roll.** Today `pOut` in `match/gameSim.ts` is 18% of catches
-      (35% hurrying, 5% protecting a lead) whatever the field: nobody chooses it, so a lone receiver in open field can
-      be sent out. A real carrier weighs trying to win (clock, score, the room in front of him), staying healthy (his
-      condition, injury history, the hit coming; going out skips that hit's injury chance) and his makeup
-      (`contactAverse`, `finishesForward`, toughness). In your games the field knows who's near him; AI games need a
-      stand-in. It moves every game (clock stops, plays per game, leaders), so it needs a spec and the full sim checks.
+- [x] **Out of bounds as the player's choice, not a flat roll (0.4.4).** The flat `pOut` is gone: out of bounds is
+      pushed out (where he is across the field, how far he got, who's chasing: pursuit, tackling, the edge setter,
+      `alleyCrusher`, `scraper`, `businessDecision`, `thumper`) or stepped out (the clock, a lead, the first-down marker,
+      the room and the hit coming, his habits, build, condition and injury history, poise), one call from the play in
+      every game (`match/sideline.ts`), fitted to nflverse 2021–25 by bucket (`npm run sideline`, also judged in
+      `npm run sim`: sideline 27.6% against the middle's 3.7%, outside runs of 20+ yards 44%, scramblers stepping out
+      21%; the spread between players as the NFL's). A man who steps out takes no hit and no fumble; the man who forced
+      him is credited as the NFL's scorers do. The clock stops until the ball is spotted outside the late windows too (4
+      s back a catch). On film a man pushed out is run down by his escort: over 40 games with the field on, nobody
+      alone among 376 pushed out (0.4.2: 11 of 561 catches alone) and 2 of 77 normal-play step-outs. Spec:
+      `docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md`.
+
+## Follow-up: the pocket's blocker blame (0.4.3)
+
+- [x] **Blame for a sack follows the engine's own man (0.4.3, #150).** The pocket anchored to a second draw at today's
+      odds, so a third of the sacks today charged were charged to nobody, and within a spot it lost the matchup; parity's
+      "a blocker's sacks allowed on his protection, spatial ÷ today" was 0.27 (0.55 on 0.4.2 with twice the games). It now
+      reads today's own draws off a copy of the credit stream (`creditDraws`) and loses that man (`FieldFacts.bb`); a tight
+      end or back today charges stays in to block. Parity's line 1.000; AI games take the same draws.
 
 ## Follow-up: choices and situations, not flat odds (audit 0.4.2)
 
 The goal: games that play like the NFL's because the people in them choose, with the odds coming out of those choices
 and the situation (down, distance, clock, score, who's near), calibrated against NGS, nflverse and charting data. An
-audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.2). Out of bounds on a
+audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.4). Out of bounds on a
 catch or run is the item above.
 
-- [ ] **High: the passer under pressure** (L3096, L3101, L3120). Scramble and throwaway are dice: a throwaway is 12% for
+- [ ] **High: the passer under pressure** (L3199, L3204, L3223). Scramble and throwaway are dice: a throwaway is 12% for
       any non-gunslinger, reading neither his decisions nor down, distance, score or field position. Calibrate with NGS
       time to throw, throwaway rate under pressure, nflverse `qb_scramble`.
-- [ ] **High: fumbles on contact** (L2988, L3455). They read ball security and the tackler, but not the hit (a gang
+- [ ] **High: fumbles on contact** (L3094, L3582). They read ball security and the tackler, but not the hit (a gang
       tackle, a strip try), fatigue or condition, or a carrier stretching late. Calibrate: nflverse fumbles per touch.
-- [ ] **Medium-High: a play's time** (L2963, L3001, L3022). 4–7 seconds whatever the yards, the throw's depth or the
+- [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
-- [ ] **Medium-High: after an interception** (L3300–3315). The odds of a pick are rich; who catches it (65% the cover man)
+- [ ] **Medium-High: after an interception** (L3408–3415). The odds of a pick are rich; who catches it (65% the cover man)
       and the return (normal 9 ± 10, a 6% long one) are flat. Calibrate: return yards by air yards, pick-six rate.
-- [ ] **Medium: fumble recoveries** (L2808): 52% the defense's, whoever is near the ball. In your games the field knows.
-- [ ] **Medium: a sack's yards and strip** (L3696): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
+- [ ] **Medium: fumble recoveries** (L2903): 52% the defense's, whoever is near the ball. In your games the field knows.
+- [ ] **Medium: a sack's yards and strip** (L3815): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
       reads one habit, not ball security or a hit from behind.
-- [ ] **Medium: a scramble's end** (L3821): out of bounds 20% (55% hurrying) and a slide 40%, the same gap as a catch's.
-- [ ] **Medium: the two-point try** (L1511): one roll on short accuracy, outside the run and pass engines.
-- [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3326); return touchdowns as small edge-scaled rates.
+- [ ] **Medium: a scramble's slide** (L3945): a flat 40% of scrambles that stay in bounds (out of bounds is the
+      sideline call since 0.4.4). The NFL's play text doesn't record slides.
+- [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
+- [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
 
 Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
 Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled

@@ -1,4 +1,4 @@
-import { massEdge, rushSizeEdge, sizeEdge } from '../size';
+import { massEdge, rushSizeEdge, sizeEdge, sizeZ } from '../size';
 import { preparePersonnelGame } from '../personnel/flow';
 /**
  * Play-by-play game simulation.
@@ -45,6 +45,7 @@ import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
+import { poiseOf } from '../traits';
 import type {
   Crew,
   Coach,
@@ -90,6 +91,15 @@ import {
   type WeatherCost,
 } from '../weather';
 import * as coach from './coach';
+import {
+  sidelineCall,
+  sidelineOdds,
+  steppedCredit,
+  TYPICAL,
+  type SidelineCall,
+  type SidelineFacts,
+  type SidelineKind,
+} from './sideline';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
@@ -399,6 +409,18 @@ const DT_WRAP_PER_POINT = 0.05;
 const avgOf = (ps: readonly Player[], f: (p: Player) => number) =>
   ps.length ? ps.reduce((n, p) => n + f(p), 0) / ps.length : DT_WRAP;
 
+/**
+ * A contact fumble's base chance on a run and on a catch tackled in bounds. A ball loose at the sideline goes out and
+ * stays the offense's, so every lost fumble happens in bounds; out of bounds rolls none (`sideline.ts`), and the
+ * in-bounds chance carries the league's (was 0.013 and 0.0065 over every tackle; about 5% of tackled runs and 17% of
+ * tackled catches go out).
+ */
+const RUN_FUMBLE = 0.0146;
+const CATCH_FUMBLE = 0.0086;
+
+/** Separation (receiver against cover man, rating points) past which a catch has nobody near him (`sideline.ts`). */
+const FREE_SEP = 4;
+
 /** A flag thrown during a play: the foul, who drew it, and how far downfield a spot foul happened. */
 interface LiveFoul {
   foul: Foul;
@@ -407,11 +429,35 @@ interface LiveFoul {
 }
 
 /** Collects stat changes for a play so they can be discarded if a penalty wipes the play out. */
-class StatBuffer {
+export class StatBuffer {
   entries: [Player, StatKey, number][] = [];
   add(p: Player, key: StatKey, value = 1) {
     this.entries.push([p, key, value]);
   }
+}
+
+/**
+ * The collisions a play records, read from its stat line: a ball carrier brought down, his tackler, a sack, a hit on
+ * the quarterback (`qb`), a return, a kick. `unhit`: he stepped out of bounds before the hit, so the tackle credited to
+ * the man who forced him out is nobody's collision, and he carries only a free runner's risk.
+ */
+export function collisions(entries: StatBuffer['entries'], qb: Player, unhit: boolean): [Player, ContactEvent][] {
+  const tackled = !unhit && entries.some(([, k]) => k === 'tackles');
+  const sacked = entries.some(([, k]) => k === 'sacked');
+  const gained = (p: Player) => entries.some(([x, k, v]) => x === p && (k === 'rushYds' || k === 'recYds') && v > 0);
+  const out: [Player, ContactEvent][] = [];
+  for (const [p, key] of entries) {
+    if (key === 'rushAtt' || key === 'rec') {
+      if (tackled) out.push([p, 'carrier']);
+      else if (gained(p)) out.push([p, 'free']);
+    } else if (key === 'tackles') {
+      if (!unhit) out.push([p, 'tackler']);
+    } else if (key === 'sacked') out.push([p, 'sacked']);
+    else if (key === 'qbHits' && !sacked) out.push([qb, 'hit']);
+    else if (key === 'krAtt' || key === 'prAtt') out.push([p, 'returner']);
+    else if (key === 'punts' || key === 'fgAtt' || key === 'xpAtt') out.push([p, 'kick']);
+  }
+  return out;
 }
 
 interface PlayResult {
@@ -436,6 +482,8 @@ interface PlayResult {
   open?: OpenField;
   /** A play the spatial engine played: what its replay needs. */
   field?: FieldFacts;
+  /** How a run, catch or scramble went out of bounds (`sideline.ts`); absent in bounds. */
+  outOfBounds?: 'pushed' | 'stepped';
 }
 
 function emptyTeamStats(): TeamGameStats {
@@ -685,6 +733,8 @@ class GameSim {
   private quarter = 1;
   private clock = QUARTER_SECONDS;
   private clockRunning = false;
+  /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
+  private spotted = false;
   private twoMinuteWarned = false;
   private offense: Side = 0;
   private yardLine = 25;
@@ -1037,13 +1087,13 @@ class GameSim {
     line.snaps = (line.snaps ?? 0) + 1;
   }
 
-  private credit(buf: StatBuffer) {
+  private credit(buf: StatBuffer, unhit = false) {
     for (const [p, key, value] of buf.entries) {
       const line = (this.playerStats[p.id] ??= {});
       if (MAX_STATS.has(key)) line[key] = Math.max(line[key] ?? 0, value);
       else line[key] = (line[key] ?? 0) + value;
     }
-    this.wear(buf);
+    this.wear(buf, unhit);
   }
 
   // ───────────────────────── wear and injuries ─────────────────────────
@@ -1053,38 +1103,20 @@ class GameSim {
    * on the field (and rests everyone off it) and carries the snap's injury risk, and each collision
    * it records (a ball carrier brought down, a sack, a hit on the quarterback, a return) adds its own.
    */
-  private wear(buf: StatBuffer) {
+  private wear(buf: StatBuffer, unhit = false) {
     const rb2 = this.lineups[this.offense].rbs[1];
     let scrimmage = false;
-    let tackled = false;
-    let sacked = false;
     let spell = false;
     let passing = false;
     for (const [p, key] of buf.entries) {
       if (key === 'passAtt' || key === 'rushAtt') scrimmage = true;
-      else if (key === 'sacked') scrimmage = sacked = true;
+      else if (key === 'sacked') scrimmage = true;
       if (key === 'passAtt' || key === 'sacked') passing = true;
-      else if (key === 'tackles') tackled = true;
       // The second back is on the field for the plays he's part of, spelling the lead back.
       if (p === rb2) spell = true;
     }
     if (scrimmage) this.snap(spell, passing);
-    for (const [p, key] of buf.entries) {
-      if (key === 'rushAtt' || key === 'rec') {
-        if (tackled) this.collide(p, 'carrier');
-        else if (this.gained(buf, p)) this.collide(p, 'free');
-      } else if (key === 'tackles') this.collide(p, 'tackler');
-      else if (key === 'sacked') this.collide(p, 'sacked');
-      else if (key === 'qbHits' && !sacked) this.collide(this.lineups[this.offense].qb, 'hit');
-      else if (key === 'krAtt' || key === 'prAtt') this.collide(p, 'returner');
-      else if (key === 'punts' || key === 'fgAtt' || key === 'xpAtt') this.collide(p, 'kick');
-    }
-  }
-
-  /** Did he gain ground on the play (a carry or catch nobody tackled him on: a score or out of bounds)? */
-  private gained(buf: StatBuffer, p: Player): boolean {
-    for (const [x, k, v] of buf.entries) if (x === p && (k === 'rushYds' || k === 'recYds') && v > 0) return true;
-    return false;
+    for (const [p, event] of collisions(buf.entries, this.lineups[this.offense].qb, unhit)) this.collide(p, event);
   }
 
   private dept(p: Player): Department {
@@ -1364,6 +1396,13 @@ class GameSim {
     return this.quarter === 2 || this.quarter === 4;
   }
 
+  /** A runoff after a man went out of bounds outside the late windows loses the spot's pause; the flag is spent. */
+  private spotRunoff(seconds: number): number {
+    const out = this.spotted ? coach.afterOutOfBounds(seconds) : seconds;
+    this.spotted = false;
+    return out;
+  }
+
   /** Time between snaps while the clock is running. */
   private preSnapRunoff(seconds: number) {
     if (this.inTwoMinutePeriod() && !this.twoMinuteWarned && this.clock > 120 && this.clock - seconds <= 120) {
@@ -1402,6 +1441,7 @@ class GameSim {
   private useTimeout(side: Side) {
     this.timeouts[side]--;
     this.clockRunning = false;
+    this.spotted = false;
     this.snapshot = null;
     this.log(`Timeout ${this.abbrev(side)} (${this.timeouts[side]} left).`);
   }
@@ -2071,7 +2111,7 @@ class GameSim {
       const s = this.situation();
       if (coach.playForFieldGoal(s)) {
         // Bleed the clock to the last few seconds, then stop it for a kick at the gun.
-        const runoff = this.rng.int(coach.MILK_RUNOFF_MIN, 41);
+        const runoff = this.spotRunoff(this.rng.int(coach.MILK_RUNOFF_MIN, 41));
         const leave = this.rng.int(2, 4);
         // If the next snap would come with too little time for a play and a kick, stop at the gun instead.
         if (s.clock - runoff <= 10) {
@@ -2127,16 +2167,20 @@ class GameSim {
         this.evidence(this.offense, 'offCoord', 'upTempo', fast, fast);
       }
       this.preSnapRunoff(
-        fast
-          ? this.rng.int(...UP_TEMPO_RUNOFF)
-          : t === 'hurry'
-            ? this.rng.int(8, 16)
-            : t === 'milk'
-              ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
-              : // 28–38 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
-                // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
-                // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
-                this.rng.int(28, 38),
+        this.spotRunoff(
+          fast
+            ? this.rng.int(...UP_TEMPO_RUNOFF)
+            : t === 'hurry'
+              ? this.rng.int(8, 16)
+              : t === 'milk'
+                ? this.rng.int(coach.MILK_RUNOFF_MIN, 41)
+                : // 29–39 s between snaps at a normal tempo puts plays a game mid-band (NFL 61–65). It was 27–38
+                  // while coaches punted more: the analytics era's fourth-down tries keep drives alive, and at 27
+                  // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
+                  // 28–38 until 0.4.4: the clock now waits only for the spot after a man goes out of bounds
+                  // (`coach.afterOutOfBounds`), and the play that freed up let the stronger side win more often.
+                  this.rng.int(29, 39),
+        ),
       );
     }
     if (this.clock <= 0 && !this.untimed) return;
@@ -2495,6 +2539,60 @@ class GameSim {
     return this.rng.weighted(pool, ([, w]) => w)[0];
   }
 
+  /** Whether he brings a habit, without noting it for All-22: the sideline call reads every habit that could lean it,
+   * and film shows only the ones that decided something. */
+  private holds(p: Player, q: QuirkId): boolean {
+    if (!p.quirks) return false;
+    let set = this.quirkSets.get(p.id);
+    if (!set) this.quirkSets.set(p.id, (set = new Set(activeQuirks(p))));
+    return set.has(q);
+  }
+
+  /**
+   * Out of bounds (`sideline.ts`): pushed out, stepped out or in bounds, one draw on the game's stream from the play's
+   * facts, the same in every game; the open field plays it out. Returns the call and the facts (a stepped-out catch's
+   * tackle credit reads them).
+   */
+  private sideline(
+    kind: SidelineKind,
+    s: Situation,
+    o: { carrier: Player; chaser: Player; lane: number; run: number; free: boolean; gain: number },
+  ): { call: SidelineCall; facts: SidelineFacts } {
+    const tempo = coach.tempo(s);
+    const def = this.lineups[this.def];
+    const c = o.carrier;
+    const facts: SidelineFacts = {
+      kind,
+      wide: Math.min(1, Math.abs(o.lane)),
+      run: o.run,
+      free: o.free,
+      // Hurrying, he steps out when it stops the clock; milking, he stays in whenever (a man out still waits for the spot).
+      clock: tempo === 'hurry' && this.oobStopsClock() ? 'out' : tempo === 'milk' ? 'in' : 'none',
+      shortOfSticks: s.down >= 3 && o.gain < s.distance,
+      edge: kind === 'run' && def.edge.length ? Math.max(...def.edge.map((p) => skill(p, 'setEdge'))) : TYPICAL.edge,
+      carrier: {
+        position: c.position,
+        speed: skill(c, 'longSpeed'),
+        build: sizeZ(c).w,
+        energy: this.body(c).energy,
+        hurt: Math.min(3, (c.injuries ?? []).filter((i) => i.season >= this.game.season - 1).length),
+        poise: poiseOf(c),
+        has: (q) => this.holds(c, q),
+      },
+      chaser: {
+        pursuit: skill(o.chaser, 'pursuit'),
+        tackling: skill(o.chaser, 'tackling'),
+        has: (q) => this.holds(o.chaser, q),
+      },
+    };
+    return { call: sidelineCall(sidelineOdds(facts), this.rng.next()), facts };
+  }
+
+  /** The text a play out of bounds ends with. */
+  private static outText(call: SidelineCall): string {
+    return call === 'pushed' ? ', pushed out of bounds' : call === 'stepped' ? ', steps out of bounds' : '';
+  }
+
   /** Whether a player brings an established quirk to this game (`quirks.ts`). */
   private has(p: Player | undefined, q: QuirkId): boolean {
     if (!p?.quirks) return false;
@@ -2668,9 +2766,6 @@ class GameSim {
    * own stream so the game's is the same whether the field plays it or not (today's roll is still taken, in its
    * place). The field takes him out at his spot (call H).
    */
-  private outFirst(p: number): boolean {
-    return new Rng(`${this.gameSeed}:field:${this.plays.length}:out`).chance(p);
-  }
 
   /**
    * The pocket at this dropback (`field/pocketField.ts`), staged blind from the snap and played on the play's own
@@ -2951,14 +3046,22 @@ class GameSim {
 
     // The open field (`field/`): a run the line got past. Today's rolls are all taken first (the tackler too), so the
     // game's stream is the same to here whether the field plays it or not; from here it follows the play's result.
-    let shadow: Player | undefined;
+    // Today's tackler, then the sideline call (`sideline.ts`): both before the field, the same in every game.
+    const shadow = td ? undefined : this.pickTackler(def, yards);
+    const side = shadow
+      ? this.sideline('run', s, {
+          carrier: rusher,
+          chaser: shadow,
+          lane,
+          run: yards,
+          free: !!(open.broke || open.gone),
+          gain: yards,
+        })
+      : null;
+    const call: SidelineCall = side?.call ?? 'in';
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
-    // Ball carriers protecting a lead stay in bounds.
-    const pOut = (outside ? 0.18 : 0.04) * (coach.tempo(s) === 'milk' ? 0.25 : 1);
-    const outEarly = this.options.field && raw >= 1 && !td ? this.outFirst(pOut) : undefined;
     if (this.fielding && raw >= 1) {
-      if (!td) shadow = this.pickTackler(def, yards);
       const h = this.head();
       moment = {
         kind: 'run',
@@ -2974,7 +3077,7 @@ class GameSim {
           z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000,
           to: yards,
           ...(td ? { td: 1 as const } : {}),
-          ...(outEarly ? { oob: 1 as const } : {}),
+          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
         },
       };
       field = this.openField(moment);
@@ -3015,22 +3118,22 @@ class GameSim {
       };
     }
 
-    // The tackle: today's man, or the one the open field put on him; none when he went out of bounds, or nobody had him.
-    const tackler = spatial
-      ? outEarly || spatial.tackler === null
-        ? null
-        : this.league.players[spatial.tackler]
-      : (shadow ?? this.pickTackler(def, yards));
+    // The tackle: today's man, or the one the open field put on him (on out of bounds, the man who forced him); none
+    // when nobody had him. The scorer credits whoever forced a runner out, pushed or stepped (NFL: every time).
+    const tackler = spatial ? (spatial.tackler === null ? null : this.league.players[spatial.tackler]) : shadow;
     if (tackler) {
       buf.add(tackler, 'tackles');
       if (gain < 0) buf.add(tackler, 'tfl');
       text += ` (${short(tackler)})`;
     }
 
-    const pFumble = tackler
-      ? 0.013 * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
-      : 0;
-    if (tackler && rng.chance(pFumble)) {
+    // On a play out of bounds nothing knocks the ball loose in play: a man who steps out takes no hit, and a ball
+    // jarred loose at the sideline goes out with him and stays the offense's.
+    const pFumble =
+      tackler && call === 'in'
+        ? RUN_FUMBLE * Math.exp(-0.13 * (skill(rusher, 'ballSecurity') - 12)) * this.fumbleOdds(rusher, tackler, true)
+        : 0;
+    if (tackler && call === 'in' && rng.chance(pFumble)) {
       buf.add(rusher, 'fumbles');
       buf.add(tackler, 'forcedFum');
       if (this.fumbleRecoveredByDefense()) {
@@ -3055,10 +3158,8 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const oobRoll = rng.chance(pOut);
-    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
-    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
-    if (oob) text += ', out of bounds';
+    const oob = call !== 'in';
+    text += GameSim.outText(call);
     const duration = rng.int(4, 7);
     if (moment) this.tap(field, moment, today(shadow, oob, duration));
     return {
@@ -3071,6 +3172,7 @@ class GameSim {
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 
@@ -3406,9 +3508,20 @@ class GameSim {
     const shadow = tackler;
     let moment: FieldMoment | undefined;
     let field: { start: FieldStart; result?: FieldResult } | null = null;
-    const tempo = coach.tempo(s);
-    const pOut = tempo === 'hurry' ? 0.35 : tempo === 'milk' ? 0.05 : 0.18;
-    const outEarly = this.options.field && air < yardsToGoal && gain < yardsToGoal ? this.outFirst(pOut) : undefined;
+    // The sideline call (`sideline.ts`) before the field, the same in every game; a touchdown has none.
+    const side =
+      gain < yardsToGoal && tackler
+        ? this.sideline('catch', s, {
+            carrier: receiver,
+            chaser: tackler,
+            lane,
+            run: gain - air,
+            // Nobody near: he broke the tackle, or caught it well clear of his man (`sep`, in rating points).
+            free: !!open.broke || sep >= FREE_SEP,
+            gain,
+          })
+        : null;
+    const call: SidelineCall = side?.call ?? 'in';
     if (this.fielding && air < yardsToGoal) {
       // The pocket first: the catch's open field starts from where it left everyone.
       if (this.dropOutcome)
@@ -3443,7 +3556,7 @@ class GameSim {
           ...this.scrimmageFacts(s),
           to: gain,
           ...(gain >= yardsToGoal ? { td: 1 as const } : {}),
-          ...(outEarly ? { oob: 1 as const } : {}),
+          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
           // The pocket it came out of, as the log keeps it (with the switch on).
           ...(this.options.field && this.pocketNow
             ? (({ pk, nb, rg, bs, bb }) => ({
@@ -3459,8 +3572,9 @@ class GameSim {
       field = this.openField(moment);
     }
     const spatial = field?.result;
-    // The owner's call H: today's yards; the open field's tackler, none when he went out of bounds or nobody had him.
-    if (spatial) tackler = outEarly || spatial.tackler === null ? null : this.league.players[spatial.tackler];
+    // The owner's call H: today's yards; the open field's tackler (on out of bounds, the man who forced him), none when
+    // nobody had him.
+    if (spatial) tackler = spatial.tackler === null ? null : this.league.players[spatial.tackler];
     const catchOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
     const timed = spatial ? { duration: this.fieldTime(field!.start, spatial) } : {};
@@ -3494,15 +3608,21 @@ class GameSim {
       };
     }
     if (!spatial && this.yardLine + gain <= 0) gain = -this.yardLine;
+    // A catch he stepped out on credits a tackle only when someone forced it (NFL: half of them).
+    if (call === 'stepped' && tackler && !rng.chance(steppedCredit(side!.facts))) tackler = null;
     if (tackler) {
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
 
+    // On a play out of bounds nothing knocks the ball loose in play (as on a run).
     if (
       tackler &&
+      call === 'in' &&
       rng.chance(
-        0.0065 * Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) * this.fumbleOdds(receiver, tackler, false),
+        CATCH_FUMBLE *
+          Math.exp(-0.12 * (skill(receiver, 'ballSecurity') - 12)) *
+          this.fumbleOdds(receiver, tackler, false),
       )
     ) {
       buf.add(receiver, 'fumbles');
@@ -3527,10 +3647,8 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const oobRoll = rng.chance(pOut);
-    // The owner's call H: out of bounds at today's odds; a play the field ran went out (or not) as the field was told.
-    const oob = spatial && outEarly !== undefined ? outEarly : oobRoll;
-    if (oob) text += ', out of bounds';
+    const oob = call !== 'in';
+    text += GameSim.outText(call);
     if (moment) this.tap(field, moment, today(oob));
     return {
       ...base,
@@ -3541,6 +3659,7 @@ class GameSim {
       complete: true,
       clockStops: oob && this.oobStopsClock(),
       text,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 
@@ -3857,9 +3976,13 @@ class GameSim {
     const tackler0 = td ? null : this.pickTackler(def, yards);
     const lane = this.rng.pick([-0.9, 0.9]);
     const tdDuration = td ? this.rng.int(5, 8) : 0;
-    // A quarterback in a two-minute drill heads for the sideline; one protecting a lead stays in.
-    const t = coach.tempo(s);
-    const oob = !td && this.rng.chance(t === 'hurry' ? 0.55 : t === 'milk' ? 0.05 : 0.2);
+    // The sideline call (`sideline.ts`): a scrambler always heads wide; the clock, his habits and the chase decide.
+    const call: SidelineCall =
+      td || !tackler0
+        ? 'in'
+        : this.sideline('scramble', s, { carrier: qb, chaser: tackler0, lane, run: yards, free: false, gain: yards })
+            .call;
+    const oob = call !== 'in';
     const slide = !td && !oob && this.rng.chance(0.4);
     const duration0 = td ? tdDuration : this.rng.int(5, 8);
     // Today's draws are all in. With the switch on (a scramble that crosses the line), the pocket plays the escape and
@@ -3871,7 +3994,7 @@ class GameSim {
             ...this.scrimmageFacts(s),
             to: yards,
             ...(td ? { td: 1 as const } : {}),
-            ...(oob ? { oob: 1 as const } : {}),
+            ...(oob ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
             ...(slide ? { sl: 1 as const } : {}),
           })
         : null;
@@ -3895,13 +4018,14 @@ class GameSim {
     if (td) {
       buf.add(qb, 'rushTd');
       text += ', TOUCHDOWN';
-    } else if (tackler && !(field && (oob || slide))) {
+    } else if (tackler && !(field && slide)) {
+      // Out of bounds credits the man who forced him (NFL: every scramble), pushed or stepped.
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
     }
     const duration = field ? this.fieldTime(field.start, field.result) : duration0;
     if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
-    const ending = oob ? ', out of bounds' : slide ? ', slides' : '';
+    const ending = oob ? GameSim.outText(call) : slide ? ', slides' : '';
     return {
       kind: 'scramble',
       yards,
@@ -3910,6 +4034,7 @@ class GameSim {
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
+      ...(oob ? { outOfBounds: call } : {}),
     };
   }
 
@@ -3940,7 +4065,7 @@ class GameSim {
     }
     ts.plays++;
 
-    this.credit(result.stats);
+    this.credit(result.stats, result.outOfBounds === 'stepped');
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {
@@ -3990,6 +4115,8 @@ class GameSim {
 
     this.yardLine += result.yards;
     this.clockRunning = !(result.clockStops || warning);
+    // Out of bounds outside the late windows: the clock waits for the spot, then runs (`coach.afterOutOfBounds`).
+    this.spotted = this.clockRunning && !!result.outOfBounds;
     const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
     const end = kind === 'incomplete' ? startYardLine : this.yardLine >= 100 ? 102 : this.yardLine;
     this.setAnim(offSide, kind, startYardLine, end, airAt, result.lane, who);

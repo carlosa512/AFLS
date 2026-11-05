@@ -1,7 +1,7 @@
 {
   "name": "afls",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "AFLS — a deep American football management simulation",
   "type": "module",
   "scripts": {
@@ -40,7 +40,8 @@
     "gm:ten-years": "tsx scripts/gm-ten-years.ts",
     "screens": "tsx scripts/screens.ts",
     "coach-gallery": "tsx scripts/coach-gallery.ts",
-    "mail-preview": "tsx scripts/mail-preview.ts"
+    "mail-preview": "tsx scripts/mail-preview.ts",
+    "sideline": "tsx scripts/sideline.ts"
   },
   "dependencies": {
     "react": "19.3.1",

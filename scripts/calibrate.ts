@@ -19,6 +19,7 @@ import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 const seasons = Number(process.argv[2] ?? 3);
 
 import { TARGETS } from './targets';
+import { judgeSideline, newSidelineTally, printLine, spreadLines, tallyGame } from './sideline-core';
 
 /**
  * Injuries per team over a 17-game regular season, against the NFL's injury surveillance and
@@ -146,10 +147,16 @@ const lean = (v: number) => (v >= 0.35 ? 'high' : v <= -0.35 ? 'low' : 'mid');
 /** The league's advanced numbers (`analytics.ts`), both sides of every game. */
 const adv = { plays: 0, epa: 0, success: 0, explosive: 0, dropbacks: 0, passEpa: 0, rushes: 0, rushEpa: 0 };
 
+/** Out of bounds by bucket against nflverse (`sideline-core.ts`), read off the same replayed weeks. */
+const sideline = newSidelineTally();
+let sidelineSpread: ReturnType<typeof spreadLines> | null = null;
+
 function sampleDepth(league: League) {
   const untouched = JSON.stringify(league);
+  sidelineSpread ??= spreadLines(league);
   for (const g of gamesInWeek(league)) {
     const r = simulateGame(league, g, { keepPlays: true });
+    tallyGame(sideline, r.plays ?? [], g.homeId);
     for (const p of r.plays ?? []) {
       // A throw away has no target (nflverse leaves its air yards blank too); a throw caught at the line logs no air.
       if (p.kind !== 'pass' && p.kind !== 'incomplete' && p.kind !== 'int') continue;
@@ -501,6 +508,9 @@ for (const b of bands) {
     pair(t.yac / Math.max(1, t.cmp), nfl.yac),
   );
 }
+
+console.log('\nOut of bounds (weeks 1 and 10 replayed; NFL from nflverse 2021–25)');
+for (const l of [...judgeSideline(sideline), ...(sidelineSpread ?? [])]) if (!printLine(l)) misses++;
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).

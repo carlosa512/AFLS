@@ -84,7 +84,8 @@ describe('the open field', () => {
   it('ends on a touchdown, out of bounds or a tackle, never at the time limit', () => {
     for (let i = 0; i < 2000; i++) {
       const r = runField(randomStart(`end:${i}`), new Rng(`end:${i}`));
-      const ends = [r.touchdown, r.outOfBounds, r.tackler !== null].filter(Boolean).length;
+      // Out of bounds names a man to credit too: a tackle is one in bounds.
+      const ends = [r.touchdown, r.outOfBounds, r.tackler !== null && !r.outOfBounds].filter(Boolean).length;
       expect(ends, `seed ${i}`).toBe(1);
       expect(r.duration).toBeLessThan(MAX_FIELD);
       expect(Number.isFinite(r.yards)).toBe(true);
@@ -252,7 +253,7 @@ describe('the open field', () => {
     expect(front).toBeGreaterThanOrEqual(48);
   });
 
-  it('takes a man credited out of bounds out at his spot, nobody credited, a defender chasing or in front', () => {
+  it('takes a man credited out of bounds out at his spot, the man who ran him out to credit', () => {
     // From the 30 in the middle, credited ten yards and out of bounds: a man on his heels and one waiting downfield.
     for (const seed of ['oob-1', 'oob-2', 'oob-3', 'oob-4']) {
       const players = [
@@ -263,7 +264,8 @@ describe('the open field', () => {
       const start = startOf({ players, target: { x: 40, touchdown: false, out: true } });
       const r = runField(start, new Rng(seed));
       expect(r.outOfBounds, seed).toBe(true);
-      expect(r.tackler, seed).toBeNull();
+      // The scorer credits whoever forced him out: the field names him, the engine decides whether to credit.
+      expect([30, 31], seed).toContain(r.tackler);
       expect(Math.abs(r.yards - 10), seed).toBeLessThanOrEqual(1.5);
       // In bounds until he's nearly there.
       const steps = r.frames.length / (players.length * 2);
@@ -281,7 +283,7 @@ describe('the open field', () => {
       const start = startOf({ players, target: { x: 45, touchdown: false, out: true } });
       const r = runField(start, new Rng(seed));
       expect(r.outOfBounds, seed).toBe(true);
-      expect(r.tackler, seed).toBeNull();
+      expect(r.tackler, seed).toBe(31);
       const steps = r.frames.length / (players.length * 2);
       let s = 0;
       while (s < steps - 1 && at(start, r.frames, s, 0).y > 0) s++;
@@ -293,6 +295,51 @@ describe('the open field', () => {
       };
       expect(gap(s), seed).toBeLessThan(gap(0));
       expect(gap(s), seed).toBeLessThan(5);
+    }
+  });
+
+  it('a man pushed out from open field is run down by his escort before he crosses', () => {
+    // A back loose down the sideline, credited twenty yards and pushed out; the nearest defender twelve yards inside.
+    for (const seed of ['run-down-1', 'run-down-2', 'run-down-3', 'run-down-4']) {
+      const players = [man(1, 0, 'RB', 30, 8, { vx: 7 }), man(31, 1, 'S', 34, 20, { vx: 2 })];
+      const start = startOf({ players, target: { x: 50, touchdown: false, out: true } });
+      const r = runField(start, new Rng(seed));
+      expect(r.outOfBounds, seed).toBe(true);
+      const steps = r.frames.length / (players.length * 2);
+      let s = 0;
+      while (s < steps - 1 && at(start, r.frames, s, 0).y > 0) s++;
+      const c = at(start, r.frames, s, 0);
+      const d = at(start, r.frames, s, 1);
+      // Not alone (the film check's five yards): the man running him out is on him as he crosses.
+      expect(Math.hypot(c.x - d.x, c.y - d.y), seed).toBeLessThan(5);
+    }
+  });
+
+  it('a stepped-out man in the hurry-up gets no escort; in normal play the escort still closes', () => {
+    // The tight end near the sideline, credited fifteen yards and stepping out; a safety eight yards inside.
+    const gapAtCrossing = (seed: string, hurry: boolean) => {
+      const players = [man(1, 0, 'TE', 30, 10, { vx: 6 }), man(31, 1, 'S', 32, 18, { vx: 2 })];
+      const start = startOf({
+        players,
+        target: { x: 45, touchdown: false, out: true, stepped: true },
+        clock: { outOfBounds: hurry, stayIn: false },
+      });
+      const r = runField(start, new Rng(seed));
+      expect(r.outOfBounds, seed).toBe(true);
+      // A man to credit when the engine credits one: the nearest defender.
+      expect(r.tackler, seed).toBe(31);
+      const steps = r.frames.length / (players.length * 2);
+      let s = 0;
+      while (s < steps - 1 && at(start, r.frames, s, 0).y > 0) s++;
+      const c = at(start, r.frames, s, 0);
+      const d = at(start, r.frames, s, 1);
+      return Math.hypot(c.x - d.x, c.y - d.y);
+    };
+    for (const seed of ['step-1', 'step-2', 'step-3', 'step-4']) {
+      const normal = gapAtCrossing(seed, false);
+      const hurry = gapAtCrossing(seed, true);
+      expect(normal, seed).toBeLessThan(5);
+      expect(hurry, seed).toBeGreaterThan(normal);
     }
   });
 

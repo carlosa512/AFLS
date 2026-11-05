@@ -4,7 +4,7 @@ import { createLeague, SALARY_CAP } from './generate';
 import { playWeek, simToEndOfSeason, startNextSeason } from './league';
 import * as coach from './match/coach';
 import { simulateGame, startGame } from './match/gameSim';
-import { ROSTER_TEMPLATE } from './positions';
+import { playerOvr, ROSTER_TEMPLATE } from './positions';
 import { Rng } from './rng';
 import { capSheet } from './finance/cap';
 import { isExpired } from './finance/contract';
@@ -163,6 +163,25 @@ describe('game simulation', () => {
     expect(a.homeScore).toBe(b.homeScore);
     expect(a.awayScore).toBe(b.awayScore);
     expect(a.playerStats).toEqual(b.playerStats);
+  });
+
+  it('ends plays out of bounds as pushed or stepped out, never on a touchdown or a fumble', async () => {
+    let pushed = 0;
+    let stepped = 0;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((done) => setTimeout(done, 0));
+      for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!) {
+        if (!/out of bounds/.test(p.text) || /kicks off|punt|throws it away/i.test(p.text)) continue;
+        expect(p.text).toMatch(/, (pushed|steps) out of bounds/);
+        expect(p.text).not.toMatch(/TOUCHDOWN|FUMBLE/);
+        // A ball loose at the sideline goes out with him and stays the offense's: no fumble on a play out of bounds.
+        expect(p.text).not.toMatch(/Fumble/);
+        if (/pushed out of bounds/.test(p.text)) pushed++;
+        else stepped++;
+      }
+    }
+    // NFL: three catches in four that end out of bounds are pushed out.
+    expect(pushed).toBeGreaterThan(stepped);
   });
 
   it('produces internally consistent box scores', () => {
@@ -374,7 +393,10 @@ describe('season flow', () => {
       const hurt =
         starterQb.injury?.season === league.season ||
         (starterQb.injuries ?? []).some((r) => r.season === league.season);
-      if (hurt || qbTrades.has(t.id)) continue;
+      // Two quarterbacks rated dead even share the job: the weekly sort can put either first.
+      const second = league.players[t.depthChart.QB[1]];
+      const tied = second && playerOvr(second) === playerOvr(starterQb);
+      if (hurt || tied || qbTrades.has(t.id)) continue;
       expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
     }
 
@@ -404,6 +426,46 @@ describe('coach decisions', () => {
     overtime: false,
     fgMakeProb: 0.2,
   };
+
+  it('keeps the game clock in whole seconds after a man goes out', async () => {
+    const league = createLeague({ seed: 'test-spot' });
+    for (let i = 0; i < 8; i++) {
+      await new Promise((done) => setTimeout(done, 0));
+      for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!)
+        expect(Number.isInteger(p.clock), p.text).toBe(true);
+    }
+  });
+
+  it('takes the spot off the runoff after a man goes out, never below zero', () => {
+    expect(coach.afterOutOfBounds(30)).toBe(30 - coach.SPOT_PAUSE);
+    expect(coach.afterOutOfBounds(2)).toBe(0);
+  });
+
+  it('stops the clock to the snap inside the windows, and pauses only for the spot outside them', async () => {
+    const league = createLeague({ seed: 'test-spot' });
+    const gaps = { out: [] as number[], in: [] as number[] };
+    for (let i = 0; i < 40; i++) {
+      await new Promise((done) => setTimeout(done, 0));
+      const plays = simulateGame(league, league.games[i], { keepPlays: true }).plays!;
+      for (let k = 0; k + 1 < plays.length; k++) {
+        const [p, n] = [plays[k], plays[k + 1]];
+        if (p.kind !== 'pass' && p.kind !== 'run') continue;
+        if (n.quarter !== p.quarter || n.offense !== p.offense || n.down <= 0 || /TOUCHDOWN|FUMBLE/.test(p.text))
+          continue;
+        if (/Timeout|Two-minute|PENALTY/i.test(n.text) || n.kind === 'penalty') continue;
+        const out = /out of bounds/.test(p.text);
+        const gap = p.clock - n.clock;
+        const late = (p.quarter === 2 && p.clock <= 120) || (p.quarter >= 4 && p.clock <= 300);
+        // Inside the windows the clock waits for the snap: the gap is the play alone.
+        if (out && late) expect(gap).toBeLessThanOrEqual(10);
+        if (p.quarter <= 3 && !(p.quarter === 2 && p.clock <= 240)) (out ? gaps.out : gaps.in).push(gap);
+      }
+    }
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    // Outside them it runs again once the ball is spotted: a few seconds less than after a tackle in bounds.
+    expect(mean(gaps.out)).toBeLessThan(mean(gaps.in) - 2);
+    expect(mean(gaps.out)).toBeGreaterThan(15);
+  });
 
   it('kneels out the clock only when the defense cannot stop it', () => {
     expect(coach.shouldKneel(base)).toBe(true);

@@ -83,6 +83,18 @@ export function tempo(s: Situation): Tempo {
 
 /** Least game clock a "milk" pre-snap runoff burns (the offense lets the play clock run down). */
 export const MILK_RUNOFF_MIN = 36;
+/**
+ * Out of bounds outside the late windows: the NFL stops the game clock until the officials spot the ball and signal
+ * ready, then runs it to the snap (Rule 4-3). nflverse 2021–25, Q1–Q3: a sideline catch that ends out of bounds leaves
+ * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot.
+ */
+export const SPOT_PAUSE = 3;
+
+/** The running clock to the next snap after a man went out of bounds outside the late windows. */
+export function afterOutOfBounds(runoff: number): number {
+  return Math.max(0, runoff - SPOT_PAUSE);
+}
+
 /** A clock-killing fourth-down snap (the quarterback rolls out and runs around) lasts about this long. */
 export const CLOCK_KILL_SECONDS = 8;
 

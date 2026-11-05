@@ -81,14 +81,14 @@ export const QUIRKS = {
     positions: ['QB'],
     tone: 'good',
     clause: 'is at his sharpest when the offense goes fast',
-    effect: 'More accurate, better decisions in hurry-up.',
+    effect: 'More accurate, better decisions in hurry-up. Reads the clock at the sideline.',
   },
   bailsEarly: {
     label: 'Bails Early',
     positions: ['QB'],
     tone: 'bad',
     clause: 'leaves the pocket at the first sign of pressure',
-    effect: 'Scrambles more, and cuts deep throws short.',
+    effect: 'Scrambles more, and cuts deep throws short. Gets out of bounds on his scrambles.',
     poise: 'bad',
   },
   patsTheBall: {
@@ -120,7 +120,7 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'good',
     clause: 'always falls forward for an extra yard',
-    effect: 'A yard more on short runs.',
+    effect: 'A yard more on short runs. Fights to stay in bounds.',
   },
   looseCarriage: {
     label: 'Loose Carriage',
@@ -162,7 +162,7 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'style',
     clause: 'runs upright, shrugging off ankle tackles but taking big hits',
-    effect: 'Breaks more tackles, fumbles more.',
+    effect: 'Breaks more tackles, fumbles more. Fights to stay in bounds.',
   },
   jumpCutter: {
     label: 'Jump-Cutter',
@@ -176,7 +176,7 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'bad',
     clause: 'bounces inside runs to the outside',
-    effect: 'Inside runs turn into losses more often.',
+    effect: 'Inside runs turn into losses more often. Pushed out of bounds more.',
   },
   shortArm: {
     label: 'Short-Arm Catcher',
@@ -190,7 +190,7 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'bad',
     clause: 'goes down early to avoid the big hit',
-    effect: 'Fewer yards after contact, fewer fumbles.',
+    effect: 'Fewer yards after contact, fewer fumbles. Steps out of bounds before the hit.',
   },
   // ── WR / TE ──
   yacSlasher: {
@@ -198,7 +198,7 @@ export const QUIRKS = {
     positions: RECEIVERS,
     tone: 'good',
     clause: 'turns upfield the moment he catches it',
-    effect: 'More yards after the catch.',
+    effect: 'More yards after the catch. Fights to stay in bounds.',
   },
   goesUpForIt: {
     label: 'Goes Up and Gets It',
@@ -212,7 +212,7 @@ export const QUIRKS = {
     positions: RECEIVERS,
     tone: 'bad',
     clause: 'drops easy ones when he expects to get hit',
-    effect: 'More drops on short and intermediate throws.',
+    effect: 'More drops on short and intermediate throws. Steps out of bounds more.',
   },
   lateHands: {
     label: 'Late-Hands Specialist',
@@ -247,7 +247,7 @@ export const QUIRKS = {
     positions: RECEIVERS,
     tone: 'bad',
     clause: 'runs sideways after the catch looking for room',
-    effect: 'Fewer yards after the catch.',
+    effect: 'Fewer yards after the catch. Ends up out of bounds more.',
   },
   // ── OL ──
   anchor: {
@@ -455,14 +455,14 @@ export const QUIRKS = {
     positions: ['LB'],
     tone: 'good',
     clause: 'flows to the ball through traffic',
-    effect: 'Fewer yards on outside runs.',
+    effect: 'Fewer yards on outside runs. Runs carriers out of bounds.',
   },
   thumper: {
     label: 'Thumping Tackler',
     positions: ['LB'],
     tone: 'good',
     clause: 'stops ball carriers dead',
-    effect: 'Fewer broken tackles.',
+    effect: 'Fewer broken tackles. Brings carriers down in bounds.',
   },
   greenDog: {
     label: 'Green-Dog Blitz Specialist',
@@ -540,7 +540,7 @@ export const QUIRKS = {
     positions: DBS,
     tone: 'good',
     clause: 'fills hard against outside runs',
-    effect: 'Fewer yards on outside runs.',
+    effect: 'Fewer yards on outside runs. Runs carriers out of bounds.',
   },
   ballStripper: {
     label: 'Ball-Stripper',
@@ -562,7 +562,7 @@ export const QUIRKS = {
     positions: DBS,
     tone: 'bad',
     clause: 'avoids big ball carriers',
-    effect: 'More yards after the catch for big receivers.',
+    effect: 'More yards after the catch for big receivers. Runs carriers out rather than hitting them.',
   },
   peeks: {
     label: 'Peeks in the Backfield',

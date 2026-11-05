@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.4',
+    date: '2026-11-05',
+    title: 'Out of bounds is a choice',
+    text:
+      'A ball carrier at the sideline now goes out the way NFL players do: most are run out by a defender, and some step ' +
+      'out themselves when the clock calls for it, the first-down marker is behind them, or a hit is coming. A receiver ' +
+      'alone in the open keeps running, a man protecting a lead cuts back inside, and big backs and tight ends fight for ' +
+      'the extra yard. A man who steps out takes no hit. Outside the last minutes of a half the clock stops until the ' +
+      'ball is spotted, as in the NFL.',
+  },
+  {
     version: '0.4.3',
     date: '2026-11-05',
     title: 'The right man gives up the sack',

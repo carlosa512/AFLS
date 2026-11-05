@@ -92,7 +92,7 @@ export interface FieldStart {
    * Where today's engine ended the play (field x) and whether it scored: the open field plays out how he gets there
    * (the path, the cuts, who misses, who tackles) and ends there. The owner's call H: the yards stay today's.
    */
-  target?: { x: number; touchdown: boolean; out?: boolean; slide?: boolean };
+  target?: { x: number; touchdown: boolean; out?: boolean; stepped?: boolean; slide?: boolean };
   /** Free defenders who react late on a clean run (seconds from `t0`): the second level held by the hole. */
   late?: { id: number; until: number }[];
 }
@@ -101,7 +101,8 @@ export interface FieldStart {
 export interface FieldResult {
   /** From `yardLine`, as `PlayResult.yards`. */
   yards: number;
-  /** Null on a touchdown or out of bounds untouched. */
+  /** Null on a touchdown or when nobody had him; on out of bounds, the man to credit (who ran him out, else the
+   * nearest defender): the engine decides whether to. */
   tackler: number | null;
   touchdown: boolean;
   outOfBounds: boolean;
