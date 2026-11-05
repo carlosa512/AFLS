@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.3',
+    date: '2026-11-05',
+    title: 'The right man gives up the sack',
+    text:
+      'On the field under your games, the lineman charged with a sack is now the one the matchup says lost, every ' +
+      'time, and the field shows him getting beaten: no more sacks charged to nobody, or to the tackle on the other ' +
+      'side. A tight end blamed for a sack stays in to block on the film.',
+  },
+  {
     version: '0.4.2',
     date: '2026-11-04',
     title: 'A new job starts with a clean desk',

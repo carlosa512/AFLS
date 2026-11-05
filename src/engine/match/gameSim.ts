@@ -364,6 +364,24 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
   else candidates = blitz && rng.chance(0.6) ? [back] : [lg, c, rg];
   return rng.weighted(candidates, (p) => Math.max(1, 22 - skill(p, 'passPro')));
 }
+/**
+ * Today's credit on a pressure or a sack, in the order `creditPressure` takes it: a hit (a sack always is one), charged
+ * to nobody or not (charting services blame no blocker on about a third of sacks), and the blocker across from him. The
+ * pocket anchors to these same draws, read off a copy of the credit stream before they're taken for real.
+ */
+function creditDraws(
+  rng: Rng,
+  off: Lineup,
+  def: Lineup,
+  rusher: Player,
+  blitz: boolean,
+  sack: boolean,
+): { hit: boolean; unblamed: boolean; blocker: Player | null } {
+  const hit = sack || rng.chance(QB_HIT_SHARE);
+  const unblamed = rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
+  return { hit, unblamed, blocker: unblamed ? null : blockerFor(off, def, rusher, blitz, rng) };
+}
+
 /** Separation beyond which the defense rolls a safety over. */
 const SEP_ROLL = 3;
 /** Carries before a lead back starts handing work to the second back. */
@@ -2672,11 +2690,25 @@ class GameSim {
     if (!this.fielding || !this.fieldRecord) return null;
     const index = this.plays.length;
     const stream = (k: string) => new Rng(`${this.gameSeed}:field:${index}:${k}`);
-    const outcome: PocketOutcome = called === 'pressure' && stream('hit').chance(QB_HIT_SHARE) ? 'hit' : called;
+    // Today's own credit, read off a copy of its stream (the real draws come after, the same): whether a pressure was a
+    // hit, whether it's charged, and to whom. Without today's man, the play's own streams at today's odds.
+    const credited = called !== 'clean' && called !== 'escape' && todayBy !== null;
+    const today = credited
+      ? creditDraws(
+          new Rng(this.creditRng.getState()),
+          this.lineups[this.offense],
+          this.lineups[this.def],
+          todayBy,
+          this.callNow === 'blitz',
+          called === 'sack',
+        )
+      : null;
+    const outcome: PocketOutcome =
+      called === 'pressure' && (today ? today.hit : stream('hit').chance(QB_HIT_SHARE)) ? 'hit' : called;
     const nb =
       outcome !== 'clean' &&
       outcome !== 'escape' &&
-      stream('blame').chance(outcome === 'sack' ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
+      (today ? today.unblamed : stream('blame').chance(outcome === 'sack' ? UNBLAMED_SACK : UNBLAMED_PRESSURE));
     const m: PocketMoment = {
       index,
       ...this.head(),
@@ -2695,7 +2727,7 @@ class GameSim {
         ...extra,
         pk: outcome,
         ...(nb ? { nb: 1 as const } : {}),
-        ...this.pocketAnchor(outcome, nb, todayBy, stream('spot')),
+        ...this.pocketAnchor(outcome, nb, todayBy, today ? today.blocker : undefined, stream('spot')),
       },
     };
     const staged = pocketStage(m, this.fieldRecord, this.game.homeId, this.gameSeed);
@@ -2720,18 +2752,26 @@ class GameSim {
    * Today's credit as the pocket's anchor: the group of today's man who got home, and the spot of the blocker today's
    * rule charges with him (`blockerFor`, on the play's own stream at today's odds). The field picks the men within them.
    */
-  private pocketAnchor(outcome: PocketOutcome, nb: boolean, by: Player | null, rng: Rng): Partial<FieldFacts> {
+  private pocketAnchor(
+    outcome: PocketOutcome,
+    nb: boolean,
+    by: Player | null,
+    /** Today's man (`creditDraws`); undefined when there's no today's credit to read. */
+    todayBeat: Player | null | undefined,
+    rng: Rng,
+  ): Partial<FieldFacts> {
     if (!by || outcome === 'clean' || outcome === 'escape') return {};
     const rg = by.position === 'EDGE' ? 'e' : by.position === 'DT' ? 'i' : by.position === 'LB' ? 'l' : 'd';
     if (nb) return { rg };
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
-    const b = blockerFor(off, def, by, this.callNow === 'blitz', rng);
+    const b = todayBeat === undefined ? blockerFor(off, def, by, this.callNow === 'blitz', rng) : todayBeat;
     if (!b) return { rg };
     const k = off.ol.indexOf(b);
     const n = off.ol.length;
     const bs = k < 0 ? 'b' : k === 0 || k === n - 1 ? 't' : k === 1 || k === n - 2 ? 'g' : 'c';
-    return { rg, bs };
+    // Today's man himself (`bb`): the pocket loses him where he can; his spot when he isn't among its men.
+    return { rg, bs, ...(todayBeat ? { bb: todayBeat.id } : {}) };
   }
 
   /** The pocket's credit, with the switch on: who got home, who lost him, whether he hit him, whether it's charged. */
@@ -3406,11 +3446,12 @@ class GameSim {
           ...(outEarly ? { oob: 1 as const } : {}),
           // The pocket it came out of, as the log keeps it (with the switch on).
           ...(this.options.field && this.pocketNow
-            ? (({ pk, nb, rg, bs }) => ({
+            ? (({ pk, nb, rg, bs, bb }) => ({
                 pk,
                 ...(nb ? { nb } : {}),
                 ...(rg ? { rg } : {}),
                 ...(bs ? { bs } : {}),
+                ...(bb !== undefined ? { bb } : {}),
               }))(this.pocketNow.m.facts)
             : {}),
         },
@@ -3770,11 +3811,11 @@ class GameSim {
   ) {
     const off = this.lineups[this.offense];
     const def = this.lineups[this.def];
-    const rng = this.creditRng;
-    const hitToday = sack || rng.chance(QB_HIT_SHARE);
-    // Coverage sacks and a quarterback holding the ball: nobody up front lost (charting services blame no blocker on about a third of sacks).
-    const unblamed = rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
-    const blockerToday = unblamed ? null : blockerFor(off, def, rusher, defCall === 'blitz', rng);
+    const {
+      hit: hitToday,
+      unblamed,
+      blocker: blockerToday,
+    } = creditDraws(this.creditRng, off, def, rusher, defCall === 'blitz', sack);
     if (this.pocketNow)
       this.pocketToday = {
         ...this.pocketToday,

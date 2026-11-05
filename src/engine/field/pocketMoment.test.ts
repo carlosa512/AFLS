@@ -37,6 +37,32 @@ const catches = plays.flatMap((e, index) => {
   return pm && fm ? [{ index, e: withPk, pm, fm }] : [];
 });
 
+describe("the pocket's anchor", () => {
+  it("keeps today's charged tight end or back in to block, so the man charged is the man who lost", () => {
+    let n = 0;
+    for (const { pm } of catches) {
+      const staged = pocketStage(pm, record, g.homeId, seed);
+      const cast = staged && pocketCast(staged, pm);
+      if (!staged || !cast) continue;
+      // A tight end out on a route (today's credit blames one on 12% of an edge's sacks): it blames him.
+      const back = staged.ids.find(
+        (id, k) => staged.offense[k] && staged.roles[k] === 'TE' && !cast.blockers.includes(id) && id !== pm.ball,
+      );
+      if (back === undefined) continue;
+      const sacked = {
+        ...pm,
+        facts: { ...pm.facts, pk: 'sack' as const, rg: 'e' as const, bs: 'b' as const, bb: back },
+      };
+      const pocket = pocketFrom(sacked, staged, skillsOf, seed);
+      if (!pocket) continue;
+      expect(pocket.start.blockers).toContain(back);
+      expect(pocket.start.want?.blockers).toEqual([back]);
+      n++;
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+});
+
 describe("the pocket's moment", () => {
   it('reads a dropback back into the moment its entry was built from', () => {
     expect(catches.length).toBeGreaterThan(5);

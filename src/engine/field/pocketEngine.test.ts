@@ -47,6 +47,32 @@ describe('the engine plays the pocket', () => {
     expect(n).toBeGreaterThan(0);
   });
 
+  it("blames the man today's credit blames, or nobody when it blames nobody", () => {
+    let blamed = 0;
+    let misses = 0;
+    let n = 0;
+    for (const { taps } of played)
+      for (const t of taps) {
+        if (!t.result || (t.today.outcome !== 'sack' && t.today.outcome !== 'pressure' && t.today.outcome !== 'hit'))
+          continue;
+        if (t.result.rusher === null) continue;
+        n++;
+        // The pocket's anchor is today's own draw, not a parallel one at the same odds.
+        expect(t.start.blamed, `play ${t.moment.index}`).toBe(t.today.blamed);
+        if (!t.today.blamed || t.today.beat === null) {
+          expect(t.result.beat, `play ${t.moment.index}`).toBeNull();
+          continue;
+        }
+        // Today's man: a back or tight end today blames stays in to block, so the man charged is the man who lost (only a
+        // man not on the field at all can't be).
+        blamed++;
+        if (t.result.beat !== t.today.beat) misses++;
+      }
+    expect(n).toBeGreaterThan(20);
+    expect(blamed).toBeGreaterThan(10);
+    expect(misses / blamed).toBeLessThanOrEqual(0.01);
+  });
+
   it('reads a logged dropback back into the moment it was played from', () => {
     for (const { r, taps } of played)
       for (const t of taps) {
@@ -123,7 +149,8 @@ describe('the replay plays the pocket', () => {
     let n = 0;
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
-        if (!t.result) continue;
+        // A lost fumble after a catch is drawn, never replayed (`replay.ts`).
+        if (!t.result || (r.plays![t.moment.index].loose !== undefined && t.today.outcome !== 'sack')) continue;
         const s = stage(r, t.moment.index, homeId);
         expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
         const men = s.ids.length;
@@ -149,7 +176,7 @@ describe('the replay plays the pocket', () => {
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
         const e = r.plays![t.moment.index];
-        if (!t.result || e.kind !== 'pass' || e.field?.to === undefined) continue;
+        if (!t.result || e.kind !== 'pass' || e.field?.to === undefined || e.loose !== undefined) continue;
         const s = stage(r, t.moment.index, homeId);
         const k0 = s.spatial!.k0;
         if (k0 < 1) continue;
@@ -180,6 +207,6 @@ describe('the replay plays the pocket', () => {
     );
     saved.field!.snap!.v = FIELD_VERSION - 1;
     expect(stage(saved, t.moment.index, homeId).spatial).toBeUndefined();
-    expect(r.field!.snap!.v).toBe(8);
+    expect(r.field!.snap!.v).toBe(FIELD_VERSION);
   });
 });

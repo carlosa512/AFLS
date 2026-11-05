@@ -37,6 +37,8 @@ export interface FieldFacts {
    * beaten blocker's spot (tackle, guard, center, a back or tight end). The field picks the man within them. */
   rg?: 'e' | 'i' | 'l' | 'd';
   bs?: 't' | 'g' | 'c' | 'b';
+  /** Today's charged blocker himself (his id): the pocket's anchor when he's among its men. Film before 9 has none. */
+  bb?: number;
 }
 
 export interface FieldMoment {
