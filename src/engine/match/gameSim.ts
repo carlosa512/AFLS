@@ -373,7 +373,15 @@ function rushers(def: Lineup, blitz: boolean): [Player, number][] {
  * The blocker charged when `rusher` gets home. Line spots follow the depth chart (LT, LG, C, RG, RT);
  * among the men who could have had him, the weaker pass protector is more often the one who lost.
  */
-function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rng: Rng): Player | null {
+function blockerFor(
+  off: Lineup,
+  def: Lineup,
+  rusher: Player,
+  blitz: boolean,
+  rng: Rng,
+  /** The pass's target: out on his route, he can't be the man beaten (the draws are taken all the same). */
+  target: Player | null = null,
+): Player | null {
   const ol = off.ol;
   if (!ol.length) return null;
   const at = (i: number) => ol[Math.min(i, ol.length - 1)];
@@ -381,15 +389,15 @@ function blockerFor(off: Lineup, def: Lineup, rusher: Player, blitz: boolean, rn
   const te = off.scheme.offense.personnel === '10' ? null : off.tes[0];
   const back = off.rbs[0];
   let candidates: Player[];
-  if (rusher === def.edge[0]) candidates = te && rng.chance(0.12) ? [te] : [lt];
-  else if (rusher === def.edge[1]) candidates = te && rng.chance(0.12) ? [te] : [rt];
+  if (rusher === def.edge[0]) candidates = te && rng.chance(0.12) && te !== target ? [te] : [lt];
+  else if (rusher === def.edge[1]) candidates = te && rng.chance(0.12) && te !== target ? [te] : [rt];
   // The center helps both ways, so he is the man beaten less often than the guard he slides to.
   else if (rusher === def.dt[0]) candidates = [lg, lg, c];
   else if (rusher === def.dt[1]) candidates = [rg, rg, c];
   else if (rusher.position === 'EDGE') candidates = [lt, rt];
   else if (rusher.position === 'DT') candidates = [lg, rg];
   // Linebackers and defensive backs: the back's to pick up on a blitz, otherwise a lineman sliding late.
-  else candidates = blitz && rng.chance(0.6) ? [back] : [lg, c, rg];
+  else candidates = blitz && rng.chance(0.6) && back !== target ? [back] : [lg, c, rg];
   return rng.weighted(candidates, (p) => Math.max(1, 22 - skill(p, 'passPro')));
 }
 /**
@@ -404,10 +412,11 @@ function creditDraws(
   rusher: Player,
   blitz: boolean,
   sack: boolean,
+  target: Player | null = null,
 ): { hit: boolean; unblamed: boolean; blocker: Player | null } {
   const hit = sack || rng.chance(QB_HIT_SHARE);
   const unblamed = rng.chance(sack ? UNBLAMED_SACK : UNBLAMED_PRESSURE);
-  return { hit, unblamed, blocker: unblamed ? null : blockerFor(off, def, rusher, blitz, rng) };
+  return { hit, unblamed, blocker: unblamed ? null : blockerFor(off, def, rusher, blitz, rng, target) };
 }
 
 /** Separation beyond which the defense rolls a safety over. */
@@ -789,6 +798,8 @@ class GameSim {
   private creditRng: Rng;
   /** The rusher who got home on the current snap without a sack, credited once the play resolves. */
   private pressureBy: Player | null = null;
+  /** This dropback's target, once he's read (`passPlay`): out on his route, never the blocker charged. */
+  private passTarget: Player | null = null;
   /** The blocker charged on this snap's pressure or sack, if any: recorded for All-22, never read by the sim. */
   private beatBy: Player | null = null;
   /** Today's outcome for the dropback being played, for the pocket (`pocketFor`). */
@@ -2294,6 +2305,7 @@ class GameSim {
     this.deepProtection = calls.protectDeep;
     this.endZoneShot = calls.endZoneShot;
     this.pressureBy = null;
+    this.passTarget = null;
     this.beatBy = null;
     this.dropOutcome = null;
     this.pocketNow = null;
@@ -2823,6 +2835,7 @@ class GameSim {
           todayBy,
           this.callNow === 'blitz',
           called === 'sack',
+          this.passTarget,
         )
       : null;
     const outcome: PocketOutcome =
@@ -3323,6 +3336,7 @@ class GameSim {
       ([p, w]) => w[depth] * (0.6 + 0.032 * skill(p, 'targeting')) * (p === off.wrs[0] ? bracket : 1),
     );
     const isBack = receiver.position === 'RB';
+    this.passTarget = receiver;
 
     const recvSkill = skill(receiver, depth === 'deep' ? 'deepRoutes' : 'shortRoutes');
     const coverage = def.scheme.coverage;
@@ -3999,7 +4013,7 @@ class GameSim {
       hit: hitToday,
       unblamed,
       blocker: blockerToday,
-    } = creditDraws(this.creditRng, off, def, rusher, defCall === 'blitz', sack);
+    } = creditDraws(this.creditRng, off, def, rusher, defCall === 'blitz', sack, this.passTarget);
     if (this.pocketNow)
       this.pocketToday = {
         ...this.pocketToday,

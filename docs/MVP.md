@@ -339,6 +339,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
       rusher, a lineman tracking his man to the quarterback); a receiver slid past the sideline to a ball thrown out of
       bounds; a jump-cutter's broken tackle never showed on a short carry. Left: the bounce habit's width is measured on
-      runs that go wide anyway (now 1.11 on stage-b against 1.2: its sweeps to the sideline leave little room), and
-      the line a second in on stage-d (0.979 engaged against 0.98). A beaten blocker now sets before he turns and chases
+      runs that go wide anyway (now 1.11 on stage-b against 1.2: its sweeps to the sideline leave little room). The
+      line a second in is fixed (0.4.5): on zone a spare lineman doubled the nearest man even on his backside while the
+      whole line stepped play-side; he now doubles a man on his play side (stage-d 0.979 to 0.985, stage 0.983). A beaten blocker now sets before he turns and chases
       his man (he stood frozen at the snap on a quick pressure).
