@@ -267,6 +267,7 @@ export function pocketFrom(
     throwAt,
     end,
     ...(m.facts.gr ? { grounded: true } : {}),
+    ...(m.facts.cq ? { clean: true } : {}),
     ...(m.kind === 'sack' && m.to !== undefined ? { sackX: m.to } : {}),
   };
   return { start, result: runPocket(start, rng) };

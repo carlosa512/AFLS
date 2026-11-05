@@ -144,9 +144,10 @@ describe("the pocket's moment", () => {
 
 describe('a throwaway in the pocket', () => {
   /** Each castable catch read back as a throwaway of one shape (and grounded or not). */
-  const asAway = (pk: 'away' | 'awayClean' | 'awayOut', gr = false) =>
+  const asAway = (pk: 'away' | 'awayClean' | 'awayOut', gr = false, cq = false) =>
     catches.flatMap(({ e, index }) => {
-      const pm = pocketMomentOf({ ...e, field: { ...e.field!, pk, ...(gr ? { gr: 1 as const } : {}) } }, record, index);
+      const field = { ...e.field!, pk, ...(gr ? { gr: 1 as const } : {}), ...(cq ? { cq: 1 as const } : {}) };
+      const pm = pocketMomentOf({ ...e, field }, record, index);
       const staged = pm && pocketStage(pm, record, g.homeId, seed);
       const pocket = staged && pocketFrom(pm, staged, skillsOf, seed);
       return pm && staged && pocket ? [{ pm, staged, pocket, composed: composePocket(staged, pocket) }] : [];
@@ -176,6 +177,22 @@ describe('a throwaway in the pocket', () => {
         const d = Math.hypot(c.composed.pos[(st * men + k) * 2] - q.x, c.composed.pos[(st * men + k) * 2 + 1] - q.y);
         expect(d, `play ${c.pm.index}: ${id}`).toBeGreaterThan(1.5);
       });
+    }
+  });
+
+  it('rolled out of a clean pocket, nobody gets to him first either', () => {
+    const out = asAway('awayOut', false, true);
+    expect(out.length).toBeGreaterThan(3);
+    for (const c of out) {
+      const st = Math.round(c.pocket.start.throwAt / STEP);
+      const q = qbAt(c, st);
+      const men = c.composed.ids.length;
+      c.composed.ids.forEach((id, k) => {
+        if (c.composed.offense[k]) return;
+        const d = Math.hypot(c.composed.pos[(st * men + k) * 2] - q.x, c.composed.pos[(st * men + k) * 2 + 1] - q.y);
+        expect(d, `play ${c.pm.index}: ${id}`).toBeGreaterThan(1.5);
+      });
+      expect(c.pocket.result.rusher, `play ${c.pm.index}`).toBeNull();
     }
   });
 

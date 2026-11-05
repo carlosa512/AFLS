@@ -2379,7 +2379,11 @@ class GameSim {
           ...(int && actors.take !== undefined ? { take: actors.take } : {}),
         },
         this.dropOutcome,
-        result.grounding ? { gr: 1 } : {},
+        {
+          ...(result.grounding ? { gr: 1 as const } : {}),
+          // A rollout thrown away from a clean pocket: nobody got home, and the film sends nobody.
+          ...(this.dropOutcome === 'awayOut' && !this.pressureBy ? { cq: 1 as const } : {}),
+        },
       );
     }
     const pocketBy = this.pocketCredit();
@@ -2808,7 +2812,8 @@ class GameSim {
     const stream = (k: string) => new Rng(`${this.gameSeed}:field:${index}:${k}`);
     // Today's own credit, read off a copy of its stream (the real draws come after, the same): whether a pressure was a
     // hit, whether it's charged, and to whom. Without today's man, the play's own streams at today's odds.
-    const quiet = called === 'clean' || called === 'escape' || called === 'awayClean';
+    const quiet =
+      called === 'clean' || called === 'escape' || called === 'awayClean' || (called === 'awayOut' && !!extra.cq);
     const credited = !quiet && todayBy !== null;
     const today = credited
       ? creditDraws(

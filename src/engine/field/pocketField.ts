@@ -30,6 +30,8 @@ export interface PocketStart {
   dir: 1 | -1;
   /** A throwaway flagged as intentional grounding: the ball lands in open grass, near nobody. */
   grounded?: boolean;
+  /** Rolled out of a clean pocket to throw it away: nobody sent, as on any clean dropback. */
+  clean?: boolean;
   /** Field x of the line of scrimmage. */
   los: number;
   qb: number;
@@ -224,7 +226,9 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const outcome = start.outcome;
   const runs = outcome === 'scramble' || outcome === 'escape';
   const thrownAway = outcome === 'away' || outcome === 'awayClean' || outcome === 'awayOut';
-  const arrive = ARRIVE[outcome];
+  // A clean rollout sends nobody: the pocket is as quiet as a clean throw's until he lets it go.
+  const quietRoll = outcome === 'awayOut' && !!start.clean;
+  const arrive = quietRoll ? undefined : ARRIVE[outcome];
   // His moment: the ball out, the sack, or the break.
   const breakT = runs ? Math.max(0.6, start.throwAt - (hasHabit(QP, 'bailsEarly') ? BAIL : 0)) : Infinity;
   const homeT =
@@ -232,11 +236,15 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       ? start.throwAt
       : outcome === 'scramble'
         ? breakT
-        : outcome === 'clean' || outcome === 'escape' || outcome === 'awayClean'
+        : outcome === 'clean' || outcome === 'escape' || outcome === 'awayClean' || quietRoll
           ? Infinity
           : start.throwAt;
   /** Until then nobody gets near him unless sent. */
-  const quietUntil = runs ? breakT : outcome === 'clean' || outcome === 'awayClean' ? start.throwAt : homeT;
+  const quietUntil = runs
+    ? breakT
+    : outcome === 'clean' || outcome === 'awayClean' || quietRoll
+      ? start.throwAt
+      : homeT;
   const react = Math.max(0.05, 0.3 - 0.05 * (QP.s.poise - 12));
   let chosen = -1;
 
