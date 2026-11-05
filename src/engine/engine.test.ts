@@ -165,10 +165,11 @@ describe('game simulation', () => {
     expect(a.playerStats).toEqual(b.playerStats);
   });
 
-  it('ends plays out of bounds as pushed or stepped out, never on a touchdown or a fumble', () => {
+  it('ends plays out of bounds as pushed or stepped out, never on a touchdown or a fumble', async () => {
     let pushed = 0;
     let stepped = 0;
-    for (let i = 0; i < 40; i++)
+    for (let i = 0; i < 40; i++) {
+      await new Promise((done) => setTimeout(done, 0));
       for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!) {
         if (!/out of bounds/.test(p.text) || /kicks off|punt|throws it away/i.test(p.text)) continue;
         expect(p.text).toMatch(/, (pushed|steps) out of bounds/);
@@ -178,6 +179,7 @@ describe('game simulation', () => {
         if (/pushed out of bounds/.test(p.text)) pushed++;
         else stepped++;
       }
+    }
     // NFL: three catches in four that end out of bounds are pushed out.
     expect(pushed).toBeGreaterThan(stepped);
   });
@@ -425,11 +427,13 @@ describe('coach decisions', () => {
     fgMakeProb: 0.2,
   };
 
-  it('keeps the game clock in whole seconds after a man goes out', () => {
+  it('keeps the game clock in whole seconds after a man goes out', async () => {
     const league = createLeague({ seed: 'test-spot' });
-    for (let i = 0; i < 8; i++)
+    for (let i = 0; i < 8; i++) {
+      await new Promise((done) => setTimeout(done, 0));
       for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!)
         expect(Number.isInteger(p.clock), p.text).toBe(true);
+    }
   });
 
   it('takes the spot off the runoff after a man goes out, never below zero', () => {
@@ -437,10 +441,11 @@ describe('coach decisions', () => {
     expect(coach.afterOutOfBounds(2)).toBe(0);
   });
 
-  it('stops the clock to the snap inside the windows, and pauses only for the spot outside them', () => {
+  it('stops the clock to the snap inside the windows, and pauses only for the spot outside them', async () => {
     const league = createLeague({ seed: 'test-spot' });
     const gaps = { out: [] as number[], in: [] as number[] };
     for (let i = 0; i < 40; i++) {
+      await new Promise((done) => setTimeout(done, 0));
       const plays = simulateGame(league, league.games[i], { keepPlays: true }).plays!;
       for (let k = 0; k + 1 < plays.length; k++) {
         const [p, n] = [plays[k], plays[k + 1]];

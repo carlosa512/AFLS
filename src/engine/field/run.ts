@@ -496,8 +496,7 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       const c = B[ci];
       const g = Math.hypot(a.x - d.x, a.y - d.y) || 1;
       const theirs = Math.hypot(e.x - c.x, e.y - c.y) / Math.max(1, Math.hypot(c.vx, c.vy), c.top * 0.5);
-      // Running him out, he comes flat out (the carrier waits for him); a man stepping out he only shadows.
-      const pace = spot.stepped ? Math.min(d.top, g / Math.max(0.2, theirs) + 1) : d.top;
+      const pace = Math.min(d.top, g / Math.max(0.2, theirs) + 1);
       return stepBody(d, { vx: ((a.x - d.x) / g) * pace, vy: ((a.y - d.y) / g) * pace }, STEP);
     }
     const behind = (B[ci].x - d.x) * dir > 10;

@@ -223,13 +223,15 @@ describe("the owner's call H: today's yards, the field's way there", () => {
 });
 
 describe('a field the open field cannot play', () => {
-  it("leaves a catch made past the goal line it's credited short of to today's film (no teleport back)", () => {
+  it("leaves a catch made past the goal line it's credited short of to today's film (no teleport back)", async () => {
     // Film's league: no field start ever has a carrier standing on or past a goal line he's credited short of (the
     // field could only put him back by a jump). The one example the old dice made (game 24, play 71) moved with 0.4.3's
     // reshuffle, so every start of a dozen games is checked instead.
     const l = createLeague({ seed: 'film' });
     let n = 0;
     for (let gi = 20; gi < 32; gi++) {
+      // A game at a time with a yield between (a long synchronous block starves vitest's worker).
+      await new Promise((done) => setTimeout(done, 0));
       const taps: FieldTap[] = [];
       simulateGame(l, l.games[gi], {
         seed: `film-spatial-${gi}`,
