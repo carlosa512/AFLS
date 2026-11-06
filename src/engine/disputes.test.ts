@@ -396,15 +396,19 @@ describe('disputes: AI clubs answer (G4)', () => {
     const { l } = base('settle-room');
     // The re-sign window: restructures are an offseason move.
     l.phase = 'resign';
-    // A club with deals to restructure or a man to cut (which club has them depends on the world: not every one does).
-    gm(l, 3, true);
-    const a = souredDeal(l, 3, RUN_STEPS - 1, 0, (x) => resignCall(l, 3, x).call !== 'walk');
+    gm(l, 1, true);
+    const a = souredDeal(l, 1, RUN_STEPS - 1, 0, (x) => resignCall(l, 1, x).call !== 'walk');
     // $5M short before his raise (restructures convert $1M or more at a time).
-    room(l, 3, -(spendable(l, 3) + 5_000));
-    expect(spendable(l, 3)).toBeLessThan(0);
+    room(l, 1, -(spendable(l, 1) + 5_000));
+    // Next year's books have room to borrow against (whether a club has any depends on the world a season of play
+    // leaves: a club already over next year's ceiling rightly borrows nothing).
+    l.teams[1].deadMoney.push({ season: l.season + 1, amount: -100_000, playerId: -1, note: 'test' });
+    expect(spendable(l, 1)).toBeLessThan(0);
+    const restructured = () => l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(1)).length;
     disputeStep(l, moraleContext(l), at(l, 0), 0, false);
     expect(a.morale!.disputeEnd?.how).toBe('signed');
-    expect(spendable(l, 3)).toBeGreaterThanOrEqual(0);
+    expect(restructured()).toBeGreaterThan(0); // the room was made, not found
+    expect(spendable(l, 1)).toBeGreaterThanOrEqual(0);
   });
 
   it('answers nothing with the dial off', () => {
