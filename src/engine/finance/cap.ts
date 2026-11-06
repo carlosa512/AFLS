@@ -19,6 +19,7 @@ import {
   type RestructurePreview,
 } from './contract';
 import { BASE_CAP, minSalary } from './market';
+import { noteRelease } from '../gmHabits';
 import { queueWaiver, waiverApplies } from '../personnel/waivers';
 import { elevationCap, personnelMoveLock } from '../personnel/elevations';
 import { squadPayroll } from '../personnel/payroll';
@@ -230,6 +231,7 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   if (team.taggedId === player.id) team.taggedId = null;
   player.tagCount = 0; // a later tag elsewhere is not a consecutive one
   logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`);
+  noteRelease(league, team, player, preview.thisYear + preview.nextYear);
   setTeam(league, player, null);
   player.contract = null;
   return preview;

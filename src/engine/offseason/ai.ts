@@ -65,6 +65,7 @@ import {
   type Offer,
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
+import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
 export const KEEP_MIN: Record<Position, number> = {
@@ -207,11 +208,12 @@ export function aiOffer(
   rich = richness(league, team),
 ): Offer {
   const d = demand(league, player, team.id);
-  const eager = clamp(
-    0.93 + 0.02 * Math.min(gain, 4) + 0.06 * winNow(league, team) + 0.07 * rich + rng.float(-0.04, 0.04),
-    0.85,
-    1.12,
-  );
+  const eager =
+    clamp(
+      0.93 + 0.02 * Math.min(gain, 4) + 0.06 * winNow(league, team) + 0.07 * rich + rng.float(-0.04, 0.04),
+      0.85,
+      1.12,
+    ) * (gunShyAt(league, team, player.position) ? 0.92 : 1);
   const cap = league.caps[league.season];
   const apy = Math.max(minSalary(player.experience, cap), Math.round(d.market * eager));
   // Ages read on the position's clock: a 33-year-old quarterback is a 29-year-old receiver.
@@ -710,6 +712,22 @@ export function capCut(league: League, team: Team, desperate = false): Player | 
 const PRICEY = 0.03;
 const PRICE_GAIN = 6;
 
+/** The roster quarterback a club's outlook rates best, if he is 25 or younger: the starter a bridge GM signs beside. */
+export function youngQbClub(league: League, team: Team): Player | null {
+  const wn = winNow(league, team);
+  let best: Player | null = null;
+  let top = -Infinity;
+  for (const q of teamPlayers(league, team.id)) {
+    if (q.position !== 'QB') continue;
+    const o = teamOutlook(league, team.id, q, wn);
+    if (o > top) {
+      top = o;
+      best = q;
+    }
+  }
+  return best && best.age <= 25 ? best : null;
+}
+
 /** The least upgrade (`needGain`) a team bids for at all: a rich one takes a flyer on depth. */
 const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
 
@@ -748,6 +766,8 @@ export function aiFreeAgencyDay(
   const rich = new Map(teams.map((t) => [t.id, richness(league, t)]));
   const dailyLimit = new Map(teams.map((t) => [t.id, 4 + Math.round(rich.get(t.id)! * 5)]));
   const minGain = new Map(teams.map((t) => [t.id, minGainFor(league, t, rich.get(t.id))]));
+  // A bridge GM's young quarterback, read once a pass (it costs an outlook per quarterback).
+  const bridge = new Map(teams.map((t) => [t.id, habitOn(league, t, 'bridgeQb') ? youngQbClub(league, t) : null]));
   const market = leagueMarket(league);
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
@@ -764,7 +784,7 @@ export function aiFreeAgencyDay(
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
-    const bids: { team: Team; offer: Offer; value: number; plan?: RestructurePlan }[] = [];
+    const bids: { team: Team; offer: Offer; value: number; plan?: RestructurePlan; bridging?: boolean }[] = [];
     const minimum = minSalary(p.experience, league.caps[league.season]);
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
@@ -772,10 +792,17 @@ export function aiFreeAgencyDay(
       if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
       const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
-      const gain = needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p));
-      if (gain < minGain.get(team.id)!) continue;
+      const gm = aiGm(league, team);
+      // A bridge GM wants an old quarterback for a year beside his young one; a gun-shy one asks more at his position.
+      const bridging = !!bridge.get(team.id) && p.position === 'QB' && p.age - ageShift('QB') >= 30;
+      const bar = bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1;
+      const gain =
+        needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
+        (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
+      if (gain < minGain.get(team.id)! * bar) continue;
       let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
-      if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id))) continue;
+      if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
+      if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
@@ -806,7 +833,7 @@ export function aiFreeAgencyDay(
         const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
         if (
           !fitted ||
-          gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) ||
+          gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar ||
           offerValue(league, p, team.id, fitted) < floorAt(team.id)
         )
           continue;
@@ -818,7 +845,7 @@ export function aiFreeAgencyDay(
         committedNext.get(team.id)! + offer.apy > nextCap
       )
         continue;
-      bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan });
+      bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
     }
     // He takes the best offer that beats what he'd walk away from; a club that borrows makes its room only now.
     const best = bids
@@ -834,6 +861,9 @@ export function aiFreeAgencyDay(
     const before = capSpace(league, best.team.id);
     signPlayer(league, p, best.team.id, best.offer);
     signings++;
+    const signer = aiGm(league, best.team);
+    if (best.bridging) logMove(league, best.team, 'bridgeQb', { playerId: bridge.get(best.team.id)!.id });
+    if (signer && draftedBy(signer, p)) logMove(league, best.team, 'hisGuys', { playerId: p.id });
     budget.set(best.team.id, budget.get(best.team.id)! - (before - capSpace(league, best.team.id)));
     room.set(best.team.id, room.get(best.team.id)! - 1);
     // Next year's books as they stand now: his deal and any restructure made for it.
@@ -863,7 +893,12 @@ function keepScore(league: League, p: Player, read = viewCache(league)): number 
   const pre = releasePreview(league, p);
   const sunk = pre.thisYear + pre.nextYear > Math.max(0, pre.savings) ? 1.5 : 0;
   const draftee = p.draft?.season === league.season && p.draft.round <= 3 ? 2 : 0;
-  return playerOvr(p) + quirkWorth(league, p.teamId!, p) + youth + sunk + draftee;
+  const team = league.teams[p.teamId!];
+  const gm = aiGm(league, team);
+  const hisGuy = gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 1 : 0;
+  const youngQb =
+    gm && p.position === 'QB' && p.age <= 25 && draftedBy(gm, p) && habitOn(league, team, 'youngQb') ? 2 : 0;
+  return playerOvr(p) + quirkWorth(league, p.teamId!, p) + youth + sunk + draftee + hisGuy + youngQb;
 }
 
 /**
