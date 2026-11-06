@@ -1244,10 +1244,15 @@ export function script(
       else {
         // Already the hitter: he goes from the hit to the ball. Else he comes in from the play as the ball settles.
         const s0 = start.get(by)!;
+        // Near it as it comes out, on his side; nearer when it squirts away from him, so his legs get him to it.
+        const off = toward(hit, s0, 2.5);
+        const legRoom = topOf(by) * (tSettle - tHit);
+        const near =
+          Math.hypot(settle.x - off.x, settle.y - off.y) <= legRoom ? off : toward(settle, off, Math.max(0, legRoom));
         const lead =
           by === hitter
             ? (keys.get(by) ?? [from(by)]).filter((k) => (hitterAtHit ? k.t <= tHit : k.t < tHit))
-            : [...onTheMove(by, tHit, toward(hit, s0, 2.5)), at(tHit, toward(hit, s0, 2.5))];
+            : [...onTheMove(by, tHit, near), at(tHit, near)];
         keys.set(by, [...lead, at(tSettle, settle), ...back]);
         free.delete(by);
         // The man who fumbled stays down where it came out.

@@ -451,9 +451,12 @@ describe('the staged play', () => {
       const last = p.steps - 1;
       let crowd = 0;
       let samples = 0;
-      // The second half of the play, short of the tackle itself.
-      for (let st = Math.round(last / 2); st < last - Math.round(0.6 / p.dt); st += 5) {
+      // The second half of the run by its yards (a patient back can take half the clock to clear the line), short of
+      // the tackle itself.
+      const halfway = (e.from + e.to) / 2;
+      for (let st = 0; st < last - Math.round(0.6 / p.dt); st += 5) {
         const b = pos(p, st, c);
+        if ((b.x - halfway) * Math.sign(e.to - e.from) < 0) continue;
         crowd += p.ids.filter((_, k) => k !== c && Math.hypot(pos(p, st, k).x - b.x, pos(p, st, k).y - b.y) < 4).length;
         samples++;
       }
@@ -1222,7 +1225,10 @@ describe('the loose ball', () => {
   });
 
   it('stages a fumble from a game before the spot was kept (v78): the ball ends where the play did', () => {
-    const { g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    // One that stood: a flag's wiped-out play ends where the walk-off does, not where the run went.
+    const { g, i, plays } = fumbles.find(
+      (x) => x.f.lost && x.e.loose !== undefined && x.plays[x.i].kind !== 'penalty',
+    )!;
     const old: PlayLogEntry = { ...plays[i], loose: undefined };
     const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
     expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);
