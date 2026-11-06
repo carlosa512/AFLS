@@ -92,15 +92,16 @@ describe('gm habits', () => {
     expect(bag.filter((m) => m === 'blank')).toHaveLength(BLANKS);
     expect(bag.filter((m) => m === 'firstsForStars')).toHaveLength(2);
     expect(bag.filter((m) => m === 'bridgeQb')).toHaveLength(2);
-    expect(bag).toHaveLength(BLANKS + 4);
+    expect(bag).toHaveLength(BLANKS + 12);
     gm.age = 55;
     expect(bagOf(l, gm).filter((m) => m === 'blank')).toHaveLength(BLANKS_OLD);
     addMarbles(gm, 'swaps', 3);
     bag = bagOf(l, gm);
-    expect(bag.filter((m) => m === 'swaps')).toHaveLength(3);
+    expect(bag.filter((m) => m === 'swaps')).toHaveLength(4);
     team.gm.archetype = 'Balanced';
     bag = bagOf(l, gm);
     expect(bag.filter((m) => m === 'bpa')).toHaveLength(1);
+    expect(bag.filter((m) => m === 'firstsForStars')).toHaveLength(1);
     expect(bag).not.toContain('gunShy');
   });
 

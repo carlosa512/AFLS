@@ -106,6 +106,14 @@ const CHECKS = {
     summary: /Needs attention.*|Every quirk.*|▼ Nobody carries.*/,
     detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
   },
+  // The AI general managers' habits: churn in four leagues and every habit's effect against a no-habits baseline.
+  'gm-habits': {
+    cmd: ['npm', 'run', 'gm-habits', '--', '--effects'],
+    cores: CORES,
+    secs: 150,
+    summary: /Needs attention.*|Every habit.*/,
+    detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
+  },
   // League weather, forecast calibration, and each condition's effect replayed on the same games.
   weather: {
     cmd: ['npm', 'run', 'weather'],
@@ -238,6 +246,9 @@ const RULES: [RegExp, Name[]][] = [
   // Quirks: the bag and its hooks, and what builds the leagues they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(quirks|match\/|generate|coaching|schemes|attributes|positions|traits)/, ['quirks']],
   [/^scripts\/quirks\.ts$/, ['quirks']],
+  // GM habits: the bag, its new-year step, the traits it hangs on, and the AI decisions that read it.
+  [/^src\/engine\/(?!.*\.test\.ts$)(gmHabits|gmHabitsYear|gmTraits|offseason\/|trade\/)/, ['gm-habits']],
+  [/^scripts\/gm-habits(-league)?\.ts$/, ['gm-habits']],
   // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],
@@ -257,7 +268,7 @@ const RULES: [RegExp, Name[]][] = [
   // Trades: the market and what it values players with (scouting reads, contracts, the cap, rosters, aging, coaches),
   // and trade requests (G4b: a public one lowers his club's floor and draws calls).
   [
-    /^src\/engine\/(?!.*\.test\.ts$)(trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate|disputes|disputeRead)/,
+    /^src\/engine\/(?!.*\.test\.ts$)(gmHabits|gmHabitsYear|gmTraits|trade\/|offseason\/|finance\/|coaching|scouting|staff|aging|positions|roster|league\.ts|generate|disputes|disputeRead)/,
     ['trades'],
   ],
   [/^scripts\/trades(-prices)?\.ts$/, ['trades']],

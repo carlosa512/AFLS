@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.5',
+    date: '2026-11-06',
+    title: 'Rival GMs with habits',
+    text:
+      'The GMs around the league now have ways of doing things that come and go with their careers: one signs a bridge ' +
+      'quarterback every time, another trades up for a passer, a third gets burned on a big deal and goes quiet at that ' +
+      'position. You will read them in the news and from your director, never on a label.',
+  },
+  {
     version: '0.4.4',
     date: '2026-11-05',
     title: 'Out of bounds is a choice',
