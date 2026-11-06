@@ -9,7 +9,7 @@ import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/ty
 import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import type { QuirkId } from '../../engine/quirks';
-import { FIELD_W, pointAt, snapYFor } from '../../engine/field/ballPath';
+import { FIELD_W, isBatted, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { castFor, unitsAt } from '../../engine/field/cast';
 import { fumbleIn } from '../../engine/field/fumble';
 import { lineUp } from '../../engine/field/formations';
@@ -273,7 +273,9 @@ describe('scripts', () => {
   it('the target reaches the landing point when the ball does', () => {
     let n = 0;
     for (const { e, keys, segs, who } of all) {
-      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 3) continue;
+      // A ball batted at the line never reaches him: he runs to where it was thrown (`batted.test.ts`).
+      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || isBatted(e) || who.ball === undefined || segs.length < 3)
+        continue;
       const land = pointAt(segs[2], 1);
       const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur + segs[2].dur);
       expect(Math.hypot(p.x - land.x, p.y - land.y)).toBeLessThan(e.kind === 'incomplete' ? 1.5 : 0.5);
