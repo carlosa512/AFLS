@@ -17,6 +17,7 @@ import { capSpace, logTransaction } from '../finance/cap';
 import { departmentFor } from '../medical';
 import { aiCutdown, capCut, cutChoice } from '../offseason/ai';
 import { resetContenderCache, rosterLimit, ROSTER_MAX } from '../offseason/negotiation';
+import { ARCHETYPE_ACTIVITY } from '../gmTraits';
 import { clamp, Rng } from '../rng';
 import { activeRoster } from '../roster';
 import type { League, Physical, Player, Rumor, Team, TradeMarket, TradeRecord } from '../types';
@@ -49,17 +50,6 @@ const MOMENT_ACTIVITY: Record<Moment, number> = { leagueYear: 2, faDay: 0.5, cam
 
 /** The one league-wide knob, tuned so the market lands on the NFL's volumes (`npm run trades`). */
 export const TRADE_VOLUME = 0.28;
-
-/** A GM's appetite for dealing, by archetype: deal-makers call, hard-liners sit tight. */
-const ARCHETYPE_ACTIVITY: Record<string, number> = {
-  'All-In': 0.85,
-  'Pick Hoarder': 0.7,
-  'Cap Magician': 0.6,
-  'Can-Kicker': 0.6,
-  Balanced: 0.5,
-  'Draft and Develop': 0.4,
-  'Hard-Liner': 0.25,
-};
 
 /** Each GM's own appetite: his archetype's, jittered per team from the league seed (not stored, like the owner's trigger). */
 export function gmActivity(league: League, team: Team): number {

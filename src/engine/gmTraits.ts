@@ -66,7 +66,48 @@ const GM_ARCHETYPES: GmTraits[] = [
     loyalty: 0.5,
     stubbornness: 0.5,
   },
+  {
+    archetype: 'Market Mover',
+    winNow: 0.65,
+    capAggression: 0.75,
+    pickChart: 'analytics',
+    futureDiscount: 0.22,
+    loyalty: 0.35,
+    stubbornness: 0.35,
+  },
+  {
+    archetype: 'Core Keeper',
+    winNow: 0.55,
+    capAggression: 0.35,
+    pickChart: 'analytics',
+    futureDiscount: 0.22,
+    loyalty: 0.8,
+    stubbornness: 0.5,
+  },
+  {
+    archetype: 'Slow Mover',
+    winNow: 0.45,
+    capAggression: 0.3,
+    pickChart: 'johnson',
+    futureDiscount: 0.28,
+    loyalty: 0.65,
+    stubbornness: 0.7,
+  },
 ];
+
+/** A GM's appetite for dealing, by archetype: deal-makers call, hard-liners sit tight. */
+export const ARCHETYPE_ACTIVITY: Record<string, number> = {
+  'All-In': 0.85,
+  'Market Mover': 0.9,
+  'Pick Hoarder': 0.7,
+  'Cap Magician': 0.6,
+  'Can-Kicker': 0.6,
+  Balanced: 0.5,
+  'Core Keeper': 0.45,
+  'Draft and Develop': 0.4,
+  'Hard-Liner': 0.25,
+  'Slow Mover': 0.2,
+};
 
 export function generateGm(rng: Rng): GmTraits {
   const a = rng.pick(GM_ARCHETYPES);
