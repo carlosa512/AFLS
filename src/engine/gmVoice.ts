@@ -27,8 +27,11 @@ export interface HabitFact {
   count: number;
   name: string;
   his: string;
+  /** His pronouns (hers, for a woman): every line about him reads them from here. */
+  p: Pron;
 }
 
+type Pron = ReturnType<typeof pron>;
 const RECENT = 3;
 const NAME_OF = (gm: GeneralManager) => `${gm.firstName} ${gm.lastName}`;
 
@@ -64,6 +67,7 @@ export function habitFacts(league: League, gm: GeneralManager): HabitFact[] {
       count,
       name: NAME_OF(gm),
       his: pron(gm).his,
+      p: pron(gm),
     });
   }
   return out.sort((a, b) => a.ago - b.ago || HABIT_IDS.indexOf(a.habit) - HABIT_IDS.indexOf(b.habit));
@@ -75,7 +79,8 @@ type Dial = 'activity' | 'stubbornness' | 'winNow' | 'loyalty' | 'capAggression'
 const HIGH = 0.65;
 const LOW = 0.35;
 
-const PHRASES: Record<Dial, { high: readonly string[]; low: readonly string[] }> = {
+/** `$his` is filled from the GM's pronouns. */
+export const PHRASES: Record<Dial, { high: readonly string[]; low: readonly string[] }> = {
   activity: {
     high: ['always on the phone', 'works the phones every week'],
     low: ['hard to get on the phone', 'rarely makes a call'],
@@ -89,7 +94,7 @@ const PHRASES: Record<Dial, { high: readonly string[]; low: readonly string[] }>
     low: ['plays the long game', 'builds for three years out'],
   },
   loyalty: {
-    high: ['pays his own', 'takes care of his players'],
+    high: ['pays $his own', 'takes care of $his players'],
     low: ['lets players walk', 'never overpays to keep anyone'],
   },
   capAggression: {
@@ -99,6 +104,7 @@ const PHRASES: Record<Dial, { high: readonly string[]; low: readonly string[] }>
 };
 
 export function reputation(league: League, gm: GeneralManager, form: 'sentence' | 'fragment' = 'sentence'): string {
+  const p = pron(gm);
   const t = gm.teamId === null ? gm.traits : league.teams[gm.teamId]?.gm;
   const dials: Record<Dial, number> = {
     activity: ARCHETYPE_ACTIVITY[archetypeOf(league, gm)] ?? 0.5,
@@ -113,12 +119,11 @@ export function reputation(league: League, gm: GeneralManager, form: 'sentence' 
     .slice(0, 2)
     .map((d) => {
       const bank: Line<null>[] = PHRASES[d][dials[d] >= HIGH ? 'high' : 'low'].map((s) => ({ text: () => s }));
-      return say(bank, null, { key: `gm:${gm.id}`, slot: d });
+      return say(bank, null, { key: `gm:${gm.id}`, slot: d }).replace('$his', p.his);
     });
   if (!said.length) return form === 'sentence' ? 'Hard to pin down.' : 'hard to pin down';
-  // Both phrases from one dial family can repeat across dials; keep them distinct.
   if (form === 'fragment') return said.join('; ');
-  return said.length === 1 ? `He's ${said[0]}.` : `He's ${said[0]}, and ${said[1]}.`;
+  return said.length === 1 ? `${p.He}'s ${said[0]}.` : `${p.He}'s ${said[0]}, and ${said[1]}.`;
 }
 
 // ---- what the league has noticed ----
@@ -129,24 +134,24 @@ const L = (habit: HabitId, evidence: Evidence, ...texts: ((f: HabitFact) => stri
 const D = (f: HabitFact) => ago(f.ago, 'draft');
 const A = (f: HabitFact) => ago(f.ago);
 
-const NOTICED: readonly Line<HabitFact>[] = [
+export const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'bridgeQb',
     'once',
-    () => 'Brought in a veteran to hold the quarterback job while his young one learns.',
+    (f) => `Brought in a veteran to hold the quarterback job while ${f.p.his} young one learns.`,
     () => 'Signed an older quarterback to keep the seat warm for the kid.',
   ),
   ...L(
     'bridgeQb',
     'habit',
-    () => 'He likes a veteran at quarterback while the young one learns. Every year, it seems.',
-    () => 'There is always an older quarterback in the room with him, keeping the seat warm.',
+    (f) => `${f.p.He} likes a veteran at quarterback while the young one learns. Every year, it seems.`,
+    (f) => `There is always an older quarterback in the room with ${f.p.him}, keeping the seat warm.`,
   ),
   ...L(
     'bridgeQb',
     'faded',
-    () => 'He used to lean on veteran quarterbacks. The young ones get the ball now.',
-    () => 'He once kept an old hand at quarterback every year. Not anymore.',
+    (f) => `${f.p.He} used to lean on veteran quarterbacks. The young ones get the ball now.`,
+    (f) => `${f.p.He} once kept an old hand at quarterback every year. Not anymore.`,
   ),
   ...L(
     'tradeUpQb',
@@ -157,68 +162,68 @@ const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'tradeUpQb',
     'habit',
-    () => "He's not shy about jumping the board for a quarterback.",
-    () => 'When there is a quarterback he wants, he goes and gets him.',
+    (f) => `${f.p.He}'s not shy about jumping the board for a quarterback.`,
+    (f) => `When there is a quarterback ${f.p.he} wants, ${f.p.he} goes and gets ${f.p.him}.`,
   ),
   ...L(
     'tradeUpQb',
     'faded',
-    () => "He was the one always jumping up for a quarterback. Lately he's let them come to him.",
-    () => 'He used to move up for his quarterback. Now he waits.',
+    (f) => `${f.p.He} was the one always jumping up for a quarterback. Lately ${f.p.he}'s let them come to ${f.p.him}.`,
+    (f) => `${f.p.He} used to move up for ${f.p.his} quarterback. Now ${f.p.he} waits.`,
   ),
   ...L(
     'extendEarly',
     'once',
-    () => 'Paid one of his starters a year before he had to.',
+    (f) => `Paid one of ${f.p.his} starters a year before ${f.p.he} had to.`,
     () => 'Got a starter signed a year before the deal was up.',
   ),
   ...L(
     'extendEarly',
     'habit',
-    () => 'He pays his starters before the market sets the price.',
-    () => "He doesn't wait for a deal to run out. His starters are signed early.",
+    (f) => `${f.p.He} pays ${f.p.his} starters before the market sets the price.`,
+    (f) => `${f.p.He} doesn't wait for a deal to run out. ${f.p.His} starters are signed early.`,
   ),
   ...L(
     'extendEarly',
     'faded',
-    () => 'He used to get ahead of the market on his own players. Not lately.',
-    () => 'He used to sign his starters early. These days he waits and sees.',
+    (f) => `${f.p.He} used to get ahead of the market on ${f.p.his} own players. Not lately.`,
+    (f) => `${f.p.He} used to sign ${f.p.his} starters early. These days ${f.p.he} waits and sees.`,
   ),
   ...L(
     'sellsEarly',
     'once',
-    () => 'Moved a starter rather than pay his second contract.',
+    (f) => `Moved a starter rather than pay ${f.p.his} second contract.`,
     () => 'Sold a starter before the big deal came due.',
   ),
   ...L(
     'sellsEarly',
     'habit',
-    () => "He'd rather sell a year early than a year late.",
-    () => "He doesn't keep a starter past the first contract if he can help it.",
+    (f) => `${f.p.He}'d rather sell a year early than a year late.`,
+    (f) => `${f.p.He} doesn't keep a starter past the first contract if ${f.p.he} can help it.`,
   ),
   ...L(
     'sellsEarly',
     'faded',
-    () => "He sold starters early for a while. He's holding them now.",
-    () => 'He used to move his starters before they got expensive. He keeps them now.',
+    (f) => `${f.p.He} sold starters early for a while. ${f.p.He}'s holding them now.`,
+    (f) => `${f.p.He} used to move ${f.p.his} starters before they got expensive. ${f.p.He} keeps them now.`,
   ),
   ...L(
     'hisGuys',
     'once',
-    () => 'Brought back a player he drafted.',
-    () => 'Went and got one of his own draftees back.',
+    (f) => `Brought back a player ${f.p.he} drafted.`,
+    (f) => `Went and got one of ${f.p.his} own draftees back.`,
   ),
   ...L(
     'hisGuys',
     'habit',
-    () => 'He likes to bring back players he drafted.',
-    () => 'The players he drafted tend to find their way back to him.',
+    (f) => `${f.p.He} likes to bring back players ${f.p.he} drafted.`,
+    (f) => `The players ${f.p.he} drafted tend to find their way back to ${f.p.him}.`,
   ),
   ...L(
     'hisGuys',
     'faded',
-    () => 'He went back for his own draftees once. Not anymore.',
-    () => 'He used to bring his draftees home. He lets them go now.',
+    (f) => `${f.p.He} went back for ${f.p.his} own draftees once. Not anymore.`,
+    (f) => `${f.p.He} used to bring ${f.p.his} draftees home. ${f.p.He} lets them go now.`,
   ),
   ...L(
     'firstsForStars',
@@ -229,14 +234,14 @@ const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'firstsForStars',
     'habit',
-    () => 'When he wants a star, he pays in firsts.',
-    () => "He'll give up first-round picks for the right player, and he has.",
+    (f) => `When ${f.p.he} wants a star, ${f.p.he} pays in firsts.`,
+    (f) => `${f.p.He}'ll give up first-round picks for the right player, and ${f.p.he} has.`,
   ),
   ...L(
     'firstsForStars',
     'faded',
-    () => "He mortgaged a draft or two for stars once. He's keeping his picks now.",
-    () => 'He used to pay in firsts for a star. The picks stay home now.',
+    (f) => `${f.p.He} mortgaged a draft or two for stars once. ${f.p.He}'s keeping ${f.p.his} picks now.`,
+    (f) => `${f.p.He} used to pay in firsts for a star. The picks stay home now.`,
   ),
   ...L(
     'swaps',
@@ -247,86 +252,86 @@ const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'swaps',
     'habit',
-    () => "He'd sooner swap players than haggle over picks.",
-    () => 'His deals tend to be a player for a player.',
+    (f) => `${f.p.He}'d sooner swap players than haggle over picks.`,
+    (f) => `${f.p.His} deals tend to be a player for a player.`,
   ),
   ...L(
     'swaps',
     'faded',
-    () => 'He used to deal player for player. He talks picks now.',
-    () => 'The straight swaps have dried up. It is picks with him now.',
+    (f) => `${f.p.He} used to deal player for player. ${f.p.He} talks picks now.`,
+    (f) => `The straight swaps have dried up. It is picks with ${f.p.him} now.`,
   ),
   ...L(
     'bpa',
     'once',
-    (f) => `Took the best player on his board over a need ${D(f)}.`,
-    (f) => `Passed on a need for the best player left on his board ${D(f)}.`,
+    (f) => `Took the best player on ${f.p.his} board over a need ${D(f)}.`,
+    (f) => `Passed on a need for the best player left on ${f.p.his} board ${D(f)}.`,
   ),
   ...L(
     'bpa',
     'habit',
-    () => 'He drafts the best player on his board and sorts out the depth chart later.',
-    () => "He doesn't draft for need. The best name on his list goes first.",
+    (f) => `${f.p.He} drafts the best player on ${f.p.his} board and sorts out the depth chart later.`,
+    (f) => `${f.p.He} doesn't draft for need. The best name on ${f.p.his} list goes first.`,
   ),
   ...L(
     'bpa',
     'faded',
-    () => "He used to draft the board. He's drafting needs now.",
-    () => 'He took the best man left, once. Now he fills holes.',
+    (f) => `${f.p.He} used to draft the board. ${f.p.He}'s drafting needs now.`,
+    (f) => `${f.p.He} took the best man left, once. Now ${f.p.he} fills holes.`,
   ),
   ...L(
     'tagsFirst',
     'once',
-    () => 'Tagged his man before he talked money.',
+    (f) => `Tagged ${f.p.his} man before ${f.p.he} talked money.`,
     () => 'Put the tag on a player before sitting down to talk a contract.',
   ),
   ...L(
     'tagsFirst',
     'habit',
-    () => 'The tag comes first with him, the deal after.',
-    () => 'He tags his man first and talks money second.',
+    (f) => `The tag comes first with ${f.p.him}, the deal after.`,
+    (f) => `${f.p.He} tags ${f.p.his} man first and talks money second.`,
   ),
   ...L(
     'tagsFirst',
     'faded',
-    () => 'He used to tag first and talk later. The deals come first now.',
-    () => 'He used to reach for the tag right away. He talks first now.',
+    (f) => `${f.p.He} used to tag first and talk later. The deals come first now.`,
+    (f) => `${f.p.He} used to reach for the tag right away. ${f.p.He} talks first now.`,
   ),
   ...L(
     'youngQb',
     'once',
-    () => 'Stuck with his young quarterback through a losing year.',
-    () => 'Kept his young quarterback in the job through a bad season.',
+    (f) => `Stuck with ${f.p.his} young quarterback through a losing year.`,
+    (f) => `Kept ${f.p.his} young quarterback in the job through a bad season.`,
   ),
   ...L(
     'youngQb',
     'habit',
-    () => 'He sticks with the quarterback he drafted, whatever the record says.',
-    () => "The quarterback he drafted keeps the job. The record doesn't change that.",
+    (f) => `${f.p.He} sticks with the quarterback ${f.p.he} drafted, whatever the record says.`,
+    (f) => `The quarterback ${f.p.he} drafted keeps the job. The record doesn't change that.`,
   ),
   ...L(
     'youngQb',
     'faded',
-    () => 'He used to ride his young quarterback through anything. Less patient now.',
-    () => 'He once gave his young quarterback all the time he wanted. That has run short.',
+    (f) => `${f.p.He} used to ride ${f.p.his} young quarterback through anything. Less patient now.`,
+    (f) => `${f.p.He} once gave ${f.p.his} young quarterback all the time ${f.p.he} wanted. That has run short.`,
   ),
   ...L(
     'gunShy',
     'once',
     (f) => `Got burned on a big ${P(f)} deal, and it shows.`,
-    (f) => `A big ${P(f)} contract went bad on him, and he remembers.`,
+    (f) => `A big ${P(f)} contract went bad on ${f.p.him}, and ${f.p.he} remembers.`,
   ),
   ...L(
     'gunShy',
     'habit',
-    (f) => `He's been burned at ${P(f)} and doesn't pay there anymore.`,
-    (f) => `He won't spend big at ${P(f)} again after what happened.`,
+    (f) => `${f.p.He}'s been burned at ${P(f)} and doesn't pay there anymore.`,
+    (f) => `${f.p.He} won't spend big at ${P(f)} again after what happened.`,
   ),
   ...L(
     'gunShy',
     'faded',
-    (f) => `A big ${P(f)} deal went bad on him a few years back. He's over it.`,
-    (f) => `He was burned at ${P(f)} a while ago. It doesn't seem to weigh on him now.`,
+    (f) => `A big ${P(f)} deal went bad on ${f.p.him} a few years back. ${f.p.He}'s over it.`,
+    (f) => `${f.p.He} was burned at ${P(f)} a while ago. It doesn't seem to weigh on ${f.p.him} now.`,
   ),
 ];
 
@@ -341,9 +346,9 @@ export function noticed(league: League, gm: GeneralManager): string[] {
 // ---- a pattern, when he does it again ----
 
 const N = (m: { name: string }) => m.name;
-type PatternFact = { name: string; ago: string; span: string };
+type PatternFact = { name: string; ago: string; span: string; p: Pron };
 const pat = (habit: string, ...texts: ((f: PatternFact) => string)[]) => texts.map((text) => ({ habit, text }));
-const PATTERN = [
+export const PATTERN = [
   ...pat(
     'firstsForStars',
     (f) => `${N(f)} has been here before: two firsts for one man, ${f.ago} as well.`,
@@ -351,18 +356,18 @@ const PATTERN = [
   ),
   ...pat(
     'swaps',
-    (f) => `${N(f)} has made a habit of this: another straight player swap, his second in ${f.span}.`,
+    (f) => `${N(f)} has made a habit of this: another straight player swap, ${f.p.his} second in ${f.span}.`,
     (f) => `${N(f)} likes these. Another player-for-player swap, and the last was ${f.ago}.`,
   ),
   ...pat(
     'sellsEarly',
     (f) => `It's not the first time ${N(f)} has sold a starter a year early.`,
-    (f) => `${N(f)} sold a starter ahead of his big deal ${f.ago}, too.`,
+    (f) => `${N(f)} sold a starter ahead of ${f.p.his} big deal ${f.ago}, too.`,
   ),
   ...pat(
     'hisGuys',
-    (f) => `${N(f)} went and got one of his own draftees again.`,
-    (f) => `${N(f)} brought back another player he drafted. He did the same ${f.ago}.`,
+    (f) => `${N(f)} went and got one of ${f.p.his} own draftees again.`,
+    (f) => `${N(f)} brought back another player ${f.p.he} drafted. ${f.p.He} did the same ${f.ago}.`,
   ),
 ];
 
@@ -371,7 +376,7 @@ export function patternLine(_league: League, gm: GeneralManager, move: HabitMove
   const lines = PATTERN.filter((p) => p.habit === move.habit);
   if (!lines.length) return '';
   const gap = Math.max(0, move.season - earlier.season);
-  const fact: PatternFact = { name: NAME_OF(gm), ago: ago(gap), span: spanOf(gap) };
+  const fact: PatternFact = { name: NAME_OF(gm), ago: ago(gap), span: spanOf(gap), p: pron(gm) };
   const bank: Line<PatternFact>[] = lines.map((p) => ({ text: p.text }));
   return say(bank, fact, { key: `gm:${gm.id}:pattern:${move.season}`, slot: move.habit });
 }
@@ -382,30 +387,32 @@ interface TipFact {
   hisGuy: string | null;
   star: boolean;
   swap: boolean;
+  p: Pron;
   rookieStarter: boolean;
   has: Set<HabitId>;
 }
 
-const TIPS: readonly Line<TipFact>[] = [
+export const TIPS: readonly Line<TipFact>[] = [
   {
     when: (f) => !!f.hisGuy && f.has.has('hisGuys'),
-    reads: 2,
-    text: (f) => `He has tended to pay for players he drafted. We may be able to ask more for ${f.hisGuy}.`,
+    reads: 4,
+    text: (f) =>
+      `${f.p.He} has tended to pay for players ${f.p.he} drafted. We may be able to ask more for ${f.hisGuy}.`,
   },
   {
     when: (f) => f.star && f.has.has('firstsForStars'),
-    reads: 2,
-    text: () => "He's paid in firsts for a star before. I wouldn't take the first offer.",
+    reads: 3,
+    text: (f) => `${f.p.He}'s paid in firsts for a star before. I wouldn't take the first offer.`,
   },
   {
     when: (f) => f.swap && f.has.has('swaps'),
     reads: 2,
-    text: () => 'He likes a straight swap. The price may be better than it looks.',
+    text: (f) => `${f.p.He} likes a straight swap. The price may be better than it looks.`,
   },
   {
     when: (f) => f.rookieStarter && f.has.has('sellsEarly'),
-    reads: 2,
-    text: () => 'He sells a year early by habit; this may not be about the player.',
+    reads: 1,
+    text: (f) => `${f.p.He} sells a year early by habit; this may not be about the player.`,
   },
 ];
 
@@ -430,6 +437,7 @@ export function directorTip(league: League, partner: Team, sides: readonly [Trad
       .map((id) => league.players[id])
       .some((p) => !!p && p.contract?.kind === 'rookie' && starters(league, partner, p.position).includes(p)),
     has,
+    p: pron(gm),
   };
   return say(TIPS, tip, { key: `tip:${partner.id}:${league.season}`, slot: 'tip' }) || null;
 }
