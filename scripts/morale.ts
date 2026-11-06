@@ -593,7 +593,9 @@ check(`Unit reads: Split (n=${reads.length})`, shareOf('Split'), [0.05, 0.15]);
 // Down means a room reads Poor or worse, the word the screen shows: rare in a happy league, so only its ceiling counts
 // (the owner's call, Nov 2, 2026).
 check('Unit reads: Down (ceiling)', shareOf('Down'), [0, 0.2]);
-check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35]);
+// Tight swings with the league (`band.ts`): ⚠ outside 0.15–0.35, fail outside 0.12–0.40 (the owner's call, Nov 6: main
+// read 0.32–0.34 over three seeds and 0.4.8's branch 0.31–0.36, the gap flipping with the seed).
+check('Unit reads: Tight', shareOf('Tight'), [0.15, 0.35], 2, [0.12, 0.4]);
 // The ceiling is the point (spec §8: rooms cluster but don't run away); a club room averaging Poor is rare (about 2%),
 // so there is no floor (the owner's call, Nov 2, 2026).
 check('Club rooms at Poor or worse (ceiling)', mean(poorRooms), [0, 0.25]);
