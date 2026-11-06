@@ -111,6 +111,7 @@ const CHECKS = {
     cmd: ['npm', 'run', 'gm-habits', '--', '--effects'],
     cores: CORES,
     secs: 640,
+    slow: true,
     summary: /Needs attention.*|Every habit.*/,
     detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
   },

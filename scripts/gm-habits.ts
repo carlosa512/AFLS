@@ -40,6 +40,10 @@ const only = args
   .find((a) => a.startsWith('--only='))
   ?.slice(7)
   .split(',');
+if (only && !effects) {
+  console.error('--only= needs --effects (it picks which effects to run).');
+  process.exit(1);
+}
 const CHURN_SEEDS = ['habits-1', 'habits-2', 'habits-3', 'habits-4'];
 const CHURN_SEASONS = 10;
 const FX_SEED = 'habits-fx';

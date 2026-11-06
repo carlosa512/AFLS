@@ -46,7 +46,7 @@ export const HABITS: Record<HabitId, { label: string }> = {
   gunShy: { label: 'Gun-Shy on Big Deals' },
 };
 
-/** By archetype, the first is active on day one and each also puts two marbles in his bag. Balanced draws one at random. */
+/** By archetype, the first is active on day one (and has two marbles in his bag; see `bagOf`). Balanced draws one at random. */
 export const STARTING_HABITS: Record<string, readonly HabitId[]> = {
   'Cap Magician': ['sellsEarly'],
   'All-In': ['firstsForStars', 'bridgeQb'],
