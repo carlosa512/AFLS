@@ -30,30 +30,31 @@ passers out): the end over the left tackle 9.4% (n 223), over the right tackle 1
 
 | Play     | Fumbles | All  | Forced | His own | Out of bounds |
 | -------- | ------- | ---- | ------ | ------- | ------------- |
-| Run      | 1,033   | 0.42 | 0.60   | 0.26    | 4%            |
-| Catch    | 662     | 0.50 | 0.54   | 0.21    | 19%           |
-| Sack     | 810     | 0.51 | 0.52   | 0.38    | 4%            |
+| Run      | 1,033   | 0.42 | 0.60   | 0.25    | 4%            |
+| Catch    | 662     | 0.50 | 0.54   | 0.18    | 19%           |
+| Sack     | 810     | 0.51 | 0.52   | 0.35    | 4%            |
 | Scramble | 64      | 0.47 | 0.48   | —       | 28%           |
 
 A ball out of bounds stays the offense's; with no bounce here it is folded into these shares.
 
-**Who's credited (defensive recoveries):** the man who forced it 13% (runs 15%, catches 13%, sacks: the sacker 11%,
-scrambles 7%). The rest by position group:
+**Who's credited (defensive recoveries; groups by the season roster's position and depth-chart spot, an OLB on the edge
+counted with the line as the game's EDGE):** the man who forced it 12% (runs 10%, catches 13%, sacks 12%, scrambles
+7%). The rest by position group:
 
 | Play     | DB   | LB   | D-line |
 | -------- | ---- | ---- | ------ |
-| Run      | 0.38 | 0.36 | 0.26   |
-| Catch    | 0.58 | 0.29 | 0.13   |
-| Sack     | 0.13 | 0.37 | 0.51   |
-| Scramble | 0.50 | 0.36 | 0.14   |
+| Run      | 0.38 | 0.20 | 0.43   |
+| Catch    | 0.58 | 0.18 | 0.24   |
+| Sack     | 0.13 | 0.16 | 0.72   |
+| Scramble | 0.50 | 0.11 | 0.39   |
 
 **The return, by who has it (1,193 recoveries):**
 
 | Recovered by | Zero or less | 1–9  | 10–19 | 20+  | Mean | Touchdown |
 | ------------ | ------------ | ---- | ----- | ---- | ---- | --------- |
 | DB           | 0.64         | 0.17 | 0.08  | 0.12 | 6.7  | 8.1%      |
-| LB           | 0.70         | 0.16 | 0.06  | 0.07 | 3.9  | 7.1%      |
-| D-line       | 0.84         | 0.09 | 0.04  | 0.03 | 2.1  | 5.2%      |
+| LB           | 0.69         | 0.16 | 0.10  | 0.06 | 4.2  | 6.0%      |
+| D-line       | 0.80         | 0.12 | 0.03  | 0.05 | 2.7  | 6.3%      |
 
 Return touchdowns by play: runs 5.1%, catches 5.1%, sacks 11.1% (the ball loose in the backfield, nobody behind it).
 
@@ -78,7 +79,7 @@ It replaces the flat 10%/18%. Its constants are fitted on weeks 1 and 10 of play
 A pure module, no draws, no league reads; the engine rolls against what it returns.
 
 - **`defenseRecovers(kind, forced): number`** — the lost share by play and forced or own (§1's table); a scramble
-  the quarterback fumbled himself takes a sack's own share (0.38: the NFL has four).
+  the quarterback fumbled himself takes a sack's own share (0.35: the NFL has four).
 - **`recovererGroup(kind): Record<'DB' | 'LB' | 'DL', number>`** and **`FORCER_RECOVERS`** (by kind) — who on the
   defense is credited: the forcer first, else a group by §1's split, then a man of that group on the field (the
   engine's lineup: `cb`/`s`, `lb`, `edge`/`dt`), weighted evenly. A group with nobody on the field passes to the next.

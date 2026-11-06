@@ -56,8 +56,8 @@ the checks.
   the recoverer's group from `fumble_recovery_1_player_id` the same way; returns from `fumble_recovery_1_yards`
   (missing = 0), touchdowns from `return_touchdown`.
 - [ ] **Step 2: Run** `python3 -I scripts/research-fumbles.py`.
-  Expected: strip-sacks all 12.36 (n 6,552), edge 14.0, interior 8.0; lost share run 0.42 / forced 0.60 / own 0.26,
-  catch 0.50 / 0.54 / 0.21, sack 0.51 / 0.52 / 0.38; DB returns mean 6.7, 20+ 0.12, TD 0.081.
+  Expected: strip-sacks all 12.36 (n 6,552), edge 14.0, interior 8.0; lost share run 0.42 / forced 0.60 / own 0.25,
+  catch 0.50 / 0.54 / 0.18, sack 0.51 / 0.52 / 0.35; DB returns mean 6.7, 20+ 0.12, TD 0.081.
 - [ ] **Step 3: Commit** ("Research: fumble recoveries, returns and strip-sacks, nflverse 2021–25").
 
 ### Task 2: The loose ball
@@ -70,8 +70,8 @@ the checks.
 - Produces:
   - `type LooseKind = ContactKind | 'sack'`; `type Group = 'DB' | 'LB' | 'DL'`.
   - `defenseRecovers(kind: LooseKind, forced: boolean): number` (spec §1's table; a scramble's own takes the sack's
-    0.38).
-  - `FORCER_RECOVERS: Record<LooseKind, number>` (run 0.15, catch 0.13, sack 0.11, scramble 0.07).
+    0.35).
+  - `FORCER_RECOVERS: Record<LooseKind, number>` (run 0.10, catch 0.13, sack 0.12, scramble 0.07).
   - `recovererGroup(kind: LooseKind): Record<Group, number>` (spec §1's split).
   - `pickRecoverer(kind: LooseKind, forcer: Player | null, onField: Record<Group, Player[]>, u1: number, u2: number): Player`
     — the forcer when `u1 < FORCER_RECOVERS[kind]` and he forced it, else a group by `u2` over the split restricted to
@@ -81,7 +81,7 @@ the checks.
     Task 7), capped at `toGoal`.
 
 - [ ] **Step 1: Write the failing tests** in `looseBall.test.ts`:
-  - `defenseRecovers('run', true)` 0.60, `('run', false)` 0.26, `('catch', false)` 0.21, `('scramble', false)` 0.38.
+  - `defenseRecovers('run', true)` 0.60, `('run', false)` 0.25, `('catch', false)` 0.18, `('scramble', false)` 0.35.
   - each `recovererGroup(kind)` sums to 1 (±1e-9); `recovererGroup('sack').DL` > `recovererGroup('catch').DL`.
   - `pickRecoverer` with `u1 = 0` and a forcer returns the forcer; with `forcer = null` never returns null; with
     `onField.LB = []` and `u2` inside the LB share returns a DB or DL man (Review Focus).
