@@ -151,6 +151,7 @@ export function bagOf(league: League, gm: GeneralManager): string[] {
 
 /** The offseason draw: three marbles, each tightening or loosening a grip. The year's extra marbles are spent. */
 export function drawHabits(league: League, gm: GeneralManager, rng: Rng): void {
+  if (gm.id === league.userGmId) return;
   const habits = (gm.habits ??= {});
   const drawn = rng.shuffle([...bagOf(league, gm)]).slice(0, DRAWS);
   for (const m of drawn) {
@@ -182,7 +183,8 @@ export function drawHabits(league: League, gm: GeneralManager, rng: Rng): void {
 /** A release that costs a real slice of the cap on a deal he signed himself leaves him wary of that position. */
 export function noteRelease(league: League, team: Team, p: Player, dead: number): void {
   const gm = aiGm(league, team);
-  if (!gm || dead < BLOWUP_SHARE * (league.caps[league.season] ?? 0)) return;
+  const cap = league.caps[league.season];
+  if (!gm || cap === undefined || dead < BLOWUP_SHARE * cap) return;
   const start = gm.appointments.at(-1)?.start;
   const c = p.contract;
   if (!start || !c || c.signedSeason < start.season || c.signedWeek === -1) return;
