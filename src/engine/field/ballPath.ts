@@ -47,7 +47,9 @@ export function batDown(thrown: Seg, lineX: number, dir: number): Seg {
 /** Where a batted throw was going (`aimX`, the play's air): its flight's line carried on. */
 export function aimOf(flight: Seg, aimX: number): { x: number; y: number } {
   const dx = flight.x1 - flight.x0;
-  return { x: aimX, y: dx ? flight.y0 + ((flight.y1 - flight.y0) * (aimX - flight.x0)) / dx : flight.y1 };
+  // Carried a long way from a short flight, a small angle runs wide: never past a sideline.
+  const y = dx ? flight.y0 + ((flight.y1 - flight.y0) * (aimX - flight.x0)) / dx : flight.y1;
+  return { x: aimX, y: Math.max(1, Math.min(FIELD_W - 1, y)) };
 }
 
 /** The ball's path for a play, in both views: the play as it was carried, then any fumble (`loosen`). */
