@@ -65,6 +65,12 @@ const PICK_RETURNS: Record<Band, Bands> = {
 /** A pick credits its catcher with a pass defensed too (84% in the NFL's books). */
 export const PICK_PD = 0.84;
 
+/**
+ * How hard a group's ball skills or coverage decide which of its men gets there: a pick goes to the ball hawk far more
+ * than his rating's share (the league's leader picks off seven to ten a season), a breakup more evenly.
+ */
+export const CONTEST_POWER: Record<'ballSkills' | 'coverage', number> = { ballSkills: 3, coverage: 1 };
+
 /** A man by weight on draw `u` in [0, 1). */
 function weighted(men: Player[], weights: number[], u: number): Player {
   const total = weights.reduce((a, b) => a + b, 0);
@@ -103,7 +109,7 @@ function byGroup(
       const within = Math.min(0.999999, Math.max(0, at / shares[g]));
       return weighted(
         men[g],
-        men[g].map((p) => skill(p, contest)),
+        men[g].map((p) => skill(p, contest) ** CONTEST_POWER[contest]),
         within,
       );
     }
