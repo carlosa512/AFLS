@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { carrierSpread, newFumbleTally } from './fumbles-core';
+import type { StripTap } from '../src/engine/match/gameSim';
+import { carrierSpread, judgeRecoveries, judgeStrips, newFumbleTally, tapStrip } from './fumbles-core';
+import type { Line } from './sideline-core';
+
+/** In range, or only reported. */
+const printable = (l: Line) => !!l.info || (Number.isFinite(l.value) && l.value >= l.range[0] && l.value <= l.range[1]);
 
 /** Thirty backs, 200 carries each, fumbling these many times in turn. */
 function backs(fumbles: number[]) {
@@ -20,5 +25,41 @@ describe('the spread between backs', () => {
     const l = backs([0, 1, 2, 4, 7, 8]);
     expect(l.value).toBeGreaterThan(l.range![0]);
     expect(l.value).toBeLessThan(l.range![1]);
+  });
+});
+
+describe('strip-sacks and the loose ball', () => {
+  const sack = (fumbled: boolean, spot: 'edge' | 'interior' = 'edge'): StripTap =>
+    ({ down: 1, toGo: 10, trailingLate: false, leadingLate: false, spot, qb: 1, fumbled, forced: fumbled }) as StripTap;
+  const line = (lines: Line[], label: string) => lines.find((l) => l.label === label)!;
+
+  it('judges strip-sacks against the NFL’s 12.4 a hundred', () => {
+    const ok = newFumbleTally();
+    for (let i = 0; i < 10000; i++) tapStrip(ok, sack(i % 1000 < 124));
+    expect(printable(line(judgeStrips(ok), 'strip-sacks, all: per 100 sacks'))).toBe(true);
+    const high = newFumbleTally();
+    for (let i = 0; i < 10000; i++) tapStrip(high, sack(i % 100 < 20));
+    expect(printable(line(judgeStrips(high), 'strip-sacks, all: per 100 sacks'))).toBe(false);
+  });
+
+  it('reports a recovery bucket the NFL has too few of, judging nothing', () => {
+    const t = newFumbleTally();
+    const l = judgeRecoveries(t).find((x) => x.label.startsWith('scrambles: recovered by the DBs'))!;
+    expect(l.info).toBe(true);
+  });
+});
+
+describe('returns by group', () => {
+  it('judges a mean return only once its tolerance clears 3.5 standard errors (returns run 0 to 100)', () => {
+    const t = newFumbleTally();
+    // 300 linebacker returns: most nothing, a few the length of the field. Mean 5, a spread of about 20.
+    for (let i = 0; i < 300; i++) {
+      const yds = i % 20 === 0 ? 90 : i % 4 === 0 ? 2 : 0;
+      t.returns.LB.n++;
+      t.returns.LB.yards += yds;
+      t.returns.LB.sq += yds * yds;
+    }
+    const l = judgeRecoveries(t).find((x) => x.label === 'returns by the linebackers: mean yards')!;
+    expect(l.info).toBe(true);
   });
 });

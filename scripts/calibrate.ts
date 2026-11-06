@@ -20,7 +20,7 @@ import { LEADER_TARGETS, overRecordAllowed, seasonTops } from './leaders';
 const seasons = Number(process.argv[2] ?? 3);
 
 import { TARGETS } from './targets';
-import { judgeFumbles, newFumbleTally, tapContact } from './fumbles-core';
+import { judgeFumbles, judgeRecoveries, judgeStrips, newFumbleTally, tapContact, tapStrip } from './fumbles-core';
 import { groundingLines, judgePasser, newPasserTally, tapDropback } from './passer-core';
 import { judgeSideline, newSidelineTally, printLine, spreadLines, tallyGame } from './sideline-core';
 
@@ -172,6 +172,7 @@ function sampleDepth(league: League) {
       keepPlays: true,
       dropbackTap: (tap) => tapDropback(passer, tap, String(tap.qb)),
       contactTap: (tap) => tapContact(fumbles, tap, String(tap.carrier)),
+      stripTap: (tap) => tapStrip(fumbles, tap),
     });
     passerGames++;
     tallyGame(sideline, r.plays ?? [], g.homeId);
@@ -534,7 +535,8 @@ console.log('\nThe passer under pressure (weeks 1 and 10 replayed; NFL from FTN 
 for (const l of [...judgePasser(passer), ...groundingLines(passer, passerGames)]) if (!printLine(l)) misses++;
 
 console.log('\nFumbles on contact (weeks 1 and 10 replayed; NFL from nflverse 2021–25)');
-for (const l of judgeFumbles(fumbles)) if (!printLine(l)) misses++;
+for (const l of [...judgeFumbles(fumbles), ...judgeStrips(fumbles), ...judgeRecoveries(fumbles)])
+  if (!printLine(l)) misses++;
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).

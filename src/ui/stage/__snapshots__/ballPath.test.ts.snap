@@ -6,8 +6,8 @@ exports[`the ball path > draws the same path for one play of each kind as before
     {
       "dur": 1.1,
       "peak": 13,
-      "x0": 84,
-      "x1": 110,
+      "x0": 39,
+      "x1": -10,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -30,32 +30,6 @@ exports[`the ball path > draws the same path for one play of each kind as before
       "y1": 26.65,
     },
   ],
-  "int": [
-    {
-      "dur": 0.43200000000000005,
-      "peak": 0,
-      "x0": 46,
-      "x1": 52,
-      "y0": 26.65,
-      "y1": 26.65,
-    },
-    {
-      "dur": 1.1708085867071172,
-      "peak": 13,
-      "x0": 52,
-      "x1": 17,
-      "y0": 26.65,
-      "y1": 13.849999999999998,
-    },
-    {
-      "dur": 1.7032875685332638,
-      "peak": 0,
-      "x0": 17,
-      "x1": 52,
-      "y0": 13.849999999999998,
-      "y1": 16.25,
-    },
-  ],
   "kickoff": [
     {
       "dur": 1.5,
@@ -72,6 +46,16 @@ exports[`the ball path > draws the same path for one play of each kind as before
       "x1": 27,
       "y0": 26.65,
       "y1": 30.65,
+    },
+  ],
+  "kneel": [
+    {
+      "dur": 0.33999999999999997,
+      "peak": 0,
+      "x0": 39,
+      "x1": 38,
+      "y0": 26.65,
+      "y1": 26.65,
     },
   ],
   "pass": [
@@ -102,10 +86,10 @@ exports[`the ball path > draws the same path for one play of each kind as before
   ],
   "penalty": [
     {
-      "dur": 0.8,
+      "dur": 1.44,
       "peak": 0,
-      "x0": 81,
-      "x1": 86,
+      "x0": 63,
+      "x1": 78,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -160,18 +144,18 @@ exports[`the ball path > draws the same path for one play of each kind as before
     {
       "dur": 0.252,
       "peak": 0,
-      "x0": 40,
-      "x1": 43,
+      "x0": 58,
+      "x1": 55,
       "y0": 26.65,
       "y1": 26.65,
     },
     {
-      "dur": 1.049783968887039,
+      "dur": 0.958920329023168,
       "peak": 0,
-      "x0": 43,
-      "x1": 31,
+      "x0": 55,
+      "x1": 63,
       "y0": 26.65,
-      "y1": 41.05,
+      "y1": 12.249999999999998,
     },
   ],
   "xp": [

@@ -149,19 +149,31 @@ describe('the loose ball', () => {
 describe('a fumble on film', () => {
   // A real lost fumble after a carry, staged as each reason would say it.
   const league = createLeague({ seed: 'fumble-film' });
+  // The first whose tackler gets to his hit (one who can't reach it in time keeps his chase: nothing to tell apart).
   let found: { r: GameResult; i: number; homeId: number } | null = null;
   for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 30)) {
     const r = simulateGame(league, g, { keepPlays: true });
-    const i = r.plays!.findIndex(
-      (e) =>
-        (e.kind === 'run' || e.kind === 'pass') &&
-        /FUMBLE, recovered by/.test(e.text) &&
-        actorsIn(e).tackle !== undefined,
-    );
-    if (i >= 0) {
-      found = { r, i, homeId: g.homeId };
-      break;
+    for (let i = 0; i < r.plays!.length && !found; i++) {
+      const e = r.plays![i];
+      if ((e.kind !== 'run' && e.kind !== 'pass') || !/FUMBLE, recovered by/.test(e.text)) continue;
+      const who = actorsIn(e);
+      if (who.tackle === undefined || who.ball === undefined) continue;
+      const p = stagePlay({
+        plays: r.plays!,
+        index: i,
+        record: r.field!,
+        homeId: g.homeId,
+        seed: 'film',
+        snapY: 26.65,
+      });
+      if (!p.loose) continue;
+      const step = Math.round(p.loose.t / p.dt);
+      const h = p.ids.indexOf(who.tackle);
+      const hx = p.pos[(step * p.ids.length + h) * 2] - p.ball[step * 3];
+      const hy = p.pos[(step * p.ids.length + h) * 2 + 1] - p.ball[step * 3 + 1];
+      if (Math.hypot(hx, hy) <= 1.2) found = { r, i, homeId: g.homeId };
     }
+    if (found) break;
   }
   const REASONS = {
     strip: ', stripped by B.Weber',
@@ -206,5 +218,39 @@ describe('a fumble on film', () => {
     expect(hit.ahead).toBeGreaterThan(0);
     expect(look('fight').others).toBeGreaterThanOrEqual(1);
     expect(look('own').dist).toBeGreaterThan(1);
+  });
+});
+
+describe('a sack fumble the quarterback lost himself, on film', () => {
+  const league = createLeague({ seed: 'fumble-film' });
+  let found: { r: GameResult; i: number; homeId: number } | null = null;
+  for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 60)) {
+    const r = simulateGame(league, g, { keepPlays: true });
+    const i = r.plays!.findIndex((e) => e.kind === 'sack' && /FUMBLE, recovered by/.test(e.text));
+    if (i >= 0) {
+      found = { r, i, homeId: g.homeId };
+      break;
+    }
+  }
+
+  it('reads it as his own, an old strip-sack as the hit, and ends with the recoverer on the ball', () => {
+    expect(found).not.toBeNull();
+    const { r, i, homeId } = found!;
+    const e = r.plays![i];
+    const own = e.text.replace(/(SACKED by .+? for -?\d+ yards?)(, [^.]+)?(\. FUMBLE)/, '$1, puts it on the ground$3');
+    const old = e.text.replace(/(SACKED by .+? for -?\d+ yards?)(, [^.]+)?(\. FUMBLE)/, '$1$3');
+    expect(fumbleIn({ ...e, text: own })!.why).toBe('own');
+    expect(fumbleIn({ ...e, text: old })!.why).toBe('hit');
+    for (const text of [own, old]) {
+      const plays = r.plays!.map((x, k) => (k === i ? { ...x, text } : x));
+      const p = stagePlay({ plays, index: i, record: r.field!, homeId, seed: 'film', snapY: 26.65 });
+      expect(p.loose).toBeDefined();
+      const last = p.steps - 1;
+      const by = p.ids.indexOf(actorsIn(e).take ?? -1);
+      expect(by, 'the recoverer is on the field').toBeGreaterThanOrEqual(0);
+      const ball = { x: p.ball[last * 3], y: p.ball[last * 3 + 1] };
+      const man = { x: p.pos[(last * 22 + by) * 2], y: p.pos[(last * 22 + by) * 2 + 1] };
+      expect(Math.hypot(man.x - ball.x, man.y - ball.y), text).toBeLessThan(1.5);
+    }
   });
 });

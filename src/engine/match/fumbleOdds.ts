@@ -116,8 +116,8 @@ export function fumbleOdds(f: ContactFacts): number {
   return clamp(BASE[f.kind] * Math.exp(t.strip + t.hit + t.fight + t.carrier) * f.weather, 0.001, 0.08);
 }
 
-export function forcedOdds(kind: ContactKind): number {
-  return FORCED[kind];
+export function forcedOdds(kind: ContactKind | 'sack'): number {
+  return kind === 'sack' ? SACK_FORCED : FORCED[kind];
 }
 
 /** Why a forced fumble came out: each reason weighted by its base share plus how far its leans raised the odds. */
@@ -132,4 +132,58 @@ export function fumbleWhy(f: ContactFacts, u: number): Exclude<FumbleWhy, 'own'>
   if (u * total < w.strip) return 'strip';
   if (u * total < w.strip + w.hit) return 'hit';
   return 'fight';
+}
+
+// ───────── the strip-sack (spec: docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md) ─────────
+
+/** Where the rusher got home from: off the edge (an edge rusher, a DB blitzing) or up the middle (a tackle, a
+ * linebacker). NFL sack fumbles: edge 14.0% (n 3,960), a DB 13.1% (519), a linebacker 8.6% (637), interior 8.0% (1,416). */
+export type RushSpot = 'edge' | 'interior';
+
+export function rushSpot(position: Position): RushSpot {
+  return position === 'DT' || position === 'LB' ? 'interior' : 'edge';
+}
+
+export interface SackFacts {
+  down: number;
+  toGo: number;
+  trailingLate: boolean;
+  leadingLate: boolean;
+  /** The weather's fumble multiplier (`wx.fumble`). */
+  weather: number;
+  qb: { ballSecurity: number; energy: number; has(q: QuirkId): boolean };
+  rusher: { spot: RushSpot; tackling: number; has(q: QuirkId): boolean };
+  /** `sizeEdge(rusher, 'contact', qb)`: the rusher's weight edge, in rating points. */
+  size: number;
+}
+
+/** A typical sack on 1st and 2nd down by an edge rusher, fitted on weeks 1 and 10 of played seasons (as `npm run sim`
+ * reads them) so the league's land on the NFL's: all 12.4 a hundred, early downs 13.8 (n 3,718). */
+const STRIP_BASE = 0.172;
+/** Up the middle: a tackle collapses the pocket face on, he doesn't reach the arm (8.0 against 14.0). */
+const STRIP_INTERIOR = -0.55;
+/** Per point of ball security against a typical quarterback's. */
+const QB_SECURITY = -0.08;
+/** He pats the ball before he throws (the old flat 18% against 10%). */
+const PATS = Math.log(1.8);
+/** 3rd down he's braced for the hit and gets rid of it (10.2 against 13.8); trailing late he holds on for the big play
+ * (15.9). 4th down (n 193) and leading late (n 121) are too few to set a lean. */
+const STRIP_THIRD = -0.24;
+const STRIP_TRAILING = 0.27;
+/** Forced: 747 of 810 NFL sack fumbles. */
+const SACK_FORCED = 0.92;
+
+export function sackStripOdds(f: SackFacts): number {
+  const { qb, rusher } = f;
+  let x = rusher.spot === 'interior' ? STRIP_INTERIOR : 0;
+  x += QB_SECURITY * (qb.ballSecurity - (PEER_SECURITY.QB ?? TYPICAL.ballSecurity));
+  if (qb.has('patsTheBall')) x += PATS;
+  x += TIRED * Math.max(0, TYPICAL.energy - qb.energy);
+  x += TACKLING * (rusher.tackling - TYPICAL.tackling) + SIZE * f.size;
+  if (rusher.has('thumper')) x += THUMPER;
+  if (rusher.has('armTackler')) x += ARM;
+  if (rusher.has('ballStripper')) x += STRIPPER;
+  if (f.down === 3) x += STRIP_THIRD;
+  if (f.trailingLate) x += STRIP_TRAILING;
+  return clamp(STRIP_BASE * Math.exp(x) * f.weather, 0.02, 0.3);
 }

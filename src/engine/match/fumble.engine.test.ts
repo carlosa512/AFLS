@@ -37,8 +37,12 @@ describe('fumbles on contact in a game', () => {
 
   it('names each fumble’s reason in the play, before the recovery', () => {
     for (const [why, re] of Object.entries(REASONS)) {
+      // (A sack the quarterback lost himself reads as a carrier's own: the strip-sack's own tap counts it.)
       const logged = plays.filter(
-        (e) => re.test(e.text) && /FUMBLE, recovered by|Fumble, recovered by the offense/.test(e.text),
+        (e) =>
+          re.test(e.text) &&
+          /FUMBLE, recovered by|Fumble, recovered by the offense/.test(e.text) &&
+          !/SACKED/.test(e.text),
       );
       expect(logged.length, why).toBe(taps.filter((t) => t.fumbled && t.why === why).length);
     }
@@ -54,7 +58,10 @@ describe('fumbles on contact in a game', () => {
     const forced = standing.filter(
       (e) => REASONS.strip.test(e.text) || REASONS.hit.test(e.text) || REASONS.fight.test(e.text),
     );
-    const sackStrips = standing.filter((e) => e.kind === 'sack' && /FUMBLE|Fumble/.test(e.text));
+    // A strip-sack credits the sacker when he forced it; one the quarterback lost himself credits nobody.
+    const sackStrips = standing.filter(
+      (e) => e.kind === 'sack' && /FUMBLE|Fumble/.test(e.text) && !/puts it on the ground/.test(e.text),
+    );
     expect(credited).toBe(forced.length + sackStrips.length);
     // Some fumbles were the carrier's own: no defender credited.
     expect(taps.some((t) => t.fumbled && t.why === 'own')).toBe(true);

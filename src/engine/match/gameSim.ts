@@ -47,7 +47,19 @@ import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf } from '../traits';
 import { groundingOdds, outsideOdds, pocketCall, pocketOdds, type PocketFacts, type PocketKind } from './pocketChoice';
-import { forcedOdds, fumbleOdds, fumbleWhy, type ContactFacts, type ContactKind, type FumbleWhy } from './fumbleOdds';
+import {
+  forcedOdds,
+  fumbleOdds,
+  fumbleWhy,
+  rushSpot,
+  sackStripOdds,
+  type ContactFacts,
+  type ContactKind,
+  type FumbleWhy,
+  type RushSpot,
+  type SackFacts,
+} from './fumbleOdds';
+import { defenseRecovers, pickRecoverer, returnYards, type Group, type LooseKind } from './looseBall';
 import type {
   Crew,
   Coach,
@@ -143,6 +155,8 @@ export interface SimOptions {
   /** Each tackle in bounds on a run, a catch or a scramble, and whether the ball came out (`fumbleOdds.ts`), for the
    * fumbles check; nothing is stored. */
   contactTap?: (tap: ContactTap) => void;
+  /** Every sack, for the fumbles check (`scripts/fumbles-core.ts`). */
+  stripTap?: (tap: StripTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -161,7 +175,40 @@ export interface ContactTap {
   fumbled: boolean;
   forced?: boolean;
   why?: FumbleWhy;
+  /** Who got the ball, when it came out (`looseBall.ts`). */
+  recovery?: Recovery;
   facts: ContactFacts;
+}
+
+/** The defense's man and his return, when it has the ball. */
+interface Lost {
+  recoverer: Player;
+  returnYds: number;
+}
+
+/** Who got a loose ball: the defense (its recoverer's group, his return, a touchdown) or the offense. */
+export interface Recovery {
+  lost: boolean;
+  group?: Group;
+  returnYds: number;
+  /** How far the defense had to run it to score, from where it changed hands. */
+  toGoal: number;
+  td: boolean;
+  forcerRecovered: boolean;
+}
+
+/** A sack as the engine decided it: the rusher's spot, the situation, whether the ball came out, and who got it. */
+export interface StripTap {
+  down: number;
+  toGo: number;
+  trailingLate: boolean;
+  leadingLate: boolean;
+  spot: RushSpot;
+  qb: number;
+  fumbled: boolean;
+  forced?: boolean;
+  recovery?: Recovery;
+  facts: SackFacts;
 }
 
 /** A dropback as the engine decided it: sacked, or what he chose after his read, and where a throwaway came from. */
@@ -1387,7 +1434,14 @@ class GameSim {
     if (result.turnover) {
       const { spot, returnYds } = result.turnover;
       const isInt = result.turnover.kind === 'int';
-      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
+      // A return that scores ends in the end zone (a return stops at the goal line it reaches: drawn there, it would
+      // read as tackled on it).
+      const end =
+        isInt && spot >= 100
+          ? Math.min(spot, 108)
+          : returnYds >= spot
+            ? Math.max(-4, Math.min(-2, spot - returnYds))
+            : spot - returnYds;
       const anim = this.animOf(
         side,
         isInt ? 'int' : result.kind,
@@ -2980,10 +3034,6 @@ class GameSim {
     return (1 - STACK ** this.count(players, q)) / (1 - STACK);
   }
 
-  private fumbleRecoveredByDefense(): boolean {
-    return this.rng.chance(0.52);
-  }
-
   private runPlay(s: Situation, defCall: DefenseCall): PlayResult {
     // What the open field held, for All-22 (`OpenField`): the rolls below, and the habits found in play.
     const open: OpenField = {};
@@ -3170,16 +3220,15 @@ class GameSim {
 
     // On a play out of bounds nothing knocks the ball loose in play: a man who steps out takes no hit, and a ball
     // jarred loose at the sideline goes out with him and stays the offense's.
-    const loose = tackler && call === 'in' ? this.contact('run', s, rusher, tackler) : null;
+    const loose = tackler && call === 'in' ? this.contact('run', s, rusher, tackler, def, this.yardLine + gain) : null;
     if (tackler && loose) {
       buf.add(rusher, 'fumbles');
       if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
       text += GameSim.looseText(loose.why, tackler);
-      if (this.fumbleRecoveredByDefense()) {
-        const recoverer = this.pickTackler(def, gain);
+      if (loose.lost) {
+        const { recoverer, returnYds } = loose.lost;
         buf.add(rusher, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
-        const returnYds = rng.chance(0.1) ? rng.int(5, 40) : rng.int(0, 3);
         const duration = rng.int(4, 7);
         if (moment) this.tap(field, moment, today(shadow, false, duration));
         return {
@@ -3281,7 +3330,7 @@ class GameSim {
       if (rng.chance(pSack)) {
         this.dropOutcome = 'sack';
         this.options.dropbackTap?.({ ...this.dropbackSituation(s), qb: qb.id, pressured: true, call: 'sack' });
-        return this.sack(def, defCall);
+        return this.sack(s, def, defCall);
       }
       this.pressureBy = this.creditRng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
     }
@@ -3695,16 +3744,16 @@ class GameSim {
     }
 
     // On a play out of bounds nothing knocks the ball loose in play (as on a run).
-    const loose = tackler && call === 'in' ? this.contact('catch', s, receiver, tackler) : null;
+    const loose =
+      tackler && call === 'in' ? this.contact('catch', s, receiver, tackler, def, this.yardLine + gain) : null;
     if (tackler && loose) {
       buf.add(receiver, 'fumbles');
       if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
       text += GameSim.looseText(loose.why, tackler);
-      if (this.fumbleRecoveredByDefense()) {
-        const recoverer = this.pickTackler(def, gain);
+      if (loose.lost) {
+        const { recoverer, returnYds } = loose.lost;
         buf.add(receiver, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
-        const returnYds = rng.int(0, 5);
         if (moment) this.tap(field, moment, today(false));
         return {
           ...base,
@@ -3902,7 +3951,14 @@ class GameSim {
    * A tackle in bounds (`fumbleOdds.ts`): whether the ball comes out, whether a defender forced it, and why. Draws on the
    * game's stream; taps every tackle for the fumbles check. Null when he held on.
    */
-  private contact(kind: ContactKind, s: Situation, carrier: Player, tackler: Player): { why: FumbleWhy } | null {
+  private contact(
+    kind: ContactKind,
+    s: Situation,
+    carrier: Player,
+    tackler: Player,
+    def: Lineup,
+    spot: number,
+  ): { why: FumbleWhy; lost: Lost | null } | null {
     const late = s.quarter >= 4 && s.clock <= 300;
     const facts: ContactFacts = {
       kind,
@@ -3923,6 +3979,7 @@ class GameSim {
     const fumbled = this.rng.chance(fumbleOdds(facts));
     const forced = fumbled ? this.rng.chance(forcedOdds(kind)) : undefined;
     const why: FumbleWhy | undefined = fumbled ? (forced ? fumbleWhy(facts, this.rng.next()) : 'own') : undefined;
+    const out = why ? this.loose(kind, !!forced, tackler, def, spot) : null;
     this.options.contactTap?.({
       kind,
       down: facts.down,
@@ -3931,10 +3988,37 @@ class GameSim {
       leadingLate: facts.leadingLate,
       carrier: carrier.id,
       fumbled,
-      ...(fumbled ? { forced, why } : {}),
+      ...(fumbled ? { forced, why, recovery: out!.recovery } : {}),
       facts,
     });
-    return why ? { why } : null;
+    return why ? { why, lost: out!.lost } : null;
+  }
+
+  /**
+   * The loose ball (`looseBall.ts`): who gets it (the defense's share by the play and forced or not), who on the defense
+   * is credited (the man who forced it first, else a group, then a man of it on the field), and his return toward a goal
+   * line `spot` yards off (reaching it is the touchdown). Draws on the game's stream: the recovery, then two for the man
+   * and one for the return, only when the defense has it.
+   */
+  private loose(
+    kind: LooseKind,
+    forced: boolean,
+    forcer: Player,
+    def: Lineup,
+    spot: number,
+  ): { lost: Lost | null; recovery: Recovery } {
+    if (!this.rng.chance(defenseRecovers(kind, forced)))
+      return { lost: null, recovery: { lost: false, returnYds: 0, toGoal: spot, td: false, forcerRecovered: false } };
+    const onField: Record<Group, Player[]> = { DB: [...def.cb, ...def.s], LB: def.lb, DL: [...def.edge, ...def.dt] };
+    const recoverer = pickRecoverer(kind, forced ? forcer : null, onField, this.rng.next(), this.rng.next());
+    const group: Group =
+      recoverer.position === 'CB' || recoverer.position === 'S' ? 'DB' : recoverer.position === 'LB' ? 'LB' : 'DL';
+    const returnYds = returnYards(group, spot, this.rng.next());
+    const td = returnYds >= spot;
+    return {
+      lost: { recoverer, returnYds },
+      recovery: { lost: true, group, returnYds, toGoal: spot, td, forcerRecovered: recoverer === forcer && forced },
+    };
   }
 
   /** How the ball came out, as the play says it (`field/fumble.ts` reads it back for the film). */
@@ -3961,7 +4045,7 @@ class GameSim {
     return m;
   }
 
-  private sack(def: Lineup, defCall: DefenseCall): PlayResult {
+  private sack(s: Situation, def: Lineup, defCall: DefenseCall): PlayResult {
     const qb = this.lineups[this.offense].qb;
     const buf = new StatBuffer();
     // Sacks spread like the NFL's: the starting edges get the most, but the rotation, the
@@ -3970,9 +4054,38 @@ class GameSim {
     let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
     if (this.yardLine - loss < 0) loss = this.yardLine;
     const duration = this.rng.int(4, 6);
-    // A quarterback who pats the ball before he throws gives the rusher a swipe at it.
-    const fumbled = this.rng.chance(this.has(qb, 'patsTheBall') ? 0.18 : 0.1);
-    const lost = fumbled && this.fumbleRecoveredByDefense();
+    // Whether the ball comes out (`sackStripOdds`): the rusher's spot and hit, the quarterback, the down and the clock.
+    const late = s.quarter >= 4 && s.clock <= 300;
+    const strip: SackFacts = {
+      down: s.down,
+      toGo: s.distance,
+      trailingLate: late && s.scoreDiff < 0,
+      leadingLate: late && s.scoreDiff > 0,
+      weather: this.wx.fumble,
+      qb: { ballSecurity: skill(qb, 'ballSecurity'), energy: this.body(qb).energy, has: (q) => this.has(qb, q) },
+      rusher: {
+        spot: rushSpot(sacker0.position),
+        tackling: skill(sacker0, 'tackling'),
+        has: (q) => this.has(sacker0, q),
+      },
+      size: sizeEdge(sacker0, 'contact', qb),
+    };
+    const fumbled = this.rng.chance(sackStripOdds(strip));
+    const forced = fumbled && this.rng.chance(forcedOdds('sack'));
+    // Who gets it (`looseBall.ts`), toward a goal line where the ball lies.
+    const loose = fumbled ? this.loose('sack', forced, sacker0, def, Math.max(0, this.yardLine - loss)) : null;
+    const lost = !!loose?.lost;
+    this.options.stripTap?.({
+      down: strip.down,
+      toGo: strip.toGo,
+      trailingLate: strip.trailingLate,
+      leadingLate: strip.leadingLate,
+      spot: strip.rusher.spot,
+      qb: qb.id,
+      fumbled,
+      ...(fumbled ? { forced, recovery: loose!.recovery } : {}),
+      facts: strip,
+    });
     // Today's draws are all in (a lost one's recoverer and return below keep their place); with the switch on the
     // pocket plays it (not a strip-sack lost: the turnover's own field takes that ball) and its man has the sack.
     const pocket = lost
@@ -4009,18 +4122,15 @@ class GameSim {
     };
     if (fumbled) {
       buf.add(qb, 'fumbles');
-      buf.add(sacker, 'forcedFum');
-      if (lost) {
-        const recoverer = this.rng.chance(0.5) ? sacker : this.pickTackler(def, 0);
+      if (forced) buf.add(sacker, 'forcedFum');
+      // His own: he lost it himself, as a carrier does (`field/fumble.ts` reads it back).
+      else result.text += GameSim.looseText('own', sacker);
+      if (loose?.lost) {
+        const { recoverer, returnYds } = loose.lost;
         buf.add(qb, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
         result.text += `. FUMBLE, recovered by ${short(recoverer)}`;
-        result.turnover = {
-          kind: 'fumble',
-          spot: this.yardLine - loss,
-          returnYds: this.rng.chance(0.15) ? this.rng.int(5, 30) : 0,
-          by: recoverer,
-        };
+        result.turnover = { kind: 'fumble', spot: this.yardLine - loss, returnYds, by: recoverer };
         result.clockStops = true;
       } else {
         result.text += '. Fumble, recovered by the offense';
@@ -4140,16 +4250,16 @@ class GameSim {
     const duration = field ? this.fieldTime(field.start, field.result) : duration0;
     if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
     // Tackled in bounds without a slide, the ball can come out (`fumbleOdds.ts`): a lost one turns it over at the spot.
-    const loose = tackler && !oob && !slide ? this.contact('scramble', s, qb, tackler) : null;
+    const loose =
+      tackler && !oob && !slide ? this.contact('scramble', s, qb, tackler, def, this.yardLine + yards) : null;
     if (tackler && loose) {
       buf.add(qb, 'fumbles');
       if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
       text += GameSim.looseText(loose.why, tackler);
-      if (this.fumbleRecoveredByDefense()) {
-        const recoverer = this.pickTackler(def, yards);
+      if (loose.lost) {
+        const { recoverer, returnYds } = loose.lost;
         buf.add(qb, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
-        const returnYds = this.rng.chance(0.1) ? this.rng.int(5, 40) : this.rng.int(0, 3);
         return {
           kind: 'scramble',
           yards,
