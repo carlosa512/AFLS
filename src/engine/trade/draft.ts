@@ -9,6 +9,7 @@
  * sides' stakes in the draft, so every draft deal (the AI's, offers to you, your own proposals, counters) goes
  * through the one evaluator. Boards are each team's own (`boardOf`: its scouts' read leaned on the consensus).
  */
+import { habitOn } from '../gmHabits';
 import { sizeBias } from '../gmTraits';
 import {
   availableProspects,
@@ -179,7 +180,9 @@ export function boardBase(league: League, teamId: number, p: Player, round: numb
     bias = gmId == null || teamId === league.userTeamId ? 0 : sizeBias(league.seed, gmId);
     m.bias.set(teamId, bias);
   }
-  const score = boardScore(depthOf(league, teamId), p, boardFor(league, teamId, p), null, round, bias);
+  // The need weight is a per-team constant, so the memo stays valid.
+  const needWeight = habitOn(league, league.teams[teamId], 'bpa') ? 0.4 : 1;
+  const score = boardScore(depthOf(league, teamId), p, boardFor(league, teamId, p), null, round, bias, needWeight);
   mine.set(key, score);
   return score;
 }
@@ -262,7 +265,12 @@ export function draftCovet(ctx: TradeContext, teamId: number, proposal: TradePro
   const points = (early: DraftPick, later: DraftPick | undefined) => {
     if (!later) return 0;
     const gap = expectedAt(league, teamId, early).score - expectedAt(league, teamId, later).score;
-    return pickValue(league, early, team.gm, ctx) * clamp(gap / COVET_SCALE, 0, COVET_MAX);
+    // A club that trades up for quarterbacks pays less than the full covet for his man.
+    const max =
+      expectedAt(league, teamId, early).best?.position === 'QB' && habitOn(league, team, 'tradeUpQb')
+        ? 0.75
+        : COVET_MAX;
+    return pickValue(league, early, team.gm, ctx) * clamp(gap / COVET_SCALE, 0, max);
   };
   const [eIn, eOut] = [ins[0], outs[0]];
   let get = 0;
@@ -337,9 +345,10 @@ export function tradeUpReason(ctx: TradeContext, team: Team, own: DraftPick): { 
   const run = [...between].filter((id) => thin(depthOf(league, id), pos)).length >= 2;
   if (rank > before && !(run && rank <= before + 3)) return null;
   const gap = score - expectedAt(league, team.id, own, new Set([target.id])).score;
-  const min = covetMin(clock.round);
+  const qbWant = pos === 'QB' && habitOn(league, team, 'tradeUpQb');
+  const min = covetMin(clock.round) * (qbWant ? 0.75 : 1);
   if (gap < min) return null;
-  if (before > LONG_JUMP && !(pos === 'QB' && gap >= 2 * min)) return null;
+  if (before > LONG_JUMP && !(pos === 'QB' && gap >= (qbWant ? min : 2 * min))) return null;
   return { target, gap };
 }
 

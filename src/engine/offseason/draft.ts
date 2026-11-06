@@ -19,6 +19,7 @@ import { POSITION_PREMIUM, specialistPenalty } from './positionValue';
 import { computeRecords, winPct } from '../season/standings';
 import type { DraftPick, League, Player, Position } from '../types';
 import { POSITIONS } from '../types';
+import { habitOn, logMove } from '../gmHabits';
 import { ensureService } from '../personnel/service';
 import { tradeContext } from '../trade/context';
 import { draftBoards, draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
@@ -219,6 +220,7 @@ export function boardScore(
   rng: Rng | null,
   round: number,
   sizeBias = 0,
+  needWeight = 1,
 ): number {
   let score = 0.6 * board.grade + 0.4 * board.ceiling + POSITION_PREMIUM[p.position] + (rng ? rng.normal(0, 0.6) : 0);
   // A GM who wants measurables marks the undersized prospect down, the further under the more: a point of board
@@ -226,9 +228,10 @@ export function boardScore(
   const z = sizeZ(p);
   score -= sizeBias * clamp(-Math.min(z.h, z.w) - 1.3, 0, 1);
   const mine = depth[p.position];
-  if (mine.length < STARTERS[p.position] + 1) score += 1;
-  else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, board.grade)) score += 0.8;
-  if (mine.length >= ROSTER_TEMPLATE[p.position] + 1) score -= 1.5;
+  // A Draft and Develop GM's best-available habit (`bpa`) weighs need at 0.4.
+  if (mine.length < STARTERS[p.position] + 1) score += needWeight;
+  else if ((mine[STARTERS[p.position] - 1] ?? 0) < Math.min(11, board.grade)) score += 0.8 * needWeight;
+  if (mine.length >= ROSTER_TEMPLATE[p.position] + 1) score -= 1.5 * needWeight;
   score -= specialistPenalty(p.position, round);
   return score;
 }
@@ -245,10 +248,11 @@ export function aiDraftChoice(
   const gmId = league.teams[teamId].gmId;
   // Your own auto-pick reads the board as your scouts do, with no hidden taste of the GM chair.
   const bias = gmId == null || teamId === league.userTeamId ? 0 : sizeBias(league.seed, gmId);
+  const needWeight = habitOn(league, league.teams[teamId], 'bpa') ? 0.4 : 1;
   let best = pool[0];
   let bestScore = -Infinity;
   for (const p of pool) {
-    const score = boardScore(depth, p, boardFrom(boards, league, teamId, p), rng, round, bias);
+    const score = boardScore(depth, p, boardFrom(boards, league, teamId, p), rng, round, bias, needWeight);
     if (score > bestScore) {
       best = p;
       bestScore = score;
@@ -264,6 +268,8 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   pick.playerId = player.id;
   pick.consRank = consensusRank(league, player);
   const via = pick.originalTeamId !== pick.ownerId ? pick.originalTeamId : undefined;
+  // Read before he joins the roster: the habit log asks what the room looked like when the pick was made.
+  const depth = positionDepth(league, team.id)[player.position];
   setTeam(league, player, team.id);
   player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
   player.draft = {
@@ -285,6 +291,26 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
       via !== undefined ? `, via ${league.teams[via].abbrev}` : ''
     })`,
   );
+  // GM habits: a first-round quarterback bought with a trade-up, a top-two-round pick taken over a settled room.
+  const pos = player.position;
+  if (
+    pick.round === 1 &&
+    pos === 'QB' &&
+    league.market?.history.some(
+      (r) =>
+        r.kind === 'draft' &&
+        r.season === league.season &&
+        r.sides[0].teamId === team.id &&
+        r.sides[1].picks.includes(pick.id),
+    )
+  )
+    logMove(league, team, 'tradeUpQb', { playerId: player.id });
+  if (
+    pick.round <= 2 &&
+    depth.length >= STARTERS[pos] + 1 &&
+    (depth[STARTERS[pos] - 1] ?? 0) >= Math.min(11, player.scouting!.grade)
+  )
+    logMove(league, team, 'bpa', { playerId: player.id });
   // Offers to you that hang on this pick end with it.
   lapseUsedPicks(league);
 }
