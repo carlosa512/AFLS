@@ -1272,14 +1272,9 @@ class GameSim {
   }
 
   private fgProb(distance: number, kicker: Player): number {
-    // Wind, snow and cold make every kick play longer; coaches see it in their range too.
-    distance += this.wx.kick;
-    // A kicker of 12 reads his odds at 95% from 35 yards, 85% from 45 and 71% from 52, and makes about a
-    // point fewer (NFL 2021–24: 66–70% of kicks past 50 go in, with coaches choosing which to try); an
-    // extra point is about 97%.
-    const center = 59.5 + 1.15 * (skill(kicker, 'fieldGoal') - 12);
-    const p = 1 / (1 + Math.exp((distance - center) / 8.5));
-    return distance > center + 12 ? 0 : p;
+    // Wind, snow and cold make every kick play longer; coaches see it in their range too (`coach.fieldGoalOdds`).
+    // He makes about a point fewer than he reads; an extra point is about 97%.
+    return coach.fieldGoalOdds(distance, skill(kicker, 'fieldGoal'), this.wx.kick);
   }
 
   /**

@@ -172,7 +172,7 @@ const CONDITIONS: [string, Weather, string][] = [
   ['rain from the 3rd', day({ tempF: 60, precip: 'rain', onset: 3 }), 'half of rain'],
   ['mile-high air', day({ altitudeFt: 5280 }), 'kicks carry'],
 ];
-const leagues: League[] = [0, 1, 2].map((i) => createLeague({ seed: `weather-fx-${i}` }));
+const leagues: League[] = [0, 1, 2, 3, 4, 5].map((i) => createLeague({ seed: `weather-fx-${i}` }));
 
 interface Tally {
   passYds: number;
