@@ -72,6 +72,29 @@ function squeezed(room: number, capAggression: number) {
   });
   return { l, team, p };
 }
+/**
+ * The club's biggest restructure washed up (a 34-year-old past his position's clock, rated like a backup) among those
+ * with someone behind him: an old starter with nobody behind him still starts, and stays in its plans. Which deal that
+ * is depends on the world a season leaves.
+ */
+function washedUpBiggest(l: League, team: League['teams'][number]): Player {
+  const washUp = (x: Player) => {
+    x.age = ageShift(x.position) + 34;
+    for (const k of Object.keys(x.ratings) as (keyof typeof x.ratings)[]) x.ratings[k] = 4;
+  };
+  return teamPlayers(l, team.id)
+    .filter((x) => x.contract && !isExpired(x.contract, l.season))
+    .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)
+    .slice(0, 6)
+    .find((x) => {
+      const was = { age: x.age, ratings: { ...x.ratings } };
+      washUp(x);
+      if (!inPlans(l, team, x)) return true;
+      x.age = was.age;
+      x.ratings = was.ratings;
+      return false;
+    })!;
+}
 const restructures = (l: League, teamId: number) =>
   l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(teamId) && m.season === l.season).length;
 /** What a club's restructures this league year add to next year's cap: each converted amount's share of a later year. */
@@ -135,22 +158,7 @@ describe('GMs make room to keep their core', () => {
     // his deal alone. (An old starter with nobody behind him still starts, and stays in its plans.)
     // The biggest whose spot has someone behind him (which one that is depends on the world a season leaves).
     const { l, team } = squeezed(0, 1);
-    const washUp = (x: Player) => {
-      x.age = ageShift(x.position) + 34;
-      for (const k of Object.keys(x.ratings) as (keyof typeof x.ratings)[]) x.ratings[k] = 4;
-    };
-    const biggest = teamPlayers(l, team.id)
-      .filter((x) => x.contract && !isExpired(x.contract, l.season))
-      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)
-      .slice(0, 6)
-      .find((x) => {
-        const was = { age: x.age, ratings: { ...x.ratings } };
-        washUp(x);
-        if (!inPlans(l, team, x)) return true;
-        x.age = was.age;
-        x.ratings = was.ratings;
-        return false;
-      })!;
+    const biggest = washedUpBiggest(l, team);
     expect(biggest).toBeDefined();
     expect(inPlans(l, team, biggest)).toBe(false);
     const before = biggest.contract!.bonuses.length;
@@ -384,11 +392,8 @@ describe('a club over the cap gets under it the way it makes room', () => {
     // A bold GM over the cap, his biggest deal on a washed-up veteran: the cap is the law, but the money it pushes
     // forward goes on players it keeps, never on one it would cut (the old pass restructured the biggest deal first).
     const { l, team } = squeezed(0, 1);
-    const biggest = teamPlayers(l, team.id)
-      .filter((x) => x.contract && !isExpired(x.contract, l.season))
-      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)[0];
-    biggest.age = ageShift(biggest.position) + 34;
-    for (const k of Object.keys(biggest.ratings) as (keyof typeof biggest.ratings)[]) biggest.ratings[k] = 4;
+    const biggest = washedUpBiggest(l, team);
+    expect(inPlans(l, team, biggest)).toBe(false);
     const before = biggest.contract!.bonuses.length;
     const over = capSpace(l, team.id) + 0.03 * l.caps[l.season];
     team.deadMoney.push({ season: l.season, amount: Math.round(over), playerId: -1, note: 'test' });
