@@ -229,6 +229,7 @@ const RULES: [RegExp, Name[]][] = [
   [/^scripts\/.*\.ts$/, ['typecheck']],
   [/^scripts\/calibrate\.ts$/, ['sim']],
   [/^scripts\/fumbles(-core)?\.ts$/, ['sim']],
+  [/^scripts\/picks(-core)?\.ts$/, ['sim']],
   // The two bands for lines that swing with the league: its tests and every check that judges with it.
   [/^scripts\/band(\.test)?\.ts$/, ['test', 'morale', 'careers', 'sim']],
   [/^scripts\/leaders\.ts$/, ['sim', 'careers']],
