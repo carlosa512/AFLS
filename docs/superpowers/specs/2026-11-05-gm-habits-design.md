@@ -62,8 +62,10 @@ first day (grip 2, §3); the others start as marbles only.
   starting habits only.
 - `generateGm` (`gmTraits.ts`) draws from all ten with the same jitter. The two archetype checks already in the engine
   stay (All-In's extra in-season trade in `trade/market.ts`, Pick Hoarder's extra picks in `trade/draft.ts`).
-- `ARCHETYPE_ACTIVITY` (`trade/market.ts`) gains the three new rows. Its mean across archetypes moves from 0.557 to
-  0.545, so trade volume should hold; `npm run trades` confirms.
+- `ARCHETYPE_ACTIVITY` moves to `gmTraits.ts` (exported; `trade/market.ts` reads it there, and so does the
+  reputation) and gains the three new rows. Its mean across archetypes moves from 0.557 to 0.545, so trade volume
+  should hold; `npm run trades` confirms. `generateGm` picks from ten, so a seed's GMs reshuffle: tests pinned to a
+  seed's archetype pick a new seed, never a looser check.
 - Existing saves keep every GM's archetype. New archetypes arrive as new GMs are hired. Nobody is re-rolled.
 
 ## 2. The habits
@@ -75,8 +77,9 @@ Shared rules:
   habits; your club's hooks never see one.
 - Each lean is small. The sizes below are starting points, tuned by `npm run gm-habits -- --effects` (§5) inside the
   league checks.
-- **Logged:** the public move that records the habit in his log (§3) when it changed the decision. The log is what
-  clues read and what outcomes are checked against.
+- **Logged:** the public move that goes in his log (§3) whenever an AI club's GM makes it, whether he holds the
+  habit or not (the base behavior makes most of these moves now and then): that is how a habit he doesn't hold can be
+  earned from what happens to him. The log is what clues read and what outcomes are checked against.
 - **+ / −:** the event marbles a logged move earns when it's resolved at a later new league year.
 - **Used:** a habit is used in a league year if it logged a move or earned a marble. Unused, it gets a fade marble (§3).
 - **Starter:** `seasonRole(...).role === 'starter'` (`scouting.ts`) for that season. **Blowup:** a release with dead
@@ -113,15 +116,17 @@ Shared rules:
 
 - **Lean** (`trade/plans.ts`, `tradeBlock`): a new block reason, `secondDeal`, for a starter on a rookie contract with
   two years or fewer left, or a starter whose `injuryRisk` tier is High; keenness 0.45, in any stance.
-- **Logged:** trades a player he listed for that reason.
+- **Logged:** trades away a starter (on his depth chart) on a rookie deal with two years or fewer left, or with a High
+  injury risk, listed for that reason or not.
 - **+** the return included a round 1–2 pick. **−** the player makes an All-League team for another club within two
   seasons.
 
 ### Brings His Guys Back (`hisGuys`)
 
-- **Lean:** players he drafted (`Player.draft.teamId` and season inside one of his appointments) are worth 8% more to
-  him in `playerValue` (`trade/value.ts`) and in free agency's `needGain` (`offseason/ai.ts`), and +1 in `keepScore`.
-  Opening GMs have no draft history from before the league began, so the habit starts to matter a few years in.
+- **Lean:** players he drafted (`Player.draft.teamId` and season inside one of his appointments; an opening GM's
+  `priorSeasons` reach back before the league began, and generated players carry draft lines) are worth 8% more to
+  him in `playerValue` (`trade/value.ts`), half a point more of `needGain` in free agency (`offseason/ai.ts`), and +1
+  in `keepScore`.
 - **Logged:** signs or trades for a player he drafted who had left.
 - **+** the returning player is a starter the next season. **−** he's cut within a year.
 
@@ -163,8 +168,9 @@ Shared rules:
 
 ### Gun-Shy on Big [Position] Deals (`gunShy`)
 
-- **Formed only by events:** a blowup (shared rules) starts it at grip 1 for that position at once (if he doesn't hold
-  it) and adds 3 `gunShy` marbles, so it can turn active at the next draw: a burned GM changes quickly. A GM holds one
+- **Formed only by events:** a blowup (shared rules; read at `releasePlayer` in `finance/cap.ts`, the one moment the
+  contract's `signedSeason` is still there) starts it at grip 1 for that position at once (if he doesn't hold it) and
+  adds 3 `gunShy` marbles, so it can turn active at the next draw: a burned GM changes quickly. A GM holds one
   position at a time: the latest blowup's.
 - **Lean** (`offseason/ai.ts`, `aiOffer` on the free-agent and re-sign paths): at that position his `eager` is ×0.92
   and his `upgradeBar` ×1.3.
@@ -244,9 +250,10 @@ every two years.
 
 - **Front-office digest** (`frontOffice` mail): a new hire's row carries his reputation in the reporter's words
   (*"Has a name as a deal-maker."*). The other rows' lines (out, extended, hot seat) are unchanged.
-- **Trade stories** (`keyTradeNews`, `tradeNews.ts`) and draft-day mail: when the deal or pick is a logged habit move
-  and his log holds an earlier one of that habit within three league years, one sentence on the pattern, facts only:
-  *"Hollis has been here before: he climbed for a quarterback two drafts ago too."* At most one per story.
+- **Trade stories** (`keyTradeNews`, `tradeNews.ts`): when the deal is a logged habit move and his log holds an
+  earlier one of that habit within three league years, one sentence on the pattern, facts only: *"Hollis has been here
+  before: two firsts for one man, for the second time in three years."* At most one per story. SNN runs no draft-day
+  story today, so a trade-up for a QB shows on his card and in the director's tips, not in the news.
 
 ### Your staff's tips
 
@@ -285,10 +292,12 @@ of the sender's last five letters).
 - **The bag:** four leagues, ten seasons. Active habits per AI GM (mean 1–2), changes per GM per year (about 0.5),
   each habit's share of GMs (every habit carried by season five, none above 40%), nobody over three active, Gun-Shy
   formed at least once.
-- **`--effects`:** each habit given to every AI GM at grip 2, the same league years replayed, its decision counted
-  against the same leagues without it: more bridge QBs, more QB trade-ups, more extensions with two years left, more
-  `secondDeal` sales, more returns of drafted players, more trades of two firsts or more, more swaps, fewer need picks,
-  tags before re-signs, fewer young QBs traded or cut, less paid at the gun-shy position. Nothing may be flagged.
+- **`--effects`:** each habit given to every AI GM (a module switch, `habitsForce`, like `draftTrades.off`: every AI
+  club reads that one habit as on and draws nothing), the same league years replayed, its decision counted against
+  the same leagues with every habit off: more bridge QBs, more QB trade-ups, more extensions with two years left, more
+  sales a year early, more returns of drafted players, more trades of two firsts or more, more swaps, fewer need
+  picks, tags before re-signs, fewer young QBs traded or cut, less paid at the gun-shy position. The counts come from
+  the log, which is written with or without the habit. Nothing may be flagged.
 - Run it after changing `gmHabits.ts`, `gmTraits.ts` or a habit hook. `npm run check` runs it when those change
   (a new entry in `scripts/check.ts`'s planner, and a CI job like the others).
 
