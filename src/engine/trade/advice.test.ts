@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
+import { aiGm } from '../gmHabits';
 import { capHit } from '../finance/contract';
 import { starters, teamPlayers } from '../roster';
 import type { TradeSide } from '../types';
@@ -48,5 +49,32 @@ describe("your staff's word on a deal", () => {
       { teamId: user.id, players: [], picks: [] },
     ]);
     expect(advice.find((a) => a.who === 'cap')!.tone).toBe('bad');
+  });
+
+  it('adds the director’s tip from the partner GM’s log, only when the deal bears on it', () => {
+    const l = createLeague({ seed: 'advice-tip' });
+    const user = l.teams[l.userTeamId];
+    const rival = l.teams.find((t) => t.id !== user.id)!;
+    const gm = aiGm(l, rival)!;
+    const mine = teamPlayers(l, user.id)[0];
+    const theirs = teamPlayers(l, rival.id)[0];
+    const a = gm.appointments[0];
+    mine.draft = {
+      ...(mine.draft ?? ({} as NonNullable<typeof mine.draft>)),
+      teamId: a.teamId,
+      season: a.start.season,
+    };
+    const sides: [TradeSide, TradeSide] = [
+      { teamId: rival.id, players: [theirs.id], picks: [] },
+      { teamId: user.id, players: [mine.id], picks: [] },
+    ];
+    const tip = (adv: Advice[]) => adv.filter((x) => x.who === 'scouts' && /drafted/.test(x.line));
+    gm.habitLog = [];
+    expect(tip(dealAdvice(l, sides))).toHaveLength(0);
+    gm.habitLog = [{ habit: 'hisGuys', season: l.season, teamId: rival.id, playerId: mine.id }];
+    const found = tip(dealAdvice(l, sides));
+    expect(found).toHaveLength(1);
+    expect(found[0].tone).toBe('note');
+    expect(found[0].line).not.toMatch(/hisGuys|habit/i);
   });
 });

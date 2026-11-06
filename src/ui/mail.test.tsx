@@ -5,6 +5,7 @@ import { applyInjury, NEED } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
 import { endGmAppointment } from '../engine/gm';
+import { reputation } from '../engine/gmVoice';
 import { playWeek, simToEndOfSeason } from '../engine/league';
 import { beginOffseason, setLettingWalk } from '../engine/offseason';
 import { expiringPlayers } from '../engine/offseason/ai';
@@ -625,6 +626,53 @@ describe('SNN’s offseason front-office digest', () => {
     expect(html).toContain('let go after 3–14');
     expect(html).toContain(l.teams[a].name);
     expect(html).toContain(gm.lastName);
+  });
+});
+
+describe('a GM in the mail', () => {
+  const base = (l: League, extra: Partial<InboxMessage>): InboxMessage => ({
+    id: `gm-note:${l.season}`,
+    season: l.season,
+    phase: 'regular',
+    week: 3,
+    from: 'SNN league desk',
+    category: 'league',
+    subject: 's',
+    body: 'b',
+    read: false,
+    actions: [],
+    ...extra,
+  });
+  it('shows a GM’s name as a link with his line under it', () => {
+    const l = createLeague({ seed: 'gm-note' });
+    const gm = l.gms[l.teams[(l.userTeamId + 1) % 32].gmId!];
+    const html = renderToStaticMarkup(
+      <MailCards league={l} message={base(l, { gmNotes: [{ gmId: gm.id, line: 'He likes a straight swap.' }] })} />,
+    );
+    expect(html).toContain(gm.lastName);
+    expect(html).toContain('linklike');
+    expect(html).toContain('He likes a straight swap.');
+    expect(html).toContain('GM, ');
+  });
+  it('carries the fragment on the digest’s hired row and the notes', () => {
+    const l = createLeague({ seed: 'digest-card' });
+    const a = (l.userTeamId + 1) % 32;
+    const gm = l.gms[l.teams[a].gmId!];
+    const line = `new GM, ${reputation(l, gm, 'fragment')}`;
+    const html = renderToStaticMarkup(
+      <MailCards
+        league={l}
+        message={base(l, {
+          id: `leadership-phase:${l.season}:resign:1-2`,
+          phase: 'resign',
+          week: 0,
+          subject: 'Front-office carousel: 1 hired',
+          carousel: [{ group: 'hired', teamId: a, gmId: gm.id, name: 'x', line }],
+          gmNotes: [{ gmId: gm.id, line: reputation(l, gm, 'fragment') }],
+        })}
+      />,
+    );
+    expect(html).toContain(line.replace(/'/g, '&#x27;'));
   });
 });
 

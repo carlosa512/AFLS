@@ -1705,6 +1705,8 @@ export interface InboxMessage {
   advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
   carousel?: CarouselRow[];
+  /** GMs a story names, each with one line in words about what the league knows of him (`gmVoice.ts`). */
+  gmNotes?: { gmId: number; line: string }[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];

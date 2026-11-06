@@ -115,6 +115,7 @@ import type {
   League,
   MailSection,
   Medic,
+  GeneralManager,
   Player,
   Position,
   RookieReportRow,
@@ -136,7 +137,7 @@ import { honorLine } from './screens/Stats';
 import { OfferCard } from './offers';
 import { employed } from '../engine/employment';
 import { tradeDesk, type DeskDraft } from './tradeDesk';
-import { GmLink } from './gm';
+import { GmAvatar, GmLink, gmYear, ordinalSeason } from './gm';
 import {
   familiarityTone,
   learnLine,
@@ -161,6 +162,20 @@ const SHOW = 3;
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
+  const notes = message.gmNotes?.filter((n) => league.gms[n.gmId]);
+  return (
+    <>
+      {notes?.map((n) => (
+        <Card key={n.gmId}>
+          <GmWho league={league} gm={league.gms[n.gmId]} line={n.line} />
+        </Card>
+      ))}
+      <KindCards league={league} message={message} />
+    </>
+  );
+}
+
+function KindCards({ league, message }: { league: League; message: InboxMessage }) {
   const s = mailSubject(message);
   switch (s?.kind) {
     case 'news':
@@ -786,6 +801,25 @@ function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactN
         )}
       </span>
       {side && <span className="mail-who-side">{side}</span>}
+    </div>
+  );
+}
+
+/** A GM's name and picture, opening his card, with what the league knows of him under it. */
+function GmWho({ league, gm, sub, line }: { league: League; gm: GeneralManager; sub?: ReactNode; line?: string }) {
+  const year = gmYear(league, gm);
+  const club = gm.teamId === null ? null : league.teams[gm.teamId];
+  const where = club ? `GM, ${club.city} · ${year === null ? 'first' : ordinalSeason(year)} season` : 'GM';
+  return (
+    <div className="mail-who">
+      <GmAvatar league={league} gm={gm} size={40} />
+      <span style={{ minWidth: 0 }}>
+        <GmLink league={league} gm={gm} />
+        <span className="muted small" style={{ display: 'block' }}>
+          {sub ?? where}
+        </span>
+        {line && <span style={{ display: 'block' }}>{line}</span>}
+      </span>
     </div>
   );
 }

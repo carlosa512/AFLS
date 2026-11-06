@@ -50,6 +50,7 @@ import {
 import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
 import { Fact, Facts, OfficeHero, Pill } from '../office';
+import { reputation } from '../../engine/gmVoice';
 
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -563,7 +564,7 @@ function TradeTable({ league }: { league: League }) {
                     <GmLink league={league} gm={league.gms[partner.gmId]} /> ·{' '}
                   </>
                 )}
-                GM style: {partner.gm.archetype} ·{' '}
+                {partner.gmId !== null ? reputation(league, league.gms[partner.gmId]) : 'A caretaker front office.'} ·{' '}
                 {partner.gm.pickChart === 'johnson'
                   ? 'old-school pick chart (prizes top picks)'
                   : 'analytics pick chart (values Day 2 picks highly)'}
