@@ -26,8 +26,24 @@ export function defenseRecovers(kind: LooseKind, forced: boolean): number {
   return RECOVERS[kind][forced ? 'forced' : 'own'];
 }
 
-/** The man who forced it falls on it himself (the share of the defense's recoveries). */
-export const FORCER_RECOVERS: Record<LooseKind, number> = { run: 0.1, catch: 0.13, scramble: 0.07, sack: 0.12 };
+/** The man who forced it falls on it himself: the NFL's share of all the defense's recoveries. */
+const FORCER_NFL: Record<LooseKind, number> = { run: 0.1, catch: 0.13, scramble: 0.07, sack: 0.12 };
+/** The NFL's fumbles forced and the carrier's own, by play (the counts behind `RECOVERS`). */
+const COUNTS: Record<LooseKind, { forced: number; own: number }> = {
+  run: { forced: 485, own: 548 },
+  catch: { forced: 583, own: 79 },
+  scramble: { forced: 60, own: 4 },
+  sack: { forced: 747, own: 63 },
+};
+/** Only a forced one can be his: his share of the defense's forced recoveries, so that of all its recoveries is the
+ * NFL's (runs: 291 of 428 were forced, so 0.10 of all is 0.147 of the forced). */
+export const FORCER_RECOVERS: Record<LooseKind, number> = Object.fromEntries(
+  (Object.keys(FORCER_NFL) as LooseKind[]).map((k) => {
+    const forced = RECOVERS[k].forced * COUNTS[k].forced;
+    const own = RECOVERS[k].own * COUNTS[k].own;
+    return [k, FORCER_NFL[k] / (forced / (forced + own))];
+  }),
+) as Record<LooseKind, number>;
 
 /** The rest by group (n: 383 runs, 288 catches, 28 scrambles, 358 sacks): a catch's ball downfield among the DBs, a
  * strip-sack's in the backfield among the linemen. */

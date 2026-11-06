@@ -35,6 +35,13 @@ describe('the loose ball', () => {
     for (let u = 0; u < 1; u += 0.01) expect(pickRecoverer('run', null, field(), 0, u)).toBeDefined();
   });
 
+  it("gives the forcer the NFL's share of all the defense's recoveries, though only a forced one can be his", () => {
+    // Runs: the forcer has 10% of the defense's recoveries; 291 of its 428 recoveries were forced (0.60 × 485 of
+    // 0.25 × 548): of the forced ones he has 0.10 / 0.68.
+    expect(FORCER_RECOVERS.run).toBeCloseTo(0.147, 2);
+    expect(FORCER_RECOVERS.sack).toBeCloseTo(0.127, 2);
+  });
+
   it('gives the forcer his share once: past it he is not picked again from his group', () => {
     const f = field();
     const forcer = f.DB[0];
