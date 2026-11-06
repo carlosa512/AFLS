@@ -8,6 +8,7 @@
  */
 import type { Player } from '../types';
 import type { ContactKind } from './fumbleOdds';
+import { bandReturn, type Bands } from './returnBands';
 
 export type LooseKind = ContactKind | 'sack';
 /** Who on the defense: the secondary, the linebackers, the line (an edge rusher counts with the line). */
@@ -94,7 +95,7 @@ export function pickRecoverer(
 /** Returns by group: shares of none (zero or less), 1–9, 10–19 and 20+ yards; of the 20+, the share that goes the
  * distance (a fumble run back has nobody in front of it: most of the NFL's long ones score), and the mean of the rest
  * past 20 (DB n 420: mean 6.7, 20+ 12%, touchdowns 8.1%; LB n 200: 4.2, 6%, 6.0%; D-line n 573: 2.7, 5%, 6.3%). */
-const RETURNS: Record<Group, { none: number; short: number; mid: number; go: number; tail: number }> = {
+const RETURNS: Record<Group, Bands> = {
   DB: { none: 0.64, short: 0.17, mid: 0.08, go: 0.62, tail: 4 },
   LB: { none: 0.69, short: 0.16, mid: 0.1, go: 0.5, tail: 4 },
   DL: { none: 0.8, short: 0.12, mid: 0.03, go: 0.52, tail: 4 },
@@ -102,14 +103,5 @@ const RETURNS: Record<Group, { none: number; short: number; mid: number; go: num
 
 /** How far he runs it back on draw `u`, never past the goal line `toGoal` yards away: reaching it is the touchdown. */
 export function returnYards(group: Group, toGoal: number, u: number): number {
-  const r = RETURNS[group];
-  let y: number;
-  if (u < r.none) y = 0;
-  else if (u < r.none + r.short) y = 1 + Math.floor(((u - r.none) / r.short) * 9);
-  else if (u < r.none + r.short + r.mid) y = 10 + Math.floor(((u - r.none - r.short) / r.mid) * 10);
-  else {
-    const f = (u - r.none - r.short - r.mid) / (1 - r.none - r.short - r.mid);
-    y = f < r.go ? toGoal : Math.round(20 - r.tail * Math.log(Math.max(1e-9, 1 - (f - r.go) / (1 - r.go))));
-  }
-  return Math.min(y, Math.max(0, toGoal));
+  return bandReturn(RETURNS[group], toGoal, u);
 }
