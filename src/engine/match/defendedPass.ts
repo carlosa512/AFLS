@@ -39,8 +39,9 @@ const PICK_GROUPS: Record<Band, Record<PassGroup, number>> = {
 /** The cover man's own share of the picks on his man, by depth (fitted so the groups land on `PICK_GROUPS`). */
 export const COVER_PICKS: Record<Band, number> = { behind: 0.5, short: 0.6, mid: 0.6, deep: 0.5 };
 
-/** Incompletions with a breakup credited, by depth (n 3,234, 12,496, 7,835, 5,998). */
-const BREAKUPS: Record<Band, number> = { behind: 0.357, short: 0.315, mid: 0.304, deep: 0.273 };
+/** Incompletions with a breakup credited, by depth, throwaways left out as this branch never sees one (FTN charting
+ * 2022–25, n 2,149, 8,410, 5,505, 4,569: 0.355 of all, against 0.308 with throwaways counted). */
+const BREAKUPS: Record<Band, number> = { behind: 0.456, short: 0.369, mid: 0.349, deep: 0.288 };
 /** Who's credited with them (n 9,103): the line's share is a ball batted down at the line. */
 const BREAK_GROUPS: Record<PassGroup, number> = { CB: 0.467, S: 0.194, LB: 0.193, DL: 0.146 };
 /** The cover man's own share of the breakups on his man, by depth (fitted so the groups land on `BREAK_GROUPS`). */

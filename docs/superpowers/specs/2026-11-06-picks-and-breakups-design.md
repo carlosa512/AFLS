@@ -45,8 +45,10 @@ All picks: CB 0.405, S 0.378, LB 0.182, D-line 0.036. 84% of picks also credit t
 
 By the catcher's group the returns barely differ (means: CB 12.2, S 12.2, LB 13.5, D-line 10.9): depth drives them.
 
-**Breakups:** 30.8% of incompletions credit one; by depth 0.357 behind the line (n 3,234), 0.315 at 0–9 (12,496), 0.304 at
-10–19 (7,835), 0.273 at 20+ (5,998). Who: CB 0.467, S 0.194, LB 0.193, the line 0.146 (batted at the line).
+**Breakups:** 30.8% of incompletions credit one, but 12% of incompletions are throwaways, which never reach the
+engine's incompletion branch (the passer's own choice, `pocketChoice.ts`). Throwaways left out (FTN charting 2022–25,
+20,633 incompletions): 0.355; by depth 0.456 behind the line (n 2,149), 0.369 at 0–9 (8,410), 0.349 at 10–19 (5,505),
+0.288 at 20+ (4,569). Who: CB 0.467, S 0.194, LB 0.193, the line 0.146 (batted at the line).
 
 ## 2. Who gets to the ball (`match/defendedPass.ts`)
 
@@ -57,7 +59,7 @@ A pure module, no draws, no league reads.
   groups land on §1's split), else a group by `PICK_GROUPS[band]` over the groups with men on the field (the cover man
   out), then a man of it weighted by `skill(·, 'ballSkills')`. The line's share is a ball tipped at the line: a man of
   the front (`dt`, `edge`) weighted as a batter (below).
-- **`breakupRate(band): number`** — §1's share by depth (today a flat 0.30).
+- **`breakupRate(band): number`** — §1's share by depth, throwaways left out (today a flat 0.30).
 - **`breakupBy(band, coverMan, onField, batter, u1, u2): Player`** — the cover man when `u1 < COVER_BREAKS[band]` (fitted
   so the credits land on §1's split), else a group: the line's share (`BAT_SHARE`, 0.146 of all) goes to the batter,
   the rest by group weighted by `skill(·, 'coverage')`.

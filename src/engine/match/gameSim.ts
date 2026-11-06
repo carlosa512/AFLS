@@ -60,6 +60,19 @@ import {
   type SackFacts,
 } from './fumbleOdds';
 import { defenseRecovers, pickRecoverer, returnYards, type Group, type LooseKind } from './looseBall';
+import {
+  breakupBy,
+  breakupRate,
+  depthBand,
+  groupOf,
+  pickBatter,
+  pickCatcher,
+  pickReturn,
+  PICK_PD,
+  type Band,
+  type OnField,
+  type PassGroup,
+} from './defendedPass';
 import type {
   Crew,
   Coach,
@@ -157,6 +170,8 @@ export interface SimOptions {
   contactTap?: (tap: ContactTap) => void;
   /** Every sack, for the fumbles check (`scripts/fumbles-core.ts`). */
   stripTap?: (tap: StripTap) => void;
+  /** Every pass picked off or fallen incomplete, for the picks check (`scripts/picks-core.ts`). */
+  defendedTap?: (tap: DefendedTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -195,6 +210,23 @@ export interface Recovery {
   toGoal: number;
   td: boolean;
   forcerRecovered: boolean;
+}
+
+/** A throw the defense got to or let fall (`defendedPass.ts`): its depth, a pick, a breakup or nothing, and who. */
+export interface DefendedTap {
+  band: Band;
+  outcome: 'pick' | 'breakup' | 'none';
+  /** The man credited, and his group. */
+  by?: number;
+  group?: PassGroup;
+  /** Batted down or tipped at the line by a lineman. */
+  batted: boolean;
+  returnYds?: number;
+  pickSix?: boolean;
+  /** A pick in the end zone: a touchback. */
+  endZone?: boolean;
+  /** A pick credits its catcher with a pass defensed. */
+  pd?: boolean;
 }
 
 /** A sack as the engine decided it: the rusher's spot, the situation, whether the ball came out, and who got it. */
@@ -556,6 +588,9 @@ interface PlayResult {
   airYards?: number;
   depth?: PassDepth;
   /** The man in coverage on a pass: flags for grabbing are his. */
+  /** Who broke the pass up (the cover man, a safety, a lineman batting it at the line), and a ball batted down. */
+  brokenUpBy?: Player;
+  batted?: boolean;
   defender?: Player;
   /** Who got home on a sack: a late hit or a celebration is his. */
   rusher?: Player;
@@ -2495,10 +2530,9 @@ class GameSim {
             decisionText = `${full(result.turnover.by)} ${result.turnover.kind === 'int' ? 'intercepted the pass' : 'recovered a fumble'}`;
           else if (result.kind === 'sack' && result.rusher) decisionText = `${full(result.rusher)} made the sack`;
           else if (result.kind === 'pass' && !result.complete)
-            decisionText =
-              result.defender && result.text.includes(`broken up by ${short(result.defender)}`)
-                ? `${full(result.defender)} broke up the pass`
-                : 'the pass fell incomplete';
+            decisionText = result.brokenUpBy
+              ? `${full(result.brokenUpBy)} ${result.batted ? 'batted the pass down' : 'broke up the pass'}`
+              : 'the pass fell incomplete';
           else if (conceded)
             decisionText = `the offense scored on a ${result.yards}-yard ${result.kind === 'pass' ? 'pass' : 'run'}`;
           else decisionText = 'the offense finished short of the marker';
@@ -3573,31 +3607,69 @@ class GameSim {
     };
 
     const roll = rng.next();
+    // Who gets to the ball (`defendedPass.ts`): the cover man first, else a group the throw's depth points to; a lineman
+    // only at the line, batting it down or tipping it up.
+    const band = depthBand(air);
+    const onField: OnField = { CB: def.cb, S: def.s, LB: def.lb, DL: [...def.dt, ...def.edge] };
     if (roll < pInt) {
-      // The man in coverage, or a safety over the top: the one with the better hands, more often.
-      const catcher = rng.chance(0.65) ? defender : rng.weighted(def.s, (p) => skill(p, 'ballSkills'));
+      const batter = pickBatter(onField.DL, this.pressureBy, rng.next());
+      const catcher = pickCatcher(band, defender, onField, batter, rng.next(), rng.next());
+      const tipped = groupOf(catcher) === 'DL';
       buf.add(qb, 'passInt');
       buf.add(catcher, 'defInt');
-      buf.add(catcher, 'passDef');
-      const spot = Math.min(this.yardLine + air, 100);
-      const returnYds = Math.round(Math.max(0, rng.normal(9, 10)) + (rng.chance(0.06) ? rng.exponential(30) : 0));
+      const pd = rng.chance(PICK_PD);
+      if (pd) buf.add(catcher, 'passDef');
+      // Tipped at the line, it changes hands there; a pick in the end zone is a touchback, run back no yard.
+      const spot = tipped ? Math.min(this.yardLine + 1, 100) : Math.min(this.yardLine + air, 100);
+      const returnYds = spot >= 100 ? 0 : pickReturn(band, spot, rng.next());
+      this.options.defendedTap?.({
+        band,
+        outcome: 'pick',
+        by: catcher.id,
+        group: groupOf(catcher),
+        batted: tipped,
+        returnYds,
+        pickSix: spot < 100 && returnYds >= spot,
+        endZone: spot >= 100,
+        pd,
+      });
       return {
         ...base,
+        ...(tipped ? { airYards: spot - this.yardLine } : {}),
         yards: 0,
         complete: false,
         clockStops: true,
-        text: `${short(qb)} pass ${depthLabel} intended for ${short(receiver)} INTERCEPTED by ${short(catcher)}`,
+        text: `${short(qb)} pass ${depthLabel} intended for ${short(receiver)}${tipped ? ', tipped at the line,' : ''} INTERCEPTED by ${short(catcher)}`,
         turnover: { kind: 'int', spot, returnYds, by: catcher },
       };
     }
 
     if (roll >= pInt + pComplete) {
       let text = `${short(qb)} pass ${depthLabel} to ${short(receiver)} incomplete`;
-      if (rng.chance(0.3)) {
-        buf.add(defender, 'passDef');
-        text += `, broken up by ${short(defender)}`;
+      let brokenUpBy: Player | undefined;
+      if (rng.chance(breakupRate(band))) {
+        const batter = pickBatter(onField.DL, this.pressureBy, rng.next());
+        brokenUpBy = breakupBy(band, defender, onField, batter, rng.next(), rng.next());
+        buf.add(brokenUpBy, 'passDef');
       }
-      return { ...base, yards: 0, complete: false, clockStops: true, text };
+      const batted = !!brokenUpBy && groupOf(brokenUpBy) === 'DL';
+      if (brokenUpBy)
+        text += batted ? `, batted down at the line by ${short(brokenUpBy)}` : `, broken up by ${short(brokenUpBy)}`;
+      this.options.defendedTap?.({
+        band,
+        outcome: brokenUpBy ? 'breakup' : 'none',
+        ...(brokenUpBy ? { by: brokenUpBy.id, group: groupOf(brokenUpBy) } : {}),
+        batted,
+      });
+      return {
+        ...base,
+        yards: 0,
+        complete: false,
+        clockStops: true,
+        text,
+        ...(brokenUpBy ? { brokenUpBy } : {}),
+        ...(batted ? { batted } : {}),
+      };
     }
 
     // Completion.
@@ -4478,7 +4550,8 @@ class GameSim {
         : this.count(dbs, 'handsy') / Math.max(1, dbs.length);
       const grabby = (1 + 0.6 * handsy) * all * coverage;
       const pDpi =
-        result.kind === 'pass' && !result.complete && !result.turnover && result.airYards! > 0
+        // (A ball batted down at the line never reached anyone to interfere with.)
+        result.kind === 'pass' && !result.complete && !result.turnover && !result.batted && result.airYards! > 0
           ? DPI[result.depth!] * grabby
           : 0;
       const roll = this.rng.next();

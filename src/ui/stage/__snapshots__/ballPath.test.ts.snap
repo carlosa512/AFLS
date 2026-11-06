@@ -6,8 +6,8 @@ exports[`the ball path > draws the same path for one play of each kind as before
     {
       "dur": 1.1,
       "peak": 13,
-      "x0": 39,
-      "x1": -10,
+      "x0": 82,
+      "x1": 110,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -50,10 +50,10 @@ exports[`the ball path > draws the same path for one play of each kind as before
   ],
   "kneel": [
     {
-      "dur": 0.33999999999999997,
+      "dur": 0.3,
       "peak": 0,
-      "x0": 39,
-      "x1": 38,
+      "x0": 99,
+      "x1": 99,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -86,10 +86,10 @@ exports[`the ball path > draws the same path for one play of each kind as before
   ],
   "penalty": [
     {
-      "dur": 1.44,
+      "dur": 0.8,
       "peak": 0,
-      "x0": 63,
-      "x1": 78,
+      "x0": 57,
+      "x1": 52,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -162,8 +162,8 @@ exports[`the ball path > draws the same path for one play of each kind as before
     {
       "dur": 1.1,
       "peak": 13,
-      "x0": 85,
-      "x1": 110,
+      "x0": 15,
+      "x1": -10,
       "y0": 26.65,
       "y1": 26.65,
     },
