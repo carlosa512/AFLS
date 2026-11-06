@@ -211,8 +211,14 @@ catch or run is the item above.
       `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
-- [ ] **Medium-High: after an interception** (L3408–3415). The odds of a pick are rich; who catches it (65% the cover man)
-      and the return (normal 9 ± 10, a 6% long one) are flat. Calibrate: return yards by air yards, pick-six rate.
+- [x] **Medium-High: after an interception (0.4.8).** Who picks it off reads the throw's depth (`match/defendedPass.ts`):
+      the cover man first, else a group the depth points to and a man of it by his ball skills (to the fourth: the ball
+      hawk gets his group's picks); a lineman only at the line, a ball tipped up (the pick changes hands there). Deep
+      the safeties have over half (0.53, NFL 0.535), a jumped short route is a linebacker's three times in ten (0.30,
+      0.309). The return by depth (`match/returnBands.ts`, shared with fumbles): pick-sixes 0.17 on 0–9 yards (NFL
+      0.184), 0.06 on 10–19 (0.043), none deep (0.005). Fitted to nflverse 2021–25 (`npm run picks`, also judged in `npm
+      run sim`); over 20 seasons the leaders' #1 picks 8.0 a season. Spec:
+      `docs/superpowers/specs/2026-11-06-picks-and-breakups-design.md`.
 - [x] **Medium: fumble recoveries (0.4.7).** Who gets a loose ball reads how it came out (`match/looseBall.ts`): a ball
       a defender punched out goes the defense's way about 55–60% of the time, one the carrier lost himself about a
       quarter (NFL 0.60 and 0.25 on runs). The man credited is the one who forced it about one time in eight, else the
@@ -228,6 +234,9 @@ catch or run is the item above.
       sideline call since 0.4.4). The NFL's play text doesn't record slides.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
 - [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
+      **Partial (0.4.8):** breakups by depth, throwaways left out (0.45 behind the line to 0.29 deep, NFL FTN 2022–25),
+      credited as the NFL's by depth (the line, a ball batted down at the line and drawn there on film, 0.54 of a
+      screen's, 0.16 at 0–9, 0.04 at 10–19, 0.01 deep); return touchdowns still small edge-scaled rates.
 
 Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
 Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled

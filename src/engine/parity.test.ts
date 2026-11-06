@@ -90,16 +90,17 @@ describe("a team's day (parity)", () => {
 
   it('decides some games: a sharp home day against a flat road day moves the margin', () => {
     const l = createLeague({ seed: 'parity-day' });
+    // Eighty games a side: about seven points on average, but forty swing it from two to eleven with nothing changed.
     const margin = (days: [number, number]) => {
       let sum = 0;
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 80; i++) {
         const r = simulateGame(l, l.games[0], { seed: `m:${i}`, days });
         sum += r.homeScore - r.awayScore;
       }
-      return sum / 40;
+      return sum / 80;
     };
     expect(margin([0.5, -0.5]) - margin([0, 0])).toBeGreaterThan(3);
-  }, 120_000);
+  }, 240_000);
 
   it('hands each lineup its own day, the rebuild after an injury too, and replays it from the seed', () => {
     const l = createLeague({ seed: 'parity-day' });

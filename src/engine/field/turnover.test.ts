@@ -51,7 +51,7 @@ describe('a turnover returned on the open field', () => {
       const steps = res.frames.length / (men * 2);
       if (steps < 30 || t.moment.lost !== 'int') continue;
       n++;
-      // A second and a half in: most of the old offense has closed on him (or on where he's going).
+      // A second and a half in: most of the old offense has closed on him (or on where he's going), or is on him.
       const at = (s: number, k: number) => ({ x: res.frames[(s * men + k) * 2], y: res.frames[(s * men + k) * 2 + 1] });
       const ck = t.start.players.findIndex((p) => p.id === t.start.carrier);
       let closer = 0;
@@ -59,7 +59,8 @@ describe('a turnover returned on the open field', () => {
         if (p.side !== 1) return;
         const gap = (s: number) => Math.hypot(at(s, k).x - at(s, ck).x, at(s, k).y - at(s, ck).y);
         const moved = Math.hypot(at(30, k).x - at(0, k).x, at(30, k).y - at(0, k).y);
-        if (moved > 3 && gap(30) < gap(0) + 2) closer++;
+        // On the move after him, or already on him: a pick jumped near the line is run back into the men there.
+        if ((moved > 3 || gap(30) < 4) && gap(30) < gap(0) + 2) closer++;
       });
       if (closer >= 7) chased++;
     }

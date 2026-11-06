@@ -28,6 +28,30 @@ function air(x0: number, y0: number, x1: number, y1: number, peak: number, dur?:
   return { x0, y0, x1, y1, peak, dur: dur ?? 0.5 + dist * 0.018 };
 }
 
+/** A ball batted down at the line (the play says so, `gameSim.ts`): it never gets past the line. */
+export const isBatted = (e: Pick<PlayLogEntry, 'kind' | 'text'>) =>
+  e.kind === 'incomplete' && /, batted down at the line by /.test(e.text);
+/** How high a batted ball gets: a lineman's hands, then down. */
+export const BAT_PEAK = 2.5;
+
+/**
+ * A throw batted at the line: along the lane it was thrown in, dying a yard past the line (`lineX`). The aimed throw
+ * (`aimOf`) is that line carried on to where it was going.
+ */
+export function batDown(thrown: Seg, lineX: number, dir: number): Seg {
+  const x = lineX + dir;
+  const f = thrown.x1 === thrown.x0 ? 1 : Math.max(0, Math.min(1, (x - thrown.x0) / (thrown.x1 - thrown.x0)));
+  return air(thrown.x0, thrown.y0, x, thrown.y0 + (thrown.y1 - thrown.y0) * f, BAT_PEAK);
+}
+
+/** Where a batted throw was going (`aimX`, the play's air): its flight's line carried on. */
+export function aimOf(flight: Seg, aimX: number): { x: number; y: number } {
+  const dx = flight.x1 - flight.x0;
+  // Carried a long way from a short flight, a small angle runs wide: never past a sideline.
+  const y = dx ? flight.y0 + ((flight.y1 - flight.y0) * (aimX - flight.x0)) / dx : flight.y1;
+  return { x: aimX, y: Math.max(1, Math.min(FIELD_W - 1, y)) };
+}
+
 /** The ball's path for a play, in both views: the play as it was carried, then any fumble (`loosen`). */
 export function buildPath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
   return loosen(e, basePath(carried(e), homeId, snapY));
@@ -39,8 +63,8 @@ export function carried(e: PlayLogEntry): PlayLogEntry {
   return f?.lost && e.to !== f.x ? { ...e, to: f.x } : e;
 }
 
-/** The path of the play as logged, by its kind, with no fumble. */
-export function basePath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] {
+/** The path of the play as logged, by its kind, with no fumble (`asAimed`: a batted throw as it was thrown). */
+export function basePath(e: PlayLogEntry, homeId: number, snapY: number, asAimed = false): Seg[] {
   if (e.from === undefined || e.to === undefined || !e.kind) return [];
   const { from, to } = e;
   const dir = e.offense === homeId ? 1 : -1;
@@ -55,7 +79,8 @@ export function basePath(e: PlayLogEntry, homeId: number, snapY: number): Seg[] 
       segs.push(ground(from, snapY, qbX, snapY, 0.8));
       const target = e.air ?? from + dir * 2;
       const targetY = e.air === undefined ? (laneAt > MID ? FIELD_W + 2 : -2) : laneAt;
-      segs.push(air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3)));
+      const thrown = air(qbX, snapY, target, targetY, Math.min(14, 2.5 + Math.abs(target - qbX) * 0.3));
+      segs.push(!asAimed && isBatted(e) ? batDown(thrown, from, dir) : thrown);
       if (e.kind !== 'incomplete' && Math.abs(to - target) > 0.5)
         segs.push(ground(target, targetY, to, clampY(laneAt + (e.lane ?? 0) * 3)));
       break;

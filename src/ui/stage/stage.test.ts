@@ -9,7 +9,7 @@ import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/ty
 import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import type { QuirkId } from '../../engine/quirks';
-import { FIELD_W, pointAt, snapYFor } from '../../engine/field/ballPath';
+import { FIELD_W, isBatted, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { castFor, unitsAt } from '../../engine/field/cast';
 import { fumbleIn } from '../../engine/field/fumble';
 import { lineUp } from '../../engine/field/formations';
@@ -273,7 +273,9 @@ describe('scripts', () => {
   it('the target reaches the landing point when the ball does', () => {
     let n = 0;
     for (const { e, keys, segs, who } of all) {
-      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 3) continue;
+      // A ball batted at the line never reaches him: he runs to where it was thrown (`batted.test.ts`).
+      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || isBatted(e) || who.ball === undefined || segs.length < 3)
+        continue;
       const land = pointAt(segs[2], 1);
       const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur + segs[2].dur);
       expect(Math.hypot(p.x - land.x, p.y - land.y)).toBeLessThan(e.kind === 'incomplete' ? 1.5 : 0.5);
@@ -449,9 +451,12 @@ describe('the staged play', () => {
       const last = p.steps - 1;
       let crowd = 0;
       let samples = 0;
-      // The second half of the play, short of the tackle itself.
-      for (let st = Math.round(last / 2); st < last - Math.round(0.6 / p.dt); st += 5) {
+      // The second half of the run by its yards (a patient back can take half the clock to clear the line), short of
+      // the tackle itself.
+      const halfway = (e.from + e.to) / 2;
+      for (let st = 0; st < last - Math.round(0.6 / p.dt); st += 5) {
         const b = pos(p, st, c);
+        if ((b.x - halfway) * Math.sign(e.to - e.from) < 0) continue;
         crowd += p.ids.filter((_, k) => k !== c && Math.hypot(pos(p, st, k).x - b.x, pos(p, st, k).y - b.y) < 4).length;
         samples++;
       }
@@ -1220,7 +1225,10 @@ describe('the loose ball', () => {
   });
 
   it('stages a fumble from a game before the spot was kept (v78): the ball ends where the play did', () => {
-    const { g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    // One that stood: a flag's wiped-out play ends where the walk-off does, not where the run went.
+    const { g, i, plays } = fumbles.find(
+      (x) => x.f.lost && x.e.loose !== undefined && x.plays[x.i].kind !== 'penalty',
+    )!;
     const old: PlayLogEntry = { ...plays[i], loose: undefined };
     const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
     expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);

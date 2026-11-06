@@ -287,7 +287,7 @@ function per100(label: string, num: number, n: number, real: number, nflN: numbe
 }
 
 /** A share judged ±tol once there are enough on both sides to read it. */
-function share(label: string, num: number, n: number, real: number, nflN: number, tol: number): Line {
+export function share(label: string, num: number, n: number, real: number, nflN: number, tol: number): Line {
   const se = Math.sqrt((real * (1 - real)) / Math.max(1, n));
   const few = tol < 3.5 * se || nflN < SHARE_MIN;
   return {

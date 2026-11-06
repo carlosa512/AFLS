@@ -409,7 +409,8 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       if (rolling) {
         if (!side) side = qy0 <= MID ? 1 : -1;
         tx = setX;
-        ty = qy0 + side * ROLL_OUT;
+        // Carried past it, he settles where he is: never back toward the middle and the men there.
+        ty = side * (q.y - (qy0 + side * ROLL_OUT)) > 0 ? q.y : qy0 + side * ROLL_OUT;
       }
       const gx = tx - q.x;
       const gy = ty - q.y;

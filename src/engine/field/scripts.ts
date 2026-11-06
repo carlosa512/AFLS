@@ -8,7 +8,18 @@ import { actorsIn } from '../playActors';
 import type { QuirkId } from '../quirks';
 import { Rng } from '../rng';
 import type { PlayLogEntry } from '../types';
-import { basePath, carried, FIELD_W, ground, loosen, offenseSide, pointAt, type Seg } from './ballPath';
+import {
+  aimOf,
+  basePath,
+  carried,
+  FIELD_W,
+  ground,
+  isBatted,
+  loosen,
+  offenseSide,
+  pointAt,
+  type Seg,
+} from './ballPath';
 import type { Cast } from './cast';
 import { fumbleIn, HOP_PEAK } from './fumble';
 import { FAKE, PRESSURE_REACT, type PocketPlan } from './pocket';
@@ -185,8 +196,23 @@ export function stagedPath(e: PlayLogEntry, homeId: number, snapY: number, opts:
 }
 
 /** The ball's flight to the catch, and the run the target needs to get there (seconds from the snap). */
-function flightAndRoute(e: PlayLogEntry, homeId: number, snapY: number, receiverAt?: Pt) {
+function flightAndRoute(
+  e: PlayLogEntry,
+  homeId: number,
+  snapY: number,
+  receiverAt?: Pt,
+): { segs: Seg[]; air: Seg | undefined; aimed: Seg | undefined; run: number } {
   const segs = basePath(carried(e), homeId, snapY);
+  // A ball batted at the line: the route and the wait are the throw's as aimed, the flight the ball's as it went.
+  if (isBatted(e)) {
+    const aimed: { air: Seg | undefined; run: number } = flightAndRoute({ ...e, text: '' }, homeId, snapY, receiverAt);
+    const bat = segs[1] && {
+      ...segs[1],
+      dur: passFlight(Math.hypot(segs[1].x1 - segs[1].x0, segs[1].y1 - segs[1].y0)),
+    };
+    // Out of his hands as the aimed throw would have been: the route's run less the flight the ball didn't take.
+    return { segs, air: bat, aimed: aimed.air, run: aimed.run - (aimed.air?.dur ?? 0) + (bat?.dur ?? 0) };
+  }
   const dir = offenseSide(e, homeId) === 0 ? 1 : -1;
   let air: Seg | undefined = segs[1];
   // A catch the log gives no air yards for (a screen, a flat): the broadcast view throws it at the sideline; here it
@@ -205,14 +231,15 @@ function flightAndRoute(e: PlayLogEntry, homeId: number, snapY: number, receiver
       : Math.abs(air.x1 - (e.from ?? air.x0));
   const run = route < 3 ? route / 4 : 0.75 + (route - 3) / ROUTE_PACE;
   if (air) air = { ...air, dur: passFlight(Math.hypot(air.x1 - air.x0, air.y1 - air.y0)) };
-  return { segs, air, run };
+  return { segs, air, aimed: air, run };
 }
 
-/** Where a pass is caught (or comes down), as All-22 throws it: null on anything but a throw. */
+/** Where a pass is caught (or comes down, or was thrown to), as All-22 throws it: null on anything but a throw. */
 export function catchSpot(e: PlayLogEntry, homeId: number, snapY: number): Pt | null {
   if (e.kind !== 'pass' && e.kind !== 'incomplete' && e.kind !== 'int') return null;
-  const { air } = flightAndRoute(e, homeId, snapY);
-  return air ? { x: air.x1, y: air.y1 } : null;
+  // Where it was thrown: a ball batted at the line was still thrown to someone.
+  const { aimed } = flightAndRoute(e, homeId, snapY);
+  return aimed ? { x: aimed.x1, y: aimed.y1 } : null;
 }
 
 /** The earliest the ball can leave for the target's route to reach the catch as it does (0 on anything but a throw). */
@@ -809,7 +836,13 @@ export function script(
       const a = airIdx > 0 ? airIdx : 2;
       if (qb !== undefined) set(qb, ride(segs, 0, a - 1));
       const throwEnd = segs[a] ? ts[a][1] : total;
-      const land = segs[a] ? pointAt(segs[a], 1) : end;
+      const ballEnd = segs[a] ? pointAt(segs[a], 1) : end;
+      // Batted at the line: the receiver and his man play to where it was thrown, when it would have got there.
+      const batted = isBatted(e) && !!segs[a] && e.air !== undefined;
+      const land = batted ? aimOf(segs[a], e.air!) : ballEnd;
+      const landT = batted
+        ? throwEnd + Math.max(0, passFlight(Math.hypot(land.x - segs[a].x0, land.y - segs[a].y0)) - segs[a].dur)
+        : throwEnd;
       const target = who.ball;
       if (target !== undefined && start.has(target)) {
         const s0 = start.get(target)!;
@@ -820,7 +853,7 @@ export function script(
         if (pattern) {
           const inward = pattern.inward.get(target) ?? 1;
           set(target, [
-            ...routeKeys(pattern.route, s0, arrive, throwEnd, dir, inward, pattern.top.get(target) ?? 9),
+            ...routeKeys(pattern.route, s0, arrive, landT, dir, inward, pattern.top.get(target) ?? 9),
             ...after,
           ]);
         } else {
@@ -829,7 +862,7 @@ export function script(
           const stem = { x: s0.x + (arrive.x - s0.x) * 0.6, y: s0.y + (arrive.y - s0.y) * 0.25 };
           const legs = [Math.hypot(stem.x - s0.x, stem.y - s0.y), Math.hypot(arrive.x - stem.x, arrive.y - stem.y)];
           const split = legs[0] + legs[1] > 0 ? legs[0] / (legs[0] + legs[1]) : 0.55;
-          set(target, [at(throwEnd * Math.max(0.3, Math.min(0.75, split)), stem), at(throwEnd, arrive), ...after]);
+          set(target, [at(landT * Math.max(0.3, Math.min(0.75, split)), stem), at(landT, arrive), ...after]);
         }
         if (e.kind === 'pass') carrier = target;
         moment(target, outT);
@@ -927,6 +960,16 @@ export function script(
         carrier = who.take;
         moment(who.take, throwEnd);
       }
+      if (batted && who.take !== undefined && start.has(who.take)) {
+        // The batter: squared up to the passer in the lane, a step short of the ball on the passer's side, as far as
+        // his legs get him by the time it's there.
+        const s0 = start.get(who.take)!;
+        const spot = toward(ballEnd, { x: segs[a].x0, y: segs[a].y0 }, 0.6);
+        const room = topOf(who.take) * throwEnd;
+        const d = Math.hypot(spot.x - s0.x, spot.y - s0.y);
+        set(who.take, [at(throwEnd, d <= room ? spot : toward(s0, spot, room))]);
+        moment(who.take, throwEnd);
+      }
       if (who.cover !== undefined && who.cover !== who.take && start.has(who.cover)) {
         // As far off the receiver as the play's separation (NGS: about three yards at the target), on the side he
         // came from; without a pattern, a yard and a half deeper (under it on a miss). Beaten on a catch, he chases from
@@ -934,12 +977,12 @@ export function script(
         const sep = pattern?.separation;
         const c0 = start.get(who.cover)!;
         // As near as he could get by the time the ball does: a man lined up far off is further off the catch.
-        const reach = Math.hypot(land.x - c0.x, land.y - c0.y) - topOf(who.cover) * throwEnd;
+        const reach = Math.hypot(land.x - c0.x, land.y - c0.y) - topOf(who.cover) * landT;
         const spot =
           sep !== undefined
             ? toward(land, c0, Math.max(sep, reach))
             : { x: land.x + dir * (e.kind === 'incomplete' ? 0.7 : 1.5), y: land.y };
-        set(who.cover, [at(throwEnd, spot)]);
+        set(who.cover, [at(landT, spot)]);
         if (e.kind === 'pass') free.set(who.cover, throwEnd);
         moment(who.cover, throwEnd);
       }
@@ -1201,10 +1244,15 @@ export function script(
       else {
         // Already the hitter: he goes from the hit to the ball. Else he comes in from the play as the ball settles.
         const s0 = start.get(by)!;
+        // Near it as it comes out, on his side; nearer when it squirts away from him, so his legs get him to it.
+        const off = toward(hit, s0, 2.5);
+        const legRoom = topOf(by) * (tSettle - tHit);
+        const near =
+          Math.hypot(settle.x - off.x, settle.y - off.y) <= legRoom ? off : toward(settle, off, Math.max(0, legRoom));
         const lead =
           by === hitter
             ? (keys.get(by) ?? [from(by)]).filter((k) => (hitterAtHit ? k.t <= tHit : k.t < tHit))
-            : [...onTheMove(by, tHit, toward(hit, s0, 2.5)), at(tHit, toward(hit, s0, 2.5))];
+            : [...onTheMove(by, tHit, near), at(tHit, near)];
         keys.set(by, [...lead, at(tSettle, settle), ...back]);
         free.delete(by);
         // The man who fumbled stays down where it came out.
