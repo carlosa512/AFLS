@@ -119,6 +119,7 @@ describe('chemistry: game day', () => {
   // Three tests, not one: each plays hundreds of games, and one long test can starve the test worker.
   it('a line forced to each end allows fewer sacks and gains more a carry at its best', async () => {
     const l = fresh();
+    // Four hundred a side: the carry's edge is a tenth of a yard, and over two hundred one world's dice hid it.
     const lineUp = await replay(l, [{ OL: 0.3 }, {}], 2000);
     const lineDown = await replay(l, [{ OL: -0.3 }, {}], 2000);
     const sackRate = (rs: GameResult[]) =>

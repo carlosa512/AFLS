@@ -1,0 +1,75 @@
+import { describe, expect, it } from 'vitest';
+import type { Player } from '../types';
+import { defenseRecovers, FORCER_RECOVERS, pickRecoverer, recovererGroup, returnYards, type Group } from './looseBall';
+
+const man = (id: number) => ({ id }) as Player;
+const field = (over: Partial<Record<Group, Player[]>> = {}): Record<Group, Player[]> => ({
+  DB: [man(1), man(2), man(3), man(4)],
+  LB: [man(5), man(6)],
+  DL: [man(7), man(8), man(9), man(10)],
+  ...over,
+});
+
+describe('the loose ball', () => {
+  it('gives the defense the NFL’s share: a ball punched out goes its way, one he drops himself mostly stays', () => {
+    expect(defenseRecovers('run', true)).toBe(0.6);
+    expect(defenseRecovers('run', false)).toBe(0.25);
+    expect(defenseRecovers('catch', false)).toBe(0.18);
+    // A scramble he fumbles himself takes a sack's own share (the NFL has four).
+    expect(defenseRecovers('scramble', false)).toBe(0.35);
+  });
+
+  it('splits the rest of the defense by group, a strip-sack among the linemen, a catch among the DBs', () => {
+    for (const kind of ['run', 'catch', 'scramble', 'sack'] as const) {
+      const g = recovererGroup(kind);
+      expect(g.DB + g.LB + g.DL).toBeCloseTo(1, 9);
+      expect(FORCER_RECOVERS[kind]).toBeGreaterThan(0);
+    }
+    expect(recovererGroup('sack').DL).toBeGreaterThan(recovererGroup('catch').DL);
+    expect(recovererGroup('catch').DB).toBeGreaterThan(recovererGroup('sack').DB);
+  });
+
+  it('credits the man who forced it first, and never nobody', () => {
+    const forcer = man(99);
+    expect(pickRecoverer('run', forcer, field(), 0, 0.5)).toBe(forcer);
+    for (let u = 0; u < 1; u += 0.01) expect(pickRecoverer('run', null, field(), 0, u)).toBeDefined();
+  });
+
+  it("gives the forcer the NFL's share of all the defense's recoveries, though only a forced one can be his", () => {
+    // Runs: the forcer has 10% of the defense's recoveries; 291 of its 428 recoveries were forced (0.60 × 485 of
+    // 0.25 × 548): of the forced ones he has 0.10 / 0.68.
+    expect(FORCER_RECOVERS.run).toBeCloseTo(0.147, 2);
+    expect(FORCER_RECOVERS.sack).toBeCloseTo(0.127, 2);
+  });
+
+  it('gives the forcer his share once: past it he is not picked again from his group', () => {
+    const f = field();
+    const forcer = f.DB[0];
+    for (let u = 0; u < 1; u += 0.005) expect(pickRecoverer('catch', forcer, f, 0.99, u)).not.toBe(forcer);
+  });
+
+  it('passes a group with nobody on the field to the next', () => {
+    const noLb = field({ LB: [] });
+    for (let u = 0; u < 1; u += 0.01) {
+      const p = pickRecoverer('run', null, noLb, 1, u);
+      expect([...noLb.DB, ...noLb.DL]).toContain(p);
+    }
+  });
+
+  it('runs a return back no further than the goal line: reaching it is the touchdown', () => {
+    expect(returnYards('DB', 5, 0.999)).toBe(5);
+    // The far end of the 20+ band: a long return that doesn't go the distance; its near end goes all the way.
+    const deep = returnYards('DB', 100, 0.995);
+    expect(deep).toBeGreaterThanOrEqual(20);
+    expect(deep).toBeLessThan(100);
+    expect(returnYards('DB', 100, 0.9)).toBe(100);
+    for (const g of ['DB', 'LB', 'DL'] as const) expect(returnYards(g, 50, 0.01)).toBe(0);
+    // A strip-sack in his own end zone: the ball is already on the goal line, any recovery there is the touchdown.
+    for (const g of ['DB', 'LB', 'DL'] as const) for (let u = 0; u < 1; u += 0.1) expect(returnYards(g, 0, u)).toBe(0);
+  });
+
+  it('runs a lineman back no further than a DB on the same draw', () => {
+    for (let u = 0.05; u < 0.96; u += 0.05)
+      expect(returnYards('DL', 50, u)).toBeLessThanOrEqual(returnYards('DB', 50, u));
+  });
+});

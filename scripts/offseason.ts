@@ -33,6 +33,7 @@
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
 import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
+import { bandOf } from './band';
 import { fork } from 'node:child_process';
 import {
   coachBudget,
@@ -122,16 +123,22 @@ let misses = 0;
  * (an empty league, a division by zero) is a miss too: unlike the career audit's "n/a" for a thin
  * sample, every number here always has data, so a missing one means something broke.
  */
-function check(label: string, value: number, lo: number, hi: number, digits = 2): string {
+function check(label: string, value: number, lo: number, hi: number, digits = 2, normal?: [number, number]): string {
   const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
   if (!Number.isFinite(value)) {
     misses++;
     return `${label} n/a (${range}) ▼`;
   }
-  const flag = value < lo ? ' ▼' : value > hi ? ' ▲' : '';
-  if (flag) misses++;
+  // A line that swings with the league (`band.ts`) warns outside its range and fails only outside its normal band.
+  const band = bandOf(value, [lo, hi], normal);
+  const flag = band === 'unusual' ? ' ⚠' : band === 'abnormal' ? (value < lo ? ' ▼' : ' ▲') : '';
+  if (band === 'abnormal') misses++;
   return `${label} ${value.toFixed(digits)} (${range})${flag}`;
 }
+
+/** Retreads swing with the league: ⚠ outside 10–50%, fail outside 8–58% (the owner's call, Nov 6: main read 39% and 42%
+ * over two seeds, 0.4.8's branch 50% and 42%; the NFL's 32%). */
+const RETREADS_NORMAL: [number, number] = [8, 58];
 
 /** Known engine issues, by title, each with where it showed up. Printed at the end; never counted. */
 const known: Record<string, string[]> = {};
@@ -771,7 +778,7 @@ if (rows.length >= 5) {
       own.all + others.reduce((a, o) => a + o.hcFrom.retread + o.hcFrom.coordinator + o.hcFrom.other, 0),
     );
     console.log(
-      `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0)}`,
+      `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0, RETREADS_NORMAL)}`,
     );
   }
   const tail = rows.slice(-3).map((r, j) => {

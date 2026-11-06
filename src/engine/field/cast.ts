@@ -126,8 +126,10 @@ export function castFor(record: FieldRecord, plays: readonly PlayLogEntry[], ind
     offense = eleven([[kick ? off.k : off.p, kick ? 'K' : 'P']], [...stOf(off), ...scrimmageDefense(off)]);
     defense = eleven([[kick ? def.kr : def.pr, 'RET']], [...stOf(def), ...scrimmageOffense(def)]);
   } else if (e.kind === 'fg' || e.kind === 'xp') {
+    // The punter holds; with him hurt and the kicker punting too, the quarterback holds, as NFL clubs line up.
+    const holder = off.p !== off.k ? off.p : off.qb;
     offense = eleven(
-      [...off.fg.map((id): Entry => [id, 'OL']), [off.k, 'K'], [off.p, 'P']],
+      [...off.fg.map((id): Entry => [id, 'OL']), [off.k, 'K'], [holder, 'P']],
       [...stOf(off), ...scrimmageOffense(off)],
     );
     defense = eleven(

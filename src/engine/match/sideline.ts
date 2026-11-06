@@ -81,6 +81,9 @@ const PUSH_WIDE: ByKind = { catch: 2.55, run: 3.8, scramble: 0 };
 const PUSH_RUN: ByKind = { catch: 0.09, run: 0.16, scramble: 0 };
 /** Protecting a lead late he cuts back inside: catches in the last 5:00 leading, 11.4% against 16.8%. */
 const PUSH_IN: ByKind = { catch: -0.2, run: -0.45, scramble: -0.5 };
+/** Hurrying, an outside run is run out less (7.8% against 9.7% at normal tempo): the defense plays soft, keeps it in
+ * front of it and tackles in bounds. */
+const PUSH_OUT: ByKind = { catch: 0, run: -0.25, scramble: 0 };
 /** Per rating point: the chaser's angle runs him out, his tackle brings him down first; the carrier's speed gets him
  * to the edge; a good edge setter turns a run back inside before it reaches the sideline. */
 const PUSH_PURSUIT = 0.05;
@@ -153,6 +156,7 @@ export function sidelineOdds(f: SidelineFacts): SidelineOdds {
   const wide = kind === 'run' ? Math.min(1, f.wide + Math.max(0, past4(f.run)) / DRIFT) : f.wide;
   let push = PUSH_BASE[kind] + PUSH_WIDE[kind] * wide + PUSH_RUN[kind] * past4(f.run);
   if (f.clock === 'in') push += PUSH_IN[kind];
+  if (f.clock === 'out') push += PUSH_OUT[kind];
   if (f.shortOfSticks) push += PUSH_STICKS;
   if (f.free) push += PUSH_FREE;
   push += PUSH_PURSUIT * (d.pursuit - TYPICAL.pursuit) + PUSH_TACKLING * (d.tackling - TYPICAL.tackling);

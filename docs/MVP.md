@@ -185,22 +185,58 @@ and the situation (down, distance, clock, score, who's near), calibrated against
 audit of `match/gameSim.ts` found these rolls that ignore what should drive them (lines as of 0.4.4). Out of bounds on a
 catch or run is the item above.
 
-- [ ] **High: the passer under pressure** (L3199, L3204, L3223). Scramble and throwaway are dice: a throwaway is 12% for
-      any non-gunslinger, reading neither his decisions nor down, distance, score or field position. Calibrate with NGS
-      time to throw, throwaway rate under pressure, nflverse `qb_scramble`.
-- [ ] **High: fumbles on contact** (L3094, L3582). They read ball security and the tackler, but not the hit (a gang
-      tackle, a strip try), fatigue or condition, or a carrier stretching late. Calibrate: nflverse fumbles per touch.
+- [x] **High: the passer under pressure (0.4.5).** The flat scramble, throwaway and escape rolls are gone: after his read
+      (depth, target, separation) the passer chooses to throw it, throw it away or take off (`match/pocketChoice.ts`),
+      under pressure or from a clean pocket when he's covered, leaned by the down (3rd for the sticks, 4th under
+      pressure he throws it up), the red zone, his own end, the clock late, his decisions, legs, pocket presence, poise,
+      health and habits (a gunslinger throws it away a third as often). A throwaway comes from inside the pocket or after
+      rolling out, and can be flagged: intentional grounding (loss of down, 10 yards or the spot, a safety from the end
+      zone). Fitted to FTN charting and NGS pressure 2023–25 by bucket (`npm run passer`, also judged in `npm run sim`):
+      pressured 7.4% scrambles and 9.4% thrown away (NFL 7.6, 9.1), clean 4.3% and 1.1% (4.3, 1.2), grounding 0.19 a
+      game (0.19), the spread between passers as the NFL's. On film a clean throwaway, a roll-out and a grounded ball;
+      a man stepping out in normal play now paces himself for his escort (parity: 0 of 272 alone over 160 games).
+      Spec: `docs/superpowers/specs/2026-11-05-passer-under-pressure-design.md`.
+- [x] **High: fumbles on contact (0.4.6).** A tackle in bounds on a run, a catch or a scramble (scramblers fumble now)
+      reads the hit (the tackler's tackling, his size against the carrier's, Thumper and Arm Tackler), the carrier
+      (ball security, fatigue, Loose Carriage, High Knee, Contact Averse), the fight for yards (3rd and 4th down,
+      trailing late, Finishes Forward) and a defense going for the ball (Ball Stripper, ahead late it needs it back,
+      and a back covers it up), then whether a defender forced it: half of run fumbles, nearly all of catches' and
+      scrambles' (`match/fumbleOdds.ts`). The play names why (stripped, jarred loose by the hit, fighting for the extra
+      yard, puts it on the ground), only a forced one credits a forced fumble, and the film shows it: a strip from
+      behind, a hit from the front, a second man on a back fighting forward. Fitted to nflverse 2021–25 by bucket
+      (`npm run fumbles`, also judged in `npm run sim`): over 20 seasons runs 1.63 a hundred (NFL 1.46), catches 1.26
+      (1.31), forced 0.50 and 0.95 (0.50, 0.95), fumbles lost 0.42 a game. Ball security reads against a man's position
+      (a quarterback's sneak is no riskier for his position's ratings) and backs differ as the NFL's do, luck taken
+      out on both sides (0.0095 against 0.0117). Spec:
+      `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
-- [ ] **Medium-High: after an interception** (L3408–3415). The odds of a pick are rich; who catches it (65% the cover man)
-      and the return (normal 9 ± 10, a 6% long one) are flat. Calibrate: return yards by air yards, pick-six rate.
-- [ ] **Medium: fumble recoveries** (L2903): 52% the defense's, whoever is near the ball. In your games the field knows.
-- [ ] **Medium: a sack's yards and strip** (L3815): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
-      reads one habit, not ball security or a hit from behind.
+- [x] **Medium-High: after an interception (0.4.8).** Who picks it off reads the throw's depth (`match/defendedPass.ts`):
+      the cover man first, else a group the depth points to and a man of it by his ball skills (to the fourth: the ball
+      hawk gets his group's picks); a lineman only at the line, a ball tipped up (the pick changes hands there). Deep
+      the safeties have over half (0.53, NFL 0.535), a jumped short route is a linebacker's three times in ten (0.30,
+      0.309). The return by depth (`match/returnBands.ts`, shared with fumbles): pick-sixes 0.17 on 0–9 yards (NFL
+      0.184), 0.06 on 10–19 (0.043), none deep (0.005). Fitted to nflverse 2021–25 (`npm run picks`, also judged in `npm
+      run sim`); over 20 seasons the leaders' #1 picks 8.0 a season. Spec:
+      `docs/superpowers/specs/2026-11-06-picks-and-breakups-design.md`.
+- [x] **Medium: fumble recoveries (0.4.7).** Who gets a loose ball reads how it came out (`match/looseBall.ts`): a ball
+      a defender punched out goes the defense's way about 55–60% of the time, one the carrier lost himself about a
+      quarter (NFL 0.60 and 0.25 on runs). The man credited is the one who forced it about one time in eight, else the
+      group the play puts near the ball (a catch's among the DBs, a strip-sack's among the linemen), and his return is
+      his group's: a safety picks it up and runs, a tackle falls on it, and most long returns go the distance. Fitted
+      to nflverse 2021–25 (`npm run fumbles`, also judged in `npm run sim`): lost per 100 runs 0.61 (NFL 0.65),
+      catches 0.60 (0.67), fumbles lost 0.41 a game. Spec: `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`.
+- [ ] **Medium: a sack's yards and strip** (L3815) · **Partial (0.4.7):** the strip reads the rusher's spot (off the
+      edge 14% of sacks, up the middle 8%, NFL 2021–25), his hit, the quarterback's ball security and the down
+      (`sackStripOdds`), 12.4 a hundred like the NFL's; a sack's yards are still normal 6.5 ± 2.5 whatever the drop or
+      the rusher.
 - [ ] **Medium: a scramble's slide** (L3945): a flat 40% of scrambles that stay in bounds (out of bounds is the
       sideline call since 0.4.4). The NFL's play text doesn't record slides.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
 - [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
+      **Partial (0.4.8):** breakups by depth, throwaways left out (0.45 behind the line to 0.29 deep, NFL FTN 2022–25),
+      credited as the NFL's by depth (the line, a ball batted down at the line and drawn there on film, 0.54 of a
+      screen's, 0.16 at 0–9, 0.04 at 10–19, 0.01 deep); return touchdowns still small edge-scaled rates.
 
 Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
 Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled
@@ -331,6 +367,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
       rusher, a lineman tracking his man to the quarterback); a receiver slid past the sideline to a ball thrown out of
       bounds; a jump-cutter's broken tackle never showed on a short carry. Left: the bounce habit's width is measured on
-      runs that go wide anyway (now 1.11 on stage-b against 1.2: its sweeps to the sideline leave little room), and
-      the line a second in on stage-d (0.979 engaged against 0.98). A beaten blocker now sets before he turns and chases
+      runs that go wide anyway (now 1.11 on stage-b against 1.2: its sweeps to the sideline leave little room). The
+      line a second in is fixed (0.4.5): on zone a spare lineman doubled the nearest man even on his backside while the
+      whole line stepped play-side; he now doubles a man on his play side (stage-d 0.979 to 0.985, stage 0.983). A beaten blocker now sets before he turns and chases
       his man (he stood frozen at the snap on a quick pressure).

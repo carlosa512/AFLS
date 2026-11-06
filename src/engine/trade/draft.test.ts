@@ -594,7 +594,8 @@ describe('GM habits in the draft', () => {
   it('tradeUpReason takes a quarterback at a smaller gap with tradeUpQb on', () => {
     let found = 0;
     const l = draftDay();
-    for (let i = 0; i < 32; i++) {
+    // Sixty-four picks, not thirty-two: in the merged world the first round alone holds no quarterback sitting just under the bar.
+    for (let i = 0; i < 64; i++) {
       for (const pk of picksAhead(l, WINDOW)) {
         if (pk.ownerId === l.userTeamId) continue;
         const team = l.teams[pk.ownerId];

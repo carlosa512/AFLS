@@ -7,15 +7,31 @@
 import { sizeEdge, type SizedBuild } from '../size';
 import type { Rng } from '../rng';
 import { bodyOf, hasHabit, stepBody, type Body } from './body';
+import { MID } from './geometry';
 import { laneMatch } from './run';
 import { BRAKE, KNOBS, STEP } from './tuning';
 import type { FieldPlayer, FieldSkills } from './types';
 
-export type PocketOutcome = 'clean' | 'pressure' | 'hit' | 'sack' | 'scramble' | 'escape' | 'away';
+/** Today's dropback: thrown clean or under pressure (a hit), sacked, a scramble (pressured) or an escape (clean), or
+ * thrown away: under pressure in the pocket ('away'), from a clean pocket ('awayClean'), or after rolling out ('awayOut'). */
+export type PocketOutcome =
+  | 'clean'
+  | 'pressure'
+  | 'hit'
+  | 'sack'
+  | 'scramble'
+  | 'escape'
+  | 'away'
+  | 'awayClean'
+  | 'awayOut';
 
 export interface PocketStart {
   /** The offense's direction. */
   dir: 1 | -1;
+  /** A throwaway flagged as intentional grounding: the ball lands in open grass, near nobody. */
+  grounded?: boolean;
+  /** Rolled out of a clean pocket to throw it away: nobody sent, as on any clean dropback. */
+  clean?: boolean;
   /** Field x of the line of scrimmage. */
   los: number;
   qb: number;
@@ -153,7 +169,17 @@ function winChance(r: FieldPlayer, b: FieldPlayer, doubled: boolean, t: number):
 }
 
 /** Today's outcomes that send a rusher to him, and how close he is when he gets there (yards). */
-const ARRIVE: Partial<Record<PocketOutcome, number>> = { hit: 0.4, pressure: 2, away: 2, scramble: 2.5, sack: 0.6 };
+const ARRIVE: Partial<Record<PocketOutcome, number>> = {
+  hit: 0.4,
+  pressure: 2,
+  away: 2,
+  awayOut: 2,
+  scramble: 2.5,
+  sack: 0.6,
+};
+/** Rolling out to throw it away: how far across he goes (past the tackle), and his pace getting there (of his top). */
+const ROLL_OUT = 6;
+const ROLL_PACE = 0.75;
 /** He feels a won rep this long before the throw at the latest: a pressure's rep is won by then (`PRESSURE_REACT`). */
 const FEEL = 0.9;
 /** Nobody but the man today's outcome sends gets this close to him before his moment. */
@@ -199,7 +225,10 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
 
   const outcome = start.outcome;
   const runs = outcome === 'scramble' || outcome === 'escape';
-  const arrive = ARRIVE[outcome];
+  const thrownAway = outcome === 'away' || outcome === 'awayClean' || outcome === 'awayOut';
+  // A clean rollout sends nobody: the pocket is as quiet as a clean throw's until he lets it go.
+  const quietRoll = outcome === 'awayOut' && !!start.clean;
+  const arrive = quietRoll ? undefined : ARRIVE[outcome];
   // His moment: the ball out, the sack, or the break.
   const breakT = runs ? Math.max(0.6, start.throwAt - (hasHabit(QP, 'bailsEarly') ? BAIL : 0)) : Infinity;
   const homeT =
@@ -207,11 +236,15 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       ? start.throwAt
       : outcome === 'scramble'
         ? breakT
-        : outcome === 'clean' || outcome === 'escape'
+        : outcome === 'clean' || outcome === 'escape' || outcome === 'awayClean' || quietRoll
           ? Infinity
           : start.throwAt;
   /** Until then nobody gets near him unless sent. */
-  const quietUntil = runs ? breakT : outcome === 'clean' ? start.throwAt : homeT;
+  const quietUntil = runs
+    ? breakT
+    : outcome === 'clean' || outcome === 'awayClean' || quietRoll
+      ? start.throwAt
+      : homeT;
   const react = Math.max(0.05, 0.3 - 0.05 * (QP.s.poise - 12));
   let chosen = -1;
 
@@ -226,6 +259,7 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   let side = 0;
   const setX = start.los - dir * start.setDepth;
   const q = B[qi];
+  const qy0 = q.y;
 
   const reach = (ri: number) => Math.hypot(q.x - B[ri].x, q.y - B[ri].y) / B[ri].top + SHED;
   // Today's credit, kept only when the pocket has one of its men (else the field picks freely).
@@ -370,10 +404,22 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
           if ((r.x - q.x) * dir < 0) tx = setX + dir * SLIDE;
         }
       }
+      // Rolling out to throw it away: set, then along his depth past the tackle, toward the side with room.
+      const rolling = outcome === 'awayOut' && set;
+      if (rolling) {
+        if (!side) side = qy0 <= MID ? 1 : -1;
+        tx = setX;
+        // Carried past it, he settles where he is: never back toward the middle and the men there.
+        ty = side * (q.y - (qy0 + side * ROLL_OUT)) > 0 ? q.y : qy0 + side * ROLL_OUT;
+      }
       const gx = tx - q.x;
       const gy = ty - q.y;
       const g = Math.hypot(gx, gy);
-      const pace = set ? Math.min(POCKET_PACE, g / STEP) : Math.min(q.top, g / STEP);
+      const pace = rolling
+        ? Math.min(ROLL_PACE * q.top, g / STEP)
+        : set
+          ? Math.min(POCKET_PACE, g / STEP)
+          : Math.min(q.top, g / STEP);
       if (g > 0.05) qWant = { vx: (gx / g) * pace, vy: (gy / g) * pace };
     } else if (outcome === 'sack' && start.sackX !== undefined && Math.abs(start.sackX - q.x) > 0.3) {
       const gx = start.sackX - q.x;
@@ -390,13 +436,20 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       const d = Math.hypot(dx, dy) || 1;
       const bi = on[ri];
       if (bi >= 0 && Math.hypot(B[bi].x - r.x, B[bi].y - r.y) <= MEET) {
-        const push = (hasHabit(P[ri], 'bullRush') ? BULL : PUSH) * (hasHabit(P[bi], 'anchor') ? 0.5 : 1);
+        // Driving his man back; while the pocket is quiet, not into the quarterback.
+        const drive = (hasHabit(P[ri], 'bullRush') ? BULL : PUSH) * (hasHabit(P[bi], 'anchor') ? 0.5 : 1);
+        const push = t < quietUntil && ri !== chosen ? Math.min(drive, stoppable(d - KEEP_OFF)) : drive;
         const sp = Math.hypot(r.vx, r.vy);
         if (sp > push) {
           r.vx *= push / sp;
           r.vy *= push / sp;
         }
         stepBody(r, { vx: (dx / d) * push, vy: (dy / d) * push }, STEP);
+        continue;
+      }
+      // Thrown away: the ball's gone, and the rush pulls up (braking as a body does, never a dead stop).
+      if (thrownAway && t >= start.throwAt) {
+        stepBody(r, { vx: 0, vy: 0 }, STEP);
         continue;
       }
       // A delayed rusher stands until he goes.

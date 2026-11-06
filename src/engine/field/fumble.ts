@@ -4,6 +4,7 @@
  * Spec: docs/superpowers/specs/2026-11-02-all-22-passing-game-design.md §5.
  */
 import { Rng } from '../rng';
+import type { FumbleWhy } from '../match/fumbleOdds';
 import type { PlayLogEntry } from '../types';
 import type { Seg } from './ballPath';
 
@@ -11,10 +12,18 @@ import type { Seg } from './ballPath';
 export interface Fumble {
   lost: boolean;
   x: number;
+  /** How it came out, as the play says (`fumbleOdds.ts`): an old play, or a strip-sack, reads as the hit. */
+  why: FumbleWhy;
 }
 
 const LOST = /FUMBLE, recovered by/;
 const KEPT = /Fumble, recovered by the offense/;
+const WHY: [RegExp, FumbleWhy][] = [
+  [/, stripped by /, 'strip'],
+  [/, fighting for the extra yard, the ball comes out/, 'fight'],
+  [/, puts it on the ground/, 'own'],
+];
+const whyOf = (text: string): FumbleWhy => WHY.find(([re]) => re.test(text))?.[1] ?? 'hit';
 const CARRIED: ReadonlySet<string> = new Set(['run', 'scramble', 'pass', 'sack']);
 
 /**
@@ -23,8 +32,8 @@ const CARRIED: ReadonlySet<string> = new Set(['run', 'scramble', 'pass', 'sack']
  */
 export function fumbleIn(e: PlayLogEntry): Fumble | null {
   if (!CARRIED.has(e.kind ?? '') || e.to === undefined) return null;
-  if (LOST.test(e.text)) return { lost: true, x: e.loose ?? e.to };
-  if (KEPT.test(e.text)) return { lost: false, x: e.to };
+  if (LOST.test(e.text)) return { lost: true, x: e.loose ?? e.to, why: whyOf(e.text) };
+  if (KEPT.test(e.text)) return { lost: false, x: e.to, why: whyOf(e.text) };
   return null;
 }
 

@@ -36,8 +36,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `npm run check -- sim endings` runs just those. CI runs the same plan on every pull request, one job
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
-  season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests and rooms in doubt in
-  `morale`, live trees in `careers`, win spread in `sim`): outside their usual band they warn (⚠: this league drifted),
+  season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
+  `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads in `offseason`, win
+  spread in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs
@@ -59,6 +60,23 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   between snaps after a man goes out, and how far the league's men differ; AI games, fast (3,000 in under a minute).
   Run it after changing `match/sideline.ts` or the out-of-bounds code in `match/gameSim.ts`; `npm run sim` judges the
   same lines. Nothing may be ✗.
+- `npm run passer [-- games]` — the passer's choices (sacked, scrambled, thrown away) by pressure and situation (the down,
+  the red zone, his own end, trailing late) against FTN charting and NGS pressure 2023–25 (`scripts/research-passer.py`),
+  throwaways from outside the pocket, intentional grounding a game, and how far passers differ; AI games, fast (3,000
+  in under a minute). Run it after changing `match/pocketChoice.ts` or the dropback in `match/gameSim.ts`; `npm run
+  sim` judges the buckets and grounding. Nothing may be ✗.
+- `npm run fumbles [-- games]` — contact fumbles on runs, catches and scrambles tackled in bounds, by what's known before
+  the snap (the down and distance, trailing or leading late), the share a defender forced and how far backs differ;
+  strip-sacks by situation and the rusher's spot; who gets a loose ball (lost per 100, forced and own), who on the
+  defense, and returns by group; against nflverse 2021–25 (`scripts/research-fumbles.py`); AI games, fast (3,000 in
+  under a minute). Run it after changing `match/fumbleOdds.ts`, `match/looseBall.ts` or the fumble rolls in
+  `match/gameSim.ts`; `npm run sim` judges the buckets. Nothing may be ✗.
+- `npm run picks [-- games]` — after the throw: who intercepts it by the throw's depth, the pick's 20+ returns and
+  pick-sixes by depth, breakups per incompletion by depth (throwaways left out) and who's credited with them (the line's
+  share batted at the line), the share of picks crediting a pass defensed; against nflverse 2021–25 and FTN charting
+  (`scripts/research-picks.py`); AI games, fast (3,000 in under a minute). Run it after changing `match/defendedPass.ts`,
+  `match/returnBands.ts` or the pick and incompletion branches in `match/gameSim.ts`; `npm run sim` judges the buckets.
+  Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -355,7 +373,22 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `match/gameSim.ts` play-by-play engine · `match/coach.ts` AI decisions (pure functions) · `match/sideline.ts`
     out of bounds as the carrier's choice: pushed out or stepped out as odds from the play, the clock and the men in
     it (spec `docs/superpowers/specs/2026-11-04-out-of-bounds-choice-design.md`); one draw in every game, the field
-    plays it out (`FieldFacts.oob` 1 pushed, 2 stepped)
+    plays it out (`FieldFacts.oob` 1 pushed, 2 stepped) · `match/pocketChoice.ts` the passer's choice after his read
+    (spec `docs/superpowers/specs/2026-11-05-passer-under-pressure-design.md`): throw it, throw it away or take off as
+    odds from the pressure, his read, the situation and the man, one draw; a throwaway from inside the pocket or rolled
+    out, and its intentional grounding odds (`penalties.ts`: loss of down, the spot, a safety); the field stages it
+    (`PocketOutcome` 'away', 'awayClean', 'awayOut'; `FieldFacts.gr`) · `match/fumbleOdds.ts` a fumble on contact (spec
+    `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`): odds from the hit (the tackler's tackling, size
+    and habits), the carrier (ball security, fatigue, habits), the fight for yards (the down, trailing late) and a
+    defense going for the ball, then whether a defender forced it and why (strip, hit, fight, his own); the reason is
+    in the play's text and the film shows it (`field/fumble.ts`); the strip-sack's odds beside it (`sackStripOdds`: the
+    rusher's spot and hit, the quarterback, the down) · `match/looseBall.ts` the loose ball (spec
+    `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`): who gets it (the play, forced or his own), who on
+    the defense is credited (the forcer, else a group by the play) and his return by his group; draws nothing · `match/defendedPass.ts` after the throw (spec
+    `docs/superpowers/specs/2026-11-06-picks-and-breakups-design.md`): who picks it off (the cover man, else a group by
+    the throw's depth, a man of it by ball skills; a lineman only at the line, tipping it up), breakups by depth and who's
+    credited (the line's share batted down at the line), the pick's return by depth; draws nothing ·
+    `match/returnBands.ts` the yard-band return a pick and a loose ball share (`bandReturn`)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

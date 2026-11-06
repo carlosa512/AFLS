@@ -66,8 +66,9 @@ export const QUIRKS = {
     label: 'Gunslinger',
     positions: ['QB'],
     tone: 'style',
-    clause: 'never throws it away, even when the play breaks down',
-    effect: 'No throwaways: under pressure he forces it into coverage, so fewer completions and more interceptions.',
+    clause: 'rarely throws it away, even when the play breaks down',
+    effect:
+      'Rarely throws it away: under pressure he forces it into coverage, so fewer completions and more interceptions.',
   },
   safetyEyes: {
     label: 'Manipulates Safety Eyes',
@@ -120,7 +121,8 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'good',
     clause: 'always falls forward for an extra yard',
-    effect: 'A yard more on short runs. Fights to stay in bounds.',
+    effect:
+      'A yard more on short runs. Fights to stay in bounds, and for the extra yard: the ball comes out a little more.',
   },
   looseCarriage: {
     label: 'Loose Carriage',
@@ -396,7 +398,7 @@ export const QUIRKS = {
     positions: DLINE,
     tone: 'bad',
     clause: 'reaches for ball carriers instead of shedding',
-    effect: 'More yards on runs.',
+    effect: 'More yards on runs. Barely jars the ball loose.',
   },
   gassed: {
     label: 'Gassed in High-Tempo',
@@ -462,7 +464,7 @@ export const QUIRKS = {
     positions: ['LB'],
     tone: 'good',
     clause: 'stops ball carriers dead',
-    effect: 'Fewer broken tackles. Brings carriers down in bounds.',
+    effect: 'Fewer broken tackles. Brings carriers down in bounds, and his hits jar the ball loose more often.',
   },
   greenDog: {
     label: 'Green-Dog Blitz Specialist',

@@ -102,7 +102,8 @@ describe('who each play was about', () => {
         const toward = e.offense === g.homeId ? 1 : -1;
         const back = (e.loose! - e.to!) * toward;
         expect(back).toBeGreaterThanOrEqual(0);
-        expect(back).toBeLessThanOrEqual(44);
+        // (Run back as far as the goal line and a few yards into the end zone: a long one goes the distance.)
+        expect(back).toBeLessThanOrEqual(110);
       }
     expect(lost).toBeGreaterThan(5);
   });

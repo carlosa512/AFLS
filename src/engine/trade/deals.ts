@@ -206,6 +206,9 @@ export const priceable = (ctx: TradeContext, p: Player) =>
   p.teamId !== null && marketValue(ctx, ctx.league.teams[p.teamId], p) > 0;
 
 export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | null {
+  // Nobody his own club can't price: salary kept to fit a buyer would otherwise make him worth a pick. (The market's
+  // calls already pass him by; this keeps the rule here too.)
+  if (!priceable(ctx, target)) return null;
   const { league } = ctx;
   const seller = league.teams[target.teamId!];
   // A buyer who can't fit his salary gets him only if the seller keeps paying the difference (and asks more for it).

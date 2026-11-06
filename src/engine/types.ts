@@ -1774,6 +1774,7 @@ export interface TeamGameStats {
 /** The fouls the engine calls (see `FOULS` in `officials.ts`). */
 export type Foul =
   | 'falseStart'
+  | 'grounding'
   | 'offside'
   | 'holding'
   | 'passInterference'

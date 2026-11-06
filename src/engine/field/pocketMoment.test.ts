@@ -141,3 +141,85 @@ describe("the pocket's moment", () => {
     expect(pocketCast(staged, { ...pm, ball: cast.blockers[0] })!.blockers).not.toContain(cast.blockers[0]);
   });
 });
+
+describe('a throwaway in the pocket', () => {
+  /** Each castable catch read back as a throwaway of one shape (and grounded or not). */
+  const asAway = (pk: 'away' | 'awayClean' | 'awayOut', gr = false, cq = false) =>
+    catches.flatMap(({ e, index }) => {
+      const field = { ...e.field!, pk, ...(gr ? { gr: 1 as const } : {}), ...(cq ? { cq: 1 as const } : {}) };
+      const pm = pocketMomentOf({ ...e, field }, record, index);
+      const staged = pm && pocketStage(pm, record, g.homeId, seed);
+      const pocket = staged && pocketFrom(pm, staged, skillsOf, seed);
+      return pm && staged && pocket ? [{ pm, staged, pocket, composed: composePocket(staged, pocket) }] : [];
+    });
+  const qbAt = (c: ReturnType<typeof asAway>[number], s: number) => {
+    const men = c.composed.ids.length;
+    const k = c.composed.ids.indexOf(c.pocket.start.qb);
+    return { x: c.composed.pos[(s * men + k) * 2], y: c.composed.pos[(s * men + k) * 2 + 1] };
+  };
+
+  it('holds it longer than a throw before he gives up on it', () => {
+    const clean = asAway('awayClean');
+    expect(clean.length).toBeGreaterThan(3);
+    for (const c of clean) {
+      const thrown = pocketFrom({ ...c.pm, facts: { ...c.pm.facts, pk: 'clean' } }, c.staged, skillsOf, seed)!;
+      expect(c.pocket.start.throwAt).toBeGreaterThan(thrown.start.throwAt + 0.5);
+    }
+  });
+
+  it('from a clean pocket, nobody gets to him first', () => {
+    for (const c of asAway('awayClean')) {
+      const st = Math.round(c.pocket.start.throwAt / STEP);
+      const q = qbAt(c, st);
+      const men = c.composed.ids.length;
+      c.composed.ids.forEach((id, k) => {
+        if (c.composed.offense[k]) return;
+        const d = Math.hypot(c.composed.pos[(st * men + k) * 2] - q.x, c.composed.pos[(st * men + k) * 2 + 1] - q.y);
+        expect(d, `play ${c.pm.index}: ${id}`).toBeGreaterThan(1.5);
+      });
+    }
+  });
+
+  it('rolled out of a clean pocket, nobody gets to him first either', () => {
+    const out = asAway('awayOut', false, true);
+    expect(out.length).toBeGreaterThan(3);
+    for (const c of out) {
+      const st = Math.round(c.pocket.start.throwAt / STEP);
+      const q = qbAt(c, st);
+      const men = c.composed.ids.length;
+      c.composed.ids.forEach((id, k) => {
+        if (c.composed.offense[k]) return;
+        const d = Math.hypot(c.composed.pos[(st * men + k) * 2] - q.x, c.composed.pos[(st * men + k) * 2 + 1] - q.y);
+        expect(d, `play ${c.pm.index}: ${id}`).toBeGreaterThan(1.5);
+      });
+      expect(c.pocket.result.rusher, `play ${c.pm.index}`).toBeNull();
+    }
+  });
+
+  it('rolled out, he throws it from outside the tackle box', () => {
+    const out = asAway('awayOut');
+    expect(out.length).toBeGreaterThan(3);
+    for (const c of out) {
+      const st = Math.round(c.pocket.start.throwAt / STEP);
+      expect(Math.abs(qbAt(c, st).y - qbAt(c, 0).y), `play ${c.pm.index}`).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('a grounded ball lands in open grass, away from every receiver', () => {
+    const grounded = asAway('away', true);
+    expect(grounded.length).toBeGreaterThan(3);
+    for (const c of grounded) {
+      const { composed } = c;
+      const men = composed.ids.length;
+      const last = composed.steps - 1;
+      const bx = composed.ball[last * 3];
+      const by = composed.ball[last * 3 + 1];
+      const qb = c.pocket.start.qb;
+      composed.ids.forEach((id, k) => {
+        if (!composed.offense[k] || id === qb || composed.roles[k] === 'OL') return;
+        const d = Math.hypot(composed.pos[(last * men + k) * 2] - bx, composed.pos[(last * men + k) * 2 + 1] - by);
+        expect(d, `play ${c.pm.index}: ${id}`).toBeGreaterThanOrEqual(5);
+      });
+    }
+  });
+});

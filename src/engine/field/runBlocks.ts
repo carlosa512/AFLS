@@ -183,7 +183,10 @@ export function planRunBlocks(args: {
   }
   // Spare linemen double the nearest man up front, then climb to a linebacker.
   for (const b of spare) {
-    const d = nearest(at(b), front);
+    // On zone the double is on his play side (a man on his backside is the next man's, as above): the whole line steps
+    // that way, so a backside double would leave him stepping away from his man.
+    const across = (id: number) => (at(id).y - at(b).y) * fs;
+    const d = (call === 'power' ? undefined : nearest(at(b), front, (id) => across(id) >= -1)) ?? nearest(at(b), front);
     if (d !== undefined) on.set(b, d);
     const lb = nearest(at(b), backers, (id) => !taken.has(id));
     if (lb !== undefined) {

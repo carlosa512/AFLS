@@ -310,7 +310,8 @@ describe('migration and collection', () => {
     // still match, so it costs no draw. `result` again with out of bounds as the carrier's choice (0.4.4): pushed or
     // stepped out from the play, the clock waiting for the spot; the stream, players, games and charts still match.
     // Everything but `charts` again with GM habits (0.4.5): three new GM archetypes join the pool, so the league's draws
-    // for who runs each club move the stream, players, schedule and result; the charts still match.
+    // for who runs each club move the stream, players, schedule and result; the charts still match. `result` again on
+    // merging main's passing, fumbles and turnovers (0.4.6-0.4.8) with it: the same world, played differently.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -325,6 +326,6 @@ const BASELINE = {
   players: 'fb845ee1b0cc0915e3f991d9b841395f1a0c1dfe710983fc96c5931adb441cbf',
   rng: [2199887664, 148623131, 2479456291, 1664091423],
   games: 'dcbab00a27da92c50dcdb54a46a10fa5bf67c3c31c95eeaeeffcfe66b586cd77',
-  result: '59bdc97cefcbffed9b79966c75d3e880218889fd5147463ad6eca8e9f31992f0',
+  result: '271641de86e4e525d00622bd1009b3a22e597ae507911643e6de409a752706e6',
   charts: '72404090723297066b0a1f9aa96a4a01e9665ffcdee29147ce217e74ac6a14e1',
 };

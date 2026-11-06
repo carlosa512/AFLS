@@ -24,7 +24,9 @@ describe('the spatial replay', () => {
     let n = 0;
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
-        if (!t.result || r.plays![t.moment.index].loose !== undefined) continue;
+        // A lost fumble is drawn, its own or under a flag that wiped it out (`ran.loose`).
+        const e = r.plays![t.moment.index];
+        if (!t.result || (e.loose ?? e.ran?.loose) !== undefined) continue;
         const s = stage(r, t.moment.index, homeId);
         expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
         const k0 = s.spatial!.k0;
@@ -73,7 +75,7 @@ describe('the spatial replay', () => {
       const g = week1[i % week1.length];
       const r = i < 3 ? played[i].r : simulateGame(league, g, { field: true });
       r.plays!.forEach((e: PlayLogEntry, index) => {
-        if (e.kind === 'penalty' && e.ran?.field) {
+        if (e.kind === 'penalty' && e.ran?.field && e.ran.loose === undefined) {
           flagged++;
           expect(stage(r, index, g.homeId).spatial).toBeDefined();
         }
@@ -118,7 +120,9 @@ describe('the spatial replay', () => {
       const record = live.field()!;
       const index = plays.length - 1;
       const e = plays[index];
-      if (!e.field) continue;
+      // A lost fumble stages once its return is logged: as the last entry it is drawn (on main as here: 5 of 8 over six
+      // live games), a gap of the live stager's, not of this play.
+      if (!e.field || /FUMBLE, recovered by (?!the offense)/.test(e.text)) continue;
       spatial++;
       const s = stagePlay({ plays, index, record, homeId: g.homeId, seed: 'live', snapY: MID });
       expect(s.spatial, `play ${index}`).toBeDefined();

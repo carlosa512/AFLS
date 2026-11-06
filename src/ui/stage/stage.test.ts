@@ -9,7 +9,7 @@ import type { FieldUnits, Game, GameResult, PlayLogEntry } from '../../engine/ty
 import { Rng } from '../../engine/rng';
 import { COVERAGES, type CoverageId } from '../../engine/schemes';
 import type { QuirkId } from '../../engine/quirks';
-import { FIELD_W, pointAt, snapYFor } from '../../engine/field/ballPath';
+import { FIELD_W, isBatted, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { castFor, unitsAt } from '../../engine/field/cast';
 import { fumbleIn } from '../../engine/field/fumble';
 import { lineUp } from '../../engine/field/formations';
@@ -273,7 +273,9 @@ describe('scripts', () => {
   it('the target reaches the landing point when the ball does', () => {
     let n = 0;
     for (const { e, keys, segs, who } of all) {
-      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || who.ball === undefined || segs.length < 3) continue;
+      // A ball batted at the line never reaches him: he runs to where it was thrown (`batted.test.ts`).
+      if ((e.kind !== 'pass' && e.kind !== 'incomplete') || isBatted(e) || who.ball === undefined || segs.length < 3)
+        continue;
       const land = pointAt(segs[2], 1);
       const p = sample(keys.get(who.ball)!, segs[0].dur + segs[1].dur + segs[2].dur);
       expect(Math.hypot(p.x - land.x, p.y - land.y)).toBeLessThan(e.kind === 'incomplete' ? 1.5 : 0.5);
@@ -449,9 +451,12 @@ describe('the staged play', () => {
       const last = p.steps - 1;
       let crowd = 0;
       let samples = 0;
-      // The second half of the play, short of the tackle itself.
-      for (let st = Math.round(last / 2); st < last - Math.round(0.6 / p.dt); st += 5) {
+      // The second half of the run by its yards (a patient back can take half the clock to clear the line), short of
+      // the tackle itself.
+      const halfway = (e.from + e.to) / 2;
+      for (let st = 0; st < last - Math.round(0.6 / p.dt); st += 5) {
         const b = pos(p, st, c);
+        if ((b.x - halfway) * Math.sign(e.to - e.from) < 0) continue;
         crowd += p.ids.filter((_, k) => k !== c && Math.hypot(pos(p, st, k).x - b.x, pos(p, st, k).y - b.y) < 4).length;
         samples++;
       }
@@ -1206,7 +1211,8 @@ describe('the loose ball', () => {
   });
 
   it('ends a fumble returned for a touchdown in the end zone, untackled', () => {
-    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run')!;
+    // A fumble that stood: one a flag wiped out keeps its run in `ran`, so rewriting the entry's own end draws nothing.
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run' && x.plays[x.i].kind === 'run')!;
     const p0 = stage(g, plays, i);
     // The fumbling offense's own end zone: behind it, the way it was driving.
     const td: PlayLogEntry = { ...plays[i], to: p0.dir === 1 ? -3 : 103 };
@@ -1221,7 +1227,10 @@ describe('the loose ball', () => {
   });
 
   it('stages a fumble from a game before the spot was kept (v78): the ball ends where the play did', () => {
-    const { g, i, plays } = fumbles.find((x) => x.f.lost && x.e.loose !== undefined && x.e.kind !== 'penalty')!;
+    // One that stood: a flag's wiped-out play ends where the walk-off does, not where the run went.
+    const { g, i, plays } = fumbles.find(
+      (x) => x.f.lost && x.e.loose !== undefined && x.plays[x.i].kind !== 'penalty',
+    )!;
     const old: PlayLogEntry = { ...plays[i], loose: undefined };
     const p = stage(g, Object.assign(plays.slice(), { [i]: old }), i);
     expect(Math.abs(ballAt(p, last(p)).x - old.to!)).toBeLessThan(0.5);
@@ -1474,9 +1483,15 @@ describe('the run game', () => {
   /** A linebacker who's neither the tackler, nor the man who misses, nor the one who takes the ball (a fumble's recoverer). */
   const freeBacker = (x: Run, p: StagedPlay) => {
     const who = actorsIn(x.e);
+    // (Not a man the play scripts: the tackler, the man who missed, a fumble's recoverer. His habits can't show.)
     return p.ids.find(
       (id, k) =>
-        !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle && id !== who.take && id !== x.e.open?.broke?.by,
+        !p.offense[k] &&
+        p.roles[k] === 'LB' &&
+        id !== who.tackle &&
+        id !== who.take &&
+        id !== x.e.open?.broke?.by &&
+        !p.keys.includes(id),
     );
   };
 
@@ -1600,7 +1615,7 @@ describe('the run game', () => {
       const minDepth = (p: StagedPlay) => Math.min(...[0.2, 0.4, 0.6, 0.8].map((d) => depth(p, r + d)));
       // (Where he'd have been in the backfield anyway, on a run stopped for a loss, there's nothing to tell apart.)
       if (minDepth(base) > 0.5) {
-        expect(minDepth(shoot)).toBeLessThan(minDepth(base) - 1);
+        expect(minDepth(shoot), x.e.text).toBeLessThan(minDepth(base) - 1);
         seen.gapShooter++;
       }
       // A scraper flows across over the top: at least as far across as he would have, without coming downhill.

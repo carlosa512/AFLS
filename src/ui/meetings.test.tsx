@@ -23,7 +23,16 @@ const base = (() => {
   playWeek(l);
   return JSON.stringify(l);
 })();
-const fresh = (): League => JSON.parse(base);
+/** The league with nothing waiting: whether the coach brought one of his own in two weeks is the world's luck. */
+const fresh = (): League => {
+  const l: League = JSON.parse(base);
+  const m = l.teams[l.userTeamId].meetings;
+  if (m) {
+    delete m.pending;
+    delete m.lastOffer;
+  }
+  return l;
+};
 const locker = (l: League) =>
   renderToStaticMarkup(
     <NavContext.Provider value={nav}>

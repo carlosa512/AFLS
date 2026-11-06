@@ -13,13 +13,59 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.5',
+    version: '0.4.9',
     date: '2026-11-06',
     title: 'Rival GMs with habits',
     text:
       'The GMs around the league now have ways of doing things that come and go with their careers: one signs a bridge ' +
       'quarterback every time, another trades up for a passer, a third gets burned on a big deal and goes quiet at that ' +
       'position. You will read them in the news and from your director, never on a label.',
+  },
+  {
+    version: '0.4.8',
+    date: '2026-11-06',
+    title: 'After the throw',
+    text:
+      'Who picks off a pass now depends on where it was thrown. Deep, a safety over the top gets more than half of them; ' +
+      'a short route jumped is often a linebacker’s, and with nobody in front of him it goes the other way for six ' +
+      'about one time in six. Behind the line, a tall end can tip it up and catch it himself. Breakups follow the ' +
+      'throw too: more on short passes than deep ones, and some batted down at the line by a lineman, which you see on ' +
+      'the film. The best ball hawks pick off the most, and the numbers match the NFL’s.',
+  },
+  {
+    version: '0.4.7',
+    date: '2026-11-06',
+    title: 'Who falls on it',
+    text:
+      'A loose ball now goes where football sends it. One punched out by a defender usually ends up with the defense; ' +
+      'one the carrier simply drops mostly stays with his team. A catch that comes loose downfield is usually a ' +
+      'defensive back’s, a strip-sack’s is usually a lineman’s, and what happens next depends on who has it: a safety ' +
+      'picks it up and runs, a tackle falls on it, and a long return usually goes all the way. Strip-sacks come more ' +
+      'off the edge than up the middle, less on third down when the quarterback braces for the hit, and more when he ' +
+      'is holding on trailing late. The numbers match the NFL’s.',
+  },
+  {
+    version: '0.4.6',
+    date: '2026-11-06',
+    title: 'Fumbles come from the hit',
+    text:
+      'Whether a tackled man fumbles now depends on the tackle: a hard hitter and a heavy one jar it loose more, a ' +
+      'ball-stripper rips at it, and a defense that needs the ball late goes for it. A back fighting for the sticks on ' +
+      'third and fourth down, or for every yard when his team trails late, puts it on the ground more; one protecting ' +
+      'a lead covers it up. Scramblers can fumble too. The play tells you why it came out, and only a fumble a ' +
+      "defender caused counts as a forced fumble. Rates by down and by situation match the NFL's.",
+  },
+  {
+    version: '0.4.5',
+    date: '2026-11-05',
+    title: 'The passer chooses',
+    text:
+      'A quarterback now decides what to do once he has read the play: throw it, throw it away or take off, as NFL ' +
+      'passers do. Under pressure or with nobody open he may scramble or get rid of it, more on third down for the ' +
+      'sticks and in the red zone, almost never on fourth down under pressure, and trailing late he stays in the pocket. ' +
+      'Quarterbacks with legs run more, good decision-makers give up on a dead play rather than force it, and a ' +
+      'gunslinger rarely throws it away. A throwaway from inside the pocket can be flagged for intentional grounding: ' +
+      'loss of down and ten yards, or a safety from his own end zone.',
   },
   {
     version: '0.4.4',

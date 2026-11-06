@@ -113,7 +113,8 @@ describe('the engine plays the open field', () => {
         if (!e.field || (e.kind !== 'run' && e.kind !== 'pass') || !/fumble/i.test(e.text)) continue;
         fumbles++;
         // The man who forced it is the one the play's tackle went to: named in the text's parentheses.
-        expect(e.text).toMatch(/\(([A-Z]\.[^)]+)\)\. (FUMBLE|Fumble)/);
+        // (Its reason, when it has one, comes between: stripped, jarred loose, fighting forward, his own.)
+        expect(e.text).toMatch(/\(([A-Z]\.[^)]+)\)(, .+?)?\. (FUMBLE|Fumble)/);
       }
     }
     expect(fumbles).toBeGreaterThan(0);
@@ -191,8 +192,9 @@ describe("the owner's call H: today's yards, the field's way there", () => {
 
   it('credits no tackle when the field ends a run or a catch with nobody on him, as the film shows', () => {
     let n = 0;
-    // (Games that have one: it happens about once in four games, so the first four of this league have none.)
-    for (const { r, taps } of [9, 11, 14, 15].map((i) => spatial(i)))
+    // Rare since a man stepping out paces himself for his escort (0.4.5): the week's games, until a few have come up.
+    for (let i = 0; i < 16 && n < 3; i++) {
+      const { r, taps } = spatial(i);
       for (const t of taps) {
         if (!t.result || t.result.tackler !== null || t.result.touchdown) continue;
         if (t.moment.kind !== 'run' && t.moment.kind !== 'catch') continue;
@@ -203,6 +205,7 @@ describe("the owner's call H: today's yards, the field's way there", () => {
         expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
         n++;
       }
+    }
     expect(n).toBeGreaterThan(0);
   });
 
