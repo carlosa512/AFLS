@@ -235,22 +235,26 @@ describe('moves resolved into marbles', () => {
   it('youngQb: +1 when he grew half a point, -1 gone, and -1 on a third flat year in a row', () => {
     const a = setup('hr-yqb');
     const ovr = playerOvr(a.qb);
-    const e = a.log({ habit: 'youngQb', season: 2039, ovr: ovr - 1 });
+    const e = a.log({ habit: 'youngQb', season: 2038, ovr: ovr - 1 });
     resolveMoves(a.l, a.gm);
     expect(e.resolved).toBe(1);
     expect(a.gm.habitMarbles).toEqual({ youngQb: 1 });
     const b = setup('hr-yqb-b');
-    const flat = () => b.log({ habit: 'youngQb', season: 2039, ovr: playerOvr(b.qb) });
+    const flat = () => b.log({ habit: 'youngQb', season: 2038, ovr: playerOvr(b.qb) });
     b.gm.habitLog!.push(
+      { habit: 'youngQb', season: 2036, teamId: b.team.id, playerId: b.qb.id, ovr: 99, resolved: 0 },
       { habit: 'youngQb', season: 2037, teamId: b.team.id, playerId: b.qb.id, ovr: 99, resolved: 0 },
-      { habit: 'youngQb', season: 2038, teamId: b.team.id, playerId: b.qb.id, ovr: 99, resolved: 0 },
     );
     const third = flat();
     resolveMoves(b.l, b.gm);
     expect(third.resolved).toBe(-1);
     expect(b.gm.habitMarbles).toEqual({ 'fade:youngQb': 1 });
+    const d = setup('hr-yqb-d');
+    const fresh = d.log({ habit: 'youngQb', season: 2039, ovr: 0 });
+    resolveMoves(d.l, d.gm);
+    expect(fresh.resolved).toBeUndefined();
     const c = setup('hr-yqb-c');
-    const second = c.log({ habit: 'youngQb', season: 2039, ovr: playerOvr(c.qb) });
+    const second = c.log({ habit: 'youngQb', season: 2038, ovr: playerOvr(c.qb) });
     resolveMoves(c.l, c.gm);
     expect(second.resolved).toBe(0);
     expect(c.gm.habitMarbles).toEqual({});

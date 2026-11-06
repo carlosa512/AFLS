@@ -16,7 +16,7 @@ const DUE: Record<string, number> = {
   swaps: 1,
   bpa: 2,
   tagsFirst: 2,
-  youngQb: 1,
+  youngQb: 2,
   gunShy: 1,
 };
 
