@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ageShift } from '../aging';
-import { releasePlayer } from '../finance/cap';
+import { capFor, capSheet, releasePlayer } from '../finance/cap';
+import { yearsLeft } from '../finance/contract';
 import { createLeague } from '../generate';
 import { aiGm, habitsForce } from '../gmHabits';
 import { simToEndOfSeason } from '../league';
@@ -10,7 +11,18 @@ import { teamPlayers } from '../roster';
 import { POSITIONS } from '../types';
 import type { League, Player, Team } from '../types';
 import { beginOffseason } from './index';
-import { aiFreeAgencyDay, aiOffer, cutChoice, KEEP_MIN, youngQbClub } from './ai';
+import {
+  aiExtendEarly,
+  aiFreeAgencyDay,
+  aiOffer,
+  aiResignWindow,
+  applyFranchiseTag,
+  cutChoice,
+  expiringPlayers,
+  KEEP_MIN,
+  resignCall,
+  youngQbClub,
+} from './ai';
 import { OFFSEASON_ROSTER_MAX } from './negotiation';
 
 const base = (() => {
@@ -141,5 +153,103 @@ describe('the blowup at release', () => {
     p.contract!.bonuses.push({ amount: l.caps[l.season] * 0.2, start: l.season, years: 4, source: 'signing' });
     releasePlayer(l, p);
     expect(gm.habits?.gunShy?.pos).toBe('QB');
+  });
+});
+
+/** Cut a veteran's deal to two years left, leaving his pay as it was. */
+function twoYears(l: League, p: Player) {
+  const c = p.contract!;
+  c.years = c.years.filter((y) => y.season <= l.season + 1);
+  c.kind = 'veteran';
+  p.experience = Math.max(p.experience, 5);
+  expect(yearsLeft(c, l.season)).toBe(2);
+}
+
+/** Starters the club would keep, each a candidate for an early deal. */
+function extendScene() {
+  const l = fresh();
+  l.phase = 'resign';
+  const t = aiTeam(l);
+  const starters = teamPlayers(l, t.id)
+    .filter((p) => p.contract && yearsLeft(p.contract, l.season) >= 2 && p.age <= 29)
+    .sort((a, b) => playerOvr(b) - playerOvr(a))
+    .filter(
+      (p) => (twoYears(l, p), resignCall(l, t.id, p).reason === 'starter' && resignCall(l, t.id, p).call !== 'walk'),
+    );
+  return { l, t, starters };
+}
+
+describe('Extends Early', () => {
+  it('extends a two-years-left starter; at most two per window; logs each', () => {
+    habitsForce.all = 'extendEarly';
+    const { l, t, starters } = extendScene();
+    expect(starters.length).toBeGreaterThan(2);
+    const before = starters.map((p) => p.contract);
+    aiResignWindow(l, t, new Rng('w'));
+    const changed = starters.filter((p, i) => p.contract !== before[i] && p.contract!.signedSeason === l.season);
+    expect(changed.length).toBeGreaterThan(0);
+    expect(changed.length).toBeLessThanOrEqual(2);
+    const log = aiGm(l, t)!.habitLog!.filter((m) => m.habit === 'extendEarly');
+    expect(log.length).toBeGreaterThan(0);
+    expect(log.length).toBeLessThanOrEqual(2);
+    for (const m of log) expect(yearsLeft(l.players[m.playerId!].contract!, l.season)).toBeGreaterThan(2);
+  });
+  it('does nothing with the habit off', () => {
+    habitsForce.off = true;
+    const { l, t, starters } = extendScene();
+    const before = starters.map((p) => p.contract);
+    aiResignWindow(l, t, new Rng('w'));
+    expect(starters.every((p, i) => p.contract === before[i])).toBe(true);
+  });
+  it('not a rookie in year two', () => {
+    habitsForce.all = 'extendEarly';
+    const { l, t, starters } = extendScene();
+    const p = starters[0];
+    p.contract!.kind = 'rookie';
+    p.experience = 1;
+    expect(aiExtendEarly(l, t, p)).toBe(false);
+  });
+  it('nothing extends when next year’s cap is already full', () => {
+    habitsForce.all = 'extendEarly';
+    const { l, t, starters } = extendScene();
+    t.deadMoney.push({ season: l.season + 1, amount: capFor(l, l.season + 1), playerId: -1, note: 'test' });
+    expect(capSheet(l, t.id, l.season + 1).used).toBeGreaterThan(capFor(l, l.season + 1) * 0.92);
+    expect(starters.some((p) => aiExtendEarly(l, t, p))).toBe(false);
+  });
+});
+
+describe('Tags First', () => {
+  /** A club whose best expiring player the call would tag. */
+  function tagScene() {
+    const l = fresh();
+    l.phase = 'resign';
+    for (const t of l.teams) {
+      if (t.id === l.userTeamId || !aiGm(l, t)) continue;
+      const tagged = expiringPlayers(l, t.id).find((p) => resignCall(l, t.id, p).call === 'tag');
+      if (tagged) return { l, t, p: tagged };
+    }
+    throw new Error('no club with a tag call');
+  }
+  it('tags before the offer; off, the offer comes first', () => {
+    const on = tagScene();
+    habitsForce.all = 'tagsFirst';
+    aiResignWindow(on.l, on.t, new Rng('w'));
+    expect(on.t.taggedId).toBe(on.p.id);
+    habitsForce.all = null;
+    habitsForce.off = true;
+    const off = tagScene();
+    aiResignWindow(off.l, off.t, new Rng('w'));
+    // Off, the player re-signs (or not) on an offer; a tag only ever follows a refused one.
+    if (off.t.taggedId === off.p.id) expect(off.p.contract!.kind).toBe('tag');
+    else expect(off.p.contract!.kind).not.toBe('tag');
+  });
+  it('logs every AI tag, not yours', () => {
+    const { l, t, p } = tagScene();
+    applyFranchiseTag(l, p);
+    expect(aiGm(l, t)!.habitLog).toContainEqual(expect.objectContaining({ habit: 'tagsFirst', playerId: p.id }));
+    const mine = l.teams[l.userTeamId];
+    const q = expiringPlayers(l, mine.id)[0];
+    applyFranchiseTag(l, q);
+    expect(aiGm(l, mine)).toBeFalsy();
   });
 });

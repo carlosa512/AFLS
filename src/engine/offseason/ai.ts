@@ -332,6 +332,7 @@ export function applyFranchiseTag(league: League, player: Player): void {
     [team.id],
     `${team.abbrev} franchise-tagged ${player.position} ${player.firstName} ${player.lastName} ($${(value / 1000).toFixed(1)}M)`,
   );
+  logMove(league, team, 'tagsFirst', { playerId: player.id });
 }
 
 /** Expiring players a team still holds the rights to, best first. */
@@ -543,6 +544,12 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const { call, ahead } = resignCall(league, team.id, p, depth, wn);
     if (call === 'walk') continue;
     const mine = depth[p.position];
+    // Tags first (GM habit): the tag comes before the offer for a player the call would tag.
+    if (call === 'tag' && habitOn(league, team, 'tagsFirst') && tryTag(league, team, p, depth, ahead, budget)) {
+      mine.push(ahead);
+      mine.sort((a, b) => b - a);
+      continue;
+    }
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);
@@ -572,14 +579,17 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     // Never a tag past his own price for the player (`offer`): the tag pays a top-of-the-position wage, so only a player
     // the club values near that is worth it (a thin room counts any back as a starter, and once tagged 7-rated backs at
     // a starter's price). The league allows one tag a year.
-    if (!team.taggedId && !tagBlocker(league, p) && tagValue(league, p) <= offer.apy) {
-      // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
-      const value =
-        tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
-      const keep = needGain(depth, p, ahead + quirkWorth(league, team.id, p));
-      if (keep >= upgradeBar(league, team, tagValue(league, p))) {
-        if (value > budget()) makeRoom(league, team, value - budget(), p);
-        if (value <= budget()) applyFranchiseTag(league, p);
+    if (tagValue(league, p) <= offer.apy) tryTag(league, team, p, depth, ahead, budget);
+  }
+  // Early extensions (GM habit): up to two starters with two years left, signed before their last year comes.
+  if (habitOn(league, team, 'extendEarly')) {
+    let done = 0;
+    for (const p of teamPlayers(league, team.id)) {
+      if (done >= 2) break;
+      if (!p.contract || isExpired(p.contract, league.season) || yearsLeft(p.contract, league.season) !== 2) continue;
+      if (aiExtendEarly(league, team, p)) {
+        done++;
+        logMove(league, team, 'extendEarly', { playerId: p.id });
       }
     }
   }
@@ -595,6 +605,47 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     )
       aiSettle(league, team, p);
   aiCapCompliance(league, team);
+}
+
+/**
+ * The franchise tag, when the club still has it, the player is worth its price (`upgradeBar`) and the room can be made
+ * for it first. Returns whether he was tagged.
+ */
+export function tryTag(
+  league: League,
+  team: Team,
+  p: Player,
+  depth: Record<Position, number[]>,
+  ahead: number,
+  budget: () => number,
+): boolean {
+  if (team.taggedId || tagBlocker(league, p)) return false;
+  // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
+  const value =
+    tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
+  const keep = needGain(depth, p, ahead + quirkWorth(league, team.id, p));
+  if (keep < upgradeBar(league, team, tagValue(league, p))) return false;
+  if (value > budget()) makeRoom(league, team, value - budget(), p);
+  if (value > budget()) return false;
+  applyFranchiseTag(league, p);
+  return true;
+}
+
+/**
+ * An early extension (GM habit): a starter the club would keep, with two years left, signed at his walk-away when it
+ * fits this year's room and next year's books (92% of the cap). Returns whether he signed.
+ */
+export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
+  if (p.teamId !== team.id || !p.contract || extensionBlocker(league, p)) return false;
+  const { call, reason } = resignCall(league, team.id, p);
+  if (call === 'walk' || reason !== 'starter') return false;
+  const offer = aiOffer(league, team, p, new Rng(`${league.seed}:extend-early:${league.season}:${p.id}`), 1);
+  offer.apy = walkAwayApy(league, p, team.id, offer);
+  if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
+  if (capSheet(league, team.id, league.season + 1).used + offer.apy > capFor(league, league.season + 1) * 0.92)
+    return false;
+  signPlayer(league, p, team.id, offer);
+  return true;
 }
 
 /**
