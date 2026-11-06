@@ -1455,7 +1455,8 @@ class GameSim {
         // Kneels and spikes skip the snap's reset, so this snap's rush is only read on plays that had one.
         rusher: result.rusher ?? (result.kind === 'pass' || result.kind === 'scramble' ? this.pressureBy : null),
         beat: result.kind === 'kneel' || result.kind === 'spike' ? null : this.beatBy,
-        take: result.turnover?.by,
+        // The man who took the ball: a pick's, a fumble's, or a ball batted down at the line.
+        take: result.turnover?.by ?? (result.batted ? result.brokenUpBy : undefined),
       }),
     );
   }
