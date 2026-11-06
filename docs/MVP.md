@@ -196,8 +196,19 @@ catch or run is the item above.
       game (0.19), the spread between passers as the NFL's. On film a clean throwaway, a roll-out and a grounded ball;
       a man stepping out in normal play now paces himself for his escort (parity: 0 of 272 alone over 160 games).
       Spec: `docs/superpowers/specs/2026-11-05-passer-under-pressure-design.md`.
-- [ ] **High: fumbles on contact** (L3094, L3582). They read ball security and the tackler, but not the hit (a gang
-      tackle, a strip try), fatigue or condition, or a carrier stretching late. Calibrate: nflverse fumbles per touch.
+- [x] **High: fumbles on contact (0.4.6).** A tackle in bounds on a run, a catch or a scramble (scramblers fumble now)
+      reads the hit (the tackler's tackling, his size against the carrier's, Thumper and Arm Tackler), the carrier
+      (ball security, fatigue, Loose Carriage, High Knee, Contact Averse), the fight for yards (3rd and 4th down,
+      trailing late, Finishes Forward) and a defense going for the ball (Ball Stripper, ahead late it needs it back,
+      and a back covers it up), then whether a defender forced it: half of run fumbles, nearly all of catches' and
+      scrambles' (`match/fumbleOdds.ts`). The play names why (stripped, jarred loose by the hit, fighting for the extra
+      yard, puts it on the ground), only a forced one credits a forced fumble, and the film shows it: a strip from
+      behind, a hit from the front, a second man on a back fighting forward. Fitted to nflverse 2021–25 by bucket
+      (`npm run fumbles`, also judged in `npm run sim`): over 20 seasons runs 1.63 a hundred (NFL 1.46), catches 1.26
+      (1.31), forced 0.50 and 0.95 (0.50, 0.95), fumbles lost 0.42 a game. Ball security reads against a man's position
+      (a quarterback's sneak is no riskier for his position's ratings) and backs differ as the NFL's do, luck taken
+      out on both sides (0.0095 against 0.0117). Spec:
+      `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
 - [ ] **Medium-High: after an interception** (L3408–3415). The odds of a pick are rich; who catches it (65% the cover man)

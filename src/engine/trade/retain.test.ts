@@ -46,9 +46,10 @@ const third = () => {
   for (let w = 0; w < 4; w++) playWeek(l);
   return (thirdBase = JSON.stringify(l));
 };
+/** The club's richest healthy man (an injured one would fail the buyer's physical before the money is read). */
 const richest = (l: League, teamId: number) =>
   activeRoster(l, teamId)
-    .filter((p) => p.contract)
+    .filter((p) => p.contract && !p.injury)
     .sort((a, b) => capHit(b.contract!, l.season) - capHit(a.contract!, l.season))[0];
 
 describe('retained salary', () => {

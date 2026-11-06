@@ -130,11 +130,26 @@ export function playForFieldGoal(s: Situation): boolean {
   );
 }
 
+/**
+ * A field goal's odds as the coaches read them, from the distance, the kicker's field-goal skill and the weather's
+ * extra yards (`weatherEffects(...).kick`): wind, snow and cold make every kick play longer. A kicker of 12 reads his
+ * odds at 95% from 35 yards, 85% from 45 and 71% from 52 (NFL 2021–24: 66–70% of kicks past 50 go in, with coaches
+ * choosing which to try); past twelve yards beyond his midpoint he has no chance.
+ */
+export function fieldGoalOdds(distance: number, kicking: number, wxKick: number): number {
+  const d = distance + wxKick;
+  const center = 59.5 + 1.15 * (kicking - 12);
+  return d > center + 12 ? 0 : 1 / (1 + Math.exp((d - center) / 8.5));
+}
+
+/** Below this, a kick at the gun isn't worth the try: a coach plays for the end zone instead. */
+export const KICK_FLOOR = 0.25;
+
 /** A field goal now ties or wins, and the clock can't afford another snap first. */
 export function kickNow(s: Situation): boolean {
   if (s.quarter !== 2 && s.quarter < 4) return false;
   const helps = s.quarter === 2 || (s.scoreDiff <= 0 && s.scoreDiff >= -3);
-  if (!helps || s.fgMakeProb < 0.25) return false;
+  if (!helps || s.fgMakeProb < KICK_FLOOR) return false;
   // A snap takes up to 8 seconds: inside that, there is no play to run before the kick.
   if (s.clock <= 8) return true;
   // Overtime has no "end of half" pressure until the very end; regulation does.

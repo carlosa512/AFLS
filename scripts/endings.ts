@@ -8,6 +8,10 @@
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
 import type { PlayLogEntry } from '../src/engine/types';
+import { skill } from '../src/engine/attributes';
+import { fieldGoalOdds, KICK_FLOOR } from '../src/engine/match/coach';
+import { buildLineup } from '../src/engine/match/lineup';
+import { weatherAt, weatherEffects } from '../src/engine/weather';
 
 const n = Number(process.argv[2] ?? 1500);
 const verbose = process.argv.includes('-v');
@@ -34,6 +38,12 @@ for (let i = 0; i < n; i++) {
   const game = league.games[i % league.games.length];
   const r = simulateGame(league, game, { keepPlays: true, seed: `end-${i}` });
   const plays = r.plays!;
+  // The fourth quarter's weather, as the coaches read their kicks in it.
+  const wxKick = r.weather ? weatherEffects(weatherAt(r.weather, 4)).kick : 0;
+  /** A kick the coach would try from here: his kicker's odds, as he reads them, clear his floor (`kickNow`). */
+  const kickable = (p: PlayLogEntry) =>
+    fieldGoalOdds(100 - p.yardLine + 17, skill(buildLineup(league, league.teams[p.offense]).k, 'fieldGoal'), wxKick) >=
+    KICK_FLOOR;
   plays.forEach((p, j) => {
     if (!p.down || p.quarter < 4) return;
     const offIsHome = p.offense === game.homeId;
@@ -55,7 +65,9 @@ for (let i = 0; i < n; i++) {
       diff >= -3 &&
       lastSnapOfHalf &&
       /field goal/.test(p.text) === false &&
-      100 - p.yardLine <= 35
+      100 - p.yardLine <= 35 &&
+      // (A 52-yarder into a 32 mph wind is out of reach: playing for the end zone there is no nonsense.)
+      kickable(p)
     )
       flag('trailing by ≤3 in FG range, last snap not a FG', plays, j);
     if (p.quarter === 4 && diff > 0 && diff <= 8 && p.down === 4 && /punts/.test(p.text) && p.clock <= 8)

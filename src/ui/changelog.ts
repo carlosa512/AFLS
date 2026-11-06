@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.6',
+    date: '2026-11-06',
+    title: 'Fumbles come from the hit',
+    text:
+      'Whether a tackled man fumbles now depends on the tackle: a hard hitter and a heavy one jar it loose more, a ' +
+      'ball-stripper rips at it, and a defense that needs the ball late goes for it. A back fighting for the sticks on ' +
+      'third and fourth down, or for every yard when his team trails late, puts it on the ground more; one protecting ' +
+      'a lead covers it up. Scramblers can fumble too. The play tells you why it came out, and only a fumble a ' +
+      "defender caused counts as a forced fumble. Rates by down and by situation match the NFL's.",
+  },
+  {
     version: '0.4.5',
     date: '2026-11-05',
     title: 'The passer chooses',

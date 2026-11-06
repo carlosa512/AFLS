@@ -652,6 +652,9 @@ export interface Scripted {
   missed?: number;
 }
 
+/** A fumble that was his own: the tackler gets to him this long after it's out. */
+const OWN_LATE = 0.4;
+
 export function script(
   e: PlayLogEntry,
   cast: Cast,
@@ -683,7 +686,10 @@ export function script(
   const airIdx = segs.findIndex((sg) => sg.peak > HOP_PEAK);
   const passing = e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int';
   /** When the ball leaves the quarterback's hands: the throw, or a scramble's break out of the pocket. */
-  const outT = e.kind === 'scramble' ? ts[ts.length - 1][0] : passing && airIdx > 0 ? ts[airIdx][0] : (ts[1]?.[1] ?? 0);
+  // A scramble breaks out on its run: the path's last leg, or the one before a fumble's hops.
+  const firstHop = segs.findIndex((sg) => sg.peak > 0 && sg.peak <= HOP_PEAK);
+  const scrambleLeg = firstHop > 0 ? firstHop - 1 : ts.length - 1;
+  const outT = e.kind === 'scramble' ? ts[scrambleLeg][0] : passing && airIdx > 0 ? ts[airIdx][0] : (ts[1]?.[1] ?? 0);
   const end = pointAt(segs[segs.length - 1], 1);
   const who = actorsIn(e);
   const qb = cast.offense.find((m) => m.role === 'QB')?.id;
@@ -1027,9 +1033,26 @@ export function script(
         ? catchAt!
         : (kickAt ?? 0)
       : Math.min(tMove, (e.kind === 'run' ? ts[0][1] : outT) + 0.3);
-    const prior = kicked ? [at(react, s0)] : (keys.get(by) ?? []).filter((k) => k.t > 0 && k.t < react - 1e-6);
-    const last = prior.length ? prior[prior.length - 1] : at(0, s0);
     const pace = topOf(by) + PURSUIT;
+    let prior: Keyframe[];
+    if (kicked) {
+      // He covers first, down his lane at a cover man's pace (a gunner from the snap, the rest once it's away), and
+      // turns for the spot at the returner's depth, or as late as his legs allow: not a walk from the kick to a spot
+      // the return comes back to.
+      const t0 = e.kind === 'punt' && Math.abs(s0.y - segs[0].y0) > 12 ? 0 : react;
+      const v = Math.min(COVER_PACE, topOf(by));
+      const lane = (t: number): Pt => ({ x: s0.x + dir * v * Math.max(0, t - t0), y: s0.y });
+      const cK = carrier !== undefined ? keys.get(carrier) : undefined;
+      let turn = t0;
+      for (let t = t0; t <= tMove; t += 0.05) {
+        const p = lane(t);
+        if (Math.hypot(spot.x - p.x, spot.y - p.y) / pace > tMove - t) break;
+        turn = t;
+        if (cK && (sample(cK, t).x - p.x) * dir <= 0) break;
+      }
+      prior = [...(t0 > 0 ? [at(t0, s0)] : []), ...(turn > t0 + 0.05 ? [at(turn, lane(turn))] : [])];
+    } else prior = (keys.get(by) ?? []).filter((k) => k.t > 0 && k.t < react - 1e-6);
+    const last = prior.length ? prior[prior.length - 1] : at(0, s0);
     const need = Math.hypot(spot.x - last.x, spot.y - last.y) / pace;
     if (need <= tMove - last.t) {
       const go = kicked ? last.t : tMove - need;
@@ -1114,13 +1137,50 @@ export function script(
       const run = Math.hypot(to.x - s0.x, to.y - s0.y) / topOf(id);
       return [from(id), at(Math.max(0, Math.min(release, t - 0.3, t - run)), s0)];
     };
+    // Where he meets him, by how it came out (the play says it, `fumbleIn`): ripping at it from behind, head-on into
+    // the hit, head-on into a man fighting forward (a second man closing too), or a beat late when it was his own.
+    const before = first > 0 ? pointAt(segs[first - 1], 0) : hit;
+    const along = Math.hypot(hit.x - before.x, hit.y - before.y) || 1;
+    const lineOfRun = { x: (hit.x - before.x) / along, y: (hit.y - before.y) / along };
+    const side = (ahead: number): Pt => ({ x: hit.x + lineOfRun.x * ahead, y: hit.y + lineOfRun.y * ahead });
+    // Where he is as it comes out if nothing changes: on his path, or able to leave his spot in time.
+    const reaches = (id: number, to: Pt, t: number) => {
+      const path = keys.get(id);
+      const from0 = path ? sample(path, Math.max(0, t - 0.5)) : start.get(id)!;
+      const room = path ? topOf(id) * 0.5 : topOf(id) * Math.max(0, t - 0.3);
+      return Math.hypot(to.x - from0.x, to.y - from0.y) <= room;
+    };
+    // The reason's spot when he can get there; else his own side, as a sack's hit always is (its text names none).
+    const wanted = e.kind === 'sack' ? null : f.why === 'strip' ? side(-0.6) : f.why === 'own' ? null : side(0.6);
+    let hitterAtHit = false;
     if (hitter !== undefined && hitter !== fumbler && start.has(hitter)) {
-      keys.set(hitter, [
-        ...onTheMove(hitter, tHit, toward(hit, start.get(hitter)!, 0.6)),
-        at(tHit, toward(hit, start.get(hitter)!, 0.6)),
-        at(total, toward(hit, start.get(hitter)!, 0.6)),
-      ]);
-      moment(hitter, tHit);
+      const own = f.why === 'own' && e.kind !== 'sack';
+      const spot = wanted && reaches(hitter, wanted, tHit) ? wanted : toward(hit, start.get(hitter)!, own ? 1.6 : 0.6);
+      const tMeet = own ? tHit + OWN_LATE : tHit;
+      if (keys.has(hitter) && !reaches(hitter, spot, tMeet)) {
+        // A man trailing the play (a cover man beaten on the catch) can't be at the hit: he keeps his chase.
+      } else {
+        keys.set(hitter, [...onTheMove(hitter, tMeet, spot), at(tMeet, spot), at(total, spot)]);
+        hitterAtHit = true;
+      }
+      moment(hitter, tMeet);
+    }
+    if (f.why === 'fight') {
+      // The second man: the nearest defender not already in it, on him as it comes out (film only: one tackle).
+      const used = new Set([hitter, who.take, fumbler]);
+      const second = cast.defense
+        .filter((m) => !used.has(m.id) && start.has(m.id) && !keys.has(m.id))
+        .sort(
+          (a, b) =>
+            Math.hypot(start.get(a.id)!.x - hit.x, start.get(a.id)!.y - hit.y) -
+            Math.hypot(start.get(b.id)!.x - hit.x, start.get(b.id)!.y - hit.y),
+        )[0];
+      if (second) {
+        const spot = toward(hit, start.get(second.id)!, 1.2);
+        keys.set(second.id, [...onTheMove(second.id, tHit, spot), at(tHit, spot), at(total, spot)]);
+        free.delete(second.id);
+        moment(second.id, tHit);
+      }
     }
     const by = f.lost ? who.take : fumbler;
     if (by !== undefined && start.has(by)) {
@@ -1131,9 +1191,10 @@ export function script(
         const s0 = start.get(by)!;
         const lead =
           by === hitter
-            ? keys.get(by)!.filter((k) => k.t <= tHit)
+            ? (keys.get(by) ?? [from(by)]).filter((k) => (hitterAtHit ? k.t <= tHit : k.t < tHit))
             : [...onTheMove(by, tHit, toward(hit, s0, 2.5)), at(tHit, toward(hit, s0, 2.5))];
         keys.set(by, [...lead, at(tSettle, settle), ...back]);
+        free.delete(by);
         // The man who fumbled stays down where it came out.
         keys.set(fumbler, [...upTo(fumbler, tHit), at(tHit, hit), at(total, hit)]);
       }
@@ -1187,10 +1248,12 @@ export function script(
       }
     }
     if (tackler === undefined && (e.kind !== 'int' || kickReturn || loose)) {
+      // (A fumble run back: whoever gets to where it ends soonest, not a lineman who lined up a step nearer and would
+      // have to outrun the man with the ball.)
       let best = Infinity;
       for (const m of side) {
         const p = start.get(m.id)!;
-        const d = Math.hypot(p.x - end.x, p.y - end.y);
+        const d = Math.hypot(p.x - end.x, p.y - end.y) / (loose ? topOf(m.id) : 1);
         if (d < best && m.id !== carrier) [best, tackler] = [d, m.id];
       }
     }
