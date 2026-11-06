@@ -80,7 +80,7 @@ export interface FumbleTally {
   /** Fumbles by play: who got them, who on the defense, and the forcer. */
   loose: Record<LooseKind, Loose>;
   /** Defensive recoveries' returns by the recoverer's group. */
-  returns: Record<Group, { n: number; yards: number; long: number; td: number }>;
+  returns: Record<Group, { n: number; yards: number; sq: number; long: number; td: number }>;
 }
 
 interface Loose {
@@ -103,7 +103,7 @@ export function newFumbleTally(): FumbleTally {
     forcer: 0,
     groups: { DB: 0, LB: 0, DL: 0 },
   });
-  const ret = () => ({ n: 0, yards: 0, long: 0, td: 0 });
+  const ret = () => ({ n: 0, yards: 0, sq: 0, long: 0, td: 0 });
   return {
     buckets: { run: side(), catch: side(), scramble: side() },
     backs: new Map(),
@@ -254,6 +254,7 @@ function tapLoose(t: FumbleTally, kind: LooseKind, forced: boolean, r: Recovery)
   const g = t.returns[r.group];
   g.n++;
   g.yards += r.returnYds;
+  g.sq += r.returnYds * r.returnYds;
   if (r.returnYds >= 20) g.long++;
   if (r.td) g.td++;
 }
@@ -347,11 +348,16 @@ export function judgeRecoveries(t: FumbleTally): Line[] {
   for (const g of ['DB', 'LB', 'DL'] as const) {
     const r = t.returns[g];
     const [mean, long, td, n] = RETURN_NFL[g];
-    const few = r.n < 200;
+    // A return is mostly nothing with now and then the length of the field: its mean is judged, like every line here,
+    // only once the tolerance clears 3.5 standard errors of it.
+    const avg = r.n ? r.yards / r.n : NaN;
+    const se = r.n > 1 ? Math.sqrt(Math.max(0, r.sq / r.n - avg * avg) / r.n) : Infinity;
+    const tol = Math.max(0.25 * mean, 1);
+    const few = r.n < 200 || tol < 3.5 * se;
     lines.push({
       label: `returns by ${GROUP_NAMES[g]}: mean yards`,
-      value: r.n ? r.yards / r.n : NaN,
-      range: [mean - Math.max(0.25 * mean, 1), mean + Math.max(0.25 * mean, 1)],
+      value: avg,
+      range: [mean - tol, mean + tol],
       note: `NFL ${mean} (${r.n})${few ? ', too few to judge' : ''}`,
       ...(few ? { info: true } : {}),
     });

@@ -48,3 +48,18 @@ describe('strip-sacks and the loose ball', () => {
     expect(l.info).toBe(true);
   });
 });
+
+describe('returns by group', () => {
+  it('judges a mean return only once its tolerance clears 3.5 standard errors (returns run 0 to 100)', () => {
+    const t = newFumbleTally();
+    // 300 linebacker returns: most nothing, a few the length of the field. Mean 5, a spread of about 20.
+    for (let i = 0; i < 300; i++) {
+      const yds = i % 20 === 0 ? 90 : i % 4 === 0 ? 2 : 0;
+      t.returns.LB.n++;
+      t.returns.LB.yards += yds;
+      t.returns.LB.sq += yds * yds;
+    }
+    const l = judgeRecoveries(t).find((x) => x.label === 'returns by the linebackers: mean yards')!;
+    expect(l.info).toBe(true);
+  });
+});

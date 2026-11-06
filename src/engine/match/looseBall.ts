@@ -95,9 +95,9 @@ export function pickRecoverer(
  * distance (a fumble run back has nobody in front of it: most of the NFL's long ones score), and the mean of the rest
  * past 20 (DB n 420: mean 6.7, 20+ 12%, touchdowns 8.1%; LB n 200: 4.2, 6%, 6.0%; D-line n 573: 2.7, 5%, 6.3%). */
 const RETURNS: Record<Group, { none: number; short: number; mid: number; go: number; tail: number }> = {
-  DB: { none: 0.64, short: 0.17, mid: 0.08, go: 0.64, tail: 4 },
-  LB: { none: 0.69, short: 0.16, mid: 0.1, go: 0.72, tail: 4 },
-  DL: { none: 0.8, short: 0.12, mid: 0.03, go: 0.64, tail: 4 },
+  DB: { none: 0.64, short: 0.17, mid: 0.08, go: 0.62, tail: 4 },
+  LB: { none: 0.69, short: 0.16, mid: 0.1, go: 0.5, tail: 4 },
+  DL: { none: 0.8, short: 0.12, mid: 0.03, go: 0.52, tail: 4 },
 };
 
 /** How far he runs it back on draw `u`, never past the goal line `toGoal` yards away: reaching it is the touchdown. */
