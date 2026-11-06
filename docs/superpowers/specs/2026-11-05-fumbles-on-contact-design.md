@@ -1,6 +1,6 @@
 # Fumbles on contact
 
-**Status:** designed (2026-11-05), not built. Follows 0.4.5 (#152, the passer under pressure; #153, the two bands).
+**Status:** built (0.4.6). Follows 0.4.5 (#152, the passer under pressure; #153, the two bands).
 
 ## Why
 
