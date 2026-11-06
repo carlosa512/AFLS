@@ -91,8 +91,8 @@ describe('gm habits', () => {
     let bag = bagOf(l, gm);
     expect(bag.filter((m) => m === 'blank')).toHaveLength(BLANKS);
     expect(bag.filter((m) => m === 'firstsForStars')).toHaveLength(2);
-    expect(bag.filter((m) => m === 'bridgeQb')).toHaveLength(2);
-    expect(bag).toHaveLength(BLANKS + 12);
+    expect(bag.filter((m) => m === 'bridgeQb')).toHaveLength(1);
+    expect(bag).toHaveLength(BLANKS + 11);
     gm.age = 55;
     expect(bagOf(l, gm).filter((m) => m === 'blank')).toHaveLength(BLANKS_OLD);
     addMarbles(gm, 'swaps', 3);
@@ -120,9 +120,11 @@ describe('gm habits', () => {
 
     gm.habits = { swaps: { grip: 2 } };
     addMarbles(gm, 'fade:swaps', 500);
-    addMarbles(gm, 'fade:bpa', 500);
     drawHabits(l, gm, new Rng('d3'));
     expect(gm.habits.swaps).toBeUndefined();
+    // A fade for a habit he doesn't hold does nothing.
+    addMarbles(gm, 'fade:bpa', 500);
+    drawHabits(l, gm, new Rng('d4'));
     expect(gm.habits.bpa).toBeUndefined();
   });
 

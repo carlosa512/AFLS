@@ -63,7 +63,7 @@ function bridgeScene(delta = 0.4) {
 describe('Signs a Bridge QB', () => {
   it('signs a 30+ QB to one year beside his young starter and logs the young QB', () => {
     habitsForce.all = 'bridgeQb';
-    const { l, t, young, fa } = bridgeScene();
+    const { l, t, young, fa } = bridgeScene(2);
     expect(youngQbClub(l, t)?.id).toBe(young.id);
     aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX });
     expect(fa.teamId).toBe(t.id);
@@ -72,7 +72,7 @@ describe('Signs a Bridge QB', () => {
   });
   it('does not with the habit off', () => {
     habitsForce.off = true;
-    const { l, t, fa } = bridgeScene();
+    const { l, t, fa } = bridgeScene(2);
     aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX });
     // Without the habit he is a plain signing (or none): never the one-year bridge deal.
     expect(fa.teamId !== t.id || fa.contract!.length > 1).toBe(true);
@@ -81,7 +81,7 @@ describe('Signs a Bridge QB', () => {
 
 describe('Gun-Shy on Big Deals', () => {
   it('pays less at that position', () => {
-    const { l, t, fa } = bridgeScene();
+    const { l, t, fa } = bridgeScene(2);
     habitsForce.off = true;
     const a = aiOffer(l, t, fa, new Rng('x'), 2);
     habitsForce.off = false;

@@ -55,17 +55,17 @@ export const STARTING_HABITS: Record<string, readonly HabitId[]> = {
   'Hard-Liner': ['tagsFirst'],
   'Pick Hoarder': ['bpa', 'sellsEarly'],
   Balanced: [],
-  'Market Mover': ['extendEarly', 'sellsEarly', 'swaps'],
-  'Core Keeper': ['extendEarly', 'sellsEarly'],
-  'Slow Mover': ['tagsFirst', 'youngQb'],
+  'Market Mover': ['swaps', 'extendEarly', 'sellsEarly'],
+  'Core Keeper': ['sellsEarly', 'extendEarly'],
+  'Slow Mover': ['youngQb', 'tagsFirst'],
 };
 
 export const ACTIVE_GRIP = 2;
 export const MAX_ACTIVE = 3;
 export const DRAWS = 3;
-export const BLANKS = 9;
+export const BLANKS = 7;
 /** An older GM changes less: more blanks dilute the bag. */
-export const BLANKS_OLD = 16;
+export const BLANKS_OLD = 12;
 export const OLD_AGE = 55;
 export const LOG_YEARS = 8;
 /** A release whose dead money is this share of the cap burns a GM into Gun-Shy. */
@@ -143,8 +143,8 @@ export function addMarbles(gm: GeneralManager, key: string, n: number): void {
 export function bagOf(league: League, gm: GeneralManager): string[] {
   const bag: string[] = Array(gm.age >= OLD_AGE ? BLANKS_OLD : BLANKS).fill('blank');
   const own = STARTING_HABITS[archetypeOf(league, gm)] ?? [];
-  // His own habits weigh double; every other habit (Gun-Shy only after a blow-up) has one marble, so any GM can take one up.
-  for (const h of HABIT_IDS) if (h !== 'gunShy') bag.push(h, ...(own.includes(h) ? [h] : []));
+  // Every habit but Gun-Shy (that comes only after a blow-up) has one marble, so any GM can take one up; his day-one habit has two.
+  for (const h of HABIT_IDS) if (h !== 'gunShy') bag.push(h, ...(own[0] === h ? [h] : []));
   for (const [k, n] of Object.entries(gm.habitMarbles ?? {})) for (let i = 0; i < n; i++) bag.push(k);
   return bag;
 }

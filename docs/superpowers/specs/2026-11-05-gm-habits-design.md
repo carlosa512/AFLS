@@ -54,9 +54,9 @@ first day (grip 2, §3); the others start as marbles only.
 | Hard-Liner | 0.55 | 0.30 | johnson | 0.30 | 0.20 | 0.90 | 0.25 | Tags Before He Pays |
 | Pick Hoarder | 0.20 | 0.20 | analytics | 0.15 | 0.30 | 0.60 | 0.70 | Drafts Best Available, Sells a Year Early |
 | Balanced | 0.50 | 0.50 | johnson | 0.25 | 0.50 | 0.50 | 0.50 | One marble of each habit but Gun-Shy; starts with one at random |
-| **Market Mover** (new) | 0.65 | 0.75 | analytics | 0.22 | 0.35 | 0.35 | 0.90 | Extends Early, Sells a Year Early, Prefers Player Swaps |
-| **Core Keeper** (new) | 0.55 | 0.35 | analytics | 0.22 | 0.80 | 0.50 | 0.45 | Extends Early, Sells a Year Early |
-| **Slow Mover** (new) | 0.45 | 0.30 | johnson | 0.28 | 0.65 | 0.70 | 0.20 | Tags Before He Pays, Sticks With His Young QB |
+| **Market Mover** (new) | 0.65 | 0.75 | analytics | 0.22 | 0.35 | 0.35 | 0.90 | Prefers Player Swaps, Extends Early, Sells a Year Early |
+| **Core Keeper** (new) | 0.55 | 0.35 | analytics | 0.22 | 0.80 | 0.50 | 0.45 | Sells a Year Early, Extends Early |
+| **Slow Mover** (new) | 0.45 | 0.30 | johnson | 0.28 | 0.65 | 0.70 | 0.20 | Sticks With His Young QB, Tags Before He Pays |
 
 - The seven existing archetypes keep their dials. All-In, Draft and Develop and Can-Kicker are sharpened by their
   starting habits only.
@@ -190,8 +190,9 @@ Shared rules:
 
 1. Resolve the log entries that are due (§2) into event marbles.
 2. Give each held habit that went unused this year one fade marble.
-3. Build the bag: blanks (30; 48 at age 55 or more, the coach bag's numbers), 2 marbles for each of his archetype's
-   starting habits, and the year's event marbles.
+3. Build the bag: blanks (7; 12 at age 55 or more, tuned by `npm run gm-habits` until the churn sat in range), one
+   marble for every habit but Gun-Shy (so any GM can take one up; 2 for his archetype's day-one habit), and the year's
+   event marbles.
 4. Draw 3 marbles without replacement. A habit marble is grip +1 (a new habit starts at 1); a fade marble is grip −1
    (0 removes it; nothing for a habit he doesn't hold); a blank does nothing.
 5. At most 3 habits at grip 2 or more: a draw that would make a fourth active leaves it at grip 1.
@@ -292,12 +293,15 @@ of the sender's last five letters).
 - **The bag:** four leagues, ten seasons. Active habits per AI GM (mean 1–2), changes per GM per year (about 0.5),
   each habit's share of GMs (every habit carried by season five, none above 40%), nobody over three active, Gun-Shy
   formed at least once.
-- **`--effects`:** each habit given to every AI GM (a module switch, `habitsForce`, like `draftTrades.off`: every AI
-  club reads that one habit as on and draws nothing), the same league years replayed, its decision counted against
-  the same leagues with every habit off: more bridge QBs, more QB trade-ups, more extensions with two years left, more
-  sales a year early, more returns of drafted players, more trades of two firsts or more, more swaps, fewer need
-  picks, tags before re-signs, fewer young QBs traded or cut, less paid at the gun-shy position. The counts come from
-  the log, which is written with or without the habit. Nothing may be flagged.
+- **`--effects`:** six common habits (Extends Early, Sells a Year Early, Brings His Guys Back, Prefers Player Swaps,
+  Drafts Best Available, Tags Before He Pays) are given to every AI GM (a module switch, `habitsForce`, like
+  `draftTrades.off`: every AI club reads that one habit as on and draws nothing), the same league years replayed, and
+  the habit's log entries counted against the same leagues with every habit off: more of them. The five rare ones
+  (Signs a Bridge QB, Trades Up for a QB, Sticks With His Young QB, Trades Firsts for Stars, Gun-Shy) are judged by
+  built scenes instead, because a three-season league seldom offers the moment: the scene is built, run with the
+  habit on and with every habit off, and the decision compared (the bridge deal signs, the trade-up finds a
+  quarterback at a smaller gap, the young QB is untouchable, a contender's firsts cost less, a gun-shy offer pays
+  less and clears a higher bar). Nothing may be flagged.
 - Run it after changing `gmHabits.ts`, `gmTraits.ts` or a habit hook. `npm run check` runs it when those change
   (a new entry in `scripts/check.ts`'s planner, and a CI job like the others).
 
