@@ -916,10 +916,16 @@ export function aiFreeAgencyDay(
       });
     if (!best) continue;
     const before = capSpace(league, best.team.id);
+    // Read before he signs: the new arrival can be the roster's best quarterback, no longer a young one.
+    const bridgeYoung =
+      p.position === 'QB' && p.age - ageShift('QB') >= 30 && best.offer.years === 1
+        ? (bridge.get(best.team.id) ?? youngQbClub(league, best.team))
+        : null;
     signPlayer(league, p, best.team.id, best.offer);
     signings++;
     const signer = aiGm(league, best.team);
-    if (best.bridging) logMove(league, best.team, 'bridgeQb', { playerId: bridge.get(best.team.id)!.id });
+    // Logged for every GM that signs an old quarterback to a year beside a young one, habit or not (one outlook per signing).
+    if (bridgeYoung) logMove(league, best.team, 'bridgeQb', { playerId: bridgeYoung.id });
     if (signer && draftedBy(signer, p)) logMove(league, best.team, 'hisGuys', { playerId: p.id });
     budget.set(best.team.id, budget.get(best.team.id)! - (before - capSpace(league, best.team.id)));
     room.set(best.team.id, room.get(best.team.id)! - 1);

@@ -223,4 +223,28 @@ describe('gmVoice', () => {
     ]);
     expect(tip).toContain('pay for players');
   });
+
+  it('names his draftee only when we send him back', () => {
+    const { l, team, gm } = setup();
+    const mine = l.teams.find((t) => t.id === l.userTeamId)!;
+    const p = Object.values(l.players).find((x) => x.teamId === mine.id)!;
+    const q = Object.values(l.players).find((x) => x.teamId === team.id)!;
+    const a = gm.appointments[0];
+    const draft = { ...(q.draft ?? ({} as NonNullable<typeof q.draft>)), teamId: a.teamId, season: a.start.season };
+    q.draft = draft;
+    p.draft = { ...draft };
+    gm.habitLog = [{ habit: 'hisGuys', season: l.season, teamId: team.id, playerId: q.id }];
+    // he sends his own draftee for our pick: no leverage to read
+    const out = directorTip(l, team, [
+      { teamId: mine.id, players: [], picks: [] },
+      { teamId: team.id, players: [q.id], picks: [] },
+    ]);
+    expect(out ?? '').not.toContain('pay for players');
+    // we send his draftee back to him
+    const back = directorTip(l, team, [
+      { teamId: mine.id, players: [p.id], picks: [] },
+      { teamId: team.id, players: [], picks: [] },
+    ]);
+    expect(back).toContain('pay for players');
+  });
 });

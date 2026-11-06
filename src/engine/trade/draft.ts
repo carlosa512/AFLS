@@ -265,7 +265,7 @@ export function draftCovet(ctx: TradeContext, teamId: number, proposal: TradePro
   const points = (early: DraftPick, later: DraftPick | undefined) => {
     if (!later) return 0;
     const gap = expectedAt(league, teamId, early).score - expectedAt(league, teamId, later).score;
-    // A club that trades up for quarterbacks pays less than the full covet for his man.
+    // A club that trades up for quarterbacks values the move up more for his man (the covet cap rises 0.6 to 0.75).
     const max =
       expectedAt(league, teamId, early).best?.position === 'QB' && habitOn(league, team, 'tradeUpQb')
         ? 0.75

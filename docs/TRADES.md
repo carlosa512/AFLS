@@ -399,10 +399,10 @@ dump*, *need swap*, *trade up*, *trade down*, *depth for a pick*, *tag and trade
 #### GM habits
 
 Hidden habits (`gmHabits.ts`) lean four trade decisions of an AI front office that holds one at grip 2 or more. *Sells a
-Year Early* puts its aging starters on the trade block a year sooner (`plans.ts`). *Trades Firsts for Stars* lets a
+Year Early* puts starters on rookie deals with two years or fewer left, or a High injury risk, on the trade block a year sooner (`plans.ts`). *Trades Firsts for Stars* lets a
 contender stretch further for the man it wants and feel each extra first half as much (`deals.ts`, `judge.ts`). *Prefers
 Player Swaps* drops the edge a player package must clear over picks and gives the search two more tries (`deals.ts`).
-*Trades Up for a QB* pays less than the full covet for a quarterback it can reach by moving up (`draft.ts`). Each use is
+*Trades Up for a QB* values the move up more (the covet cap rises from 0.6 to 0.75) for a quarterback it can reach by moving up (`draft.ts`). Each use is
 logged for the news and your director; none shows as a label.
 
 ### 5. Offers to you

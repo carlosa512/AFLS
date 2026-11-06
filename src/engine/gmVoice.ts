@@ -426,9 +426,9 @@ export function directorTip(league: League, partner: Team, sides: readonly [Trad
   const ours = sides.find((s) => s.teamId !== partner.id) ?? sides[0];
   const theirs = sides.find((s) => s !== ours) ?? sides[1];
   const ctx = tradeContext(league);
-  const given = sides.flatMap((s) => s.players.map((id) => league.players[id]).filter((p) => !!p));
-  const drafted = given.find((p) => draftedBy(gm, p));
   const our = ours.players.map((id) => league.players[id]).filter((p) => !!p);
+  // only a man we send back to him: one on his own roster is no leverage
+  const drafted = our.find((p) => draftedBy(gm, p));
   const tip: TipFact = {
     hisGuy: drafted ? `${drafted.firstName} ${drafted.lastName}` : null,
     star: our.some((p) => marketValue(ctx, partner, p) >= STAR),

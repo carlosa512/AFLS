@@ -122,12 +122,18 @@ export function tradePattern(l: League, deal: TradeRecord): { gmId: number; line
     const gm = aiGm(l, l.teams[side.teamId]);
     const log = gm?.habitLog;
     if (!gm || !log) continue;
+    const other = deal.sides.find((s) => s !== side);
+    // a swap is players both ways and no picks; his guys are men he is taking back in this deal
+    const isSwap = deal.sides.every((s) => s.players.length > 0 && s.picks.length === 0);
     const move = log.find(
       (m) =>
         m.season === deal.season &&
         m.teamId === side.teamId &&
         PATTERN_HABITS.includes(m.habit) &&
-        (m.habit === 'swaps' || (m.playerId !== undefined && dealPlayers.includes(m.playerId))),
+        (m.habit === 'swaps'
+          ? isSwap
+          : m.playerId !== undefined &&
+            (m.habit === 'hisGuys' ? !!other?.players.includes(m.playerId) : dealPlayers.includes(m.playerId))),
     );
     if (!move) continue;
     const earlier = log

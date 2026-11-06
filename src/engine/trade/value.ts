@@ -612,7 +612,7 @@ export function playerValue(
   const v = roomWith(others, [me], player.position, w, now) - roomValue(others, player.position, w, now);
   // Brings His Guys Back: a man he drafted is worth a little more to him.
   const gm = habitOn(league, team, 'hisGuys') ? aiGm(league, team) : undefined;
-  return gm && draftedBy(gm, player) ? v * HIS_GUYS : v;
+  return gm && draftedBy(gm, player) ? v + (HIS_GUYS - 1) * Math.abs(v) : v;
 }
 
 /** Brings His Guys Back: the lift on a man the GM drafted. */

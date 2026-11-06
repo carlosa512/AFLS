@@ -70,6 +70,15 @@ describe('Signs a Bridge QB', () => {
     expect(fa.contract!.length).toBe(1);
     expect(aiGm(l, t)!.habitLog).toContainEqual(expect.objectContaining({ habit: 'bridgeQb', playerId: young.id }));
   });
+  it('logs the bridge signing for a GM without the habit too', () => {
+    habitsForce.off = true;
+    const { l, t, young, fa } = bridgeScene(2);
+    fa.age = 34 + ageShift('QB');
+    aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+    expect(fa.teamId).toBe(t.id);
+    expect(fa.contract!.length).toBe(1);
+    expect(aiGm(l, t)!.habitLog).toContainEqual(expect.objectContaining({ habit: 'bridgeQb', playerId: young.id }));
+  });
   it('does not with the habit off', () => {
     habitsForce.off = true;
     const { l, t, fa } = bridgeScene(2);

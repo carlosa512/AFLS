@@ -485,6 +485,19 @@ describe('SNN trade reporting', () => {
     [m] = keyTradeNews(l, 8);
     expect(m.gmNotes).toBeUndefined();
   });
+  it('prints no swap pattern on a deal that is not a swap', () => {
+    const { l, p, deal } = marketLeague();
+    l.market!.history = [deal];
+    setTeam(l, p, 2);
+    const gm = aiGm(l, l.teams[2])!;
+    gm.habitLog = [
+      { habit: 'swaps', season: l.season, teamId: 2, playerId: 99999999 },
+      { habit: 'swaps', season: l.season - 2, teamId: 2, playerId: 99999999 },
+    ];
+    const [m] = keyTradeNews(l, 8);
+    expect(m.gmNotes).toBeUndefined();
+    expect(m.body.split('\n\n')).toHaveLength(2);
+  });
   it('skips an incomplete asset history instead of silently dropping part of the price', () => {
     const { l, deal } = marketLeague();
     deal.sides[1].picks = [99999999];
