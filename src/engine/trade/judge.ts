@@ -10,6 +10,7 @@
  * - Each first-round pick an AI sends past the second costs it more: a price, not a hard cap.
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
+import { habitOn } from '../gmHabits';
 import { wantsOut } from '../disputeRead';
 import { capFor, deadMoneyIn } from '../finance/cap';
 import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
@@ -18,7 +19,7 @@ import { clamp } from '../rng';
 import type { DraftPick, League, Player, Team } from '../types';
 import { pickOf, rosterOf, tradeContext, type TradeContext } from './context';
 import { draftCovet } from './draft';
-import { untouchables } from './plans';
+import { stanceOf, untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import {
   freshSigningRefusal,
@@ -161,10 +162,12 @@ function picksOut(ctx: TradeContext, team: Team, ids: readonly number[], getting
   const around = firstsAround(league, team.id, ids, getting);
   const appetite = 1.5 - team.gm.winNow;
   let firsts = around.without;
+  // Trades Firsts for Stars: a contender with the habit feels each extra first half as much.
+  const step = habitOn(league, team, 'firstsForStars') && stanceOf(team) === 'contend' ? FIRST_STEP / 2 : FIRST_STEP;
   return picks.reduce((s, p) => {
     if (!p.first) return s + p.value;
     const gap = around.empty(p.season) && (around.empty(p.season - 1) || around.empty(p.season + 1));
-    const extra = Math.max(0, ++firsts - 2) * FIRST_STEP + (gap ? BACK_TO_BACK : 0);
+    const extra = Math.max(0, ++firsts - 2) * step + (gap ? BACK_TO_BACK : 0);
     return s + p.value * (1 + appetite * extra);
   }, 0);
 }

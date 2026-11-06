@@ -57,11 +57,17 @@ beforeEach(() => {
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-f' });
-  simToEndOfSeason(league);
-  beginOffseason(league);
-  while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
-  return JSON.stringify(league);
+  // Built with habits off, as the pinned fixtures were tuned: a season of trades under natural habits moves the draft.
+  habitsForce.off = true;
+  try {
+    const league = createLeague({ seed: 'draft-trades-f' });
+    simToEndOfSeason(league);
+    beginOffseason(league);
+    while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
+    return JSON.stringify(league);
+  } finally {
+    habitsForce.off = false;
+  }
 })();
 const draftDay = (): League => JSON.parse(atDraft);
 

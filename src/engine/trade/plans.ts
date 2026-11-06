@@ -7,6 +7,8 @@
 import { disputeOf, wantsOut } from '../disputeRead';
 import { ageShift } from '../aging';
 import { chairHolder, hotSeat, ownerTrigger, teamCoaches } from '../coaching';
+import { aiGm, draftedBy, habitOn } from '../gmHabits';
+import { injuryRisk } from '../injuries';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { contenderScore } from '../offseason/negotiation';
 import { ROSTER_TEMPLATE, STARTERS } from '../positions';
@@ -256,7 +258,16 @@ export function scoutedNeeds(ctx: TradeContext, viewerId: number, team: Team): {
 export interface BlockEntry {
   playerId: number;
   /** Why: an AI team's own reasons, or (for yours) whether you've put him on the block. */
-  reason: 'surplus' | 'expiring' | 'veteran' | 'overpaid' | 'tagged' | 'listed' | 'available' | 'wantsOut';
+  reason:
+    | 'surplus'
+    | 'expiring'
+    | 'veteran'
+    | 'overpaid'
+    | 'tagged'
+    | 'listed'
+    | 'available'
+    | 'wantsOut'
+    | 'secondDeal';
   /** 0 … 1: how keen the team is to move him. */
   keenness: number;
 }
@@ -284,6 +295,9 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
     .filter((p) => p.position === 'QB')
     .sort((a, b) => outlookFor(ctx, team, b) - outlookFor(ctx, team, a));
   if (qbs[0] && isBuyer(team) && ovrOf(ctx, qbs[0]) >= 14) out.add(qbs[0].id);
+  // Sticks With His Young QB: every young quarterback he drafted stays.
+  if (habitOn(league, team, 'youngQb'))
+    for (const p of roster) if (p.position === 'QB' && p.age <= 25 && draftedBy(aiGm(league, team)!, p)) out.add(p.id);
   if (team.gm.loyalty >= 0.5) {
     roster
       .filter((q) => q.age <= 25 && underContract(league, q))
@@ -331,6 +345,7 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
       .sort((a, b) => ahead(b) - ahead(a))
       .forEach((p, i) => rank.set(p.id, i));
   const out: BlockEntry[] = [];
+  const sellsEarly = habitOn(league, team, 'sellsEarly');
   const keep = untouchables(ctx, team);
   for (const p of roster) {
     // He's asked out, the league knows and his club is shopping him (G4b): on the block, whoever he is.
@@ -356,6 +371,13 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // Tagged and not worth his price to this team long-term (a seller, or a cap it can't fit him under): tag and trade (Ngakoue, Clowney).
     if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight))
       add('tagged', 0.7);
+    // Sells a Year Early: a starter on a rookie deal with two years left, or a hurt-prone one, goes a year before he falls.
+    if (
+      sellsEarly &&
+      starterGrade &&
+      ((p.contract!.kind === 'rookie' && left <= 2) || injuryRisk(league, team.id, p).tier === 'High')
+    )
+      add('secondDeal', 0.45);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a

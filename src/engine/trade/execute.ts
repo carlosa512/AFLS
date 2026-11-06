@@ -1,10 +1,12 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
+import { aiGm, draftedBy, logMove, type HabitId } from '../gmHabits';
+import { injuryRisk } from '../injuries';
 import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
-import { deadMoney } from '../finance/contract';
+import { deadMoney, yearsLeft } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
 import { numberOnArrival } from '../jerseys';
-import { setTeam, syncDepthChart } from '../roster';
+import { setTeam, starters, syncDepthChart } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
 import type { TradeProposal } from './rules';
 
@@ -23,6 +25,39 @@ export const emptyMarket = (): TradeMarket => ({
   shopped: {},
 });
 
+type HabitMove = { teamId: number; habit: HabitId; playerId?: number; good?: true };
+
+/** What a deal says about each AI general manager's habits, read before any player moves (it needs the depth charts as they stand). */
+function habitMoves(league: League, proposal: TradeProposal): HabitMove[] {
+  const out: HabitMove[] = [];
+  const round = (id: number) => league.draftPicks.find((x) => x.id === id)?.round ?? 9;
+  proposal.sides.forEach((side, i) => {
+    const other = proposal.sides[1 - i];
+    const team = league.teams[side.teamId];
+    const gm = aiGm(league, team);
+    if (!gm) return;
+    if (side.picks.filter((id) => round(id) === 1).length >= 2 && other.players.length === 1 && !other.picks.length)
+      out.push({ teamId: team.id, habit: 'firstsForStars', playerId: other.players[0] });
+    if (side.players.length && other.players.length && !side.picks.length && !other.picks.length)
+      out.push({ teamId: team.id, habit: 'swaps' });
+    for (const id of side.players) {
+      const p = league.players[id];
+      if (!starters(league, team, p.position).some((s) => s.id === id)) continue;
+      const c = p.contract;
+      if ((c?.kind === 'rookie' && yearsLeft(c, league.season) <= 2) || injuryRisk(league, team.id, p).tier === 'High')
+        out.push({
+          teamId: team.id,
+          habit: 'sellsEarly',
+          playerId: id,
+          ...(other.picks.some((pk) => round(pk) <= 2) ? { good: true as const } : {}),
+        });
+    }
+    for (const id of other.players)
+      if (draftedBy(gm, league.players[id])) out.push({ teamId: team.id, habit: 'hisGuys', playerId: id });
+  });
+  return out;
+}
+
 /**
  * Move the assets and log the trade. `kind` and `tag` say what it was for the news ("deadline
  * rental"); the user's own trades go in untagged.
@@ -34,6 +69,7 @@ export function executeTrade(
 ): TradeRecord {
   if (proposal.sides.some((side) => side.players.some((id) => league.players[id]?.waiver)))
     throw new Error('A player on waivers cannot be traded.');
+  const habits = habitMoves(league, proposal);
   const post = autoPostJune1(league.phase);
   const moved: string[][] = [[], []];
   proposal.sides.forEach((side, i) => {
@@ -97,6 +133,11 @@ export function executeTrade(
       moved[i].push(`${pick.season} R${pick.round}${pick.overall ? ` (No. ${pick.overall})` : ''}`);
     }
   });
+  for (const m of habits)
+    logMove(league, league.teams[m.teamId], m.habit, {
+      ...(m.playerId !== undefined ? { playerId: m.playerId } : {}),
+      ...(m.good ? { good: true } : {}),
+    });
   for (const side of proposal.sides) syncDepthChart(league, league.teams[side.teamId]);
   const [a, b] = proposal.sides.map((s) => league.teams[s.teamId]);
   logTransaction(
