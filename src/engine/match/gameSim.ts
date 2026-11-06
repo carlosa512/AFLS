@@ -3917,6 +3917,7 @@ class GameSim {
       leadingLate: late && s.scoreDiff > 0,
       weather: this.wx.fumble,
       carrier: {
+        position: carrier.position,
         ballSecurity: skill(carrier, 'ballSecurity'),
         energy: this.body(carrier).energy,
         has: (q) => this.has(carrier, q),

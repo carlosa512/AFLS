@@ -53,8 +53,12 @@ export const FUMBLES_NFL: Record<ContactKind, Record<Bucket, [fumbles: number, l
 };
 /** The share of fumbles a defender forced. */
 const FORCED_NFL: Record<ContactKind, number> = { run: 0.499, catch: 0.949, scramble: 0.948 };
-/** Backs with 150+ carries: the sd of their fumble rates (sampling included, as the NFL's carries it). */
-const SPREAD_NFL = 0.0128;
+/**
+ * Backs with 150+ carries: how far their fumble rates truly differ, the sd of the rates less what luck alone gives at
+ * their carries (the NFL's 0.0128 less 0.0052: five seasons a back, against a league's one, so luck is judged out on
+ * both sides, not left in to fill a short spread).
+ */
+const SPREAD_NFL = Math.sqrt(0.0128 ** 2 - 0.0052 ** 2);
 const SPREAD_MIN = 150;
 /** An NFL bucket smaller than this sets no target. */
 const NFL_MIN = 500;
@@ -138,17 +142,22 @@ export function judgeFumbles(t: FumbleTally): Line[] {
   return lines;
 }
 
-/** How far backs differ: the sd of their fumble rates over backs with 150+ carries, against the NFL's ±30%. */
+/**
+ * How far backs differ: the sd of their fumble rates over backs with 150+ carries less luck's (binomial at each back's
+ * carries, as `research-fumbles.py` measures the NFL's), against the NFL's ±30%.
+ */
 export function carrierSpread(t: FumbleTally): Line[] {
-  const rates = [...t.backs.values()].filter((c) => c.n >= SPREAD_MIN).map((c) => c.fum / c.n);
+  const backs = [...t.backs.values()].filter((c) => c.n >= SPREAD_MIN);
+  const rates = backs.map((c) => c.fum / c.n);
   const m = rates.reduce((a, b) => a + b, 0) / Math.max(1, rates.length);
   const sd = Math.sqrt(rates.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, rates.length));
+  const luck = Math.sqrt(backs.reduce((a, c) => a + (m * (1 - m)) / c.n, 0) / Math.max(1, backs.length));
   return [
     {
-      label: 'spread between backs, fumbles per carry (sd)',
-      value: rates.length >= 10 ? sd : NaN,
+      label: 'spread between backs, fumbles per carry (sd less luck)',
+      value: rates.length >= 10 ? Math.sqrt(Math.max(0, sd ** 2 - luck ** 2)) : NaN,
       range: [SPREAD_NFL * 0.7, SPREAD_NFL * 1.3],
-      note: `NFL ${SPREAD_NFL} (${rates.length} backs with ${SPREAD_MIN}+ carries)`,
+      note: `NFL ${SPREAD_NFL.toFixed(4)}; ours sd ${sd.toFixed(4)}, luck ${luck.toFixed(4)} (${rates.length} backs with ${SPREAD_MIN}+ carries)`,
     },
   ];
 }

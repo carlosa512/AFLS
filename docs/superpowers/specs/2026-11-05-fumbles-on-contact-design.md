@@ -80,9 +80,10 @@ export function fumbleWhy(f: ContactFacts, u: number): Exclude<FumbleWhy, 'own'>
 ```
 
 - **The play:** a base for each kind, fitted so a typical tackle sits on the "1st and 2nd down" row.
-- **The carrier:** ball security (as today); Loose Carriage and High Knee raise it; Contact Averse lowers it (he goes
-  down easy); fatigue below `TYPICAL.energy` raises it. (Gassed is a defensive lineman's habit, so it never carries
-  the ball: no term.)
+- **The carrier:** ball security, read against his position's typical man (`PEER_SECURITY`: a quarterback's sneak is
+  no riskier for his position's lower ratings), leaning hard on runs so backs differ as the NFL's do; Loose Carriage
+  and High Knee raise it; Contact Averse lowers it (he goes down easy); fatigue below `TYPICAL.energy` raises it.
+  (Gassed is a defensive lineman's habit, so it never carries the ball: no term.)
 - **The tackler:** his tackling (`skill(tackler, 'tackling')`) and his size against the carrier's raise it; Ball
   Stripper and Thumper raise it; Arm Tackler lowers it.
 - **He fights for extra yards** (the 'fight' lean): 3rd and 4th down with yards to go, and trailing late; Finishes
@@ -128,8 +129,9 @@ why) for the check; nothing stored.
   `fumbles-core.ts` copies.
 - **`npm run fumbles [-- games]`** (`scripts/fumbles.ts`, `scripts/fumbles-core.ts`, the shape of `npm run passer`):
   AI games tallied through `contactTap` by §1's buckets, with the NFL beside each line. A bucket is judged only when
-  its tolerance is at least 3.5 standard errors; small ones are reported. Also judged: the forced share by kind, lost
-  per 100, and the spread between carriers. Nothing may be ✗. `npm run sim` judges the buckets (`calibrate.ts`), so CI
+  its tolerance is at least 3.5 standard errors; small ones are reported. Also judged: the forced share by kind and
+  the spread between carriers (less luck on both sides: five NFL seasons a back against one of ours). Lost per 100
+  waits for the recoveries item (MVP "fumble recoveries"): who gets the ball is today's 52% here, unchanged. Nothing may be ✗. `npm run sim` judges the buckets (`calibrate.ts`), so CI
   covers them.
 - **Must hold:**
   - `sim`: turnovers, scoring, the leaders;

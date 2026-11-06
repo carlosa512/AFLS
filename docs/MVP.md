@@ -204,8 +204,10 @@ catch or run is the item above.
       scrambles' (`match/fumbleOdds.ts`). The play names why (stripped, jarred loose by the hit, fighting for the extra
       yard, puts it on the ground), only a forced one credits a forced fumble, and the film shows it: a strip from
       behind, a hit from the front, a second man on a back fighting forward. Fitted to nflverse 2021–25 by bucket
-      (`npm run fumbles`, also judged in `npm run sim`): runs 1.62 a hundred (NFL 1.46), catches 1.26 (1.31), forced
-      0.50 and 0.95 (0.50, 0.95), the spread between backs in the NFL's band; fumbles lost 0.44 a game. Spec:
+      (`npm run fumbles`, also judged in `npm run sim`): over 20 seasons runs 1.63 a hundred (NFL 1.46), catches 1.26
+      (1.31), forced 0.50 and 0.95 (0.50, 0.95), fumbles lost 0.42 a game. Ball security reads against a man's position
+      (a quarterback's sneak is no riskier for his position's ratings) and backs differ as the NFL's do, luck taken
+      out on both sides (0.0095 against 0.0117). Spec:
       `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.

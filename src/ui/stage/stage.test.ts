@@ -1204,7 +1204,8 @@ describe('the loose ball', () => {
   });
 
   it('ends a fumble returned for a touchdown in the end zone, untackled', () => {
-    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run')!;
+    // A fumble that stood: one a flag wiped out keeps its run in `ran`, so rewriting the entry's own end draws nothing.
+    const { e, g, i, plays } = fumbles.find((x) => x.f.lost && x.e.kind === 'run' && x.plays[x.i].kind === 'run')!;
     const p0 = stage(g, plays, i);
     // The fumbling offense's own end zone: behind it, the way it was driving.
     const td: PlayLogEntry = { ...plays[i], to: p0.dir === 1 ? -3 : 103 };

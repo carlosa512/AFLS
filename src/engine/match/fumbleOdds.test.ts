@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { QuirkId } from '../quirks';
-import { forcedOdds, fumbleOdds, fumbleWhy, TYPICAL, type ContactFacts } from './fumbleOdds';
+import { createLeague } from '../generate';
+import { skill } from '../attributes';
+import { forcedOdds, fumbleOdds, fumbleWhy, PEER_SECURITY, TYPICAL, type ContactFacts } from './fumbleOdds';
 
 type Over = Partial<Omit<ContactFacts, 'carrier' | 'tackler'>> & {
   carrier?: Partial<Omit<ContactFacts['carrier'], 'has'>> & { habits?: QuirkId[] };
@@ -21,7 +23,13 @@ function typical(over: Over = {}): ContactFacts {
     weather: 1,
     size: 0,
     ...rest,
-    carrier: { ballSecurity: TYPICAL.ballSecurity, energy: TYPICAL.energy, ...c, has: (q) => ch.includes(q) },
+    carrier: {
+      position: 'RB',
+      ballSecurity: PEER_SECURITY.RB!,
+      energy: TYPICAL.energy,
+      ...c,
+      has: (q) => ch.includes(q),
+    },
     tackler: { tackling: TYPICAL.tackling, ...t, has: (q) => th.includes(q) },
   };
 }
@@ -83,6 +91,28 @@ describe('a fumble on contact', () => {
       { leadingLate: true },
     ];
     for (const o of down) expect(odds(o), JSON.stringify(o)).toBeLessThan(base);
+  });
+
+  it("reads ball security against his position's typical man: a median quarterback runs as safely as a median back", () => {
+    for (const kind of ['run', 'catch', 'scramble'] as const) {
+      const at = (position: 'QB' | 'RB' | 'WR' | 'TE') =>
+        odds({ kind, carrier: { position, ballSecurity: PEER_SECURITY[position]! } });
+      expect(at('QB')).toBeCloseTo(at('RB'), 12);
+      expect(at('WR')).toBeCloseTo(at('TE'), 12);
+      // Below his position's median, more.
+      expect(odds({ kind, carrier: { position: 'QB', ballSecurity: 5 } })).toBeGreaterThan(at('QB'));
+    }
+  });
+
+  it("keeps each position's typical ball security where a new league builds it", () => {
+    const league = createLeague({ seed: 'peer-security' });
+    for (const [pos, typical] of Object.entries(PEER_SECURITY)) {
+      const v = Object.values(league.players)
+        .filter((p) => p.position === pos)
+        .map((p) => skill(p, 'ballSecurity'))
+        .sort((a, b) => a - b);
+      expect(Math.abs(v[v.length >> 1] - typical!), pos).toBeLessThanOrEqual(1);
+    }
   });
 
   it('is forced half the time on a run, nearly always on a catch or a scramble', () => {

@@ -152,10 +152,11 @@ describe('the replay plays the pocket', () => {
     let n = 0;
     for (const { r, taps, homeId } of played)
       for (const t of taps) {
-        // A lost fumble after a catch is drawn, never replayed (`replay.ts`).
-        if (!t.result || (r.plays![t.moment.index].loose !== undefined && t.today.outcome !== 'sack')) continue;
+        // A lost fumble after a catch is drawn, never replayed (`replay.ts`), a flagged snap's (`ran.loose`) too.
+        const e = r.plays![t.moment.index];
+        if (!t.result || ((e.loose ?? e.ran?.loose) !== undefined && t.today.outcome !== 'sack')) continue;
         const s = stage(r, t.moment.index, homeId);
-        expect(s.spatial, `play ${t.moment.index}`).toBeDefined();
+        expect(s.spatial, `play ${t.moment.index}: ${r.plays![t.moment.index].text}`).toBeDefined();
         const men = s.ids.length;
         const pn = t.start.players.length;
         // The pocket's own frames, up to its hand-over (a catch's or a scramble's open field takes it from there).
