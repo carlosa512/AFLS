@@ -81,7 +81,8 @@ export function fumbleWhy(f: ContactFacts, u: number): Exclude<FumbleWhy, 'own'>
 
 - **The play:** a base for each kind, fitted so a typical tackle sits on the "1st and 2nd down" row.
 - **The carrier:** ball security (as today); Loose Carriage and High Knee raise it; Contact Averse lowers it (he goes
-  down easy); fatigue below `TYPICAL.energy` raises it, more with Gassed.
+  down easy); fatigue below `TYPICAL.energy` raises it. (Gassed is a defensive lineman's habit, so it never carries
+  the ball: no term.)
 - **The tackler:** his tackling (`skill(tackler, 'tackling')`) and his size against the carrier's raise it; Ball
   Stripper and Thumper raise it; Arm Tackler lowers it.
 - **He fights for extra yards** (the 'fight' lean): 3rd and 4th down with yards to go, and trailing late; Finishes
@@ -133,7 +134,7 @@ why) for the check; nothing stored.
 - **Must hold:**
   - `sim`: turnovers, scoring, the leaders;
   - `quirks --effects`: Loose Carriage, High Knee, Contact Averse, Ball Stripper, Thumper, Arm Tackler, Finishes
-    Forward and Gassed each move fumbles the right way; their effect lines are reworded where they now do more;
+    Forward each move fumbles the right way; their effect lines are reworded where they now do more;
   - `audit`: ball security and tackling still move play;
   - `parity` and `film`: the new shapes;
   - `endings`.

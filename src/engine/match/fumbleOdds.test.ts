@@ -43,7 +43,7 @@ describe('a fumble on contact', () => {
       carrier: {
         ballSecurity: 1,
         energy: 0,
-        habits: ['looseCarriage', 'highKnee', 'gassed', 'finishesForward'],
+        habits: ['looseCarriage', 'highKnee', 'finishesForward'],
       },
       tackler: { tackling: 20, habits: ['ballStripper', 'thumper'] },
     });
@@ -77,7 +77,6 @@ describe('a fumble on contact', () => {
       { weather: 1.3 },
     ];
     for (const o of up) expect(odds(o), JSON.stringify(o)).toBeGreaterThan(base);
-    expect(odds({ carrier: { energy: 60, habits: ['gassed'] } })).toBeGreaterThan(odds({ carrier: { energy: 60 } }));
     const down: Over[] = [
       { carrier: { habits: ['contactAverse'] } },
       { tackler: { habits: ['armTackler'] } },
