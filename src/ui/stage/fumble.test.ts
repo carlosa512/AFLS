@@ -208,3 +208,37 @@ describe('a fumble on film', () => {
     expect(look('own').dist).toBeGreaterThan(1);
   });
 });
+
+describe('a sack fumble the quarterback lost himself, on film', () => {
+  const league = createLeague({ seed: 'fumble-film' });
+  let found: { r: GameResult; i: number; homeId: number } | null = null;
+  for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 60)) {
+    const r = simulateGame(league, g, { keepPlays: true });
+    const i = r.plays!.findIndex((e) => e.kind === 'sack' && /FUMBLE, recovered by/.test(e.text));
+    if (i >= 0) {
+      found = { r, i, homeId: g.homeId };
+      break;
+    }
+  }
+
+  it('reads it as his own, an old strip-sack as the hit, and ends with the recoverer on the ball', () => {
+    expect(found).not.toBeNull();
+    const { r, i, homeId } = found!;
+    const e = r.plays![i];
+    const own = e.text.replace(/(SACKED by .+? for -?\d+ yards?)(, [^.]+)?(\. FUMBLE)/, '$1, puts it on the ground$3');
+    const old = e.text.replace(/(SACKED by .+? for -?\d+ yards?)(, [^.]+)?(\. FUMBLE)/, '$1$3');
+    expect(fumbleIn({ ...e, text: own })!.why).toBe('own');
+    expect(fumbleIn({ ...e, text: old })!.why).toBe('hit');
+    for (const text of [own, old]) {
+      const plays = r.plays!.map((x, k) => (k === i ? { ...x, text } : x));
+      const p = stagePlay({ plays, index: i, record: r.field!, homeId, seed: 'film', snapY: 26.65 });
+      expect(p.loose).toBeDefined();
+      const last = p.steps - 1;
+      const by = p.ids.indexOf(actorsIn(e).take ?? -1);
+      expect(by, 'the recoverer is on the field').toBeGreaterThanOrEqual(0);
+      const ball = { x: p.ball[last * 3], y: p.ball[last * 3 + 1] };
+      const man = { x: p.pos[(last * 22 + by) * 2], y: p.pos[(last * 22 + by) * 2 + 1] };
+      expect(Math.hypot(man.x - ball.x, man.y - ball.y), text).toBeLessThan(1.5);
+    }
+  });
+});

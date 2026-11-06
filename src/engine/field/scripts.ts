@@ -1098,14 +1098,26 @@ export function script(
         const hl = Math.hypot(c.x - b.x, c.y - b.y) || 1;
         const h = { x: (c.x - b.x) / hl, y: (c.y - b.y) / hl };
         const side = Math.sign(-h.y * (s0.x - c.x) + h.x * (s0.y - c.y)) || 1;
-        const spot = {
-          x: c.x - h.x * GONE_BEHIND - h.y * side * GONE_OFF,
-          y: c.y - h.y * GONE_BEHIND + h.x * side * GONE_OFF,
-        };
-        const leave = Math.min(react, tp - Math.hypot(spot.x - s0.x, spot.y - s0.y) / topOf(deep));
-        if (leave >= 0) {
-          keys.set(deep, [from(deep), ...(leave > 0.05 ? [at(leave, s0)] : []), at(tp, spot)]);
-          free.set(deep, tp);
+        // A step wider each time his line up to the spot would cut inside a yard of the carrier coming through.
+        for (let off = GONE_OFF; off <= GONE_OFF + 1.5; off += 0.5) {
+          const spot = {
+            x: c.x - h.x * GONE_BEHIND - h.y * side * off,
+            y: c.y - h.y * GONE_BEHIND + h.x * side * off,
+          };
+          const leave = Math.min(react, tp - Math.hypot(spot.x - s0.x, spot.y - s0.y) / topOf(deep));
+          if (leave < 0) break;
+          const path = [from(deep), ...(leave > 0.05 ? [at(leave, s0)] : []), at(tp, spot)];
+          let clear = true;
+          for (let t = leave; t <= tp && clear; t += 0.05) {
+            const a = sample(path, t);
+            const b = sample(cKeys, t);
+            clear = Math.hypot(a.x - b.x, a.y - b.y) >= 1.05;
+          }
+          if (clear || off + 0.5 > GONE_OFF + 1.5) {
+            keys.set(deep, path);
+            free.set(deep, tp);
+            break;
+          }
         }
       }
     }
