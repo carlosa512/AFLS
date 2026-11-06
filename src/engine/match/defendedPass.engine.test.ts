@@ -46,8 +46,9 @@ describe('picks and breakups in a game', () => {
     const batted = taps.filter((t) => t.outcome === 'breakup' && t.batted);
     expect(batted.length).toBeGreaterThan(0);
     expect(plays.filter((e) => /, batted down at the line by /.test(e.text)).length).toBe(batted.length);
+    // A play a flag wiped out keeps the throw as it ran (`ran`), from the same snap.
     for (const e of plays.filter((x) => kindOf(x) === 'int' && /tipped at the line/.test(x.text)))
-      expect(Math.abs((e.air ?? 0) - (e.from ?? 0)), e.text).toBeLessThanOrEqual(1.01);
+      expect(Math.abs((e.ran?.air ?? e.air ?? 0) - (e.from ?? 0)), e.text).toBeLessThanOrEqual(1.01);
   });
 
   it('never runs back a pick made in the end zone: a touchback', () => {

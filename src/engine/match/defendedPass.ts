@@ -28,32 +28,38 @@ export function groupOf(p: Player): PassGroup {
 
 const ORDER: readonly PassGroup[] = ['CB', 'S', 'LB', 'DL'];
 
-/** Who intercepts it, by depth (n 124, 637, 651, 643): behind the line the line tips it and the linebackers jump the
- * screen; deep the safeties are over the top. */
+/**
+ * Who intercepts it past the cover man, by depth: what's left of the NFL's split (n 124, 637, 651, 643: behind the line
+ * CB 0.121, S 0.081, LB 0.379, the line 0.419; 0–9 0.400, 0.262, 0.309, 0.028; 10–19 0.438, 0.392, 0.164, 0.006; 20+ 0.431,
+ * 0.535, 0.034, 0) once the cover man has his share (`COVER_PICKS`, of whom the engine's are mostly corners: 0.44, 0.59,
+ * 0.75, 0.87 of them by depth). Behind the line the line tips it and the linebackers jump the screen; deep the safeties
+ * are over the top.
+ */
 const PICK_GROUPS: Record<Band, Record<PassGroup, number>> = {
-  behind: { CB: 0.121, S: 0.081, LB: 0.379, DL: 0.419 },
-  short: { CB: 0.4, S: 0.262, LB: 0.309, DL: 0.028 },
-  mid: { CB: 0.438, S: 0.392, LB: 0.164, DL: 0.006 },
-  deep: { CB: 0.431, S: 0.535, LB: 0.034, DL: 0 },
+  behind: { CB: 0.015, S: 0.075, LB: 0.349, DL: 0.559 },
+  short: { CB: 0.21, S: 0.414, LB: 0.318, DL: 0.056 },
+  mid: { CB: 0.183, S: 0.631, LB: 0.175, DL: 0.011 },
+  deep: { CB: 0.138, S: 0.852, LB: 0.01, DL: 0 },
 };
-/** The cover man's own share of the picks on his man, by depth (fitted so the groups land on `PICK_GROUPS`). */
-export const COVER_PICKS: Record<Band, number> = { behind: 0.5, short: 0.6, mid: 0.6, deep: 0.5 };
+/** The cover man's own share of the picks on his man, by depth (fitted with `PICK_GROUPS` on the NFL's split). */
+export const COVER_PICKS: Record<Band, number> = { behind: 0.25, short: 0.5, mid: 0.45, deep: 0.4 };
 
 /** Incompletions with a breakup credited, by depth, throwaways left out as this branch never sees one (FTN charting
  * 2022–25, n 2,149, 8,410, 5,505, 4,569: 0.355 of all, against 0.308 with throwaways counted). */
 const BREAKUPS: Record<Band, number> = { behind: 0.456, short: 0.369, mid: 0.349, deep: 0.288 };
-/** Who's credited with them (n 9,103): the line's share is a ball batted down at the line. */
-const BREAK_GROUPS: Record<PassGroup, number> = { CB: 0.467, S: 0.194, LB: 0.193, DL: 0.146 };
-/** The cover man's own share of the breakups on his man, by depth (fitted so the groups land on `BREAK_GROUPS`). */
-export const COVER_BREAKS: Record<Band, number> = { behind: 0.55, short: 0.55, mid: 0.55, deep: 0.55 };
+/** Who's credited with them past the cover man: what's left of the NFL's (n 9,103: CB 0.467, S 0.194, LB 0.193, the line
+ * 0.146, a ball batted down at the line) once he has his share (the engine's cover men: CB 0.59, S 0.10, LB 0.30). */
+const BREAK_GROUPS: Record<PassGroup, number> = { CB: 0.344, S: 0.288, LB: 0.086, DL: 0.292 };
+/** The cover man's own share of the breakups on his man (fitted with `BREAK_GROUPS` on the NFL's split). */
+export const COVER_BREAKS: Record<Band, number> = { behind: 0.5, short: 0.5, mid: 0.5, deep: 0.5 };
 
 /** The pick's return by depth (`returnBands.ts`): a jumped short route has nobody in front of it (pick-sixes 26.6%,
  * 18.4%), a deep pick is caught near his own goal (4.3%, 0.5%); the breakaway shares are fitted to those. */
 const PICK_RETURNS: Record<Band, Bands> = {
-  behind: { none: 0.22, short: 0.4, mid: 0.13, go: 0.6, tail: 4 },
-  short: { none: 0.34, short: 0.22, mid: 0.13, go: 0.6, tail: 4 },
-  mid: { none: 0.34, short: 0.24, mid: 0.16, go: 0.6, tail: 4 },
-  deep: { none: 0.52, short: 0.13, mid: 0.14, go: 0.6, tail: 4 },
+  behind: { none: 0.22, short: 0.4, mid: 0.13, go: 0.95, tail: 4 },
+  short: { none: 0.34, short: 0.22, mid: 0.13, go: 0.48, tail: 4 },
+  mid: { none: 0.34, short: 0.24, mid: 0.16, go: 0.165, tail: 4 },
+  deep: { none: 0.52, short: 0.13, mid: 0.14, go: 0.024, tail: 4 },
 };
 
 /** A pick credits its catcher with a pass defensed too (84% in the NFL's books). */
