@@ -1,6 +1,6 @@
 # Fumble recoveries and the strip-sack
 
-**Status:** designed (2026-11-06), not built. Follows 0.4.6 (#154, fumbles on contact). MVP follow-ups: "Medium: fumble
+**Status:** built (0.4.7). Follows 0.4.6 (#154, fumbles on contact). MVP follow-ups: "Medium: fumble
 recoveries (L2903)" and the strip part of "Medium: a sack's yards and strip (L3815)"; also the "lost per 100" line 0.4.6
 left to this item.
 

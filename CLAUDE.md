@@ -65,10 +65,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   in under a minute). Run it after changing `match/pocketChoice.ts` or the dropback in `match/gameSim.ts`; `npm run
   sim` judges the buckets and grounding. Nothing may be ✗.
 - `npm run fumbles [-- games]` — contact fumbles on runs, catches and scrambles tackled in bounds, by what's known before
-  the snap (the down and distance, trailing or leading late), the share a defender forced and how far backs differ,
-  against nflverse 2021–25 (`scripts/research-fumbles.py`); AI games, fast (3,000 in under a minute). Run it after
-  changing `match/fumbleOdds.ts` or the fumble rolls in `match/gameSim.ts`; `npm run sim` judges the buckets. Nothing
-  may be ✗.
+  the snap (the down and distance, trailing or leading late), the share a defender forced and how far backs differ;
+  strip-sacks by situation and the rusher's spot; who gets a loose ball (lost per 100, forced and own), who on the
+  defense, and returns by group; against nflverse 2021–25 (`scripts/research-fumbles.py`); AI games, fast (3,000 in
+  under a minute). Run it after changing `match/fumbleOdds.ts`, `match/looseBall.ts` or the fumble rolls in
+  `match/gameSim.ts`; `npm run sim` judges the buckets. Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -361,7 +362,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`): odds from the hit (the tackler's tackling, size
     and habits), the carrier (ball security, fatigue, habits), the fight for yards (the down, trailing late) and a
     defense going for the ball, then whether a defender forced it and why (strip, hit, fight, his own); the reason is
-    in the play's text and the film shows it (`field/fumble.ts`)
+    in the play's text and the film shows it (`field/fumble.ts`); the strip-sack's odds beside it (`sackStripOdds`: the
+    rusher's spot and hit, the quarterback, the down) · `match/looseBall.ts` the loose ball (spec
+    `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`): who gets it (the play, forced or his own), who on
+    the defense is credited (the forcer, else a group by the play) and his return by his group; draws nothing
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

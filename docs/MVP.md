@@ -213,9 +213,17 @@ catch or run is the item above.
       tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
 - [ ] **Medium-High: after an interception** (L3408–3415). The odds of a pick are rich; who catches it (65% the cover man)
       and the return (normal 9 ± 10, a 6% long one) are flat. Calibrate: return yards by air yards, pick-six rate.
-- [ ] **Medium: fumble recoveries** (L2903): 52% the defense's, whoever is near the ball. In your games the field knows.
-- [ ] **Medium: a sack's yards and strip** (L3815): yards normal 6.5 ± 2.5 whatever the drop or the rusher; the strip
-      reads one habit, not ball security or a hit from behind.
+- [x] **Medium: fumble recoveries (0.4.7).** Who gets a loose ball reads how it came out (`match/looseBall.ts`): a ball
+      a defender punched out goes the defense's way about 55–60% of the time, one the carrier lost himself about a
+      quarter (NFL 0.60 and 0.25 on runs). The man credited is the one who forced it about one time in eight, else the
+      group the play puts near the ball (a catch's among the DBs, a strip-sack's among the linemen), and his return is
+      his group's: a safety picks it up and runs, a tackle falls on it, and most long returns go the distance. Fitted
+      to nflverse 2021–25 (`npm run fumbles`, also judged in `npm run sim`): lost per 100 runs 0.61 (NFL 0.65),
+      catches 0.60 (0.67), fumbles lost 0.41 a game. Spec: `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`.
+- [ ] **Medium: a sack's yards and strip** (L3815) · **Partial (0.4.7):** the strip reads the rusher's spot (off the
+      edge 14% of sacks, up the middle 8%, NFL 2021–25), his hit, the quarterback's ball security and the down
+      (`sackStripOdds`), 12.4 a hundred like the NFL's; a sack's yards are still normal 6.5 ± 2.5 whatever the drop or
+      the rusher.
 - [ ] **Medium: a scramble's slide** (L3945): a flat 40% of scrambles that stay in bounds (out of bounds is the
       sideline call since 0.4.4). The NFL's play text doesn't record slides.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
