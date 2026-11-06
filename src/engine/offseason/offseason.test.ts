@@ -466,6 +466,9 @@ describe('the re-sign call', () => {
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);
+    // The window without a GM's habits (they have their own tests): this pins what every GM shares. Taken again with
+    // GM habits (0.4.5), whose new archetypes reshuffle who runs each club.
+    for (const g of Object.values(league.gms)) delete g.habits;
     const rng = new Rng('resign-pin');
     const out: Record<string, { kept: number[]; tagged: number[] }> = {};
     for (const t of league.teams) {

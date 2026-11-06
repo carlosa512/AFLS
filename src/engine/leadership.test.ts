@@ -739,7 +739,9 @@ describe('the offseason carousel digest', () => {
     event(l, 1, a, 'gmHired');
     event(l, 2, b, 'gmDismissed');
     l.gms[l.teams[a].gmId!].appointments.at(-1)!.interim = true;
-    expect(leadershipMail(l, new Set())[0].carousel!.find((r) => r.group === 'hired')!.line).toBe('interim GM');
+    expect(leadershipMail(l, new Set())[0].carousel!.find((r) => r.group === 'hired')!.line).toMatch(
+      /^interim GM(,|$)/, // the GM's reputation rides after the label
+    );
   });
   it('keeps a lone event as its own story, and steps apart', () => {
     const l = world();

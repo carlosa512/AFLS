@@ -62,6 +62,7 @@ describe('futures deals', () => {
   });
 
   it('your marks survive a reload and become minimum deals for next season; the rest become free agents', () => {
+    l.teams[0].autoSquad = false; // you run the squad: no staff picks to count against the ten
     const [keep, also, drop] = practiceSquad(l, 0);
     setFuturesKeep(l, 0, keep.id, true);
     setFuturesKeep(l, 0, also.id, true);
@@ -83,6 +84,7 @@ describe('futures deals', () => {
   });
 
   it('a kept player who has left the squad gets nothing', () => {
+    l.teams[0].autoSquad = false; // you run the squad: no staff picks to count against the ten
     const [keep] = practiceSquad(l, 0);
     setFuturesKeep(l, 0, keep.id, true);
     keep.squad = undefined;

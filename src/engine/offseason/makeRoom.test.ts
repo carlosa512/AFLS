@@ -319,7 +319,10 @@ describe('a GM makes the room he plans, or none', () => {
 
   it('cuts nobody when the cut can’t close the gap', () => {
     // No room to borrow next year: a cut alone would have to cover his whole price, and a lesser veteran's doesn't.
-    const { l, team } = alone(-1);
+    const { l, team, market } = alone(-1);
+    // The gap is wider than any one cut can close (which man the fixture's club could cut depends on the world a season
+    // of play leaves): this year's books carry three more of his prices.
+    team.deadMoney.push({ season: l.season, amount: Math.round(3 * market), playerId: -1, note: 'test' });
     const before = cutBy(l, team.id);
     aiResignWindow(l, team, new Rng('room'));
     expect(cutBy(l, team.id)).toBe(before);
