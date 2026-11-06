@@ -49,6 +49,8 @@ describe('the loose ball', () => {
     expect(deep).toBeGreaterThanOrEqual(20);
     expect(deep).toBeLessThan(100);
     for (const g of ['DB', 'LB', 'DL'] as const) expect(returnYards(g, 50, 0.01)).toBe(0);
+    // A strip-sack in his own end zone: the ball is already on the goal line, any recovery there is the touchdown.
+    for (const g of ['DB', 'LB', 'DL'] as const) for (let u = 0; u < 1; u += 0.1) expect(returnYards(g, 0, u)).toBe(0);
   });
 
   it('runs a lineman back no further than a DB on the same draw', () => {
