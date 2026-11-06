@@ -1434,7 +1434,14 @@ class GameSim {
     if (result.turnover) {
       const { spot, returnYds } = result.turnover;
       const isInt = result.turnover.kind === 'int';
-      const end = isInt && spot >= 100 ? Math.min(spot, 108) : Math.max(-4, spot - returnYds);
+      // A return that scores ends in the end zone (a return stops at the goal line it reaches: drawn there, it would
+      // read as tackled on it).
+      const end =
+        isInt && spot >= 100
+          ? Math.min(spot, 108)
+          : returnYds >= spot
+            ? Math.max(-4, Math.min(-2, spot - returnYds))
+            : spot - returnYds;
       const anim = this.animOf(
         side,
         isInt ? 'int' : result.kind,
