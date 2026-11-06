@@ -27,8 +27,8 @@ function typical(over: Over = {}): SackFacts {
 const odds = (o: Over = {}) => sackStripOdds(typical(o));
 
 describe('a strip-sack', () => {
-  it('sits on the NFL’s early-down edge rate for a typical sack, and an interior rusher strips less', () => {
-    expect(odds()).toBeCloseTo(0.138, 3);
+  it('sits on its base for a typical sack, and an interior rusher strips less', () => {
+    expect(odds()).toBeCloseTo(0.172, 3);
     expect(odds({ rusher: { spot: 'interior' } })).toBeLessThan(odds());
   });
 

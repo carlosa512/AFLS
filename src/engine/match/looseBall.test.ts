@@ -35,6 +35,12 @@ describe('the loose ball', () => {
     for (let u = 0; u < 1; u += 0.01) expect(pickRecoverer('run', null, field(), 0, u)).toBeDefined();
   });
 
+  it('gives the forcer his share once: past it he is not picked again from his group', () => {
+    const f = field();
+    const forcer = f.DB[0];
+    for (let u = 0; u < 1; u += 0.005) expect(pickRecoverer('catch', forcer, f, 0.99, u)).not.toBe(forcer);
+  });
+
   it('passes a group with nobody on the field to the next', () => {
     const noLb = field({ LB: [] });
     for (let u = 0; u < 1; u += 0.01) {
@@ -45,9 +51,11 @@ describe('the loose ball', () => {
 
   it('runs a return back no further than the goal line: reaching it is the touchdown', () => {
     expect(returnYards('DB', 5, 0.999)).toBe(5);
-    const deep = returnYards('DB', 100, 1 - 0.12 / 2);
+    // The far end of the 20+ band: a long return that doesn't go the distance; its near end goes all the way.
+    const deep = returnYards('DB', 100, 0.995);
     expect(deep).toBeGreaterThanOrEqual(20);
     expect(deep).toBeLessThan(100);
+    expect(returnYards('DB', 100, 0.9)).toBe(100);
     for (const g of ['DB', 'LB', 'DL'] as const) expect(returnYards(g, 50, 0.01)).toBe(0);
     // A strip-sack in his own end zone: the ball is already on the goal line, any recovery there is the touchdown.
     for (const g of ['DB', 'LB', 'DL'] as const) for (let u = 0; u < 1; u += 0.1) expect(returnYards(g, 0, u)).toBe(0);

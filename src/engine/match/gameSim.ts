@@ -191,6 +191,8 @@ export interface Recovery {
   lost: boolean;
   group?: Group;
   returnYds: number;
+  /** How far the defense had to run it to score, from where it changed hands. */
+  toGoal: number;
   td: boolean;
   forcerRecovered: boolean;
 }
@@ -3999,7 +4001,7 @@ class GameSim {
     spot: number,
   ): { lost: Lost | null; recovery: Recovery } {
     if (!this.rng.chance(defenseRecovers(kind, forced)))
-      return { lost: null, recovery: { lost: false, returnYds: 0, td: false, forcerRecovered: false } };
+      return { lost: null, recovery: { lost: false, returnYds: 0, toGoal: spot, td: false, forcerRecovered: false } };
     const onField: Record<Group, Player[]> = { DB: [...def.cb, ...def.s], LB: def.lb, DL: [...def.edge, ...def.dt] };
     const recoverer = pickRecoverer(kind, forced ? forcer : null, onField, this.rng.next(), this.rng.next());
     const group: Group =
@@ -4008,7 +4010,7 @@ class GameSim {
     const td = returnYds >= spot;
     return {
       lost: { recoverer, returnYds },
-      recovery: { lost: true, group, returnYds, td, forcerRecovered: recoverer === forcer && forced },
+      recovery: { lost: true, group, returnYds, toGoal: spot, td, forcerRecovered: recoverer === forcer && forced },
     };
   }
 

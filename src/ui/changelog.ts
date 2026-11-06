@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.7',
+    date: '2026-11-06',
+    title: 'Who falls on it',
+    text:
+      'A loose ball now goes where football sends it. One punched out by a defender usually ends up with the defense; ' +
+      'one the carrier simply drops mostly stays with his team. A catch that comes loose downfield is usually a ' +
+      'defensive back’s, a strip-sack’s is usually a lineman’s, and what happens next depends on who has it: a safety ' +
+      'picks it up and runs, a tackle falls on it, and a long return usually goes all the way. Strip-sacks come more ' +
+      'off the edge than up the middle, less on third down when the quarterback braces for the hit, and more when he ' +
+      'is holding on trailing late. The numbers match the NFL’s.',
+  },
+  {
     version: '0.4.6',
     date: '2026-11-06',
     title: 'Fumbles come from the hit',

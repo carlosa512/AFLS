@@ -43,6 +43,7 @@ export function recovererGroup(kind: LooseKind): Record<Group, number> {
 }
 
 const ORDER: readonly Group[] = ['DB', 'LB', 'DL'];
+const without = (men: Player[], p: Player) => (men.includes(p) ? men.filter((m) => m !== p) : men);
 
 /**
  * Who on the defense is credited: the man who forced it first (`u1`), else a group by `u2` over the play's split among
@@ -56,6 +57,9 @@ export function pickRecoverer(
   u2: number,
 ): Player {
   if (forcer && u1 < FORCER_RECOVERS[kind]) return forcer;
+  // Past his own share he's one of the rest no more: his share is all of his.
+  if (forcer)
+    onField = { DB: without(onField.DB, forcer), LB: without(onField.LB, forcer), DL: without(onField.DL, forcer) };
   const groups = ORDER.filter((g) => onField[g].length > 0);
   const total = groups.reduce((a, g) => a + GROUPS[kind][g], 0);
   let at = u2 * total;
@@ -71,12 +75,13 @@ export function pickRecoverer(
   return forcer!;
 }
 
-/** Returns by group: shares of none (zero or less), 1–9, 10–19 and 20+ yards, and the mean of a 20+ return past 20
- * (DB n 420: mean 6.7, touchdowns 8.1%; LB n 200: 4.2, 6.0%; D-line n 573: 2.7, 6.3%). */
-const RETURNS: Record<Group, { none: number; short: number; mid: number; tail: number }> = {
-  DB: { none: 0.64, short: 0.17, mid: 0.08, tail: 19 },
-  LB: { none: 0.69, short: 0.16, mid: 0.1, tail: 12.5 },
-  DL: { none: 0.8, short: 0.12, mid: 0.03, tail: 13 },
+/** Returns by group: shares of none (zero or less), 1–9, 10–19 and 20+ yards; of the 20+, the share that goes the
+ * distance (a fumble run back has nobody in front of it: most of the NFL's long ones score), and the mean of the rest
+ * past 20 (DB n 420: mean 6.7, 20+ 12%, touchdowns 8.1%; LB n 200: 4.2, 6%, 6.0%; D-line n 573: 2.7, 5%, 6.3%). */
+const RETURNS: Record<Group, { none: number; short: number; mid: number; go: number; tail: number }> = {
+  DB: { none: 0.64, short: 0.17, mid: 0.08, go: 0.64, tail: 4 },
+  LB: { none: 0.69, short: 0.16, mid: 0.1, go: 0.72, tail: 4 },
+  DL: { none: 0.8, short: 0.12, mid: 0.03, go: 0.64, tail: 4 },
 };
 
 /** How far he runs it back on draw `u`, never past the goal line `toGoal` yards away: reaching it is the touchdown. */
@@ -88,7 +93,7 @@ export function returnYards(group: Group, toGoal: number, u: number): number {
   else if (u < r.none + r.short + r.mid) y = 10 + Math.floor(((u - r.none - r.short) / r.mid) * 10);
   else {
     const f = (u - r.none - r.short - r.mid) / (1 - r.none - r.short - r.mid);
-    y = Math.round(20 - r.tail * Math.log(Math.max(1e-9, 1 - f)));
+    y = f < r.go ? toGoal : Math.round(20 - r.tail * Math.log(Math.max(1e-9, 1 - (f - r.go) / (1 - r.go))));
   }
   return Math.min(y, Math.max(0, toGoal));
 }

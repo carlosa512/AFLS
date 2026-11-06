@@ -157,18 +157,19 @@ export interface SackFacts {
   size: number;
 }
 
-/** A typical sack on 1st and 2nd down by an edge rusher: 13.8 a hundred (NFL early downs, n 3,718). */
-const STRIP_BASE = 0.138;
+/** A typical sack on 1st and 2nd down by an edge rusher, fitted on weeks 1 and 10 of played seasons (as `npm run sim`
+ * reads them) so the league's land on the NFL's: all 12.4 a hundred, early downs 13.8 (n 3,718). */
+const STRIP_BASE = 0.172;
 /** Up the middle: a tackle collapses the pocket face on, he doesn't reach the arm (8.0 against 14.0). */
-const STRIP_INTERIOR = Math.log(8.0 / 14.0);
+const STRIP_INTERIOR = -0.55;
 /** Per point of ball security against a typical quarterback's. */
 const QB_SECURITY = -0.08;
 /** He pats the ball before he throws (the old flat 18% against 10%). */
 const PATS = Math.log(1.8);
 /** 3rd down he's braced for the hit and gets rid of it (10.2 against 13.8); trailing late he holds on for the big play
  * (15.9). 4th down (n 193) and leading late (n 121) are too few to set a lean. */
-const STRIP_THIRD = Math.log(10.2 / 13.8);
-const STRIP_TRAILING = Math.log(15.9 / 13.8);
+const STRIP_THIRD = -0.24;
+const STRIP_TRAILING = 0.27;
 /** Forced: 747 of 810 NFL sack fumbles. */
 const SACK_FORCED = 0.92;
 
