@@ -2773,7 +2773,7 @@ function gmNotesFor(
   const notes = events
     .filter((x) => (x.kind === 'gmHired' || x.kind === 'gmDismissed') && x.gmId !== undefined && league.gms[x.gmId])
     .slice(0, limit)
-    .map((x) => ({ gmId: x.gmId!, line: reputation(league, league.gms[x.gmId!], 'fragment') }));
+    .map((x) => ({ gmId: x.gmId!, line: reputation(league, league.gms[x.gmId!]) }));
   return notes.length ? { gmNotes: notes } : {};
 }
 

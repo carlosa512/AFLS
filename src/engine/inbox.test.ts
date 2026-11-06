@@ -44,7 +44,9 @@ import {
   snnRan,
   tradeAngle,
   tradeRecordFor,
+  leadershipMail,
 } from './inbox';
+import { reputation } from './gmVoice';
 import { emptyMarket } from './trade/execute';
 import { tradeIdentity } from './tradeNews';
 import { isMedicExpiring, teamMedics } from './medical';
@@ -1689,5 +1691,38 @@ describe("the young players' review", () => {
     shift(rookie, 3);
     deliverMail(league);
     expect(mailSubject(review()[0])).toEqual({ kind: 'ceilingReview', season: league.season });
+  });
+});
+
+describe('GM notes on the front-office mail', () => {
+  const hire = (l: ReturnType<typeof createLeague>, n: number, id: number, phase: 'resign' | 'regular') => {
+    const others = l.teams.filter((t) => t.id !== l.userTeamId && t.gmId !== null);
+    l.leadership.events = others.slice(0, n).map((t, i) => ({
+      id: id + i,
+      date: { season: l.season, phase, week: phase === 'regular' ? 5 : 0 },
+      teamId: t.id,
+      kind: 'gmHired' as const,
+      gmId: t.gmId!,
+      report: `Hired ${i}.`,
+    }));
+    return others.slice(0, n).map((t) => l.gms[t.gmId!]);
+  };
+  it('notes the first three of four hired GMs in the step digest, in sentences', () => {
+    const l = createLeague({ seed: 'gm-notes-digest' });
+    const gms = hire(l, 4, 1, 'resign');
+    const [m] = leadershipMail(l, new Set());
+    expect(m.carousel).toHaveLength(4);
+    expect(m.gmNotes!.map((n) => n.gmId)).toEqual(gms.slice(0, 3).map((g) => g.id));
+    for (const [i, n] of m.gmNotes!.entries()) {
+      expect(n.line).toBe(reputation(l, gms[i]));
+      expect(n.line).toMatch(/^(He|She|They)('s| is)|^Hard to pin down\.$/);
+    }
+    expect(m.carousel![0].line).toContain(`new GM, ${reputation(l, gms[0], 'fragment')}`);
+  });
+  it('gives a lone hire story one note', () => {
+    const l = createLeague({ seed: 'gm-notes-lone' });
+    const [gm] = hire(l, 1, 1, 'regular');
+    const [m] = leadershipMail(l, new Set());
+    expect(m.gmNotes).toEqual([{ gmId: gm.id, line: reputation(l, gm) }]);
   });
 });
