@@ -544,12 +544,6 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const { call, ahead } = resignCall(league, team.id, p, depth, wn);
     if (call === 'walk') continue;
     const mine = depth[p.position];
-    // Tags first (GM habit): the tag comes before the offer for a player the call would tag.
-    if (call === 'tag' && habitOn(league, team, 'tagsFirst') && tryTag(league, team, p, depth, ahead, budget)) {
-      mine.push(ahead);
-      mine.sort((a, b) => b - a);
-      continue;
-    }
     const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     const d = demand(league, p, team.id);
@@ -562,6 +556,13 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     }
     // Some players want to see what the market will pay, however loyal the club.
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty)) && !promised;
+    // Tags first (GM habit): the tag comes before the signing for a player the call would tag. The offer is priced and
+    // every draw made first, so the window draws what it would have; nothing is signed by pricing.
+    if (call === 'tag' && habitOn(league, team, 'tagsFirst') && tryTag(league, team, p, depth, ahead, offer, budget)) {
+      mine.push(ahead);
+      mine.sort((a, b) => b - a);
+      continue;
+    }
     // The new deal's year-one cap hit: 0.85x its APY ran about a tenth under a market deal's (all of a one-year one's).
     const cost = offerCharge(league, p, team.id, offer);
     const wanted = !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
@@ -579,7 +580,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     // Never a tag past his own price for the player (`offer`): the tag pays a top-of-the-position wage, so only a player
     // the club values near that is worth it (a thin room counts any back as a starter, and once tagged 7-rated backs at
     // a starter's price). The league allows one tag a year.
-    if (tagValue(league, p) <= offer.apy) tryTag(league, team, p, depth, ahead, budget);
+    tryTag(league, team, p, depth, ahead, offer, budget);
   }
   // Early extensions (GM habit): up to two starters with two years left, signed before their last year comes.
   if (habitOn(league, team, 'extendEarly')) {
@@ -617,9 +618,14 @@ export function tryTag(
   p: Player,
   depth: Record<Position, number[]>,
   ahead: number,
+  offer: Offer,
   budget: () => number,
 ): boolean {
   if (team.taggedId || tagBlocker(league, p)) return false;
+  // Never a tag past his own price for the player (`offer`): the tag pays a top-of-the-position wage, so only a player
+  // the club values near that is worth it (a thin room counts any back as a starter, and once tagged 7-rated backs at
+  // a starter's price).
+  if (tagValue(league, p) > offer.apy) return false;
   // The tag's charge, less the old deal's (its void years' bonus money accelerates), as `tagBlocker` reads it.
   const value =
     tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));

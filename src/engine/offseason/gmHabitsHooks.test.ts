@@ -243,6 +243,26 @@ describe('Tags First', () => {
     if (off.t.taggedId === off.p.id) expect(off.p.contract!.kind).toBe('tag');
     else expect(off.p.contract!.kind).not.toBe('tag');
   });
+  it('does not tag a player whose tag costs more than his own offer', () => {
+    const { l, t, p } = tagScene();
+    // A cheap back: the club's price for him falls far below the tag.
+    for (const k of Object.keys(p.ratings) as (keyof typeof p.ratings)[]) p.ratings[k] = 6;
+    habitsForce.all = 'tagsFirst';
+    aiResignWindow(l, t, new Rng('w'));
+    expect(t.taggedId).not.toBe(p.id);
+  });
+  it('draws the same from the shared rng with the habit on or off when the tag is refused', () => {
+    const after = (force: 'on' | 'off') => {
+      const { l, t, p } = tagScene();
+      for (const k of Object.keys(p.ratings) as (keyof typeof p.ratings)[]) p.ratings[k] = 6;
+      habitsForce.all = force === 'on' ? 'tagsFirst' : null;
+      habitsForce.off = force === 'off';
+      const rng = new Rng('shared');
+      aiResignWindow(l, t, rng);
+      return rng.next();
+    };
+    expect(after('on')).toBe(after('off'));
+  });
   it('logs every AI tag, not yours', () => {
     const { l, t, p } = tagScene();
     applyFranchiseTag(l, p);
