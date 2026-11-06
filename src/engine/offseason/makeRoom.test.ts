@@ -133,12 +133,25 @@ describe('GMs make room to keep their core', () => {
     // The club's biggest restructure, washed up (a 34-year-old past his position's clock, rated like a backup): where
     // he's headed he no longer starts, so the money pushed forward would land as dead money when he goes. The GM leaves
     // his deal alone. (An old starter with nobody behind him still starts, and stays in its plans.)
+    // The biggest whose spot has someone behind him (which one that is depends on the world a season leaves).
     const { l, team } = squeezed(0, 1);
+    const washUp = (x: Player) => {
+      x.age = ageShift(x.position) + 34;
+      for (const k of Object.keys(x.ratings) as (keyof typeof x.ratings)[]) x.ratings[k] = 4;
+    };
     const biggest = teamPlayers(l, team.id)
       .filter((x) => x.contract && !isExpired(x.contract, l.season))
-      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)[0];
-    biggest.age = ageShift(biggest.position) + 34;
-    for (const k of Object.keys(biggest.ratings) as (keyof typeof biggest.ratings)[]) biggest.ratings[k] = 4;
+      .sort((a, b) => restructureOptions(l, b).savings - restructureOptions(l, a).savings)
+      .slice(0, 6)
+      .find((x) => {
+        const was = { age: x.age, ratings: { ...x.ratings } };
+        washUp(x);
+        if (!inPlans(l, team, x)) return true;
+        x.age = was.age;
+        x.ratings = was.ratings;
+        return false;
+      })!;
+    expect(biggest).toBeDefined();
     expect(inPlans(l, team, biggest)).toBe(false);
     const before = biggest.contract!.bonuses.length;
     aiResignWindow(l, team, new Rng('room'));
@@ -172,8 +185,11 @@ describe('the bill comes later, within next year’s books', () => {
       playerId: -1,
       note: 'test',
     });
+    const room = ceiling - others - books();
     aiResignWindow(l, team, new Rng('room'));
-    expect(books() + others).toBeLessThanOrEqual(ceiling + 1);
+    // What its restructures add to next year, within the room it had: an extension of a running deal is a new deal,
+    // and books its own next year (which club the fixture picks, and whom it extends, is the world's).
+    expect(borrowed(l, team.id)).toBeLessThanOrEqual(room + 1);
   });
 });
 
