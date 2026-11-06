@@ -31,6 +31,13 @@ vi.mock('./relieve', async (load) => {
   return { ...real, aiRelieve: () => undefined, aiRelieveNow: () => false };
 });
 
+// Team meetings (L2) are called by moods (a room turned Split or Down) and an AI club's commitments from one can move
+// its winter's signings: held. On main it passed by timing (no meeting moved a free agent); 0.4.7's dice put one in.
+vi.mock('./meetings', async (load) => {
+  const real = await load<typeof import('./meetings')>();
+  return { ...real, meetingsStep: () => undefined };
+});
+
 // And what moods do (G4): disputes and the AI keeping its promises move rosters and games, so they're off here too.
 vi.mock('./disputeRead', async (load) => {
   const real = await load<typeof import('./disputeRead')>();
