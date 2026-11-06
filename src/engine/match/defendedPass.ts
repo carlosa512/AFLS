@@ -28,6 +28,16 @@ export function groupOf(p: Player): PassGroup {
 
 const ORDER: readonly PassGroup[] = ['CB', 'S', 'LB', 'DL'];
 
+/** The group a man plays in on this snap: the lineup's list that holds him (a linebacker covering at end is the line). */
+export function groupIn(onField: OnField, p: Player): PassGroup {
+  return ORDER.find((g) => onField[g].includes(p)) ?? groupOf(p);
+}
+
+/** Where a pick changes hands: at the line when it's tipped there (short of the end zone), else where it was thrown. */
+export function pickSpot(yardLine: number, air: number, tipped: boolean): number {
+  return tipped ? Math.min(yardLine + 1, 99) : Math.min(yardLine + air, 100);
+}
+
 /**
  * Who intercepts it past the cover man, by depth: what's left of the NFL's split (n 124, 637, 651, 643: behind the line
  * CB 0.121, S 0.081, LB 0.379, the line 0.419; 0–9 0.400, 0.262, 0.309, 0.028; 10–19 0.438, 0.392, 0.164, 0.006; 20+ 0.431,
@@ -47,11 +57,20 @@ export const COVER_PICKS: Record<Band, number> = { behind: 0.25, short: 0.5, mid
 /** Incompletions with a breakup credited, by depth, throwaways left out as this branch never sees one (FTN charting
  * 2022–25, n 2,149, 8,410, 5,505, 4,569: 0.355 of all, against 0.308 with throwaways counted). */
 const BREAKUPS: Record<Band, number> = { behind: 0.456, short: 0.369, mid: 0.349, deep: 0.288 };
-/** Who's credited with them past the cover man: what's left of the NFL's (n 9,103: CB 0.467, S 0.194, LB 0.193, the line
- * 0.146, a ball batted down at the line) once he has his share (the engine's cover men: CB 0.59, S 0.10, LB 0.30). */
-const BREAK_GROUPS: Record<PassGroup, number> = { CB: 0.344, S: 0.288, LB: 0.086, DL: 0.292 };
-/** The cover man's own share of the breakups on his man (fitted with `BREAK_GROUPS` on the NFL's split). */
-export const COVER_BREAKS: Record<Band, number> = { behind: 0.5, short: 0.5, mid: 0.5, deep: 0.5 };
+/**
+ * Who's credited with them past the cover man, by depth: what's left of the NFL's (n 1,153, 3,941, 2,376, 1,633: behind
+ * the line CB 0.071, S 0.078, LB 0.315, the line 0.536; 0–9 0.443, 0.166, 0.239, 0.153; 10–19 0.566, 0.250, 0.144, 0.040;
+ * 20+ 0.658, 0.260, 0.071, 0.010) once he has his share (`COVER_BREAKS`; fitted on the engine's cover men).
+ * The line's is a ball batted down at the line: a screen's often, a deep shot's hardly ever.
+ */
+const BREAK_GROUPS: Record<Band, Record<PassGroup, number>> = {
+  behind: { CB: 0.006, S: 0.074, LB: 0.288, DL: 0.631 },
+  short: { CB: 0.396, S: 0.222, LB: 0.098, DL: 0.306 },
+  mid: { CB: 0.421, S: 0.433, LB: 0.079, DL: 0.089 },
+  deep: { CB: 0.34, S: 0.56, LB: 0.0725, DL: 0.025 },
+};
+/** The cover man's own share of the breakups on his man, by depth (fitted with `BREAK_GROUPS` on the NFL's split). */
+export const COVER_BREAKS: Record<Band, number> = { behind: 0.15, short: 0.5, mid: 0.55, deep: 0.6 };
 
 /** The pick's return by depth (`returnBands.ts`): a jumped short route has nobody in front of it (pick-sixes 26.6%,
  * 18.4%), a deep pick is caught near his own goal (4.3%, 0.5%); the breakaway shares are fitted to those. */
@@ -145,7 +164,7 @@ export function breakupBy(
   u2: number,
 ): Player {
   if (u1 < COVER_BREAKS[band]) return coverMan;
-  return byGroup(BREAK_GROUPS, coverMan, onField, batter, 'coverage', u2);
+  return byGroup(BREAK_GROUPS[band], coverMan, onField, batter, 'coverage', u2);
 }
 
 /** A rusher's weight to be the one in the throwing lane: tall men bat it, and the man who got the pressure is there. */

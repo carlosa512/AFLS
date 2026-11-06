@@ -30,4 +30,13 @@ describe('the picks check', () => {
     for (let i = 0; i < 2000; i++) tapDefended(t, { ...deepPick('S'), returnYds: i % 10 });
     expect(judgePicks(t).find((l) => l.label === 'picks, deep: mean return')!.info).toBe(true);
   });
+
+  it('judges who breaks it up by the throw’s depth: the line bats a screen, not a bomb', () => {
+    const t = newPickTally();
+    for (let i = 0; i < 4000; i++)
+      tapDefended(t, { band: 'deep', outcome: 'breakup', group: i % 100 < 15 ? 'DL' : 'CB', batted: i % 100 < 15 });
+    const line = judgePicks(t).find((l) => l.label === 'breakups, deep: by the line')!;
+    expect(line).toBeDefined();
+    expect(inRange(line)).toBe(false);
+  });
 });

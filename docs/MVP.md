@@ -235,8 +235,8 @@ catch or run is the item above.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
 - [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
       **Partial (0.4.8):** breakups by depth, throwaways left out (0.45 behind the line to 0.29 deep, NFL FTN 2022–25),
-      credited as the NFL's (CB 0.46, S 0.20, LB 0.20, the line 0.15: a ball batted down at the line, drawn there on
-      film); return touchdowns still small edge-scaled rates.
+      credited as the NFL's by depth (the line, a ball batted down at the line and drawn there on film, 0.54 of a
+      screen's, 0.16 at 0–9, 0.04 at 10–19, 0.01 deep); return touchdowns still small edge-scaled rates.
 
 Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
 Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled

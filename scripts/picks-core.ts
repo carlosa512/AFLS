@@ -40,8 +40,13 @@ const BREAKUP_NFL: Record<Band, [number, number]> = {
   mid: [0.349, 5505],
   deep: [0.288, 4569],
 };
-/** Who's credited with breakups (CB, S, LB, DL; n). */
-const BREAKUP_GROUPS_NFL: [number, number, number, number, number] = [0.467, 0.194, 0.193, 0.146, 9103];
+/** Who's credited with breakups by the throw's depth (CB, S, LB, DL; n): the line's is a ball batted at the line. */
+const BREAKUP_GROUPS_NFL: Record<Band, [number, number, number, number, number]> = {
+  behind: [0.071, 0.078, 0.315, 0.536, 1153],
+  short: [0.443, 0.166, 0.239, 0.153, 3941],
+  mid: [0.566, 0.25, 0.144, 0.04, 2376],
+  deep: [0.658, 0.26, 0.071, 0.01, 1633],
+};
 const PICK_PD_NFL = 0.84;
 
 interface BandTally {
@@ -53,10 +58,10 @@ interface BandTally {
   six: number;
   incompletions: number;
   breakups: number;
+  breakGroups: Record<PassGroup, number>;
 }
 export interface PickTally {
   bands: Record<Band, BandTally>;
-  breakGroups: Record<PassGroup, number>;
   pd: number;
 }
 
@@ -71,8 +76,9 @@ export function newPickTally(): PickTally {
     six: 0,
     incompletions: 0,
     breakups: 0,
+    breakGroups: groups(),
   });
-  return { bands: { behind: band(), short: band(), mid: band(), deep: band() }, breakGroups: groups(), pd: 0 };
+  return { bands: { behind: band(), short: band(), mid: band(), deep: band() }, pd: 0 };
 }
 
 /** One pick or incompletion, as the engine tapped it. */
@@ -92,7 +98,7 @@ export function tapDefended(t: PickTally, tap: DefendedTap): void {
   b.incompletions++;
   if (tap.outcome === 'breakup') {
     b.breakups++;
-    if (tap.group) t.breakGroups[tap.group]++;
+    if (tap.group) b.breakGroups[tap.group]++;
   }
 }
 
@@ -117,20 +123,14 @@ export function judgePicks(t: PickTally): Line[] {
     });
     const [rate, bn] = BREAKUP_NFL[band];
     lines.push(share(`breakups, ${BAND_NAMES[band]}: per incompletion`, b.breakups, b.incompletions, rate, bn, 0.05));
-  }
-  const broken = GROUPS.reduce((a, g) => a + t.breakGroups[g], 0);
-  GROUPS.forEach((g, i) =>
-    lines.push(
-      share(
-        `breakups: by ${GROUP_NAMES[g]}`,
-        t.breakGroups[g],
-        broken,
-        BREAKUP_GROUPS_NFL[i],
-        BREAKUP_GROUPS_NFL[4],
-        0.06,
+    const by = BREAKUP_GROUPS_NFL[band];
+    const broken = GROUPS.reduce((a, g) => a + b.breakGroups[g], 0);
+    GROUPS.forEach((g, i) =>
+      lines.push(
+        share(`breakups, ${BAND_NAMES[band]}: by ${GROUP_NAMES[g]}`, b.breakGroups[g], broken, by[i], by[4], 0.06),
       ),
-    ),
-  );
+    );
+  }
   const picks = BANDS.reduce((a, band) => a + t.bands[band].picks, 0);
   lines.push(share('picks: crediting a pass defensed', t.pd, picks, PICK_PD_NFL, 2055, 0.06));
   return lines;

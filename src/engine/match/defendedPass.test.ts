@@ -13,8 +13,18 @@ vi.mock('../size', async (load) => {
   return { ...real, sizeZ: (p: Player) => ({ h: HEIGHT[p.id] ?? 0, w: 0 }) };
 });
 
-const { batterWeights, breakupBy, breakupRate, depthBand, groupOf, pickBatter, pickCatcher, pickReturn } =
-  await import('./defendedPass');
+const {
+  batterWeights,
+  breakupBy,
+  breakupRate,
+  depthBand,
+  groupIn,
+  groupOf,
+  pickBatter,
+  pickCatcher,
+  pickReturn,
+  pickSpot,
+} = await import('./defendedPass');
 
 const man = (id: number, position: Player['position']) => ({ id, position }) as Player;
 const field = () => ({
@@ -96,5 +106,36 @@ describe('who gets to the ball', () => {
     for (let u = 0; u < 1; u += 0.1) expect(pickReturn('deep', 0, u)).toBe(0);
     // Early in the 20+ band (it starts at 0.69 for a short throw): the breakaway, the distance.
     expect(pickReturn('short', 50, 0.75)).toBe(50);
+  });
+});
+
+describe('the lineup decides the group', () => {
+  it('reads a man by the spot he plays, not his position: a linebacker covering at end bats it as a lineman', () => {
+    const f = field();
+    const lbAtEnd = man(20, 'LB');
+    const dtAtLb = man(21, 'DT');
+    const on = { ...f, LB: [f.LB[0], dtAtLb], DL: [...f.DL.slice(0, 3), lbAtEnd] };
+    expect(groupIn(on, lbAtEnd)).toBe('DL');
+    expect(groupIn(on, dtAtLb)).toBe('LB');
+    expect(groupIn(on, f.CB[1])).toBe('CB');
+  });
+
+  it('turns a tipped pick over at the line, never in the end zone', () => {
+    expect(pickSpot(30, 12, true)).toBe(31);
+    expect(pickSpot(99, 0, true)).toBe(99);
+    expect(pickSpot(30, 12, false)).toBe(42);
+    expect(pickSpot(95, 12, false)).toBe(100);
+  });
+
+  it('bats it down at the line on a short throw far more than a deep one', () => {
+    const f = field();
+    const batter = f.DL[2];
+    const bats = (b: (typeof BANDS)[number]) => {
+      let n = 0;
+      for (let u = 0; u < 1; u += 0.001) if (breakupBy(b, f.CB[0], f, batter, 0.999, u) === batter) n++;
+      return n;
+    };
+    expect(bats('deep') * 5).toBeLessThan(bats('short'));
+    expect(bats('behind')).toBeGreaterThan(bats('short'));
   });
 });

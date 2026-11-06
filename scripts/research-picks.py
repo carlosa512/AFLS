@@ -85,6 +85,13 @@ br['g'] = [group(s, p) for s, p in zip(br.season, br.pass_defense_1_player_id)]
 sh = br.g.value_counts(normalize=True)
 print(f"Who breaks it up: CB {sh.get('CB', 0):.3f}, S {sh.get('S', 0):.3f}, LB {sh.get('LB', 0):.3f}, "
       f"DL {sh.get('DL', 0):.3f} (n {br.g.notna().sum()})")
+print('Who breaks it up, by band: CB, S, LB, DL (n):')
+print('const BREAKUP_GROUPS_NFL = {')
+for b in BANDS:
+    x = br[(br.band == b) & br.g.notna()]
+    s2 = x.g.value_counts(normalize=True)
+    print(f"  {b}: [{s2.get('CB', 0):.3f}, {s2.get('S', 0):.3f}, {s2.get('LB', 0):.3f}, {s2.get('DL', 0):.3f}, {len(x)}],")
+print('};')
 
 # The engine's incompletion branch never sees a throwaway (that's the passer's own choice, `pocketChoice.ts`), so the
 # breakup rate it reads leaves them out: FTN charting marks them, 2022-25.

@@ -48,7 +48,8 @@ By the catcher's group the returns barely differ (means: CB 12.2, S 12.2, LB 13.
 **Breakups:** 30.8% of incompletions credit one, but 12% of incompletions are throwaways, which never reach the
 engine's incompletion branch (the passer's own choice, `pocketChoice.ts`). Throwaways left out (FTN charting 2022–25,
 20,633 incompletions): 0.355; by depth 0.456 behind the line (n 2,149), 0.369 at 0–9 (8,410), 0.349 at 10–19 (5,505),
-0.288 at 20+ (4,569). Who: CB 0.467, S 0.194, LB 0.193, the line 0.146 (batted at the line).
+0.288 at 20+ (4,569). Who: CB 0.467, S 0.194, LB 0.193, the line 0.146 (batted at the line); the line's share by depth 0.536 behind the line,
+0.153 at 0–9, 0.040 at 10–19, 0.010 at 20+ (n 1,153, 3,941, 2,376, 1,633), so who's credited is split by depth too.
 
 ## 2. Who gets to the ball (`match/defendedPass.ts`)
 

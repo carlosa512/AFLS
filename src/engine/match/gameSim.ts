@@ -64,10 +64,11 @@ import {
   breakupBy,
   breakupRate,
   depthBand,
-  groupOf,
+  groupIn,
   pickBatter,
   pickCatcher,
   pickReturn,
+  pickSpot,
   PICK_PD,
   type Band,
   type OnField,
@@ -3615,19 +3616,20 @@ class GameSim {
     if (roll < pInt) {
       const batter = pickBatter(onField.DL, this.pressureBy, rng.next());
       const catcher = pickCatcher(band, defender, onField, batter, rng.next(), rng.next());
-      const tipped = groupOf(catcher) === 'DL';
+      // Tipped at the line: the man in the lane caught it (whatever his position, he's playing on the line).
+      const tipped = catcher === batter;
       buf.add(qb, 'passInt');
       buf.add(catcher, 'defInt');
       const pd = rng.chance(PICK_PD);
       if (pd) buf.add(catcher, 'passDef');
       // Tipped at the line, it changes hands there; a pick in the end zone is a touchback, run back no yard.
-      const spot = tipped ? Math.min(this.yardLine + 1, 100) : Math.min(this.yardLine + air, 100);
+      const spot = pickSpot(this.yardLine, air, tipped);
       const returnYds = spot >= 100 ? 0 : pickReturn(band, spot, rng.next());
       this.options.defendedTap?.({
         band,
         outcome: 'pick',
         by: catcher.id,
-        group: groupOf(catcher),
+        group: groupIn(onField, catcher),
         batted: tipped,
         returnYds,
         pickSix: spot < 100 && returnYds >= spot,
@@ -3648,18 +3650,19 @@ class GameSim {
     if (roll >= pInt + pComplete) {
       let text = `${short(qb)} pass ${depthLabel} to ${short(receiver)} incomplete`;
       let brokenUpBy: Player | undefined;
+      let batted = false;
       if (rng.chance(breakupRate(band))) {
         const batter = pickBatter(onField.DL, this.pressureBy, rng.next());
         brokenUpBy = breakupBy(band, defender, onField, batter, rng.next(), rng.next());
+        batted = brokenUpBy === batter;
         buf.add(brokenUpBy, 'passDef');
       }
-      const batted = !!brokenUpBy && groupOf(brokenUpBy) === 'DL';
       if (brokenUpBy)
         text += batted ? `, batted down at the line by ${short(brokenUpBy)}` : `, broken up by ${short(brokenUpBy)}`;
       this.options.defendedTap?.({
         band,
         outcome: brokenUpBy ? 'breakup' : 'none',
-        ...(brokenUpBy ? { by: brokenUpBy.id, group: groupOf(brokenUpBy) } : {}),
+        ...(brokenUpBy ? { by: brokenUpBy.id, group: groupIn(onField, brokenUpBy) } : {}),
         batted,
       });
       return {
