@@ -20,17 +20,17 @@ group by depth, ball skills or coverage within it); a new module beside `looseBa
 
 ## 1. The NFL (nflverse 2021–25, regular seasons; `scripts/research-picks.py`)
 
-Passes with air yards, no sacks, spikes or two-point tries: 2,055 picks (2.28% of attempts), 29,563 incompletions.
+Passes with air yards, no sacks, spikes or two-point tries; bands as the engine's (`depthBand`: behind is air < 0): 2,055 picks (2.28% of attempts), 29,563 incompletions.
 Groups from the season roster's position and depth-chart spot (CB; S; LB; the line with an OLB on the edge).
 
 **Who intercepts it, by the throw's depth:**
 
 | Throw           | Picks | CB   | S    | LB   | D-line |
 | --------------- | ----- | ---- | ---- | ---- | ------ |
-| Behind the line | 151   | 0.18 | 0.10 | 0.37 | 0.35   |
-| 0–9 yards       | 610   | 0.40 | 0.27 | 0.31 | 0.03   |
+| Behind the line | 124   | 0.12 | 0.08 | 0.38 | 0.42   |
+| 0–9 yards       | 637   | 0.40 | 0.26 | 0.31 | 0.03   |
 | 10–19           | 651   | 0.44 | 0.39 | 0.16 | 0.01   |
-| 20+             | 643   | 0.43 | 0.53 | 0.03 | 0      |
+| 20+             | 643   | 0.43 | 0.54 | 0.03 | 0      |
 
 All picks: CB 0.405, S 0.378, LB 0.182, D-line 0.036. 84% of picks also credit their catcher with a pass defensed.
 
@@ -38,14 +38,14 @@ All picks: CB 0.405, S 0.378, LB 0.182, D-line 0.036. 84% of picks also credit t
 
 | Throw           | Nothing | 1–9  | 10–19 | 20+  | Mean | Pick-six | Yards to his goal (median) |
 | --------------- | ------- | ---- | ----- | ---- | ---- | -------- | -------------------------- |
-| Behind the line | 0.23    | 0.42 | 0.11  | 0.25 | 12.9 | 0.252    | 42                         |
-| 0–9             | 0.34    | 0.21 | 0.13  | 0.32 | 16.5 | 0.184    | 53                         |
+| Behind the line | 0.22    | 0.40 | 0.13  | 0.25 | 12.8 | 0.266    | 42                         |
+| 0–9             | 0.34    | 0.22 | 0.13  | 0.31 | 16.4 | 0.184    | 53                         |
 | 10–19           | 0.34    | 0.24 | 0.16  | 0.26 | 11.7 | 0.043    | 60                         |
 | 20+             | 0.52    | 0.13 | 0.14  | 0.20 | 9.1  | 0.005    | 74                         |
 
 By the catcher's group the returns barely differ (means: CB 12.2, S 12.2, LB 13.5, D-line 10.9): depth drives them.
 
-**Breakups:** 30.8% of incompletions credit one; by depth 0.350 behind the line (n 4,383), 0.314 at 0–9 (11,347), 0.304 at
+**Breakups:** 30.8% of incompletions credit one; by depth 0.357 behind the line (n 3,234), 0.315 at 0–9 (12,496), 0.304 at
 10–19 (7,835), 0.273 at 20+ (5,998). Who: CB 0.467, S 0.194, LB 0.193, the line 0.146 (batted at the line).
 
 ## 2. Who gets to the ball (`match/defendedPass.ts`)
@@ -73,7 +73,7 @@ moves from `looseBall.ts` into `match/returnBands.ts`, `bandReturn(table, toGoal
 table and calls it, fumbles' numbers unchanged.
 
 - **`pickReturn(band, toGoal, u): number`** — §1's bands by depth, each band's breakaway share fitted so pick-sixes land
-  on §1's (0.252, 0.184, 0.043, 0.005), with `toGoal` the defense's yards to the end zone from the spot.
+  on §1's (0.266, 0.184, 0.043, 0.005), with `toGoal` the defense's yards to the end zone from the spot.
 - **A tipped pick at the line** changes hands at the line (spot = the line of scrimmage, not the target's depth).
 - Unchanged: a pick in the end zone is a touchback; a return that scores ends 2–4 yards deep; the turnover's shape.
 

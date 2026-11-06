@@ -58,8 +58,8 @@ both modules share it. `gameSim.ts` calls them in the pick and incompletion bran
   spikes or two-point tries; bands by air yards (<0, 0–9, 10–19, 20+); groups by roster `position`/`depth_chart_position`
   (CB; S/SS/FS/DB; LB/ILB/MLB; DE/DT/NT/OLB/EDGE/DL).
 - [ ] **Step 2: Run** `python3 -I scripts/research-picks.py`.
-  Expected: picks 2,055; 20+ S 0.53; behind DL 0.35; pick-six 0.252/0.184/0.043/0.005; breakups 0.308 overall,
-  0.350/0.314/0.304/0.273 by band; breakup groups CB 0.467, S 0.194, LB 0.193, DL 0.146; pick PD 0.84.
+  Expected: picks 2,055; 20+ S 0.54; behind DL 0.42; pick-six 0.266/0.184/0.043/0.005; breakups 0.308 overall,
+  0.357/0.315/0.304/0.273 by band; breakup groups CB 0.467, S 0.194, LB 0.193, DL 0.146; pick PD 0.84.
 - [ ] **Step 3: Commit** ("Research: who picks it off, who breaks it up, and the pick's return, nflverse 2021–25").
 
 ### Task 2: The shared return bands
@@ -93,7 +93,7 @@ both modules share it. `gameSim.ts` calls them in the pick and incompletion bran
   - `type Band = 'behind' | 'short' | 'mid' | 'deep'`; `depthBand(air: number): Band`.
   - `type PassGroup = 'CB' | 'S' | 'LB' | 'DL'`; `type OnField = Record<PassGroup, Player[]>`.
   - `pickCatcher(band: Band, coverMan: Player, onField: OnField, batter: Player | null, u1: number, u2: number): Player`.
-  - `breakupRate(band: Band): number` (0.350, 0.314, 0.304, 0.273).
+  - `breakupRate(band: Band): number` (0.357, 0.315, 0.304, 0.273).
   - `breakupBy(band: Band, coverMan: Player, onField: OnField, batter: Player | null, u1: number, u2: number): Player`.
   - `batterWeights(front: Player[], pressureBy: Player | null): number[]`; `pickBatter(front, pressureBy, u): Player`.
   - `pickReturn(band: Band, toGoal: number, u: number): number`.
