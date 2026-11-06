@@ -191,7 +191,8 @@ describe("the owner's call H: today's yards, the field's way there", () => {
 
   it('credits no tackle when the field ends a run or a catch with nobody on him, as the film shows', () => {
     let n = 0;
-    for (const { r, taps } of [0, 1, 2, 3].map((i) => spatial(i)))
+    // (Games that have one: it happens about once in four games, so the first four of this league have none.)
+    for (const { r, taps } of [9, 11, 14, 15].map((i) => spatial(i)))
       for (const t of taps) {
         if (!t.result || t.result.tackler !== null || t.result.touchdown) continue;
         if (t.moment.kind !== 'run' && t.moment.kind !== 'catch') continue;
