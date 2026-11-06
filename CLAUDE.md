@@ -70,6 +70,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   defense, and returns by group; against nflverse 2021–25 (`scripts/research-fumbles.py`); AI games, fast (3,000 in
   under a minute). Run it after changing `match/fumbleOdds.ts`, `match/looseBall.ts` or the fumble rolls in
   `match/gameSim.ts`; `npm run sim` judges the buckets. Nothing may be ✗.
+- `npm run picks [-- games]` — after the throw: who intercepts it by the throw's depth, the pick's 20+ returns and
+  pick-sixes by depth, breakups per incompletion by depth (throwaways left out) and who's credited with them (the line's
+  share batted at the line), the share of picks crediting a pass defensed; against nflverse 2021–25 and FTN charting
+  (`scripts/research-picks.py`); AI games, fast (3,000 in under a minute). Run it after changing `match/defendedPass.ts`,
+  `match/returnBands.ts` or the pick and incompletion branches in `match/gameSim.ts`; `npm run sim` judges the buckets.
+  Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -365,7 +371,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     in the play's text and the film shows it (`field/fumble.ts`); the strip-sack's odds beside it (`sackStripOdds`: the
     rusher's spot and hit, the quarterback, the down) · `match/looseBall.ts` the loose ball (spec
     `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`): who gets it (the play, forced or his own), who on
-    the defense is credited (the forcer, else a group by the play) and his return by his group; draws nothing
+    the defense is credited (the forcer, else a group by the play) and his return by his group; draws nothing · `match/defendedPass.ts` after the throw (spec
+    `docs/superpowers/specs/2026-11-06-picks-and-breakups-design.md`): who picks it off (the cover man, else a group by
+    the throw's depth, a man of it by ball skills; a lineman only at the line, tipping it up), breakups by depth and who's
+    credited (the line's share batted down at the line), the pick's return by depth; draws nothing ·
+    `match/returnBands.ts` the yard-band return a pick and a loose ball share (`bandReturn`)
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

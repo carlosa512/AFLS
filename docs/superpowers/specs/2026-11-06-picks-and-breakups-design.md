@@ -1,6 +1,6 @@
 # After the throw: who picks it off, who breaks it up, and the pick's return
 
-**Status:** designed (2026-11-06), not built. Follows 0.4.7 (#155, fumble recoveries). MVP follow-ups: "Medium-High: after
+**Status:** built (0.4.8). Follows 0.4.7 (#155, fumble recoveries). MVP follow-ups: "Medium-High: after
 an interception (L3408–3415)" and the breakup half of "Low: pass breakups credited on a flat 30% of incompletions (L3428)".
 
 ## Why

@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.8',
+    date: '2026-11-06',
+    title: 'After the throw',
+    text:
+      'Who picks off a pass now depends on where it was thrown. Deep, a safety over the top gets more than half of them; ' +
+      'a short route jumped is often a linebacker’s, and with nobody in front of him it goes the other way for six ' +
+      'about one time in six. Behind the line, a tall end can tip it up and catch it himself. Breakups follow the ' +
+      'throw too: more on short passes than deep ones, and some batted down at the line by a lineman, which you see on ' +
+      'the film. The best ball hawks pick off the most, and the numbers match the NFL’s.',
+  },
+  {
     version: '0.4.7',
     date: '2026-11-06',
     title: 'Who falls on it',
