@@ -415,6 +415,7 @@ export function signPlayer(
     own ? 'resign' : 'sign',
     [teamId],
     `${team.abbrev} ${verb} ${player.position} ${player.firstName} ${player.lastName} (${money})`,
+    player.id,
   );
 }
 

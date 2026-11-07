@@ -17,7 +17,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(89);
+    expect(SAVE_VERSION).toBe(90);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -357,8 +357,19 @@ describe('save v89', () => {
     }
     l.version = 88;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(89);
+    expect(up.version).toBe(SAVE_VERSION);
     for (const t of up.teams) if (t.id !== up.userTeamId) expect(Object.keys(up.gms[t.gmId!].habits!)).toHaveLength(1);
     expect(up.gms[up.userGmId].habits).toBeUndefined();
+  });
+});
+
+describe('save v90', () => {
+  it('v89 saves load as v90 with their transactions untouched', () => {
+    const l = createLeague({ seed: 'v90' });
+    const before = JSON.parse(JSON.stringify(l.transactions));
+    l.version = 89;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(90);
+    expect(up.transactions).toEqual(before);
   });
 });

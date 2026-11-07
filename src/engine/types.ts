@@ -1574,6 +1574,8 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
+  /** The player the move is about, for a signing, a re-signing or a tag (v90; older entries have none). */
+  playerId?: number;
   kind:
     | 'sign'
     | 'resign'

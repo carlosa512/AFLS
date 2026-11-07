@@ -7,11 +7,12 @@ import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
-import { teamPlayers } from '../roster';
+import { setTeam, teamPlayers } from '../roster';
 import type { League, Player } from '../types';
 import {
   aiFreeAgencyDay,
   aiResignWindow,
+  applyFranchiseTag,
   expiringPlayers,
   nextYearCeiling,
   nextYearNeeds,
@@ -21,7 +22,7 @@ import {
 } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
 import { advanceOffseason, beginOffseason } from './index';
-import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
+import { demand, OFFSEASON_ROSTER_MAX, signPlayer } from './negotiation';
 
 /** A league at the draft step after one season: free agency's five days are done. */
 const afterFreeAgency = (() => {
@@ -303,5 +304,25 @@ describe('caution is next year’s headroom, not a quota', () => {
       expect(nextYearCeiling({ capAggression } as never, 0)).toBeLessThan(
         nextYearCeiling({ capAggression } as never, 1),
       );
+  });
+});
+
+describe('transactions name their player', () => {
+  it('a re-signing, a signing and a tag log the player id', () => {
+    const l = createLeague({ seed: 'tx-ids' });
+    const [own, tagged] = teamPlayers(l, 0).filter((p) => p.contract);
+    const free = teamPlayers(l, 1).find((p) => p.contract)!;
+    setTeam(l, free, null);
+    free.contract = null;
+    const offer = { years: 2, apy: 2_000, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    signPlayer(l, own, 0, offer);
+    signPlayer(l, free, 3, offer);
+    applyFranchiseTag(l, tagged);
+    const last = l.transactions.slice(-3);
+    expect(last.map((t) => [t.kind, t.playerId])).toEqual([
+      ['resign', own.id],
+      ['sign', free.id],
+      ['tag', tagged.id],
+    ]);
   });
 });

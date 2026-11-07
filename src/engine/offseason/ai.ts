@@ -332,6 +332,7 @@ export function applyFranchiseTag(league: League, player: Player): void {
     'tag',
     [team.id],
     `${team.abbrev} franchise-tagged ${player.position} ${player.firstName} ${player.lastName} ($${(value / 1000).toFixed(1)}M)`,
+    player.id,
   );
   logMove(league, team, 'tagsFirst', { playerId: player.id });
 }

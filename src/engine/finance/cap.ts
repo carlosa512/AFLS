@@ -135,8 +135,16 @@ export function capSheet(
 export const capSpace = (league: League, teamId: number, season = league.season, roster?: readonly Player[]) =>
   capSheet(league, teamId, season, roster).space;
 
-export function logTransaction(league: League, kind: Transaction['kind'], teamIds: number[], text: string): void {
-  league.transactions.push({ season: league.season, phase: league.phase, week: league.week, teamIds, kind, text });
+export function logTransaction(
+  league: League,
+  kind: Transaction['kind'],
+  teamIds: number[],
+  text: string,
+  playerId?: number,
+): void {
+  const t: Transaction = { season: league.season, phase: league.phase, week: league.week, teamIds, kind, text };
+  if (playerId !== undefined) t.playerId = playerId;
+  league.transactions.push(t);
   // Keep saves small: a few seasons of history is plenty.
   if (league.transactions.length > 3000) league.transactions.splice(0, league.transactions.length - 3000);
 }
