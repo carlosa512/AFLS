@@ -156,5 +156,7 @@ for name, r, pid in [('kickoff', kr, 'kickoff_returner_player_id'), ('punt', pr,
           f'over20: {(y >= 20).mean():.4f}, over40: {(y >= 40).mean():.4f}, over60: {(y >= 60).mean():.4f}, '
           f'td: {r.return_touchdown.mean():.4f}, tds: {int(r.return_touchdown.sum())},')
     print(f'    spread: [{g["mean"].std():.2f}, {np.sqrt((y.std() ** 2 / g["count"]).mean()):.2f}, {len(g)}],')
-    print(f'    quantiles: {q} }},')
+    tail = [round(float(y.quantile(0.99 + i / 1000)), 1) for i in range(11)]
+    print(f'    quantiles: {q},')
+    print(f'    tail: {tail} }},')
 print('};')

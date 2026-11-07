@@ -180,7 +180,7 @@ the head coach), the two-point try as a real snap with today's NFL call, and ret
     yards and `highArc` takes about 1.5 on punts (as today).
 - [ ] **Step 2: Run** `npx vitest run src/engine/match/returns.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.** The man warps the draw so the shift lands mostly in the tail:
-      `lean = RETURNER * returner − COVERAGE * coverage`, `u' = 1 − (1 − u) ** Math.exp(−lean)`; yards = the kind's
+      `lean = RETURNER * returner − COVERAGE * coverage`, `u' = 1 − (1 − u) ** Math.exp(lean)`; yards = the kind's
       quantile at `u'` (linear between the 101 points) + `coach` + (punt: `outkicks` 3, `highArc` −1.5), rounded and
       clamped to [0, from]. `RETURNER = 0.06`, `COVERAGE = 0.04` to start (fitted to the NFL's returner spread, Task 10).
 - [ ] **Step 4: Run** the test. Expected: PASS.
