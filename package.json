@@ -46,7 +46,8 @@
     "passer": "tsx scripts/passer.ts",
     "fumbles": "tsx scripts/fumbles.ts",
     "picks": "tsx scripts/picks.ts",
-    "dropback": "tsx scripts/dropback.ts"
+    "dropback": "tsx scripts/dropback.ts",
+    "situations": "tsx scripts/situations.ts"
   },
   "dependencies": {
     "react": "19.3.1",

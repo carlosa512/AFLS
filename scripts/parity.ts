@@ -12,6 +12,7 @@ import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
+import { meanSeconds } from '../src/engine/match/playTime';
 import { outOfBoundsIn } from '../src/engine/match/sideline';
 import { FIELD_W, snapYFor } from '../src/engine/field/ballPath';
 import { asRan, stagePlay } from '../src/engine/field/stage';
@@ -75,6 +76,9 @@ interface FilmDone {
   slideNear: number;
   slides: number;
   pushed: number;
+  /** Runs and catches the field timed: the sum of its seconds less the table's (`playTime.ts`), of how many. */
+  timeOff: number;
+  timed: number;
 }
 interface SeasonDone {
   type: 'season';
@@ -175,12 +179,24 @@ function filmWorker(): FilmDone {
     hit: 0,
     slideNear: 0,
     slides: 0,
+    timeOff: 0,
+    timed: 0,
   };
   for (const seed of ['oob-a', 'oob-b']) {
     const league = createLeague({ seed });
     for (let gi = 0; gi < FILM_GAMES / 2; gi++) {
       const g = league.games[gi];
-      const r = simulateGame(league, g, { keepPlays: true, field: true, seed: `oob-${gi}` });
+      const r = simulateGame(league, g, {
+        keepPlays: true,
+        field: true,
+        seed: `oob-${gi}`,
+        // Your games' runs and catches take the field's time: it should read as the table does (spec §2).
+        situationTap: (t) => {
+          if (t.kind !== 'time' || !t.field || (t.play !== 'run' && t.play !== 'catch')) return;
+          done.timeOff += t.seconds - meanSeconds({ kind: t.play, yards: t.yards, outOfBounds: t.outOfBounds });
+          done.timed++;
+        },
+      });
       r.plays!.forEach((raw, i) => {
         const e = asRan(raw);
         const touchedSlide = e.kind === 'scramble' && !!e.field?.tc;
@@ -346,6 +362,12 @@ async function main() {
     value: film.slideNear / Math.max(1, film.slides),
     range: [0.8, 1],
     note: `${film.slideNear} of ${film.slides}`,
+  });
+  print({
+    label: "the field's play time less the table's (runs and catches, s)",
+    value: film.timeOff / Math.max(1, film.timed),
+    range: [-1, 1],
+    note: `${film.timed} plays`,
   });
   print({
     label: 'pushed out with a defender within 2 yd',
