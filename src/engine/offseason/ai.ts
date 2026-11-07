@@ -167,7 +167,7 @@ export const spendable = (league: League, teamId: number) =>
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
  * run out: where its room is headed, so a signing has to beat that, not just this year's overall.
  */
-function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
+export function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
   const out = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
   const wn = winNow(league, team);
   for (const p of teamPlayers(league, team.id))
@@ -196,7 +196,7 @@ export const winNow = (league: League, team: Team) =>
   clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
 /** 0 when a team is near the cap, 1 when it has a third of the cap or more to spend. Rich teams overpay. */
-const richness = (league: League, team: Team) =>
+export const richness = (league: League, team: Team) =>
   clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
 /** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
@@ -788,7 +788,7 @@ export function youngQbClub(league: League, team: Team): Player | null {
 }
 
 /** The least upgrade (`needGain`) a team bids for at all: a rich one takes a flyer on depth. */
-const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
+export const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
 
 /**
  * The upgrade a free agent at `apy` has to buy: a big contract is an investment, not a swap of
