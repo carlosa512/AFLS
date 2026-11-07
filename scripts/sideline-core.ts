@@ -6,7 +6,13 @@
  */
 import { asRan } from '../src/engine/field/stage';
 import { bandMark, bandOf } from './band';
-import { sidelineOdds, TYPICAL, type SidelineFacts, type SidelineKind } from '../src/engine/match/sideline';
+import {
+  outOfBoundsIn,
+  sidelineOdds,
+  TYPICAL,
+  type SidelineFacts,
+  type SidelineKind,
+} from '../src/engine/match/sideline';
 import { playerOvr } from '../src/engine/positions';
 import { activeQuirks } from '../src/engine/quirks';
 import { teamPlayers } from '../src/engine/roster';
@@ -137,9 +143,10 @@ export function tallyGame(t: SidelineTally, plays: PlayLogEntry[], homeId: numbe
     if (!kind || raw.down <= 0 || /TOUCHDOWN|FUMBLE/.test(e.text)) continue;
     const diff = e.offense === homeId ? e.homeScore - e.awayScore : e.awayScore - e.homeScore;
     const tempo = tempoOf(e, diff);
+    const how = outOfBoundsIn(e.text);
     const out = /out of bounds/.test(e.text);
-    const pushed = /, pushed out of bounds/.test(e.text);
-    const stepped = /, steps out of bounds/.test(e.text);
+    const pushed = how === 'pushed';
+    const stepped = how === 'stepped';
     const m = /for (-?\d+) yard|for no gain/.exec(e.text);
     const gain = m ? (m[1] ? Number(m[1]) : 0) : 0;
     // In the offense's own yards: the catch spot and where he ended.

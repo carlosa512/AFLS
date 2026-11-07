@@ -12,6 +12,7 @@ import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
+import { outOfBoundsIn } from '../src/engine/match/sideline';
 import { FIELD_W, snapYFor } from '../src/engine/field/ballPath';
 import { asRan, stagePlay } from '../src/engine/field/stage';
 import { playWeek } from '../src/engine/league';
@@ -165,7 +166,7 @@ function filmWorker(): FilmDone {
       const r = simulateGame(league, g, { keepPlays: true, field: true, seed: `oob-${gi}` });
       r.plays!.forEach((raw, i) => {
         const e = asRan(raw);
-        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'run') || !/out of bounds/.test(e.text)) return;
+        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'run') || !outOfBoundsIn(e.text)) return;
         const p = stagePlay({
           plays: r.plays!,
           index: i,
@@ -198,7 +199,7 @@ function filmWorker(): FilmDone {
           );
         let near = Infinity;
         for (let st = Math.max(0, cross - Math.round(1 / p.dt)); st <= cross; st++) near = Math.min(near, nearAt(st));
-        if (/steps out of bounds/.test(e.text)) {
+        if (outOfBoundsIn(e.text) === 'stepped') {
           if (e.field?.out || e.field?.stay) return;
           done.stepped++;
           if (near >= 5) done.steppedAlone++;

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { QuirkId } from '../quirks';
-import { sidelineCall, sidelineOdds, steppedCredit, TYPICAL, type SidelineFacts, type SidelineKind } from './sideline';
+import {
+  outOfBoundsIn,
+  sidelineCall,
+  sidelineOdds,
+  stepReason,
+  steppedCredit,
+  TYPICAL,
+  type SidelineFacts,
+  type SidelineKind,
+} from './sideline';
 
 type Over = Partial<Omit<SidelineFacts, 'carrier' | 'chaser'>> & {
   carrier?: Partial<Omit<SidelineFacts['carrier'], 'has'>> & { habits?: QuirkId[] };
@@ -152,5 +161,23 @@ describe('out of bounds as the carrier’s choice', () => {
     expect(steppedCredit(typical('run'))).toBe(1);
     expect(steppedCredit(typical('scramble'))).toBe(1);
     expect(steppedCredit(typical('catch', { free: true }))).toBeLessThan(steppedCredit(typical('catch')));
+  });
+});
+
+describe('why he stepped out', () => {
+  it('reads the clock first, then a man closing, else nothing', () => {
+    expect(stepReason(typical('catch', { clock: 'out' }))).toBe('clock');
+    expect(stepReason(typical('catch', { clock: 'out', free: false }))).toBe('clock');
+    expect(stepReason(typical('run', { clock: 'none', free: false }))).toBe('hit');
+    expect(stepReason(typical('run', { clock: 'none', free: true }))).toBeNull();
+  });
+
+  it('reads every out-of-bounds wording, old and new', () => {
+    expect(outOfBoundsIn('A rush left for 4 yards (B), pushed out of bounds')).toBe('pushed');
+    expect(outOfBoundsIn('A rush left for 4 yards (B), steps out of bounds')).toBe('stepped');
+    expect(outOfBoundsIn('A pass complete for 9 yards (B), steps out of bounds to stop the clock')).toBe('stepped');
+    expect(outOfBoundsIn('A rush right for 6 yards (B), gets out of bounds before the hit')).toBe('stepped');
+    expect(outOfBoundsIn('K kicks off out of bounds')).toBeNull();
+    expect(outOfBoundsIn('A rush up the middle for 3 yards (B)')).toBeNull();
   });
 });
