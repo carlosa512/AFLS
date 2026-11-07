@@ -77,3 +77,14 @@ a third of the good players whose deals end, and nearly half of the young ones, 
 window with far more nominal room than NFL clubs (a median near 30% against 3–12%) because so many of their deals run
 out each year: the room goes on refilling the roster, not on the market. That room isn't judged against the NFL's
 (the rosters it has to refill aren't alike); the outcomes are.
+
+## AFLS before the fix, the audit's own run (`npm run offseason -- 4`, seed `offseason-audit-3`, after 0.4.12)
+
+| Into | Ends | Stayed | Moved | No deal | Outside signings | Clubs 3+ | One-year | Elite young unsigned | Room median | Clubs 10%+ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 73 | 58% | 40% | 3% | 51 | 10 | 14% | 3 | 33.7% | 30 |
+| 2028 | 83 | 49% | 41% | 10% | 46 | 7 | 41% | 0 | 29.1% | 32 |
+| 2029 | 102 | 52% | 31% | 17% | 32 | 3 | 44% | 8 | 29.2% | 31 |
+| 2030 | 116 | 50% | 26% | 24% | 38 | 4 | 53% | 20 | 33.2% | 30 |
+
+Pooled over 2028–30, 13% of 56 young good deals ended with no deal. 12 numbers outside their bands.
