@@ -3,10 +3,12 @@ import { createLeague, generatePlayer, SAVE_VERSION } from '../generate';
 import { capSheet, capSpace, releasePlayer } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { inSeasonReserve, spendable } from '../offseason/ai';
-import { contenderScore } from '../offseason/negotiation';
+import { contenderScore, demand } from '../offseason/negotiation';
+import { minSalary } from '../finance/market';
 import { irProblem, practiceLoad } from '../injuries';
 import { migrateLeague } from '../migrate';
 import { activeRoster, addPlayer, isAvailable, practiceSquad, syncDepthChart } from '../roster';
+import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { rosterOf, tradeContext } from '../trade/context';
 import type { League, Player } from '../types';
@@ -54,6 +56,11 @@ function sign(p = candidate(), teamId = 0, weeklyPay = squadRates(l, p).min) {
   acceptSquadOffer(l, { playerId: p.id, teamId, weeklyPay });
   return p;
 }
+/** Club 0's weakest receiver: a fringe man the market has at the minimum, the only kind who takes squad pay. */
+const fringeWr = () =>
+  activeRoster(l, 0)
+    .filter((p) => p.position === 'WR')
+    .sort((a, b) => playerOvr(a) - playerOvr(b) || a.id - b.id)[0];
 function open53() {
   const p = activeRoster(l, 0).find((x) => x.position === 'WR')!;
   p.teamId = null;
@@ -109,9 +116,7 @@ describe('squad eligibility and agreements', () => {
     expect(activeRoster(l, 0)).toHaveLength(53);
   });
   it('clears a rookie contract permanently, then signs a separate squad agreement', () => {
-    const p = activeRoster(l, 0)
-      .filter((p) => p.position === 'WR')
-      .at(-1)!;
+    const p = fringeWr();
     p.service = initialService(0, 2025);
     p.contract!.kind = 'rookie';
     const old = structuredClone(p.contract);
@@ -129,6 +134,44 @@ describe('squad eligibility and agreements', () => {
     expect(p.contract?.kind).toBe('minimum');
     expect(p.contract?.bonuses).toEqual([]);
     expect(p.contract?.length).toBe(1);
+  });
+});
+
+describe('who takes practice-squad pay', () => {
+  /** A free agent the market values well above the minimum: a starter nobody had room for. */
+  function starter(): Player {
+    const p = generatePlayer(new Rng(`starter:${l.nextPlayerId}`), {
+      id: l.nextPlayerId++,
+      position: 'CB',
+      age: 26,
+      quality: 16,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    p.experience = 4;
+    p.service = initialService(4, l.season - 1);
+    p.contract = null;
+    addPlayer(l, p);
+    return p;
+  }
+
+  it('a free agent the market values above the minimum holds out for an NFL contract; a fringe one signs', () => {
+    const star = starter();
+    expect(demand(l, star, 0).walkAway).toBeGreaterThan(minSalary(star.experience, l.caps[l.season]));
+    expect(squadOfferProblem(l, { teamId: 0, playerId: star.id, weeklyPay: squadRates(l, star).max })).toMatch(
+      /NFL contract/,
+    );
+    const fringe = candidate(5);
+    expect(squadOfferProblem(l, { teamId: 0, playerId: fringe.id, weeklyPay: squadRates(l, fringe).min })).toBeNull();
+  });
+
+  it('AI clubs fill their squads around him: he stays a free agent', () => {
+    const star = starter();
+    expect(practiceSquad(l, 1)).toHaveLength(0);
+    formPracticeSquads(l);
+    expect(star.teamId).toBeNull();
+    expect(star.squad).toBeUndefined();
+    expect(practiceSquad(l, 1).length).toBeGreaterThanOrEqual(16);
   });
 });
 
@@ -339,9 +382,7 @@ describe('simultaneous market and world generation', () => {
     expect(l.personnel!.squads!.results).toEqual(other.personnel!.squads!.results);
   });
   it('does not promise a return when a player prefers a competing offer', () => {
-    const p = activeRoster(l, 0)
-      .filter((p) => p.position === 'WR')
-      .at(-1)!;
+    const p = fringeWr();
     p.service = initialService(5, l.season - 1);
     inviteSquadReturn(l, 0, p);
     releasePlayer(l, p);

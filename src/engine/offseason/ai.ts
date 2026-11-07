@@ -60,6 +60,7 @@ import {
   rosterLimit,
   ROSTER_MAX,
   signPlayer,
+  takesMinimum,
   willExtend,
   extensionBlocker,
   type Offer,
@@ -1029,15 +1030,6 @@ const minimumOffer = (league: League, player: Player): Offer => ({
   gtdPct: 0,
   voidYears: 0,
 });
-
-/**
- * Whether `player` would sign a one-year minimum with `teamId` today: only when the least he'll take is the
- * minimum. A player the market still values above it waits for a real deal (a star unsigned in free agency
- * doesn't come cheap in camp). The floor itself is the test, not `offerValue`: its knocks for a short,
- * unguaranteed deal would have a minimum-salary veteran turn down the only deal there is.
- */
-const takesMinimum = (league: League, player: Player, teamId: number): boolean =>
-  demand(league, player, teamId).walkAway <= minimumOffer(league, player).apy;
 
 /**
  * Whether `signMinimum` at `position` can sign someone within `budget`: a healthy free agent whose minimum

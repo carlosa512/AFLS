@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.12',
+    date: '2026-11-07',
+    title: 'No starters on the practice squad',
+    text:
+      'A player good enough for a real contract no longer signs for practice-squad pay. Only fringe players the market ' +
+      'has at the minimum take a squad deal or a futures deal; a starter nobody had room for stays a free agent and ' +
+      'waits for an NFL contract. Squads already signed this season keep their deals until they run out.',
+  },
+  {
     version: '0.4.11',
     date: '2026-11-07',
     title: "A play's time",

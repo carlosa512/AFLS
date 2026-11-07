@@ -28,6 +28,7 @@ import type { League, Player } from '../engine/types';
 import { Dialog, Panel, PlayerLink, TeamLink, SortTh, sortRows, useSort } from './components';
 import { liveLock } from './live';
 import { futuresKept, futuresWindowOpen, setFuturesKeep } from '../engine/personnel/futures';
+import { takesMinimum } from '../engine/offseason/negotiation';
 import {
   cancelPoachOffer,
   pinnedIds,
@@ -496,6 +497,8 @@ export function SquadSignings({ league }: { league: League }) {
 export function FuturesCell({ league, player }: { league: League; player: Player }) {
   const teamId = player.teamId;
   if (teamId === null || teamId !== league.userTeamId || !futuresWindowOpen(league, teamId)) return null;
+  // A futures deal is a minimum: one the market values above it won't sign (his agent says so; no number shown).
+  if (!takesMinimum(league, player, teamId)) return <span className="small muted">Wants an NFL contract</span>;
   const kept = futuresKept(league, teamId).includes(player.id);
   return (
     <button

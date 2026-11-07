@@ -4,7 +4,7 @@ import { generatePlayer } from '../generate';
 import { favoriteJersey } from '../jerseys';
 import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
-import { contenderScore, resetContenderCache } from '../offseason/negotiation';
+import { contenderScore, resetContenderCache, takesMinimum } from '../offseason/negotiation';
 import { activeRoster, addPlayer, practiceSquad } from '../roster';
 import { playerOvr } from '../positions';
 import { recordRatings } from '../development';
@@ -49,15 +49,19 @@ export function ensureSquadSupply(league: League): void {
     0,
   );
   // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent
-  // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band).
-  const candidates = squadCandidates(league);
+  // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band). A free agent
+  // holding out for an NFL contract fills no place, so he doesn't count (a fringe one takes the first club asked).
+  const willing = (p: Player) => league.teams.some((t) => takesMinimum(league, p, t.id));
+  const candidates = squadCandidates(league).filter(willing);
   let baseMissing = Math.max(
     0,
     Math.ceil(openings / 2) - candidates.filter((p) => squadCategory(league, p) === 'base').length,
   );
-  const missing = Math.max(0, openings - candidates.length);
+  let missing = Math.max(0, openings - candidates.length);
   const rng = new Rng(`${league.seed}:squad-pool:${league.season}:${league.nextPlayerId}`);
-  for (let i = 0; i < missing || baseMissing > 0; i++) {
+  // A new man the market already values above the minimum is a free agent like any other, not squad supply: the
+  // places still need one who'd sign (the guard: a market that priced every new man above it can't spin forever).
+  for (let guard = 0; (missing > 0 || baseMissing > 0) && guard < 2 * openings + 64; guard++) {
     const veteran = rng.chance(0.25);
     const experience = veteran ? rng.int(4, 7) : rng.chance(0.45) ? 0 : rng.int(1, 3);
     const p = generatePlayer(rng, {
@@ -79,6 +83,8 @@ export function ensureSquadSupply(league: League): void {
     recordRatings(p, league.season);
     p.contract = null;
     addPlayer(league, p);
+    if (!willing(p)) continue;
+    missing--;
     if (!veteran) baseMissing--;
   }
 }

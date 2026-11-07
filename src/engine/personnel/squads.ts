@@ -3,6 +3,7 @@ import { personnelMoveLock, markSquadDeparture, elevationPromotionCredit } from 
 import { capSpace, logTransaction, paidFraction } from '../finance/cap';
 import { capHit, buildContract } from '../finance/contract';
 import { minSalary } from '../finance/market';
+import { takesMinimum } from '../offseason/negotiation';
 import { activeRoster, onGameRoster, practiceSquad, setTeam, syncDepthChart } from '../roster';
 import { STARTERS } from '../positions';
 import { numberOnArrival } from '../jerseys';
@@ -42,6 +43,7 @@ export function squadOfferProblem(league: League, offer: SquadOffer): string | n
   if (!p || p.retired || p.teamId !== null || p.contract || p.waiver || league.draftClass.includes(p.id))
     return 'The player must be an unattached, cleared free agent.';
   if (p.injury) return 'The player must pass a physical before joining the squad.';
+  if (!takesMinimum(league, p, offer.teamId)) return 'He wants an NFL contract, not practice-squad pay.';
   const rate = squadRates(league, p);
   if (
     !Number.isFinite(offer.weeklyPay) ||
