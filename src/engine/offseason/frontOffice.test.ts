@@ -21,6 +21,7 @@ import {
   winNow,
 } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
+import { gambles } from './capPlan';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX, signPlayer } from './negotiation';
 
@@ -220,7 +221,8 @@ describe('the tag keeps a star who’d walk', () => {
     const l: League = JSON.parse(windowLeague);
     const market = leagueMarket(l);
     const pick = l.teams
-      .filter((t) => t.id !== l.userTeamId && !t.taggedId)
+      // A GM gambling this year may let even a star walk for the market (a bad call he's allowed): not this test's club.
+      .filter((t) => t.id !== l.userTeamId && !t.taggedId && !gambles(l, t))
       .flatMap((t) => expiringPlayers(l, t.id).map((p) => ({ t, p })))
       .filter(({ t, p }) => {
         const c = resignCall(l, t.id, p);

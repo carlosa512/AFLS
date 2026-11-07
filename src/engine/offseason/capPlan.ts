@@ -19,6 +19,7 @@ import {
   nextYearCeiling,
   nextYearNeeds,
   resignCall,
+  type ResignReason,
   spendable,
   upgradeBar,
   winNow,
@@ -35,9 +36,20 @@ export const STANCE_BANK = 0.35;
 export const stanceFor = (wn: number): Stance => (wn >= STANCE_SPEND ? 'spend' : wn < STANCE_BANK ? 'bank' : 'balance');
 export const stanceOf = (league: League, team: Team): Stance => stanceFor(winNow(league, team));
 
+/**
+ * Whether this GM gambles this league year: he weighs even his starters against the coming market and may let one walk
+ * for another club's man who never comes (the owner, Nov 7: GMs make bad calls). One in ten, up to three in ten for a
+ * GM with no loyalty to his own; drawn on its own stream, so nothing else in the world moves with it.
+ */
+export function gambles(league: League, team: Team): boolean {
+  return new Rng(`${league.seed}:plan-gamble:${league.season}:${team.id}`).chance(0.1 + 0.2 * (1 - team.gm.loyalty));
+}
+
 export interface PlannedKeeper {
   player: Player;
   call: 'keep' | 'tag';
+  /** Why the club would keep him (`resignCall`): a starter is weighed only against his price, never a maybe. */
+  reason: ResignReason;
   /** Where the club reads him headed (`teamOutlook`). */
   ahead: number;
   /** What he adds to the room as it stands without him (`needGain`). */
@@ -108,6 +120,7 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
   const stance = stanceFor(wn);
   const targets = targetsFor(league, team, depth, wn);
   const room = spendable(league, team.id);
+  const gamble = gambles(league, team);
   const keepers: PlannedKeeper[] = [];
   const own = expiringPlayers(league, team.id)
     .map((p) => ({ p, c: resignCall(league, team.id, p, depth, wn) }))
@@ -118,15 +131,18 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
     const offer = aiOffer(league, team, p, rng, gain);
     // A loyal GM pays his own a little more, a hard one a little less.
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
+    // A keeper short of a starter is weighed against the coming market (the spec's depth keeper). A starter is too only
+    // when the GM gambles this year: another club's man may never reach the market, so it's a bad call he can make.
     const worth = worthIt(
       { gain, apy: offer.apy, position: p.position },
       upgradeBar(league, team, offer.apy),
-      targets,
+      c.reason === 'starter' && !gamble ? [] : targets,
       room,
     );
     keepers.push({
       player: p,
       call: c.call as 'keep' | 'tag',
+      reason: c.reason,
       ahead: c.ahead,
       gain,
       offer,

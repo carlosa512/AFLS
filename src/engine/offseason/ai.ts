@@ -66,6 +66,7 @@ import {
   type Offer,
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
+import { capPlan, type PlannedKeeper } from './capPlan';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -538,16 +539,21 @@ function restructureRoom(league: League, team: Team, plan: RestructurePlan | num
 export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
   const depth = depthOutlooks(league, team);
-  const wn = winNow(league, team);
   // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
   const budget = () =>
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
-  for (const p of expiringPlayers(league, team.id)) {
-    const { call, ahead } = resignCall(league, team.id, p, depth, wn);
-    if (call === 'walk') continue;
+  // The plan (`capPlan.ts`): its keepers best first, each priced and judged worth it or not. A promised man (G4) is
+  // signed whatever the plan says. The room for those it signs is made once, in that order, before anyone signs.
+  const plan = capPlan(league, team, rng);
+  makeRoomFor(
+    league,
+    team,
+    plan.keepers.filter((k) => k.worth || promisedDeal(k.player)),
+  );
+  for (const k of plan.keepers) {
+    const { player: p, call, ahead } = k;
     const mine = depth[p.position];
-    const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
-    offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
+    const offer = { ...k.offer };
     const d = demand(league, p, team.id);
     // A promised deal (G4): the club meets his walk-away when it fits, and he doesn't go to see what the market pays
     // (the draw is still made, so the window draws what it would have).
@@ -558,6 +564,15 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     }
     // Some players want to see what the market will pay, however loyal the club.
     const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty)) && !promised;
+    // Not worth his price: the money goes to the market. A tag call still gets the tag's own test (`tryTag`: never past
+    // what the club would pay him, and only when keeping him clears the bar the tag's price sets).
+    if (!k.worth && !promised) {
+      if (call === 'tag' && tryTag(league, team, p, depth, ahead, offer, budget)) {
+        mine.push(ahead);
+        mine.sort((a, b) => b - a);
+      }
+      continue;
+    }
     // Tags first (GM habit): the tag comes before the signing for a player the call would tag. The offer is priced and
     // every draw made first, so the window draws what it would have; nothing is signed by pricing.
     if (call === 'tag' && habitOn(league, team, 'tagsFirst') && tryTag(league, team, p, depth, ahead, offer, budget)) {
@@ -608,6 +623,27 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     )
       aiSettle(league, team, p);
   aiCapCompliance(league, team);
+}
+
+/**
+ * Room for a window's keepers, made once and in their order (best first, `capPlan`): for each in turn, whatever his
+ * deal and those before him need past what the club can spend is made as `makeRoom` makes it (restructures, then a cut
+ * never better than him, all or nothing). One it can't fund is passed over and the next may still fit. Each signing
+ * fills a spot the fill reserve holds a minimum for, so that minimum comes back with him. Returns the room made.
+ */
+export function makeRoomFor(league: League, team: Team, keepers: readonly PlannedKeeper[]): number {
+  const back = openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0;
+  let owed = 0;
+  let made = 0;
+  for (const k of keepers) {
+    owed += Math.max(0, k.cost - back);
+    const short = owed - spendable(league, team.id);
+    if (short <= 0) continue;
+    const got = makeRoom(league, team, short, k.player, k.offer.years > 1 ? k.offer.apy : 0);
+    if (got >= short) made += got;
+    else owed -= Math.max(0, k.cost - back);
+  }
+  return made;
 }
 
 /**
