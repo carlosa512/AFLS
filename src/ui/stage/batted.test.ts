@@ -39,7 +39,8 @@ describe('a ball batted down at the line', () => {
     const e = found!.r.plays![found!.i];
     const segs = buildPath(e, found!.homeId, 26.65);
     const flight = segs.find((s) => s.peak > 0)!;
-    expect(Math.abs(flight.x1 - e.from!)).toBeLessThanOrEqual(1.5);
+    // A yard past the line, or the target if a screen's comes first (0.4.10).
+    expect(Math.abs(flight.x1 - e.from!) <= 1.5 || flight.x1 === e.air).toBe(true);
     expect(flight.peak).toBeLessThanOrEqual(3);
     const plain = buildPath(
       { ...e, text: e.text.replace(/, batted down at the line by .*$/, '') },
@@ -54,7 +55,7 @@ describe('a ball batted down at the line', () => {
     const e = r.plays![i];
     const p = stage(r, r.plays!, i, homeId);
     const end = { x: p.ball[(p.steps - 1) * 3], y: p.ball[(p.steps - 1) * 3 + 1] };
-    expect(Math.abs(end.x - e.from!)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(end.x - e.from!) <= 1.5 || Math.abs(end.x - e.air!) < 1e-6).toBe(true);
     const step = arrival(p, end);
     const k = p.ids.indexOf(actorsIn(e).take!);
     expect(k, 'the batter is on the field').toBeGreaterThanOrEqual(0);

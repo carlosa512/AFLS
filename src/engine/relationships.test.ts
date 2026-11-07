@@ -146,7 +146,10 @@ describe('rapport, homecomings and grudges, read off history', () => {
 
   it('keeps a lean through free agency, but reads it again when his friend signs somewhere', () => {
     const { p, teamId } = twoYearStarter();
-    const other = (teamId + 7) % 32;
+    // A club with no other pull on him (an old coach there draws him too; which club has one is the world's).
+    const other = [7, 9, 11, 13, 15, 17]
+      .map((k) => (teamId + k) % 32)
+      .find((t) => contractLean(l, { ...p, id: p.id + 4_000_000 + t, teamId: null }, t).value === 1)!;
     const friend = activeRoster(l, other)[0];
     const pal = {
       ...p,
