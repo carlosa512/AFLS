@@ -1,7 +1,8 @@
 # Front offices that plan: keepers first, room on purpose, a market that clears
 
-**Status:** design, approved in conversation 2026-11-07; awaiting the owner's review of this spec. Follows 0.4.11 (the
-practice-squad holdout fix, which stopped elite free agents signing for squad pay but left them unsigned).
+**Status:** design, approved by the owner 2026-11-07; the bands (§6) rebuilt on NFL data at the owner's request the same
+day (`docs/research/free-agency-market.md`). Follows 0.4.11 (the practice-squad holdout fix, which stopped elite free
+agents signing for squad pay but left them unsigned).
 
 ## Why
 
@@ -29,6 +30,19 @@ money and planning, and it gets worse every year:
 - **It feeds itself.** A stranded player takes a one-year prove-it deal (`fitOffer`) or nothing, and is back on the
   market next spring: veteran deals in their last year rose from 124 to 170.
 
+Measured the NFL's way (`docs/research/free-agency-market.md`: Over The Cap's contracts 2014–2021 through nflverse,
+and the same definitions on AFLS), the gap is the market for other clubs' players, not how many clubs keep:
+
+| | NFL | AFLS, into 2027 → 2030 |
+| --- | --- | --- |
+| Good deals (2%+ of the cap) reaching their end: stayed | 36% | 24–49% |
+| … moved to another club | 38% | 71% → 35% |
+| … no deal | 25% | 6% → 35% |
+| … no deal, 28 or younger | 14% | 0% → 44% |
+| Good outside signings a league year | 84–109 | 36–59 |
+| Clubs with 3+ of them | 16–22 | 2–10 |
+| Their share on one-year deals | 20% | 9% → 56% |
+
 The owner's calls (2026-11-07): AI GMs plan like the user can (they see who is coming to market and who they need to
 keep), make calculated moves, and no elite young player stays unsigned. News of re-signings: the players who were set to
 hit the market and didn't, in one email. Talent levels are the designer's call: unchanged.
@@ -39,7 +53,9 @@ A pure read, nothing stored: `capPlan(league, team)` built from the league as it
 `viewCache`. The user's club gets one only when the AI runs it (`autoUser`).
 
 - **Keepers:** its own expiring players `resignCall` keeps or tags, best first by its outlook (`ahead`), each priced at
-  its offer (`aiOffer`, as the window prices him today).
+  its offer (`aiOffer`, as the window prices him today). A keeper is **worth his price** when his gain clears the same
+  bar a free agent's price must (`upgradeBar` at his offer) and no target at his position (below) buys more gain for
+  the same money; one who isn't walks, and the room goes to the market.
 - **Next year's keepers:** `nextYearNeeds` (already there: planned starters whose deals end after this league year, at
   market, plus next year's draft class).
 - **Fixed costs:** the rookie class (`rookieReserve`), the minimum fills for open spots, the in-season and squad
@@ -68,7 +84,8 @@ A pure read, nothing stored: `capPlan(league, team)` built from the league as it
 - A multi-year bid must leave next year's keepers' room: next year's commitments + next year's keepers + this deal's
   APY within the GM's `nextYearCeiling`. Replaces the flat check (`committedNext + apy > 0.92 × next cap`, only for deals
   over 3% of the cap).
-- A **bank** club bids only on players 27 or younger, or on an upgrade worth twice its minimum gain.
+- A **bank** club bids only on players 27 or younger, or on an upgrade that clears twice the bar its price sets
+  (`upgradeBar`).
 
 ## 4. A market that clears
 
@@ -80,8 +97,11 @@ A pure read, nothing stored: `capPlan(league, team)` built from the league as it
 - **The last call, funded.** On the last call (camp opens) and in camp, a club with a need may sign a clear upgrade (the
   `needGain` bar doubled) on a one-year deal by releasing its weakest minimum-salary player at that position (a minimum
   deal carries no dead money) and drawing up to half its in-season reserve.
-- **Goal:** no player 28 or younger whom the market prices as good is unsigned at kickoff; older veterans may wait for
-  an injury call (`needSigning`, unchanged) or retire.
+- **Young players sign for more than a year.** A fitted offer to a player 28 or younger runs two years (still no bonus):
+  the one-year prove-it deal is a veteran's (the NFL's one-year share of good outside signings is 20%; AFLS's climbs to
+  56%).
+- **Goal:** no player 28 or younger whom the market prices at 5%+ of the cap is unsigned at kickoff (the owner's call);
+  older veterans may wait for an injury call (`needSigning`, unchanged) or retire.
 
 ## 5. News: off the market (`inbox.ts`)
 
@@ -100,15 +120,24 @@ One SNN story when free agency opens (phase `freeAgency`, day 1), filed once a l
 
 ## 6. Checks (`npm run offseason`)
 
-New lines each season (bands are the owner's call; the numbers below are AFLS estimates to start from, not NFL
-measurements, and are labelled so in the script):
+New lines, measured with the research doc's definitions (window start to kickoff), judged from the second offseason
+on (the generated league's first contracts aren't a market's). Usual band: inside it nothing is said; between usual and
+normal the line warns (⚠, `band.ts`); outside normal it fails. Both bands are the owner's call, set around the NFL:
 
-| Line | Today (year 4) | Start band |
-| --- | --- | --- |
-| Good players (2%+ of the cap) unsigned at kickoff, 28 or younger | not counted yet (the 82 run 25–35) | 0 (fail above) |
-| Good players unsigned at kickoff, all ages | 82 | warn above 5, fail above 15 |
-| Keepers lost to room, % of keepers priced | 48% | warn above 15%, fail above 25% |
-| Clubs with 10%+ of the cap to spend at FA open | not counted yet (median 0.7%) | warn below 4, fail below 2 |
+| Line | NFL | AFLS today (into 2030) | Usual | Normal |
+| --- | --- | --- | --- | --- |
+| Good deals reaching their end: stayed % | 36 | 31 | 28–45 | 20–55 |
+| … moved % | 38 | 35 | 30–50 | 20–60 |
+| … no deal % | 25 | 35 | 15–32 | 10–40 |
+| … no deal %, 28 or younger (pooled over the run: a season has too few) | 14 | 44 | 5–22 | 0–30 |
+| Good outside signings | 84–109 | 36 | 75–120 | 60–135 |
+| Clubs with 3+ good outside signings | 16–22 | 2 | 12–24 | 8–28 |
+| One-year share of good outside signings % | 20 | 56 | 10–30 | 5–40 |
+| Players 28 or younger priced at 5%+ unsigned at kickoff (the owner's rule) | – | – | 0 | 0 |
+
+Reported, not judged: keepers lost to room (the window's diagnostic), and room at the window's start (median, clubs
+with 10%+, over the cap) beside the NFL's February tables: AFLS rosters refill far more each spring, so the room isn't
+alike even when the market is.
 
 The existing lines must hold as they are: median kickoff space 1–4%, dead money median ≤ 6%, clubs restructuring
 40–70%, tags 4–10, the free-agent pool 100–650.
@@ -138,9 +167,12 @@ onto it once it is on main.
 - **Unit:** `capPlan` (keepers best first, stance from `winNow`, targets on the club's own read); the window keeps a
   star over cheaper keepers when room is short and makes the room once (restructure, then a cap casualty never better
   than the keeper); a multi-year bid refused when it eats next year's keepers' room; a bank club passing on a marginal
-  veteran; an unbid free agent signing at the best fitted offer after day 2, never under his minimum; the funded last
+  veteran; a keeper not worth his price walking; a fitted offer to a young player running two years; an unbid free
+  agent signing at the best fitted offer after day 2, never under his minimum; the funded last
   call (releases the weakest minimum man, half the in-season reserve at most, one-year deal); the news story (filed
   once, ordered by our read, our club left out, no truth past the fog).
 - **Audits:** `npm run offseason -- 6` (the new lines and every existing one), `npm run trades`, `npm run gm-habits`
-  (the habits that run in the window and in free agency still move their decisions), `npm run careers` and
-  `npm run squads -- 2`. CI runs what the change calls for.
+  (the habits that run in the window and in free agency still move their decisions), `npm run careers`,
+  `npm run morale` (`negotiation.ts` changes) and `npm run squads -- 2`. CI runs what the change calls for.
+- **Save size:** `Transaction.playerId` adds a few bytes to each of up to 3,000 log entries; the save's allowance grows by
+  what it measures (the owner's call, 2026-11-07: "the save will need more room").
