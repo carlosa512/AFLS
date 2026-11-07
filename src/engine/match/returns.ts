@@ -58,13 +58,13 @@ function quantile(kind: ReturnFacts['kind'], u: number): number {
  * return on kickoffs, 1.2 on punts beyond luck). The draw is warped, not shifted, so most of a good returner's edge
  * lands in the tail, where the quantiles spread out: he breaks one more often more than he gains a yard every time.
  */
-export const RETURNER = 0.06;
+export const RETURNER: Record<ReturnFacts['kind'], number> = { kickoff: 0.06, punt: 0.1 };
 export const COVERAGE = 0.1;
 /** A typical kicking unit's mean `tackling` skill (96 clubs: 8.6, sd 0.5 between clubs). */
 export const COVERAGE_TYPICAL = 8.6;
 
 export function returnYards(f: ReturnFacts, u: number): number {
-  const lean = RETURNER * f.returner - COVERAGE * f.coverage;
+  const lean = RETURNER[f.kind] * f.returner - COVERAGE * f.coverage;
   const warped = 1 - (1 - u) ** Math.exp(lean);
   const habits = f.kind === 'punt' ? (f.outkicks ? 3 : 0) - (f.highArc ? 1.5 : 0) : 0;
   return Math.max(0, Math.min(f.from, Math.round(quantile(f.kind, warped) + f.coach + habits)));

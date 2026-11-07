@@ -22,12 +22,15 @@ export interface TwoPointFacts {
   qbScrambling: number;
 }
 
-/** Where the NFL always goes, late: to tie (−2, −10 after a field goal), to lead by 3 or 7 (+1, +5), or down 5. */
+/**
+ * Where the NFL always goes, late: to tie (−2, −10 after a field goal), to lead by 3 or 7 (+1, +5), or down 5. Down 1 is
+ * a judgment call even at the end (39% in the last minute, n 31; 7% before it, n 100): many coaches take the tie.
+ */
 const SURE = new Set([-10, -5, -2, 1, 5]);
 
 export function sureTwo(f: Pick<TwoPointFacts, 'quarter' | 'clock' | 'overtime' | 'scoreDiff'>): boolean {
   if (f.quarter < 4 && !f.overtime) return false;
-  return SURE.has(f.scoreDiff) || (f.scoreDiff === -1 && f.clock <= 60 && !f.overtime);
+  return SURE.has(f.scoreDiff);
 }
 
 /** Quarters 1–3, by the margin after the touchdown (n ≥ 30 each). */
@@ -52,7 +55,7 @@ const LATE: Record<number, number> = {
   [-9]: 0.41,
   [-8]: 0.37,
   [-6]: 0.05,
-  [-1]: 0.16,
+  [-1]: 0.07,
   2: 0.03,
   9: 0.02,
   10: 0.12,
@@ -68,7 +71,8 @@ const logit = (p: number) => Math.log(p / (1 - p));
 export function twoPointOdds(f: TwoPointFacts): number {
   if (sureTwo(f)) return 1;
   const late = f.quarter >= 4 || f.overtime;
-  const p = (late ? LATE : EARLY)[f.scoreDiff] ?? ELSEWHERE[late ? 'late' : 'early'];
+  const lastMinute = late && f.scoreDiff === -1 && (f.clock <= 60 || f.overtime);
+  const p = lastMinute ? 0.39 : ((late ? LATE : EARLY)[f.scoreDiff] ?? ELSEWHERE[late ? 'late' : 'early']);
   return logistic(logit(p) + TWO_APPETITE * f.appetite);
 }
 
@@ -82,6 +86,6 @@ export function runShare(f: TwoPointFacts): number {
 /** Yards added to a run's mean on a try, so runs from the 2 are good as often as the NFL's (fitted). */
 export const TRY_RUN = 0;
 /** A multiplier on a pass's completion odds on a try, so passes from the 2 are good as often as the NFL's (fitted). */
-export const TRY_PASS = 0.92;
+export const TRY_PASS = 0.97;
 /** A turnover on a try returned for two (the NFL: 26 defensive twos, 3.9% of tries; fitted). */
 export const DEF_TWO = 0.5;

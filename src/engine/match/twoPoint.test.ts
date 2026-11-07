@@ -19,8 +19,10 @@ describe('the two-point call', () => {
       expect(sureTwo(f({ scoreDiff, quarter: 5, overtime: true }))).toBe(true);
       expect(twoPointOdds(f({ scoreDiff }))).toBe(1);
     }
-    expect(sureTwo(f({ scoreDiff: -1, clock: 60 }))).toBe(true);
-    expect(sureTwo(f({ scoreDiff: -1, clock: 300 }))).toBe(false);
+    // Down 1 is a judgment call even at the end: the NFL goes for two 39% of the time in the last minute, 7% before.
+    expect(sureTwo(f({ scoreDiff: -1, clock: 60 }))).toBe(false);
+    expect(Math.abs(twoPointOdds(f({ scoreDiff: -1, clock: 60 })) - 0.39)).toBeLessThan(0.02);
+    expect(Math.abs(twoPointOdds(f({ scoreDiff: -1, clock: 300 })) - 0.07)).toBeLessThan(0.02);
     expect(sureTwo(f({ scoreDiff: 5, quarter: 2 }))).toBe(false);
   });
 
