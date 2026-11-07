@@ -35,7 +35,7 @@ import { quickValue } from './deals';
 import { bidFor, recheckOffers, yourListings } from './offers';
 import { interestIn, isBuyer, updateInterest, wanted } from './plans';
 import { POINTS_PER_K } from './value';
-import type { TradeProposal } from './rules';
+import { TRADE_DEADLINE_WEEK, type TradeProposal } from './rules';
 import { talksOf } from './talks';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -68,9 +68,16 @@ function findEnquiries(weeks: number, look: (l: League, enquiries: TradeOffer[])
 }
 
 beforeAll(() => {
-  // Play on until offers are on the desk.
-  const l = createLeague({ seed: 'trades-0' });
-  while (l.week <= 9 && packaged(l).length === 0) playWeek(l);
+  // Play on until offers are on the desk, two weeks before the deadline at the latest (a man listed then can still draw
+  // a bid). A world whose clubs make none by then is the next seed's turn: which world does is luck (0.4.10's moved one
+  // past the deadline with none).
+  let l = createLeague({ seed: 'trades-0' });
+  for (let k = 1; ; k++) {
+    // From week 6: interest in a man builds over the season (a listing in week 3 can find nobody past asking yet).
+    while (l.week <= TRADE_DEADLINE_WEEK - 2 && (packaged(l).length === 0 || l.week < 6)) playWeek(l);
+    if (packaged(l).length || k > 6) break;
+    l = createLeague({ seed: `trades-${k}` });
+  }
   base = JSON.stringify(l);
 });
 

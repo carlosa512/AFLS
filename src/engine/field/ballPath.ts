@@ -39,7 +39,8 @@ export const BAT_PEAK = 2.5;
  * (`aimOf`) is that line carried on to where it was going.
  */
 export function batDown(thrown: Seg, lineX: number, dir: number): Seg {
-  const x = lineX + dir;
+  // A yard past the line, or the target if that comes first (a screen behind the line): never past where it was thrown.
+  const x = dir > 0 ? Math.min(lineX + dir, thrown.x1) : Math.max(lineX + dir, thrown.x1);
   const f = thrown.x1 === thrown.x0 ? 1 : Math.max(0, Math.min(1, (x - thrown.x0) / (thrown.x1 - thrown.x0)));
   return air(thrown.x0, thrown.y0, x, thrown.y0 + (thrown.y1 - thrown.y0) * f, BAT_PEAK);
 }

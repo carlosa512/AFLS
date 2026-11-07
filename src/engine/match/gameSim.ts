@@ -38,6 +38,7 @@ import {
   snapCost,
   type ContactEvent,
   type Mechanism,
+  concussionCount,
   type RiskFactors,
 } from '../injuries';
 import { departmentFor, type Department } from '../medical';
@@ -45,7 +46,7 @@ import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
-import { poiseOf } from '../traits';
+import { poiseOf, temperamentOf } from '../traits';
 import { groundingOdds, outsideOdds, pocketCall, pocketOdds, type PocketFacts, type PocketKind } from './pocketChoice';
 import {
   forcedOdds,
@@ -120,14 +121,28 @@ import {
 } from '../weather';
 import * as coach from './coach';
 import {
+  OUT_TEXT,
   sidelineCall,
   sidelineOdds,
+  stepReason,
   steppedCredit,
   TYPICAL,
   type SidelineCall,
   type SidelineFacts,
   type SidelineKind,
+  type StepReason,
 } from './sideline';
+import {
+  escapeOdds,
+  fightsForIt,
+  sackLoss,
+  slideOdds,
+  slideReason,
+  TOUCHED,
+  type SackFacts as SackLossFacts,
+  type SlideFacts,
+  type SlideReason,
+} from './dropbackEnd';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
@@ -173,6 +188,9 @@ export interface SimOptions {
   stripTap?: (tap: StripTap) => void;
   /** Every pass picked off or fallen incomplete, for the picks check (`scripts/picks-core.ts`). */
   defendedTap?: (tap: DefendedTap) => void;
+  /** How plays end (`dropbackEnd.ts`, `stepReason`): each sack, each scramble that stays in bounds, each man who goes out
+   * of bounds, for `npm run dropback`; nothing is stored. */
+  endingTap?: (tap: EndingTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -189,6 +207,8 @@ export interface ContactTap {
   leadingLate: boolean;
   carrier: number;
   fumbled: boolean;
+  /** A slide: touched down, a contact that can't fumble (counted as the NFL counts every scramble in bounds). */
+  slid?: true;
   forced?: boolean;
   why?: FumbleWhy;
   /** Who got the ball, when it came out (`looseBall.ts`). */
@@ -228,6 +248,28 @@ export interface DefendedTap {
   endZone?: boolean;
   /** A pick credits its catcher with a pass defensed. */
   pd?: boolean;
+}
+
+/** How a play ended (`dropbackEnd.ts`): a sack's loss, a scramble's slide or fight, why a man went out of bounds. */
+export interface EndingTap {
+  kind: 'sack' | 'scramble' | 'out';
+  down: number;
+  toGo: number;
+  /** Sacks: the defense's call, whether he'd left the pocket, the loss, where from, and a safety. */
+  call?: DefenseCall;
+  escaped?: boolean;
+  loss?: number;
+  yardLine?: number;
+  safety?: boolean;
+  /** Scrambles that end in bounds: slid, why (or that he fought for it), a tackler credited, the situation. */
+  slid?: boolean;
+  reason?: SlideReason | 'fight' | null;
+  tackled?: boolean;
+  firstDown?: boolean;
+  leadingLate?: boolean;
+  trailingLate?: boolean;
+  /** Out of bounds: pushed, or stepping out and why (null: nothing said). */
+  why?: StepReason | 'pushed' | null;
 }
 
 /** A sack as the engine decided it: the rusher's spot, the situation, whether the ball came out, and who got it. */
@@ -351,6 +393,13 @@ export function actorsOf(play: {
   set('take', play.take);
   return who;
 }
+/** A slide's words and its film code (`FieldFacts.sw`), by why he slid (spec 2026-11-07 §4). */
+const SLIDE_TEXT: Record<SlideReason, string> = {
+  firstDown: ', slides with the first down in hand',
+  clock: ', slides to keep the clock running',
+  hit: ', slides to avoid the hit',
+};
+const SLIDE_WHY: Record<SlideReason, 1 | 2 | 3> = { firstDown: 1, clock: 2, hit: 3 };
 const HOME_FIELD_EDGE = 0.4; // ratings points added to the home side's matchups
 /** League-typical linemen discipline: penalty rates are scaled around these, so totals stay NFL-like. */
 const OL_DISCIPLINE = 12;
@@ -555,6 +604,16 @@ export class StatBuffer {
  * the quarterback (`qb`), a return, a kick. `unhit`: he stepped out of bounds before the hit, so the tackle credited to
  * the man who forced him out is nobody's collision, and he carries only a free runner's risk.
  */
+/** A play nobody was hit on: a man who stepped out before the hit, or a slider (touched down, never tackled). */
+export function unhitPlay(r: { outOfBounds?: SidelineCall; slid?: boolean }): boolean {
+  return r.outOfBounds === 'stepped' || !!r.slid;
+}
+
+/** What a sack credits its man: a tackle for loss only when it lost yards (a sack at the line is no TFL, as the NFL books it). */
+export function sackCredits(loss: number): StatKey[] {
+  return loss > 0 ? ['sacks', 'tackles', 'tfl'] : ['sacks', 'tackles'];
+}
+
 export function collisions(entries: StatBuffer['entries'], qb: Player, unhit: boolean): [Player, ContactEvent][] {
   const tackled = !unhit && entries.some(([, k]) => k === 'tackles');
   const sacked = entries.some(([, k]) => k === 'sacked');
@@ -588,11 +647,13 @@ interface PlayResult {
   complete?: boolean;
   airYards?: number;
   depth?: PassDepth;
-  /** The man in coverage on a pass: flags for grabbing are his. */
   /** Who broke the pass up (the cover man, a safety, a lineman batting it at the line), and a ball batted down. */
   brokenUpBy?: Player;
   batted?: boolean;
+  /** The man in coverage on a pass: flags for grabbing are his. */
   defender?: Player;
+  /** A slide: touched down, never hit (`unhitPlay`). */
+  slid?: boolean;
   /** Who got home on a sack: a late hit or a celebration is his. */
   rusher?: Player;
   lane?: number;
@@ -2717,9 +2778,31 @@ class GameSim {
     return { call: sidelineCall(sidelineOdds(facts), this.rng.next()), facts };
   }
 
-  /** The text a play out of bounds ends with. */
-  private static outText(call: SidelineCall): string {
-    return call === 'pushed' ? ', pushed out of bounds' : call === 'stepped' ? ', steps out of bounds' : '';
+  /** Why he went out (`stepReason`): pushed, or stepping out for the clock, before the hit, or with nothing said. */
+  private static outWhy(call: SidelineCall, facts?: SidelineFacts): StepReason | 'pushed' | null {
+    if (call === 'pushed') return 'pushed';
+    return call === 'stepped' && facts ? stepReason(facts) : null;
+  }
+
+  /** The text a play out of bounds ends with, saying why (`OUT_TEXT`). */
+  private static outText(call: SidelineCall, facts?: SidelineFacts): string {
+    if (call === 'in') return '';
+    const why = GameSim.outWhy(call, facts);
+    return why === 'pushed' ? OUT_TEXT.pushed : why ? OUT_TEXT[why] : OUT_TEXT.stepped;
+  }
+
+  /** The field's facts for a man out of bounds: pushed (1) or stepping out (2), and why he stepped out (`ow`). */
+  private static oobFacts(call: SidelineCall, facts?: SidelineFacts): Pick<FieldFacts, 'oob' | 'ow'> {
+    if (call === 'in') return {};
+    if (call === 'pushed') return { oob: 1 };
+    const why = GameSim.outWhy(call, facts);
+    return { oob: 2, ...(why === 'clock' ? { ow: 1 as const } : why === 'hit' ? { ow: 2 as const } : {}) };
+  }
+
+  /** A man out of bounds, for `npm run dropback`. */
+  private outTap(s: Situation, call: SidelineCall, facts?: SidelineFacts): void {
+    if (call === 'in') return;
+    this.options.endingTap?.({ kind: 'out', down: s.down, toGo: s.distance, why: GameSim.outWhy(call, facts) });
   }
 
   /** Whether a player brings an established quirk to this game (`quirks.ts`). */
@@ -3204,7 +3287,7 @@ class GameSim {
           z: Math.round(((raw - RUN_BASE) / 2.9) * 1000) / 1000,
           to: yards,
           ...(td ? { td: 1 as const } : {}),
-          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
+          ...GameSim.oobFacts(call, side?.facts),
         },
       };
       field = this.openField(moment);
@@ -3283,7 +3366,8 @@ class GameSim {
       text += '. Fumble, recovered by the offense';
     }
     const oob = call !== 'in';
-    text += GameSim.outText(call);
+    text += GameSim.outText(call, side?.facts);
+    this.outTap(s, call, side?.facts);
     const duration = rng.int(4, 7);
     if (moment) this.tap(field, moment, today(shadow, oob, duration));
     return {
@@ -3760,7 +3844,7 @@ class GameSim {
           ...this.scrimmageFacts(s),
           to: gain,
           ...(gain >= yardsToGoal ? { td: 1 as const } : {}),
-          ...(call !== 'in' ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
+          ...GameSim.oobFacts(call, side?.facts),
           // The pocket it came out of, as the log keeps it (with the switch on).
           ...(this.options.field && this.pocketNow
             ? (({ pk, nb, rg, bs, bb }) => ({
@@ -3846,7 +3930,8 @@ class GameSim {
       text += '. Fumble, recovered by the offense';
     }
     const oob = call !== 'in';
-    text += GameSim.outText(call);
+    text += GameSim.outText(call, side?.facts);
+    this.outTap(s, call, side?.facts);
     if (moment) this.tap(field, moment, today(oob));
     return {
       ...base,
@@ -4035,23 +4120,7 @@ class GameSim {
     def: Lineup,
     spot: number,
   ): { why: FumbleWhy; lost: Lost | null } | null {
-    const late = s.quarter >= 4 && s.clock <= 300;
-    const facts: ContactFacts = {
-      kind,
-      down: s.down,
-      toGo: s.distance,
-      trailingLate: late && s.scoreDiff < 0,
-      leadingLate: late && s.scoreDiff > 0,
-      weather: this.wx.fumble,
-      carrier: {
-        position: carrier.position,
-        ballSecurity: skill(carrier, 'ballSecurity'),
-        energy: this.body(carrier).energy,
-        has: (q) => this.has(carrier, q),
-      },
-      size: sizeEdge(tackler, 'contact', carrier),
-      tackler: { tackling: skill(tackler, 'tackling'), has: (q) => this.has(tackler, q) },
-    };
+    const facts = this.contactFacts(kind, s, carrier, tackler);
     const fumbled = this.rng.chance(fumbleOdds(facts));
     const forced = fumbled ? this.rng.chance(forcedOdds(kind)) : undefined;
     const why: FumbleWhy | undefined = fumbled ? (forced ? fumbleWhy(facts, this.rng.next()) : 'own') : undefined;
@@ -4068,6 +4137,43 @@ class GameSim {
       facts,
     });
     return why ? { why, lost: out!.lost } : null;
+  }
+
+  /** What a tackle in bounds reads (`fumbleOdds.ts`): the play, the hit and the carrier. Draws nothing. */
+  private contactFacts(kind: ContactKind, s: Situation, carrier: Player, tackler: Player): ContactFacts {
+    const late = s.quarter >= 4 && s.clock <= 300;
+    return {
+      kind,
+      down: s.down,
+      toGo: s.distance,
+      trailingLate: late && s.scoreDiff < 0,
+      leadingLate: late && s.scoreDiff > 0,
+      weather: this.wx.fumble,
+      carrier: {
+        position: carrier.position,
+        ballSecurity: skill(carrier, 'ballSecurity'),
+        energy: this.body(carrier).energy,
+        has: (q) => this.has(carrier, q),
+      },
+      size: sizeEdge(tackler, 'contact', carrier),
+      tackler: { tackling: skill(tackler, 'tackling'), has: (q) => this.has(tackler, q) },
+    };
+  }
+
+  /** A slide touched down: tapped as a contact that can't fumble, so the fumbles check counts scrambles as the NFL does. */
+  private slideTap(s: Situation, carrier: Player, tackler: Player): void {
+    const facts = this.contactFacts('scramble', s, carrier, tackler);
+    this.options.contactTap?.({
+      kind: 'scramble',
+      down: facts.down,
+      toGo: facts.toGo,
+      trailingLate: facts.trailingLate,
+      leadingLate: facts.leadingLate,
+      carrier: carrier.id,
+      fumbled: false,
+      slid: true,
+      facts,
+    });
   }
 
   /**
@@ -4127,8 +4233,31 @@ class GameSim {
     // Sacks spread like the NFL's: the starting edges get the most, but the rotation, the
     // linebackers and, on blitzes, the secondary all get home, so one rusher can't take half.
     const sacker0 = this.rng.weighted(rushers(def, defCall === 'blitz'), ([, w]) => w)[0];
-    let loss = Math.round(clamp(this.rng.normal(6.5, 2.5), 1, 15));
-    if (this.yardLine - loss < 0) loss = this.yardLine;
+    // How far back (`dropbackEnd.ts`): whether he'd left the pocket, then the loss from the NFL's shape for it, the
+    // down, the call, the man and the spot; never past his own goal line (reaching it is a safety).
+    const lossFacts: SackLossFacts = {
+      down: s.down,
+      toGo: s.distance,
+      yardLine: this.yardLine,
+      call: defCall,
+      qb: {
+        pocketPresence: skill(qb, 'pocketPresence'),
+        scrambling: skill(qb, 'scrambling'),
+        has: (q) => this.has(qb, q),
+      },
+    };
+    const escaped = this.rng.chance(escapeOdds(lossFacts));
+    const loss = sackLoss(lossFacts, escaped, this.rng.next());
+    this.options.endingTap?.({
+      kind: 'sack',
+      down: s.down,
+      toGo: s.distance,
+      call: defCall,
+      escaped,
+      loss,
+      yardLine: this.yardLine,
+      safety: loss >= this.yardLine,
+    });
     const duration = this.rng.int(4, 6);
     // Whether the ball comes out (`sackStripOdds`): the rusher's spot and hit, the quarterback, the down and the clock.
     const late = s.quarter >= 4 && s.clock <= 300;
@@ -4166,17 +4295,22 @@ class GameSim {
     // pocket plays it (not a strip-sack lost: the turnover's own field takes that ball) and its man has the sack.
     const pocket = lost
       ? null
-      : this.pocketFor('sack', { to: this.fieldX(this.offense, this.yardLine - loss), lane: 0 }, 'sack', {}, sacker0);
+      : this.pocketFor(
+          'sack',
+          { to: this.fieldX(this.offense, this.yardLine - loss), lane: 0 },
+          'sack',
+          escaped ? { ex: 1 } : {},
+          sacker0,
+        );
     const pocketBy = this.pocketCredit();
     const sacker = pocketBy?.rusher ?? sacker0;
     if (pocket) this.pocketToday = { ...this.pocketToday, rusher: null, beat: null, hit: true, blamed: true, duration };
     buf.add(qb, 'sacked');
     buf.add(qb, 'sackYds', loss);
-    buf.add(sacker, 'sacks');
-    buf.add(sacker, 'tackles');
-    buf.add(sacker, 'tfl');
+    for (const k of sackCredits(loss)) buf.add(sacker, k);
     this.creditPressure(buf, sacker0, defCall, true, pocketBy);
-    let text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
+    // A sack at the line costs nothing: "for 0 yards", as the NFL's books write it.
+    let text = `${short(qb)} SACKED by ${short(sacker)} for ${loss ? `-${loss}` : 0} yards`;
     const taken = (this.sacksTaken.get(qb.id) ?? 0) + 1;
     this.sacksTaken.set(qb.id, taken);
     if (taken >= 2 && (this.rattled.get(qb.id) ?? 0) < 1 && this.has(qb, 'seesGhosts')) {
@@ -4277,13 +4411,44 @@ class GameSim {
     const lane = this.rng.pick([-0.9, 0.9]);
     const tdDuration = td ? this.rng.int(5, 8) : 0;
     // The sideline call (`sideline.ts`): a scrambler always heads wide; the clock, his habits and the chase decide.
-    const call: SidelineCall =
+    const side =
       td || !tackler0
-        ? 'in'
-        : this.sideline('scramble', s, { carrier: qb, chaser: tackler0, lane, run: yards, free: false, gain: yards })
-            .call;
+        ? null
+        : this.sideline('scramble', s, { carrier: qb, chaser: tackler0, lane, run: yards, free: false, gain: yards });
+    const call: SidelineCall = side?.call ?? 'in';
     const oob = call !== 'in';
-    const slide = !td && !oob && this.rng.chance(0.4);
+    // Staying in bounds he slides or fights for it (`dropbackEnd.ts`): the sticks, the score and the clock, the man
+    // closing, his legs, habits and makeup. A slider touched down is that man's tackle.
+    const late = s.quarter >= 4 && s.clock <= 300;
+    const slideFacts: SlideFacts | null =
+      td || oob
+        ? null
+        : {
+            down: s.down,
+            toGo: s.distance,
+            gained: yards,
+            scoreDiff: s.scoreDiff,
+            late,
+            toGoal: yardsToGoal - yards,
+            qb: {
+              scrambling: speed,
+              weightZ: sizeZ(qb).w,
+              temperament: temperamentOf(qb),
+              poise: poiseOf(qb),
+              age: qb.age,
+              concussions: concussionCount(qb),
+              energy: this.body(qb).energy,
+              hurt: Math.min(3, (qb.injuries ?? []).filter((i) => i.season >= this.game.season - 1).length),
+              has: (q) => this.holds(qb, q),
+            },
+            chaser: tackler0
+              ? { tackling: skill(tackler0, 'tackling'), has: (q) => this.holds(tackler0, q) }
+              : { tackling: TYPICAL.tackling, has: () => false },
+          };
+    const slide = !!slideFacts && this.rng.chance(slideOdds(slideFacts));
+    const touched = slide && this.rng.chance(TOUCHED);
+    const slideWhy = slide ? slideReason(slideFacts!) : null;
+    const fights = !!slideFacts && !slide && fightsForIt(slideFacts);
     const duration0 = td ? tdDuration : this.rng.int(5, 8);
     // Today's draws are all in. With the switch on (a scramble that crosses the line), the pocket plays the escape and
     // the open field takes him from the line to today's yards; out of bounds or a slide is nobody's tackle.
@@ -4294,8 +4459,8 @@ class GameSim {
             ...this.scrimmageFacts(s),
             to: yards,
             ...(td ? { td: 1 as const } : {}),
-            ...(oob ? { oob: call === 'pushed' ? (1 as const) : (2 as const) } : {}),
-            ...(slide ? { sl: 1 as const } : {}),
+            ...GameSim.oobFacts(call, side?.facts),
+            ...(slide ? { sl: 1 as const, sw: SLIDE_WHY[slideWhy!], ...(touched ? { tc: 1 as const } : {}) } : {}),
           })
         : null;
     let field: { start: FieldStart; result: FieldResult } | null = null;
@@ -4318,7 +4483,7 @@ class GameSim {
     if (td) {
       buf.add(qb, 'rushTd');
       text += ', TOUCHDOWN';
-    } else if (tackler && !(field && slide)) {
+    } else if (tackler && (!slide || touched)) {
       // Out of bounds credits the man who forced him (NFL: every scramble), pushed or stepped.
       buf.add(tackler, 'tackles');
       text += ` (${short(tackler)})`;
@@ -4328,6 +4493,22 @@ class GameSim {
     // Tackled in bounds without a slide, the ball can come out (`fumbleOdds.ts`): a lost one turns it over at the spot.
     const loose =
       tackler && !oob && !slide ? this.contact('scramble', s, qb, tackler, def, this.yardLine + yards) : null;
+    // A slide counts as the NFL counts every scramble in bounds: a contact that can't fumble.
+    const toucher = tackler ?? tackler0;
+    if (slide && toucher) this.slideTap(s, qb, toucher);
+    if (slideFacts)
+      this.options.endingTap?.({
+        kind: 'scramble',
+        down: s.down,
+        toGo: s.distance,
+        slid: slide,
+        reason: slideWhy ?? (fights ? 'fight' : null),
+        tackled: !!tackler && (!slide || touched),
+        firstDown: yards >= s.distance,
+        leadingLate: late && s.scoreDiff > 0,
+        trailingLate: late && s.scoreDiff < 0,
+      });
+    this.outTap(s, call, side?.facts);
     if (tackler && loose) {
       buf.add(qb, 'fumbles');
       if (loose.why !== 'own') buf.add(tackler, 'forcedFum');
@@ -4349,7 +4530,13 @@ class GameSim {
       }
       text += '. Fumble, recovered by the offense';
     }
-    const ending = oob ? GameSim.outText(call) : slide ? ', slides' : '';
+    const ending = oob
+      ? GameSim.outText(call, side?.facts)
+      : slide
+        ? SLIDE_TEXT[slideWhy!]
+        : fights && !loose
+          ? ', fights for every yard'
+          : '';
     return {
       kind: 'scramble',
       yards,
@@ -4359,6 +4546,7 @@ class GameSim {
       stats: buf,
       lane,
       ...(oob ? { outOfBounds: call } : {}),
+      ...(slide ? { slid: true } : {}),
     };
   }
 
@@ -4391,7 +4579,7 @@ class GameSim {
     }
     ts.plays++;
 
-    this.credit(result.stats, result.outOfBounds === 'stepped');
+    this.credit(result.stats, unhitPlay(result));
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {

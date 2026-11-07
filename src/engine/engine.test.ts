@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RESERVED_NICKNAMES } from './data/teams';
 import { createLeague, SALARY_CAP } from './generate';
+import { outOfBoundsIn } from './match/sideline';
 import { playWeek, simToEndOfSeason, startNextSeason } from './league';
 import * as coach from './match/coach';
 import { simulateGame, startGame } from './match/gameSim';
@@ -172,7 +173,7 @@ describe('game simulation', () => {
       await new Promise((done) => setTimeout(done, 0));
       for (const p of simulateGame(league, league.games[i], { keepPlays: true }).plays!) {
         if (!/out of bounds/.test(p.text) || /kicks off|punt|throws it away/i.test(p.text)) continue;
-        expect(p.text).toMatch(/, (pushed|steps) out of bounds/);
+        expect(outOfBoundsIn(p.text), p.text).not.toBeNull();
         expect(p.text).not.toMatch(/TOUCHDOWN|FUMBLE/);
         // A ball loose at the sideline goes out with him and stays the offense's: no fumble on a play out of bounds.
         expect(p.text).not.toMatch(/Fumble/);

@@ -53,6 +53,8 @@ export interface PocketStart {
   end: number;
   /** A sack's spot (field x). */
   sackX?: number;
+  /** A sack after he'd left the pocket (`FieldFacts.ex`): he rolls out and is run down on the move, at `sackX`'s depth. */
+  escaped?: boolean;
   /** The slide: the side (field y) the man over the ball turns to help. */
   slide?: 1 | -1;
   /** A back who stays in to chip the edge away from the slide. */
@@ -405,18 +407,20 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
         }
       }
       // Rolling out to throw it away: set, then along his depth past the tackle, toward the side with room.
-      const rolling = outcome === 'awayOut' && set;
+      // An escaped sack rolls the same way, from the drop on (he bails), run down at the sack's depth.
+      const rolling = (outcome === 'awayOut' && set) || (outcome === 'sack' && !!start.escaped);
       if (rolling) {
         if (!side) side = qy0 <= MID ? 1 : -1;
-        tx = setX;
+        tx = outcome === 'sack' && start.sackX !== undefined ? start.sackX : setX;
         // Carried past it, he settles where he is: never back toward the middle and the men there.
         ty = side * (q.y - (qy0 + side * ROLL_OUT)) > 0 ? q.y : qy0 + side * ROLL_OUT;
       }
       const gx = tx - q.x;
       const gy = ty - q.y;
       const g = Math.hypot(gx, gy);
+      // Escaping a sack he runs for it; rolling to throw it away he keeps his eyes downfield.
       const pace = rolling
-        ? Math.min(ROLL_PACE * q.top, g / STEP)
+        ? Math.min((outcome === 'sack' ? 1 : ROLL_PACE) * q.top, g / STEP)
         : set
           ? Math.min(POCKET_PACE, g / STEP)
           : Math.min(q.top, g / STEP);

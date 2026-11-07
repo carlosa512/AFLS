@@ -39,7 +39,8 @@ describe('a ball batted down at the line', () => {
     const e = found!.r.plays![found!.i];
     const segs = buildPath(e, found!.homeId, 26.65);
     const flight = segs.find((s) => s.peak > 0)!;
-    expect(Math.abs(flight.x1 - e.from!)).toBeLessThanOrEqual(1.5);
+    // A yard past the line, or the target if a screen's comes first (0.4.10).
+    expect(Math.abs(flight.x1 - e.from!) <= 1.5 || flight.x1 === e.air).toBe(true);
     expect(flight.peak).toBeLessThanOrEqual(3);
     const plain = buildPath(
       { ...e, text: e.text.replace(/, batted down at the line by .*$/, '') },
@@ -54,7 +55,7 @@ describe('a ball batted down at the line', () => {
     const e = r.plays![i];
     const p = stage(r, r.plays!, i, homeId);
     const end = { x: p.ball[(p.steps - 1) * 3], y: p.ball[(p.steps - 1) * 3 + 1] };
-    expect(Math.abs(end.x - e.from!)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(end.x - e.from!) <= 1.5 || Math.abs(end.x - e.air!) < 1e-6).toBe(true);
     const step = arrival(p, end);
     const k = p.ids.indexOf(actorsIn(e).take!);
     expect(k, 'the batter is on the field').toBeGreaterThanOrEqual(0);
@@ -88,5 +89,29 @@ describe('a pass tipped at the line and picked off', () => {
     const k = p.ids.indexOf(actorsIn(e).take!);
     const c = at(p, step, k);
     expect(Math.hypot(c.x - p.ball[step * 3], c.y - p.ball[step * 3 + 1])).toBeLessThanOrEqual(1.5);
+  });
+});
+
+describe('a ball batted down on a throw behind the line', () => {
+  it('ends at the nearer of the line and the target, never past the target', () => {
+    const e = {
+      quarter: 1,
+      clock: 600,
+      offense: 0,
+      down: 1,
+      distance: 10,
+      yardLine: 30,
+      text: 'A.Passer pass short left to B.Back incomplete, batted down at the line by C.Tackle',
+      homeScore: 0,
+      awayScore: 0,
+      kind: 'incomplete',
+      from: 30,
+      air: 27,
+      to: 30,
+      lane: -1,
+    } as PlayLogEntry;
+    // Offense 0 is home: it drives toward higher x, so the target at 27 is behind the line at 30.
+    const flight = buildPath(e, 0, 26.65).find((s) => s.peak > 0)!;
+    expect(flight.x1).toBeLessThanOrEqual(27 + 1e-9);
   });
 });

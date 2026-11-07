@@ -12,6 +12,7 @@ import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createLeague } from '../src/engine/generate';
 import { simulateGame } from '../src/engine/match/gameSim';
+import { outOfBoundsIn } from '../src/engine/match/sideline';
 import { FIELD_W, snapYFor } from '../src/engine/field/ballPath';
 import { asRan, stagePlay } from '../src/engine/field/stage';
 import { playWeek } from '../src/engine/league';
@@ -67,6 +68,12 @@ interface FilmDone {
   /** Pushed out: nobody within 5 yd in the last second, and the nearest within 2 yd then (reported), of how many. */
   pushedAlone: number;
   pushedClose: number;
+  /** Out before the hit (0.4.10): a defender within 3.5 yd as he crosses, of how many. */
+  hitNear: number;
+  hit: number;
+  /** A slide a man touched down: him within 2.5 yd as the slider is down, of how many. */
+  slideNear: number;
+  slides: number;
   pushed: number;
 }
 interface SeasonDone {
@@ -157,7 +164,18 @@ function seasonWorker(n: number): SeasonDone {
  * someone closing; a man pushed out has the man running him out on him (nobody alone).
  */
 function filmWorker(): FilmDone {
-  const done: FilmDone = { type: 'film', steppedAlone: 0, stepped: 0, pushedAlone: 0, pushedClose: 0, pushed: 0 };
+  const done: FilmDone = {
+    type: 'film',
+    steppedAlone: 0,
+    stepped: 0,
+    pushedAlone: 0,
+    pushedClose: 0,
+    pushed: 0,
+    hitNear: 0,
+    hit: 0,
+    slideNear: 0,
+    slides: 0,
+  };
   for (const seed of ['oob-a', 'oob-b']) {
     const league = createLeague({ seed });
     for (let gi = 0; gi < FILM_GAMES / 2; gi++) {
@@ -165,7 +183,9 @@ function filmWorker(): FilmDone {
       const r = simulateGame(league, g, { keepPlays: true, field: true, seed: `oob-${gi}` });
       r.plays!.forEach((raw, i) => {
         const e = asRan(raw);
-        if (raw.down <= 0 || (e.kind !== 'pass' && e.kind !== 'run') || !/out of bounds/.test(e.text)) return;
+        const touchedSlide = e.kind === 'scramble' && !!e.field?.tc;
+        if (raw.down <= 0 || (!touchedSlide && ((e.kind !== 'pass' && e.kind !== 'run') || !outOfBoundsIn(e.text))))
+          return;
         const p = stagePlay({
           plays: r.plays!,
           index: i,
@@ -196,9 +216,18 @@ function filmWorker(): FilmDone {
                 : Math.hypot(at(st, k).x - at(st, c).x, at(st, k).y - at(st, c).y),
             ),
           );
+        if (touchedSlide) {
+          done.slides++;
+          if (nearAt(p.steps - 1) <= 2.5) done.slideNear++;
+          return;
+        }
+        if (e.field?.ow === 2) {
+          done.hit++;
+          if (nearAt(cross) <= 3.5) done.hitNear++;
+        }
         let near = Infinity;
         for (let st = Math.max(0, cross - Math.round(1 / p.dt)); st <= cross; st++) near = Math.min(near, nearAt(st));
-        if (/steps out of bounds/.test(e.text)) {
+        if (outOfBoundsIn(e.text) === 'stepped') {
           if (e.field?.out || e.field?.stay) return;
           done.stepped++;
           if (near >= 5) done.steppedAlone++;
@@ -305,6 +334,18 @@ async function main() {
     value: film.pushedAlone / Math.max(1, film.pushed),
     range: [0, 0.02],
     note: `${film.pushedAlone} of ${film.pushed}`,
+  });
+  print({
+    label: 'out before the hit with a defender within 3.5 yd',
+    value: film.hitNear / Math.max(1, film.hit),
+    range: [0.9, 1],
+    note: `${film.hitNear} of ${film.hit}`,
+  });
+  print({
+    label: 'a slide touched down with its man within 2.5 yd',
+    value: film.slideNear / Math.max(1, film.slides),
+    range: [0.8, 1],
+    note: `${film.slideNear} of ${film.slides}`,
   });
   print({
     label: 'pushed out with a defender within 2 yd',

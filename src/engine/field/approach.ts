@@ -234,6 +234,7 @@ export function fieldStart(
             x: a.yardLine + m.facts.to * a.dir,
             touchdown: !!m.facts.td,
             ...(m.facts.oob ? { out: true, ...(m.facts.oob === 2 ? { stepped: true } : {}) } : {}),
+            ...(m.facts.ow ? { why: m.facts.ow } : {}),
           },
         }
       : {}),

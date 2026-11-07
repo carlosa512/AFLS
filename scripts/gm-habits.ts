@@ -14,6 +14,7 @@
  *   npm run gm-habits -- --effects --only=bpa,gunShy   # just these effects, no churn
  */
 import { fork } from 'node:child_process';
+import { bandOf } from './band';
 import { ageShift } from '../src/engine/aging';
 import { releasePlayer } from '../src/engine/finance/cap';
 import { createLeague } from '../src/engine/generate';
@@ -77,10 +78,14 @@ function play(seed: string, seasons: number, env: Record<string, string> = {}): 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
-function judge(label: string, value: number, lo: number, hi: number, digits = 2): void {
-  const ok = Number.isFinite(value) && value >= lo && value <= hi;
+function judge(label: string, value: number, lo: number, hi: number, digits = 2, normal?: [number, number]): void {
+  // A line that swings with the league (`band.ts`) warns outside its range and fails only outside its normal band.
+  const band = bandOf(value, [lo, hi], normal);
+  const ok = band === 'usual' || band === 'unusual';
   const range = hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
-  console.log(`  ${label.padEnd(36)} ${value.toFixed(digits).padStart(7)}  (${range}) ${ok ? '' : '▼'}`);
+  console.log(
+    `  ${label.padEnd(36)} ${value.toFixed(digits).padStart(7)}  (${range}) ${band === 'unusual' ? '⚠' : ok ? '' : '▼'}`,
+  );
   if (!ok) flags.push(label);
 }
 
@@ -99,7 +104,9 @@ async function churn(): Promise<void> {
     const seen = Math.max(...runs.flatMap((r) => r.years.slice(0, 5).map((y) => y.share[id] ?? 0)));
     const top = Math.max(...late.map((y) => y.share[id] ?? 0));
     judge(`${id} held by season 5 (share)`, seen, 1e-9, 1, 3);
-    judge(`${id} most held (share)`, top, 0, 0.4, 3);
+    // Swings with the league: ⚠ past 40%, fail past 50% (the owner's call, Nov 7: on four other seeds main's Sells
+    // Early peaked at 45%, a world's luck).
+    judge(`${id} most held (share)`, top, 0, 0.4, 3, [0, 0.5]);
   }
 }
 

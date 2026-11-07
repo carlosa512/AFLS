@@ -32,7 +32,16 @@ describe('fumbles on contact in a game', () => {
       ['catch', ['pass']],
       ['scramble', ['scramble']],
     ] as const)
-      expect(taps.filter((t) => t.kind === kind).length, kind).toBe(plays.filter((e) => tackled(e, logged)).length);
+      expect(taps.filter((t) => t.kind === kind && !t.slid).length, kind).toBe(
+        plays.filter((e) => tackled(e, logged)).length,
+      );
+    // A slide counts as the NFL counts every scramble in bounds: a contact that can't fumble (0.4.10).
+    const slides = plays.filter(
+      (e) => (e.kind === 'penalty' ? e.ran?.kind : e.kind) === 'scramble' && /, slides/.test(e.text),
+    );
+    const slid = taps.filter((t) => t.slid);
+    expect(slid.length).toBe(slides.length);
+    for (const t of slid) expect(t.fumbled).toBe(false);
   });
 
   it('names each fumble’s reason in the play, before the recovery', () => {

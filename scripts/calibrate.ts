@@ -22,6 +22,7 @@ const seasons = Number(process.argv[2] ?? 3);
 import { TARGETS } from './targets';
 import { judgeFumbles, judgeRecoveries, judgeStrips, newFumbleTally, tapContact, tapStrip } from './fumbles-core';
 import { judgePicks, newPickTally, tapDefended } from './picks-core';
+import { judgeEndings, newEndingTally, tapEnding } from './dropback-core';
 import { groundingLines, judgePasser, newPasserTally, tapDropback } from './passer-core';
 import { judgeSideline, newSidelineTally, printLine, spreadLines, tallyGame } from './sideline-core';
 
@@ -164,6 +165,8 @@ let sidelineSpread: ReturnType<typeof spreadLines> | null = null;
 const fumbles = newFumbleTally();
 /** Picks and breakups by depth (`picks-core.ts`), from the same replayed weeks. */
 const picks = newPickTally();
+/** How plays end (`dropback-core.ts`), from the same replayed weeks. */
+const endings = newEndingTally();
 const passer = newPasserTally();
 let passerGames = 0;
 
@@ -177,6 +180,7 @@ function sampleDepth(league: League) {
       contactTap: (tap) => tapContact(fumbles, tap, String(tap.carrier)),
       stripTap: (tap) => tapStrip(fumbles, tap),
       defendedTap: (tap) => tapDefended(picks, tap),
+      endingTap: (tap) => tapEnding(endings, tap),
     });
     passerGames++;
     tallyGame(sideline, r.plays ?? [], g.homeId);
@@ -543,6 +547,10 @@ for (const l of [...judgeFumbles(fumbles), ...judgeStrips(fumbles), ...judgeReco
   if (!printLine(l)) misses++;
 console.log('\nPicks and breakups (weeks 1 and 10 replayed; NFL from nflverse 2021–25)');
 for (const l of judgePicks(picks)) if (!printLine(l)) misses++;
+console.log(
+  "\nHow plays end: a sack's yards, the slide, out of bounds (weeks 1 and 10 replayed; NFL from nflverse 2021–25)",
+);
+for (const l of judgeEndings(endings)) if (!printLine(l)) misses++;
 
 console.log(`\n${misses} stat(s) outside target range`);
 // The tables below are informational; a stat outside its range fails the run (and CI).

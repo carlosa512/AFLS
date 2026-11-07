@@ -903,7 +903,8 @@ describe('special teams', () => {
       const last = p.steps - 1;
       const end = at(p, last, ret);
       const tackled = p.ids.some(
-        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 1.2,
+        // The stager sets the tackler on contact at 1.2 yd: the float can land a hair past it.
+        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 1.2 + 1e-6,
       );
       expect(tackled).toBe(true);
       n++;
@@ -1265,7 +1266,13 @@ describe('the pocket', () => {
       expect(p.pocket, e.text).not.toBeNull();
       const qb = qbOf(p);
       const until = stepAt(p, e.kind === 'scramble' ? p.release : p.release);
-      for (let st = 0; st <= until; st++) expect((P(p, qb, st).x - p.ball[0]) * p.dir, e.text).toBeLessThan(0);
+      // A sack at the line (no loss, 0.4.10) can have him on it, never past it.
+      const atLine = e.kind === 'sack' && / for 0 yards/.test(e.text);
+      for (let st = 0; st <= until; st++) {
+        const ahead = (P(p, qb, st).x - p.ball[0]) * p.dir;
+        if (atLine) expect(ahead, e.text).toBeLessThanOrEqual(1e-6);
+        else expect(ahead, e.text).toBeLessThan(0);
+      }
     }
   });
 
@@ -1619,10 +1626,13 @@ describe('the run game', () => {
         seen.gapShooter++;
       }
       // A scraper flows across over the top: at least as far across as he would have, without coming downhill.
+      // (A backer walked up within 2 yd of the ball has no top to flow over: the line meets him at once.)
       const scrape = stage(x, withHabit(x, lb, 'scraper'));
-      expect(lateral(scrape, r + 0.6)).toBeGreaterThanOrEqual(lateral(base, r + 0.6) - 0.5);
-      expect(depth(scrape, r + 0.6)).toBeGreaterThan(depth(scrape, 0) - 1);
-      seen.scraper++;
+      if (depth(scrape, 0) >= 2) {
+        expect(lateral(scrape, r + 0.6)).toBeGreaterThanOrEqual(lateral(base, r + 0.6) - 0.5);
+        expect(depth(scrape, r + 0.6)).toBeGreaterThan(depth(scrape, 0) - 1);
+        seen.scraper++;
+      }
       const slow = stage(x, withHabit(x, lb, 'slowFlow'));
       const moved = (p: StagedPlay) =>
         Math.hypot(at(p, r + 0.4, lb).x - at(p, r, lb).x, at(p, r + 0.4, lb).y - at(p, r, lb).y);
@@ -1754,6 +1764,8 @@ describe('the run game', () => {
   it('crosses the line between 2.3 and 3.5 s on every handed-off run', () => {
     let n = 0;
     for (const x of runs.slice(0, 300)) {
+      // A fumble at the line puts the ball on the ground before he crosses (the hops, then the man who falls on it).
+      if (/FUMBLE|Fumble/.test(x.e.text)) continue;
       const p = stage(x);
       if (!handed(p) || role(p, p.carrier) !== 'RB') continue;
       const t = crossAt(p, x);

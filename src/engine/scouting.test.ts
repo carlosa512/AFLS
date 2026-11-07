@@ -297,7 +297,13 @@ describe('last season in the report', () => {
       `Last season he threw for 5,200 yards, 45 touchdowns and 4 picks in ${s.gp} games, well above a league-average starter.`,
     );
     // An ordinary one says nothing, unless he has grown since.
-    const lb = played.filter((p) => p.position === 'LB' && seasonRole(league, p)?.role === 'starter')[0];
+    // An ordinary line: the first starter whose season didn't stand out (who did is the world's).
+    const lb = played.find(
+      (p) =>
+        p.position === 'LB' &&
+        seasonRole(league, p)?.role === 'starter' &&
+        !/^Last season he made/.test(seasonNote(league, p) ?? ''),
+    )!;
     const note = seasonNote(league, lb);
     if (note) expect(note).toMatch(/^(Last season he made|Nothing unusual in his line last season, but he has)/);
     lb.ratingHistory![last] = ATTRIBUTES.map((a) => lb.ratings[a] - 1.5);

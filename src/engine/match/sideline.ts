@@ -199,3 +199,26 @@ export function steppedCredit(f: SidelineFacts): number {
   if (f.kind !== 'catch') return 1;
   return f.free ? CREDIT_STEPPED_FREE : CREDIT_STEPPED_CATCH;
 }
+
+/** Why a man who stepped out did it: the clock asking for a stop outranks a man closing; in open grass, nothing said. */
+export type StepReason = 'clock' | 'hit';
+
+export function stepReason(f: SidelineFacts): StepReason | null {
+  if (f.clock === 'out') return 'clock';
+  return f.free ? null : 'hit';
+}
+
+/** The play's words for each way out of bounds (spec 2026-11-07 §4). */
+export const OUT_TEXT = {
+  pushed: ', pushed out of bounds',
+  clock: ', steps out of bounds to stop the clock',
+  hit: ', gets out of bounds before the hit',
+  stepped: ', steps out of bounds',
+} as const;
+
+/** How a play's text says he went out (old saves' wordings too), or null: kickoffs out of bounds aren't a carrier's. */
+export function outOfBoundsIn(text: string): 'pushed' | 'stepped' | null {
+  if (text.includes(OUT_TEXT.pushed)) return 'pushed';
+  if (text.includes(OUT_TEXT.stepped) || text.includes(OUT_TEXT.hit)) return 'stepped';
+  return null;
+}
