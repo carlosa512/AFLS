@@ -90,3 +90,27 @@ describe('a pass tipped at the line and picked off', () => {
     expect(Math.hypot(c.x - p.ball[step * 3], c.y - p.ball[step * 3 + 1])).toBeLessThanOrEqual(1.5);
   });
 });
+
+describe('a ball batted down on a throw behind the line', () => {
+  it('ends at the nearer of the line and the target, never past the target', () => {
+    const e = {
+      quarter: 1,
+      clock: 600,
+      offense: 0,
+      down: 1,
+      distance: 10,
+      yardLine: 30,
+      text: 'A.Passer pass short left to B.Back incomplete, batted down at the line by C.Tackle',
+      homeScore: 0,
+      awayScore: 0,
+      kind: 'incomplete',
+      from: 30,
+      air: 27,
+      to: 30,
+      lane: -1,
+    } as PlayLogEntry;
+    // Offense 0 is home: it drives toward higher x, so the target at 27 is behind the line at 30.
+    const flight = buildPath(e, 0, 26.65).find((s) => s.peak > 0)!;
+    expect(flight.x1).toBeLessThanOrEqual(27 + 1e-9);
+  });
+});

@@ -4299,7 +4299,8 @@ class GameSim {
     buf.add(sacker, 'tackles');
     buf.add(sacker, 'tfl');
     this.creditPressure(buf, sacker0, defCall, true, pocketBy);
-    let text = `${short(qb)} SACKED by ${short(sacker)} for -${loss} yards`;
+    // A sack at the line costs nothing: "for 0 yards", as the NFL's books write it.
+    let text = `${short(qb)} SACKED by ${short(sacker)} for ${loss ? `-${loss}` : 0} yards`;
     const taken = (this.sacksTaken.get(qb.id) ?? 0) + 1;
     this.sacksTaken.set(qb.id, taken);
     if (taken >= 2 && (this.rattled.get(qb.id) ?? 0) < 1 && this.has(qb, 'seesGhosts')) {

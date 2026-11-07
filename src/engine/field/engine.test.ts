@@ -70,12 +70,13 @@ describe('the engine plays the open field', () => {
     const snaps = (x: GameResult) => x.home.plays + x.away.plays;
     let on = 0;
     let off = 0;
-    games.forEach(({ r }, i) => {
-      on += snaps(r);
-      off += snaps(simulateGame(league, week1[i], { keepPlays: true }));
+    // All of week 1: four games swing it by ten points with nothing changed (0.4.10: −11% over games 0–3, −2.4% over 16).
+    week1.forEach((g, i) => {
+      on += snaps(i < games.length ? games[i].r : simulateGame(league, g, { field: true }));
+      off += snaps(simulateGame(league, g, { keepPlays: true }));
     });
     expect(Math.abs(on - off) / off).toBeLessThan(0.08);
-  });
+  }, 300_000);
 
   it('changes nothing with the switch off or the tap on', () => {
     const plain = simulateGame(league, week1[4], { keepPlays: true });

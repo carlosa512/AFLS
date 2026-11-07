@@ -271,6 +271,7 @@ export function pocketFrom(
     ...(m.facts.gr ? { grounded: true } : {}),
     ...(m.facts.cq ? { clean: true } : {}),
     ...(m.kind === 'sack' && m.to !== undefined ? { sackX: m.to } : {}),
+    ...(m.kind === 'sack' && m.facts.ex ? { escaped: true } : {}),
   };
   return { start, result: runPocket(start, rng) };
 }
@@ -418,7 +419,8 @@ export function scrambleStart(
       x: m.from + f.to! * composed.dir,
       touchdown: !!f.td,
       ...(f.oob ? { out: true, ...(f.oob === 2 ? { stepped: true } : {}) } : {}),
-      ...(f.sl ? { slide: true } : {}),
+      ...(f.ow ? { why: f.ow } : {}),
+      ...(f.sl ? { slide: true, ...(f.tc ? { touched: true } : {}) } : {}),
     },
   };
 }

@@ -94,7 +94,7 @@ describe('the engine plays the pocket', () => {
     expect(tapped.playerStats).toEqual(plain.playerStats);
   });
 
-  it("ends a scramble at today's yards, with no tackle on a slide, the man who forced him credited out of bounds", () => {
+  it("ends a scramble at today's yards, a slide's tackle his who touched him down, the man who forced him out credited", () => {
     let n = 0;
     for (const { r, taps } of played)
       for (const t of taps) {
@@ -102,8 +102,9 @@ describe('the engine plays the pocket', () => {
         const e = r.plays![t.moment.index];
         if (e.kind !== 'scramble') continue;
         n++;
+        // A slide names the man who touched him down (0.4.10), the field's own tackler; nobody touched, nobody named.
         if (/slides/.test(e.text))
-          expect(e.text.split('. ')[0], `play ${t.moment.index}`).not.toMatch(/\([A-Z]\.[^)]*\)/);
+          expect(/\([A-Z]\.[^)]*\)/.test(e.text.split('. ')[0]), `play ${t.moment.index}`).toBe(!!e.field?.tc);
         // The scorer credits whoever forced a scrambler out (NFL: every one).
         if (/out of bounds/.test(e.text))
           expect(e.text.split('. ')[0], `play ${t.moment.index}`).toMatch(/\([A-Z]\.[^)]*\)/);

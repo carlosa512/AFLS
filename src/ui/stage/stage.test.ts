@@ -903,7 +903,8 @@ describe('special teams', () => {
       const last = p.steps - 1;
       const end = at(p, last, ret);
       const tackled = p.ids.some(
-        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 1.2,
+        // The stager sets the tackler on contact at 1.2 yd: the float can land a hair past it.
+        (_, k) => p.offense[k] && Math.hypot(at(p, last, k).x - end.x, at(p, last, k).y - end.y) <= 1.2 + 1e-6,
       );
       expect(tackled).toBe(true);
       n++;
@@ -1265,7 +1266,13 @@ describe('the pocket', () => {
       expect(p.pocket, e.text).not.toBeNull();
       const qb = qbOf(p);
       const until = stepAt(p, e.kind === 'scramble' ? p.release : p.release);
-      for (let st = 0; st <= until; st++) expect((P(p, qb, st).x - p.ball[0]) * p.dir, e.text).toBeLessThan(0);
+      // A sack at the line (no loss, 0.4.10) can have him on it, never past it.
+      const atLine = e.kind === 'sack' && / for 0 yards/.test(e.text);
+      for (let st = 0; st <= until; st++) {
+        const ahead = (P(p, qb, st).x - p.ball[0]) * p.dir;
+        if (atLine) expect(ahead, e.text).toBeLessThanOrEqual(1e-6);
+        else expect(ahead, e.text).toBeLessThan(0);
+      }
     }
   });
 
@@ -1754,6 +1761,8 @@ describe('the run game', () => {
   it('crosses the line between 2.3 and 3.5 s on every handed-off run', () => {
     let n = 0;
     for (const x of runs.slice(0, 300)) {
+      // A fumble at the line puts the ball on the ground before he crosses (the hops, then the man who falls on it).
+      if (/FUMBLE|Fumble/.test(x.e.text)) continue;
       const p = stage(x);
       if (!handed(p) || role(p, p.carrier) !== 'RB') continue;
       const t = crossAt(p, x);

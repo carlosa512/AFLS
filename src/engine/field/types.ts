@@ -92,7 +92,17 @@ export interface FieldStart {
    * Where today's engine ended the play (field x) and whether it scored: the open field plays out how he gets there
    * (the path, the cuts, who misses, who tackles) and ends there. The owner's call H: the yards stay today's.
    */
-  target?: { x: number; touchdown: boolean; out?: boolean; stepped?: boolean; slide?: boolean };
+  target?: {
+    x: number;
+    touchdown: boolean;
+    out?: boolean;
+    stepped?: boolean;
+    slide?: boolean;
+    /** Why he stepped out (`FieldFacts.ow`): 1 the clock (nobody sent), 2 before the hit (a man closing). */
+    why?: 1 | 2;
+    /** A slide a man touched down (`FieldFacts.tc`): that man arrives and has the tackle. */
+    touched?: boolean;
+  };
   /** Free defenders who react late on a clean run (seconds from `t0`): the second level held by the hole. */
   late?: { id: number; until: number }[];
 }

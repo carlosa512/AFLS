@@ -282,7 +282,9 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         nextAim = t + READ_EVERY;
         // Pushed out, or stepping out with someone closing: a defender runs him out. Stepping out in the hurry-up he's
         // getting out to stop the clock, with nobody sent.
-        if (spot?.out && !(spot.stepped && start.clock.outOfBounds)) escort = escortFor(t);
+        // Why he stepped out (`target.why`) decides it; film before 0.4.10 reads the hurry-up as today.
+        const forClock = spot?.why === 1 || (spot?.why === undefined && start.clock.outOfBounds);
+        if (spot?.out && !(spot.stepped && forClock)) escort = escortFor(t);
       }
     }
     // Everyone else moves.
@@ -354,9 +356,11 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
         if (stoppedAt < 0) [stoppedAt, stopX, stopY] = [now, c.x, c.y];
         // He's down: a man arriving doesn't carry him on.
         [c.x, c.y, c.vx, c.vy] = [stopX, stopY, 0, 0];
-        const on = spot?.slide ? -1 : nearestFree(ON_HIM, now);
-        if (spot?.slide || on >= 0 || now - stoppedAt >= WAIT || nearestFree(WAIT_REACH, now) < 0) {
-          tackler = spot?.slide ? -1 : on >= 0 ? on : nearestFree(ANCHOR_REACH, now);
+        // A slider nobody touched is down on his own; one a man touched waits for him, and he has the tackle.
+        const untouched = !!spot?.slide && !spot.touched;
+        const on = untouched ? -1 : nearestFree(ON_HIM, now);
+        if (untouched || on >= 0 || now - stoppedAt >= WAIT || nearestFree(WAIT_REACH, now) < 0) {
+          tackler = untouched ? -1 : on >= 0 ? on : spot?.touched ? nearestDefender() : nearestFree(ANCHOR_REACH, now);
           spotX = c.x;
           end(now, COAST.tackle);
         }
