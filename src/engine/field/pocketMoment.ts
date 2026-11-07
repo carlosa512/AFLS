@@ -78,6 +78,8 @@ export function pocketEntry(m: PocketMoment): PlayLogEntry {
     to: m.kind === 'sack' ? (m.to ?? m.from) : m.kind === 'scramble' ? m.from : (m.air ?? m.from),
     lane: m.lane,
     ...(who ? { who } : {}),
+    // Read by the cast alone (the blind staging ignores it): who today's credit charged is on the field.
+    field: m.facts,
   };
 }
 
