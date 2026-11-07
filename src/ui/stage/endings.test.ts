@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_W, snapYFor } from '../../engine/field/ballPath';
+import { bodyOf } from '../../engine/field/body';
+import { skillsAt } from '../../engine/field/snapshot';
+import { STEP } from '../../engine/field/tuning';
 import { asRan, stagePlay } from '../../engine/field/stage';
 import { createLeague } from '../../engine/generate';
 import { simulateGame } from '../../engine/match/gameSim';
@@ -114,5 +117,25 @@ describe('an escaped sack, on film', () => {
     }
     expect(n).toBeGreaterThan(2);
     expect(wide / n).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('never has him faster than his legs with the ball, a sack for no loss included', () => {
+    const sacks = each((e) => e.kind === 'sack' && !!e.field?.ex);
+    let n = 0;
+    for (const { r, homeId, i } of sacks) {
+      const p = stage(r, homeId, i);
+      if (!p.spatial) continue;
+      const qb = p.ids.findIndex((_, k) => p.offense[k] && p.roles[k] === 'QB');
+      const s = skillsAt(r.field!.snap!, p.ids[qb], i);
+      if (!s) continue;
+      const top = bodyOf({ id: p.ids[qb], side: 0, role: 'QB', x: 0, y: 0, vx: 0, vy: 0, s }, false, true).top;
+      n++;
+      for (let st = 1; st < p.steps; st++) {
+        const a = at(p, st - 1, qb);
+        const b = at(p, st, qb);
+        expect(Math.hypot(b.x - a.x, b.y - a.y) / STEP).toBeLessThanOrEqual(top + 0.05);
+      }
+    }
+    expect(n).toBeGreaterThan(2);
   });
 });
