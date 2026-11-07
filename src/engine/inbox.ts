@@ -1,3 +1,4 @@
+import { offMarketMail } from './offMarketMail';
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { talkMail, talkNeedsYou } from './talkMail';
@@ -736,6 +737,8 @@ export type MailSubject =
   | { kind: 'advice'; season: number; moment: string }
   | { kind: 'gazette'; season: number }
   | { kind: 'faWrap'; season: number }
+  // SNN when free agency opens: who other clubs kept in the re-sign window (offMarketMail.ts).
+  | { kind: 'offMarket'; season: number }
   | { kind: 'market'; season: number; phase: Phase; week: number }
   | { kind: 'marketRecap'; season: number }
   | { kind: 'positionOffer'; season: number; playerId: number; to: Position }
@@ -793,6 +796,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gazette') return { kind: 'gazette', season };
+  if (category === 'offMarket') return { kind: 'offMarket', season };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -3071,7 +3075,12 @@ export function deliverMail(league: League): void {
     if (league.phase === 'regular') fresh.push(...callupsUsedMail(league, have));
     // Free agency's first day: the window's coaching moves are done.
     if (league.phase === 'freeAgency')
-      fresh.push(...combineMail(league, have), ...poachedMail(league, have), ...carouselMail(league, have));
+      fresh.push(
+        ...combineMail(league, have),
+        ...poachedMail(league, have),
+        ...carouselMail(league, have),
+        ...offMarketMail(league, have),
+      );
     // Free agency is over by the draft (or by camp, if a sim ran straight through it).
     if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
     if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
