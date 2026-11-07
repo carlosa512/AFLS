@@ -200,7 +200,9 @@ const tradeUpScore = () => {
   const l = draftDayLeague();
   let found = 0;
   let lost = 0;
-  for (let i = 0; i < 32; i++) {
+  // Sixty-four picks, not thirty-two (as the unit test): in the merged world the first round alone holds no quarterback
+  // sitting just under the bar.
+  for (let i = 0; i < 64; i++) {
     for (const pk of picksAhead(l, WINDOW)) {
       if (pk.ownerId === l.userTeamId) continue;
       const team = l.teams[pk.ownerId];
