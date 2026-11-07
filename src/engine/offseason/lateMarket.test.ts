@@ -221,6 +221,16 @@ describe('the market clears', () => {
     expect(capSheet(l, club.id, l.season).dead).toBe(dead);
   }, 120_000);
 
+  it('in camp a full club swaps its weakest minimum man for a young star, its roster the same size', () => {
+    const { l, star } = lastCall();
+    const sizes = new Map(l.teams.map((t) => [t.id, activeRoster(l, t.id).length]));
+    // Every club full: only a swap can place him.
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    const club = l.players[star.id].teamId;
+    expect(club).not.toBeNull();
+    expect(activeRoster(l, club!).length).toBe(sizes.get(club!));
+  }, 120_000);
+
   it('no funding from a cut that would leave dead money', () => {
     const { l } = lastCall();
     for (const t of l.teams)

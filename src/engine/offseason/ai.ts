@@ -942,7 +942,9 @@ export function aiFreeAgencyDay(
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
     for (const team of teams) {
-      if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
+      // A full club still has the last call's swap: its weakest minimum man for a clear upgrade (`fundedRoom`).
+      const full = (room.get(team.id) ?? 0) <= 0;
+      if ((full && !opts.lastCall) || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
       const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
       const gm = aiGm(league, team);
@@ -954,6 +956,14 @@ export function aiFreeAgencyDay(
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
       if (gain < minGain.get(team.id)! * bar) continue;
       let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
+      if (full) {
+        if (gain < 2 * minGain.get(team.id)!) continue;
+        const funded = fundedRoom(league, team, p.position);
+        const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
+        if (deal && offerValue(league, p, team.id, deal) >= floorAt(team.id))
+          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
+        continue;
+      }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
