@@ -35,24 +35,25 @@ windows; a touchdown; a change of possession), so the time to the next snap is t
 
 | Play | Seconds (n) |
 | --- | --- |
-| Incomplete, behind the line / 0–9 / 10–19 / 20+ air yards | 3.97 (4,726) / 4.36 (11,834) / 4.97 (8,106) / 5.72 (6,202); all 4.73, p10 3, p90 7 |
-| Catch, by yards (touchdowns): <5 / 5–9 / 10–19 / 20–39 / 40+ | 4.15 / 4.65 / 5.32 / 6.29 / 9.27 |
-| Catch out of bounds late, by yards: <5 / 5–9 / 10–19 / 20–39 / 40+ | 5.21 / 4.96 / 5.50 / 6.29 / 8.10 |
-| Run, by yards (touchdowns): <5 / 5–9 / 10–19 / 20–39 / 40+ | 3.74 / 5.00 / 5.88 / 7.20 / 9.61 |
-| Run out of bounds late, by yards: <5 / 5–9 / 10–19 / 20–39 | 5.61 / 6.43 / 6.41 / 7.95 |
-| Punt returned / fair caught | 10.91 (3,388) / 6.94 (2,847) |
-| Kickoff returned (the clock starts on the catch) | 5.74 (5,218) |
+| Incomplete, behind the line / 0–9 / 10–19 / 20+ air yards | 3.97 (4,505) / 4.36 (11,241) / 4.96 (7,729) / 5.73 (5,876); all 4.73 (29,377), p10 3, p90 7 |
+| Catch, by yards (touchdowns): <5 / 5–9 / 10–19 / 20–39 / 40+ | 4.15 / 4.63 / 5.34 / 6.26 / 9.25 |
+| Catch out of bounds late, by yards: <5 / 5–9 / 10–19 / 20–39 / 40+ | 5.20 / 4.93 / 5.50 / 6.31 / 8.10 |
+| Run, by yards (touchdowns): <5 / 5–9 / 10–19 / 20–39 / 40+ | 3.65 / 4.77 / 5.81 / 7.05 / 9.55 |
+| Run out of bounds late, by yards: <5 / 5–9 / 10–19 / 20–39 | 4.92 / 5.78 / 5.56 / 6.85 (scrambles left out; n 85, 98, 63, 26) |
+| Punt returned / fair caught | 10.91 (3,256) / 6.94 (2,709) |
+| Kickoff returned (the clock starts on the catch) | 5.74 (4,950) |
 
 Sacks and scrambles can't be timed this way (the clock runs after them; a timeout's logged clock is unreliable), so
 their time is not measured.
 
-**The half's last possession** (1,552 drives whose first snap comes with 75 seconds or less in the 2nd quarter): kneel
-on the first snap 28% overall; by the clock 64.6% at 20 or less, 9.2% at 21–40, 1.0% at 41–60, none past; by
-timeouts, at 21–40 seconds, 17% with none, 16% with one, 13% with two, 4% with three (at 20 or less 82%, 79%, 70%,
-72%); by the spot 35% from the own 1–25, 33% from the 26–35, 8% from the 36–50, none past midfield; by the score no
-difference (trailing 34.3%, tied 33.7%, leading 34.0%). Drives that try from the own 35 or deeper end: the half 42.5%,
-a punt 17.3%, a field goal 16.4%, a turnover 8.8%, a missed field goal 6.4%, a touchdown 4.8%. Team-seasons don't
-differ beyond luck (sd 0.114 against 0.129).
+**The half's last possession** (1,481 regular-season drives whose first snap comes with 75 seconds or less in the 2nd
+quarter): kneel on the first snap 27.8% overall; by the clock 64.3% at 20 or less, 8.9% at 21–40, 1.0% at 41–60, none
+past; by timeouts inside his own 35, at 21–40 seconds, 18% with none, 15% with one, 12% with two, 4% with three (at 20
+or less 84%, 79%, 70%, 71%); by the spot 34% from the own 1–25, 33% from the 26–35, 8% from the 36–50, none past
+midfield; by the score little difference (trailing 29%, tied 26%, leading 27%). A logistic fit inside the own 50:
+4.316 − 0.216 a second − 0.351 a timeout − 3.484 from the own 36–50. Drives that try from the own 35 or deeper end: the
+half 42.3%, a punt 17.5%, a field goal 16.3%, a turnover 8.9%, a missed field goal 6.3%, a touchdown 4.8%. Team-seasons
+don't differ beyond luck (sd 0.111 against 0.127).
 
 **The two-point try** (6,779 tries after a touchdown): two 9.8% (by season 9.1–10.9%); 4.6% in quarters 1–3, 22.3% in
 the 4th and overtime. In the 4th by the score after the touchdown: always at −10, −5, −2, +1, +5; 37% at −8, 41% at
