@@ -234,10 +234,24 @@ export function aiOffer(
  * The deal a club can fit when it can't fit his market price: one year at the room it has, no bonus, as the NFL's
  * late market signs a good veteran to a prove-it deal with whoever has room. Null below his minimum.
  */
-export function fitOffer(offer: Offer, budget: number, min: number): Offer | null {
+export function fitOffer(offer: Offer, budget: number, min: number, age = Infinity): Offer | null {
   if (budget < min) return null;
-  return { years: 1, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
+  // The one-year prove-it deal is a veteran's: a player 28 or younger gets two (the NFL's one-year share of good
+  // outside signings is 20%; ours climbed past half when every stranded man signed for one).
+  const years = age <= 28 ? 2 : 1;
+  return { years, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
 }
+
+/**
+ * Whether a multi-year deal leaves next year's room: next year's books, what its plan needs then (keepers whose deals
+ * end this year at market, the draft class: `nextYearNeeds`) and this deal's APY, within what this GM lets next year
+ * carry (`nextYearCeiling` of the cap). A club that spent next spring's keeper money on a free agent lost the keeper.
+ */
+export const fitsNextYear = (committedNext: number, needs: number, apy: number, ceiling: number): boolean =>
+  committedNext + needs + apy <= ceiling;
+
+/** A banking club (`capPlan`'s rebuilder) buys only the young, or an upgrade that clears twice the bar its price sets. */
+export const bankBuys = (age: number, gain: number, bar: number): boolean => age <= 27 || gain >= 2 * bar;
 
 // ───────── re-sign window ─────────
 
@@ -852,9 +866,10 @@ export function aiFreeAgencyDay(
   const room = new Map(
     teams.map((t) => [t.id, (opts.rosterMax ?? rosterLimit(league)) - activeRoster(league, t.id).length]),
   );
-  // Cap planning: big deals must also fit next year's books, not just this year's.
-  const nextCap = capFor(league, league.season + 1) * 0.92;
+  // Cap planning (`capPlan.ts`): big deals must also leave next year's keepers their room, and a banking club buys young.
+  const nextCap = capFor(league, league.season + 1);
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
+  const plans = new Map(teams.map((t) => [t.id, capPlan(league, t, rng)]));
   const signedToday = new Map<number, number>();
   // Each club's room to spend, read once a pass and again when it signs: a club's cap is read off every player in the
   // league, and reading it for each bid was most of a free-agency day (70% of a careers league).
@@ -898,6 +913,11 @@ export function aiFreeAgencyDay(
       let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
+      if (
+        plans.get(team.id)!.stance === 'bank' &&
+        !bankBuys(p.age, gain, upgradeBar(league, team, offer.apy, rich.get(team.id)))
+      )
+        continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
@@ -925,7 +945,7 @@ export function aiFreeAgencyDay(
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
-        const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
+        const fitted = fitOffer(offer, budget.get(team.id)!, minimum, p.age);
         if (
           !fitted ||
           gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar ||
@@ -937,7 +957,12 @@ export function aiFreeAgencyDay(
       if (
         offer.years > 1 &&
         offer.apy > 0.03 * league.caps[league.season] &&
-        committedNext.get(team.id)! + offer.apy > nextCap
+        !fitsNextYear(
+          committedNext.get(team.id)!,
+          plans.get(team.id)!.nextYear,
+          offer.apy,
+          nextYearCeiling(team.gm, winNow(league, team)) * nextCap,
+        )
       )
         continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });

@@ -77,7 +77,8 @@ describe('the market clears by camp', () => {
       if (last.l.players[last.p.id].teamId !== t.id) continue;
       found = true;
       const signed = last.l.players[last.p.id];
-      expect(signed.contract!.length).toBe(1);
+      // A prove-it deal: one year for a veteran, two for a player 28 or younger (`fitOffer`).
+      expect(signed.contract!.length).toBe(signed.age <= 28 ? 2 : 1);
       expect(capHit(signed.contract!, last.l.season)).toBeLessThanOrEqual(1.5 * last.min + 1);
       // Before camp he takes less than his walk-away from nobody.
       const early = lateVeteran(t.id, 1.5);

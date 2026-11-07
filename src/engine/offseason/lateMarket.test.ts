@@ -5,7 +5,7 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, fitOffer, spendable } from './ai';
+import { aiFreeAgencyDay, bankBuys, fitOffer, fitsNextYear, spendable } from './ai';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { demand, freeAgents, OFFSEASON_ROSTER_MAX, offerValue } from './negotiation';
 import { activeRoster } from '../roster';
@@ -134,4 +134,31 @@ describe('the late market runs past day 5', () => {
     );
     expect(added.map((p) => p.id).filter((id) => !drafted.has(id))).toEqual([]);
   }, 120_000);
+});
+
+describe('spending discipline', () => {
+  const offer = { years: 4, apy: 9_000, bonusPct: 0.3, gtdPct: 0.5, voidYears: 1 };
+
+  it('a fitted offer to a 26-year-old runs two years; to a 31-year-old one', () => {
+    expect(fitOffer(offer, 5_200.7, 1_100, 26)).toEqual({
+      years: 2,
+      apy: 5_200,
+      bonusPct: 0,
+      gtdPct: 0.5,
+      voidYears: 0,
+    });
+    expect(fitOffer(offer, 5_200.7, 1_100, 31)!.years).toBe(1);
+  });
+
+  it('a multi-year bid that eats next year’s keepers’ room is refused', () => {
+    // Next year's books, its keepers and the draft, and the new deal, within what this GM lets next year carry.
+    expect(fitsNextYear(250_000, 30_000, 20_000, 310_000)).toBe(true);
+    expect(fitsNextYear(250_000, 50_000, 20_000, 310_000)).toBe(false);
+  });
+
+  it('a bank club passes on a 30-year-old marginal upgrade but signs a 25-year-old', () => {
+    expect(bankBuys(30, 1.2, 1)).toBe(false);
+    expect(bankBuys(25, 1.2, 1)).toBe(true);
+    expect(bankBuys(30, 2.5, 1)).toBe(true); // a big upgrade, whatever his age
+  });
 });
