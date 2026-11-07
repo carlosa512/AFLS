@@ -1,6 +1,6 @@
 # How a play ends: a sack's yards, the slide, and why he went out
 
-**Status:** designed (2026-11-07), not built. Follows 0.4.9. MVP follow-ups: "Medium: a sack's yards and strip (L3815)"
+**Status:** built (0.4.10). Follows 0.4.9. MVP follow-ups: "Medium: a sack's yards and strip (L3815)"
 (the strip done in 0.4.7, the yards left) and "Medium: a scramble's slide (L3945)", with the reason for every ending a
 man chooses (out of bounds, a slide) in the play's words and on film.
 

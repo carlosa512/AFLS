@@ -210,7 +210,9 @@ catch or run is the item above.
       out on both sides (0.0095 against 0.0117). Spec:
       `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
 - [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
-      tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it.
+      tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it. Also
+      (the owner, Nov 7): the first-half kneel (`shouldKneel`) ignores timeouts and a realistic shot at points: a team
+      with 30 seconds and timeouts in hand at its own 25 kneels where many NFL teams try.
 - [x] **Medium-High: after an interception (0.4.8).** Who picks it off reads the throw's depth (`match/defendedPass.ts`):
       the cover man first, else a group the depth points to and a man of it by his ball skills (to the fourth: the ball
       hawk gets his group's picks); a lineman only at the line, a ball tipped up (the pick changes hands there). Deep
@@ -226,12 +228,20 @@ catch or run is the item above.
       his group's: a safety picks it up and runs, a tackle falls on it, and most long returns go the distance. Fitted
       to nflverse 2021–25 (`npm run fumbles`, also judged in `npm run sim`): lost per 100 runs 0.61 (NFL 0.65),
       catches 0.60 (0.67), fumbles lost 0.41 a game. Spec: `docs/superpowers/specs/2026-11-06-fumble-recoveries-design.md`.
-- [ ] **Medium: a sack's yards and strip** (L3815) · **Partial (0.4.7):** the strip reads the rusher's spot (off the
-      edge 14% of sacks, up the middle 8%, NFL 2021–25), his hit, the quarterback's ball security and the down
-      (`sackStripOdds`), 12.4 a hundred like the NFL's; a sack's yards are still normal 6.5 ± 2.5 whatever the drop or
-      the rusher.
-- [ ] **Medium: a scramble's slide** (L3945): a flat 40% of scrambles that stay in bounds (out of bounds is the
-      sideline call since 0.4.4). The NFL's play text doesn't record slides.
+- [x] **Medium: a sack's yards and strip (0.4.10).** The strip (0.4.7) reads the rusher's spot, his hit, the
+      quarterback's ball security and the down (`sackStripOdds`). The yards come from the NFL's shape (`match/dropbackEnd.ts`):
+      no loss on 7% of sacks, 10+ on 19%, 15+ on 2%, deeper on passing downs and against a blitz, shorter after he'd
+      left the pocket (23% of sacks, 5.2 yards against 6.9 in it) and backed up near his own goal; pocket presence and
+      Muddy Pockets lean it. Fitted to nflverse and FTN 2021–25 (`npm run dropback`, also judged in `npm run sim`). On
+      film an escaped sack is run down on the move. Spec: `docs/superpowers/specs/2026-11-07-dropback-endings-design.md`.
+- [x] **Medium: a scramble's slide (0.4.10).** The scrambler who stays in bounds slides or fights for it: 40% of the
+      league's slide (the owner's call: no data records slides), more with the first down in hand (55%), protecting a
+      lead late or a hitter closing, a concussion history or a cool head; fewer short of the sticks on 3rd and 4th
+      (17%), trailing late, a runner's legs or Gunslinger. The man who touches him down has the tackle (93% of in-bounds
+      scrambles credit one, the NFL's 93.2%), and scramble fumbles count slides as the NFL does (1.72 a hundred against
+      1.75). The play says why ("slides with the first down in hand", "to keep the clock running", "to avoid the hit",
+      "fights for every yard"), and why a man went out of bounds ("steps out of bounds to stop the clock", "gets out of
+      bounds before the hit"), and the film shows it.
 - [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
 - [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
       **Partial (0.4.8):** breakups by depth, throwaways left out (0.45 behind the line to 0.29 deep, NFL FTN 2022–25),

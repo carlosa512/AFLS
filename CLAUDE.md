@@ -77,6 +77,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   (`scripts/research-picks.py`); AI games, fast (3,000 in under a minute). Run it after changing `match/defendedPass.ts`,
   `match/returnBands.ts` or the pick and incompletion branches in `match/gameSim.ts`; `npm run sim` judges the buckets.
   Nothing may be ✗.
+- `npm run dropback [-- games]` — how a play ends: a sack's loss (its shape, by the down, after he'd left the pocket or
+  in it, backed up), how often he'd left it, tacklers credited on scrambles in bounds; reported: the loss by the
+  defense's call, the slide share by situation and each ending's reason (slides, fights, why a man went out of bounds);
+  against nflverse and FTN 2021–25 (`scripts/research-dropback.py`); AI games, fast (3,000 in under a minute). Run it after
+  changing `match/dropbackEnd.ts`, `stepReason` in `match/sideline.ts` or the sack and scramble endings in
+  `match/gameSim.ts`; `npm run sim` judges the same lines. Nothing may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -388,7 +394,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `docs/superpowers/specs/2026-11-06-picks-and-breakups-design.md`): who picks it off (the cover man, else a group by
     the throw's depth, a man of it by ball skills; a lineman only at the line, tipping it up), breakups by depth and who's
     credited (the line's share batted down at the line), the pick's return by depth; draws nothing ·
-    `match/returnBands.ts` the yard-band return a pick and a loose ball share (`bandReturn`)
+    `match/returnBands.ts` the yard-band return a pick and a loose ball share (`bandReturn`) · `match/dropbackEnd.ts` how
+    a play ends (spec `docs/superpowers/specs/2026-11-07-dropback-endings-design.md`): a sack's loss from the NFL's shape
+    (in the pocket or after he'd left it, the down, the call, the man, backed up), the slide or the fight for a scrambler
+    who stays in bounds and why (`slideReason`, `fightsForIt`), the man who touched a slider down (`TOUCHED`); why a man
+    stepped out is `stepReason` in `sideline.ts`; the words in the play, the reasons on film (`FieldFacts.ow`, `sw`,
+    `tc`, `ex`); draws nothing
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

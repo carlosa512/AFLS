@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.10',
+    date: '2026-11-07',
+    title: 'How a play ends',
+    text:
+      'Sacks now cost what they do in the NFL: some at the line cost nothing, a few cost fifteen, a blitz on third down ' +
+      'drives him deeper and a quarterback who gets out of the pocket is run down shorter. A scrambler decides how his ' +
+      'run ends: one slides with the first down in hand or to keep the clock running, another fights for every yard on ' +
+      'third down, and the man who touches a slider down gets the tackle. Runners say why they went out of bounds, to ' +
+      'stop the clock or before the hit, and the film shows it.',
+  },
+  {
     version: '0.4.9',
     date: '2026-11-06',
     title: 'Rival GMs with habits',
