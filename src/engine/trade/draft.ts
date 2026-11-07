@@ -362,7 +362,9 @@ export function pickMoved(league: League, proposal: TradeProposal): void {
     const got = proposal.sides[1 - i].picks.map((id) => dealLabel(league, league.draftPicks.find((p) => p.id === id)!));
     for (const id of side.picks) {
       const pk = league.draftPicks.find((p) => p.id === id)!;
-      if (pk.season === league.season && pk.playerId === undefined) pk.moved = { from: side.teamId, got };
+      // The first sender stays: the club that scouted around this slot is the one that held it before draft day.
+      if (pk.season === league.season && pk.playerId === undefined)
+        pk.moved = { from: pk.moved?.from ?? side.teamId, got };
     }
   });
 }
