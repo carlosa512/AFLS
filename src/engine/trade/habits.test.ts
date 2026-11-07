@@ -144,6 +144,20 @@ describe('executeTrade logs habit moves', () => {
     expect(logOf(l, AI2).some((m) => m.habit === 'swaps')).toBe(true);
   });
 
+  it('swaps: a pick thrown in to even it up is still a swap', () => {
+    const l = fresh();
+    const a = teamPlayers(l, AI).find((p) => p.position === 'TE')!;
+    const b = teamPlayers(l, AI2).find((p) => p.position === 'TE')!;
+    executeTrade(l, {
+      sides: [
+        { teamId: AI, players: [a.id], picks: [] },
+        { teamId: AI2, players: [b.id], picks: pick(l, AI2, 1) },
+      ],
+    });
+    expect(logOf(l, AI).some((m) => m.habit === 'swaps')).toBe(true);
+    expect(logOf(l, AI2).some((m) => m.habit === 'swaps')).toBe(true);
+  });
+
   it('sellsEarly: a rookie-deal starter sent for a day-two pick is a good one', () => {
     const l = fresh();
     const p = starters(l, l.teams[AI], 'WR')[0];

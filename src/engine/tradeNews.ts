@@ -123,8 +123,9 @@ export function tradePattern(l: League, deal: TradeRecord): { gmId: number; line
     const log = gm?.habitLog;
     if (!gm || !log) continue;
     const other = deal.sides.find((s) => s !== side);
-    // a swap is players both ways and no picks; his guys are men he is taking back in this deal
-    const isSwap = deal.sides.every((s) => s.players.length > 0 && s.picks.length === 0);
+    // a swap is players both ways (a pick to even it up doesn't change what it is); his guys are men he is taking
+    // back in this deal
+    const isSwap = deal.sides.every((s) => s.players.length > 0);
     const move = log.find(
       (m) =>
         m.season === deal.season &&

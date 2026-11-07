@@ -38,8 +38,9 @@ function habitMoves(league: League, proposal: TradeProposal): HabitMove[] {
     if (!gm) return;
     if (side.picks.filter((id) => round(id) === 1).length >= 2 && other.players.length === 1 && !other.picks.length)
       out.push({ teamId: team.id, habit: 'firstsForStars', playerId: other.players[0] });
-    if (side.players.length && other.players.length && !side.picks.length && !other.picks.length)
-      out.push({ teamId: team.id, habit: 'swaps' });
+    // A swap is a player each way, what the news calls one (`kindOf`): a pick thrown in to even it up doesn't change
+    // what it is, and the balancer adds one to most.
+    if (side.players.length && other.players.length) out.push({ teamId: team.id, habit: 'swaps' });
     for (const id of side.players) {
       const p = league.players[id];
       if (!starters(league, team, p.position).some((s) => s.id === id)) continue;

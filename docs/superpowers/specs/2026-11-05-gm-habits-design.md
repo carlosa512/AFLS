@@ -141,7 +141,7 @@ Shared rules:
 
 - **Lean** (`trade/deals.ts`, `dealFor`): `SWAP_EDGE` falls from 5 to 0 for him (a swap wins a tie with picks) and his
   swap search gets two more tries than `SWAP_TRIES`.
-- **Logged:** each player-for-player swap.
+- **Logged:** each player-for-player swap (a pick thrown in to even it up doesn't change what it is: the balancer adds one to most).
 - **+** each swap he makes. **−** none: an unused year fades it like any habit.
 
 ### Drafts Best Available (`bpa`)
