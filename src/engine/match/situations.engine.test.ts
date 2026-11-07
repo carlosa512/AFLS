@@ -112,3 +112,24 @@ describe('the two-point try, in the engine', () => {
     }
   });
 });
+
+describe('returns, in the engine', () => {
+  it('taps every return; a touchdown is exactly the return that reaches the end zone', () => {
+    const rets = of('return');
+    expect(rets.some((t) => t.play === 'kickoff')).toBe(true);
+    expect(rets.some((t) => t.play === 'punt')).toBe(true);
+    const logged = games.flatMap((g) =>
+      g.plays.filter((e) => /returns the (kickoff|punt) .* for a TOUCHDOWN/.test(e.text)),
+    );
+    expect(rets.filter((t) => t.td).length).toBe(logged.length);
+    for (const t of rets.filter((x) => x.play === 'kickoff')) expect(t.td).toBe(t.yards >= 97);
+  });
+
+  it('times a returned punt longer than a fair catch', () => {
+    const avg = (k: string) => {
+      const xs = of('time').filter((t) => t.play === k);
+      return xs.reduce((a, t) => a + t.seconds, 0) / xs.length;
+    };
+    expect(avg('punt')).toBeGreaterThan(avg('fairCatch') + 2);
+  });
+});

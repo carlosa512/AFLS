@@ -144,6 +144,7 @@ import {
   type SlideReason,
 } from './dropbackEnd';
 import { kneelOdds, playSeconds, type PlayTimeKind } from './playTime';
+import { returnYards as kickReturnYards } from './returns';
 import { DEF_TWO, runShare, sureTwo, TRY_PASS, TRY_RUN, twoPointOdds, type TwoPointFacts } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
@@ -520,11 +521,8 @@ const RED_ZONE_SQUEEZE = 0.15;
 const END_ZONE_THROW = 0.08;
 /** An offense's edge is worth less with no room to use it; being outmatched still costs in full. */
 const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
-/** Mean kickoff and punt returns before flags (the flags on returns bring the averages back to where they were). */
-const KICK_RETURN = 29.5;
 /** Game clock between snaps at a normal tempo (refit with a play's time, `playTime.ts`, to keep plays a game). */
 const NORMAL_RUNOFF: [number, number] = [29, 39];
-const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -2050,16 +2048,29 @@ class GameSim {
       text = `${short(kicking.k)} kicks off into the end zone. Touchback`;
     } else {
       const kr = receiving.kr;
-      const edge = skill(kr, 'returns') - 12;
-      start = clamp(
-        Math.round(
-          this.rng.normal(KICK_RETURN + 0.6 * edge + RETURN_COACH.kick * (receiving.stCoach - kicking.stCoach), 6),
-        ),
-        8,
-        60,
+      // Caught at the 3, run back by the NFL's shape (`returns.ts`): a touchdown is the return that goes 97.
+      const coverage = this.coverageOf(kicking);
+      const returned = kickReturnYards(
+        {
+          kind: 'kickoff',
+          from: 97,
+          returner: skill(kr, 'returns') - 12,
+          coverage,
+          coach: RETURN_COACH.kick * (receiving.stCoach - kicking.stCoach),
+        },
+        this.rng.next(),
       );
-      const returnTd = this.rng.chance(clamp(0.004 + 0.001 * edge, 0.001, 0.012));
-      if (returnTd) start = 100;
+      start = 3 + returned;
+      const returnTd = start >= 100;
+      this.options.situationTap?.({
+        kind: 'return',
+        play: 'kickoff',
+        yards: returned,
+        td: returnTd,
+        returner: skill(kr, 'returns') - 12,
+        returnerId: kr.id,
+        coverage,
+      });
       // The open field (`field/`): caught at the 3 (the engine's own spot for a returned kickoff), run back from there.
       const kickMoment = this.fielding
         ? this.returnMoment('kickoff', 35, 97, kickingSide, receiving, kicking, start - 3, start >= 100)
@@ -2080,7 +2091,8 @@ class GameSim {
       const buf = new StatBuffer();
       buf.add(kr, 'krAtt');
       buf.add(kr, 'krYds', (block ? block.at : start) - 3);
-      const kickTime = this.rng.int(5, 8);
+      const kickTime = playSeconds({ kind: 'kickoff', yards: returned }, this.rng.next());
+      this.options.situationTap?.({ kind: 'time', play: 'kickoff', yards: returned, seconds: kickTime, field: false });
       // Returns keep today's play time, as punts do: the engine's clock convention for kicks.
       this.playTime(kickTime);
       this.kickWear(true);
@@ -2180,7 +2192,10 @@ class GameSim {
     this.takeSnapshot();
     const buf = new StatBuffer();
     const p = off.p;
-    this.playTime(this.rng.int(6, 9));
+    // The punt runs the clock from the snap: a fair catch's time now, and a return's extra once it's run (`playTime.ts`).
+    const timeU = this.rng.next();
+    const caughtTime = playSeconds({ kind: 'fairCatch', yards: 0 }, timeU);
+    this.playTime(caughtTime);
 
     const blockOdds = (this.has(p, 'quickRelease') ? 0.3 : 1) * (this.has(p, 'slingFoot') ? 3 : 1);
     if (this.rng.chance(0.005 * blockOdds)) {
@@ -2275,27 +2290,40 @@ class GameSim {
     if (receiveAt <= 10 || this.rng.chance(clamp(0.42 + 0.02 * (skill(p, 'puntPlacement') - 12) + hang, 0.2, 0.65))) {
       this.credit(buf);
       this.kickWear(false);
+      if (receiveAt > 10)
+        this.options.situationTap?.({ kind: 'time', play: 'fairCatch', yards: 0, seconds: caughtTime, field: false });
       this.log(
         `${short(p)} punts ${gross} yards${note}. ${receiveAt <= 10 ? 'Downed' : `Fair catch by ${short(pr)}`} at the ${this.spot(receiveAt, this.def)}.`,
       );
       this.changePossession(receiveAt);
       return;
     }
-    const edge = skill(pr, 'returns') - 12;
-    let ret = Math.max(
-      0,
-      Math.round(
-        this.rng.normal(
-          PUNT_RETURN +
-            0.5 * edge +
-            RETURN_COACH.punt * (def.stCoach - off.stCoach) +
-            (outkicks ? 3 : 0) -
-            (arc ? 1.5 : 0),
-          6,
-        ),
-      ),
+    // The return's length from the NFL's shape (`returns.ts`): a touchdown is the one that reaches the end zone.
+    const coverage = this.coverageOf(off);
+    const ret = kickReturnYards(
+      {
+        kind: 'punt',
+        from: 100 - receiveAt,
+        returner: skill(pr, 'returns') - 12,
+        coverage,
+        coach: RETURN_COACH.punt * (def.stCoach - off.stCoach),
+        outkicks,
+        highArc: arc,
+      },
+      this.rng.next(),
     );
-    if (this.rng.chance(clamp(0.006 + 0.0015 * edge, 0.002, 0.02))) ret = 100 - receiveAt;
+    const returnedTime = playSeconds({ kind: 'punt', yards: ret }, timeU);
+    this.playTime(Math.max(0, returnedTime - caughtTime));
+    this.options.situationTap?.({ kind: 'time', play: 'punt', yards: ret, seconds: returnedTime, field: false });
+    this.options.situationTap?.({
+      kind: 'return',
+      play: 'punt',
+      yards: ret,
+      td: receiveAt + ret >= 100,
+      returner: skill(pr, 'returns') - 12,
+      returnerId: pr.id,
+      coverage,
+    });
     // The open field (`field/`): from the catch. (The punt's play time was taken before the kick, as today.)
     const puntMoment = this.fielding
       ? this.returnMoment('punt', this.yardLine, landing, this.offense, def, off, ret, receiveAt + ret >= 100)
@@ -4742,6 +4770,11 @@ class GameSim {
         ...(this.dropOutcome === 'awayOut' && !this.pressureBy ? { cq: 1 as const } : {}),
       },
     );
+  }
+
+  /** The kicking side's coverage: its special teamers' open-field tackling against a typical man's (`returns.ts`). */
+  private coverageOf(l: Lineup): number {
+    return l.st.length ? l.st.reduce((a, p) => a + skill(p, 'tackling'), 0) / l.st.length - 12 : 0;
   }
 
   /** A scrimmage play's time for `npm run situations` (picks and lost fumbles left out: their returns aren't timed). */
