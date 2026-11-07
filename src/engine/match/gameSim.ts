@@ -143,6 +143,7 @@ import {
   type SlideFacts,
   type SlideReason,
 } from './dropbackEnd';
+import { sureTwo } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
@@ -1750,7 +1751,7 @@ class GameSim {
         two.goes,
         two.goes ? 'Went for two where the analytics chart says to.' : undefined,
       );
-    if (coach.goForTwo(s) || two.goes) {
+    if (sureTwo(s) || two.goes) {
       const ok = this.rng.chance(clamp(0.47 + 0.01 * (skill(lineup.qb, 'shortAccuracy') - 12), 0.35, 0.6));
       if (ok) this.addPoints(side, 2);
       this.setAnim(side, 'two', 98, ok ? 102 : 99);

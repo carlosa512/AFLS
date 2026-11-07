@@ -292,13 +292,6 @@ export function defenseCall(s: Situation, rng: Rng): DefenseCall {
   return rng.chance(b(0.08)) ? 'blitz' : rng.chance(0.12) ? 'runD' : 'base';
 }
 
-/** After a touchdown: kick the extra point or go for two? `scoreDiff` excludes the PAT. */
-export function goForTwo(s: Situation): boolean {
-  if (s.quarter < 4) return false;
-  const d = s.scoreDiff;
-  return d === -2 || d === -5 || d === -10 || d === 1 || d === 5 || (d === -1 && s.clock <= 60 && !s.overtime);
-}
-
 /**
  * Onside only when kicking deep can't work: in a one-score game the defense needs enough clock
  * stoppages to force a three-and-out and still get the ball back with time to score.
