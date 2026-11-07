@@ -1626,10 +1626,13 @@ describe('the run game', () => {
         seen.gapShooter++;
       }
       // A scraper flows across over the top: at least as far across as he would have, without coming downhill.
+      // (A backer walked up within 2 yd of the ball has no top to flow over: the line meets him at once.)
       const scrape = stage(x, withHabit(x, lb, 'scraper'));
-      expect(lateral(scrape, r + 0.6)).toBeGreaterThanOrEqual(lateral(base, r + 0.6) - 0.5);
-      expect(depth(scrape, r + 0.6)).toBeGreaterThan(depth(scrape, 0) - 1);
-      seen.scraper++;
+      if (depth(scrape, 0) >= 2) {
+        expect(lateral(scrape, r + 0.6)).toBeGreaterThanOrEqual(lateral(base, r + 0.6) - 0.5);
+        expect(depth(scrape, r + 0.6)).toBeGreaterThan(depth(scrape, 0) - 1);
+        seen.scraper++;
+      }
       const slow = stage(x, withHabit(x, lb, 'slowFlow'));
       const moved = (p: StagedPlay) =>
         Math.hypot(at(p, r + 0.4, lb).x - at(p, r, lb).x, at(p, r + 0.4, lb).y - at(p, r, lb).y);
