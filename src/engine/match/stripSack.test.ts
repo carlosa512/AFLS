@@ -15,7 +15,8 @@ for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 40))
       contactTap: (t) => contacts.push(t),
     }),
   );
-const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!);
+// A two-point try's snap books nothing and taps nothing (`twoPointTry`).
+const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!.filter((e) => !/^Two-point try: /.test(e.text)));
 const sacks = plays.filter((e) => (e.kind === 'penalty' ? e.ran?.kind : e.kind) === 'sack' && e.down > 0);
 
 describe('the strip-sack and the loose ball in a game', () => {

@@ -9,7 +9,8 @@ const taps: DefendedTap[] = [];
 const results: GameResult[] = [];
 for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 40))
   results.push(simulateGame(league, g, { keepPlays: true, defendedTap: (t) => taps.push(t) }));
-const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!);
+// A two-point try's snap books nothing and taps nothing (`twoPointTry`).
+const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!.filter((e) => !/^Two-point try: /.test(e.text)));
 const kindOf = (e: PlayLogEntry) => (e.kind === 'penalty' ? e.ran?.kind : e.kind);
 const nameOf = (id: number) => {
   const p = league.players[id];

@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import type { PlayLogEntry } from '../types';
+import type { GameResult } from '../types';
 import { simulateGame, type SituationTap } from './gameSim';
+import { sureTwo } from './twoPoint';
 
 const league = createLeague({ seed: 'situations-engine' });
 const taps: (SituationTap & { game: number })[] = [];
-const games: { plays: PlayLogEntry[]; homeId: number }[] = [];
-for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 24)) {
+const games: { plays: PlayLogEntry[]; homeId: number; awayId: number; r: GameResult }[] = [];
+for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 40)) {
   const r = simulateGame(league, g, { keepPlays: true, situationTap: (t) => taps.push({ ...t, game: g.id }) });
-  games.push({ plays: r.plays!, homeId: g.homeId });
+  games.push({ plays: r.plays!, homeId: g.homeId, awayId: g.awayId, r });
 }
 const of = <K extends SituationTap['kind']>(kind: K) =>
   taps.filter((t): t is Extract<SituationTap, { kind: K }> & { game: number } => t.kind === kind);
@@ -16,7 +18,7 @@ const of = <K extends SituationTap['kind']>(kind: K) =>
 describe("a play's time, in the engine", () => {
   it('times every play at a second or more, incompletions as the NFL does', () => {
     const time = of('time');
-    expect(time.length).toBeGreaterThan(24 * 100);
+    expect(time.length).toBeGreaterThan(40 * 100);
     for (const t of time) expect(t.seconds).toBeGreaterThanOrEqual(1);
     const inc = time.filter((t) => t.play === 'incomplete');
     expect(Math.abs(inc.reduce((a, t) => a + t.seconds, 0) / inc.length - 4.73)).toBeLessThan(0.6);
@@ -47,5 +49,66 @@ describe("the half's last possession, in the engine", () => {
       plays.some((e) => e.quarter === 2 && e.clock <= 60 && e.clock > 0 && /^Timeout /.test(e.text) && e.yardLine < 45),
     );
     expect(early).toBe(true);
+  });
+});
+
+const TRY = /^Two-point try: /;
+const lastIndex = <T>(xs: T[], want: (x: T) => boolean) => {
+  for (let i = xs.length - 1; i >= 0; i--) if (want(xs[i])) return i;
+  return -1;
+};
+const SNAPS = ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble'];
+
+describe('the two-point try, in the engine', () => {
+  it('taps every try, and goes on every sure call', () => {
+    const tries = of('try');
+    expect(tries.length).toBeGreaterThan(40);
+    for (const t of tries)
+      if (sureTwo({ quarter: t.quarter, clock: 600, overtime: t.quarter > 4, scoreDiff: t.scoreDiff }))
+        expect(t.goes).toBe(true);
+    expect(tries.some((t) => t.goes && t.run)).toBe(true);
+    expect(tries.some((t) => t.goes && !t.run)).toBe(true);
+  });
+
+  it('snaps from the 2 and says how it went', () => {
+    const entries = games.flatMap((g) => g.plays.filter((e) => TRY.test(e.text)));
+    expect(entries.length).toBe(of('try').filter((t) => t.goes).length);
+    for (const e of entries) {
+      expect(SNAPS).toContain(e.kind);
+      expect(e.yardLine).toBe(98);
+      expect(/ — GOOD\.$| — NO GOOD\.$|returns it for 2 points!$/.test(e.text), e.text).toBe(true);
+    }
+    expect(entries.some((e) => / — GOOD\.$/.test(e.text))).toBe(true);
+    expect(entries.some((e) => / — NO GOOD\.$/.test(e.text))).toBe(true);
+  });
+
+  it("books no stat: the players' attempts add up to the teams' snaps", () => {
+    for (const { r } of games) {
+      const sum = (k: 'rushAtt' | 'passAtt') => Object.values(r.playerStats).reduce((a, l) => a + (l[k] ?? 0), 0);
+      expect(sum('rushAtt')).toBe(r.home.rushAtt + r.away.rushAtt);
+      expect(sum('passAtt')).toBe(r.home.passAtt + r.away.passAtt);
+    }
+  });
+
+  it('is snapped by the side that scored, after any touchdown, and takes no clock', () => {
+    let checked = 0;
+    for (const { plays, homeId, awayId } of games)
+      plays.forEach((e, i) => {
+        if (!TRY.test(e.text)) return;
+        const at = lastIndex(plays.slice(0, i), (p) => /TOUCHDOWN/.test(p.text));
+        const td = plays[at];
+        const homeScored = td.homeScore > (plays[at - 1]?.homeScore ?? 0);
+        expect(e.offense, e.text).toBe(homeScored ? homeId : awayId);
+        // A touchdown's entry keeps its snap's clock; the try comes after the play's time and takes none of its own.
+        expect(e.quarter).toBe(td.quarter);
+        expect(e.clock).toBeLessThanOrEqual(td.clock);
+        checked++;
+      });
+    expect(checked).toBeGreaterThan(0);
+    // An overtime walk-off has no try: nothing after the winning touchdown in the 5th.
+    for (const { plays } of games) {
+      const last = lastIndex(plays, (e) => e.quarter >= 5 && /TOUCHDOWN/.test(e.text));
+      if (last >= 0) expect(plays.slice(last + 1).some((e) => TRY.test(e.text))).toBe(false);
+    }
   });
 });

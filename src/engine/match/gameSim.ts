@@ -144,7 +144,7 @@ import {
   type SlideReason,
 } from './dropbackEnd';
 import { kneelOdds, playSeconds, type PlayTimeKind } from './playTime';
-import { sureTwo } from './twoPoint';
+import { DEF_TWO, runShare, sureTwo, TRY_PASS, TRY_RUN, twoPointOdds, type TwoPointFacts } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
   activePlayers,
@@ -903,6 +903,8 @@ class GameSim {
   private offenseSnaps: [number, number] = [0, 0];
   private deferredTimeout: [boolean, boolean] = [false, false];
   private designedShot = false;
+  /** A two-point try's snap is on: no stats, no taps but the situations', no clock. */
+  private onTry = false;
   private safePass = false;
   private openingWindow = false;
   private deepProtection = false;
@@ -1846,13 +1848,24 @@ class GameSim {
         two.goes,
         two.goes ? 'Went for two where the analytics chart says to.' : undefined,
       );
-    if (sureTwo(s) || two.goes) {
-      const ok = this.rng.chance(clamp(0.47 + 0.01 * (skill(lineup.qb, 'shortAccuracy') - 12), 0.35, 0.6));
-      if (ok) this.addPoints(side, 2);
-      this.setAnim(side, 'two', 98, ok ? 102 : 99);
-      this.log(`Two-point attempt ${ok ? 'is GOOD' : 'fails'}.`, true);
-      return;
-    }
+    const f: TwoPointFacts = {
+      quarter: s.quarter,
+      clock: s.clock,
+      overtime: s.overtime,
+      scoreDiff: s.scoreDiff,
+      appetite: this.styles[side].fourthDown,
+      passLean: this.styles[side].passLean,
+      qbScrambling: skill(lineup.qb, 'scrambling'),
+    };
+    const goes = sureTwo(s) || this.rng.chance(twoPointOdds(f)) || two.goes;
+    if (goes) return this.twoPointTry(side, f);
+    this.options.situationTap?.({
+      kind: 'try',
+      quarter: s.quarter,
+      scoreDiff: s.scoreDiff,
+      appetite: f.appetite,
+      goes: false,
+    });
     const k = lineup.k;
     const blocking = this.lineups[(1 - side) as Side];
     // The try is snapped from the 15; a flag can move it, and a kick a flag wipes out is tried again.
@@ -1899,6 +1912,71 @@ class GameSim {
       );
       return;
     }
+  }
+
+  /**
+   * The two-point try (`twoPoint.ts`): a real snap from the 2 through today's run and pass code, by the side that
+   * scored. Nothing is booked (the NFL keeps conversions apart from yards and attempts) and nothing taps but the
+   * situations'; the snap still wears bodies. Good when it reaches the end zone; a turnover can come back for two.
+   */
+  private twoPointTry(side: Side, f: TwoPointFacts) {
+    const saved = { offense: this.offense, yardLine: this.yardLine, down: this.down, lineToGain: this.lineToGain };
+    const options = this.options;
+    this.options = Object.fromEntries(
+      Object.entries(options).filter(([k]) => !k.endsWith('Tap') || k === 'situationTap'),
+    ) as SimOptions;
+    this.onTry = true;
+    this.offense = side;
+    this.yardLine = 98;
+    this.down = 1;
+    this.lineToGain = 100;
+    this.takeSnapshot();
+    this.designedShot = this.safePass = this.openingWindow = this.deepProtection = this.endZoneShot = false;
+    this.disguise = this.preventShell = false;
+    this.pressureBy = null;
+    this.passTarget = null;
+    this.beatBy = null;
+    this.dropOutcome = null;
+    this.pocketNow = null;
+    this.pocketToday = null;
+    const s = this.situation();
+    const defCall = coach.defenseCall(s, this.rng);
+    this.callNow = defCall;
+    const run = this.rng.chance(runShare(f));
+    const result = run ? this.runPlay(s, defCall) : this.passPlay(s, defCall);
+    this.pocketFilm(result, !run);
+    this.wear(result.stats, unhitPlay(result));
+    const incomplete = result.kind === 'pass' && !result.complete;
+    const good = !result.turnover && !incomplete && 98 + result.yards >= 100;
+    const back = !!result.turnover && this.rng.chance(DEF_TWO);
+    const other = (1 - side) as Side;
+    if (good) this.addPoints(side, 2);
+    if (back) this.addPoints(other, 2);
+    const who = this.actorsFor(result);
+    const airAt = result.passAttempt && result.airYards ? 98 + result.airYards : undefined;
+    if (result.turnover) this.anim = this.ranAnim(result, 98, airAt, who);
+    else {
+      const kind: PlayKind = result.kind === 'pass' ? (result.complete ? 'pass' : 'incomplete') : result.kind;
+      this.setAnim(side, kind, 98, incomplete ? 98 : good ? 102 : 98 + result.yards, airAt, result.lane, who);
+      if (result.open && (kind === 'run' || kind === 'pass')) this.anim!.open = result.open;
+    }
+    if (result.field) this.anim!.field = result.field;
+    const end = back ? ` — ${short(result.turnover!.by)} returns it for 2 points!` : good ? ' — GOOD.' : ' — NO GOOD.';
+    this.log(`Two-point try: ${result.text}${end}`, true);
+    options.situationTap?.({
+      kind: 'try',
+      quarter: f.quarter,
+      scoreDiff: f.scoreDiff,
+      appetite: f.appetite,
+      goes: true,
+      run,
+      good,
+      defTwo: back,
+    });
+    this.onTry = false;
+    this.options = options;
+    Object.assign(this, saved);
+    this.snapshot = null;
   }
 
   private safety() {
@@ -2615,39 +2693,7 @@ class GameSim {
         calls.protectDeep && result.depth !== undefined,
       );
     if (this.designedShot) result.text = `Designed shot: ${result.text}`;
-    // A throw the pocket hasn't played yet (an incompletion, a pick, a throwaway, a catch in the end zone) plays it now.
-    if (passing && this.dropOutcome && result.kind === 'pass' && !this.pocketNow) {
-      const actors = actorsOf({
-        entries: result.stats.entries,
-        defender: result.defender,
-        rusher: null,
-        beat: null,
-        take: result.turnover?.by,
-      });
-      const int = result.turnover?.kind === 'int';
-      // As the log keeps it: a pick's spot always (`ranAnim`), a throw's air when it has some.
-      const air = int
-        ? this.fieldX(this.offense, Math.min(this.yardLine + (result.airYards ?? 0), 100))
-        : result.airYards
-          ? this.fieldX(this.offense, this.yardLine + result.airYards)
-          : undefined;
-      this.pocketFor(
-        int ? 'int' : result.complete ? 'pass' : 'incomplete',
-        {
-          ...(air !== undefined ? { air } : {}),
-          lane: result.lane ?? 0,
-          ...(actors.ball !== undefined ? { ball: actors.ball } : {}),
-          ...(actors.cover !== undefined ? { cover: actors.cover } : {}),
-          ...(int && actors.take !== undefined ? { take: actors.take } : {}),
-        },
-        this.dropOutcome,
-        {
-          ...(result.grounding ? { gr: 1 as const } : {}),
-          // A rollout thrown away from a clean pocket: nobody got home, and the film sends nobody.
-          ...(this.dropOutcome === 'awayOut' && !this.pressureBy ? { cq: 1 as const } : {}),
-        },
-      );
-    }
+    this.pocketFilm(result, passing);
     const pocketBy = this.pocketCredit();
     if (this.pressureBy) {
       this.creditPressure(result.stats, this.pressureBy, defCall, false, pocketBy);
@@ -3301,7 +3347,13 @@ class GameSim {
     // defense decide most of a run, the back the rest (NFL rushing leaders run 4.5–5.5 a carry).
     const lean = this.runQuirks(off, def, rusher, outside, bounce, lineDelta, this.tired(s));
     let yards = rng.normal(
-      RUN_BASE + 0.25 * lineDelta + 0.1 * (rusherSkill - 12) - contain + lean.mean - RED_ZONE_STACK * tight,
+      RUN_BASE +
+        0.25 * lineDelta +
+        0.1 * (rusherSkill - 12) -
+        contain +
+        lean.mean -
+        RED_ZONE_STACK * tight +
+        (this.onTry ? TRY_RUN : 0),
       2.9 + lean.spread,
     );
     // The roll at the line, before the breakaway: the open field starts from it when the run gets past the line.
@@ -3749,6 +3801,8 @@ class GameSim {
     // Contested balls: hands shown late win them, hands that trap against the body don't.
     if (sep < 1) pComplete += this.contested(receiver, defender);
     pComplete -= WEATHER_PASS[depth] * this.wx.pass;
+    // A try from the 2 (`twoPoint.ts`): fitted so passes there are good as often as the NFL's.
+    if (this.onTry) pComplete *= TRY_PASS;
     pComplete = clamp(pComplete, 0.05, 0.95);
 
     // Picks by depth as the NFL throws them (nflverse 2019–24: 0.8% behind the line, 1.4% at 0–9, 3.4% at 10–19, 6.3%
@@ -4655,6 +4709,41 @@ class GameSim {
   }
 
   /** Apply a scrimmage play: penalties, clock, stats, and the resulting field state. */
+  /** A throw the pocket hasn't played yet (an incompletion, a pick, a throwaway, a catch in the end zone) plays it now. */
+  private pocketFilm(result: PlayResult, passing: boolean) {
+    if (!passing || !this.dropOutcome || result.kind !== 'pass' || this.pocketNow) return;
+    const actors = actorsOf({
+      entries: result.stats.entries,
+      defender: result.defender,
+      rusher: null,
+      beat: null,
+      take: result.turnover?.by,
+    });
+    const int = result.turnover?.kind === 'int';
+    // As the log keeps it: a pick's spot always (`ranAnim`), a throw's air when it has some.
+    const air = int
+      ? this.fieldX(this.offense, Math.min(this.yardLine + (result.airYards ?? 0), 100))
+      : result.airYards
+        ? this.fieldX(this.offense, this.yardLine + result.airYards)
+        : undefined;
+    this.pocketFor(
+      int ? 'int' : result.complete ? 'pass' : 'incomplete',
+      {
+        ...(air !== undefined ? { air } : {}),
+        lane: result.lane ?? 0,
+        ...(actors.ball !== undefined ? { ball: actors.ball } : {}),
+        ...(actors.cover !== undefined ? { cover: actors.cover } : {}),
+        ...(int && actors.take !== undefined ? { take: actors.take } : {}),
+      },
+      this.dropOutcome,
+      {
+        ...(result.grounding ? { gr: 1 as const } : {}),
+        // A rollout thrown away from a clean pocket: nobody got home, and the film sends nobody.
+        ...(this.dropOutcome === 'awayOut' && !this.pressureBy ? { cq: 1 as const } : {}),
+      },
+    );
+  }
+
   /** A scrimmage play's time for `npm run situations` (picks and lost fumbles left out: their returns aren't timed). */
   private timeTap(r: PlayResult) {
     if (!this.options.situationTap || r.turnover) return;

@@ -65,6 +65,8 @@ describe('who each play was about', () => {
       const targets = new Map<number, number>();
       for (const e of r.plays ?? []) {
         const ball = actorsIn(e).ball;
+        // A two-point try's snap books nothing (`twoPointTry`).
+        if (/^Two-point try: /.test(e.text)) continue;
         if (e.down > 0 && (e.kind === 'pass' || e.kind === 'incomplete' || e.kind === 'int') && ball !== undefined)
           targets.set(ball, (targets.get(ball) ?? 0) + 1);
       }
@@ -77,6 +79,7 @@ describe('who each play was about', () => {
     for (const { r } of games) {
       const first = new Map<number, number>();
       for (const e of r.plays ?? []) {
+        if (/^Two-point try: /.test(e.text)) continue;
         const tackle = actorsIn(e).tackle;
         if (tackle !== undefined) first.set(tackle, (first.get(tackle) ?? 0) + 1);
       }
