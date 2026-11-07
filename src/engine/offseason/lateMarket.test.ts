@@ -5,7 +5,21 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, bankBuys, fitOffer, fitsNextYear, spendable } from './ai';
+import {
+  aiFreeAgencyDay,
+  bankBuys,
+  CLEARING_DAY,
+  clearingFloor,
+  fitOffer,
+  fitsNextYear,
+  fundedRoom,
+  inSeasonReserve,
+  spendable,
+} from './ai';
+import { capHit as hitOf } from '../finance/contract';
+import { capSheet, releasePreview } from '../finance/cap';
+import { leagueMarket, marketApy, minSalary } from '../finance/market';
+import { setTeam } from '../roster';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { demand, freeAgents, OFFSEASON_ROSTER_MAX, offerValue } from './negotiation';
 import { activeRoster } from '../roster';
@@ -51,9 +65,10 @@ describe('the late market: a club offers what it can fit', () => {
         .filter((p) => !p.injury && p.age <= 29)
         .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id)
         .find((p) => l.teams.some((t) => t.id !== l.userTeamId && testable(l, p, t.id)))!;
-    const setUp = (clubId: number, room: (floor: number, market: number) => number) => {
+    const setUp = (clubId: number, room: (floor: number, market: number) => number, day = FA_DAYS) => {
       const l: League = JSON.parse(lastDay);
       const p = pick(l);
+      l.faDay = day; // after the pick: his walk-away eases with the day
       // He's the only one left on the market, so the club's room is his (a club spends it on the best it wants first).
       for (const q of freeAgents(l)) if (q.id !== p.id) q.retired = true;
       for (const t of l.teams) {
@@ -81,12 +96,17 @@ describe('the late market: a club offers what it can fit', () => {
       if (got.teamId !== t.id) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
-      // Room short of his walk-away: never a deal below it.
-      const short = setUp(t.id, (floor) => floor * 0.8);
+      // Room short of his walk-away before day 3: never a deal below it.
+      const short = setUp(t.id, (floor) => floor * 0.8, CLEARING_DAY - 1);
       if (short.teamId !== null) {
         const l2: League = JSON.parse(lastDay);
         expect(capHit(short.contract!, l2.season)).toBeGreaterThanOrEqual(0.9 * demand(l2, pick(l2), t.id).walkAway);
       }
+      // From day 3 the market has shown its hand: the best offer made for him, at least half his walk-away, signs him.
+      const cleared = setUp(t.id, (floor) => floor * 0.7, CLEARING_DAY);
+      expect(cleared.teamId).toBe(t.id);
+      // Far under half, still nothing.
+      expect(setUp(t.id, (floor) => floor * 0.3, CLEARING_DAY).teamId).toBeNull();
       break;
     }
     expect(signed).toBe(true);
@@ -161,4 +181,71 @@ describe('spending discipline', () => {
     expect(bankBuys(25, 1.2, 1)).toBe(true);
     expect(bankBuys(30, 2.5, 1)).toBe(true); // a big upgrade, whatever his age
   });
+});
+
+describe('the market clears', () => {
+  it('clearingFloor: best fitted at least half → that; below half → his walk-away; never under the minimum', () => {
+    expect(clearingFloor(10_000, 6_000, 1_000)).toBe(6_000);
+    expect(clearingFloor(10_000, 4_000, 1_000)).toBe(10_000);
+    expect(clearingFloor(10_000, null, 1_000)).toBe(10_000);
+    expect(clearingFloor(1_500, 800, 1_000)).toBe(1_000);
+  });
+
+  /** Camp opens: a young star nobody had room for, every AI club with no room at all but one with none past its reserves. */
+  const lastCall = () => {
+    const l: League = JSON.parse(lastDay);
+    l.phase = 'preseason';
+    const market = leagueMarket(l);
+    const star = Object.values(l.players)
+      .filter((p) => p.teamId !== null && p.teamId !== l.userTeamId && p.contract && !p.injury && p.age <= 26)
+      .sort((a, b) => marketApy(market, b) - marketApy(market, a))[0];
+    setTeam(l, star, null);
+    star.contract = null;
+    for (const q of freeAgents(l)) if (q.id !== star.id) q.retired = true;
+    return { l, star };
+  };
+
+  it('on the last call a young star signs with a needy club that cuts its weakest minimum man', () => {
+    const { l, star } = lastCall();
+    const club = l.teams.find((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut)!;
+    for (const t of l.teams) {
+      if (t.id === l.userTeamId) continue;
+      const want = t.id === club.id ? 0 : -100_000;
+      t.deadMoney.push({ season: l.season, amount: Math.round(spendable(l, t.id) - want), playerId: -1, note: 'test' });
+    }
+    const cut = fundedRoom(l, club, star.position).cut!;
+    const dead = capSheet(l, club.id, l.season).dead;
+    aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+    expect(l.players[star.id].teamId).toBe(club.id);
+    expect(l.players[cut.id].teamId).toBeNull();
+    expect(capSheet(l, club.id, l.season).dead).toBe(dead);
+  }, 120_000);
+
+  it('no funding from a cut that would leave dead money', () => {
+    const { l } = lastCall();
+    for (const t of l.teams)
+      for (const pos of ['QB', 'WR', 'OL', 'CB', 'EDGE'] as const) {
+        const { cut } = fundedRoom(l, t, pos);
+        if (!cut) continue;
+        expect(cut.contract!.kind).toBe('minimum');
+        expect(releasePreview(l, cut).thisYear + releasePreview(l, cut).nextYear).toBe(0);
+      }
+  });
+
+  it('funding draws at most half the in-season reserve', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 8)) {
+      const f = fundedRoom(l, t, 'WR');
+      const cutPay = f.cut ? hitOf(f.cut.contract!, l.season) : 0;
+      expect(f.room).toBeCloseTo(spendable(l, t.id) + 0.5 * inSeasonReserve(l, t.id) + cutPay);
+      expect(f.cut === null || hitOf(f.cut.contract!, l.season) <= minSalary(30, l.caps[l.season])).toBe(true);
+    }
+  });
+
+  it('never cuts or signs for your club on the last call', () => {
+    const { l } = lastCall();
+    const mine = activeRoster(l, l.userTeamId).map((p) => p.id);
+    aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+    expect(activeRoster(l, l.userTeamId).map((p) => p.id)).toEqual(mine);
+  }, 120_000);
 });
