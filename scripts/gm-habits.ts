@@ -4,10 +4,10 @@
  * 1. Churn: four leagues of ten seasons in child processes. Pooled over seasons 3-10: how many habits an AI general
  *    manager carries, how many come and go a year, that every habit shows up and none takes over, that nobody carries
  *    more than three, and that someone turns Gun-Shy.
- * 2. Effects (`--effects`): six common habits are replayed (a baseline league with habits off, then one league per
+ * 2. Effects (`--effects`): five common habits are replayed (a baseline league with habits off, then one league per
  *    habit pinned on for every AI club, one seed) and must write more of their own log entries than the baseline. The
- *    five rare ones (bridgeQb, tradeUpQb, youngQb, firstsForStars, gunShy) are judged on built scenes: the moment each
- *    lean acts, run with the habit on and with every habit off.
+ *    six rare ones (bridgeQb, tradeUpQb, youngQb, firstsForStars, gunShy, swaps: about five swaps a league in three
+ *    seasons) are judged on built scenes: the moment each lean acts, run with the habit on and with every habit off.
  *
  *   npm run gm-habits                              # churn
  *   npm run gm-habits -- --effects                 # also the effects, 3 seasons a league
@@ -27,6 +27,7 @@ import { playerOvr } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { teamPlayers } from '../src/engine/roster';
 import { tradeContext } from '../src/engine/trade/context';
+import { dealFor } from '../src/engine/trade/deals';
 import { draftTrades, tradeUpReason, WINDOW } from '../src/engine/trade/draft';
 import { judge as judgeTrade } from '../src/engine/trade/judge';
 import { untouchables } from '../src/engine/trade/plans';
@@ -102,9 +103,9 @@ async function churn(): Promise<void> {
   }
 }
 
-/** The six habits whose moves are common enough to count in replayed leagues; the other five are judged on built scenes. */
-const REPLAYED: HabitId[] = ['extendEarly', 'sellsEarly', 'hisGuys', 'swaps', 'bpa', 'tagsFirst'];
-const SCENES = ['bridgeQb', 'tradeUpQb', 'youngQb', 'firstsForStars', 'gunShy'] as const;
+/** The five habits whose moves are common enough to count in replayed leagues; the other six are judged on built scenes. */
+const REPLAYED: HabitId[] = ['extendEarly', 'sellsEarly', 'hisGuys', 'bpa', 'tagsFirst'];
+const SCENES = ['bridgeQb', 'tradeUpQb', 'youngQb', 'firstsForStars', 'gunShy', 'swaps'] as const;
 
 // ───────── built scenes (ported from the unit tests in offseason/gmHabitsHooks.test.ts, trade/habits.test.ts and
 // trade/draft.test.ts): the moment each rare lean acts, run with the habit on and with every habit off ─────────
@@ -272,12 +273,49 @@ const gunShyScore = () => {
   };
 };
 
+/**
+ * Each AI club shopping the best men on the other AI clubs' rosters: a deal that comes back picks with every habit
+ * off and a player swap with Prefers Player Swaps on (the edge a swap must clear over picks falls to zero, two more
+ * tries at one). A league holds about five swaps in three seasons, too few for a replay to tell the lean from luck.
+ */
+const swapsScore = () => {
+  const l = tradeLeague();
+  const ais = l.teams.filter((t) => t.id !== l.userTeamId && aiGm(l, t));
+  let found = 0;
+  let lost = 0;
+  let deals = 0;
+  for (const buyer of ais) {
+    for (const seller of ais) {
+      if (seller.id === buyer.id) continue;
+      const targets = teamPlayers(l, seller.id)
+        .sort((a, b) => playerOvr(b) - playerOvr(a))
+        .slice(0, 3);
+      for (const target of targets) {
+        pin(null);
+        const off = dealFor(tradeContext(l), buyer, target);
+        pin('swaps');
+        const on = dealFor(tradeContext(l), buyer, target);
+        unpin();
+        if (off || on) deals++;
+        if (on?.kind === 'swap' && off?.kind !== 'swap') found++;
+        if (off?.kind === 'swap' && on?.kind !== 'swap') lost++;
+      }
+    }
+    if (found >= 3) break;
+  }
+  return {
+    moved: lost ? -1 : found,
+    what: `${found} deals turn into swaps on, ${lost} the other way (${deals} priced)`,
+  };
+};
+
 const SCENE_SCORES: Record<(typeof SCENES)[number], () => { moved: number; what: string }> = {
   bridgeQb: bridgeScore,
   tradeUpQb: tradeUpScore,
   youngQb: youngQbScore,
   firstsForStars: starsScore,
   gunShy: gunShyScore,
+  swaps: swapsScore,
 };
 
 function verdict(id: string, moved: number, what: string): void {

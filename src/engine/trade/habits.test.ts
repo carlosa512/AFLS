@@ -7,7 +7,7 @@ import type { League, Player, Team } from '../types';
 import { tradeContext } from './context';
 import { maxOver } from './deals';
 import { executeTrade } from './execute';
-import { judge } from './judge';
+import { judge, SWAP_LOSS } from './judge';
 import { tradeBlock, untouchables } from './plans';
 import type { TradeProposal } from './rules';
 import { playerValue } from './value';
@@ -142,6 +142,35 @@ describe('executeTrade logs habit moves', () => {
     });
     expect(logOf(l, AI).some((m) => m.habit === 'swaps')).toBe(true);
     expect(logOf(l, AI2).some((m) => m.habit === 'swaps')).toBe(true);
+  });
+
+  it('swaps: the men a swapper sends weigh less on him when a player comes back, not for picks', () => {
+    const l = fresh();
+    const a = teamPlayers(l, AI).find((p) => p.position === 'TE')!;
+    const b = teamPlayers(l, AI2).find((p) => p.position === 'TE')!;
+    const swap: TradeProposal = {
+      sides: [
+        { teamId: AI, players: [a.id], picks: [] },
+        { teamId: AI2, players: [b.id], picks: [] },
+      ],
+    };
+    const forPicks: TradeProposal = {
+      sides: [
+        { teamId: AI, players: [a.id], picks: [] },
+        { teamId: AI2, players: [], picks: pick(l, AI2, 1) },
+      ],
+    };
+    habitsForce.off = true;
+    const off = judge(tradeContext(l), AI, swap).give;
+    const offPicks = judge(tradeContext(l), AI, forPicks).give;
+    habitsForce.off = false;
+    habitsForce.all = 'swaps';
+    const on = judge(tradeContext(l), AI, swap).give;
+    const onPicks = judge(tradeContext(l), AI, forPicks).give;
+    habitsForce.all = null;
+    expect(on).toBeLessThan(off);
+    expect(on).toBeCloseTo(off * SWAP_LOSS, 5);
+    expect(onPicks).toBe(offPicks);
   });
 
   it('swaps: a pick thrown in to even it up is still a swap', () => {

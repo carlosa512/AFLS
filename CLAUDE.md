@@ -95,7 +95,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
   gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
   turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
-  moves its decision against a no-habits baseline (more of its log entries; the rare five are judged on built scenes). Run it
+  moves its decision against a no-habits baseline (more of its log entries; the rare six are judged on built scenes). Run it
   after changing `gmHabits.ts`, `gmHabitsYear.ts`, `gmTraits.ts` or a habit hook in `offseason/` or `trade/`. Nothing may be
   flagged.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,

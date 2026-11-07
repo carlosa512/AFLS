@@ -111,6 +111,8 @@ const going = (ctx: TradeContext, ids: readonly number[]) =>
 
 /** Each first-round pick a team is without past its second costs it this much more (ZenGM's ×(1 + extra / 2.5)). */
 const FIRST_STEP = 1 / 2.5;
+/** Prefers Player Swaps: the share of a sent man's loss a swapper feels when a player comes back. */
+export const SWAP_LOSS = 0.85;
 /** On top, for a first that leaves it without one in back-to-back drafts. */
 const BACK_TO_BACK = 0.3;
 
@@ -286,7 +288,12 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const w = salaryWeight(ctx, teamId);
   const swing = playerSwing(ctx, team, mine.players, theirs.players);
   // Against a release he's gone either way: the trade saves the guarantees a cut would leave behind.
-  const loss = opts.releasing ? -w * POINTS_PER_K * guaranteesShed(league, mine) : swing.loss;
+  // Prefers Player Swaps: with a player coming back, the men he sends weigh less on him than they would for picks (he'd
+  // rather move a body than a pick: left to the search alone the buyer's own judgment refused nearly every swap).
+  const swapping = mine.players.length > 0 && theirs.players.length > 0 && habitOn(league, team, 'swaps');
+  const loss = opts.releasing
+    ? -w * POINTS_PER_K * guaranteesShed(league, mine)
+    : swing.loss * (swapping ? SWAP_LOSS : 1);
   const gain = swing.gain;
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(ctx, id), team.gm, ctx), 0);
   const pickOut = picksOut(ctx, team, mine.picks, theirs.picks);

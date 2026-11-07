@@ -140,7 +140,9 @@ Shared rules:
 ### Prefers Player Swaps (`swaps`)
 
 - **Lean** (`trade/deals.ts`, `dealFor`): `SWAP_EDGE` falls from 5 to 0 for him (a swap wins a tie with picks) and his
-  swap search gets two more tries than `SWAP_TRIES`.
+  swap search gets two more tries than `SWAP_TRIES`; and (`trade/judge.ts`, `SWAP_LOSS`) with a player coming back, the
+  men he sends weigh 0.85 of their loss on him: he'd rather move a body than a pick. (Left to the search alone, the
+  buyer's own judgment refused nearly every swap package a seller took, so the edge never bit.)
 - **Logged:** each player-for-player swap (a pick thrown in to even it up doesn't change what it is: the balancer adds one to most).
 - **+** each swap he makes. **−** none: an unused year fades it like any habit.
 
@@ -293,11 +295,12 @@ of the sender's last five letters).
 - **The bag:** four leagues, ten seasons. Active habits per AI GM (mean 1–2), changes per GM per year (about 0.5),
   each habit's share of GMs (every habit carried by season five, none above 40%), nobody over three active, Gun-Shy
   formed at least once.
-- **`--effects`:** six common habits (Extends Early, Sells a Year Early, Brings His Guys Back, Prefers Player Swaps,
-  Drafts Best Available, Tags Before He Pays) are given to every AI GM (a module switch, `habitsForce`, like
+- **`--effects`:** five common habits (Extends Early, Sells a Year Early, Brings His Guys Back, Drafts Best Available,
+  Tags Before He Pays) are given to every AI GM (a module switch, `habitsForce`, like
   `draftTrades.off`: every AI club reads that one habit as on and draws nothing), the same league years replayed, and
-  the habit's log entries counted against the same leagues with every habit off: more of them. The five rare ones
-  (Signs a Bridge QB, Trades Up for a QB, Sticks With His Young QB, Trades Firsts for Stars, Gun-Shy) are judged by
+  the habit's log entries counted against the same leagues with every habit off: more of them. The six rare ones
+  (Signs a Bridge QB, Trades Up for a QB, Sticks With His Young QB, Trades Firsts for Stars, Gun-Shy, and Prefers
+  Player Swaps: a league holds about five swaps in three seasons) are judged by
   built scenes instead, because a three-season league seldom offers the moment: the scene is built, run with the
   habit on and with every habit off, and the decision compared (the bridge deal signs, the trade-up finds a
   quarterback at a smaller gap, the young QB is untouchable, a contender's firsts cost less, a gun-shy offer pays
