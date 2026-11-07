@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
-import { simulateGame, type ContactTap, type EndingTap } from './gameSim';
+import { sackCredits, simulateGame, unhitPlay, type ContactTap, type EndingTap } from './gameSim';
 import { OUT_TEXT } from './sideline';
 import type { PlayLogEntry } from '../types';
 
@@ -58,5 +58,20 @@ describe('how a play ends, in the engine', () => {
     const texts = plays.filter((e) => /out of bounds/.test(e.text) && e.kind !== 'kickoff' && e.kind !== 'punt');
     for (const e of texts) expect(Object.values(OUT_TEXT).some((w) => e.text.includes(w))).toBe(true);
     expect(outs.some((t) => t.why === 'hit')).toBe(true);
+  });
+});
+
+describe('what a slide and a sack at the line book', () => {
+  it('books no hit on a slide or a step-out, and a hit otherwise', () => {
+    expect(unhitPlay({ outOfBounds: 'stepped' })).toBe(true);
+    expect(unhitPlay({ slid: true })).toBe(true);
+    expect(unhitPlay({ outOfBounds: 'pushed' })).toBe(false);
+    expect(unhitPlay({})).toBe(false);
+  });
+
+  it('credits a tackle for loss only on a sack that lost yards', () => {
+    expect(sackCredits(0)).not.toContain('tfl');
+    expect(sackCredits(0)).toContain('sacks');
+    expect(sackCredits(6)).toContain('tfl');
   });
 });

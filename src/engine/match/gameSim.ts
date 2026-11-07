@@ -604,6 +604,16 @@ export class StatBuffer {
  * the quarterback (`qb`), a return, a kick. `unhit`: he stepped out of bounds before the hit, so the tackle credited to
  * the man who forced him out is nobody's collision, and he carries only a free runner's risk.
  */
+/** A play nobody was hit on: a man who stepped out before the hit, or a slider (touched down, never tackled). */
+export function unhitPlay(r: { outOfBounds?: SidelineCall; slid?: boolean }): boolean {
+  return r.outOfBounds === 'stepped' || !!r.slid;
+}
+
+/** What a sack credits its man: a tackle for loss only when it lost yards (a sack at the line is no TFL, as the NFL books it). */
+export function sackCredits(loss: number): StatKey[] {
+  return loss > 0 ? ['sacks', 'tackles', 'tfl'] : ['sacks', 'tackles'];
+}
+
 export function collisions(entries: StatBuffer['entries'], qb: Player, unhit: boolean): [Player, ContactEvent][] {
   const tackled = !unhit && entries.some(([, k]) => k === 'tackles');
   const sacked = entries.some(([, k]) => k === 'sacked');
@@ -642,6 +652,8 @@ interface PlayResult {
   batted?: boolean;
   /** The man in coverage on a pass: flags for grabbing are his. */
   defender?: Player;
+  /** A slide: touched down, never hit (`unhitPlay`). */
+  slid?: boolean;
   /** Who got home on a sack: a late hit or a celebration is his. */
   rusher?: Player;
   lane?: number;
@@ -4295,9 +4307,7 @@ class GameSim {
     if (pocket) this.pocketToday = { ...this.pocketToday, rusher: null, beat: null, hit: true, blamed: true, duration };
     buf.add(qb, 'sacked');
     buf.add(qb, 'sackYds', loss);
-    buf.add(sacker, 'sacks');
-    buf.add(sacker, 'tackles');
-    buf.add(sacker, 'tfl');
+    for (const k of sackCredits(loss)) buf.add(sacker, k);
     this.creditPressure(buf, sacker0, defCall, true, pocketBy);
     // A sack at the line costs nothing: "for 0 yards", as the NFL's books write it.
     let text = `${short(qb)} SACKED by ${short(sacker)} for ${loss ? `-${loss}` : 0} yards`;
@@ -4536,6 +4546,7 @@ class GameSim {
       stats: buf,
       lane,
       ...(oob ? { outOfBounds: call } : {}),
+      ...(slide ? { slid: true } : {}),
     };
   }
 
@@ -4568,7 +4579,7 @@ class GameSim {
     }
     ts.plays++;
 
-    this.credit(result.stats, result.outOfBounds === 'stepped');
+    this.credit(result.stats, unhitPlay(result));
     if (result.kind === 'pass' || result.kind === 'spike') {
       ts.passAtt++;
       if (result.complete) {
