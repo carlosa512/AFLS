@@ -294,8 +294,9 @@ export function judgeSituations(t: SituationTally): Line[] {
       label: `returns: ${kind}, spread between returners (yards)`,
       value: s.spread,
       range: [Math.max(0, nfl.spread - 0.6), nfl.spread + 0.6],
-      note: `NFL ${nfl.spread} (${s.men} men)${s.men < 10 ? ', too few to judge' : ''}`,
-      ...(s.men < 10 ? { info: true } : {}),
+      // A spread between men needs men: under 40 with 30+ returns each, the estimate is mostly luck.
+      note: `NFL ${nfl.spread} (${s.men} men)${s.men < 40 ? ', too few to judge' : ''}`,
+      ...(s.men < 40 ? { info: true } : {}),
     });
     const cov = t.coverage[kind];
     lines.push(

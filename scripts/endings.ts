@@ -37,7 +37,8 @@ const flag = (key: string, plays: PlayLogEntry[], i: number) => {
 for (let i = 0; i < n; i++) {
   const game = league.games[i % league.games.length];
   const r = simulateGame(league, game, { keepPlays: true, seed: `end-${i}` });
-  const plays = r.plays!;
+  // A two-point try is a snap from the 2 after the score, not a down: the audit reads the game's own snaps.
+  const plays = r.plays!.filter((e) => !/^Two-point try: /.test(e.text));
   // The fourth quarter's weather, as the coaches read their kicks in it.
   const wxKick = r.weather ? weatherEffects(weatherAt(r.weather, 4)).kick : 0;
   /** A kick the coach would try from here: his kicker's odds, as he reads them, clear his floor (`kickNow`). */
@@ -65,6 +66,8 @@ for (let i = 0; i < n; i++) {
       diff >= -3 &&
       lastSnapOfHalf &&
       /field goal/.test(p.text) === false &&
+      // A touchdown that wins it is no nonsense, whatever clock it leaves.
+      !/TOUCHDOWN/.test(p.text) &&
       100 - p.yardLine <= 35 &&
       // (A 52-yarder into a 32 mph wind is out of reach: playing for the end zone there is no nonsense.)
       kickable(p)
