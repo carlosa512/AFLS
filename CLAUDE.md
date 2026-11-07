@@ -38,7 +38,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
   `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads in `offseason`, win
-  spread in `sim`): outside their usual band they warn (⚠: this league drifted),
+  spread and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs

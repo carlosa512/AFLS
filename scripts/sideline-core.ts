@@ -5,6 +5,7 @@
  * Used by `npm run sideline` (fast, AI games) and `npm run sim`.
  */
 import { asRan } from '../src/engine/field/stage';
+import { bandMark, bandOf } from './band';
 import { sidelineOdds, TYPICAL, type SidelineFacts, type SidelineKind } from '../src/engine/match/sideline';
 import { playerOvr } from '../src/engine/positions';
 import { activeQuirks } from '../src/engine/quirks';
@@ -21,15 +22,18 @@ export interface Line {
   range: [number, number];
   note: string;
   info?: boolean;
+  /** A line that swings with the league (`band.ts`): outside `range` it warns, outside this it fails. */
+  normal?: [number, number];
 }
 
 /** Print a line as the repo's checks do; returns whether it's in range (the caller counts misses). */
 export function printLine(l: Line): boolean {
-  const ok = l.info || (Number.isFinite(l.value) && l.value >= l.range[0] && l.value <= l.range[1]);
+  const band = bandOf(l.value, l.range, l.normal);
+  const ok = l.info || band === 'usual' || band === 'unusual';
   const shown = Number.isFinite(l.value) ? l.value.toFixed(2) : 'none';
   const range = l.info ? 'reported' : l.range.map((x) => x.toFixed(2)).join('–');
-  const mark = l.info ? ' ' : ok ? '✓' : '✗';
-  const why = ok ? '' : !Number.isFinite(l.value) ? '  ✗ NOT MEASURED' : l.value < l.range[0] ? '  ▼ LOW' : '  ▲ HIGH';
+  const mark = l.info ? ' ' : band === 'usual' ? '✓' : band === 'unusual' ? '⚠' : '✗';
+  const why = l.info ? '' : bandMark(l.value, l.range, l.normal);
   console.log(`${mark} ${l.label.padEnd(58)} ${shown.padStart(8)}   ${range.padEnd(13)} ${l.note}${why}`);
   return !!ok;
 }
