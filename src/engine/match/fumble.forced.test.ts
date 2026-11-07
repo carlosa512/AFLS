@@ -12,7 +12,7 @@ vi.mock('./fumbleOdds', async (load) => {
 const league = createLeague({ seed: 'fumble-forced' });
 const plays: PlayLogEntry[] = league.games
   .filter((g) => !g.playoffRound)
-  .slice(0, 16)
+  .slice(0, 24)
   .flatMap((g) => simulateGame(league, g, { keepPlays: true }).plays!);
 const next = (i: number) => plays.slice(i + 1).find((e) => e.down > 0);
 

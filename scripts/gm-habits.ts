@@ -139,18 +139,18 @@ const offseasonLeague = (): League => {
   }
   return JSON.parse(offseasonBase);
 };
-let draftBase: string | undefined;
-const draftDayLeague = (): League => {
-  if (!draftBase) {
+const draftBases = new Map<string, string>();
+const draftDayLeague = (seed = 'draft-trades-f'): League => {
+  if (!draftBases.has(seed)) {
     pin(null);
-    const l = createLeague({ seed: 'draft-trades-f' });
+    const l = createLeague({ seed });
     simToEndOfSeason(l);
     beginOffseason(l);
     while (l.phase !== 'draft') advanceOffseason(l, { autoUser: true });
-    draftBase = JSON.stringify(l);
+    draftBases.set(seed, JSON.stringify(l));
     unpin();
   }
-  return JSON.parse(draftBase);
+  return JSON.parse(draftBases.get(seed)!);
 };
 let tradeBase: string | undefined;
 const tradeLeague = (): League => {
@@ -205,11 +205,11 @@ const bridgeScore = () => {
 };
 
 const tradeUpScore = () => {
-  const l = draftDayLeague();
+  // Its own world, as the unit test's (`trade/draft.test.ts`): a class with a quarterback sitting just under the bar.
+  const l = draftDayLeague('draft-trades-qb-b');
   let found = 0;
   let lost = 0;
-  // Sixty-four picks, not thirty-two (as the unit test): in the merged world the first round alone holds no quarterback
-  // sitting just under the bar.
+  // Sixty-four picks, not thirty-two (as the unit test).
   for (let i = 0; i < 64; i++) {
     for (const pk of picksAhead(l, WINDOW)) {
       if (pk.ownerId === l.userTeamId) continue;

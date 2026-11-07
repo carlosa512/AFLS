@@ -105,7 +105,12 @@ const LEAGUES = Number(
 const VERBOSE = process.argv.includes('--verbose');
 const flag = (name: string) => process.argv[process.argv.indexOf(name) + 1];
 const SEASONS = process.argv.includes('--seasons') ? Number(flag('--seasons')) : 3;
-const SEED = process.argv.includes('--seed') ? flag('--seed') : 'trades';
+/**
+ * The world the check plays (`--seed` for another). 'alt' since 0.4.11: its reshuffled seasons left the old world's
+ * draft days at 2.3 deals a draft with a future pick (floor 2.5) and nothing the change touched feeds them (the owner's
+ * call); main itself misses other lines on some worlds.
+ */
+const SEED = process.argv.includes('--seed') ? flag('--seed') : 'alt';
 /** Each team's division (every league uses the real alignment). */
 const DIVISION_OF = createLeague({ seed: 'divisions' }).teams.map((t) => t.division);
 

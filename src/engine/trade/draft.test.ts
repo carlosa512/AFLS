@@ -70,6 +70,19 @@ const atDraft = (() => {
   }
 })();
 const draftDay = (): League => JSON.parse(atDraft);
+/** A world walked to draft day from `seed`, habits off as above (for a test that needs a particular draft class). */
+function draftDayOf(seed: string): League {
+  habitsForce.off = true;
+  try {
+    const league = createLeague({ seed });
+    simToEndOfSeason(league);
+    beginOffseason(league);
+    while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
+    return league;
+  } finally {
+    habitsForce.off = false;
+  }
+}
 
 /** An offer to you from `teamId`: his picks for yours. */
 function pickOffer(league: League, teamId: number, his: number[], yours: number[], reason: TradeOffer['reason']) {
@@ -593,8 +606,8 @@ describe('GM habits in the draft', () => {
 
   it('tradeUpReason takes a quarterback at a smaller gap with tradeUpQb on', () => {
     let found = 0;
-    const l = draftDay();
-    // Sixty-four picks, not thirty-two: in the merged world the first round alone holds no quarterback sitting just under the bar.
+    // Its own world: the shared one's class holds no quarterback sitting just under the bar.
+    const l = draftDayOf('draft-trades-qb-b');
     for (let i = 0; i < 64; i++) {
       for (const pk of picksAhead(l, WINDOW)) {
         if (pk.ownerId === l.userTeamId) continue;

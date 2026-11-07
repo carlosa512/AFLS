@@ -11,7 +11,8 @@ function play(league: League, games: number) {
   const plays: PlayLogEntry[] = [];
   for (const g of league.games.filter((g) => !g.playoffRound).slice(0, games)) {
     const r = simulateGame(league, g, { keepPlays: true, dropbackTap: (t) => taps.push(t) });
-    plays.push(...r.plays!);
+    // A two-point try's snap books nothing and taps nothing (`twoPointTry`).
+    plays.push(...r.plays!.filter((e) => !/^Two-point try: /.test(e.text)));
   }
   return { taps, plays };
 }

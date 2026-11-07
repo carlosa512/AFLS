@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.11',
+    date: '2026-11-07',
+    title: "A play's time",
+    text:
+      'A play now takes as long as it does in the NFL: an incompletion stops the clock sooner, so a two-minute drill ' +
+      'fits another snap, and a long catch-and-run eats ten seconds. A team with time and timeouts before the half ' +
+      'tries for points instead of kneeling, carefully from its own end. The two-point try is a real play, a run or a ' +
+      "throw from the 2 with the men named, and coaches go for two when today's NFL does. Kick returns finally break " +
+      'long now and then, and a breakaway can go the distance.',
+  },
+  {
     version: '0.4.10',
     date: '2026-11-07',
     title: 'How a play ends',

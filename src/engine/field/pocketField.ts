@@ -210,6 +210,8 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
   const index = new Map(P.map((p, i) => [p.id, i]));
   const qi = index.get(start.qb)!;
   const QP = P[qi];
+  /** His top with the ball in his hands: an escaped sack runs him at it, never faster. */
+  const carrierTop = bodyOf(QP, false, true).top;
   const { pairs, doubles, free } = pairUp(start);
   const on = new Int16Array(n).fill(-1);
   const helper = new Int16Array(n).fill(-1);
@@ -419,8 +421,9 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       const gy = ty - q.y;
       const g = Math.hypot(gx, gy);
       // Escaping a sack he runs for it; rolling to throw it away he keeps his eyes downfield.
+      // Escaping a sack he runs with the ball, at a carrier's top (the film holds him to it).
       const pace = rolling
-        ? Math.min((outcome === 'sack' ? 1 : ROLL_PACE) * q.top, g / STEP)
+        ? Math.min(outcome === 'sack' ? carrierTop : ROLL_PACE * q.top, g / STEP)
         : set
           ? Math.min(POCKET_PACE, g / STEP)
           : Math.min(q.top, g / STEP);

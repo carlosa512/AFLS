@@ -25,7 +25,8 @@ import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
 
 /** A league at the draft step after one season: free agency's five days are done. */
 const afterFreeAgency = (() => {
-  const l = createLeague({ seed: 'front-office' });
+  // World b: the original's free agents found no club on the last call after 0.4.11 reshuffled its season.
+  const l = createLeague({ seed: 'front-office-b' });
   simToEndOfSeason(l);
   beginOffseason(l);
   while (l.phase !== 'draft') advanceOffseason(l, { autoUser: true });

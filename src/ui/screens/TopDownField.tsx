@@ -336,7 +336,8 @@ export function TopDownField({
   /** The play as it ran: a snap a flag wiped out still huddled and ran like any other. */
   const ran = entry ? asRan(entry) : undefined;
   const huddleFor = (s: StagedPlay): Huddle | undefined => {
-    if (!ran?.kind || !HUDDLED.has(ran.kind)) return undefined;
+    // A two-point try lines straight up, though since 0.4.11 it's logged as the snap it was.
+    if (!ran?.kind || !HUDDLED.has(ran.kind) || /^Two-point try: /.test(ran.text)) return undefined;
     if (twoMinute) return undefined; // no-huddle
     const bx = s.ball[0];
     const by = s.ball[1];

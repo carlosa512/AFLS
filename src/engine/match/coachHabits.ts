@@ -1,5 +1,6 @@
 import type { CoachQuirkId } from '../coachQuirks';
-import { goForTwo, tempo, type FourthDown, type Situation } from './coach';
+import { tempo, type FourthDown, type Situation } from './coach';
+import { sureTwo } from './twoPoint';
 import type { Rng } from '../rng';
 
 export type Habits = ReadonlySet<CoachQuirkId>;
@@ -61,7 +62,7 @@ export const UP_TEMPO_RUNOFF: [number, number] = [18, 26];
  * eight after the touchdown (down 14 before it) in either quarter, and the fourth quarter's chart a quarter early.
  */
 export function twoPointSpot(s: Situation): boolean {
-  if (s.overtime || s.quarter < 3 || goForTwo(s)) return false;
+  if (s.overtime || s.quarter < 3 || sureTwo(s)) return false;
   return s.scoreDiff === -8 || (s.quarter === 3 && (s.scoreDiff === -2 || s.scoreDiff === 1 || s.scoreDiff === 5));
 }
 export function twoPointHabit(s: Situation, habits: Habits, rng: Rng) {

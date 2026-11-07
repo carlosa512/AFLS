@@ -10,7 +10,7 @@ const BATTED = /, batted down at the line by /;
 
 /** The first play in a league's games that `want` picks, with its game. */
 function findPlay(want: (e: PlayLogEntry) => boolean, games = 40) {
-  const league = createLeague({ seed: 'batted-film' });
+  const league = createLeague({ seed: 'batted-film-b' });
   for (const g of league.games.filter((x) => !x.playoffRound).slice(0, games)) {
     const r: GameResult = simulateGame(league, g, { keepPlays: true });
     const i = r.plays!.findIndex(want);

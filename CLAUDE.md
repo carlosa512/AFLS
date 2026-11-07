@@ -83,6 +83,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   against nflverse and FTN 2021–25 (`scripts/research-dropback.py`); AI games, fast (3,000 in under a minute). Run it after
   changing `match/dropbackEnd.ts`, `stepReason` in `match/sideline.ts` or the sack and scramble endings in
   `match/gameSim.ts`; `npm run sim` judges the same lines. Nothing may be ✗.
+- `npm run situations [-- games]` — a play's time by what happened (incompletions by depth, catches and runs by yards,
+  out of bounds, kicks), the half's last possession (the kneel by the clock and timeouts, how drives that try from deep
+  end), the two-point try (how often at the same margins, run or pass, how often good) and returns (the shape,
+  touchdowns, the spread between returners) against nflverse 2021–25 (`scripts/research-situations.py`); AI games,
+  fast (3,000 in under a minute). Run it after changing `match/playTime.ts`, `match/twoPoint.ts`, `match/returns.ts` or
+  the play times, the half, the try or the returns in `match/gameSim.ts`; `npm run sim` judges the same lines. Nothing
+  may be ✗.
 - `npm run endings` — audit thousands of game endings for nonsense (trailing team running out the
   clock, missed last-second kicks…). Run it after any coaching (`match/coach.ts`) change.
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
@@ -399,7 +406,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (in the pocket or after he'd left it, the down, the call, the man, backed up), the slide or the fight for a scrambler
     who stays in bounds and why (`slideReason`, `fightsForIt`), the man who touched a slider down (`TOUCHED`); why a man
     stepped out is `stepReason` in `sideline.ts`; the words in the play, the reasons on film (`FieldFacts.ow`, `sw`,
-    `tc`, `ex`); draws nothing
+    `tc`, `ex`); draws nothing · `match/playTime.ts` a play's time and the half's last possession (spec
+    `docs/superpowers/specs/2026-11-07-a-plays-time-design.md`): `playSeconds` from what happened (the field still times
+    your games' runs and catches), `kneelOdds` for a drive with 75 seconds or less before the half (one draw a drive);
+    draws nothing · `match/twoPoint.ts` the two-point call (`sureTwo`, `twoPointOdds` at the NFL's odds by the margin,
+    leaned by the head coach) and run or pass (`runShare`); the try is a real snap from the 2 (`twoPointTry` in
+    `gameSim.ts`: nothing booked, its text `Two-point try: …`); draws nothing · `match/returns.ts` a kickoff's or punt's
+    return drawn whole from the NFL's shape (`returnYards`; a touchdown is the return that reaches the end zone);
+    draws nothing
   - `season/` schedule (NFL 17-game formula, built at the start of each offseason under the NFL's rules:
     byes in weeks 5–14, week 18 all division games, rematches three weeks apart, no three road games in a
     row), kickoffs (`kickoff.ts`: Thursday, Sunday 1:00/4:05/4:25, Sunday and Monday nights, the playoffs'

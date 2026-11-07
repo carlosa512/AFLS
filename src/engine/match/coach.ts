@@ -86,9 +86,10 @@ export const MILK_RUNOFF_MIN = 36;
 /**
  * Out of bounds outside the late windows: the NFL stops the game clock until the officials spot the ball and signal
  * ready, then runs it to the snap (Rule 4-3). nflverse 2021–25, Q1–Q3: a sideline catch that ends out of bounds leaves
- * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot.
+ * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot,
+ * longer than that gap because a play out of bounds takes longer itself (the trip to the sideline, `playTime.ts`).
  */
-export const SPOT_PAUSE = 3;
+export const SPOT_PAUSE = 4;
 
 /** The running clock to the next snap after a man went out of bounds outside the late windows. */
 export function afterOutOfBounds(runoff: number): number {
@@ -115,8 +116,7 @@ export function shouldKneel(s: Situation): boolean {
   }
   // Tied, deep in its own end with seconds left: play for overtime rather than risk a turnover.
   if (s.quarter === 4 && s.scoreDiff === 0) return s.down < 4 && s.clock <= 25 && s.yardLine <= 30;
-  // End of the first half: kneel unless there's a realistic shot at points.
-  if (s.quarter === 2) return s.down < 4 && s.clock <= 30 && (s.yardLine < 30 || (s.scoreDiff > 0 && s.yardLine < 50));
+  // The end of the first half is the drive's own call (`kneelOdds` in `playTime.ts`, drawn in `gameSim.ts`).
   return false;
 }
 
@@ -290,13 +290,6 @@ export function defenseCall(s: Situation, rng: Rng): DefenseCall {
   if (s.down >= 3 && s.distance >= 7) return rng.chance(b(0.3)) ? 'blitz' : rng.chance(0.55) ? 'passD' : 'base';
   if (s.down === 2 && s.distance >= 8) return rng.chance(b(0.15)) ? 'blitz' : 'base';
   return rng.chance(b(0.08)) ? 'blitz' : rng.chance(0.12) ? 'runD' : 'base';
-}
-
-/** After a touchdown: kick the extra point or go for two? `scoreDiff` excludes the PAT. */
-export function goForTwo(s: Situation): boolean {
-  if (s.quarter < 4) return false;
-  const d = s.scoreDiff;
-  return d === -2 || d === -5 || d === -10 || d === 1 || d === 5 || (d === -1 && s.clock <= 60 && !s.overtime);
 }
 
 /**

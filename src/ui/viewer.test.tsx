@@ -169,6 +169,27 @@ describe('the play label', () => {
     ...over,
   });
 
+  it('labels a two-point try as a try, good or not, never a touchdown (0.4.11)', () => {
+    const at = { yardLine: 98, from: 98, down: 1, distance: 2 };
+    expect(
+      playLabel(
+        play({ ...at, kind: 'run', to: 100, text: 'Two-point try: R.Back rush left for 2 yards, TOUCHDOWN — GOOD.' }),
+        0,
+      ),
+    ).toBe('Two-point try · Good');
+    expect(
+      playLabel(
+        play({
+          ...at,
+          kind: 'incomplete',
+          to: 98,
+          text: 'Two-point try: A.Passer pass short left to W.Out incomplete — NO GOOD.',
+        }),
+        0,
+      ),
+    ).toBe('Two-point try · No good');
+  });
+
   it("gives a lost fumble's gain to where the ball came out, and says it was lost", () => {
     const lost = play({
       text: 'A.Passer pass short left to W.Out for 12 yards (C.Corner). FUMBLE, recovered by C.Corner',
