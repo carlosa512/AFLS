@@ -29,6 +29,9 @@ export interface FieldFacts {
   /** The sideline call (`match/sideline.ts`, drawn before the field): he goes out at his spot, pushed out (1) or
    * stepping out (2). Film before 0.4.4 has only 1. */
   oob?: 1 | 2;
+  /** Why he stepped out (0.4.10): 1 to stop the clock (nobody sent), 2 before the hit (a man closing). Film before has
+   * none, and stages as it did. */
+  ow?: 1 | 2;
   /** A dropback the pocket played: today's outcome, and an unblamed sack or pressure. */
   pk?: PocketOutcome;
   nb?: 1;
@@ -38,6 +41,12 @@ export interface FieldFacts {
   cq?: 1;
   /** A scramble that ends with him sliding (today's call): down at his spot, nobody's tackle. */
   sl?: 1;
+  /** Why he slid (0.4.10): 1 the first down in hand, 2 the clock, 3 the hit; and whether a man touched him down (`tc`,
+   * that man's tackle). */
+  sw?: 1 | 2 | 3;
+  tc?: 1;
+  /** A sack after he'd left the pocket (0.4.10): run down on the move. */
+  ex?: 1;
   /** Today's credit the pocket is anchored to: the rusher's group (edge, interior, linebacker, defensive back) and the
    * beaten blocker's spot (tackle, guard, center, a back or tight end). The field picks the man within them. */
   rg?: 'e' | 'i' | 'l' | 'd';
