@@ -30,6 +30,9 @@ import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { LeagueRun } from './careers-league';
 import { LEADER_TARGETS, overRecordAllowed } from './leaders';
+import { habitsForce } from '../src/engine/gmHabits';
+// A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
+if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
 const seasons = Number(process.argv[2] ?? 16);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];

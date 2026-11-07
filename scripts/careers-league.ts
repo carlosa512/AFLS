@@ -17,6 +17,9 @@ import { bodyAs } from '../src/engine/training';
 import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import { seasonTops } from './leaders';
+import { habitsForce } from '../src/engine/gmHabits';
+// A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
+if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
 export interface LeagueRun {
   seed: string;

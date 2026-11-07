@@ -92,6 +92,9 @@ import {
   probePrices,
 } from './trades-prices';
 import { shareLeagues, type ShareRun } from './trades-share';
+import { habitsForce } from '../src/engine/gmHabits';
+// A run with every GM habit off, to tell a habit's lean from the market's own luck (the gm-habits check's switch).
+if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
 const LEAGUES = Number(
   process.argv
