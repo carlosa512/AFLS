@@ -1,6 +1,6 @@
 # A play's time, the half's last possession, the two-point try and returns
 
-**Status:** designed (0.4.11). Follows 0.4.10. MVP follow-ups: "Medium-High: a play's time" (with the owner's note of
+**Status:** built (0.4.11). Follows 0.4.10. MVP follow-ups: "Medium-High: a play's time" (with the owner's note of
 Nov 7: the first-half kneel ignores timeouts), "Medium: the two-point try" and "Low: return touchdowns as small
 edge-scaled rates" (the breakups half done in 0.4.8).
 

@@ -209,10 +209,17 @@ catch or run is the item above.
       (a quarterback's sneak is no riskier for his position's ratings) and backs differ as the NFL's do, luck taken
       out on both sides (0.0095 against 0.0117). Spec:
       `docs/superpowers/specs/2026-11-05-fumbles-on-contact-design.md`.
-- [ ] **Medium-High: a play's time** (L3066, L3104, L3123). 4–7 seconds whatever the yards, the throw's depth or the
-      tempo; the field times your games, AI games keep the flat draw, so possessions and two-minute drills read it. Also
-      (the owner, Nov 7): the first-half kneel (`shouldKneel`) ignores timeouts and a realistic shot at points: a team
-      with 30 seconds and timeouts in hand at its own 25 kneels where many NFL teams try.
+- [x] **Medium-High: a play's time (0.4.11).** A play takes the NFL's time for what happened (`match/playTime.ts`):
+      an incompletion 4.0 seconds behind the line to 5.7 deep (it was 5–8 whatever the depth, so two-minute drills
+      gain a snap), a catch or a run longer the farther it goes (a 40-yard catch-and-run about 8–9 seconds), out of
+      bounds the trip to the sideline, a returned punt 10.9, a fair catch 6.9, a kickoff run back 5.7; the field still
+      times your games' runs and catches, held to the same table (`npm run parity`). The half's last possession
+      (the owner, Nov 7): with 75 seconds or less the drive decides once, at the NFL's rate by the clock, timeouts and
+      spot (kneel 64% at 20 seconds or less, 9% at 21–40, never past midfield), the head coach's appetite leaning it; a
+      team that tries from deep plays it safe until its own 35 and scores as the NFL's do (21%, a touchdown 5%).
+      Fitted to nflverse 2021–25 (`npm run situations`, also judged in `npm run sim`); the time between snaps and the
+      spot's pause refit to hold plays a game (61.7) and the clock after a man goes out. Spec:
+      `docs/superpowers/specs/2026-11-07-a-plays-time-design.md`.
 - [x] **Medium-High: after an interception (0.4.8).** Who picks it off reads the throw's depth (`match/defendedPass.ts`):
       the cover man first, else a group the depth points to and a man of it by his ball skills (to the fourth: the ball
       hawk gets his group's picks); a lineman only at the line, a ball tipped up (the pick changes hands there). Deep
@@ -242,11 +249,19 @@ catch or run is the item above.
       1.75). The play says why ("slides with the first down in hand", "to keep the clock running", "to avoid the hit",
       "fights for every yard"), and why a man went out of bounds ("steps out of bounds to stop the clock", "gets out of
       bounds before the hit"), and the film shows it.
-- [ ] **Medium: the two-point try** (L1551): one roll on short accuracy, outside the run and pass engines.
-- [ ] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
+- [x] **Medium: the two-point try (0.4.11).** A real snap from the 2 by the side that scored (`match/twoPoint.ts`): the
+      play-caller runs or throws (28% runs, more with a quarterback who runs), the defense lines up for the goal line,
+      and runs are good 56%, passes 44% (the NFL's); nothing is booked, as the NFL keeps conversions apart, the play
+      names its men and your film shows it. When to go is today's NFL: certain down 10, 5 or 2 and up 1 or 5 late; the
+      judgment calls at the NFL's odds (down 8 or 9 late about 40%, down 1 in the last minute 39%, up or down 5 before
+      the 4th about 40%), leaned by the head coach. A turnover on a try can come back for two.
+- [x] **Low:** pass breakups credited on a flat 30% of incompletions (L3428); return touchdowns as small edge-scaled rates.
       **Partial (0.4.8):** breakups by depth, throwaways left out (0.45 behind the line to 0.29 deep, NFL FTN 2022–25),
       credited as the NFL's by depth (the line, a ball batted down at the line and drawn there on film, 0.54 of a
-      screen's, 0.16 at 0–9, 0.04 at 10–19, 0.01 deep); return touchdowns still small edge-scaled rates.
+      screen's, 0.16 at 0–9, 0.04 at 10–19, 0.01 deep). **Done (0.4.11):** a return is drawn whole from the NFL's shape
+      (`match/returns.ts`; kickoffs on the 2025 rules, 40+ 4.2%; punts, 20+ 8%), leaned by the returner (mostly in the
+      tail, held to the NFL's spread between returners), the coverage unit, the coaches and the punter; a touchdown is
+      the return that reaches the end zone.
 
 Read and fine: completion and interception odds, pressure and sack odds, penalties (crew- and player-scaled), kicks.
 Measured on the field (0.4.2): a man going out of bounds slips past defenders no more often than a man who's tackled
