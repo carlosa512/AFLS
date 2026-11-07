@@ -8,7 +8,7 @@ const league = createLeague({ seed: 'dropback-engine' });
 const taps: EndingTap[] = [];
 const contacts: ContactTap[] = [];
 const plays: PlayLogEntry[] = [];
-for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 8)) {
+for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 16)) {
   const r = simulateGame(league, g, {
     keepPlays: true,
     endingTap: (t) => taps.push(t),

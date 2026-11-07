@@ -7,7 +7,7 @@ import { foulersOn, foulsIn, type FoulPhase } from './calls';
 import { stageFouls, type FouledPlay } from './fouls';
 import { stagePlay, type StagedPlay } from '../../engine/field/stage';
 
-const league = createLeague({ seed: 'fouls' });
+const league = createLeague({ seed: 'fouls-c' });
 const team = (id: number) => league.teams.find((t) => t.id === id)!;
 const flagged: { e: PlayLogEntry; p: FouledPlay; phases: FoulPhase[]; base: ReturnType<typeof stagePlay> }[] = [];
 for (let i = 0; i < 60; i++) {

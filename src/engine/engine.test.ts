@@ -283,7 +283,8 @@ describe('end-of-game rules (regressions)', () => {
   it('never lets a trailing offense end regulation on an ordinary run', () => {
     for (const { game, r } of results) {
       const plays = r.plays!;
-      const snaps = plays.filter((p) => p.down && p.quarter === 4);
+      // (A two-point try is a snap from the 2 after the score, not a down.)
+      const snaps = plays.filter((p) => p.down && p.quarter === 4 && !/^Two-point try: /.test(p.text));
       const last = snaps[snaps.length - 1];
       if (!last || plays.some((p) => p.quarter >= 5)) continue;
       const i = plays.indexOf(last);

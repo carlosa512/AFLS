@@ -170,6 +170,7 @@ describe('temporary call-ups and durable history', () => {
       playWith(p);
     }
     nextGame(p, 4);
+    delete p.injury; // a knock in the third game isn't what this test is about
     expect(elevationProblem(l, p, g)).toMatch(/three/);
     nextGame(p, 19, true);
     expect(elevationProblem(l, p, g)).toBeNull();
