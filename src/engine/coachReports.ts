@@ -104,10 +104,14 @@ function twoPointHighlight(game: Game, report: CoachGameReport): string | undefi
   if (!event) return;
   const play = plays.find(
     // The try is logged at the touchdown's clock; one try a team at a time, so the clock finds it.
-    (p) => p.quarter === event.quarter && p.clock === event.clock && p.text.startsWith('Two-point attempt'),
+    // A real snap since 0.4.11 ("Two-point try: … — GOOD."); older saves logged "Two-point attempt is GOOD."
+    (p) =>
+      p.quarter === event.quarter &&
+      p.clock === event.clock &&
+      (p.text.startsWith('Two-point try: ') || p.text.startsWith('Two-point attempt')),
   );
   if (!play) return;
-  const good = /GOOD/.test(play.text);
+  const good = / — GOOD\.$/.test(play.text) || /^Two-point attempt is GOOD/.test(play.text);
   const before = marginFor(game, report.teamId)(play) - (good ? 2 : 0);
   const spot = before < 0 ? `down ${-before}` : before > 0 ? `up ${before}` : 'tied';
   const after = before + 2;

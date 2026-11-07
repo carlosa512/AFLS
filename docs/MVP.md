@@ -378,6 +378,26 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       season on, 0.01 three on (NFL 0.34 and 0.18). **Left:** three-season carryover; owners' spending; contenders
       selling their stars (a trade-AI question); dead money from trading restructured players.
 
+## Follow-up: what a play's time left (0.4.11)
+
+- [ ] **A squeezed buyer's swap bid isn't repriced for the salary you keep.** A buyer short of room who bids a player
+      (not picks) for yours asks you to keep part of his salary and pays nothing more for it (`offers.test.ts` checks
+      pick bids only until this is fixed).
+- [ ] **Extends Early extends men near the end.** An AI club with the habit extended a 32-year-old tight end to a
+      two-year minimum deal: an "extension" that extends nothing.
+- [ ] **Defensive twos run under the NFL's** (1% of tries against 3.9%): the league's tries turn it over less than the
+      NFL's, so even every turnover coming back couldn't reach it.
+- [ ] **A two-point try counts snaps and form.** Its snap adds to `StatLine.snaps` and the pass-rush rotation, and a sack
+      on it to `sacksTaken` (Rattled, Shaken): small (about 0.3% of snaps), but the spec says the try books nothing.
+- [ ] **A try from deep before the half stays short on 4th down** from past its own 35 (`halfSafe` isn't recomputed on
+      4th down).
+- [ ] **`npm run situations` small reads:** a return touchdown a flag called back counts as one; the half's lines read
+      drives already under way when the clock passed 75 seconds against the NFL's drives that start there; the punt
+      table's negative returns are floored at 0; CLAUDE.md's "3,000 in under a minute" is the run, not its default
+      (200).
+- [ ] **All-22's strip-sack at the line** may show the quarterback about half a yard past it at the hit
+      (`stage.test.ts` allows it): the strip film's jolt.
+
 ## Follow-up: what the locker-room work left (0.3.10)
 
 - [x] **Letters about meetings held before you arrived.** **Fixed (0.4.2):** a GM appointment keeps the step it began

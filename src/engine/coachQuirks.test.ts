@@ -686,6 +686,31 @@ describe('recaps of the second-wave habits', () => {
     result.plays = [play({ quarter: 3, clock: 400, text: 'Two-point attempt fails.', homeScore: 13, awayScore: 21 })];
     expect(userCoachGameObservation(l, g)).toContain('and it failed');
   });
+  it('tells a two-point try logged as a real snap (0.4.11), a NO GOOD as failed', () => {
+    const { l, g, report, play, result } = setup('headCoach');
+    report.events.push({ quirk: 'goesForTwo', quarter: 3, clock: 400, text: 'Went for two.' });
+    const at = { quarter: 3, clock: 400, down: 1, distance: 2, yardLine: 98 };
+    result.plays = [
+      play({
+        ...at,
+        text: 'Two-point try: A.Back rush up the middle for 2 yards, TOUCHDOWN — GOOD.',
+        homeScore: 15,
+        awayScore: 21,
+      }),
+    ];
+    expect(userCoachGameObservation(l, g)).toContain(
+      'went for two down 8 in the third quarter, and it was good, cutting it to 6',
+    );
+    result.plays = [
+      play({
+        ...at,
+        text: 'Two-point try: A.Passer pass short left to B.End incomplete — NO GOOD.',
+        homeScore: 13,
+        awayScore: 21,
+      }),
+    ];
+    expect(userCoachGameObservation(l, g)).toContain('and it failed');
+  });
   it('mentions a passed-up long kick only in a game decided by a field goal or less', () => {
     const { l, g, report, result } = setup('headCoach');
     report.events.push({

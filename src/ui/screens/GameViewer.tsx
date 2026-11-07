@@ -365,6 +365,8 @@ export const inPlay = (e: PlayLogEntry | undefined): boolean => {
 const ON_DOWNS: ReadonlySet<string> = new Set(['run', 'pass', 'scramble', 'sack', 'incomplete']);
 
 export function playLabel(e: PlayLogEntry, homeId: number): string {
+  // A two-point try is a real snap since 0.4.11: its run or catch may read TOUCHDOWN, but it's the try.
+  if (/^Two-point try: /.test(e.text)) return `Two-point try · ${/ — NO GOOD\.$/.test(e.text) ? 'No good' : 'Good'}`;
   if (/TOUCHDOWN/.test(e.text)) return 'Touchdown';
   const dir = e.offense === homeId ? 1 : -1;
   // A lost fumble gained to where the ball came out: its logged end is where the other side's return finished.
