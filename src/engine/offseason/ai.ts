@@ -250,6 +250,13 @@ export function fitOffer(offer: Offer, budget: number, min: number, age = Infini
 export const fitsNextYear = (committedNext: number, needs: number, apy: number, ceiling: number): boolean =>
   committedNext + needs + apy <= ceiling;
 
+/**
+ * How many of a club's keepers want to see what the market pays, however loyal the club: this × (1 − loyalty). The NFL
+ * keeps 36% of its good players whose deals end and 38% move (`docs/research/free-agency-market.md`); at 0.3 ours kept
+ * half and the outside market ran at half the NFL's (the owner's call, Nov 7: more players test free agency).
+ */
+export const TESTS_MARKET = 0.3;
+
 /** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
 export const CLEARING_DAY = 3;
 /** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`). */
@@ -611,7 +618,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
       if (offerCharge(league, p, team.id, { ...offer, apy }) <= budget()) offer.apy = apy;
     }
     // Some players want to see what the market will pay, however loyal the club.
-    const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty)) && !promised;
+    const testsMarket = rng.chance(TESTS_MARKET * (1 - p.personality.loyalty)) && !promised;
     // Not worth his price: the money goes to the market. A tag call still gets the tag's own test (`tryTag`: never past
     // what the club would pay him, and only when keeping him clears the bar the tag's price sets).
     if (!k.worth && !promised) {
