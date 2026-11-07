@@ -395,6 +395,10 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       drives already under way when the clock passed 75 seconds against the NFL's drives that start there; the punt
       table's negative returns are floored at 0; CLAUDE.md's "3,000 in under a minute" is the run, not its default
       (200).
+- [ ] **The trades check's draft lines sit near their floors on some worlds.** Deals with a future pick in them ran
+      2.3 a draft on the old default world after 0.4.11 reshuffled its seasons (2.9 and 3.7 on two others; main 3.4–4.0),
+      with no path from the change to draft trades: the check moved to world `alt` (the owner's call). Worth a look
+      whether draft-day future picks run thin.
 - [ ] **All-22's strip-sack at the line** may show the quarterback about half a yard past it at the hit
       (`stage.test.ts` allows it): the strip film's jolt.
 
