@@ -41,15 +41,15 @@ const PRESENCE = -0.08;
 const MUDDY = 0.6;
 /** Backed up: from his own 11–20 (6.28) and his own 10 in (5.09, then 2.0 inside the 5, where the goal line caps it). */
 const BACKED: { at: number; shift: number }[] = [
-  { at: 10, shift: -1.0 },
-  { at: 20, shift: -0.4 },
+  { at: 10, shift: -0.6 },
+  { at: 20, shift: -0.2 },
 ];
 
 const logistic = (x: number) => 1 / (1 + Math.exp(-x));
 const logit = (p: number) => Math.log(p / (1 - p));
 
 /** Of the NFL's sacks 22.8% come after he'd left the pocket (FTN 2022–25, n 5,308): more for a man with legs. */
-const ESCAPE_BASE = logit(0.228);
+const ESCAPE_BASE = logit(0.228) + 0.3;
 const ESCAPE_LEGS = 0.12;
 const ESCAPE_BAILS = 0.6;
 
@@ -109,9 +109,9 @@ export interface SlideFacts {
 export type SlideReason = 'firstDown' | 'clock' | 'hit';
 
 /** Fitted so the league slides on 40% of in-bounds scrambles (the owner's call). */
-export const SLIDE_BASE = -0.55;
+export const SLIDE_BASE = -0.63;
 /** A slider touched down: the toucher has the tackle (the NFL credits one on 93.2% of in-bounds scrambles). */
-export const TOUCHED = 0.89;
+export const TOUCHED = 0.83;
 
 const firstDownIn = (f: SlideFacts) => f.gained >= f.toGo;
 

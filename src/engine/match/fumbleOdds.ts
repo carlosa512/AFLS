@@ -46,8 +46,9 @@ type ByKind = Record<ContactKind, number>;
 
 /** A typical tackle on 1st and 2nd down, fitted on weeks 1 and 10 of played seasons (as `npm run sim` reads them:
  * injuries in, backups carrying) so the league's 1st and 2nd downs land on the NFL's runs 1.34 a hundred, catches
- * 1.35, scrambles 1.51 (its carriers, tacklers and legs aren't all typical). */
-const BASE: ByKind = { run: 0.0155, catch: 0.015, scramble: 0.0187 };
+ * 1.35, scrambles 1.51 (its carriers, tacklers and legs aren't all typical). Scrambles count every one that ends in
+ * bounds, slides included as the NFL counts them (0.4.10): a slide can't fumble, so the rest carry the rate. */
+const BASE: ByKind = { run: 0.0155, catch: 0.015, scramble: 0.029 };
 /** Per point of ball security against his position's typical man: catches and scrambles as the engine had it; a
  * back's carries lean hard, so backs truly differ as the NFL's do (the sd of their rates over 150+ carries less what
  * luck gives, 0.0117: a back a point under his peers fumbles half again as often). */
