@@ -32,6 +32,7 @@
  * are printed, never counted, so CI stays green until someone fixes the engine; each one disappears
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
+import { faMeasures, windowStart } from './free-agency-core';
 import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
 import { bandOf } from './band';
 import { fork } from 'node:child_process';
@@ -117,6 +118,8 @@ const sd = (xs: number[]) => Math.sqrt(avg(xs.map((x) => (x - avg(xs)) ** 2)));
 // ───────── Judging ─────────
 
 let misses = 0;
+/** Young good deals that ended and signed nothing, pooled over the judged seasons. */
+const faYoung = { ends: 0, none: 0 };
 
 /**
  * Format `value` against its band and count a miss when it is outside. A number that is not finite
@@ -343,6 +346,8 @@ for (let s = 0; s < seasons; s++) {
     .map((t) => t.id);
   const before = new Map(young.map((p) => [p.id, { ovr: playerOvr(p), team: p.teamId! }]));
   beginOffseason(league);
+  // The re-sign window's start: whose good deals just ended, and the room clubs bring to it.
+  const faStart = windowStart(league);
   for (const [id, b] of before) {
     const p = league.players[id];
     if (p.retired) continue;
@@ -524,6 +529,26 @@ for (let s = 0; s < seasons; s++) {
     (100 * new Set(moves.filter((m) => m.kind === 'restructure').flatMap((m) => m.teamIds)).size) / league.teams.length;
   console.log(
     `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 35, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+  );
+  // The free-agency market against the NFL's (`docs/research/free-agency-market.md`: Over The Cap's contracts
+  // 2014-2021 through nflverse; the same definitions here). Judged from the second offseason on: the generated league's
+  // first contracts aren't a market's. Usual band, then normal (`band.ts`), around the NFL: stayed 36%, moved 38%, no
+  // deal 25%; 84-109 good outside signings a year, 16-22 clubs with 3+, 20% of them one-year. The owner's rule: no player
+  // 28 or younger priced at 5%+ of the cap unsigned at kickoff.
+  const fa = faMeasures(faStart, league);
+  const faJudged = s >= 1;
+  const faCheck = (label: string, v: number, usual: [number, number], normal: [number, number], digits = 0) =>
+    faJudged ? check(label, v, usual[0], usual[1], digits, normal) : `${label} ${v.toFixed(digits)} (not judged yet)`;
+  if (faJudged) {
+    faYoung.ends += fa.youngEnds;
+    faYoung.none += fa.youngNone;
+  }
+  console.log(
+    `  checks ${year} free agency (${fa.ends} good deals ended): ${faCheck('stayed %', 100 * fa.stayed, [28, 45], [20, 55])} · ${faCheck('moved %', 100 * fa.moved, [30, 50], [20, 60])} · ${faCheck('no deal %', 100 * fa.none, [15, 32], [10, 40])} · ${faCheck('good outside signings', fa.outside, [75, 120], [60, 135])} · ${faCheck('clubs with 3+', fa.clubs3, [12, 24], [8, 28])} · ${faCheck('one-year %', 100 * fa.oneYear, [10, 30], [5, 40])} · ${faCheck('elite young unsigned', fa.eliteYoungUnsigned, [0, 0], [0, 0])}`,
+  );
+  // Reported, not judged: AFLS rosters refill far more each spring, so the room isn't alike even when the market is.
+  console.log(
+    `  room at the window's start: median ${(100 * fa.roomMedian).toFixed(1)}% · clubs 10%+ ${fa.roomClubs10} · over the cap ${fa.overCap} (NFL February 2023-25: median 2.8-12.3%, 8-18 clubs 10%+, 8-14 over)`,
   );
 
   // League talent (mean starter OVR at kickoff): 12.89, 12.92, 13.02, 13.09, 13.18, 13.20 (all seeds then 12.69-13.12),
@@ -823,6 +848,11 @@ if (rows.length >= 5) {
   console.log(`\ndrift and steady-state bands need 5+ seasons; this run played ${rows.length}, so they were skipped`);
 }
 
+// Pooled: a season has too few young good deals ending to judge (NFL 2014-20: 14% of 336 signed nothing the next spring).
+if (faYoung.ends)
+  console.log(
+    `\nfree agency, pooled: ${check(`no deal %, 28 or younger (${faYoung.ends} deals)`, (100 * faYoung.none) / faYoung.ends, 5, 22, 0, [0, 30])}`,
+  );
 if (Object.keys(known).length) console.log();
 for (const [issue, where] of Object.entries(known)) console.log(`⚠ known issue: ${issue} — ${where.join('; ')}`);
 
