@@ -1651,7 +1651,10 @@ export function refillRoster(league: League, team: Team): void {
  */
 function roomForMinimum(league: League, team: Team): number {
   const left = 1 - paidFraction(league);
-  const space = capSpace(league, team.id);
+  // A thousand kept back: a deal's booked charge rounds its prorated base to the thousand, so a signing priced to the
+  // last of the room could land a fraction over the cap (LAC, 2028 week 14: room 398.63, charge 399) and the kickoff
+  // guard would refuse the week. The same cushion `aiCapCompliance` asks for.
+  const space = capSpace(league, team.id) - 1;
   // In the playoffs every weekly check has been paid: a signing costs nothing this year.
   return left > 0 ? space / left : space >= 0 ? Infinity : 0;
 }
