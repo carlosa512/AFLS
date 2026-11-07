@@ -144,7 +144,7 @@ import {
   type SlideReason,
 } from './dropbackEnd';
 import { kneelOdds, playSeconds, type PlayTimeKind } from './playTime';
-import { returnYards as kickReturnYards } from './returns';
+import { COVERAGE_TYPICAL, returnYards as kickReturnYards } from './returns';
 import { DEF_TWO, runShare, sureTwo, TRY_PASS, TRY_RUN, twoPointOdds, type TwoPointFacts } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
@@ -187,6 +187,8 @@ export type SituationTap =
   | {
       kind: 'try';
       quarter: number;
+      clock: number;
+      overtime: boolean;
       scoreDiff: number;
       appetite: number;
       goes: boolean;
@@ -522,7 +524,7 @@ const END_ZONE_THROW = 0.08;
 /** An offense's edge is worth less with no room to use it; being outmatched still costs in full. */
 const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
 /** Game clock between snaps at a normal tempo (refit with a play's time, `playTime.ts`, to keep plays a game). */
-const NORMAL_RUNOFF: [number, number] = [29, 39];
+const NORMAL_RUNOFF: [number, number] = [31, 43];
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -967,7 +969,6 @@ class GameSim {
   private clockRunning = false;
   /** The half's last possession (`kneelOdds`): the drive's one draw, and what its tap reports when the drive ends. */
   private halfU: number | null = null;
-  private halfTrying = false;
   private halfDrive: (Extract<SituationTap, { kind: 'half' }> & { from: number }) | null = null;
   /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
   private spotted = false;
@@ -1510,7 +1511,6 @@ class GameSim {
       depthLean: this.lineups[off].scheme.offense.depth,
       blitz: this.lineups[this.def].scheme.front.blitz * (this.lineups[this.def].scheme.coverage?.blitz ?? 1),
       weather: this.wx.pass,
-      ...(this.halfTrying ? { halfTry: true } : {}),
     };
   }
 
@@ -1769,7 +1769,6 @@ class GameSim {
       this.options.situationTap?.({ ...tap, points: this.score[this.offense] - from, reachedHalf });
     }
     this.halfU = null;
-    this.halfTrying = false;
     this.halfDrive = null;
   }
 
@@ -1794,7 +1793,6 @@ class GameSim {
         reachedHalf: false,
         from: this.score[this.offense],
       };
-    this.halfTrying = !kneel;
     return kneel;
   }
 
@@ -1860,6 +1858,8 @@ class GameSim {
     this.options.situationTap?.({
       kind: 'try',
       quarter: s.quarter,
+      clock: s.clock,
+      overtime: s.overtime,
       scoreDiff: s.scoreDiff,
       appetite: f.appetite,
       goes: false,
@@ -1964,6 +1964,8 @@ class GameSim {
     options.situationTap?.({
       kind: 'try',
       quarter: f.quarter,
+      clock: f.clock,
+      overtime: f.overtime,
       scoreDiff: f.scoreDiff,
       appetite: f.appetite,
       goes: true,
@@ -4774,7 +4776,7 @@ class GameSim {
 
   /** The kicking side's coverage: its special teamers' open-field tackling against a typical man's (`returns.ts`). */
   private coverageOf(l: Lineup): number {
-    return l.st.length ? l.st.reduce((a, p) => a + skill(p, 'tackling'), 0) / l.st.length - 12 : 0;
+    return l.st.length ? l.st.reduce((a, p) => a + skill(p, 'tackling'), 0) / l.st.length - COVERAGE_TYPICAL : 0;
   }
 
   /** A scrimmage play's time for `npm run situations` (picks and lost fumbles left out: their returns aren't timed). */

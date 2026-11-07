@@ -166,7 +166,7 @@ the head coach), the two-point try as a real snap with today's NFL call, and ret
   ```ts
   export interface ReturnFacts { kind: 'kickoff' | 'punt'; from: number; returner: number; coverage: number;
     coach: number; outkicks?: boolean; highArc?: boolean }
-  // returner: skill(kr, 'returns') − 12; coverage: the kicking side's mean skill(p, 'tackling') over `st`, − 12;
+  // returner: skill(kr, 'returns') − 12; coverage: the kicking side's mean skill(p, 'tackling') over `st`, − COVERAGE_TYPICAL (8.6);
   // coach: today's yards edge, RETURN_COACH[kind] * (receiving.stCoach − kicking.stCoach).
   export function returnYards(f: ReturnFacts, u: number): number; // whole, 0 ≤ yards ≤ f.from
   ```

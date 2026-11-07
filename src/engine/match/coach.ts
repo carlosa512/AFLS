@@ -26,8 +26,6 @@ export interface Situation {
   qbLean?: number;
   /** The head coach's appetite for going for it on fourth down, −1…1. */
   fourthDown?: number;
-  /** The drive is trying for points before the half (`kneelOdds`): it hurries and takes its timeouts from anywhere. */
-  halfTry?: boolean;
   /** The offense's scheme: shift to the short / medium / deep mix of ordinary throws. */
   depthLean?: [number, number, number];
   /** The defense's scheme: blitz-rate multiplier (1 = league average). */
@@ -77,7 +75,7 @@ export function tempo(s: Situation): Tempo {
   // Tied late with the ball in reach of field-goal range: try to win it in regulation.
   if (s.quarter === 4 && s.scoreDiff === 0 && s.clock <= 120 && s.yardLine >= 35) return 'hurry';
   if (s.overtime && s.scoreDiff === 0 && s.clock <= 360) return 'hurry';
-  if (s.quarter === 2 && s.clock <= 120 && (s.yardLine >= 25 || s.halfTry)) return 'hurry';
+  if (s.quarter === 2 && s.clock <= 120 && s.yardLine >= 25) return 'hurry';
   if (s.quarter >= 4 && s.scoreDiff > 0 && s.clock <= 420) return 'milk';
   if (s.quarter >= 3 && s.scoreDiff >= 17) return 'milk';
   return 'normal';
@@ -312,7 +310,7 @@ export function offenseTimeout(s: Situation): boolean {
   if (s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 120) return s.offTimeouts > 1 || s.clock <= 40;
   // Tied: only worth stopping the clock once the ball is near scoring range.
   if (s.quarter >= 4 && s.scoreDiff === 0 && s.clock <= 120) return s.yardLine >= 45;
-  return s.quarter === 2 && s.clock <= 60 && (s.yardLine >= 45 || !!s.halfTry);
+  return s.quarter === 2 && s.clock <= 60 && s.yardLine >= 45;
 }
 
 /** A trailing defense still in the game saves time for one more possession. */

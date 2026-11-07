@@ -43,21 +43,19 @@ describe("the half's last possession, in the engine", () => {
     expect(half.some((t) => !t.kneeled && t.yardLine <= 35)).toBe(true);
   });
 
-  it('plays a two-minute drill when it tries: a timeout inside a minute from its own end', () => {
-    const early = games.some(({ plays }) =>
-      // The timeout's own entry carries the ball's spot when it was called, for the side with the ball.
-      plays.some((e) => e.quarter === 2 && e.clock <= 60 && e.clock > 0 && /^Timeout /.test(e.text) && e.yardLine < 45),
-    );
-    expect(early).toBe(true);
+  it('lets a drive that tries from deep score, or run out the half', () => {
+    const deep = of('half').filter((t) => !t.kneeled && t.yardLine <= 35);
+    expect(deep.some((t) => t.points >= 3)).toBe(true);
+    expect(deep.some((t) => t.reachedHalf && t.points === 0)).toBe(true);
   });
 });
 
 const TRY = /^Two-point try: /;
+const SNAPS = ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble'];
 const lastIndex = <T>(xs: T[], want: (x: T) => boolean) => {
   for (let i = xs.length - 1; i >= 0; i--) if (want(xs[i])) return i;
   return -1;
 };
-const SNAPS = ['run', 'pass', 'incomplete', 'int', 'sack', 'scramble'];
 
 describe('the two-point try, in the engine', () => {
   it('taps every try, and goes on every sure call', () => {

@@ -27,15 +27,14 @@ const INCOMPLETE: Anchors = [
   [14.5, 4.96],
   [30, 5.73],
 ];
-/** Each bucket at its middle: under 5, 5–9, 10–19, 20–39, 40+. */
-const AT = [2.5, 7, 14.5, 29.5, 55];
-const at = (s: number[]): Anchors => s.map((v, i) => [AT[i], v] as const);
+/** Each bucket (under 5, 5–9, 10–19, 20–39, 40+) at its plays' mean yards. */
+const at = (yards: number[], s: number[]): Anchors => s.map((v, i) => [yards[i], v] as const);
 /** Timed on touchdowns (in bounds the clock runs on): catches n 3,844, runs n 2,258 (a short run is a goal-line plunge). */
-const CATCH = at([4.15, 4.63, 5.34, 6.26, 9.25]);
-const RUN = at([3.65, 4.77, 5.81, 7.05, 9.55]);
+const CATCH = at([2.5, 6.8, 13.8, 27.5, 56.3], [4.15, 4.63, 5.34, 6.26, 9.25]);
+const RUN = at([1.8, 6.5, 13.8, 27.4, 57.7], [3.65, 4.77, 5.81, 7.05, 9.55]);
 /** Out of bounds in the late windows: the trip to the sideline (catches n 2,636, runs n 277, scrambles left out). */
-const CATCH_OUT = at([5.2, 4.93, 5.5, 6.31, 8.1]);
-const RUN_OUT = at([4.92, 5.78, 5.56, 6.85, 8.2]);
+const CATCH_OUT = at([2.6, 6.9, 13.5, 26.5, 46.3], [5.2, 4.93, 5.5, 6.31, 8.1]);
+const RUN_OUT = at([1.1, 6.7, 13.0, 26.6, 52.2], [4.92, 5.78, 5.56, 6.85, 8.2]);
 
 /** Linear between the anchors, flat past the ends. */
 function along(a: Anchors, x: number): number {
@@ -94,7 +93,7 @@ export interface HalfFacts {
  * 21–40, 1% at 41–60; each timeout makes a try likelier; from his own 36–50 rarely, past midfield never; the score
  * barely matters. A logistic fit inside his own 50.
  */
-const HALF_BASE = 4.316;
+const HALF_BASE = 4.716;
 const HALF_CLOCK = -0.216;
 const HALF_TIMEOUT = -0.351;
 const HALF_SPOT = -3.484;

@@ -6,6 +6,7 @@
  * (`SimOptions.situationTap`). NFL numbers: nflverse 2021–25, regular seasons (`scripts/research-situations.py`).
  */
 import type { SituationTap } from '../src/engine/match/gameSim';
+import { twoPointOdds } from '../src/engine/match/twoPoint';
 import { share } from './fumbles-core';
 import type { Line } from './sideline-core';
 
@@ -108,6 +109,8 @@ export interface SituationTally {
   half: Record<string, [kneel: number, n: number]>;
   deep: { n: number; points: number; td: number; turnover: number; half: number };
   tries: { all: [number, number]; early: [number, number]; late: [number, number] };
+  /** Late tries: went for two, and the NFL's rate at each one's margin summed (`twoPointOdds`, a neutral coach). */
+  lateAtMargins: { goes: number; nfl: number; n: number };
   lateNine: [number, number];
   earlyFive: [number, number];
   earlyByAppetite: { keen: [number, number]; wary: [number, number] };
@@ -126,6 +129,7 @@ export function newSituationTally(): SituationTally {
     half: {},
     deep: { n: 0, points: 0, td: 0, turnover: 0, half: 0 },
     tries: { all: [0, 0], early: [0, 0], late: [0, 0] },
+    lateAtMargins: { goes: 0, nfl: 0, n: 0 },
     lateNine: [0, 0],
     earlyFive: [0, 0],
     earlyByAppetite: { keen: [0, 0], wary: [0, 0] },
@@ -187,6 +191,12 @@ export function tapSituation(t: SituationTally, tap: SituationTap): void {
       const late = tap.quarter >= 4;
       count(t.tries.all, tap.goes);
       count(late ? t.tries.late : t.tries.early, tap.goes);
+      if (late) {
+        const m = t.lateAtMargins;
+        m.n++;
+        if (tap.goes) m.goes++;
+        m.nfl += twoPointOdds({ ...tap, appetite: 0, passLean: 0, qbScrambling: 12 });
+      }
       if (late && (tap.scoreDiff === -8 || tap.scoreDiff === -9)) count(t.lateNine, tap.goes);
       if (!late && Math.abs(tap.scoreDiff) === 5) count(t.earlyFive, tap.goes);
       if (!late && tap.appetite !== 0) count(t.earlyByAppetite[tap.appetite > 0 ? 'keen' : 'wary'], tap.goes);
@@ -205,7 +215,7 @@ export function tapSituation(t: SituationTally, tap: SituationTap): void {
       if (tap.td) r.td++;
       const m = t.returners[tap.play];
       add(m.get(tap.returnerId) ?? (m.set(tap.returnerId, moments()), m.get(tap.returnerId)!), tap.yards);
-      if (Math.abs(tap.coverage) >= 1) add(t.coverage[tap.play][tap.coverage > 0 ? 'strong' : 'weak'], tap.yards);
+      if (Math.abs(tap.coverage) >= 0.4) add(t.coverage[tap.play][tap.coverage > 0 ? 'strong' : 'weak'], tap.yards);
       return;
     }
   }
@@ -224,8 +234,12 @@ function returnerSpread(m: Map<number, Moments>): { spread: number; men: number 
 
 export function judgeSituations(t: SituationTally): Line[] {
   const lines: Line[] = [];
-  for (const [label, [real, nflN]] of Object.entries(TIME_NFL))
-    lines.push(meanLine(`time: ${label}`, t.time[label] ?? moments(), real, nflN, 0.4));
+  for (const [label, [real, nflN]] of Object.entries(TIME_NFL)) {
+    const l = meanLine(`time: ${label}`, t.time[label] ?? moments(), real, nflN, 0.4);
+    // The NFL's 40+ plays are touchdowns or late sideline catches, longer on average than a league's 40+ gains: the
+    // seconds a yard are the table's, the mix isn't the same, so these are reported.
+    lines.push(label.endsWith('40+') ? { ...l, info: true, note: `${l.note}, the yard mix differs` } : l);
+  }
   lines.push(reported('time: sack (not measured)', meanOf(t.sack), `today's 4–6 (${t.sack.n})`));
   lines.push(reported('time: scramble (not measured)', meanOf(t.scramble), `today's 5–8 (${t.scramble.n})`));
 
@@ -243,9 +257,16 @@ export function judgeSituations(t: SituationTally): Line[] {
   lines.push(share('half: tried from deep, turnover', d.turnover, d.n, 0.089, 777, 0.05));
   lines.push(share('half: tried from deep, ran out the half', d.half, d.n, 0.423, 777, 0.08));
 
-  lines.push(share('two: share, all tries', ...t.tries.all, 0.098, 6779, 0.02));
+  // The late share is the call times the margins the game brings (the league's late touchdowns come at wider margins
+  // than the NFL's): reported overall, judged against the NFL's rate at the same margins.
+  const [allGo, allN] = t.tries.all;
+  const [lateGo, lateN] = t.tries.late;
+  lines.push(reported('two: share, all tries', allGo / Math.max(1, allN), `NFL 0.098 (${allN}), the margins differ`));
   lines.push(share('two: share, quarters 1-3', ...t.tries.early, 0.046, 4792, 0.02));
-  lines.push(share('two: share, the 4th and overtime', ...t.tries.late, 0.223, 1987, 0.05));
+  lines.push(reported('two: share, the 4th and overtime', lateGo / Math.max(1, lateN), `NFL 0.223 (${lateN})`));
+  const m = t.lateAtMargins;
+  const atMargins = Math.round((1000 * m.nfl) / Math.max(1, m.n)) / 1000;
+  lines.push(share("two: share late, at the NFL's rate for the same margins", m.goes, m.n, atMargins, 1987, 0.04));
   lines.push(share('two: share, down 8 or 9 late', ...t.lateNine, 0.383, 112, 0.12));
   lines.push(share('two: share, up or down 5 early', ...t.earlyFive, 0.388, 137, 0.12));
   const snaps = t.snaps.run[1] + t.snaps.pass[1];

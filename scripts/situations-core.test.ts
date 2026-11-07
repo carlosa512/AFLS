@@ -27,7 +27,15 @@ describe('the situations check', () => {
   it('judges the share of early tries that go for two', () => {
     const t = newSituationTally();
     for (let i = 0; i < 4000; i++)
-      tapSituation(t, { kind: 'try', quarter: 2, scoreDiff: 6, appetite: 0, goes: i % 1000 < 46 });
+      tapSituation(t, {
+        kind: 'try',
+        quarter: 2,
+        clock: 300,
+        overtime: false,
+        scoreDiff: 6,
+        appetite: 0,
+        goes: i % 1000 < 46,
+      });
     const l = line(judgeSituations(t), 'two: share, quarters 1-3');
     expect(inRange(l)).toBe(true);
     expect(l.info).toBeUndefined();

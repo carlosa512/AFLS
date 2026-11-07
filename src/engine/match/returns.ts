@@ -15,7 +15,7 @@ export interface ReturnFacts {
   from: number;
   /** The returner's `returns` skill − 12. */
   returner: number;
-  /** The kicking side's coverage: its special teamers' mean `tackling` skill − 12. */
+  /** The kicking side's coverage: its special teamers' mean `tackling` skill against a typical unit's (`COVERAGE_TYPICAL`). */
   coverage: number;
   /** Today's coaching edge in yards: `RETURN_COACH[kind] * (receiving.stCoach − kicking.stCoach)`. */
   coach: number;
@@ -59,7 +59,9 @@ function quantile(kind: ReturnFacts['kind'], u: number): number {
  * lands in the tail, where the quantiles spread out: he breaks one more often more than he gains a yard every time.
  */
 export const RETURNER = 0.06;
-export const COVERAGE = 0.04;
+export const COVERAGE = 0.1;
+/** A typical kicking unit's mean `tackling` skill (96 clubs: 8.6, sd 0.5 between clubs). */
+export const COVERAGE_TYPICAL = 8.6;
 
 export function returnYards(f: ReturnFacts, u: number): number {
   const lean = RETURNER * f.returner - COVERAGE * f.coverage;

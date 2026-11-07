@@ -82,6 +82,6 @@ export function runShare(f: TwoPointFacts): number {
 /** Yards added to a run's mean on a try, so runs from the 2 are good as often as the NFL's (fitted). */
 export const TRY_RUN = 0;
 /** A multiplier on a pass's completion odds on a try, so passes from the 2 are good as often as the NFL's (fitted). */
-export const TRY_PASS = 1;
+export const TRY_PASS = 0.92;
 /** A turnover on a try returned for two (the NFL: 26 defensive twos, 3.9% of tries; fitted). */
 export const DEF_TWO = 0.5;
