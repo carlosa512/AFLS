@@ -32,7 +32,7 @@ const arrival = (p: ReturnType<typeof stage>, end: { x: number; y: number }) => 
 };
 
 describe('a ball batted down at the line', () => {
-  const found = findPlay((e) => e.kind === 'incomplete' && BATTED.test(e.text));
+  const found = findPlay((e) => e.kind === 'incomplete' && BATTED.test(e.text) && e.air !== undefined);
 
   it('dies a yard past the line, low; the same play without the words flies to where it was thrown', () => {
     expect(found).not.toBeNull();

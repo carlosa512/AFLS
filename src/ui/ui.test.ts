@@ -373,6 +373,11 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('never shows a GM’s archetype or habits', () => {
+    const bad = files.filter((f) => /\.archetype\b|\.habits\b|\bhabitLog\b|\bhabitMarbles\b|\bHABITS\b/.test(src(f)));
+    expect(bad).toEqual([]);
+  });
+
   it('keeps engine words off the screen', () => {
     // Players read football words: never a marble, a trait or a z-score (spec §5.5).
     // Comments are for developers and may say "trait"; only what renders counts.

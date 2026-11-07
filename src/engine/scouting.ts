@@ -96,7 +96,11 @@ function draftContext(league: League): DraftContext {
   const slots = new Map<number, number[]>();
   for (const pick of league.draftPicks) {
     if (pick.season !== league.season || pick.round > 2 || pick.overall === undefined) continue;
-    slots.set(pick.ownerId, [...(slots.get(pick.ownerId) ?? []), pick.overall]);
+    // Scouting is done before draft day: a pick that changes hands during the draft keeps the slot with the club that
+    // held it going in (`moved.from`), so a board read after the trade matches one read before it, in one process or
+    // after a reload.
+    const owner = pick.moved?.from ?? pick.ownerId;
+    slots.set(owner, [...(slots.get(owner) ?? []), pick.overall]);
   }
   const ctx = { rank, slots };
   draftCache.set(league, { key, ctx });

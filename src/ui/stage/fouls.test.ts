@@ -12,7 +12,7 @@ const team = (id: number) => league.teams.find((t) => t.id === id)!;
 const flagged: { e: PlayLogEntry; p: FouledPlay; phases: FoulPhase[]; base: ReturnType<typeof stagePlay> }[] = [];
 for (let i = 0; i < 60; i++) {
   const g = league.games[i];
-  const r = simulateGame(league, g, { keepPlays: true, seed: `fl-${i}` });
+  const r = simulateGame(league, g, { keepPlays: true, seed: `fl2-${i}` });
   r.plays!.forEach((e, idx) => {
     if (!/PENALTY|declined|Offsetting/.test(e.text)) return;
     const base = stagePlay({

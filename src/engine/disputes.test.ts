@@ -400,9 +400,14 @@ describe('disputes: AI clubs answer (G4)', () => {
     const a = souredDeal(l, 1, RUN_STEPS - 1, 0, (x) => resignCall(l, 1, x).call !== 'walk');
     // $5M short before his raise (restructures convert $1M or more at a time).
     room(l, 1, -(spendable(l, 1) + 5_000));
+    // Next year's books have room to borrow against (whether a club has any depends on the world a season of play
+    // leaves: a club already over next year's ceiling rightly borrows nothing).
+    l.teams[1].deadMoney.push({ season: l.season + 1, amount: -100_000, playerId: -1, note: 'test' });
     expect(spendable(l, 1)).toBeLessThan(0);
+    const restructured = () => l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(1)).length;
     disputeStep(l, moraleContext(l), at(l, 0), 0, false);
     expect(a.morale!.disputeEnd?.how).toBe('signed');
+    expect(restructured()).toBeGreaterThan(0); // the room was made, not found
     expect(spendable(l, 1)).toBeGreaterThanOrEqual(0);
   });
 

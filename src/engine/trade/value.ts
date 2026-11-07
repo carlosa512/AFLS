@@ -12,6 +12,7 @@
  * - Market value: the same through a league-average lens, what the league would pay. Sellers hold
  *   out for most of it, so a starter never goes for a seventh-round pick.
  */
+import { aiGm, draftedBy, habitOn } from '../gmHabits';
 import { workEthicOf } from '../traits';
 import { ageShift } from '../aging';
 import { CONTESTS } from '../attributes';
@@ -608,8 +609,14 @@ export function playerValue(
   const me = readPlayer(ctx, team, player, truth);
   const w = salaryWeight(ctx, team.id);
   const now = nowWeight(ctx, team.id);
-  return roomWith(others, [me], player.position, w, now) - roomValue(others, player.position, w, now);
+  const v = roomWith(others, [me], player.position, w, now) - roomValue(others, player.position, w, now);
+  // Brings His Guys Back: a man he drafted is worth a little more to him.
+  const gm = habitOn(league, team, 'hisGuys') ? aiGm(league, team) : undefined;
+  return gm && draftedBy(gm, player) ? v + (HIS_GUYS - 1) * Math.abs(v) : v;
 }
+
+/** Brings His Guys Back: the lift on a man the GM drafted. */
+const HIS_GUYS = 1.08;
 
 /**
  * A player's stakes to `team`: his play as a starter and what the market would pay for it, before his

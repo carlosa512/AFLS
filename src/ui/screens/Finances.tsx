@@ -13,6 +13,7 @@ import { money, weeklyMoney } from '../format';
 import { Ovr, ScoutedCeiling, seenOvr, viewOf } from '../scouting';
 import { moveIndex, MoveText } from '../moves';
 import { GmLink } from '../gm';
+import { reputation } from '../../engine/gmVoice';
 
 /** The contracts table's columns ("% of cap" sorts as the cap hit: same order). */
 type ContractSort = 'name' | 'pos' | 'age' | 'ability' | 'cap' | 'apy' | 'thru' | 'gtd' | 'dead' | 'saves';
@@ -80,7 +81,8 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
               <h2>{season} salary cap</h2>
               <span className="muted">
                 <TeamLink team={team} full />
-                {!isUser && ` · GM style: ${team.gm.archetype}`}
+                {!isUser &&
+                  ` · ${team.gmId !== null ? reputation(league, league.gms[team.gmId]) : 'A caretaker front office.'}`}
               </span>
               {team.gmId !== null && (
                 <div className="muted small">

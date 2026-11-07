@@ -396,6 +396,16 @@ same market, and tuning it never reshuffles anything else. (Moving the current A
 Every completed AI deal carries a reason tag for the news: *contender add*, *rebuild sale*, *cap
 dump*, *need swap*, *trade up*, *trade down*, *depth for a pick*, *tag and trade*, *star trade*.
 
+#### GM habits
+
+Hidden habits (`gmHabits.ts`) lean four trade decisions of an AI front office that holds one at grip 2 or more. *Sells a
+Year Early* puts starters on rookie deals with two years or fewer left, or a High injury risk, on the trade block a year sooner (`plans.ts`). *Trades Firsts for Stars* lets a
+contender stretch further for the man it wants and feel each extra first half as much (`deals.ts`, `judge.ts`). *Prefers
+Player Swaps* drops the edge a player package must clear over picks, gives the search two more tries (`deals.ts`) and, with a
+player coming back, weighs the men he sends at 0.85 of their loss (`judge.ts`): he'd rather move a body than a pick.
+*Trades Up for a QB* values the move up more (the covet cap rises from 0.6 to 0.75) for a quarterback it can reach by moving up (`draft.ts`). Each use is
+logged for the news and your director; none shows as a label.
+
 ### 5. Offers to you
 
 **What arrives:**

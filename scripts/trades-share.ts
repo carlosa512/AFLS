@@ -13,6 +13,9 @@ import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { isDeadlineDay, TRADE_DEADLINE_WEEK } from '../src/engine/trade';
 import { guardBest } from './trades-prices';
 import type { League } from '../src/engine/types';
+import { habitsForce } from '../src/engine/gmHabits';
+// A run with every GM habit off, to tell a habit's lean from the market's own luck (the gm-habits check's switch).
+if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
 /** One league's seasons: AI trades from week 1 through deadline day, and the ones on deadline day. */
 export interface ShareRun {

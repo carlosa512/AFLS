@@ -343,7 +343,22 @@ describe('a GM makes the room he plans, or none', () => {
 
   it('cuts nobody when the cut can’t close the gap', () => {
     // No room to borrow next year: a cut alone would have to cover his whole price, and a lesser veteran's doesn't.
-    const { l, team } = alone(-1);
+    const { l, team, market } = alone(-1);
+    // The gap is wider than any one cut can close, restructures counted (which man the fixture's club could cut, and
+    // what his cut saves, depends on the world a season of play leaves): this year's books carry his price again on
+    // top of the club's biggest cut and all it could restructure.
+    const widest = Math.max(
+      ...teamPlayers(l, team.id)
+        .filter((x) => x.contract && !isExpired(x.contract, l.season))
+        .map((x) => releasePreview(l, x).savings),
+    );
+    const borrowed = restructurePlan(l, team, 1e9).saved;
+    team.deadMoney.push({
+      season: l.season,
+      amount: Math.round(market + widest + borrowed),
+      playerId: -1,
+      note: 'test',
+    });
     const before = cutBy(l, team.id);
     aiResignWindow(l, team, new Rng('room'));
     expect(cutBy(l, team.id)).toBe(before);

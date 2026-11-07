@@ -38,7 +38,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
   `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads in `offseason`, win
-  spread in `sim`): outside their usual band they warn (⚠: this league drifted),
+  spread and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs
@@ -92,6 +92,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
   should stay stable across seasons. Three more leagues play in child processes for the cap-space drift
   check (one league's 32 teams are too few); `--seed x` plays another world.
+- `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
+  gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
+  turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
+  moves its decision against a no-habits baseline (more of its log entries; the rare six are judged on built scenes). Run it
+  after changing `gmHabits.ts`, `gmHabitsYear.ts`, `gmTraits.ts` or a habit hook in `offseason/` or `trade/`. Nothing may be
+  flagged.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
@@ -202,6 +208,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `league.history` as the fallback for legacy entries. `leadership.ts` runs the owners' reviews (offseason and week by
     week), GM searches and succession; `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
     GM and head coach from losing seasons (blame split by roster talent against results), drawn at each review
+  - `gmHabits.ts` hidden ways an AI general manager does business (Signs a Bridge QB, Trades Firsts for Stars, Drafts Best
+    Available, Gun-Shy on Big Deals…), drawn from a marble bag like quirks: a grip of 1–3, active from 2, never more than
+    three at once, never on your GM; the engine's AI reads them through `habitOn`/`gunShyAt`, and each use goes in
+    `habitLog` (`logMove`). `habitsForce` pins one on for tests and the check. `gmHabitsYear.ts` the new-year step inside
+    `beginOffseason` (`habitsNewYear`: the draw and fades; `startHabits` and `noteRelease` handle starting habits and blow-ups). `gmVoice.ts` the words that tell them
+    (news and your director's notes; never a label on a GM)
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's

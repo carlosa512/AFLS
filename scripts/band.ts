@@ -4,7 +4,8 @@
  * outside the usual band (each line's range before this) a run warns (⚠: this league drifted), and only outside the
  * normal band does it fail (abnormal). The lines: trade requests, rooms in doubt and rooms reading Tight (`morale.ts`), live
  * coaching trees and leagues whose founding trees all died out (`careers.ts`), head-coach retreads (`offseason.ts`), win
- * spread (`calibrate.ts`). Both bands are the owner's call; neither is moved to get a run green.
+ * spread (`calibrate.ts`), a bucket's scramble share (`passer-core.ts`: how mobile a world's passers are). Both bands are
+ * the owner's call; neither is moved to get a run green.
  */
 export type Band = 'usual' | 'unusual' | 'abnormal' | 'none';
 

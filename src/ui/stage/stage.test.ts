@@ -581,8 +581,8 @@ describe('the staged play', () => {
 });
 
 describe('off the ball', () => {
-  const picks = (kind: string) =>
-    games.slice(0, 15).flatMap(({ g, r }) =>
+  const picks = (kind: string, from = 0, to = 15) =>
+    games.slice(from, to).flatMap(({ g, r }) =>
       r.plays!.flatMap((e, i) =>
         e.kind === kind && e.down > 0
           ? [
@@ -682,8 +682,10 @@ describe('off the ball', () => {
         });
       }
     expect(linemen).toBeGreaterThan(2000);
-    // Nearly all on a man; now and then one loses a moving defender for a moment, as real linemen do.
-    expect(engaged / linemen).toBeGreaterThan(0.98);
+    // Nearly all on a man; now and then one loses a moving defender for a moment, as real linemen do (a beaten block,
+    // a stunt that carried his man off, a release on a screen). The share runs about 0.98 over forty games, 0.977–0.983
+    // by window, so the floor sits a step under it (the owner's call), not on it.
+    expect(engaged / linemen).toBeGreaterThan(0.97);
   });
 
   it('gives a run time to develop: a handoff, the press to the line, then the burst', () => {
@@ -1478,13 +1480,18 @@ describe('the run game', () => {
     const st = Math.max(0, Math.min(p.steps - 1, Math.round(t / p.dt)));
     return { x: p.pos[(st * p.ids.length + k) * 2], y: p.pos[(st * p.ids.length + k) * 2 + 1] };
   };
-  /** A linebacker who's neither the tackler nor the man who misses. */
+  /** A linebacker who's neither the tackler, nor the man who misses, nor the one who takes the ball (a fumble's recoverer). */
   const freeBacker = (x: Run, p: StagedPlay) => {
     const who = actorsIn(x.e);
     // (Not a man the play scripts: the tackler, the man who missed, a fumble's recoverer. His habits can't show.)
     return p.ids.find(
       (id, k) =>
-        !p.offense[k] && p.roles[k] === 'LB' && id !== who.tackle && id !== x.e.open?.broke?.by && !p.keys.includes(id),
+        !p.offense[k] &&
+        p.roles[k] === 'LB' &&
+        id !== who.tackle &&
+        id !== who.take &&
+        id !== x.e.open?.broke?.by &&
+        !p.keys.includes(id),
     );
   };
 

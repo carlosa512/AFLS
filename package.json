@@ -1,7 +1,7 @@
 {
   "name": "afls",
   "private": true,
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "AFLS — a deep American football management simulation",
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
     "audit": "tsx scripts/audit.ts",
     "careers": "tsx scripts/careers.ts",
     "quirks": "tsx scripts/quirks.ts",
+    "gm-habits": "tsx scripts/gm-habits.ts",
     "coach-quirks": "tsx scripts/coach-quirks.ts",
     "weather": "tsx scripts/weather.ts",
     "film": "tsx scripts/film.ts",

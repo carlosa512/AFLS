@@ -9,6 +9,7 @@ import { divisionTable } from './newsContext';
 import { leagueNews, matchupStakes, rookieImpactMail } from './news';
 import type { Game, GameResult, League, TeamGameStats } from './types';
 import { setTeam } from './roster';
+import { aiGm } from './gmHabits';
 
 const base = createLeague({ seed: 'news-desk' });
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -464,6 +465,38 @@ describe('SNN trade reporting', () => {
     expect(m.body).toContain(`The ${l.teams[1].name}, 1–3, are selling.`);
     l.games = l.games.filter((g) => g.homeId !== 1);
     expect(keyTradeNews(l, 8)[0].body).not.toContain('are selling');
+  });
+  it('adds a third paragraph and a GM note when a GM repeats a habit, and neither otherwise', () => {
+    const { l, p, deal } = marketLeague();
+    l.market!.history = [deal];
+    setTeam(l, p, 2);
+    const gm = aiGm(l, l.teams[2])!;
+    expect(gm).toBeDefined();
+    gm.habitLog = [{ habit: 'firstsForStars', season: l.season, teamId: 2, playerId: p.id }];
+    let [m] = keyTradeNews(l, 8);
+    expect(m.body.split('\n\n')).toHaveLength(2);
+    expect(m.gmNotes).toBeUndefined();
+    gm.habitLog.push({ habit: 'firstsForStars', season: l.season - 2, teamId: 2, playerId: 99999999 });
+    [m] = keyTradeNews(l, 8);
+    expect(m.body.split('\n\n')).toHaveLength(3);
+    expect(m.gmNotes).toEqual([{ gmId: gm.id, line: m.body.split('\n\n')[2] }]);
+    // an earlier use beyond three seasons back is not a pattern
+    gm.habitLog[1].season = l.season - 5;
+    [m] = keyTradeNews(l, 8);
+    expect(m.gmNotes).toBeUndefined();
+  });
+  it('prints no swap pattern on a deal that is not a swap', () => {
+    const { l, p, deal } = marketLeague();
+    l.market!.history = [deal];
+    setTeam(l, p, 2);
+    const gm = aiGm(l, l.teams[2])!;
+    gm.habitLog = [
+      { habit: 'swaps', season: l.season, teamId: 2, playerId: 99999999 },
+      { habit: 'swaps', season: l.season - 2, teamId: 2, playerId: 99999999 },
+    ];
+    const [m] = keyTradeNews(l, 8);
+    expect(m.gmNotes).toBeUndefined();
+    expect(m.body.split('\n\n')).toHaveLength(2);
   });
   it('skips an incomplete asset history instead of silently dropping part of the price', () => {
     const { l, deal } = marketLeague();

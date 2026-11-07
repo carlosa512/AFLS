@@ -936,6 +936,13 @@ export function script(
         }
         const hit = edge ? shift(qbAt(outT), 0.6, 0.8) : toward(qbAt(outT), qbAt(feel), 0.9);
         const way = runnable({ ...s0, t: 0 }, [...engage, ...mid, ...chase], pace);
+        // `runnable` keeps the last spot whatever it asks: a quarterback who rolled far from the edge puts it past what
+        // his legs cover by then, so he goes as far toward it as they do (never quicker than his legs).
+        const lap = way.length > 1 ? way[way.length - 2] : { t: 0, ...s0 };
+        const goal = way[way.length - 1];
+        const reachBy = pace * Math.max(0, goal.t - lap.t);
+        if (Math.hypot(goal.x - lap.x, goal.y - lap.y) > reachBy + 1e-6)
+          way[way.length - 1] = at(goal.t, toward(lap, goal, reachBy));
         const last = way[way.length - 1] ?? { t: 0, ...s0 };
         const room = pace * Math.max(0, outT - last.t);
         if (Math.hypot(hit.x - last.x, hit.y - last.y) <= room) {

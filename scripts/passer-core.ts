@@ -136,10 +136,17 @@ export function judgePasser(t: PasserTally): Line[] {
         // Too few plays to judge: luck alone moves the share by more than the tolerance allows (3.5 standard errors).
         const se = 100 * Math.sqrt((share * (1 - share)) / Math.max(1, c.n));
         const few = tol < 3.5 * se;
+        // A bucket's scramble share swings with the league (`band.ts`): how often passers take off depends on how mobile
+        // a world's quarterback pool is (four 60-season worlds ran the pressured third-and-mid bucket 8.7 to 10.0, with
+        // 0.4 of sampling error), so a world a point off the NFL warns and only one past 40% of the share fails (the
+        // owner's call, Nov 7). The whole side keeps its tight range, so the engine's centre is still held.
+        const normal: [number, number] | undefined =
+          what === 'scramble' && b !== 'all' ? [Math.max(0, real * 0.6), real * 1.4] : undefined;
         lines.push({
           label: `${side}, ${b}: ${what} %`,
           value: pct(k, c.n),
           range: [Math.max(0, real - tol), real + tol],
+          ...(normal ? { normal } : {}),
           note: `NFL ${real.toFixed(2)} (n=${c.n})${few ? ', too few to judge' : ''}`,
           ...(info || few ? { info: true } : {}),
         });

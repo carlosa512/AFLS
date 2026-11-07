@@ -7,6 +7,7 @@ import { StaffFigure } from './staffAvatar';
 import { staffLook } from './staffLook';
 import { pron } from '../engine/pronouns';
 import { gmRecord } from '../engine/records';
+import { noticed, reputation } from '../engine/gmVoice';
 
 export const gmName = (gm: GeneralManager) => `${gm.firstName} ${gm.lastName}`;
 
@@ -55,8 +56,18 @@ export function gmStyleNotes(league: League, gm: GeneralManager): string[] {
     games = record.regular.w + record.regular.l + record.regular.t;
   const lead = perceptionLead(league, gm, record) ?? fallbackLead(gm, record, games);
   const second = perceptionDetail(league, gm, record, lead);
-  return second ? [lead, second] : [lead];
+  return [reputation(league, gm), lead, ...(second ? [second] : []), ...noticed(league, gm)];
 }
+
+/** The season he is in with this club, counting years he has already spent there (null if he has no open deal). */
+export function gmYear(league: League, gm: GeneralManager): number | null {
+  const a = gm.appointments.at(-1);
+  if (gm.teamId === null || !a || a.end) return null;
+  return league.season - a.start.season + 1 + (a.priorSeasons ?? 0);
+}
+
+/** "first", "fifth"... for a season count. */
+export const ordinalSeason = (n: number) => ORDINAL[n] ?? `${n}th`;
 
 const COUNT = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 const ORDINAL = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
@@ -134,11 +145,9 @@ function fallbackLead(gm: GeneralManager, record: Career, games: number): string
 
 /** A second line only when it adds something: years in the chair, else a best season the lead doesn't already name. */
 function perceptionDetail(league: League, gm: GeneralManager, record: Career, lead: string): string | undefined {
-  const a = gm.appointments.at(-1);
-  if (gm.teamId !== null && a && !a.end) {
-    const year = league.season - a.start.season + 1 + (a.priorSeasons ?? 0);
-    if (year >= 3) return `In ${pron(gm).his} ${ORDINAL[year] ?? `${year}th`} year in ${league.teams[gm.teamId].city}.`;
-  }
+  const year = gmYear(league, gm);
+  if (gm.teamId !== null && year !== null && year >= 3)
+    return `In ${pron(gm).his} ${ordinalSeason(year)} year in ${league.teams[gm.teamId].city}.`;
   const best = record.seasons
     .filter((s) => s.regular.w > s.regular.l && s.regular.w + s.regular.l + s.regular.t >= 10)
     .sort((x, y) => pct(y.regular) - pct(x.regular) || y.season - x.season)[0];

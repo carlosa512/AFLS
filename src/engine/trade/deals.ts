@@ -5,6 +5,7 @@
  * bad contract plus a sweetener to a team with room to burn (the Osweiler trade). Every package is
  * judged by `judge`, on each GM's own read.
  */
+import { habitOn } from '../gmHabits';
 import { isExpired, yearsLeft } from '../finance/contract';
 import { STARTERS } from '../positions';
 import type { DealKind, DraftPick, GmTraits, League, Player, Team } from '../types';
@@ -45,6 +46,8 @@ const BALANCE = 30;
 const SWAP_WORTH = 70;
 /** How much better (points, in his own eyes) a swap must leave the buyer than his best pick package. */
 const SWAP_EDGE = 5;
+/** Trades Firsts for Stars: how much further past the league's price a contender goes. */
+export const FIRSTS_FOR_STARS = 0.2;
 
 /** A team's unused picks it would trade (not a first it's holding for draft day), the most valuable to `valuer` first. */
 export function picksOf(ctx: TradeContext, teamId: number, valuer: Team): DraftPick[] {
@@ -176,7 +179,7 @@ export const MAX_PREMIUM = 0.2;
  * to 1.5 for an All-In GM who has to have him (Ramsey, Mack). Bounded, so a desperate buyer can't be
  * milked for firsts every deadline.
  */
-export const maxOver = (gm: GmTraits) => 1.3 + 0.4 * Math.max(0, gm.winNow - 0.45);
+export const maxOver = (gm: GmTraits, bonus = 0) => 1.3 + 0.4 * Math.max(0, gm.winNow - 0.45) + bonus;
 
 type Tried = { proposal: TradeProposal; sells: Judgement; buys: Judgement };
 
@@ -231,7 +234,11 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
   const asking = worth * (1 + Math.min(MAX_PREMIUM, PER_BIDDER * bidders));
   const price = Math.max(ask, Math.min(asking, most));
   // A seller who wants more than that for him isn't really selling.
-  const ceiling = Math.max(maxOver(buyer.gm) * worth, 0);
+  // Trades Firsts for Stars: a contender with the habit goes further for the man it wants.
+  const stars = habitOn(ctx.league, buyer, 'firstsForStars') && stanceOf(buyer) === 'contend';
+  const ceiling = Math.max(maxOver(buyer.gm, stars ? FIRSTS_FOR_STARS : 0) * worth, 0);
+  // Prefers Player Swaps: no edge a player package must clear over picks, and two more tries at one.
+  const swapper = habitOn(ctx.league, buyer, 'swaps');
   const quick = (side: TradeSide) => quickValue(ctx, seller, side);
   // Each package read once: the reads are the search's own cost, before a verdict.
   const affordable = packages(ctx, buyer, seller)
@@ -255,11 +262,11 @@ export function dealFor(ctx: TradeContext, buyer: Team, target: Player): Deal | 
     affordable.filter((x) => x.side.players.length),
     ask,
     price,
-    SWAP_TRIES,
+    SWAP_TRIES + (swapper ? 2 : 0),
   );
   // Picks are the NFL's currency: a player goes the other way only when that's clearly cheaper.
   const net = (t: Tried | null) => (t ? t.buys.get - t.buys.give : -Infinity);
-  const best = net(swap) > net(picks) + SWAP_EDGE ? swap : picks;
+  const best = net(swap) > net(picks) + (swapper ? 0 : SWAP_EDGE) ? swap : picks;
   if (!best) return null;
   const kind = kindOf(ctx, seller, target, best.proposal.sides[0]);
   const label = target.contract?.kind === 'tag' ? 'tag and trade' : TAGS[kind];

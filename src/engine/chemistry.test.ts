@@ -120,8 +120,8 @@ describe('chemistry: game day', () => {
   it('a line forced to each end allows fewer sacks and gains more a carry at its best', async () => {
     const l = fresh();
     // Four hundred a side: the carry's edge is a tenth of a yard, and over two hundred one world's dice hid it.
-    const lineUp = await replay(l, [{ OL: 0.3 }, {}], 400);
-    const lineDown = await replay(l, [{ OL: -0.3 }, {}], 400);
+    const lineUp = await replay(l, [{ OL: 0.3 }, {}], 2000);
+    const lineDown = await replay(l, [{ OL: -0.3 }, {}], 2000);
     const sackRate = (rs: GameResult[]) =>
       avg(rs.map((r) => r.home.sacked / Math.max(1, r.home.passAtt + r.home.sacked)));
     const ypc = (rs: GameResult[]) => avg(rs.map((r) => r.home.rushYds / Math.max(1, r.home.rushAtt)));

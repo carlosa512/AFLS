@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createLeague, SAVE_VERSION } from '../generate';
 import { deliverMail, offerWords } from '../inbox';
 import { simToEndOfSeason } from '../league';
@@ -23,6 +23,7 @@ import {
   COVET_MAX,
   COVET_MIN,
   COVET_SCALE,
+  covetMin,
   draftCovet,
   draftTrades,
   expectedAt,
@@ -43,14 +44,30 @@ import { dealWatch, MINOR } from './market';
 import { playerTradeBlocker, tradeProblem, type TradeProposal } from './rules';
 import { goingRate, pickValue } from './value';
 import { setTeam } from '../roster';
+import { sizeBias } from '../gmTraits';
+import { habitsForce } from '../gmHabits';
+import { aiDraftChoice, draftPlayer } from '../offseason/draft';
+import { STARTERS } from '../positions';
+
+// The pinned draft-day fixtures below were tuned before GM habits: new leagues start some GMs on best-available, which
+// moves boards, so they run with habits off. The "GM habits in the draft" block turns them back on.
+beforeEach(() => {
+  habitsForce.off = true;
+});
 
 /** One league played through a season and walked to draft day, cloned per test. */
 const atDraft = (() => {
-  const league = createLeague({ seed: 'draft-trades-f' });
-  simToEndOfSeason(league);
-  beginOffseason(league);
-  while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
-  return JSON.stringify(league);
+  // Built with habits off, as the pinned fixtures were tuned: a season of trades under natural habits moves the draft.
+  habitsForce.off = true;
+  try {
+    const league = createLeague({ seed: 'draft-trades-f' });
+    simToEndOfSeason(league);
+    beginOffseason(league);
+    while (league.phase !== 'draft') advanceOffseason(league, { autoUser: true });
+    return JSON.stringify(league);
+  } finally {
+    habitsForce.off = false;
+  }
 })();
 const draftDay = (): League => JSON.parse(atDraft);
 
@@ -520,5 +537,120 @@ describe('future picks on draft day', () => {
       if (r.sides[0].picks.some((id) => pk(id).season > l.season))
         if (l.players[pk(r.sides[1].picks[0]).playerId!].position !== 'QB')
           expect(pk(r.sides[1].picks[0]).overall).toBeLessThanOrEqual(FUTURE_TOP);
+  });
+});
+
+describe('GM habits in the draft', () => {
+  beforeEach(() => {
+    habitsForce.off = false;
+  });
+  afterEach(() => {
+    habitsForce.all = null;
+    habitsForce.off = false;
+  });
+
+  it('boardScore weighs the three need terms by needWeight', () => {
+    const l = draftDay();
+    const p = l.draftClass.map((id) => l.players[id])[0];
+    const board = boardOf(l, 1, p);
+    const depth = positionDepth(l, 1);
+    depth[p.position] = [];
+    const none = boardScore(depth, p, board, null, 1, 0, 0);
+    expect(boardScore(depth, p, board, null, 1, 0, 1) - none).toBeCloseTo(1, 9);
+    expect(boardScore(depth, p, board, null, 1, 0, 0.4) - none).toBeCloseTo(0.4, 9);
+    expect(boardScore(depth, p, board, null, 1) - none).toBeCloseTo(1, 9);
+  });
+
+  it('aiDraftChoice takes the best on the board with bpa on, the needed man with it off', () => {
+    const l = draftDay();
+    const pool = l.draftClass.map((id) => l.players[id]).filter((p) => p.teamId === null);
+    let differ = 0;
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId)) {
+      const depth = positionDepth(l, t.id);
+      const bias = t.gmId == null ? 0 : sizeBias(l.seed, t.gmId);
+      const top = (w: number) => {
+        const rng = new Rng('pick');
+        let best = pool[0];
+        let bs = -Infinity;
+        for (const p of pool) {
+          const sc = boardScore(depth, p, boardOf(l, t.id, p), rng, 1, bias, w);
+          if (sc > bs) [best, bs] = [p, sc];
+        }
+        return best;
+      };
+      habitsForce.all = 'bpa';
+      const on = aiDraftChoice(l, t.id, new Rng('pick'), 1);
+      habitsForce.all = null;
+      habitsForce.off = true;
+      const off = aiDraftChoice(l, t.id, new Rng('pick'), 1);
+      habitsForce.off = false;
+      if (on.id !== off.id) differ++;
+      expect(on.id).toBe(top(0.4).id);
+      expect(off.id).toBe(top(1).id);
+    }
+    expect(differ).toBeGreaterThan(0);
+  });
+
+  it('tradeUpReason takes a quarterback at a smaller gap with tradeUpQb on', () => {
+    let found = 0;
+    const l = draftDay();
+    // Sixty-four picks, not thirty-two: in the merged world the first round alone holds no quarterback sitting just under the bar.
+    for (let i = 0; i < 64; i++) {
+      for (const pk of picksAhead(l, WINDOW)) {
+        if (pk.ownerId === l.userTeamId) continue;
+        const team = l.teams[pk.ownerId];
+        habitsForce.off = true;
+        const off = tradeUpReason(tradeContext(l), team, pk);
+        habitsForce.off = false;
+        habitsForce.all = 'tradeUpQb';
+        const on = tradeUpReason(tradeContext(l), team, pk);
+        habitsForce.all = null;
+        if (off) expect(on).not.toBeNull();
+        if (on && !off) {
+          found++;
+          expect(on.target.position).toBe('QB');
+          // Either the lower bar (0.75 of the minimum) or the long jump open at a plain minimum.
+          const clock = nextPick(l)!;
+          const min = covetMin(clock.round);
+          expect(on.gap).toBeGreaterThanOrEqual(0.75 * min);
+          if (pk.overall! - clock.overall! <= LONG_JUMP) expect(on.gap).toBeLessThan(min);
+          else expect(on.gap).toBeLessThan(2 * min);
+        }
+      }
+      draftTrades.off = true;
+      simDraft(l, new Rng(`qb-${i}`), { stopAtUser: false, limit: 1 });
+      draftTrades.off = false;
+    }
+    expect(found).toBeGreaterThan(0);
+  });
+
+  it('logs tradeUpQb for a first-round quarterback bought by a trade-up', () => {
+    const l = draftDay();
+    const pick = draftOrder(l).find((p) => p.round === 1 && p.ownerId !== l.userTeamId)!;
+    const team = l.teams[pick.ownerId];
+    const qb = l.draftClass.map((id) => l.players[id]).find((p) => p.position === 'QB' && p.teamId === null)!;
+    l.market ??= emptyMarket();
+    l.market.history.push({
+      kind: 'draft',
+      season: l.season,
+      sides: [
+        { teamId: team.id, players: [], picks: [] },
+        { teamId: 0, players: [], picks: [pick.id] },
+      ],
+    } as never);
+    draftPlayer(l, pick, qb);
+    expect(l.gms[team.gmId!].habitLog?.some((m) => m.habit === 'tradeUpQb' && m.playerId === qb.id)).toBe(true);
+  });
+
+  it('logs bpa for an early pick taken over a settled room', () => {
+    const l = draftDay();
+    const pick = draftOrder(l).find((p) => p.round === 1 && p.ownerId !== l.userTeamId)!;
+    const team = l.teams[pick.ownerId];
+    const prospect = l.draftClass.map((id) => l.players[id]).find((p) => p.position === 'WR' && p.teamId === null)!;
+    prospect.scouting!.grade = 1;
+    const depth = positionDepth(l, team.id).WR;
+    expect(depth.length).toBeGreaterThanOrEqual(STARTERS.WR + 1);
+    draftPlayer(l, pick, prospect);
+    expect(l.gms[team.gmId!].habitLog?.some((m) => m.habit === 'bpa' && m.playerId === prospect.id)).toBe(true);
   });
 });

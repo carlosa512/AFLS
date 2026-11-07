@@ -28,6 +28,9 @@ import type { FieldResult, FieldStart } from './types';
 /** A man run out of bounds slows toward the sideline for the man running him out, to no less than this share of his
  * top speed (the yards and the spot are today's: only the film's timing moves). */
 const RUN_DOWN = 0.6;
+/** Seconds of his speed away from the sideline a man credited out of bounds starts his turn to the sideline early by. */
+const OUT_TURN = 0.25;
+
 /** How long the film runs on past a touchdown or a man going out of bounds, and past a pile settling (seconds). */
 const COAST = { touchdown: 0.5, out: 0.4, tackle: 0.2 };
 /** A blocker downfield takes men this close to the carrier's line (yards), and engages at this distance. */
@@ -249,7 +252,10 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
       else {
         move = null;
         // Credited out of bounds (call H): once his spot is no further off than the sideline, he takes it out there.
-        if (spot?.out && (goingOut || left() <= Math.min(c.y, FIELD_W - c.y) + 1)) {
+        // (He turns toward the sideline before he's that close when he's running away from it: a quarter second of that
+        // speed is the room his turn takes, or it carries him out past his spot.)
+        const away = c.y < MID ? c.vy : -c.vy;
+        if (spot?.out && (goingOut || left() <= Math.min(c.y, FIELD_W - c.y) + 1 + OUT_TURN * Math.max(0, away))) {
           goingOut = true;
           const side = c.y < MID ? -1.5 : FIELD_W + 1.5;
           const u = Math.hypot(spot.x + dir * 0.5 - c.x, side - c.y) || 1;

@@ -34,7 +34,7 @@ let secondBase: string | undefined;
 /** A second league four weeks in, built when a test needs more of the world than one league holds. */
 const second = () => {
   if (secondBase) return secondBase;
-  const l = createLeague({ seed: 'retain-2' });
+  const l = createLeague({ seed: 'retain-2b' });
   for (let w = 0; w < 4; w++) playWeek(l);
   return (secondBase = JSON.stringify(l));
 };

@@ -3,6 +3,7 @@
  * never the other GM's numbers. The head coach says who'd start and where you'd be thin, the scouts
  * give their read on who's coming, the doctors his injury risk, and the cap sheet what it costs.
  */
+import { directorTip } from '../gmVoice';
 import { injuryRisk } from '../injuries';
 import { STARTERS } from '../positions';
 import { starters, teamPlayers } from '../roster';
@@ -87,6 +88,9 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
     const risk = injuryRisk(league, user.id, p);
     if (risk.known) out.push({ who: 'medical', line: `${name(p)}: ${risk.line}`, tone: MEDICAL_TONE[risk.tier] });
   }
+  // What the other GM's log suggests about this deal, hedged, after what the scouts said of the players.
+  const tip = directorTip(league, league.teams[theirs.teamId], [theirs, yours]);
+  if (tip) out.push({ who: 'scouts', line: tip, tone: 'note' });
   // On draft day, the director reads our board for what a pick deal costs or buys us.
   const draft = draftLine(league, [theirs, yours]);
   if (draft) out.push(draft);

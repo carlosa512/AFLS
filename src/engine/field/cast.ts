@@ -144,7 +144,9 @@ export function castFor(record: FieldRecord, plays: readonly PlayLogEntry[], ind
     offense = scrimmageOffense(off);
     defense = scrimmageDefense(def);
     const who = actorsIn(e);
-    const keep = new Set(Object.values(who));
+    // The blocker today's credit charged stays too, though a blind staging doesn't name him as beaten: a starting back
+    // who stayed in to block must not be the one a spelling back with the ball displaces.
+    const keep = new Set([...Object.values(who), ...(e.field?.bb === undefined ? [] : [e.field.bb])]);
     // A spelling back with the ball comes on for the starter; when the starter is in the play too (he picked up the
     // rusher, or got beat), both backs are out there and he takes a tight end's or a receiver's spot.
     if (who.ball !== undefined && who.ball === off.rb2) swapIn(offense, who.ball, 'RB', keep, ['RB', 'TE', 'WR']);

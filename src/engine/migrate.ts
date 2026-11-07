@@ -18,6 +18,7 @@ import { minSalary } from './finance/market';
 import { recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { careerDate, initializeGms } from './gm';
+import { startHabits } from './gmHabits';
 import { beginGmSearch, gmOfferTerms } from './leadership';
 import { ownerBag, talentRanks } from './ownerBag';
 import { captureManagement, creditManagement } from './service';
@@ -357,7 +358,17 @@ export function migrateLeague(league: League): League | null {
   // v88: a GM appointment keeps the meetings' step clock it began at (`GmAppointment.clock`), so a new club's earlier
   // meetings file no letters. Optional: older appointments file as before (their letters were filed when they began).
   if (league.version < 88) league.version = 88;
+  // v89: AI GMs' habits (`GeneralManager.habits`): each current GM starts on his archetype's first habit. Yours has none.
+  if (league.version < 89) {
+    toV89(league);
+    league.version = 89;
+  }
   return league;
+}
+
+/** v89: every club's current GM starts his habits (a no-op for yours). */
+function toV89(league: League): void {
+  for (const t of league.teams) if (t.gmId !== null && league.gms[t.gmId]) startHabits(league, league.gms[t.gmId]);
 }
 
 /** v42: give the fixed-franchise user's known career a person; other incumbents start being observed now. */

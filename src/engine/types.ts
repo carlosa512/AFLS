@@ -1398,6 +1398,31 @@ export interface GeneralManager {
   /** Opening incumbents are supplied with the world; all later entrants come from scouting directors. */
   origin: 'opening' | 'director';
   scouting?: Staff;
+  /** Hidden habits (`gmHabits.ts`): grip 2+ is active. Absent on an older save and on yours. */
+  habits?: Record<string, HabitHold>;
+  /** What he did with each habit, kept eight seasons; read to tell a year's use and how it worked out. */
+  habitLog?: HabitMove[];
+  /** This year's extra marbles by habit (or `fade:` habit), emptied by each offseason draw. */
+  habitMarbles?: Record<string, number>;
+}
+
+export interface HabitHold {
+  grip: 1 | 2 | 3;
+  /** Gun-Shy only: the position that burned him. */
+  pos?: Position;
+}
+
+export interface HabitMove {
+  habit: string;
+  season: number;
+  teamId: number;
+  playerId?: number;
+  pos?: Position;
+  /** The move's own terms met the + condition (a sale that brought back a round 1-2 pick). */
+  good?: true;
+  /** His overall when logged (Sticks With His Young QB). */
+  ovr?: number;
+  resolved?: 1 | -1 | 0;
 }
 
 /** The owner's marble bag (`ownerBag.ts`). Heat belongs to the people named; a new face starts clean. */
@@ -1680,6 +1705,8 @@ export interface InboxMessage {
   advice?: { lean?: 'buy' | 'targeted' | 'sell'; rows: AdviceRow[] };
   /** SNN's offseason front-office digest, as it read when filed: one row per change around the league. */
   carousel?: CarouselRow[];
+  /** GMs a story names, each with one line in words about what the league knows of him (`gmVoice.ts`). */
+  gmNotes?: { gmId: number; line: string }[];
   tradeReport?: {
     period?: string;
     exchanges: { teamId: number; receives: string }[];

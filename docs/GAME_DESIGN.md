@@ -326,8 +326,8 @@ consequence falls out of a few formulas (see `src/engine/finance/contract.ts` an
   guarantees, term, a contender's pitch and loyalty; lowballs cost patience, insults double;
   demands never inflate on a counter.
 - **Offseason calendar:** re-sign window → five days of free agency → draft → training camp.
-  AI GMs (Cap Magician, All-In, Draft and Develop, Can-Kicker, Hard-Liner, Pick Hoarder,
-  Balanced) re-sign, tag, bid, draft and cut by numeric traits; rich teams overpay; big deals must
+  AI GMs (ten archetypes: Cap Magician, All-In, Draft and Develop, Can-Kicker, Hard-Liner, Pick Hoarder,
+  Balanced, Market Mover, Core Keeper, Slow Mover; each also picks up and drops hidden habits over his career) re-sign, tag, bid, draft and cut by numeric traits; rich teams overpay; big deals must
   fit next year's books. `npm run offseason` checks that talent, rosters and caps stay stable.
 - **Trades** (`docs/TRADES.md`): Jimmy Johnson vs Fitzgerald-Spielberger pick charts blended by GM
   style, future picks discounted and projected from team strength. Players are valued by what they'd

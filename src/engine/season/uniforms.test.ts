@@ -81,6 +81,6 @@ describe('assignUniforms', () => {
     const hash = createHash('sha1')
       .update(JSON.stringify(a.games.map((g) => [g.week, g.homeId, g.awayId, g.kickoff])))
       .digest('hex');
-    expect(hash).toBe('279d79907567f13493843ced697b1139453e4650'); // main's schedule for this seed
+    expect(hash).toBe('a8eb733391bd61b522971b6d074675bea890232e'); // the schedule for this seed, taken again when GM habits (0.4.5) added GM archetypes to the pool
   });
 });

@@ -110,6 +110,7 @@ import { careerLine } from './stats';
 import { isDeadlineDay, openOffers, pickLabel, TRADE_DEADLINE_WEEK } from './trade';
 import { activeLearning, formerPositions, moveProblem, reasonWords, suggestMove } from './training';
 import { leadPlayer, tradeIdentity } from './tradeNews';
+import { reputation } from './gmVoice';
 import type {
   MeetingScope,
   Coach,
@@ -2763,6 +2764,19 @@ function coverMail(league: League, have: Set<string>): Draft[] {
 /** The note that a new GM inherits the head coach (`recordHire`) is a `warning` naming the coach: never a hot seat. */
 export const isCoachNote = (e: LeadershipEvent) => e.kind === 'warning' && e.coachId !== undefined;
 
+/** A hired or dismissed GM's story carries one line on what the league knows of him (the first `limit`). */
+function gmNotesFor(
+  league: League,
+  events: LeadershipEvent[],
+  limit = 1,
+): { gmNotes?: { gmId: number; line: string }[] } {
+  const notes = events
+    .filter((x) => (x.kind === 'gmHired' || x.kind === 'gmDismissed') && x.gmId !== undefined && league.gms[x.gmId])
+    .slice(0, limit)
+    .map((x) => ({ gmId: x.gmId!, line: reputation(league, league.gms[x.gmId!]) }));
+  return notes.length ? { gmNotes: notes } : {};
+}
+
 const CAROUSEL_GROUPS: CarouselRow['group'][] = ['out', 'hired', 'extended', 'hotSeat', 'coaches'];
 
 /** One change in SNN's offseason digest, in public words: the record a GM was let go after, never the owner's reason. */
@@ -2786,7 +2800,9 @@ function carouselRow(league: League, e: LeadershipEvent): CarouselRow {
         group: 'hired',
         ...who,
         gmId: e.gmId,
-        line: gm?.appointments.filter((a) => a.teamId === e.teamId).at(-1)?.interim ? 'interim GM' : 'new GM',
+        line: `${gm?.appointments.filter((a) => a.teamId === e.teamId).at(-1)?.interim ? 'interim GM' : 'new GM'}${
+          gm ? `, ${reputation(league, gm, 'fragment')}` : ''
+        }`,
       };
     case 'gmExtended':
       return {
@@ -2907,6 +2923,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
         category: 'league',
         subject: e.report,
         body: events.map((x) => x.report).join('\n\n'),
+        ...gmNotesFor(league, events, 2),
         actions: [{ kind: 'gms' }],
       });
       continue;
@@ -2944,6 +2961,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
         category: 'league',
         subject: e.report,
         body: e.report,
+        ...gmNotesFor(league, [e]),
         actions: [{ kind: 'gms' }],
       });
       continue;
@@ -2980,6 +2998,11 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       subject: `Front-office carousel: ${parts.slice(0, 3).join(', ')}`,
       body: lead.join(' '),
       carousel: rows,
+      ...gmNotesFor(
+        league,
+        events.filter((x) => x.kind === 'gmHired'),
+        3,
+      ),
       actions: [{ kind: 'gms' }],
     });
   }

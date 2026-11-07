@@ -1,4 +1,5 @@
 /** Persistent GM identities, appointments and scouting promotions. */
+import { startHabits } from './gmHabits';
 import { generateGm } from './gmTraits';
 import { recruitmentProblem } from './employment';
 import { newIdentity } from './identity';
@@ -121,6 +122,8 @@ export function initializeGms(league: League, newWorld = false): void {
     team.gmId = id;
     if (team.id === league.userTeamId) league.userGmId = id;
   }
+  // Every AI GM starts on his archetype's first habit (the user's own is skipped).
+  for (const gm of Object.values(league.gms)) startHabits(league, gm);
 }
 
 /** Close the actual spell; appointment records and tendencies remain with the person. */
@@ -197,6 +200,7 @@ export function appointGm(league: League, teamId: number, gmId: number, offer: G
     interim: offer.interim ?? false,
     through: offer.through,
   });
+  startHabits(league, gm);
 }
 
 /** Only an explicit offseason offer turns a midseason interim spell into a permanent job. */

@@ -65,7 +65,9 @@ describe('a turnover returned on the open field', () => {
       if (closer >= 7) chased++;
     }
     expect(n).toBeGreaterThanOrEqual(10);
-    expect(chased / n).toBeGreaterThanOrEqual(0.8);
+    // About 0.85 of picks over four worlds, sd about 0.05 at this sample: the floor sits three sd under (the owner's
+    // call), so a world's luck doesn't fail it.
+    expect(chased / n).toBeGreaterThanOrEqual(0.7);
   });
 
   it('replays each turnover exactly as it was played', () => {

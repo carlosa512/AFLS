@@ -10,6 +10,7 @@
  * - Each first-round pick an AI sends past the second costs it more: a price, not a hard cap.
  * - A star only goes for a centrepiece: quantity never buys quality.
  */
+import { habitOn } from '../gmHabits';
 import { wantsOut } from '../disputeRead';
 import { capFor, deadMoneyIn } from '../finance/cap';
 import { isExpired, remainingProration, yearsLeft } from '../finance/contract';
@@ -18,7 +19,7 @@ import { clamp } from '../rng';
 import type { DraftPick, League, Player, Team } from '../types';
 import { pickOf, rosterOf, tradeContext, type TradeContext } from './context';
 import { draftCovet } from './draft';
-import { untouchables } from './plans';
+import { stanceOf, untouchables } from './plans';
 import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
 import {
   freshSigningRefusal,
@@ -110,6 +111,8 @@ const going = (ctx: TradeContext, ids: readonly number[]) =>
 
 /** Each first-round pick a team is without past its second costs it this much more (ZenGM's ×(1 + extra / 2.5)). */
 const FIRST_STEP = 1 / 2.5;
+/** Prefers Player Swaps: the share of a sent man's loss a swapper feels when a player comes back. */
+export const SWAP_LOSS = 0.85;
 /** On top, for a first that leaves it without one in back-to-back drafts. */
 const BACK_TO_BACK = 0.3;
 
@@ -161,10 +164,12 @@ function picksOut(ctx: TradeContext, team: Team, ids: readonly number[], getting
   const around = firstsAround(league, team.id, ids, getting);
   const appetite = 1.5 - team.gm.winNow;
   let firsts = around.without;
+  // Trades Firsts for Stars: a contender with the habit feels each extra first half as much.
+  const step = habitOn(league, team, 'firstsForStars') && stanceOf(team) === 'contend' ? FIRST_STEP / 2 : FIRST_STEP;
   return picks.reduce((s, p) => {
     if (!p.first) return s + p.value;
     const gap = around.empty(p.season) && (around.empty(p.season - 1) || around.empty(p.season + 1));
-    const extra = Math.max(0, ++firsts - 2) * FIRST_STEP + (gap ? BACK_TO_BACK : 0);
+    const extra = Math.max(0, ++firsts - 2) * step + (gap ? BACK_TO_BACK : 0);
     return s + p.value * (1 + appetite * extra);
   }, 0);
 }
@@ -283,7 +288,12 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const w = salaryWeight(ctx, teamId);
   const swing = playerSwing(ctx, team, mine.players, theirs.players);
   // Against a release he's gone either way: the trade saves the guarantees a cut would leave behind.
-  const loss = opts.releasing ? -w * POINTS_PER_K * guaranteesShed(league, mine) : swing.loss;
+  // Prefers Player Swaps: with a player coming back, the men he sends weigh less on him than they would for picks (he'd
+  // rather move a body than a pick: left to the search alone the buyer's own judgment refused nearly every swap).
+  const swapping = mine.players.length > 0 && theirs.players.length > 0 && habitOn(league, team, 'swaps');
+  const loss = opts.releasing
+    ? -w * POINTS_PER_K * guaranteesShed(league, mine)
+    : swing.loss * (swapping ? SWAP_LOSS : 1);
   const gain = swing.gain;
   const pickIn = theirs.picks.reduce((s, id) => s + pickValue(league, pickById(ctx, id), team.gm, ctx), 0);
   const pickOut = picksOut(ctx, team, mine.picks, theirs.picks);

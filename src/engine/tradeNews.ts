@@ -1,4 +1,6 @@
 /** Public trade reporting from completed deals and the market's recorded rumors. */
+import { aiGm } from './gmHabits';
+import { patternLine } from './gmVoice';
 import { computeRecords } from './season/standings';
 import { POSITION_NAMES } from './positions';
 import { perceive } from './scouting';
@@ -111,6 +113,40 @@ function discussedNames(
     }));
 }
 
+const PATTERN_HABITS = ['firstsForStars', 'swaps', 'sellsEarly', 'hisGuys'];
+
+/** A GM doing again, in this deal, a move his log shows from the last few seasons: his line, or null. */
+export function tradePattern(l: League, deal: TradeRecord): { gmId: number; line: string } | null {
+  const dealPlayers = deal.sides.flatMap((s) => s.players);
+  for (const side of deal.sides) {
+    const gm = aiGm(l, l.teams[side.teamId]);
+    const log = gm?.habitLog;
+    if (!gm || !log) continue;
+    const other = deal.sides.find((s) => s !== side);
+    // a swap is players both ways (a pick to even it up doesn't change what it is); his guys are men he is taking
+    // back in this deal
+    const isSwap = deal.sides.every((s) => s.players.length > 0);
+    const move = log.find(
+      (m) =>
+        m.season === deal.season &&
+        m.teamId === side.teamId &&
+        PATTERN_HABITS.includes(m.habit) &&
+        (m.habit === 'swaps'
+          ? isSwap
+          : m.playerId !== undefined &&
+            (m.habit === 'hisGuys' ? !!other?.players.includes(m.playerId) : dealPlayers.includes(m.playerId))),
+    );
+    if (!move) continue;
+    const earlier = log
+      .filter((m) => m !== move && m.habit === move.habit && m.season < move.season && m.season >= l.season - 3)
+      .sort((a, b) => b.season - a.season)[0];
+    if (!earlier) continue;
+    const line = patternLine(l, gm, move, earlier);
+    if (line) return { gmId: gm.id, line };
+  }
+  return null;
+}
+
 /** One significant completed league deal; personal confirmations continue to handle the user's trades. */
 export function keyTradeNews(l: League, week: number): Draft[] {
   const window = tradeNewsWindow(l, week);
@@ -166,6 +202,7 @@ export function keyTradeNews(l: League, week: number): Draft[] {
     sold && sold.w + sold.l + sold.t && sold.w + sold.t / 2 <= (sold.w + sold.l + sold.t) / 2
       ? ` The ${l.teams[seller.teamId].name}, ${sold.w}–${sold.l}${sold.t ? `–${sold.t}` : ''}, are selling.`
       : '';
+  const pattern = tradePattern(l, deal);
   return [
     {
       id: `${tradeNewsSlot(l, week)}trade:${identity(deal)}`,
@@ -178,7 +215,9 @@ export function keyTradeNews(l: League, week: number): Draft[] {
       body: [
         opening + (deal.week !== week ? ` The deal was completed in Week ${deal.week}.` : ''),
         `${price}${context ? ` ${context}` : ''}${selling}`,
+        ...(pattern ? [pattern.line] : []),
       ].join('\n\n'),
+      ...(pattern ? { gmNotes: [pattern] } : {}),
       tradeReport: {
         exchanges: deal.sides.map((s, i) => ({ teamId: deal.sides[1 - i].teamId, receives: assets(l, s) })),
         rumors: discussedNames(l, window.from, window.to, 3),
