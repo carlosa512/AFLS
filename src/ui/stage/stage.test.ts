@@ -658,10 +658,8 @@ describe('off the ball', () => {
   it('sets the line: linemen are on a man (a rusher, or a linebacker on a run) a second in', () => {
     let linemen = 0;
     let engaged = 0;
-    // (Games 25–40: the share of linemen on a man sits at the share's own mean, 0.977–0.983 over any fifteen games of the
-    // forty, so this window is pinned; a lineman a yard past the 2-yard mark is a smooth tail, not a defect.)
     for (const kind of ['pass', 'incomplete', 'sack', 'run'])
-      for (const { p } of picks(kind, 25, 40)) {
+      for (const { p } of picks(kind)) {
         const st = Math.min(p.steps - 1, Math.round(1 / p.dt));
         const front = kind === 'run' ? ['DT', 'EDGE', 'LB'] : ['DT', 'EDGE'];
         const rushers = p.ids.map((_, k) => k).filter((k) => !p.offense[k] && front.includes(p.roles[k]));
@@ -684,8 +682,10 @@ describe('off the ball', () => {
         });
       }
     expect(linemen).toBeGreaterThan(2000);
-    // Nearly all on a man; now and then one loses a moving defender for a moment, as real linemen do.
-    expect(engaged / linemen).toBeGreaterThan(0.98);
+    // Nearly all on a man; now and then one loses a moving defender for a moment, as real linemen do (a beaten block,
+    // a stunt that carried his man off, a release on a screen). The share runs about 0.98 over forty games, 0.977–0.983
+    // by window, so the floor sits a step under it (the owner's call), not on it.
+    expect(engaged / linemen).toBeGreaterThan(0.97);
   });
 
   it('gives a run time to develop: a handoff, the press to the line, then the burst', () => {
