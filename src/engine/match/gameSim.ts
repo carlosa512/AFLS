@@ -143,6 +143,7 @@ import {
   type SlideFacts,
   type SlideReason,
 } from './dropbackEnd';
+import { kneelOdds, playSeconds, type PlayTimeKind } from './playTime';
 import { sureTwo } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
 import {
@@ -157,6 +158,50 @@ import {
 } from './lineup';
 
 type Side = 0 | 1; // 0 = home, 1 = away
+
+/** What `npm run situations` reads (spec: docs/superpowers/specs/2026-11-07-a-plays-time-design.md). */
+export type SituationTap =
+  | {
+      kind: 'time';
+      play: PlayTimeKind | 'sack';
+      yards: number;
+      air?: number;
+      outOfBounds?: boolean;
+      seconds: number;
+      /** Timed by the field (your games), not the table. */
+      field: boolean;
+    }
+  | {
+      kind: 'half';
+      clock: number;
+      yardLine: number;
+      timeouts: number;
+      appetite: number;
+      kneeled: boolean;
+      /** Points the offense scored on the drive after its decision. */
+      points: number;
+      turnover: boolean;
+      reachedHalf: boolean;
+    }
+  | {
+      kind: 'try';
+      quarter: number;
+      scoreDiff: number;
+      appetite: number;
+      goes: boolean;
+      run?: boolean;
+      good?: boolean;
+      defTwo?: boolean;
+    }
+  | {
+      kind: 'return';
+      play: 'kickoff' | 'punt';
+      yards: number;
+      td: boolean;
+      returner: number;
+      returnerId: number;
+      coverage: number;
+    };
 
 export interface SimOptions {
   /** Matched audits may disable coaching habits without changing staff generation. */
@@ -192,6 +237,8 @@ export interface SimOptions {
   /** How plays end (`dropbackEnd.ts`, `stepReason`): each sack, each scramble that stays in bounds, each man who goes out
    * of bounds, for `npm run dropback`; nothing is stored. */
   endingTap?: (tap: EndingTap) => void;
+  /** A play's time, the half's last possession, each try after a touchdown and each return (`npm run situations`). */
+  situationTap?: (tap: SituationTap) => void;
   /** Force rooms' chemistry edges, home then away (tests and probes); a room left out reads its own (`chemistryOf`). */
   chemistry?: [home: Partial<Record<ChemRoom, number>>, away: Partial<Record<ChemRoom, number>>];
   /** Force rooms' staff edges (L4), home then away; a room left out reads its own (`staffEdgeOf`). */
@@ -475,6 +522,8 @@ const END_ZONE_THROW = 0.08;
 const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
 /** Mean kickoff and punt returns before flags (the flags on returns bring the averages back to where they were). */
 const KICK_RETURN = 29.5;
+/** Game clock between snaps at a normal tempo (refit with a play's time, `playTime.ts`, to keep plays a game). */
+const NORMAL_RUNOFF: [number, number] = [29, 39];
 const PUNT_RETURN = 9;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
@@ -665,6 +714,8 @@ interface PlayResult {
   field?: FieldFacts;
   /** How a run, catch or scramble went out of bounds (`sideline.ts`); absent in bounds. */
   outOfBounds?: 'pushed' | 'stepped';
+  /** The duration is the field's (`fieldTime`), not the table's. */
+  fieldTimed?: true;
 }
 
 function emptyTeamStats(): TeamGameStats {
@@ -914,6 +965,10 @@ class GameSim {
   private quarter = 1;
   private clock = QUARTER_SECONDS;
   private clockRunning = false;
+  /** The half's last possession (`kneelOdds`): the drive's one draw, and what its tap reports when the drive ends. */
+  private halfU: number | null = null;
+  private halfTrying = false;
+  private halfDrive: (Extract<SituationTap, { kind: 'half' }> & { from: number }) | null = null;
   /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
   private spotted = false;
   private twoMinuteWarned = false;
@@ -1455,6 +1510,7 @@ class GameSim {
       depthLean: this.lineups[off].scheme.offense.depth,
       blitz: this.lineups[this.def].scheme.front.blitz * (this.lineups[this.def].scheme.coverage?.blitz ?? 1),
       weather: this.wx.pass,
+      ...(this.halfTrying ? { halfTry: true } : {}),
     };
   }
 
@@ -1640,6 +1696,7 @@ class GameSim {
       return;
     }
     if (q === 2) {
+      this.halfDone(true);
       // Halftime: a rattled quarterback gets a coin flip's chance to clear his head.
       for (const id of [...this.rattled.keys()]) if (this.rng.chance(0.5)) this.rattled.delete(id);
       this.quarter = 3;
@@ -1698,9 +1755,47 @@ class GameSim {
   // ───────────────────────── possession & scoring ─────────────────────────
 
   private endPossession() {
+    this.halfDone(false);
     if (this.isOvertime()) this.otCompleted[this.offense]++;
     this.driveInRedZone = false;
     this.driveSnaps = 0;
+  }
+
+  /** The drive that decided at the half is over: tap how it went, and the next drive draws its own. */
+  private halfDone(reachedHalf: boolean) {
+    const d = this.halfDrive;
+    if (d) {
+      const { from, ...tap } = d;
+      this.options.situationTap?.({ ...tap, points: this.score[this.offense] - from, reachedHalf });
+    }
+    this.halfU = null;
+    this.halfTrying = false;
+    this.halfDrive = null;
+  }
+
+  /**
+   * The half's last possession: with 75 seconds or less in the 2nd quarter the drive draws once, at its first snap, and
+   * kneels on any snap where that draw falls under the NFL's odds then (`kneelOdds`); they rise as the clock runs, so a
+   * team that tried at 40 seconds can still kneel at 12 after a sack. Never on fourth down: that's the punt's call.
+   */
+  private halfKneels(s: Situation): boolean {
+    if (s.quarter !== 2 || s.overtime || s.clock > 75 || s.down === 4) return false;
+    const facts = { clock: s.clock, yardLine: s.yardLine, timeouts: s.offTimeouts, appetite: s.fourthDown ?? 0 };
+    const first = this.halfU === null;
+    if (first) this.halfU = this.rng.next();
+    const kneel = this.halfU! < kneelOdds(facts);
+    if (first)
+      this.halfDrive = {
+        kind: 'half',
+        ...facts,
+        kneeled: kneel,
+        points: 0,
+        turnover: false,
+        reachedHalf: false,
+        from: this.score[this.offense],
+      };
+    this.halfTrying = !kneel;
+    return kneel;
   }
 
   /** Give the ball to the other team at `yardLine` (measured from their own goal line). */
@@ -2365,7 +2460,7 @@ class GameSim {
                   // the league ran half a play a team-game more, its fifth-best rushers and receivers over theirs.
                   // 28–38 until 0.4.4: the clock now waits only for the spot after a man goes out of bounds
                   // (`coach.afterOutOfBounds`), and the play that freed up let the stronger side win more often.
-                  this.rng.int(29, 39),
+                  this.rng.int(...NORMAL_RUNOFF),
         ),
       );
     }
@@ -2374,7 +2469,7 @@ class GameSim {
     this.untimed = false;
 
     const s = this.situation();
-    if (coach.shouldKneel(s)) return this.kneel();
+    if (this.halfKneels(s) || coach.shouldKneel(s)) return this.kneel();
     if (coach.kickNow(s)) return this.fieldGoal();
 
     if (this.down === 4) {
@@ -3314,7 +3409,7 @@ class GameSim {
 
     if (played.touchdown) {
       buf.add(rusher, 'rushTd');
-      const duration = rng.int(4, 7);
+      const duration = playSeconds({ kind: 'run', yards: gain }, rng.next());
       if (moment) this.tap(field, moment, today(shadow, false, duration));
       return {
         ...this.openOf(runOpen),
@@ -3322,7 +3417,7 @@ class GameSim {
         kind: 'run',
         yards: gain,
         text: `${text}, TOUCHDOWN`,
-        duration: spatial ? this.fieldTime(field!.start, spatial) : duration,
+        ...(spatial ? { duration: this.fieldTime(field!.start, spatial), fieldTimed: true as const } : { duration }),
         clockStops: true,
         stats: buf,
         lane,
@@ -3349,7 +3444,7 @@ class GameSim {
         const { recoverer, returnYds } = loose.lost;
         buf.add(rusher, 'fumblesLost');
         buf.add(recoverer, 'fumRec');
-        const duration = rng.int(4, 7);
+        const duration = playSeconds({ kind: 'run', yards: gain }, rng.next());
         if (moment) this.tap(field, moment, today(shadow, false, duration));
         return {
           ...this.openOf(runOpen),
@@ -3358,7 +3453,7 @@ class GameSim {
           lane,
           yards: gain,
           text: `${text}. FUMBLE, recovered by ${short(recoverer)}`,
-          duration: spatial ? this.fieldTime(field!.start, spatial) : duration,
+          ...(spatial ? { duration: this.fieldTime(field!.start, spatial), fieldTimed: true as const } : { duration }),
           clockStops: true,
           stats: buf,
           turnover: { kind: 'fumble', spot: this.yardLine + gain, returnYds, by: recoverer },
@@ -3369,7 +3464,7 @@ class GameSim {
     const oob = call !== 'in';
     text += GameSim.outText(call, side?.facts);
     this.outTap(s, call, side?.facts);
-    const duration = rng.int(4, 7);
+    const duration = playSeconds({ kind: 'run', yards: gain, outOfBounds: oob }, rng.next());
     if (moment) this.tap(field, moment, today(shadow, oob, duration));
     return {
       ...this.openOf(runOpen),
@@ -3377,7 +3472,7 @@ class GameSim {
       kind: 'run',
       yards: gain,
       text,
-      duration: spatial ? this.fieldTime(field!.start, spatial) : duration,
+      ...(spatial ? { duration: this.fieldTime(field!.start, spatial), fieldTimed: true as const } : { duration }),
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
@@ -3607,7 +3702,8 @@ class GameSim {
         kind: 'pass',
         yards: 0,
         text: `${short(qb)} ${outside ? 'rolls out and throws it away' : pressured ? 'under pressure, throws it away' : 'throws it away'}`,
-        duration: rng.int(4, 6),
+        // A throwaway sails about ten yards past the line, out of everyone's reach.
+        duration: playSeconds({ kind: 'incomplete', yards: 0, air: 10 }, rng.next()),
         clockStops: true,
         stats: buf,
         passAttempt: true,
@@ -3681,13 +3777,15 @@ class GameSim {
     const depthLabel = `${depth} ${sideLabel}`;
     buf.add(qb, 'passAtt');
     buf.add(receiver, 'targets');
-    const duration = rng.int(5, 8);
+    // One draw times the play, whatever it turns out to be (`playTime.ts`): the throw's depth if it falls, the gain if
+    // it's caught, the return if it's picked.
+    const timeU = rng.next();
     const base = {
       kind: 'pass' as const,
       passAttempt: true,
       airYards: air,
       depth,
-      duration,
+      duration: playSeconds({ kind: 'incomplete', yards: 0, air }, timeU),
       stats: buf,
       lane,
       defender,
@@ -3724,6 +3822,7 @@ class GameSim {
       return {
         ...base,
         ...(tipped ? { airYards: spot - this.yardLine } : {}),
+        duration: playSeconds({ kind: 'return', yards: returnYds }, timeU),
         yards: 0,
         complete: false,
         clockStops: true,
@@ -3866,13 +3965,16 @@ class GameSim {
     if (spatial) tackler = spatial.tackler === null ? null : this.league.players[spatial.tackler];
     const catchOpen = spatial ? this.fieldOpen(open, spatial) : open;
     const facts = spatial ? { field: moment!.facts } : {};
-    const timed = spatial ? { duration: this.fieldTime(field!.start, spatial) } : {};
+    const caught = playSeconds({ kind: 'catch', yards: gain, outOfBounds: call !== 'in' }, timeU);
+    const timed = spatial
+      ? { duration: this.fieldTime(field!.start, spatial), fieldTimed: true as const }
+      : { duration: caught };
     const today = (outOfBounds: boolean): TodayField => ({
       yards: todayGain,
       tackler: shadow?.id ?? null,
       touchdown: todayGain >= yardsToGoal,
       outOfBounds,
-      duration,
+      duration: caught,
     });
     const td = gain >= yardsToGoal;
     buf.add(qb, 'passCmp');
@@ -4410,7 +4512,7 @@ class GameSim {
     let text = `${short(qb)} scrambles for ${yards} yard${Math.abs(yards) === 1 ? '' : 's'}`;
     const tackler0 = td ? null : this.pickTackler(def, yards);
     const lane = this.rng.pick([-0.9, 0.9]);
-    const tdDuration = td ? this.rng.int(5, 8) : 0;
+    const tdDuration = td ? playSeconds({ kind: 'scramble', yards }, this.rng.next()) : 0;
     // The sideline call (`sideline.ts`): a scrambler always heads wide; the clock, his habits and the chase decide.
     const side =
       td || !tackler0
@@ -4450,7 +4552,7 @@ class GameSim {
     const touched = slide && this.rng.chance(TOUCHED);
     const slideWhy = slide ? slideReason(slideFacts!) : null;
     const fights = !!slideFacts && !slide && fightsForIt(slideFacts);
-    const duration0 = td ? tdDuration : this.rng.int(5, 8);
+    const duration0 = td ? tdDuration : playSeconds({ kind: 'scramble', yards }, this.rng.next());
     // Today's draws are all in. With the switch on (a scramble that crosses the line), the pocket plays the escape and
     // the open field takes him from the line to today's yards; out of bounds or a slide is nobody's tackle.
     const called = this.dropOutcome === 'escape' ? 'escape' : 'scramble';
@@ -4490,7 +4592,8 @@ class GameSim {
       text += ` (${short(tackler)})`;
     }
     const duration = field ? this.fieldTime(field.start, field.result) : duration0;
-    if (td) return { kind: 'scramble', yards, text, duration, clockStops: true, stats: buf, lane };
+    const clock = field ? { duration, fieldTimed: true as const } : { duration };
+    if (td) return { kind: 'scramble', yards, text, ...clock, clockStops: true, stats: buf, lane };
     // Tackled in bounds without a slide, the ball can come out (`fumbleOdds.ts`): a lost one turns it over at the spot.
     const loose =
       tackler && !oob && !slide ? this.contact('scramble', s, qb, tackler, def, this.yardLine + yards) : null;
@@ -4522,7 +4625,7 @@ class GameSim {
           kind: 'scramble',
           yards,
           text: `${text}. FUMBLE, recovered by ${short(recoverer)}`,
-          duration,
+          ...clock,
           clockStops: true,
           stats: buf,
           lane,
@@ -4542,7 +4645,7 @@ class GameSim {
       kind: 'scramble',
       yards,
       text: text + ending,
-      duration,
+      ...clock,
       clockStops: oob && this.oobStopsClock(),
       stats: buf,
       lane,
@@ -4552,6 +4655,29 @@ class GameSim {
   }
 
   /** Apply a scrimmage play: penalties, clock, stats, and the resulting field state. */
+  /** A scrimmage play's time for `npm run situations` (picks and lost fumbles left out: their returns aren't timed). */
+  private timeTap(r: PlayResult) {
+    if (!this.options.situationTap || r.turnover) return;
+    const play: PlayTimeKind | 'sack' | null =
+      r.kind === 'pass'
+        ? r.complete
+          ? 'catch'
+          : 'incomplete'
+        : r.kind === 'kneel' || r.kind === 'spike'
+          ? null
+          : r.kind;
+    if (!play) return;
+    this.options.situationTap({
+      kind: 'time',
+      play,
+      yards: r.yards,
+      ...(r.airYards !== undefined ? { air: r.airYards } : {}),
+      ...(r.outOfBounds ? { outOfBounds: true } : {}),
+      seconds: r.duration,
+      field: !!r.fieldTimed,
+    });
+  }
+
   private resolve(result: PlayResult) {
     const offSide = this.offense;
     const defSide = this.def;
@@ -4565,6 +4691,7 @@ class GameSim {
 
     const fouls = this.playFouls(result);
     const warning = this.playTime(result.duration);
+    this.timeTap(result);
     this.driveSnaps++;
     const who = this.actorsFor(result);
 
@@ -4600,6 +4727,7 @@ class GameSim {
 
     if (result.turnover) {
       ts.turnovers++;
+      if (this.halfDrive) this.halfDrive.turnover = true;
       const { spot, returnYds, by } = result.turnover;
       this.anim = this.ranAnim(result, startYardLine, airAt, who);
       const index = this.plays.length;

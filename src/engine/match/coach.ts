@@ -26,6 +26,8 @@ export interface Situation {
   qbLean?: number;
   /** The head coach's appetite for going for it on fourth down, −1…1. */
   fourthDown?: number;
+  /** The drive is trying for points before the half (`kneelOdds`): it hurries and takes its timeouts from anywhere. */
+  halfTry?: boolean;
   /** The offense's scheme: shift to the short / medium / deep mix of ordinary throws. */
   depthLean?: [number, number, number];
   /** The defense's scheme: blitz-rate multiplier (1 = league average). */
@@ -75,7 +77,7 @@ export function tempo(s: Situation): Tempo {
   // Tied late with the ball in reach of field-goal range: try to win it in regulation.
   if (s.quarter === 4 && s.scoreDiff === 0 && s.clock <= 120 && s.yardLine >= 35) return 'hurry';
   if (s.overtime && s.scoreDiff === 0 && s.clock <= 360) return 'hurry';
-  if (s.quarter === 2 && s.clock <= 120 && s.yardLine >= 25) return 'hurry';
+  if (s.quarter === 2 && s.clock <= 120 && (s.yardLine >= 25 || s.halfTry)) return 'hurry';
   if (s.quarter >= 4 && s.scoreDiff > 0 && s.clock <= 420) return 'milk';
   if (s.quarter >= 3 && s.scoreDiff >= 17) return 'milk';
   return 'normal';
@@ -86,9 +88,10 @@ export const MILK_RUNOFF_MIN = 36;
 /**
  * Out of bounds outside the late windows: the NFL stops the game clock until the officials spot the ball and signal
  * ready, then runs it to the snap (Rule 4-3). nflverse 2021–25, Q1–Q3: a sideline catch that ends out of bounds leaves
- * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot.
+ * about 4 s more clock to the next snap than one tackled in bounds, an outside run about 2.6 s. The pause is the spot,
+ * longer than that gap because a play out of bounds takes longer itself (the trip to the sideline, `playTime.ts`).
  */
-export const SPOT_PAUSE = 3;
+export const SPOT_PAUSE = 4;
 
 /** The running clock to the next snap after a man went out of bounds outside the late windows. */
 export function afterOutOfBounds(runoff: number): number {
@@ -115,8 +118,7 @@ export function shouldKneel(s: Situation): boolean {
   }
   // Tied, deep in its own end with seconds left: play for overtime rather than risk a turnover.
   if (s.quarter === 4 && s.scoreDiff === 0) return s.down < 4 && s.clock <= 25 && s.yardLine <= 30;
-  // End of the first half: kneel unless there's a realistic shot at points.
-  if (s.quarter === 2) return s.down < 4 && s.clock <= 30 && (s.yardLine < 30 || (s.scoreDiff > 0 && s.yardLine < 50));
+  // The end of the first half is the drive's own call (`kneelOdds` in `playTime.ts`, drawn in `gameSim.ts`).
   return false;
 }
 
@@ -310,7 +312,7 @@ export function offenseTimeout(s: Situation): boolean {
   if (s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 120) return s.offTimeouts > 1 || s.clock <= 40;
   // Tied: only worth stopping the clock once the ball is near scoring range.
   if (s.quarter >= 4 && s.scoreDiff === 0 && s.clock <= 120) return s.yardLine >= 45;
-  return s.quarter === 2 && s.clock <= 60 && s.yardLine >= 45;
+  return s.quarter === 2 && s.clock <= 60 && (s.yardLine >= 45 || !!s.halfTry);
 }
 
 /** A trailing defense still in the game saves time for one more possession. */
