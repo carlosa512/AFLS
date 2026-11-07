@@ -76,16 +76,19 @@ export function twoPointOdds(f: TwoPointFacts): number {
   return logistic(logit(p) + TWO_APPETITE * f.appetite);
 }
 
-/** The NFL ran on 28.4% of its tries (n 663). */
-const RUN_SHARE = 0.284;
+/**
+ * The NFL ran on 28.4% of its tries (n 663). A neutral play-caller runs a third: the league's play-callers lean toward
+ * the pass and its quarterbacks run less than a 12, which brings the league to the NFL's share (fitted).
+ */
+const RUN_BASE = 0.34;
 
 export function runShare(f: TwoPointFacts): number {
-  return logistic(logit(RUN_SHARE) - 0.8 * f.passLean + 0.1 * (f.qbScrambling - 12));
+  return logistic(logit(RUN_BASE) - 0.8 * f.passLean + 0.1 * (f.qbScrambling - 12));
 }
 
 /** Yards added to a run's mean on a try, so runs from the 2 are good as often as the NFL's (fitted). */
-export const TRY_RUN = 0;
+export const TRY_RUN = 0.6;
 /** A multiplier on a pass's completion odds on a try, so passes from the 2 are good as often as the NFL's (fitted). */
-export const TRY_PASS = 0.97;
+export const TRY_PASS = 1.04;
 /** A turnover on a try returned for two (the NFL: 26 defensive twos, 3.9% of tries; fitted). */
 export const DEF_TWO = 0.5;

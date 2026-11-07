@@ -525,6 +525,8 @@ const END_ZONE_THROW = 0.08;
 const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
 /** Game clock between snaps at a normal tempo (refit with a play's time, `playTime.ts`, to keep plays a game). */
 const NORMAL_RUNOFF: [number, number] = [31, 43];
+/** A drive trying from deep before the half throws short until it reaches this yard line (`halfKneels`). */
+const HALF_SAFE_TO = 35;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -969,6 +971,8 @@ class GameSim {
   private clockRunning = false;
   /** The half's last possession (`kneelOdds`): the drive's one draw, and what its tap reports when the drive ends. */
   private halfU: number | null = null;
+  /** A drive trying from deep before the half: it plays it safe (short throws) until it reaches its own 35. */
+  private halfSafe = false;
   private halfDrive: (Extract<SituationTap, { kind: 'half' }> & { from: number }) | null = null;
   /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
   private spotted = false;
@@ -1769,6 +1773,7 @@ class GameSim {
       this.options.situationTap?.({ ...tap, points: this.score[this.offense] - from, reachedHalf });
     }
     this.halfU = null;
+    this.halfSafe = false;
     this.halfDrive = null;
   }
 
@@ -1783,6 +1788,9 @@ class GameSim {
     const first = this.halfU === null;
     if (first) this.halfU = this.rng.next();
     const kneel = this.halfU! < kneelOdds(facts);
+    // The NFL's teams that try from deep score 21% (with all three timeouts too) and run out the half 42%: they take
+    // what's underneath until they're out of their own end.
+    this.halfSafe = !kneel && s.yardLine < HALF_SAFE_TO;
     if (first)
       this.halfDrive = {
         kind: 'half',
@@ -3634,13 +3642,15 @@ class GameSim {
     }
 
     const ordinaryDepth = coach.passDepth(s, rng);
-    const depth = this.designedShot
-      ? 'deep'
-      : this.safePass && ordinaryDepth === 'deep' && this.habitRng.chance(0.1)
-        ? 'short'
-        : this.endZoneShot && ordinaryDepth === 'short' && this.habitRng.chance(0.12)
-          ? 'medium'
-          : ordinaryDepth;
+    const depth = this.halfSafe
+      ? 'short'
+      : this.designedShot
+        ? 'deep'
+        : this.safePass && ordinaryDepth === 'deep' && this.habitRng.chance(0.1)
+          ? 'short'
+          : this.endZoneShot && ordinaryDepth === 'short' && this.habitRng.chance(0.12)
+            ? 'medium'
+            : ordinaryDepth;
     // Targets: [receiver, base weight by depth, coverage defender]
     const lbCover = def.lb[1] ?? def.lb[0];
     const scheme = off.scheme.offense;
