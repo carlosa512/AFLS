@@ -269,12 +269,17 @@ does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a sepa
 
 ## Follow-up: rate-stat qualification
 
-- [ ] Use shared, scope-aware minimum opportunities for rate leaders (passer rating, completion percentage,
+- [x] Use shared, scope-aware minimum opportunities for rate leaders (passer rating, completion percentage,
       yards/attempt and similar categories), based on team games rather than a backup's own appearances.
       Apply the same eligibility to widgets, sorted league tables, season/career leaders and awards; show the
       minimum clearly without hiding a player's actual statistics. Verify early-season and partial-season
       samples, traded players and postseason scopes. A 2-for-2 passer must not lead a season rate category.
       Current Stats sorting already has a per-player-GP qualification; that is an incomplete foundation.
+      **Done (0.4.16):** one table of minimums (`qualify.ts`: the NFL's per team game and career for passing, rushing and
+      receiving; the game's own for kicking, punting and returns), read by the Leaders and Records boards (six new rate
+      boards), the Stats table's rate sorts, the awards (passer rating counts once he qualifies: no 200-attempt cliff,
+      weekly and monthly honors too) and the rookie report. Spec:
+      `docs/superpowers/specs/2026-11-08-rate-stat-qualification-design.md`.
 
 ## Follow-up: what the speed pass left (0.2.41)
 

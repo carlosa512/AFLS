@@ -1,4 +1,5 @@
 import { impact } from './awards';
+import { qualifies, RATES } from './qualify';
 import { injuryLabel } from './injuries';
 import { passerRating } from './stats';
 import type { Game, InboxMessage, League, Player, RookieReportRow, StatLine } from './types';
@@ -31,11 +32,15 @@ function production(p: Player, s: StatLine): string {
     return `${count(s.tackles ?? 0, 'tackle')} · ${s.passDef ?? 0} PD · ${s.defInt ?? 0} INT`;
   return `${count(s.tackles ?? 0, 'tackle')} · ${count(s.sacks ?? 0, 'sack')} · ${count(s.pressures ?? 0, 'pressure')}`;
 }
-/** Rate comparisons require a real sample and compare only rookies at the same position. */
-function rate(p: Player, s: StatLine): { value: number; label: string; low?: true } | null {
+/**
+ * Rate comparisons require a real sample and compare only rookies at the same position: a passer's rating and a back's
+ * yards a carry once he's done enough for his team's games (`qualify.ts`), the per-snap reads after 200 snaps.
+ */
+export function rookieRate(l: League, p: Player, s: StatLine): { value: number; label: string; low?: true } | null {
   const snaps = s.snaps ?? 0;
-  if (p.position === 'QB' && (s.passAtt ?? 0) >= 100) return { value: passerRating(s), label: 'passer rating' };
-  if (p.position === 'RB' && (s.rushAtt ?? 0) >= 40)
+  if (p.position === 'QB' && qualifies(l, p, s, l.season, RATES.passing))
+    return { value: passerRating(s), label: 'passer rating' };
+  if (p.position === 'RB' && qualifies(l, p, s, l.season, RATES.rushing))
     return { value: (s.rushYds ?? 0) / s.rushAtt!, label: 'yards per carry' };
   if (snaps < 200) return null;
   if (p.position === 'WR' || p.position === 'TE')
@@ -110,12 +115,12 @@ function assessment(l: League, p: Player, s: StatLine, ours: Game[], all: Game[]
       if (established && prior <= 15 && later >= 25 && later >= prior * 2)
         return `Workload rose from ${prior.toFixed(0)} to ${later.toFixed(0)} snaps per game after ${fullName(mate)}'s ${injuryLabel(injury.type).replace(/^[A-Z][a-z]/, (s) => s[0].toLowerCase() + s[1])} in Week ${g.week}.`;
     }
-  const metric = rate(p, s);
+  const metric = rookieRate(l, p, s);
   if (metric) {
     const values = peers
       .filter((x) => x.id !== p.id && x.position === p.position)
       .flatMap((x) => {
-        const r = rate(x, total(all, x.id));
+        const r = rookieRate(l, x, total(all, x.id));
         return r ? [r.value] : [];
       })
       .sort((a, b) => a - b);

@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.16',
+    date: '2026-11-08',
+    title: 'Leaders who played enough',
+    text:
+      'A rate leader now has to have played enough for his team: a backup who went 2-for-2 can no longer top passer ' +
+      'rating or completion percentage. Leaders and Records gain boards for completion percentage, yards per attempt, ' +
+      'per carry and per catch, field goal percentage and punt average, each showing its minimum. Award voters weigh a ' +
+      "quarterback's rating once he's thrown enough, in the weekly honors too.",
+  },
+  {
     version: '0.4.15',
     date: '2026-11-08',
     title: 'Extensions that extend',
