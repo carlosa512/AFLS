@@ -62,7 +62,8 @@ describe('the late market: a club offers what it can fit', () => {
     // which one it is depends on the world a season of play leaves).
     const pick = (l: League) =>
       freeAgents(l)
-        .filter((p) => !p.injury && p.age <= 29)
+        // A veteran past 28: his fitted deal is the one-year prove-it deal (a young man's runs two, `fitOffer`).
+        .filter((p) => !p.injury && p.age >= 29 && p.age <= 31)
         .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id)
         .find((p) => l.teams.some((t) => t.id !== l.userTeamId && testable(l, p, t.id)))!;
     const setUp = (clubId: number, room: (floor: number, market: number) => number, day = FA_DAYS) => {
@@ -95,7 +96,7 @@ describe('the late market: a club offers what it can fit', () => {
       const got = setUp(t.id, (floor) => floor * 1.03);
       if (got.teamId !== t.id) continue;
       signed = true;
-      expect(got.contract!.length).toBe(got.age <= 28 ? 2 : 1);
+      expect(got.contract!.length).toBe(1);
       // Room short of his walk-away before day 3: never a deal below it.
       const short = setUp(t.id, (floor) => floor * 0.8, CLEARING_DAY - 1);
       if (short.teamId !== null) {
@@ -217,6 +218,8 @@ describe('the market clears', () => {
     const dead = capSheet(l, club.id, l.season).dead;
     aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
     expect(l.players[star.id].teamId).toBe(club.id);
+    // A funded signing is a one-year deal (the spec's last call), whatever his age.
+    expect(l.players[star.id].contract!.length).toBe(1);
     expect(l.players[cut.id].teamId).toBeNull();
     expect(capSheet(l, club.id, l.season).dead).toBe(dead);
   }, 120_000);
@@ -230,6 +233,16 @@ describe('the market clears', () => {
     expect(club).not.toBeNull();
     expect(activeRoster(l, club!).length).toBe(sizes.get(club!));
   }, 120_000);
+
+  it('never cuts a man promised a deal or one the personnel rules lock', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 10)) {
+      const first = fundedRoom(l, t, 'WR').cut;
+      if (!first) continue;
+      first.morale = { ...(first.morale ?? ({} as never)), talk: { club: t.id, promise: { kind: 'deal', made: 0 } } };
+      expect(fundedRoom(l, t, 'WR').cut?.id).not.toBe(first.id);
+    }
+  });
 
   it('no funding from a cut that would leave dead money', () => {
     const { l } = lastCall();

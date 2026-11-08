@@ -66,7 +66,7 @@ A pure read, nothing stored: `capPlan(league, team)` built from the league as it
   reserve floor), **balance** (keepers and next year's keepers first, then upgrades), **bank** (rebuilder: keepers, then
   only young players or big upgrades; what it doesn't spend `payAhead` already moves into next year's room, so a
   rebuilder reaches the next March with real room).
-- **Free-agency room:** cap space less fixed costs less the keepers it will sign, less next year's keepers' room held by
+- **Free-agency room (dropped in the build):** next year's hold is enforced on big multi-year deals (§3), not as a budget; cap space less fixed costs less the keepers it will sign, less next year's keepers' room held by
   `balance` and `bank`.
 
 ## 2. The re-sign window in priority (`aiResignWindow`)

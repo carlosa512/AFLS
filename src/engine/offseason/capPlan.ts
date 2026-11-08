@@ -4,7 +4,6 @@
  * targets its scouts see coming to market, and its stance. A pure read of the league as it stands: nothing is stored,
  * and the window and each free-agency pass build it once per club with their own stream, so a reload plans the same.
  */
-import { capFor, capSheet } from '../finance/cap';
 import { leagueMarket, marketApy } from '../finance/market';
 import { teamOutlook } from '../outlook';
 import { Rng } from '../rng';
@@ -16,7 +15,6 @@ import {
   expiringPlayers,
   minGainFor,
   needGain,
-  nextYearCeiling,
   nextYearNeeds,
   resignCall,
   type ResignReason,
@@ -75,8 +73,6 @@ export interface CapPlan {
   targets: Target[];
   /** What it can spend now (`spendable`), before any keeper: the room a target would be bought with. */
   room: number;
-  /** What's left for outside free agents once its worth keepers are signed and next year is held. */
-  faRoom: number;
 }
 
 /**
@@ -122,12 +118,16 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
   const room = spendable(league, team.id);
   const gamble = gambles(league, team);
   const keepers: PlannedKeeper[] = [];
+  // Best first by where the club reads them headed; each judged against the room as the plan leaves it, the worth
+  // keepers before him in it (two expiring receivers don't both fill the same hole).
+  const working = Object.fromEntries(Object.entries(depth).map(([k, v]) => [k, [...v]])) as typeof depth;
   const own = expiringPlayers(league, team.id)
-    .map((p) => ({ p, c: resignCall(league, team.id, p, depth, wn) }))
-    .filter(({ c }) => c.call !== 'walk')
-    .sort((a, b) => b.c.ahead - a.c.ahead || a.p.id - b.p.id);
-  for (const { p, c } of own) {
-    const gain = needGain(depth, p, c.ahead + quirkWorth(league, team.id, p));
+    .map((p) => ({ p, ahead: teamOutlook(league, team.id, p, wn) }))
+    .sort((a, b) => b.ahead - a.ahead || a.p.id - b.p.id);
+  for (const { p } of own) {
+    const c = resignCall(league, team.id, p, working, wn);
+    if (c.call === 'walk') continue;
+    const gain = needGain(working, p, c.ahead + quirkWorth(league, team.id, p));
     const offer = aiOffer(league, team, p, rng, gain);
     // A loyal GM pays his own a little more, a hard one a little less.
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
@@ -139,6 +139,10 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
       c.reason === 'starter' && !gamble ? [] : targets,
       room,
     );
+    if (worth) {
+      working[p.position].push(c.ahead);
+      working[p.position].sort((a, b) => b - a);
+    }
     keepers.push({
       player: p,
       call: c.call as 'keep' | 'tag',
@@ -150,10 +154,5 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
       worth,
     });
   }
-  const nextYear = nextYearNeeds(league, team);
-  const season = league.season + 1;
-  const nextRoom = nextYearCeiling(team.gm, wn) * capFor(league, season) - capSheet(league, team.id, season).used;
-  const held = stance === 'spend' ? 0 : Math.max(0, nextYear - nextRoom);
-  const signing = keepers.filter((k) => k.worth).reduce((sum, k) => sum + k.cost, 0);
-  return { stance, keepers, nextYear, targets, room, faRoom: room - signing - held };
+  return { stance, keepers, nextYear: nextYearNeeds(league, team), targets, room };
 }

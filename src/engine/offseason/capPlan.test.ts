@@ -103,7 +103,7 @@ describe('the cap plan', () => {
       expect(pb.keepers.map((k) => [k.player.id, k.worth, k.offer.apy])).toEqual(
         pa.keepers.map((k) => [k.player.id, k.worth, k.offer.apy]),
       );
-      expect(pb.faRoom).toBeCloseTo(pa.faRoom);
+      expect(pb.room).toBeCloseTo(pa.room);
     }
   });
 });
@@ -208,5 +208,63 @@ describe('GMs make bad calls', () => {
     expect(on).toBeLessThan(l.teams.length / 2);
     // The same answer however often it's asked: its own stream.
     expect(l.teams.map((t) => gambles(l, t))).toEqual(l.teams.map((t) => gambles(l, t)));
+  });
+});
+
+describe('review fixes', () => {
+  it('a later keeper at a position is judged with the earlier worth keepers there', () => {
+    const l = fresh();
+    for (const team of l.teams.slice(0, 12)) {
+      const plan = capPlan(l, team, new Rng(`d${team.id}`));
+      const depth = depthOutlooks(l, team);
+      for (const k of plan.keepers) {
+        expect(k.gain).toBeCloseTo(needGain(depth, k.player, k.ahead + quirkWorth(l, team.id, k.player)));
+        if (k.worth) {
+          depth[k.player.position].push(k.ahead);
+          depth[k.player.position].sort((a, b) => b - a);
+        }
+      }
+    }
+  });
+
+  it('no room is made for keepers who won’t sign: nobody is cut and nothing restructured for them', () => {
+    const l = fresh();
+    // A club where room would really be made for its worth keepers, a tenth short of them.
+    const squeeze = (x: League, id: number) => {
+      const owed = capPlan(structuredClone(x), x.teams[id], new Rng('walks'))
+        .keepers.filter((k) => k.worth)
+        .reduce((a, k) => a + k.cost, 0);
+      x.teams[id].carryover -= spendable(x, id) - 0.9 * owed;
+    };
+    const team = l.teams.find((t) => {
+      if (t.id === l.userTeamId) return false;
+      const c = structuredClone(l);
+      squeeze(c, t.id);
+      return (
+        makeRoomFor(
+          c,
+          c.teams[t.id],
+          capPlan(c, c.teams[t.id], new Rng('walks')).keepers.filter((k) => k.worth),
+        ) > 0
+      );
+    })!;
+    for (const p of expiringPlayers(l, team.id)) {
+      p.personality.loyalty = 0;
+      p.personality.greed = 1;
+      if (p.morale) delete p.morale.talk;
+    }
+    team.taggedId = -1; // the tag is spent: what's left is signings
+    squeeze(l, team.id);
+    // Every keeper prices himself out (no loyalty, a walk-away far past any offer).
+    for (const p of expiringPlayers(l, team.id)) p.personality.greed = 10;
+    const before = new Set(
+      teamPlayers(l, team.id)
+        .filter((p) => !expiringPlayers(l, team.id).includes(p))
+        .map((p) => p.id),
+    );
+    const n = l.transactions.length;
+    aiResignWindow(l, team, new Rng('walks'));
+    expect([...before].filter((id) => l.players[id].teamId !== team.id)).toEqual([]);
+    expect(l.transactions.slice(n).filter((t) => t.kind === 'restructure' && t.teamIds.includes(team.id))).toEqual([]);
   });
 });
