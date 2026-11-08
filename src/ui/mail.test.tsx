@@ -253,8 +253,10 @@ describe('offer mail', () => {
   });
 
   it('links every player on both sides of the offer', async () => {
+    // A player-for-player offer is rare: start where one is filed (a long search times out on CI).
     const { league, offer } = await withFiledOffer(
       (o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0,
+      'trades-17',
     );
     const message = mailForOffer(league, offer)!;
     const about = aboutOf(league, message);
