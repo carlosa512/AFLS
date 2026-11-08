@@ -428,6 +428,11 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       club reads its own men exactly (`knowledge` is 1), so a tag gated on our read would show what it shows now: no
       fog of war is crossed. A tag and the personality beside it can still differ: two labels with their own cut-offs
       over the same makeup.
+- [x] **A defender set in the offensive backfield before the snap.** In your games (the spatial pocket), a linebacker
+      showing blitz or a corner showing press walked up as far as three yards into the offense's backfield, then ran to
+      his spot as the ball was snapped. **Fixed (0.4.17):** the moments before the snap read the line from the play
+      (`StagedPlay.line`), not the ball's first frame, which the pocket's film starts in the passer's hands; the huddles,
+      the crew's spots and the ball the umpire spots read it too.
 - [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
       `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his

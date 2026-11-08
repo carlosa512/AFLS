@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.17',
+    date: '2026-11-08',
+    title: 'Defenders on their own side',
+    text:
+      "On the All-22, a linebacker showing blitz or a corner showing press no longer lines up in the offense's " +
+      'backfield and dashes back as the ball is snapped: the moments before the snap, the huddles, the officials and ' +
+      'the ball the umpire spots all work from the line of scrimmage again.',
+  },
+  {
     version: '0.4.16',
     date: '2026-11-08',
     title: 'Leaders who played enough',
