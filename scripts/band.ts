@@ -3,8 +3,8 @@
  * butterfly effect in my game … diverge in maybe interesting ways, but not abnormal"), so a few lines judge it in two:
  * outside the usual band (each line's range before this) a run warns (⚠: this league drifted), and only outside the
  * normal band does it fail (abnormal). The lines: trade requests, rooms in doubt and rooms reading Tight (`morale.ts`), live
- * coaching trees and leagues whose founding trees all died out (`careers.ts`), head-coach retreads (`offseason.ts`), a GM habit's most held share (`gm-habits.ts`), win
- * spread (`calibrate.ts`), a bucket's scramble share (`passer-core.ts`: how mobile a world's passers are). Both bands are
+ * coaching trees and leagues whose founding trees all died out (`careers.ts`), head-coach retreads (`offseason.ts`), a GM habit's most held share (`gm-habits.ts`), draft day's
+ * trades, QB trade-ups and deals with a future pick (`trades.ts`), win spread (`calibrate.ts`), a bucket's scramble share (`passer-core.ts`: how mobile a world's passers are). Both bands are
  * the owner's call; neither is moved to get a run green.
  */
 export type Band = 'usual' | 'unusual' | 'abnormal' | 'none';
