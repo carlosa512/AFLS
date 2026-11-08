@@ -22,6 +22,7 @@ import { capHit as hitOf } from '../finance/contract';
 import { capSheet, releasePreview } from '../finance/cap';
 import { leagueMarket, marketApy, minSalary } from '../finance/market';
 import { setTeam } from '../roster';
+import { squadReserve } from '../personnel/squads';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { demand, freeAgents, OFFSEASON_ROSTER_MAX, offerValue } from './negotiation';
 import { activeRoster } from '../roster';
@@ -309,7 +310,8 @@ describe('the market clears', () => {
     for (const t of l.teams.slice(0, 8)) {
       const f = fundedRoom(l, t, 'WR');
       const cutPay = f.cut ? hitOf(f.cut.contract!, l.season) : 0;
-      expect(f.room).toBeCloseTo(spendable(l, t.id) + 0.5 * inSeasonReserve(l, t.id) + cutPay);
+      // A young star comes before the squad's money: its reserve is his too (`squadReserve`).
+      expect(f.room).toBeCloseTo(spendable(l, t.id) + squadReserve(l, t.id) + 0.5 * inSeasonReserve(l, t.id) + cutPay);
       expect(f.cut === null || hitOf(f.cut.contract!, l.season) <= minSalary(30, l.caps[l.season])).toBe(true);
     }
   });

@@ -308,8 +308,11 @@ export function fundedRoom(league: League, team: Team, position: Position): { ro
             count(p.position) > KEEP_MIN[p.position],
         )) ??
     null;
+  // The squad's money comes after him: squads form from what's left, and run short on money anyway (spendable holds a
+  // whole squad of veterans back until they form, which left the camp's young stars unplaced).
   const room =
     spendable(league, team.id) +
+    squadReserve(league, team.id) +
     FUNDED_RESERVE_SHARE * inSeasonReserve(league, team.id) +
     (cut ? capHit(cut.contract!, league.season) : 0);
   return { room, cut };
