@@ -17,7 +17,13 @@ import {
   spendable,
   YOUNG_PROVE_IT_YEARS,
   KEEP_MIN,
+  depthOutlooks,
+  lastCallTakes,
+  needGain,
+  swapGain,
+  winNow,
 } from './ai';
+import { teamOutlook } from '../outlook';
 import { capHit as hitOf } from '../finance/contract';
 import { capSheet, releasePreview } from '../finance/cap';
 import { leagueMarket, marketApy, minSalary } from '../finance/market';
@@ -269,6 +275,30 @@ describe('the market clears', () => {
       }
     }
     expect(seen).toBeGreaterThan(0);
+  });
+
+  it('swapGain: a backup passer is judged against the room without the minimum man he replaces', () => {
+    const { l } = lastCall();
+    let seen = 0;
+    for (const t of l.teams) {
+      const { cut } = fundedRoom(l, t, 'QB');
+      if (!cut || cut.position !== 'QB') continue;
+      const depth = depthOutlooks(l, t);
+      const wn = winNow(l, t);
+      // A passer a point better than the man he'd replace: no gain to a full room, a real one in a swap.
+      const ahead = teamOutlook(l, t.id, cut, wn) + 1;
+      const fake = { ...cut, id: -1 };
+      if (needGain(depth, fake, ahead) > 0) continue;
+      seen++;
+      expect(swapGain(l, t, depth, fake, ahead, cut)).toBeGreaterThan(0);
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('on the last call a free agent takes any deal at his minimum or above (the floor is the pay, not its knocks)', () => {
+    const offer = { years: 1, apy: 2_000, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    expect(lastCallTakes(offer, 2_000)).toBe(true);
+    expect(lastCallTakes(offer, 2_001)).toBe(false);
   });
 
   it('never cuts a man promised a deal or one the personnel rules lock', () => {

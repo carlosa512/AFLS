@@ -318,6 +318,31 @@ export function fundedRoom(league: League, team: Team, position: Position): { ro
   return { room, cut };
 }
 
+/**
+ * What a swap gains: the man against the room without the one he replaces when that one plays his spot (a 13.5 backup
+ * passer is no gain to a full quarterback room, a clear one over its minimum third). Otherwise his gain as it stands.
+ */
+export function swapGain(
+  league: League,
+  team: Team,
+  depth: Record<Position, number[]>,
+  p: Player,
+  ahead: number,
+  cut: Player | null,
+): number {
+  if (!cut || cut.position !== p.position) return needGain(depth, p, ahead);
+  const mine = [...depth[p.position]];
+  const at = mine.indexOf(teamOutlook(league, team.id, cut, winNow(league, team)));
+  if (at >= 0) mine.splice(at, 1);
+  return needGain({ ...depth, [p.position]: mine }, p, ahead);
+}
+
+/**
+ * On the last call a free agent takes any deal from his minimum up: the floor is the pay (as `takesMinimum` reads it),
+ * not `offerValue`, whose knocks for a short, unguaranteed deal had a young man turn down two million over his minimum.
+ */
+export const lastCallTakes = (offer: Offer, minimum: number): boolean => offer.apy >= minimum;
+
 /** A banking club (`capPlan`'s rebuilder) buys only the young, or an upgrade that clears twice the bar its price sets. */
 export const bankBuys = (age: number, gain: number, bar: number): boolean => age <= 27 || gain >= 2 * bar;
 
@@ -1007,14 +1032,18 @@ export function aiFreeAgencyDay(
       const gain =
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
-      if (gain < minGain.get(team.id)! * bar) continue;
-      let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
+      // The last call's swap: the clear upgrade is read against the room without the man he'd replace (`swapGain`).
+      const funded = opts.lastCall ? fundedRoom(league, team, p.position) : null;
+      const swap = funded
+        ? swapGain(league, team, depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p), funded.cut)
+        : 0;
+      if (gain < minGain.get(team.id)! * bar && !(full && swap >= 2 * minGain.get(team.id)!)) continue;
+      let offer = aiOffer(league, team, p, rng, Math.max(gain, swap), rich.get(team.id));
       if (full) {
-        if (gain < 2 * minGain.get(team.id)!) continue;
-        const funded = fundedRoom(league, team, p.position);
-        const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
-        if (deal && offerValue(league, p, team.id, deal) >= floorAt(team.id))
-          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
+        if (Math.max(gain, swap) < 2 * minGain.get(team.id)!) continue;
+        const deal = funded!.cut && fitOffer(offer, funded!.room, minimum, p.age);
+        if (deal && lastCallTakes(deal, minimum))
+          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded!.cut });
         continue;
       }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
@@ -1056,14 +1085,13 @@ export function aiFreeAgencyDay(
         // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
         const young = p.age <= 28;
         if (fitted && !young && !nextYearOk(team, fitted)) continue;
-        if (!fitted && opts.lastCall && gain >= 2 * minGain.get(team.id)!) {
+        if (!fitted && opts.lastCall && Math.max(gain, swap) >= 2 * minGain.get(team.id)!) {
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
-          const funded = fundedRoom(league, team, p.position);
-          // A funded signing is a prove-it deal: two years for a man 28 or younger, one for a veteran (`fitOffer`).
-          const deal = fitOffer(offer, funded.room, minimum, p.age);
-          if (deal && offerValue(league, p, team.id, deal) >= floorAt(team.id))
-            bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
+          // A funded signing is a prove-it deal (`fitOffer`), and he takes it from his minimum up (`lastCallTakes`).
+          const deal = fitOffer(offer, funded!.room, minimum, p.age);
+          if (deal && lastCallTakes(deal, minimum))
+            bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded!.cut });
           continue;
         }
         if (!fitted || gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar) continue;
