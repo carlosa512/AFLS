@@ -349,12 +349,11 @@ export function swapGain(
 export const lastCallTakes = (offer: Offer, minimum: number): boolean => offer.apy >= minimum;
 
 /**
- * How much of its in-season reserve a club may break on the last call: all of it for a young star (28 or younger, his
- * market 5% of the cap or more: the owner's rule, none left unsigned at kickoff), half for anyone else. By the end of camp
- * squads and next year's paid-ahead salary have taken the rest, and two such men were left with one club able to pay.
+ * A young star by the owner's rule: 28 or younger, healthy, his market 5% of the cap or more. None may be left unsigned at
+ * kickoff; camp's last pass is for these men alone, and a club may break its whole in-season reserve for one.
  */
-export const starReserveShare = (marketShare: number, age: number): number =>
-  marketShare >= 0.05 && age <= 28 ? 1 : FUNDED_RESERVE_SHARE;
+export const isYoungStar = (league: League, p: Player, market: number): boolean =>
+  !p.injury && p.age <= 28 && market >= 0.05 * league.caps[league.season];
 
 /** A banking club (`capPlan`'s rebuilder) buys only the young, or an upgrade that clears twice the bar its price sets. */
 export const bankBuys = (age: number, gain: number, bar: number): boolean => age <= 27 || gain >= 2 * bar;
@@ -971,7 +970,7 @@ export const upgradeBar = (league: League, team: Team, apy: number, rich = richn
 export function aiFreeAgencyDay(
   league: League,
   rng: Rng,
-  opts: { includeUser?: boolean; rosterMax?: number; lastCall?: boolean } = {},
+  opts: { includeUser?: boolean; rosterMax?: number; lastCall?: boolean; starsOnly?: boolean } = {},
 ): number {
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
@@ -1023,6 +1022,8 @@ export function aiFreeAgencyDay(
   const market = leagueMarket(league);
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
+    // Camp's last word for the owner's rule: young stars still unsigned, and no one else.
+    .filter(({ p, value }) => !opts.starsOnly || isYoungStar(league, p, value))
     .sort((a, b) => b.value - a.value);
   // Each front office bids on what its own scouts see; the player's price is still his real market.
   const read = viewCache(league);
@@ -1033,7 +1034,7 @@ export function aiFreeAgencyDay(
     return rooms.get(team.id)!;
   };
   let signings = 0;
-  for (const { p, value: worth } of pool) {
+  for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
     const bids: {
@@ -1066,7 +1067,9 @@ export function aiFreeAgencyDay(
       // A swap's gain is read only where it can decide something: on the last call, for a clear upgrade his own gain
       // doesn't already make (`swapGain` against the room without the man he'd replace).
       const clear = 2 * minGain.get(team.id)!;
-      const share = starReserveShare(worth / league.caps[league.season], p.age);
+      // Only the stars-only pass breaks a whole reserve: every pass breaking it for every young star took the league's
+      // kickoff room under its floor.
+      const share = opts.starsOnly ? 1 : FUNDED_RESERVE_SHARE;
       const swap =
         opts.lastCall && gain < clear
           ? swapGain(

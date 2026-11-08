@@ -17,8 +17,6 @@ import {
   spendable,
   YOUNG_PROVE_IT_YEARS,
   KEEP_MIN,
-  FUNDED_RESERVE_SHARE,
-  starReserveShare,
   depthOutlooks,
   lastCallTakes,
   needGain,
@@ -337,18 +335,26 @@ describe('the market clears', () => {
       }
   });
 
-  it('for a young star a club may break its whole in-season reserve', () => {
+  it('only the stars-only pass breaks a whole reserve, and it looks only at young stars', () => {
     const { l } = lastCall();
     for (const t of l.teams.slice(0, 8)) {
       const half = fundedRoom(l, t, 'WR');
       const all = fundedRoom(l, t, 'WR', 1);
       expect(all.room - half.room).toBeCloseTo(0.5 * inSeasonReserve(l, t.id));
-      expect(all.cut?.id).toBe(half.cut?.id);
     }
-    expect(starReserveShare(0.06, 26)).toBe(1);
-    expect(starReserveShare(0.06, 29)).toBe(FUNDED_RESERVE_SHARE);
-    expect(starReserveShare(0.03, 26)).toBe(FUNDED_RESERVE_SHARE);
-  });
+    // A pass for young stars only: a veteran a normal last call would place is left alone.
+    const market = leagueMarket(l);
+    const old = Object.values(l.players)
+      .filter((p) => p.teamId !== null && p.teamId !== l.userTeamId && p.age >= 31 && p.contract && !p.injury)
+      .sort((x, y) => marketApy(market, y) - marketApy(market, x))[0];
+    setTeam(l, old, null);
+    old.contract = null;
+    const normal: League = JSON.parse(JSON.stringify(l));
+    aiFreeAgencyDay(normal, new Rng('stars'), { rosterMax: 0, lastCall: true });
+    expect(normal.players[old.id].teamId).not.toBeNull();
+    aiFreeAgencyDay(l, new Rng('stars'), { rosterMax: 0, lastCall: true, starsOnly: true });
+    expect(l.players[old.id].teamId).toBeNull();
+  }, 120_000);
 
   it('funding draws at most half the in-season reserve', () => {
     const { l } = lastCall();
