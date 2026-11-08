@@ -125,6 +125,20 @@ export function basePath(e: PlayLogEntry, homeId: number, snapY: number, asAimed
 const groundPace = (s: Seg): Seg => ({ ...s, dur: ground(s.x0, s.y0, s.x1, s.y1).dur });
 
 /**
+ * A strip-sack's ball comes out where he went down (the sack's spot), not a drift either way of where it's recovered: the
+ * hops are stretched up the field to start there and still end where it was recovered, so the carry never runs him past
+ * the spot (a sack at the line had him a yard over it before the hit).
+ */
+function fromSpot(hops: Seg[], spotX: number): Seg[] {
+  const x0 = hops[0].x0;
+  const x1 = hops[hops.length - 1].x1;
+  const n = hops.length;
+  const map = (x: number, i: number) =>
+    x1 === x0 ? spotX + ((x1 - spotX) * i) / n : spotX + ((x - x0) * (x1 - spotX)) / (x1 - x0);
+  return hops.map((h, i) => ({ ...h, x0: map(h.x0, i), x1: map(h.x1, i + 1) }));
+}
+
+/**
  * A fumble on a play carried to where it came out (`carried`): the carry stops where the ball comes out, it bounces to
  * where it's recovered (`fumble.ts`), and a lost one is returned to where the play ended. `pace` times the legs men
  * run (All-22 runs them at a runner's pace). Without a fumble, the path as it was.
@@ -135,7 +149,7 @@ export function loosen(e: PlayLogEntry, segs: Seg[], pace: (s: Seg) => Seg = gro
   const last = segs[segs.length - 1];
   // Recovered level with where the carry was heading across the field.
   const at = { x: f.x, y: last.y1 };
-  const hops = bounce(e, at);
+  const hops = e.kind === 'sack' ? fromSpot(bounce(e, at), last.x1) : bounce(e, at);
   const out = { x: hops[0].x0, y: hops[0].y0 };
   // The carry ends where it came out; after a catch with no run logged (the throw ends it), he runs on to it.
   const carry =
