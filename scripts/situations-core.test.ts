@@ -56,3 +56,25 @@ describe('the situations check', () => {
     for (const l of judgeSituations(t).filter((x) => x.label.includes('coverage'))) expect(l.info).toBe(true);
   });
 });
+
+describe("the half's lines (0.4.14)", () => {
+  it('read only drives that start with 75 seconds or less, as the NFL figure does', () => {
+    const t = newSituationTally();
+    const half = (startedIn: boolean, kneeled: boolean) =>
+      tapSituation(t, {
+        kind: 'half',
+        clock: 30,
+        yardLine: 25,
+        timeouts: 2,
+        appetite: 0,
+        kneeled,
+        points: 0,
+        turnover: false,
+        reachedHalf: true,
+        startedIn,
+      });
+    for (let i = 0; i < 300; i++) half(true, i % 10 === 0);
+    for (let i = 0; i < 300; i++) half(false, true);
+    expect(line(judgeSituations(t), 'half: kneel, 21-40 s').value).toBeCloseTo(0.1, 5);
+  });
+});

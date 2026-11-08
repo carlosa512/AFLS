@@ -143,7 +143,7 @@ import {
   type SlideFacts,
   type SlideReason,
 } from './dropbackEnd';
-import { kneelOdds, playSeconds, type PlayTimeKind } from './playTime';
+import { kneelOdds, playSeconds, playsSafe, type PlayTimeKind } from './playTime';
 import { COVERAGE_TYPICAL, returnYards as kickReturnYards } from './returns';
 import { DEF_TWO, runShare, sureTwo, TRY_PASS, TRY_RUN, twoPointOdds, type TwoPointFacts } from './twoPoint';
 import type { DefenseCall, PassDepth, Situation } from './coach';
@@ -183,6 +183,8 @@ export type SituationTap =
       points: number;
       turnover: boolean;
       reachedHalf: boolean;
+      /** The drive's first snap came inside 75 seconds (the NFL's figure reads only these). */
+      startedIn: boolean;
     }
   | {
       kind: 'try';
@@ -525,8 +527,6 @@ const END_ZONE_THROW = 0.08;
 const fade = (edge: number, tight: number) => (edge > 0 ? edge * (1 - RED_ZONE_FADE * tight) : edge);
 /** Game clock between snaps at a normal tempo (refit with a play's time, `playTime.ts`, to keep plays a game). */
 const NORMAL_RUNOFF: [number, number] = [31, 43];
-/** A drive trying from deep before the half throws short until it reaches this yard line (`halfKneels`). */
-const HALF_SAFE_TO = 35;
 /** League-typical edge contain and safety help: their effects are measured from these. */
 const EDGE_CONTAIN = 11.5;
 const DEEP_HELP = 14;
@@ -973,6 +973,8 @@ class GameSim {
   private halfU: number | null = null;
   /** A drive trying from deep before the half: it plays it safe (short throws) until it reaches its own 35. */
   private halfSafe = false;
+  /** The drive decided to try before the half: once out of its own end it takes its timeouts (`offenseTimeout`). */
+  private halfTrying = false;
   private halfDrive: (Extract<SituationTap, { kind: 'half' }> & { from: number }) | null = null;
   /** The last play went out of bounds with the clock to restart at the spot: the next runoff loses the pause. */
   private spotted = false;
@@ -1326,6 +1328,8 @@ class GameSim {
   }
 
   private countSnap(p: Player) {
+    // A two-point try is no snap on the books (the NFL keeps conversions apart): it wears bodies, it counts nothing.
+    if (this.onTry) return;
     const line = (this.playerStats[p.id] ??= {});
     line.snaps = (line.snaps ?? 0) + 1;
   }
@@ -1515,6 +1519,7 @@ class GameSim {
       depthLean: this.lineups[off].scheme.offense.depth,
       blitz: this.lineups[this.def].scheme.front.blitz * (this.lineups[this.def].scheme.coverage?.blitz ?? 1),
       weather: this.wx.pass,
+      ...(this.halfTrying ? { halfTry: true } : {}),
     };
   }
 
@@ -1774,6 +1779,7 @@ class GameSim {
     }
     this.halfU = null;
     this.halfSafe = false;
+    this.halfTrying = false;
     this.halfDrive = null;
   }
 
@@ -1783,14 +1789,18 @@ class GameSim {
    * team that tried at 40 seconds can still kneel at 12 after a sack. Never on fourth down: that's the punt's call.
    */
   private halfKneels(s: Situation): boolean {
-    if (s.quarter !== 2 || s.overtime || s.clock > 75 || s.down === 4) return false;
+    if (s.quarter !== 2 || s.overtime || s.clock > 75) return false;
+    // Fourth down is the punt's call, but a drive that decided keeps reading its spot (past its 35, it throws freely).
+    if (s.down === 4) {
+      this.halfSafe = playsSafe(this.halfSafe, s.yardLine);
+      return false;
+    }
     const facts = { clock: s.clock, yardLine: s.yardLine, timeouts: s.offTimeouts, appetite: s.fourthDown ?? 0 };
     const first = this.halfU === null;
     if (first) this.halfU = this.rng.next();
     const kneel = this.halfU! < kneelOdds(facts);
-    // The NFL's teams that try from deep score 21% (with all three timeouts too) and run out the half 42%: they take
-    // what's underneath until they're out of their own end.
-    this.halfSafe = !kneel && s.yardLine < HALF_SAFE_TO;
+    this.halfSafe = playsSafe(!kneel, s.yardLine);
+    this.halfTrying = !kneel;
     if (first)
       this.halfDrive = {
         kind: 'half',
@@ -1799,6 +1809,7 @@ class GameSim {
         points: 0,
         turnover: false,
         reachedHalf: false,
+        startedIn: this.driveSnaps === 0,
         from: this.score[this.offense],
       };
     return kneel;
@@ -2072,15 +2083,6 @@ class GameSim {
       );
       start = 3 + returned;
       const returnTd = start >= 100;
-      this.options.situationTap?.({
-        kind: 'return',
-        play: 'kickoff',
-        yards: returned,
-        td: returnTd,
-        returner: skill(kr, 'returns') - 12,
-        returnerId: kr.id,
-        coverage,
-      });
       // The open field (`field/`): caught at the 3 (the engine's own spot for a returned kickoff), run back from there.
       const kickMoment = this.fielding
         ? this.returnMoment('kickoff', 35, 97, kickingSide, receiving, kicking, start - 3, start >= 100)
@@ -2098,6 +2100,16 @@ class GameSim {
         this.flag(kickingSide, 'kickoffFormation', lined, 'offset');
         [block, lined] = [null, null];
       }
+      // Tapped once the flags are known: a touchdown a flag called back is no touchdown.
+      this.options.situationTap?.({
+        kind: 'return',
+        play: 'kickoff',
+        yards: returned,
+        td: returnTd && !block,
+        returner: skill(kr, 'returns') - 12,
+        returnerId: kr.id,
+        coverage,
+      });
       const buf = new StatBuffer();
       buf.add(kr, 'krAtt');
       buf.add(kr, 'krYds', (block ? block.at : start) - 3);
@@ -2325,15 +2337,6 @@ class GameSim {
     const returnedTime = playSeconds({ kind: 'punt', yards: ret }, timeU);
     this.playTime(Math.max(0, returnedTime - caughtTime));
     this.options.situationTap?.({ kind: 'time', play: 'punt', yards: ret, seconds: returnedTime, field: false });
-    this.options.situationTap?.({
-      kind: 'return',
-      play: 'punt',
-      yards: ret,
-      td: receiveAt + ret >= 100,
-      returner: skill(pr, 'returns') - 12,
-      returnerId: pr.id,
-      coverage,
-    });
     // The open field (`field/`): from the catch. (The punt's play time was taken before the kick, as today.)
     const puntMoment = this.fielding
       ? this.returnMoment('punt', this.yardLine, landing, this.offense, def, off, ret, receiveAt + ret >= 100)
@@ -2345,6 +2348,16 @@ class GameSim {
       ? this.blockSpot(receiveAt, receiveAt + ret, def)
       : null;
     const end = block ? block.spot : receiveAt + ret;
+    // Tapped once the flag is known: a touchdown a flag called back is no touchdown.
+    this.options.situationTap?.({
+      kind: 'return',
+      play: 'punt',
+      yards: ret,
+      td: !block && receiveAt + ret >= 100,
+      returner: skill(pr, 'returns') - 12,
+      returnerId: pr.id,
+      coverage,
+    });
     // Returns run back toward the punting team's goal line.
     this.setAnim(this.offense, 'punt', this.yardLine, end >= 100 ? -3 : 100 - end, landing);
     if (puntSpatial) this.anim!.field = puntMoment!.facts;
@@ -4508,9 +4521,10 @@ class GameSim {
     this.creditPressure(buf, sacker0, defCall, true, pocketBy);
     // A sack at the line costs nothing: "for 0 yards", as the NFL's books write it.
     let text = `${short(qb)} SACKED by ${short(sacker)} for ${loss ? `-${loss}` : 0} yards`;
-    const taken = (this.sacksTaken.get(qb.id) ?? 0) + 1;
+    // A sack on a two-point try books nothing, his form included (Rattled, Shaken).
+    const taken = (this.sacksTaken.get(qb.id) ?? 0) + (this.onTry ? 0 : 1);
     this.sacksTaken.set(qb.id, taken);
-    if (taken >= 2 && (this.rattled.get(qb.id) ?? 0) < 1 && this.has(qb, 'seesGhosts')) {
+    if (!this.onTry && taken >= 2 && (this.rattled.get(qb.id) ?? 0) < 1 && this.has(qb, 'seesGhosts')) {
       this.rattled.set(qb.id, 1);
       this.everRattled.add(qb.id);
       this.streak.set(qb.id, 0);

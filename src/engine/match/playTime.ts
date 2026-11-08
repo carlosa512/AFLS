@@ -113,3 +113,20 @@ export function kneelOdds(f: HalfFacts): number {
     HALF_APPETITE * f.appetite;
   return 1 / (1 + Math.exp(-x));
 }
+
+/**
+ * A drive trying from deep before the half plays it safe until it's out of its own end: the NFL's teams that try from
+ * there score 21% (with all three timeouts too) and run out the half 42%, taking what's underneath. Read on every snap
+ * of the drive, fourth down included.
+ */
+export const HALF_SAFE_TO = 35;
+
+/**
+ * A drive trying before the half takes its timeouts from here on (today's rule waits for midfield): the NFL's drives
+ * from deep run out the half 42% and score 21%; from his own 35 the league's scored 25%, from midfield ran out 50%.
+ */
+export const HALF_TIMEOUTS_FROM = 40;
+
+export function playsSafe(trying: boolean, yardLine: number): boolean {
+  return trying && yardLine < HALF_SAFE_TO;
+}

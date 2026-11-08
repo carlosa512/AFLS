@@ -4,6 +4,7 @@
  */
 import { clamp, type Rng } from '../rng';
 import { shiftMix } from '../schemes';
+import { HALF_TIMEOUTS_FROM } from './playTime';
 
 export interface Situation {
   quarter: number;
@@ -26,6 +27,8 @@ export interface Situation {
   qbLean?: number;
   /** The head coach's appetite for going for it on fourth down, −1…1. */
   fourthDown?: number;
+  /** The drive is trying for points before the half (`kneelOdds`). */
+  halfTry?: boolean;
   /** The offense's scheme: shift to the short / medium / deep mix of ordinary throws. */
   depthLean?: [number, number, number];
   /** The defense's scheme: blitz-rate multiplier (1 = league average). */
@@ -310,7 +313,8 @@ export function offenseTimeout(s: Situation): boolean {
   if (s.quarter >= 4 && s.scoreDiff < 0 && s.clock <= 120) return s.offTimeouts > 1 || s.clock <= 40;
   // Tied: only worth stopping the clock once the ball is near scoring range.
   if (s.quarter >= 4 && s.scoreDiff === 0 && s.clock <= 120) return s.yardLine >= 45;
-  return s.quarter === 2 && s.clock <= 60 && s.yardLine >= 45;
+  // A drive trying before the half takes them once it's out of its own end (`HALF_TIMEOUTS_FROM`).
+  return s.quarter === 2 && s.clock <= 60 && (s.yardLine >= 45 || (!!s.halfTry && s.yardLine >= HALF_TIMEOUTS_FROM));
 }
 
 /** A trailing defense still in the game saves time for one more possession. */

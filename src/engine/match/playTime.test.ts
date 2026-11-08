@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kneelOdds, meanSeconds, playSeconds, type PlayTimeFacts, type PlayTimeKind } from './playTime';
+import { kneelOdds, meanSeconds, playSeconds, playsSafe, type PlayTimeFacts, type PlayTimeKind } from './playTime';
 
 const KINDS: PlayTimeKind[] = ['incomplete', 'catch', 'run', 'scramble', 'return', 'punt', 'fairCatch', 'kickoff'];
 const half = (over: Partial<Parameters<typeof kneelOdds>[0]> = {}) =>
@@ -71,5 +71,15 @@ describe("the half's last possession", () => {
     const cautious = half({ appetite: -1 }) - half();
     expect(cautious).toBeGreaterThan(0.03);
     expect(cautious).toBeLessThan(0.08);
+  });
+});
+
+describe('playing it safe from deep (0.4.14)', () => {
+  it('throws short only while a trying drive is inside its own 35', () => {
+    expect(playsSafe(true, 20)).toBe(true);
+    expect(playsSafe(true, 34)).toBe(true);
+    expect(playsSafe(true, 35)).toBe(false);
+    expect(playsSafe(true, 40)).toBe(false);
+    expect(playsSafe(false, 20)).toBe(false);
   });
 });

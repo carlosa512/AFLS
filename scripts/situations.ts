@@ -9,7 +9,8 @@ import { simulateGame } from '../src/engine/match/gameSim';
 import { judgeSituations, newSituationTally, tapSituation } from './situations-core';
 import { printLine } from './sideline-core';
 
-const GAMES = Number(process.argv[2] ?? 200);
+// 3,000 by default: at a few hundred games most lines read "too few to judge".
+const GAMES = Number(process.argv[2] ?? 3000);
 const tally = newSituationTally();
 const t0 = Date.now();
 let played = 0;
