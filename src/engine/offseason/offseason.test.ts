@@ -25,6 +25,7 @@ import {
   aiTrainingCamp,
   applyFranchiseTag,
   expiringPlayers,
+  FUNDED_RESERVE_SHARE,
   IN_SEASON_RESERVE,
   inSeasonReserve,
   payAhead,
@@ -113,7 +114,8 @@ describe('offseason calendar', () => {
     const cap = league.caps[league.season];
     const ai = league.teams.filter((t) => t.id !== league.userTeamId);
     const space = ai.map((t) => capSpace(league, t.id)).sort((a, b) => a - b);
-    expect(space[ai.length >> 1]).toBeGreaterThanOrEqual(IN_SEASON_RESERVE * cap);
+    // The last call may draw up to `FUNDED_RESERVE_SHARE` of the reserve for a clear upgrade (the spec's funded call).
+    expect(space[ai.length >> 1]).toBeGreaterThanOrEqual((1 - FUNDED_RESERVE_SHARE) * IN_SEASON_RESERVE * cap);
     // A reserve is room kept, never a man short: a team under 53 has no room for a minimum deal (short rosters
     // without room are a known issue of their own, flagged by the offseason audit).
     for (const t of ai)
@@ -458,7 +460,8 @@ describe('camp signings', () => {
         marketApy(market, p) > p.contract.apy * 3,
     );
     expect(cheap.map((p) => `${p.position} ${p.firstName} ${p.lastName}`)).toEqual([]);
-    expect(star.teamId).toBeNull();
+    // Camp's last word on the market places him (the funded call), never on a minimum deal.
+    if (star.teamId !== null) expect(star.contract!.kind).not.toBe('minimum');
   });
 });
 

@@ -7,21 +7,24 @@ import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
-import { teamPlayers } from '../roster';
+import { setTeam, teamPlayers } from '../roster';
 import type { League, Player } from '../types';
 import {
   aiFreeAgencyDay,
   aiResignWindow,
+  applyFranchiseTag,
   expiringPlayers,
   nextYearCeiling,
   nextYearNeeds,
   resignCall,
   spendable,
   winNow,
+  YOUNG_PROVE_IT_YEARS,
 } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
+import { gambles } from './capPlan';
 import { advanceOffseason, beginOffseason } from './index';
-import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
+import { demand, OFFSEASON_ROSTER_MAX, signPlayer } from './negotiation';
 
 /** A league at the draft step after one season: free agency's five days are done. */
 const afterFreeAgency = (() => {
@@ -75,7 +78,8 @@ describe('the market clears by camp', () => {
       if (last.l.players[last.p.id].teamId !== t.id) continue;
       found = true;
       const signed = last.l.players[last.p.id];
-      expect(signed.contract!.length).toBe(1);
+      // A prove-it deal: one year for a veteran, two for a player 28 or younger (`fitOffer`).
+      expect(signed.contract!.length).toBe(signed.age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
       expect(capHit(signed.contract!, last.l.season)).toBeLessThanOrEqual(1.5 * last.min + 1);
       // Before camp he takes less than his walk-away from nobody.
       const early = lateVeteran(t.id, 1.5);
@@ -219,7 +223,8 @@ describe('the tag keeps a star who’d walk', () => {
     const l: League = JSON.parse(windowLeague);
     const market = leagueMarket(l);
     const pick = l.teams
-      .filter((t) => t.id !== l.userTeamId && !t.taggedId)
+      // A GM gambling this year may let even a star walk for the market (a bad call he's allowed): not this test's club.
+      .filter((t) => t.id !== l.userTeamId && !t.taggedId && !gambles(l, t))
       .flatMap((t) => expiringPlayers(l, t.id).map((p) => ({ t, p })))
       .filter(({ t, p }) => {
         const c = resignCall(l, t.id, p);
@@ -303,5 +308,25 @@ describe('caution is next year’s headroom, not a quota', () => {
       expect(nextYearCeiling({ capAggression } as never, 0)).toBeLessThan(
         nextYearCeiling({ capAggression } as never, 1),
       );
+  });
+});
+
+describe('transactions name their player', () => {
+  it('a re-signing, a signing and a tag log the player id', () => {
+    const l = createLeague({ seed: 'tx-ids' });
+    const [own, tagged] = teamPlayers(l, 0).filter((p) => p.contract);
+    const free = teamPlayers(l, 1).find((p) => p.contract)!;
+    setTeam(l, free, null);
+    free.contract = null;
+    const offer = { years: 2, apy: 2_000, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    signPlayer(l, own, 0, offer);
+    signPlayer(l, free, 3, offer);
+    applyFranchiseTag(l, tagged);
+    const last = l.transactions.slice(-3);
+    expect(last.map((t) => [t.kind, t.playerId])).toEqual([
+      ['resign', own.id],
+      ['sign', free.id],
+      ['tag', tagged.id],
+    ]);
   });
 });

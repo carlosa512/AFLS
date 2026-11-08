@@ -127,6 +127,17 @@ export function demand(league: League, player: Player, teamId: number): Demand {
   };
 }
 
+/**
+ * Whether `player` would sign for the league minimum with `teamId` today: only when the least he'll take is the
+ * minimum. A player the market still values above it waits for a real deal (a star unsigned in free agency
+ * doesn't come cheap in camp). The floor itself is the test, not `offerValue`: its knocks for a short,
+ * unguaranteed deal would have a minimum-salary veteran turn down the only deal there is. A futures deal is a
+ * minimum and practice-squad pay is less, so nobody above it takes either (a starter nobody had room for waits for
+ * a contract; he doesn't take $20K a week to be called up).
+ */
+export const takesMinimum = (league: League, player: Player, teamId: number): boolean =>
+  demand(league, player, teamId).walkAway <= minSalary(player.experience, league.caps[league.season]);
+
 /** What an offer is worth to the player, in APY-equivalent $K. */
 export function offerValue(
   league: League,
@@ -404,6 +415,7 @@ export function signPlayer(
     own ? 'resign' : 'sign',
     [teamId],
     `${team.abbrev} ${verb} ${player.position} ${player.firstName} ${player.lastName} (${money})`,
+    player.id,
   );
 }
 

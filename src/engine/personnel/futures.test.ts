@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createLeague } from '../generate';
+import { createLeague, generatePlayer } from '../generate';
+import { Rng } from '../rng';
 import { deliverMail } from '../inbox';
 import { activeRoster, practiceSquad, setTeam } from '../roster';
 import { perceive } from '../scouting';
@@ -100,6 +101,32 @@ describe('futures deals', () => {
     for (const id of picks) l.players[id].potential = 1;
     newLeagueYear();
     for (const id of picks) expect(l.players[id].teamId).toBe(5);
+  });
+
+  it('a squad player the market now values above the minimum isn’t kept: he tests free agency', () => {
+    l.teams[0].autoSquad = false;
+    const [p] = practiceSquad(l, 0);
+    setFuturesKeep(l, 0, p.id, true);
+    // He's grown into a starter's game: his walk-away is a real contract now, not a minimum.
+    const grown = generatePlayer(new Rng('grown'), {
+      id: -1,
+      position: p.position,
+      age: p.age,
+      quality: 17,
+      teamId: null,
+      jerseysUsed: new Set(),
+    });
+    p.ratings = grown.ratings;
+    p.potential = Math.max(p.potential, grown.potential);
+    delete l.teams[0].autoSquad; // staff picks again
+    delete l.personnel!.futures;
+    expect(futuresPicks(l, 0)).not.toContain(p.id);
+    expect(() => setFuturesKeep(l, 0, p.id, true)).toThrow(/NFL contract/);
+    // A mark made before he grew doesn't bind him either.
+    l.personnel!.futures = { season: l.season, kept: { 0: [p.id] } };
+    newLeagueYear();
+    expect(p.contract).toBeNull();
+    expect(p.teamId).toBeNull();
   });
 
   it('your director writes once when the window opens, and once at the new league year', () => {
