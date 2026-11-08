@@ -39,6 +39,15 @@ const SEEDS = [
   'trades-13',
   'trades-14',
   'trades-15',
+  // More worlds since 0.4.14 reshuffled the seasons: a player-for-player offer to you is rare in any one of them.
+  'trades-16',
+  'trades-17',
+  'trades-18',
+  'trades-19',
+  'trades-20',
+  'trades-21',
+  'trades-22',
+  'trades-23',
 ];
 
 it('separates a dated staff recommendation from the briefing without repeating its text', () => {
