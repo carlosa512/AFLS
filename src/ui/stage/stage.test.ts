@@ -198,6 +198,31 @@ describe('formations', () => {
     }
   });
 
+  it('lines two backs up apart: a fullback in front of the tailback, or the other side of the quarterback (0.4.17)', () => {
+    let checked = 0;
+    for (const x of lineUps(4, SCRIMMAGE)) {
+      // Make a receiver a second back.
+      const wr = x.cast.offense.find((m) => m.role === 'WR');
+      if (!wr || x.cast.offense.filter((m) => m.role === 'RB').length !== 1) continue;
+      const cast = { ...x.cast, offense: x.cast.offense.map((m) => (m === wr ? { ...m, role: 'RB' as const } : m)) };
+      const g = games.find(({ r }) => r.plays!.includes(x.e))!;
+      const spots = lineUp(
+        x.e,
+        cast,
+        g.r.field!.scheme[cast.offSide],
+        g.r.field!.scheme[1 - cast.offSide],
+        x.ballX,
+        x.ballY,
+        x.dir,
+        new Rng('two-backs'),
+      );
+      const backs = cast.offense.filter((m) => m.role === 'RB').map((m) => spots.get(m.id)!);
+      expect(Math.hypot(backs[0].x - backs[1].x, backs[0].y - backs[1].y)).toBeGreaterThanOrEqual(0.8);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
   it('lines the same play up the same way every time', () => {
     const [a, b] = [lineUps(2), lineUps(2)];
     expect(a.map((x) => [...x.spots])).toEqual(b.map((x) => [...x.spots]));

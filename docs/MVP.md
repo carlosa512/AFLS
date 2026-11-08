@@ -433,6 +433,9 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       his spot as the ball was snapped. **Fixed (0.4.17):** the moments before the snap read the line from the play
       (`StagedPlay.line`), not the ball's first frame, which the pocket's film starts in the passer's hands; the huddles,
       the crew's spots and the ball the umpire spots read it too.
+- [x] **Two backs on one spot.** A formation with two backs put both on the same spot (about one line-up in 1,600, on
+      every world tried). **Fixed (0.4.17):** the second back is the fullback in front of the tailback, or from the gun
+      the other side of the quarterback (`FIELD_VERSION` 15).
 - [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
       `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
