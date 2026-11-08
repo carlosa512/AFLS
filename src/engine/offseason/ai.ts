@@ -60,11 +60,14 @@ import {
   rosterLimit,
   ROSTER_MAX,
   signPlayer,
+  takesMinimum,
   willExtend,
   extensionBlocker,
   type Offer,
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
+import { personnelMoveLock } from '../personnel/elevations';
+import { capPlan, type PlannedKeeper } from './capPlan';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -166,7 +169,7 @@ export const spendable = (league: League, teamId: number) =>
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
  * run out: where its room is headed, so a signing has to beat that, not just this year's overall.
  */
-function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
+export function depthOutlooks(league: League, team: Team): Record<Position, number[]> {
   const out = Object.fromEntries(POSITIONS.map((p) => [p, [] as number[]])) as Record<Position, number[]>;
   const wn = winNow(league, team);
   for (const p of teamPlayers(league, team.id))
@@ -195,7 +198,7 @@ export const winNow = (league: League, team: Team) =>
   clamp(team.gm.winNow * 0.6 + contenderScore(league, team.id) * 0.4, 0, 1);
 
 /** 0 when a team is near the cap, 1 when it has a third of the cap or more to spend. Rich teams overpay. */
-const richness = (league: League, team: Team) =>
+export const richness = (league: League, team: Team) =>
   clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
 /** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
@@ -232,10 +235,128 @@ export function aiOffer(
  * The deal a club can fit when it can't fit his market price: one year at the room it has, no bonus, as the NFL's
  * late market signs a good veteran to a prove-it deal with whoever has room. Null below his minimum.
  */
-export function fitOffer(offer: Offer, budget: number, min: number): Offer | null {
+export function fitOffer(offer: Offer, budget: number, min: number, age = Infinity): Offer | null {
   if (budget < min) return null;
-  return { years: 1, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
+  const years = age <= 28 ? YOUNG_PROVE_IT_YEARS : 1;
+  return { years, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
 }
+
+/**
+ * Whether a multi-year deal leaves next year's room: next year's books, what its plan needs then (keepers whose deals
+ * end this year at market, the draft class: `nextYearNeeds`) and this deal's APY, within what this GM lets next year
+ * carry (`nextYearCeiling` of the cap). A club that spent next spring's keeper money on a free agent lost the keeper.
+ */
+export const fitsNextYear = (committedNext: number, needs: number, apy: number, ceiling: number): boolean =>
+  committedNext + needs + apy <= ceiling;
+
+/**
+ * How many of a club's keepers want to see what the market pays, however loyal the club: this × (1 − loyalty). The NFL
+ * keeps 36% of its good players whose deals end and 38% move (`docs/research/free-agency-market.md`); at 0.3 ours kept
+ * half and the outside market ran at half the NFL's (the owner's call, Nov 7: more players test free agency).
+ */
+export const TESTS_MARKET = 0.3;
+
+/**
+ * Years on a prove-it deal (fitted to a club's room, or funded on the last call) for a player 28 or younger. Two read
+ * the NFL's one-year share better, but a young man on two years under his market held out: `morale`'s contract
+ * disputes 12.9 a season and holdouts 5.6 against 3-12 and 0.5-5, at one year 7.9 and 3.4. A setting, the owner's to move.
+ */
+export const YOUNG_PROVE_IT_YEARS = 1;
+
+/** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
+export const CLEARING_DAY = 3;
+/** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`). */
+export const FUNDED_RESERVE_SHARE = 0.5;
+
+/**
+ * The least he takes once the market has shown its hand: the best offer made for him when it's at least half his
+ * walk-away (what clubs can pay is his market now), else his walk-away; never under his minimum. Values are what the
+ * offers are worth to him (`offerValue`).
+ */
+export const clearingFloor = (walkAway: number, bestFitted: number | null, minimum: number): number =>
+  Math.max(minimum, bestFitted !== null && bestFitted >= walkAway / 2 ? bestFitted : walkAway);
+
+/**
+ * Room a club can find on the last call for a clear upgrade at `position`: what it can spend, half its in-season
+ * reserve, and the pay of its weakest man there on a minimum deal whose release leaves no dead money (`cut`, released
+ * only if the player chooses this club). A minimum deal is never a bonus's: the cut costs nothing later.
+ */
+export function fundedRoom(
+  league: League,
+  team: Team,
+  position: Position,
+  reserveShare: number = FUNDED_RESERVE_SHARE,
+): { room: number; cut: Player | null } {
+  const roster = activeRoster(league, team.id);
+  const count = (pos: Position) => roster.filter((p) => p.position === pos).length;
+  const cuttable = roster
+    .filter((p) => p.contract?.kind === 'minimum' && !p.ir)
+    // Never a man the personnel rules lock (a release would throw) or one promised a deal (G4).
+    .filter((p) => !personnelMoveLock(league, p) && !promisedDeal(p))
+    .filter((p) => {
+      const pre = releasePreview(league, p);
+      return pre.thisYear + pre.nextYear === 0;
+    })
+    .sort((a, b) => playerOvr(a) - playerOvr(b) || a.id - b.id);
+  // His own spot first; with no minimum man there, one at a spot the club can spare (it keeps its keep-minimum): most
+  // clubs' minimum men sit elsewhere, and a camp of full rosters left young stars unplaced for want of one at his spot.
+  const cut =
+    cuttable.find((p) => p.position === position) ??
+    // Specialists swap only like for like: a club opens with one kicker and one punter.
+    (position === 'K' || position === 'P'
+      ? undefined
+      : cuttable.find(
+          (p) =>
+            p.position !== position &&
+            p.position !== 'K' &&
+            p.position !== 'P' &&
+            count(p.position) > KEEP_MIN[p.position],
+        )) ??
+    null;
+  // The squad's money comes after him: squads form from what's left, and run short on money anyway (spendable holds a
+  // whole squad of veterans back until they form, which left the camp's young stars unplaced).
+  const room =
+    spendable(league, team.id) +
+    squadReserve(league, team.id) +
+    reserveShare * inSeasonReserve(league, team.id) +
+    (cut ? capHit(cut.contract!, league.season) : 0);
+  return { room, cut };
+}
+
+/**
+ * What a swap gains: the man against the room without the one he replaces when that one plays his spot (a 13.5 backup
+ * passer is no gain to a full quarterback room, a clear one over its minimum third). Otherwise his gain as it stands.
+ */
+export function swapGain(
+  league: League,
+  team: Team,
+  depth: Record<Position, number[]>,
+  p: Player,
+  ahead: number,
+  cut: Player | null,
+): number {
+  if (!cut || cut.position !== p.position) return needGain(depth, p, ahead);
+  const mine = [...depth[p.position]];
+  const at = mine.indexOf(teamOutlook(league, team.id, cut, winNow(league, team)));
+  if (at >= 0) mine.splice(at, 1);
+  return needGain({ ...depth, [p.position]: mine }, p, ahead);
+}
+
+/**
+ * On the last call a free agent takes any deal from his minimum up: the floor is the pay (as `takesMinimum` reads it),
+ * not `offerValue`, whose knocks for a short, unguaranteed deal had a young man turn down two million over his minimum.
+ */
+export const lastCallTakes = (offer: Offer, minimum: number): boolean => offer.apy >= minimum;
+
+/**
+ * A young star by the owner's rule: 28 or younger, healthy, his market 5% of the cap or more. None may be left unsigned at
+ * kickoff; camp's last pass is for these men alone, and a club may break its whole in-season reserve for one.
+ */
+export const isYoungStar = (league: League, p: Player, market: number): boolean =>
+  !p.injury && p.age <= 28 && market >= 0.05 * league.caps[league.season];
+
+/** A banking club (`capPlan`'s rebuilder) buys only the young, or an upgrade that clears twice the bar its price sets. */
+export const bankBuys = (age: number, gain: number, bar: number): boolean => age <= 27 || gain >= 2 * bar;
 
 // ───────── re-sign window ─────────
 
@@ -331,6 +452,7 @@ export function applyFranchiseTag(league: League, player: Player): void {
     'tag',
     [team.id],
     `${team.abbrev} franchise-tagged ${player.position} ${player.firstName} ${player.lastName} ($${(value / 1000).toFixed(1)}M)`,
+    player.id,
   );
   logMove(league, team, 'tagsFirst', { playerId: player.id });
 }
@@ -536,26 +658,47 @@ function restructureRoom(league: League, team: Team, plan: RestructurePlan | num
 export function aiResignWindow(league: League, team: Team, rng: Rng): void {
   aiFifthYearOptions(league, team);
   const depth = depthOutlooks(league, team);
-  const wn = winNow(league, team);
   // What a re-sign may cost: what the team can spend, plus the minimum deal it keeps for his spot while it's open.
   const budget = () =>
     spendable(league, team.id) + (openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0);
-  for (const p of expiringPlayers(league, team.id)) {
-    const { call, ahead } = resignCall(league, team.id, p, depth, wn);
-    if (call === 'walk') continue;
-    const mine = depth[p.position];
-    const offer = aiOffer(league, team, p, rng, needGain(depth, p, ahead + quirkWorth(league, team.id, p)));
-    offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
+  // The plan (`capPlan.ts`): its keepers best first, each priced and judged worth it or not. A promised man (G4) is
+  // signed whatever the plan says. The room for those it signs is made once, in that order, before anyone signs.
+  const plan = capPlan(league, team, rng);
+  // Each keeper's own answer first, in the plan's order (a draw each, as before): a promised deal (G4) is met at his
+  // walk-away when it fits and he doesn't go to see what the market pays; anyone else may test it, or turn the price
+  // down. Room is then made only for those who'll sign: a veteran cut for a star who walks is dead money for nothing.
+  const answers = plan.keepers.map((k) => {
+    const p = k.player;
+    const offer = { ...k.offer };
     const d = demand(league, p, team.id);
-    // A promised deal (G4): the club meets his walk-away when it fits, and he doesn't go to see what the market pays
-    // (the draw is still made, so the window draws what it would have).
     const promised = promisedDeal(p);
     if (promised) {
       const apy = walkAwayApy(league, p, team.id, offer, d);
       if (offerCharge(league, p, team.id, { ...offer, apy }) <= budget()) offer.apy = apy;
     }
-    // Some players want to see what the market will pay, however loyal the club.
-    const testsMarket = rng.chance(0.3 * (1 - p.personality.loyalty)) && !promised;
+    const testsMarket = rng.chance(TESTS_MARKET * (1 - p.personality.loyalty)) && !promised;
+    const signs = (k.worth || promised) && !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
+    return { k, offer, d, promised, testsMarket, signs };
+  });
+  makeRoomFor(
+    league,
+    team,
+    answers
+      .filter((a) => a.signs)
+      .map((a) => ({ ...a.k, offer: a.offer, cost: offerCharge(league, a.k.player, team.id, a.offer) })),
+  );
+  for (const { k, offer, d, promised, testsMarket } of answers) {
+    const { player: p, call, ahead } = k;
+    const mine = depth[p.position];
+    // Not worth his price: the money goes to the market. A tag call still gets the tag's own test (`tryTag`: never past
+    // what the club would pay him, and only when keeping him clears the bar the tag's price sets).
+    if (!k.worth && !promised) {
+      if (call === 'tag' && tryTag(league, team, p, depth, ahead, offer, budget)) {
+        mine.push(ahead);
+        mine.sort((a, b) => b - a);
+      }
+      continue;
+    }
     // Tags first (GM habit): the tag comes before the signing for a player the call would tag. The offer is priced and
     // every draw made first, so the window draws what it would have; nothing is signed by pricing.
     if (call === 'tag' && habitOn(league, team, 'tagsFirst') && tryTag(league, team, p, depth, ahead, offer, budget)) {
@@ -606,6 +749,27 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     )
       aiSettle(league, team, p);
   aiCapCompliance(league, team);
+}
+
+/**
+ * Room for a window's keepers, made once and in their order (best first, `capPlan`): for each in turn, whatever his
+ * deal and those before him need past what the club can spend is made as `makeRoom` makes it (restructures, then a cut
+ * never better than him, all or nothing). One it can't fund is passed over and the next may still fit. Each signing
+ * fills a spot the fill reserve holds a minimum for, so that minimum comes back with him. Returns the room made.
+ */
+export function makeRoomFor(league: League, team: Team, keepers: readonly PlannedKeeper[]): number {
+  const back = openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0;
+  let owed = 0;
+  let made = 0;
+  for (const k of keepers) {
+    owed += Math.max(0, k.cost - back);
+    const short = owed - spendable(league, team.id);
+    if (short <= 0) continue;
+    const got = makeRoom(league, team, short, k.player, k.offer.years > 1 ? k.offer.apy : 0);
+    if (got >= short) made += got;
+    else owed -= Math.max(0, k.cost - back);
+  }
+  return made;
 }
 
 /**
@@ -786,7 +950,7 @@ export function youngQbClub(league: League, team: Team): Player | null {
 }
 
 /** The least upgrade (`needGain`) a team bids for at all: a rich one takes a flyer on depth. */
-const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
+export const minGainFor = (league: League, team: Team, rich = richness(league, team)) => 0.3 - rich * 0.2;
 
 /**
  * The upgrade a free agent at `apy` has to buy: a big contract is an investment, not a swap of
@@ -806,7 +970,7 @@ export const upgradeBar = (league: League, team: Team, apy: number, rich = richn
 export function aiFreeAgencyDay(
   league: League,
   rng: Rng,
-  opts: { includeUser?: boolean; rosterMax?: number; lastCall?: boolean } = {},
+  opts: { includeUser?: boolean; rosterMax?: number; lastCall?: boolean; starsOnly?: boolean } = {},
 ): number {
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
@@ -814,9 +978,39 @@ export function aiFreeAgencyDay(
   const room = new Map(
     teams.map((t) => [t.id, (opts.rosterMax ?? rosterLimit(league)) - activeRoster(league, t.id).length]),
   );
-  // Cap planning: big deals must also fit next year's books, not just this year's.
-  const nextCap = capFor(league, league.season + 1) * 0.92;
+  // Cap planning (`capPlan.ts`): big deals must also leave next year's keepers their room, and a banking club buys young.
+  const nextCap = capFor(league, league.season + 1);
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
+  // Each club's plan, built the first time a decision reads it (a big deal's next-year check, a banking club's bid):
+  // most clubs never need one in a pass, and building all 32 every pass was most of a late pass's time. In free agency a
+  // plan has no keepers, so it draws nothing: when it's built doesn't move the stream.
+  const plans = new Map<number, ReturnType<typeof capPlan>>();
+  const planOf = (team: Team) => {
+    let plan = plans.get(team.id);
+    if (!plan) plans.set(team.id, (plan = capPlan(league, team, rng)));
+    return plan;
+  };
+  // The last call's funded room, read once per club and spot until the club signs or cuts: reading it for every free
+  // agent at every club (a roster scan and a release price per minimum man) slowed every offseason, careers past its limit.
+  const funds = new Map<string, ReturnType<typeof fundedRoom>>();
+  const fundedFor = (team: Team, position: Position, share: number) => {
+    const key = `${team.id}:${position}:${share}`;
+    let f = funds.get(key);
+    if (!f) funds.set(key, (f = fundedRoom(league, team, position, share)));
+    return f;
+  };
+  // A big multi-year deal leaves next year's keepers their room (`fitsNextYear`), a fitted one as much as a market one.
+  const nextYearOk = (team: Team, o: Offer) =>
+    !(
+      o.years > 1 &&
+      o.apy > 0.03 * league.caps[league.season] &&
+      !fitsNextYear(
+        committedNext.get(team.id)!,
+        planOf(team).nextYear,
+        o.apy,
+        nextYearCeiling(team.gm, winNow(league, team)) * nextCap,
+      )
+    );
   const signedToday = new Map<number, number>();
   // Each club's room to spend, read once a pass and again when it signs: a club's cap is read off every player in the
   // league, and reading it for each bid was most of a free-agency day (70% of a careers league).
@@ -828,6 +1022,8 @@ export function aiFreeAgencyDay(
   const market = leagueMarket(league);
   const pool = freeAgents(league)
     .map((p) => ({ p, value: marketApy(market, p) }))
+    // Camp's last word for the owner's rule: young stars still unsigned, and no one else.
+    .filter(({ p, value }) => !opts.starsOnly || isYoungStar(league, p, value))
     .sort((a, b) => b.value - a.value);
   // Each front office bids on what its own scouts see; the player's price is still his real market.
   const read = viewCache(league);
@@ -841,12 +1037,23 @@ export function aiFreeAgencyDay(
   for (const { p } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
-    const bids: { team: Team; offer: Offer; value: number; plan?: RestructurePlan; bridging?: boolean }[] = [];
+    const bids: {
+      team: Team;
+      offer: Offer;
+      value: number;
+      plan?: RestructurePlan;
+      bridging?: boolean;
+      cut?: Player | null;
+    }[] = [];
+    // Offers a club wants to make but that fall short of his floor: what he's worth to the market today.
+    const fallback: { team: Team; offer: Offer; value: number }[] = [];
     const minimum = minSalary(p.experience, league.caps[league.season]);
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
     for (const team of teams) {
-      if ((room.get(team.id) ?? 0) <= 0 || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
+      // A full club still has the last call's swap: its weakest minimum man for a clear upgrade (`fundedRoom`).
+      const full = (room.get(team.id) ?? 0) <= 0;
+      if ((full && !opts.lastCall) || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
       const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
       const gm = aiGm(league, team);
@@ -856,10 +1063,42 @@ export function aiFreeAgencyDay(
       const gain =
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
-      if (gain < minGain.get(team.id)! * bar) continue;
-      let offer = aiOffer(league, team, p, rng, gain, rich.get(team.id));
+      // The last call's swap: the clear upgrade is read against the room without the man he'd replace (`swapGain`).
+      // A swap's gain is read only where it can decide something: on the last call, for a clear upgrade his own gain
+      // doesn't already make (`swapGain` against the room without the man he'd replace).
+      const clear = 2 * minGain.get(team.id)!;
+      // Only the stars-only pass breaks a whole reserve: every pass breaking it for every young star took the league's
+      // kickoff room under its floor.
+      const share = opts.starsOnly ? 1 : FUNDED_RESERVE_SHARE;
+      const swap =
+        opts.lastCall && gain < clear
+          ? swapGain(
+              league,
+              team,
+              depth.get(team.id)!,
+              p,
+              ahead + quirkWorth(league, team.id, p),
+              fundedFor(team, p.position, share).cut,
+            )
+          : gain;
+      const lift = Math.max(gain, swap);
+      if (gain < minGain.get(team.id)! * bar && !(full && lift >= clear)) continue;
+      let offer = aiOffer(league, team, p, rng, lift, rich.get(team.id));
+      if (full) {
+        if (lift < clear) continue;
+        const funded = fundedFor(team, p.position, share);
+        const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
+        if (deal && lastCallTakes(deal, minimum))
+          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
+        continue;
+      }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
+      if (
+        planOf(team).stance === 'bank' &&
+        !bankBuys(p.age, gain, upgradeBar(league, team, offer.apy, rich.get(team.id)))
+      )
+        continue;
       // Year-one charge must fit; bonus spreads, so the hit is below the APY for bigger deals.
       const yearOne =
         offer.apy * (1 - offer.bonusPct) +
@@ -887,25 +1126,35 @@ export function aiFreeAgencyDay(
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
-        const fitted = fitOffer(offer, budget.get(team.id)!, minimum);
-        if (
-          !fitted ||
-          gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar ||
-          offerValue(league, p, team.id, fitted) < floorAt(team.id)
-        )
+        const fitted = fitOffer(offer, budget.get(team.id)!, minimum, p.age);
+        // A young man's fitted deal is a prove-it deal at the room a club has (no bonus, two years): it skips next
+        // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
+        const young = p.age <= 28;
+        if (fitted && !young && !nextYearOk(team, fitted)) continue;
+        if (!fitted && opts.lastCall && lift >= clear) {
+          // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
+          // weakest minimum man at his spot (a minimum deal leaves no dead money).
+          // A funded signing is a prove-it deal (`fitOffer`), and he takes it from his minimum up (`lastCallTakes`).
+          const funded = fundedFor(team, p.position, share);
+          const deal = fitOffer(offer, funded.room, minimum, p.age);
+          if (deal && lastCallTakes(deal, minimum))
+            bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
           continue;
+        }
+        if (!fitted || gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar) continue;
+        const value = offerValue(league, p, team.id, fitted);
+        if (value < floorAt(team.id)) {
+          fallback.push({ team, offer: fitted, value });
+          continue;
+        }
         offer = fitted;
       }
-      if (
-        offer.years > 1 &&
-        offer.apy > 0.03 * league.caps[league.season] &&
-        committedNext.get(team.id)! + offer.apy > nextCap
-      )
+      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !nextYearOk(team, offer))
         continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
     }
     // He takes the best offer that beats what he'd walk away from; a club that borrows makes its room only now.
-    const best = bids
+    let best = bids
       .filter((b) => b.value >= floorAt(b.team.id))
       .sort((a, b) => b.value - a.value)
       .find((b) => {
@@ -914,7 +1163,27 @@ export function aiFreeAgencyDay(
         rooms.delete(b.team.id);
         return true;
       });
+    // Nobody pays his floor: from day 3 (and in the late passes) the best offer made for him is his market, when it's
+    // at least half what he'd walk away from. Sights by the offers clubs can make, not the calendar alone.
+    const clearing =
+      league.phase === 'freeAgency'
+        ? league.faDay >= CLEARING_DAY
+        : league.phase === 'draft' || league.phase === 'preseason';
+    if (!best && clearing && fallback.length) {
+      const top = fallback.sort((a, b) => b.value - a.value || a.team.id - b.team.id)[0];
+      if (top.value >= clearingFloor(floorAt(top.team.id), top.value, minimum)) best = top;
+    }
     if (!best) continue;
+    // A funded signing releases the man who paid for it first (his spot is the new man's).
+    if (best.cut) {
+      releasePlayer(league, best.cut);
+      // A fringe man let go for a better one joins the squad castoffs: unsigned by the end of camp, he may leave
+      // football (`retireCastoffs`), or every swap leaves one more free agent the pool never loses.
+      if (league.personnel?.enabled) {
+        const f = (league.personnel.futures ??= { season: league.season, kept: {} });
+        (f.released ??= []).push(best.cut.id);
+      }
+    }
     const before = capSpace(league, best.team.id);
     // Read before he signs: the new arrival can be the roster's best quarterback, no longer a young one.
     const bridgeYoung =
@@ -928,7 +1197,9 @@ export function aiFreeAgencyDay(
     if (bridgeYoung) logMove(league, best.team, 'bridgeQb', { playerId: bridgeYoung.id });
     if (signer && draftedBy(signer, p)) logMove(league, best.team, 'hisGuys', { playerId: p.id });
     budget.set(best.team.id, budget.get(best.team.id)! - (before - capSpace(league, best.team.id)));
-    room.set(best.team.id, room.get(best.team.id)! - 1);
+    if (!best.cut) room.set(best.team.id, room.get(best.team.id)! - 1);
+    // Its room and roster moved: its funded reads are read again when next needed.
+    for (const key of [...funds.keys()]) if (key.startsWith(`${best.team.id}:`)) funds.delete(key);
     // Next year's books as they stand now: his deal and any restructure made for it.
     committedNext.set(best.team.id, capSheet(league, best.team.id, league.season + 1).used);
     rich.set(best.team.id, richness(league, best.team));
@@ -1029,15 +1300,6 @@ const minimumOffer = (league: League, player: Player): Offer => ({
   gtdPct: 0,
   voidYears: 0,
 });
-
-/**
- * Whether `player` would sign a one-year minimum with `teamId` today: only when the least he'll take is the
- * minimum. A player the market still values above it waits for a real deal (a star unsigned in free agency
- * doesn't come cheap in camp). The floor itself is the test, not `offerValue`: its knocks for a short,
- * unguaranteed deal would have a minimum-salary veteran turn down the only deal there is.
- */
-const takesMinimum = (league: League, player: Player, teamId: number): boolean =>
-  demand(league, player, teamId).walkAway <= minimumOffer(league, player).apy;
 
 /**
  * Whether `signMinimum` at `position` can sign someone within `budget`: a healthy free agent whose minimum

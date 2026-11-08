@@ -380,7 +380,10 @@ const third = Math.floor(byEthic.length / 3);
 const ethicGap = mean(byEthic.slice(-third).map((s) => s.shift)) - mean(byEthic.slice(0, third).map((s) => s.shift));
 const shrinking = swing(0) > swing(1) && swing(1) > swing(2) ? 1 : 0;
 console.log(
-  `draft: ${check('first-round busts (never a high-end starter) %', rate(firsts, false), 25, 40, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
+  // First-round busts to 45% (the owner's call, Nov 8): the bar is relative, a high-end starter's overall, and once good
+  // free agents stopped sitting unsigned (0.4.13) starters read 0.15-0.2 better all league long (main 37.3%, 41.2-41.8%
+  // after); NFL first-round bust rates are commonly put at 40-50% by definitions like this one.
+  `draft: ${check('first-round busts (never a high-end starter) %', rate(firsts, false), 25, 45, 1)} (${firsts.length} picks) · ${check('Day 3 solid starters %', rate(day3, true), 8, 20, 1)} (${day3.length} picks)`,
 );
 console.log(
   `  ceilings: mean |shift| by year ${[0, 1, 2].map((y) => swing(y).toFixed(2)).join(' / ')} · ${check('swing shrinks year by year', shrinking, 1, 1, 0)} · ${check(`work ethic top vs bottom third, mean shift (${SEEDS.length + ETHIC_SEEDS.length} leagues)`, ethicGap, 0.1, 0.6)}`,

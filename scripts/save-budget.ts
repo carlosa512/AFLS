@@ -80,6 +80,10 @@ export const SAVE_FEATURE_ALLOWANCES = {
   // players (+25, 49 more retirees kept) while the stored meeting data shrank (settled promises for your club only).
   // Retained seasons +40 (23 over, rounded up, plus 10). Agreed by the owner (Nov 3).
   meetings: { firstSeason: 150, retainedSeasons: 100, games: 0, annualGrowth: 0, playersGrowth: 0 },
+  // Transactions name their player (v90, `Transaction.playerId`) for signings, re-signings and tags: measured on a
+  // personnel league after two seasons, 509 of the 3,000 kept entries carry one, 7.7 KB. Rounded up to 10, plus 10
+  // (the owner, Nov 7: the save gets the room it needs).
+  transactionPlayerIds: { firstSeason: 10, retainedSeasons: 20, games: 0, annualGrowth: 0, playersGrowth: 0 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(

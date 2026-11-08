@@ -614,10 +614,14 @@ check(`Trade requests a season (${SEASONS} seasons)`, requests / SEASONS, [3, 15
 // The ceiling is 0.95, not 0.9 (the owner's call, Nov 3): a run sees 30-60 requests, and main read 0.82, 0.89 and 0.95
 // across three worlds. With L3's voices lifting a room's sour men, the requests left are the stubborn ones, which leak
 // (0.90 on the check's world).
+// Swings with the league (the owner's call, Nov 8): with 30-60 requests one moves it 2-3 points, and the front-office
+// work read it 0.89, 0.95, 0.95 and 0.98 run to run (main 0.92). ⚠ outside 0.4-0.95, fails outside 0.3-1.
 check(
   `Trade requests gone public (n=${requestKeys.size})`,
   requestPublic.size / Math.max(1, requestKeys.size),
   [0.4, 0.95],
+  2,
+  [0.3, 1],
 );
 const resolved = [...requestEnds.values()];
 // The floor is 0.15, not 0.25 (the owner's call, Nov 3): a run sees 15-37 requests end, so one or two deals swing it,

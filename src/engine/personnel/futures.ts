@@ -1,3 +1,4 @@
+import { takesMinimum } from '../offseason/negotiation';
 import { activeRoster, practiceSquad } from '../roster';
 import { perceive } from '../scouting';
 import { Rng } from '../rng';
@@ -28,10 +29,13 @@ function backupBar(league: League, teamId: number, pos: Player['position']): num
   return last === undefined ? 0 : perceive(league, teamId, league.players[last]).ovr;
 }
 
-/** Who the club's scouts would keep: estimated ceiling at least its backup level there, best first, at most ten. */
+/**
+ * Who the club's scouts would keep: estimated ceiling at least its backup level there, best first, at most ten. Only
+ * a man who'd sign a minimum: one the market values above it tests free agency.
+ */
 export function futuresPicks(league: League, teamId: number): number[] {
   return practiceSquad(league, teamId)
-    .filter((p) => p.squad?.kind === 'practiceSquad')
+    .filter((p) => p.squad?.kind === 'practiceSquad' && takesMinimum(league, p, teamId))
     .map((p) => ({ p, pot: perceive(league, teamId, p).potMid }))
     .filter(({ p, pot }) => pot >= backupBar(league, teamId, p.position))
     .sort((a, b) => b.pot - a.pot || a.p.id - b.p.id)
@@ -47,7 +51,9 @@ function state(league: League, season: number) {
 /** Explicit choices if the club made any; otherwise its staff's picks (none for you when you run the squad). */
 function keptFor(league: League, teamId: number, season: number): number[] {
   const marks = state(league, season)?.kept[teamId];
-  if (marks) return marks.filter((id) => onSquad(league, teamId, id));
+  // A mark doesn't bind him: one the market now values above the minimum tests free agency.
+  if (marks)
+    return marks.filter((id) => onSquad(league, teamId, id) && takesMinimum(league, league.players[id], teamId));
   if (teamId === league.userTeamId && league.teams[teamId].autoSquad === false) return [];
   return futuresPicks(league, teamId);
 }
@@ -57,6 +63,8 @@ export const futuresKept = (league: League, teamId: number): number[] => keptFor
 export function setFuturesKeep(league: League, teamId: number, playerId: number, on: boolean): void {
   if (!futuresWindowOpen(league, teamId)) throw new Error('Futures deals open when your season is over.');
   if (!onSquad(league, teamId, playerId)) throw new Error('Only your own practice squad players can be kept.');
+  if (on && !takesMinimum(league, league.players[playerId], teamId))
+    throw new Error('He wants an NFL contract, not a futures deal at the minimum.');
   const current = keptFor(league, teamId, league.season).filter((id) => id !== playerId);
   if (on && current.length >= MAX_FUTURES) throw new Error('At most ten players can be kept on futures deals.');
   if (league.personnel!.futures?.season !== league.season)

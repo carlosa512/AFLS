@@ -5,7 +5,30 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
-import { aiFreeAgencyDay, fitOffer, spendable } from './ai';
+import {
+  aiFreeAgencyDay,
+  bankBuys,
+  CLEARING_DAY,
+  clearingFloor,
+  fitOffer,
+  fitsNextYear,
+  fundedRoom,
+  inSeasonReserve,
+  spendable,
+  YOUNG_PROVE_IT_YEARS,
+  KEEP_MIN,
+  depthOutlooks,
+  lastCallTakes,
+  needGain,
+  swapGain,
+  winNow,
+} from './ai';
+import { teamOutlook } from '../outlook';
+import { capHit as hitOf } from '../finance/contract';
+import { capSheet, releasePreview } from '../finance/cap';
+import { leagueMarket, marketApy, minSalary } from '../finance/market';
+import { setTeam } from '../roster';
+import { squadReserve } from '../personnel/squads';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { demand, freeAgents, OFFSEASON_ROSTER_MAX, offerValue } from './negotiation';
 import { activeRoster } from '../roster';
@@ -48,12 +71,14 @@ describe('the late market: a club offers what it can fit', () => {
     // which one it is depends on the world a season of play leaves).
     const pick = (l: League) =>
       freeAgents(l)
-        .filter((p) => !p.injury && p.age <= 29)
+        // A veteran past 28: his fitted deal is the one-year prove-it deal (a young man's runs two, `fitOffer`).
+        .filter((p) => !p.injury && p.age >= 29 && p.age <= 31)
         .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id)
         .find((p) => l.teams.some((t) => t.id !== l.userTeamId && testable(l, p, t.id)))!;
-    const setUp = (clubId: number, room: (floor: number, market: number) => number) => {
+    const setUp = (clubId: number, room: (floor: number, market: number) => number, day = FA_DAYS) => {
       const l: League = JSON.parse(lastDay);
       const p = pick(l);
+      l.faDay = day; // after the pick: his walk-away eases with the day
       // He's the only one left on the market, so the club's room is his (a club spends it on the best it wants first).
       for (const q of freeAgents(l)) if (q.id !== p.id) q.retired = true;
       for (const t of l.teams) {
@@ -81,12 +106,17 @@ describe('the late market: a club offers what it can fit', () => {
       if (got.teamId !== t.id) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
-      // Room short of his walk-away: never a deal below it.
-      const short = setUp(t.id, (floor) => floor * 0.8);
+      // Room short of his walk-away before day 3: never a deal below it.
+      const short = setUp(t.id, (floor) => floor * 0.8, CLEARING_DAY - 1);
       if (short.teamId !== null) {
         const l2: League = JSON.parse(lastDay);
         expect(capHit(short.contract!, l2.season)).toBeGreaterThanOrEqual(0.9 * demand(l2, pick(l2), t.id).walkAway);
       }
+      // From day 3 the market has shown its hand: the best offer made for him, at least half his walk-away, signs him.
+      const cleared = setUp(t.id, (floor) => floor * 0.7, CLEARING_DAY);
+      expect(cleared.teamId).toBe(t.id);
+      // Far under half, still nothing.
+      expect(setUp(t.id, (floor) => floor * 0.3, CLEARING_DAY).teamId).toBeNull();
       break;
     }
     expect(signed).toBe(true);
@@ -133,5 +163,214 @@ describe('the late market runs past day 5', () => {
       (p) => !before.includes(p.id) && !(p.draft && p.draft.season === l.season),
     );
     expect(added.map((p) => p.id).filter((id) => !drafted.has(id))).toEqual([]);
+  }, 120_000);
+});
+
+describe('spending discipline', () => {
+  const offer = { years: 4, apy: 9_000, bonusPct: 0.3, gtdPct: 0.5, voidYears: 1 };
+
+  it('a fitted offer to a 26-year-old runs the young prove-it years; to a 31-year-old one', () => {
+    expect(fitOffer(offer, 5_200.7, 1_100, 26)).toEqual({
+      years: YOUNG_PROVE_IT_YEARS,
+      apy: 5_200,
+      bonusPct: 0,
+      gtdPct: 0.5,
+      voidYears: 0,
+    });
+    expect(fitOffer(offer, 5_200.7, 1_100, 31)!.years).toBe(1);
+  });
+
+  it('a multi-year bid that eats next year’s keepers’ room is refused', () => {
+    // Next year's books, its keepers and the draft, and the new deal, within what this GM lets next year carry.
+    expect(fitsNextYear(250_000, 30_000, 20_000, 310_000)).toBe(true);
+    expect(fitsNextYear(250_000, 50_000, 20_000, 310_000)).toBe(false);
+  });
+
+  it('a bank club passes on a 30-year-old marginal upgrade but signs a 25-year-old', () => {
+    expect(bankBuys(30, 1.2, 1)).toBe(false);
+    expect(bankBuys(25, 1.2, 1)).toBe(true);
+    expect(bankBuys(30, 2.5, 1)).toBe(true); // a big upgrade, whatever his age
+  });
+});
+
+describe('the market clears', () => {
+  it('clearingFloor: best fitted at least half → that; below half → his walk-away; never under the minimum', () => {
+    expect(clearingFloor(10_000, 6_000, 1_000)).toBe(6_000);
+    expect(clearingFloor(10_000, 4_000, 1_000)).toBe(10_000);
+    expect(clearingFloor(10_000, null, 1_000)).toBe(10_000);
+    expect(clearingFloor(1_500, 800, 1_000)).toBe(1_000);
+  });
+
+  /** Camp opens: a young star nobody had room for, every AI club with no room at all but one with none past its reserves. */
+  const lastCall = () => {
+    const l: League = JSON.parse(lastDay);
+    l.phase = 'preseason';
+    const market = leagueMarket(l);
+    const star = Object.values(l.players)
+      .filter((p) => p.teamId !== null && p.teamId !== l.userTeamId && p.contract && !p.injury && p.age <= 26)
+      .sort((a, b) => marketApy(market, b) - marketApy(market, a))[0];
+    setTeam(l, star, null);
+    star.contract = null;
+    for (const q of freeAgents(l)) if (q.id !== star.id) q.retired = true;
+    return { l, star };
+  };
+
+  it('on the last call a young star signs with a needy club that cuts its weakest minimum man', () => {
+    const { l, star } = lastCall();
+    const club = l.teams.find((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut)!;
+    for (const t of l.teams) {
+      if (t.id === l.userTeamId) continue;
+      const want = t.id === club.id ? 0 : -100_000;
+      t.deadMoney.push({ season: l.season, amount: Math.round(spendable(l, t.id) - want), playerId: -1, note: 'test' });
+    }
+    const cut = fundedRoom(l, club, star.position).cut!;
+    const dead = capSheet(l, club.id, l.season).dead;
+    aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+    expect(l.players[star.id].teamId).toBe(club.id);
+    // A funded signing is a prove-it deal: two years for a man 28 or younger (the owner, Nov 8), one for a veteran.
+    expect(l.players[star.id].contract!.length).toBe(l.players[star.id].age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
+    expect(l.players[cut.id].teamId).toBeNull();
+    expect(capSheet(l, club.id, l.season).dead).toBe(dead);
+  }, 120_000);
+
+  it('in camp a full club swaps its weakest minimum man for a young star, its roster the same size', () => {
+    const { l, star } = lastCall();
+    const sizes = new Map(l.teams.map((t) => [t.id, activeRoster(l, t.id).length]));
+    // Every club full: only a swap can place him.
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    const club = l.players[star.id].teamId;
+    expect(club).not.toBeNull();
+    expect(activeRoster(l, club!).length).toBe(sizes.get(club!));
+  }, 120_000);
+
+  it('a swap judges him against the room without the man he replaces: a full QB room still takes a young passer', () => {
+    const l: League = JSON.parse(lastDay);
+    l.phase = 'preseason';
+    const market = leagueMarket(l);
+    // The best young quarterback on an AI club, cut: every club's QB room is full, so only a swap can place him.
+    const qb = Object.values(l.players)
+      .filter((p) => p.position === 'QB' && p.teamId !== null && p.teamId !== l.userTeamId && p.contract && p.age <= 28)
+      .filter((p) => !p.injury && marketApy(market, p) >= 0.05 * l.caps[l.season])
+      // The weakest priced as elite: a backup's game at a starter's price (the case a full room passed on).
+      .sort((a, b) => marketApy(market, a) - marketApy(market, b))[0];
+    setTeam(l, qb, null);
+    qb.contract = null;
+    for (const q of freeAgents(l)) if (q.id !== qb.id) q.retired = true;
+    aiFreeAgencyDay(l, new Rng('qb-swap'), { rosterMax: 0, lastCall: true });
+    expect(l.players[qb.id].teamId).not.toBeNull();
+  }, 120_000);
+
+  it('with no minimum man at his spot, a swap cuts one at a spot it can spare, never below its keep-minimum', () => {
+    const { l } = lastCall();
+    let seen = 0;
+    for (const t of l.teams) {
+      for (const pos of ['QB', 'WR', 'OL', 'CB', 'EDGE', 'TE', 'S'] as const) {
+        const atSpot = activeRoster(l, t.id).some((p) => p.position === pos && p.contract?.kind === 'minimum');
+        const { cut } = fundedRoom(l, t, pos);
+        if (atSpot || !cut) continue;
+        seen++;
+        expect(cut.contract!.kind).toBe('minimum');
+        const left = activeRoster(l, t.id).filter((p) => p.position === cut.position).length - 1;
+        expect(left).toBeGreaterThanOrEqual(KEEP_MIN[cut.position]);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('swapGain: a backup passer is judged against the room without the minimum man he replaces', () => {
+    const { l } = lastCall();
+    let seen = 0;
+    for (const t of l.teams) {
+      const { cut } = fundedRoom(l, t, 'QB');
+      if (!cut || cut.position !== 'QB') continue;
+      const depth = depthOutlooks(l, t);
+      const wn = winNow(l, t);
+      // A passer a point better than the man he'd replace: no gain to a full room, a real one in a swap.
+      const ahead = teamOutlook(l, t.id, cut, wn) + 1;
+      const fake = { ...cut, id: -1 };
+      if (needGain(depth, fake, ahead) > 0) continue;
+      seen++;
+      expect(swapGain(l, t, depth, fake, ahead, cut)).toBeGreaterThan(0);
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('on the last call a free agent takes any deal at his minimum or above (the floor is the pay, not its knocks)', () => {
+    const offer = { years: 1, apy: 2_000, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    expect(lastCallTakes(offer, 2_000)).toBe(true);
+    expect(lastCallTakes(offer, 2_001)).toBe(false);
+  });
+
+  it('never cuts a man promised a deal or one the personnel rules lock', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 10)) {
+      const first = fundedRoom(l, t, 'WR').cut;
+      if (!first) continue;
+      first.morale = { ...(first.morale ?? ({} as never)), talk: { club: t.id, promise: { kind: 'deal', made: 0 } } };
+      expect(fundedRoom(l, t, 'WR').cut?.id).not.toBe(first.id);
+    }
+  });
+
+  it('a man cut in a swap joins the castoffs: unsigned by the end of camp, he may leave football', () => {
+    const { l, star } = lastCall();
+    l.personnel = { ...(l.personnel ?? ({} as never)), enabled: true };
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    const club = l.players[star.id].teamId!;
+    const cut = l.transactions.filter((t) => t.kind === 'release' && t.teamIds.includes(club)).at(-1);
+    expect(cut).toBeDefined();
+    const released = l.personnel!.futures?.released ?? [];
+    expect(released.some((id) => cut!.text.includes(`${l.players[id].firstName} ${l.players[id].lastName}`))).toBe(
+      true,
+    );
+  }, 120_000);
+
+  it('no funding from a cut that would leave dead money', () => {
+    const { l } = lastCall();
+    for (const t of l.teams)
+      for (const pos of ['QB', 'WR', 'OL', 'CB', 'EDGE'] as const) {
+        const { cut } = fundedRoom(l, t, pos);
+        if (!cut) continue;
+        expect(cut.contract!.kind).toBe('minimum');
+        expect(releasePreview(l, cut).thisYear + releasePreview(l, cut).nextYear).toBe(0);
+      }
+  });
+
+  it('only the stars-only pass breaks a whole reserve, and it looks only at young stars', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 8)) {
+      const half = fundedRoom(l, t, 'WR');
+      const all = fundedRoom(l, t, 'WR', 1);
+      expect(all.room - half.room).toBeCloseTo(0.5 * inSeasonReserve(l, t.id));
+    }
+    // A pass for young stars only: a veteran a normal last call would place is left alone.
+    const market = leagueMarket(l);
+    const old = Object.values(l.players)
+      .filter((p) => p.teamId !== null && p.teamId !== l.userTeamId && p.age >= 31 && p.contract && !p.injury)
+      .sort((x, y) => marketApy(market, y) - marketApy(market, x))[0];
+    setTeam(l, old, null);
+    old.contract = null;
+    const normal: League = JSON.parse(JSON.stringify(l));
+    aiFreeAgencyDay(normal, new Rng('stars'), { rosterMax: 0, lastCall: true });
+    expect(normal.players[old.id].teamId).not.toBeNull();
+    aiFreeAgencyDay(l, new Rng('stars'), { rosterMax: 0, lastCall: true, starsOnly: true });
+    expect(l.players[old.id].teamId).toBeNull();
+  }, 120_000);
+
+  it('funding draws at most half the in-season reserve', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 8)) {
+      const f = fundedRoom(l, t, 'WR');
+      const cutPay = f.cut ? hitOf(f.cut.contract!, l.season) : 0;
+      // A young star comes before the squad's money: its reserve is his too (`squadReserve`).
+      expect(f.room).toBeCloseTo(spendable(l, t.id) + squadReserve(l, t.id) + 0.5 * inSeasonReserve(l, t.id) + cutPay);
+      expect(f.cut === null || hitOf(f.cut.contract!, l.season) <= minSalary(30, l.caps[l.season])).toBe(true);
+    }
+  });
+
+  it('never cuts or signs for your club on the last call', () => {
+    const { l } = lastCall();
+    const mine = activeRoster(l, l.userTeamId).map((p) => p.id);
+    aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+    expect(activeRoster(l, l.userTeamId).map((p) => p.id)).toEqual(mine);
   }, 120_000);
 });

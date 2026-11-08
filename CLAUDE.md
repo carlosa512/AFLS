@@ -103,7 +103,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
-  should stay stable across seasons. Three more leagues play in child processes for the cap-space drift
+  should stay stable across seasons, and the free-agency market against the NFL's (who stays, who moves, good outside signings, one-year deals, no young star unsigned at kickoff; `scripts/free-agency-core.ts`, `docs/research/free-agency-market.md`). Three more leagues play in child processes for the cap-space drift
   check (one league's 32 teams are too few); `--seed x` plays another world.
 - `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
   gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
