@@ -278,10 +278,13 @@ does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a sepa
 
 ## Follow-up: what the speed pass left (0.2.41)
 
-- [ ] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
+- [x] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
       for each free agent are worked out again on every free-agency day and both late passes (7–9 times an
       offseason), though most don't change between days: 10–15% of a multi-season league. A club's win-now lean does
       change as it signs, so a cache must key on what each read uses, proven by an unchanged league fingerprint.
+      **Done (0.4.15):** each club's read is kept across the passes, stamped with what it uses (`offseason/faReads.ts`),
+      the win-now lean laid on fresh; an offseason plays byte for byte as before, and four seasons run 69 s → 63 s (free
+      agency 17 s → 11 s).
 - Considered and left (the owner's call): slimming retired players further. Retirement already drops what only a
   developing player needs; traits, personality and combine stay for the card (about 13% of a save at season 6).
 
