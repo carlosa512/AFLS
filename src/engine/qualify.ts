@@ -67,13 +67,39 @@ export function teamGames(league: League, player: Player, season: number): numbe
   return scheduled ? n : SEASON_GAMES;
 }
 
-/** Whether `line` has done enough for `rate` to count in `scope` (a season, or the career). */
-export function qualifies(league: League, player: Player, line: StatLine, scope: StatScope, rate: Rate): boolean {
+/**
+ * Whether `line` has done enough for `rate` to count in `scope` (a season, or the career). `fullSeason` measures a
+ * season against all of its games, played or not: the all-time Records, where a season under way would otherwise let a
+ * one-game line stand beside whole seasons.
+ */
+export function qualifies(
+  league: League,
+  player: Player,
+  line: StatLine,
+  scope: StatScope,
+  rate: Rate,
+  opts: { fullSeason?: boolean } = {},
+): boolean {
   const volume = rate.volume(line);
   if (volume <= 0) return false;
   if (scope === 'career') return volume >= rate.career && (line.gp ?? 0) >= CAREER_GAMES;
-  return volume >= rate.perGame * teamGames(league, player, scope);
+  return volume >= rate.perGame * (opts.fullSeason ? SEASON_GAMES : teamGames(league, player, scope));
 }
+
+/**
+ * How far toward a season's minimum `line` has come, 0…1: where a rate weighs in a score (the awards' quarterback term)
+ * rather than ranks, it counts in step with the volume, so one more attempt never swings it.
+ */
+export function minimumShare(league: League, player: Player, line: StatLine, season: number, rate: Rate): number {
+  return shareOf(rate.volume(line), rate.perGame * teamGames(league, player, season));
+}
+
+/** The same over a stretch of games he played. */
+export function periodShare(line: StatLine, games: number, rate: Rate): number {
+  return shareOf(rate.volume(line), rate.perGame * games);
+}
+
+const shareOf = (volume: number, needed: number) => (volume <= 0 ? 0 : needed <= 0 ? 1 : Math.min(1, volume / needed));
 
 /** A stretch of games (a week's or a month's honors): the per-game minimum for each game he played in it. */
 export function periodQualifies(line: StatLine, games: number, rate: Rate): boolean {

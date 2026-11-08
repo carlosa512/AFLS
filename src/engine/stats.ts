@@ -119,7 +119,9 @@ export function seasonRecords(league: League, category: LeaderCategory, limit = 
   const rows: RecordRow[] = [];
   for (const player of Object.values(league.players)) {
     for (const [season, line] of Object.entries(player.stats)) {
-      if (category.rate && !qualifies(league, player, line, Number(season), RATES[category.rate])) continue;
+      // Against a whole season, the one under way too: the all-time best are whole seasons.
+      if (category.rate && !qualifies(league, player, line, Number(season), RATES[category.rate], { fullSeason: true }))
+        continue;
       const value = category.stat(line);
       if (value > 0) rows.push({ player, value, line, season: Number(season) });
     }

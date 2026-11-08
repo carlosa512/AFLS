@@ -103,3 +103,16 @@ describe('rate boards (0.4.16)', () => {
     expect(ids).toEqual([starter.id, backup.id].sort((a, b) => a - b));
   });
 });
+
+describe('records in the first weeks (0.4.16 review)', () => {
+  it("measures the season under way against a full one: a one-game line isn't an all-time record", () => {
+    const l = createLeague({ seed: 'rate-records' });
+    for (const g of l.games) if (!g.playoffRound && g.season === l.season && g.week === 1) g.result = {} as GameResult;
+    for (const p of Object.values(l.players)) p.stats = {};
+    const [deep, oneGame] = Object.values(l.players).filter((p) => p.position === 'WR' && p.teamId !== null);
+    deep.stats[l.season - 3] = { gp: 17, rec: 60, recYds: 960 };
+    oneGame.stats[l.season] = { gp: 1, rec: 2, recYds: 82 };
+    const rows = seasonRecords(l, LEADER_CATEGORIES.find((c) => c.key === 'ypr')!);
+    expect(rows.map((r) => r.player.id)).toEqual([deep.id]);
+  });
+});
