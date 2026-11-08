@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.17',
+    date: '2026-11-08',
+    title: 'Every concussion gets a letter',
+    text:
+      "A concussion that clears the protocol in the week it happened now gets the team doctor's letter: he was " +
+      "concussed, he's cleared, and a second one is likelier in his first couple of weeks back. Before, these slipped " +
+      'by without a word, so a player could reach his third concussion with no warning in the inbox.',
+  },
+  {
     version: '0.4.16',
     date: '2026-11-08',
     title: 'Leaders who played enough',
