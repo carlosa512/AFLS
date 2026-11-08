@@ -3,6 +3,7 @@
  * Only box-score stats and standings go in, never ratings, so an award is something the user could
  * have argued for from the stat sheet. The seeded Rng only breaks exact ties.
  */
+import { periodQualifies, qualifies, RATES, type RateKey } from './qualify';
 import { Rng } from './rng';
 import { regularSeasonGames } from './season/standings';
 import { addStats, passerRating } from './stats';
@@ -95,17 +96,28 @@ export function defenseScore(s: StatLine): number {
   );
 }
 
-/** A quarterback's efficiency on top of his volume: voters reward a 110 rating over a 85 one. */
-const qbBonus = (s: StatLine) => ((v(s, 'passAtt') >= 200 ? passerRating(s) : 80) - 92) * 1.2;
+/**
+ * A quarterback's efficiency on top of his volume: voters reward a 110 rating over a 85 one. Only a rating he's thrown
+ * enough to earn counts (`qualify.ts`); short of it, the term is neutral (92, its own zero), so one attempt never swings it.
+ */
+export const qbBonus = (s: StatLine, rated: boolean) => ((rated ? passerRating(s) : 92) - 92) * 1.2;
+
+/** The season's quarterback term: his rating counts once he's thrown 14 a team game. */
+export const qbTerm = (league: League, player: Player, line: StatLine, season: number) =>
+  qbBonus(line, qualifies(league, player, line, season, RATES.passing));
+
+/** A week's or a month's quarterback term: 14 attempts a game he played in it. */
+export const periodQbTerm = (line: StatLine, games: number) =>
+  qbBonus(line, periodQualifies(line, games, RATES.passing));
 
 /** A defender's score on the offense's scale, so a comeback can be judged across the ball. */
 const DEFENSE_SCALE = 2.4;
 
 /** One position's case for the All-League team. Linemen have no stats: their team's line does (see `lineScores`). */
-function positionScore(pos: Position, s: StatLine): number {
+export function positionScore(pos: Position, s: StatLine, qualified: (rate: RateKey) => boolean): number {
   switch (pos) {
     case 'QB':
-      return offenseScore(s) + qbBonus(s);
+      return offenseScore(s) + qbBonus(s, qualified('passing'));
     case 'RB':
       return (
         v(s, 'rushYds') / 10 + v(s, 'rushTd') * 6 + v(s, 'recYds') / 10 + v(s, 'recTd') * 6 - v(s, 'fumblesLost') * 2
@@ -142,7 +154,7 @@ function positionScore(pos: Position, s: StatLine): number {
         v(s, 'defInt') * 6 + v(s, 'passDef') * 1.5 + v(s, 'tackles') * 0.4 + v(s, 'forcedFum') * 2 + v(s, 'defTd') * 6
       );
     case 'K':
-      return v(s, 'fgAtt') < 15
+      return !qualified('kicking')
         ? 0
         : v(s, 'fgMade') * 3 -
             (v(s, 'fgAtt') - v(s, 'fgMade')) * 4 +
@@ -150,7 +162,7 @@ function positionScore(pos: Position, s: StatLine): number {
             v(s, 'xpMade') * 0.5 -
             (v(s, 'xpAtt') - v(s, 'xpMade')) * 2;
     case 'P':
-      return v(s, 'punts') < 30 ? 0 : (v(s, 'puntYds') / v(s, 'punts')) * 3;
+      return !qualified('punting') ? 0 : (v(s, 'puntYds') / v(s, 'punts')) * 3;
     default:
       return 0;
   }
@@ -320,7 +332,7 @@ export function pickAwards(league: League, season: number): SeasonAwards {
     best(regulars, (c) => {
       const base =
         c.player.position === 'QB'
-          ? offenseScore(c.line) * 1.35 + qbBonus(c.line)
+          ? offenseScore(c.line) * 1.35 + qbTerm(league, c.player, c.line, season)
           : OFFENSE.has(c.player.position)
             ? offenseScore(c.line)
             : defenseScore(c.line) * 1.9;
@@ -377,7 +389,10 @@ export function pickAwards(league: League, season: number): SeasonAwards {
     const ranked = best(pool, (c) => {
       if (pos === 'OL')
         return c.teamId === null ? 0 : 100 + (ctx.line.get(c.teamId) ?? (c.winPct - 0.5) * 40) + v(c.line, 'gp');
-      return positionScore(pos, c.line) * (0.9 + 0.2 * c.winPct);
+      return (
+        positionScore(pos, c.line, (r) => qualifies(league, c.player, c.line, season, RATES[r])) *
+        (0.9 + 0.2 * c.winPct)
+      );
     });
     for (const squad of teams) {
       let taken = 0;
@@ -483,7 +498,7 @@ export function pickPeriod(league: League, season: number, weeks: [number, numbe
         side === 'defense'
           ? defenseScore(e.line)
           : p.position === 'QB'
-            ? offenseScore(e.line) * QB_WEEKLY + qbBonus(e.line) * 0.5
+            ? offenseScore(e.line) * QB_WEEKLY + periodQbTerm(e.line, e.played) * 0.5
             : offenseScore(e.line);
       const score = base * (0.8 + 0.4 * (e.won / e.played));
       if (score <= 0) continue;
