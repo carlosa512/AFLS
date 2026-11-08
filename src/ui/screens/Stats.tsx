@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { minimumText, qualifies, RATES, type RateKey } from '../../engine/qualify';
 import {
   ALL_LEAGUE_SLOTS,
   AWARD_KEYS,
@@ -125,7 +126,7 @@ function teamTag(league: League, p: Player): string {
 
 // ───────── leaders ─────────
 
-function Leaders({ league, scope }: { league: League; scope: StatScope }) {
+export function Leaders({ league, scope }: { league: League; scope: StatScope }) {
   return (
     <>
       <h2>{scope === 'career' ? 'Career leaders' : `${scope} league leaders`}</h2>
@@ -134,6 +135,7 @@ function Leaders({ league, scope }: { league: League; scope: StatScope }) {
           const rows = leaders(league, cat, 5, scope);
           return (
             <Panel key={cat.key} title={<h3>{cat.label}</h3>}>
+              {cat.rate && <p className="muted small rate-minimum">{minimumText(RATES[cat.rate], scope)}</p>}
               <table>
                 <tbody>
                   {rows.map((r, i) => (
@@ -416,6 +418,7 @@ function Records({ league }: { league: League }) {
           const rows = seasonRecords(league, cat, 10);
           return (
             <Panel key={cat.key} title={<h3>{cat.label}</h3>}>
+              {cat.rate && <p className="muted small rate-minimum">{minimumText(RATES[cat.rate], league.season)}</p>}
               <table>
                 <tbody>
                   {rows.map((r, i) => (
@@ -452,23 +455,21 @@ function Records({ league }: { league: League }) {
 
 // ───────── full stat tables ─────────
 
-interface StatCol {
+export interface StatCol {
   key: string;
   label: string;
   title?: string;
   value: (s: StatLine) => number;
   format?: (v: number) => string;
-  /** A rate (average, percentage): low-volume lines sort below qualified ones. */
-  rate?: boolean;
+  /** A rate (average, percentage): lines short of its minimum sort below qualified ones (`qualify.ts`). */
+  rate?: RateKey;
 }
 
-interface StatTable {
+export interface StatTable {
   key: string;
   label: string;
   /** Who belongs in the table at all. */
   include: (s: StatLine) => boolean;
-  /** Enough volume for a rate to count, per game played (NFL-style minimums). */
-  qualifies: (s: StatLine) => boolean;
   cols: StatCol[];
   sortBy: string;
 }
@@ -481,12 +482,11 @@ const ratio =
 const fixed1 = (v: number) => v.toFixed(1);
 const gp = (s: StatLine) => s.gp ?? 0;
 
-const TABLES: StatTable[] = [
+export const STAT_TABLES: StatTable[] = [
   {
     key: 'passing',
     label: 'Passing',
     include: (s) => (s.passAtt ?? 0) > 0,
-    qualifies: (s) => (s.passAtt ?? 0) >= 14 * gp(s),
     sortBy: 'passYds',
     cols: [
       { key: 'passCmp', label: 'Cmp', value: n('passCmp') },
@@ -497,7 +497,7 @@ const TABLES: StatTable[] = [
         title: 'Completion percentage',
         value: ratio('passCmp', 'passAtt', 100),
         format: fixed1,
-        rate: true,
+        rate: 'passing',
       },
       { key: 'passYds', label: 'Yds', value: n('passYds') },
       {
@@ -506,19 +506,18 @@ const TABLES: StatTable[] = [
         title: 'Yards per attempt',
         value: ratio('passYds', 'passAtt'),
         format: fixed1,
-        rate: true,
+        rate: 'passing',
       },
       { key: 'passTd', label: 'TD', value: n('passTd') },
       { key: 'passInt', label: 'Int', value: n('passInt') },
       { key: 'sacked', label: 'Sck', title: 'Times sacked', value: n('sacked') },
-      { key: 'rating', label: 'Rate', title: 'Passer rating', value: passerRating, format: fixed1, rate: true },
+      { key: 'rating', label: 'Rate', title: 'Passer rating', value: passerRating, format: fixed1, rate: 'passing' },
     ],
   },
   {
     key: 'rushing',
     label: 'Rushing',
     include: (s) => (s.rushAtt ?? 0) > 0,
-    qualifies: (s) => (s.rushAtt ?? 0) >= 6.25 * gp(s),
     sortBy: 'rushYds',
     cols: [
       { key: 'rushAtt', label: 'Att', value: n('rushAtt') },
@@ -529,7 +528,7 @@ const TABLES: StatTable[] = [
         title: 'Yards per carry',
         value: ratio('rushYds', 'rushAtt'),
         format: fixed1,
-        rate: true,
+        rate: 'rushing',
       },
       { key: 'rushTd', label: 'TD', value: n('rushTd') },
       { key: 'rushLong', label: 'Long', value: n('rushLong') },
@@ -540,13 +539,19 @@ const TABLES: StatTable[] = [
     key: 'receiving',
     label: 'Receiving',
     include: (s) => (s.rec ?? 0) > 0 || (s.targets ?? 0) > 0,
-    qualifies: (s) => (s.rec ?? 0) >= 1.875 * gp(s),
     sortBy: 'recYds',
     cols: [
       { key: 'targets', label: 'Tgt', title: 'Targets', value: n('targets') },
       { key: 'rec', label: 'Rec', value: n('rec') },
       { key: 'recYds', label: 'Yds', value: n('recYds') },
-      { key: 'ypr', label: 'Avg', title: 'Yards per catch', value: ratio('recYds', 'rec'), format: fixed1, rate: true },
+      {
+        key: 'ypr',
+        label: 'Avg',
+        title: 'Yards per catch',
+        value: ratio('recYds', 'rec'),
+        format: fixed1,
+        rate: 'receiving',
+      },
       { key: 'recTd', label: 'TD', value: n('recTd') },
       { key: 'recLong', label: 'Long', value: n('recLong') },
     ],
@@ -555,7 +560,6 @@ const TABLES: StatTable[] = [
     key: 'defense',
     label: 'Defense',
     include: (s) => (s.tackles ?? 0) + (s.sacks ?? 0) + (s.defInt ?? 0) + (s.passDef ?? 0) > 0,
-    qualifies: () => true,
     sortBy: 'tackles',
     cols: [
       { key: 'tackles', label: 'Tkl', title: 'Tackles', value: n('tackles') },
@@ -578,7 +582,6 @@ const TABLES: StatTable[] = [
     key: 'kicking',
     label: 'Kicking',
     include: (s) => (s.fgAtt ?? 0) + (s.xpAtt ?? 0) > 0,
-    qualifies: (s) => (s.fgAtt ?? 0) >= gp(s),
     sortBy: 'fgMade',
     cols: [
       { key: 'fgMade', label: 'FGM', value: n('fgMade') },
@@ -589,7 +592,7 @@ const TABLES: StatTable[] = [
         title: 'Field-goal percentage',
         value: ratio('fgMade', 'fgAtt', 100),
         format: fixed1,
-        rate: true,
+        rate: 'kicking',
       },
       { key: 'fgLong', label: 'Long', value: n('fgLong') },
       { key: 'xpMade', label: 'XPM', value: n('xpMade') },
@@ -600,7 +603,6 @@ const TABLES: StatTable[] = [
     key: 'punting',
     label: 'Punting',
     include: (s) => (s.punts ?? 0) > 0,
-    qualifies: (s) => (s.punts ?? 0) >= 2 * gp(s),
     sortBy: 'avg',
     cols: [
       { key: 'punts', label: 'Punts', value: n('punts') },
@@ -611,7 +613,7 @@ const TABLES: StatTable[] = [
         title: 'Yards per punt',
         value: ratio('puntYds', 'punts'),
         format: fixed1,
-        rate: true,
+        rate: 'punting',
       },
     ],
   },
@@ -619,7 +621,6 @@ const TABLES: StatTable[] = [
     key: 'returns',
     label: 'Returns',
     include: (s) => (s.krAtt ?? 0) + (s.prAtt ?? 0) > 0,
-    qualifies: (s) => (s.krAtt ?? 0) + (s.prAtt ?? 0) >= gp(s),
     sortBy: 'krYds',
     cols: [
       { key: 'krAtt', label: 'KR', title: 'Kick returns', value: n('krAtt') },
@@ -630,7 +631,7 @@ const TABLES: StatTable[] = [
         title: 'Yards per kick return',
         value: ratio('krYds', 'krAtt'),
         format: fixed1,
-        rate: true,
+        rate: 'kickReturns',
       },
       { key: 'krTd', label: 'TD', title: 'Kick-return touchdowns', value: n('krTd') },
       { key: 'prAtt', label: 'PR', title: 'Punt returns', value: n('prAtt') },
@@ -641,7 +642,7 @@ const TABLES: StatTable[] = [
         title: 'Yards per punt return',
         value: ratio('prYds', 'prAtt'),
         format: fixed1,
-        rate: true,
+        rate: 'puntReturns',
       },
       { key: 'prTd', label: 'TD', title: 'Punt-return touchdowns', value: n('prTd') },
     ],
@@ -651,15 +652,37 @@ const TABLES: StatTable[] = [
 /** Rows shown before "Show all": the full league can be several hundred defenders. */
 const PAGE = 50;
 
+/**
+ * A table's rows in the chosen order. A rate column ranks only men who've done enough for it in the scope (`qualify.ts`):
+ * the rest keep their numbers and sort below, either way, so a 2-for-2 backup never tops a completion-percentage sort.
+ */
+export function rankStatRows<R extends { p: Player; s: StatLine }>(
+  league: League,
+  scope: StatScope,
+  table: StatTable,
+  rows: R[],
+  sort: { key: string; desc: boolean },
+): R[] {
+  return sortRows(rows, sort, ({ p, s }, key) => {
+    if (key === 'name') return `${p.lastName} ${p.firstName}`.toLowerCase();
+    if (key === 'team') return teamTag(league, p);
+    if (key === 'pos') return POSITIONS.indexOf(p.position);
+    if (key === 'gp') return gp(s);
+    const col = table.cols.find((c) => c.key === key)!;
+    if (col.rate && !qualifies(league, p, s, scope, RATES[col.rate])) return sort.desc ? -Infinity : Infinity;
+    return col.value(s);
+  });
+}
+
 function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
-  const [tableKey, setTableKey] = useState(TABLES[0].key);
-  const table = TABLES.find((t) => t.key === tableKey)!;
+  const [tableKey, setTableKey] = useState(STAT_TABLES[0].key);
+  const table = STAT_TABLES.find((t) => t.key === tableKey)!;
   const [teamFilter, setTeamFilter] = useState<'all' | 'mine'>('all');
   const [sort, onSort, setSort] = useSort<string>({ key: table.sortBy, desc: true });
   const [showAll, setShowAll] = useState(false);
 
   const pickTable = (key: string) => {
-    const next = TABLES.find((t) => t.key === key)!;
+    const next = STAT_TABLES.find((t) => t.key === key)!;
     setTableKey(key);
     setSort({ key: next.sortBy, desc: true });
     setShowAll(false);
@@ -669,18 +692,10 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
     .filter((p) => teamFilter === 'all' || p.teamId === league.userTeamId)
     .map((p) => ({ p, s: statLine(p, scope) }))
     .filter((r): r is { p: Player; s: StatLine } => !!r.s && table.include(r.s));
-  const sorted = sortRows(rows, sort, ({ p, s }, key) => {
-    if (key === 'name') return `${p.lastName} ${p.firstName}`.toLowerCase();
-    if (key === 'team') return teamTag(league, p);
-    if (key === 'pos') return POSITIONS.indexOf(p.position);
-    if (key === 'gp') return gp(s);
-    const col = table.cols.find((c) => c.key === key)!;
-    // Keep a 3-for-3 backup from topping the completion-percentage column.
-    if (col.rate && !table.qualifies(s)) return sort.desc ? -Infinity : Infinity;
-    return col.value(s);
-  });
+  const sorted = rankStatRows(league, scope, table, rows, sort);
   const shown = showAll ? sorted : sorted.slice(0, PAGE);
-  const hasRates = table.cols.some((c) => c.rate);
+  const tableRates = [...new Set(table.cols.flatMap((c) => (c.rate ? [c.rate] : [])))];
+  const short = (c: StatCol, p: Player, s: StatLine) => !!c.rate && !qualifies(league, p, s, scope, RATES[c.rate]);
 
   return (
     <Panel
@@ -688,7 +703,7 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
       action={
         <span className="row" style={{ gap: 8 }}>
           <select aria-label="Stat category" value={tableKey} onChange={(e) => pickTable(e.target.value)}>
-            {TABLES.map((t) => (
+            {STAT_TABLES.map((t) => (
               <option key={t.key} value={t.key}>
                 {t.label}
               </option>
@@ -707,8 +722,10 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
     >
       <p className="muted small" style={{ marginTop: 0 }}>
         Regular season. Click a column to sort.
-        {hasRates ? ' Averages and percentages rank qualified players first (enough attempts per game).' : ''} Team is
-        each player's current team.
+        {tableRates.length
+          ? ` Averages and percentages rank qualified players first: ${tableRates.map((r) => minimumText(RATES[r], scope)).join(', ')}.`
+          : ''}{' '}
+        Team is each player's current team.
       </p>
       <div className="table-scroll">
         <table>
@@ -746,7 +763,7 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
                   return (
                     <td
                       key={c.key}
-                      className={`num${c.rate && !table.qualifies(s) ? ' muted' : ''}`}
+                      className={`num${short(c, p, s) ? ' muted' : ''}`}
                       style={sort.key === c.key ? { fontWeight: 700 } : undefined}
                     >
                       {c.format ? c.format(v) : v.toLocaleString()}
