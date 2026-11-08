@@ -810,6 +810,9 @@ export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
   const { call, reason } = resignCall(league, team.id, p);
   if (call === 'walk' || reason !== 'starter') return false;
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:extend-early:${league.season}:${p.id}`), 1);
+  // An extension runs past the deal he has: the offer shortens with age, and a veteran offered no more years than he has
+  // left would sign a deal that extends nothing (a 32-year-old's two years for his two).
+  if (offer.years <= yearsLeft(p.contract, league.season)) return false;
   offer.apy = walkAwayApy(league, p, team.id, offer);
   if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
   if (capSheet(league, team.id, league.season + 1).used + offer.apy > capFor(league, league.season + 1) * 0.92)
