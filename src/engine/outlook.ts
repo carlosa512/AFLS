@@ -65,10 +65,26 @@ export const futureWeight = (winNow: number) => 1 - 0.3 * (winNow - 0.5);
  * doctors' read or the injury reports.
  */
 export function teamOutlook(league: League, teamId: number, p: Player, winNow: number, view?: PlayerView): number {
+  const { ovr, gap, tier } = outlookRead(league, teamId, p, view);
+  return outlookOf(p.position, p.age, ovr, gap, tier, futureWeight(winNow));
+}
+
+/** The outlook from a read already made, with the club's win-now lean laid on. */
+export const leanOutlook = (p: Player, r: OutlookRead, winNow: number) =>
+  outlookOf(p.position, p.age, r.ovr, r.gap, r.tier, futureWeight(winNow));
+
+/** What a club's outlook reads of a man before its win-now lean: his game, the growth it sees left, his injury risk. */
+export interface OutlookRead {
+  ovr: number;
+  gap: number;
+  tier: RiskTier;
+}
+
+export function outlookRead(league: League, teamId: number, p: Player, view?: PlayerView): OutlookRead {
   const own = p.teamId === teamId;
   const young = p.age < GROWS_UNTIL;
   const seen = !own || young ? (view ?? perceive(league, teamId, p)) : null;
   const ovr = own ? playerOvr(p) : seen!.ovr;
   const gap = young ? projectedCeiling(ovr, seen!.potMid, characterRead(league, teamId, p)?.workEthic) - ovr : 0;
-  return outlookOf(p.position, p.age, ovr, gap, injuryRisk(league, teamId, p).tier, futureWeight(winNow));
+  return { ovr, gap, tier: injuryRisk(league, teamId, p).tier };
 }

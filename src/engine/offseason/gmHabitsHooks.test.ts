@@ -206,6 +206,18 @@ describe('Extends Early', () => {
     for (const m of log)
       if (picked.has(m.playerId!)) expect(yearsLeft(l.players[m.playerId!].contract!, l.season)).toBeGreaterThan(2);
   });
+  it('only makes a deal that runs past the one he has: a veteran offered two years is left alone (0.4.15)', () => {
+    habitsForce.all = 'extendEarly';
+    const { l, t, starters } = extendScene();
+    let short = 0;
+    for (const p of starters) {
+      p.age = 32 + ageShift(p.position);
+      const years = aiOffer(l, t, p, new Rng(`${l.seed}:extend-early:${l.season}:${p.id}`), 1).years;
+      if (years <= 2) short++;
+      if (aiExtendEarly(l, t, p)) expect(yearsLeft(p.contract!, l.season)).toBeGreaterThan(2);
+    }
+    expect(short).toBeGreaterThan(0);
+  });
   it('does nothing with the habit off', () => {
     habitsForce.off = true;
     const { l, t, starters } = extendScene();

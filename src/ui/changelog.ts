@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.15',
+    date: '2026-11-08',
+    title: 'Extensions that extend',
+    text:
+      'A club that likes to extend its starters early no longer hands a veteran a deal that ends when his old one would: ' +
+      'an early extension now always adds years. Free agency also runs faster, with no change to who signs where.',
+  },
+  {
     version: '0.4.14',
     date: '2026-11-08',
     title: 'Loose ends',

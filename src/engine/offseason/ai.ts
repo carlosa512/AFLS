@@ -41,12 +41,13 @@ import {
 } from '../finance/market';
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
-import { teamOutlook } from '../outlook';
+import { leanOutlook, teamOutlook } from '../outlook';
 import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
 import { favoriteJersey } from '../jerseys';
 import { clamp, Rng } from '../rng';
 import { activeRoster, addPlayer, syncDepthChart, teamPlayers } from '../roster';
 import { characterRead, perceive, projectedCeiling, quirkWorth, viewCache } from '../scouting';
+import { faReads } from './faReads';
 import type { GmTraits, League, Player, Position, Team } from '../types';
 import { POSITIONS } from '../types';
 import {
@@ -810,6 +811,9 @@ export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
   const { call, reason } = resignCall(league, team.id, p);
   if (call === 'walk' || reason !== 'starter') return false;
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:extend-early:${league.season}:${p.id}`), 1);
+  // An extension runs past the deal he has: the offer shortens with age, and a veteran offered no more years than he has
+  // left would sign a deal that extends nothing (a 32-year-old's two years for his two).
+  if (offer.years <= yearsLeft(p.contract, league.season)) return false;
   offer.apy = walkAwayApy(league, p, team.id, offer);
   if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
   if (capSheet(league, team.id, league.season + 1).used + offer.apy > capFor(league, league.season + 1) * 0.92)
@@ -1025,8 +1029,9 @@ export function aiFreeAgencyDay(
     // Camp's last word for the owner's rule: young stars still unsigned, and no one else.
     .filter(({ p, value }) => !opts.starsOnly || isYoungStar(league, p, value))
     .sort((a, b) => b.value - a.value);
-  // Each front office bids on what its own scouts see; the player's price is still his real market.
-  const read = viewCache(league);
+  // Each front office bids on what its own scouts see; the player's price is still his real market. Its read of each
+  // free agent is kept across passes until something it uses moves (`faReads.ts`).
+  const read = faReads(league);
   // What each club could borrow for a free agent, read once a pass (and again after it signs or restructures).
   const rooms = new Map<number, ClubRoom>();
   const roomOf = (team: Team) => {
@@ -1055,7 +1060,7 @@ export function aiFreeAgencyDay(
       const full = (room.get(team.id) ?? 0) <= 0;
       if ((full && !opts.lastCall) || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
-      const ahead = teamOutlook(league, team.id, p, winNow(league, team), read(team.id, p));
+      const ahead = leanOutlook(p, read(team.id, p), winNow(league, team));
       const gm = aiGm(league, team);
       // A bridge GM wants an old quarterback for a year beside his young one; a gun-shy one asks more at his position.
       const bridging = !!bridge.get(team.id) && p.position === 'QB' && p.age - ageShift('QB') >= 30;

@@ -278,10 +278,13 @@ does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a sepa
 
 ## Follow-up: what the speed pass left (0.2.41)
 
-- [ ] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
+- [x] **Free agency re-reads every free agent each day.** Each club's scouting read, injury risk, character and habits
       for each free agent are worked out again on every free-agency day and both late passes (7–9 times an
       offseason), though most don't change between days: 10–15% of a multi-season league. A club's win-now lean does
       change as it signs, so a cache must key on what each read uses, proven by an unchanged league fingerprint.
+      **Done (0.4.15):** each club's read is kept across the passes, stamped with what it uses (`offseason/faReads.ts`),
+      the win-now lean laid on fresh; an offseason plays byte for byte as before, and four seasons run 69 s → 63 s (free
+      agency 17 s → 11 s).
 - Considered and left (the owner's call): slimming retired players further. Retirement already drops what only a
   developing player needs; traits, personality and combine stay for the card (about 13% of a save at season 6).
 
@@ -389,8 +392,9 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [x] **A squeezed buyer's swap bid isn't repriced for the salary you keep.** **Not a gap (0.4.14):** every bid's price
       and floor count the money you keep (`worth` in `bidFor`); a swap comes in lumps, so the player that cleared the
       floor with room can clear it without. `offers.test.ts` now says so (a squeezed swap is never worth less).
-- [ ] **Extends Early extends men near the end.** An AI club with the habit extended a 32-year-old tight end to a
-      two-year minimum deal: an "extension" that extends nothing.
+- [x] **Extends Early extends men near the end.** An AI club with the habit extended a 32-year-old tight end to a
+      two-year minimum deal: an "extension" that extends nothing. **Fixed (0.4.15):** an early deal must run past the
+      one he has; a veteran whose offer is no longer than his years left is passed over.
 - [ ] **Defensive twos run under the NFL's** (1% of tries against 3.9%): the league's tries turn it over less than the
       NFL's, so even every turnover coming back couldn't reach it.
 - [x] **A two-point try counts snaps and form.** **Fixed (0.4.14):** a try wears bodies and counts nothing: no snap, no
