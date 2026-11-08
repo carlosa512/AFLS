@@ -11,7 +11,7 @@ import { seasonAwards } from './awards';
 import { coachTitle, isCoachExpiring, teamCoaches } from './coaching';
 import { logTransaction, releasePlayer } from './finance/cap';
 import { createLeague, generatePlayer } from './generate';
-import { applyInjury, IR_MIN_WEEKS, manageInjuries, NEED, placeOnIr } from './injuries';
+import { applyInjury, IR_MIN_WEEKS, manageInjuries, NEED, placeOnIr, sitAfterClear } from './injuries';
 import { signPlayer } from './offseason/negotiation';
 import { Rng } from './rng';
 import { migrateLeague } from './migrate';
@@ -1182,9 +1182,45 @@ describe('a concussion that clears the week it happened', () => {
     expect(letter.body).toMatch(/concussed in the game/);
     expect(letter.body).toMatch(/likelier in his first couple of weeks back/);
     expect(mailSubject(letter)).toMatchObject({ kind: 'cleared', playerId: p.id, type: 'concussion' });
+    // A first one: the doctor leaves it there.
+    expect(letter.body).not.toMatch(/I'd sit him/);
     deliverMail(league);
     deliverMail(league);
     expect(about()).toHaveLength(1);
+  });
+
+  it('advises sitting a second one in twelve months, and sitting him files nothing new', () => {
+    const league = createLeague({ seed: 'inbox-quick-clear' });
+    deliverMail(league);
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    p.injuries = [{ type: 'concussion', severity: 'minor', season: league.season - 1, week: 30, weeks: 1 }];
+    const week = league.week;
+    applyInjury(league, p, {
+      type: 'concussion',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [0, 1],
+      season: league.season,
+      week,
+      where: 'game',
+      protocol: { clear: 1, symptoms: 0, setbacks: 0 },
+    });
+    playWeek(league);
+    deliverMail(league);
+    const key = `${league.season}:${week}:${p.id}:concussion`;
+    const about = () => league.inbox!.filter((m) => m.id.endsWith(`:${key}`));
+    expect(about()).toHaveLength(1);
+    expect(about()[0].body).toMatch(/With two in twelve months, I'd sit him this week anyway\./);
+    sitAfterClear(league, p, true);
+    deliverMail(league);
+    expect(about()).toHaveLength(1);
+    playWeek(league);
+    deliverMail(league);
+    expect(about()).toHaveLength(1);
+    expect(p.injuries!.find((r) => r.season === league.season && r.week === week)).toMatchObject({
+      weeks: 1,
+      held: true,
+    });
   });
 
   it('writes nothing late about one that cleared weeks ago', () => {

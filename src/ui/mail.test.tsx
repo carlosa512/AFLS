@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox';
-import { applyInjury, NEED } from '../engine/injuries';
+import { applyInjury, NEED, sitAfterClear } from '../engine/injuries';
 import { chooseCover } from '../engine/roster';
 import { createLeague } from '../engine/generate';
 import { endGmAppointment } from '../engine/gm';
@@ -978,5 +978,33 @@ describe('the staff contracts letter', () => {
     expect(out).toMatch(
       /disabled=""[^>]*title="The owner wants him kept."|title="The owner wants him kept."[^>]*disabled=""/,
     );
+  });
+});
+
+describe('the all-clear for a concussion his first test cleared', () => {
+  it('offers to sit him this week, then to play him after all, until the week is played', () => {
+    const league = createLeague({ seed: 'inbox-quick-clear' });
+    deliverMail(league);
+    const p = Object.values(league.players).find((x) => x.teamId === league.userTeamId && x.position === 'WR')!;
+    const week = league.week;
+    applyInjury(league, p, {
+      type: 'concussion',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [0, 1],
+      season: league.season,
+      week,
+      where: 'game',
+      protocol: { clear: 1, symptoms: 0, setbacks: 0 },
+    });
+    playWeek(league);
+    deliverMail(league);
+    const message = league.inbox!.find((m) => m.id === `cleared:${league.season}:${week}:${p.id}:concussion`)!;
+    const html = () => renderToStaticMarkup(<MailCards league={league} message={message} />);
+    expect(html()).toContain('Sit him this week');
+    sitAfterClear(league, p, true);
+    expect(html()).toContain('Play him after all');
+    playWeek(league);
+    expect(html()).not.toMatch(/Sit him this week|Play him after all/);
   });
 });

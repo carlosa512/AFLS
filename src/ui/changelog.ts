@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.18',
+    date: '2026-11-08',
+    title: 'Sit him this week',
+    text:
+      "When a concussed player clears the protocol in the week it happened, the doctor's letter now has a Sit him " +
+      'this week button (and Play him after all, until the game is played), and the doctor says when he would sit ' +
+      'him. Other clubs make the same call as their players clear: rarely after a first concussion, usually after a ' +
+      'second this season, almost always after a third, a little less when a starter is needed or in the playoffs.',
+  },
+  {
     version: '0.4.17',
     date: '2026-11-08',
     title: 'Every concussion gets a letter',
