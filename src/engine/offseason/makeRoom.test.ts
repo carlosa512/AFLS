@@ -359,6 +359,9 @@ describe('a GM makes the room he plans, or none', () => {
       playerId: -1,
       note: 'test',
     });
+    // A world where that puts the club over this year's cap gets legal first (`aiCapCompliance`, as the window ends):
+    // that cut is the cap's, not room for him, and the window must make none of its own.
+    aiCapCompliance(l, team);
     const before = cutBy(l, team.id);
     aiResignWindow(l, team, new Rng('room'));
     expect(cutBy(l, team.id)).toBe(before);
