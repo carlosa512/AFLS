@@ -1,6 +1,6 @@
 # Front offices that plan: keepers first, room on purpose, a market that clears
 
-**Status:** design, approved by the owner 2026-11-07; the bands (§6) rebuilt on NFL data at the owner's request the same
+**Status:** built (0.4.13); approved by the owner 2026-11-07; the bands (§6) rebuilt on NFL data at the owner's request the same
 day (`docs/research/free-agency-market.md`). Follows 0.4.11 (the practice-squad holdout fix, which stopped elite free
 agents signing for squad pay but left them unsigned).
 

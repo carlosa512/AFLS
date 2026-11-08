@@ -296,7 +296,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       gaps are at QB and TE (+2.4 years), punter (+2.1), WR and OL (+1.5), where ratings hold their peak longest. Look
       at who coaches start (a young player with upside against a veteran barely better), when players retire, and how
       ready draftees are; the league's talent sliding after year three (13.22 to 12.7 over 16 seasons) likely follows.
-- [ ] **Starters leave football more as a league ages.** About 3% of last season's starters are unsigned or retired
+- [ ] **Starters leave football more as a league ages.** (0.4.13, front offices that plan: 4.9/9.0/10% at seasons 2–4 on `offseason-audit-3` before, 2.6/5.9/6.4% after; the market now places the good ones, what remains is mostly retirements and faded veterans.) About 3% of last season's starters are unsigned or retired
       at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
       retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
       shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
@@ -304,7 +304,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
       Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
       ours don't.
-- [ ] **Tags spike when a big class of stars comes due at once** (20 in one season, 11–13 in others, against the NFL's
+- [ ] **Tags spike when a big class of stars comes due at once** (0.4.13: with three in four keepers free to test the market, clubs tag more: 14, 19, 16 at seasons 2–4 on `offseason-audit-3`, against 11 and 12 before) (20 in one season, 11–13 in others, against the NFL's
       6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
       has run out.
 - [ ] **Room made for a tag or a one-year deal forgets next year.** The re-sign window counts a keeper's new deal against

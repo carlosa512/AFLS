@@ -88,3 +88,18 @@ out each year: the room goes on refilling the roster, not on the market. That ro
 | 2030 | 116 | 50% | 26% | 24% | 38 | 4 | 53% | 20 | 33.2% | 30 |
 
 Pooled over 2028–30, 13% of 56 young good deals ended with no deal. 12 numbers outside their bands.
+
+## AFLS after the fix (0.4.13, the same run)
+
+| Into | Ends | Stayed | Moved | No deal | Outside signings | Clubs 3+ | One-year | Elite young unsigned |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 73 | 52% | 45% | 3% | 65 | 14 | 42% | – |
+| 2028 | 104 | 54% | 44% | 2% | 57 | 8 | 37% | 0 |
+| 2029 | 106 | 42% | 47% | 11% | 74 | 14 | 42% | 0 |
+| 2030 | 126 | 50% | 37% | 13% | 71 | 12 | 41% | 0 |
+
+Four numbers outside their bands (from twelve): no deal 2% in 2028 (AFLS now places nearly every good player; the
+NFL's 25% includes injuries and retirements), and one-year deals at 41–42% in 2029–30 (the NFL's 20%; older veterans
+testing the market sign prove-it deals). Stayed and outside signings sit in their warning bands. No player 28 or
+younger priced at 5%+ of the cap was unsigned at any kickoff. Two-year fitted deals up to age 30 brought one-year
+deals to 27–28% but left a young star unsigned in 2030; the spec's 28 stands.

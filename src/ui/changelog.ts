@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.13',
+    date: '2026-11-08',
+    title: 'Front offices that plan',
+    text:
+      'Rival clubs now plan their cap: they re-sign their best players first and make room for them on purpose, keep ' +
+      'money aside for next year, and rebuilding clubs save room to spend the following spring. More players test free ' +
+      'agency, a free agent nobody pays lowers his price to what clubs can offer, and no young star sits unsigned at ' +
+      'kickoff. GMs still make bad calls now and then. When free agency opens, SNN lists who was kept off the market.',
+  },
+  {
     version: '0.4.12',
     date: '2026-11-07',
     title: 'No starters on the practice squad',
