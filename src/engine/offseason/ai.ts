@@ -969,7 +969,24 @@ export function aiFreeAgencyDay(
   // Cap planning (`capPlan.ts`): big deals must also leave next year's keepers their room, and a banking club buys young.
   const nextCap = capFor(league, league.season + 1);
   const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
-  const plans = new Map(teams.map((t) => [t.id, capPlan(league, t, rng)]));
+  // Each club's plan, built the first time a decision reads it (a big deal's next-year check, a banking club's bid):
+  // most clubs never need one in a pass, and building all 32 every pass was most of a late pass's time. In free agency a
+  // plan has no keepers, so it draws nothing: when it's built doesn't move the stream.
+  const plans = new Map<number, ReturnType<typeof capPlan>>();
+  const planOf = (team: Team) => {
+    let plan = plans.get(team.id);
+    if (!plan) plans.set(team.id, (plan = capPlan(league, team, rng)));
+    return plan;
+  };
+  // The last call's funded room, read once per club and spot until the club signs or cuts: reading it for every free
+  // agent at every club (a roster scan and a release price per minimum man) slowed every offseason, careers past its limit.
+  const funds = new Map<string, ReturnType<typeof fundedRoom>>();
+  const fundedFor = (team: Team, position: Position) => {
+    const key = `${team.id}:${position}`;
+    let f = funds.get(key);
+    if (!f) funds.set(key, (f = fundedRoom(league, team, position)));
+    return f;
+  };
   // A big multi-year deal leaves next year's keepers their room (`fitsNextYear`), a fitted one as much as a market one.
   const nextYearOk = (team: Team, o: Offer) =>
     !(
@@ -977,7 +994,7 @@ export function aiFreeAgencyDay(
       o.apy > 0.03 * league.caps[league.season] &&
       !fitsNextYear(
         committedNext.get(team.id)!,
-        plans.get(team.id)!.nextYear,
+        planOf(team).nextYear,
         o.apy,
         nextYearCeiling(team.gm, winNow(league, team)) * nextCap,
       )
@@ -1033,23 +1050,35 @@ export function aiFreeAgencyDay(
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
       // The last call's swap: the clear upgrade is read against the room without the man he'd replace (`swapGain`).
-      const funded = opts.lastCall ? fundedRoom(league, team, p.position) : null;
-      const swap = funded
-        ? swapGain(league, team, depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p), funded.cut)
-        : 0;
-      if (gain < minGain.get(team.id)! * bar && !(full && swap >= 2 * minGain.get(team.id)!)) continue;
-      let offer = aiOffer(league, team, p, rng, Math.max(gain, swap), rich.get(team.id));
+      // A swap's gain is read only where it can decide something: on the last call, for a clear upgrade his own gain
+      // doesn't already make (`swapGain` against the room without the man he'd replace).
+      const clear = 2 * minGain.get(team.id)!;
+      const swap =
+        opts.lastCall && gain < clear
+          ? swapGain(
+              league,
+              team,
+              depth.get(team.id)!,
+              p,
+              ahead + quirkWorth(league, team.id, p),
+              fundedFor(team, p.position).cut,
+            )
+          : gain;
+      const lift = Math.max(gain, swap);
+      if (gain < minGain.get(team.id)! * bar && !(full && lift >= clear)) continue;
+      let offer = aiOffer(league, team, p, rng, lift, rich.get(team.id));
       if (full) {
-        if (Math.max(gain, swap) < 2 * minGain.get(team.id)!) continue;
-        const deal = funded!.cut && fitOffer(offer, funded!.room, minimum, p.age);
+        if (lift < clear) continue;
+        const funded = fundedFor(team, p.position);
+        const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
         if (deal && lastCallTakes(deal, minimum))
-          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded!.cut });
+          bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
         continue;
       }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
-        plans.get(team.id)!.stance === 'bank' &&
+        planOf(team).stance === 'bank' &&
         !bankBuys(p.age, gain, upgradeBar(league, team, offer.apy, rich.get(team.id)))
       )
         continue;
@@ -1085,13 +1114,14 @@ export function aiFreeAgencyDay(
         // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
         const young = p.age <= 28;
         if (fitted && !young && !nextYearOk(team, fitted)) continue;
-        if (!fitted && opts.lastCall && Math.max(gain, swap) >= 2 * minGain.get(team.id)!) {
+        if (!fitted && opts.lastCall && lift >= clear) {
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
           // A funded signing is a prove-it deal (`fitOffer`), and he takes it from his minimum up (`lastCallTakes`).
-          const deal = fitOffer(offer, funded!.room, minimum, p.age);
+          const funded = fundedFor(team, p.position);
+          const deal = fitOffer(offer, funded.room, minimum, p.age);
           if (deal && lastCallTakes(deal, minimum))
-            bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded!.cut });
+            bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
           continue;
         }
         if (!fitted || gain < upgradeBar(league, team, fitted.apy, rich.get(team.id)) * bar) continue;
@@ -1151,6 +1181,8 @@ export function aiFreeAgencyDay(
     if (signer && draftedBy(signer, p)) logMove(league, best.team, 'hisGuys', { playerId: p.id });
     budget.set(best.team.id, budget.get(best.team.id)! - (before - capSpace(league, best.team.id)));
     if (!best.cut) room.set(best.team.id, room.get(best.team.id)! - 1);
+    // Its room and roster moved: its funded reads are read again when next needed.
+    for (const key of [...funds.keys()]) if (key.startsWith(`${best.team.id}:`)) funds.delete(key);
     // Next year's books as they stand now: his deal and any restructure made for it.
     committedNext.set(best.team.id, capSheet(league, best.team.id, league.season + 1).used);
     rich.set(best.team.id, richness(league, best.team));
