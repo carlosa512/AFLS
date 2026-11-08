@@ -95,6 +95,8 @@ export function faMeasures(start: WindowStart, l: League): FaMeasures {
   const eliteYoungUnsigned = Object.values(l.players).filter(
     (p) =>
       !p.retired &&
+      // Hurt, he isn't one the market failed: nobody pays market price for a man who'll miss the start.
+      !p.injury &&
       (p.teamId === null || p.squad) &&
       !l.draftClass.includes(p.id) &&
       p.age <= YOUNG &&

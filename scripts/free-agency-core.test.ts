@@ -76,6 +76,10 @@ describe('the free-agency check', () => {
     expect(faMeasures(start, l).eliteYoungUnsigned).toBe(1);
     best.age = 29;
     expect(faMeasures(start, l).eliteYoungUnsigned).toBe(0);
+    // Hurt, he isn't one the market failed: nobody pays market price for a man who'll miss the start.
+    best.age = 26;
+    best.injury = { type: 'test', severity: 'moderate', weeksRemaining: 6, estimate: [4, 8] } as never;
+    expect(faMeasures(start, l).eliteYoungUnsigned).toBe(0);
     expect(ELITE).toBe(0.05);
   });
 });

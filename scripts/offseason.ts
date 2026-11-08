@@ -169,6 +169,8 @@ function soft(
 // Known issues the front-office work (0.2.36) left, each a follow-up in docs/MVP.md:
 const OUT_OF_FOOTBALL =
   'starters out of football climb as a league ages (about 3% early, 5-8% by season 6 in every world: retirements and faded veterans no club has room for)';
+const FA_MARKET =
+  "the free-agency market runs about half the NFL's size (fewer good outside signings, more one-year deals; docs/research/free-agency-market.md)";
 const TAGS = 'tags a season spike past the NFL band when a big class of stars comes due at once';
 const RESTRUCTURING =
   "clubs restructuring runs under the NFL's about 55% in a new league's first seasons and swings season to season";
@@ -539,12 +541,16 @@ for (let s = 0; s < seasons; s++) {
   const faJudged = s >= 1;
   const faCheck = (label: string, v: number, usual: [number, number], normal: [number, number], digits = 0) =>
     faJudged ? check(label, v, usual[0], usual[1], digits, normal) : `${label} ${v.toFixed(digits)} (not judged yet)`;
+  // The market's size against the NFL's is a known issue (the owner, Nov 8): shown and kept, never counted, until the
+  // market work that follows 0.4.13 lands; then these go back to `faCheck`. The owner's rule stays judged.
+  const faSoft = (label: string, v: number, lo: number, hi: number) =>
+    faJudged ? soft(label, v, lo, hi, 0, FA_MARKET, String(year)) : `${label} ${v.toFixed(0)} (not judged yet)`;
   if (faJudged) {
     faYoung.ends += fa.youngEnds;
     faYoung.none += fa.youngNone;
   }
   console.log(
-    `  checks ${year} free agency (${fa.ends} good deals ended): ${faCheck('stayed %', 100 * fa.stayed, [28, 45], [20, 55])} · ${faCheck('moved %', 100 * fa.moved, [30, 50], [20, 60])} · ${faCheck('no deal %', 100 * fa.none, [15, 32], [10, 40])} · ${faCheck('good outside signings', fa.outside, [75, 120], [60, 135])} · ${faCheck('clubs with 3+', fa.clubs3, [12, 24], [8, 28])} · ${faCheck('one-year %', 100 * fa.oneYear, [10, 30], [5, 40])} · ${faCheck('elite young unsigned', fa.eliteYoungUnsigned, [0, 0], [0, 0])}`,
+    `  checks ${year} free agency (${fa.ends} good deals ended): ${faSoft('stayed %', 100 * fa.stayed, 20, 55)} · ${faSoft('moved %', 100 * fa.moved, 20, 60)} · ${faSoft('no deal %', 100 * fa.none, 10, 40)} · ${faSoft('good outside signings', fa.outside, 60, 135)} · ${faSoft('clubs with 3+', fa.clubs3, 8, 28)} · ${faSoft('one-year %', 100 * fa.oneYear, 5, 40)} · ${faCheck('elite young unsigned', fa.eliteYoungUnsigned, [0, 0], [0, 0])}`,
   );
   // Reported, not judged: AFLS rosters refill far more each spring, so the room isn't alike even when the market is.
   console.log(
@@ -851,7 +857,7 @@ if (rows.length >= 5) {
 // Pooled: a season has too few young good deals ending to judge (NFL 2014-20: 14% of 336 signed nothing the next spring).
 if (faYoung.ends)
   console.log(
-    `\nfree agency, pooled: ${check(`no deal %, 28 or younger (${faYoung.ends} deals)`, (100 * faYoung.none) / faYoung.ends, 5, 22, 0, [0, 30])}`,
+    `\nfree agency, pooled: ${soft(`no deal %, 28 or younger (${faYoung.ends} deals)`, (100 * faYoung.none) / faYoung.ends, 0, 30, 0, FA_MARKET, 'pooled')}`,
   );
 if (Object.keys(known).length) console.log();
 for (const [issue, where] of Object.entries(known)) console.log(`⚠ known issue: ${issue} — ${where.join('; ')}`);

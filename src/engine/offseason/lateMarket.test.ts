@@ -234,6 +234,23 @@ describe('the market clears', () => {
     expect(activeRoster(l, club!).length).toBe(sizes.get(club!));
   }, 120_000);
 
+  it('a swap judges him against the room without the man he replaces: a full QB room still takes a young passer', () => {
+    const l: League = JSON.parse(lastDay);
+    l.phase = 'preseason';
+    const market = leagueMarket(l);
+    // The best young quarterback on an AI club, cut: every club's QB room is full, so only a swap can place him.
+    const qb = Object.values(l.players)
+      .filter((p) => p.position === 'QB' && p.teamId !== null && p.teamId !== l.userTeamId && p.contract && p.age <= 28)
+      .filter((p) => !p.injury && marketApy(market, p) >= 0.05 * l.caps[l.season])
+      // The weakest priced as elite: a backup's game at a starter's price (the case a full room passed on).
+      .sort((a, b) => marketApy(market, a) - marketApy(market, b))[0];
+    setTeam(l, qb, null);
+    qb.contract = null;
+    for (const q of freeAgents(l)) if (q.id !== qb.id) q.retired = true;
+    aiFreeAgencyDay(l, new Rng('qb-swap'), { rosterMax: 0, lastCall: true });
+    expect(l.players[qb.id].teamId).not.toBeNull();
+  }, 120_000);
+
   it('never cuts a man promised a deal or one the personnel rules lock', () => {
     const { l } = lastCall();
     for (const t of l.teams.slice(0, 10)) {
