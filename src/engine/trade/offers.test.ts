@@ -179,10 +179,12 @@ describe('offers to you', () => {
       if (!bid) continue;
       bids++;
       expect(bid.sides[1].retain?.[p.id]).toBe(kept);
-      // Most of the money comes back to you in picks, on top of what he'd pay with room for all of it. (A swap, a player
-      // for him, isn't repriced for the money you keep: a known gap, 0.4.11's deferred finding.)
-      if (bid.sides[0].players.length === 0)
-        expect(quickValue(mctx, m.teams[c.buyer], bid.sides[0]) - c.paid).toBeGreaterThan(0.5 * POINTS_PER_K * kept!);
+      // Most of the money comes back to you in picks, on top of what he'd pay with room for all of it. A swap, a player
+      // for him, comes in lumps: its floor counts the money you keep (`worth` in `bidFor`), but the package that cleared
+      // it with room can clear it without, so a swap is never worth less than the bid with room (0.4.14).
+      const paid = quickValue(mctx, m.teams[c.buyer], bid.sides[0]);
+      if (bid.sides[0].players.length === 0) expect(paid - c.paid).toBeGreaterThan(0.5 * POINTS_PER_K * kept!);
+      else expect(paid).toBeGreaterThanOrEqual(c.paid);
     }
     expect(bids, `bids from squeezed buyers, of ${cases.length}`).toBeGreaterThanOrEqual(cases.length / 2);
   });
