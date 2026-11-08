@@ -38,11 +38,11 @@ export const stanceOf = (league: League, team: Team): Stance => stanceFor(winNow
 
 /**
  * Whether this GM gambles this league year: he weighs even his starters against the coming market and may let one walk
- * for another club's man who never comes (the owner, Nov 7: GMs make bad calls). One in ten, up to three in ten for a
+ * for another club's man who never comes (the owner, Nov 7: GMs make bad calls). One in four, up to one in two for a
  * GM with no loyalty to his own; drawn on its own stream, so nothing else in the world moves with it.
  */
 export function gambles(league: League, team: Team): boolean {
-  return new Rng(`${league.seed}:plan-gamble:${league.season}:${team.id}`).chance(0.1 + 0.2 * (1 - team.gm.loyalty));
+  return new Rng(`${league.seed}:plan-gamble:${league.season}:${team.id}`).chance(0.25 + 0.25 * (1 - team.gm.loyalty));
 }
 
 export interface PlannedKeeper {

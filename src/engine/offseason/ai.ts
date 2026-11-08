@@ -255,7 +255,7 @@ export const fitsNextYear = (committedNext: number, needs: number, apy: number, 
  * keeps 36% of its good players whose deals end and 38% move (`docs/research/free-agency-market.md`); at 0.3 ours kept
  * half and the outside market ran at half the NFL's (the owner's call, Nov 7: more players test free agency).
  */
-export const TESTS_MARKET = 0.3;
+export const TESTS_MARKET = 0.75;
 
 /** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
 export const CLEARING_DAY = 3;
