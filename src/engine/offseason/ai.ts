@@ -281,7 +281,12 @@ export const clearingFloor = (walkAway: number, bestFitted: number | null, minim
  * reserve, and the pay of its weakest man there on a minimum deal whose release leaves no dead money (`cut`, released
  * only if the player chooses this club). A minimum deal is never a bonus's: the cut costs nothing later.
  */
-export function fundedRoom(league: League, team: Team, position: Position): { room: number; cut: Player | null } {
+export function fundedRoom(
+  league: League,
+  team: Team,
+  position: Position,
+  reserveShare: number = FUNDED_RESERVE_SHARE,
+): { room: number; cut: Player | null } {
   const roster = activeRoster(league, team.id);
   const count = (pos: Position) => roster.filter((p) => p.position === pos).length;
   const cuttable = roster
@@ -313,7 +318,7 @@ export function fundedRoom(league: League, team: Team, position: Position): { ro
   const room =
     spendable(league, team.id) +
     squadReserve(league, team.id) +
-    FUNDED_RESERVE_SHARE * inSeasonReserve(league, team.id) +
+    reserveShare * inSeasonReserve(league, team.id) +
     (cut ? capHit(cut.contract!, league.season) : 0);
   return { room, cut };
 }
@@ -342,6 +347,14 @@ export function swapGain(
  * not `offerValue`, whose knocks for a short, unguaranteed deal had a young man turn down two million over his minimum.
  */
 export const lastCallTakes = (offer: Offer, minimum: number): boolean => offer.apy >= minimum;
+
+/**
+ * How much of its in-season reserve a club may break on the last call: all of it for a young star (28 or younger, his
+ * market 5% of the cap or more: the owner's rule, none left unsigned at kickoff), half for anyone else. By the end of camp
+ * squads and next year's paid-ahead salary have taken the rest, and two such men were left with one club able to pay.
+ */
+export const starReserveShare = (marketShare: number, age: number): number =>
+  marketShare >= 0.05 && age <= 28 ? 1 : FUNDED_RESERVE_SHARE;
 
 /** A banking club (`capPlan`'s rebuilder) buys only the young, or an upgrade that clears twice the bar its price sets. */
 export const bankBuys = (age: number, gain: number, bar: number): boolean => age <= 27 || gain >= 2 * bar;
@@ -981,10 +994,10 @@ export function aiFreeAgencyDay(
   // The last call's funded room, read once per club and spot until the club signs or cuts: reading it for every free
   // agent at every club (a roster scan and a release price per minimum man) slowed every offseason, careers past its limit.
   const funds = new Map<string, ReturnType<typeof fundedRoom>>();
-  const fundedFor = (team: Team, position: Position) => {
-    const key = `${team.id}:${position}`;
+  const fundedFor = (team: Team, position: Position, share: number) => {
+    const key = `${team.id}:${position}:${share}`;
     let f = funds.get(key);
-    if (!f) funds.set(key, (f = fundedRoom(league, team, position)));
+    if (!f) funds.set(key, (f = fundedRoom(league, team, position, share)));
     return f;
   };
   // A big multi-year deal leaves next year's keepers their room (`fitsNextYear`), a fitted one as much as a market one.
@@ -1020,7 +1033,7 @@ export function aiFreeAgencyDay(
     return rooms.get(team.id)!;
   };
   let signings = 0;
-  for (const { p } of pool) {
+  for (const { p, value: worth } of pool) {
     // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
     if (p.injury && p.injury.estimate[0] >= 4) continue;
     const bids: {
@@ -1053,6 +1066,7 @@ export function aiFreeAgencyDay(
       // A swap's gain is read only where it can decide something: on the last call, for a clear upgrade his own gain
       // doesn't already make (`swapGain` against the room without the man he'd replace).
       const clear = 2 * minGain.get(team.id)!;
+      const share = starReserveShare(worth / league.caps[league.season], p.age);
       const swap =
         opts.lastCall && gain < clear
           ? swapGain(
@@ -1061,7 +1075,7 @@ export function aiFreeAgencyDay(
               depth.get(team.id)!,
               p,
               ahead + quirkWorth(league, team.id, p),
-              fundedFor(team, p.position).cut,
+              fundedFor(team, p.position, share).cut,
             )
           : gain;
       const lift = Math.max(gain, swap);
@@ -1069,7 +1083,7 @@ export function aiFreeAgencyDay(
       let offer = aiOffer(league, team, p, rng, lift, rich.get(team.id));
       if (full) {
         if (lift < clear) continue;
-        const funded = fundedFor(team, p.position);
+        const funded = fundedFor(team, p.position, share);
         const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
         if (deal && lastCallTakes(deal, minimum))
           bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
@@ -1118,7 +1132,7 @@ export function aiFreeAgencyDay(
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
           // A funded signing is a prove-it deal (`fitOffer`), and he takes it from his minimum up (`lastCallTakes`).
-          const funded = fundedFor(team, p.position);
+          const funded = fundedFor(team, p.position, share);
           const deal = fitOffer(offer, funded.room, minimum, p.age);
           if (deal && lastCallTakes(deal, minimum))
             bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });

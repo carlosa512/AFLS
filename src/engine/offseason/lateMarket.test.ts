@@ -17,6 +17,8 @@ import {
   spendable,
   YOUNG_PROVE_IT_YEARS,
   KEEP_MIN,
+  FUNDED_RESERVE_SHARE,
+  starReserveShare,
   depthOutlooks,
   lastCallTakes,
   needGain,
@@ -333,6 +335,19 @@ describe('the market clears', () => {
         expect(cut.contract!.kind).toBe('minimum');
         expect(releasePreview(l, cut).thisYear + releasePreview(l, cut).nextYear).toBe(0);
       }
+  });
+
+  it('for a young star a club may break its whole in-season reserve', () => {
+    const { l } = lastCall();
+    for (const t of l.teams.slice(0, 8)) {
+      const half = fundedRoom(l, t, 'WR');
+      const all = fundedRoom(l, t, 'WR', 1);
+      expect(all.room - half.room).toBeCloseTo(0.5 * inSeasonReserve(l, t.id));
+      expect(all.cut?.id).toBe(half.cut?.id);
+    }
+    expect(starReserveShare(0.06, 26)).toBe(1);
+    expect(starReserveShare(0.06, 29)).toBe(FUNDED_RESERVE_SHARE);
+    expect(starReserveShare(0.03, 26)).toBe(FUNDED_RESERVE_SHARE);
   });
 
   it('funding draws at most half the in-season reserve', () => {
