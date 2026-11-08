@@ -15,7 +15,8 @@ const taps: ContactTap[] = [];
 const results: GameResult[] = [];
 for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 40))
   results.push(simulateGame(league, g, { keepPlays: true, contactTap: (t) => taps.push(t) }));
-const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!);
+// A two-point try's snap books nothing and taps nothing (`twoPointTry`).
+const plays: PlayLogEntry[] = results.flatMap((r) => r.plays!.filter((e) => !/^Two-point try: /.test(e.text)));
 /** The plays as they stand (a flag that wiped one out leaves its text, but not its stats). */
 const standing = plays.filter((e) => e.kind !== 'penalty');
 

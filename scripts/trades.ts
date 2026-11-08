@@ -93,6 +93,7 @@ import {
 } from './trades-prices';
 import { shareLeagues, type ShareRun } from './trades-share';
 import { habitsForce } from '../src/engine/gmHabits';
+import { bandMark, bandOf } from './band';
 // A run with every GM habit off, to tell a habit's lean from the market's own luck (the gm-habits check's switch).
 if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
@@ -115,12 +116,14 @@ const SEED = process.argv.includes('--seed') ? flag('--seed') : 'alt';
 const DIVISION_OF = createLeague({ seed: 'divisions' }).teams.map((t) => t.division);
 
 let misses = 0;
-const check = (label: string, value: number, [lo, hi]: [number, number], digits = 0) => {
-  const ok = Number.isFinite(value) && value >= lo && value <= hi;
-  if (!ok) misses++;
+/** A line's range; with a normal band (`band.ts`), outside the usual range only warns and outside the normal one fails. */
+const check = (label: string, value: number, usual: [number, number], digits = 0, normal?: [number, number]) => {
+  const band = bandOf(value, usual, normal);
+  if (band === 'abnormal' || band === 'none') misses++;
+  const [lo, hi] = usual;
   const range = lo === -Infinity ? `≤${hi}` : hi === Infinity ? `≥${lo}` : `${lo}–${hi}`;
   console.log(
-    `  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${ok ? '' : !Number.isFinite(value) || value < lo ? '  ▼ LOW' : '  ▲ HIGH'}`,
+    `  ${label.padEnd(52)} ${Number.isFinite(value) ? value.toFixed(digits).padStart(8) : '     n/a'}   ${range}${band === 'none' ? '  ▼ LOW' : bandMark(value, usual, normal)}`,
   );
 };
 /** A number shown for reading, never failed: bad business that a GM's scouts or situation explain. */
@@ -1103,7 +1106,8 @@ console.log(
 // The NFL's drafts run from about 28 trades (2024, one of its quietest) to 41-43 (2023, the record; 40 in 2019): CBS,
 // ESPN, Fox. 35-45 until 0.2.36, when front offices keeping their cores left fewer thin spots to trade up for (34.3
 // a draft; first-round trades 5.8, the NFL's 2016-25 average 5.5) (owner's call, 2026-11-02).
-check('draft trades a draft', mean(draftDay.perDraft), [28, 45], 1);
+// A swing line (`band.ts`): a world's draft days run quieter or busier; outside 24-48 is abnormal (owner's call, Nov 8).
+check('draft trades a draft', mean(draftDay.perDraft), [28, 45], 1, [24, 48]);
 check('…with a first-round pick', mean(draftDay.withFirst), [3, 9], 1);
 check('ms a pick (median, one whole draft)', median(draftDay.ms), [0, 3], 2);
 check('trade-ups where the buyer took its man (%)', pct(draftDay.tookHim), [90, 100], 1);
@@ -1116,7 +1120,9 @@ check(
 check('round-1 price ÷ JJ chart (median, mover)', median(draftDay.priceRatios), [0.95, 1.25], 2);
 // The audit's nine drafts and the share leagues' (`trades-share.ts`): nine alone hold about three of these.
 const qbUps = [...draftDay.qbUps, ...shares.flatMap((r) => r.qbUps)];
-check(`QB trade-ups into the top 16, a draft (${qbUps.length} drafts)`, mean(qbUps), [0.3, 2], 1);
+// A swing line: the default world ran 0.4 on main and 0.2 on 0.4.14, another world 0.4 and 0.5 (luck, about 0.15 a
+// draft over 45); outside 0.15-2.5 is abnormal (owner's call, Nov 8).
+check(`QB trade-ups into the top 16, a draft (${qbUps.length} drafts)`, mean(qbUps), [0.3, 2], 1, [0.15, 2.5]);
 check(
   'trade-downs by analytics GMs or Pick Hoarders (%) − their share (%)',
   (100 * draftDay.downs.flat) / Math.max(1, draftDay.downs.all) - 100 * mean(draftDay.flatTeams),
@@ -1131,6 +1137,8 @@ check(
   draftDay.withFuture / Math.max(1, draftDay.perDraft.length),
   [2.5, 9],
   1,
+  // A swing line since 0.4.14: outside 2-9 is abnormal (owner's call, Nov 8).
+  [2, 9],
 );
 
 console.log(`\n${misses} number(s) outside target range`);

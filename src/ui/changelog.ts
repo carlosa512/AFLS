@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.14',
+    date: '2026-11-08',
+    title: 'Loose ends',
+    text:
+      "A two-point try no longer counts as a snap or shakes a quarterback's nerve. A team trying before the half takes " +
+      'its timeouts once it is out of its own end, and plays it safe until then on every down. On film, a fumble on a ' +
+      'sack at the line comes out where he went down instead of a yard past it.',
+  },
+  {
     version: '0.4.13',
     date: '2026-11-08',
     title: 'Front offices that plan',

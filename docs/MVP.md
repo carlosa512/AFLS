@@ -386,27 +386,28 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
 ## Follow-up: what a play's time left (0.4.11)
 
-- [ ] **A squeezed buyer's swap bid isn't repriced for the salary you keep.** A buyer short of room who bids a player
-      (not picks) for yours asks you to keep part of his salary and pays nothing more for it (`offers.test.ts` checks
-      pick bids only until this is fixed).
+- [x] **A squeezed buyer's swap bid isn't repriced for the salary you keep.** **Not a gap (0.4.14):** every bid's price
+      and floor count the money you keep (`worth` in `bidFor`); a swap comes in lumps, so the player that cleared the
+      floor with room can clear it without. `offers.test.ts` now says so (a squeezed swap is never worth less).
 - [ ] **Extends Early extends men near the end.** An AI club with the habit extended a 32-year-old tight end to a
       two-year minimum deal: an "extension" that extends nothing.
 - [ ] **Defensive twos run under the NFL's** (1% of tries against 3.9%): the league's tries turn it over less than the
       NFL's, so even every turnover coming back couldn't reach it.
-- [ ] **A two-point try counts snaps and form.** Its snap adds to `StatLine.snaps` and the pass-rush rotation, and a sack
-      on it to `sacksTaken` (Rattled, Shaken): small (about 0.3% of snaps), but the spec says the try books nothing.
-- [ ] **A try from deep before the half stays short on 4th down** from past its own 35 (`halfSafe` isn't recomputed on
-      4th down).
-- [ ] **`npm run situations` small reads:** a return touchdown a flag called back counts as one; the half's lines read
-      drives already under way when the clock passed 75 seconds against the NFL's drives that start there; the punt
-      table's negative returns are floored at 0; CLAUDE.md's "3,000 in under a minute" is the run, not its default
-      (200).
+- [x] **A two-point try counts snaps and form.** **Fixed (0.4.14):** a try wears bodies and counts nothing: no snap, no
+      pass-rush rotation, and a sack on it adds nothing toward Rattled or Shaken.
+- [x] **A try from deep before the half stays short on 4th down** from past its own 35. **Fixed (0.4.14):** every snap
+      reads `playsSafe`, 4th down included; and a trying drive now takes its timeouts from its own 40
+      (`HALF_TIMEOUTS_FROM`), where it ran out the half 50% against the NFL's 42%.
+- [x] **`npm run situations` small reads.** **Fixed (0.4.14):** a return touchdown a flag called back taps as none; the
+      half's lines read only drives that start with 75 seconds or less, as the NFL figure does; the check plays 3,000
+      games by default. Left as it is: the punt table's negative returns floored at 0 (a return is never a loss).
 - [ ] **The trades check's draft lines sit near their floors on some worlds.** Deals with a future pick in them ran
       2.3 a draft on the old default world after 0.4.11 reshuffled its seasons (2.9 and 3.7 on two others; main 3.4–4.0),
       with no path from the change to draft trades: the check moved to world `alt` (the owner's call). Worth a look
       whether draft-day future picks run thin.
-- [ ] **All-22's strip-sack at the line** may show the quarterback about half a yard past it at the hit
-      (`stage.test.ts` allows it): the strip film's jolt.
+- [x] **All-22's strip-sack at the line** showed the quarterback about half a yard past it at the hit. **Fixed
+      (0.4.14):** a strip-sack's ball comes out at the sack's spot (`loosen` in `ballPath.ts`), so the carry never runs him
+      past it; `stage.test.ts`'s allowance is gone.
 
 ## Follow-up: what the locker-room work left (0.3.10)
 
@@ -414,9 +415,10 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       (`GmAppointment.clock`), and `heldLetters` in `meetings/mail.ts` files only meetings held after it. The ids keep
       no club: every letter now comes from your own time at a club, so they can't collide, and a new id would have
       re-filed every meeting letter already in the inbox.
-- [ ] **Spark and Anchor tags read the truth.** The tags come from `soundOf`, which reads true hidden traits, so a tag
-      can disagree with the personality our scouts show beside it. The L3 spec allows the tags; whether to gate them
-      on our read (as L1's "warns" line does) is the owner's call (`ui/screens/LockerRoom.tsx`, `roomFacts.chemFact`).
+- [x] **Spark and Anchor tags read the truth.** **Closed (0.4.14):** the Locker Room shows only your own room, and a
+      club reads its own men exactly (`knowledge` is 1), so a tag gated on our read would show what it shows now: no
+      fog of war is crossed. A tag and the personality beside it can still differ: two labels with their own cut-offs
+      over the same makeup.
 - [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
       `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his

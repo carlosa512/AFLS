@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import type { PlayLogEntry } from '../types';
 import type { GameResult } from '../types';
-import { simulateGame, type SituationTap } from './gameSim';
+import { simulateGame, startGame, type SituationTap } from './gameSim';
 import { sureTwo } from './twoPoint';
 
 const league = createLeague({ seed: 'situations-engine' });
@@ -129,5 +129,28 @@ describe('returns, in the engine', () => {
       return xs.reduce((a, t) => a + t.seconds, 0) / xs.length;
     };
     expect(avg('punt')).toBeGreaterThan(avg('fairCatch') + 2);
+  });
+});
+
+describe('a two-point try books no snap (0.4.14)', () => {
+  it("adds no snap to the scoring side's quarterbacks: only the touchdown's own", () => {
+    const l = createLeague({ seed: 'try-snaps' });
+    let tries = 0;
+    for (const g of l.games.filter((x) => !x.playoffRound).slice(0, 12)) {
+      const live = startGame(l, g, {});
+      while (!live.over) {
+        // A copy: the live result hands back the game's own stat lines.
+        const before = JSON.parse(JSON.stringify(live.result().playerStats)) as GameResult['playerStats'];
+        const batch = live.next();
+        const tryEntry = batch.find((e) => /^Two-point try: /.test(e.text));
+        if (!tryEntry) continue;
+        tries++;
+        const after = live.result().playerStats;
+        const qbs = Object.values(l.players).filter((p) => p.teamId === tryEntry.offense && p.position === 'QB');
+        const added = qbs.reduce((a, p) => a + ((after[p.id]?.snaps ?? 0) - (before[p.id]?.snaps ?? 0)), 0);
+        expect(added, tryEntry.text).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(tries).toBeGreaterThan(3);
   });
 });

@@ -39,6 +39,15 @@ const SEEDS = [
   'trades-13',
   'trades-14',
   'trades-15',
+  // More worlds since 0.4.14 reshuffled the seasons: a player-for-player offer to you is rare in any one of them.
+  'trades-16',
+  'trades-17',
+  'trades-18',
+  'trades-19',
+  'trades-20',
+  'trades-21',
+  'trades-22',
+  'trades-23',
 ];
 
 it('separates a dated staff recommendation from the briefing without repeating its text', () => {
@@ -244,8 +253,10 @@ describe('offer mail', () => {
   });
 
   it('links every player on both sides of the offer', async () => {
+    // A player-for-player offer is rare: start where one is filed (a long search times out on CI).
     const { league, offer } = await withFiledOffer(
       (o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0,
+      'trades-17',
     );
     const message = mailForOffer(league, offer)!;
     const about = aboutOf(league, message);

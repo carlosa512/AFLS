@@ -1269,11 +1269,9 @@ describe('the pocket', () => {
       const until = stepAt(p, e.kind === 'scramble' ? p.release : p.release);
       // A sack at the line (no loss, 0.4.10) can have him on it, never past it.
       const atLine = e.kind === 'sack' && / for 0 yards/.test(e.text);
-      // ...and a strip there jolts him with the hit, about half a yard (0.4.11).
-      const jolt = atLine && /FUMBLE/.test(e.text) ? 0.55 : 1e-6;
       for (let st = 0; st <= until; st++) {
         const ahead = (P(p, qb, st).x - p.ball[0]) * p.dir;
-        if (atLine) expect(ahead, e.text).toBeLessThanOrEqual(jolt);
+        if (atLine) expect(ahead, e.text).toBeLessThanOrEqual(1e-6);
         else expect(ahead, e.text).toBeLessThan(0);
       }
     }

@@ -174,6 +174,8 @@ export function tapSituation(t: SituationTally, tap: SituationTap): void {
       return;
     }
     case 'half': {
+      // The NFL's figure is drives that start with 75 seconds or less: one already under way there isn't one.
+      if (!tap.startedIn) return;
       const b = clockBucket(tap.clock);
       if (b) count((t.half[b] ??= [0, 0]), tap.kneeled);
       if (b === '21-40' && tap.yardLine <= 35)
