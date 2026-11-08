@@ -1,4 +1,5 @@
 import type { League, Player, StatKey, StatLine } from './types';
+import { qualifies, RATES, type RateKey } from './qualify';
 import { MAX_STATS } from './types';
 
 /** One season's regular-season totals, or a whole career's. */
@@ -53,9 +54,16 @@ export interface LeaderCategory {
   label: string;
   stat: (s: StatLine) => number;
   format?: (v: number) => string;
-  /** Minimum qualifier, e.g. attempts. */
-  qualifies?: (s: StatLine) => boolean;
+  /** A rate: only men who've done enough for it in the scope are ranked (`qualify.ts`). */
+  rate?: RateKey;
 }
+
+const ratio =
+  (a: keyof StatLine, b: keyof StatLine, scale = 1) =>
+  (s: StatLine) =>
+    (s[b] ?? 0) ? ((s[a] ?? 0) / s[b]!) * scale : 0;
+const oneDecimal = (v: number) => v.toFixed(1);
+const percent = (v: number) => `${v.toFixed(1)}%`;
 
 export const LEADER_CATEGORIES: LeaderCategory[] = [
   { key: 'passYds', label: 'Passing yards', stat: (s) => s.passYds ?? 0 },
@@ -65,18 +73,24 @@ export const LEADER_CATEGORIES: LeaderCategory[] = [
     label: 'Passer rating',
     stat: passerRating,
     format: (v) => v.toFixed(1),
-    qualifies: (s) => (s.passAtt ?? 0) >= 14 * (s.gp ?? 0) && (s.passAtt ?? 0) > 0,
+    rate: 'passing',
   },
+  { key: 'cmpPct', label: 'Completion %', stat: ratio('passCmp', 'passAtt', 100), format: percent, rate: 'passing' },
+  { key: 'ypa', label: 'Yards per attempt', stat: ratio('passYds', 'passAtt'), format: oneDecimal, rate: 'passing' },
   { key: 'rushYds', label: 'Rushing yards', stat: (s) => s.rushYds ?? 0 },
   { key: 'rushTd', label: 'Rushing TD', stat: (s) => s.rushTd ?? 0 },
+  { key: 'ypc', label: 'Yards per carry', stat: ratio('rushYds', 'rushAtt'), format: oneDecimal, rate: 'rushing' },
   { key: 'recYds', label: 'Receiving yards', stat: (s) => s.recYds ?? 0 },
   { key: 'rec', label: 'Receptions', stat: (s) => s.rec ?? 0 },
   { key: 'recTd', label: 'Receiving TD', stat: (s) => s.recTd ?? 0 },
+  { key: 'ypr', label: 'Yards per catch', stat: ratio('recYds', 'rec'), format: oneDecimal, rate: 'receiving' },
   { key: 'sacks', label: 'Sacks', stat: (s) => s.sacks ?? 0 },
   { key: 'pressures', label: 'Pressures', stat: (s) => s.pressures ?? 0 },
   { key: 'tackles', label: 'Tackles', stat: (s) => s.tackles ?? 0 },
   { key: 'defInt', label: 'Interceptions', stat: (s) => s.defInt ?? 0 },
   { key: 'fgMade', label: 'Field goals', stat: (s) => s.fgMade ?? 0 },
+  { key: 'fgPct', label: 'Field goal %', stat: ratio('fgMade', 'fgAtt', 100), format: percent, rate: 'kicking' },
+  { key: 'puntAvg', label: 'Punt average', stat: ratio('puntYds', 'punts'), format: oneDecimal, rate: 'punting' },
 ];
 
 export function leaders(
@@ -89,11 +103,11 @@ export function leaders(
   for (const player of Object.values(league.players)) {
     const line = statLine(player, scope);
     if (!line) continue;
-    if (category.qualifies && !category.qualifies(line)) continue;
+    if (category.rate && !qualifies(league, player, line, scope, RATES[category.rate])) continue;
     const value = category.stat(line);
     if (value > 0) rows.push({ player, value, line });
   }
-  return rows.sort((a, b) => b.value - a.value).slice(0, limit);
+  return rows.sort((a, b) => b.value - a.value || a.player.id - b.player.id).slice(0, limit);
 }
 
 export interface RecordRow extends LeaderRow {
@@ -105,12 +119,12 @@ export function seasonRecords(league: League, category: LeaderCategory, limit = 
   const rows: RecordRow[] = [];
   for (const player of Object.values(league.players)) {
     for (const [season, line] of Object.entries(player.stats)) {
-      if (category.qualifies && !category.qualifies(line)) continue;
+      if (category.rate && !qualifies(league, player, line, Number(season), RATES[category.rate])) continue;
       const value = category.stat(line);
       if (value > 0) rows.push({ player, value, line, season: Number(season) });
     }
   }
-  return rows.sort((a, b) => b.value - a.value || a.season - b.season).slice(0, limit);
+  return rows.sort((a, b) => b.value - a.value || a.season - b.season || a.player.id - b.player.id).slice(0, limit);
 }
 
 /** Team's leader in a stat this season (players currently on the team). */

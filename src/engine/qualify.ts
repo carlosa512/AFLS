@@ -51,15 +51,20 @@ const SEASON_GAMES = 17;
 
 /**
  * The regular-season games his club has played in `season`: the club he finished it with, else his club now; a man
- * with neither is measured against a full season.
+ * with neither, or a season whose schedule the league no longer keeps, is measured against a full season.
  */
 export function teamGames(league: League, player: Player, season: number): number {
   const club = player.statTeams?.[season]?.at(-1) ?? player.teamId;
   if (club === null || club === undefined) return SEASON_GAMES;
+  let scheduled = 0;
   let n = 0;
   for (const g of league.games)
-    if (g.season === season && !g.playoffRound && g.result && (g.homeId === club || g.awayId === club)) n++;
-  return n;
+    if (g.season === season && !g.playoffRound && (g.homeId === club || g.awayId === club)) {
+      scheduled++;
+      if (g.result) n++;
+    }
+  // An old season's schedule is gone from the league (only the last two are kept): it was played in full.
+  return scheduled ? n : SEASON_GAMES;
 }
 
 /** Whether `line` has done enough for `rate` to count in `scope` (a season, or the career). */

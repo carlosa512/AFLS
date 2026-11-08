@@ -64,6 +64,11 @@ describe('rate-stat minimums', () => {
     expect(teamGames(l, p, l.season)).toBe(17);
   });
 
+  it('a past season whose schedule is gone is measured against 17', () => {
+    const l = played(3);
+    expect(teamGames(l, qb(l), l.season - 3)).toBe(17);
+  });
+
   it('career needs the total and 64 games', () => {
     const l = played(0);
     const p = qb(l);
