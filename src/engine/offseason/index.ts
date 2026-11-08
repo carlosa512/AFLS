@@ -418,7 +418,9 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       }
       // Camp's last word on the market: a good free agent cut late or never placed, a full club swapping its weakest
       // minimum man for him (`fundedRoom`), before the squads take what's left.
-      aiFreeAgencyDay(league, rng, { includeUser: auto, rosterMax: ROSTER_MAX, lastCall: true });
+      // A pass a club signs once a day in (`dailyLimit`): again while it still places someone, three at most.
+      for (let pass = 0; pass < 3; pass++)
+        if (!aiFreeAgencyDay(league, rng, { includeUser: auto, rosterMax: ROSTER_MAX, lastCall: true })) break;
       if (league.personnel?.enabled) {
         formPracticeSquads(league, auto || staffHandlesSquad(league));
         // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.

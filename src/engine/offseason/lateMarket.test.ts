@@ -15,6 +15,8 @@ import {
   fundedRoom,
   inSeasonReserve,
   spendable,
+  YOUNG_PROVE_IT_YEARS,
+  KEEP_MIN,
 } from './ai';
 import { capHit as hitOf } from '../finance/contract';
 import { capSheet, releasePreview } from '../finance/cap';
@@ -160,9 +162,9 @@ describe('the late market runs past day 5', () => {
 describe('spending discipline', () => {
   const offer = { years: 4, apy: 9_000, bonusPct: 0.3, gtdPct: 0.5, voidYears: 1 };
 
-  it('a fitted offer to a 26-year-old runs two years; to a 31-year-old one', () => {
+  it('a fitted offer to a 26-year-old runs the young prove-it years; to a 31-year-old one', () => {
     expect(fitOffer(offer, 5_200.7, 1_100, 26)).toEqual({
-      years: 2,
+      years: YOUNG_PROVE_IT_YEARS,
       apy: 5_200,
       bonusPct: 0,
       gtdPct: 0.5,
@@ -219,7 +221,7 @@ describe('the market clears', () => {
     aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
     expect(l.players[star.id].teamId).toBe(club.id);
     // A funded signing is a prove-it deal: two years for a man 28 or younger (the owner, Nov 8), one for a veteran.
-    expect(l.players[star.id].contract!.length).toBe(l.players[star.id].age <= 28 ? 2 : 1);
+    expect(l.players[star.id].contract!.length).toBe(l.players[star.id].age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
     expect(l.players[cut.id].teamId).toBeNull();
     expect(capSheet(l, club.id, l.season).dead).toBe(dead);
   }, 120_000);
@@ -251,6 +253,23 @@ describe('the market clears', () => {
     expect(l.players[qb.id].teamId).not.toBeNull();
   }, 120_000);
 
+  it('with no minimum man at his spot, a swap cuts one at a spot it can spare, never below its keep-minimum', () => {
+    const { l } = lastCall();
+    let seen = 0;
+    for (const t of l.teams) {
+      for (const pos of ['QB', 'WR', 'OL', 'CB', 'EDGE', 'TE', 'S'] as const) {
+        const atSpot = activeRoster(l, t.id).some((p) => p.position === pos && p.contract?.kind === 'minimum');
+        const { cut } = fundedRoom(l, t, pos);
+        if (atSpot || !cut) continue;
+        seen++;
+        expect(cut.contract!.kind).toBe('minimum');
+        const left = activeRoster(l, t.id).filter((p) => p.position === cut.position).length - 1;
+        expect(left).toBeGreaterThanOrEqual(KEEP_MIN[cut.position]);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
   it('never cuts a man promised a deal or one the personnel rules lock', () => {
     const { l } = lastCall();
     for (const t of l.teams.slice(0, 10)) {
@@ -260,6 +279,19 @@ describe('the market clears', () => {
       expect(fundedRoom(l, t, 'WR').cut?.id).not.toBe(first.id);
     }
   });
+
+  it('a man cut in a swap joins the castoffs: unsigned by the end of camp, he may leave football', () => {
+    const { l, star } = lastCall();
+    l.personnel = { ...(l.personnel ?? ({} as never)), enabled: true };
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    const club = l.players[star.id].teamId!;
+    const cut = l.transactions.filter((t) => t.kind === 'release' && t.teamIds.includes(club)).at(-1);
+    expect(cut).toBeDefined();
+    const released = l.personnel!.futures?.released ?? [];
+    expect(released.some((id) => cut!.text.includes(`${l.players[id].firstName} ${l.players[id].lastName}`))).toBe(
+      true,
+    );
+  }, 120_000);
 
   it('no funding from a cut that would leave dead money', () => {
     const { l } = lastCall();

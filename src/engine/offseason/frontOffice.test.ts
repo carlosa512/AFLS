@@ -19,6 +19,7 @@ import {
   resignCall,
   spendable,
   winNow,
+  YOUNG_PROVE_IT_YEARS,
 } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
 import { gambles } from './capPlan';
@@ -78,7 +79,7 @@ describe('the market clears by camp', () => {
       found = true;
       const signed = last.l.players[last.p.id];
       // A prove-it deal: one year for a veteran, two for a player 28 or younger (`fitOffer`).
-      expect(signed.contract!.length).toBe(signed.age <= 28 ? 2 : 1);
+      expect(signed.contract!.length).toBe(signed.age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
       expect(capHit(signed.contract!, last.l.season)).toBeLessThanOrEqual(1.5 * last.min + 1);
       // Before camp he takes less than his walk-away from nobody.
       const early = lateVeteran(t.id, 1.5);

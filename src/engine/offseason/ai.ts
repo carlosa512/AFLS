@@ -237,9 +237,7 @@ export function aiOffer(
  */
 export function fitOffer(offer: Offer, budget: number, min: number, age = Infinity): Offer | null {
   if (budget < min) return null;
-  // The one-year prove-it deal is a veteran's: a player 28 or younger gets two (the NFL's one-year share of good
-  // outside signings is 20%; ours climbed past half when every stranded man signed for one).
-  const years = age <= 28 ? 2 : 1;
+  const years = age <= 28 ? YOUNG_PROVE_IT_YEARS : 1;
   return { years, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
 }
 
@@ -256,7 +254,14 @@ export const fitsNextYear = (committedNext: number, needs: number, apy: number, 
  * keeps 36% of its good players whose deals end and 38% move (`docs/research/free-agency-market.md`); at 0.3 ours kept
  * half and the outside market ran at half the NFL's (the owner's call, Nov 7: more players test free agency).
  */
-export const TESTS_MARKET = 0.75;
+export const TESTS_MARKET = 0.3;
+
+/**
+ * Years on a prove-it deal (fitted to a club's room, or funded on the last call) for a player 28 or younger. Two read
+ * the NFL's one-year share better, but a young man on two years under his market held out: `morale`'s contract
+ * disputes 12.9 a season and holdouts 5.6 against 3-12 and 0.5-5, at one year 7.9 and 3.4. A setting, the owner's to move.
+ */
+export const YOUNG_PROVE_IT_YEARS = 1;
 
 /** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
 export const CLEARING_DAY = 3;
@@ -277,16 +282,32 @@ export const clearingFloor = (walkAway: number, bestFitted: number | null, minim
  * only if the player chooses this club). A minimum deal is never a bonus's: the cut costs nothing later.
  */
 export function fundedRoom(league: League, team: Team, position: Position): { room: number; cut: Player | null } {
+  const roster = activeRoster(league, team.id);
+  const count = (pos: Position) => roster.filter((p) => p.position === pos).length;
+  const cuttable = roster
+    .filter((p) => p.contract?.kind === 'minimum' && !p.ir)
+    // Never a man the personnel rules lock (a release would throw) or one promised a deal (G4).
+    .filter((p) => !personnelMoveLock(league, p) && !promisedDeal(p))
+    .filter((p) => {
+      const pre = releasePreview(league, p);
+      return pre.thisYear + pre.nextYear === 0;
+    })
+    .sort((a, b) => playerOvr(a) - playerOvr(b) || a.id - b.id);
+  // His own spot first; with no minimum man there, one at a spot the club can spare (it keeps its keep-minimum): most
+  // clubs' minimum men sit elsewhere, and a camp of full rosters left young stars unplaced for want of one at his spot.
   const cut =
-    activeRoster(league, team.id)
-      .filter((p) => p.position === position && p.contract?.kind === 'minimum' && !p.ir)
-      // Never a man the personnel rules lock (a release would throw) or one promised a deal (G4).
-      .filter((p) => !personnelMoveLock(league, p) && !promisedDeal(p))
-      .filter((p) => {
-        const pre = releasePreview(league, p);
-        return pre.thisYear + pre.nextYear === 0;
-      })
-      .sort((a, b) => playerOvr(a) - playerOvr(b) || a.id - b.id)[0] ?? null;
+    cuttable.find((p) => p.position === position) ??
+    // Specialists swap only like for like: a club opens with one kicker and one punter.
+    (position === 'K' || position === 'P'
+      ? undefined
+      : cuttable.find(
+          (p) =>
+            p.position !== position &&
+            p.position !== 'K' &&
+            p.position !== 'P' &&
+            count(p.position) > KEEP_MIN[p.position],
+        )) ??
+    null;
   const room =
     spendable(league, team.id) +
     FUNDED_RESERVE_SHARE * inSeasonReserve(league, team.id) +
@@ -1076,7 +1097,15 @@ export function aiFreeAgencyDay(
     }
     if (!best) continue;
     // A funded signing releases the man who paid for it first (his spot is the new man's).
-    if (best.cut) releasePlayer(league, best.cut);
+    if (best.cut) {
+      releasePlayer(league, best.cut);
+      // A fringe man let go for a better one joins the squad castoffs: unsigned by the end of camp, he may leave
+      // football (`retireCastoffs`), or every swap leaves one more free agent the pool never loses.
+      if (league.personnel?.enabled) {
+        const f = (league.personnel.futures ??= { season: league.season, kept: {} });
+        (f.released ??= []).push(best.cut.id);
+      }
+    }
     const before = capSpace(league, best.team.id);
     // Read before he signs: the new arrival can be the roster's best quarterback, no longer a young one.
     const bridgeYoung =

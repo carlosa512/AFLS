@@ -43,11 +43,16 @@ const SUPPLY_WEIGHT: Record<Position, number> = {
 
 /** World supply is independent of the main RNG and never takes a player or dollar from an existing 53. */
 export function ensureSquadSupply(league: League): void {
-  const openings = league.teams.reduce(
-    // The standard 16 only: the international place is for a Pathway player, and the Pathway class supplies those.
-    (sum, t) => sum + Math.max(0, PERSONNEL_RULES.squadLimit - practiceSquad(league, t.id).length),
-    0,
-  );
+  // The standard 16 only: the international place is for a Pathway player, and the Pathway class supplies those. Only the
+  // places a club can pay for: squads run short on money, not players, and a man made for a place nobody can fund sits in
+  // the pool for years (counting willing men only, the supply made a hundred a year more than it had and the free-agent
+  // pool passed its band).
+  const check = squadRates(league).min * (19 - squadPayWeek(league));
+  const openings = league.teams.reduce((sum, t) => {
+    const open = Math.max(0, PERSONNEL_RULES.squadLimit - practiceSquad(league, t.id).length);
+    const funded = Math.max(0, Math.floor((capSpace(league, t.id) - inSeasonReserve(league, t.id)) / check));
+    return sum + Math.min(open, funded);
+  }, 0);
   // Cuts and expired squad deals fill the pool first; new players cover only what's still missing, so the free-agent
   // pool doesn't grow every season (a spare 64 a round once pushed it past the offseason audit's band). A free agent
   // holding out for an NFL contract fills no place, so he doesn't count (a fringe one takes the first club asked).
@@ -82,10 +87,48 @@ export function ensureSquadSupply(league: League): void {
     p.potential = Math.min(20, playerOvr(p) + upside);
     recordRatings(p, league.season);
     p.contract = null;
-    addPlayer(league, p);
+    // A new man the market values above the minimum would sit unsigned in the pool for years (it grew past 650 by year
+    // five): he's never added. The supply's own stream drew him, so nothing else in the world moves.
     if (!willing(p)) continue;
+    addPlayer(league, p);
     missing--;
     if (!veteran) baseMissing--;
+  }
+}
+
+/**
+ * Healthy free-agent specialists kept in circulation once squads have formed: the NFL always has street kickers and
+ * punters on a tryout list, and a club whose kicker goes down signs one that week. Squads stash about a third of the
+ * league's spares (a 2030 save: 10 kickers and 11 punters on squads, 2 and 4 left unsigned), and the supply's weights
+ * almost never make a new one.
+ */
+export const SPECIALIST_FLOOR = { K: 6, P: 4 } as const;
+
+/** Tops free agency up to `SPECIALIST_FLOOR` with street specialists, on its own stream: nothing else in the world moves. */
+export function ensureSpecialistSupply(league: League): void {
+  const rng = new Rng(`${league.seed}:specialist-pool:${league.season}:${league.week}:${league.nextPlayerId}`);
+  for (const position of ['K', 'P'] as const) {
+    const have = squadCandidates(league).filter((p) => p.position === position).length;
+    for (let i = have; i < SPECIALIST_FLOOR[position]; i++) {
+      const experience = rng.int(0, 4);
+      const p = generatePlayer(rng, {
+        id: league.nextPlayerId++,
+        position,
+        // A spare leg: below most starters, good enough to kick for a few weeks.
+        quality: rng.float(7, 10),
+        age: rng.int(23, 30),
+        teamId: null,
+        jerseysUsed: new Set(),
+      });
+      p.experience = experience;
+      p.origin = collegeOrigin(league.seed, p.id, 3);
+      p.jersey = favoriteJersey(league.seed, p);
+      p.service = initialService(experience, league.season - 1);
+      p.potential = Math.min(20, playerOvr(p) + rng.float(0, 1));
+      recordRatings(p, league.season);
+      p.contract = null;
+      addPlayer(league, p);
+    }
   }
 }
 
@@ -185,5 +228,7 @@ export function formPracticeSquads(league: League, autoUser = false): number {
     total += count;
     if (!count) break;
   }
+  // What the squads left: free agency keeps its street kickers and punters.
+  ensureSpecialistSupply(league);
   return total;
 }

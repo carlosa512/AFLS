@@ -3,7 +3,7 @@ import { createLeague, generatePlayer, SAVE_VERSION } from '../generate';
 import { capSheet, capSpace, releasePlayer } from '../finance/cap';
 import { capHit } from '../finance/contract';
 import { inSeasonReserve, spendable } from '../offseason/ai';
-import { contenderScore, demand } from '../offseason/negotiation';
+import { contenderScore, demand, takesMinimum } from '../offseason/negotiation';
 import { minSalary } from '../finance/market';
 import { irProblem, practiceLoad } from '../injuries';
 import { migrateLeague } from '../migrate';
@@ -15,7 +15,14 @@ import type { League, Player } from '../types';
 import { squadCategory, squadFit, squadRates } from './eligibility';
 import { ensureSquads, settleSquadPayroll, squadPayroll } from './payroll';
 import { creditService, initialService } from './service';
-import { ensureSquadSupply, formPracticeSquads, resolveSquadOffers, squadCandidates } from './squadMarket';
+import {
+  ensureSpecialistSupply,
+  ensureSquadSupply,
+  formPracticeSquads,
+  resolveSquadOffers,
+  SPECIALIST_FLOOR,
+  squadCandidates,
+} from './squadMarket';
 import {
   acceptSquadOffer,
   inviteSquadReturn,
@@ -137,6 +144,28 @@ describe('squad eligibility and agreements', () => {
   });
 });
 
+describe('specialists in circulation', () => {
+  it('after squads form, free agency keeps at least six kickers and four punters a club can sign', () => {
+    // Every unsigned specialist gone: squads and retirements have taken the lot.
+    for (const p of squadCandidates(l)) if (p.position === 'K' || p.position === 'P') p.retired = true;
+    formPracticeSquads(l);
+    const fa = squadCandidates(l);
+    expect(fa.filter((p) => p.position === 'K').length).toBeGreaterThanOrEqual(SPECIALIST_FLOOR.K);
+    expect(fa.filter((p) => p.position === 'P').length).toBeGreaterThanOrEqual(SPECIALIST_FLOOR.P);
+    // Each would sign for the minimum: a street specialist, not a holdout.
+    for (const p of fa.filter((x) => x.position === 'K' || x.position === 'P'))
+      expect(l.teams.some((t) => takesMinimum(l, p, t.id))).toBe(true);
+    expect(SPECIALIST_FLOOR).toEqual({ K: 6, P: 4 });
+  });
+
+  it('makes none when free agency already has enough', () => {
+    ensureSpecialistSupply(l);
+    const before = l.nextPlayerId;
+    ensureSpecialistSupply(l);
+    expect(l.nextPlayerId).toBe(before);
+  });
+});
+
 describe('who takes practice-squad pay', () => {
   /** A free agent the market values well above the minimum: a starter nobody had room for. */
   function starter(): Player {
@@ -154,6 +183,22 @@ describe('who takes practice-squad pay', () => {
     addPlayer(l, p);
     return p;
   }
+
+  it('supply makes no man for a place no club can pay for: squads run short on money, not players', () => {
+    for (const p of squadCandidates(l)) p.retired = true; // nobody left to fill a place
+    for (const t of l.teams) t.carryover = -l.caps[l.season]; // and no club with room for a squad check
+    const before = l.nextPlayerId;
+    ensureSquadSupply(l);
+    expect(l.nextPlayerId).toBe(before);
+  });
+
+  it('supply never adds a man who wouldn’t sign: the pool doesn’t grow with players nobody can place', () => {
+    const before = l.nextPlayerId;
+    ensureSquadSupply(l);
+    const made = Object.values(l.players).filter((p) => p.id >= before);
+    expect(made.length).toBeGreaterThan(0);
+    for (const p of made) expect(l.teams.some((t) => takesMinimum(l, p, t.id))).toBe(true);
+  });
 
   it('a free agent the market values above the minimum holds out for an NFL contract; a fringe one signs', () => {
     const star = starter();
