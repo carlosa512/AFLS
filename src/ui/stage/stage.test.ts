@@ -1665,8 +1665,12 @@ describe('the run game', () => {
       expect(moved(slow)).toBeLessThan(0.5);
       seen.slowFlow++;
       const misread = stage(x, withHabit(x, lb, 'misreadsKeys'));
-      // His first steps go against the flow (the play side), a yard and more.
-      expect(lateral(misread, r + 0.4)).toBeLessThan(-0.8);
+      // His first steps go against the flow (the play side), a yard and more: the furthest he gets the wrong way from
+      // the snap to just after the handoff (a lineman climbing to him can drive him off it from the handoff on).
+      const wrongWay = Math.min(
+        ...Array.from({ length: Math.floor((r + 0.4) / 0.05) + 1 }, (_, i) => lateral(misread, i * 0.05)),
+      );
+      expect(wrongWay, x.e.text).toBeLessThan(-0.8);
       seen.misreadsKeys++;
     }
     for (const n of Object.values(seen)) expect(n).toBeGreaterThan(40);
@@ -1677,7 +1681,9 @@ describe('the run game', () => {
     let climbs = 0;
     const gained: number[] = [];
     const held: number[] = [];
-    for (const x of runs.slice(0, 200)) {
+    // 800 runs: over 200 the seal gain's mean moves about ±0.035 by luck, and two of four worlds read 0.087 and 0.096
+    // (0.12 a world over 800).
+    for (const x of runs.slice(0, 800)) {
       const base = stage(x, without(x));
       if (!base.run) continue;
       const lb = freeBacker(x, base);
