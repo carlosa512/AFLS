@@ -94,10 +94,10 @@ A pure read, nothing stored: `capPlan(league, team)` built from the league as it
   can't pay in full) when it is at least half his walk-away. Stateless: the passes already price every bid; the best
   fitted one is his market that day. Never under his minimum; below half, `marketPressure` keeps lowering his sights as
   today, and the last call still takes anything from his minimum up.
-- **The last call, funded.** On the last call (camp opens) and in camp, a club with a need may sign a clear upgrade (the
+- **The last call, funded** (deal length amended 2026-11-08: two years for a player 28 or younger, like a fitted deal). On the last call (camp opens) and in camp, a club with a need may sign a clear upgrade (the
   `needGain` bar doubled) on a one-year deal by releasing its weakest minimum-salary player at that position (a minimum
   deal carries no dead money) and drawing up to half its in-season reserve.
-- **Young players sign for more than a year.** A fitted offer to a player 28 or younger runs two years (still no bonus):
+- **Young players sign for more than a year** (and their fitted deals skip next year's check, the owner, 2026-11-08: they are prove-it deals at the room a club has, not the big deals §3 guards). A fitted offer to a player 28 or younger runs two years (still no bonus):
   the one-year prove-it deal is a veteran's (the NFL's one-year share of good outside signings is 20%; AFLS's climbs to
   56%).
 - **Goal:** no player 28 or younger whom the market prices at 5%+ of the cap is unsigned at kickoff (the owner's call);

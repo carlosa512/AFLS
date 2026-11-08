@@ -988,7 +988,7 @@ export function aiFreeAgencyDay(
       if (full) {
         if (gain < 2 * minGain.get(team.id)!) continue;
         const funded = fundedRoom(league, team, p.position);
-        const deal = funded.cut && fitOffer(offer, funded.room, minimum);
+        const deal = funded.cut && fitOffer(offer, funded.room, minimum, p.age);
         if (deal && offerValue(league, p, team.id, deal) >= floorAt(team.id))
           bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
         continue;
@@ -1028,13 +1028,16 @@ export function aiFreeAgencyDay(
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
         const fitted = fitOffer(offer, budget.get(team.id)!, minimum, p.age);
-        if (fitted && !nextYearOk(team, fitted)) continue;
+        // A young man's fitted deal is a prove-it deal at the room a club has (no bonus, two years): it skips next
+        // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
+        const young = p.age <= 28;
+        if (fitted && !young && !nextYearOk(team, fitted)) continue;
         if (!fitted && opts.lastCall && gain >= 2 * minGain.get(team.id)!) {
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
           const funded = fundedRoom(league, team, p.position);
-          // A funded signing is one year (the spec's last call), whatever his age.
-          const deal = fitOffer(offer, funded.room, minimum);
+          // A funded signing is a prove-it deal: two years for a man 28 or younger, one for a veteran (`fitOffer`).
+          const deal = fitOffer(offer, funded.room, minimum, p.age);
           if (deal && offerValue(league, p, team.id, deal) >= floorAt(team.id))
             bids.push({ team, offer: deal, value: offerValue(league, p, team.id, deal), cut: funded.cut });
           continue;
@@ -1047,7 +1050,8 @@ export function aiFreeAgencyDay(
         }
         offer = fitted;
       }
-      if (!nextYearOk(team, offer)) continue;
+      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !nextYearOk(team, offer))
+        continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
     }
     // He takes the best offer that beats what he'd walk away from; a club that borrows makes its room only now.
