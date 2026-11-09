@@ -10,7 +10,12 @@ import { endGmAppointment } from '../gm';
 import type { League, MeetingRecord } from '../types';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
-import { meetingCard, meetingNeedsYou, yearParagraphFor } from './mail';
+import { meetingCard, meetingNeedsYou, requestRow, resultRows, yearParagraphFor } from './mail';
+import { manSheet } from '../castSheet';
+import { moraleContext } from '../morale';
+import { teamPlayers } from '../roster';
+import { unitOf } from '../standing';
+import { seasonSaid } from '../voice';
 
 const base = (() => {
   const l = createLeague({ seed: 'meeting-mail' });
@@ -229,5 +234,75 @@ describe('meetings: letters from a new club', () => {
     l.teams[1].meetings!.log.push(held(stepClock(l) + 1));
     deliverMail(l);
     expect(ids(l, 'meeting-result:')).toHaveLength(1);
+  });
+});
+
+describe('meetings: a result told a week on', () => {
+  /** A meeting held with the room, then its record in hand. */
+  const held = (l: League, backing: 'talks' | 'words' = 'words') => {
+    const s = requestMeeting(l, 'DL')!;
+    const b = backing === 'talks' ? (s.backings.find((x) => x !== 'words') ?? 'words') : 'words';
+    answerMeeting(l, { approach: 'straight', backing: b, timing: 'monday' });
+    return l.teams[l.userTeamId].meetings!.log.at(-1)!;
+  };
+  const dl = (l: League) => teamPlayers(l, l.userTeamId).filter((p) => unitOf(p.position) === 'DL');
+
+  it('tells a result from where each man is now', () => {
+    const l = fresh();
+    const r = held(l);
+    const a = dl(l)[0];
+    r.outcomes = { lands: [a.id], bristles: [] };
+    // He is poor now, and his deal is the reason.
+    a.contract!.apy = 1;
+    a.morale!.level = -2;
+    const man = manSheet(l, a, moraleContext(l))!;
+    expect(man.mood).toBe('Poor');
+    const rows = resultRows(l, r, []);
+    const his = rows.find((x) => x.playerId === a.id)!;
+    expect(his.note).toBeTruthy();
+    expect(man.reason).toBe('Wants a new deal');
+    expect(his.note).toMatch(/deal/);
+    expect(JSON.stringify(rows)).not.toMatch(/shrug/i);
+  });
+
+  it('says the room is steadier when it read Down then and is not now', () => {
+    const l = fresh();
+    const r = held(l);
+    r.word = 'Down';
+    for (const p of dl(l)) p.morale!.level = 3;
+    const rows = resultRows(l, r, []);
+    const row = rows.find((x) => x.cells[1] === 'What I told them')!;
+    expect(row.note).toMatch(/steadier|tight now|were down|was down/i);
+    expect(row.note).toMatch(/“.+”/);
+  });
+
+  it('names the men a commitment owes, with the Negotiate row, and files the quote on its own row', () => {
+    const l = fresh();
+    const r = held(l, 'talks');
+    const rows = resultRows(l, r, []);
+    expect(rows.some((x) => x.cells[1] === 'Where that leaves us')).toBe(true);
+    if (r.backing === 'talks') expect(rows.some((x) => x.negotiate)).toBe(true);
+  });
+
+  it('four meetings in a season give four different "what I told them"', () => {
+    const l = fresh();
+    const r = held(l);
+    const said: string[] = seasonSaid(l, 'x');
+    const told = [0, 1, 2, 3].map((i) => {
+      const rec = { ...r, clock: r.clock + i };
+      const row = resultRows(l, rec, said).find((x) => x.cells[1] === 'What I told them')!;
+      return row.note!.match(/“(.+)”/)![1];
+    });
+    expect(new Set(told).size).toBe(4);
+  });
+
+  it('the pending suggestion is a row that carries its meeting', () => {
+    const l = fresh();
+    expect(requestRow(l)).toBeNull();
+    const s = requestMeeting(l, 'DL')!;
+    const row = requestRow(l)!;
+    expect(row.meeting).toEqual({ clock: s.clock, scope: 'DL' });
+    expect(row.note).toBeTruthy();
+    expect(row.note).not.toMatch(/\d/);
   });
 });

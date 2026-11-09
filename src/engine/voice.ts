@@ -6,7 +6,7 @@
  * the sender used in his last few letters steps aside when another fits. Knows nothing about mail kinds: any sender's
  * bank works.
  */
-import type { League } from './types';
+import type { InboxMessage, League } from './types';
 
 /** One way to say something: a condition (`when`) on what the writer sees, and how many facts it reads. */
 export interface Line<C> {
@@ -28,19 +28,34 @@ export function stableHash(s: string): number {
 
 /**
  * The sentence for one slot of one letter: the most specific lines that fit, less any the sender said recently (unless
- * that leaves none), picked by the letter's key. Empty when nothing fits.
+ * that leaves none), picked by the letter's key. Empty when nothing fits. With `skip` (see `around`), a group of lines
+ * that has all been said gives way to the next most specific group that has not, so a narrow fit never repeats itself
+ * while a plainer line is still unsaid.
  */
 export function say<C>(
   bank: readonly Line<C>[],
   c: C,
-  at: { key: string; slot: string; recent?: readonly string[] },
+  at: { key: string; slot: string; recent?: readonly string[]; skip?: (text: string) => boolean },
 ): string {
   const fits = bank.filter((l) => !l.when || l.when(c));
   if (!fits.length) return '';
-  const top = Math.max(...fits.map((l) => l.reads ?? 0));
-  const texts = fits.filter((l) => (l.reads ?? 0) === top).map((l) => l.text(c));
-  const fresh = texts.filter((t) => !at.recent?.some((b) => b.includes(t)));
-  const pool = fresh.length ? fresh : texts;
+  const heard = (t: string) => !!at.recent?.some((b) => b.includes(t)) || !!at.skip?.(t);
+  const levels = [...new Set(fits.map((l) => l.reads ?? 0))].sort((a, b) => b - a);
+  const group = (reads: number) => fits.filter((l) => (l.reads ?? 0) === reads).map((l) => l.text(c));
+  let pool: string[] | undefined;
+  if (at.skip)
+    for (const reads of levels) {
+      const fresh = group(reads).filter((t) => !heard(t));
+      if (fresh.length) {
+        pool = fresh;
+        break;
+      }
+    }
+  if (!pool) {
+    const texts = group(levels[0]);
+    const fresh = texts.filter((t) => !at.recent?.some((b) => b.includes(t)));
+    pool = fresh.length ? fresh : texts;
+  }
   return pool[stableHash(`${at.key}:${at.slot}`) % pool.length];
 }
 
@@ -52,26 +67,49 @@ export function recentBodies(league: League, from: string, n = 5): string[] {
   return out;
 }
 
+/** A text split where a sentence ends; a quote's marks at either end are not part of the sentence. */
+export function sentencesOf(text: string | undefined): string[] {
+  const out: string[] = [];
+  for (const s of (text ?? '').split(/(?<=[.?!]) +/)) {
+    // A quoted line ends in its closing quote, and opens with one: the sentence is the same either way.
+    const t = s.replace(/^[“"]|[”"]$/g, '').trim();
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+/** The key a filed sentence is kept under in `League.mailTold`, so evicting its letter does not forget it. */
+export const saidKey = (sentence: string) => `said:${stableHash(sentence)}`;
+
+/** Every sentence of a letter: its body and each section row's note. */
+export function lettersSentences(m: Pick<InboxMessage, 'body' | 'sections'>): string[] {
+  return [...sentencesOf(m.body), ...(m.sections ?? []).flatMap((sec) => sec.rows.flatMap((r) => sentencesOf(r.note)))];
+}
+
 /**
  * Every sentence a sender filed this league year: each message's body and each section row's note, split where a
  * sentence ends. What a letter writes next steps around all of it, so no sentence comes twice in a year.
  */
 export function seasonSaid(league: League, from: string): string[] {
   const out: string[] = [];
-  const add = (text: string | undefined) => {
-    for (const s of (text ?? '').split(/(?<=[.?!]) +/)) {
-      // A quoted line ends in its closing quote, and opens with one: the sentence is the same either way.
-      const t = s.replace(/^[“"]|[”"]$/g, '').trim();
-      if (t) out.push(t);
-    }
-  };
-  for (const m of league.inbox ?? []) {
-    if (m.from !== from || m.season !== league.season) continue;
-    add(m.body);
-    for (const sec of m.sections ?? []) for (const r of sec.rows) add(r.note);
-  }
+  for (const m of league.inbox ?? [])
+    if (m.from === from && m.season === league.season) out.push(...lettersSentences(m));
   return out;
 }
+
+/** Some sentence of this text was filed this league year, even if its letter has since left a full inbox. */
+export function saidBefore(league: League, text: string): boolean {
+  const told = league.mailTold;
+  return !!told && sentencesOf(text).some((s) => told[saidKey(s)] === league.season);
+}
+
+/**
+ * What `say` steps around for one sender's letter: the sentences already said (this league year's, and every one a
+ * builder adds as it writes) and whatever the inbox has forgotten but `mailTold` kept. Pass it as `...around(...)`.
+ */
+export const around = (league: League, said: readonly string[]) => ({
+  skip: (text: string) => sentencesOf(text).some((s) => said.some((b) => b.includes(s))) || saidBefore(league, text),
+});
 
 /**
  * Everything the inbox has already told: each message's id, whatever a digest says it covered, and the covered keys

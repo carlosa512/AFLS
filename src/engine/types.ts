@@ -1690,6 +1690,10 @@ export interface MailSection {
     talk?: { playerId: number; clock: number };
     /** A player the row offers contract talks with (the promises reminder's deals). */
     negotiate?: { playerId: number };
+    /** A position coach's face, for a room's row (the weekly letter). */
+    coachId?: number;
+    /** The meeting request's choices, drawn from the suggestion waiting on you (`meetingCard`). */
+    meeting?: { clock: number; scope: MeetingScope };
   }[];
 }
 

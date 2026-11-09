@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { say } from '../voice';
-import type { Backing, Moment, Outcome } from '../types';
-import type { ManFact, Reason, SuggestFact } from './facts';
+import type { Backing, Moment } from '../types';
+import type { ManFact, SuggestFact } from './facts';
 import {
   approachLabel,
   ASK,
@@ -15,7 +15,6 @@ import {
   READ_ROOM,
   READ_WHY,
   TOLD,
-  WENT,
   yearParagraph,
 } from './voice';
 import { leadAndWhy } from './mail';
@@ -96,27 +95,6 @@ describe('meetings: the coach’s words', () => {
       expect(backingLabel(b, fact()).split(' ').length).toBeLessThanOrEqual(6);
   });
 
-  it('every reaction names its reason', () => {
-    const pairs: [Reason, Exclude<Outcome, 'shrug'>][] = [
-      ...(['answered', 'heard', 'leader', 'content'] as Reason[]).map((r): [Reason, 'lands'] => [r, 'lands']),
-      ...(['calledOut', 'friendCalledOut', 'money', 'dugIn', 'tone', 'again', 'notHis'] as Reason[]).map(
-        (r): [Reason, 'bristles'] => [r, 'bristles'],
-      ),
-    ];
-    for (const [reason, outcome] of pairs) {
-      {
-        const line = say(WENT, { man: man('Eze'), outcome, reason, topic: 'deal' }, at);
-        expect(line).toMatch(/^Eze /);
-        // A reason follows the verdict: "took it well. He heard…", "didn't like being…", ";…".
-        expect(
-          line.split(/[.;:]/).filter((x) => x.trim()).length +
-            (/(didn't like|wanted|took the tone)/.test(line) ? 1 : 0),
-        ).toBeGreaterThanOrEqual(2);
-        clean(line);
-      }
-    }
-  });
-
   it('never claims a meeting fixed anything, and says the window in words', () => {
     for (const backing of ['talks', 'snaps', 'feud', 'move', 'jobs', 'words'] as Backing[]) {
       const line = say(
@@ -176,6 +154,37 @@ describe('meetings: the coach’s words', () => {
       expect(
         say(CAPTAIN_OPEN, { approach: 'ownIt', backing: 'jobs', went, record: 'losing' }, at).length,
       ).toBeGreaterThan(0);
+  });
+});
+
+describe('meetings: what I told them', () => {
+  it('has four or more lines for every approach, with a speaker and without', () => {
+    const approaches = [
+      'straight',
+      'callout',
+      'leader',
+      'losing',
+      'standard',
+      'ownIt',
+      'raiseBar',
+      'freshStart',
+      'backHim',
+    ] as const;
+    for (const approach of approaches)
+      for (const speaker of [man('Mitchell'), undefined]) {
+        const f = {
+          style: 'plain' as const,
+          approach,
+          backing: 'words' as const,
+          topic: 'none' as const,
+          noun: 'the D-line',
+          named: [],
+          speaker,
+        };
+        const fits = TOLD.filter((l) => !l.when || l.when(f)).map((l) => l.text(f));
+        expect(new Set(fits).size, `${approach} ${speaker ? 'with' : 'without'} a speaker`).toBeGreaterThanOrEqual(4);
+        for (const t of fits) clean(t);
+      }
   });
 });
 
