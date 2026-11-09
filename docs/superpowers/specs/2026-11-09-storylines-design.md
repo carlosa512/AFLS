@@ -41,9 +41,11 @@ gives the locker room the same shape.
    deal. You reassured him in week 8."). No folded email chains.
 5. **A meeting's result comes in next week's letter**, told from what changed in the room, not sorted into "took it
    well", "bristled" and "shrugged".
-6. **The benching chain.** A healthy starter you sit asks "Am I benched?"; you answer one of four ways; later
-   letters follow up. A man who is hurt never asks. A man just back from injury gets the coach's reminder first and
-   asks after one game sat.
+6. **The benching chain.** Jobs are set on cut-down day, from the lineup you set. A healthy starter you sit asks "Am
+   I benched?"; you answer one of four ways; later letters follow up. A man who is hurt never asks. A man just back
+   from injury gets the coach's reminder first and asks after one game sat. Left unanswered, he isn't told it's over:
+   he is left not knowing where he stands, and so is the other man if you swap them back. A clear word to either
+   settles it for both.
 7. **Flavor from the sim.** Lines read one shared sheet of what your staff can see about a man (his personality
    read, habits, standing in the room, ties, history with you), so two men with the same grievance don't say the same
    thing.
@@ -259,11 +261,29 @@ from a man's snap count.
 `Team.jobs?: Record<number, { pos: Position; since: number }>`, kept by `benching.ts` for every club at each
 in-season morale week, after the games:
 
+- **Jobs are set on cut-down day.** The men listed in the starting spots of each club's depth chart when the season
+  starts hold the jobs, hurt or not (a hurt starter keeps his spot on the chart; the man covering for him has no
+  job).
 - **Started:** he played a starter's share of his club's scrimmage snaps in that game (`GameResult.playerStats`
   against the position's reference, the test `roleStep` already makes).
-- **He earns the job** by starting in week 1, or by starting three games in a row while no job-holder at his position
-  is out hurt. A fill-in covering for a hurt starter never earns it, so he doesn't ask when the starter returns.
-- **He loses it** when he leaves the club, when the answer is "It's his job now", or at the new league year.
+- **In season a man earns a job** by starting three games in a row while no job-holder at his position is out hurt. A
+  fill-in covering for a hurt starter never earns it, so he doesn't ask when the starter returns.
+- **He loses it** when he leaves the club, when your word gives it to another man, when another man earns it, or at
+  the new league year.
+
+### Setting the lineup
+
+Because the chart on cut-down day decides who holds a job, the game asks for it, the way it sends you to the draft
+room while picks are left:
+
+- On the last step of camp, while you sort your depth chart by hand (`autoDepth` off) and haven't confirmed it this
+  year, the advance button reads **Set your lineup** and opens the depth chart (`offseasonStep` in `App.tsx`).
+- The depth chart shows a banner there: "These men start the season holding their jobs. Sit one of them healthy and
+  he'll ask you why.", and a **Lineup set** button (`Team.lineupSet`, the season). The advance button then starts the
+  season as it does today.
+- With your staff sorting the chart, nothing blocks: it is their lineup.
+- Either way the head coach's camp letter carries a row: who holds each job, and any camp battle he sees as close, on
+  our scouts' read.
 
 ### What counts as sitting
 
@@ -288,10 +308,27 @@ ask the same way, and the man who took his job is named.
 | --- | --- | --- |
 | **You're back in next week** | A promise | Kept when he starts the next game he's available for; broken when he doesn't |
 | **It was just this week** | A reassurance | Fine if he starts again; if he sits again it sours, as a soft word broken |
-| **Earn it back** | Honest | The job is open. Starting three in a row wins it back and closes the story well |
+| **Earn it back** | Honest | The job is open and both men know it. Starting three in a row wins it and closes the story |
 | **It's his job now** | Final | He loses the job. The full hit lands, and a veteran may want out by the rules disputes already have |
 
-An unanswered ask is taken as "It's his job now" after two steps, and sours.
+### Left unanswered: not knowing where he stands
+
+A sitting job-holder opens a **job question** between two men: him and the man who started in his place. No answer
+doesn't close it. His row stays answerable in the letters that follow, and:
+
+- **Each week the question is open, whichever of the two sat feels it** (a small `unsure` jolt that fades, the reason
+  on his card "Doesn't know where he stands"). It is smaller than a benching but it keeps coming.
+- **Swap them back without a word and it passes to the other man.** He sat after starting, nobody has told him
+  anything, and he asks the same question the week he sits. His answers mirror the first man's: **The job's yours**,
+  **Keep competing**, **It's his job**.
+- **A clear word to either man settles it for both.** Any answer on either row closes the question: both men's
+  `unsure` jolts are cleared and each gets the same small lift for knowing where he stands. The answer's own
+  meaning still lands on top (the man who lost the job takes that hit; a promise has to be kept).
+- **Nobody says anything, and the chart answers.** When one of them starts three in a row he earns the job by the
+  rule above. The other finds out from the depth chart: the full hit, and it sours as an ignored talk does today.
+
+So swapping two men week to week with no word unsettles both, and one honest sentence fixes both. Other clubs'
+GMs answer at once, so this only ever happens at your club.
 
 ### How he takes it
 
@@ -317,13 +354,17 @@ Their players ask the same way, so the league stays even. An AI GM answers at on
 
 ### The story
 
-`benched`: sat, asked, answered, then back in, sat again or still sitting, and its close. When he is a leader, his
-story feeds his room's (the meeting trouble that exists). The letters:
+`benched`: sat, asked, answered or left open, then back in, sat again, swapped back or still sitting, and its
+close. One story holds both men of a job question (`playerId` and `other`). When he is a leader, his story feeds his
+room's (the meeting trouble that exists). The letters:
 
 - The week he sits: his ask in "Who came to see me".
 - The next week: how he took your answer, from his mood and reason now.
+- While it stays open: a row a week in "Who came to see me", worded from the story, not repeated: "Gibson still
+  hasn't heard from you. Now Reyes is asking too."
 - When it resolves: one closing row. "Gibson's back in and it's behind us." / "I told Gibson it's Reyes's job. He
-  took it like a pro. He won't love it."
+  took it like a pro. He won't love it." / "Neither of them was told. Reyes has started three straight, so that's
+  that, and Gibson heard it from the depth chart."
 
 ## 5. Outlets: the seam for news
 
@@ -359,10 +400,12 @@ Faces and this layout for every other letter kind are a later piece.
 ## 7. Saves
 
 `SAVE_VERSION` goes up by one (the GM memory branch does too; whichever merges second takes the next number). All
-new fields are optional: `League.stories`, `Team.jobs`, `MeetingRecord.word`, the `benched` talk cause.
+new fields are optional: `League.stories`, `Team.jobs` (with a job's open question), `Team.lineupSet`,
+`MeetingRecord.word`, the `benched` talk cause, the `unsure` and `settled` jolts.
 
 The upgrade seeds `Team.jobs` for a save loaded in season (a depth-chart starter with three games played holds his
-job), so nobody asks about a benching that happened before the upgrade. Stories start empty and fill from that step
+job), so nobody asks about a benching that happened before the upgrade, and marks this year's lineup as set, so a
+save in camp isn't stopped at the door. Stories start empty and fill from that step
 on. Letters already filed stay and still open their cards.
 
 ## 8. Testing
@@ -378,7 +421,11 @@ on. Letters already filed stay and still open their cards.
   hedged.
 - **Benching** (`benching.test.ts`): a hurt man never asks; a man sat on the doctor's advice never asks; a mid-week
   shuffle undone by kickoff is nothing; a fill-in stepping back doesn't ask; a man back from injury gets the reminder
-  and asks after one game sat; each answer's promise is kept or broken by the next game; an AI club answers at once.
+  and asks after one game sat; each answer's promise is kept or broken by the next game; an AI club answers at once;
+  jobs come from the chart at kickoff, a hurt starter keeping his; an unanswered ask leaves him unsure each week he
+  sits, a swap passes it to the other man, an answer to either clears both with the same lift, and three straight
+  starts settles it by the chart; the advance button asks for the lineup only when you sort the chart by hand and
+  haven't confirmed it.
 - **Checks:** `npm run morale` in CI with no range moved. Nothing in `src/engine/match/` changes, so no other sim
   check is called for.
 - **Letters to read:** `npm run mail-preview` gains moments for a room going down, a benching and a result week;
