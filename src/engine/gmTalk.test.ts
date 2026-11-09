@@ -92,21 +92,29 @@ describe('the banks', () => {
     }
   });
 
-  it('has openers for every band and the deadline and the draft, and memory lines for every kind', () => {
-    for (const b of BANDS.filter((x) => x !== 'neutral'))
-      expect(
-        OPENERS.filter((o) => o.reads === 1 && o.when?.({ ...SAMPLES[0], band: b, moment: 'week' })).length,
-      ).toBeGreaterThanOrEqual(3);
-    for (const m of ['deadline', 'draft'] as const)
-      expect(
-        OPENERS.filter((o) => o.reads === 1 && o.when?.({ ...SAMPLES[0], moment: m, band: 'neutral' })).length,
-      ).toBeGreaterThanOrEqual(2);
+  it('keeps at least six openers in play for a neutral GM at every moment, and three for each band', () => {
+    // The pool `say` draws from: the most specific lines that fit.
+    const pool = (f: TalkFacts) => {
+      const fits = OPENERS.filter((o) => !o.when || o.when(f));
+      const top = Math.max(...fits.map((o) => o.reads ?? 0));
+      return new Set(fits.filter((o) => (o.reads ?? 0) === top).map((o) => o.text(f)));
+    };
+    const reasons = [undefined, 'bid', 'pitch', 'dump', 'shop', 'enquiry', 'ask'] as const;
+    for (const moment of MOMENTS)
+      for (const reason of reasons)
+        expect(pool({ ...SAMPLES[0], band: 'neutral', moment, reason, memory: undefined }).size).toBeGreaterThanOrEqual(
+          6,
+        );
+    for (const band of BANDS.filter((x) => x !== 'neutral'))
+      for (const reason of reasons)
+        expect(pool({ ...SAMPLES[0], band, moment: 'week', reason, memory: undefined }).size).toBeGreaterThanOrEqual(3);
     for (const k of KINDS)
-      expect(
-        MEMORY_OPENERS.filter(
-          (o) => o.reads === 2 && o.when?.({ ...SAMPLES[0], memory: { kind: k, player: 'A B', when: 'x' } }),
-        ).length,
-      ).toBeGreaterThanOrEqual(2);
+      for (const reason of reasons)
+        expect(
+          MEMORY_OPENERS.filter((o) =>
+            o.when?.({ ...SAMPLES[0], reason, memory: { kind: k, player: 'A B', when: 'x' } }),
+          ).length,
+        ).toBeGreaterThanOrEqual(2);
     expect(new Set(all(SIGNOFFS, (f) => f.final)).size).toBeGreaterThanOrEqual(3);
   });
 
@@ -178,7 +186,7 @@ describe('a letter', () => {
     noteMoment(l, gm, { kind: 'finalNo' });
     expect(talkFacts(l, team).memory).toMatchObject({ kind: 'finalNo', player: '' });
     const body = offerWords(l, bid(l, team)).body;
-    expect(body).toMatch(/final offer|last number|my best number|another way|different/);
+    expect(body).toMatch(/final offer|last number|my best number|another way|different|last one|try again/);
   });
 
   it('signs as the GM by name with his face, or the front office when the chair is empty', () => {
@@ -206,40 +214,52 @@ describe('a letter', () => {
     expect([...finals].some((s) => body.endsWith(s))).toBe(true);
   });
 
-  it('fits the words to the kind of letter: an enquiry has no price or money in its close, a counter no memory', () => {
-    const MONEY = /number|price|money|cap\b|final|last|move much|meet it/i;
+  it('fits the words to the kind of letter: an enquiry has no price or offer, a counter no opener', () => {
+    const OFFERISH =
+      /number|price|money|cap\b|final|last number|move much|meet it|offer|best shot|what I can do|better one|cleaner|different|what I have|here's mine|one for you/i;
     const TRAITS = [
       { stubbornness: 0.9, winNow: 0.5, capAggression: 0.5 },
       { stubbornness: 0.5, winNow: 0.9, capAggression: 0.5 },
       { stubbornness: 0.5, winNow: 0.5, capAggression: 0.1 },
       { stubbornness: 0.1, winNow: 0.5, capAggression: 0.5 },
     ];
-    for (const t of TRAITS) {
-      const { l, team, gm } = setup();
-      team.gm = { ...team.gm, ...t };
-      const man = l.players[teamPlayers(l, team.id)[0].id];
-      gm.withYou = [
-        { kind: 'trade', season: l.season, phase: l.phase, got: { players: [man.id], picks: [] }, verdict: 'heWon' },
-      ];
-      const enquiry = offerWords(l, bid(l, team, { reason: 'enquiry' })).body;
-      const core = enquiry.indexOf('Is ');
-      expect(enquiry.slice(core + 'Is '.length)).toContain('available?');
-      const close = enquiry.slice(enquiry.indexOf('listen.') + 'listen.'.length);
-      expect(close.trim()).not.toBe('');
-      expect(close).not.toMatch(MONEY);
-      const counter = offerWords(l, bid(l, team, { reason: 'counter' })).body;
-      for (const m of MEMORY_OPENERS) expect(counter).not.toContain(m.text(talkFacts(l, team, { reason: 'counter' })));
-      for (const o of [
-        'Got something',
-        'Been going through',
-        'Have a minute',
-        'Straight to it',
-        'Wanted to get this',
-        'phone tag',
-        'working through my list',
-      ])
-        expect(counter).not.toContain(o);
-      expect(counter).toMatch(/^(I've gone back|Here's where|I took a hard|Thanks for the counter)/);
-    }
+    for (const t of TRAITS)
+      for (const kind of KINDS)
+        for (const s of [0, 1, -1]) {
+          const { l, team, gm } = setup();
+          team.gm = { ...team.gm, ...t };
+          const man = l.players[teamPlayers(l, team.id)[0].id];
+          gm.withYou =
+            kind === 'finalNo' || kind === 'ledOn'
+              ? [{ kind, season: l.season, phase: l.phase }]
+              : [
+                  {
+                    kind: 'trade',
+                    season: l.season,
+                    phase: l.phase,
+                    got: { players: [man.id], picks: [] },
+                    verdict: kind,
+                  },
+                ];
+          // Weigh his feeling either way with deals that name no man (so the memory stays the forced one).
+          for (let i = 0; s && i < 4; i++)
+            gm.withYou.push({
+              kind: 'trade',
+              season: l.season,
+              phase: l.phase,
+              verdict: s > 0 ? 'heWon' : 'youWon',
+              big: true,
+            });
+          const enquiry = offerWords(l, bid(l, team, { reason: 'enquiry' })).body;
+          const at = enquiry.search(/Is [A-Z]{1,3} /);
+          expect(at).toBeGreaterThan(0);
+          const close = enquiry.slice(enquiry.indexOf('listen.') + 'listen.'.length);
+          expect(close.trim()).not.toBe('');
+          expect(close).not.toMatch(OFFERISH);
+          expect(enquiry.slice(0, at)).not.toMatch(OFFERISH);
+          // His reply to your counter opens on its own words, with no memory and no fresh-start line to echo them.
+          const counter = offerWords(l, bid(l, team, { reason: 'counter' })).body;
+          expect(counter.startsWith("We've looked at your counter.")).toBe(true);
+        }
   });
 });

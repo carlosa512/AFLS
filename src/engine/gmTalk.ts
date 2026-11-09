@@ -119,53 +119,60 @@ export function letterFrom(league: League, team: Team): string {
 
 const band = (b: StandingBand) => (f: TalkFacts) => f.band === b;
 const reason = (r: TradeOffer['reason']) => (f: TalkFacts) => f.reason === r;
-/** A letter that opens a conversation, not one that answers your counter. */
-const fresh = (f: TalkFacts) => f.reason !== 'counter';
+/** A letter that puts terms on the table: an enquiry and a price ask have none, so lines about "the offer" skip them. */
+const terms = (f: TalkFacts) => f.reason !== 'enquiry' && f.reason !== 'ask';
+const inSeason = (f: TalkFacts) => f.moment === 'week' || f.moment === 'deadline';
 const at = (m: TalkMoment) => (f: TalkFacts) => f.moment === m;
 
 /** Neutral pool first (no condition, so it always fits), then lines that lean on his feeling for you or the moment. */
 export const OPENERS: readonly Line<TalkFacts>[] = [
-  { when: fresh, text: () => 'Wanted to get this in front of you before the week gets away.' },
-  { when: fresh, text: () => "I'd rather write than play phone tag, so here it is." },
-  { when: fresh, text: () => "Got something I'd like you to look at." },
-  { when: fresh, text: () => 'Been going through my roster and this came up.' },
-  { when: fresh, text: () => "Have a minute? This one's worth a look." },
-  { when: fresh, text: () => "I've been working through my list and your club came up." },
-  { when: fresh, text: () => 'Straight to it.' },
-
-  // His reply mid-conversation: no fresh start, no old story. Two facts read (a counter, and that it wins over band and moment).
-  { when: reason('counter'), reads: 2, text: () => "I've gone back over it." },
-  { when: reason('counter'), reads: 2, text: () => "Here's where I landed." },
-  { when: reason('counter'), reads: 2, text: () => 'I took a hard look at yours.' },
-  { when: reason('counter'), reads: 2, text: () => 'Thanks for the counter. Here is mine.' },
+  { when: inSeason, text: () => 'Wanted to get this in front of you before the week gets away.' },
+  { text: () => "I'd rather write than play phone tag, so here it is." },
+  { text: () => "Got something I'd like you to look at." },
+  { text: () => 'Been going through my roster and this came up.' },
+  { text: () => "Have a minute? This one's worth a look." },
+  { text: () => "I've been working through my list and your club came up." },
+  { text: () => 'Straight to it.' },
 
   { when: band('warm'), reads: 1, text: () => "You've been straight with me, so I'll come to you first." },
-  { when: band('warm'), reads: 1, text: () => "It's always a good conversation with you, so here's one for you." },
+  {
+    when: (f) => f.band === 'warm' && terms(f),
+    reads: 1,
+    text: () => "It's always a good conversation with you, so here's one for you.",
+  },
   { when: band('warm'), reads: 1, text: () => "You'll hear this from me before anyone else." },
   { when: band('warm'), reads: 1, text: () => "I'd rather work this out with you than anyone else in the league." },
   { when: band('easy'), reads: 1, text: () => "We've dealt fine before, so I'll keep it simple." },
   { when: band('easy'), reads: 1, text: () => 'No games on this one.' },
   { when: band('easy'), reads: 1, text: () => 'Thought of you for this one.' },
-  { when: band('easy'), reads: 1, text: () => "Hope the week's treating you well. Here's what I have." },
+  { when: band('easy'), reads: 1, text: () => "Hope the week's treating you well." },
+  { when: band('easy'), reads: 1, text: () => 'Nothing complicated here.' },
   { when: band('cool'), reads: 1, text: () => 'Getting right to it.' },
   { when: band('cool'), reads: 1, text: () => "I'll lay it out plainly." },
-  { when: band('cool'), reads: 1, text: () => "Here's what I can do." },
+  { when: (f) => f.band === 'cool' && terms(f), reads: 1, text: () => "Here's what I can do." },
+  { when: band('cool'), reads: 1, text: () => "I'll be plain about it." },
   { when: band('sour'), reads: 1, text: () => "I'll keep this short." },
-  { when: band('sour'), reads: 1, text: () => "Here's the offer. Don't make me chase it." },
+  {
+    when: (f) => f.band === 'sour' && terms(f),
+    reads: 1,
+    text: () => "Here's the offer. Don't make me chase it.",
+  },
+  { when: band('sour'), reads: 1, text: () => "Don't make me chase this one." },
   { when: band('sour'), reads: 1, text: () => "I'll be brief." },
   { when: band('sour'), reads: 1, text: () => 'No long preamble this time.' },
 
-  { when: at('deadline'), reads: 1, text: () => "Deadline's close, so no time to be coy." },
-  { when: at('deadline'), reads: 1, text: () => "With the deadline on us, here's my best shot." },
-  { when: at('deadline'), reads: 1, text: () => "The window's nearly shut. Quick one." },
-  { when: at('draft'), reads: 1, text: () => "We're on the clock, so I'll be quick." },
-  { when: at('draft'), reads: 1, text: () => "The room's moving fast, so here's mine." },
-  { when: at('leagueYear'), reads: 1, text: () => "New league year, new roster math. Here's an idea." },
-  { when: at('leagueYear'), reads: 1, text: () => "Now that the books are open, I've got a thought." },
-  { when: at('freeAgency'), reads: 1, text: () => "The market's moving, so I'll be quick." },
-  { when: at('freeAgency'), reads: 1, text: () => 'Free agency has me looking at my depth, and at yours.' },
-  { when: at('camp'), reads: 1, text: () => "Camp's got me looking hard at depth." },
-  { when: at('camp'), reads: 1, text: () => "Camp's showing me where I'm short." },
+  // A moment's lines join the neutral pool (reads 0) so a neutral GM always has at least six to draw from.
+  { when: at('deadline'), text: () => "Deadline's close, so no time to be coy." },
+  { when: (f) => f.moment === 'deadline' && terms(f), text: () => "With the deadline on us, here's my best shot." },
+  { when: at('deadline'), text: () => "The window's nearly shut. Quick one." },
+  { when: at('draft'), text: () => "We're on the clock, so I'll be quick." },
+  { when: (f) => f.moment === 'draft' && terms(f), text: () => "The room's moving fast, so here's mine." },
+  { when: at('leagueYear'), text: () => "New league year, new roster math. Here's an idea." },
+  { when: at('leagueYear'), text: () => "Now that the books are open, I've got a thought." },
+  { when: at('freeAgency'), text: () => "The market's moving, so I'll be quick." },
+  { when: at('freeAgency'), text: () => 'Free agency has me looking at my depth, and at yours.' },
+  { when: at('camp'), text: () => "Camp's got me looking hard at depth." },
+  { when: at('camp'), text: () => "Camp's showing me where I'm short." },
 ];
 
 /** The deal's man, by name: "Jefferson" out of "Marcus Jefferson" (a suffix or a double name stays whole). */
@@ -196,13 +203,13 @@ export const MEMORY_OPENERS: readonly Line<TalkFacts>[] = [
     text: (f) => `I'd call the ${surname(f)} deal fair to each side. Let's do one like it.`,
   },
   {
-    when: is('both'),
+    when: (f) => is('both')(f) && terms(f),
     reads: 2,
     text: (f) => `Both of us came out of the ${surname(f)} deal fine. Here's the next one.`,
   },
   { when: is('youWon'), reads: 2, text: (f) => `You got the better of me on the ${surname(f)} deal. Not this time.` },
   {
-    when: is('youWon'),
+    when: (f) => is('youWon')(f) && terms(f),
     reads: 2,
     text: (f) => `I'll admit the ${surname(f)} deal went your way, so I've come with a better number.`,
   },
@@ -212,7 +219,7 @@ export const MEMORY_OPENERS: readonly Line<TalkFacts>[] = [
     text: (f) => `The ${surname(f)} deal went your way ${f.memory!.when}. I'd like to even it up.`,
   },
   {
-    when: is('brokeDown'),
+    when: (f) => is('brokeDown')(f) && terms(f),
     reads: 2,
     text: (f) => `The ${surname(f)} deal didn't go the way anyone hoped. Let's try for a better one.`,
   },
@@ -222,23 +229,27 @@ export const MEMORY_OPENERS: readonly Line<TalkFacts>[] = [
     text: (f) => `After how the ${surname(f)} deal went, I'm being careful, but I'd still like to talk.`,
   },
   {
-    when: is('brokeDown'),
+    when: (f) => is('brokeDown')(f) && terms(f),
     reads: 2,
     text: (f) => `Nobody planned on the ${surname(f)} deal turning out like that. This one's cleaner.`,
   },
-  { when: is('finalNo'), reads: 2, text: () => "I know my last number didn't work for you. This one's different." },
   {
-    when: is('finalNo'),
+    when: (f) => is('finalNo')(f) && terms(f),
+    reads: 2,
+    text: () => "I know my last number didn't work for you. This one's different.",
+  },
+  {
+    when: (f) => is('finalNo')(f) && terms(f),
     reads: 2,
     text: (f) => `You passed on my final offer ${f.memory!.when}, fair enough. Here's another way in.`,
   },
   {
-    when: is('finalNo'),
+    when: (f) => is('finalNo')(f) && terms(f),
     reads: 2,
     text: () => "Last time I put my best number down and you said no. I'm not holding it against you.",
   },
   {
-    when: is('ledOn'),
+    when: (f) => is('ledOn')(f) && terms(f),
     reads: 2,
     text: () => 'Last time we went back and forth and got nowhere. Let me try a cleaner one.',
   },
@@ -248,6 +259,17 @@ export const MEMORY_OPENERS: readonly Line<TalkFacts>[] = [
     text: (f) => `Our talks ${f.memory!.when} went nowhere, so this time I'm putting it plainly.`,
   },
   { when: is('ledOn'), reads: 2, text: () => "I'd like to skip the back and forth this time." },
+  {
+    when: is('finalNo'),
+    reads: 2,
+    text: (f) => `We didn't get there ${f.memory!.when}, and that's fair. I'd like to try again.`,
+  },
+  { when: is('finalNo'), reads: 2, text: () => "I know the last one didn't work for you. No hard feelings." },
+  {
+    when: is('brokeDown'),
+    reads: 2,
+    text: (f) => `The ${surname(f)} deal didn't go the way anyone hoped, and I'd still like to keep talking.`,
+  },
 ];
 
 // ---- sign-offs ----
@@ -326,6 +348,7 @@ export function wrapLetter(league: League, offer: TradeOffer, core: string): str
     ? MEMORY_OPENERS.some((l) => (!l.when || l.when(f)) && !!recent[0]?.includes(l.text(f)))
     : false;
   const memory = f.memory && !told && f.reason !== 'counter' ? say(MEMORY_OPENERS, f, { ...at, slot: 'memory' }) : '';
-  const opener = memory || say(OPENERS, f, { ...at, slot: 'opener' });
+  // His reply to your counter opens on its own words ("We've looked at your counter"): any opener would only echo it.
+  const opener = f.reason === 'counter' ? '' : memory || say(OPENERS, f, { ...at, slot: 'opener' });
   return [opener, core, say(SIGNOFFS, f, { ...at, slot: 'signoff' })].filter(Boolean).join(' ');
 }
