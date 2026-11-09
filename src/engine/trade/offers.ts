@@ -13,6 +13,8 @@
  * statuses, shop a player, and ask a GM his price. Verdicts are always the GM's own (`judge`).
  */
 import { wantsOut } from '../disputeRead';
+import { aiGm } from '../gmHabits';
+import { atCloseOf, isBig, noteMoment } from '../gmMemory';
 import { logTransaction, releasePlayer } from '../finance/cap';
 import { isExpired } from '../finance/contract';
 import { aiCutdown, cutChoice } from '../offseason/ai';
@@ -583,6 +585,19 @@ function finish(
   return settle(league, proposal.sides, meta, aiId, exams, opts);
 }
 
+const sameSet = (a: readonly number[], b: readonly number[]) =>
+  a.length === b.length && [...a].sort((x, y) => x - y).every((x, i) => x === [...b].sort((m, n) => m - n)[i]);
+
+/** The closed sides hold exactly what an offer put on the table. */
+function sameSides(a: TradeOffer['sides'], b: TradeOffer['sides'], aiId: number): boolean {
+  const pick = (sides: TradeOffer['sides'], mine: boolean) => sides.find((s) => (s.teamId === aiId) === mine)!;
+  return [true, false].every((m) => {
+    const x = pick(a, m);
+    const y = pick(b, m);
+    return sameSet(x.players, y.players) && sameSet(x.picks, y.picks);
+  });
+}
+
 /** Make a deal of yours official: your releases, the trade, his cut to fit. */
 function settle(
   league: League,
@@ -594,13 +609,34 @@ function settle(
 ): AcceptResult {
   const market = (league.market ??= emptyMarket());
   const ai = league.teams[aiId];
+  // Read before anything moves: how it looked to him, and whether it is big.
+  const gm = aiGm(league, ai);
+  const hers = sides.find((s) => s.teamId === aiId)!;
+  const yours = sides.find((s) => s.teamId !== aiId)!;
+  const atClose = atCloseOf(
+    ...((j) => [j.get, j.need] as [number, number])(
+      judge(tradeContext(league), aiId, { sides: [...sides] }, { vsUser: true, rosterCuts: true }),
+    ),
+  );
+  const big = isBig(league, sides);
+  const taken = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
   for (const id of opts.release ?? [])
     if (league.players[id]?.teamId === league.userTeamId) releasePlayer(league, league.players[id]);
   executeTrade(league, { sides }, { ...meta, physicals: exams });
   aiCutdown(league, ai, rosterLimit(league));
   // Draft-day offers on a pick that just moved are off.
   lapseUsedPicks(league);
-  const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
+  const offer = taken;
+  noteMoment(league, gm, {
+    kind: 'trade',
+    got: { players: [...yours.players], picks: [...yours.picks] },
+    gave: { players: [...hers.players], picks: [...hers.picks] },
+    atClose,
+    ...(big ? { big } : {}),
+  });
+  // His own price, taken as he made it (not a counter of yours he came back to).
+  if (offer && offer.reason !== 'counter' && sameSides(offer.sides, sides, aiId))
+    noteMoment(league, gm, { kind: 'tookOffer' });
   delete market.exam;
   const rehab = exams
     .filter((e) => e.result === 'rehab')
@@ -656,6 +692,9 @@ export function declineOffer(league: League, id: number): void {
   if (!market || !offer || offer.status !== 'pending') return;
   offer.status = 'declined';
   offer.outcome = 'You turned it down.';
+  // A bid you asked for or a plain offer turned down is a straight no; his last word, or a counter you led him on over, is not.
+  if (offer.final) noteMoment(league, aiGm(league, league.teams[offer.teamId]), { kind: 'finalNo' });
+  else if (offer.reason === 'counter') noteMoment(league, aiGm(league, league.teams[offer.teamId]), { kind: 'ledOn' });
   const t = talksOf(market, offer.teamId);
   for (const pid of [...offer.sides[0].players, ...offer.sides[1].players])
     t.cooldowns[pid] = { until: market.moment + DECLINE_WAIT, worth: offer.worth };
@@ -739,6 +778,7 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   };
   if (offer.final || offer.patience <= 0) {
     talksOf(market, ai.id).offUntil = market.moment;
+    noteMoment(league, aiGm(league, ai), { kind: 'finalNo' });
     return walkedAway();
   }
   const ctx = tradeContext(league);
@@ -758,7 +798,10 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
     : { sides: offer.sides };
   const patience = offer.patience - 1;
   const next = file(ctx, market, ai, 'counter', back, offer.kind);
-  if (!next) return walkedAway();
+  if (!next) {
+    noteMoment(league, aiGm(league, ai), { kind: 'ledOn' });
+    return walkedAway();
+  }
   Object.assign(next, { patience, final: patience <= 0 || undefined, replyTo: offer.id });
   offer.status = 'answered';
   offer.outcome = "You countered: they've come back with an answer.";

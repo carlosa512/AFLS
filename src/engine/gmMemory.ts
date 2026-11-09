@@ -3,7 +3,8 @@
  * moments on his record, and a standing worked out from them each time it's read, never stored. Nothing here
  * draws a random number, and no screen reads it as a number.
  */
-import type { GeneralManager, League, TradeVerdictLater, YouMoment, YouMomentKind } from './types';
+import { starters } from './roster';
+import type { GeneralManager, League, TradeSide, TradeVerdictLater, YouMoment, YouMomentKind } from './types';
 
 /** Seasons a moment is kept. */
 export const KEEP_SEASONS = 6;
@@ -74,4 +75,24 @@ export function standingBand(s: number): StandingBand {
 /** The patience step: +1 for a friendly GM, −1 for a sour one. */
 export function standingStep(s: number): -1 | 0 | 1 {
   return s >= 0.35 ? 1 : s <= -0.35 ? -1 : 0;
+}
+
+/** How a deal looked to him at close: what he got against what he needed (under 1.03 of it squeezed, 1.15 and up paid up). */
+export function atCloseOf(get: number, need: number): 'paidUp' | 'fair' | 'squeezed' {
+  const r = get / Math.max(need, 1);
+  return r < 1.03 ? 'squeezed' : r >= 1.15 ? 'paidUp' : 'fair';
+}
+
+/** A first-round pick, or a player who starts for his club now. Read before the deal moves anyone. */
+export function isBig(league: League, sides: readonly TradeSide[]): boolean {
+  return sides.some(
+    (s) =>
+      s.picks.some((id) => league.draftPicks.find((p) => p.id === id)?.round === 1) ||
+      s.players.some((id) => {
+        const p = league.players[id];
+        return (
+          !!p && p.teamId !== null && starters(league, league.teams[p.teamId], p.position).some((q) => q.id === id)
+        );
+      }),
+  );
 }
