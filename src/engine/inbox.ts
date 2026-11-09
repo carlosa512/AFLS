@@ -425,12 +425,18 @@ const phaseOf = (league: League, week: number): Phase =>
 function concussionNote(p: Player): string {
   const now = p.injury!;
   const n = concussionCount(p);
-  const file = n > 1 ? ` It's his ${nth(n)} concussion, and each one tends to take longer to clear than the last.` : '';
+  const file = concussionFile(p);
   if (now.protocol?.shutdown) {
     const thisYear = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === now.season).length;
     return `${fullName(p)} took another hit to the head: his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him; he'll be back in the building after the offseason.`;
   }
   return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline: for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
+}
+
+/** His file, from the second concussion on: each one tends to take longer to clear. */
+function concussionFile(p: Player): string {
+  const n = concussionCount(p);
+  return n > 1 ? ` It's his ${nth(n)} concussion, and each one tends to take longer to clear than the last.` : '';
 }
 
 /** A setback in the concussion protocol: his symptoms came back at this week's test. */
@@ -1499,15 +1505,28 @@ const waitsForSpot = (league: League, p: Player) =>
   irReturnsUsed(league, league.userTeamId) < IR_RETURNS &&
   activeRoster(league, league.userTeamId).length >= ROSTER_MAX;
 
+/**
+ * A concussion from the week just played that cleared at that week's own test: the game, the test and
+ * the mail all land in one step, so the doctor never wrote about it. The all-clear tells both.
+ */
+const clearedAtFirstTest = (league: League, was: NonNullable<Player['injuries']>[number]) =>
+  was.type === 'concussion' && was.weeks === 0 && was.season === league.season && league.week - was.week <= 1;
+
 /** The doctor's all-clear for a player whose injury we wrote about, once he's healthy again (in season: the offseason heals everyone at once). */
 function clearedMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   const team = league.teams[league.userTeamId];
   for (const p of teamPlayers(league, team.id)) {
-    const was = p.injuries?.at(-1);
-    if (p.injury || !was || was.season !== league.season) continue;
+    // A concussion his first test cleared this week is told even when practice hurt him after it (a later record).
+    const quick = p.injuries?.filter((r) => clearedAtFirstTest(league, r)).at(-1);
+    const quickKey = quick && `${quick.season}:${quick.week}:${p.id}:${quick.type}`;
+    const unannounced = !!quick && !have.has(`medical:${quickKey}`) && !have.has(`cleared:${quickKey}`);
+    const was = unannounced ? quick : p.injuries?.at(-1);
+    if ((p.injury && !unannounced) || !was || was.season !== league.season) continue;
     const key = `${was.season}:${was.week}:${p.id}:${was.type}`;
-    if (!have.has(`medical:${key}`) || have.has(`cleared:${key}`)) continue;
+    if (have.has(`cleared:${key}`) || (!unannounced && !have.has(`medical:${key}`))) continue;
+    // Hurt on the practice field after the test: out of the protocol, not cleared to play.
+    const since = unannounced && p.injury ? lower(injuryLabel(p.injury.type)) : '';
     const what = lower(injuryLabel(was.type));
     const ir = !p.ir
       ? " He's back in his spot on the depth chart."
@@ -1523,9 +1542,12 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...doctor(league),
       category: 'medical',
-      subject: `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? '; the 53 is full' : ''}`,
-      body:
-        was.type === 'concussion'
+      subject: unannounced
+        ? `${fullName(p)}: concussed, and ${since ? 'out of the protocol' : 'cleared to play'}`
+        : `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? '; the 53 is full' : ''}`,
+      body: unannounced
+        ? `${fullName(p)} was concussed in the game and went into the concussion protocol. His symptoms were gone by this week's test, so ${since ? `he's out of the protocol, but he has since been hurt in practice (${since}); I've written about that separately.${concussionFile(p)}` : `he's cleared for full practice and can play this week.${concussionFile(p)}${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`}`
+        : was.type === 'concussion'
           ? `${fullName(p)} has passed the last step of the concussion protocol${was.held ? ', and we gave him the extra week we planned,' : ''} and is cleared for full practice.${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`
           : `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,
       actions: [

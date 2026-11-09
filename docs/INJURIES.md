@@ -159,7 +159,8 @@ No tests; back after the offseason. He never retires mid-season.
 more game once he's cleared, which spends half of the window when a second concussion is likelier on
 the sideline. Or put him on injured reserve. No needle or fast-track gets anyone out of the protocol.
 
-The doctor writes when he enters the protocol, after a setback and when he's cleared.
+The doctor writes when he enters the protocol, after a setback and when he's cleared; one letter when
+his first test clears him in the week it happened (the game, the test and the mail land in one step).
 
 ## Injured reserve
 

@@ -243,6 +243,26 @@ describe('the market clears', () => {
     expect(activeRoster(l, club!).length).toBe(sizes.get(club!));
   }, 120_000);
 
+  it('no club fills its 53rd spot on the last call with a man its staff would put on reserve', () => {
+    const { l, star } = lastCall();
+    // Best case a week, worst ten: the middle (5.5) puts him on injured reserve, off the 53, the day he signs.
+    star.injury = {
+      type: 'acl',
+      severity: 'severe',
+      weeksRemaining: 1,
+      estimate: [1, 10],
+      season: l.season - 1,
+      week: 2,
+      where: 'game',
+    };
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    expect(l.players[star.id].teamId).toBeNull();
+    // Nearer healthy, he's worth the spot: the swap still places him.
+    star.injury.estimate = [1, 3];
+    aiFreeAgencyDay(l, new Rng('camp'), { rosterMax: 0, lastCall: true });
+    expect(l.players[star.id].teamId).not.toBeNull();
+  }, 120_000);
+
   it('a swap judges him against the room without the man he replaces: a full QB room still takes a young passer', () => {
     const l: League = JSON.parse(lastDay);
     l.phase = 'preseason';

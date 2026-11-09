@@ -1745,7 +1745,10 @@ function ClearedCards({
             <b>
               {missed === null ? (s.week ? '–' : 'Over the offseason') : missed ? `${missed} wk` : "Didn't miss a game"}
             </b>
-            <span className="muted small">Expected {record.weeks} wk at the time</span>
+            {/* A concussion's file holds the games he missed: the protocol never names a timeline to compare with. */}
+            {record.type !== 'concussion' && (
+              <span className="muted small">Expected {record.weeks} wk at the time</span>
+            )}
           </span>
         </div>
       </Card>

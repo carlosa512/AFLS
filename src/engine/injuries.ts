@@ -1467,13 +1467,7 @@ export function manageInjuries(league: League, team: Team, rng: Rng, roster = te
     if (p.teamId !== team.id || p.squad) continue;
     const inj = p.injury;
     if (inj && !p.ir && !inj.treatment && season && team.id !== league.userTeamId) aiTreatment(league, team, p);
-    if (
-      inj &&
-      !p.ir &&
-      !playingHurt(inj) &&
-      weeksOut(inj) >= IR_MIN_WEEKS + 0.5 &&
-      (season || league.phase === 'preseason')
-    )
+    if (inj && !p.ir && startsOnReserve(inj) && (season || league.phase === 'preseason'))
       placeOnIr(league, p, season ? league.week + 1 : 1);
     else if (
       p.ir &&
@@ -1495,6 +1489,12 @@ export function manageInjuries(league: League, team: Team, rng: Rng, roster = te
 /** Weeks the doctor expects him to miss: the estimate's middle, or the wait before he plays in gear. */
 const weeksOut = (inj: Injury) =>
   inj.treatment === 'brace' ? (inj.braceWait ?? 0) : (inj.estimate[0] + inj.estimate[1]) / 2;
+
+/**
+ * A staff that runs its injuries puts him on injured reserve, off the 53: the doctor's middle estimate past the
+ * four-week minimum. The last call reads it too, so no club fills its 53rd spot with a man bound for reserve.
+ */
+export const startsOnReserve = (inj: Injury) => !playingHurt(inj) && weeksOut(inj) >= IR_MIN_WEEKS + 0.5;
 
 /** A GM this keen on winning now pushes his starters back early all season; everyone does in the playoffs. */
 const AI_PUSH = 0.6;

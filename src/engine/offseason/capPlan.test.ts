@@ -188,7 +188,10 @@ describe('the re-sign window in priority', () => {
       const before = new Set(teamPlayers(l, team.id).map((p) => p.id));
       makeRoomFor(l, team, keepers);
       const cut = [...before].filter((id) => l.players[id].teamId !== team.id).map((id) => l.players[id]);
-      for (const c of cut) expect(playerOvr(c)).toBeLessThan(playerOvr(keepers[0].player));
+      // Keepers come in the club's outlook order, not by rating: a 30-year-old second can rate above a 27-year-old
+      // first, and a cut made for him only has to rate below him. So each cut rates below some keeper.
+      const best = Math.max(...keepers.map((k) => playerOvr(k.player)));
+      for (const c of cut) expect(playerOvr(c)).toBeLessThan(best);
     }
   });
 

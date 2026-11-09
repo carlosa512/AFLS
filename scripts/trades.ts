@@ -1044,11 +1044,15 @@ check(
   [10, 25],
 );
 // Palmer (2011), Dobbs (2023) and Flacco (2025): a starting quarterback moves in season once every few years.
+// A swing line since 0.4.18: nine seasons hold a handful of these (main 2, the last-call fix's reshuffled seasons 5,
+// every one a deadline rental or a swap, the first season's two the same in both); outside 0-1 is abnormal (owner's
+// call, Nov 9).
 check(
   'starting quarterbacks traded in season, a season',
   volume.startingQbs / Math.max(1, volume.seasons),
   [0, 0.5],
   2,
+  [0, 1],
 );
 check(
   'division rivals (%)',
