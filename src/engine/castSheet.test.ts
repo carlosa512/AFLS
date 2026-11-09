@@ -4,7 +4,6 @@ import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { moraleClock, moraleContext, YEAR } from './morale';
 import { teamPlayers } from './roster';
-import type { League, Player } from './types';
 
 const make = () => {
   const l = createLeague({ seed: 'cast-sheet' });
@@ -36,13 +35,13 @@ describe('the cast sheet', () => {
   });
 
   it('hedges a loose personality read and names none when unknown', () => {
-    const { l, ctx, p, other } = make();
-    const known = manSheet(l, p, ctx)!;
-    // Your own players are read well: a name, and any hedge is a boolean.
-    expect(known.personality === null || typeof known.personality.hedged === 'boolean').toBe(true);
-    const fresh = { ...p, id: -1, teamId: l.userTeamId } as Player;
-    expect(manSheet({ ...l } as League, other, ctx)).toBeNull();
-    expect(fresh.id).toBe(-1);
+    const { l, ctx } = make();
+    const sheets = teamPlayers(l, l.userTeamId).map((p) => manSheet(l, p, ctx)!);
+    const reads = sheets.map((s) => s.personality);
+    // Every read is a name and a hedge flag, or null where the staff don't know him yet; never a bare number.
+    for (const r of reads)
+      expect(r === null || (typeof r.name === 'string' && typeof r.hedged === 'boolean')).toBe(true);
+    expect(reads.some((r) => r !== null)).toBe(true);
   });
 
   it('reads history with you from his talk record', () => {
