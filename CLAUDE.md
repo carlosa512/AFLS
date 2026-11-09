@@ -37,7 +37,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
-  `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
+  `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads, median dead money and median kickoff room in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
   deals with a future pick and starting quarterbacks traded in season in `trades`, win spread and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.

@@ -26,6 +26,10 @@ import {
   resistanceMult,
   riskFactors,
   rollInjury,
+  sitAfterClear,
+  sitOdds,
+  sitProblem,
+  sittingAfterClear,
   snapCost,
   stopTreatment,
   treatmentAnswer,
@@ -675,6 +679,168 @@ describe('concussions', () => {
     // Cleared a week ago, back now: one week left of the window when a second one is likelier.
     league.week++;
     expect(concussionWindow(league, p)).toBe(1);
+  });
+
+  it('weighs sitting a cleared man by his file first, then the stakes', () => {
+    const league = fresh();
+    league.week = 8;
+    const team = league.teams[1];
+    const starter = league.players[team.depthChart.WR[0]];
+    const backup = league.players[team.depthChart.WR.at(-1)!];
+    /** His file: `n` concussions this season (the latest this week), and any `older` ones before them. */
+    const file = (p: Player, n: number, older: NonNullable<Player['injuries']> = []) => {
+      p.injuries = [
+        ...older,
+        ...Array.from({ length: n }, (_, i) => ({
+          type: 'concussion',
+          severity: 'minor' as const,
+          season: league.season,
+          week: league.week - (n - 1 - i),
+          weeks: 0,
+        })),
+      ];
+    };
+    const lastYear = (week: number) => ({
+      type: 'concussion',
+      severity: 'minor' as const,
+      season: league.season - 1,
+      week,
+      weeks: 1,
+    });
+    team.gm.winNow = 0.3;
+    file(starter, 1);
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.1, 5);
+    // One last season more than a year ago is a first one; inside the year, it's two in twelve months.
+    file(starter, 1, [lastYear(5)]);
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.1, 5);
+    file(starter, 1, [lastYear(12)]);
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.6, 5);
+    file(starter, 2);
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.6, 5);
+    file(starter, 3);
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.9, 5);
+    // A backup costs little to sit, and nobody is a sure thing.
+    file(backup, 1);
+    expect(sitOdds(league, team, backup)).toBeCloseTo(0.15, 5);
+    file(backup, 3);
+    expect(sitOdds(league, team, backup)).toBeCloseTo(0.95, 5);
+    // A win-now GM's starter, or anyone in the playoffs: half.
+    file(starter, 2);
+    team.gm.winNow = 0.8;
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.3, 5);
+    file(backup, 2);
+    expect(sitOdds(league, team, backup)).toBeCloseTo(0.9, 5);
+    team.gm.winNow = 0.3;
+    league.phase = 'playoffs';
+    expect(sitOdds(league, team, starter)).toBeCloseTo(0.3, 5);
+    expect(sitOdds(league, team, backup)).toBeCloseTo(0.45, 5);
+    // The doctor's read leaves the stakes out.
+    expect(sitOdds(league, team, starter, { stakes: false })).toBeCloseTo(0.6, 5);
+  });
+
+  it('has AI clubs sit some men a week once they clear, at about those odds, and never yours', () => {
+    const league = fresh();
+    league.week = 8;
+    const players = Object.values(league.players).filter((x) => x.teamId !== null && !x.squad);
+    for (const p of players) concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    let expected = 0;
+    for (const p of players)
+      if (p.teamId !== league.userTeamId) expected += sitOdds(league, league.teams[p.teamId!], p);
+    injuryWeek(league);
+    let held = 0;
+    for (const p of players) {
+      const record = p.injuries!.filter((r) => r.type === 'concussion').at(-1)!;
+      if (p.teamId === league.userTeamId) {
+        expect(record).toMatchObject({ weeks: 0 });
+        expect(record.held).toBeUndefined();
+        continue;
+      }
+      if (!record.held) continue;
+      held++;
+      expect(record.weeks).toBe(1);
+      expect(isAvailable(p)).toBe(false);
+    }
+    expect(expected).toBeGreaterThan(100);
+    expect(held).toBeGreaterThan(expected * 0.75);
+    expect(held).toBeLessThan(expected * 1.25);
+  });
+
+  it('lets you sit a man his first test cleared, and change your mind until the week is played', () => {
+    const league = fresh();
+    league.week = 8;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    expect(sitProblem(league, p)).not.toBeNull();
+    injuryWeek(league);
+    league.week++;
+    expect(p.injury).toBeUndefined();
+    expect(sitProblem(league, p)).toBeNull();
+    expect(sittingAfterClear(league, p)).toBe(false);
+    sitAfterClear(league, p, true);
+    expect(sittingAfterClear(league, p)).toBe(true);
+    expect(isAvailable(p)).toBe(false);
+    expect(p.injuries!.at(-1)).toMatchObject({ type: 'concussion', weeks: 1, held: true });
+    // Undo it: he's cleared again, as the test left him.
+    expect(sitProblem(league, p)).toBeNull();
+    sitAfterClear(league, p, false);
+    expect(isAvailable(p)).toBe(true);
+    expect(p.injuries!.at(-1)).toMatchObject({ type: 'concussion', weeks: 0 });
+    expect(p.injuries!.at(-1)!.held).toBeUndefined();
+    // Sat, the week plays and he's back, with one week of the window left, as after a hold.
+    sitAfterClear(league, p, true);
+    injuryWeek(league);
+    league.week++;
+    expect(p.injury).toBeUndefined();
+    expect(sitProblem(league, p)).not.toBeNull();
+    expect(concussionWindow(league, p)).toBe(1);
+  });
+
+  it('sitting twice is one week, and so is playing him twice', () => {
+    const league = fresh();
+    league.week = 8;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    injuryWeek(league);
+    league.week++;
+    sitAfterClear(league, p, true);
+    sitAfterClear(league, p, true);
+    expect(p.injuries!.at(-1)).toMatchObject({ weeks: 1, held: true });
+    expect(p.injury).toMatchObject({ weeksRemaining: 1 });
+    sitAfterClear(league, p, false);
+    sitAfterClear(league, p, false);
+    expect(p.injuries!.at(-1)).toMatchObject({ weeks: 0 });
+    expect(p.injury).toBeUndefined();
+  });
+
+  it('can sit a man cleared in week 18 for the first playoff week', () => {
+    const league = fresh();
+    league.week = 18;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    injuryWeek(league);
+    league.week = 19;
+    league.phase = 'playoffs';
+    expect(sitProblem(league, p)).toBeNull();
+    sitAfterClear(league, p, true);
+    expect(isAvailable(p)).toBe(false);
+  });
+
+  it("offers no sit for a longer protocol (his card's hold covers it) or once the week is played", () => {
+    const league = fresh();
+    league.week = 8;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    const inj = concuss(league, p);
+    inj.protocol = { clear: 0, symptoms: 1, setbacks: 0 };
+    injuryWeek(league);
+    league.week++;
+    inj.protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    injuryWeek(league);
+    league.week++;
+    expect(p.injury).toBeUndefined();
+    expect(p.injuries!.at(-1)).toMatchObject({ weeks: 1 });
+    expect(sitProblem(league, p)).not.toBeNull();
+    sitAfterClear(league, p, true);
+    expect(isAvailable(p)).toBe(true);
   });
 
   it('has a player with a third concussion in a season weigh his future, and sometimes shut himself down', () => {

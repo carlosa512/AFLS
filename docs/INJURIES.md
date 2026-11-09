@@ -136,8 +136,9 @@ four, never less: staying clean helps, it never wipes the file.
 | 3rd | about 25% | a few weeks; a setback or two can mean injured reserve |
 | 4th+ | about 20% or less | weeks, sometimes much of a season |
 
-Over the league about two in five concussions miss no game, as in the NFL (59% miss one, median
-9 days). A practice concussion is tested the next week, so it always costs a game. His file shows the
+Over the league the protocol clears about two in five in time for the next game, as in the NFL (59%
+miss one, median 9 days); clubs sitting a man a week once he's cleared (below) bring the share that
+miss no game to a little over a third (36.5% over 30 seasons, inside the check's 33–50%). A practice concussion is tested the next week, so it always costs a game. His file shows the
 games he really missed, and the doctor's estimate is a read of what's left in his bag ("day to day",
 "day to day, up to 3 weeks"), redone after every test.
 
@@ -158,9 +159,28 @@ No tests; back after the offseason. He never retires mid-season.
 **Your call:** *Hold him a week after he clears*, on his card while he's in the protocol. He sits one
 more game once he's cleared, which spends half of the window when a second concussion is likelier on
 the sideline. Or put him on injured reserve. No needle or fast-track gets anyone out of the protocol.
+If his first test clears him in the week it happened, you never saw him in the protocol: the doctor's
+letter offers *Sit him this week* instead (and *Play him after all*, until the week is played). Your
+staff never sits a man for you.
+
+**AI clubs' call.** When an AI club's man clears (at any test), the club decides once, on its own
+stream, whether to sit him a week. Mostly his file, counted with this one:
+
+| His file | Chance they sit him |
+|---|---|
+| First concussion in the past 12 months | 10% |
+| Second this season, or two or more in the past 12 months | 60% |
+| Third or more this season | 90% |
+
+Then the stakes: the playoffs, or a starter for a win-now GM (the one who pushes starters back from
+injuries), halve it; a backup costs little to sit (×1.5); never past 95%. Real clubs play a man the
+consultant has cleared and get careful with repeat concussions. The first tier stays low because the
+NFL's 59% who miss a game already includes clubs' own caution. Your doctor reads the same table for
+his file and role (not the stakes) and says *I'd sit him this week anyway* at 60% or more.
+Spec: `docs/superpowers/specs/2026-11-08-sit-after-concussion-design.md`.
 
 The doctor writes when he enters the protocol, after a setback and when he's cleared; one letter when
-his first test clears him in the week it happened (the game, the test and the mail land in one step).
+his first test clears him in the week it happened.
 
 ## Injured reserve
 

@@ -360,9 +360,16 @@ describe('AI trades before each pick', () => {
   });
 });
 
+/**
+ * Its own world, cached: the shared one's picks drew no offers once AI clubs sat concussed men (0.4.20 reshuffled its
+ * season); this one's first pick of yours draws them.
+ */
+let offersWorld: string | undefined;
+const offersDay = (): League => JSON.parse((offersWorld ??= JSON.stringify(draftDayOf('draft-offers-a'))));
+
 /** Draft day walked to your first pick that draws offers (the draft room's Sim to my pick makes them). */
 function toOfferedPick(): League {
-  const l = draftDay();
+  const l = offersDay();
   for (let tries = 0; tries < 7; tries++) {
     draftToUserPick(l);
     if (!nextPick(l)) break;

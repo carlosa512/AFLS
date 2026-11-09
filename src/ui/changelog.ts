@@ -13,6 +13,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.20',
+    date: '2026-11-09',
+    title: 'Sit him this week',
+    text:
+      "When a concussed player clears the protocol in the week it happened, the doctor's letter now has a Sit him " +
+      'this week button (and Play him after all, until the game is played), and the doctor says when he would sit ' +
+      'him. Other clubs make the same call as their players clear: rarely after a first concussion, usually after a ' +
+      'second this season, almost always after a third, a little less when a starter is needed or in the playoffs. ' +
+      'Quarterbacks under pressure on third and medium now hold the ball for the sticks a little more, as in the NFL.',
+  },
+  {
+    version: '0.4.19',
+    date: '2026-11-09',
+    title: 'No cutting the man you just paid',
+    text:
+      'When a club needs cap room it now weighs next year as well as this one: no more cutting a player whose dead ' +
+      'money leaves next year worse than keeping him, and no cutting a man it signed or extended this league year ' +
+      'while anyone else would free the room. Clubs far over the cap still do what they must.',
+  },
+  {
     version: '0.4.18',
     date: '2026-11-09',
     title: 'Every concussion gets a letter',

@@ -1310,7 +1310,7 @@ function protocolTest(league: League, p: Player, inj: Injury, dept: Department):
 
 /** Cleared: his file shows the games he really missed, and a team that holds him sits him one more week. */
 function clearProtocol(league: League, p: Player, inj: Injury): void {
-  const held = !!inj.protocol!.hold;
+  const held = !!inj.protocol!.hold || aiSits(league, p);
   const missed = Math.max(0, weeksSince(league, inj.season, inj.week)) + (held ? 1 : 0);
   const record = p.injuries?.at(-1);
   if (record && record.type === inj.type && record.season === inj.season && record.week === inj.week) {
@@ -1333,6 +1333,99 @@ export function holdAfterProtocol(p: Player, on: boolean): void {
   if (!pr || pr.shutdown) return;
   if (on) pr.hold = true;
   else delete pr.hold;
+}
+
+/**
+ * Odds a club sits a man a week once he clears, mostly from his file (counted with this concussion): a first in the
+ * past year rarely, a second this season or in twelve months more often than not, a third almost always. Real clubs
+ * play a man the consultant has cleared; repeat concussions are where they get careful. Then the stakes: the playoffs,
+ * or a win-now GM's starter, halve it; a backup costs little to sit. Kept low for a first one: the NFL's share who
+ * miss a game (`docs/INJURIES.md`) already includes clubs' own caution.
+ */
+const SIT_ODDS = { first: 0.1, second: 0.6, third: 0.9 };
+const SIT_MAX = 0.95;
+
+/** His concussions this season and in the past twelve months, counted at the latest. */
+export function concussionsLately(p: Player): { season: number; year: number } {
+  const all = (p.injuries ?? []).filter((r) => r.type === 'concussion');
+  const last = all.at(-1);
+  if (!last) return { season: 0, year: 0 };
+  return {
+    season: all.filter((r) => r.season === last.season).length,
+    year: all.filter((r) => (last.season - r.season) * YEAR_WEEKS + (last.week - r.week) < YEAR_WEEKS).length,
+  };
+}
+
+/** The chance `team` sits him a week once he's cleared; `stakes: false` is the doctor's read (his file and role only). */
+export function sitOdds(league: League, team: Team, p: Player, opts: { stakes?: boolean } = {}): number {
+  const { season, year } = concussionsLately(p);
+  if (!season) return 0;
+  const file = season >= 3 ? SIT_ODDS.third : season >= 2 || year >= 2 ? SIT_ODDS.second : SIT_ODDS.first;
+  const slot = team.depthChart[p.position]?.indexOf(p.id) ?? -1;
+  const starter = slot >= 0 && slot < STARTERS[p.position];
+  const push = opts.stakes !== false && (league.phase === 'playoffs' || (starter && (team.gm?.winNow ?? 0) >= AI_PUSH));
+  return Math.min(SIT_MAX, file * (push ? 0.5 : 1) * (starter ? 1 : 1.5));
+}
+
+/** An AI club's call as he clears, on its own stream: yours are always your call. */
+function aiSits(league: League, p: Player): boolean {
+  if (p.teamId === null || p.teamId === league.userTeamId) return false;
+  const odds = sitOdds(league, league.teams[p.teamId], p);
+  return new Rng(`${league.seed}:${league.season}:${league.week}:sit:${p.id}`).chance(odds);
+}
+
+/** The concussion he cleared at its first test, in the week just played (it can be sat on until next week is). */
+function clearedThisWeek(league: League, p: Player) {
+  const r = p.injuries?.at(-1);
+  if (!r || r.type !== 'concussion' || r.season !== league.season || league.week !== r.week + 1) return undefined;
+  return r.weeks === 0 || (r.weeks === 1 && r.held) ? r : undefined;
+}
+
+/** Sitting a week after an all-clear at his first test: the held state a hold leaves, not played yet. */
+export function sittingAfterClear(league: League, p: Player): boolean {
+  const r = clearedThisWeek(league, p);
+  const inj = p.injury;
+  return !!r?.held && inj?.type === 'concussion' && !inj.protocol && inj.season === r.season && inj.week === r.week;
+}
+
+/** Why you can't sit him (or stop sitting him) this week, or null when you can. */
+export function sitProblem(league: League, p: Player): string | null {
+  if (!inSeason(league)) return 'Only in season.';
+  if (!clearedThisWeek(league, p)) return 'Only for a concussion he cleared at this week’s test.';
+  if (sittingAfterClear(league, p)) return null;
+  if (p.injury) return 'He’s hurt.';
+  return null;
+}
+
+/**
+ * Sit him this week after an all-clear at his first test, or play him after all. Sat, he's exactly where a hold
+ * leaves a man (`clearProtocol`): a concussion with a week left and no protocol, one game and `held` on his file.
+ */
+export function sitAfterClear(league: League, p: Player, on: boolean): void {
+  if (sitProblem(league, p) || on === sittingAfterClear(league, p)) return;
+  const r = clearedThisWeek(league, p)!;
+  const type = INJURY_TYPES.concussion;
+  if (on) {
+    r.weeks = 1;
+    r.held = true;
+    r.severity = severityFor(type, 1, p.age);
+    // An all-clear at the first test is always a game's concussion: a practice one is tested the week after.
+    p.injury = {
+      type: 'concussion',
+      severity: r.severity,
+      weeksRemaining: 1,
+      estimate: [1, 1],
+      season: r.season,
+      week: r.week,
+      where: 'game',
+    };
+  } else {
+    delete p.injury;
+    r.weeks = 0;
+    delete r.held;
+    r.severity = severityFor(type, 0, p.age);
+  }
+  if (p.teamId !== null) syncDepthChart(league, league.teams[p.teamId]);
 }
 
 /** Concussions' share of the offseason retirement chance, by his file: from the third on, more with each one. */
