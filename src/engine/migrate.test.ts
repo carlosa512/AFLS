@@ -7,8 +7,9 @@ import { moraleAdvance, moraleContext, moraleFactors, moraleTarget, YEAR } from 
 import { activeRoster } from './roster';
 import { nameCaptains } from './personality';
 import { playWeek } from './league';
+import { emptyMarket } from './trade/execute';
 import { defenseCallAt } from './playActors';
-import type { InboxMessage } from './types';
+import type { InboxMessage, TradeOffer } from './types';
 
 describe('save v65 and v66', () => {
   it('a v64 save loads at 65 with its inbox as it was', () => {
@@ -17,7 +18,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(90);
+    expect(SAVE_VERSION).toBe(91);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -369,7 +370,24 @@ describe('save v90', () => {
     const before = JSON.parse(JSON.stringify(l.transactions));
     l.version = 89;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(90);
+    expect(up.version).toBeGreaterThanOrEqual(90);
     expect(up.transactions).toEqual(before);
+  });
+});
+
+describe('save v91', () => {
+  it('drops trust from talks and keeps pending offers', () => {
+    const l = createLeague({ seed: 'v91' });
+    l.version = 90;
+    const offer = { id: 7, teamId: 3 } as unknown as TradeOffer;
+    l.market = emptyMarket();
+    l.market.offers = [offer];
+    (l.market!.talks as Record<number, unknown>)[3] = { moment: 2, asks: 1, trust: 0.4, cooldowns: {} };
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect('trust' in up.market!.talks[3]).toBe(false);
+    expect(up.market!.talks[3].asks).toBe(1);
+    expect(up.market!.offers).toHaveLength(1);
+    for (const g of Object.values(up.gms)) expect(g.withYou).toBeUndefined();
   });
 });

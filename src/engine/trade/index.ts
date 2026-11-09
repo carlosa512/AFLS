@@ -10,7 +10,7 @@
  * - `deals.ts`: the deal search (picks, swaps, a player and a pick, cap dumps)
  * - `market.ts`: the AI market at the NFL's moments, its history and rumors
  * - `offers.ts`: offers to you and what you do with them: accept, decline, counter, statuses, shop, ask a price
- * - `talks.ts`: your dealings with each GM (proposals a moment, cooldowns, trust)
+ * - `talks.ts`: your dealings with each GM (proposals a moment, cooldowns)
  * - `context.ts`: one decision pass's cache
  */
 export { dealAdvice, staffTake, type Advice, type AdviceTone, type StaffTake } from './advice';

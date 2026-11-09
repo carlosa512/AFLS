@@ -20,7 +20,9 @@ import type { DraftPick, League, Player, Team } from '../types';
 import { pickOf, rosterOf, tradeContext, type TradeContext } from './context';
 import { draftCovet } from './draft';
 import { stanceOf, untouchables } from './plans';
-import { peekTalks, talkRefusal, TRUST_MARGIN } from './talks';
+import { aiGm } from '../gmHabits';
+import { standingWith, STANDING_MARGIN } from '../gmMemory';
+import { talkRefusal } from './talks';
 import {
   freshSigningRefusal,
   guaranteesShed,
@@ -264,11 +266,13 @@ function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
 }
 
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
-export function marginFor(team: Team, other: Team, vsUser = false, trust = 0): number {
+export function marginFor(team: Team, other: Team, vsUser = false, standing = 0): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
   const rival = other.division === team.division ? 0.2 : 0;
-  // With you, how far he trusts you moves it a little either way.
-  return (vsUser ? 1.05 + team.gm.stubbornness * 0.15 - TRUST_MARGIN * trust : 1 + team.gm.stubbornness * 0.05) + rival;
+  // With you, how he stands with you moves it a little either way.
+  return (
+    (vsUser ? 1.05 + team.gm.stubbornness * 0.15 - STANDING_MARGIN * standing : 1 + team.gm.stubbornness * 0.05) + rival
+  );
 }
 
 /** `teamId`'s verdict on a proposal, in its own eyes. */
@@ -307,9 +311,9 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const covet = draftCovet(ctx, teamId, proposal);
   const get = pickIn + gain - cuts * ROSTER_SPOT + thisYear * POINTS_PER_K * retainedBy(theirs) + covet.get;
   const give = pickOut + loss + thisYear * POINTS_PER_K * retainedBy(mine) + covet.give;
-  const trust = opts.vsUser ? peekTalks(league.market, teamId).trust : 0;
+  const standing = opts.vsUser ? standingWith(league, aiGm(league, team)) : 0;
   const margin =
-    (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, trust)) +
+    (opts.margin ?? marginFor(team, league.teams[theirs.teamId], opts.vsUser, standing)) +
     (startsAtQb(league, team, mine) ? QB_PREMIUM : 0);
   // The margin is a share of the stakes, so it asks for more back whether the stakes are positive or not.
   const lift = (x: number) => x + Math.abs(x) * (margin - 1);

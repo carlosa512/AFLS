@@ -109,7 +109,7 @@ describe('the trade partner card', () => {
   it('says in words whether he is still taking proposals', () => {
     l.market = emptyMarket();
     expect(talksWords(l, rival.id)).toBe('Taking proposals');
-    l.market.talks[rival.id] = { moment: 0, asks: ASKS - 1, trust: 0, cooldowns: {} };
+    l.market.talks[rival.id] = { moment: 0, asks: ASKS - 1, cooldowns: {} };
     expect(talksWords(l, rival.id)).toBe('Nearly done talking this week');
     l.market.talks[rival.id].asks = ASKS;
     expect(talksWords(l, rival.id)).toBe("We're done talking this week.");

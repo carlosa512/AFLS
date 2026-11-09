@@ -47,7 +47,7 @@ import {
 } from './rules';
 import type { Moment } from './market';
 import { lowerPrice, physicals, worstResult } from './physicals';
-import { nudgeTrust, talkRefusal, talksOf } from './talks';
+import { talkRefusal, talksOf } from './talks';
 import { marketValue, POINTS_PER_K, salaryWeight } from './value';
 
 type Listing = { team: Team; entry: BlockEntry };
@@ -583,7 +583,7 @@ function finish(
   return settle(league, proposal.sides, meta, aiId, exams, opts);
 }
 
-/** Make a deal of yours official: your releases, the trade, his cut to fit, a little trust. */
+/** Make a deal of yours official: your releases, the trade, his cut to fit. */
 function settle(
   league: League,
   sides: TradeOffer['sides'],
@@ -602,7 +602,6 @@ function settle(
   lapseUsedPicks(league);
   const offer = opts.offerId !== undefined ? offerById(league, opts.offerId) : undefined;
   delete market.exam;
-  nudgeTrust(market, ai.id, 0.03);
   const rehab = exams
     .filter((e) => e.result === 'rehab')
     .map((e) => ` ${e.note}`)
@@ -660,7 +659,6 @@ export function declineOffer(league: League, id: number): void {
   const t = talksOf(market, offer.teamId);
   for (const pid of [...offer.sides[0].players, ...offer.sides[1].players])
     t.cooldowns[pid] = { until: market.moment + DECLINE_WAIT, worth: offer.worth };
-  nudgeTrust(market, offer.teamId, -0.02);
 }
 
 /**
@@ -741,7 +739,6 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   };
   if (offer.final || offer.patience <= 0) {
     talksOf(market, ai.id).offUntil = market.moment;
-    nudgeTrust(market, ai.id, -0.05);
     return walkedAway();
   }
   const ctx = tradeContext(league);
@@ -772,7 +769,7 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   };
 }
 
-/** A proposal of yours from the trade table ([yours, his]): he hears about four a moment, and turning you down costs a little trust. */
+/** A proposal of yours from the trade table ([yours, his]): he hears about four a moment. */
 export function proposeTrade(league: League, proposal: TradeProposal): { accepted: boolean; message: string } {
   const market = (league.market ??= emptyMarket());
   const ai = league.teams[proposal.sides[1].teamId];
@@ -783,7 +780,6 @@ export function proposeTrade(league: League, proposal: TradeProposal): { accepte
   if (verdict.problem && !verdict.policy) return { accepted: false, message: verdict.problem };
   talksOf(market, ai.id).asks++;
   if (!verdict.accepts) {
-    nudgeTrust(market, ai.id, -0.01);
     return { accepted: false, message: verdict.message };
   }
   const done = finish(league, proposal, { kind: 'user' }, ai.id);
