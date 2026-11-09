@@ -1,3 +1,4 @@
+import { startsOnReserve } from '../injuries';
 import { collegeOrigin } from '../origin';
 import { squadReserve } from '../personnel/squads';
 /**
@@ -1040,8 +1041,9 @@ export function aiFreeAgencyDay(
   };
   let signings = 0;
   for (const { p } of pool) {
-    // Injury reports are public: nobody pays market price for a player who'll miss the start of the season.
-    if (p.injury && p.injury.estimate[0] >= 4) continue;
+    // Injury reports are public: nobody pays market price for a player who'll miss the start of the season. On the
+    // last call, nobody fills a spot on the 53 with a man its own staff would put on reserve the same day.
+    if (p.injury && (p.injury.estimate[0] >= 4 || (opts.lastCall && startsOnReserve(p.injury)))) continue;
     const bids: {
       team: Team;
       offer: Offer;
