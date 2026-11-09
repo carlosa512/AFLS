@@ -139,6 +139,19 @@ function check(label: string, value: number, lo: number, hi: number, digits = 2,
   return `${label} ${value.toFixed(digits)} (${range})${flag}`;
 }
 
+/**
+ * Median dead money at kickoff swings with the league: ⚠ past 6% of the cap, fail past 9% (the owner's call, Nov 9).
+ * A league's sixth season read 2.0, 4.0 and 5.4% on main over three seeds and 6.4-7.9% once AI clubs sat concussed men
+ * (a reshuffle, no new cuts); the NFL averaged about 10% in 2024 ($25M a team, Boston Globe, April), so past 9 is
+ * abnormal.
+ */
+const DEAD_MEDIAN_NORMAL: [number, number] = [0, 9];
+/**
+ * Median kickoff room swings with the league: ⚠ under 1% of the cap once steady, fail under 0.5% (the owner's call,
+ * Nov 9): main read 1.0 and 0.9% on two other seeds, at the floor; under half a point the league has spent itself flat.
+ */
+const SPACE_FLOOR_NORMAL = 0.5;
+
 /** Retreads swing with the league: ⚠ outside 10–50%, fail outside 8–58% (the owner's call, Nov 6: main read 39% and 42%
  * over two seeds, 0.4.8's branch 50% and 42%; the NFL's 32%). */
 const RETREADS_NORMAL: [number, number] = [8, 58];
@@ -530,7 +543,7 @@ for (let s = 0; s < seasons; s++) {
   const restructuring =
     (100 * new Set(moves.filter((m) => m.kind === 'restructure').flatMap((m) => m.teamIds)).size) / league.teams.length;
   console.log(
-    `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1)} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 35, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1)} · ${fas}`,
+    `  checks ${year} cap: ${soft('clubs restructuring %', restructuring, 40, 70, 0, RESTRUCTURING, String(year))} · ${check('over cap', k.overCap, 0, 0, 0)} · ${check('…at free agency', snaps.freeAgency?.overCap ?? 0, 0, 1, 0)} · ${check('…at draft', snaps.draft?.overCap ?? 0, 0, 1, 0)} · ${check('median space %cap', pct(k.space[mid]), steady ? 1 : 0.8, steady ? 4 : 12, 1, [SPACE_FLOOR_NORMAL, steady ? 4 : 12])} · ${check('max space %cap', pct(k.space[last]), 0, s >= 4 ? 20 : 30, 1)} · ${check('dead max %cap', pct(k.dead[last]), 0, 35, 1)} · ${check('dead median %cap', pct(k.dead[mid]), 0, 6, 1, DEAD_MEDIAN_NORMAL)} · ${fas}`,
   );
   // The free-agency market against the NFL's (`docs/research/free-agency-market.md`: Over The Cap's contracts
   // 2014-2021 through nflverse; the same definitions here). Judged from the second offseason on: the generated league's
