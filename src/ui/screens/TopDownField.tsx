@@ -339,8 +339,8 @@ export function TopDownField({
     // A two-point try lines straight up, though since 0.4.11 it's logged as the snap it was.
     if (!ran?.kind || !HUDDLED.has(ran.kind) || /^Two-point try: /.test(ran.text)) return undefined;
     if (twoMinute) return undefined; // no-huddle
-    const bx = s.ball[0];
-    const by = s.ball[1];
+    const bx = s.line.x;
+    const by = s.line.y;
     const lbs = s.ids.filter((_, k) => !s.offense[k] && s.roles[k] === 'LB');
     const caller = lbs[Math.floor(lbs.length / 2)] ?? s.ids.find((_, k) => !s.offense[k] && s.roles[k] === 'S');
     return {
@@ -376,8 +376,8 @@ export function TopDownField({
   const crewPlan = useMemo(() => {
     if (!staged || !entry) return null;
     const e = asRan(entry);
-    const land = e.kind === 'punt' && e.air !== undefined ? { x: e.air, y: staged.ball[1] } : undefined;
-    const start = crewSpots(e, staged.ball[0], staged.ball[1], dir, land);
+    const land = e.kind === 'punt' && e.air !== undefined ? { x: e.air, y: staged.line.y } : undefined;
+    const start = crewSpots(e, staged.line.x, staged.line.y, dir, land);
     const track = crewTrack(start, staged.ball, staged.steps, staged.dt, dir);
     const playTime = (staged.steps - 1) * staged.dt;
     // A flag for each foul, where and when it happened, by the official nearest it; one by the ball for a flag the
@@ -594,7 +594,7 @@ export function TopDownField({
       // A long way off (a kick in the net behind the posts, a touchback, anything past 20 yards), that ball stays
       // where it is and fades, and he collects a fresh one from the sideline level with the spot and brings it in.
       const tb = Math.max(0, t - g.beat);
-      const spot = { x: s.ball[0], y: s.ball[1] };
+      const spot = { ...s.line };
       const umpFrom = crewFrom[UMPIRE] ?? plan.start[UMPIRE];
       const fresh = !ballFrom || deadBall || Math.hypot(spot.x - ballFrom.x, spot.y - ballFrom.y) > FRESH_BALL;
       const pick = fresh ? { x: spot.x, y: spot.y < MID ? -0.8 : FIELD_W + 0.8 } : ballFrom!;

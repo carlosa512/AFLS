@@ -428,7 +428,20 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       club reads its own men exactly (`knowledge` is 1), so a tag gated on our read would show what it shows now: no
       fog of war is crossed. A tag and the personality beside it can still differ: two labels with their own cut-offs
       over the same makeup.
-- [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2).** Run on worlds stage-b, c and d,
+- [x] **A defender set in the offensive backfield before the snap.** In your games (the spatial pocket), a linebacker
+      showing blitz or a corner showing press walked up as far as three yards into the offense's backfield, then ran to
+      his spot as the ball was snapped. **Fixed (0.4.17):** the moments before the snap read the line from the play
+      (`StagedPlay.line`), not the ball's first frame, which the pocket's film starts in the passer's hands; the huddles,
+      the crew's spots and the ball the umpire spots read it too.
+- [x] **Two backs on one spot.** A formation with two backs put both on the same spot (about one line-up in 1,600, on
+      every world tried). **Fixed (0.4.17):** the second back is the fullback in front of the tailback, or from the gun
+      the other side of the quarterback (`FIELD_VERSION` 15).
+- [x] **A sacked quarterback walked to the spot with the rusher on his back.** The sack's last leg carried him from his
+      pocket to the spot, however far: on a 0-yard sack he climbed nine yards back to the line into a rusher who never
+      got past his blocker, and on long ones the two went up to 9.5 yards together. **Fixed (0.4.17):** he reaches the
+      spot in his pocket (up into the rush, or drifting back from it) and the last leg is the stagger (`SACK_STAGGER`);
+      a beaten blocker trails his man from behind, never between him and the quarterback (`BEHIND_HIS_MAN`).
+- [ ] **All-22 stage tests pass only on their own world.** **Partly fixed (0.4.2; 0.4.17: worlds b and d pass all, c all but the bounce below).** Run on worlds stage-b, c and d,
       `src/ui/stage/stage.test.ts` failed six tests. The four drawing bugs are fixed: a lost fumble's quarterback stood
       where the defense landed on the ball; a sack's beaten blocker never lost (a play-action back faking away from his
       rusher, a lineman tracking his man to the quarterback); a receiver slid past the sideline to a ball thrown out of

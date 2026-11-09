@@ -146,3 +146,41 @@ describe('the moments before the snap', () => {
     ).toBeLessThan(0.3);
   });
 });
+
+describe('the moments before the snap, in a spatial game (0.4.17)', () => {
+  // Your games play the pocket: its film starts with the ball in the passer's hands, behind the line.
+  const spatial: { s: StagedPlay; plan: Presnap }[] = [];
+  const sl = createLeague({ seed: 'presnap-spatial' });
+  for (let i = 0; i < 6; i++) {
+    const g = sl.games[i];
+    const r = simulateGame(sl, g, { keepPlays: true, seed: `pss-${i}`, field: true });
+    r.plays!.forEach((e, idx) => {
+      if (!['run', 'pass', 'incomplete', 'sack', 'scramble', 'int'].includes(e.kind ?? '')) return;
+      const s = stagePlay({
+        plays: r.plays!,
+        index: idx,
+        record: r.field!,
+        homeId: g.homeId,
+        seed: `${g.id}:${idx}`,
+        snapY: snapYFor(e, 26),
+      });
+      spatial.push({ s, plan: presnapPlan({ staged: s, e, hurry: false, seed: `${g.id}:${idx}` }) });
+    });
+  }
+
+  it('never sets a defender in the offensive backfield: a blitz shown, a press, a creeper all stay on his side', () => {
+    let checked = 0;
+    for (const { s, plan } of spatial) {
+      // The line, from the offensive linemen's front at the snap.
+      const ol = s.ids.map((_, k) => k).filter((k) => s.offense[k] && s.roles[k] === 'OL');
+      const front = Math.max(...ol.map((k) => s.pos[k * 2] * s.dir));
+      for (const m of plan.moves) {
+        const k = s.ids.indexOf(m.id);
+        if (s.offense[k]) continue;
+        for (let b = plan.line; b >= 0; b -= 0.1) expect(preMoveAt(m, b, s.dir).x * s.dir).toBeGreaterThan(front - 0.3);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(50);
+  });
+});

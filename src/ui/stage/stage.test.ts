@@ -198,6 +198,31 @@ describe('formations', () => {
     }
   });
 
+  it('lines two backs up apart: a fullback in front of the tailback, or the other side of the quarterback (0.4.17)', () => {
+    let checked = 0;
+    for (const x of lineUps(4, SCRIMMAGE)) {
+      // Make a receiver a second back.
+      const wr = x.cast.offense.find((m) => m.role === 'WR');
+      if (!wr || x.cast.offense.filter((m) => m.role === 'RB').length !== 1) continue;
+      const cast = { ...x.cast, offense: x.cast.offense.map((m) => (m === wr ? { ...m, role: 'RB' as const } : m)) };
+      const g = games.find(({ r }) => r.plays!.includes(x.e))!;
+      const spots = lineUp(
+        x.e,
+        cast,
+        g.r.field!.scheme[cast.offSide],
+        g.r.field!.scheme[1 - cast.offSide],
+        x.ballX,
+        x.ballY,
+        x.dir,
+        new Rng('two-backs'),
+      );
+      const backs = cast.offense.filter((m) => m.role === 'RB').map((m) => spots.get(m.id)!);
+      expect(Math.hypot(backs[0].x - backs[1].x, backs[0].y - backs[1].y)).toBeGreaterThanOrEqual(0.8);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
   it('lines the same play up the same way every time', () => {
     const [a, b] = [lineUps(2), lineUps(2)];
     expect(a.map((x) => [...x.spots])).toEqual(b.map((x) => [...x.spots]));
@@ -1333,6 +1358,33 @@ describe('the pocket', () => {
     expect(inside / n).toBeGreaterThan(0.9);
   });
 
+  it('takes the quarterback down where the rush meets him: a stagger, not a walk to the spot (0.4.17)', () => {
+    let n = 0;
+    for (const { e, p } of drops) {
+      if (e.kind !== 'sack' || p.loose) continue;
+      const who = actorsIn(e);
+      if (who.rush === undefined) continue;
+      const r = p.ids.indexOf(who.rush);
+      const qb = qbOf(p);
+      const last = p.steps - 1;
+      // On him for good: within the script's contact (0.8 yards off him) and on him from there to the whistle. A chase
+      // closing from further isn't the two going down, and a quarterback who slips him and is caught again later is
+      // met the second time.
+      const d = (st: number) => Math.hypot(P(p, r, st).x - P(p, qb, st).x, P(p, r, st).y - P(p, qb, st).y);
+      let met: number | undefined;
+      for (let st = last; st >= 0 && d(st) < 1.2; st--) if (d(st) < 0.85) met = st;
+      if (met === undefined) continue;
+      // Before 0.4.17 the two walked to the spot together after the hit: 38 of 76 sacks here went 4 yards and more (9.5
+      // the most). Now it's the last of his drift into the rush and the stagger: 3.9 at most here, 5.0 across worlds
+      // b, c and d (a long loss, the rusher on him as he drifts back to it).
+      expect(Math.hypot(P(p, qb, last).x - P(p, qb, met).x, P(p, qb, last).y - P(p, qb, met).y), e.text).toBeLessThan(
+        6,
+      );
+      n++;
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+
   it('brings the sacker past the blocker the engine names, and down with the quarterback on the sack spot', () => {
     let n = 0;
     for (const { e, p } of drops) {
@@ -1640,8 +1692,12 @@ describe('the run game', () => {
       expect(moved(slow)).toBeLessThan(0.5);
       seen.slowFlow++;
       const misread = stage(x, withHabit(x, lb, 'misreadsKeys'));
-      // His first steps go against the flow (the play side), a yard and more.
-      expect(lateral(misread, r + 0.4)).toBeLessThan(-0.8);
+      // His first steps go against the flow (the play side), a yard and more: the furthest he gets the wrong way from
+      // the snap to just after the handoff (a lineman climbing to him can drive him off it from the handoff on).
+      const wrongWay = Math.min(
+        ...Array.from({ length: Math.floor((r + 0.4) / 0.05) + 1 }, (_, i) => lateral(misread, i * 0.05)),
+      );
+      expect(wrongWay, x.e.text).toBeLessThan(-0.8);
       seen.misreadsKeys++;
     }
     for (const n of Object.values(seen)) expect(n).toBeGreaterThan(40);
@@ -1652,7 +1708,9 @@ describe('the run game', () => {
     let climbs = 0;
     const gained: number[] = [];
     const held: number[] = [];
-    for (const x of runs.slice(0, 200)) {
+    // 800 runs: over 200 the seal gain's mean moves about ±0.035 by luck, and two of four worlds read 0.087 and 0.096
+    // (0.12 a world over 800).
+    for (const x of runs.slice(0, 800)) {
       const base = stage(x, without(x));
       if (!base.run) continue;
       const lb = freeBacker(x, base);
