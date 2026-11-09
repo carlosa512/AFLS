@@ -55,6 +55,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   check a change near an edge with `-- 30` or more. `npm run check` (and CI) runs 60: over 10, the
   #1 and #5 passing rows sit close enough to their floors that main itself misses one block in four, and over 30 a
   change to moods alone (which reshuffles every game) moved overtime and the leaders' rows by a block's width.
+- `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
+  enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
+  for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
 - `npm run sideline [-- games]` — out of bounds on catches, runs and scrambles by bucket (the clock, the side of the
   field, the gain, the sticks) against nflverse 2021–25 (`scripts/research-sideline.py` measures the NFL), the clock
   between snaps after a man goes out, and how far the league's men differ; AI games, fast (3,000 in under a minute).
@@ -227,6 +230,16 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `habitLog` (`logMove`). `habitsForce` pins one on for tests and the check. `gmHabitsYear.ts` the new-year step inside
     `beginOffseason` (`habitsNewYear`: the draw and fades; `startHabits` and `noteRelease` handle starting habits and blow-ups). `gmVoice.ts` the words that tell them
     (news and your director's notes; never a label on a GM)
+  - `gmMemory.ts` what an AI GM remembers of dealings with your GM (spec `docs/superpowers/specs/2026-11-07-gm-memory-voice-design.md`):
+    a short list of moments on `GeneralManager.withYou` (trades, offers taken, final no's, being led on; `noteMoment`), a
+    trade judged a season on from how the men played (`judgeTrade`, run by `memoryNewYear`), and his standing with you
+    worked out from them each time it is read (`standingWith`, `standingBand`; never stored, no draws, never on a
+    screen). A GM with no moments is neutral and behaves as before. It leans his price (`marginFor`), his patience (`ASKS`
+    in `trade/talks.ts`, an offer's `patience`) and who calls first (`offersMoment`), each by a bounded step.
+    `gmTalk.ts` his words: `talkFacts` (manner, band, the one moment he'd mention) feeds `say` for the opener and sign-off
+    that `wrapLetter` puts around an offer (`offerWords` in `inbox.ts`), the trade table's line (`tableLine`) and refusal
+    (`refusalLine`), and your director's line (`historyNote`). No digit, habit, archetype, "standing" or "trust" in them.
+    `npm run gm-letters` writes a read-through of sample letters to `.check/gm-letters.md` (a preview, not a check)
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
@@ -442,7 +455,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     failed, cleared to rehab; the public file a team reads before it calls); offers to you in
     `offers.ts` (bids, pitches, dumps, enquiries on their own stream; accept, decline, counter, your
     players' statuses, shop, ask a price; they lapse when you advance the calendar), your dealings with
-    each GM in `talks.ts` (about four proposals a moment, cooldowns, trust), your staff's word on a
+    each GM in `talks.ts` (about four proposals a moment, cooldowns, his memory of you leaning the count), your staff's word on a
     deal in `advice.ts` (your view only); draft day in `draft.ts` (covet: a team's man at the earlier pick
     against its best at the later one on its own board, which `judge` adds in the `draft` phase; the AI's
     trade-ups before each pick for an NFL reason, offers to you on the clock, *Shop this pick*, *Call teams

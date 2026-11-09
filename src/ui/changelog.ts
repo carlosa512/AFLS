@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.21',
+    date: '2026-11-09',
+    title: 'General managers remember you',
+    text:
+      'Rival general managers now remember how their dealings with you went. A trade that worked out for them, a fair ' +
+      'one both sides were glad of, a deal you got the better of or a final offer you turned down all stay with them, ' +
+      'and fade over the seasons. A GM who likes you hears more of your proposals, stays at the table a round longer, ' +
+      'asks a little less and calls you sooner; one who is sour is curt, hears fewer proposals and asks a little more. ' +
+      'They write in their own voice now: how a letter opens and closes, their reply on the trade table and why they ' +
+      'stop talking all change with the person, and sometimes a GM brings up the deal you made. Your scouting director ' +
+      'notes what he has seen of your history with a GM.',
+  },
+  {
     version: '0.4.20',
     date: '2026-11-09',
     title: 'Sit him this week',
