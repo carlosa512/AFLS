@@ -82,6 +82,17 @@ describe('the story store', () => {
     expect(untold(l, s, COACH)).toHaveLength(1);
   });
 
+  it('does not tell the first beat again when the beat trimmed after it was untold', () => {
+    const l = createLeague({ seed: 'stories-trim-told' });
+    const on = { kind: 'snaps' as const, teamId: l.userTeamId, playerId: 3 };
+    const s = beat(l, on, 'sat', 0)!;
+    markTold(s, COACH);
+    for (let i = 1; i <= 12; i++) beat(l, on, i % 2 ? 'backIn' : 'sat', i);
+    expect(s.beats).toHaveLength(MAX_BEATS);
+    expect(untold(l, s, COACH).some((b) => b.at === 0)).toBe(false);
+    expect(untold(l, s, COACH)).toHaveLength(MAX_BEATS - 1);
+  });
+
   it('drops closed stories a league year old at the new year', () => {
     const l = createLeague({ seed: 'stories-year' });
     const on = (id: number) => ({ kind: 'deal' as const, teamId: l.userTeamId, playerId: id });

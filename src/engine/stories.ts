@@ -41,7 +41,8 @@ export function storyById(league: League, id: number): Story | undefined {
 function trim(s: Story): void {
   while (s.beats.length > MAX_BEATS) {
     s.beats.splice(1, 1);
-    if (s.told) for (const k of Object.keys(s.told) as OutletId[]) s.told[k] = Math.max(0, (s.told[k] ?? 0) - 1);
+    // The dropped beat (index 1) was told only when the outlet had told two or more; a count of 1 stays on the first.
+    if (s.told) for (const k of Object.keys(s.told) as OutletId[]) if ((s.told[k] ?? 0) > 1) s.told[k]! -= 1;
   }
 }
 
