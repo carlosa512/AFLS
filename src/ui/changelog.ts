@@ -19,7 +19,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     text:
       "On the All-22, a linebacker showing blitz or a corner showing press no longer lines up in the offense's " +
       'backfield and dashes back as the ball is snapped: the moments before the snap, the huddles, the officials and ' +
-      'the ball the umpire spots all work from the line of scrimmage again.',
+      'the ball the umpire spots all work from the line of scrimmage again. A sacked quarterback goes down where the ' +
+      'rush meets him instead of walking to the spot with the rusher on his back, and two backs in the game no ' +
+      'longer line up on the same spot.',
   },
   {
     version: '0.4.16',

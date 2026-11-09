@@ -1358,6 +1358,33 @@ describe('the pocket', () => {
     expect(inside / n).toBeGreaterThan(0.9);
   });
 
+  it('takes the quarterback down where the rush meets him: a stagger, not a walk to the spot (0.4.17)', () => {
+    let n = 0;
+    for (const { e, p } of drops) {
+      if (e.kind !== 'sack' || p.loose) continue;
+      const who = actorsIn(e);
+      if (who.rush === undefined) continue;
+      const r = p.ids.indexOf(who.rush);
+      const qb = qbOf(p);
+      const last = p.steps - 1;
+      // On him for good: within the script's contact (0.8 yards off him) and on him from there to the whistle. A chase
+      // closing from further isn't the two going down, and a quarterback who slips him and is caught again later is
+      // met the second time.
+      const d = (st: number) => Math.hypot(P(p, r, st).x - P(p, qb, st).x, P(p, r, st).y - P(p, qb, st).y);
+      let met: number | undefined;
+      for (let st = last; st >= 0 && d(st) < 1.2; st--) if (d(st) < 0.85) met = st;
+      if (met === undefined) continue;
+      // Before 0.4.17 the two walked to the spot together after the hit: 38 of 76 sacks here went 4 yards and more (9.5
+      // the most). Now it's the last of his drift into the rush and the stagger: 3.9 at most here, 5.0 across worlds
+      // b, c and d (a long loss, the rusher on him as he drifts back to it).
+      expect(Math.hypot(P(p, qb, last).x - P(p, qb, met).x, P(p, qb, last).y - P(p, qb, met).y), e.text).toBeLessThan(
+        6,
+      );
+      n++;
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+
   it('brings the sacker past the blocker the engine names, and down with the quarterback on the sack spot', () => {
     let n = 0;
     for (const { e, p } of drops) {
