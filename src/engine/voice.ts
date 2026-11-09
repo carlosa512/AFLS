@@ -53,6 +53,27 @@ export function recentBodies(league: League, from: string, n = 5): string[] {
 }
 
 /**
+ * Every sentence a sender filed this league year: each message's body and each section row's note, split where a
+ * sentence ends. What a letter writes next steps around all of it, so no sentence comes twice in a year.
+ */
+export function seasonSaid(league: League, from: string): string[] {
+  const out: string[] = [];
+  const add = (text: string | undefined) => {
+    for (const s of (text ?? '').split(/(?<=[.?!]) +/)) {
+      // A quoted line ends in its closing quote, and opens with one: the sentence is the same either way.
+      const t = s.replace(/^[“"]|[”"]$/g, '').trim();
+      if (t) out.push(t);
+    }
+  };
+  for (const m of league.inbox ?? []) {
+    if (m.from !== from || m.season !== league.season) continue;
+    add(m.body);
+    for (const sec of m.sections ?? []) for (const r of sec.rows) add(r.note);
+  }
+  return out;
+}
+
+/**
  * Everything the inbox has already told: each message's id, whatever a digest says it covered, and the covered keys
  * kept after their letters left a full inbox (`League.mailTold`).
  */

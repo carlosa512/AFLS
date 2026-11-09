@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import type { InboxMessage } from './types';
-import { MOTTOS, mottoOf, recentBodies, say, stableHash, toldKeys, type Line } from './voice';
+import { MOTTOS, mottoOf, recentBodies, say, seasonSaid, stableHash, toldKeys, type Line } from './voice';
 
 describe('the line picker', () => {
   it('the most specific matching line wins', () => {
@@ -75,5 +75,34 @@ describe('what the inbox has told', () => {
     l.inbox = ['1', '2', '3', '4', '5', '6', '7'].map((n) => msg(n, 'Coach', `body ${n}`));
     l.inbox.push(msg('o', 'Doctor', 'other'));
     expect(recentBodies(l, 'Coach')).toEqual(['body 7', 'body 6', 'body 5', 'body 4', 'body 3']);
+  });
+});
+
+describe('seasonSaid', () => {
+  it('reads bodies and row notes of this league year only, split into sentences', () => {
+    const l = createLeague({ seed: 'voice-said' });
+    const base = { phase: 'regular' as const, week: 1, category: 'staff' as const, read: true, actions: [] };
+    l.inbox = [
+      { ...base, id: 'a', season: l.season, from: 'Coach', subject: 'a', body: 'One thing. Two things? Three!' },
+      {
+        ...base,
+        id: 'b',
+        season: l.season,
+        from: 'Coach',
+        subject: 'b',
+        body: 'Lead.',
+        sections: [{ title: 't', rows: [{ cells: ['x'], note: '“He said so. Then more.”' }] }],
+      },
+      { ...base, id: 'c', season: l.season - 1, from: 'Coach', subject: 'c', body: 'Last year.' },
+      { ...base, id: 'd', season: l.season, from: 'Doctor', subject: 'd', body: 'Not his.' },
+    ];
+    expect(seasonSaid(l, 'Coach')).toEqual([
+      'One thing.',
+      'Two things?',
+      'Three!',
+      'Lead.',
+      'He said so.',
+      'Then more.',
+    ]);
   });
 });

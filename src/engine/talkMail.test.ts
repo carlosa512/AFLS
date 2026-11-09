@@ -5,7 +5,7 @@ import { deliverMail, mailSubject, needsYou } from './inbox';
 import { answerTalk } from './playerTalks';
 import { TALK_ANSWER, TALK_CLOSE, TALK_LETTER } from './playerVoice';
 import { activeRoster } from './roster';
-import { talkCard } from './talkMail';
+import { talkCard, talkRows } from './talkMail';
 import { headCoach } from './senders';
 import type { League, Player, TalkCause } from './types';
 
@@ -164,5 +164,21 @@ describe('your players’ letters', () => {
       expect(s).not.toMatch(/\d/);
       for (const nick of RESERVED_NICKNAMES) expect(s).not.toMatch(new RegExp(`\\b${nick}\\b`, 'i'));
     }
+  });
+});
+
+describe('talkRows', () => {
+  it('writes a row for each open ask filed at the clock, no two sharing a sentence', () => {
+    const l = createLeague({ seed: 'talk-rows' });
+    asking(l, l.userTeamId, 'losing', 0);
+    asking(l, l.userTeamId, 'losing', 1);
+    asking(l, (l.userTeamId + 1) % 32, 'losing', 0);
+    const rows = talkRows(l, l.moraleAt!, []);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].talk).toEqual({ playerId: rows[0].playerId, clock: l.moraleAt });
+    expect(rows[0].cells[1]).toBe('About the losing');
+    const split = (s?: string) => (s ?? '').slice(1, -1).split(/(?<=[.?!]) /);
+    expect(split(rows[0].note).filter((s) => split(rows[1].note).includes(s))).toEqual([]);
+    expect(talkRows(l, l.moraleAt! + 1, [])).toEqual([]);
   });
 });

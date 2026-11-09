@@ -5,14 +5,24 @@
  */
 import { employed } from './employment';
 import { canPromise } from './playerTalks';
-import { TALK_ANSWER, TALK_CLOSE, TALK_GROUP_SUBJECT, TALK_LETTER, TALK_SUBJECT, type LetterFact } from './playerVoice';
+import {
+  askWords,
+  TALK_ANSWER,
+  TALK_CLOSE,
+  TALK_GROUP_SUBJECT,
+  TALK_LETTER,
+  TALK_SUBJECT,
+  type LetterFact,
+} from './playerVoice';
+import { manSheet, momentSheet } from './castSheet';
+import { moraleContext } from './morale';
 import { yearsLeft } from './finance/contract';
 import { STARTERS } from './positions';
 import { computeRecords } from './season/standings';
 import { headCoach, type Draft } from './senders';
 import { TALK_GROUP_COACH, TALK_RELAY } from './lockerVoice';
 import { manner } from './manner';
-import type { League, Player, TalkCause } from './types';
+import type { League, MailSection, Player, TalkCause } from './types';
 import { say } from './voice';
 
 export { manner };
@@ -127,6 +137,33 @@ export function talkMail(league: League, have: Set<string>): Draft[] {
       actions: [{ kind: 'locker' }],
     };
   });
+}
+
+/**
+ * A row for each of your players whose open ask was filed at `clock`: his name, what it is about and his words, written
+ * from the cast sheet. `said` is what the sender has already said this league year (`seasonSaid`); each row's sentences
+ * join it, so no man repeats another's, in this letter or an earlier one.
+ */
+export function talkRows(league: League, clock: number, said: string[]): MailSection['rows'] {
+  const ctx = moraleContext(league);
+  const moment = momentSheet(league);
+  const recent = [...said];
+  const rows: MailSection['rows'] = [];
+  for (const p of Object.values(league.players)) {
+    const ask = p.morale?.talk?.ask;
+    if (!ask || ask.at !== clock || p.teamId !== league.userTeamId) continue;
+    const man = manSheet(league, p, ctx);
+    if (!man) continue;
+    const key = `talk:${league.season}:${clock}:${p.id}`;
+    const words = askWords({ man, moment, cause: ask.cause }, { key, recent });
+    rows.push({
+      playerId: p.id,
+      cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[ask.cause]],
+      note: `“${words}”`,
+      talk: { playerId: p.id, clock },
+    });
+  }
+  return rows;
 }
 
 export interface TalkCardView {
