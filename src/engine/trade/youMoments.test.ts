@@ -5,6 +5,7 @@ import { appointGm, endGmAppointment } from '../gm';
 import { standingWith } from '../gmMemory';
 import type { League, TradeOffer } from '../types';
 import { acceptOffer, counterOffer, declineOffer, proposeTrade } from '.';
+import { expireOffers } from './offers';
 import { emptyMarket } from './execute';
 
 let l: League;
@@ -79,6 +80,11 @@ describe('moments where threads end', () => {
     const yours = picksOf(l.userTeamId).at(-1)!.id;
     expect(proposeTrade(l, { sides: [sides([hers], [yours])[1], sides([hers], [yours])[0]] }).accepted).toBe(false);
     expect(withYou()).toEqual([]);
+    // An offer left to lapse when the market moves on is no answer at all.
+    const lapsing = file({ final: true });
+    expireOffers(l);
+    expect(lapsing.status).toBe('expired');
+    expect(withYou()).toEqual([]);
   });
 
   it('declining a bid you asked for is still a straight no', () => {
@@ -86,6 +92,7 @@ describe('moments where threads end', () => {
     const enq = file({ kind: 'enquiry', reason: 'enquiry' });
     enq.status = 'answered';
     declineOffer(l, file({ replyTo: enq.id }).id);
+    expect(withYou()).toEqual([]);
   });
 
   it('declining his counter after yours is being led on; his final offer is a final no', () => {
