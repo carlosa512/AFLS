@@ -48,7 +48,7 @@ stripped it (`d2cfcf5`, in main's history).
   `twoYear` = `now + capHit(p.contract!, league.season + 1) − releasePreview(league, p).nextYear`.
 - `capCut(league, team, desperate = false): Player | null` — same signature. Candidates: today's (contract running,
   above the floor, `now > 200`). First pass: `twoYear > 0` and `contract.signedSeason !== league.season`, ranked by
-  `playerOvr / twoYear`. If that pass is empty: `null`, unless `desperate`, then every candidate ranked by
+  `playerOvr / now` (the two-year room filters, it doesn't rank: see the spec). If that pass is empty: `null`, unless `desperate`, then every candidate ranked by
   `playerOvr / now` (today's rule).
 
 - [ ] **Step 1: Failing tests** in `capCut.test.ts` (a settled league after `beginOffseason`, one AI club, its other

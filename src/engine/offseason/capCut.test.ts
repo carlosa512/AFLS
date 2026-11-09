@@ -72,12 +72,12 @@ describe('the cap cut counts next year', () => {
     expect(capCut(l, team)?.id).toBe(b.id);
   });
 
-  it('desperate, it takes a fresh or next-year-worse man when nothing else is left', () => {
+  it("with only fresh or next-year-worse men left, the cap takes one and a keeper's room goes without", () => {
     const { l, team, a, b } = camp();
     burner(l, a);
     b.contract = deal(l.season, 1, 30_000);
-    expect(capCut(l, team)).toBeNull();
-    expect([a.id, b.id]).toContain(capCut(l, team, true)?.id);
+    expect([a.id, b.id]).toContain(capCut(l, team)?.id);
+    expect(capCut(l, team, false, true)).toBeNull();
   });
 
   it('a club over the cap with only bad cuts still gets legal', () => {

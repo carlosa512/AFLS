@@ -551,7 +551,8 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, next
   // All or nothing: room that falls short leaves him walking with the restructures' bill or the cut's dead money paid.
   const plan = restructurePlan(league, team, need, { keeper, nextOwed });
   if (plan.saved >= need) return restructureRoom(league, team, plan);
-  const cut = capCut(league, team);
+  // A keeper's room is a want, not the law: no cut that leaves next year worse or drops a man signed this year.
+  const cut = capCut(league, team, false, true);
   if (!cut || playerOvr(cut) >= playerOvr(keeper)) return 0;
   // A cut opens a spot on the 53, and an open spot keeps a minimum deal's room (`fillReserve`): the room he frees is
   // his savings less that. Counted whole, a cut that saved less than a minimum deal left the club under what it can
@@ -913,12 +914,13 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
 }
 
 /**
- * The player `aiCapCompliance` cuts next for room: the least play per dollar of room over this year and next
- * (`twoYearRoom`), at a position it can spare him, never a deal signed this league year while another cut frees room.
- * `desperate` (only starters protected) takes any cut that saves this year when no such cut is left. Nothing is
- * released; the trade market calls around about him first when the league year opens.
+ * The player `aiCapCompliance` cuts next for room: the least play per dollar saved this year, at a position it can
+ * spare him, among the cuts that leave this year and next better off (`twoYearRoom`) and never a deal signed this
+ * league year while another cut frees room. With none of those left it takes today's cut at the same floor, unless
+ * `fairOnly` (a keeper's room, which can go without). `desperate` protects only starters. Nothing is released; the
+ * trade market calls around about him first when the league year opens.
  */
-export function capCut(league: League, team: Team, desperate = false): Player | null {
+export function capCut(league: League, team: Team, desperate = false, fairOnly = false): Player | null {
   const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
   // The floor counts who can play: a player on injured reserve still costs cap but fills no spot.
   const counts = new Map<Position, number>();
@@ -932,9 +934,13 @@ export function capCut(league: League, team: Team, desperate = false): Player | 
   // man and cut him weeks later while anyone else frees the room (a traced six-season league read 23 cuts whose dead
   // money passed twice their savings: $52M burned to free $6M).
   const fair = cuts.filter((x) => x.twoYear > 0 && x.p.contract!.signedSeason !== league.season);
-  if (fair.length) return fair.sort((a, b) => playerOvr(a.p) / a.twoYear - playerOvr(b.p) / b.twoYear)[0].p;
-  // The cap is the law: desperate, any cut that saves this year will do, the least play per dollar first.
-  if (!desperate) return null;
+  // Ranked by the room it needs now: ranked by two years, a re-sign-window cut (all its dead money this year) that freed
+  // $1M now and $40M next came first, a $104M cut for $1M of room.
+  if (fair.length) return fair.sort((a, b) => playerOvr(a.p) / a.now - playerOvr(b.p) / b.now)[0].p;
+  // None left: room it only wants (a keeper's, `makeRoom`) goes without; room the cap demands takes today's cut at the
+  // same floor. Returning nothing here sent compliance to its desperate pass, down to the starters: more dead money
+  // than the cuts it spared (a traced league, 44 such cuts to main's 23).
+  if (fairOnly) return null;
   return cuts.sort((a, b) => playerOvr(a.p) / a.now - playerOvr(b.p) / b.now)[0]?.p ?? null;
 }
 

@@ -27,8 +27,10 @@ next year's books worse than keeping him is a last resort, not the first choice.
 - **Room** = this year's savings (`releasePreview(...).savings`, as today) + next year's net: his cap hit next year
   that the cut removes (`capHit(contract, season + 1)`, 0 if his deal ends) minus the dead money it books there
   (`releasePreview(...).nextYear`).
-- Rank by rating lost per dollar of that room, lowest first (today's rule, with the two-year room in place of this
-  year's savings). A cut needs this year's savings past 200 (as today) **and** two-year room past 0.
+- The two-year room is a **filter**, not the ranking: a cut needs this year's savings past 200 (as today) **and**
+  two-year room past 0, and among those the club cuts the least rating per dollar saved **this year** (today's rule:
+  room now is what it needs). Ranked by two-year room, the first build cut a re-sign-window man whose cut (all its dead
+  money this year) freed $1M now and $40M next year, $104M of dead money for $1M of room: 69 bad cuts against main's 23.
 - **A deal signed this league year** (`contract.signedSeason === league.season`, a signing, re-signing, extension or
   trade-and-extend) is cut for cap only when no one else frees room: the club made that call weeks ago.
 - **Desperate** (today: short more than 4% of the cap) keeps its meaning, floors at starters, and may still take a cut
