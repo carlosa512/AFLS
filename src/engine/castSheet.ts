@@ -4,7 +4,7 @@
  * number (the id apart), and each fact comes through a reader screens already use, so the fog of war holds: his
  * personality as your staff read it, the habits they have seen, his mood in words, never a rating or a trait.
  */
-import { gameStory } from './inbox';
+import { gameStory } from './gameStory';
 import { yearsLeft } from './finance/contract';
 import { marketApy } from './finance/market';
 import { credibilityRead, type CredibilityRead } from './meetings/credibility';
@@ -19,7 +19,7 @@ import { quirkNotes, seasonNote } from './scouting';
 import { computeRecords } from './season/standings';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { standingView, type Sound, type Tier } from './standing';
-import { manner } from './talkMail';
+import { manner } from './manner';
 import { traitOf } from './coachTraits';
 import { isDeadlineDay } from './trade/rules';
 import type { Coach, CoachRoom, Game, League, Player, TalkCause, TalkReply } from './types';

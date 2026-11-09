@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { coachSheet, manSheet, momentSheet, whenWords } from './castSheet';
 import { teamCoaches } from './coaching';
@@ -81,5 +82,12 @@ describe('the cast sheet', () => {
     l.games = l.games.filter((g) => g.season !== l.season || (g.homeId !== l.userTeamId && g.awayId !== l.userTeamId));
     expect(momentSheet(l).seasonOver).toBe(true);
     expect(moraleClock(l)).toBeGreaterThan(0);
+  });
+});
+
+describe('castSheet imports', () => {
+  it('imports neither the inbox nor the talk letters, so a later import cycle cannot form', () => {
+    const source = readFileSync(new URL('./castSheet.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/from\s+['"]\.\/(inbox|talkMail)['"]/);
   });
 });
