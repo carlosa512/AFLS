@@ -3,6 +3,7 @@
  * you in a market moment, when talks are off, who he won't ask about for a while. Nothing here is ever shown as a number: screens say "We're done talking this week".
  */
 import { aiGm } from '../gmHabits';
+import { refusalLine } from '../gmTalk';
 import { standingStep, standingWith } from '../gmMemory';
 import type { League, TradeMarket, TradeTalks } from '../types';
 
@@ -35,7 +36,7 @@ export function talkRefusal(league: League, teamId: number): string | null {
   const market = league.market;
   const t = peekTalks(market, teamId);
   if ((t.offUntil !== undefined && t.offUntil >= (market?.moment ?? 0)) || t.asks >= asksFor(league, teamId))
-    return "We're done talking this week.";
+    return refusalLine(league, league.teams[teamId]);
   return null;
 }
 

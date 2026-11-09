@@ -22,6 +22,7 @@ import { draftCovet } from './draft';
 import { stanceOf, untouchables } from './plans';
 import { aiGm } from '../gmHabits';
 import { standingWith, STANDING_MARGIN } from '../gmMemory';
+import { tableLine, type TableBand } from '../gmTalk';
 import { talkRefusal } from './talks';
 import {
   freshSigningRefusal,
@@ -366,6 +367,13 @@ export interface TradeVerdict {
   policy: boolean;
 }
 
+/** What an AI-to-AI verdict says: nobody reads it, so it stays plain. */
+const TABLE_PLAIN: Record<Exclude<TableBand, 'accept'>, string> = {
+  close: 'Close. Add a little more and they’ll do it.',
+  short: 'Not enough value for them yet.',
+  far: 'They aren’t interested at that price.',
+};
+
 /**
  * The AI side's verdict (sides[1]). Against the user it wants a small win; pass `margin` to judge as
  * one AI judges another (`margin: 1`: merely not lose).
@@ -400,17 +408,14 @@ export function evaluateTrade(
       get: j.get,
       give: j.give,
       shortfall: 0,
-      message: `The ${ai.name} would accept.`,
+      message: opts.margin === undefined ? tableLine(league, ai, 'accept', proposal) : `The ${ai.name} would accept.`,
       problem: null,
       policy: false,
     };
   const scale = Math.max(Math.abs(j.need), 50);
-  const message =
-    shortfall < scale * 0.12
-      ? 'Close. Add a little more and they’ll do it.'
-      : shortfall < scale * 0.4
-        ? 'Not enough value for them yet.'
-        : 'They aren’t interested at that price.';
+  // Against you he answers in his own words; one AI judging another never shows its message.
+  const band: TableBand = shortfall < scale * 0.12 ? 'close' : shortfall < scale * 0.4 ? 'short' : 'far';
+  const message = opts.margin === undefined ? tableLine(league, ai, band, proposal) : TABLE_PLAIN[band];
   return { accepts: false, get: j.get, give: j.give, shortfall, message, problem: null, policy: false };
 }
 

@@ -3,7 +3,13 @@ import { createLeague } from './generate';
 import { aiGm, HABITS } from './gmHabits';
 import { ARCHETYPE_ACTIVITY } from './gmTraits';
 import {
+  HISTORY,
   MEMORY_OPENERS,
+  REFUSALS,
+  TABLE_LINES,
+  historyNote,
+  tableLine,
+  type TableBand,
   OPENERS,
   SIGNOFFS,
   letterFrom,
@@ -13,6 +19,8 @@ import {
   type TalkFacts,
   type TalkMoment,
 } from './gmTalk';
+import { evaluateTrade } from './trade/judge';
+import type { TradeProposal } from './trade/rules';
 import { deliverMail, offerWords, packageWords } from './inbox';
 import { noteMoment } from './gmMemory';
 import { teamPlayers } from './roster';
@@ -261,5 +269,118 @@ describe('a letter', () => {
           const counter = offerWords(l, bid(l, team, { reason: 'counter' })).body;
           expect(counter.startsWith("We've looked at your counter.")).toBe(true);
         }
+  });
+});
+
+const TABLE: TableBand[] = ['accept', 'close', 'short', 'far'];
+const tableAll = (band: TableBand, keep: (f: TalkFacts) => boolean = () => true) =>
+  SAMPLES.filter(keep).flatMap((f) => {
+    const t = { ...f, table: band };
+    return TABLE_LINES.filter((x) => !x.when || x.when(t)).map((x) => x.text(t));
+  });
+
+describe('the trade table, his refusal and your director', () => {
+  /** A one-for-one between the user and `team`: his best man for the user's worst, so it lands far away. */
+  function deal(l: League, team: Team, give: number, get: number): TradeProposal {
+    return {
+      sides: [
+        { teamId: l.userTeamId, players: [give], picks: [] },
+        { teamId: team.id, players: [get], picks: [] },
+      ],
+    };
+  }
+
+  it('answers in his own words by how close the deal is', () => {
+    const { l, team } = setup();
+    l.market = emptyMarket();
+    // Never a kicker or punter: a club can't be left without one, which is a league rule, not his answer.
+    const free = (id: number) => teamPlayers(l, id).filter((p) => p.position !== 'K' && p.position !== 'P');
+    const mine = free(l.userTeamId);
+    const his = free(team.id);
+    const texts = (b: TableBand) => TABLE_LINES.map((x) => x.text({ ...talkFacts(l, team), table: b }));
+    // His best man a league rule doesn't shield (a "won't move him" is the GM's own line, not a table answer).
+    const far = his
+      .map((p) => evaluateTrade(l, deal(l, team, mine[mine.length - 1].id, p.id)))
+      .find((v) => !v.problem && !v.accepts)!;
+    expect(far.accepts).toBe(false);
+    expect([...texts('far'), ...texts('short'), ...texts('close')]).toContain(far.message);
+    const gift = evaluateTrade(l, deal(l, team, mine[0].id, his[his.length - 1].id));
+    if (gift.accepts) expect(texts('accept')).toContain(gift.message);
+  });
+
+  it('gives each table band, his refusal and each memory kind enough lines', () => {
+    for (const b of TABLE) {
+      expect(new Set(tableAll(b, (f) => f.band === 'neutral' && f.moment === 'week')).size).toBeGreaterThanOrEqual(6);
+      for (const band of BANDS.filter((x) => x !== 'neutral')) {
+        const pool = TABLE_LINES.filter(
+          (x) => (x.reads ?? 0) === 1 && x.when?.({ ...SAMPLES[0], band, moment: 'week', table: b }),
+        );
+        expect(new Set(pool.map((x) => x.text({ ...SAMPLES[0], table: b }))).size).toBeGreaterThanOrEqual(3);
+      }
+    }
+    expect(new Set(all(REFUSALS, (f) => f.band === 'neutral')).size).toBeGreaterThanOrEqual(6);
+    for (const band of BANDS.filter((x) => x !== 'neutral'))
+      expect(new Set(all(REFUSALS, (f) => f.band === band && f.moment === 'week')).size).toBeGreaterThanOrEqual(6);
+    for (const k of KINDS)
+      expect(
+        HISTORY.filter((h) => h.when?.({ ...SAMPLES[0], memory: { kind: k, player: 'A B', when: 'x' } })).length,
+      ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('says the same thing for the same deal in the same moment, whatever order its sides are listed in', () => {
+    const { l, team } = setup();
+    l.market = emptyMarket();
+    const mine = teamPlayers(l, l.userTeamId);
+    const his = teamPlayers(l, team.id);
+    const p: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [mine[1].id, mine[0].id], picks: [] },
+        { teamId: team.id, players: [his[0].id], picks: [] },
+      ],
+    };
+    const q: TradeProposal = {
+      sides: [
+        { teamId: l.userTeamId, players: [mine[0].id, mine[1].id], picks: [] },
+        { teamId: team.id, players: [his[0].id], picks: [] },
+      ],
+    };
+    expect(evaluateTrade(l, p).message).toBe(evaluateTrade(l, p).message);
+    for (const b of TABLE) expect(tableLine(l, team, b, p)).toBe(tableLine(l, team, b, q));
+  });
+
+  it('keeps a league rule plain', () => {
+    const { l, team } = setup();
+    l.market = emptyMarket();
+    const mine = teamPlayers(l, l.userTeamId);
+    const kicker = teamPlayers(l, team.id).find((p) => p.position === 'K')!;
+    const v = evaluateTrade(l, deal(l, team, mine[mine.length - 1].id, kicker.id));
+    expect(v.problem).toMatch(/without/);
+    expect(v.policy).toBe(false);
+    for (const b of TABLE) expect(tableAll(b)).not.toContain(v.problem);
+  });
+
+  it('never says a number, standing or trust, a habit or an archetype', () => {
+    const lines = [...TABLE.flatMap((b) => tableAll(b)), ...all(REFUSALS), ...all(HISTORY, (f) => !!f.memory)];
+    for (const s of lines) {
+      expect(s).not.toMatch(/\d|standing|trust|!/i);
+      for (const h of HABIT_LABELS) expect(s).not.toContain(h);
+      for (const a of ARCHETYPE_NAMES) expect(s).not.toContain(a);
+    }
+  });
+
+  it('keeps the table, the refusal and the director free of offer wording they should not echo', () => {
+    for (const s of [...TABLE.flatMap((b) => tableAll(b)), ...all(REFUSALS)]) expect(s).not.toMatch(/\bnumber\b/i);
+  });
+
+  it('notes your history only when there is one', () => {
+    const { l, team, gm } = setup();
+    expect(historyNote(l, gm)).toBeNull();
+    const man = l.players[teamPlayers(l, team.id)[0].id];
+    gm.withYou = [
+      { kind: 'trade', season: l.season, phase: l.phase, got: { players: [man.id], picks: [] }, verdict: 'youWon' },
+    ];
+    const note = historyNote(l, gm)!;
+    expect(note).toContain(man.lastName);
+    expect(HISTORY.map((h) => h.text(talkFacts(l, team)))).toContain(note);
   });
 });

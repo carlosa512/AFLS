@@ -9,7 +9,7 @@ import { aiGm } from './gmHabits';
 import { standingBand, standingWith, type StandingBand } from './gmMemory';
 import { ago } from './gmVoice';
 import { pron } from './pronouns';
-import { isDeadlineDay } from './trade/rules';
+import { isDeadlineDay, type TradeProposal } from './trade/rules';
 import type { GeneralManager, League, Team, TradeOffer, YouMoment } from './types';
 import { recentBodies, say, type Line } from './voice';
 
@@ -351,4 +351,279 @@ export function wrapLetter(league: League, offer: TradeOffer, core: string): str
   // His reply to your counter opens on its own words ("We've looked at your counter"): any opener would only echo it.
   const opener = f.reason === 'counter' ? '' : memory || say(OPENERS, f, { ...at, slot: 'opener' });
   return [opener, core, say(SIGNOFFS, f, { ...at, slot: 'signoff' })].filter(Boolean).join(' ');
+}
+
+// ---- the trade table ----
+
+export type TableBand = 'accept' | 'close' | 'short' | 'far';
+type TableFacts = TalkFacts & { table: TableBand };
+
+const tb = (t: TableBand) => (f: TableFacts) => f.table === t;
+const tbBand = (t: TableBand, b: StandingBand) => (f: TableFacts) => f.table === t && f.band === b;
+const tbMoment = (t: TableBand, m: TalkMoment) => (f: TableFacts) => f.table === t && f.moment === m;
+
+/**
+ * His reply to the deal on your table, by how near it is. First person, no figure (a "close" points at a small add, never
+ * at an amount). The plain pool fits every GM; his feeling for you picks a few of his own and a sour GM is curt, never rude.
+ */
+export const TABLE_LINES: readonly Line<TableFacts>[] = [
+  { when: tb('accept'), text: () => "That works for me. I'd do it as it stands." },
+  { when: tb('accept'), text: () => "I can live with that. Send it over and I'll say yes." },
+  { when: tb('accept'), text: () => 'Fair enough. Go ahead and put it forward.' },
+  { when: tb('accept'), text: () => 'Yes, that one works on my end.' },
+  { when: tb('accept'), text: () => 'I like where that lands. We have a deal if you send it.' },
+  { when: tb('accept'), text: () => "That's a deal I'm happy to make." },
+  { when: tbMoment('accept', 'deadline'), text: () => "With the deadline close, I'm glad to take that." },
+  { when: tbBand('accept', 'warm'), reads: 1, text: () => 'Happy to do that with you. Send it over.' },
+  { when: tbBand('accept', 'warm'), reads: 1, text: () => "You've always been straight with me. Yes, that works." },
+  { when: tbBand('accept', 'warm'), reads: 1, text: () => "That's good for both of us. Let's do it." },
+  { when: tbBand('accept', 'warm'), reads: 1, text: () => "Gladly. Put it forward and it's done." },
+  { when: tbBand('accept', 'easy'), reads: 1, text: () => "That's fine with me. Send it when you're ready." },
+  { when: tbBand('accept', 'easy'), reads: 1, text: () => 'No problem on my end. It works.' },
+  { when: tbBand('accept', 'easy'), reads: 1, text: () => 'Sounds good to me. Go ahead.' },
+  { when: tbBand('accept', 'easy'), reads: 1, text: () => "I'm fine with that. Make it official." },
+  { when: tbBand('accept', 'cool'), reads: 1, text: () => 'That works. Send it.' },
+  { when: tbBand('accept', 'cool'), reads: 1, text: () => "I'll do that one." },
+  { when: tbBand('accept', 'cool'), reads: 1, text: () => 'Acceptable. Put it forward.' },
+  { when: tbBand('accept', 'cool'), reads: 1, text: () => 'That one I can sign off on.' },
+  { when: tbBand('accept', 'sour'), reads: 1, text: () => 'Fine. Send it.' },
+  { when: tbBand('accept', 'sour'), reads: 1, text: () => 'That works. Leave it as it is.' },
+  { when: tbBand('accept', 'sour'), reads: 1, text: () => "Acceptable. Don't change it." },
+  { when: tbBand('accept', 'sour'), reads: 1, text: () => "I'll take it. Send it over." },
+
+  { when: tb('close'), text: () => "Close. Put a late pick on it and I'll do it." },
+  { when: tb('close'), text: () => "We're nearly there. A little more from your side and I'm in." },
+  { when: tb('close'), text: () => "I'm almost there. Add something small and we have a deal." },
+  { when: tb('close'), text: () => 'Just short. A small piece more and I will say yes.' },
+  { when: tb('close'), text: () => 'Nearly. Sweeten it a touch and it works for me.' },
+  { when: tb('close'), text: () => 'One small add and I can get this done.' },
+  { when: tbMoment('close', 'deadline'), text: () => "The clock's running, but a small add gets us there." },
+  {
+    when: tbBand('close', 'warm'),
+    reads: 1,
+    text: () => "We're close, and I'd like to get this done with you. A small add will do it.",
+  },
+  {
+    when: tbBand('close', 'warm'),
+    reads: 1,
+    text: () => "So near. Give me a little more and I'll find a way to say yes.",
+  },
+  { when: tbBand('close', 'warm'), reads: 1, text: () => 'I want this one to work. Add a small piece and it does.' },
+  { when: tbBand('close', 'warm'), reads: 1, text: () => "Almost there. I'd gladly finish this with you." },
+  { when: tbBand('close', 'easy'), reads: 1, text: () => 'Pretty close. A small add and we can both walk away happy.' },
+  { when: tbBand('close', 'easy'), reads: 1, text: () => "Not far off at all. Add a little and I'm in." },
+  { when: tbBand('close', 'easy'), reads: 1, text: () => "We're almost there. Toss in something small." },
+  { when: tbBand('close', 'easy'), reads: 1, text: () => "It's close. A little more and I'll do it." },
+  { when: tbBand('close', 'cool'), reads: 1, text: () => 'Close, but not there. A small add.' },
+  { when: tbBand('close', 'cool'), reads: 1, text: () => 'Almost. I need a little more.' },
+  { when: tbBand('close', 'cool'), reads: 1, text: () => "It's near. Add something modest." },
+  { when: tbBand('close', 'cool'), reads: 1, text: () => 'A bit short. Add a small piece.' },
+  { when: tbBand('close', 'sour'), reads: 1, text: () => 'Close. Add a little more.' },
+  { when: tbBand('close', 'sour'), reads: 1, text: () => 'Almost. One small add.' },
+  { when: tbBand('close', 'sour'), reads: 1, text: () => 'Not quite. A bit more.' },
+  { when: tbBand('close', 'sour'), reads: 1, text: () => 'Nearly. Make it a little better.' },
+
+  { when: tb('short'), text: () => "It's not enough yet. I'd need to see more from your side." },
+  { when: tb('short'), text: () => "That's light for me. Come back with something more." },
+  { when: tb('short'), text: () => "I'm not there yet. Add real value and I'll look again." },
+  { when: tb('short'), text: () => 'Short of what I need. Build it up and try me again.' },
+  { when: tb('short'), text: () => "I can't do it at that level. It needs more." },
+  { when: tb('short'), text: () => "Not enough for me yet, but I'm willing to keep talking." },
+  { when: tbMoment('short', 'deadline'), text: () => "I'd like to help with the clock running, but it needs more." },
+  {
+    when: tbBand('short', 'warm'),
+    reads: 1,
+    text: () => "It's light, but I'd like to find something with you. Add more.",
+  },
+  {
+    when: tbBand('short', 'warm'),
+    reads: 1,
+    text: () => "I'm not there, though I want to be. Give me more to work with.",
+  },
+  { when: tbBand('short', 'warm'), reads: 1, text: () => 'Not yet, but I think we can get there. Add something.' },
+  { when: tbBand('short', 'warm'), reads: 1, text: () => "It's a start. I'd need more to say yes." },
+  { when: tbBand('short', 'easy'), reads: 1, text: () => "It's a bit light. Add some and we'll see." },
+  { when: tbBand('short', 'easy'), reads: 1, text: () => "Not quite enough for me, but it's a fair start." },
+  { when: tbBand('short', 'easy'), reads: 1, text: () => "I'd need more than that. Take another run at it." },
+  { when: tbBand('short', 'easy'), reads: 1, text: () => "Can't quite do that one. Add something and ask again." },
+  { when: tbBand('short', 'cool'), reads: 1, text: () => 'Not enough. I need more.' },
+  { when: tbBand('short', 'cool'), reads: 1, text: () => "That's light. Add value." },
+  { when: tbBand('short', 'cool'), reads: 1, text: () => "I'm not there. It needs to be better." },
+  { when: tbBand('short', 'cool'), reads: 1, text: () => 'It falls short for me.' },
+  { when: tbBand('short', 'sour'), reads: 1, text: () => 'Not enough.' },
+  { when: tbBand('short', 'sour'), reads: 1, text: () => "That's light. Add more." },
+  { when: tbBand('short', 'sour'), reads: 1, text: () => "Short. I'd need more." },
+  { when: tbBand('short', 'sour'), reads: 1, text: () => "No, that's not enough." },
+
+  { when: tb('far'), text: () => "That's a long way from where I'd be. I'd start over." },
+  { when: tb('far'), text: () => "We're too far apart on that one." },
+  { when: tb('far'), text: () => "It isn't close for me. Try a different shape." },
+  { when: tb('far'), text: () => "That doesn't work for me. Rethink it." },
+  { when: tb('far'), text: () => "I can't see a path from that to a deal." },
+  { when: tb('far'), text: () => "Not at that price. It's well short of what I'd do." },
+  { when: tbMoment('far', 'deadline'), text: () => "Time's short, and that's too far off to fix." },
+  {
+    when: tbBand('far', 'warm'),
+    reads: 1,
+    text: () => "That's too far for me, though I'd happily try another shape with you.",
+  },
+  {
+    when: tbBand('far', 'warm'),
+    reads: 1,
+    text: () => "I wish I could, but it's a long way off. Let's find another angle.",
+  },
+  { when: tbBand('far', 'warm'), reads: 1, text: () => "Not that one, I'm afraid. Come back with a different idea." },
+  { when: tbBand('far', 'warm'), reads: 1, text: () => "It's well off, but I'm glad to keep trying with you." },
+  { when: tbBand('far', 'easy'), reads: 1, text: () => "That's quite a way off for me. Try another approach." },
+  { when: tbBand('far', 'easy'), reads: 1, text: () => "Can't do that one. Maybe something else." },
+  { when: tbBand('far', 'easy'), reads: 1, text: () => "We're not close on that. Start from somewhere else." },
+  { when: tbBand('far', 'easy'), reads: 1, text: () => "That's too far from what I need. Take another look." },
+  { when: tbBand('far', 'cool'), reads: 1, text: () => "That's not close. Try something else." },
+  { when: tbBand('far', 'cool'), reads: 1, text: () => "No. It's well short." },
+  { when: tbBand('far', 'cool'), reads: 1, text: () => "That isn't a deal for me. Rework it." },
+  { when: tbBand('far', 'cool'), reads: 1, text: () => 'Too far off. Try again.' },
+  { when: tbBand('far', 'sour'), reads: 1, text: () => "No. That's nowhere near it." },
+  { when: tbBand('far', 'sour'), reads: 1, text: () => 'Not close. Try again.' },
+  { when: tbBand('far', 'sour'), reads: 1, text: () => "That won't work. Not even near." },
+  { when: tbBand('far', 'sour'), reads: 1, text: () => 'No. Far off.' },
+];
+
+/** Sorted ids of every player and pick on both sides: the same deal reads the same however its sides were listed. */
+const dealIds = (proposal: TradeProposal): string =>
+  proposal.sides
+    .flatMap((s) => [...s.players.map((p) => `p${p}`), ...s.picks.map((k) => `k${k}`)])
+    .sort()
+    .join(',');
+
+/** His reply on the trade table, steady for a deal within a market moment. */
+export function tableLine(league: League, ai: Team, band: TableBand, proposal: TradeProposal): string {
+  const f = { ...talkFacts(league, ai), table: band };
+  return say(TABLE_LINES, f, { key: `${ai.id}:${league.market?.moment ?? 0}:${dealIds(proposal)}`, slot: 'table' });
+}
+
+// ---- his refusal ----
+
+const refuse = (b: StandingBand) => (f: TalkFacts) => f.band === b;
+
+/** Why he won't hear another proposal right now: curt when he's sour, warm when he's fond, never a reason in numbers. */
+export const REFUSALS: readonly Line<TalkFacts>[] = [
+  { text: () => "I think we've covered enough for now. Let's pick this up later." },
+  { text: () => "That's all I can take on for the moment." },
+  { text: () => "I've got to stop there for now. We can talk again soon." },
+  { text: () => "I've heard enough proposals for now. Give it some time." },
+  { text: () => "Let's leave it there. Come back to me later." },
+  { text: () => "I'm done talking for now. Try me again in a while." },
+  { when: refuse('warm'), reads: 1, text: () => "I'd gladly keep going, but I have to stop for now. Come back soon." },
+  { when: refuse('warm'), reads: 1, text: () => "Let's pause there. I'll be glad to pick it up again with you." },
+  { when: refuse('warm'), reads: 1, text: () => "I've run out of room for now, but my door's open." },
+  { when: refuse('warm'), reads: 1, text: () => "That's all I can do for now. Let's talk again before long." },
+  { when: refuse('easy'), reads: 1, text: () => "I think that's enough for now. Catch me again later." },
+  { when: refuse('easy'), reads: 1, text: () => "Let's give it a rest for a bit, then try again." },
+  { when: refuse('easy'), reads: 1, text: () => "I'm out of time on this for now. Check back with me." },
+  { when: refuse('easy'), reads: 1, text: () => "That's plenty for now. We'll talk again." },
+  { when: refuse('cool'), reads: 1, text: () => "That's enough for now." },
+  { when: refuse('cool'), reads: 1, text: () => "I'm finished with this for the moment." },
+  { when: refuse('cool'), reads: 1, text: () => "We'll leave it there. Try me later." },
+  { when: refuse('cool'), reads: 1, text: () => 'No more for now.' },
+  { when: refuse('sour'), reads: 1, text: () => "That's enough." },
+  { when: refuse('sour'), reads: 1, text: () => "I'm done for now." },
+  { when: refuse('sour'), reads: 1, text: () => 'Not now.' },
+  { when: refuse('sour'), reads: 1, text: () => 'No more today. Try me later.' },
+];
+
+/** His refusal to hear more, in his words; steady within a market moment. */
+export function refusalLine(league: League, ai: Team): string {
+  const f = talkFacts(league, ai);
+  return say(REFUSALS, f, { key: `${ai.id}:${league.market?.moment ?? 0}`, slot: 'refusal' });
+}
+
+// ---- your director's note ----
+
+/**
+ * Your scouting director's one hedged sentence on what he's seen of your dealings with this GM. Hedged because he only
+ * sees it from outside: "I think", "I'd guess". Names the man when there is one, never a figure.
+ */
+export const HISTORY: readonly Line<TalkFacts>[] = [
+  {
+    when: is('heWon'),
+    reads: 1,
+    text: (f) => `${f.p.He} came out of the ${surname(f)} deal ahead, and I'd guess ${f.p.he} knows it.`,
+  },
+  {
+    when: is('heWon'),
+    reads: 1,
+    text: (f) => `I think ${f.p.he} still counts the ${surname(f)} deal as a good one for ${f.p.his} side.`,
+  },
+  {
+    when: is('heWon'),
+    reads: 1,
+    text: (f) => `${f.p.He} seems pleased with how the ${surname(f)} deal went ${f.memory!.when}.`,
+  },
+  {
+    when: is('both'),
+    reads: 1,
+    text: (f) => `${f.p.He} seems to think the ${surname(f)} deal treated you both fairly.`,
+  },
+  {
+    when: is('both'),
+    reads: 1,
+    text: (f) => `I'd say the ${surname(f)} deal left ${f.p.him} with a decent impression of you.`,
+  },
+  {
+    when: is('both'),
+    reads: 1,
+    text: (f) =>
+      `The ${surname(f)} deal ${f.memory!.when} worked for both sides, and I think ${f.p.he} remembers that.`,
+  },
+  { when: is('youWon'), reads: 1, text: (f) => `${f.p.He} hasn't forgotten the ${surname(f)} deal.` },
+  { when: is('youWon'), reads: 1, text: (f) => `I'd guess the ${surname(f)} deal still stings a little.` },
+  {
+    when: is('youWon'),
+    reads: 1,
+    text: (f) => `The ${surname(f)} deal went your way ${f.memory!.when}, and I suspect ${f.p.he} remembers.`,
+  },
+  {
+    when: is('brokeDown'),
+    reads: 1,
+    text: (f) =>
+      `The ${surname(f)} deal didn't end the way either side wanted, and I'd expect ${f.p.him} to remember that.`,
+  },
+  { when: is('brokeDown'), reads: 1, text: (f) => `I think the ${surname(f)} deal still sits with ${f.p.him}.` },
+  {
+    when: is('brokeDown'),
+    reads: 1,
+    text: (f) => `${f.p.He} may still be turning over how the ${surname(f)} deal went.`,
+  },
+  {
+    when: is('finalNo'),
+    reads: 1,
+    text: (f) =>
+      `${f.p.He} put ${f.p.his} best offer to you and you turned it down, and I'd expect that to stay with ${f.p.him}.`,
+  },
+  { when: is('finalNo'), reads: 1, text: (f) => `I think ${f.p.he} took your no on ${f.p.his} final offer to heart.` },
+  {
+    when: is('finalNo'),
+    reads: 1,
+    text: (f) => `${f.p.He} won't have forgotten you passing on ${f.p.his} last offer ${f.memory!.when}.`,
+  },
+  {
+    when: is('ledOn'),
+    reads: 1,
+    text: (f) => `${f.p.He} felt the last round of talks went nowhere, and I think it's stayed with ${f.p.him}.`,
+  },
+  {
+    when: is('ledOn'),
+    reads: 1,
+    text: (f) => `I'd guess ${f.p.he} is still a little wary after talks that led nowhere ${f.memory!.when}.`,
+  },
+  { when: is('ledOn'), reads: 1, text: (f) => `${f.p.He} remembers being kept waiting, I think.` },
+];
+
+/** The director's line on your history with this GM, or null when there's nothing he'd have seen. */
+export function historyNote(league: League, gm: GeneralManager): string | null {
+  const team = gm.teamId === null ? undefined : league.teams[gm.teamId];
+  if (!team) return null;
+  const f = talkFacts(league, team);
+  if (!f.memory) return null;
+  return say(HISTORY, f, { key: `${gm.id}:${league.season}`, slot: 'history' }) || null;
 }

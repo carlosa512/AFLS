@@ -5,6 +5,7 @@ import { advanceOffseason, beginOffseason } from '../offseason';
 import { deliverMail, needsYou, offerMailId } from '../inbox';
 import { migrateLeague } from '../migrate';
 import { rosterLimit } from '../offseason/negotiation';
+import { REFUSALS, talkFacts } from '../gmTalk';
 import { playerOvr } from '../positions';
 import { yearsLeft } from '../finance/contract';
 import { activeRoster } from '../roster';
@@ -485,7 +486,8 @@ describe('offers to you', () => {
       ],
     };
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, junk).message);
-    expect(answers.slice(ASKS)).toEqual(Array(20 - ASKS).fill("We're done talking this week."));
+    const refusals = REFUSALS.map((r) => r.text(talkFacts(l, ai)));
+    for (const a of answers.slice(ASKS)) expect(refusals).toContain(a);
     expect(answers.some((m) => /\d/.test(m))).toBe(false);
   });
 

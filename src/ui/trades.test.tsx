@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
+import { REFUSALS, talkFacts } from '../engine/gmTalk';
 import { practiceSquad, teamPlayers } from '../engine/roster';
 import { ASKS, deskState, pickerFits, pickLabel, tradeContext, updateStances, type Advice } from '../engine/trade';
 import { emptyMarket } from '../engine/trade/execute';
@@ -112,7 +113,7 @@ describe('the trade partner card', () => {
     l.market.talks[rival.id] = { moment: 0, asks: ASKS - 1, cooldowns: {} };
     expect(talksWords(l, rival.id)).toBe('Nearly done talking this week');
     l.market.talks[rival.id].asks = ASKS;
-    expect(talksWords(l, rival.id)).toBe("We're done talking this week.");
+    expect(REFUSALS.map((r) => r.text(talkFacts(l, rival)))).toContain(talksWords(l, rival.id));
   });
 });
 
