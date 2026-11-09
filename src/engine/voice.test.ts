@@ -3,6 +3,7 @@ import { createLeague } from './generate';
 import type { InboxMessage } from './types';
 import { deliverMail } from './inbox';
 import { playWeek } from './league';
+import { headCoach } from './senders';
 import {
   around,
   MOTTOS,
@@ -147,7 +148,8 @@ describe('what was said, after the inbox forgets it', () => {
   it('remembers what was said after the inbox evicts it', () => {
     const l = createLeague({ seed: 'said-evicted' });
     deliverMail(l);
-    const early = l.inbox!.filter((m) => m.body && m.from !== 'x').slice(0, 6);
+    const coach = headCoach(l).from;
+    const early = l.inbox!.filter((m) => m.body && m.from === coach).slice(0, 6);
     expect(early.length).toBeGreaterThan(0);
     const filler = Array.from({ length: 300 }, (_, i) => ({
       ...l.inbox![0],
@@ -168,6 +170,20 @@ describe('what was said, after the inbox forgets it', () => {
     const sentence = sentencesOf(m.body)[0];
     expect(seasonSaid(l, m.from)).not.toContain(sentence);
     expect(saidBefore(l, sentence)).toBe(true);
+    // Only the head coach's sentences are kept: another sender's are not.
+    const other = l.inbox!.find((x) => x.from !== coach && x.from !== 'Filler' && x.body);
+    if (other) {
+      const s2 = sentencesOf(other.body).find(
+        (x) =>
+          !sentencesOf(
+            l
+              .inbox!.filter((y) => y.from === coach)
+              .map((y) => y.body)
+              .join(' '),
+          ).includes(x),
+      );
+      if (s2) expect(saidBefore(l, s2)).toBe(false);
+    }
     const bank = [{ text: () => sentence }, { text: () => 'Something else.' }];
     expect(say(bank, {}, { key: 'k', slot: 's', ...around(l, seasonSaid(l, m.from)) })).toBe('Something else.');
   });

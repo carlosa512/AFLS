@@ -356,7 +356,7 @@ type RoomRow = MailSection['rows'][number];
 export function staffRows(
   league: League,
   told: Set<string>,
-  leaveRooms = false,
+  { leaveRooms = false }: { leaveRooms?: boolean } = {},
 ): {
   rooms: MailSection['rows'];
   staff: MailSection['rows'];

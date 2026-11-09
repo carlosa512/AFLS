@@ -155,7 +155,7 @@ describe('the head coach’s weekly lines', () => {
     expect(say(RESULT_MAN, { ...f, outcome: 'none' }, at)).toMatch(/deal/);
     const better = { ...f, man: man({ mood: 'Good', reason: null }), nowDown: false } as const;
     expect(say(RESULT_MAN, better, at)).toMatch(/better place|fine now/);
-    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come round|steadier/);
+    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come round|all right/);
   });
 
   it('every bank reads clean for every fact it can be given', () => {
@@ -207,6 +207,7 @@ describe('the head coach’s weekly lines', () => {
               moment: moment({ week, streak, rival: true, seasonOver: week === 'offseason' }),
               coach,
               items: 2,
+              asks: 1,
               link,
               top: { kind: 'deal', man: 'Stokes' },
               result,
@@ -227,6 +228,7 @@ describe('the head coach’s weekly lines', () => {
         moment: moment(),
         coach,
         items: 3,
+        asks: 1,
         link: { noun: 'the D-line', man: 'Stokes', word: 'Down' },
         result: false,
         closing: false,
@@ -253,5 +255,41 @@ describe('the head coach’s weekly lines', () => {
     expect(say(SET_FOR, { timing: 'afterGame', scope: 'DL', noun: 'the D-line', backing: 'words' }, at)).toMatch(
       /after the game/,
     );
+  });
+
+  it('no line claims what its facts do not say', () => {
+    // A man who reads Poor now is never in a better place, whatever he heard.
+    for (const outcome of ['lands', 'bristles', 'none'] as const)
+      for (const named of [true, false])
+        for (const topic of ['deal', 'none'] as const) {
+          const f = { man: man({ mood: 'Poor', reason: 'Wants a new deal' }), outcome, named, nowDown: true, topic };
+          for (const l of every(RESULT_MAN, f)) expect(l).not.toMatch(/better place|fine now|all right|come round/);
+          const g = { ...f, man: man({ mood: 'Good' }), nowDown: false };
+          for (const l of every(RESULT_MAN, g)) expect(l).not.toMatch(/down now|eating him/);
+        }
+    // A broken promise is never "still waiting".
+    const broken = man({ broken: true, kept: true, lastAnswer: { reply: 'promise', when: 'at camp' } });
+    for (const l of every(BEFORE, { man: broken })) expect(l).not.toMatch(/still waiting|Nothing yet|kept your word/);
+    // A team-scope result has no room read to compare.
+    expect(every(RESULT_ROOM, { noun: 'the team', then: 'Down', now: null })).toEqual([]);
+    expect(every(RESULT_ROOM, { noun: 'the team', then: null, now: null })).toEqual([]);
+    // A bye claims only the bye.
+    const bye = every(OPENING, {
+      moment: moment({ week: 'bye' }),
+      coach,
+      items: 1,
+      asks: 0,
+      result: false,
+      closing: false,
+    });
+    for (const l of bye) expect(l).not.toMatch(/talk to|used it|few things|needs you|rest/);
+    // Counts: "one thing" needs one, "needs you" needs an ask.
+    const two = every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false });
+    for (const l of two) expect(l).not.toMatch(/One thing|Short one|needs you/);
+    // A story with nobody to name says nothing about him.
+    expect(every(CLOSING, { kind: 'deal', beat: 'kept' })).toEqual(['That one is closed.']);
+    // A plural room takes a plural verb at its close.
+    for (const l of every(CLOSING, { kind: 'room', beat: 'recovered', noun: 'the receivers' }))
+      expect(l).not.toMatch(/receivers is|itself/);
   });
 });

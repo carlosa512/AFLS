@@ -330,7 +330,7 @@ describe('staff rows for the weekly letter', () => {
     const { l, t } = recommending();
     const a = t.coachAdvice!.at(-1)!;
     splitUnit(l, 'WR');
-    const held = staffRows(l, toldKeys(l), true);
+    const held = staffRows(l, toldKeys(l), { leaveRooms: true });
     expect(held.rooms).toHaveLength(0);
     expect(held.staff.some((r) => r.playerId === a.playerId)).toBe(true);
     expect(held.coachNote?.coachNoteKey).toBe(adviceKey(a, 'offer'));

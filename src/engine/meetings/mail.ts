@@ -245,7 +245,7 @@ function resultParts(league: League, r: MeetingRecord, said: string[]) {
   }
   const now = r.scope === 'team' ? null : (unitRead(league, teamId, r.scope as CoachRoom, ctx)?.word ?? null);
   const room = say(RESULT_ROOM, { noun, then: r.word ?? null, now }, { key, slot: 'room', ...around(league, said) });
-  said.push(room);
+  if (room) said.push(room);
   const next = say(
     NEXT,
     {
@@ -278,7 +278,7 @@ export function resultRows(league: League, r: MeetingRecord, said: string[]): Ma
   const told = toldWords(league, r, key, said);
   return [
     ...mens,
-    { cells: [cap(noun), 'What I told them'], note: `${room} “${told}”` },
+    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}“${told}”` },
     { cells: [cap(noun), 'Where that leaves us'], note: next },
     ...talks,
   ];

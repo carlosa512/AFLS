@@ -3108,8 +3108,10 @@ export function deliverMail(league: League): void {
   // What digests told stays on file after their letters are evicted (this league year and the last).
   const told = (league.mailTold ??= {});
   for (const m of due) for (const k of m.covered ?? []) told[k] = m.season;
-  // And every sentence a letter said, so a full inbox that evicts the letter does not let its sentence come round again.
-  for (const m of due) for (const sentence of lettersSentences(m)) told[saidKey(sentence)] = m.season;
+  // And every sentence the head coach's letters said, so a full inbox that evicts the letter does not let its sentence come round again.
+  const coachFrom = headCoach(league).from;
+  for (const m of due)
+    if (m.from === coachFrom) for (const sentence of lettersSentences(m)) told[saidKey(sentence)] = m.season;
   for (const [k, s] of Object.entries(told)) if (s < league.season - 1) delete told[k];
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));
