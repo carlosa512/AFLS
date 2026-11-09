@@ -60,7 +60,8 @@ import {
   setTradeStatus,
   STAR,
   teamNeeds,
-  ASKS,
+  asksFor,
+  talkRefusal,
   CONCERNS,
   examine,
   FAIL,
@@ -521,7 +522,8 @@ function runProbes(base: League) {
     const answers = Array.from({ length: 20 }, () => proposeTrade(l, proposal).message);
     probes.push({
       label: 'probing one GM 20 times in a week',
-      worked: answers.slice(ASKS).some((m) => m !== "We're done talking this week."),
+      // His refusal is in his own words now (`gmTalk.ts`), so the check reads it back from the league.
+      worked: answers.slice(asksFor(l, ai)).some((m) => m !== talkRefusal(l, ai)),
     });
   }
   {

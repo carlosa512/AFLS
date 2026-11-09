@@ -116,6 +116,8 @@ import { leadPlayer, tradeIdentity } from './tradeNews';
 import { reputation } from './gmVoice';
 import { gameStory } from './gameStory';
 export { gameStory };
+import { letterFrom, wrapLetter } from './gmTalk';
+import { aiGm } from './gmHabits';
 import type {
   MeetingScope,
   Coach,
@@ -1194,12 +1196,17 @@ const NO_PROJ = { projected: false };
 
 /** The offer's subject and opening line, in the GM's words (never a number from his valuation). */
 export function offerWords(league: League, offer: TradeOffer): { subject: string; body: string } {
+  const { subject, core } = offerCore(league, offer);
+  return { subject, body: wrapLetter(league, offer, core) };
+}
+
+/** The offer itself, plain and exact: the GM's opener and sign-off go around it (`gmTalk.ts`). */
+function offerCore(league: League, offer: TradeOffer): { subject: string; core: string } {
   const team = league.teams[offer.teamId];
   const [his, yours] = offer.sides;
   const yourMan = yours.players[0] !== undefined ? league.players[yours.players[0]] : null;
   const hisMan = his.players[0] !== undefined ? league.players[his.players[0]] : null;
   const name = (p: Player) => `${p.position} ${fullName(p)}`;
-  const close = offer.final ? ' That is our final offer.' : '';
   // A pick deal names the pick it's about: yours on the clock, or theirs when they give their price.
   const slot = (side: TradeSide) => {
     const pk = league.draftPicks.find((p) => side.picks.includes(p.id) && p.season === league.season && p.overall);
@@ -1209,47 +1216,47 @@ export function offerWords(league: League, offer: TradeOffer): { subject: string
     case 'draft':
       return {
         subject: `The ${team.name} want to move up to ${slot(yours)}`,
-        body: `${capital(packageWords(league, his, NO_PROJ))} for ${slot(yours)}, now.${close}`,
+        core: `${capital(packageWords(league, his, NO_PROJ))} for ${slot(yours)}, now.`,
       };
     case 'ask':
       return {
         subject: `The ${team.name}' price for ${slot(his)}`,
-        body: `For ${slot(his)} we'd want ${packageWords(league, yours, NO_PROJ)}.`,
+        core: `For ${slot(his)} we'd want ${packageWords(league, yours, NO_PROJ)}.`,
       };
     case 'enquiry':
       return {
         subject: `The ${team.name} ask about ${name(yourMan!)}`,
-        body: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.`,
+        core: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.`,
       };
     case 'pitch':
       return {
         subject: `The ${team.name} are listening on ${name(hisMan!)}`,
-        body: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?${close}`,
+        core: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?`,
       };
     case 'dump':
       return {
         subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
-        body: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.${close}`,
+        core: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.`,
       };
     case 'counter':
       return {
         subject: `The ${team.name} come back with a counter`,
-        body: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.${close}`,
+        core: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.`,
       };
     case 'shop':
       if (!yourMan)
         return {
           subject: `The ${team.name} answer your call about ${slot(yours)}`,
-          body: `You're shopping ${slot(yours)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
+          core: `You're shopping ${slot(yours)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
         };
       return {
         subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
-        body: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.${close}`,
+        core: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
       };
     default:
       return {
         subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
-        body: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.${close}`,
+        core: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.`,
       };
   }
 }
@@ -1296,17 +1303,19 @@ function offerMail(league: League, have: Set<string>): Draft[] {
     if (offer.reason === 'draft' || offer.reason === 'ask') continue;
     const team = league.teams[offer.teamId];
     const { subject, body } = offerWords(league, offer);
+    const gm = aiGm(league, team);
     const about = [...offer.sides[1].players, ...offer.sides[0].players][0];
     out.push({
       id,
       season: offer.season,
       phase: offer.phase,
       week: offer.phase === 'regular' ? league.week : 0,
-      from: `${teamName(team)} front office`,
+      from: letterFrom(league, team),
       fromTeamId: team.id,
       category: 'trades',
       subject,
       body,
+      ...(gm ? { gmNotes: [{ gmId: gm.id, line: '' }] } : {}),
       actions: [
         { kind: 'trades' },
         ...(about !== undefined ? [{ kind: 'player' as const, playerId: about }] : []),

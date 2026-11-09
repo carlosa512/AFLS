@@ -21,8 +21,8 @@ letters. Part B adds `benching.ts`: who holds a job, a healthy starter sitting, 
 - `src/engine/` is pure: no DOM, no React, no `Math.random`. Mail never draws from a sim stream: ties break on
   `stableHash` (`voice.ts`).
 - Stories are record-keeping: nothing in the sim reads `League.stories`, and writing them draws nothing.
-- `League` stays plain JSON. A shape change bumps `SAVE_VERSION` (`generate.ts`, 90 today) and adds a step to
-  `migrate.ts` with a case in `migrate.test.ts`. Part A goes to 91, Part B to 92. If `claude/amazing-dirac-sa4npe`
+- `League` stays plain JSON. A shape change bumps `SAVE_VERSION` (`generate.ts`, 91 on main) and adds a step to
+  `migrate.ts` with a case in `migrate.test.ts`. Part A goes to 92, Part B to 93. If `claude/amazing-dirac-sa4npe`
   (also 91) merges first, take the next two numbers.
 - Screens never render `player.ratings`, `playerOvr` or `player.potential`; hidden traits are words, never numbers.
   The cast sheet reads a man only through `personalityRead`, `quirkNotes`, `moraleView`, `standingView`,
@@ -76,13 +76,13 @@ letters. Part B adds `benching.ts`: who holds a job, a healthy starter sitting, 
 
 ---
 
-# Part A: stories and the weekly letter (0.4.22, save 91)
+# Part A: stories and the weekly letter (0.4.23, save 92)
 
 ### Task 1: The story store
 
 **Files:**
 - Create: `src/engine/stories.ts`, `src/engine/stories.test.ts`
-- Modify: `src/engine/types.ts` (beside `InboxMessage`), `src/engine/generate.ts` (`SAVE_VERSION = 91`),
+- Modify: `src/engine/types.ts` (beside `InboxMessage`), `src/engine/generate.ts` (`SAVE_VERSION = 92`),
   `src/engine/migrate.ts`, `src/engine/migrate.test.ts`
 
 **Interfaces:**
@@ -155,7 +155,7 @@ it('drops closed stories a league year old at the new year', () => { /* closed a
   the version. Add the `migrate.test.ts` case in that file's existing style (a v90 save loads as 91, `stories`
   absent).
 - [ ] **Step 4: Run** the two test files and `npm run typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** "Stories: a store for your club's storylines (v91)".
+- [ ] **Step 5: Commit** "Stories: a store for your club's storylines (v92)".
 
 ### Task 2: Beats at the sim's events
 
@@ -566,7 +566,7 @@ it('renders no rating anywhere in the letter', () => { /* the screen-contract he
   640px) and the `setFor` line.** **Step 4: Run** `npx vitest run src/ui` and typecheck. Expected: PASS.
 - [ ] **Step 5: Commit** "Inbox: the coach's letter as people rows, each with a face and its answer".
 
-### Task 9: The season replay, the preview, docs and 0.4.22
+### Task 9: The season replay, the preview, docs and 0.4.23
 
 **Files:**
 - Create: `src/engine/coachWeek.season.test.ts`
@@ -593,13 +593,13 @@ expect(heldWithoutResult(l)).toEqual([]);                                       
 - [ ] **Step 3: Preview moments.** `mail-preview.ts` gains `room.json` (the first step a `coach:` letter has a
   rooms row) and `result.json` (the first with a "Since last week" result). Run it on a fresh save and
   `npm run screens -- --mail coach`; put the screenshots where the owner can open them.
-- [ ] **Step 4: Docs, `"version": "0.4.22"`, changelog entry** (title "One letter from the coach").
+- [ ] **Step 4: Docs, `"version": "0.4.23"`, changelog entry** (title "One letter from the coach").
 - [ ] **Step 5: Run** `npm run format`, `npm run typecheck`, `npx vitest run src/engine/coachWeek* src/ui/changelog.test.ts`.
-- [ ] **Step 6: Commit** "0.4.22: the head coach's weekly letter on a story store"; push.
+- [ ] **Step 6: Commit** "0.4.23: the head coach's weekly letter on a story store"; push.
 
 ---
 
-# Part B: the benching chain (0.4.23, save 92)
+# Part B: the benching chain (0.4.24, save 93)
 
 ### Task 10: Jobs and the kickoff lineup
 
@@ -815,17 +815,17 @@ season. `Roster.tsx` shows the banner and a **Lineup set** button while `lineupP
   src/engine/coachWeek.test.ts src/ui` and typecheck. Expected: PASS.
 - [ ] **Step 5: Commit** "Benching: Set your lineup, the cleared-starter reminder and its letters".
 
-### Task 14: The save, the replay, docs and 0.4.23
+### Task 14: The save, the replay, docs and 0.4.24
 
 **Files:**
-- Modify: `src/engine/generate.ts` (`SAVE_VERSION = 92`), `src/engine/migrate.ts`, `src/engine/migrate.test.ts`,
+- Modify: `src/engine/generate.ts` (`SAVE_VERSION = 93`), `src/engine/migrate.ts`, `src/engine/migrate.test.ts`,
   `src/engine/coachWeek.season.test.ts`, `scripts/mail-preview.ts`, `docs/NEWS.md`, `CLAUDE.md` (a `benching.ts`
   entry; `morale.ts`'s benching sentence; `npm run morale`'s list of files), `docs/MVP.md`, `package.json`,
   `src/ui/changelog.ts`
 
-- [ ] **Step 1: Write the failing migrate test:** a v91 save in week 6 loads with `jobs.held` holding each club's
-  chart starters who have three games played and no questions; a v91 save in preseason loads with your club's
-  `lineupSet` equal to the season; a v91 save in the offseason loads with no jobs.
+- [ ] **Step 1: Write the failing migrate test:** a v92 save in week 6 loads with `jobs.held` holding each club's
+  chart starters who have three games played and no questions; a v92 save in preseason loads with your club's
+  `lineupSet` equal to the season; a v92 save in the offseason loads with no jobs.
 - [ ] **Step 2: Implement the step. Run** `npx vitest run src/engine/migrate.test.ts`. Expected: PASS.
 - [ ] **Step 3: Extend the replay test:** in the same season, after week 5 move one healthy job-holder below his
   backup and answer nothing for two weeks, then answer the other man "It's his job" (`his`):
@@ -838,8 +838,8 @@ expect(openRowsForPlayersOffClub(l)).toEqual([]);
 
 - [ ] **Step 4: Preview.** `mail-preview.ts` gains `bench.json` (the first step a `coach:` letter has a `bench`
   row). Run `npm run screens -- --mail coach` and put the screenshots where the owner can open them.
-- [ ] **Step 5: Docs, `"version": "0.4.23"`, changelog entry** (title "Am I benched?").
+- [ ] **Step 5: Docs, `"version": "0.4.24"`, changelog entry** (title "Am I benched?").
 - [ ] **Step 6: Run** `npm run format`, `npm run typecheck`, `npx vitest run src/engine/benching.test.ts
   src/engine/coachWeek* src/engine/migrate.test.ts src/ui`, `npm run morale`. Expected: all pass, nothing flagged.
-- [ ] **Step 7: Commit** "0.4.23: the benching chain (v92)"; push. Then read CI on the pull request, if one is
+- [ ] **Step 7: Commit** "0.4.24: the benching chain (v93)"; push. Then read CI on the pull request, if one is
   open, and fix what is red.

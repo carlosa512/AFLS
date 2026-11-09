@@ -1277,7 +1277,7 @@ export interface TradeOffer {
   replyTo?: number;
 }
 
-/** Your dealings with one AI GM: proposals this moment, who he won't ask about, the decline cooldowns, and his trust in you. */
+/** Your dealings with one AI GM: proposals this moment, who he won't ask about, the decline cooldowns, and talks he's called off. */
 export interface TradeTalks {
   /** The market moment `asks` counts for. */
   moment: number;
@@ -1285,8 +1285,6 @@ export interface TradeTalks {
   asks: number;
   /** Talks are off until this moment passes (a final offer turned down). */
   offUntil?: number;
-  /** −1 … 1: he trusts you more after fair deals, less after rejections and pulled counters; drifts back to 0. */
-  trust: number;
   /** Players he won't ask about until a moment ("Not for sale", a declined offer), and the offer he'd have to beat. */
   cooldowns: Record<number, { until: number; worth: number }>;
 }
@@ -1406,6 +1404,28 @@ export interface GeneralManager {
   habitLog?: HabitMove[];
   /** This year's extra marbles by habit (or `fade:` habit), emptied by each offseason draw. */
   habitMarbles?: Record<string, number>;
+  /** Moments with your GM (gmMemory.ts); absent until one happens. */
+  withYou?: YouMoment[];
+}
+
+export type YouMomentKind = 'trade' | 'tookOffer' | 'ledOn' | 'finalNo';
+export type TradeVerdictLater = 'heWon' | 'both' | 'youWon' | 'brokeDown' | 'even';
+
+/** Something that passed between an AI GM and your GM (`gmMemory.ts`). */
+export interface YouMoment {
+  kind: YouMomentKind;
+  season: number;
+  phase: Phase;
+  /** What moved to him. */
+  got?: { players: number[]; picks: number[] };
+  /** What he sent you. */
+  gave?: { players: number[]; picks: number[] };
+  /** How the deal looked to him when it closed. */
+  atClose?: 'paidUp' | 'fair' | 'squeezed';
+  /** How it looked a season later (absent until judged). */
+  verdict?: TradeVerdictLater;
+  /** A trade with a starter or a first-round pick in it counts more. */
+  big?: boolean;
 }
 
 export interface HabitHold {

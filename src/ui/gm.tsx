@@ -5,6 +5,7 @@ import { PHASE_LABELS, weekLabel } from './format';
 import { useNav } from './nav';
 import { StaffFigure } from './staffAvatar';
 import { staffLook } from './staffLook';
+import { historyNote } from '../engine/gmTalk';
 import { pron } from '../engine/pronouns';
 import { gmRecord } from '../engine/records';
 import { noticed, reputation } from '../engine/gmVoice';
@@ -56,7 +57,14 @@ export function gmStyleNotes(league: League, gm: GeneralManager): string[] {
     games = record.regular.w + record.regular.l + record.regular.t;
   const lead = perceptionLead(league, gm, record) ?? fallbackLead(gm, record, games);
   const second = perceptionDetail(league, gm, record, lead);
-  return [reputation(league, gm), lead, ...(second ? [second] : []), ...noticed(league, gm)];
+  const history = historyNote(league, gm);
+  return [
+    reputation(league, gm),
+    lead,
+    ...(second ? [second] : []),
+    ...noticed(league, gm),
+    ...(history ? [history] : []),
+  ];
 }
 
 /** The season he is in with this club, counting years he has already spent there (null if he has no open deal). */

@@ -366,9 +366,19 @@ export function migrateLeague(league: League): League | null {
   // v90: a signing, re-signing or tag names its player (`Transaction.playerId`), so the off-the-market news can say who
   // was kept. Optional: older entries keep none and that window's news files nothing.
   if (league.version < 90) league.version = 90;
-  // v91: storylines (`League.stories`). Optional, born with the first beat: nothing to rewrite.
-  if (league.version < 91) league.version = 91;
+  // v91: standing with a GM comes from his moments with you (`gmMemory.ts`), not a stored trust. Every GM starts with none.
+  if (league.version < 91) {
+    toV91(league);
+    league.version = 91;
+  }
+  // v92: storylines (`League.stories`). Optional, born with the first beat: nothing to rewrite.
+  if (league.version < 92) league.version = 92;
   return league;
+}
+
+/** v91: talks lose `trust`; pending offers and cooldowns stay. */
+function toV91(league: League): void {
+  for (const t of Object.values(league.market?.talks ?? {})) delete (t as { trust?: number }).trust;
 }
 
 /** v89: every club's current GM starts his habits (a no-op for yours). */

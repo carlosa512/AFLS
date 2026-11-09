@@ -13,10 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.21',
+    version: '0.4.22',
     date: '2026-11-09',
     title: 'A history you can read',
     text: 'The version history is now one fold per line of versions, the newest open. Every update says what it did in a sentence or two.',
+  },
+  {
+    version: '0.4.21',
+    date: '2026-11-09',
+    title: 'General managers remember you',
+    text: 'Rival GMs now remember how their dealings with you went, and it changes their price, their patience and who calls first. They write to you in their own voice.',
   },
   {
     version: '0.4.20',
