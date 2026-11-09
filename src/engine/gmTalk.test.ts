@@ -205,4 +205,41 @@ describe('a letter', () => {
     const finals = new Set(all(SIGNOFFS, (f) => f.final));
     expect([...finals].some((s) => body.endsWith(s))).toBe(true);
   });
+
+  it('fits the words to the kind of letter: an enquiry has no price or money in its close, a counter no memory', () => {
+    const MONEY = /number|price|money|cap\b|final|last|move much|meet it/i;
+    const TRAITS = [
+      { stubbornness: 0.9, winNow: 0.5, capAggression: 0.5 },
+      { stubbornness: 0.5, winNow: 0.9, capAggression: 0.5 },
+      { stubbornness: 0.5, winNow: 0.5, capAggression: 0.1 },
+      { stubbornness: 0.1, winNow: 0.5, capAggression: 0.5 },
+    ];
+    for (const t of TRAITS) {
+      const { l, team, gm } = setup();
+      team.gm = { ...team.gm, ...t };
+      const man = l.players[teamPlayers(l, team.id)[0].id];
+      gm.withYou = [
+        { kind: 'trade', season: l.season, phase: l.phase, got: { players: [man.id], picks: [] }, verdict: 'heWon' },
+      ];
+      const enquiry = offerWords(l, bid(l, team, { reason: 'enquiry' })).body;
+      const core = enquiry.indexOf('Is ');
+      expect(enquiry.slice(core + 'Is '.length)).toContain('available?');
+      const close = enquiry.slice(enquiry.indexOf('listen.') + 'listen.'.length);
+      expect(close.trim()).not.toBe('');
+      expect(close).not.toMatch(MONEY);
+      const counter = offerWords(l, bid(l, team, { reason: 'counter' })).body;
+      for (const m of MEMORY_OPENERS) expect(counter).not.toContain(m.text(talkFacts(l, team, { reason: 'counter' })));
+      for (const o of [
+        'Got something',
+        'Been going through',
+        'Have a minute',
+        'Straight to it',
+        'Wanted to get this',
+        'phone tag',
+        'working through my list',
+      ])
+        expect(counter).not.toContain(o);
+      expect(counter).toMatch(/^(I've gone back|Here's where|I took a hard|Thanks for the counter)/);
+    }
+  });
 });

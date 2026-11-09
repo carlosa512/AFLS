@@ -32,6 +32,8 @@ export interface TalkFacts {
   memory?: MemoryFact;
   moment: TalkMoment;
   final: boolean;
+  /** What kind of letter it is, when it is one of his offers (the trade table's lines leave it out). */
+  reason?: TradeOffer['reason'];
   p: ReturnType<typeof pron>;
 }
 
@@ -88,7 +90,11 @@ function momentOf(league: League): TalkMoment {
   }
 }
 
-export function talkFacts(league: League, team: Team, opts?: { final?: boolean }): TalkFacts {
+export function talkFacts(
+  league: League,
+  team: Team,
+  opts?: { final?: boolean; reason?: TradeOffer['reason'] },
+): TalkFacts {
   const gm = aiGm(league, team);
   return {
     team,
@@ -98,6 +104,7 @@ export function talkFacts(league: League, team: Team, opts?: { final?: boolean }
     memory: memoryOf(league, gm),
     moment: momentOf(league),
     final: !!opts?.final,
+    reason: opts?.reason,
     p: pron(gm ?? ({ woman: undefined } as GeneralManager)),
   };
 }
@@ -111,17 +118,26 @@ export function letterFrom(league: League, team: Team): string {
 // ---- openers ----
 
 const band = (b: StandingBand) => (f: TalkFacts) => f.band === b;
+const reason = (r: TradeOffer['reason']) => (f: TalkFacts) => f.reason === r;
+/** A letter that opens a conversation, not one that answers your counter. */
+const fresh = (f: TalkFacts) => f.reason !== 'counter';
 const at = (m: TalkMoment) => (f: TalkFacts) => f.moment === m;
 
 /** Neutral pool first (no condition, so it always fits), then lines that lean on his feeling for you or the moment. */
 export const OPENERS: readonly Line<TalkFacts>[] = [
-  { text: () => 'Wanted to get this in front of you before the week gets away.' },
-  { text: () => "I'd rather write than play phone tag, so here it is." },
-  { text: () => "Got something I'd like you to look at." },
-  { text: () => 'Been going through my roster and this came up.' },
-  { text: () => "Have a minute? This one's worth a look." },
-  { text: () => "I've been working through my list and your club came up." },
-  { text: () => 'Straight to it.' },
+  { when: fresh, text: () => 'Wanted to get this in front of you before the week gets away.' },
+  { when: fresh, text: () => "I'd rather write than play phone tag, so here it is." },
+  { when: fresh, text: () => "Got something I'd like you to look at." },
+  { when: fresh, text: () => 'Been going through my roster and this came up.' },
+  { when: fresh, text: () => "Have a minute? This one's worth a look." },
+  { when: fresh, text: () => "I've been working through my list and your club came up." },
+  { when: fresh, text: () => 'Straight to it.' },
+
+  // His reply mid-conversation: no fresh start, no old story. Two facts read (a counter, and that it wins over band and moment).
+  { when: reason('counter'), reads: 2, text: () => "I've gone back over it." },
+  { when: reason('counter'), reads: 2, text: () => "Here's where I landed." },
+  { when: reason('counter'), reads: 2, text: () => 'I took a hard look at yours.' },
+  { when: reason('counter'), reads: 2, text: () => 'Thanks for the counter. Here is mine.' },
 
   { when: band('warm'), reads: 1, text: () => "You've been straight with me, so I'll come to you first." },
   { when: band('warm'), reads: 1, text: () => "It's always a good conversation with you, so here's one for you." },
@@ -237,27 +253,29 @@ export const MEMORY_OPENERS: readonly Line<TalkFacts>[] = [
 // ---- sign-offs ----
 
 const manner = (m: Manner) => (f: TalkFacts) => f.manner === m && !f.final;
+/** A letter that carries a price (everything but an enquiry): the only place a number, the money or the cap is spoken of. */
+const priced = (m: Manner) => (f: TalkFacts) => manner(m)(f) && f.reason !== 'enquiry';
 
 /** His manner in the last line; a final offer says so in his words and beats the manner. */
 export const SIGNOFFS: readonly Line<TalkFacts>[] = [
   { when: manner('firm'), reads: 1, text: () => "That's where we are." },
-  { when: manner('firm'), reads: 1, text: () => "That's the number." },
-  { when: manner('firm'), reads: 1, text: () => "It's a fair price and I'm not going to move much." },
+  { when: priced('firm'), reads: 1, text: () => "That's the number." },
+  { when: priced('firm'), reads: 1, text: () => "It's a fair price and I'm not going to move much." },
   { when: manner('firm'), reads: 1, text: () => "I'll hold where I am." },
   { when: manner('firm'), reads: 1, text: () => 'You know where I stand on this.' },
-  { when: manner('firm'), reads: 1, text: () => 'Call me if you can meet it.' },
+  { when: priced('firm'), reads: 1, text: () => 'Call me if you can meet it.' },
   { when: manner('urgent'), reads: 1, text: () => 'I need an answer this week.' },
   { when: manner('urgent'), reads: 1, text: () => 'Get back to me soon.' },
   { when: manner('urgent'), reads: 1, text: () => "I'd like to know quickly." },
   { when: manner('urgent'), reads: 1, text: () => "The window's short, so let me know." },
   { when: manner('urgent'), reads: 1, text: () => 'Sooner is better on my end.' },
   { when: manner('urgent'), reads: 1, text: () => "I'm on a clock, so call me when you've looked at it." },
-  { when: manner('careful'), reads: 1, text: () => 'It has to fit under my cap, so keep that in mind.' },
-  { when: manner('careful'), reads: 1, text: () => "The cap's tight on my end, so I can't stretch it." },
-  { when: manner('careful'), reads: 1, text: () => "I can't go further on the money." },
-  { when: manner('careful'), reads: 1, text: () => 'Mind the cap numbers when you reply.' },
-  { when: manner('careful'), reads: 1, text: () => "Money's the limit on my side." },
-  { when: manner('careful'), reads: 1, text: () => 'Run it past your cap people and call me.' },
+  { when: priced('careful'), reads: 1, text: () => 'It has to fit under my cap, so keep that in mind.' },
+  { when: priced('careful'), reads: 1, text: () => "The cap's tight on my end, so I can't stretch it." },
+  { when: priced('careful'), reads: 1, text: () => "I can't go further on the money." },
+  { when: priced('careful'), reads: 1, text: () => 'Mind the cap numbers when you reply.' },
+  { when: priced('careful'), reads: 1, text: () => "Money's the limit on my side." },
+  { when: priced('careful'), reads: 1, text: () => 'Run it past your cap people and call me.' },
   { when: manner('easy'), reads: 1, text: () => 'No rush on this one.' },
   { when: manner('easy'), reads: 1, text: () => 'Think it over and let me know.' },
   { when: manner('easy'), reads: 1, text: () => 'Take your time.' },
@@ -270,6 +288,13 @@ export const SIGNOFFS: readonly Line<TalkFacts>[] = [
   { when: manner('plain'), reads: 1, text: () => 'Get back to me when you can.' },
   { when: manner('plain'), reads: 1, text: () => 'Looking forward to hearing from you.' },
   { when: manner('plain'), reads: 1, text: () => 'Call if you want to talk it through.' },
+
+  // An enquiry asks nothing yet: no price, no money, no final word. Beats any manner line.
+  { when: reason('enquiry'), reads: 2, text: () => "No rush, but I'd like to hear back." },
+  { when: reason('enquiry'), reads: 2, text: () => 'Let me know either way.' },
+  { when: reason('enquiry'), reads: 2, text: () => "If he's not available, just say so." },
+  { when: reason('enquiry'), reads: 2, text: () => 'A quick reply is all I need.' },
+  { when: reason('enquiry'), reads: 2, text: () => "Call me if it's worth a conversation." },
 
   // Two conditions read (a final offer, a manner's absence of choice): it outranks any manner line.
   { when: (f) => f.final, reads: 2, text: () => "That's as far as I go." },
@@ -293,14 +318,14 @@ function earlierBodies(league: League, from: string, offer: TradeOffer): string[
 /** [opener, the offer as it is, sign-off], joined by spaces, any empty part dropped. */
 export function wrapLetter(league: League, offer: TradeOffer, core: string): string {
   const team = league.teams[offer.teamId];
-  const f = talkFacts(league, team, { final: offer.final });
+  const f = talkFacts(league, team, { final: offer.final, reason: offer.reason });
   const recent = earlierBodies(league, letterFrom(league, team), offer);
   const at = { key: `${offer.season}:${offer.id}`, recent };
   // A memory is quoted at most every other letter: not when his last letter already told it.
   const told = f.memory
     ? MEMORY_OPENERS.some((l) => (!l.when || l.when(f)) && !!recent[0]?.includes(l.text(f)))
     : false;
-  const memory = f.memory && !told ? say(MEMORY_OPENERS, f, { ...at, slot: 'memory' }) : '';
+  const memory = f.memory && !told && f.reason !== 'counter' ? say(MEMORY_OPENERS, f, { ...at, slot: 'memory' }) : '';
   const opener = memory || say(OPENERS, f, { ...at, slot: 'opener' });
   return [opener, core, say(SIGNOFFS, f, { ...at, slot: 'signoff' })].filter(Boolean).join(' ');
 }
