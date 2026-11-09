@@ -59,6 +59,10 @@ export function say<C>(
   return pool[stableHash(`${at.key}:${at.slot}`) % pool.length];
 }
 
+/** How a builder words a row: around everything said so far when it keeps a list, else around the sender's last letters. */
+export const wording = (league: League, from: string, said?: readonly string[]) =>
+  said ? around(league, said) : { recent: recentBodies(league, from) };
+
 /** The bodies of a sender's last `n` letters, newest first: what he'd rather not say again. */
 export function recentBodies(league: League, from: string, n = 5): string[] {
   const out: string[] = [];

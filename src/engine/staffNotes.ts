@@ -16,8 +16,10 @@ import { BELIEF_WARN, CHEM_NOTE, UNIT_PHRASE, UNIT_TURN, type UnitFact } from '.
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
 import { QUIRKS, type QuirkId } from './quirks';
 import { headCoach, type Draft } from './senders';
-import type { CoachRoom, InboxAction, League, MailSection } from './types';
-import { recentBodies, say, toldKeys, type Line } from './voice';
+import type { CoachRoom, InboxAction, InboxMessage, League, MailSection } from './types';
+import { openStory } from './stories';
+import { tellable } from './storiesStep';
+import { recentBodies, say, seasonSaid, toldKeys, wording, type Line } from './voice';
 
 const OPENER: readonly Line<{ calls: number; habits: number; units: number }>[] = [
   {
@@ -273,11 +275,20 @@ export function unitTurnFor(
  * was last told; once each, in the head coach's own words. Gelling and still learning each other wait for the report.
  */
 export function chemistryRows(league: League, told: Set<string>): StaffRow[] {
+  return chemistryNotes(league, told).map(({ key, unit, note }) => ({ key, label: ROOM_LABEL[unit], note }));
+}
+
+/** The same notes with their room, worded around `said` when a builder keeps one. */
+function chemistryNotes(
+  league: League,
+  told: Set<string>,
+  said?: string[],
+): { key: string; unit: CoachRoom; note: string }[] {
   const user = league.userTeamId;
   const memory = lastTold(told, user);
   const clock = moraleClock(league);
   const ctx = viewContext(league);
-  const rows: StaffRow[] = [];
+  const rows: { key: string; unit: CoachRoom; note: string }[] = [];
   for (const unit of CHEM_ROOMS) {
     const c = chemistryOf(league, user, unit);
     if (!c) continue;
@@ -285,15 +296,13 @@ export function chemistryRows(league: League, told: Set<string>): StaffRow[] {
     const news = c.word === 'Clicking' || c.word === 'Out of sync' || last === 'Out of sync';
     if (last === c.word || !news) continue;
     const key = chemKey(clock, user, unit, c.word);
-    rows.push({
+    const note = say(CHEM_NOTE, chemFact(league, c, ctx), {
       key,
-      label: ROOM_LABEL[unit],
-      note: say(CHEM_NOTE, chemFact(league, c, ctx), {
-        key,
-        slot: 'chem',
-        recent: recentBodies(league, headCoach(league).from),
-      }),
+      slot: 'chem',
+      ...wording(league, headCoach(league).from, said),
     });
+    said?.push(note);
+    rows.push({ key, unit, note });
   }
   return rows;
 }
@@ -305,6 +314,7 @@ export function chemistryRows(league: League, told: Set<string>): StaffRow[] {
 export function beliefRows(
   league: League,
   told: Set<string>,
+  said?: string[],
 ): { key: string; unit: CoachRoom; coachId: number; note: string }[] {
   const team = league.teams[league.userTeamId];
   const fell = team.beliefFell;
@@ -324,8 +334,133 @@ export function beliefRows(
       key,
       unit,
       coachId: coach.id,
-      note: say(BELIEF_WARN, fact, { key, slot: 'belief', recent: recentBodies(league, headCoach(league).from) }),
+      note: say(BELIEF_WARN, fact, { key, slot: 'belief', ...wording(league, headCoach(league).from, said) }),
     });
+    if (said) said.push(out.at(-1)!.note);
   }
   return out;
+}
+
+// ───────── the weekly letter's staff rows ─────────
+
+type RoomRow = MailSection['rows'][number];
+
+/**
+ * What the staff add to the weekly letter, as rows: the rooms (one row a room: the position coach's turn or warning
+ * with chemistry as a clause in the same note, the head coach's own row only for a room with no position coach's
+ * row; a room that has a story must have held its turn long enough to be `tellable`), and the staff room (the
+ * depth-chart call, habit work and the head coach's word with the players). `covered` holds the keys they tell, and
+ * `coachNote` the recommendation's key for `coachDecisions.ts`. Every sentence goes around what the head coach has
+ * already said this league year. `leaveRooms` holds the rooms back on the day a locker room report tells them.
+ */
+export function staffRows(
+  league: League,
+  told: Set<string>,
+  leaveRooms = false,
+): {
+  rooms: MailSection['rows'];
+  staff: MailSection['rows'];
+  covered: string[];
+  coachNote?: Pick<InboxMessage, 'coachNoteKey' | 'coachNote'>;
+} {
+  const sender = headCoach(league);
+  const said = seasonSaid(league, sender.from);
+  const clock = moraleClock(league);
+  const key = `staffRows:${league.season}:${clock}`;
+  const covered: string[] = [];
+  const staff: RoomRow[] = [];
+  const name = (playerId: number) => {
+    const p = league.players[playerId];
+    return p ? `${p.firstName} ${p.lastName}` : '';
+  };
+  const chair = (coachId: number) => {
+    const c = league.coaches[coachId];
+    return c ? COACH_ROLE_LABEL[c.role] : 'Coach';
+  };
+
+  // The staff room: a call on the depth chart, habit work.
+  const call = coachAdviceObservation(league);
+  if (call)
+    staff.push({
+      playerId: call.playerId,
+      cells: [name(call.playerId), `${call.coachName}, ${chair(call.coachId)}`],
+      note: call.text,
+    });
+  const found = teachingNoteFor(league);
+  const habitKey = found && `teach:${league.season}:${found.coachId}:${found.playerId}:${found.habit}`;
+  if (found && !told.has(habitKey!)) {
+    const note = say(
+      HABIT,
+      {
+        coach: league.coaches[found.coachId]?.lastName ?? found.coachName,
+        player: league.players[found.playerId]?.lastName ?? '',
+        habit: found.habit,
+        receptive: found.receptive,
+      },
+      { key, slot: 'habit', ...wording(league, sender.from, said) },
+    );
+    said.push(note);
+    covered.push(habitKey!);
+    staff.push({
+      playerId: found.playerId,
+      cells: [name(found.playerId), `${found.coachName}, ${chair(found.coachId)}`],
+      note,
+    });
+  }
+  // His word with the players has no story to hang on: it comes with the staff's notes.
+  for (const r of meetingStaffRows(league, told, said).filter((x) => x.key.startsWith('cred:'))) {
+    covered.push(r.key);
+    staff.push({ cells: [r.label, sender.from], note: r.note });
+  }
+
+  // The rooms: the position coach's turn and warning, then chemistry in the same note.
+  const rooms = new Map<CoachRoom, { cells: string[]; coachId?: number; notes: string[] }>();
+  const room = (unit: CoachRoom, coachId: number) => {
+    const c = league.coaches[coachId];
+    const row = rooms.get(unit) ?? {
+      cells: [ROOM_LABEL[unit], `${coachName(c)}, ${coachTitle(c)}`],
+      coachId,
+      notes: [],
+    };
+    rooms.set(unit, row);
+    return row;
+  };
+  if (!leaveRooms) {
+    const turn = unitTurnFor(league, told);
+    const story = turn && openStory(league, { kind: 'room', teamId: league.userTeamId, unit: turn.unit as CoachRoom });
+    // A room's turn must have stood: the week it turns is too soon to tell.
+    if (turn && (!story || tellable(league, story, clock))) {
+      const note = say(UNIT_TURN, turn.fact, { key, slot: `unit:${turn.unit}`, ...wording(league, sender.from, said) });
+      said.push(note);
+      covered.push(turn.key);
+      room(turn.unit as CoachRoom, turn.coachId).notes.push(note);
+    }
+    for (const w of beliefRows(league, told, said)) {
+      covered.push(w.key);
+      room(w.unit, w.coachId).notes.push(w.note);
+    }
+    for (const c of chemistryNotes(league, told, said)) {
+      covered.push(c.key);
+      const own = rooms.get(c.unit);
+      if (own) own.notes.push(c.note);
+      else rooms.set(c.unit, { cells: [ROOM_LABEL[c.unit], sender.from], notes: [c.note] });
+    }
+  }
+  return {
+    rooms: [...rooms.values()].map((r) => ({
+      cells: r.cells,
+      note: r.notes.join(' '),
+      ...(r.coachId !== undefined ? { coachId: r.coachId } : {}),
+    })),
+    staff,
+    covered,
+    ...(call
+      ? {
+          coachNote: {
+            coachNoteKey: call.key,
+            coachNote: { coachId: call.coachId, coachName: call.coachName, text: call.text, kind: call.kind },
+          },
+        }
+      : {}),
+  };
 }

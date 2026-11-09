@@ -533,7 +533,7 @@ export interface StaffRow {
 const CRED_RANK: Record<CredibilityRead, number> = { wornThin: 0, heardBefore: 1, steady: 2, believes: 3 };
 
 /** The head coach's own rows this week: a commitment coming due, and his word when it has moved since he last said. */
-export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] {
+export function meetingStaffRows(league: League, told: Set<string>, said?: string[]): StaffRow[] {
   const teamId = league.userTeamId;
   const m = league.teams[teamId].meetings;
   const clock = stepClock(league);
@@ -547,7 +547,11 @@ export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] 
       key,
       ...(named[0] ? { playerId: named[0].id } : {}),
       label: named.length === 1 ? `${named[0].first} ${named[0].last}` : cap(SCOPE_NOUN[c.scope]),
-      note: say(DUE, { backing: c.backing, noun: SCOPE_NOUN[c.scope], named }, { key, slot: 'due' }),
+      note: say(
+        DUE,
+        { backing: c.backing, noun: SCOPE_NOUN[c.scope], named },
+        { key, slot: 'due', ...(said ? around(league, said) : {}) },
+      ),
       ...(c.backing === 'talks' && named.length === 1 ? { negotiate: named[0].id } : {}),
     });
   }
@@ -569,9 +573,10 @@ export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] 
         note: say(
           CANDID,
           { read, better: !!lastRead && CRED_RANK[read] > CRED_RANK[lastRead] },
-          { key, slot: 'candid' },
+          { key, slot: 'candid', ...(said ? around(league, said) : {}) },
         ),
       });
+      if (said) said.push(rows.at(-1)!.note);
     }
   }
   return rows.filter((r) => r.note);

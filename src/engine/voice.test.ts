@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import type { InboxMessage } from './types';
-import { MOTTOS, mottoOf, recentBodies, say, seasonSaid, stableHash, toldKeys, type Line } from './voice';
+import { deliverMail } from './inbox';
+import { playWeek } from './league';
+import {
+  around,
+  MOTTOS,
+  mottoOf,
+  recentBodies,
+  saidBefore,
+  saidKey,
+  say,
+  seasonSaid,
+  sentencesOf,
+  stableHash,
+  toldKeys,
+  type Line,
+} from './voice';
 
 describe('the line picker', () => {
   it('the most specific matching line wins', () => {
@@ -104,5 +119,56 @@ describe('seasonSaid', () => {
       'He said so.',
       'Then more.',
     ]);
+  });
+});
+
+describe('what was said, after the inbox forgets it', () => {
+  it('steps from a group that has all been said to the next one that has not', () => {
+    const bank: Line<object>[] = [
+      { reads: 2, text: () => 'Narrow one.' },
+      { reads: 2, text: () => 'Narrow two.' },
+      { reads: 1, text: () => 'Plain.' },
+    ];
+    const at = { key: 'k', slot: 's', skip: (t: string) => t.startsWith('Narrow') };
+    expect(say(bank, {}, at)).toBe('Plain.');
+    // With nothing left unsaid it still answers, from the most specific group.
+    expect(say(bank, {}, { ...at, skip: () => true })).toMatch(/^Narrow/);
+  });
+
+  it('knows a multi-sentence line by any sentence of it, quotes aside', () => {
+    expect(sentencesOf('“One. Two.”')).toEqual(['One.', 'Two.']);
+    const l = createLeague({ seed: 'said-before' });
+    l.mailTold = { [saidKey('Two.')]: l.season, [saidKey('Old.')]: l.season - 1 };
+    expect(saidBefore(l, 'One. Two.')).toBe(true);
+    expect(saidBefore(l, 'Old.')).toBe(false);
+    expect(around(l, ['A sentence here. Another.']).skip('Another.')).toBe(true);
+  });
+
+  it('remembers what was said after the inbox evicts it', () => {
+    const l = createLeague({ seed: 'said-evicted' });
+    deliverMail(l);
+    const early = l.inbox!.filter((m) => m.body && m.from !== 'x').slice(0, 6);
+    expect(early.length).toBeGreaterThan(0);
+    const filler = Array.from({ length: 300 }, (_, i) => ({
+      ...l.inbox![0],
+      id: `filler:${i}`,
+      from: 'Filler',
+      body: `Filler ${i}.`,
+      sections: undefined,
+      covered: undefined,
+      week: 18,
+      phase: 'regular' as const,
+    }));
+    l.inbox!.push(...filler);
+    playWeek(l);
+    deliverMail(l);
+    const gone = early.filter((m) => !l.inbox!.some((x) => x.id === m.id));
+    expect(gone.length).toBeGreaterThan(0);
+    const m = gone[0];
+    const sentence = sentencesOf(m.body)[0];
+    expect(seasonSaid(l, m.from)).not.toContain(sentence);
+    expect(saidBefore(l, sentence)).toBe(true);
+    const bank = [{ text: () => sentence }, { text: () => 'Something else.' }];
+    expect(say(bank, {}, { key: 'k', slot: 's', ...around(l, seasonSaid(l, m.from)) })).toBe('Something else.');
   });
 });

@@ -8,7 +8,7 @@ import { promiseMail, promisesNeedYou } from './promiseMail';
 import { director, doctor, headCoach, type Draft } from './senders';
 import { waiverLetterNeedsYou, waiverMail } from './waiverMail';
 import { contractLetterNeedsYou, contractMail } from './contractMail';
-import { recentBodies, say, toldKeys, type Line } from './voice';
+import { lettersSentences, recentBodies, saidKey, say, toldKeys, type Line } from './voice';
 import { settleYear } from './development';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
@@ -3108,6 +3108,8 @@ export function deliverMail(league: League): void {
   // What digests told stays on file after their letters are evicted (this league year and the last).
   const told = (league.mailTold ??= {});
   for (const m of due) for (const k of m.covered ?? []) told[k] = m.season;
+  // And every sentence a letter said, so a full inbox that evicts the letter does not let its sentence come round again.
+  for (const m of due) for (const sentence of lettersSentences(m)) told[saidKey(sentence)] = m.season;
   for (const [k, s] of Object.entries(told)) if (s < league.season - 1) delete told[k];
   // A newly reconstructed historical story may predate mail already filed. Evict chronologically.
   inbox.sort((a, b) => order(a) - order(b));

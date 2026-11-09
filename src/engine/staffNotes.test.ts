@@ -6,7 +6,8 @@ import { deliverMail, mailSubject } from './inbox';
 import { moraleClock } from './morale';
 import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
-import { unitTurnFor } from './staffNotes';
+import { staffRows, unitTurnFor } from './staffNotes';
+import { storiesStep } from './storiesStep';
 import { toldKeys } from './voice';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ATTRIBUTES, type League } from './types';
@@ -269,5 +270,69 @@ describe('staff notes: chemistry (L3)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].cells[0]).toBe(ROOM_LABEL.OL);
     expect(rows[0].note).not.toMatch(/\d|chemistry/i);
+  });
+});
+
+describe('staff rows for the weekly letter', () => {
+  const men = (l: League, unit: Unit) =>
+    activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === unit && p.morale);
+  const splitUnit = (l: League, unit: Unit) =>
+    men(l, unit).forEach((p, i) => {
+      p.morale!.level = i % 2 ? 2 : -2;
+      delete p.morale!.jolts;
+    });
+  const inSeason = () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    l.week = 6;
+    for (const u of UNITS) {
+      if (u === 'ST') continue;
+      men(l, u).forEach((p) => {
+        p.morale!.level = 0;
+        delete p.morale!.jolts;
+      });
+      l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 5}:${l.userTeamId}:${u}:Settled`]: 1 };
+    }
+    return l;
+  };
+
+  it('one row a room: chemistry rides in the position coach’s note', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:Out of sync`]: 1 };
+    const { rooms, covered } = staffRows(l, toldKeys(l));
+    const chemNotes = covered.filter((k) => k.startsWith('chem:')).length;
+    const wr = rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR);
+    expect(wr).toHaveLength(1);
+    expect(wr[0].coachId).toBeDefined();
+    expect(wr[0].note).toBeTruthy();
+    // The room was told Out of sync before, so its chemistry now is news: a clause in the same note.
+    expect(chemNotes).toBeGreaterThan(0);
+    expect(covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
+    expect(rooms.map((r) => r.note).join(' ')).not.toMatch(/shrug|\d/i);
+  });
+
+  it('a room is not told the week it turns', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    // The league's step has run to this week's clock (the template's is from week one).
+    l.moraleAt = moraleClock(l);
+    storiesStep(l);
+    const story = l.stories!.open.find((s) => s.kind === 'room' && s.unit === 'WR')!;
+    expect(story.beats.at(-1)!.kind).toBe('turned');
+    expect(staffRows(l, toldKeys(l)).rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR)).toHaveLength(0);
+    // A step later it still stands, and the coach tells it.
+    for (const b of story.beats) b.at -= 1;
+    expect(staffRows(l, toldKeys(l)).rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR)).toHaveLength(1);
+  });
+
+  it('holds the rooms back on a report’s day, and carries the depth-chart call with its key', () => {
+    const { l, t } = recommending();
+    const a = t.coachAdvice!.at(-1)!;
+    splitUnit(l, 'WR');
+    const held = staffRows(l, toldKeys(l), true);
+    expect(held.rooms).toHaveLength(0);
+    expect(held.staff.some((r) => r.playerId === a.playerId)).toBe(true);
+    expect(held.coachNote?.coachNoteKey).toBe(adviceKey(a, 'offer'));
   });
 });
