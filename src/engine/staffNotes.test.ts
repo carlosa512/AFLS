@@ -10,12 +10,18 @@ import { staffRows, unitTurnFor } from './staffNotes';
 import { storiesStep } from './storiesStep';
 import { toldKeys } from './voice';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
-import { ATTRIBUTES, type League } from './types';
+import { ATTRIBUTES, type InboxMessage, type League } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
 const template = createLeague({ seed: 'coach-story-tests' });
 const copy = <T>(v: T): T => structuredClone(v);
-const notes = (l: League) => l.inbox!.filter((m) => m.id.startsWith('staffNotes:'));
+/** The staff's notes ride in the head coach's weekly letter now. */
+const notes = (l: League) => l.inbox!.filter((m) => m.id.startsWith('coach:'));
+const rowsOf = (m: InboxMessage) => (m.sections ?? []).flatMap((x) => x.rows);
+const nextStep = (l: League) => {
+  l.week++;
+  if (l.moraleAt !== undefined) l.moraleAt++;
+};
 const matchups = (l: League) => l.inbox!.filter((m) => m.id.startsWith('matchup:'));
 
 /** Our WR coach prefers a hard-working young receiver over a veteran a little ahead of him: a recommendation. */
@@ -36,7 +42,7 @@ function recommending() {
   return { l, t };
 }
 
-describe('the staff-notes letter', () => {
+describe('the staff notes in the weekly letter', () => {
   it("carries the week's depth-chart call, once, and the staff remember they said it", () => {
     const { l, t } = recommending();
     const a = t.coachAdvice!.at(-1)!;
@@ -44,12 +50,17 @@ describe('the staff-notes letter', () => {
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
     const [m] = notes(l);
-    expect(mailSubject(m)).toEqual({ kind: 'staffNotes', season: l.season, week: l.week });
+    expect(mailSubject(m)).toMatchObject({ kind: 'coachWeek', season: l.season });
     expect(m.coachNoteKey).toBe(adviceKey(a, 'offer'));
     expect(a.noted?.offer).toBe(l.week);
-    const rows = m.sections![0].rows;
-    expect(rows.some((r) => r.playerId === a.playerId)).toBe(true);
-    expect(m.body + rows.map((r) => r.cells.join(' ')).join(' ')).not.toMatch(BANNED);
+    const staffRoom = m.sections!.find((x) => x.title === 'From the staff room')!;
+    expect(staffRoom.rows.some((r) => r.playerId === a.playerId)).toBe(true);
+    expect(
+      m.body +
+        rowsOf(m)
+          .map((r) => r.cells.join(' '))
+          .join(' '),
+    ).not.toMatch(BANNED);
   });
 
   it('leaves the opposition report to the opponent', () => {
@@ -92,8 +103,8 @@ describe('the staff-notes letter', () => {
     deliverMail(l);
     const [m] = notes(l);
     expect(m).toBeDefined();
-    expect(m.sections![0].rows[0].note).toMatch(/peeks into the backfield|Peeks in the Backfield/i);
-    expect(m.sections![0].rows[0].playerId).toBe(p.id);
+    const row = rowsOf(m).find((r) => r.playerId === p.id)!;
+    expect(row.note).toMatch(/watches the backfield|Peeks in the Backfield/i);
     for (const r of l.inbox!.filter((x) => x.id.startsWith('recap:')))
       expect(r.body).not.toMatch(/focused coaching attention/);
   });
@@ -116,10 +127,14 @@ describe('the staff-notes letter', () => {
     };
     note(l.week);
     deliverMail(l);
-    l.week++;
+    nextStep(l);
     note(l.week);
     deliverMail(l);
-    expect(notes(l)).toHaveLength(1);
+    expect(
+      notes(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.playerId === p.id && /backfield/i.test(r.note ?? '')),
+    ).toHaveLength(1);
   });
 });
 
@@ -180,7 +195,7 @@ describe('staff notes: the position coach on his unit', () => {
     splitUnit(l, 'WR');
     deliverMail(l);
     const m = notes(l).at(-1)!;
-    const row = m.sections![0].rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    const row = rowsOf(m).find((r) => r.cells[0] === ROOM_LABEL.WR)!;
     expect(row.note).toMatch(/\b(my|I|I'm)\b/i);
     expect(row.note).not.toMatch(BANNED);
     expect(m.covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
@@ -228,7 +243,7 @@ describe('staff notes: the position coach on his unit', () => {
     deliverMail(l);
     const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
     expect(report.sections?.find((s) => s.title === 'The room')).toBeUndefined();
-    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(true);
+    expect(notes(l).some((m) => rowsOf(m).some((r) => r.cells[0] === ROOM_LABEL.WR))).toBe(true);
   });
 
   it("leaves a turn to the season's first report when it goes out the same day", () => {
@@ -240,7 +255,7 @@ describe('staff notes: the position coach on his unit', () => {
     expect(report.sections!.find((s) => s.title === 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(
       true,
     );
-    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(false);
+    expect(notes(l).some((m) => rowsOf(m).some((r) => r.cells[0] === ROOM_LABEL.WR))).toBe(false);
   });
 
   it('stays quiet when the room has no position coach', () => {
@@ -264,8 +279,7 @@ describe('staff notes: chemistry (L3)', () => {
     l.week = 7;
     deliverMail(l);
     const rows = notes(l)
-      .flatMap((m) => m.sections ?? [])
-      .flatMap((s) => s.rows)
+      .flatMap(rowsOf)
       .filter((r) => /out of sync/i.test(r.note ?? ''));
     expect(rows).toHaveLength(1);
     expect(rows[0].cells[0]).toBe(ROOM_LABEL.OL);

@@ -16,36 +16,39 @@ function asking(l: League, teamId: number, cause: TalkCause = 'snaps', index = 0
   p.morale = { level: -4, talk: { club: teamId, ask: { cause, at: l.moraleAt! } } };
   return p;
 }
-const letters = (l: League) => (l.inbox ?? []).filter((m) => m.id.startsWith('talk:'));
+const letters = (l: League) => (l.inbox ?? []).filter((m) => m.id.startsWith('coach:'));
+/** The rows of the head coach's weekly letters that carry a man's ask. */
+const askRows = (l: League) =>
+  letters(l).flatMap((m) => (m.sections ?? []).flatMap((s) => s.rows.filter((r) => r.talk)));
+const rowOf = (l: League, id: number) => askRows(l).find((r) => r.talk!.playerId === id)!;
 
-describe('your players’ letters', () => {
-  it('files one letter per ask on your roster, and none for another club’s', () => {
+describe('your players’ asks, in the head coach’s weekly letter', () => {
+  it('files a row for each ask on your roster, and none for another club’s', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const p = asking(l, l.userTeamId);
-    asking(l, (l.userTeamId + 1) % 32);
+    const other = asking(l, (l.userTeamId + 1) % 32);
     deliverMail(l);
     deliverMail(l);
-    const mine = letters(l);
-    expect(mine).toHaveLength(1);
-    expect(mine[0].id).toBe(`talk:${l.season}:${l.moraleAt}:${p.id}`);
+    expect(letters(l)).toHaveLength(1);
+    const [m] = letters(l);
+    expect(askRows(l).map((r) => r.talk!.playerId)).toEqual([p.id]);
+    expect(rowOf(l, other.id)).toBeUndefined();
     // The head coach brings it to you, in the player's own words.
-    expect(mine[0].from).toBe(headCoach(l).from);
-    expect(mine[0].body).toContain(p.lastName);
-    expect(mine[0].body).toMatch(/“.+”/);
-    expect(mailSubject(mine[0])).toEqual({ kind: 'talk', season: l.season, clock: l.moraleAt, playerId: p.id });
+    expect(m.from).toBe(headCoach(l).from);
+    expect(rowOf(l, p.id).cells[0]).toContain(p.lastName);
+    expect(rowOf(l, p.id).note).toMatch(/^“.+”$/);
+    expect(mailSubject(m)).toEqual({ kind: 'coachWeek', season: l.season, clock: l.moraleAt });
   });
 
-  it('groups the players who speak up the same step into one message, a row each', () => {
+  it('puts the players who speak up the same step in one letter, a row each', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const a = asking(l, l.userTeamId, 'deal', 0);
     const b = asking(l, l.userTeamId, 'snaps', 1);
     deliverMail(l);
-    const mine = letters(l);
-    expect(mine).toHaveLength(1);
-    const [m] = mine;
-    expect(m.id).toBe(`talk:${l.season}:${l.moraleAt}`);
-    expect(m.sections![0].rows.map((r) => r.talk?.playerId)).toEqual([a.id, b.id]);
-    for (const r of m.sections![0].rows) expect(r.note!.length).toBeGreaterThan(20);
+    expect(letters(l)).toHaveLength(1);
+    const [m] = letters(l);
+    expect(askRows(l).map((r) => r.talk?.playerId)).toEqual([a.id, b.id]);
+    for (const r of askRows(l)) expect(r.note!.length).toBeGreaterThan(20);
     expect(m.body).not.toMatch(/\d/);
     expect(m.from).toBe(headCoach(l).from);
     expect(needsYou(l, m)).toBe(true);
@@ -63,20 +66,21 @@ describe('your players’ letters', () => {
     const p = asking(l, l.userTeamId, 'deal');
     deliverMail(l);
     const [m] = letters(l);
+    const row = rowOf(l, p.id);
     expect(needsYou(l, m)).toBe(true);
-    expect(talkCard(l, mailSubject(m) as never)).toMatchObject({ state: 'open', canPromise: true, cause: 'deal' });
+    expect(talkCard(l, row.talk!)).toMatchObject({ state: 'open', canPromise: true, cause: 'deal' });
     answerTalk(l, p.id, 'reassure');
     expect(needsYou(l, m)).toBe(false);
-    const card = talkCard(l, mailSubject(m) as never);
+    const card = talkCard(l, row.talk!);
     expect(card.state).toBe('answered');
     expect(card.line!.length).toBeGreaterThan(10);
   });
 
   it('offers no promise for the losing', () => {
     const l = createLeague({ seed: 'talk-mail' });
-    asking(l, l.userTeamId, 'losing');
+    const p = asking(l, l.userTeamId, 'losing');
     deliverMail(l);
-    expect(talkCard(l, mailSubject(letters(l)[0]) as never).canPromise).toBe(false);
+    expect(talkCard(l, rowOf(l, p.id).talk!).canPromise).toBe(false);
   });
 
   it('stops needing a GM who left the club, and files nothing for his new club’s old talks', () => {
@@ -93,51 +97,53 @@ describe('your players’ letters', () => {
     l.userTeamId = next;
     expect(needsYou(l, m)).toBe(false);
     deliverMail(l);
-    expect(letters(l).filter((x) => x.id.endsWith(`:${theirs.id}`))).toHaveLength(0);
+    expect(askRows(l).filter((r) => r.talk!.playerId === theirs.id)).toHaveLength(0);
   });
 
-  it('closes a letter while you are between jobs: its buttons would answer nothing', () => {
+  it('closes a row while you are between jobs: its buttons would answer nothing', () => {
     const l = createLeague({ seed: 'talk-mail' });
-    asking(l, l.userTeamId);
+    const p = asking(l, l.userTeamId);
     deliverMail(l);
     const [m] = letters(l);
-    const pid = Number(m.id.split(':')[3]);
-    const s = { clock: l.moraleAt!, playerId: pid };
+    const s = rowOf(l, p.id).talk!;
     expect(talkCard(l, s).state).toBe('open');
     l.gms[l.userGmId].teamId = null;
     expect(talkCard(l, s).state).toBe('closed');
     expect(needsYou(l, m)).toBe(false);
   });
 
-  it('varies what they say: ten players asking for a deal write at least six different letters', () => {
+  it('varies what they say: ten players asking for a deal write at least six different rows', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const askers = activeRoster(l, l.userTeamId).slice(0, 10);
     askers.forEach(
       (p, i) => (p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! - i } } }),
     );
     deliverMail(l);
-    const bodies = letters(l).map((m) => m.body);
-    expect(bodies).toHaveLength(10);
-    expect(new Set(bodies).size).toBeGreaterThanOrEqual(6);
-    // Two letters filed together never say the same thing.
-    for (let i = 1; i < bodies.length; i++) expect(bodies[i]).not.toBe(bodies[i - 1]);
+    const notes = askRows(l).map((r) => r.note);
+    expect(notes).toHaveLength(10);
+    expect(new Set(notes).size).toBeGreaterThanOrEqual(6);
+    // Two rows of one letter never say the same thing.
+    for (let i = 1; i < notes.length; i++) expect(notes[i]).not.toBe(notes[i - 1]);
   });
 
-  it('never has a man repeat his last letter', () => {
+  it('never has a man repeat his last quote', () => {
     const l = createLeague({ seed: 'talk-mail' });
     const p = asking(l, l.userTeamId, 'deal');
     deliverMail(l);
-    // Seven teammates' letters in between: more than the last few any letter looks back on.
+    const first = rowOf(l, p.id).note;
+    // Seven teammates' asks in between: more than the last few any letter looks back on.
     for (let i = 1; i <= 7; i++) {
       const q = asking(l, l.userTeamId, 'deal', i);
       q.morale!.talk!.ask!.at = l.moraleAt! + i;
+      l.moraleAt = l.moraleAt! + 1;
       deliverMail(l);
     }
-    p.morale!.talk!.ask = { cause: 'deal', at: l.moraleAt! + 9 };
+    l.moraleAt = l.moraleAt! + 2;
+    p.morale!.talk!.ask = { cause: 'deal', at: l.moraleAt };
     deliverMail(l);
-    const mine = letters(l).filter((m) => m.id.endsWith(`:${p.id}`));
+    const mine = askRows(l).filter((r) => r.talk!.playerId === p.id && /^“/.test(r.note!));
     expect(mine).toHaveLength(2);
-    expect(mine[1].body).not.toBe(mine[0].body);
+    expect(mine[1].note).not.toBe(first);
   });
 
   it('says nothing it must not, in any line of his words', () => {

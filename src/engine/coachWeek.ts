@@ -281,6 +281,8 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         ...(p ? { playerId: p.id } : {}),
         cells: [p ? nameOf(p) : (noun ?? 'The club'), 'The clock'],
         note,
+        // A deal coming due is the moment to sit down with him.
+        ...(s.kind === 'deal' && p ? { negotiate: { playerId: p.id } } : {}),
       },
       born: clock,
       head: { kind: s.kind, beat: start.kind, ...(man ? { man } : {}), ...(noun ? { noun } : {}) },

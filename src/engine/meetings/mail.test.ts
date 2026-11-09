@@ -7,7 +7,8 @@ import { beginOffseason } from '../offseason';
 import { simToEndOfSeason } from '../league';
 import { acceptGmOffer, beginGmSearch } from '../leadership';
 import { endGmAppointment } from '../gm';
-import type { League, MeetingRecord } from '../types';
+import type { InboxMessage, League, MeetingRecord } from '../types';
+import { beat } from '../stories';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
 import { meetingCard, meetingNeedsYou, requestRow, resultRows, yearParagraphFor } from './mail';
@@ -26,59 +27,71 @@ const base = (() => {
 })();
 const fresh = (): League => JSON.parse(base);
 const ids = (l: League, prefix: string) => (l.inbox ?? []).filter((m) => m.id.startsWith(prefix));
+const coach = (l: League) => ids(l, 'coach:');
+const rowsOf = (m: InboxMessage) => (m.sections ?? []).flatMap((x) => x.rows);
 const hc = (l: League) => teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
 
 describe('meetings: the letters', () => {
-  it('a suggestion waiting on you files one letter, once', () => {
+  it('a suggestion waiting on you is a row of the weekly letter, once', () => {
     const l = fresh();
+    l.moraleAt = stepClock(l);
     expect(requestMeeting(l, 'DL')).not.toBeNull();
     deliverMail(l);
     deliverMail(l);
-    const letters = ids(l, 'meeting:');
+    const letters = coach(l);
     expect(letters).toHaveLength(1);
+    expect(ids(l, 'meeting:')).toHaveLength(0);
     expect(letters[0].from).toMatch(/Head coach/);
     expect(letters[0].body).not.toMatch(/\d/);
+    const want = letters[0].sections!.find((x) => x.title === 'What I want to do')!;
+    expect(want.rows).toHaveLength(1);
+    expect(want.rows[0].meeting).toMatchObject({ scope: 'DL' });
+    expect(want.rows[0].note).not.toMatch(/\d/);
   });
 
-  it('answering files one result letter that names the window', () => {
+  it('answering tells the result a step on, in rows that name the window', () => {
     const l = fresh();
+    l.moraleAt = stepClock(l);
     const s = requestMeeting(l, 'DL')!;
     deliverMail(l);
     const backing = s.backings.find((b) => b !== 'words') ?? 'words';
     answerMeeting(l, { approach: 'straight', backing, timing: 'monday' });
     deliverMail(l);
+    expect(ids(l, 'meeting-result:')).toHaveLength(0);
+    l.moraleAt++;
     deliverMail(l);
-    const results = ids(l, 'meeting-result:');
-    expect(results).toHaveLength(1);
-    expect(results[0].body).toMatch(/What I told them: “/);
-    if (backing !== 'words') expect(results[0].body).toMatch(/within|before/);
-    else expect(results[0].body).toMatch(/doesn't change what's bothering them/);
+    deliverMail(l);
+    expect(coach(l)).toHaveLength(2);
+    const rows = rowsOf(coach(l)[1]).filter((r) => r.cells[0] === 'The D-line');
+    const told = rows.find((r) => r.cells[1] === 'What I told them')!;
+    const owed = rows.find((r) => r.cells[1] === 'Where that leaves us')!;
+    expect(told.note).toMatch(/“/);
+    if (backing !== 'words') expect(owed.note).toMatch(/within|before|by the/);
+    else expect(owed.note).toMatch(/doesn't change what's bothering them/);
+    expect(ids(l, 'meeting-result:')).toHaveLength(0);
   });
 
-  it("a commitment's last week adds a due row to the staff notes, once", () => {
+  it("a commitment's last week adds a due row to the weekly letter, once", () => {
     const l = fresh();
+    l.moraleAt = stepClock(l);
     const team = l.teams[l.userTeamId];
     const wr = l.players[team.depthChart.WR[0]];
-    team.meetings!.open.push({
-      backing: 'talks',
-      scope: 'WR',
-      opened: stepClock(l) - 2,
-      closes: stepClock(l) + 2,
-      named: [wr.id],
-      boughtIn: [],
-      by: 'coach',
+    // The story a held meeting's commitment opens: a deal, due in two steps.
+    beat(l, { kind: 'deal', teamId: team.id, playerId: wr.id }, 'commitment', stepClock(l) - 2, {
+      due: stepClock(l) + 2,
     });
-    playWeek(l);
-    deliverMail(l);
-    playWeek(l);
-    deliverMail(l);
-    const due = (l.inbox ?? [])
-      .flatMap((m) => m.sections ?? [])
-      .flatMap((s) => s.rows)
-      .filter((r) => /comes due next week/.test(r.note ?? ''));
-    expect(due).toHaveLength(1);
-    expect(due[0].note).toMatch(new RegExp(`${wr.lastName}'s agent`));
-    expect(due[0].negotiate?.playerId).toBe(wr.id);
+    const due = () =>
+      coach(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.cells[1] === 'The clock' && r.playerId === wr.id);
+    for (let i = 0; i < 4; i++) {
+      deliverMail(l);
+      l.moraleAt!++;
+    }
+    // Halfway, then due: each told once, and the man has his Negotiate button.
+    expect(due()).toHaveLength(2);
+    expect(due().at(-1)!.note).toMatch(new RegExp(wr.lastName));
+    expect(due().at(-1)!.negotiate?.playerId).toBe(wr.id);
   });
 
   it("a change in the coach's word adds his candid line once", () => {
@@ -209,9 +222,10 @@ describe('meetings: whose promise the year tells', () => {
 });
 
 describe('meetings: letters from a new club', () => {
-  it('files no letter for a meeting held before you took the job, and does for one after', () => {
+  it('tells no result for a meeting held before you took the job, and tells one held after', () => {
     const l = fresh();
     l.phase = 'resign';
+    l.moraleAt = stepClock(l);
     const held = (clock: number): MeetingRecord => ({
       clock,
       scope: 'team',
@@ -228,12 +242,20 @@ describe('meetings: letters from a new club', () => {
     beginGmSearch(l);
     l.leadership.search!.offers = [{ teamId: 1, through: l.season + 2, expiresRound: 2 }];
     acceptGmOffer(l, 1);
+    l.moraleAt = stepClock(l) + 1;
     deliverMail(l);
-    expect(ids(l, 'meeting-result:')).toHaveLength(0);
-    // The next one is yours.
-    l.teams[1].meetings!.log.push(held(stepClock(l) + 1));
+    const told = () =>
+      coach(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.cells[1] === 'What I told them');
+    expect(told()).toHaveLength(0);
+    // The next one is yours, and is told a step on.
+    l.teams[1].meetings!.log.push(held(stepClock(l)));
     deliverMail(l);
-    expect(ids(l, 'meeting-result:')).toHaveLength(1);
+    expect(told()).toHaveLength(0);
+    l.moraleAt!++;
+    deliverMail(l);
+    expect(told()).toHaveLength(1);
   });
 });
 

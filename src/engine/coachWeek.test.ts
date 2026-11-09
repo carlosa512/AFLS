@@ -289,4 +289,32 @@ describe('the head coach’s weekly letter', () => {
     const subjects = letters(l).map((m) => m.subject);
     expect(new Set(subjects).size).toBe(subjects.length);
   });
+
+  it('still reads, and still asks, the letters old saves already hold', () => {
+    const l = inSeason();
+    const p = asking(l, 'deal');
+    const old = (id: string): InboxMessage => ({
+      id,
+      season: l.season,
+      phase: 'regular',
+      week: l.week,
+      from: 'x',
+      subject: 's',
+      body: 'b',
+      category: 'staff',
+      read: false,
+      actions: [{ kind: 'player', playerId: p.id }],
+    });
+    const talk = old(`talk:${l.season}:${l.moraleAt}:${p.id}`);
+    expect(mailSubject(talk)).toEqual({ kind: 'talk', season: l.season, clock: l.moraleAt, playerId: p.id });
+    expect(needsYou(l, talk)).toBe(true);
+    answerTalk(l, p.id, 'firm');
+    expect(needsYou(l, talk)).toBe(false);
+    expect(mailSubject(old(`staffNotes:${l.season}:4`))).toEqual({ kind: 'staffNotes', season: l.season, week: 4 });
+    expect(mailSubject(old(`meeting:${l.season}:${l.moraleAt}:DL`))).toMatchObject({ kind: 'meeting', scope: 'DL' });
+    expect(mailSubject(old(`meeting-result:${l.season}:${l.moraleAt}:DL`))).toMatchObject({
+      kind: 'meeting',
+      result: true,
+    });
+  });
 });
