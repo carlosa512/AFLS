@@ -50,6 +50,7 @@ import {
 import type { Moment } from './market';
 import { lowerPrice, physicals, worstResult } from './physicals';
 import { talkRefusal, talksOf } from './talks';
+import { standingStep, standingWith } from '../gmMemory';
 import { marketValue, POINTS_PER_K, salaryWeight } from './value';
 
 type Listing = { team: Team; entry: BlockEntry };
@@ -278,12 +279,17 @@ export function file(
     week: league.week,
     moment: market.moment,
     status: 'pending',
-    // Patience runs one to three counters, by how stubborn he is.
-    patience: 1 + Math.round(2 * team.gm.stubbornness),
+    patience: patienceFor(league, team),
     worth,
   };
   market.offers.push(offer);
   return offer;
+}
+
+/** Counters he'll sit through: one to three by how stubborn he is, a round more for a friend and one less for a sour GM, never under one. */
+export function patienceFor(league: League, team: Team): number {
+  const step = standingStep(standingWith(league, aiGm(league, team)));
+  return Math.max(1, 1 + Math.round(2 * team.gm.stubbornness) + step);
 }
 
 /** A team at "asking around" about one of your players: is he available? */
@@ -325,13 +331,18 @@ export function offersMoment(
     if (x.level >= 3 || (listed && x.level >= 2))
       calls.push({
         team,
-        score: x.level + (listed ? 1 : 0),
+        score: x.level + (listed ? 1 : 0) + standingWith(league, aiGm(league, team)),
         sure: listed,
         make: () => file(ctx, market, team, 'bid', bidFor(ctx, team, p)),
       });
     // Most teams that are only asking around never call: an enquiry now and then, not every week.
     else if (x.level === 2)
-      calls.push({ team, score: 1, rate: OFFER_RATE / 2, make: () => enquiry(ctx, market, team, p) });
+      calls.push({
+        team,
+        score: 1 + standingWith(league, aiGm(league, team)),
+        rate: OFFER_RATE / 2,
+        make: () => enquiry(ctx, market, team, p),
+      });
   }
   // Sellers pitch only what they're keen to move, and only where you have a real need.
   for (const w of wanted(
@@ -343,7 +354,9 @@ export function offersMoment(
     .slice(0, 2)) {
     calls.push({
       team: w.team,
-      score: 1 + w.score,
+      score: 1 + w.score + standingWith(league, aiGm(league, w.team)),
+      // A sour GM rings less: the draw is made either way, so a neutral league draws the same.
+      rate: standingStep(standingWith(league, aiGm(league, w.team))) === -1 ? OFFER_RATE / 2 : undefined,
       make: () => file(ctx, market, w.team, 'pitch', flip(askFor(ctx, w.team, w.player))),
     });
   }
@@ -353,7 +366,7 @@ export function offersMoment(
       if (entry)
         calls.push({
           team,
-          score: 1,
+          score: 1 + standingWith(league, aiGm(league, team)),
           make: () => file(ctx, market, team, 'dump', dumpToYou(ctx, team, league.players[entry.playerId])),
         });
     }
@@ -753,7 +766,7 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   if (!offer || offer.status !== 'pending')
     return { result: 'refused', message: 'That offer is no longer on the table.' };
   const ai = league.teams[offer.teamId];
-  const talk = talkRefusal(market, ai.id);
+  const talk = talkRefusal(league, ai.id);
   if (talk) return { result: 'refused', message: talk };
   talksOf(market, ai.id).asks++;
   const verdict = evaluateTrade(league, proposal);
@@ -817,7 +830,7 @@ export function proposeTrade(league: League, proposal: TradeProposal): { accepte
   const market = (league.market ??= emptyMarket());
   const ai = league.teams[proposal.sides[1].teamId];
   const verdict = evaluateTrade(league, proposal);
-  const talk = talkRefusal(market, ai.id);
+  const talk = talkRefusal(league, ai.id);
   if (talk) return { accepted: false, message: talk };
   // A league rule (cap, roster, window) isn't an offer he heard: it costs no patience.
   if (verdict.problem && !verdict.policy) return { accepted: false, message: verdict.problem };

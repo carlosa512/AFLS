@@ -50,7 +50,7 @@ export {
   type AcceptResult,
   type CounterResult,
 } from './offers';
-export { ASKS, peekTalks, talkRefusal } from './talks';
+export { ASKS, asksFor, peekTalks, talkRefusal } from './talks';
 export { CONCERNS, examine, FAIL, findings, physicals, worstResult } from './physicals';
 export {
   isBuyer,

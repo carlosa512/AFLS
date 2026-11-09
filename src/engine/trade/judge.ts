@@ -383,7 +383,7 @@ export function evaluateTrade(
     rosterCuts: opts.rosterCuts,
   });
   const shortfall = Math.max(0, j.need - j.get);
-  const blocked = j.problem ?? j.refusal ?? (opts.margin === undefined ? talkRefusal(league.market, ai.id) : null);
+  const blocked = j.problem ?? j.refusal ?? (opts.margin === undefined ? talkRefusal(league, ai.id) : null);
   if (blocked)
     return {
       accepts: false,

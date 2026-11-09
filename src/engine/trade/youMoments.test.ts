@@ -3,6 +3,9 @@ import { createLeague } from '../generate';
 import { aiGm } from '../gmHabits';
 import { appointGm, endGmAppointment } from '../gm';
 import { standingWith } from '../gmMemory';
+import { asksFor, talkRefusal } from './talks';
+import { offersMoment, patienceFor } from './offers';
+import { tradeContext } from './context';
 import type { League, TradeOffer } from '../types';
 import { acceptOffer, counterOffer, declineOffer, proposeTrade } from '.';
 import { expireOffers } from './offers';
@@ -144,5 +147,64 @@ describe('whose record it goes on', () => {
     // Your GM changing club doesn't touch it either.
     l.gms[l.userGmId].teamId = 5;
     expect(standingWith(l, gm)).toBe(before);
+  });
+});
+
+describe('his patience and who calls you first', () => {
+  const plant = (teamId: number, kind: 'warm' | 'sour' | 'none', lg: League = l) => {
+    const gm = aiGm(lg, lg.teams[teamId]);
+    if (!gm) return gm;
+    const at = { season: lg.season, phase: lg.phase };
+    gm.withYou =
+      kind === 'warm'
+        ? [0, 1].map(() => ({ kind: 'trade' as const, verdict: 'heWon' as const, ...at }))
+        : kind === 'sour'
+          ? [0, 1, 2].map(() => ({ kind: 'finalNo' as const, ...at }))
+          : [];
+    return gm;
+  };
+
+  it('hears three to five proposals by standing, four at neutral', () => {
+    plant(2, 'sour');
+    plant(4, 'warm');
+    expect([2, 3, 4].map((t) => asksFor(l, t)).concat(asksFor(l, 4))).toEqual([3, 4, 5, 5]);
+    expect(asksFor(l, 3)).toBe(4);
+  });
+
+  it('counters run a round longer for a friendly GM, never below today’s minimum', () => {
+    plant(2, 'sour');
+    plant(4, 'warm');
+    l.teams[2].gm.stubbornness = 0;
+    l.teams[3].gm.stubbornness = 0;
+    l.teams[4].gm.stubbornness = 0;
+    expect([patienceFor(l, l.teams[3]), patienceFor(l, l.teams[4]), patienceFor(l, l.teams[2])]).toEqual([1, 2, 1]);
+    l.teams[2].gm.stubbornness = 1;
+    l.teams[3].gm.stubbornness = 1;
+    expect([patienceFor(l, l.teams[3]), patienceFor(l, l.teams[2])]).toEqual([3, 2]);
+  });
+
+  it('a sour GM is still taking your call', () => {
+    plant(2, 'sour');
+    expect(talkRefusal(l, 2)).toBeNull();
+  });
+
+  const deadline = (lg: League) => {
+    const market = (lg.market ??= emptyMarket());
+    return offersMoment(tradeContext(lg), market, 'deadline', []);
+  };
+
+  it('offers to you keep their count whoever is warm or sour', () => {
+    const a = JSON.parse(JSON.stringify(l)) as League;
+    const b = JSON.parse(JSON.stringify(l)) as League;
+    plant(2, 'warm', b);
+    plant(5, 'sour', b);
+    expect(deadline(b)).toHaveLength(deadline(a).length);
+  });
+
+  it('a neutral league calls exactly as before', () => {
+    const a = JSON.parse(JSON.stringify(l)) as League;
+    const b = JSON.parse(JSON.stringify(l)) as League;
+    for (const t of b.teams) plant(t.id, 'none', b);
+    expect(deadline(b)).toEqual(deadline(a));
   });
 });
