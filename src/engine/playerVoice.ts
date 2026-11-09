@@ -282,7 +282,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.broken,
     reads: 2,
-    text: () => "You've broken your word to me once already.",
+    text: () => "You've broken your word to me before.",
   },
   {
     when: (f) => f.man.broken,
@@ -290,7 +290,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: () => 'I took you at your word before, and it did not hold.',
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise',
+    when: (f) => f.man.lastAnswer?.reply === 'promise' && !f.man.kept && !f.man.broken,
     reads: 2,
     text: (f) => `You made me a promise ${f.man.lastAnswer!.when}, and I'm still waiting on it.`,
   },
@@ -312,7 +312,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.lastAnswer?.reply === 'firm',
     reads: 2,
-    text: (f) => `You were firm with me ${f.man.lastAnswer!.when}, and I took it. Nothing has changed.`,
+    text: (f) => `You were firm with me ${f.man.lastAnswer!.when}, and I took it. I still had to come back.`,
   },
   {
     when: (f) => f.man.lastAnswer?.reply === 'firm',
@@ -340,7 +340,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: () => "This isn't the first time I've had to bring this up.",
   },
   {
-    when: (f) => f.man.asks === 'second',
+    when: (f) => f.man.asks === 'second' && (!f.man.lastAnswer?.cause || f.man.lastAnswer.cause === f.cause),
     reads: 1,
     text: () => "I'm back, because this is the second time I've had to say it.",
   },
@@ -363,11 +363,15 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     reads: 1,
     text: () => "I'm not getting on the field enough. I'd like a straight answer on why.",
   },
-  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I've put in the work and I'm still on the sideline." },
+  {
+    when: (f) => f.cause === 'snaps' && f.man.role !== 'starter',
+    reads: 1,
+    text: () => "I've put in the work and I'm still on the sideline.",
+  },
   { when: (f) => f.cause === 'snaps', reads: 1, text: () => 'I need to know where I stand with the coaches.' },
   { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I don't feel like I'm part of the plan on Sundays." },
   {
-    when: (f) => f.cause === 'snaps' && f.man.loud,
+    when: (f) => f.cause === 'snaps' && f.man.loud && f.man.role !== 'starter',
     reads: 2,
     text: () => "I didn't come here to hold a clipboard. Put me on the field.",
   },
@@ -443,7 +447,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     text: () => "I'm not asking for the moon. I want my deal to match what I do.",
   },
   {
-    when: (f) => f.cause === 'deal' && f.moment.record === 'winning',
+    when: (f) => f.cause === 'deal' && f.moment.record === 'winning' && f.man.role !== 'depth',
     reads: 2,
     text: () => "We're winning, and I'm part of why. I'd like my deal to say so.",
   },
@@ -532,7 +536,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
 
 /** One more thing about him, at most one a letter: whatever the sheet knows that the grievance doesn't say. */
 export const ASK_COLOR: readonly Line<AskFact>[] = [
-  { when: (f) => f.man.lean === 'money', reads: 1, text: () => "I'll be honest, money matters to me too." },
+  { when: (f) => f.man.lean === 'money', reads: 1, text: () => "I'll be honest, money matters to me." },
   { when: (f) => f.man.lean === 'winning', reads: 1, text: () => 'Winning is what I play for. It always has been.' },
   {
     when: (f) => f.man.lean === 'loyal',
@@ -556,11 +560,11 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
     text: () => "I'm usually the one calming the room down, and I'm running low on that.",
   },
   {
-    when: (f) => !!f.man.habit,
+    when: (f) => !!f.man.habit && f.cause !== 'snaps',
     reads: 1,
-    text: () => "I know what the film says about how I play. That isn't what this is about.",
+    text: () => "I know how I play shows up on film, and I'd like this heard on its own terms.",
   },
-  { when: (f) => f.man.finalYear, reads: 1, text: () => 'My deal is up after this year, so I have to ask now.' },
+  { when: (f) => f.man.finalYear, reads: 1, text: () => 'My deal is up after this year, and that is on my mind.' },
   {
     when: (f) => f.man.underpaid,
     reads: 1,
@@ -569,9 +573,13 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.captain,
     reads: 1,
-    text: () => "As a captain, I hear what the room says, and I'm passing it on.",
+    text: () => "As a captain, I'd rather say this to you straight than let it fester.",
   },
-  { when: (f) => f.man.homecoming, reads: 1, text: () => 'We play the club I came up with, and that has me thinking.' },
+  {
+    when: (f) => f.man.homecoming,
+    reads: 1,
+    text: () => 'We play a club I used to play for, and that has me thinking.',
+  },
   {
     when: (f) => f.man.grudgeGame,
     reads: 1,
@@ -592,7 +600,7 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
     reads: 1,
     text: (f) => `${f.man.mentee} looks up to me, and I can't ask him to stay quiet when I won't.`,
   },
-  { when: (f) => f.man.friends.length > 0, reads: 1, text: (f) => `${f.man.friends[0]} sees it the same way I do.` },
+  { when: (f) => f.man.friends.length > 0, reads: 1, text: (f) => `${f.man.friends[0]} knows what I'm dealing with.` },
   {
     when: (f) => f.man.backFromInjury,
     reads: 1,
@@ -608,9 +616,9 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
     reads: 1,
     text: () => "This is the club that drafted me. I'd rather work it out here.",
   },
-  { when: (f) => f.man.dispute, reads: 1, text: () => "This is on top of everything else I've told you." },
+  { when: (f) => f.man.dispute, reads: 1, text: () => 'This is part of a bigger problem between me and the club.' },
   {
-    when: (f) => f.moment.streak?.kind === 'won',
+    when: (f) => f.moment.streak?.kind === 'won' && f.cause !== 'losing' && f.cause !== 'feud',
     reads: 1,
     text: () => "Don't read this as a complaint about the team. It's about me.",
   },
@@ -643,11 +651,19 @@ export const ASK_CLOSE: readonly Line<AskFact>[] = [
   { when: (f) => veteranOf(f), reads: 1, text: () => "I think I've earned that much." },
   { when: (f) => youngOf(f), reads: 1, text: () => 'Thanks for hearing me out.' },
   { when: (f) => f.man.asks !== 'first', reads: 1, text: () => "I'd like an answer this time." },
-  { when: (f) => f.man.asks !== 'first', reads: 1, text: () => "I'm asking you to follow through." },
+  {
+    when: (f) => f.man.lastAnswer?.reply === 'promise' || f.man.lastAnswer?.reply === 'reassure',
+    reads: 1,
+    text: () => "I'm asking you to follow through.",
+  },
   { text: () => 'Let me know where you stand.' },
   { text: () => "I'd appreciate a straight answer." },
   { text: () => "I'm around if you want to talk." },
-  { text: () => 'I wanted you to hear it from me first.' },
+  {
+    when: (f) => f.man.asks === 'first' && !f.man.dispute,
+    reads: 1,
+    text: () => 'I wanted you to hear it from me first.',
+  },
 ];
 
 /**

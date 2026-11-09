@@ -102,14 +102,26 @@ describe('askWords', () => {
   });
 
   it('bank sizes and coverage', () => {
+    // The lines some sheet can reach for a cause: plain ones, and those a sheet fact opens up.
+    const sheets: Partial<ManSheet>[] = [
+      {},
+      { loud: true },
+      { calm: true },
+      { role: 'depth' },
+      { role: 'rotation' },
+      { years: 'a rookie' },
+      { backFromInjury: true },
+      { draftedHere: true },
+      { feud: { with: 'Ames' }, captain: true },
+    ];
     for (const cause of ['snaps', 'deal', 'losing', 'feud'] as const) {
-      const fits = ASK_CORE.filter((l) => l.when!(fact({ feud: { with: 'Ames' } }, cause)) || false);
-      const core = ASK_CORE.filter((l) => {
-        for (const m of [{}, { loud: true }, { calm: true }, { feud: { with: 'Ames' }, captain: true }]) {
-          if (l.when!(fact(m, cause))) return true;
-        }
-        return fits.includes(l);
-      });
+      const core = ASK_CORE.filter((l) =>
+        sheets.some((m) =>
+          [{}, { record: 'winning' as const }, { streak: { kind: 'lost' as const, games: 'three' } }].some((mo) =>
+            l.when!(fact(m, cause, mo)),
+          ),
+        ),
+      );
       expect(core.length).toBeGreaterThanOrEqual(8);
       expect(core.filter((l) => (l.reads ?? 0) >= 2).length).toBeGreaterThanOrEqual(3);
     }
@@ -121,6 +133,7 @@ describe('askWords', () => {
       { lean: 'winning' },
       { lean: 'loyal' },
       { tier: 'leader' },
+      { tier: 'voice' },
       { sound: 'stirs' },
       { sound: 'steadies' },
       { habit: { label: 'x', clause: 'y' } },
