@@ -21,8 +21,8 @@ import { createLeague } from '../src/engine/generate';
 import { aiGm, habitsForce, HABIT_IDS, type HabitId } from '../src/engine/gmHabits';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
-import { aiFreeAgencyDay, aiOffer } from '../src/engine/offseason/ai';
-import { OFFSEASON_ROSTER_MAX } from '../src/engine/offseason/negotiation';
+import { aiFreeAgencyDay, aiOffer, spendable } from '../src/engine/offseason/ai';
+import { demand, OFFSEASON_ROSTER_MAX } from '../src/engine/offseason/negotiation';
 import { picksAhead, simDraft } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
@@ -177,6 +177,9 @@ function bridgeScene(delta = 0.4, k = 0) {
     if (c.id === t.id || c.id === l.userTeamId) continue;
     c.deadMoney.push({ season: l.season, amount: 1e9, playerId: -1, note: 'scene' });
   }
+  // The club has room for him at his walk-away (the scene is about the habit, not the club's books that year).
+  const short = demand(l, fa, t.id).walkAway - spendable(l, t.id);
+  if (short > 0) t.deadMoney.push({ season: l.season, amount: -Math.ceil(short), playerId: -1, note: 'scene' });
   return { l, t, fa };
 }
 

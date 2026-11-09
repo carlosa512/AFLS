@@ -21,9 +21,10 @@ import {
   expiringPlayers,
   KEEP_MIN,
   resignCall,
+  spendable,
   youngQbClub,
 } from './ai';
-import { OFFSEASON_ROSTER_MAX } from './negotiation';
+import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
 
 const base = (() => {
   const l = createLeague({ seed: 'gm-habits-hooks' });
@@ -57,6 +58,9 @@ function bridgeScene(delta = 0.4) {
     if (c.id === t.id || c.id === l.userTeamId) continue;
     c.deadMoney.push({ season: l.season, amount: 1e9, playerId: -1, note: 'test' });
   }
+  // The club has room for him at his walk-away (the scene is about the habit, not the club's books that year).
+  const short = demand(l, other, t.id).walkAway - spendable(l, t.id);
+  if (short > 0) t.deadMoney.push({ season: l.season, amount: -Math.ceil(short), playerId: -1, note: 'test' });
   return { l, t, young, fa: other };
 }
 
