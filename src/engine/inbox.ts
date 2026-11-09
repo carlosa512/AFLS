@@ -1,7 +1,8 @@
 import { offMarketMail } from './offMarketMail';
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
-import { talkMail, talkNeedsYou } from './talkMail';
+import { talkNeedsYou } from './talkMail';
+import { coachWeekMail, coachWeekNeedsYou } from './coachWeek';
 import { meetingMail, meetingNeedsYou } from './meetings/mail';
 import { disputeMail, disputeNeedsYou } from './disputeMail';
 import { promiseMail, promisesNeedYou } from './promiseMail';
@@ -17,7 +18,6 @@ import { adviceFor, adviceMoment } from './directorAdvice';
 import { editionAt, gazetteFor } from './gazette';
 import { recordAdvicePublications } from './coachDecisions';
 import { userCoachGameObservation, positionTeachingNote } from './coachReports';
-import { staffNotesMail } from './staffNotes';
 /**
  * The user's inbox: mail from the league office, agents and the team's own staff, the way a
  * manager's desk fills up in Football Manager. Nothing in the sim sends mail. `deliverMail` looks
@@ -795,7 +795,9 @@ export type MailSubject =
   // Team meetings (meetings/mail.ts): his suggestion needs you while it's the one waiting; its result and a captain's
   // word after your address ask nothing.
   | { kind: 'meeting'; season: number; clock: number; scope?: MeetingScope; result?: true; captain?: true }
-  | { kind: 'rumor'; season: number; coachId: number };
+  | { kind: 'rumor'; season: number; coachId: number }
+  // The head coach's weekly letter (coachWeek.ts): it needs you while any of its rows waits on your answer.
+  | { kind: 'coachWeek'; season: number; clock: number };
 
 /** One of our coaches, scouts or medical staff, as a staff message names him. */
 export interface StaffRef {
@@ -819,6 +821,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gazette') return { kind: 'gazette', season };
   if (category === 'offMarket') return { kind: 'offMarket', season };
+  if (category === 'coach') return { kind: 'coachWeek', season, clock: Number(a) };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -995,6 +998,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       return contractLetterNeedsYou(league, m.sections);
     case 'talk':
       return talkNeedsYou(league, m);
+    case 'coachWeek':
+      return coachWeekNeedsYou(league, m);
     case 'dispute':
       return disputeNeedsYou(league, s);
     case 'promises':
@@ -3024,7 +3029,7 @@ export function deliverMail(league: League): void {
       ...offerMail(league, have),
       ...lockerMail(league, have),
       ...lockerReportMail(league, have),
-      ...talkMail(league, have),
+      ...coachWeekMail(league, have),
       ...meetingMail(league, have),
       ...disputeMail(league, have),
       ...promiseMail(league, have),
@@ -3068,7 +3073,6 @@ export function deliverMail(league: League): void {
         ...coverMail(league, have),
         ...raceMail(league, have),
         ...matchupMail(league, have),
-        ...staffNotesMail(league, have),
         ...flexMail(league, have),
       );
     }

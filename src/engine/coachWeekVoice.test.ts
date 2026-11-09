@@ -75,6 +75,7 @@ const BAD =
 const clean = (s: string) => {
   expect(s.length).toBeGreaterThan(0);
   expect(s).not.toMatch(BAD);
+  expect(s).not.toContain('..');
 };
 /** Every line of a bank, as it reads for one fact: the ones whose condition fits. */
 const every = <C>(bank: readonly Line<C>[], c: C) => bank.filter((l) => !l.when || l.when(c)).map((l) => l.text(c));

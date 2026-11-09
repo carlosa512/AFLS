@@ -1,143 +1,19 @@
 /**
- * Your players' letters (G3): one for each ask on your roster (`playerTalks.ts`), in his own words (`playerVoice.ts`),
- * filed by `deliverMail` like every letter. Its buttons answer through `answerTalk`; what a letter shows is worked out
- * from the league as it is (`talkCard`), so nothing about it is stored on the message.
+ * Your players' asks (G3), in his own words (`playerVoice.ts`): the rows of the head coach's weekly letter
+ * (`coachWeek.ts`, "Who came to see me"). Its buttons answer through `answerTalk`; what a row shows is worked out
+ * from the league as it is (`talkCard`), so nothing about it is stored on the message. Letters filed as `talk:` ids
+ * by older saves still read through `talkNeedsYou`.
  */
 import { employed } from './employment';
 import { canPromise } from './playerTalks';
-import {
-  askWords,
-  TALK_ANSWER,
-  TALK_CLOSE,
-  TALK_GROUP_SUBJECT,
-  TALK_LETTER,
-  TALK_SUBJECT,
-  type LetterFact,
-} from './playerVoice';
+import { askWords, TALK_ANSWER, TALK_SUBJECT } from './playerVoice';
 import { manSheet, momentSheet } from './castSheet';
 import { moraleContext } from './morale';
-import { yearsLeft } from './finance/contract';
-import { STARTERS } from './positions';
-import { computeRecords } from './season/standings';
-import { headCoach, type Draft } from './senders';
-import { TALK_GROUP_COACH, TALK_RELAY } from './lockerVoice';
 import { manner } from './manner';
-import type { League, MailSection, Player, TalkCause } from './types';
+import type { League, MailSection, TalkCause } from './types';
 import { say } from './voice';
 
 export { manner };
-
-/** What his staff can see about where he stands: the things his letter talks about. */
-function letterFact(league: League, p: Player, cause: TalkCause, record: LetterFact['record']): LetterFact {
-  const spot = league.teams[p.teamId!].depthChart[p.position].indexOf(p.id);
-  return {
-    name: p.lastName,
-    cause,
-    ...manner(p),
-    veteran: p.experience >= 6,
-    young: p.experience <= 2,
-    finalYear: !!p.contract && yearsLeft(p.contract, league.season) <= 1,
-    record,
-    starter: spot >= 0 && spot < STARTERS[p.position],
-  };
-}
-
-/** His past letters, alone or in a step's group: what he'd rather not say again. */
-function pastLetters(league: League, playerId?: number, n = 6): string[] {
-  const out: string[] = [];
-  for (const m of league.inbox ?? []) {
-    if (!m.id.startsWith('talk:')) continue;
-    if (m.sections) {
-      for (const r of m.sections[0]?.rows ?? [])
-        if (r.note && (playerId === undefined || r.talk?.playerId === playerId)) out.push(r.note);
-    } else if (playerId === undefined || m.id.endsWith(`:${playerId}`)) out.push(m.body);
-  }
-  return out.slice(-n);
-}
-
-/**
- * Your players' letters: one message a step. A man alone writes his own letter; when two speak up the same step they
- * come as one message, a row each with his words and his own answers, so a busy week is one thing to read.
- */
-export function talkMail(league: League, have: Set<string>): Draft[] {
-  const askers = Object.values(league.players).filter((p) => p.morale?.talk?.ask && p.teamId === league.userTeamId);
-  const steps = new Map<number, Player[]>();
-  for (const p of askers) {
-    const at = p.morale!.talk!.ask!.at;
-    steps.set(at, [...(steps.get(at) ?? []), p]);
-  }
-  const idOf = (at: number, group: Player[]) =>
-    group.length === 1 ? `talk:${league.season}:${at}:${group[0].id}` : `talk:${league.season}:${at}`;
-  // A step's letter is filed once, whatever it held: answering one of a pair leaves the other in that same letter.
-  const filed = (at: number) => {
-    const step = `talk:${league.season}:${at}`;
-    for (const id of have) if (id === step || id.startsWith(`${step}:`)) return true;
-    return false;
-  };
-  const due = [...steps].filter(([at]) => !filed(at));
-  if (!due.length) return [];
-  const r = computeRecords(league).get(league.userTeamId);
-  const share = r && r.w + r.l + r.t >= 3 ? (r.w + r.t / 2) / (r.w + r.l + r.t) : 0.5;
-  const record = share >= 0.6 ? 'winning' : share <= 0.4 ? 'losing' : 'even';
-  // The last few letters, any player's: two letters side by side never say the same thing.
-  const recent = pastLetters(league);
-  const letter = (p: Player) => {
-    const ask = p.morale!.talk!.ask!;
-    const key = `talk:${league.season}:${ask.at}:${p.id}`;
-    const fact = letterFact(league, p, ask.cause, record);
-    // Nor does a man repeat his own last letters.
-    const avoid = [...recent, ...pastLetters(league, p.id, 3)];
-    const opening = say(TALK_LETTER, fact, { key, slot: 'letter', recent: avoid });
-    const close = say(TALK_CLOSE, fact, {
-      key,
-      slot: 'close',
-      recent: avoid.map((b) => b.split(/(?<=[.?!]) /).at(-1)!),
-    });
-    const body = `${opening} ${close}`;
-    recent.push(body);
-    if (recent.length > 6) recent.shift();
-    return body;
-  };
-  const coach = headCoach(league);
-  const base = {
-    season: league.season,
-    phase: league.phase,
-    week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
-    category: 'staff' as const,
-  };
-  return due.map(([at, group]): Draft => {
-    // The head coach brings it to you: he's the one the player went to.
-    if (group.length === 1) {
-      const p = group[0];
-      const cause = p.morale!.talk!.ask!.cause;
-      const id = idOf(at, group);
-      const relay = say(TALK_RELAY, { name: `${p.firstName} ${p.lastName}`, cause }, { key: id, slot: 'relay' });
-      return {
-        ...base,
-        id,
-        ...coach,
-        subject: `${p.lastName}: ${TALK_SUBJECT[cause].replace('my', 'his')}`,
-        body: `${relay} “${letter(p)}”`,
-        actions: [{ kind: 'player', playerId: p.id }],
-      };
-    }
-    const rows = group.map((p) => ({
-      playerId: p.id,
-      cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[p.morale!.talk!.ask!.cause]],
-      note: `“${letter(p)}”`,
-      talk: { playerId: p.id, clock: at },
-    }));
-    return {
-      ...base,
-      id: idOf(at, group),
-      ...coach,
-      subject: say(TALK_GROUP_SUBJECT, { n: group.length }, { key: idOf(at, group), slot: 'subject' }),
-      body: say(TALK_GROUP_COACH, { n: group.length }, { key: idOf(at, group), slot: 'lead' }),
-      sections: [{ title: 'Who wants a word', rows }],
-      actions: [{ kind: 'locker' }],
-    };
-  });
-}
 
 /**
  * A row for each of your players whose open ask was filed at `clock`: his name, what it is about and his words, written

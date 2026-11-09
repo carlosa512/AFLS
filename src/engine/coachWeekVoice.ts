@@ -747,7 +747,7 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
   {
     when: (f) => bad(f.then) && f.now === f.then,
     reads: 3,
-    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} where ${they(f.noun)} started, ${lowerWord(f.then!)}..`,
+    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} where ${they(f.noun)} started, ${lowerWord(f.then!)}.`,
   },
   {
     when: (f) => !bad(f.then) && bad(f.now),

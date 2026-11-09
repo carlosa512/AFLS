@@ -1676,6 +1676,8 @@ export interface MailSection {
   title: string;
   lead?: string;
   columns?: string[];
+  /** 'people': a row a person, with his face (the weekly letter). */
+  layout?: 'people';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
@@ -1692,6 +1694,8 @@ export interface MailSection {
     negotiate?: { playerId: number };
     /** A position coach's face, for a room's row (the weekly letter). */
     coachId?: number;
+    /** The coach's line on what came before with this man, above his quote (the weekly letter). */
+    before?: string;
     /** The meeting request's choices, drawn from the suggestion waiting on you (`meetingCard`). */
     meeting?: { clock: number; scope: MeetingScope };
   }[];
