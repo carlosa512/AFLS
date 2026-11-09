@@ -44,7 +44,7 @@ stripped it (`d2cfcf5`, in main's history).
 **Files:** Modify `src/engine/offseason/ai.ts` (`capCut`, ~line 915). Test: new `src/engine/offseason/capCut.test.ts`.
 
 **Interfaces — Produces:**
-- `cutRoom(league: League, p: Player): { now: number; twoYear: number }` — `now` = `releasePreview(league, p).savings`;
+- `twoYearRoom(league: League, p: Player): { now: number; twoYear: number }` (`cutRoom` is taken: the room a cut frees after the fill reserve) — `now` = `releasePreview(league, p).savings`;
   `twoYear` = `now + capHit(p.contract!, league.season + 1) − releasePreview(league, p).nextYear`.
 - `capCut(league, team, desperate = false): Player | null` — same signature. Candidates: today's (contract running,
   above the floor, `now > 200`). First pass: `twoYear > 0` and `contract.signedSeason !== league.season`, ranked by
@@ -61,7 +61,7 @@ stripped it (`d2cfcf5`, in main's history).
     is `null`, `capCut(..., true)` returns one.
   - `a club over the cap with only bad cuts still gets legal`: `aiCapCompliance` → `capSpace >= 0`.
 - [ ] **Step 2:** `npx vitest run src/engine/offseason/capCut.test.ts` → the first three FAIL.
-- [ ] **Step 3:** Implement `cutRoom` and the two-pass `capCut`; update its doc comment (why: camp cuts are post-June 1).
+- [ ] **Step 3:** Implement `twoYearRoom` and the two-pass `capCut`; update its doc comment (why: camp cuts are post-June 1).
 - [ ] **Step 4:** Run the new file and `capPlan.test.ts`, `makeRoom.test.ts`, `offseason.test.ts` → PASS (re-take the
   pinned re-sign snapshot only if the world it plays moved, and say so in the commit).
 - [ ] **Step 5:** Commit.

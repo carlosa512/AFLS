@@ -913,9 +913,10 @@ export function aiCapCompliance(league: League, team: Team, target = 0): void {
 }
 
 /**
- * The player `aiCapCompliance` cuts next for room: the least play per dollar saved, at a position it
- * can spare him (only starters are protected when it's `desperate`). Nothing is released; the trade
- * market calls around about him first when the league year opens.
+ * The player `aiCapCompliance` cuts next for room: the least play per dollar of room over this year and next
+ * (`twoYearRoom`), at a position it can spare him, never a deal signed this league year while another cut frees room.
+ * `desperate` (only starters protected) takes any cut that saves this year when no such cut is left. Nothing is
+ * released; the trade market calls around about him first when the league year opens.
  */
 export function capCut(league: League, team: Team, desperate = false): Player | null {
   const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
@@ -923,13 +924,28 @@ export function capCut(league: League, team: Team, desperate = false): Player | 
   const counts = new Map<Position, number>();
   for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
   const floor = (pos: Position) => (desperate ? STARTERS[pos] : KEEP_MIN[pos]);
-  return (
-    roster
-      .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
-      .map((p) => ({ p, savings: releasePreview(league, p).savings }))
-      .filter((x) => x.savings > 200)
-      .sort((a, b) => playerOvr(a.p) / a.savings - playerOvr(b.p) / b.savings)[0]?.p ?? null
-  );
+  const cuts = roster
+    .filter((p) => (counts.get(p.position) ?? 0) > floor(p.position))
+    .map((p) => ({ p, ...twoYearRoom(league, p) }))
+    .filter((x) => x.now > 200);
+  // First the cuts that leave both years better off, never a deal it made this league year: a club doesn't extend a
+  // man and cut him weeks later while anyone else frees the room (a traced six-season league read 23 cuts whose dead
+  // money passed twice their savings: $52M burned to free $6M).
+  const fair = cuts.filter((x) => x.twoYear > 0 && x.p.contract!.signedSeason !== league.season);
+  if (fair.length) return fair.sort((a, b) => playerOvr(a.p) / a.twoYear - playerOvr(b.p) / b.twoYear)[0].p;
+  // The cap is the law: desperate, any cut that saves this year will do, the least play per dollar first.
+  if (!desperate) return null;
+  return cuts.sort((a, b) => playerOvr(a.p) / a.now - playerOvr(b.p) / b.now)[0]?.p ?? null;
+}
+
+/**
+ * The room a cut makes this league year (`now`) and over this year and next (`twoYear`): his hit next year comes off
+ * the books, the dead money the cut pushes there goes on. From camp a cut is booked post-June 1, so it can look cheap
+ * now and leave next year worse than keeping him.
+ */
+export function twoYearRoom(league: League, p: Player): { now: number; twoYear: number } {
+  const pre = releasePreview(league, p);
+  return { now: pre.savings, twoYear: pre.savings + capHit(p.contract!, league.season + 1) - pre.nextYear };
 }
 
 // ───────── free agency ─────────
