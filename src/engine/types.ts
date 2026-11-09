@@ -491,6 +491,8 @@ export interface MeetingRecord {
   moment?: Moment;
   /** What it was about: a feud met about once isn't trouble again. */
   topic?: MeetingTopic;
+  /** The room's read when it was held, when it was in trouble (Split or Down). */
+  word?: 'Split' | 'Down';
 }
 
 /** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */

@@ -7,6 +7,7 @@ import { STARTERS } from '../positions';
 import { clamp, Rng } from '../rng';
 import { activeRoster } from '../roster';
 import { unitOf } from '../standing';
+import { beat, type StoryOn } from '../stories';
 import { TRADE_DEADLINE_WEEK } from '../trade/rules';
 import {
   POSITIONS,
@@ -33,6 +34,19 @@ export const deadlineClock = (season: number): number => season * YEAR + 8 + TRA
 export function startersOf(league: League, teamId: number): number[] {
   const chart = league.teams[teamId].depthChart;
   return POSITIONS.flatMap((pos) => (chart[pos] ?? []).slice(0, STARTERS[pos])).sort((a, b) => a - b);
+}
+
+/** The stories a commitment touches: its room's, and for talks each named man's deal. */
+function storiesOf(teamId: number, c: Pick<Commitment, 'backing' | 'scope' | 'named'>): StoryOn[] {
+  const room: StoryOn = { kind: 'room', teamId, unit: c.scope };
+  return c.backing === 'talks'
+    ? [room, ...c.named.map((id) => ({ kind: 'deal' as const, teamId, playerId: id }))]
+    : [room];
+}
+
+/** Opened: the clock is on the room, and on each man whose talks it promised. */
+export function noteCommitment(league: League, teamId: number, c: Commitment): void {
+  for (const on of storiesOf(teamId, c)) beat(league, on, 'commitment', c.opened, { due: c.closes });
 }
 
 /** The commitment a meeting opens, or none (words only). */
@@ -157,6 +171,7 @@ function remember(p: Player, teamId: number, kept: boolean) {
 function settle(league: League, teamId: number, c: Commitment, kept: boolean, clock: number) {
   // What the season's-end report tells: the promise, and whether it held. Your club's only: no one reads an AI club's,
   // and thirty-one clubs' worth would grow the save for nothing.
+  for (const on of storiesOf(teamId, c)) beat(league, on, kept ? 'kept' : 'broken', clock, { due: null });
   const m = league.teams[teamId].meetings;
   if (m && managesTeam(league, teamId))
     (m.settled ??= []).push({

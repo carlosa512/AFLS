@@ -19,6 +19,7 @@ import {
   type MoraleContext,
   type MoraleFactors,
 } from './morale';
+import { closeStory, talkBeat } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, Player, Talk, TalkCause, TalkReply } from './types';
 
@@ -93,7 +94,7 @@ function fadeYear(t: Talk) {
 }
 
 /** A promise's end: a lift and a remembered kept one, or a drop and a remembered broken one. */
-function settle(p: Player, t: Talk, kept: boolean, clock: number) {
+function settle(league: League, p: Player, t: Talk, kept: boolean, clock: number) {
   addJolt(p, kept ? 'kept' : 'broken', kept ? 2 : -4, clock);
   const k = kept ? 'kept' : 'broken';
   t[k] = (t[k] ?? 0) + 1;
@@ -102,6 +103,7 @@ function settle(p: Player, t: Talk, kept: boolean, clock: number) {
   if (!kept)
     t.sour = { cause: pr.kind, at: clock, run: 0, ...(pr.dispute ? { after: pr.dispute, now: true as const } : {}) };
   delete t.promise;
+  if (p.teamId !== null) closeStory(league, { kind: pr.kind, teamId: p.teamId, playerId: p.id }, k, clock);
 }
 
 /**
@@ -114,8 +116,8 @@ function checkPromise(league: League, p: Player, ctx: MoraleContext, clock: numb
   const pr = t.promise!;
   if (pr.kind === 'deal') {
     const paid = p.morale!.jolts?.some((j) => j.kind === 'paid' && j.at === clock);
-    if (paid && clock <= pr.due!) settle(p, t, true, clock);
-    else if (clock >= pr.due!) settle(p, t, false, clock);
+    if (paid && clock <= pr.due!) settle(league, p, t, true, clock);
+    else if (clock >= pr.due!) settle(league, p, t, false, clock);
     return;
   }
   const now = gameCount(league, p, ctx);
@@ -133,8 +135,8 @@ function checkPromise(league: League, p: Player, ctx: MoraleContext, clock: numb
   const starter = ctx.live[p.position];
   const perGame = kicker ? 1 : starter && meanGames > 0 ? starter / meanGames : 0;
   const need = (pr.role ?? 0) >= 2 ? 0.6 : 0.2;
-  if (pr.games >= 2 && perGame > 0 && pr.snaps / pr.games / perGame >= need) settle(p, t, true, clock);
-  else if (pr.left <= 0) settle(p, t, false, clock);
+  if (pr.games >= 2 && perGame > 0 && pr.snaps / pr.games / perGame >= need) settle(league, p, t, true, clock);
+  else if (pr.left <= 0) settle(league, p, t, false, clock);
 }
 
 /** An answer lands: the jolt it gives, the promise it makes, and the record of it. */
@@ -174,6 +176,9 @@ function applyReply(
     if (reply === 'ignored') addJolt(p, 'ignored', -1, clock);
   }
   t.answered = { reply, at: clock, ask: t.ask?.at ?? clock, cause };
+  talkBeat(league, p, cause, 'answered', clock, { how: reply });
+  if (reply === 'promise')
+    talkBeat(league, p, cause, 'promised', clock, t.promise?.due !== undefined ? { due: t.promise.due } : {});
   // Ignored or told no, the talk has soured (G4); any other answer clears an old sourness.
   if (reply === 'ignored' || reply === 'firm') t.sour = { cause, at: clock, run: 0 };
   else delete t.sour;
@@ -240,8 +245,10 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
   for (const [teamId, list] of candidates) {
     list.sort((a, b) => a.level - b.level || a.p.id - b.p.id);
     for (const { p, cause } of list.slice(0, PER_CLUB)) {
-      if (teamId === yours) talkOf(p).ask = { cause, at: clock };
-      else applyReply(league, p, aiReply(league, teamId, cause), clock, ctx, cause);
+      if (teamId === yours) {
+        talkOf(p).ask = { cause, at: clock };
+        talkBeat(league, p, cause, 'asked', clock);
+      } else applyReply(league, p, aiReply(league, teamId, cause), clock, ctx, cause);
     }
   }
 }

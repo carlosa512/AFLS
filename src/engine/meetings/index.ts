@@ -1,5 +1,6 @@
 import { managesTeam } from '../employment';
 import { moraleContext, YEAR } from '../morale';
+import { beat } from '../stories';
 import type { League, MeetingRecord, MeetingScope, MeetingSuggestion } from '../types';
 import { addressSuggestion, gmAddressOpen, holdGmAddress } from './address';
 import { aiChoice } from './ai';
@@ -28,6 +29,9 @@ export type { MeetingChoice } from './react';
 
 /** An AI GM at a crisis speaks to his team this often (once a season at most). */
 export const AI_ADDRESS = { chance: 0.25 };
+
+/** A meeting's room is a story of its own (the team, for a meeting of everyone). */
+const roomOn = (teamId: number, s: MeetingSuggestion) => ({ kind: 'room' as const, teamId, unit: s.scope });
 
 /**
  * One step: last season's log cleared, a pending suggestion from an earlier step lapsed, then each club's meeting: an
@@ -74,11 +78,13 @@ export function meetingsStep(league: League): void {
     if (!s) continue;
     if (yours && !m.byCoach) {
       m.pending = s;
+      beat(league, roomOn(team.id, s), 'suggested', clock, { how: s.topic });
       continue;
     }
     const choice = aiChoice(league, team.id, s, meetingRng(league, team.id, s, `${s.scope}:choice`), ctx);
     if (!choice) continue;
     m.pending = s;
+    beat(league, roomOn(team.id, s), 'suggested', clock, { how: s.topic });
     holdMeeting(league, team.id, choice, undefined, ctx);
   }
   judgeCommitments(league);
@@ -97,6 +103,7 @@ export function answerMeeting(league: League, answer: MeetingChoice | 'skip'): M
   const s = m.pending;
   if (!s) return null;
   if (answer === 'skip') {
+    if (s.kind !== 'gm') beat(league, roomOn(league.userTeamId, s), 'passed', stepClock(league));
     delete m.pending;
     return null;
   }
@@ -129,6 +136,7 @@ export function requestMeeting(league: League, scope: MeetingScope): MeetingSugg
   };
   markOffered(league, teamId, scope);
   m.pending = s;
+  beat(league, roomOn(teamId, s), 'suggested', clock, { how: s.topic });
   return s;
 }
 

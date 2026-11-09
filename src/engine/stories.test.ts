@@ -1,6 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { beat, closeStory, COACH, MAX_BEATS, markTold, STORIES, storiesNewYear, storyById, untold } from './stories';
+import { playWeek } from './league';
+import { activeRoster } from './roster';
+import { addJolt, moraleAdvance, moraleContext } from './morale';
+import { answerTalk } from './playerTalks';
+import { disputeStep, endDispute } from './disputes';
+import { answerMeeting, requestMeeting } from './meetings';
+import { judgeCommitments } from './meetings/commitments';
+import type { League, Player, TalkCause } from './types';
+import {
+  beat,
+  closeStory,
+  COACH,
+  MAX_BEATS,
+  markTold,
+  openStory,
+  STORIES,
+  storiesNewYear,
+  storyById,
+  talkStoryOn,
+  untold,
+} from './stories';
 
 beforeEach(() => {
   STORIES.on = true;
@@ -103,5 +123,148 @@ describe('the story store', () => {
     l.season = 3;
     storiesNewYear(l);
     expect(l.stories!.closed.map((s) => s.playerId)).toEqual([2]);
+  });
+});
+
+describe('beats at the sim’s events', () => {
+  const asking = (l: League, cause: TalkCause, index = 0): Player => {
+    const p = activeRoster(l, l.userTeamId)[index];
+    p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause, at: l.moraleAt! } } };
+    beat(l, talkStoryOn(l, p, cause), 'asked', l.moraleAt!);
+    return p;
+  };
+  const kinds = (s: { beats: { kind: string }[] }) => s.beats.map((b) => b.kind);
+  const fresh = () => {
+    const l = createLeague({ seed: 'story-events' });
+    playWeek(l);
+    return l;
+  };
+
+  it('an ask, your answer and a kept promise are one story', () => {
+    const l = fresh();
+    const p = asking(l, 'deal');
+    expect(answerTalk(l, p.id, 'promise')).toBe(true);
+    const on = { kind: 'deal' as const, teamId: l.userTeamId, playerId: p.id };
+    const story = openStory(l, on)!;
+    expect(story.due).toBe(p.morale!.talk!.promise!.due);
+    const next = l.moraleAt! + 1;
+    addJolt(p, 'paid', 1, next);
+    moraleAdvance(l, next);
+    expect(kinds(story)).toEqual(['asked', 'answered', 'promised', 'kept']);
+    expect(story.beats[1].how).toBe('promise');
+    expect(story.closed).toBeDefined();
+    expect(openStory(l, on)).toBeUndefined();
+  });
+
+  it('a feud ask is the pair’s story, the lower id with the higher as the other', () => {
+    const l = fresh();
+    const [a, b] = activeRoster(l, l.userTeamId);
+    a.ties = [{ kind: 'feud', with: b.id, since: 1 }];
+    b.ties = [{ kind: 'feud', with: a.id, since: 1 }];
+    expect(talkStoryOn(l, b, 'feud')).toEqual({ kind: 'feud', teamId: l.userTeamId, playerId: Math.min(a.id, b.id) });
+    expect(talkStoryOn(l, a, 'deal')).toEqual({ kind: 'deal', teamId: l.userTeamId, playerId: a.id });
+    a.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'feud', at: l.moraleAt! } } };
+    answerTalk(l, a.id, 'reassure');
+    const s = openStory(l, talkStoryOn(l, a, 'feud'))!;
+    expect(s.other).toBe(Math.max(a.id, b.id));
+    expect(kinds(s)).toEqual(['answered']);
+  });
+
+  it('an ask left unanswered is ignored on the story', () => {
+    const l = fresh();
+    const p = asking(l, 'snaps');
+    const next = l.moraleAt! + 2;
+    moraleAdvance(l, next);
+    const s = openStory(l, { kind: 'snaps', teamId: l.userTeamId, playerId: p.id })!;
+    expect(kinds(s)).toEqual(['asked', 'answered']);
+    expect(s.beats[1].how).toBe('ignored');
+  });
+
+  it('a new ask from talkStep is a beat, and the ignored answer after it', () => {
+    const l = createLeague({ seed: 'story-talk' });
+    for (const x of Object.values(l.players)) if (x.morale) x.morale.level = 4;
+    // A rookie made to sulk about a benching: the talks' own staging (`playerTalks.test.ts`).
+    const p = activeRoster(l, l.userTeamId).filter((x) => x.contract?.kind === 'rookie' && x.experience < 3)[0];
+    p.ties = [];
+    p.morale = { level: -4, jolts: [{ kind: 'benched', size: -8, at: l.moraleAt! }] };
+    for (let i = 0; i < 3; i++) moraleAdvance(l, l.moraleAt! + 1);
+    const on = { kind: 'snaps' as const, teamId: l.userTeamId, playerId: p.id };
+    expect(kinds(openStory(l, on)!)).toEqual(['asked']);
+    expect(openStory(l, on)!.beats[0].at).toBe(p.morale.talk!.ask!.at);
+  });
+
+  it('a meeting suggested, held and passed lands on the room', () => {
+    const l = fresh();
+    const s = requestMeeting(l, 'DL')!;
+    const on = { kind: 'room' as const, teamId: l.userTeamId, unit: 'DL' as const };
+    expect(kinds(openStory(l, on)!)).toEqual(['suggested']);
+    expect(openStory(l, on)!.beats[0].how).toBe(s.topic);
+    answerMeeting(l, 'skip');
+    expect(kinds(openStory(l, on)!)).toEqual(['suggested', 'passed']);
+    // Held: the same room, next week.
+    l.moraleAt = l.moraleAt! + 8;
+    const t = requestMeeting(l, 'DL')!;
+    const rec = answerMeeting(l, { approach: t.approaches[0], backing: 'words', timing: t.timings[0] ?? 'monday' })!;
+    const held = openStory(l, on)!.beats.at(-1)!;
+    expect(held.kind).toBe('held');
+    expect(held.how).toBe(`${rec.approach}:words:${rec.timing}`);
+  });
+
+  it('a meeting held with "talks" puts the clock on the room and on each named man', () => {
+    const l = fresh();
+    const wr = l.players[l.teams[l.userTeamId].depthChart.WR[0]];
+    const s = requestMeeting(l, 'WR')!;
+    if (!s.backings.includes('talks')) s.backings.push('talks');
+    s.namedFor = { talks: [wr.id] };
+    s.named = [wr.id];
+    answerMeeting(l, { approach: s.approaches[0], backing: 'talks', timing: s.timings[0] ?? 'monday' });
+    const c = l.teams[l.userTeamId].meetings!.open.at(-1)!;
+    const room = openStory(l, { kind: 'room', teamId: l.userTeamId, unit: 'WR' })!;
+    expect(room.due).toBe(c.closes);
+    expect(openStory(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id })!.due).toBe(c.closes);
+    // The window closes unkept: broken on both, the clock cleared.
+    l.moraleAt = c.closes;
+    judgeCommitments(l);
+    expect(room.beats.at(-1)!.kind).toBe('broken');
+    expect(room.due).toBeUndefined();
+    const deal = openStory(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id })!;
+    expect(deal.beats.at(-1)!.kind).toBe('broken');
+  });
+
+  it('a dispute starts, leaks and ends on his story', () => {
+    const l = fresh();
+    const p = activeRoster(l, l.userTeamId)[0];
+    const clock = l.moraleAt! + 1;
+    l.moraleAt = clock;
+    p.morale = {
+      level: -4,
+      talk: { club: l.userTeamId, sour: { cause: 'snaps', at: clock, run: 0, now: true, after: 'trade' } },
+    };
+    disputeStep(l, moraleContext(l), clock, clock - l.season * 32, false);
+    const on = { kind: 'snaps' as const, teamId: l.userTeamId, playerId: p.id };
+    expect(kinds(openStory(l, on)!)).toEqual(['dispute']);
+    expect(openStory(l, on)!.beats[0].how).toBe('trade');
+    p.morale.dispute!.since = clock - 6;
+    disputeStep(l, moraleContext(l), clock + 1, clock + 1 - l.season * 32, false);
+    const s = openStory(l, on)!;
+    expect(p.morale.dispute?.public).toBeDefined();
+    expect(s.beats.at(-1)).toMatchObject({ kind: 'leaked', pub: true });
+    endDispute(l, p, 'withdrawn', clock + 2);
+    expect(s.beats.at(-1)).toMatchObject({ kind: 'disputeEnd', how: 'withdrawn' });
+  });
+
+  it('play is identical with stories off', () => {
+    const run = (on: boolean) => {
+      STORIES.on = on;
+      try {
+        const l = createLeague({ seed: 'stories-identical' });
+        const results = [];
+        for (let i = 0; i < 3; i++) results.push(playWeek(l));
+        return JSON.stringify({ results, morale: Object.values(l.players).map((p) => p.morale ?? null) });
+      } finally {
+        STORIES.on = true;
+      }
+    };
+    expect(run(false)).toBe(run(true));
   });
 });

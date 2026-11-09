@@ -4,7 +4,7 @@
  * writing a beat draws nothing from any stream.
  */
 import { employed } from './employment';
-import type { Beat, BeatKind, League, OutletId, Story } from './types';
+import type { Beat, BeatKind, League, OutletId, Player, Story, TalkCause } from './types';
 
 export type StoryOn = Pick<Story, 'kind' | 'teamId' | 'playerId' | 'unit' | 'coachId'>;
 
@@ -27,6 +27,36 @@ const same = (s: Story, on: StoryOn) =>
   s.playerId === on.playerId &&
   s.unit === on.unit &&
   s.coachId === on.coachId;
+
+/**
+ * The story a man's ask belongs to: his own by cause, except a feud's, which is the pair's (the lower id of him and his
+ * feud partner on the club; the higher is `other`, which a beat sets on the story).
+ */
+export function talkStoryOn(league: League, p: Player, cause: TalkCause): StoryOn {
+  const teamId = p.teamId!;
+  if (cause !== 'feud') return { kind: cause, teamId, playerId: p.id };
+  const mate = feudMate(league, p);
+  return { kind: 'feud', teamId, playerId: mate === undefined ? p.id : Math.min(p.id, mate) };
+}
+
+/** His feud partner on the same club, if he has one. */
+function feudMate(league: League, p: Player): number | undefined {
+  return p.ties?.find((t) => t.kind === 'feud' && league.players[t.with]?.teamId === p.teamId)?.with;
+}
+
+/** A beat on a man's talk story: one line at each site (a feud's story also learns the other man of the pair). */
+export function talkBeat(
+  league: League,
+  p: Player,
+  cause: TalkCause,
+  kind: BeatKind,
+  at: number,
+  extra: { how?: string; pub?: true; due?: number | null } = {},
+): Story | null {
+  const mate = cause === 'feud' ? feudMate(league, p) : undefined;
+  const other = mate === undefined ? undefined : Math.max(p.id, mate);
+  return beat(league, talkStoryOn(league, p, cause), kind, at, other === undefined ? extra : { ...extra, other });
+}
 
 /** The open story on this subject, if any. */
 export function openStory(league: League, on: StoryOn): Story | undefined {
