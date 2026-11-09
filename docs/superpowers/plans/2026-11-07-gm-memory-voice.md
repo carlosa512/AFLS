@@ -22,7 +22,7 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
   archetype name, or the words "standing" or "trust". The offer itself keeps its pick labels ("No. 12").
 - Tone: businesslike to warm; a sour GM is curt, never rude, never insults you. Pronouns through `pron` (`pronouns.ts`).
 - Screens never read memory: `src/ui` must not reference `withYou`, `standingWith` or `YouMoment`.
-- `League` stays plain JSON. `SAVE_VERSION` 90 with a `migrate.ts` step.
+- `League` stays plain JSON. `SAVE_VERSION` 91 with a `migrate.ts` step (main took 90 for transactions naming their player).
 - Never loosen a check range. `npm run trades` must stay green.
 - `npm run format` before each commit. Locally run `npm run typecheck` and the test files touched; run `npm run trades`
   once, alone (it is memory-heavy), in Task 7.
@@ -31,8 +31,8 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01M3omQupUXyRu7iTWNDJTWU
   ```
-- Branch `claude/amazing-dirac-sa4npe`, already restarted from main; plain `git push -u origin
-  claude/amazing-dirac-sa4npe`.
+- Branch `claude/amazing-dirac-sa4npe`, rebased onto main at 0.4.20 (`397b955`); from there, plain
+  `git push -u origin claude/amazing-dirac-sa4npe`.
 
 ## Review Focus
 
@@ -71,7 +71,7 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
 **Files:**
 - Create: `src/engine/gmMemory.ts`, `src/engine/gmMemory.test.ts`
 - Modify: `src/engine/types.ts` (beside `HabitMove`, `GeneralManager`, `TradeTalks`), `src/engine/generate.ts:54`,
-  `src/engine/migrate.ts` (after `toV89`), `src/engine/migrate.test.ts`, `src/engine/trade/talks.ts`,
+  `src/engine/migrate.ts` (after the v90 block), `src/engine/migrate.test.ts`, `src/engine/trade/talks.ts`,
   `src/engine/trade/judge.ts:267-312`, `src/engine/trade/offers.ts` (remove the four `nudgeTrust` calls),
   `src/ui/trades.test.tsx:112`
 
@@ -149,8 +149,8 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
 
   In `src/engine/migrate.test.ts`:
   ```ts
-  it('v90 drops trust from talks and keeps pending offers', () => {
-    // a v89 document: market.talks[3] = { moment: 2, asks: 1, trust: 0.4, cooldowns: {} } and one pending offer
+  it('v91 drops trust from talks and keeps pending offers', () => {
+    // a v90 document: market.talks[3] = { moment: 2, asks: 1, trust: 0.4, cooldowns: {} } and one pending offer
     // after migrateLeague: 'trust' in talks[3] is false, asks is 1, the offer is still pending, no GM has withYou
   });
   ```
@@ -158,7 +158,7 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
 - [ ] **Step 2: Run them and see them fail**
 
   Run: `npx vitest run src/engine/gmMemory.test.ts src/engine/migrate.test.ts`
-  Expected: FAIL (module `./gmMemory` not found; v90 step missing).
+  Expected: FAIL (module `./gmMemory` not found; v91 step missing).
 
 - [ ] **Step 3: Add the types, `gmMemory.ts`, the save step and the price lean**
 
@@ -179,7 +179,8 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
   In `judge.ts` line 310, read `standingWith(league, aiGm(league, team))` when `vsUser`, else 0, and pass it to
   `marginFor`, whose user branch becomes `1.05 + stubbornness * 0.15 - STANDING_MARGIN * standing`. Remove
   `nudgeTrust` and its four calls in `offers.ts` (lines 605, 663, 744, 786); Task 2 adds the moments that replace them.
-  `SAVE_VERSION = 90`; `toV90` deletes `trust` from every `market.talks` entry. Fix the literal in
+  `SAVE_VERSION = 91`; a `toV91` function (shaped like `toV89`), called from a `league.version < 91` block after the v90
+  line in `migrateLeague`, deletes `trust` from every `market.talks` entry. Fix the literal in
   `src/ui/trades.test.tsx:112` (no `trust`).
 
 - [ ] **Step 4: Run the tests and typecheck**
@@ -187,7 +188,7 @@ through `voice.ts`'s `say`, and helpers `inbox.ts`, `judge.ts`, `talks.ts` and `
   Run: `npx vitest run src/engine/gmMemory.test.ts src/engine/migrate.test.ts src/ui/trades.test.tsx && npm run typecheck`
   Expected: PASS, no type errors.
 
-- [ ] **Step 5: Commit** — "GM memory: moments with you on the GM, a standing read from them, his price by it (v90)"
+- [ ] **Step 5: Commit** — "GM memory: moments with you on the GM, a standing read from them, his price by it (v91)"
 
 ---
 
@@ -392,7 +393,7 @@ return 'even';
 
 **Files:**
 - Create: `src/engine/gmTalk.ts`, `src/engine/gmTalk.test.ts`
-- Modify: `src/engine/inbox.ts` (`offerWords` 1172, `offerMail` 1263)
+- Modify: `src/engine/inbox.ts` (`offerWords` 1196, its `close` at 1202; `offerMail` 1287)
 
 **Interfaces:**
 - Consumes: `standingWith`, `standingBand` (Task 1); `say`, `recentBodies`, `Line` (`voice.ts`); `pron`; `aiGm`;
@@ -497,7 +498,7 @@ core)`. `offerMail` sets `from: letterFrom(league, team)` and, when the club has
 
 **Files:**
 - Modify: `src/engine/gmTalk.ts`, `src/engine/trade/judge.ts:382-410`, `src/engine/trade/talks.ts` (`talkRefusal`),
-  `src/ui/gm.tsx:48-60`, `src/ui/ui.test.ts:377`, `src/ui/trades.test.tsx:115`, `src/engine/trade/offers.test.ts:477`
+  `src/ui/gm.tsx:48-60`, `src/ui/ui.test.ts:377`, `src/ui/trades.test.tsx:115`, `src/engine/trade/offers.test.ts:488`
 - Test: `src/engine/gmTalk.test.ts`
 
 **Interfaces:**
@@ -543,7 +544,7 @@ Rules:
     // after a youWon trade: a HISTORY line naming the player
   });
   ```
-  Update `trades.test.tsx:115` and `offers.test.ts:477` to expect a `REFUSALS` text (membership), not the old string.
+  Update `trades.test.tsx:115` and `offers.test.ts:488` to expect a `REFUSALS` text (membership), not the old string.
 
 - [ ] **Step 2: Run them and see them fail**
 
@@ -565,7 +566,7 @@ Rules:
 
 **Files:**
 - Create: `scripts/gm-letters.ts`
-- Modify: `package.json` (script `"gm-letters": "tsx scripts/gm-letters.ts"`, version `0.4.10`), `src/ui/changelog.ts`,
+- Modify: `package.json` (script `"gm-letters": "tsx scripts/gm-letters.ts"`, version `0.4.21`), `src/ui/changelog.ts`,
   `docs/TRADES.md` (Offers to you; talks), `CLAUDE.md` (architecture: `gmMemory.ts`, `gmTalk.ts`; the commands list)
 
 **Interfaces:**
@@ -586,15 +587,16 @@ Rules:
 - [ ] **Step 3: Docs, changelog, version.** `docs/TRADES.md`: how GMs remember you (moments, a season-later verdict,
   standing) and its three leans, replacing the trust paragraph. `CLAUDE.md`: one architecture entry for `gmMemory.ts`
   and `gmTalk.ts`; `npm run gm-letters` in the commands list as a preview, not a check. Changelog entry in player-facing
-  words. `package.json` 0.4.10.
+  words. `package.json` 0.4.21.
 
 - [ ] **Step 4: Run the trades check alone**
 
   Run: `npm run trades`
-  Expected: "Nothing flagged" with no range loosened. A red line means the neutral path changed: find it, don't tune
-  around it.
+  Expected: "0 number(s) outside target range" and exit 0, with no range loosened. A swing line (draft day's trades,
+  QB trade-ups, deals with a future pick, starting quarterbacks traded in season) may show ⚠ without failing. A ✗ means
+  the neutral path changed: find it, don't tune around it.
 
-- [ ] **Step 5: Commit and push** — "GM memory and voice: read-through script, docs and 0.4.10"
+- [ ] **Step 5: Commit and push** — "GM memory and voice: read-through script, docs and 0.4.21"
 
   ```bash
   git push -u origin claude/amazing-dirac-sa4npe

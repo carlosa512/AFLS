@@ -242,9 +242,9 @@ neutral-standing path.
 
 ## 6. Save, docs and version
 
-- `SAVE_VERSION` 90, with a `migrate.ts` step: drop `trust` from each `TradeTalks`; GMs start with no `withYou`.
+- `SAVE_VERSION` 91, with a `migrate.ts` step: drop `trust` from each `TradeTalks`; GMs start with no `withYou`.
 - `docs/TRADES.md` ("Offers to you" and talks), the architecture notes in `CLAUDE.md` (`gmTalk.ts`, memory on the GM),
-  the in-game changelog (`src/ui/changelog.ts`) and `package.json`'s last number (0.4.10), per `docs/VERSIONING.md`.
+  the in-game changelog (`src/ui/changelog.ts`) and `package.json`'s last number (0.4.21), per `docs/VERSIONING.md`.
 
 ## 7. Not in this build
 
