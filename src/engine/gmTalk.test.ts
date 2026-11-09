@@ -392,6 +392,11 @@ describe('the trade table, his refusal and your director', () => {
       ).toBeGreaterThanOrEqual(2);
   });
 
+  it("keeps his refusals out of your director's note", () => {
+    const refusals = new Set(all(REFUSALS));
+    for (const t of all(HISTORY, (f) => !!f.memory)) expect(refusals.has(t)).toBe(false);
+  });
+
   it('says the same thing for the same deal in the same moment, whatever order its sides are listed in', () => {
     const { l, team } = setup();
     l.market = emptyMarket();

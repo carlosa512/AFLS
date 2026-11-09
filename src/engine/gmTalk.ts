@@ -795,8 +795,6 @@ export const REFUSALS: readonly Line<TalkFacts>[] = [
   { when: refuse('sour'), reads: 1, text: () => "I'm done for now." },
   { when: refuse('sour'), reads: 1, text: () => 'Not now.' },
   { when: refuse('sour'), reads: 1, text: () => 'No more today. Try me later.' },
-  { when: refuse('sour'), reads: 1, text: () => 'Enough for now.' },
-  { when: refuse('sour'), reads: 1, text: () => "I'm finished. Try me later." },
 ];
 
 /** His refusal to hear more, in his words; steady within a market moment. */

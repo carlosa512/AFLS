@@ -182,15 +182,6 @@ describe('judged a season later', () => {
     )!;
     starter.age = 70; // retires for certain in the step that ages him
     noteMoment(l, gm, { kind: 'trade', got: { players: [starter.id], picks: [] } });
-    l.season++;
-    console.log(
-      'DBG',
-      JSON.stringify(pieceRole(l, 'player', starter.id)),
-      JSON.stringify(seasonRole(l, starter)),
-      JSON.stringify(starter.stats[l.season - 1]),
-      starter.position,
-    );
-    l.season--;
     beginOffseason(l);
     expect(starter.retired).toBe(true);
     expect(gm.withYou![0].verdict).toBe('heWon');
