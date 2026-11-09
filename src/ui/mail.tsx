@@ -96,9 +96,6 @@ import {
   healthyAt,
   placeOnIr,
   SEVERITY_LABEL,
-  sitAfterClear,
-  sitProblem,
-  sittingAfterClear,
   weeksLeft,
 } from '../engine/injuries';
 import { lastSeason } from '../engine/finance/contract';
@@ -1716,9 +1713,6 @@ function ClearedCards({
   const ours = p.teamId === league.userTeamId;
   const canActivate = ours && p.ir && team && !delegates(league, team) && !activateProblem(league, p);
   const missed = weeksMissed(s, { season: at.season, week: weekBack(league.games, p.id, s, at) });
-  // A concussion his first test cleared, this letter's: sit him this week, or play him after all, until it's played.
-  const canSit = ours && record === p.injuries?.at(-1) && !sitProblem(league, p);
-  const sitting = canSit && sittingAfterClear(league, p);
   return (
     <>
       <Card>
@@ -1772,21 +1766,6 @@ function ClearedCards({
               Activate from IR
             </button>
           )}
-        </Card>
-      )}
-      {canSit && (
-        <Card className="mail-fact-card">
-          <span className="small">
-            {sitting
-              ? 'He sits this week’s game and is back the week after.'
-              : 'Sitting him this week spends the first of his two riskiest weeks on the sideline.'}
-          </span>
-          <button
-            className="btn btn-sm"
-            onClick={() => store.mutate((l) => sitAfterClear(l, l.players[p.id], !sitting))}
-          >
-            {sitting ? 'Play him after all' : 'Sit him this week'}
-          </button>
         </Card>
       )}
     </>

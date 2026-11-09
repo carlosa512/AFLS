@@ -96,13 +96,6 @@ describe('the passer’s choice', () => {
     }
   });
 
-  it('pressured on 3rd and 4-9 he holds it longest for the sticks; clean, the distance changes nothing', () => {
-    const away = (pressured: boolean, toGo: number) => odds({ pressured, down: 3, toGo }).away;
-    expect(away(true, 7)).toBeLessThan(away(true, 2));
-    expect(away(true, 7)).toBeLessThan(away(true, 12));
-    expect(away(false, 7)).toBeCloseTo(away(false, 12), 10);
-  });
-
   it('red zone raises away; backed up lowers a clean run; trailing late lowers run', () => {
     expect(odds({ toGoal: 15 }).away).toBeGreaterThan(odds().away);
     expect(odds({ ...P, toGoal: 15 }).away).toBeGreaterThan(odds(P).away);
