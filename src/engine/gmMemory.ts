@@ -4,6 +4,7 @@
  * draws a random number, and no screen reads it as a number.
  */
 import { starters } from './roster';
+import { seasonRole } from './scouting';
 import type { GeneralManager, League, TradeSide, TradeVerdictLater, YouMoment, YouMomentKind } from './types';
 
 /** Seasons a moment is kept. */
@@ -95,4 +96,81 @@ export function isBig(league: League, sides: readonly TradeSide[]): boolean {
         );
       }),
   );
+}
+
+/** How a traded piece played last season: 3 starter, 2 rotation, 1 backup, 0 gone or no games. */
+export interface PieceRead {
+  role: number;
+  hurt: boolean;
+}
+
+const ROLE_POINTS = { starter: 3, rotation: 2, backup: 1 } as const;
+/** A layoff this long last season counts as a season lost to injury. */
+const HURT_WEEKS = 4;
+
+/** Null when it isn't known yet: a pick not used, or whose player hasn't played a season. */
+export function pieceRole(league: League, kind: 'player' | 'pick', id: number): PieceRead | null {
+  if (kind === 'pick') {
+    const pick = league.draftPicks.find((p) => p.id === id);
+    // A pick pruned from the list is unknown, like one not yet used.
+    if (pick?.playerId === undefined) return null;
+    const p = league.players[pick.playerId];
+    if (!p || !p.stats[league.season - 1]) return null;
+    return pieceRole(league, 'player', pick.playerId);
+  }
+  const p = league.players[id];
+  if (!p || p.retired || p.teamId === null) return { role: 0, hurt: false };
+  const read = seasonRole(league, p);
+  const last = league.season - 1;
+  return {
+    role: read ? ROLE_POINTS[read.role] : 0,
+    hurt: !!p.injuries?.some((i) => i.season === last && i.weeks >= HURT_WEEKS),
+  };
+}
+
+/** What he made of a trade once the men had played, or null while it can't be said (or a verdict is already set). */
+export function judgeTrade(
+  m: YouMoment,
+  season: number,
+  read: (kind: 'player' | 'pick', id: number) => PieceRead | null,
+): TradeVerdictLater | null {
+  if (m.verdict || season <= m.season) return null;
+  const reads = (side?: { players: number[]; picks: number[] }) => {
+    const out: PieceRead[] = [];
+    let unknown = false;
+    for (const [kind, ids] of [
+      ['player', side?.players ?? []],
+      ['pick', side?.picks ?? []],
+    ] as const)
+      for (const id of ids) {
+        const r = read(kind, id);
+        if (r) out.push(r);
+        else unknown = true;
+      }
+    return { out, unknown };
+  };
+  const got = reads(m.got);
+  const gave = reads(m.gave);
+  // A pick's man may not have played yet; wait up to three league years, then judge without him.
+  if ((got.unknown || gave.unknown) && season - m.season < 3) return null;
+  if (got.out.some((r) => r.hurt && r.role <= 1)) return 'brokeDown';
+  const G = got.out.reduce((a, r) => a + r.role, 0);
+  const V = gave.out.reduce((a, r) => a + r.role, 0);
+  if (G >= 3 && V >= 3 && Math.abs(G - V) <= 1) return 'both';
+  if (G - V >= 2) return 'heWon';
+  if (V - G >= 2) return 'youWon';
+  return 'even';
+}
+
+/** At the new league year: judge every trade not yet judged, for every GM with a record of you, then prune. */
+export function memoryNewYear(league: League): void {
+  for (const gm of Object.values(league.gms ?? {})) {
+    if (!gm.withYou?.length) continue;
+    for (const m of gm.withYou)
+      if (m.kind === 'trade') {
+        const v = judgeTrade(m, league.season, (kind, id) => pieceRole(league, kind, id));
+        if (v) m.verdict = v;
+      }
+    pruneMoments(league, gm);
+  }
 }

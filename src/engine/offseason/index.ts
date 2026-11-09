@@ -1,4 +1,5 @@
 import { habitsNewYear } from '../gmHabitsYear';
+import { memoryNewYear } from '../gmMemory';
 import { beliefNewYear } from '../belief';
 import { meetingsStep } from '../meetings';
 import { moraleStep } from '../morale';
@@ -231,6 +232,7 @@ export function beginOffseason(league: League): void {
 
   generateDraftClass(league, rng);
   habitsNewYear(league);
+  memoryNewYear(league);
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
