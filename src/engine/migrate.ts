@@ -366,6 +366,8 @@ export function migrateLeague(league: League): League | null {
   // v90: a signing, re-signing or tag names its player (`Transaction.playerId`), so the off-the-market news can say who
   // was kept. Optional: older entries keep none and that window's news files nothing.
   if (league.version < 90) league.version = 90;
+  // v91: storylines (`League.stories`). Optional, born with the first beat: nothing to rewrite.
+  if (league.version < 91) league.version = 91;
   return league;
 }
 

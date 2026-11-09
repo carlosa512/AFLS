@@ -1671,6 +1671,64 @@ export interface MailSection {
   }[];
 }
 
+/** Storylines (`stories.ts`): what happened to one subject of your club, beat by beat. Record-keeping only: the sim never reads it. */
+export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff';
+export type OutletId = 'coach';
+export type BeatKind =
+  | 'asked'
+  | 'answered'
+  | 'promised'
+  | 'kept'
+  | 'broken'
+  | 'commitment'
+  | 'dispute'
+  | 'disputeEnd'
+  | 'leaked'
+  | 'turned'
+  | 'eased'
+  | 'suggested'
+  | 'held'
+  | 'passed'
+  | 'recovered'
+  | 'started'
+  | 'ended'
+  | 'warned'
+  | 'doubt'
+  | 'worn'
+  | 'stood'
+  | 'notice'
+  | 'relieved'
+  | 'sat'
+  | 'backIn'
+  | 'satAgain'
+  | 'swapped'
+  | 'settled'
+  | 'left'
+  | 'lifted';
+/** `at` is the morale clock; `pub` marks a beat the public could know; `how` is a short reason or reply. */
+export interface Beat {
+  at: number;
+  kind: BeatKind;
+  pub?: true;
+  how?: string;
+}
+export interface Story {
+  id: number;
+  kind: StoryKind;
+  teamId: number;
+  playerId?: number;
+  unit?: CoachRoom | 'ST' | 'team';
+  coachId?: number;
+  other?: number;
+  opened: number;
+  closed?: number;
+  due?: number;
+  feeds?: number[];
+  beats: Beat[];
+  /** Per outlet, how many beats it has already told. */
+  told?: Partial<Record<OutletId, number>>;
+}
+
 export interface InboxMessage {
   /** Internal correspondence belongs to the club, even after its GM changes jobs. */
   organizationId?: number;
@@ -2114,6 +2172,8 @@ export interface League {
   transactions: Transaction[];
   /** The user's mail, oldest first (see `inbox.ts`). Unset until the first delivery. */
   inbox?: InboxMessage[];
+  /** Your club's storylines (see `stories.ts`). Unset until the first beat. */
+  stories?: { next: number; open: Story[]; closed: Story[] };
   /** Eviction boundary: older mail cannot return; same-date IDs distinguish removed mail from new arrivals. */
   mailFloor?: { date: number; ids: string[] };
   /** What digest letters have told (their `covered` keys), by league year: it outlives the letters' eviction. */

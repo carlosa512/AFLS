@@ -17,7 +17,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(90);
+    expect(SAVE_VERSION).toBe(91);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -369,7 +369,17 @@ describe('save v90', () => {
     const before = JSON.parse(JSON.stringify(l.transactions));
     l.version = 89;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(90);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.transactions).toEqual(before);
+  });
+});
+
+describe('save v91', () => {
+  it('v90 saves load as v91 with no stories', () => {
+    const l = createLeague({ seed: 'v91' });
+    l.version = 90;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(91);
+    expect(up.stories).toBeUndefined();
   });
 });
