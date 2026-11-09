@@ -17,7 +17,7 @@ import { say } from './voice';
 
 const z = (v: number) => (v - TRAIT_MEAN) / 3.5;
 /** How he talks: an outspoken man sharper, a calm one plainer. */
-const manner = (p: Player) => ({ loud: z(p.traits.controversy) >= 0.5, calm: z(p.traits.temperament) >= 0.5 });
+export const manner = (p: Player) => ({ loud: z(p.traits.controversy) >= 0.5, calm: z(p.traits.temperament) >= 0.5 });
 
 /** What his staff can see about where he stands: the things his letter talks about. */
 function letterFact(league: League, p: Player, cause: TalkCause, record: LetterFact['record']): LetterFact {

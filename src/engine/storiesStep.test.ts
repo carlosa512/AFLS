@@ -281,3 +281,47 @@ describe('shareWord', () => {
     expect([...words].every((w) => w === null || w === 'part' || w === 'most')).toBe(true);
   });
 });
+
+describe('a meeting that opened a room story', () => {
+  const team = (l: League) => l.teams[l.userTeamId];
+  const held = (l: League) => {
+    const on = { kind: 'room' as const, teamId: l.userTeamId, unit: 'team' as const };
+    return beat(l, on, 'held', l.moraleAt!)!;
+  };
+
+  it('ends the step after a camp meeting held with no commitment, and is never tellable', () => {
+    const l = fresh();
+    const s = held(l);
+    storiesStep(l);
+    expect(l.stories!.open).toContain(s);
+    expect(tellable(l, s, l.moraleAt! + 5)).toBe(false);
+    next(l);
+    expect(s.beats.at(-1)!.kind).toBe('ended');
+    expect(l.stories!.open).not.toContain(s);
+  });
+
+  it('stays open while a commitment for its scope is open, until it settles', () => {
+    const l = fresh();
+    const s = held(l);
+    team(l).meetings = {
+      log: [],
+      open: [
+        {
+          backing: 'jobs',
+          scope: 'team',
+          opened: l.moraleAt!,
+          closes: l.moraleAt! + 4,
+          named: [],
+          boughtIn: [],
+          by: 'coach',
+        },
+      ],
+    };
+    next(l);
+    next(l);
+    expect(l.stories!.open).toContain(s);
+    team(l).meetings!.open = [];
+    next(l);
+    expect(s.beats.at(-1)!.kind).toBe('ended');
+  });
+});

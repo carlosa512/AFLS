@@ -35,7 +35,10 @@ const onOf = (s: Story): StoryOn => ({
   coachId: s.coachId,
 });
 
-/** A room's turn (or its recovery) has stood long enough to tell. */
+/**
+ * A room's turn (or its recovery) has stood long enough to tell. About turns only: a room story with no turn (a meeting
+ * suggested, held or passed) is never tellable here, because a meeting request is told at once by the letter's request row.
+ */
 export function tellable(league: League, s: Story, clock: number): boolean {
   if (s.kind !== 'room') return true;
   const last = lastOf(s, ['turned', 'eased', 'recovered']);
@@ -140,6 +143,20 @@ function rooms(league: League, user: number, clock: number, ctx: MoraleContext):
   }
 }
 
+/**
+ * A room story a meeting opened and no turn ever joined (a calendar moment, a held meeting) ends once nothing is waiting
+ * on it: a later step, no suggestion pending for its scope, no commitment open for it. A turned room has its own path.
+ */
+function meetingRooms(league: League, user: number, clock: number): void {
+  const m = league.teams[user].meetings;
+  for (const s of [...(league.stories?.open ?? [])]) {
+    if (s.teamId !== user || s.kind !== 'room' || s.beats.some((b) => b.kind === 'turned')) continue;
+    if ((s.beats.at(-1)?.at ?? clock) >= clock) continue;
+    if (m?.pending?.scope === s.unit || m?.open.some((c) => c.scope === s.unit)) continue;
+    closeStory(league, onOf(s), 'ended', clock);
+  }
+}
+
 // ───────── the staff ─────────
 
 const BELIEF_RANK: Record<BeliefRead, number> = { believes: 0, steady: 1, doubts: 2, lost: 3 };
@@ -202,7 +219,9 @@ function links(league: League, user: number, ctx: MoraleContext): void {
     if (!cause) continue;
     const p = league.players[s.playerId];
     if (!onClub(p, user)) continue;
-    const room = openStory(league, { kind: 'room', teamId: user, unit: unitOf(p.position) });
+    const found = openStory(league, { kind: 'room', teamId: user, unit: unitOf(p.position) });
+    // Only a room that stands turned: one easing or recovered is no longer what his story feeds.
+    const room = found && lastOf(found, ['turned', 'eased', 'recovered'])?.kind === 'turned' ? found : undefined;
     const view = moraleView(league, p, ctx);
     const feeds =
       !!room &&
@@ -211,7 +230,10 @@ function links(league: League, user: number, ctx: MoraleContext): void {
       view.step <= 3 &&
       CAUSE_OF[view.reasons[0] ?? ''] === cause &&
       shareWord(league, p, ctx) !== null;
-    if (feeds) s.feeds = [room!.id];
+    // Only this room's id: other entries in `feeds` are not ours to touch.
+    const rest = (s.feeds ?? []).filter((id) => id !== found?.id);
+    const next = feeds ? [...rest, room!.id] : rest;
+    if (next.length) s.feeds = next;
     else delete s.feeds;
   }
 }
@@ -225,6 +247,7 @@ export function storiesStep(league: League): void {
   departures(league, user, clock, ctx);
   feuds(league, user, clock);
   rooms(league, user, clock, ctx);
+  meetingRooms(league, user, clock);
   staff(league, user, clock);
   links(league, user, ctx);
 }
