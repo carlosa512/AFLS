@@ -58,6 +58,7 @@ import { capSpace } from './finance/cap';
 import {
   concussionCount,
   concussionRetireChance,
+  concussionsLately,
   concussionWindow,
   delegates,
   estimateText,
@@ -70,6 +71,7 @@ import {
   NEED,
   outlookText,
   shortPositions,
+  sitOdds,
   weeksLeft,
 } from './injuries';
 import { knockFor, knockWord } from './familiarity';
@@ -396,7 +398,8 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
     // The doctor's estimate, never the true weeks.
     if (!now || now.estimate[1] < 1) continue;
     const id = `medical:${now.season}:${now.week}:${p.id}:${now.type}`;
-    if (have.has(id)) continue;
+    // Sat a week after an all-clear we already sent: that letter told it.
+    if (have.has(id) || have.has(`cleared:${now.season}:${now.week}:${p.id}:${now.type}`)) continue;
     const what = injuryLabel(now.type);
     const record = p.injuries?.at(-1);
     const how =
@@ -431,6 +434,17 @@ function concussionNote(p: Player): string {
     return `${fullName(p)} took another hit to the head: his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him; he'll be back in the building after the offseason.`;
   }
   return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline: for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
+}
+
+/** The doctor's read of the clubs' table (`sitOdds`, his file and role, not the stakes) at which he says to sit him. */
+const SIT_ADVISE = 0.6;
+
+/** The doctor's word on sitting a man his first test cleared: only when the table says more likely than not. */
+function sitAdvice(league: League, p: Player): string {
+  if (sitOdds(league, league.teams[league.userTeamId], p, { stakes: false }) < SIT_ADVISE) return '';
+  const { season, year } = concussionsLately(p);
+  const why = season >= 2 ? `${small(season)} this season` : `${small(year)} in twelve months`;
+  return ` With ${why}, I'd sit him this week anyway.`;
 }
 
 /** His file, from the second concussion on: each one tends to take longer to clear. */
@@ -1546,7 +1560,7 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
         ? `${fullName(p)}: concussed, and ${since ? 'out of the protocol' : 'cleared to play'}`
         : `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? '; the 53 is full' : ''}`,
       body: unannounced
-        ? `${fullName(p)} was concussed in the game and went into the concussion protocol. His symptoms were gone by this week's test, so ${since ? `he's out of the protocol, but he has since been hurt in practice (${since}); I've written about that separately.${concussionFile(p)}` : `he's cleared for full practice and can play this week.${concussionFile(p)}${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`}`
+        ? `${fullName(p)} was concussed in the game and went into the concussion protocol. His symptoms were gone by this week's test, so ${since ? `he's out of the protocol, but he has since been hurt in practice (${since}); I've written about that separately.${concussionFile(p)}` : `he's cleared for full practice and can play this week.${concussionFile(p)}${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}${sitAdvice(league, p)}`}`
         : was.type === 'concussion'
           ? `${fullName(p)} has passed the last step of the concussion protocol${was.held ? ', and we gave him the extra week we planned,' : ''} and is cleared for full practice.${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}`
           : `${fullName(p)} is over his ${what} and cleared for full practice.${ir}`,

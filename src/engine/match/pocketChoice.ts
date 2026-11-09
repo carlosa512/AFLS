@@ -71,6 +71,10 @@ const OPEN_RUN = -0.05;
  * them (clean 5.1–5.5% against 3.9%), however far he has to go. */
 const THIRD_AWAY = -0.38;
 const THIRD_RUN = 0.18;
+/** 3rd and 4–9 under pressure: the sticks are a throw away, so he holds it longest (thrown away 6.3% against 7.7% short
+ * and 7.3% long; the sim ran 7.3% here without it, a line at the edge of its band). Clean, the distance changes nothing
+ * (0.88%, as at the other distances). */
+const MID_AWAY = -0.16;
 /** 3rd and 1–3: the sticks are right there (scrambles 9.2% pressured, 5.5% clean, the most of any down). */
 const SHORT_RUN = 0.2;
 /** 4th down under pressure: the drive ends either way (thrown away 3.1%), and he runs no more than on early downs
@@ -134,7 +138,7 @@ function utilities(f: PocketFacts): { away: number; run: number } {
   let sitAway = 0;
   let sitRun = 0;
   if (f.down === 3) {
-    sitAway += THIRD_AWAY;
+    sitAway += THIRD_AWAY + (f.pressured && f.toGo >= 4 && f.toGo <= 9 ? MID_AWAY : 0);
     sitRun += THIRD_RUN + (f.toGo <= 3 ? SHORT_RUN : 0);
   } else if (f.down === 4) {
     if (f.pressured) sitAway += FOURTH_AWAY;
