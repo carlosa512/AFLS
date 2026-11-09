@@ -795,6 +795,36 @@ describe('concussions', () => {
     expect(concussionWindow(league, p)).toBe(1);
   });
 
+  it('sitting twice is one week, and so is playing him twice', () => {
+    const league = fresh();
+    league.week = 8;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    injuryWeek(league);
+    league.week++;
+    sitAfterClear(league, p, true);
+    sitAfterClear(league, p, true);
+    expect(p.injuries!.at(-1)).toMatchObject({ weeks: 1, held: true });
+    expect(p.injury).toMatchObject({ weeksRemaining: 1 });
+    sitAfterClear(league, p, false);
+    sitAfterClear(league, p, false);
+    expect(p.injuries!.at(-1)).toMatchObject({ weeks: 0 });
+    expect(p.injury).toBeUndefined();
+  });
+
+  it('can sit a man cleared in week 18 for the first playoff week', () => {
+    const league = fresh();
+    league.week = 18;
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    concuss(league, p).protocol = { clear: 1, symptoms: 0, setbacks: 0 };
+    injuryWeek(league);
+    league.week = 19;
+    league.phase = 'playoffs';
+    expect(sitProblem(league, p)).toBeNull();
+    sitAfterClear(league, p, true);
+    expect(isAvailable(p)).toBe(false);
+  });
+
   it("offers no sit for a longer protocol (his card's hold covers it) or once the week is played", () => {
     const league = fresh();
     league.week = 8;

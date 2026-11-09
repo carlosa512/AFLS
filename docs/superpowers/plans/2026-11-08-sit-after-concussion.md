@@ -15,8 +15,7 @@ advice. The letter is the 0.4.18 "concussed, and cleared to play" all-clear (`cl
 
 **Spec:** `docs/superpowers/specs/2026-11-08-sit-after-concussion-design.md`
 
-**Status:** Tasks 1–5 were built before this plan (commits `231e2cd`, `ef952b8`) and are checked off; Task 6 is the
-work still to do.
+**Status:** Tasks 1–5 were built before this plan (commits `231e2cd`, `ef952b8`); Task 6 after it. All done.
 
 ## Global Constraints
 
@@ -118,14 +117,14 @@ work still to do.
   order, so the first isn't always the best rated).
 - [x] **Step 3:** `npm run format`, typecheck. Commit, push.
 
-### Task 6: Review Focus — to do
+### Task 6: Review Focus — done
 
 **Files:** Modify `src/engine/inbox.ts` (`clearedMail`). Test `src/engine/inbox.test.ts`,
 `src/engine/injuries.test.ts`. `src/ui/changelog.ts`, `package.json` (stays 0.4.19: the same feature, unreleased).
 
 **Interfaces — Consumes:** `sitAfterClear`, `sitProblem`, `sittingAfterClear` (Task 2); `setTeam` (`roster.ts`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - inbox: `still tells the concussion when practice hurts him the same week` — quick clear, then
     `applyInjury(... 'hamstring', where: 'practice', same week)` before `deliverMail`; expect one letter whose id
     starts `cleared:` and ends `:concussion` and whose body matches `/concussed in the game/`, and no `Sit him`
@@ -136,13 +135,13 @@ work still to do.
     after all`.
   - injuries: `can sit a man cleared in week 18 for the first playoff week` — record week 18, `league.week` 19,
     phase `playoffs`: `sitProblem` null; sit → unavailable.
-- [ ] **Step 2: Run** `npx vitest run src/engine/inbox.test.ts src/engine/injuries.test.ts src/ui/mail.test.tsx -t
+- [x] **Step 2: Run** `npx vitest run src/engine/inbox.test.ts src/engine/injuries.test.ts src/ui/mail.test.tsx -t
   "practice hurts|twice|new club|week 18"` — expected: the practice test FAILS (no letter); the others may already
   pass (they pin behavior).
-- [ ] **Step 3: Fix `clearedMail`:** the quick-clear branch reads the concussion record cleared at its first test in
+- [x] **Step 3: Fix `clearedMail`:** the quick-clear branch reads the concussion record cleared at its first test in
   the week just played wherever it sits on his file (`findLast(clearedAtFirstTest)`), and doesn't skip a man whose
   current injury is something else; the regular all-clear path is unchanged.
-- [ ] **Step 4: Run** the same command: all PASS. Then `npx vitest run src/engine/inbox.test.ts
+- [x] **Step 4: Run** the same command: all PASS. Then `npx vitest run src/engine/inbox.test.ts
   src/engine/injuries.test.ts src/ui/` and `npm run typecheck`: all PASS.
-- [ ] **Step 5: Changelog and commit.** Add to the 0.4.19 entry (the concussion is told even when practice hurts
+- [x] **Step 5: Changelog and commit.** Add to the 0.4.19 entry (the concussion is told even when practice hurts
   him that week); `npm run format`; commit; push.

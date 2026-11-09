@@ -20,7 +20,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "When a concussed player clears the protocol in the week it happened, the doctor's letter now has a Sit him " +
       'this week button (and Play him after all, until the game is played), and the doctor says when he would sit ' +
       'him. Other clubs make the same call as their players clear: rarely after a first concussion, usually after a ' +
-      'second this season, almost always after a third, a little less when a starter is needed or in the playoffs.',
+      'second this season, almost always after a third, a little less when a starter is needed or in the playoffs. ' +
+      'And a concussion still gets its letter when the practice field hurts him again the same week.',
   },
   {
     version: '0.4.18',

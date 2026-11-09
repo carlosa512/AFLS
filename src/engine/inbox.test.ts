@@ -1189,6 +1189,42 @@ describe('a concussion that clears the week it happened', () => {
     expect(about()).toHaveLength(1);
   });
 
+  it('still tells the concussion when practice hurts him the same week', () => {
+    const league = createLeague({ seed: 'inbox-quick-clear' });
+    deliverMail(league);
+    const p = activeRoster(league, league.userTeamId).find((x) => x.position === 'WR')!;
+    const week = league.week;
+    applyInjury(league, p, {
+      type: 'concussion',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [0, 1],
+      season: league.season,
+      week,
+      where: 'game',
+      protocol: { clear: 1, symptoms: 0, setbacks: 0 },
+    });
+    playWeek(league);
+    // Cleared at the week's test, then hurt on the practice field the same week (practice runs after the tests).
+    applyInjury(league, p, {
+      type: 'hamstring',
+      severity: 'minor',
+      weeksRemaining: 1,
+      estimate: [1, 1],
+      season: league.season,
+      week,
+      where: 'practice',
+    });
+    deliverMail(league);
+    const told = league.inbox!.filter((m) => m.id === `cleared:${league.season}:${week}:${p.id}:concussion`);
+    expect(told).toHaveLength(1);
+    expect(told[0].body).toMatch(/concussed in the game/);
+    // His hamstring has its own letter.
+    expect(league.inbox!.some((m) => m.id === `medical:${league.season}:${week}:${p.id}:hamstring`)).toBe(true);
+    deliverMail(league);
+    expect(league.inbox!.filter((m) => m.id === told[0].id)).toHaveLength(1);
+  });
+
   it('advises sitting a second one in twelve months, and sitting him files nothing new', () => {
     const league = createLeague({ seed: 'inbox-quick-clear' });
     deliverMail(league);
