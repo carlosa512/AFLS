@@ -12,6 +12,7 @@ import {
   type TableBand,
   OPENERS,
   SIGNOFFS,
+  FRONT_OFFICE_SIGNOFFS,
   letterFrom,
   talkFacts,
   type Manner,
@@ -24,6 +25,7 @@ import type { TradeProposal } from './trade/rules';
 import { deliverMail, offerWords, packageWords } from './inbox';
 import { noteMoment } from './gmMemory';
 import { teamPlayers } from './roster';
+import { perceive } from './scouting';
 import { emptyMarket } from './trade/execute';
 import type { StandingBand } from './gmMemory';
 import type { League, Team, TradeOffer } from './types';
@@ -62,6 +64,15 @@ for (const manner of MANNERS)
 const all = (bank: readonly Line<TalkFacts>[], keep: (f: TalkFacts) => boolean = () => true) =>
   SAMPLES.filter(keep).flatMap((f) => bank.filter((x) => !x.when || x.when(f)).map((x) => x.text(f)));
 
+/** The lines `say` would draw from for these facts: the most specific that fit. */
+const poolOf = <C>(bank: readonly Line<C>[], f: C): Set<string> => {
+  const fits = bank.filter((x) => !x.when || x.when(f));
+  const top = Math.max(0, ...fits.map((x) => x.reads ?? 0));
+  return new Set(fits.filter((x) => (x.reads ?? 0) === top).map((x) => x.text(f)));
+};
+const REASONS = [undefined, 'bid', 'pitch', 'dump', 'shop', 'enquiry', 'ask', 'counter'] as const;
+const FORGIVING = /no hard feelings|holding it against|that's fair|fair enough/i;
+
 const ids = (l: League) => l.market!.offers.map((o) => o.id);
 /** A bid on the user's first player from `team`, filed on the market. */
 function bid(l: League, team: Team, over: Partial<TradeOffer> = {}): TradeOffer {
@@ -91,39 +102,59 @@ function bid(l: League, team: Team, over: Partial<TradeOffer> = {}): TradeOffer 
 }
 
 describe('the banks', () => {
-  it('gives each common slot at least six lines', () => {
-    const neutral = all(OPENERS, (f) => f.band === 'neutral' && f.moment === 'week');
-    expect(new Set(neutral).size).toBeGreaterThanOrEqual(6);
-    for (const m of MANNERS) {
-      const lines = all(SIGNOFFS, (f) => f.manner === m && !f.final);
-      expect(new Set(lines).size).toBeGreaterThanOrEqual(6);
+  it('keeps at least six openers in play for every band, moment and kind of letter', () => {
+    for (const band of BANDS)
+      for (const moment of MOMENTS)
+        for (const reason of REASONS)
+          expect(
+            poolOf(OPENERS, { ...SAMPLES[0], band, moment, reason, memory: undefined }).size,
+            `${band} ${moment} ${reason}`,
+          ).toBeGreaterThanOrEqual(6);
+  });
+
+  it('keeps at least four memory openers in play for each kind, feeling and kind of letter', () => {
+    for (const k of KINDS)
+      for (const band of BANDS)
+        for (const reason of REASONS) {
+          const f = { ...SAMPLES[0], band, reason, memory: { kind: k, player: 'A B', when: 'x' } };
+          expect(poolOf(MEMORY_OPENERS, f).size, `${k} ${band} ${reason}`).toBeGreaterThanOrEqual(4);
+        }
+  });
+
+  it('never forgives in words when he is cool or sour', () => {
+    for (const k of KINDS)
+      for (const band of ['cool', 'sour'] as const)
+        for (const reason of REASONS) {
+          const f = { ...SAMPLES[0], band, reason, memory: { kind: k, player: 'A B', when: 'recently' } };
+          for (const line of poolOf(MEMORY_OPENERS, f)) expect(line).not.toMatch(FORGIVING);
+        }
+    // And in a real letter: a sour GM who was told no on a final offer, or led on, never draws one.
+    for (const kind of ['finalNo', 'ledOn'] as const) {
+      const { l, team, gm } = setup();
+      gm.withYou = Array.from({ length: 4 }, () => ({ kind, season: l.season, phase: l.phase }));
+      expect(talkFacts(l, team).band).toBe('sour');
+      for (let i = 0; i < 6; i++) expect(offerWords(l, bid(l, team)).body).not.toMatch(FORGIVING);
     }
   });
 
-  it('keeps at least six openers in play for a neutral GM at every moment, and three for each band', () => {
-    // The pool `say` draws from: the most specific lines that fit.
-    const pool = (f: TalkFacts) => {
-      const fits = OPENERS.filter((o) => !o.when || o.when(f));
-      const top = Math.max(...fits.map((o) => o.reads ?? 0));
-      return new Set(fits.filter((o) => (o.reads ?? 0) === top).map((o) => o.text(f)));
-    };
-    const reasons = [undefined, 'bid', 'pitch', 'dump', 'shop', 'enquiry', 'ask'] as const;
-    for (const moment of MOMENTS)
-      for (const reason of reasons)
-        expect(pool({ ...SAMPLES[0], band: 'neutral', moment, reason, memory: undefined }).size).toBeGreaterThanOrEqual(
-          6,
-        );
-    for (const band of BANDS.filter((x) => x !== 'neutral'))
-      for (const reason of reasons)
-        expect(pool({ ...SAMPLES[0], band, moment: 'week', reason, memory: undefined }).size).toBeGreaterThanOrEqual(3);
-    for (const k of KINDS)
-      for (const reason of reasons)
-        expect(
-          MEMORY_OPENERS.filter((o) =>
-            o.when?.({ ...SAMPLES[0], reason, memory: { kind: k, player: 'A B', when: 'x' } }),
-          ).length,
-        ).toBeGreaterThanOrEqual(2);
-    expect(new Set(all(SIGNOFFS, (f) => f.final)).size).toBeGreaterThanOrEqual(3);
+  it('keeps at least six sign-offs in play for every manner, moment and kind of letter', () => {
+    for (const manner of MANNERS)
+      for (const band of BANDS)
+        for (const moment of MOMENTS)
+          for (const reason of REASONS) {
+            const f = { ...SAMPLES[0], manner, band, moment, reason, final: false, memory: undefined };
+            expect(poolOf(SIGNOFFS, f).size, `${manner} ${band} ${moment} ${reason}`).toBeGreaterThanOrEqual(6);
+            expect(poolOf(FRONT_OFFICE_SIGNOFFS, f).size, `front office ${reason}`).toBeGreaterThanOrEqual(6);
+            const fin = { ...f, final: true };
+            expect(poolOf(SIGNOFFS, fin).size).toBeGreaterThanOrEqual(6);
+            expect(poolOf(FRONT_OFFICE_SIGNOFFS, fin).size).toBeGreaterThanOrEqual(6);
+          }
+  });
+
+  it('keeps the urgent clock out of the offseason and the draft', () => {
+    for (const moment of ['leagueYear', 'camp', 'draft', 'offseason'] as const)
+      for (const line of poolOf(SIGNOFFS, { ...SAMPLES[0], manner: 'urgent', moment, final: false, reason: 'bid' }))
+        expect(line).not.toMatch(/this week|window|sooner|on a clock/i);
   });
 
   it('never says a number, a habit, an archetype, standing or trust', () => {
@@ -189,12 +220,40 @@ describe('a letter', () => {
     expect(MEMORY_OPENERS.some((m) => second.includes(m.text(talkFacts(l, team))))).toBe(false);
   });
 
+  it("names the deal by its lead man, not whoever was listed first, and says 'recently' for this year's", () => {
+    const { l, team, gm } = setup();
+    const rated = teamPlayers(l, team.id)
+      .map((p) => ({ p, ovr: perceive(l, l.userTeamId, p).ovr }))
+      .sort((a, b) => a.ovr - b.ovr || a.p.id - b.p.id);
+    const throwIn = rated[0].p;
+    const lead = rated[rated.length - 1].p;
+    gm.withYou = [
+      {
+        kind: 'trade',
+        season: l.season,
+        phase: l.phase,
+        got: { players: [throwIn.id, lead.id], picks: [] },
+        verdict: 'heWon',
+      },
+    ];
+    expect(talkFacts(l, team).memory).toMatchObject({
+      player: `${lead.firstName} ${lead.lastName}`,
+      when: 'recently',
+    });
+    gm.withYou = [{ kind: 'finalNo', season: l.season, phase: l.phase }];
+    expect(talkFacts(l, team).memory?.when).toBe('recently');
+    gm.withYou[0].season = l.season - 1;
+    expect(talkFacts(l, team).memory?.when).toBe('last year');
+  });
+
   it('remembers a final no without naming a man', () => {
     const { l, team, gm } = setup();
     noteMoment(l, gm, { kind: 'finalNo' });
     expect(talkFacts(l, team).memory).toMatchObject({ kind: 'finalNo', player: '' });
     const body = offerWords(l, bid(l, team)).body;
-    expect(body).toMatch(/final offer|last number|my best number|another way|different|last one|try again/);
+    expect(body).toMatch(
+      /final offer|last number|my best|another way|different|last one|last try|try again|said no|passed/,
+    );
   });
 
   it('signs as the GM by name with his face, or the front office when the chair is empty', () => {
@@ -211,6 +270,15 @@ describe('a letter', () => {
     expect(m2.from.endsWith('front office')).toBe(true);
     expect(m2.gmNotes).toBeUndefined();
     expect(m2.body).toContain("We'd like to bring");
+    // No man in the chair: no opener of any kind, and a sign-off in the plural, never "I".
+    const his = talkFacts(l, team);
+    const texts = [...OPENERS, ...MEMORY_OPENERS].map((x) =>
+      x.text({ ...his, memory: { kind: 'heWon', player: 'A B', when: 'x' } }),
+    );
+    for (const t of texts) expect(m2.body).not.toContain(t);
+    expect(m2.body.startsWith("We'd like to bring")).toBe(true);
+    expect(FRONT_OFFICE_SIGNOFFS.some((x) => m2.body.endsWith(x.text(his)))).toBe(true);
+    expect(m2.body).not.toMatch(/\b(I|I'm|I'd|I'll|I've|me|my)\b/);
     expect(ids(l).length).toBeGreaterThan(1);
   });
 
@@ -309,18 +377,15 @@ describe('the trade table, his refusal and your director', () => {
   });
 
   it('gives each table band, his refusal and each memory kind enough lines', () => {
-    for (const b of TABLE) {
-      expect(new Set(tableAll(b, (f) => f.band === 'neutral' && f.moment === 'week')).size).toBeGreaterThanOrEqual(6);
-      for (const band of BANDS.filter((x) => x !== 'neutral')) {
-        const pool = TABLE_LINES.filter(
-          (x) => (x.reads ?? 0) === 1 && x.when?.({ ...SAMPLES[0], band, moment: 'week', table: b }),
-        );
-        expect(new Set(pool.map((x) => x.text({ ...SAMPLES[0], table: b }))).size).toBeGreaterThanOrEqual(3);
-      }
-    }
-    expect(new Set(all(REFUSALS, (f) => f.band === 'neutral')).size).toBeGreaterThanOrEqual(6);
-    for (const band of BANDS.filter((x) => x !== 'neutral'))
-      expect(new Set(all(REFUSALS, (f) => f.band === band && f.moment === 'week')).size).toBeGreaterThanOrEqual(6);
+    for (const b of TABLE)
+      for (const band of BANDS)
+        for (const moment of MOMENTS) {
+          const f = { ...SAMPLES[0], band, moment, table: b };
+          expect(poolOf(TABLE_LINES, f).size, `${b} ${band} ${moment}`).toBeGreaterThanOrEqual(6);
+        }
+    for (const band of BANDS)
+      for (const moment of MOMENTS)
+        expect(poolOf(REFUSALS, { ...SAMPLES[0], band, moment }).size, `${band} ${moment}`).toBeGreaterThanOrEqual(6);
     for (const k of KINDS)
       expect(
         HISTORY.filter((h) => h.when?.({ ...SAMPLES[0], memory: { kind: k, player: 'A B', when: 'x' } })).length,

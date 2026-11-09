@@ -239,7 +239,6 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `gmTalk.ts` his words: `talkFacts` (manner, band, the one moment he'd mention) feeds `say` for the opener and sign-off
     that `wrapLetter` puts around an offer (`offerWords` in `inbox.ts`), the trade table's line (`tableLine`) and refusal
     (`refusalLine`), and your director's line (`historyNote`). No digit, habit, archetype, "standing" or "trust" in them.
-    `npm run gm-letters` writes a read-through of sample letters to `.check/gm-letters.md` (a preview, not a check)
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's

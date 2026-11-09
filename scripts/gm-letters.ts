@@ -135,6 +135,29 @@ picked.slice(0, 7).forEach((t, k) => {
   }
 });
 
+// Two more places the wording has to hold: a bid on draft day (the user's pick is on the clock, not his), and a club
+// with nobody in the GM chair (the front office writes, no opener, plural sign-off).
+{
+  const t = picked[2];
+  const gm = aiGm(league, t)!;
+  gm.withYou = [];
+  const phase = league.phase;
+  league.phase = 'draft';
+  const body = offerWords(league, offer(t, 'bid')).body;
+  league.phase = phase;
+  lines.push('## Draft day (neutral GM)', '', `**Bid.** ${body}`, '');
+  letters.push(`${gm.firstName} ${gm.lastName} / Draft bid: ${body}`);
+  const empty = AI.find((x) => !picked.includes(x)) ?? AI[AI.length - 1];
+  const gmId = empty.gmId;
+  empty.gmId = null;
+  for (const reason of ['pitch', 'enquiry'] as const) {
+    const text = offerWords(league, offer(empty, reason)).body;
+    lines.push(`## Empty chair, ${reason}`, '', text, '');
+    letters.push(`${empty.name} front office / ${reason}: ${text}`);
+  }
+  empty.gmId = gmId;
+}
+
 mkdirSync('.check', { recursive: true });
 const path = '.check/gm-letters.md';
 writeFileSync(path, lines.join('\n'));

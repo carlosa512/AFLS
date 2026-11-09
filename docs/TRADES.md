@@ -460,7 +460,7 @@ This is ZenGM's "make it work", run from their side. It never asks for an Untouc
 "can't make this work" instead of a silly ask.
 
 **Your proposals cost patience.** Each GM hears at most about 4 offers from you per moment before
-"We're done talking this week." A proposal he turns down costs a little patience, and a final no goes on his record of you. The
+"We're done talking this week." A proposal he turns down costs a little patience; a straight no costs nothing else, but turning down his final offer, or a counter to your own proposal, goes on his record of you. The
 acceptance meter stays coarse (10% steps, as today), so a probe can't read the exact valuation off it.
 
 **Your staff's advice on every offer** (your view only, never the AI's numbers):
@@ -477,7 +477,7 @@ those moments each time it is read and never stored. Each fades with age (a stub
 counts more, and the list keeps six seasons and twelve moments. A GM with no moments is neutral and deals exactly as he
 always has. Nothing shows as a number: it shows in his letters, his table line and your director's note (`gmTalk.ts`).
 
-It leans three things, and only at the extremes of the scale:
+It leans three things. His price and who calls first move continuously with how he stands; his patience and the asks step only at the extremes of the scale:
 - **His price:** a sour GM asks up to 6% more of you, a friendly one up to 6% less (`marginFor`).
 - **His patience:** a friendly GM hears five proposals a moment and his counters run a round longer; a sour one hears
   three and walks a round sooner. He always takes your call.
@@ -1236,8 +1236,8 @@ Where the build departed from the plan, and why:
   moment: listing draws an offer within two moments whenever a team needs him. The buyer opens 5%
   lower: he knows you want to sell.
 - **Enquiries come at half the call rate.** At the full rate they filled the inbox (18 a year).
-- **Memory replaced trust:** a deal, a declined offer or a final offer you refused now goes on the GM's record
-  of you (`gmMemory.ts`), and the fleece check is judged a season later.
+- **Memory replaced trust:** a deal, an offer of his you took or a final offer you refused now goes on the GM's record
+  of you (`gmMemory.ts`; a straight no to an ordinary offer costs nothing), and the fleece check is judged a season later.
 - **Every proposal is heard.** *Propose* no longer waits for the meter to read "would accept"; a
   turned-down proposal costs a little patience. A league-rule problem (your roster, the
   cap) costs nothing: he never heard an offer.

@@ -142,6 +142,10 @@ export function beginOffseason(league: League): void {
 
   // Every mentoring pair's season is banked and re-centred before anyone's year is rolled.
   mentoringYearEnd(league);
+  // A trade is judged on the season just played, before anyone retires: a man who started and then hung it up in this
+  // very step still counts as a starter (a deal that fell through to a retiree isn't "gone"). Expiring deals keep their
+  // club until free agency, and picks are pruned only at finishDraft, so both still read here.
+  memoryNewYear(league);
   const retirees: Player[] = [];
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
@@ -232,7 +236,6 @@ export function beginOffseason(league: League): void {
 
   generateDraftClass(league, rng);
   habitsNewYear(league);
-  memoryNewYear(league);
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.

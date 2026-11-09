@@ -5,6 +5,7 @@ import { marginFor } from './trade/judge';
 import { simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason';
 import { setTeam, teamPlayers } from './roster';
+import { seasonRole } from './scouting';
 import {
   KEEP_MOMENTS,
   judgeTrade,
@@ -173,5 +174,25 @@ describe('judged a season later', () => {
     beginOffseason(l);
     expect(l.season).toBe(season + 1);
     expect(gm.withYou![0].verdict).toBeDefined();
+  }, 300_000);
+  it('a man he got who started and then retires at the new league year still counts as a starter', () => {
+    simToEndOfSeason(l);
+    const starter = Object.values(l.players).find(
+      (q) => q.teamId !== null && !q.retired && seasonRole(l, q, l.season)?.role === 'starter',
+    )!;
+    starter.age = 70; // retires for certain in the step that ages him
+    noteMoment(l, gm, { kind: 'trade', got: { players: [starter.id], picks: [] } });
+    l.season++;
+    console.log(
+      'DBG',
+      JSON.stringify(pieceRole(l, 'player', starter.id)),
+      JSON.stringify(seasonRole(l, starter)),
+      JSON.stringify(starter.stats[l.season - 1]),
+      starter.position,
+    );
+    l.season--;
+    beginOffseason(l);
+    expect(starter.retired).toBe(true);
+    expect(gm.withYou![0].verdict).toBe('heWon');
   }, 300_000);
 });
