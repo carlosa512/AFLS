@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.19',
+    date: '2026-11-09',
+    title: 'No cutting the man you just paid',
+    text:
+      'When a club needs cap room it now weighs next year as well as this one: no more cutting a player whose dead ' +
+      'money leaves next year worse than keeping him, and no cutting a man it signed or extended this league year ' +
+      'while anyone else would free the room. Clubs far over the cap still do what they must.',
+  },
+  {
     version: '0.4.18',
     date: '2026-11-09',
     title: 'Every concussion gets a letter',
