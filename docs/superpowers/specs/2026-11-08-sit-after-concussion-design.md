@@ -11,7 +11,7 @@ clear there (`docs/INJURIES.md`, *Concussions*). The game, the test and the mail
 
 For his first two games back a second concussion is twice as likely (`CONCUSSION_WINDOW`). A man can run three
 concussions in three weeks with nobody choosing to sit him (a save's Taj Floyd: weeks 3, 4 and 5, then shut down for
-the year). 0.4.17 gave this case its letter ("concussed, and cleared to play"); this gives it a choice.
+the year). 0.4.18 gave this case its letter ("concussed, and cleared to play"); this gives it a choice.
 
 ## Your call: *Sit him this week*
 
@@ -80,4 +80,4 @@ this season." Otherwise he says nothing more. The button is there either way.
 
 `src/engine/injuries.ts` (`sitOdds`, the AI call in `clearProtocol`, `sitAfterClear`, `sitProblem`),
 `src/engine/inbox.ts` (advice line, injury letter skip), `src/ui/mail.tsx` (the button), `docs/INJURIES.md`,
-tests, changelog (0.4.18).
+tests, changelog (0.4.19).

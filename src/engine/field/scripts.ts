@@ -87,6 +87,12 @@ const RUN_OUT = 5;
 const THROWAWAY_DOWNFIELD = 12;
 /** A sack's last stagger to the spot, yards a second at most. */
 const SACK_PACE = 5;
+/** A sack's stagger: the two go down together this far (yards) at most; a spot farther off he reaches in his pocket. */
+const SACK_STAGGER = 1.5;
+/** His pace to it, up into the pocket or drifting back from the rush (yards a second). */
+const SACK_CLIMB = 4.5;
+/** The share of that climb before the pocket's moment (the rest after it). */
+const SACK_CLIMB_BEFORE = 0.5;
 /** Before a scramble breaks out. */
 const SCRAMBLE_HOLD = 1.1;
 
@@ -578,6 +584,27 @@ function stageCarried(e: PlayLogEntry, homeId: number, snapY: number, opts: Path
       const out = ground(from.x, from.y, end.x1, end.y1);
       // Taken down: the two of them to the spot at a stagger's pace, not the broadcast view's slide.
       out.dur = Math.max(out.dur, Math.hypot(end.x1 - from.x, end.y1 - from.y) / SACK_PACE);
+      const far = Math.hypot(end.x1 - from.x, end.y1 - from.y);
+      if (e.kind === 'sack' && far > SACK_STAGGER + 0.5) {
+        // The spot is where he went down, so it's where the rush meets him: he gets there in his pocket (up to the line
+        // on a short one, drifting back from it on a long one), and the last leg is only the stagger. Walking him to it
+        // after the hit had the two of them going yards together, the rusher on his back.
+        const u = SACK_STAGGER / far;
+        const near = { x: end.x1 + (from.x - end.x1) * u, y: end.y1 + (from.y - end.y1) * u };
+        // Up into the rush, around his pocket's moment (`sackTime`, the NFL's): half the climb before it, half after. All
+        // of it before had him walking into the rush early (time to sack 0.2 s under the NFL's); all of it after, 0.6 over.
+        const climbDur = (far - SACK_STAGGER) / SACK_CLIMB;
+        // Drifting back from it (a long loss), he's fleeing the rush: all of it before the rush gets home, or the rusher
+        // rides his back for yards.
+        const back = (from.x - end.x1) * dir > 0;
+        const before = Math.min(climbDur * (back ? 1 : SACK_CLIMB_BEFORE), from.t * 0.5);
+        const leave = from.t - before;
+        const kept = pocket.filter((k) => k.t < leave - 1e-6);
+        const keys: Keyframe[] = [...kept, { t: leave, ...sample(pocket, leave) }, { t: leave + climbDur, ...near }];
+        const down = ground(near.x, near.y, end.x1, end.y1);
+        down.dur = Math.max(down.dur, SACK_STAGGER / SACK_PACE);
+        return [...legs({ x: e.from, y: snapY }, keys), down];
+      }
       return [...legs({ x: e.from, y: snapY }, pocket), e.kind === 'scramble' ? carry(out, caught, top, chaser) : out];
     }
     const qb = { x: e.from - dir * 6, y: snapY };

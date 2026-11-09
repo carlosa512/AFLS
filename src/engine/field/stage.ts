@@ -65,6 +65,11 @@ export interface StagedPlay {
   pos: Float32Array;
   /** steps × (x, y, h). */
   ball: Float32Array;
+  /**
+   * Where the ball is snapped: the line of scrimmage. Not the ball's first frame, which on a dropback the pocket plays
+   * (`pocketMoment.ts`) is already in the passer's hands, a yard or several behind it.
+   */
+  line: { x: number; y: number };
   /** The players the play was about: ringed and drawn on top. */
   keys: number[];
   /** Per key: seconds from the snap when his ring shows, just before his moment, so the ring never gives the play away. */
@@ -510,6 +515,7 @@ export function stagePlay(args: {
     home: members.map((_, k) => k < cast.offense.length === homeSide),
     pos,
     ball: ball.subarray(0, steps * 3),
+    line: { x: ballX, y: ballY },
     // Featured: the men with a moment (a quarterback who only hands off is scripted, not featured).
     ...(loose ? { loose: { t: loose.t, x: loose.x, y: loose.y, by: loose.by, settle: loose.settle } } : {}),
     ...(isVictory(e) && qbId !== undefined ? { kneel: { id: qbId, t: KNEEL_AT } } : {}),

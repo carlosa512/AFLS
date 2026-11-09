@@ -246,7 +246,11 @@ function scrimmage(
   const kneel = e.kind === 'kneel' || e.kind === 'spike';
   const gun = !kneel && (!underCenter(e) || off.personnel === '10');
   for (const m of of(o, 'QB')) put(m.id, gun ? 5 : 2, 0);
-  for (const m of of(o, 'RB')) put(m.id, gun ? 5 : 6.5, gun ? -s * 1.5 : 0);
+  // Two backs never share a spot: the second is the fullback in front of the tailback (the I), or from the gun the other
+  // side of the quarterback.
+  of(o, 'RB').forEach((m, i) =>
+    i === 0 ? put(m.id, gun ? 5 : 6.5, gun ? -s * 1.5 : 0) : put(m.id, gun ? 5 : 4.3, gun ? s * 1.5 : 0),
+  );
 
   // Tight ends on the line, the first on the strong side; receivers split out about on the numbers, slots inside them on
   // the side with fewer.

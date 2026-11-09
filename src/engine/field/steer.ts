@@ -31,6 +31,8 @@ const GOAL_X: readonly [number, number] = [-9, 109];
 const MAX_STEP = 0.55;
 /** A push can take a man this far past his own top speed (yards a second): a shove, never a sprint he hasn't got. */
 const LEGS_OVER = 0.3;
+/** A beaten blocker trails his man by this much (yards), on the far side from the quarterback. */
+const BEHIND_HIS_MAN = 1;
 /** On a run nobody gets within this of the back (yards) until he's this far past the line: the crease. */
 const CREASE = 2;
 const CREASE_PAST = 2.5;
@@ -704,7 +706,12 @@ export function steer(a: SteerArgs): Float32Array {
             if (k === index.get(a.beat ?? -1) && on === index.get(a.rush ?? -1) && t >= SET_TIME) {
               const mine = Math.hypot(px[hk] - px[k], py[hk] - py[k]);
               if (Math.hypot(dx, dy) < mine || t >= (a.beatAt ?? Infinity)) {
-                goal = { x: px[on], y: py[on] };
+                // Behind his man, never past him: chasing the rusher's own spot, a quarterback coming up into the rush
+                // (a short sack) met the beaten man first.
+                const bx = px[on] - px[hk];
+                const by = py[on] - py[hk];
+                const bl = Math.hypot(bx, by) || 1;
+                goal = { x: px[on] + (bx / bl) * BEHIND_HIS_MAN, y: py[on] + (by / bl) * BEHIND_HIS_MAN };
                 beaten = 0.5;
               }
             }

@@ -9,7 +9,7 @@ their men clear, and your doctor says when he would.
 **Architecture:** Everything rides on the existing hold: a sat man is put in the state `clearProtocol` leaves a held
 man (`p.injury` a concussion with a week left and no protocol; his file one game and `held`), so `injuryWeek`,
 `concussionWindow` and lineups need no change. One odds function (`sitOdds`) serves the AI's draw and the doctor's
-advice. The letter is the 0.4.17 "concussed, and cleared to play" all-clear (`cleared:` id).
+advice. The letter is the 0.4.18 "concussed, and cleared to play" all-clear (`cleared:` id).
 
 **Tech Stack:** TypeScript, Vitest, React (server-rendered in tests).
 
@@ -109,7 +109,7 @@ work still to do.
 ### Task 5: Docs, version, checks — done
 
 **Files:** `docs/INJURIES.md` (Your call, AI clubs' call, the league's share), `src/ui/changelog.ts` and
-`package.json` (0.4.18), `src/engine/offseason/__snapshots__/offseason.test.ts.snap`,
+`package.json` (0.4.19, after main took 0.4.17), `src/engine/offseason/__snapshots__/offseason.test.ts.snap`,
 `src/engine/offseason/capPlan.test.ts`.
 
 - [x] **Step 1:** `npm run sim -- 30`: `concussions 0 games %` 36.53 (33–50), no ✗.
@@ -121,7 +121,7 @@ work still to do.
 ### Task 6: Review Focus — to do
 
 **Files:** Modify `src/engine/inbox.ts` (`clearedMail`). Test `src/engine/inbox.test.ts`,
-`src/engine/injuries.test.ts`. `src/ui/changelog.ts`, `package.json` (0.4.19).
+`src/engine/injuries.test.ts`. `src/ui/changelog.ts`, `package.json` (stays 0.4.19: the same feature, unreleased).
 
 **Interfaces — Consumes:** `sitAfterClear`, `sitProblem`, `sittingAfterClear` (Task 2); `setTeam` (`roster.ts`).
 
@@ -144,5 +144,5 @@ work still to do.
   current injury is something else; the regular all-clear path is unchanged.
 - [ ] **Step 4: Run** the same command: all PASS. Then `npx vitest run src/engine/inbox.test.ts
   src/engine/injuries.test.ts src/ui/` and `npm run typecheck`: all PASS.
-- [ ] **Step 5: Version and commit.** 0.4.19 and a changelog line (the concussion is told even when practice hurts
+- [ ] **Step 5: Changelog and commit.** Add to the 0.4.19 entry (the concussion is told even when practice hurts
   him that week); `npm run format`; commit; push.

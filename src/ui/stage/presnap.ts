@@ -98,7 +98,8 @@ export function presnapPlan(args: {
   const rng = new Rng(`${args.seed}:presnap`);
   const n = s.ids.length;
   const dir = s.dir;
-  const ball = { x: s.ball[0], y: s.ball[1] };
+  // The line, not the ball's first frame: in your games the pocket's film starts with the ball in the passer's hands.
+  const ball = s.line;
   const snap = (k: number): Pt => ({ x: s.pos[k * 2], y: s.pos[k * 2 + 1] });
   const all = s.ids.map((_, k) => k);
   const off = all.filter((k) => s.offense[k]);

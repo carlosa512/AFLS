@@ -13,7 +13,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.18',
+    version: '0.4.19',
     date: '2026-11-08',
     title: 'Sit him this week',
     text:
@@ -23,13 +23,24 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'second this season, almost always after a third, a little less when a starter is needed or in the playoffs.',
   },
   {
-    version: '0.4.17',
+    version: '0.4.18',
     date: '2026-11-08',
     title: 'Every concussion gets a letter',
     text:
       "A concussion that clears the protocol in the week it happened now gets the team doctor's letter: he was " +
       "concussed, he's cleared, and a second one is likelier in his first couple of weeks back. Before, these slipped " +
       'by without a word, so a player could reach his third concussion with no warning in the inbox.',
+  },
+  {
+    version: '0.4.17',
+    date: '2026-11-08',
+    title: 'Defenders on their own side',
+    text:
+      "On the All-22, a linebacker showing blitz or a corner showing press no longer lines up in the offense's " +
+      'backfield and dashes back as the ball is snapped: the moments before the snap, the huddles, the officials and ' +
+      'the ball the umpire spots all work from the line of scrimmage again. A sacked quarterback goes down where the ' +
+      'rush meets him instead of walking to the spot with the rusher on his back, and two backs in the game no ' +
+      'longer line up on the same spot.',
   },
   {
     version: '0.4.16',
