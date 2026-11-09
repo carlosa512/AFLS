@@ -264,8 +264,9 @@ in-season morale week, after the games:
 - **Jobs are set on cut-down day.** The men listed in the starting spots of each club's depth chart when the season
   starts hold the jobs, hurt or not (a hurt starter keeps his spot on the chart; the man covering for him has no
   job).
-- **Started:** he played a starter's share of his club's scrimmage snaps in that game (`GameResult.playerStats`
-  against the position's reference, the test `roleStep` already makes).
+- **Started:** he was in a starting spot of the lineup his club took into the game, read at kickoff (`benching.ts`
+  notes each club's lineup before the week's games). A man hurt or pulled during the game still started; snap counts
+  don't decide it.
 - **In season a man earns a job** by starting three games in a row while no job-holder at his position is out hurt. A
   fill-in covering for a hurt starter never earns it, so he doesn't ask when the starter returns.
 - **He loses it** when he leaves the club, when your word gives it to another man, when another man earns it, or at
@@ -287,9 +288,10 @@ room while picks are left:
 
 ### What counts as sitting
 
-A job-holder who was available for his club's game and didn't start it. Available means healthy, off injured reserve,
-not suspended and not sat on the doctor's advice (*Sit him this week*). Moving him down the chart and back before
-kickoff is nothing: only the game counts.
+A job-holder who was available for his club's game and didn't start it. Available means he could have played: not
+hurt, not on injured reserve, not sat on the doctor's advice (*Sit him this week*), not holding out or still off the
+53 after one (`onDidNotReport`). Moving him down the chart and back before kickoff is nothing: only the game counts.
+Starting at another position counts as starting (below).
 
 ### Back from injury
 
@@ -366,7 +368,72 @@ room's (the meeting trouble that exists). The letters:
   took it like a pro. He won't love it." / "Neither of them was told. Reyes has started three straight, so that's
   that, and Gibson heard it from the depth chart."
 
-## 5. Outlets: the seam for news
+## 5. When things change mid-story
+
+Stories, jobs and letters all meet players who get hurt, traded or cut partway through. One rule covers most of it: a
+story is about men at a club, so when the facts under it change, it pauses or closes with one sentence saying why,
+and never leaves a letter asking about someone who is gone.
+
+### Injuries
+
+| Situation | What happens |
+| --- | --- |
+| A job-holder is hurt | He keeps his job, on injured reserve too. The man covering him starts but can't earn it, and doesn't ask when the starter returns |
+| A job-holder is hurt during the game | He started. No benching |
+| A man waiting on your answer gets hurt | His ask stays open; he isn't unsure while he can't play |
+| Either man of an open job question gets hurt | The question pauses: nobody is unsure and no start counts toward three in a row. It resumes when both can play |
+| One of them is out for the rest of the season | The question closes with no hit: the job is the other man's until the new league year. One closing row says so |
+| "You're back in next week", and he gets hurt first | The promise waits for the next game he can play |
+| "You're back in next week", and the other man gets hurt | He starts as promised: kept |
+| Back from injury, a holdout or a suspension of any kind | The coach's reminder the week he's available and not listed in a starting spot, then the one-game rule |
+| The doctor sits him (*Sit him this week*) | Not a benching, and the week doesn't count for or against anyone |
+| A bye | No game: nothing counts, and "next week" means the next game |
+
+### Trades, cuts and retirements
+
+| Situation | What happens |
+| --- | --- |
+| A man with an open story leaves the club (traded, cut, claimed, retired) | His stories close with the beat "left". Any link to his room's story goes; the room's story stays if the room is still down |
+| He leaves with an ask unanswered | The row closes as talk letters do today ("This talk is closed") |
+| He leaves with a promise open | As promises work today: his talk record goes with the club he left, and how he left is remembered (`Player.left`) |
+| One man of an open job question leaves | The question closes: the job is the other man's by fact. His uncertainty clears with no lift (nobody told him), and one row says it: "Reyes is gone, so it's Gibson's job again" |
+| A job-holder leaves | His job is empty. Whoever starts three in a row earns it |
+| A new man arrives (trade, signing, waiver claim) and starts over a job-holder | An ordinary benching: the holder asks, and the new man is the `other` the letter names |
+| A man the meeting's commitment named leaves | The commitment is kept or broken by the rules commitments have today; the room's story takes that beat |
+| A feud's man leaves | The feud's story closes; the room's row says the room is quieter for it only if its read moved |
+
+### Positions
+
+| Situation | What happens |
+| --- | --- |
+| A position change on cut-down day | Jobs are read after the flips, from the chart at kickoff |
+| A job-holder lines up at another position and starts there ("Play at…", yours or the staff's cover) | He started. His job stays at his own position, and the man in his old spot is covering: he can't earn it |
+| A room with several starters (three receivers, five linemen) | A job is a place among the starters at his position, not a named spot: moving from left tackle to right is nothing |
+| Who "took his job" | The man who started at his position without holding a job there. With two, the one listed higher on the chart. With none, no man is named |
+| Two job-holders sit the same week | Each opens his own question. Talks still hear two asks a club a step, so a third waits a week |
+| Kickers and punters | The same rules: one job each |
+
+### The calendar
+
+| Situation | What happens |
+| --- | --- |
+| The club's season ends (eliminated, or out of the playoffs) | No more games, so no new benching and nobody is unsure. Open job questions rest until the new league year |
+| The new league year | Jobs clear and are set again on cut-down day. An open job question closes quietly. Other stories carry over while their cause does (a contract ask in the re-sign window is the same story) |
+| Letters after your season is over | The moment sheet knows the season is done, so no line talks about Sunday |
+| A playoff game | A game like any other |
+
+### The people writing
+
+| Situation | What happens |
+| --- | --- |
+| A new head coach mid-story | The letters come from him. A callback to his predecessor's meeting names the man who held it ("Vo told the D-line…"), from the coach the commitment already records |
+| The chair is empty | "Coaching staff" signs, as today, in a plain voice with no motto |
+| A position coach leaves | His room's row is the head coach's until the chair is filled |
+| A coordinator is relieved | His `staff` story closes with that beat |
+| You lose or leave your job | Open rows close, as talk letters do today. Stories belong to the club you left and are dropped; at a new club they start empty from the step you arrive, like meetings held before you came. Jobs are kept for every club, so the new club's are already set |
+| A save upgraded mid-season | Section 8 |
+
+## 6. Outlets: the seam for news
 
 The head coach's letter is the first reader of the story store, not the only one it is built for.
 
@@ -384,7 +451,7 @@ season arcs as outlets that read `pub` beats (a starter benched, a request leake
 other clubs' public beats recorded then. Nothing in this pass files news from stories; SNN and the Gazette are
 untouched.
 
-## 6. The screen
+## 7. The screen
 
 `MailSections` gains a layout for these rows (`ui/mail.tsx`), following `docs/UI.md`:
 
@@ -397,7 +464,7 @@ untouched.
 
 Faces and this layout for every other letter kind are a later piece.
 
-## 7. Saves
+## 8. Saves
 
 `SAVE_VERSION` goes up by one (the GM memory branch does too; whichever merges second takes the next number). All
 new fields are optional: `League.stories`, `Team.jobs` (with a job's open question), `Team.lineupSet`,
@@ -408,7 +475,7 @@ job), so nobody asks about a benching that happened before the upgrade, and mark
 save in camp isn't stopped at the door. Stories start empty and fill from that step
 on. Letters already filed stay and still open their cards.
 
-## 8. Testing
+## 9. Testing
 
 - **Season replay** (`coachWeek.test.ts`): play a season as a GM who answers everything. At most one coach letter a
   step; none of the replaced ids filed; no sentence from the head coach twice in the season; no room told twice
@@ -426,12 +493,15 @@ on. Letters already filed stay and still open their cards.
   sits, a swap passes it to the other man, an answer to either clears both with the same lift, and three straight
   starts settles it by the chart; the advance button asks for the lineup only when you sort the chart by hand and
   haven't confirmed it.
+- **Mid-story changes** (`stories.test.ts`, `benching.test.ts`): one test per row of section 5's tables, so a hurt,
+  traded, cut or retired man never leaves an open row, a paused question draws no jolt, and a closing row is filed
+  once.
 - **Checks:** `npm run morale` in CI with no range moved. Nothing in `src/engine/match/` changes, so no other sim
   check is called for.
 - **Letters to read:** `npm run mail-preview` gains moments for a room going down, a benching and a result week;
   `npm run screens -- --mail coach` shoots them for the owner before merge.
 
-## 9. Build order
+## 10. Build order
 
 Two steps on this branch, each leaving the game working:
 
