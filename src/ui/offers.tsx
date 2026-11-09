@@ -21,7 +21,7 @@ import {
   resolveExam,
   setTradeStatus,
   shopPlayer,
-  ASKS,
+  asksFor,
   peekTalks,
   scoutedNeeds,
   shoppingOf,
@@ -617,9 +617,11 @@ export function WantsPills({ league, team, ctx }: { league: League; team: Team; 
 
 /** Whether a GM is still taking your proposals this week, in words: never how many you have left. */
 export function talksWords(league: League, teamId: number): string {
-  const refusal = talkRefusal(league.market, teamId);
+  const refusal = talkRefusal(league, teamId);
   if (refusal) return refusal;
-  return ASKS - peekTalks(league.market, teamId).asks === 1 ? 'Nearly done talking this week' : 'Taking proposals';
+  return asksFor(league, teamId) - peekTalks(league.market, teamId).asks === 1
+    ? 'Nearly done talking this week'
+    : 'Taking proposals';
 }
 
 const STANCE_ORDER: Stance[] = ['contend', 'bubble', 'retool', 'rebuild'];

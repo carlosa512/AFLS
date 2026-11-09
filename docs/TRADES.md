@@ -44,7 +44,7 @@
 | 2. Offers to you | Offers, enquiries, counters, statuses, Shop a player, the new Trades screens, staff advice | L |
 | 3. Physicals, offseason and cap moves | Physicals with pass/fail drama, league-year dumps, retained salary, tag-and-trade, trade-and-extend, cutdown and rehab trades | M |
 | 4. Draft day | AI trade-ups and trade-downs, offers while you're on the clock, Shop this pick | M |
-| 5. Memory, media and mind games | GM trust, planted rumors and bluffs, draft smokescreens, the director's digest, trade tags in the news | M |
+| 5. Memory, media and mind games | how GMs remember you, planted rumors and bluffs, draft smokescreens, the director's digest, trade tags in the news | M |
 | 6. Later | Conditional picks, compensatory picks, no-trade clauses, waivers, trade requests | – |
 
 ---
@@ -246,7 +246,7 @@ draft-day deals all call it.
 
 | Side | Margin it wants |
 | --- | --- |
-| An AI judging your proposal | `1.05 + 0.15 × stubbornness`, + trust (section 5), + 0.06 for a division rival, + 0.04 for a playoff rival in season, − 0.03 for a seller at the deadline |
+| An AI judging your proposal | `1.05 + 0.15 × stubbornness`, + how he remembers you (section 5), + 0.06 for a division rival, + 0.04 for a playoff rival in season, − 0.03 for a seller at the deadline |
 | An AI judging an AI deal | `1 + 0.05 × stubbornness` (both sides must not lose in their own eyes) |
 
 Guardrails are separate checks that value can't buy past: windows, cap, roster, physical, cooldown,
@@ -460,7 +460,7 @@ This is ZenGM's "make it work", run from their side. It never asks for an Untouc
 "can't make this work" instead of a silly ask.
 
 **Your proposals cost patience.** Each GM hears at most about 4 offers from you per moment before
-"We're done talking this week." Proposals the GM turns down nudge his trust in you down a little. The
+"We're done talking this week." A proposal he turns down costs a little patience; a straight no costs nothing else, but turning down his final offer, or a counter to your own proposal, goes on his record of you. The
 acceptance meter stays coarse (10% steps, as today), so a probe can't read the exact valuation off it.
 
 **Your staff's advice on every offer** (your view only, never the AI's numbers):
@@ -470,10 +470,19 @@ acceptance meter stays coarse (10% steps, as today), so a probe can't read the e
 - **Medical staff:** injury-risk words (`injuryRisk`).
 - **The cap:** room after and the dead money you'd book (`tradeCapImpact`).
 
-**Trust** (per AI GM, from −1 to 1, drifting back to 0 by about 0.1 a month): it falls when you turn
-down several offers in a row, pull a counter, or fleece him (truth value two to one against him, judged
-after a season so a bust he chose doesn't count). It rises after deals both sides came out fine on. It
-adds up to ±0.06 to his margin with you.
+**How GMs remember you** (`gmMemory.ts`): each AI GM keeps a short list of moments with your GM: a trade, an offer
+of his you took, a final offer you turned down, talks he was led on in. A trade is judged again a season on, from how the
+men played: he came out ahead, both did, you did, or the man he got broke down. How he stands with you is worked out from
+those moments each time it is read and never stored. Each fades with age (a stubborn GM holds on longer), a big trade
+counts more, and the list keeps six seasons and twelve moments. A GM with no moments is neutral and deals exactly as he
+always has. Nothing shows as a number: it shows in his letters, his table line and your director's note (`gmTalk.ts`).
+
+It leans three things. His price and who calls first move continuously with how he stands; his patience and the asks step only at the extremes of the scale:
+- **His price:** a sour GM asks up to 6% more of you, a friendly one up to 6% less (`marginFor`).
+- **His patience:** a friendly GM hears five proposals a moment and his counters run a round longer; a sour one hears
+  three and walks a round sooner. He always takes your call.
+- **Who calls first:** a friendly GM moves up the line of offers to you, and a sour one files half as many pitches. The
+  number of offers you get a moment does not change.
 
 #### Rumors and mind games
 
@@ -730,8 +739,8 @@ export interface TradeMarket {
     id: string; season: number; phase: Phase; week: number; teamIds: number[]; playerId?: number; text: string;
     source: 'league' | 'rival' | 'agent' | 'staff'; planted?: true; outcome?: 'happened' | 'didnt';
   }[];
-  /** Per AI team: your proposals this moment, cooldowns, and trust (−1…1). */
-  talks: Record<number, { moment: string; asks: number; until?: string; trust: number }>;
+  /** Per AI team: your proposals this moment, and cooldowns. */
+  talks: Record<number, { moment: string; asks: number; until?: string }>;
   /** Season whose deadline day has been closed. */
   deadlineClosed?: number;
 }
@@ -774,7 +783,7 @@ ratings) follow the existing rule: screens never render them.
 | `trade/deals.ts` | The templates and `findDeal` |
 | `trade/market.ts` | `marketMoment(league, moment)`: initiators, AI↔AI deals, offers to you, rumors, expiry |
 | `trade/offers.ts` | The offer lifecycle: accept, decline, counter, enquiry replies, shop a player |
-| `trade/talks.ts` | How many proposals a GM hears a moment, and his trust in you |
+| `trade/talks.ts` | How many proposals a GM hears a moment, and how he remembers you |
 | `trade/advice.ts` | Your staff's word on a deal (head coach, pro scouts, medical, cap) |
 | `trade/physicals.ts` | The buyer's doctor: findings, the exam, a lower price after concerns, the public file |
 | `trade/draftDay.ts` | Trade-ups and trade-downs before each pick |
@@ -1178,7 +1187,7 @@ on one timeout, now fixed. The other three reds are the same ones `main` has:
 
 ### Phase 2: offers to you
 
-1. `league.market`: offers, statuses, interest, talks, trust; mail for offers, enquiries and digests.
+1. `league.market`: offers, statuses, interest, talks; mail for offers, enquiries and digests.
 2. Offer creation from the same deal search (bids, pitches, dumps) with the throttles; enquiries.
 3. Lifecycle: expiry on the calendar, re-check at accept with the release picker, decline cooldown,
    counters with patience, "final offer".
@@ -1227,11 +1236,10 @@ Where the build departed from the plan, and why:
   moment: listing draws an offer within two moments whenever a team needs him. The buyer opens 5%
   lower: he knows you want to sell.
 - **Enquiries come at half the call rate.** At the full rate they filled the inbox (18 a year).
-- **Trust moves by small steps:** +0.03 for a deal, −0.01 for a proposal he turns down, −0.02 for a
-  declined offer, −0.05 when he walks away; it drifts back by 0.025 a moment and moves his margin with
-  you by up to 0.06. The plan's fleece check, judged a season later, waits for Phase 5's memory.
+- **Memory replaced trust:** a deal, an offer of his you took or a final offer you refused now goes on the GM's record
+  of you (`gmMemory.ts`; a straight no to an ordinary offer costs nothing), and the fleece check is judged a season later.
 - **Every proposal is heard.** *Propose* no longer waits for the meter to read "would accept"; a
-  turned-down proposal costs a little patience and trust. A league-rule problem (your roster, the
+  turned-down proposal costs a little patience. A league-rule problem (your roster, the
   cap) costs nothing: he never heard an offer.
 - **AI teams cut to fit in any trade.** The rule check used to stop a proposal that left the AI team
   over 53, though it waives a backup after every trade anyway; now only your roster must fit (or you
@@ -1565,7 +1573,7 @@ Measured (`npm run trades`, three leagues of three drafts; `npm run offseason --
 
 ### Phase 5: memory, media and mind games
 
-1. GM trust in you (section 5), drifting back to neutral.
+1. How GMs remember you (section 5), fading with time.
 2. Rumors and mind games (section 5): hidden GM candor; the plays (bidding war, "we have another
    offer" with a real or bluffed rival deal, talking down the price, fishing, draft smokescreens);
    sources; outcomes on the Market tab; each GM's record of leaks.

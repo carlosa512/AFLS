@@ -42,8 +42,15 @@ const earlyPicks = (l: League, r: TradeRecord) =>
     .filter((p) => p.round <= 2);
 /** The deal's best player on our scouts' read: the name a story or a note leads with. */
 export function leadPlayer(l: League, r: TradeRecord): number {
+  return bestKnown(
+    l,
+    r.sides.flatMap((s) => s.players),
+  )!;
+}
+/** The best of some men on our scouts' read (lower id on a tie), or undefined when none is left in the league. */
+export function bestKnown(l: League, ids: number[]): number | undefined {
   const rating = (id: number) => perceive(l, l.userTeamId, l.players[id]).ovr;
-  return r.sides.flatMap((s) => s.players).sort((a, b) => rating(b) - rating(a) || a - b)[0];
+  return ids.filter((id) => l.players[id]).sort((a, b) => rating(b) - rating(a) || a - b)[0];
 }
 const identity = (r: TradeRecord) =>
   r.sides

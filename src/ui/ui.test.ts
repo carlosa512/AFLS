@@ -374,7 +374,11 @@ describe('screen contract', () => {
   });
 
   it('never shows a GM’s archetype or habits', () => {
-    const bad = files.filter((f) => /\.archetype\b|\.habits\b|\bhabitLog\b|\bhabitMarbles\b|\bHABITS\b/.test(src(f)));
+    const bad = files.filter((f) =>
+      /\.archetype\b|\.habits\b|\bhabitLog\b|\bhabitMarbles\b|\bHABITS\b|\bwithYou\b|\bstandingWith\b|\bYouMoment\b/.test(
+        src(f),
+      ),
+    );
     expect(bad).toEqual([]);
   });
 
