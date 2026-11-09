@@ -4,6 +4,7 @@ import { freshChemistry } from './chemistry';
 import { freshStaff } from './staffEdge';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
+import { storiesStep } from './storiesStep';
 import { moraleWeek } from './morale';
 import { mentoringWeek } from './mentoring';
 import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
@@ -210,6 +211,8 @@ function playWeekControlled(league: League): Game[] {
     // An AI club whose rooms have turned on a coordinator, losing and among the worst on his side, may let him go.
     aiRelieve(league);
     meetingsStep(league);
+    // Then the story beats for what is read rather than done: rooms, feuds, the staff, the links.
+    storiesStep(league);
   }
   league.week++;
   leadershipWeek(league);

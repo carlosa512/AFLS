@@ -1,6 +1,8 @@
 import { habitsNewYear } from '../gmHabitsYear';
 import { beliefNewYear } from '../belief';
 import { meetingsStep } from '../meetings';
+import { storiesStep } from '../storiesStep';
+import { storiesNewYear } from '../stories';
 import { moraleStep } from '../morale';
 import { lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
@@ -231,6 +233,7 @@ export function beginOffseason(league: League): void {
 
   generateDraftClass(league, rng);
   habitsNewYear(league);
+  storiesNewYear(league);
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
@@ -256,6 +259,7 @@ export function beginOffseason(league: League): void {
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
   meetingsStep(league);
+  storiesStep(league);
 }
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
@@ -448,6 +452,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
   meetingsStep(league);
+  storiesStep(league);
   return league.phase;
 }
 

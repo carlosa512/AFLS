@@ -32,7 +32,7 @@ const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */
 const WAIT = 2;
 
-const CAUSE_OF: Record<string, TalkCause> = {
+export const CAUSE_OF: Record<string, TalkCause> = {
   'Wants more snaps': 'snaps',
   'Still stung by the benching': 'snaps',
   'Wants a new deal': 'deal',
