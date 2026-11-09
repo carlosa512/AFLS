@@ -795,6 +795,8 @@ export const REFUSALS: readonly Line<TalkFacts>[] = [
   { when: refuse('sour'), reads: 1, text: () => "I'm done for now." },
   { when: refuse('sour'), reads: 1, text: () => 'Not now.' },
   { when: refuse('sour'), reads: 1, text: () => 'No more today. Try me later.' },
+  { when: refuse('sour'), reads: 1, text: () => 'Enough for now.' },
+  { when: refuse('sour'), reads: 1, text: () => "I'm finished. Try me later." },
 ];
 
 /** His refusal to hear more, in his words; steady within a market moment. */
@@ -810,8 +812,6 @@ export function refusalLine(league: League, ai: Team): string {
  * sees it from outside: "I think", "I'd guess". Names the man when there is one, never a figure.
  */
 export const HISTORY: readonly Line<TalkFacts>[] = [
-  { when: refuse('sour'), reads: 1, text: () => 'Enough for now.' },
-  { when: refuse('sour'), reads: 1, text: () => "I'm finished. Try me later." },
   {
     when: is('heWon'),
     reads: 1,
