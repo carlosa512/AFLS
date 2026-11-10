@@ -95,8 +95,8 @@ const storiesOpened = (l: League) =>
 // `it.fails`, with the numbers measured when it was written: a miss is a design question, not a number to move.
 describe.each([
   { seed: 'mail1', team: 3, over: [] as string[] },
-  // vol2, a 3-13 club: 11 letters, but 15 stories opened (11 of them rooms turning Down or Split, again after each
-  // recovery, and 3 of the staff's), against the owner's 10.
+  // vol2, a 3-13 club: 11 letters, but 15 stories opened (8 rooms turning Down or Split, again after each recovery,
+  // 2 of the club's losing, 3 of the staff's and 1 of snaps), against the owner's 10. Open for the owner's call.
   { seed: 'vol2', team: 10, over: ['opened'] },
 ])("the head coach's letters over a season: $seed", ({ seed, team, over }) => {
   let l: League;

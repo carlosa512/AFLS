@@ -278,12 +278,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
     tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter), and
     words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
-    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is a room's, not a man's:
-    his ask adds a beat to his room's story (`talkRoomOf`), the letter has one row and one answer for the room
-    (`talkRoom`, `answerRoomTalk`), and a man of it asking inside `LOSING_GAP` steps is answered as you last answered
-    the room (`Team.losingAnswer`, `talkStep`). Room stories close with the season and the league year, silently. `coachWeek.season.test.ts` plays a
+    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
+    one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across
+    rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
+    inside it is answered as you last answered, `Team.losingAnswer`, `talkStep`, your club only). A meeting makes no story
+    (`roomBeat` adds its beats only to a room already open because it turned), and its result rides in the next letter filed
+    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. Room stories close with the season and the league year, silently. `coachWeek.season.test.ts` plays a
     season and holds the letters to it: one a step, no sentence twice, no room told twice inside three steps, every
-    meeting's result in the next letter
+    meeting held told within two steps
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
     an index beside the league kept by `setTeam` and `addPlayer`)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
