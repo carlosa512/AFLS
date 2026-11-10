@@ -2054,11 +2054,11 @@ export function CoachesScreen({ league }: { league: League }) {
             }
             action={<TeamPicker league={league} value={viewTeam} onChange={setViewTeam} />}
           >
+            <RoleGuide roles={[...new Set(GROUPS.flatMap(([, chairs]) => chairs.map((ch) => ch.role)))]} />
             <div className="stack coach-groups">
               {GROUPS.map(([title, chairs]) => (
                 <section key={title} aria-label={title}>
                   <h3 className="coach-group-title">{title}</h3>
-                  <RoleGuide roles={[...new Set(chairs.map((ch) => ch.role))]} />
                   <ul className="staff-grid">
                     {chairs.flatMap((ch) => {
                       const key = `${ch.role}-${ch.room ?? ''}`;
@@ -2189,7 +2189,6 @@ export function CoachesScreen({ league }: { league: League }) {
             <p className="muted small" style={{ marginTop: 0 }}>
               {sort === 'roster' ? 'Best first, by effect on your roster.' : 'Best first.'}
             </p>
-            <RoleGuide roles={ROLES_OF[tab]} />
             {candidates.length === 0 ? (
               <p className="muted" style={{ margin: 0 }}>
                 Nobody on the market fits that filter.
@@ -2327,7 +2326,6 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
       <details className="more">
         <summary>Around the league: how all {league.teams.length} coaching staffs grade</summary>
         <p className="muted small">Ratings are youth development / veteran care.</p>
-        <RoleGuide roles={['headCoach', 'offCoord', 'defCoord']} />
         <div className="table-scroll">
           <table className="league-grades league-coaches">
             <thead>

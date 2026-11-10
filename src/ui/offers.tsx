@@ -350,6 +350,15 @@ export function OfferCard({
       }
     >
       {!compact && <p>{body}</p>}
+      {enquiry &&
+        offer.sides
+          .filter((side) => side.teamId === league.userTeamId && side.players.length > 0)
+          .map((side) => (
+            <div key={side.teamId}>
+              <div className="eyebrow">Asking about</div>
+              <SideList league={league} side={side} />
+            </div>
+          ))}
       {!enquiry && (
         <div className="grid-2">
           <div>

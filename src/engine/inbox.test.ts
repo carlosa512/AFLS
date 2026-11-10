@@ -541,13 +541,12 @@ describe('mail through a season', () => {
       // Case-sensitive: a name like Keenan is not a NaN.
       expect(words).not.toMatch(/\bNaN\b/);
     }
-    // A waiver row's read is our scouts', not the player's true overall.
+    // A waiver row carries no grade: the man, his age, his deal and what happened or our chance.
     for (const m of digests.filter((x) => x.id.startsWith('waivers:')))
-      for (const sec of m.sections!)
-        for (const r of sec.rows) {
-          const p = league.players[r.playerId!];
-          if (p && sec.columns?.[2] === 'Our read' && p.teamId !== user) expect(Number(r.cells[2])).not.toBeNaN();
-        }
+      for (const sec of m.sections!) {
+        expect(sec.columns).not.toContain('Our read');
+        for (const r of sec.rows) expect(r.cells).toHaveLength(4);
+      }
   });
 
   it('marks deadline day only: the director’s mails carry the weeks before', () => {

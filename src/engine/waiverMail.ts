@@ -174,13 +174,7 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
     const p = league.players[r.playerId];
     return {
       playerId: p.id,
-      cells: [
-        fullName(p),
-        String(p.age),
-        String(Math.round(perceive(league, user, p).ovr)),
-        deal(p.contract, league.season),
-        outcome(league, r),
-      ],
+      cells: [fullName(p), String(p.age), deal(p.contract, league.season), outcome(league, r)],
     };
   });
 
@@ -228,7 +222,6 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
         cells: [
           fullName(p),
           String(p.age),
-          String(Math.round(v.ovr)),
           deal(e.contract, league.season),
           `${capital(chance.word)} · ${ordinal(chance.place)} in line`,
         ],
@@ -242,13 +235,13 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
   if (happened.length)
     sections.push({
       title: 'What happened',
-      columns: ['Player', 'Age', 'Our read', 'Deal', 'What happened'],
+      columns: ['Player', 'Age', 'Deal', 'What happened'],
       rows: happened,
     });
   if (wire.length)
     sections.push({
       title: 'On the wire now',
-      columns: ['Player', 'Age', 'Our read', 'Deal', 'Our chance'],
+      columns: ['Player', 'Age', 'Deal', 'Our chance'],
       rows: wire,
     });
   const subject =
