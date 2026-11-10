@@ -63,12 +63,12 @@ export const BENCH_ASK: readonly Line<BenchFact>[] = [
   },
   {
     when: (f) => holder(f) && f.by === 'staff',
-    reads: 2,
+    reads: 1,
     text: () => "The staff has the chart, and I sat. I'd like to know if you stand behind that.",
   },
   {
     when: (f) => holder(f) && f.by === 'you',
-    reads: 2,
+    reads: 1,
     text: () => 'You set the lineup, and I sat. I would like to know what you want from me.',
   },
   {
@@ -112,7 +112,7 @@ export const BENCH_ASK: readonly Line<BenchFact>[] = [
   },
   {
     when: (f) => !holder(f) && !!f.other && f.by === 'staff',
-    reads: 2,
+    reads: 1,
     text: (f) => `The staff has been sorting the chart, and I don't know if I'm the starter or ${across(f)} is.`,
   },
 ];
