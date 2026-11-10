@@ -736,7 +736,7 @@ function RosterRow({
         {needsReps && (
           <span
             className="tag-pill tag-warn name-sub"
-            title="Young and still growing, but he rarely plays: snaps speed up his development."
+            title="He is young and still growing but rarely plays. Playing speeds up his development."
           >
             Needs reps
           </span>

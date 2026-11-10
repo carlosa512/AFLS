@@ -199,19 +199,19 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
           <input type="checkbox" checked={designate} onChange={(e) => setDesignate(e.target.checked)} />
           <span>
             <b>Post-June 1 designation</b> ({POST_JUNE1_LIMIT - team.postJune1Used} of {POST_JUNE1_LIMIT} left). Only
-            this year's bonus share counts now; the rest moves to {league.season + 1}. Same total, different timing.
+            this year's bonus share counts now and the rest moves to {league.season + 1}. The total is the same.
           </span>
         </label>
       ) : preview.postJune1 ? null : (
         <p className="muted small">
-          No post-June 1 designations left this league year: all remaining bonus money hits now.
+          No post-June 1 designations left this league year, so all remaining bonus money counts now.
         </p>
       )}
       {preview.waiver && (
         <>
           <p
             className="small"
-            title="He goes on waivers with his existing contract. These figures show the cost if he clears; a successful claim transfers unpaid salary and guarantees to the new club."
+            title="He goes on waivers with his existing contract. These figures show the cost if he clears. A successful claim transfers unpaid salary and guarantees to the new club."
           >
             If another club claims him · {waiverDecision(league).toLowerCase()}
           </p>
@@ -226,7 +226,7 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
       {league.personnel?.enabled && !player.injury && (
         <label
           className="check-row"
-          title="Other clubs can claim him or win his signature; this reserves no rights or roster spot."
+          title="Other clubs can claim him or win his signature. This reserves no rights or roster spot."
         >
           <input type="checkbox" checked={invite} onChange={(e) => setInvite(e.target.checked)} />
           <span>Invite him back on a practice squad deal if available.</span>
@@ -376,8 +376,8 @@ export function RestructureDialog({
       }
     >
       <p className="small" style={{ margin: 0 }}>
-        Convert base salary into a bonus spread over {preview.years} league years. Room now, a bigger bill later, and
-        more dead money if you ever cut him.
+        Convert base salary into a bonus spread over {preview.years} league years. It frees room now, raises his cap hit
+        in later years and adds dead money if you cut him.
       </p>
       <label htmlFor={sliderId} className="eyebrow">
         Salary to convert: <b className="num">{money(amount)}</b> of {money(full.max)}

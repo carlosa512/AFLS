@@ -158,7 +158,7 @@ describe('perceived ratings', () => {
     const rough = scoutReportParts(league, me, unknown);
     expect(rough.verdict).toMatch(/^On limited looks, an? /);
     expect(rough.notes.find((n) => n.startsWith('Our read'))).toBe(
-      `Our read is still provisional: more film${league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
+      `Our read is still provisional. More film${league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
     );
     // A well-known veteran on another team: a plain verdict and a reliable read.
     const known = theirs.find(
@@ -166,7 +166,7 @@ describe('perceived ratings', () => {
     )!;
     const clear = scoutReportParts(league, me, known);
     expect(clear.verdict).not.toMatch(/^On limited looks/);
-    expect(clear.notes).toContain('Plenty of film on him: this read is reliable.');
+    expect(clear.notes).toContain('We have plenty of film on him, and this read is reliable.');
   });
 });
 
@@ -491,7 +491,7 @@ describe('a ceiling still settling', () => {
       return settleNote(league, league.userTeamId, q, perceive(league, league.userTeamId, q));
     };
     expect(note({ experience: 0, ceilingShifts: undefined })).toBe(
-      'Still a projection: his first season will tell us a lot about his ceiling.',
+      'He is still a projection. His first season will tell us a lot about his ceiling.',
     );
     expect(note({ experience: 2, ceilingShifts: { [league.season - 1]: 0.1 } })).toBe(
       'His ceiling looks about settled.',

@@ -325,9 +325,6 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
   );
   return (
     <>
-      <p className="small muted">
-        Compare weekly pay with current ability and your scouts’ estimate of future ability.
-      </p>
       {!rows.length ? (
         <p>No practice squad contracts.</p>
       ) : (

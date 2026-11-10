@@ -626,7 +626,7 @@ export function callAhead(league: League): { offers: TradeOffer[]; message: stri
   const clock = nextPick(league);
   const mine = draftOrder(league).find((p) => p.ownerId === league.userTeamId && p.playerId === undefined);
   if (!clock || !mine) return { offers: [], message: 'You have no pick coming.' };
-  if (mine.id === clock.id) return { offers: [], message: "You're on the clock: shop this pick instead." };
+  if (mine.id === clock.id) return { offers: [], message: "You're on the clock. Shop this pick instead." };
   const market = (league.market ??= emptyMarket());
   if (market.calledAhead === clock.overall) return { offers: [], message: "You've already called around this pick." };
   market.calledAhead = clock.overall;

@@ -179,7 +179,7 @@ export function staffMoveProblem(league: League, teamId: number, s: Staff, move:
   if (move === 'extend') {
     if (s.teamId !== teamId || !isExpiring(league, s)) return 'Only expiring deals can be extended.';
     if (held >= STAFF_SLOTS[s.role])
-      return `${His} chair is taken: all ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
+      return `${His} chair is taken. All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`;
   } else {
     if (s.teamId !== null) return `${He} isn’t available.`;
     if (held >= STAFF_SLOTS[s.role])

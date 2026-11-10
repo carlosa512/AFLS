@@ -590,7 +590,7 @@ describe('your contract offer', () => {
     const l = expiring();
     leadershipNewYear(l);
     expect(gmOfferTerms(l, userExtensionOffer(l)!).expectation).toBe(
-      'Keep the club moving forward: the owner likes the direction.',
+      'Keep the club moving forward. The owner likes the direction.',
     );
     const w = expiring();
     w.teams[w.userTeamId].leadershipReview = {

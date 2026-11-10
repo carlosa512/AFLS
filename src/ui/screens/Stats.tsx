@@ -407,7 +407,7 @@ function Records({ league }: { league: League }) {
     <>
       <h2>Single-season records</h2>
       <p className="muted small" style={{ marginTop: 0 }}>
-        The best regular seasons since the league began. Career totals are under Leaders (choose “Career totals”).
+        Career totals are under Leaders.
       </p>
       <div className="grid-3">
         {LEADER_CATEGORIES.map((cat) => {

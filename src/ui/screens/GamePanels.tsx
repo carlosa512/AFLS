@@ -289,7 +289,7 @@ export function PlayersPanel({
             ))}
           </span>
         </div>
-        {!any && <p className="rail-fine">No plays yet.</p>}
+        {!any && <p className="rail-fine">Players’ numbers appear after the first play.</p>}
         {groups
           .filter((g) => g.rows.length)
           .map(({ c, rows }) => (

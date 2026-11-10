@@ -253,7 +253,7 @@ function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Play
     ) : null;
   };
   const reader = who(view.readerId);
-  if (!reader) return <>Nobody reads him: your Director’s chair is empty.</>;
+  if (!reader) return <>Nobody reads him because your Director’s chair is empty.</>;
   // Only players still growing get a ceiling read; past 25 it's just his overall.
   const ceiling = p.age < 26 && view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
   return (
@@ -755,7 +755,7 @@ function PositionSection({ league, player: p }: { league: League; player: Player
           )}
           <p className="small" style={{ margin: 0 }}>
             {ready
-              ? 'He is ready: he changes position on cut-down day.'
+              ? 'He is ready and changes position on cut-down day.'
               : `${readyText(campsToReady(league, p, learning.to), league.phase)}.`}
             {held && ` But he stays at ${p.position} for now. ${held}`}
           </p>
@@ -1168,7 +1168,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         {!view.exact && (
           <p className="muted small read-by">
             <ReadBy league={league} view={view} p={p} />
-            {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
+            {sitDownHint && ' A scouting visit is also a sit-down. It can take one or two to learn his makeup.'}
           </p>
         )}
       </div>
@@ -1177,9 +1177,6 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
       <Section id="ratings" title={`Ratings at ${p.position}`}>
         <AttributeList player={p} view={view} />
-        <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-          Tap a rating for what it does.
-        </p>
       </Section>
 
       <Section id="development" title={`Development${view.exact ? '' : ' (as your scouts see it)'}`}>
@@ -1205,7 +1202,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <span
                   className="tag-pill tag-warn"
                   style={{ marginLeft: 0 }}
-                  title="Young players develop faster with snaps; sitting slows him down."
+                  title="Young players develop faster when they play."
                 >
                   Needs reps
                 </span>

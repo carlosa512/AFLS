@@ -449,7 +449,7 @@ export function SeasonSoFar({ league }: { league: League }) {
         </div>
       ) : (
         <p className="muted small" style={{ margin: 0 }}>
-          Nothing picked yet: choose up to {SEASON_PICKS} with Edit.
+          Nothing picked yet. Choose up to {SEASON_PICKS} with Edit.
         </p>
       )}
     </Panel>

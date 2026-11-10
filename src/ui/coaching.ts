@@ -59,16 +59,15 @@ export const PAST_PRIME_WORDS = 'at or past the age their position starts to dec
  */
 export const ROLE_LINE: Record<CoachRole, string> = {
   headCoach:
-    'Sets the tone for the whole roster: a hand in how every player develops and holds up, and the call on fourth downs. Around the league, a bad season can cost him his job.',
-  offCoord:
-    'Runs the offense: the scheme and personnel, the call on run or pass, and how the offensive players develop.',
+    'Has a hand in how every player develops and holds up, and makes the call on fourth downs. A bad season can cost him his job.',
+  offCoord: 'Picks the scheme and personnel, calls run or pass, and develops the offensive players.',
   defCoord:
-    'Runs the defense: the front, the coverage, how often he sends extra rushers, and how the defensive players develop.',
+    'Picks the front and the coverage, decides how often to send extra rushers, and develops the defensive players.',
   positionCoach:
-    'Does most of the teaching in his room: the biggest say in how its players grow and keep their technique.',
-  strengthCoach: 'Keeps bodies going: the biggest say in how slowly speed and strength fade, in every room.',
+    'Does most of the teaching in his room. He has the biggest say in how its players grow and keep their technique.',
+  strengthCoach: 'Has the biggest say in how slowly speed and strength fade, in every room.',
   stCoord:
-    'Runs the kick units and coaches the kickers and punters: a good one draws fewer flags on kicks and wins a few yards on every return and every kick his units cover.',
+    'Runs the kick units and coaches the kickers and punters. A good one draws fewer flags on kicks and gains a few yards on every return and every kick his units cover.',
 };
 
 export interface RepNote {

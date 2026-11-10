@@ -82,7 +82,7 @@ function note(p: Player, result: Physical['result'], cause: Findings['cause']): 
   if (result === 'failed') return `${name(p)} failed his physical: ${what}.`;
   if (result === 'concerns') return `${name(p)} passed with concerns: ${what}.`;
   if (result === 'rehab')
-    return `${name(p)} is cleared to rehab: he'll be back in about ${Math.max(1, Math.round(p.injury?.weeksRemaining ?? 1))} weeks.`;
+    return `${name(p)} is cleared to rehab and should be back in about ${Math.max(1, Math.round(p.injury?.weeksRemaining ?? 1))} weeks.`;
   return `${name(p)} passed his physical.`;
 }
 

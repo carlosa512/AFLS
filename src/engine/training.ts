@@ -199,7 +199,7 @@ function playerProblem(league: League, p: Player, to: Position): string | null {
   const last = p.moves?.at(-1);
   if (last && league.season < last.season + COOLDOWN) return 'Changed position too recently.';
   if (p.age < c.ages[0]) return 'Too young for this move.';
-  if (p.age > c.ages[1]) return to === 'CB' ? "Too old: he won't get the speed back." : 'Too old for this move.';
+  if (p.age > c.ages[1]) return to === 'CB' ? 'He is too old to get the speed back.' : 'Too old for this move.';
   // His height doesn't move with him: coaches move him only to a height real rosters carry there (`MOVE_SHARE`). A long
   // run allowing any height a draft could bring turned safeties into 5'10" linebackers (0.35% of real ones) and a 6'7"
   // edge rusher into a linebacker: the rare build comes through the draft, not a coach's move.

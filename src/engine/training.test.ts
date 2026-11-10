@@ -112,7 +112,7 @@ describe('starting a plan', () => {
     const old = copy(l);
     const q = moverAt(old, 'S', 'CB');
     old.players[q.id].age = 30;
-    expect(moveProblem(old, old.players[q.id], 'CB')).toContain('Too old');
+    expect(moveProblem(old, old.players[q.id], 'CB')).toContain('too old');
   });
 
   it('two at a time for you, and a third waits', () => {
@@ -173,7 +173,7 @@ describe('cut-down day', () => {
     const chart = l.teams[l.userTeamId].depthChart;
     expect(chart.S).toContain(p.id);
     expect(chart.CB).not.toContain(p.id);
-    expect(playerTradeBlocker(l, after)).toContain('Just changed position');
+    expect(playerTradeBlocker(l, after)).toContain('just changed position');
     expect(l.transactions.at(-1)!.text).toContain(`moved CB ${p.firstName} ${p.lastName} to S: they were short at S`);
   });
 
@@ -583,7 +583,7 @@ describe('the cap in season', () => {
   it('stops you in the regular season while over it, not in the playoffs', () => {
     const l = createLeague({ seed: 'over-cap' });
     l.caps[l.season] -= capSpace(l, l.userTeamId) + 2_000;
-    expect(offseasonBlockers(l).join(' ')).toContain('over the cap: release or trade a player');
+    expect(offseasonBlockers(l).join(' ')).toContain('over the cap. Release or trade a player');
     l.week = 12;
     expect(offseasonBlockers(l).join(' ')).toContain('trade deadline has passed');
     l.phase = 'playoffs';

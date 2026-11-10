@@ -53,9 +53,9 @@ export function playerTradeBlocker(league: League, p: Player): string | null {
   if (!p.contract || isExpired(p.contract, league.season)) return 'Not under contract.';
   if (p.ir) return 'On injured reserve.';
   // A trade waits on a physical, and a player who will miss weeks fails it.
-  if (p.injury && p.injury.estimate[0] >= 2) return 'Injured: he would fail the physical.';
+  if (p.injury && p.injury.estimate[0] >= 2) return 'He is injured and would fail the physical.';
   // A position change settles in for the year: convert-and-sell isn't a trade.
-  if (p.moves?.at(-1)?.season === league.season) return 'Just changed position: no deals until the new league year.';
+  if (p.moves?.at(-1)?.season === league.season) return 'He just changed position. No deals until the new league year.';
   return null;
 }
 

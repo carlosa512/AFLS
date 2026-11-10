@@ -895,9 +895,9 @@ export interface InjuryRiskRead {
 }
 
 const RISK_LINE: Record<RiskTier, string> = {
-  Low: 'his body holds up: a low injury risk',
+  Low: 'his body holds up, a low injury risk',
   Medium: 'an ordinary injury risk',
-  High: 'his body breaks down: a high injury risk',
+  High: 'his body breaks down, a high injury risk',
 };
 
 /**

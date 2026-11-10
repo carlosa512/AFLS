@@ -456,14 +456,14 @@ export function spotNotes(league: League, teamId: number): { playerId: number; t
   const outside = new Set(spotOrder(cbs, 'CB').slice(0, 2));
   for (const p of cbs.slice(0, 2))
     if (!outside.has(p) && sizeEdge(p, 'contested', typicalAt('WR')) <= -1)
-      out.push({ playerId: p.id, text: "is giving up height outside; he's a nickel." });
+      out.push({ playerId: p.id, text: "is giving up height outside. He's a nickel." });
   const ol = at('OL').slice(0, STARTERS.OL);
   if (ol.length === STARTERS.OL) {
     const order = lineOrder(ol);
     const tackles = new Set([order[0], order[4]]);
     for (const p of [ol[0], ol[4]])
       if (!tackles.has(p) && sizeEdge(typicalAt('EDGE'), 'edgeLength', p) >= 1)
-        out.push({ playerId: p.id, text: "is short for tackle; he's a guard." });
+        out.push({ playerId: p.id, text: "is short for tackle. He's a guard." });
   }
   return out;
 }

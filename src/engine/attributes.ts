@@ -102,7 +102,7 @@ export const ATTRIBUTE_INFO: Record<Attribute, AttributeInfo> = {
     label: 'Hands',
     group: 'Ball skills',
     aging: 'technical',
-    about: 'Catching what reaches him; for defenders, turning breakups into interceptions.',
+    about: 'Catching what reaches him. For defenders, turning breakups into interceptions.',
     trait: 'hands',
   },
   routeRunning: {
@@ -158,7 +158,7 @@ export const ATTRIBUTE_INFO: Record<Attribute, AttributeInfo> = {
     label: 'Coverage',
     group: 'Defense',
     aging: 'technical',
-    about: 'Staying with receivers and closing windows; safeties also help over the top.',
+    about: 'Staying with receivers and closing windows. Safeties also help over the top.',
     trait: 'coverage',
   },
   kickPower: {
@@ -208,7 +208,7 @@ export const CONTESTS = {
     label: 'Pass protection',
     positions: ['OL', 'TE', 'RB'],
     weights: { passBlock: 0.7, strength: 0.15, agility: 0.1, awareness: 0.05 },
-    decides: 'pressure and sacks; backs pick up blitzes',
+    decides: 'pressure and sacks, and backs picking up blitzes',
   },
   runBlocking: {
     label: 'Run blocking',

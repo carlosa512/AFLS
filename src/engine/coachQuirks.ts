@@ -71,7 +71,7 @@ export const COACH_QUIRKS = {
     qualityBiased: true,
     role: 'offCoord',
     tone: 'good',
-    effect: 'A knack for designing up to two favorable deep-shot calls a game; protection and execution still matter.',
+    effect: 'A knack for designing up to two favorable deep-shot calls a game. Protection and execution still matter.',
   },
   goesIntoShell: {
     label: 'Goes Into a Shell',
@@ -133,7 +133,7 @@ export const COACH_QUIRKS = {
     label: 'Plays Prevent',
     role: 'defCoord',
     tone: 'bad',
-    effect: 'Sits soft with a two-score lead late: takes away the deep ball but gives up quick yards underneath.',
+    effect: 'Sits soft with a two-score lead late, which takes away the deep ball but gives up quick yards underneath.',
     marbles: 2,
   },
   disguisesCoverages: {
@@ -142,14 +142,14 @@ export const COACH_QUIRKS = {
     role: 'defCoord',
     tone: 'good',
     effect:
-      'Muddies the picture on obvious passing downs: a little more pressure gets home and more throws are misread.',
+      'Muddies the picture on obvious passing downs, so a little more pressure gets home and more throws are misread.',
     marbles: -1,
   },
   earnYourReps: {
     label: 'Earn Your Reps',
     role: 'positionCoach',
     tone: 'style',
-    effect: 'Favors preparation in close selection calls; hard workers fit his teaching better than coasters.',
+    effect: 'Favors preparation in close selection calls. Hard workers fit his teaching better than coasters.',
     marbles: 2,
   },
   trustsVeterans: {

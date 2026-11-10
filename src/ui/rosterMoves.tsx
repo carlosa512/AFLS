@@ -58,7 +58,7 @@ export function RosterMovePicker({
       {value?.action === 'squad' && (
         <p className="small muted">
           He leaves the main roster first. If waivers apply, other teams get a chance to claim him. We offer a squad
-          deal only if he becomes available; a return is not guaranteed.
+          deal only if he clears, so his return is not guaranteed.
         </p>
       )}
       {player && squadIssue && <p className="small muted">Squad option unavailable: {squadIssue}</p>}

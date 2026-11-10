@@ -274,7 +274,7 @@ export function beginOffseason(league: League): void {
 export function offseasonBlockers(league: League): string[] {
   if (userExtensionOffer(league)) return ["Answer the owner's extension offer before leaving the staffing window."];
   if (pendingGmOffers(league))
-    return ['Review your GM offers: accept a position or choose to sit out before leaving the staffing window.'];
+    return ['Review your GM offers. Accept a position or choose to sit out before leaving the staffing window.'];
   if (!employed(league)) return [];
   const issues: string[] = [];
   const teamId = league.userTeamId;
@@ -294,12 +294,12 @@ export function offseasonBlockers(league: League): string[] {
   if (league.phase === 'regular' && capSpace(league, teamId) < 0) {
     const fix =
       league.week <= TRADE_DEADLINE_WEEK
-        ? 'release or trade a player'
-        : 'release a player (the trade deadline has passed)';
-    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap: ${fix} before playing on.`);
+        ? 'Release or trade a player'
+        : 'Release a player (the trade deadline has passed)';
+    issues.push(`You're $${(-capSpace(league, teamId) / 1000).toFixed(1)}M over the cap. ${fix} before playing on.`);
   }
   if (league.phase === 'resign' && capSpace(league, teamId) < 0)
-    issues.push('Get under the cap before free agency opens: release, restructure or trade.');
+    issues.push('Get under the cap before free agency opens. Release, restructure or trade.');
   if (league.phase === 'preseason') {
     // Injured reserve doesn't count toward the 53.
     const roster = activeRoster(league, teamId);

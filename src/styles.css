@@ -2863,7 +2863,8 @@ tr.void-year td {
   color: inherit;
   text-align: left;
   cursor: help;
-  text-decoration: underline dotted var(--line);
+  /* The dotted line is the only sign a rating opens on a tap, so it has to show. */
+  text-decoration: underline dotted var(--muted);
   text-underline-offset: 3px;
 }
 .attr-name:hover,
@@ -5609,10 +5610,6 @@ button.tip-pill {
   align-items: center;
   justify-content: space-between;
   gap: 4px 12px;
-}
-.gm-directory-intro {
-  margin: 5px 0 0;
-  font-weight: 400;
 }
 .gm-filters {
   flex-wrap: wrap;

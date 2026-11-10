@@ -187,7 +187,7 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
                 className="btn btn-sm btn-danger"
                 onClick={() => {
                   store.mutate((l) => releaseStaff(l, l.userTeamId, s.id));
-                  announce(`Dismissed ${name}; ${money(pay)} severance booked.`);
+                  announce(`Dismissed ${name}. ${money(pay)} severance booked.`);
                 }}
               >
                 Pay {money(pay)} and dismiss {s.firstName}
@@ -279,10 +279,10 @@ function ScoutLink({
 /** What each chair does, true to how reads are worked out (`readFor`). */
 const SCOUT_ROLE_LINE: Record<StaffRole, string> = {
   director:
-    'Runs the department: the Director’s read backs up every group, a step behind a specialist’s, and covers any group no scout does.',
+    'Runs the department. The Director reads every group a little less sharply than a specialist would, and covers any group no scout has.',
   collegeScout:
-    'Reads draft prospects in a position group: what they are now (evaluation) and what they could become (projection).',
-  proScout: 'Reads players already in the league in a position group: free agents and trade targets.',
+    'Reads draft prospects in one position group. Evaluation is what they are now and projection is what they could become.',
+  proScout: 'Reads free agents and trade targets in one position group.',
 };
 
 /** A scout's full card: his ratings, what his chair does, and for one on the market, what hiring him would sharpen. */

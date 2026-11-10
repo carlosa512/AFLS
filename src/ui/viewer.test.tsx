@@ -613,7 +613,7 @@ describe('the panels beside the field', () => {
   it('has nothing odd to say before the first play', () => {
     const html = gamePanel(plays, -1) + playersPanel(-1);
     expect(html).not.toMatch(/undefined|NaN/);
-    expect(html).toContain('No plays yet');
+    expect(html).toContain('Players’ numbers appear after the first play.');
   });
 
   it('sits beside the field in the replay, with tabs for a narrow window', () => {

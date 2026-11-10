@@ -306,7 +306,7 @@ export function offerProblem(league: League, player: Player, teamId: number, off
   const hit = capHit(prospectiveContract(league, player, teamId, offer), league.season);
   const space = capSpace(league, teamId);
   if (hit - replacedCharge(league, player, teamId) > space)
-    return `Not enough cap room: this year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
+    return `Not enough cap room. This year's hit is $${(hit / 1000).toFixed(1)}M, you have $${(Math.max(0, space) / 1000).toFixed(1)}M.`;
   return null;
 }
 

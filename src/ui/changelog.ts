@@ -13,10 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.26',
+    version: '0.4.27',
     date: '2026-11-10',
     title: 'The broadcast tells you more',
     text: 'Watching a game now shows records, timeouts, a drive timeline you can jump around in a replay, and team stats, leaders and injuries as they happen.',
+  },
+  {
+    version: '0.4.26',
+    date: '2026-11-10',
+    title: 'Plainer hints',
+    text: 'Scout reports, scheme and habit descriptions, tooltips and dialogs are plain sentences now. The last tap hints are gone, and ratings show they open with a clearer dotted line.',
   },
   {
     version: '0.4.25',

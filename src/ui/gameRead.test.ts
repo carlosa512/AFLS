@@ -81,6 +81,56 @@ describe('the reader against the box score', () => {
   });
 });
 
+describe('the log’s own wording', () => {
+  // The reader finds timeouts, injuries, safeties and turnovers on downs by the words the engine logs them in.
+  // If those words change, these fail here rather than the scorebug quietly going wrong.
+  it('reads every timeout the engine logged', () => {
+    let seen = 0;
+    for (const league of worlds)
+      for (const g of kept(league)) {
+        const plays = g.result!.plays!;
+        const [home, away] = [league.teams[g.homeId], league.teams[g.awayId]];
+        plays.forEach((e, i) => {
+          // A timeout taken says how many are left (a coach holding his for another snap is no timeout).
+          if (!/timeout/i.test(e.text) || !/\d left/.test(e.text)) return;
+          seen++;
+          const before = timeoutsAt(plays, i - 1, home, away);
+          const after = timeoutsAt(plays, i, home, away);
+          expect(before.home + before.away - (after.home + after.away), e.text).toBe(1);
+        });
+      }
+    expect(seen).toBeGreaterThan(50);
+  });
+
+  it('reads every injury the engine logged, and knows the man', () => {
+    let seen = 0;
+    for (const league of worlds)
+      for (const g of kept(league)) {
+        const plays = g.result!.plays!;
+        const names = buildPlayNames(league, g);
+        const logged = plays.filter((e) => /^Injury/i.test(e.text)).length;
+        const read = injuriesAt(plays, plays.length - 1, names);
+        expect(read).toHaveLength(logged);
+        seen += logged;
+        // Every man hurt in the box score is in the log's list, by id unless two players share his name.
+        for (const i of g.result!.injuries ?? [])
+          expect(read.some((r) => r.playerId === i.playerId || r.playerId === undefined)).toBe(true);
+      }
+    expect(seen).toBeGreaterThan(5);
+  });
+
+  it('closes a drive on every safety and every turnover on downs the engine logged', () => {
+    for (const league of worlds)
+      for (const g of kept(league)) {
+        const plays = g.result!.plays!;
+        const drives = drivesOf(plays, g.homeId);
+        const logged = (re: RegExp) => plays.filter((e) => re.test(e.text) && !e.kind).length;
+        expect(drives.filter((d) => d.how === 'safety')).toHaveLength(logged(/^SAFETY/i));
+        expect(drives.filter((d) => d.how === 'downs').length).toBeGreaterThanOrEqual(logged(/turnover on downs/i));
+      }
+  });
+});
+
 // ───────── hand-built logs ─────────
 
 const HOME = 1;

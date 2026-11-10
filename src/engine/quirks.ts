@@ -68,7 +68,7 @@ export const QUIRKS = {
     tone: 'style',
     clause: 'rarely throws it away, even when the play breaks down',
     effect:
-      'Rarely throws it away: under pressure he forces it into coverage, so fewer completions and more interceptions.',
+      'Rarely throws it away. Under pressure he forces it into coverage, so fewer completions and more interceptions.',
   },
   safetyEyes: {
     label: 'Manipulates Safety Eyes',
@@ -105,7 +105,7 @@ export const QUIRKS = {
     tone: 'bad',
     clause: 'gets rattled once he has been hit, and forces throws after that',
     effect:
-      'After his second sack in a game: worse decisions and accuracy, more interceptions. A beating carries into the next game.',
+      'After his second sack in a game he makes worse decisions, is less accurate and throws more interceptions. A beating carries into the next game.',
     poise: 'bad',
   },
   hardCount: {
@@ -122,7 +122,7 @@ export const QUIRKS = {
     tone: 'good',
     clause: 'always falls forward for an extra yard',
     effect:
-      'A yard more on short runs. Fights to stay in bounds, and for the extra yard: the ball comes out a little more.',
+      'A yard more on short runs. He fights to stay in bounds and for the extra yard, so the ball comes out a little more.',
   },
   looseCarriage: {
     label: 'Loose Carriage',
@@ -136,7 +136,7 @@ export const QUIRKS = {
     positions: ['RB'],
     tone: 'style',
     clause: 'hunts for the home run instead of taking what is there',
-    effect: 'Runs swing wider: more stuffs, more big gains.',
+    effect: 'His runs swing wider, with more stuffs and more big gains.',
   },
   patientPresser: {
     label: 'Patient Presser',
@@ -271,7 +271,7 @@ export const QUIRKS = {
     positions: ['OL'],
     tone: 'style',
     clause: 'chases the highlight block, for better and worse',
-    effect: 'Runs swing wider: more big gains, more blown blocks.',
+    effect: 'Runs behind him swing wider, with more big gains and more blown blocks.',
   },
   secondLevel: {
     label: 'Second-Level Hunter',
@@ -602,7 +602,7 @@ export const QUIRKS = {
     tone: 'bad',
     clause: 'loses his nerve after a big miss',
     effect:
-      'Shakier for the rest of a game after a miss; a miss late in a close game starts a slump of up to three weeks.',
+      'Shakier for the rest of a game after a miss. A miss late in a close game starts a slump of up to three weeks.',
     poise: 'bad',
   },
   boomerLeg: {
