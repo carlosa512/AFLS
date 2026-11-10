@@ -95,7 +95,8 @@ describe('a contract letter: talks right from it', () => {
 describe('the losing across letters', () => {
   it('shows buttons only on the newest letter that holds the losing row', () => {
     const { l, m: first } = letter('losing');
-    l.moraleAt = l.moraleAt! + 1;
+    // The coach writes every other step: the second letter is the step after next.
+    l.moraleAt = l.moraleAt! + 2;
     const b = activeRoster(l, l.userTeamId)[1];
     b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
     deliverMail(l);

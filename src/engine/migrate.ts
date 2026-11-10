@@ -397,7 +397,8 @@ function toV93(league: League): void {
             held[id] = { pos, since };
         }
       }
-      team.jobs = { held };
+      // A club with nobody yet (week 1) starts none: `benchKickoff` sets its jobs the first time it is noted.
+      if (Object.keys(held).length) team.jobs = { held };
     }
   } else if (league.phase === 'preseason') {
     league.teams[league.userTeamId].lineupSet = league.season;
