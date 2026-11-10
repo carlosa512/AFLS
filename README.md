@@ -30,8 +30,7 @@ The play-by-play engine decides what happened from the matchups on the field: pr
 routes against coverage, the passer's read, the tackle in the open field. In your games a spatial engine then
 plays it out, twenty-two men at twenty steps a second. The line sets and the rush gets home or doesn't, the
 quarterback throws, throws it away or takes off, the back reads his blocks, the chase runs him down, and the
-man who gets there is the man credited with the tackle. Watch any of your games back, snap by snap, in All-22
-or the broadcast view.
+man who gets there is the man credited with the tackle. Watch any of your games back, snap by snap, in All-22.
 
 ## What's in the game
 
