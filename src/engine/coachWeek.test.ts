@@ -78,23 +78,23 @@ describe('the head coach’s weekly letter', () => {
     expect(m.body).not.toMatch(/\d/);
   });
 
-  it("brings a room's losing as one row and one answer, whoever of the room asked", () => {
+  it("brings the club's losing as one row and one answer, whoever asked", () => {
     const l = inSeason();
-    const dl = activeRoster(l, l.userTeamId).filter((p) => p.position === 'DT' || p.position === 'EDGE');
+    const dl = activeRoster(l, l.userTeamId).filter((p) => ['DT', 'EDGE', 'WR', 'QB'].includes(p.position));
     for (const p of dl.slice(0, 3))
       p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
     deliverMail(l);
     const [m] = letters(l);
     const asks = m.sections!.find((x) => x.title === 'Who came to see me')!.rows;
     expect(asks).toHaveLength(1);
-    expect(asks[0].talkRoom).toEqual({ unit: 'DL', clock: l.moraleAt });
+    expect(asks[0].talkRoom).toEqual({ unit: 'team', clock: l.moraleAt });
     // The others of the room are named in a sentence of his own, outside the quote.
     expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|Add)/);
     expect(needsYou(l, m)).toBe(true);
-    expect(answerRoomTalk(l, 'DL', 'reassure')).toBe(3);
+    expect(answerRoomTalk(l, 'team', 'reassure')).toBe(3);
     expect(needsYou(l, m)).toBe(false);
     // The room's answer is kept, so a man of it asking inside the gap is answered the same (`talkStep`).
-    expect(l.teams[l.userTeamId].losingAnswer?.DL?.reply).toBe('reassure');
+    expect(l.teams[l.userTeamId].losingAnswer?.team?.reply).toBe('reassure');
   });
 
   it('files nothing in a quiet step', () => {
@@ -134,32 +134,56 @@ describe('the head coach’s weekly letter', () => {
     expect(fitItems(items, 10).map((i) => i.key)).toEqual(['k3', 'k4']);
   });
 
-  it('tells a meeting’s result in the next step’s letter, and always files that letter', () => {
+  const held = (backing: 'words' | 'other') => {
     const l = inSeason();
     const s = requestMeeting(l, 'DL')!;
     deliverMail(l);
-    const first = letters(l)[0];
-    expect(rowsOf(first).some((r) => r.meeting)).toBe(true);
+    expect(rowsOf(letters(l)[0]).some((r) => r.meeting)).toBe(true);
     answerMeeting(l, {
       approach: 'straight',
-      backing: s.backings.find((b) => b !== 'words') ?? 'words',
+      backing: backing === 'words' ? 'words' : (s.backings.find((b) => b !== 'words') ?? 'words'),
       timing: 'monday',
     });
     deliverMail(l);
     // The same step: the result is owed, not told, and nothing new is filed.
     expect(letters(l)).toHaveLength(1);
     expect(textOf(letters(l)[0])).not.toMatch(/What I told them/);
+    return l;
+  };
+  const told = (m: InboxMessage) =>
+    rowsOf(m).some((r) => r.cells[1] === 'What I told them') &&
+    rowsOf(m).some((r) => r.cells[1] === 'Where that leaves us');
+
+  it('rides a meeting’s result in the next letter filed for something else', () => {
+    const l = held('words');
     nextStep(l);
+    const p = asking(l, 'deal');
     deliverMail(l);
     expect(letters(l)).toHaveLength(2);
-    const since = letters(l)[1].sections!.find((x) => x.title === 'Since last week')!;
-    expect(since.rows.some((r) => r.cells[1] === 'What I told them')).toBe(true);
-    expect(since.rows.some((r) => r.cells[1] === 'Where that leaves us')).toBe(true);
+    expect(told(letters(l)[1])).toBe(true);
     expect(l.inbox!.some((m) => OLD.test(m.id))).toBe(false);
     // Told once.
+    answerTalk(l, p.id, 'reassure');
     nextStep(l);
     deliverMail(l);
     expect(letters(l)).toHaveLength(2);
+  });
+
+  it('files a result alone only when it has waited two steps, or owes something', () => {
+    const l = held('words');
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(2);
+    expect(told(letters(l)[1])).toBe(true);
+    // A commitment with talks owes a Negotiate row, so it files at once.
+    const o = held('other');
+    nextStep(o);
+    deliverMail(o);
+    const owes = rowsOf(letters(o).at(-1)!).some((r) => r.negotiate);
+    expect(letters(o)).toHaveLength(owes ? 2 : 1);
   });
 
   it('carries an unanswered ask as a short row, never his quote twice', () => {

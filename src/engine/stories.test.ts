@@ -195,12 +195,20 @@ describe('beats at the sim’s events', () => {
 
   it('a meeting suggested, held and passed lands on the room', () => {
     const l = fresh();
-    const s = requestMeeting(l, 'DL')!;
     const on = { kind: 'room' as const, teamId: l.userTeamId, unit: 'DL' as const };
-    expect(kinds(openStory(l, on)!)).toEqual(['suggested']);
-    expect(openStory(l, on)!.beats[0].how).toBe(s.topic);
+    // A room that never turned has no story: a meeting about it makes none.
+    requestMeeting(l, 'DL')!;
+    expect(openStory(l, on)).toBeUndefined();
     answerMeeting(l, 'skip');
-    expect(kinds(openStory(l, on)!)).toEqual(['suggested', 'passed']);
+    expect(openStory(l, on)).toBeUndefined();
+    // A turned room's story hears what is done about it.
+    beat(l, on, 'turned', l.moraleAt!, { how: 'Down' });
+    l.moraleAt = l.moraleAt! + 8;
+    const s = requestMeeting(l, 'DL')!;
+    expect(kinds(openStory(l, on)!)).toEqual(['turned', 'suggested']);
+    expect(openStory(l, on)!.beats[1].how).toBe(s.topic);
+    answerMeeting(l, 'skip');
+    expect(kinds(openStory(l, on)!)).toEqual(['turned', 'suggested', 'passed']);
     // Held: the same room, next week.
     l.moraleAt = l.moraleAt! + 8;
     const t = requestMeeting(l, 'DL')!;
@@ -213,6 +221,7 @@ describe('beats at the sim’s events', () => {
   it('a meeting held with "talks" puts the clock on the room and on each named man', () => {
     const l = fresh();
     const wr = l.players[l.teams[l.userTeamId].depthChart.WR[0]];
+    beat(l, { kind: 'room', teamId: l.userTeamId, unit: 'WR' }, 'turned', l.moraleAt!, { how: 'Split' });
     const s = requestMeeting(l, 'WR')!;
     if (!s.backings.includes('talks')) s.backings.push('talks');
     s.namedFor = { talks: [wr.id] };

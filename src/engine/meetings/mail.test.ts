@@ -58,7 +58,8 @@ describe('meetings: the letters', () => {
     answerMeeting(l, { approach: 'straight', backing, timing: 'monday' });
     deliverMail(l);
     expect(ids(l, 'meeting-result:')).toHaveLength(0);
-    l.moraleAt++;
+    // A result with nothing owed waits for a letter, two steps at most; one that owes talks files at once.
+    l.moraleAt += 2;
     deliverMail(l);
     deliverMail(l);
     expect(coach(l)).toHaveLength(2);
@@ -256,7 +257,7 @@ describe('meetings: letters from a new club', () => {
     l.teams[1].meetings!.log.push(held(stepClock(l)));
     deliverMail(l);
     expect(told()).toHaveLength(0);
-    l.moraleAt!++;
+    l.moraleAt! += 2;
     deliverMail(l);
     expect(told()).toHaveLength(1);
   });

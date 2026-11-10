@@ -4,7 +4,7 @@
  * writing a beat draws nothing from any stream.
  */
 import { employed } from './employment';
-import type { Beat, BeatKind, CoachRoom, League, OutletId, Player, Position, Story, TalkCause } from './types';
+import type { Beat, BeatKind, League, OutletId, Player, Story, TalkCause } from './types';
 
 export type StoryOn = Pick<Story, 'kind' | 'teamId' | 'playerId' | 'unit' | 'coachId'>;
 
@@ -34,8 +34,8 @@ const same = (s: Story, on: StoryOn) =>
  */
 export function talkStoryOn(league: League, p: Player, cause: TalkCause): StoryOn {
   const teamId = p.teamId!;
-  // The losing is a room's, not a man's: his ask adds a beat to his room's story.
-  if (cause === 'losing') return { kind: 'room', teamId, unit: talkRoomOf(p) };
+  // The losing is the club's, not a man's or a room's: his ask adds a beat to its one story.
+  if (cause === 'losing') return { kind: 'room', teamId, unit: 'team' };
   if (cause !== 'feud') return { kind: cause, teamId, playerId: p.id };
   const mate = feudMate(league, p);
   return { kind: 'feud', teamId, playerId: mate === undefined ? p.id : Math.min(p.id, mate) };
@@ -45,21 +45,6 @@ export function talkStoryOn(league: League, p: Player, cause: TalkCause): StoryO
 function feudMate(league: League, p: Player): number | undefined {
   return p.ties?.find((t) => t.kind === 'feud' && league.players[t.with]?.teamId === p.teamId)?.with;
 }
-
-const ROOM_OF: Partial<Record<Position, CoachRoom>> = {
-  QB: 'QB',
-  RB: 'RB',
-  WR: 'WR',
-  TE: 'WR',
-  OL: 'OL',
-  DT: 'DL',
-  EDGE: 'DL',
-  LB: 'LB',
-  CB: 'DB',
-  S: 'DB',
-};
-/** The room a man's losing is told with (kept here, as `coaching.ts`'s table, so this file imports no engine code): a specialist's is the team's. */
-export const talkRoomOf = (p: Player): CoachRoom | 'team' => ROOM_OF[p.position] ?? 'team';
 
 /** A beat on a man's talk story: one line at each site (a feud's story also learns the other man of the pair). */
 export function talkBeat(
@@ -72,10 +57,25 @@ export function talkBeat(
 ): Story | null {
   const mate = cause === 'feud' ? feudMate(league, p) : undefined;
   const other = mate === undefined ? undefined : Math.max(p.id, mate);
-  // The losing joins its room's story when there is one; a room with no story of its own (it has not turned) gets none from
-  // a man's ask, or every club in a losing year would open a story a room.
-  if (cause === 'losing' && !openStory(league, talkStoryOn(league, p, cause))) return null;
+  // The losing's one story opens with the first ask; an answer to an ask it never heard (one answered at once) opens none.
+  if (cause === 'losing' && kind !== 'asked' && !openStory(league, talkStoryOn(league, p, cause))) return null;
   return beat(league, talkStoryOn(league, p, cause), kind, at, other === undefined ? extra : { ...extra, other });
+}
+
+/**
+ * A meeting's beat on its room's story: only a room that already has a story because it turned (Down or Split) is told
+ * a meeting's story. A calendar meeting, or one about a room that never read badly, has none, and the letters tell it from
+ * the meetings log.
+ */
+export function roomBeat(
+  league: League,
+  on: StoryOn,
+  kind: BeatKind,
+  at: number,
+  extra: { how?: string; pub?: true; due?: number | null } = {},
+): Story | null {
+  const s = openStory(league, on);
+  return s && s.beats.some((b) => b.kind === 'turned') ? beat(league, on, kind, at, extra) : null;
 }
 
 /** The open story on this subject, if any. */

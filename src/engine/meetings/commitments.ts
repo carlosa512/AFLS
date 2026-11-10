@@ -7,7 +7,7 @@ import { STARTERS } from '../positions';
 import { clamp, Rng } from '../rng';
 import { activeRoster } from '../roster';
 import { unitOf } from '../standing';
-import { beat, type StoryOn } from '../stories';
+import { beat, roomBeat, type StoryOn } from '../stories';
 import { TRADE_DEADLINE_WEEK } from '../trade/rules';
 import {
   POSITIONS,
@@ -46,7 +46,8 @@ function storiesOf(teamId: number, c: Pick<Commitment, 'backing' | 'scope' | 'na
 
 /** Opened: the clock is on the room, and on each man whose talks it promised. */
 export function noteCommitment(league: League, teamId: number, c: Commitment): void {
-  for (const on of storiesOf(teamId, c)) beat(league, on, 'commitment', c.opened, { due: c.closes });
+  for (const on of storiesOf(teamId, c))
+    (on.kind === 'room' ? roomBeat : beat)(league, on, 'commitment', c.opened, { due: c.closes });
 }
 
 /** The commitment a meeting opens, or none (words only). */
@@ -171,7 +172,8 @@ function remember(p: Player, teamId: number, kept: boolean) {
 function settle(league: League, teamId: number, c: Commitment, kept: boolean, clock: number) {
   // What the season's-end report tells: the promise, and whether it held. Your club's only: no one reads an AI club's,
   // and thirty-one clubs' worth would grow the save for nothing.
-  for (const on of storiesOf(teamId, c)) beat(league, on, kept ? 'kept' : 'broken', clock, { due: null });
+  for (const on of storiesOf(teamId, c))
+    (on.kind === 'room' ? roomBeat : beat)(league, on, kept ? 'kept' : 'broken', clock, { due: null });
   const m = league.teams[teamId].meetings;
   if (m && managesTeam(league, teamId))
     (m.settled ??= []).push({

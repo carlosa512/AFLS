@@ -19,9 +19,9 @@ import {
   type MoraleContext,
   type MoraleFactors,
 } from './morale';
-import { closeStory, talkBeat, talkRoomOf } from './stories';
+import { closeStory, talkBeat } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import type { CoachRoom, League, Player, Talk, TalkCause, TalkReply } from './types';
+import type { League, Player, Talk, TalkCause, TalkReply } from './types';
 
 const YEAR = 32;
 const CAMP = 7;
@@ -200,19 +200,17 @@ export function answerTalk(league: League, playerId: number, reply: TalkReply): 
   return true;
 }
 
-/** Your men of one room with a losing ask waiting on you. */
-export function roomAsks(league: League, room: CoachRoom | 'team'): Player[] {
+/** Your men with a losing ask waiting on you: the losing is the club's, so the room is always 'team'. */
+export function roomAsks(league: League, _room: 'team' = 'team'): Player[] {
   const yours = yourClub(league);
-  return Object.values(league.players).filter(
-    (p) => p.teamId === yours && p.morale?.talk?.ask?.cause === 'losing' && talkRoomOf(p) === room,
-  );
+  return Object.values(league.players).filter((p) => p.teamId === yours && p.morale?.talk?.ask?.cause === 'losing');
 }
 
 /**
  * Your answer to a room's losing: every man of it with an open ask hears the same reply, and the room's answer is kept
  * so a man asking inside `LOSING_GAP` steps is answered as you did. How many men it answered.
  */
-export function answerRoomTalk(league: League, room: CoachRoom | 'team', reply: 'reassure' | 'firm'): number {
+export function answerRoomTalk(league: League, room: 'team', reply: 'reassure' | 'firm'): number {
   const yours = yourClub(league);
   const men = roomAsks(league, room);
   const at = men[0]?.morale?.talk?.ask?.at;
@@ -271,7 +269,7 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     // Your room told about the losing lately: a man of it who asks again is answered as you answered it, and files no ask.
     const had = teamId === yours ? league.teams[yours].losingAnswer : undefined;
     const list = all.filter(({ p, cause }) => {
-      const last = cause === 'losing' ? had?.[talkRoomOf(p)] : undefined;
+      const last = cause === 'losing' ? had?.team : undefined;
       if (!last || clock - last.at >= LOSING_GAP) return true;
       applyReply(league, p, last.reply, clock, ctx, cause);
       return false;

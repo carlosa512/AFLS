@@ -12,7 +12,7 @@ import { moraleClock, moraleContext, moraleView, viewContext, type MoraleContext
 import { CAUSE_OF } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { tierOf, unitOf, unitRead, UNITS, weightOf } from './standing';
-import { beat, closeRoomStories, closeStory, COACH, markTold, openStory, STORIES, type StoryOn } from './stories';
+import { beat, closeRoomStories, closeStory, openStory, STORIES, type StoryOn } from './stories';
 import { momentSheet } from './castSheet';
 import type { Beat, BeatKind, CoachRoom, League, Player, Story, StoryKind, TalkCause } from './types';
 
@@ -140,22 +140,6 @@ function rooms(league: League, user: number, clock: number, ctx: MoraleContext):
   }
 }
 
-/**
- * A room story a meeting opened and no turn ever joined (a calendar moment, a held meeting) ends once nothing is waiting
- * on it: a later step, no suggestion pending for its scope, no commitment open for it. A turned room has its own path.
- */
-function meetingRooms(league: League, user: number, clock: number): void {
-  const m = league.teams[user].meetings;
-  for (const s of [...(league.stories?.open ?? [])]) {
-    if (s.teamId !== user || s.kind !== 'room' || s.beats.some((b) => b.kind === 'turned')) continue;
-    if ((s.beats.at(-1)?.at ?? clock) >= clock) continue;
-    if (m?.pending?.scope === s.unit || m?.open.some((c) => c.scope === s.unit)) continue;
-    const closed = closeStory(league, onOf(s), 'ended', clock);
-    // It only ended: nothing to tell.
-    if (closed) markTold(closed, COACH);
-  }
-}
-
 // ───────── the staff ─────────
 
 const BELIEF_RANK: Record<BeliefRead, number> = { believes: 0, steady: 1, doubts: 2, lost: 3 };
@@ -249,7 +233,6 @@ export function storiesStep(league: League): void {
   if (momentSheet(league).seasonOver) closeRoomStories(league);
   else {
     rooms(league, user, clock, ctx);
-    meetingRooms(league, user, clock);
   }
   staff(league, user, clock);
   links(league, user, ctx);

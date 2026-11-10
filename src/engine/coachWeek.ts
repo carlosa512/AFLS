@@ -29,7 +29,7 @@ import { weightOf } from './standing';
 import { TALK_SUBJECT } from './playerVoice';
 import { headCoach, type Draft } from './senders';
 import { staffRows } from './staffNotes';
-import { COACH, markTold, openStory, storyById, talkRoomOf, talkStoryOn, untold } from './stories';
+import { COACH, markTold, openStory, storyById, talkStoryOn, untold } from './stories';
 import { shareWord, tellable } from './storiesStep';
 import { talkCard, talkRows } from './talkMail';
 import type { CoachRoom, InboxMessage, League, MailSection, Player, Story } from './types';
@@ -58,6 +58,8 @@ export interface WeekItem {
   /** A room whose row says a man feeds it. */
   link?: NonNullable<OpeningFact['link']>;
   result?: true;
+  /** A result that files a letter alone: it owes something (a Negotiate row) or has waited `RESULT_WAIT` steps. */
+  forces?: true;
   /** Which row of a meeting's result it is, for what to cut first. */
   part?: 'man' | 'told' | 'next' | 'talks';
   closing?: true;
@@ -69,6 +71,8 @@ export interface WeekItem {
 export const MAX_ROWS = 6;
 /** Steps a tier 4 or 5 item may wait before it is dropped. */
 export const STALE = 3;
+/** Steps a meeting's result waits for a letter filed for another reason before it files one itself. */
+export const RESULT_WAIT = 2;
 /** Men a meeting's result names, besides its room row. */
 export const RESULT_MEN = 2;
 /** Steps a room's losing waits before it comes to you again (`playerTalks.ts` answers a man sooner as you did). */
@@ -137,20 +141,14 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   const fresh = (p: Player) => !askTold(told, league.season, p.morale!.talk!.ask!.at, p.id);
   const causeOfAsk = (p: Player) => p.morale!.talk!.ask!.cause;
   const askKey = (p: Player) => `talk:${league.season}:${p.morale!.talk!.ask!.at}:${p.id}`;
-  // The losing is a room's: one row for the man of it with the most standing, the others named in a sentence, one answer.
+  // The losing is the club's: one row for the man asking with the most standing, the others named in a sentence, one answer.
   const heaviest = (men: Player[]) =>
     [...men].sort((a, b) => weightOf(league, b, ctx) - weightOf(league, a, ctx) || a.id - b.id)[0];
-  const roomsAsking = [...new Set(askers.filter((p) => causeOfAsk(p) === 'losing').map(talkRoomOf))];
-  const freshLosing = new Map<string, Player[]>();
-  const waitingLosing = new Map<string, Player>();
-  for (const room of roomsAsking) {
-    const men = askers.filter((p) => causeOfAsk(p) === 'losing' && talkRoomOf(p) === room);
-    const news = men.filter(fresh);
-    if (news.length) freshLosing.set(room, news);
-    else waitingLosing.set(room, heaviest(men));
-  }
-  const spokesmen = new Map([...freshLosing].map(([room, men]) => [heaviest(men).id, room]));
-  const quoted = (p: Player) => causeOfAsk(p) !== 'losing' || spokesmen.has(p.id);
+  const losers = askers.filter((p) => causeOfAsk(p) === 'losing');
+  const freshLosers = losers.filter(fresh);
+  const spokesman = freshLosers.length ? heaviest(freshLosers) : undefined;
+  const waitingLoser = !spokesman && losers.length ? heaviest(losers) : undefined;
+  const quoted = (p: Player) => causeOfAsk(p) !== 'losing' || p.id === spokesman?.id;
   for (const at of [...new Set(askers.map((p) => p.morale!.talk!.ask!.at))]) {
     const ids = new Set(askers.filter((p) => p.morale!.talk!.ask!.at === at && fresh(p) && quoted(p)).map((p) => p.id));
     if (!ids.size) continue;
@@ -166,11 +164,11 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         remember(out.before);
       }
       remember(out.note);
-      // His room's others, named: they said the same, and one answer goes to them all.
-      const room = spokesmen.get(p.id);
-      const others = room ? (freshLosing.get(room) ?? []).filter((m) => m.id !== p.id) : [];
-      if (room) {
-        out.talkRoom = { unit: room as CoachRoom | 'team', clock: at };
+      // The others who asked, named: they said the same, and one answer goes to them all.
+      const speaks = p.id === spokesman?.id;
+      const others = speaks ? freshLosers.filter((m) => m.id !== p.id) : [];
+      if (speaks) {
+        out.talkRoom = { unit: 'team', clock: at };
         if (others.length) {
           const same = say(
             SAME,
@@ -204,7 +202,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     const ask = p.morale!.talk!.ask!;
     if (fresh(p) || ask.at >= clock) continue;
     // A room's losing waits as one row, its heaviest man's.
-    if (ask.cause === 'losing' && waitingLosing.get(talkRoomOf(p))?.id !== p.id) continue;
+    if (ask.cause === 'losing' && waitingLoser?.id !== p.id) continue;
     const man = sheet(p);
     if (!man) continue;
     const key = `waiting:${clock}:${p.id}`;
@@ -220,7 +218,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         cells: [nameOf(p), TALK_SUBJECT[ask.cause]],
         note,
         talk: { playerId: p.id, clock: ask.at },
-        ...(ask.cause === 'losing' ? { talkRoom: { unit: talkRoomOf(p), clock: ask.at } } : {}),
+        ...(ask.cause === 'losing' ? { talkRoom: { unit: 'team', clock: ask.at } } : {}),
       },
       born: ask.at,
       ...(story ? { storyId: story.id } : {}),
@@ -314,6 +312,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         ...(story ? { storyId: story.id } : {}),
         // Every row carries the result's key: whichever the letter keeps tells it.
         covers: [key],
+        ...(rows.some((x) => x.negotiate) || clock - r.clock >= RESULT_WAIT ? { forces: true as const } : {}),
         result: true,
         part: row.negotiate ? 'talks' : row.cells[1] === 'What I told them' ? 'told' : row.cells[1] ? 'next' : 'man',
         head: { kind: 'room', beat: 'held', noun: SCOPE_NOUN[r.scope] },
@@ -493,8 +492,9 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   const sender = headCoach(league);
   const said = seasonSaid(league, sender.from, 'coach:');
   const { items, coachNote } = gather(league, told, said, have);
-  // Notes alone never make a letter: something to answer, a story closing, a result or a clock does, and they ride along.
-  if (!items.some((i) => i.tier <= 3)) return [];
+  // Notes alone never make a letter: something to answer, a story closing, a clock or a result that cannot wait does, and
+  // the rest ride along. A result with nothing owed waits in the log for the next letter, two steps at most.
+  if (!items.some((i) => i.tier <= 3 && (!i.result || i.forces))) return [];
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
   const heads = ranked.flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []));

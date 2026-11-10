@@ -110,7 +110,6 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type {
   AdviceRow,
-  CoachRoom,
   GazetteTable,
   Coach,
   DealKind,
@@ -655,7 +654,7 @@ function TalkCards({
   league: League;
   s: { clock: number; playerId: number };
   /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
-  room?: CoachRoom | 'team';
+  room?: 'team';
 }) {
   const card = talkCard(league, s);
   const answer = (reply: TalkReply) =>

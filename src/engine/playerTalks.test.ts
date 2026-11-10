@@ -323,24 +323,18 @@ describe('talks: what an answer was about (G4)', () => {
   });
 });
 
-describe("talks: a room's losing", () => {
-  it('is answered once for every man of the room with an open ask, and the answer is kept', () => {
+describe("talks: the club's losing", () => {
+  it('is answered once for every man with an open ask, whatever his room, and the answer is kept', () => {
     const l = fresh();
     const dl = activeRoster(l, l.userTeamId).filter((p) => p.position === 'DT' || p.position === 'EDGE');
     const wr = activeRoster(l, l.userTeamId).find((p) => p.position === 'WR')!;
-    for (const p of [dl[0], dl[1], wr])
+    for (const p of [dl[0], wr])
       p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
-    expect(
-      roomAsks(l, 'DL')
-        .map((p) => p.id)
-        .sort(),
-    ).toEqual([dl[0].id, dl[1].id].sort());
-    expect(answerRoomTalk(l, 'DL', 'reassure')).toBe(2);
+    expect(roomAsks(l)).toHaveLength(2);
+    expect(answerRoomTalk(l, 'team', 'reassure')).toBe(2);
     expect(dl[0].morale!.talk?.answered?.reply).toBe('reassure');
-    expect(dl[1].morale!.talk?.answered?.reply).toBe('reassure');
-    // The receiver's room was not asked.
-    expect(wr.morale!.talk?.ask).toBeDefined();
-    expect(l.teams[l.userTeamId].losingAnswer?.DL).toEqual({ reply: 'reassure', at: l.moraleAt });
-    expect(answerRoomTalk(l, 'DL', 'firm')).toBe(0);
+    expect(wr.morale!.talk?.answered?.reply).toBe('reassure');
+    expect(l.teams[l.userTeamId].losingAnswer?.team).toEqual({ reply: 'reassure', at: l.moraleAt });
+    expect(answerRoomTalk(l, 'team', 'firm')).toBe(0);
   });
 });

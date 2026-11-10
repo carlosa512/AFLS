@@ -14,7 +14,7 @@ import {
 import { characterZ } from '../personality';
 import { Rng } from '../rng';
 import { tierOf, unitRead, weightOf } from '../standing';
-import { beat } from '../stories';
+import { roomBeat } from '../stories';
 import { effectiveTraits } from '../traits';
 import type {
   Approach,
@@ -303,7 +303,7 @@ export function holdMeeting(
         : {}),
   };
   m.log.push(record);
-  beat(league, { kind: 'room', teamId, unit: s.scope }, 'held', s.clock, {
+  roomBeat(league, { kind: 'room', teamId, unit: s.scope }, 'held', s.clock, {
     how: `${choice.approach}:${choice.backing}:${record.timing}`,
   });
   const c = openCommitment(league, teamId, record, s, lift);

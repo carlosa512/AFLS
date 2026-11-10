@@ -12,7 +12,6 @@ import { playWeek } from './league';
 import { answerMeeting } from './meetings';
 import { advanceOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
-import { talkRoomOf } from './stories';
 import type { InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
 
@@ -45,12 +44,16 @@ function roomsToldWithin(ms: InboxMessage[], gap: number): string[] {
   }
   return out;
 }
-/** A meeting held for which no letter covers its result. */
+/** Meetings held whose result no letter told within two steps (the last steps of a season may still be waiting). */
 function heldWithoutResult(l: League): string[] {
-  const covered = new Set((l.inbox ?? []).flatMap((m) => m.covered ?? []));
-  return (l.teams[l.userTeamId].meetings?.log ?? [])
-    .map((r) => `meeting-result:${l.season}:${r.clock}:${r.scope}`)
-    .filter((k) => !covered.has(k));
+  const letters = l.inbox!.filter((m) => m.id.startsWith('coach:'));
+  const now = Math.max(...letters.map(clockOf));
+  return (l.teams[l.userTeamId].meetings?.log ?? []).flatMap((r) => {
+    const key = `meeting-result:${l.season}:${r.clock}:${r.scope}`;
+    const told = letters.find((m) => m.covered?.includes(key));
+    if (!told) return now - r.clock >= 2 ? [`${key} never told`] : [];
+    return clockOf(told) - r.clock > 2 ? [`${key} told ${clockOf(told) - r.clock} steps on`] : [];
+  });
 }
 
 /** One season played as a GM who answers everything (a room's losing once, as its row does) to the end of the playoffs. */
@@ -69,7 +72,7 @@ function playSeason(seed: string, userTeamId: number): League {
     for (const p of Object.values(l.players)) {
       const ask = p.teamId === l.userTeamId ? p.morale?.talk?.ask : undefined;
       if (!ask) continue;
-      if (ask.cause === 'losing') answerRoomTalk(l, talkRoomOf(p), 'reassure');
+      if (ask.cause === 'losing') answerRoomTalk(l, 'team', 'reassure');
       else answerTalk(l, p.id, 'reassure');
     }
     const pend = l.teams[l.userTeamId].meetings?.pending;
@@ -91,10 +94,10 @@ const storiesOpened = (l: League) =>
 // The bounds are the owner's ("less is more with how many emails we already get"). Where the replay misses one it is
 // `it.fails`, with the numbers measured when it was written: a miss is a design question, not a number to move.
 describe.each([
-  // mail1: 13 letters (four meetings, each a request and a result).
-  { seed: 'mail1', team: 3, over: ['letters'] },
-  // vol2, a 3-13 club: 15 letters (a losing room row nearly every step) and 15 stories opened (11 of them rooms).
-  { seed: 'vol2', team: 10, over: ['letters', 'opened'] },
+  { seed: 'mail1', team: 3, over: [] as string[] },
+  // vol2, a 3-13 club: 11 letters, but 15 stories opened (11 of them rooms turning Down or Split, again after each
+  // recovery, and 3 of the staff's), against the owner's 10.
+  { seed: 'vol2', team: 10, over: ['opened'] },
 ])("the head coach's letters over a season: $seed", ({ seed, team, over }) => {
   let l: League;
   let coach: InboxMessage[];

@@ -157,12 +157,12 @@ describe('men who left', () => {
   it("puts a man's losing on his room's story, and opens none of his own", () => {
     const l = fresh();
     const p = men(l, 'DL')[0];
-    // No story for the room yet: his ask opens nothing.
+    // The club's one story for the losing opens with the first ask and takes the rest.
     talkBeat(l, p, 'losing', 'asked', l.moraleAt!);
-    expect(l.stories?.open ?? []).toHaveLength(0);
-    const room = beat(l, { kind: 'room', teamId: l.userTeamId, unit: 'DL' }, 'turned', l.moraleAt!, { how: 'Down' })!;
-    talkBeat(l, p, 'losing', 'asked', l.moraleAt! + 1);
-    expect(room.beats.map((b) => b.kind)).toEqual(['turned', 'asked']);
+    talkBeat(l, men(l, 'WR')[0], 'losing', 'asked', l.moraleAt! + 1);
+    const room = openStory(l, { kind: 'room', teamId: l.userTeamId, unit: 'team' })!;
+    expect(l.stories!.open).toHaveLength(1);
+    expect(room.beats.map((b) => b.kind)).toEqual(['asked', 'asked']);
     expect(openStory(l, { kind: 'losing', teamId: l.userTeamId, playerId: p.id })).toBeUndefined();
   });
 
@@ -289,49 +289,5 @@ describe('shareWord', () => {
     const ctx = moraleContext(l);
     const words = new Set(activeRoster(l, l.userTeamId).map((p) => shareWord(l, p, ctx)));
     expect([...words].every((w) => w === null || w === 'part' || w === 'most')).toBe(true);
-  });
-});
-
-describe('a meeting that opened a room story', () => {
-  const team = (l: League) => l.teams[l.userTeamId];
-  const held = (l: League) => {
-    const on = { kind: 'room' as const, teamId: l.userTeamId, unit: 'team' as const };
-    return beat(l, on, 'held', l.moraleAt!)!;
-  };
-
-  it('ends the step after a camp meeting held with no commitment, and is never tellable', () => {
-    const l = fresh();
-    const s = held(l);
-    storiesStep(l);
-    expect(l.stories!.open).toContain(s);
-    expect(tellable(l, s, l.moraleAt! + 5)).toBe(false);
-    next(l);
-    expect(s.beats.at(-1)!.kind).toBe('ended');
-    expect(l.stories!.open).not.toContain(s);
-  });
-
-  it('stays open while a commitment for its scope is open, until it settles', () => {
-    const l = fresh();
-    const s = held(l);
-    team(l).meetings = {
-      log: [],
-      open: [
-        {
-          backing: 'jobs',
-          scope: 'team',
-          opened: l.moraleAt!,
-          closes: l.moraleAt! + 4,
-          named: [],
-          boughtIn: [],
-          by: 'coach',
-        },
-      ],
-    };
-    next(l);
-    next(l);
-    expect(l.stories!.open).toContain(s);
-    team(l).meetings!.open = [];
-    next(l);
-    expect(s.beats.at(-1)!.kind).toBe('ended');
   });
 });

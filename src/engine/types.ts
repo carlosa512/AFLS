@@ -1079,8 +1079,8 @@ export interface PlayingAt {
 }
 
 export interface Team {
-  /** What you last told each room about the losing, so a man of it asking inside `LOSING_GAP` steps is answered the same. */
-  losingAnswer?: Partial<Record<CoachRoom | 'team', { reply: 'reassure' | 'firm'; at: number }>>;
+  /** What you last told the club about the losing, so a man asking inside `LOSING_GAP` steps is answered the same. */
+  losingAnswer?: { team?: { reply: 'reassure' | 'firm'; at: number } };
   /** Rooms whose belief in their coordinator fell past the warning line after a bad game in the last step (L4). */
   beliefFell?: { clock: number; rooms: CoachRoom[] };
   coachAdvice?: CoachAdvice[];
@@ -1700,8 +1700,8 @@ export interface MailSection {
     before?: string;
     /** The meeting request's choices, drawn from the suggestion waiting on you (`meetingCard`). */
     meeting?: { clock: number; scope: MeetingScope };
-    /** His row speaks for his room's losing: the one answer goes to every man of it with an open ask (`answerRoomTalk`). */
-    talkRoom?: { unit: CoachRoom | 'team'; clock: number };
+    /** His row speaks for the club's losing: the one answer goes to every man with an open ask (`answerRoomTalk`). */
+    talkRoom?: { unit: 'team'; clock: number };
   }[];
 }
 
