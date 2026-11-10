@@ -309,6 +309,11 @@ const named = (f: BenchCloseFact) => !!f.other;
 export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   closed('backIn', undefined, (f) => `${f.holder} is back in, and that one is behind us.`),
   closed('backIn', undefined, (f) => `${f.holder} is back in the lineup, so the benching is behind us.`),
+  closed(
+    'ended',
+    undefined,
+    (f) => `The season ended with ${poss(f.holder)} job unsettled, and the jobs are set again at camp.`,
+  ),
   closed('left', 'other', (f) => `${f.other} is gone, so it's ${poss(f.holder)} job again.`, named),
   closed('left', 'holder', (f) => `${f.holder} is gone, so the job is ${poss(f.other!)} now.`, named),
   closed('left', 'both', (f) => `${f.holder} and ${f.other} are both gone, so there is nothing left to settle.`, named),
@@ -439,19 +444,46 @@ export const BENCH_STANDS: readonly Line<StandsFact>[] = [
   { when: (f) => f.state === 'brokenSoft', text: () => 'He sat again.' },
 ];
 
+/**
+ * Every `how` a benching story's closing beat carries: the engine files only these (`benching.ts` types its closings by
+ * them), and `CLOSE_ENDS` must say, for each, whether its line names the other man. A closing added without a line fails
+ * the sweep in the tests, and one added without an entry here fails the compiler.
+ */
+export const LEFT_HOWS = ['other', 'holder', 'both'] as const;
+export const SETTLED_HOWS = [
+  'out',
+  'outHolder',
+  'outOther',
+  'his',
+  'keeps',
+  'earned',
+  'earnedBack',
+  'chart',
+  'chartBack',
+] as const;
+export type LeftHow = (typeof LEFT_HOWS)[number];
+export type SettledHow = (typeof SETTLED_HOWS)[number];
+
+/** Whether a closing's line can only be filed when the question named another man. */
+const NEEDS_OTHER: Record<LeftHow | SettledHow, boolean> = {
+  other: true,
+  holder: false,
+  both: true,
+  out: false,
+  outHolder: true,
+  outOther: true,
+  his: false,
+  keeps: true,
+  earned: true,
+  earnedBack: false,
+  chart: true,
+  chartBack: false,
+};
+
 /** Every way a benching story closes, as the engine files it: its beat, how, and whether the line names the other man. */
 export const CLOSE_ENDS: readonly { beat: BeatKind; how?: string; needsOther: boolean }[] = [
   { beat: 'backIn', needsOther: false },
-  { beat: 'left', how: 'other', needsOther: true },
-  { beat: 'left', how: 'holder', needsOther: false },
-  { beat: 'left', how: 'both', needsOther: true },
-  { beat: 'settled', how: 'out', needsOther: false },
-  { beat: 'settled', how: 'outHolder', needsOther: true },
-  { beat: 'settled', how: 'outOther', needsOther: true },
-  { beat: 'settled', how: 'his', needsOther: false },
-  { beat: 'settled', how: 'keeps', needsOther: true },
-  { beat: 'settled', how: 'earned', needsOther: true },
-  { beat: 'settled', how: 'earnedBack', needsOther: false },
-  { beat: 'settled', how: 'chart', needsOther: true },
-  { beat: 'settled', how: 'chartBack', needsOther: false },
+  { beat: 'ended', needsOther: false },
+  ...LEFT_HOWS.map((how) => ({ beat: 'left' as const, how, needsOther: NEEDS_OTHER[how] })),
+  ...SETTLED_HOWS.map((how) => ({ beat: 'settled' as const, how, needsOther: NEEDS_OTHER[how] })),
 ];

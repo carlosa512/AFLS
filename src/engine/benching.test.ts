@@ -570,7 +570,7 @@ describe('fix round 1', () => {
     order(team, [q[1].id, q[0].id]);
     moodWeek(l);
     expect(team.jobs!.runs![q[1].id]).toBe(1);
-    // The holder hurt: the other man's start counts for nothing.
+    // The holder hurt: the other man’s start counts for nothing.
     q[0].injury = hurt(l);
     moodWeek(l);
     expect(questionOf(team, q[0].id)!.paused).toBe(true);
@@ -692,7 +692,7 @@ describe('mid-story: injuries', () => {
     expect(a.q[0].morale!.talk?.ask?.cause).not.toBe('benched');
     expect(storyOf(a.l, a.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'outOther' });
     expect(storyOf(a.l, a.q[0].id)!.closed).toBeDefined();
-    // The holder out: the job is the other man's until the new league year.
+    // The holder out: the job is the other man’s until the new league year.
     const b = sitHolder('mid-out-holder');
     b.q[0].injury = lost(b.l);
     moodWeek(b.l);
@@ -781,7 +781,7 @@ describe('mid-story: trades, cuts and retirements', () => {
     },
   );
 
-  it.each(exits)("the holder %s with the question open: the job is the other man's at once", (_n, go) => {
+  it.each(exits)('the holder %s with the question open: the job is the other man’s at once', (_n, go) => {
     const { l, team, q } = sitHolder(`mid-holder-${_n}`);
     moodWeek(l);
     order(team, [q[0].id, q[1].id]);
@@ -1030,7 +1030,7 @@ describe('the lineup step', () => {
     expect(lineupProblem(l)).toBe(true);
   });
 
-  it('with the 53 still to submit, the lineup is the next step`s', () => {
+  it('with the 53 still to submit, the lineup is the next step’s', () => {
     const l = createLeague({ seed: 'lineup-53', personnel: true });
     l.phase = 'preseason';
     l.teams[l.userTeamId].autoDepth = false;
@@ -1099,7 +1099,7 @@ describe('the cleared starter', () => {
 });
 
 describe('the benching card', () => {
-  it('his row has four answers with the other man named last, the other man`s row has three', () => {
+  it('his row has four answers with the other man named last, the other man’s row has three', () => {
     const { l, team, q } = sitHolder('card-options');
     const holder = benchCard(l, { playerId: q[0].id, clock: 0 });
     expect(holder.state).toBe('open');
@@ -1187,7 +1187,7 @@ describe('his words', () => {
 });
 
 describe('fix round 1', () => {
-  it('a rookie who is his room`s best is not "behind" anyone, a depth man is', () => {
+  it('a rookie who is his room’s best is not "behind" anyone, a depth man is', () => {
     const { l, team } = setup('fix-better');
     const room = teamPlayersOf(l, team, 'QB').sort((a, b) => playerOvr(b) - playerOvr(a));
     const ctx = moraleContext(l);
@@ -1226,7 +1226,7 @@ describe('fix round 1', () => {
     expect(story.beats.at(-1)).toMatchObject({ kind: 'left', how: 'both' });
   });
 
-  it('claims resolved after the lineup is set leave a hand-sorted chart`s starters as confirmed', () => {
+  it('claims resolved after the lineup is set leave a hand-sorted chart’s starters as confirmed', () => {
     const l = createLeague({ seed: 'fix-claims', personnel: true });
     const team = l.teams[l.userTeamId];
     l.phase = 'preseason';
@@ -1299,7 +1299,7 @@ describe('fix round 2', () => {
     expect(c.text).not.toMatch(/That one is closed|^The question over/);
   });
 
-  it('the holder leaves and the other stays: the job is the other man`s; both gone: nothing about the job', () => {
+  it('the holder leaves and the other stays: the job is the other man’s; both gone: nothing about the job', () => {
     const a = sitHolder('fix2-holder');
     setTeam(a.l, a.q[0], null);
     moodWeek(a.l);
@@ -1316,7 +1316,7 @@ describe('fix round 2', () => {
     expect(y.text).not.toMatch(/job/);
   });
 
-  it('on the other man`s card the promise names the man it went to', () => {
+  it('on the other man’s card the promise names the man it went to', () => {
     const { l, q } = sitHolder('fix2-stands');
     answerBench(l, q[0].id, 'backIn');
     expect(benchCard(l, { playerId: q[0].id, clock: 0 }).stands).toBe('He is waiting on his next game.');

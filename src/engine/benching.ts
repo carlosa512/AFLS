@@ -7,7 +7,16 @@
  * jobs when the season starts, hurt or not. "Started" is read at kickoff from the chart and availability, never from
  * snap counts: a man hurt in the game still started.
  */
-import { BENCH_CLOSE, BENCH_REPLY, BENCH_STANDS, benchSaid, type StandsFact, type BenchCloseFact } from './benchVoice';
+import {
+  BENCH_CLOSE,
+  type LeftHow,
+  type SettledHow,
+  BENCH_REPLY,
+  BENCH_STANDS,
+  benchSaid,
+  type StandsFact,
+  type BenchCloseFact,
+} from './benchVoice';
 import { manSheet, type ManSheet } from './castSheet';
 import { onDidNotReport } from './disputeRead';
 import { employed } from './employment';
@@ -322,7 +331,13 @@ function applyBench(
   beat(league, storyOn(team, q), 'answered', clock, { how: reply });
   if (reply === 'his') {
     // The holder told it is the other's job ('his'), or the other told it is the holder's ('keeps').
-    closeStory(league, storyOn(team, q), 'settled', clock, man.id === q.holder ? 'his' : 'keeps');
+    closeStory(
+      league,
+      storyOn(team, q),
+      'settled',
+      clock,
+      (man.id === q.holder ? 'his' : 'keeps') satisfies SettledHow,
+    );
     closeQuestion(league, team, q);
   }
 }
@@ -400,13 +415,8 @@ function settleGone(league: League, team: Team, clock: number): void {
       if (!jobs.held[q.other]) jobs.held[q.other] = { pos: q.pos, since: clock };
       delete jobs.runs?.[q.other];
     }
-    closeStory(
-      league,
-      storyOn(team, q),
-      'left',
-      clock,
-      here(q.holder) ? 'other' : q.other !== undefined && !here(q.other) ? 'both' : 'holder',
-    );
+    const gone: LeftHow = here(q.holder) ? 'other' : q.other !== undefined && !here(q.other) ? 'both' : 'holder';
+    closeStory(league, storyOn(team, q), 'left', clock, gone);
     closeQuestion(league, team, q);
   }
 }
@@ -422,7 +432,7 @@ function settleOut(league: League, team: Team, clock: number): void {
     if (out === undefined) continue;
     const other = q.other === undefined || out === q.other ? undefined : league.players[q.other];
     // What the story says: the job moved to the other man, the holder keeps it, or nothing moved.
-    let how = out === q.other ? 'outOther' : 'out';
+    let how: SettledHow = out === q.other ? 'outOther' : 'out';
     if (other && !outForSeason(league, other)) {
       delete jobs!.held[q.holder];
       if (!jobs!.held[other.id]) jobs!.held[other.id] = { pos: q.pos, since: clock };
@@ -541,13 +551,8 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
         sour(holder, clock);
       }
       // Who won it: the other man took the job, or the holder started his way back to it.
-      closeStory(
-        league,
-        storyOn(team, q),
-        'settled',
-        clock,
-        `${q.answered ? 'earned' : 'chart'}${otherWon ? '' : 'Back'}`,
-      );
+      const won: SettledHow = otherWon ? (q.answered ? 'earned' : 'chart') : q.answered ? 'earnedBack' : 'chartBack';
+      closeStory(league, storyOn(team, q), 'settled', clock, won);
       closeQuestion(league, team, q);
     }
 
