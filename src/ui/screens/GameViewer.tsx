@@ -13,7 +13,7 @@ import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
 import { momentHold, playMoments } from '../moments';
-import { ALL22_OWN, GameMoments, shownMoments } from './GameMoments';
+import { ALL22_OWN, GameMoments, HALF_MS, shownMoments } from './GameMoments';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
@@ -226,6 +226,8 @@ export function GameViewer({
   // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
   // put up stay hidden, so the words never get ahead of the picture.
   const [seen, setSeen] = useState(false);
+  // The replay ran to its last play (it wasn't stepped or scrubbed there): the final card comes up.
+  const [ended, setEnded] = useState(false);
   // Whether the play shown has been snapped (All-22): until then the last play's result stays up.
   const [snapped, setSnapped] = useState(true);
   const [pick, setPick] = useHighlightPick();
@@ -266,6 +268,7 @@ export function GameViewer({
     setStill(skipped);
     setSeen(false);
     setSnapped(false);
+    setEnded(false);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
   };
@@ -279,13 +282,18 @@ export function GameViewer({
   const onDone = () => {
     setSeen(true);
     if (!playing) return;
-    if (atEnd) return setPlaying(false);
+    if (atEnd) {
+      setEnded(true);
+      return setPlaying(false);
+    }
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
     // A moment (a score's banner, a player's line) holds the screen long enough to be read.
     const made = shownMoments(playMoments(plays, index, { ...momentFacts, told: true, still: false }), shownSpeed, own);
-    const hold = Math.max((all22 ? holdAfter(entry) : 650) / shownSpeed, momentHold(made, shownSpeed));
+    // The half's card stays up a while before the replay carries on.
+    const half = made.some((m) => m.kind === 'half') ? HALF_MS / shownSpeed : 0;
+    const hold = Math.max((all22 ? holdAfter(entry) : 650) / shownSpeed, momentHold(made, shownSpeed), half);
     timer.current = setTimeout(() => advanceFrom(index), hold);
   };
   const step = (dir: 1 | -1) => {
@@ -315,6 +323,11 @@ export function GameViewer({
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
   // What the play on screen gives the viewer to show: nothing until its result has been seen.
   const moments = playMoments(plays, index, { ...momentFacts, told, still });
+  // A period's card comes up only when the replay plays into it: stepped or scrubbed to, the play shows without one.
+  const period = shownMoments(moments, shownSpeed).find(
+    (m) => m.kind === 'quarter' || m.kind === 'half' || m.kind === 'final',
+  );
+  const card = period && (period.kind === 'final' ? ended : playing) ? period : null;
   const final = atEnd && !playing;
 
   const broadcast = (
@@ -381,7 +394,23 @@ export function GameViewer({
             ) : (
               broadcast
             )}
-            <GameMoments league={league} home={home} away={away} moments={moments} speed={shownSpeed} own={own} />
+            <GameMoments
+              league={league}
+              home={home}
+              away={away}
+              moments={moments}
+              speed={shownSpeed}
+              own={own}
+              card={card}
+              facts={{
+                plays,
+                shown: told ? index : index - 1,
+                names,
+                record: game.result.field,
+                playerTeams: game.result.playerTeams,
+              }}
+              onBoxScore={card?.kind === 'final' ? onBoxScore : undefined}
+            />
           </div>
 
           <div className="viewer-sit">

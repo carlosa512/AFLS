@@ -1865,6 +1865,125 @@ select {
   font-weight: 600;
   color: #fff;
 }
+/* A card over the whole field: a quarter's end in a line, the half and the final with the game's numbers. */
+.moment-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 3%;
+  background: rgba(6, 10, 9, 0.62);
+  color: var(--scene-ink);
+}
+.moment-card.small {
+  background: rgba(6, 10, 9, 0.4);
+}
+.mc-in {
+  width: min(100%, 520px);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--scene-panel);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.mc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 0.87rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mc-net {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--scene-ink);
+  color: var(--scene-bg);
+  letter-spacing: 0.04em;
+}
+.mc-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 6px;
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+.mc-team {
+  font-size: clamp(1.1rem, 4vw, 1.6rem);
+}
+.mc-home {
+  text-align: right;
+}
+.mc-pts {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: clamp(1.75rem, 7vw, 2.9rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mc-body {
+  display: grid;
+  gap: 4px;
+  padding: 4px 14px 12px;
+}
+.mc-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: clamp(0.7rem, 2.2vw, 0.82rem);
+  font-weight: 600;
+}
+.mc-k {
+  font-weight: 400;
+  color: var(--scene-muted);
+  text-align: center;
+}
+.mc-h {
+  text-align: right;
+}
+.mc-lead {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: clamp(0.7rem, 2.2vw, 0.82rem);
+}
+.mc-lead > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mc-lead .num {
+  color: var(--scene-muted);
+  white-space: nowrap;
+}
+.mc-lead .linklike {
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+.mc-btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+@media (max-width: 480px) {
+  /* A phone's field is short: the card keeps the score and the buttons, the leaders give way. */
+  .mc-lead {
+    display: none;
+  }
+}
+
 /* All-22 times its own flag, injury and change-of-possession calls to its staging; they wear the banner. (Two
    classes, to outrank the pill those calls used to be.) */
 .td-call.td-moment,
@@ -2496,13 +2615,6 @@ main.wrap:has(.game-stage) {
   min-height: 44px;
   padding: 0 14px;
   cursor: pointer;
-}
-.live-final {
-  display: grid;
-  gap: 10px;
-  max-width: 760px;
-  width: 100%;
-  margin-inline: auto;
 }
 
 /* Focus rings inside clipping containers draw inward so they stay visible. */

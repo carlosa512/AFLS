@@ -1072,3 +1072,72 @@ describe('the moments over the field', () => {
     expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.crowd/.test(m[0]))).toBe(true);
   });
 });
+
+describe('the cards at the quarter, the half and the final', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const names = buildPlayNames(league, game);
+  const half = plays
+    .map((e, i) => (e.quarter === 2 ? i : -1))
+    .filter((i) => i >= 0)
+    .pop()!;
+  const last = plays.length - 1;
+  const card = (
+    kind: 'half' | 'final' | 'quarter',
+    shown: number,
+    o: Partial<Parameters<typeof GameMoments>[0]> = {},
+  ) =>
+    render(
+      <GameMoments
+        league={league}
+        home={home}
+        away={away}
+        moments={[]}
+        speed={1}
+        card={kind === 'quarter' ? { kind, head: 'End of the first quarter' } : { kind }}
+        facts={{ plays, shown, names, record: game.result!.field, playerTeams: game.result!.playerTeams }}
+        {...o}
+      />,
+    );
+
+  it('shows the half: the score, four team numbers through that play, and three leaders', () => {
+    const html = card('half', half);
+    const at = teamStatsAt(plays, half, home.id);
+    expect(html).toContain('>Halftime<');
+    expect(html).toContain(`>${plays[half].awayScore} – ${plays[half].homeScore}<`);
+    for (const label of ['Total yards', 'First downs', '3rd down', 'Turnovers']) expect(html).toContain(`>${label}<`);
+    expect(html).toContain(`>${at.home.totalYds}<`);
+    expect(html).toContain(`>${at.away.totalYds}<`);
+    expect(html.match(/class="mc-lead"[\s\S]*?<\/div><\/div>/)![0].match(/class="linklike"/g)).toHaveLength(3);
+  });
+
+  it('waits for Continue in a live game, and offers nothing to press in a replay', () => {
+    const live = card('half', half, { onContinue: () => {}, onSim: () => {} });
+    expect(live).toContain('>Continue<');
+    expect(live).toContain('>Sim to final<');
+    const replay = card('half', half);
+    expect(replay).not.toContain('>Continue<');
+    expect(replay).not.toContain('<button class="btn');
+  });
+
+  it('shows the final once, with the result and the live game’s buttons', () => {
+    const html = card('final', last, { verdict: 'W', onBoxScore: () => {}, onReplay: () => {}, onContinue: () => {} });
+    expect(html).toContain('>Final<');
+    expect(html.match(/class="res-W"/g)).toHaveLength(1);
+    expect(html).toContain(`>${game.result!.awayScore} – ${game.result!.homeScore}<`);
+    for (const label of ['Box score', 'Watch replay', 'Continue']) expect(html).toContain(`>${label}<`);
+    // The panel that used to say the result under the live game is gone: the card says it.
+    expect(readFileSync('src/ui/screens/LiveGame.tsx', 'utf8')).not.toContain('live-final');
+  });
+
+  it('marks a quarter’s end in a line', () => {
+    const html = card('quarter', 32);
+    expect(html).toContain('>End of the first quarter<');
+    expect(html).not.toContain('Total yards');
+  });
+
+  it('signs every card SNN', () => {
+    for (const kind of ['half', 'final', 'quarter'] as const)
+      expect(card(kind, half)).toMatch(/class="mc-net"[^>]*>SNN</);
+  });
+});

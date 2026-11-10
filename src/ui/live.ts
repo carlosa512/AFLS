@@ -85,6 +85,15 @@ export const live = {
   },
 
   /**
+   * The play after the one on screen, pulled from the engine if it hasn't been yet, and not shown: how the screen knows
+   * a quarter or the half has just ended. Undefined at the final whistle.
+   */
+  peek(): PlayLogEntry | undefined {
+    if (!session || !pull(session)) return undefined;
+    return session.plays[session.current + 1];
+  },
+
+  /**
    * Highlights: move to the last play before the next one `isShown` accepts, pulling plays from the engine as needed,
    * so the log and the scoreboard catch up in one step. Returns false when the next play is already shown (or there is
    * none). At the final whistle it stops on the last play.

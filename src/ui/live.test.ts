@@ -36,3 +36,39 @@ describe('live highlights', () => {
     live.clear();
   });
 });
+
+describe('looking a play ahead', () => {
+  it('pulls the next play from the engine without showing it', () => {
+    const league = createLeague({ seed: 'live-peek' });
+    live.start(league, league.games.find((g) => g.week === 1)!);
+    // Walk to the last play pulled so far: nothing is known past it until the engine is asked.
+    while (live.get()!.current < live.get()!.plays.length - 1) live.advance();
+    const s = live.get()!;
+    const at = s.current;
+    expect(s.plays[at + 1]).toBeUndefined();
+    const next = live.peek();
+    expect(next).toBeDefined();
+    expect(live.get()!.current).toBe(at);
+    expect(live.get()!.plays[at + 1]).toBe(next);
+    // The play it peeked at is the one stepping on shows.
+    live.advance();
+    expect(live.get()!.plays[live.get()!.current]).toBe(next);
+    live.clear();
+  });
+
+  it('lets the screen see a period end as it happens: the half is known at the second quarter’s last play', () => {
+    const league = createLeague({ seed: 'live-peek' });
+    live.start(league, league.games.find((g) => g.week === 1)!);
+    let guard = 0;
+    while (guard++ < 400) {
+      live.peek();
+      const s = live.get()!;
+      if (s.plays[s.current].quarter === 2 && s.plays[s.current + 1]?.quarter === 3) break;
+      if (!live.advance()) break;
+    }
+    const s = live.get()!;
+    expect(s.plays[s.current].quarter).toBe(2);
+    expect(s.plays[s.current + 1].quarter).toBe(3);
+    live.clear();
+  });
+});
