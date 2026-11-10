@@ -1693,7 +1693,21 @@ describe("the young players' review", () => {
     expect(m.subject).toBe("How the young players' year went");
     expect(section(m, 'Ahead of our grades')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
     expect(section(m, 'Behind our grades')!.rows.map((r) => r.playerId)).toEqual([second.id]);
-    expect(section(m, 'Ahead of our grades')!.columns).toEqual(['Player', 'Pos', 'Age', 'Came in', 'Our read']);
+    // His overall and his ceiling on our read, each with the year's change when it moved a point.
+    for (const r of [...section(m, 'Ahead of our grades')!.rows, ...section(m, 'Behind our grades')!.rows]) {
+      expect(r.cells[3]).toMatch(/^\d+( [▲▼]\d+)?$/);
+      expect(r.cells[4]).toMatch(/^\d+ [▲▼]\d+$/);
+    }
+    expect(section(m, 'Ahead of our grades')!.rows[0].cells[4]).toContain('▲');
+    expect(section(m, 'Behind our grades')!.rows[0].cells[4]).toContain('▼');
+    expect(section(m, 'Ahead of our grades')!.columns).toEqual([
+      'Player',
+      'Age',
+      'Came in',
+      'Overall',
+      'Ceiling',
+      'Our read',
+    ]);
     expect(rows(m).some((r) => r.playerId === theirs.id)).toBe(false);
     expect((league.inbox ?? []).some((x) => x.id.startsWith(`ceiling:${league.season}:`))).toBe(false);
   });
@@ -1773,8 +1787,8 @@ describe("the young players' review", () => {
     shift(rookie, 3);
     shift(extra, 3);
     deliverMail(league);
-    expect(rowFor(review()[0], rookie).cells[3]).toBe(`${league.season} R1, No. 12`);
-    expect(rowFor(review()[0], extra).cells[3]).toBe('Undrafted');
+    expect(rowFor(review()[0], rookie).cells[2]).toBe(`${league.season} R1, No. 12`);
+    expect(rowFor(review()[0], extra).cells[2]).toBe('Undrafted');
   });
 
   it('old saves: an old one-off this season means no review', () => {

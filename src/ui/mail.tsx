@@ -159,6 +159,7 @@ import { talkCard } from '../engine/talkMail';
 import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
+import { FuturesCell } from './personnel';
 import { wireClaim } from '../engine/waiverMail';
 import { movesClosed, reSigns } from './staffCopy';
 
@@ -3167,7 +3168,7 @@ function SectionCard({
           return cell !== '' && /^[\d$.,\s%-]+[MK]?$/.test(cell) && Number.isFinite(n) ? n : cell;
         });
   // Rows the writer annotates (a note, a claim) read as a list: the facts on one line, his words in full beneath.
-  if (section.rows.some((r) => r.note || r.claim))
+  if (section.rows.some((r) => r.note || r.claim || r.futures))
     return (
       <Card title={section.title}>
         {section.lead && <p className="inbox-body">{section.lead}</p>}
@@ -3202,6 +3203,9 @@ function SectionCard({
                     r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>
                   )}
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
+                  {r.futures && league.players[r.futures.playerId] && (
+                    <FuturesCell league={league} player={league.players[r.futures.playerId]} />
+                  )}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
                 {r.talk && (
@@ -3250,7 +3254,7 @@ function SectionCard({
                 <tr key={j}>
                   {r.cells.map((c, k) => (
                     <td key={k}>
-                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : c}
+                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : <Moved text={c} />}
                       {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
                     </td>
                   ))}
@@ -3266,6 +3270,23 @@ function SectionCard({
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A cell that carries a change ("12 ▲1", "9 ▼2"): the number, then the change in its colour. */
+function Moved({ text }: { text: string }) {
+  const m = /^(.*?)\s*([▲▼])(\d+)$/.exec(text);
+  if (!m) return <>{text}</>;
+  const up = m[2] === '▲';
+  return (
+    <>
+      {m[1]}{' '}
+      <span className={`small ${up ? 'tone-good' : 'tone-bad'}`}>
+        <span aria-hidden="true">{m[2]}</span>
+        {m[3]}
+        <span className="visually-hidden">{up ? ' up' : ' down'} this season</span>
+      </span>
+    </>
   );
 }
 

@@ -79,7 +79,7 @@ import { userGame } from './league';
 import { isMedicExpiring, MEDIC_ROLE_LABEL, medicalBudget, medicResignForecast, teamMedics } from './medical';
 import { expiringPlayers } from './offseason/ai';
 import { draftComplete, reachOrSteal } from './offseason/draft';
-import { rookieCost, ROSTER_MAX } from './offseason/negotiation';
+import { rookieCost, ROSTER_MAX, takesMinimum } from './offseason/negotiation';
 import { knowledge, leaguePercentile, perceive, scoutReportParts } from './scouting';
 import { POSITION_NAMES, STARTERS } from './positions';
 import {
@@ -92,7 +92,7 @@ import {
   teamPlayers,
   wrSpotsOf,
 } from './roster';
-import { futuresKept, futuresWindowOpen } from './personnel/futures';
+import { futuresKept, futuresPicks, futuresWindowOpen } from './personnel/futures';
 import { elevationUses } from './personnel/elevations';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
 import { ROUND_NAMES } from './season/playoffs';
@@ -133,11 +133,13 @@ import type {
   Phase,
   Player,
   Position,
+  Ratings,
   StatLine,
   Team,
   TradeOffer,
   TradeSide,
 } from './types';
+import { ATTRIBUTES } from './types';
 import { OFFSEASON_PHASES } from './types';
 
 /** Saves keep the latest messages only, like the transaction log. */
@@ -218,6 +220,35 @@ function futuresMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id)) return [];
   const picks = futuresKept(league, user).map((x) => league.players[x]);
   const staff = league.teams[user].autoSquad !== false;
+  // The whole squad, a row a man: who the scouts would keep first, each with a button to change it.
+  const liked = new Set(futuresPicks(league, user));
+  const kept = new Set(picks.map((p) => p.id));
+  const rows = practiceSquad(league, user)
+    .map((p) => ({ p, view: perceive(league, user, p) }))
+    .sort(
+      (a, b) => Number(kept.has(b.p.id)) - Number(kept.has(a.p.id)) || b.view.potMid - a.view.potMid || a.p.id - b.p.id,
+    )
+    .map(({ p, view }) => {
+      const wants = !takesMinimum(league, p, user);
+      const note = wants
+        ? 'Wants an NFL contract, not a futures deal.'
+        : liked.has(p.id)
+          ? p.age <= 23
+            ? `Young, with a ceiling above our backups at ${p.position}.`
+            : `His ceiling is at least our backup level at ${p.position}.`
+          : `Doesn't project past our backups at ${p.position}.`;
+      return {
+        playerId: p.id,
+        cells: [
+          fullName(p),
+          String(p.age),
+          String(Math.round(view.ovr)),
+          wants ? '' : kept.has(p.id) ? "We'd keep" : "We'd let go",
+        ],
+        note,
+        futures: { playerId: p.id },
+      };
+    });
   return [
     {
       id,
@@ -228,12 +259,10 @@ function futuresMail(league: League, have: Set<string>): Draft[] {
       category: 'scouting',
       subject: picks.length ? `Squad players worth keeping: ${picks.length}` : 'Nobody on the squad to keep',
       body: picks.length
-        ? `Our season is over, so practice squad deals end at the new league year. We'd keep ${list(picks.map(fullName))} on futures deals: minimum contracts for next season. ${staff ? 'Staff will sign them unless you change it on the squad desk.' : 'Mark them on the squad desk before the new league year.'}`
+        ? `Our season is over, so practice squad deals end at the new league year. We'd keep ${small(picks.length)} on futures deals: minimum contracts for next season. ${staff ? 'Staff will sign them unless you change it below.' : 'Mark who stays below before the new league year.'}`
         : "Our season is over and the practice squad deals end at the new league year. On our read nobody there reaches our backups' level, so we'd let them go.",
-      actions: [
-        ...picks.slice(0, 3).map((p) => ({ kind: 'player' as const, playerId: p.id })),
-        { kind: 'team', teamId: user },
-      ],
+      sections: [{ title: 'The practice squad', columns: ['Player', 'Age', 'Our read', 'Our call'], rows }],
+      actions: [{ kind: 'team', teamId: user }],
     },
   ];
 }
@@ -2594,6 +2623,12 @@ const REVIEW_OPENER: readonly Line<ReviewFacts>[] = [
   { text: () => "With the season done, this year's rookies are about who we thought they were." },
 ];
 
+/** A number on our read and how the year moved it: "12 ▲1", "9 ▼2", or the number alone when it held. */
+const withChange = (now: number, change: number) => {
+  const by = Math.round(change);
+  return `${Math.round(now)}${by > 0 ? ` ▲${by}` : by < 0 ? ` ▼${-by}` : ''}`;
+};
+
 /** Our season is over: the season is complete, or we have no game left to play this season. */
 function seasonOver(league: League, teamId: number): boolean {
   if (league.phase === 'complete') return true;
@@ -2616,7 +2651,11 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
   const id = `ceilingReview:${season}`;
   if (have.has(id) || !seasonOver(league, team.id)) return [];
   if ((league.inbox ?? []).some((m) => m.id.startsWith(`ceiling:${season}:`))) return [];
-  const rows: Record<Verdict, { p: Player; year: number; moved: number }[]> = { ahead: [], held: [], behind: [] };
+  const rows: Record<Verdict, { p: Player; year: number; moved: number; ovr: number; grew: number; pot: number }[]> = {
+    ahead: [],
+    held: [],
+    behind: [],
+  };
   for (const p of teamPlayers(league, team.id)) {
     const shift = p.ceilingShifts?.[season];
     const year = settleYear(p);
@@ -2625,7 +2664,16 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
     const moved = now - perceive(league, team.id, { ...p, potential: p.potential - shift }).potMid;
     const verdict: Verdict = moved >= 1 ? 'ahead' : moved <= -1 ? 'behind' : 'held';
     if (verdict === 'held' && year !== 0) continue;
-    rows[verdict].push({ p, year, moved });
+    // What the year did to him on our read: his overall against where the league year found it, and his ceiling.
+    const view = perceive(league, team.id, p);
+    const then = p.ratingHistory?.[season];
+    const before = then
+      ? perceive(league, team.id, {
+          ...p,
+          ratings: Object.fromEntries(ATTRIBUTES.map((a, i) => [a, then[i]])) as Ratings,
+        }).ovr
+      : view.ovr;
+    rows[verdict].push({ p, year, moved, ovr: view.ovr, grew: view.ovr - before, pot: now });
   }
   const { ahead, held, behind } = rows;
   if (!ahead.length && !held.length && !behind.length) return [];
@@ -2649,12 +2697,19 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
     .filter((v) => rows[v].length)
     .map((v) => ({
       title: CEILING_TITLE[v],
-      columns: ['Player', 'Pos', 'Age', 'Came in', 'Our read'],
+      columns: ['Player', 'Age', 'Came in', 'Overall', 'Ceiling', 'Our read'],
       rows: [...rows[v]]
         .sort((a, b) => a.year - b.year || Math.abs(b.moved) - Math.abs(a.moved) || a.p.id - b.p.id)
-        .map(({ p, year }) => ({
+        .map(({ p, year, moved, ovr, grew, pot }) => ({
           playerId: p.id,
-          cells: [fullName(p), p.position, String(p.age), cameIn(p), CEILING_READ[v][year] ?? CEILING_READ[v][0]],
+          cells: [
+            fullName(p),
+            String(p.age),
+            cameIn(p),
+            withChange(ovr, grew),
+            withChange(pot, moved),
+            CEILING_READ[v][year] ?? CEILING_READ[v][0],
+          ],
         })),
     }));
   return [

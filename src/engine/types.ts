@@ -1738,6 +1738,8 @@ export interface MailSection {
     note?: string;
     /** A waiver claim the row offers (the waiver letter's wire). */
     claim?: { entryId: number };
+    /** A practice squad man the row keeps or lets go (the futures letter): its button is drawn from the league as it is. */
+    futures?: { playerId: number };
     /** An expiring player the row acts on (the contracts letter): its buttons are drawn from the league as it is. */
     contract?: { playerId: number };
     /** A player who spoke up (a step's players' letters): his answers are drawn from his talk record. */

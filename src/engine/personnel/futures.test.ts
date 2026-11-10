@@ -132,7 +132,20 @@ describe('futures deals', () => {
   it('your director writes once when the window opens, and once at the new league year', () => {
     deliverMail(l);
     deliverMail(l);
-    expect((l.inbox ?? []).filter((m) => m.id.startsWith('futures:'))).toHaveLength(1);
+    const letters = (l.inbox ?? []).filter((m) => m.id.startsWith('futures:'));
+    expect(letters).toHaveLength(1);
+    // A row a squad man, each with its own keep button and the scouts' call, the ones we'd keep first.
+    const rows = letters[0].sections![0].rows;
+    expect(rows.map((r) => r.playerId).sort()).toEqual(
+      practiceSquad(l, l.userTeamId)
+        .map((p) => p.id)
+        .sort(),
+    );
+    expect(rows.every((r) => r.futures?.playerId === r.playerId && !!r.note)).toBe(true);
+    const calls = rows.map((r) => r.cells.at(-1));
+    expect(calls.lastIndexOf("We'd keep")).toBeLessThan(
+      calls.includes("We'd let go") ? calls.indexOf("We'd let go") : 99,
+    );
     newLeagueYear();
     deliverMail(l);
     deliverMail(l);

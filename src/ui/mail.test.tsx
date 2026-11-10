@@ -149,7 +149,7 @@ describe('the offer card', () => {
       html = renderToStaticMarkup(
         <Folded league={league} t={thread} needs={new Set()} index={nameIndex(league)} act={() => {}} />,
       );
-      expect(html).toContain(`A conversation with the ${thread.messages[0].from}, newest first.`);
+      expect(html).not.toContain('A conversation with the');
       expect(html).toContain('Open');
       break;
     }
