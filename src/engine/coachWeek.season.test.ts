@@ -3,6 +3,7 @@
  * step, no sentence twice, no room told twice inside three steps, every meeting's result in the next letter. Slow
  * (a full season of sims), so it lives apart from the fast letter tests.
  */
+import { moraleClock } from './morale';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
@@ -47,7 +48,7 @@ function roomsToldWithin(ms: InboxMessage[], gap: number): string[] {
 /** Meetings held whose result no letter told within two steps (the last steps of a season may still be waiting). */
 function heldWithoutResult(l: League): string[] {
   const letters = l.inbox!.filter((m) => m.id.startsWith('coach:'));
-  const now = Math.max(...letters.map(clockOf));
+  const now = l.moraleAt ?? moraleClock(l);
   return (l.teams[l.userTeamId].meetings?.log ?? []).flatMap((r) => {
     const key = `meeting-result:${l.season}:${r.clock}:${r.scope}`;
     const told = letters.find((m) => m.covered?.includes(key));

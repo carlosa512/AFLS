@@ -97,6 +97,24 @@ describe('the head coach’s weekly letter', () => {
     expect(l.teams[l.userTeamId].losingAnswer?.team?.reply).toBe('reassure');
   });
 
+  it('lets only the newest letter holding the losing need you, and its answer covers every open ask', () => {
+    const l = inSeason();
+    const [a, b] = activeRoster(l, l.userTeamId).filter((p) => p.position === 'WR');
+    a.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    deliverMail(l);
+    const first = letters(l)[0];
+    expect(needsYou(l, first)).toBe(true);
+    nextStep(l);
+    b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    deliverMail(l);
+    const second = letters(l).find((m) => m.id !== first.id && rowsOf(m).some((r) => r.talkRoom))!;
+    expect(second).toBeTruthy();
+    expect(needsYou(l, first)).toBe(false);
+    expect(needsYou(l, second)).toBe(true);
+    expect(answerRoomTalk(l, 'team', 'reassure')).toBe(2);
+    expect(needsYou(l, second)).toBe(false);
+  });
+
   it('files nothing in a quiet step', () => {
     const l = inSeason();
     deliverMail(l);
@@ -127,6 +145,24 @@ describe('the head coach’s weekly letter', () => {
   it('keeps every tier 1 item even past the rows', () => {
     const asks = Array.from({ length: MAX_ROWS + 2 }, (_, n) => item(1, 10, n));
     expect(fitItems([...asks, item(2, 10, 99)], 10)).toHaveLength(MAX_ROWS + 2);
+  });
+
+  it('never cuts a result’s Negotiate row, and covers a result only when its room or a man made the letter', () => {
+    const res = (n: number, part: NonNullable<WeekItem['part']>, key = `res:${n}`): WeekItem => ({
+      ...item(3, 10, n),
+      key,
+      section: 'since',
+      covers: ['res'],
+      result: true,
+      part,
+    });
+    const filler = Array.from({ length: MAX_ROWS }, (_, n) => item(1, 10, 100 + n));
+    const kept = fitItems([...filler, res(1, 'next', 'res'), res(2, 'talks')], 10);
+    expect(kept.some((i) => i.part === 'talks')).toBe(true);
+    // Its room's row was cut, so the letter does not mark it told.
+    expect(kept.filter((i) => i.result).every((i) => i.covers!.length === 0 && i.key !== 'res')).toBe(true);
+    const some = fitItems([res(1, 'told', 'res'), res(2, 'talks')], 10);
+    expect(some.every((i) => i.covers![0] === 'res')).toBe(true);
   });
 
   it('drops a room note that has waited three steps', () => {
@@ -317,12 +353,10 @@ describe('the head coach’s weekly letter', () => {
     t.depthChart.WR = wr.map((p) => p.id);
     updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
     const a = t.coachAdvice!.at(-1)!;
-    // A note alone files nothing; with a man's ask in the week it rides along.
-    deliverMail(l);
-    expect(letters(l)).toHaveLength(0);
-    asking(l, 'snaps');
+    // A depth-chart call is a decision for you: it files a letter alone.
     deliverMail(l);
     const [m] = letters(l);
+    expect(letters(l)).toHaveLength(1);
     expect(m.coachNoteKey).toBe(adviceKey(a, 'offer'));
     expect(m.sections!.some((s) => s.title === 'From the staff room')).toBe(true);
   });

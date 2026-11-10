@@ -91,3 +91,18 @@ describe('a contract letter: talks right from it', () => {
     expect(show(b.l, b.m)).not.toContain('>Negotiate<');
   });
 });
+
+describe('the losing across letters', () => {
+  it('shows buttons only on the newest letter that holds the losing row', () => {
+    const { l, m: first } = letter('losing');
+    l.moraleAt = l.moraleAt! + 1;
+    const b = activeRoster(l, l.userTeamId)[1];
+    b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    deliverMail(l);
+    const second = l.inbox!.filter((x) => x.id.startsWith('coach:')).find((x) => x.id !== first.id)!;
+    const old = render(<MailSections league={l} sections={first.sections!} letterId={first.id} />);
+    const fresh = render(<MailSections league={l} sections={second.sections!} letterId={second.id} />);
+    expect(old).not.toContain('Reassure him');
+    expect(fresh).toContain('Reassure him');
+  });
+});

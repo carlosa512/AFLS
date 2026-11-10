@@ -153,6 +153,7 @@ import {
 } from './training';
 import { store } from './store';
 import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
+import { newestLosingLetter } from '../engine/coachWeek';
 import { talkCard } from '../engine/talkMail';
 import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
@@ -650,9 +651,12 @@ function TalkCards({
   league,
   s,
   room,
+  older,
 }: {
   league: League;
   s: { clock: number; playerId: number };
+  /** An older letter's losing row: it says what was said, and the newest letter holds the buttons. */
+  older?: boolean;
   /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
   room?: 'team';
 }) {
@@ -676,6 +680,12 @@ function TalkCards({
         <p className="muted" style={{ margin: 0 }}>
           “{card.line}”
         </p>
+      </Card>
+    );
+  if (older)
+    return (
+      <Card>
+        <span className="muted small">The losing is answered in my latest letter.</span>
       </Card>
     );
   return (
@@ -3005,16 +3015,19 @@ export function MailSections({
   league,
   sections,
   onNegotiate,
+  letterId,
 }: {
   league: League;
   sections: MailSection[];
+  /** The letter these tables belong to: only the newest letter's losing row has buttons. */
+  letterId?: string;
   /** Open contract talks with a player (the contracts letter's Negotiate). */
   onNegotiate?: (playerId: number) => void;
 }) {
   return (
     <>
       {sections.map((sec, i) => (
-        <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} />
+        <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} letterId={letterId} />
       ))}
     </>
   );
@@ -3024,13 +3037,17 @@ function SectionCard({
   league,
   section,
   onNegotiate,
+  letterId,
 }: {
   league: League;
   section: MailSection;
   onNegotiate?: (playerId: number) => void;
+  letterId?: string;
 }) {
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
-  if (section.layout === 'people') return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} />;
+  const newest = newestLosingLetter(league);
+  if (section.layout === 'people')
+    return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} letterId={letterId} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3068,7 +3085,14 @@ function SectionCard({
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
-                {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} />}
+                {r.talk && (
+                  <TalkCards
+                    league={league}
+                    s={r.talk}
+                    room={r.talkRoom?.unit}
+                    older={!!r.talkRoom && letterId !== undefined && newest !== letterId}
+                  />
+                )}
                 {r.negotiate && onNegotiate && (
                   <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
                 )}
@@ -3140,11 +3164,14 @@ function PeopleSection({
   league,
   section,
   onNegotiate,
+  letterId,
 }: {
   league: League;
   section: MailSection;
   onNegotiate?: (playerId: number) => void;
+  letterId?: string;
 }) {
+  const newest = newestLosingLetter(league);
   return (
     <Card title={section.title}>
       {section.lead && <p className="inbox-body">{section.lead}</p>}
@@ -3175,7 +3202,14 @@ function PeopleSection({
               </div>
               {r.before && <p className="coach-person-before">{r.before}</p>}
               {r.note && <p className="coach-person-note">{r.note}</p>}
-              {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} />}
+              {r.talk && (
+                <TalkCards
+                  league={league}
+                  s={r.talk}
+                  room={r.talkRoom?.unit}
+                  older={!!r.talkRoom && letterId !== undefined && newest !== letterId}
+                />
+              )}
               {r.meeting && (
                 <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
               )}

@@ -346,7 +346,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   { text: () => `This is what the week has left me with.` },
   { text: () => `Here is the state of the locker room as I see it.` },
   { text: () => `Small things add up in a locker room, so here they are.` },
-  { text: () => `Another letter from my desk.` },
+  { text: () => `A note from my desk.` },
   { when: (f) => f.items + f.asks >= 2, text: () => `A few things from me this week.` },
   { when: (f) => f.asks > 0 && f.items > 0, text: () => `Some of this needs you, and some is for your information.` },
   {

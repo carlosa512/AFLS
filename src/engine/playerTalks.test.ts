@@ -338,3 +338,40 @@ describe("talks: the club's losing", () => {
     expect(answerRoomTalk(l, 'team', 'firm')).toBe(0);
   });
 });
+
+describe('talks: the losing inside the gap', () => {
+  /** A rookie whose only weight is a losing club (last season's record), asking at his third step down. */
+  function loser(l: League, teamId: number): Player {
+    const p = sulker(l, teamId, 0);
+    p.morale = { level: -4 };
+    p.personality = { ...p.personality, winning: 1 };
+    l.history.push({ season: l.season - 1, records: { [teamId]: { w: 0, l: 17, t: 0 } } } as never);
+    return p;
+  }
+
+  it('answers your man as you last answered, files no ask, and asks again once the gap has passed', () => {
+    const l = fresh();
+    const p = loser(l, l.userTeamId);
+    l.teams[l.userTeamId].losingAnswer = { team: { reply: 'firm', at: l.moraleAt! } };
+    steps(l, 3);
+    expect(p.morale!.talk?.ask).toBeUndefined();
+    expect(p.morale!.talk?.answered).toMatchObject({ reply: 'firm', cause: 'losing' });
+
+    const m = fresh();
+    const q = loser(m, m.userTeamId);
+    m.teams[m.userTeamId].losingAnswer = { team: { reply: 'firm', at: m.moraleAt! - 10 } };
+    steps(m, 3);
+    expect(q.morale!.talk?.ask).toEqual({ cause: 'losing', at: m.moraleAt });
+  });
+
+  it('leaves an AI club to its GM', () => {
+    const l = fresh();
+    const other = (l.userTeamId + 1) % 32;
+    l.teams[other].gm = { ...l.teams[other].gm!, loyalty: 0.3, stubbornness: 0.1 };
+    const p = loser(l, other);
+    l.teams[l.userTeamId].losingAnswer = { team: { reply: 'firm', at: l.moraleAt! } };
+    steps(l, 3);
+    expect(p.morale!.talk?.ask).toBeUndefined();
+    expect(p.morale!.talk?.answered).toMatchObject({ reply: aiReply(l, other, 'losing'), cause: 'losing' });
+  });
+});

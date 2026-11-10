@@ -569,7 +569,7 @@ export function MessageBody({
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.sections && <MailSections league={league} sections={m.sections} onNegotiate={negotiate} />}
+      {m.sections && <MailSections league={league} sections={m.sections} onNegotiate={negotiate} letterId={m.id} />}
       {m.coachNote && !m.sections && (
         <aside
           className="coach-note"

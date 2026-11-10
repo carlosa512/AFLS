@@ -97,12 +97,24 @@ function dropOrder(i: WeekItem): number {
 export function fitItems(items: WeekItem[], clock: number): WeekItem[] {
   const live = items.filter((i) => i.tier <= 3 || clock - i.born < STALE);
   const cut = new Set<WeekItem>();
-  const order = live.filter((i) => i.tier > 1).sort((a, b) => dropOrder(b) - dropOrder(a) || b.born - a.born);
+  // What is owed (a result's Negotiate row) is never cut, whatever else is.
+  const order = live
+    .filter((i) => i.tier > 1 && i.part !== 'talks')
+    .sort((a, b) => dropOrder(b) - dropOrder(a) || b.born - a.born);
   for (const i of order) {
     if (live.length - cut.size <= MAX_ROWS) break;
     cut.add(i);
   }
-  return live.filter((i) => !cut.has(i));
+  const kept = live.filter((i) => !cut.has(i));
+  // A result is told, and so covered, only when its room's row or a man's row made the letter; the rest of it waits.
+  const toldResults = new Set(
+    kept.filter((i) => i.result && (i.part === 'man' || i.part === 'told')).map((i) => i.covers![0]),
+  );
+  return kept.map((i) =>
+    i.result && !toldResults.has(i.covers![0])
+      ? { ...i, key: i.key === i.covers![0] ? `${i.key}:part` : i.key, covers: [] }
+      : i,
+  );
 }
 
 const stepNow = (league: League) => league.moraleAt ?? moraleClock(league);
@@ -545,13 +557,21 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   ];
 }
 
+/** The newest coach letter holding the losing's row: its buttons answer every open losing ask, and older rows only say what was said. */
+export function newestLosingLetter(league: League): string | undefined {
+  const held = (league.inbox ?? []).filter(
+    (m) => m.id.startsWith('coach:') && m.sections?.some((sec) => sec.rows.some((r) => r.talkRoom)),
+  );
+  return held.at(-1)?.id;
+}
+
 /** The letter still asks while any of its rows waits on your answer: a man's ask, or the meeting request. */
 export function coachWeekNeedsYou(league: League, m: InboxMessage): boolean {
   return !!m.sections?.some((sec) =>
     sec.rows.some(
       (r) =>
-        (r.talk && talkCard(league, r.talk).state === 'open') ||
-        (r.talkRoom && roomAsks(league, r.talkRoom.unit).length > 0) ||
+        (r.talk && !r.talkRoom && talkCard(league, r.talk).state === 'open') ||
+        (r.talkRoom && newestLosingLetter(league) === m.id && roomAsks(league, r.talkRoom.unit).length > 0) ||
         (r.meeting && meetingCard(league, r.meeting).state === 'open'),
     ),
   );
