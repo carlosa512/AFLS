@@ -48,7 +48,7 @@ export function InjuryTag({ league, p, sub = false }: { league: League; p: Playe
     return tag === 'IR' ? (
       <TipPill
         className={`tag-bad${sub ? ' name-sub' : ''}`}
-        tip="On injured reserve: off the 53 for at least four weeks."
+        tip="On injured reserve. He is off the 53 for at least four weeks."
       >
         IR
       </TipPill>
@@ -117,7 +117,7 @@ export function FitnessCell({ league, p }: { league: League; p: Player }) {
       {mine ? (
         <b
           className={`num ${conditionTone(c) ?? ''}`}
-          title="Match condition: a game takes some, a week of rest brings most of it back"
+          title="Match condition. A game takes some and a week of rest brings most of it back."
         >
           {c}%
         </b>
@@ -230,7 +230,7 @@ export function HealthSection({ league, player: p }: { league: League; player: P
                 {' '}
                 · last in {lastConcussion}
                 {backWeeks > 0 &&
-                  ` · just back: a second one is likelier for ${backWeeks === 1 ? 'another week' : `${backWeeks} more weeks`}`}
+                  ` · just back, and a second one is likelier for ${backWeeks === 1 ? 'another week' : `${backWeeks} more weeks`}`}
               </span>
             </span>
           </span>
@@ -270,7 +270,10 @@ export function HealthSection({ league, player: p }: { league: League; player: P
             <button
               className="btn btn-sm"
               disabled={!!irBlock}
-              title={irBlock ?? `Off the 53 for at least ${IR_MIN_WEEKS} weeks: the spot is free for a replacement.`}
+              title={
+                irBlock ??
+                `He is off the 53 for at least ${IR_MIN_WEEKS} weeks, and his spot is free for a replacement.`
+              }
               onClick={() => store.mutate((l) => placeOnIr(l, l.players[p.id]))}
             >
               Place on injured reserve
@@ -298,7 +301,7 @@ export function HealthSection({ league, player: p }: { league: League; player: P
           {inj?.protocol && !inj.protocol.shutdown && (
             <button
               className="btn btn-sm"
-              title="A second concussion is twice as likely in his first two weeks back: holding him spends one of them on the sideline."
+              title="A second concussion is twice as likely in his first two weeks back. Holding him out spends one of them on the sideline."
               onClick={() => store.mutate((l) => holdAfterProtocol(l.players[p.id], !inj.protocol!.hold))}
             >
               {inj.protocol.hold ? 'Play him once he’s cleared' : 'Hold him a week after he clears'}

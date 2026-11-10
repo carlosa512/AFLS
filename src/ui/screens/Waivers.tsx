@@ -28,7 +28,7 @@ export function Waivers({ league }: { league: League }) {
   if (!league.personnel?.enabled)
     return (
       <Panel title="Waiver wire">
-        <p>Personnel transactions are not active in this career yet.</p>
+        <p>This league started before waivers were added. They turn on with practice squads.</p>
       </Panel>
     );
   const teamId = league.userTeamId;
@@ -95,10 +95,10 @@ export function Waivers({ league }: { league: League }) {
         <details className="more">
           <summary>How waivers work</summary>
           <p className="muted small">
-            Players you release can be claimed by other teams; unclaimed players become free agents. Plan a claim to add
-            a released player on his existing contract. No roster move happens unless you win the claim. If several
-            teams want a player, the team nearest the front gets him, and your signing order decides which of your
-            claims we try first.
+            Other teams can claim players you release, and unclaimed players become free agents. Plan a claim to add a
+            released player on his existing contract. No roster move happens unless you win the claim. If several teams
+            want a player, the team nearest the front gets him, and your signing order decides which of your claims we
+            try first.
           </p>
         </details>
         {filter !== 'released' && (

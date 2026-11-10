@@ -1408,7 +1408,9 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           <button className="btn btn-sm" onClick={() => store.mutate((l) => placeOnIr(l, l.players[p.id]))}>
             Place on IR
           </button>
-          <span className="muted small">Off the 53 for at least four weeks: the spot is free for a replacement.</span>
+          <span className="muted small">
+            He is off the 53 for at least four weeks, and his spot is free for a replacement.
+          </span>
         </div>
       )}
     </>
@@ -1671,7 +1673,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value: vs consensus.
+          Value compares your pick with his consensus rank.
         </p>
       </Card>
       {trades.length > 0 ? (

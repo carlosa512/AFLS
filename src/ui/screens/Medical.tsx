@@ -199,9 +199,9 @@ function MedicLink({ m, avatar = false }: { m: Medic; avatar?: boolean }) {
 
 /** What each chair does, true to how the department is worked out (`departmentOf`). */
 const MEDIC_ROLE_LINE: Record<MedicRole, string> = {
-  doctor: 'Injury calls and rehab.',
-  physio: 'Runs rehab with the other physiotherapist: the biggest say in how soon injured players get back.',
-  scientist: 'Runs load management: the biggest say in soft-tissue injuries and how fast players get their legs back.',
+  doctor: 'Makes the call on every injury and oversees rehab.',
+  physio: 'Runs rehab and decides how soon injured players get back.',
+  scientist: 'Manages workload to cut soft-tissue injuries and speed recovery.',
 };
 
 /** What hiring `m` would do to your department, in words with the ratings for the tap. */
@@ -346,7 +346,7 @@ function InjuryReport({ league }: { league: League }) {
       <p className="muted small" style={{ marginTop: 0 }}>
         {team.autoInjuries === false
           ? 'You manage injuries.'
-          : "Your staff moves long injuries to reserve, brings players back when there's room, and covers a short position from the roster. Signings and cuts are yours. Turn that off on the roster screen."}
+          : 'Your staff handles injured reserve and covers a short position from the roster.'}
       </p>
       {hurt.length === 0 ? (
         <p className="muted">Nobody is hurt.</p>
@@ -398,7 +398,7 @@ function InjuryReport({ league }: { league: League }) {
               <span className={conditionTone(p.condition ?? 100)}>{Math.round(p.condition ?? 100)}%</span>
             </span>
           ))}
-          . Below 65 in a game the injury risk climbs fast; a week off brings most of it back.
+          . Below 65 the injury risk in a game climbs fast. A week off brings most of it back.
         </p>
       )}
     </Panel>
@@ -746,7 +746,7 @@ function Department({ league }: { league: League }) {
               <li key={`${r}-${i}`} className="staff-card vacant">
                 <b className="staff-name">Open chair</b>
                 <span className="muted small">
-                  An empty {MEDIC_ROLE_LABEL[r].toLowerCase()} chair works like a replacement-level clinician (6).
+                  A stand-in well below average covers the {MEDIC_ROLE_LABEL[r].toLowerCase()} chair until you hire.
                 </span>
                 <div className="staff-actions">
                   <button className="btn btn-sm" onClick={() => setRole(r)}>

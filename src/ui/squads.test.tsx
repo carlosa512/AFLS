@@ -17,7 +17,7 @@ describe('practice squad desk', () => {
     expect(hashToRoute('#/office/squad')).toEqual({ view: 'office', tab: 'squad' });
     expect(routeToHash({ view: 'office', tab: 'squad' })).toBe('#/office/squad');
     expect(renderToStaticMarkup(<PracticeSquad league={createLeague({ seed: 'squad-ui-off' })} />)).toContain(
-      'Turn on personnel transactions',
+      'started before practice squads',
     );
   });
   it('renders pay, slot limits, own offers and promotion controls without save mutations or opponent instructions', () => {

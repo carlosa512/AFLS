@@ -273,7 +273,7 @@ export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
   const expectation = offer.extension
     ? offer.through === l.season
       ? 'Show clear progress this season, or the owner makes a change.'
-      : 'Keep the club moving forward: the owner likes the direction.'
+      : 'Keep the club moving forward. The owner likes the direction.'
     : appeal < 0.4
       ? trigger > 1.2
         ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.'
@@ -285,7 +285,7 @@ export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
     .filter((m) => m.through >= l.season && l.coaches[m.coachId]?.teamId === offer.teamId)
     .map(
       (m) =>
-        `Keep ${coachName(l.coaches[m.coachId])} in the current role through ${m.through}; the contract is already signed.`,
+        `Keep ${coachName(l.coaches[m.coachId])} in the current role through ${m.through}. The contract is already signed.`,
     );
   const review = l.teams[offer.teamId].leadershipReview;
   if (review?.season === l.season && review.outcome === 'coachChange' && head(l, offer.teamId)?.id === review.coachId)
@@ -579,7 +579,7 @@ export function interimLetter(
     interim.actingAs
       ? `${coachName(interim)}, our ${side === 'offense' ? 'offensive' : 'defensive'} coordinator, takes over for the rest of the season and keeps running the ${side} himself.`
       : `${coachName(interim)} takes over for the rest of the season.`,
-    `Consider the last ${left === 1 ? 'game' : `${inWords(left)} games`} his audition; you and I decide in the offseason whether he stays.`,
+    `Consider the last ${left === 1 ? 'game' : `${inWords(left)} games`} his audition. You and I decide in the offseason whether he stays.`,
     severance > 0
       ? `His severance is ${money(severance)}, out of the coaching budget.${room < 0 ? ` That puts us ${money(-room)} over this year.` : ''}`
       : '',

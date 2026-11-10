@@ -69,7 +69,9 @@ export function CallupAction({ league, player }: { league: League; player: Playe
         className="btn btn-sm"
         disabled={existing.status !== 'planned' || !!g.personnel?.elevationsFiled || !!liveLock()}
         title={
-          existing.status === 'planned' ? 'Cancel this planned call-up' : 'Filed for this game; returns automatically'
+          existing.status === 'planned'
+            ? 'Cancel this planned call-up'
+            : 'Filed for this game. He returns automatically.'
         }
         onClick={() =>
           store.mutate((l) => cancelElevation(l, l.players[player.id], l.games.find((x) => x.id === g.id)!))
@@ -115,7 +117,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
           <p>
             <PlayerLink league={league} player={player} /> will be available against{' '}
             <TeamLink team={league.teams[g.homeId === player.teamId ? g.awayId : g.homeId]} />. Your main roster stays
-            at {activeRoster(league, player.teamId).length}/53; no cut is needed.
+            at {activeRoster(league, player.teamId).length}/53, so no cut is needed.
           </p>
           <p>
             {g.playoffRound
@@ -138,7 +140,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
             {g.playoffRound
               ? 'Playoff call-ups have no three-game limit.'
               : `${3 - elevationUses(league, player)} regular-season call-ups remain before this game.`}{' '}
-            Files at kickoff; back on the practice squad after the game.
+            Files at kickoff. He is back on the practice squad after the game.
           </p>
           {issue && <p role="alert">{issue}</p>}
         </Dialog>
@@ -187,7 +189,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
     <Panel title="Game-day roster">
       <p>
         Next game: <TeamLink team={league.teams[g.homeId === teamId ? g.awayId : g.homeId]} />. Staff picks the active
-        list automatically; you can adjust it below.
+        list, and you can change it below.
       </p>
       <div className="facts">
         <span className="fact">
@@ -213,7 +215,9 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
           <b>{money(calls.reduce((sum, e) => sum + e.additionalCap, 0))}</b>
         </span>
       </div>
-      <p className="small muted">Dress 47 (48 with eight OL). Locks 90 minutes before kickoff.</p>
+      <p className="small muted">
+        Dress 47 players, or 48 with eight offensive linemen. Your choices lock 90 minutes before kickoff.
+      </p>
       {elevationRecords(league)
         .filter(
           (e) =>
@@ -236,7 +240,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
       ))}
       {day.emergencyQbId !== undefined && (
         <p className="small">
-          Emergency QB: <PlayerLink league={league} player={league.players[day.emergencyQbId]} />. Can enter only when
+          Emergency QB: <PlayerLink league={league} player={league.players[day.emergencyQbId]} />. He can play only when
           both active QBs are unavailable.
         </p>
       )}
@@ -427,7 +431,7 @@ export function PoachAction({ league, player }: { league: League; player: Player
           <p>
             <PlayerLink league={league} player={player} /> joins your 53 from the <TeamLink team={league.teams[from]} />{' '}
             practice squad on a minimum deal, three weeks of it guaranteed. It's decided before this week's first
-            kickoff; another club may offer more years.
+            kickoff, and another club may offer more years.
           </p>
           <label className="row">
             Years{' '}

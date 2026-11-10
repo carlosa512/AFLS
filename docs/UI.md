@@ -59,9 +59,68 @@ A screen shows what your club knows, nothing more (CLAUDE.md, "True vs. perceive
   changes). New Game shows each club's true overall, by the owner's call: before you take a job you have no
   scouts, and the overall is how you pick a project.
 
+## Words on a screen
+
+A screen is for a player who is deciding something. A line of text stays only if the player would miss it: it
+tells them something they can't see on the screen and need for the decision in front of them. Everything else
+goes. This covers screen text (headings, hints, empty states, tooltips, dialogs) wherever it is written,
+`src/engine` included: scout report sentences, scheme, rating and habit descriptions, and the reason a move is
+blocked. Letters are a person's voice and follow the prose rules in CLAUDE.md.
+
+`npm run copy` lists every sentence the screens can show in `.check/copy.txt`. Read that list after changing
+screen text: a line that sounds odd on its own is odd on the screen.
+
+**What a screen never says**
+
+- **What the panel is.** No paragraph under a heading that describes the panel or lists what is in it. If the
+  heading and the table don't say it, fix the heading. ("The people building the league. Open a name for
+  appointments, results and scouting history." under *General managers*.)
+- **How to use a control.** No "Tap a room for detail", "Click a column to sort", "Tick players on both
+  sides". A thing that can be tapped looks like it (a chevron on a row that opens, a dotted line under a
+  rating that explains itself). If it doesn't, fix the control, not the text.
+- **How the sim works inside.** No formula, threshold or tuning number ("A scout gets +3 on their own group and
+  −3 on others", "a physiotherapy above 9 starts to shorten it"). Say the result, in the row it belongs to
+  ("Layoffs 12% shorter").
+- **Why it was built this way, or what the AI does.** ("…as every AI staff does", "Teams want a small win in
+  their own eyes".) That is a note to the developer; it belongs in a code comment or a doc.
+- **The save or the software.** ("Personnel transactions are not active in this career yet", "Earlier results
+  are not attributed to this appointment".) Say what the player can or can't do, in the game's words.
+
+**Where a rule of the game goes**
+
+The player does need the rules (waivers, June 1, the tag). Put each one where it decides something, when it
+applies:
+
+- on the dialog that confirms the move ("He goes on waivers with his existing contract…"),
+- beside a button that is off, as the reason it is off ("Coaching moves open in the re-sign window"),
+- in a tooltip on the number it explains,
+- or in a closed fold ("How this works") when a screen's rules need a paragraph.
+
+Never as a standing paragraph under the heading, shown on every visit.
+
+**How a line is written**
+
+- Short first. A label or a few words do where the screen gives the context ("Home game.", "No offers.",
+  "$1.2M over budget.").
+- Short is not shorthand. A line has to be clear to someone reading it for the first time, with no
+  abbreviation or dropped words to decode. ("Value: vs consensus." became "Value compares your pick with his
+  consensus rank."; "Dress 47 (48 with eight OL)." became "Dress 47 players, or 48 with eight offensive
+  linemen.")
+- When a line needs a sentence, write a plain one with a verb, the way you would say it to someone across a
+  desk. If it needs three, it is a fold.
+- No colon or semicolon joining two thoughts. Write two sentences, or cut one. ("It goes past your coaching
+  budget: the owner decides." became "$1.2M over budget.") A label before a colon is fine ("Deal up: he leaves
+  when free agency opens.").
+- No pair with the verb dropped from the second half ("a round later is a steal, a round earlier a reach",
+  "Short and solid is a ready player, long and fading a project").
+- No line written to sound good. ("The player doesn't care; future you might.", "Some throw flags all day,
+  some let the linemen hold.", "your inbox tells the story".)
+- An empty state is one line: what is missing and when it appears. ("Team stats appear once the first week is
+  played.")
+
 ## Not consistent yet
 
-- Intro paragraphs and heading levels vary between screens.
+- Heading levels vary between screens.
 - New Game shows no record for each club (a new league has no history).
 - League history sorts by season and your record, not by champion; the coaches' grades table has no Grade sort
   (it follows Rank).

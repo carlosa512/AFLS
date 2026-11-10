@@ -555,7 +555,7 @@ export function FrontOffice({
                 ) : (
                   <LinkedText
                     league={league}
-                    text={`${leaving.join(' and ')} will leave (no chair or budget for ${soleLeaving ? soleLeaving.him : 'them'}); ${staffDue - leaving.length === 0 ? 'nobody else is up' : 'the rest re-sign automatically'}.`}
+                    text={`${leaving.join(' and ')} will leave (no chair or budget for ${soleLeaving ? soleLeaving.him : 'them'}). ${staffDue - leaving.length === 0 ? 'Nobody else is up' : 'The rest re-sign automatically'}.`}
                     about={leavingStaff.map((s): Who => ({ kind: 'scout', id: s.id }))}
                   />
                 )}

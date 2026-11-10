@@ -19,7 +19,7 @@ const CALL: readonly Line<Fact>[] = [
   { when: (f) => f.overBudget, reads: 2, text: () => 'Over the budget at his ask.' },
   { when: (f) => f.overBudget, reads: 2, text: () => "We can't fit his ask without the owner's say." },
   { when: (f) => f.above && f.raise <= 1.35, reads: 2, text: () => 'Worth the raise.' },
-  { when: (f) => f.above && f.raise <= 1.35, reads: 2, text: () => 'Keep him; good ones cost this.' },
+  { when: (f) => f.above && f.raise <= 1.35, reads: 2, text: () => 'Keep him. Good ones cost this.' },
   { when: (f) => f.above, reads: 1, text: () => "He's good, but that's a steep raise. Worth it if the budget allows." },
   { when: (f) => !f.above && f.raise > 1.25, reads: 2, text: () => 'We can do better for the money.' },
   { when: (f) => !f.above && f.raise > 1.25, reads: 2, text: () => 'There are better on the market at that price.' },

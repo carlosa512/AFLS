@@ -31,7 +31,7 @@ describe('waiver desk', () => {
 
   it('explains inactive careers without exposing an active wire', () => {
     const l = createLeague({ seed: 'waiver-ui-off' });
-    expect(renderToStaticMarkup(<Waivers league={l} />)).toContain('not active');
+    expect(renderToStaticMarkup(<Waivers league={l} />)).toContain('started before waivers');
   });
 
   it('renders deadlines, contract costs and own instructions, never opposing claims', () => {

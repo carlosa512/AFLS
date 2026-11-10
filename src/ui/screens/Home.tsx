@@ -599,7 +599,6 @@ function OffseasonHome({ league }: { league: League }) {
                 <button className="btn btn-sm" onClick={() => store.mutate(autoCutdown)}>
                   Let the coaches make the cuts
                 </button>
-                <span className="muted small">Auto-cut to 53.</span>
               </div>
             )}
           </Panel>

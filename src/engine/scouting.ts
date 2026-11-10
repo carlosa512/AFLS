@@ -793,12 +793,12 @@ export function careerOutlook(league: League, teamId: number, p: Player): string
   const tech = lastGoodAge(league, teamId, p, 'technical');
   const phys = lastGoodAge(league, teamId, p, 'physical');
   const { legs, skills, plural } = bodyWords(p.position);
-  if (p.age > tech) return 'Past his prime: expect him to lose a little more every year.';
+  if (p.age > tech) return 'He is past his prime. Expect him to lose a little more every year.';
   if (p.age > phys)
-    return `${cap(legs)} ${plural ? 'have' : 'has'} started to fade; ${skills} should hold up through ${sure} ${tech}.`;
+    return `${cap(legs)} ${plural ? 'have' : 'has'} started to fade, but ${skills} should hold up through ${sure} ${tech}.`;
   if (phys < tech)
-    return `${cap(legs)} should start to fade after ${sure} ${phys}; ${skills} should hold up through ${sure} ${tech}.`;
-  if (p.age === tech) return 'In the last year of his prime: expect the decline to start next year.';
+    return `${cap(legs)} should start to fade after ${sure} ${phys}, and ${skills} should hold up through ${sure} ${tech}.`;
+  if (p.age === tech) return 'He is in the last year of his prime. Expect the decline to start next year.';
   return `Prime through ${sure} ${tech}.`;
 }
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -1258,7 +1258,7 @@ export interface ScoutReport {
 export function settleNote(league: League, teamId: number, p: Player, view: PlayerView): string | null {
   if (p.age >= 26 || p.experience > 2) return null;
   if (p.experience === 0 && !Object.keys(p.ceilingShifts ?? {}).length)
-    return 'Still a projection: his first season will tell us a lot about his ceiling.';
+    return 'He is still a projection. His first season will tell us a lot about his ceiling.';
   const settled = Object.values(p.ceilingShifts ?? {}).reduce((a, b) => a + b, 0);
   const then = perceive(league, teamId, { ...p, potential: p.potential - settled }).potMid;
   const moved = view.potMid - then;
@@ -1358,16 +1358,16 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     );
   else if (plus.length)
     game.push(
-      `His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `; his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`,
+      `His ${list(plus.map(name))} ${many(plus) ? 'are' : 'is'} ${praise}${worst ? `, and his ${name(worst)} ${is(worst)} the softest part of his game` : ', and there is no glaring hole in his game'}.`,
     );
   else if (minus)
     game.push(
       `${best ? `${strongest(best)}, but his` : 'Nothing in his game stands out, and his'} ${name(minus)} ${is(minus)} a real concern.`,
     );
-  else if (best && worst) game.push(`${strongest(best)}; his ${name(worst)} ${is(worst)} where he falls shortest.`);
+  else if (best && worst) game.push(`${strongest(best)}, and his ${name(worst)} ${is(worst)} where he falls shortest.`);
   else if (best) game.push(`${strongest(best)}, and nothing in his game is a liability.`);
   else if (worst) game.push(`Nothing jumps out, but his ${name(worst)} ${is(worst)} the softest part of his game.`);
-  else game.push('A balanced set: no one trait carries him, and none holds him back.');
+  else game.push('A balanced set. No one trait carries him, and none holds him back.');
   if (young) {
     // Growth ends at 26: a player of 25 with a tier still to climb has one year left to climb it.
     if (ceiling < now) {
@@ -1378,7 +1378,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
       );
       const soon = p.age === 25;
       const how = minus
-        ? `; how quickly depends on his ${name(minus)} coming along${soon ? ', and at 25 it has to come soon' : ''}`
+        ? `. How quickly depends on his ${name(minus)} coming along${soon ? ', and at 25 it has to come soon' : ''}`
         : soon
           ? ', though at 25 what growth is left has to come soon'
           : '';
@@ -1392,29 +1392,29 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
     game.push(
       pick(
         `At ${p.age}, expect him to lose a little more every year.`,
-        `At ${p.age} the decline is under way: budget for a little less each season.`,
-        `Every year from here takes something; at ${p.age} that is the deal.`,
+        `At ${p.age} the decline is under way. Budget for a little less each season.`,
+        `At ${p.age}, every year from here takes something from him.`,
       ),
     );
   else if (fading && p.age === tech)
     game.push(
       pick(
-        `${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year; expect the rest to follow next year.`,
-        `The athleticism is going first; ${skills} should hold this year, and from ${tech + 1} on expect a little less each season.`,
+        `${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold this year. Expect the rest to follow next year.`,
+        `The athleticism is going first. ${cap(skills)} should hold this year, and from ${tech + 1} on expect a little less each season.`,
       ),
     );
   else if (fading)
     game.push(
       pick(
         `${cap(legs)} ${plural ? 'have' : 'has'} begun to fade, but ${skills} should hold up through ${sure} ${tech}.`,
-        `The athleticism is going first; ${skills} should carry him through ${sure} ${tech}.`,
+        `The athleticism is going first, but ${skills} should carry him through ${sure} ${tech}.`,
       ),
     );
   else if (p.age === tech)
     game.push(
       pick(
-        'This is the last year of his prime: expect the decline to start next year.',
-        `${cap(skills)} should hold this year; from ${tech + 1} on, expect a little less each season.`,
+        'This is the last year of his prime. Expect the decline to start next year.',
+        `${cap(skills)} should hold this year. From ${tech + 1} on, expect a little less each season.`,
       ),
     );
   // In his prime, his body clock is the Development section's business (it says when it turns); the
@@ -1464,19 +1464,19 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const versatile = makeup.notes.find((n) => n.about === 'versatility');
   if (character.length)
     notes.push(
-      `${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join('; ')}.`,
+      `${makeup.hedged ? 'Early word on his makeup' : 'Makeup'}: ${character.map((n) => n.clause).join(', and ')}.`,
     );
 
   // How far to trust the grades, when that is in question: film, visits and who's doing the reading.
   // Our own player's game is known; his ceiling is worth a word only when the scouts' range on it is wide.
   if (view.exact) {
     if (young && view.potHi - view.potLo >= 1.5)
-      notes.push('We know his game; how high he goes is still our scouts’ guess.');
-  } else if (ovrHalf <= 0.5) notes.push('Plenty of film on him: this read is reliable.');
+      notes.push('We know his game, but how high he goes is still our scouts’ guess.');
+  } else if (ovrHalf <= 0.5) notes.push('We have plenty of film on him, and this read is reliable.');
   else if (ovrHalf <= 1.1) notes.push('Decent film on him, but these grades could be a point or two off.');
   else
     notes.push(
-      `Our read is still provisional: more film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
+      `Our read is still provisional. More film${teamId === league.userTeamId && league.scoutPoints > 0 ? ' or a scouting visit' : ''} would narrow these grades.`,
     );
 
   // Agents and teammates talk: a well-known player's priorities are no secret.
@@ -1488,7 +1488,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
         top === greed
           ? 'His agent drives a hard bargain.'
           : top === loyalty
-            ? 'Values loyalty: open to a hometown discount.'
+            ? 'He values loyalty and is open to a hometown discount.'
             : 'Wants to play for a contender.',
       );
   }
@@ -1561,33 +1561,33 @@ export function generateCombine(p: Player): Combine {
 
 /** What a build means at a position, by the measure that's out and which way: words, never a number. */
 const BUILD_WORDS: Partial<Record<`${Position}:${'h' | 'w'}${'+' | '-'}`, string>> = {
-  'CB:h-': 'Undersized for an outside corner; the slot suits him',
+  'CB:h-': 'Undersized for an outside corner, and the slot suits him',
   'CB:h+': 'A long corner, built to match big receivers outside',
-  'CB:w+': 'Heavy for a corner: strong at the jam, a step slow to turn',
-  'CB:w-': 'Light for a corner; bigger receivers can move him off the line',
+  'CB:w+': 'Heavy for a corner, strong at the jam and a step slow to turn',
+  'CB:w-': 'Light for a corner, and bigger receivers can move him off the line',
   'WR:h+': 'A big target who wins the ball above the rim',
-  'WR:h-': 'Small for a receiver: he wins with quickness, not catch radius',
-  'WR:w-': 'Light for a receiver; a physical corner can reroute him',
+  'WR:h-': 'Small for a receiver, so he wins with quickness rather than catch radius',
+  'WR:w-': 'Light for a receiver, and a physical corner can reroute him',
   'TE:h+': 'A tall target in the red zone',
-  'TE:w-': 'Light for a tight end: more receiver than blocker',
-  'OL:h-': 'Short for a tackle: guard or center is his home',
+  'TE:w-': 'Light for a tight end, more receiver than blocker',
+  'OL:h-': 'Short for a tackle, and better suited to guard or center',
   'OL:h+': 'Tackle length',
-  'OL:w+': 'A mauler: the mass to move a front, if not to move his feet',
-  'OL:w-': 'Light for a lineman; power rushers can walk him back',
+  'OL:w+': 'A mauler with the mass to move a front, if not to move his feet',
+  'OL:w-': 'Light for a lineman, and power rushers can walk him back',
   'DT:h-': 'Short for a tackle, which wins him leverage inside',
-  'DT:w+': 'A true nose: the mass to hold up two blockers',
-  'DT:w-': 'Light for a tackle: quick off the ball, movable in the run game',
+  'DT:w+': 'A true nose with the mass to hold up two blockers',
+  'DT:w-': 'Light for a tackle, quick off the ball but movable in the run game',
   'EDGE:h+': 'Long for an edge rusher',
-  'EDGE:w-': 'Light for an end: a speed rusher who can be moved in the run game',
-  'EDGE:w+': 'Heavy for an end: a run stopper first',
-  'LB:w-': 'Light for a linebacker: runs and covers, struggles to take on blocks',
+  'EDGE:w-': 'Light for an end, a speed rusher who can be moved in the run game',
+  'EDGE:w+': 'Heavy for an end, and a run stopper first',
+  'LB:w-': 'Light for a linebacker, so he runs and covers but struggles to take on blocks',
   'LB:w+': 'Built like an end',
   'S:w+': 'Built like a linebacker',
-  'S:h-': 'Small for a safety; tall receivers are a problem in the deep half',
-  'QB:h-': 'Short for a passer: the middle of the field is harder for him to see',
+  'S:h-': 'Small for a safety, and tall receivers are a problem in the deep half',
+  'QB:h-': 'Short for a passer, so the middle of the field is harder for him to see',
   'QB:h+': 'Tall enough to see over his line',
   'RB:w+': 'A big back who runs through contact',
-  'RB:w-': 'Light for a back: he goes around tacklers, not through them',
+  'RB:w-': 'Light for a back, so he goes around tacklers rather than through them',
 };
 
 /** How sure a club must be of a player before it calls him a gem (or thinks it has found one). */

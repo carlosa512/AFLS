@@ -702,7 +702,7 @@ describe('owners', () => {
     expect(ownerLeeway(l, user, { role: 'offCoord' }).amount).toBeGreaterThan(100);
     expect(coachMoveProblem(l, user, pick, 'hire')).toBeNull();
     setRoom(coachAsk(l, pick) - ownerLeeway(l, user, { role: 'offCoord' }).amount - 500);
-    expect(coachMoveProblem(l, user, pick, 'hire')).toMatch(/your owner will add/);
+    expect(coachMoveProblem(l, user, pick, 'hire')).toMatch(/Your owner will add/);
     l.teams[user].coachOverspent = l.season - 1;
     expect(ownerLeeway(l, user, { role: 'headCoach' })).toMatchObject({ amount: 0, reason: 'lastYear' });
   });

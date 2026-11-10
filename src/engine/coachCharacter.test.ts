@@ -222,13 +222,13 @@ describe('wanting the step up', () => {
     const l = offseason('step-up-you');
     const mine = withTraits(teamCoaches(l, l.userTeamId).find((c) => c.role === 'defCoord')!, { ambition: 1 });
     expect(promotionProblem(l, l.userTeamId, mine)).toBe(
-      'He’s happy as defensive coordinator: he won’t take head-coach talks.',
+      'He’s happy as defensive coordinator and won’t take head-coach talks.',
     );
     const theirs = withTraits(teamCoaches(l, (l.userTeamId + 1) % 32).find((c) => c.role === 'offCoord')!, {
       ambition: 1,
     });
     expect(poachProblem(l, l.userTeamId, theirs)).toBe(
-      'He’s happy as offensive coordinator: he won’t take head-coach talks.',
+      'He’s happy as offensive coordinator and won’t take head-coach talks.',
     );
   });
 });

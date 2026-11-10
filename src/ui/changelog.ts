@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.26',
+    date: '2026-11-10',
+    title: 'Plainer hints',
+    text: 'Scout reports, scheme and habit descriptions, tooltips and dialogs are plain sentences now. The last tap hints are gone, and ratings show they open with a clearer dotted line.',
+  },
+  {
     version: '0.4.25',
     date: '2026-11-10',
     title: 'Letters that get to the point',

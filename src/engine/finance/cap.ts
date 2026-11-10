@@ -253,7 +253,7 @@ export function restructureBlocker(league: League, player: Player): string | nul
   const c = player.contract;
   if (!c) return 'Not under contract.';
   if (c.kind === 'rookie') return 'Rookie-scale deals can’t be restructured.';
-  if (c.kind === 'tag') return 'A franchise tag is a one-year deal: nothing to spread.';
+  if (c.kind === 'tag') return 'A franchise tag is a one-year deal, so there is nothing to spread.';
   // Restructures happen in the offseason, before salary starts being paid.
   if (!isOffseason(league.phase)) return 'Restructures happen in the offseason, before salaries are paid.';
   const p = restructurePreview(c, league.season, Infinity, minSalary(player.experience, capFor(league, league.season)));
