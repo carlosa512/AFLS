@@ -3,36 +3,14 @@
  * the line to gain. It follows the play's logged path (`ballPath.ts`) and carries the ball from where the last play
  * left it to the next spot. The stadium around it and the paint on it are `BroadcastPaint.tsx`.
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { PlayLogEntry, Team } from '../../engine/types';
-import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
-import { endsSwitched, stadiumSpot } from '../stage/ends';
+import { buildPath, FIELD_W, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
+import { endsSwitched } from '../stage/ends';
+import { FieldGround, FieldPosts } from './BroadcastPaint';
+import { FAR, project, VIEW_H, VIEW_W } from './broadcastView';
 
-// ───────── 2.5D field projection ─────────
-// Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
-// sideline) to 53.3 (far sideline), h = height above the turf in yards. Drawn mirrored so the
-// away team's end zone sits on the left, matching the away-then-home scorebug.
-const VIEW_W = 360;
-const VIEW_H = 176;
-const NEAR = { y: 166, w: 346 };
-const FAR = { y: 66, w: 226 };
-
-/**
- * A field spot to the picture. Given the quarter, the spot is first put where the stadium has it (teams switch ends
- * each quarter, `stage/ends.ts`); the paint, which never moves, is drawn without one.
- */
-export function project(fx: number, fy: number, h = 0, quarter = 1) {
-  const { x, y } = stadiumSpot(fx, fy, quarter);
-  const t = y / FIELD_W;
-  const rowW = NEAR.w + (FAR.w - NEAR.w) * t;
-  const scale = rowW / NEAR.w;
-  return { x: VIEW_W / 2 + ((50 - x) / 120) * rowW, y: NEAR.y + (FAR.y - NEAR.y) * t - h * 2.2 * scale, scale };
-}
-const pt = (x: number, y: number) => {
-  const p = project(x, y);
-  return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-};
-const quad = (x0: number, x1: number) => `${pt(x0, 0)} ${pt(x1, 0)} ${pt(x1, FIELD_W)} ${pt(x0, FIELD_W)}`;
+export { project } from './broadcastView';
 
 /** Where the ball sits once a play is over (or before it, for plays without a path). */
 export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): number {
@@ -77,6 +55,7 @@ interface FieldMemory {
 export function Field({
   home,
   away,
+  neutral,
   entry,
   restX,
   animKey,
@@ -86,6 +65,8 @@ export function Field({
 }: {
   home: Team;
   away: Team;
+  /** A neutral site: each team has an end zone (`endZones`). */
+  neutral?: boolean;
   entry: PlayLogEntry | undefined;
   restX: number;
   animKey: string;
@@ -254,45 +235,6 @@ export function Field({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey]);
 
-  const endzoneLabel = (x: number, team: Team) => {
-    const p = project(x, MID);
-    return (
-      <text
-        x={p.x}
-        y={p.y + 4}
-        textAnchor="middle"
-        className="ez-text"
-        fontSize={11 * p.scale}
-        transform={`rotate(${x < 50 ? 90 : -90} ${p.x} ${p.y})`}
-      >
-        {team.abbrev}
-      </text>
-    );
-  };
-  const line = (x: number, color: string, width: number) => {
-    const a = project(x, 0);
-    const b = project(x, FIELD_W);
-    return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={width} strokeLinecap="round" />;
-  };
-  // One-yard ticks along each sideline and on both hashes.
-  const ticks = useMemo(() => {
-    const segs: string[] = [];
-    for (let x = 1; x < 100; x++) {
-      if (x % 5 === 0) continue;
-      for (const [y0, y1] of [
-        [0, 0.9],
-        [FIELD_W - 0.9, FIELD_W],
-        [HASH_LO - 0.45, HASH_LO + 0.45],
-        [HASH_HI - 0.45, HASH_HI + 0.45],
-      ]) {
-        const a = project(x, y0);
-        const b = project(x, y1);
-        segs.push(`M${a.x.toFixed(1)},${a.y.toFixed(1)}L${b.x.toFixed(1)},${b.y.toFixed(1)}`);
-      }
-    }
-    return segs.join('');
-  }, []);
-
   return (
     <svg
       className="field-scene"
@@ -308,32 +250,7 @@ export function Field({
       </defs>
       <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
       <rect y="6" width={VIEW_W} height={FAR.y - 16} fill="url(#crowd)" />
-      <polygon points={quad(-12, 112)} className="turf-edge" />
-      <polygon points={quad(-10, 110)} fill="#2f7a46" />
-      {Array.from({ length: 10 }, (_, i) => i * 10)
-        .filter((x) => (x / 10) % 2 === 0)
-        .map((x) => (
-          <polygon key={x} points={quad(x, x + 10)} fill="#2b7141" />
-        ))}
-      <polygon points={quad(-10, 0)} fill={home.colors[0]} />
-      <polygon points={quad(100, 110)} fill={away.colors[0]} />
-      {endzoneLabel(-5, home)}
-      {endzoneLabel(105, away)}
-      {Array.from({ length: 21 }, (_, i) => i * 5).map((x) => (
-        <g key={x}>{line(x, 'rgba(255,255,255,0.75)', x % 10 === 0 ? 1.1 : 0.6)}</g>
-      ))}
-      <path d={ticks} stroke="rgba(255,255,255,0.55)" strokeWidth="0.5" />
-      {Array.from({ length: 9 }, (_, i) => (i + 1) * 10).map((x) =>
-        [6, FIELD_W - 7].map((y) => {
-          const p = project(x, y);
-          return (
-            <text key={`${x}-${y}`} x={p.x} y={p.y + 3} textAnchor="middle" className="yard-num" fontSize={8 * p.scale}>
-              {x <= 50 ? x : 100 - x}
-            </text>
-          );
-        }),
-      )}
-      <polygon points={quad(-10, 110)} fill="none" stroke="#fff" strokeWidth="1.2" />
+      <FieldGround home={home} away={away} neutral={neutral} />
       <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
       <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
       <path
@@ -348,6 +265,7 @@ export function Field({
       />
       <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
       <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
+      <FieldPosts />
     </svg>
   );
 }

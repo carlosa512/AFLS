@@ -1610,22 +1610,6 @@ select {
 .scene-bg {
   fill: var(--scene-bg);
 }
-.turf-edge {
-  fill: #23583a;
-}
-.ez-text,
-.yard-num {
-  fill: #fff;
-  font-family: var(--font-display);
-  font-weight: 800;
-}
-.ez-text {
-  letter-spacing: 0.15em;
-  opacity: 0.9;
-}
-.yard-num {
-  opacity: 0.75;
-}
 .viewer-sit {
   display: flex;
   justify-content: space-between;

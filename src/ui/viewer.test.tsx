@@ -10,7 +10,8 @@ import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from './screens/TopDownField';
 import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
-import { project } from './screens/BroadcastField';
+import { Field, project } from './screens/BroadcastField';
+import { surfaceFor } from './screens/FieldPaint';
 import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
@@ -763,5 +764,59 @@ describe('the broadcast field switching ends', () => {
 
   it('leaves a spot alone in the first quarter, and when no quarter is given', () => {
     expect(project(30, 20, 0)).toEqual(project(30, 20, 0, 1));
+  });
+});
+
+describe('the painted broadcast field', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const snap = plays.findIndex((e) => e.kind === 'run' && e.quarter === 1);
+  const field = (o: { quarter?: number; home?: typeof home; neutral?: boolean } = {}) =>
+    render(
+      <Field
+        home={o.home ?? home}
+        away={away}
+        neutral={o.neutral}
+        entry={{ ...plays[snap], quarter: o.quarter ?? 1 }}
+        restX={50}
+        animKey="t"
+        speed={1}
+        onDone={() => {}}
+      />,
+    );
+  const letters = (html: string, zone: string) =>
+    [...html.matchAll(new RegExp(`class="ez-letter ${zone}"[^>]*>([^<])<`, 'g'))].map((m) => m[1]).join('');
+
+  it('spells the home club’s nickname in one end zone and its city in the other, a letter at a time', () => {
+    const html = field();
+    expect(letters(html, 'low')).toBe(home.name.toUpperCase().replace(/ /g, ''));
+    expect(letters(html, 'high')).toBe(home.city.toUpperCase().replace(/ /g, ''));
+    expect(html).not.toContain('class="ez-text"');
+  });
+
+  it('gives each team an end zone at a neutral site', () => {
+    expect(letters(field({ neutral: true }), 'high')).toBe(away.name.toUpperCase().replace(/ /g, ''));
+  });
+
+  it('stands goalposts at both ends and a bench on each sideline', () => {
+    const html = field();
+    expect(html.match(/class="posts"/g)).toHaveLength(2);
+    expect(html).toContain('class="bench home"');
+    expect(html).toContain('class="bench away"');
+    expect(html).toContain(`>${home.abbrev}</text>`);
+  });
+
+  it('mows grass in five-yard stripes and lays turf in ten', () => {
+    const grass = league.teams.find((t) => surfaceFor(t) === 'grass')!;
+    const turf = league.teams.find((t) => surfaceFor(t) === 'turf')!;
+    const stripes = (t: typeof home) => field({ home: t }).match(/class="stripe"/g)!.length;
+    expect(stripes(grass)).toBe(10);
+    expect(stripes(turf)).toBe(5);
+  });
+
+  it('paints the same field in every quarter', () => {
+    // The ball and the lines are placed as the play runs; everything in the markup is the stadium, which never moves.
+    expect(field({ quarter: 2 })).toBe(field({ quarter: 1 }));
+    expect(field()).toContain('class="ground"');
   });
 });
