@@ -8,6 +8,7 @@ import { gameClock, weekLabel } from '../format';
 import { live, useLive } from '../live';
 import { shows } from '../highlights';
 import {
+  DownBar,
   Field,
   HighlightSwitch,
   inPlay,
@@ -22,6 +23,7 @@ import {
   ViewSwitch,
 } from './GameViewer';
 import { holdAfter, TopDownField } from './TopDownField';
+import { Scorebug } from './Scorebug';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -62,8 +64,6 @@ export function LiveGame({ league }: { league: League }) {
   const entry = s.plays[s.current];
   const playKey = `${s.gameId}:${s.current}`;
   const told = toldKey === playKey || s.finished || !inPlay(entry);
-  /** The score on the board: the last play's until this one has been seen. */
-  const board = told ? entry : (s.plays[s.current - 1] ?? { homeScore: 0, awayScore: 0 });
   const record = s.sim.field();
   const all22 = viewPick === 'all22' && !!record;
   const speeds = all22 ? [1, 2, 4] : SPEEDS;
@@ -121,32 +121,18 @@ export function LiveGame({ league }: { league: League }) {
   return (
     <>
       <section className="viewer">
-        <div className="viewer-bug">
-          {[away, home].map((t) => (
-            <div key={t.id} className="vb-team" style={{ background: t.colors[0] }}>
-              <span className="vb-name">
-                {t.abbrev}
-                {!s.finished && entry.offense === t.id && entry.down ? (
-                  <span className="vb-poss" aria-label="has the ball" />
-                ) : null}
-              </span>
-              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
-            </div>
-          ))}
-          <div className="vb-clock">
-            <span>
-              {s.finished ? (
-                `Final${result?.overtime ? '/OT' : ''}`
-              ) : (
-                <>
-                  <span className="live-dot" aria-hidden="true" />
-                  {entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT'} · {gameClock(entry.clock)}
-                </>
-              )}
-            </span>
-            <span>{label}</span>
-          </div>
-        </div>
+        <Scorebug
+          league={league}
+          game={game}
+          home={home}
+          away={away}
+          plays={s.plays}
+          index={s.current}
+          told={told}
+          live
+          final={s.finished}
+          label={label}
+        />
 
         {all22 ? (
           <TopDownField
@@ -170,7 +156,7 @@ export function LiveGame({ league }: { league: League }) {
         )}
 
         <div className="viewer-sit">
-          <span className="num">{situation(entry, home, away) || ' '}</span>
+          <DownBar entry={entry} home={home} away={away} />
           <span className="viewer-tag">
             {told
               ? playLabel(entry, home.id)

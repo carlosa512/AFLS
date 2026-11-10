@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Game, League, Player, PlayLogEntry, Team } from '../../engine/types';
-import { teamPlayers } from '../../engine/roster';
+import type { Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
@@ -11,6 +10,8 @@ import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
 import { asRan } from '../../engine/field/stage';
 import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
+import { buildPlayNames, type PlayNames } from '../gameRead';
+import { downParts, Scorebug } from './Scorebug';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -417,18 +418,20 @@ export function playLabel(e: PlayLogEntry, homeId: number): string {
 }
 
 export function situation(e: PlayLogEntry, home: Team, away: Team): string {
-  if (!e.down) return '';
-  const ord = ['', '1st', '2nd', '3rd', '4th'][e.down];
-  const goal = e.yardLine + e.distance >= 100;
-  const off = e.offense === home.id ? home : away;
-  const def = off === home ? away : home;
-  const spot =
-    e.yardLine === 50
-      ? 'midfield'
-      : e.yardLine < 50
-        ? `${off.abbrev} ${e.yardLine}`
-        : `${def.abbrev} ${100 - e.yardLine}`;
-  return `${ord} & ${goal ? 'Goal' : e.distance} · Ball on ${spot}`;
+  const p = downParts(e, home, away);
+  return p ? `${p.ord} & ${p.togo} · ${p.spot}` : '';
+}
+
+/** The left end of the bar under the field: the down as a pill, then the spot. Empty between snaps. */
+export function DownBar({ entry, home, away }: { entry: PlayLogEntry; home: Team; away: Team }) {
+  const p = downParts(entry, home, away);
+  if (!p) return <span className="num">{' '}</span>;
+  return (
+    <span className="vb-sit">
+      <span className="vb-down">{p.down}</span>
+      <span className="num">{p.spot}</span>
+    </span>
+  );
 }
 
 const SPEEDS = [1, 2, 4];
@@ -490,41 +493,14 @@ export const useViewPick = () => usePref<ViewKind>(VIEW_KEY, VIEWS, 'broadcast')
 /** The highlight level picked on this device. */
 export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
 
-/** "K.Snyder": how the engine writes a player into a play. */
-const playName = (p: Player) => `${p.firstName[0]}.${p.lastName}`;
+export type { PlayNames } from '../gameRead';
 
-export interface PlayNames {
-  /** Every linkable name, longest first so "A.Macken" wins over "A.Mack". Null when there are none. */
-  re: RegExp | null;
-  ids: Map<string, number>;
-}
-
-/**
- * The players a game's plays can name, by how the play text writes them: everyone who suited up (a finished
- * game keeps them, so a replay still links after a trade or a retirement) or, while it's live, both
- * rosters. A name two of them share stays plain text rather than guess.
- */
+/** The players a game's plays can name (`buildPlayNames`), worked out once a game and again at the final whistle. */
 export function usePlayNames(league: League, game: Game | undefined): PlayNames {
   const done = !!game?.result;
-  return useMemo(() => {
-    if (!game) return { re: null, ids: new Map() };
-    const ids = game.result
-      ? Object.keys(game.result.playerTeams).map(Number)
-      : [...teamPlayers(league, game.homeId), ...teamPlayers(league, game.awayId)].map((p) => p.id);
-    const byName = new Map<string, number | null>();
-    for (const id of ids) {
-      const p = league.players[id];
-      if (!p) continue;
-      const key = playName(p);
-      byName.set(key, byName.has(key) ? null : id);
-    }
-    const names = new Map([...byName].filter((e): e is [string, number] => e[1] !== null));
-    if (!names.size) return { re: null, ids: names };
-    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const alternatives = [...names.keys()].sort((a, b) => b.length - a.length).map(escape);
-    return { re: new RegExp(`(${alternatives.join('|')})(?![A-Za-z])`, 'g'), ids: names };
-    // The rosters only matter until the final whistle; after that the game keeps its own list.
-  }, [game?.id, done]);
+  // The rosters only matter until the final whistle; after that the game keeps its own list.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => buildPlayNames(league, game), [game?.id, done]);
 }
 
 /** A play's text with every player in it a link to his card. A tap on a name doesn't also jump the replay. */
@@ -655,9 +631,6 @@ export function GameViewer({
       ? playLabel(plays[index - 1], home.id)
       : '';
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
-  /** The score on the board: the last play's until this one has been seen. */
-  const board = told ? entry : (plays[index - 1] ?? { homeScore: 0, awayScore: 0 });
-  const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   const final = atEnd && !playing;
 
   const broadcast = (
@@ -684,23 +657,17 @@ export function GameViewer({
       </div>
 
       <section className="viewer">
-        <div className="viewer-bug">
-          {[away, home].map((t) => (
-            <div key={t.id} className="vb-team" style={{ background: t.colors[0] }}>
-              <span className="vb-name">
-                {t.abbrev}
-                {entry.offense === t.id && entry.down ? <span className="vb-poss" aria-label="has the ball" /> : null}
-              </span>
-              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
-            </div>
-          ))}
-          <div className="vb-clock">
-            <span>
-              {final ? `Final${game.result.overtime ? '/OT' : ''}` : `${quarterLabel} · ${gameClock(entry.clock)}`}
-            </span>
-            <span>{label}</span>
-          </div>
-        </div>
+        <Scorebug
+          league={league}
+          game={game}
+          home={home}
+          away={away}
+          plays={plays}
+          index={index}
+          told={told}
+          final={final}
+          label={label}
+        />
 
         {all22 ? (
           <TopDownField
@@ -724,7 +691,7 @@ export function GameViewer({
         )}
 
         <div className="viewer-sit">
-          <span className="num">{situation(entry, home, away) || ' '}</span>
+          <DownBar entry={entry} home={home} away={away} />
           <span className="viewer-tag">{tag}</span>
         </div>
 

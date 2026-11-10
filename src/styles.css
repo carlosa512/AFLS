@@ -1549,8 +1549,38 @@ select {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--marker);
+  background: #fff;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+/* Under the name: the record going in and the timeouts left (a used one dimmed). */
+.vb-id {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.vb-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-data);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+}
+.vb-tos {
+  display: inline-flex;
+  gap: 3px;
+}
+.vb-tos i {
+  display: block;
+  width: 12px;
+  height: 4px;
+  border-radius: 2px;
+  background: #fff;
+}
+.vb-tos i.used {
+  opacity: 0.25;
 }
 .vb-score {
   font-size: var(--step-3);
@@ -1605,6 +1635,23 @@ select {
   padding: 8px 14px;
   background: var(--scene-panel);
   font-size: var(--step--1);
+}
+/* The down as a pill, where the eye already is; the spot beside it. */
+.vb-sit {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.vb-down {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--step-1);
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  padding: 1px 9px;
+  border-radius: 4px;
+  background: var(--marker);
+  color: var(--marker-ink);
 }
 .viewer-tag {
   font-family: var(--font-display);

@@ -8,6 +8,7 @@ import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { handoverFor, TopDownField } from './screens/TopDownField';
+import { downParts, Scorebug } from './screens/Scorebug';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
 
@@ -257,5 +258,88 @@ describe('the play label', () => {
     expect(playLabel(play({ kind: 'int', text: 'A.Passer pass intercepted by C.Corner', to: 60 }), 0)).toBe(
       'Interception',
     );
+  });
+});
+
+describe('the scorebug', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const bug = (list: PlayLogEntry[], index: number, told: boolean) =>
+    render(
+      <Scorebug
+        league={league}
+        game={game}
+        home={home}
+        away={away}
+        plays={list}
+        index={index}
+        told={told}
+        label="Week 1"
+      />,
+    );
+
+  it('shows each club’s record going into the game and three timeouts a side', () => {
+    const html = bug(plays, 0, false);
+    expect(html.match(/class="vb-rec[^"]*">0–0</g)).toHaveLength(2);
+    expect(html.match(/aria-label="3 timeouts left"/g)).toHaveLength(2);
+  });
+
+  it('takes a timeout off once the play that called it has been shown', () => {
+    const called: PlayLogEntry = {
+      ...plays[4],
+      kind: undefined,
+      down: 0,
+      from: undefined,
+      to: undefined,
+      who: undefined,
+      text: `Timeout ${home.abbrev} (2 left).`,
+    };
+    const list = [...plays.slice(0, 5), called, ...plays.slice(5)];
+    expect(bug(list, 5, true)).toContain('aria-label="2 timeouts left"');
+    expect(bug(list, 4, true)).not.toContain('aria-label="2 timeouts left"');
+  });
+
+  it('keeps a score off the board until its play has been seen', () => {
+    const i = plays.findIndex(
+      (e, k) => k > 0 && e.homeScore + e.awayScore !== plays[k - 1].homeScore + plays[k - 1].awayScore,
+    );
+    const scores = (html: string) => [...html.matchAll(/class="vb-score">(\d+)</g)].map((m) => Number(m[1]));
+    expect(scores(bug(plays, i, false))).toEqual([plays[i - 1].awayScore, plays[i - 1].homeScore]);
+    expect(scores(bug(plays, i, true))).toEqual([plays[i].awayScore, plays[i].homeScore]);
+  });
+
+  it('is what the replay draws', () => {
+    const html = render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />);
+    expect(html.match(/class="vb-tos"/g)).toHaveLength(2);
+  });
+});
+
+describe('the down and the spot', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const play = (o: Partial<PlayLogEntry>): PlayLogEntry => ({
+    quarter: 1,
+    clock: 600,
+    offense: home.id,
+    down: 1,
+    distance: 10,
+    yardLine: 50,
+    text: '',
+    homeScore: 0,
+    awayScore: 0,
+    ...o,
+  });
+
+  it('reads a snap as a pill and a spot', () => {
+    const e = play({ offense: home.id, down: 2, distance: 10, yardLine: 83 });
+    expect(downParts(e, home, away)).toMatchObject({ down: '2ND & 10', spot: `Ball on ${away.abbrev} 17` });
+    expect(downParts(play({ offense: away.id, down: 1, distance: 4, yardLine: 96 }), home, away)).toMatchObject({
+      down: '1ST & GOAL',
+      spot: `Ball on ${home.abbrev} 4`,
+    });
+  });
+
+  it('has nothing to say between snaps', () => {
+    expect(downParts(play({ down: 0, kind: 'kickoff' }), home, away)).toBeNull();
   });
 });
