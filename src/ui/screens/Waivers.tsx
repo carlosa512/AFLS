@@ -28,7 +28,7 @@ export function Waivers({ league }: { league: League }) {
   if (!league.personnel?.enabled)
     return (
       <Panel title="Waiver wire">
-        <p>Personnel transactions are not active in this career yet.</p>
+        <p>This league started before waivers were added. They turn on with practice squads.</p>
       </Panel>
     );
   const teamId = league.userTeamId;
@@ -94,10 +94,10 @@ export function Waivers({ league }: { league: League }) {
       <Panel title="Waiver wire">
         <p>
           {filter === 'released'
-            ? 'These are players you released. Other teams can claim them; unclaimed players become free agents.'
+            ? 'Other teams can claim the players you released. Anyone unclaimed becomes a free agent.'
             : filter === 'mine'
-              ? 'These are your plans to add players. No roster move happens unless you win the claim.'
-              : 'These players were released by other teams. Plan a claim to add one on his existing contract.'}
+              ? 'No roster move happens unless you win the claim.'
+              : 'A player you claim joins you on his existing contract.'}
         </p>
         {filter !== 'released' && (
           <p className="small muted">
@@ -281,9 +281,7 @@ export function Waivers({ league }: { league: League }) {
               ? 'The selected roster move happens only if you win. If you lose, you keep your player.'
               : 'Keep everyone if there is room for the new player.'}
           </p>
-          <p className="small muted">
-            {waiverDecision(league)}. “Save claim” files your plan; it does not advance time.
-          </p>
+          <p className="small muted">{waiverDecision(league)}. Saving a claim does not advance time.</p>
           {planProblem && (
             <p className="callout callout-bad" role="status">
               {planProblem}

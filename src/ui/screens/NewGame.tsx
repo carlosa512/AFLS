@@ -123,12 +123,12 @@ export function NewGame() {
             Take over a <em>franchise.</em>
           </h1>
           <p>
-            Run a football club the way a GM does. Your scouts only see so much, your coaches' habits shape every call,
-            and 31 rival front offices are working their own plans.
+            Run a football club as its general manager. Your scouts only see so much, your coaches call games their own
+            way, and 31 rival front offices have plans of their own.
           </p>
           <p>
-            Every snap plays out from real matchups, in wind, rain and snow, and your inbox tells the story. Ratings run
-            1–20: 10 is a solid backup, 16+ a star.
+            Every snap is played out, in wind, rain and snow. Ratings run from 1 to 20. A 10 is a solid backup and 16 or
+            more is a star.
           </p>
         </div>
 

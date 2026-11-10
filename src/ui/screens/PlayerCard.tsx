@@ -253,7 +253,7 @@ function ReadBy({ league, view, p }: { league: League; view: PlayerView; p: Play
     ) : null;
   };
   const reader = who(view.readerId);
-  if (!reader) return <>Nobody reads him: your Director’s chair is empty.</>;
+  if (!reader) return <>Nobody reads him because your Director’s chair is empty.</>;
   // Only players still growing get a ceiling read; past 25 it's just his overall.
   const ceiling = p.age < 26 && view.potReaderId !== view.readerId ? who(view.potReaderId) : null;
   return (
@@ -735,8 +735,8 @@ function PositionSection({ league, player: p }: { league: League; player: Player
           <span>{lineupText(p, slot)}.</span>
           {knockAt(p, slot) !== 'none' && (
             <span className="muted small">
-              Everything he does there is worse for it, a little or a lot. He is a{' '}
-              {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.
+              He plays worse out of position. He is a {POSITION_NAMES[p.position].toLowerCase()}, so put him back when
+              you can.
             </span>
           )}
           <span>
@@ -760,7 +760,7 @@ function PositionSection({ league, player: p }: { league: League; player: Player
           )}
           <p className="small" style={{ margin: 0 }}>
             {ready
-              ? 'He is ready: he changes position on cut-down day.'
+              ? 'He is ready and changes position on cut-down day.'
               : `${readyText(campsToReady(league, p, learning.to), league.phase)}.`}
             {held && ` But he stays at ${p.position} for now. ${held}`}
           </p>
@@ -1173,7 +1173,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
         {!view.exact && (
           <p className="muted small read-by">
             <ReadBy league={league} view={view} p={p} />
-            {sitDownHint && ' A scouting visit doubles as a sit-down: it can take one or two to learn his makeup.'}
+            {sitDownHint && ' A scouting visit is also a sit-down. It can take one or two to learn his makeup.'}
           </p>
         )}
       </div>
@@ -1183,11 +1183,11 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
       <Section id="ratings" title={`Ratings at ${p.position}`}>
         <AttributeList player={p} view={view} />
         <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-          Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5
-          poor, 6–10 backup, 11–15 starter, 16–20 elite.
+          Bold ratings make up his overall at {p.position}. Tap a rating to see what it does in a game. Scale: 1–5 poor,
+          6–10 backup, 11–15 starter, 16–20 elite.
           {view.exact
             ? ' Arrows show the change since last season.'
-            : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
+            : ' Ranges are your scouts’ estimates. Film and scouting visits narrow them.'}
         </p>
       </Section>
 
@@ -1214,7 +1214,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <span className="tag-pill tag-warn" style={{ marginLeft: 0 }}>
                   Needs reps
                 </span>{' '}
-                Young players develop faster with snaps; sitting slows him down.
+                Young players develop faster when they play.
               </>
             )}
           </p>
@@ -1289,7 +1289,7 @@ export function PublicPlayerCard({ league, player, onClose }: { league: League; 
       <p>
         {player.position} · Age {player.age}
       </p>
-      <p className="muted">Public career results. Scouting files belong to the team that prepared them.</p>
+      <p className="muted">Public career results.</p>
       <StatsTable league={league} player={player} />
     </Sheet>
   );

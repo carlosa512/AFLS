@@ -31,7 +31,7 @@ describe('waiver desk', () => {
 
   it('explains inactive careers without exposing an active wire', () => {
     const l = createLeague({ seed: 'waiver-ui-off' });
-    expect(renderToStaticMarkup(<Waivers league={l} />)).toContain('not active');
+    expect(renderToStaticMarkup(<Waivers league={l} />)).toContain('started before waivers');
   });
 
   it('renders deadlines, contract costs and own instructions, never opposing claims', () => {
@@ -62,7 +62,7 @@ describe('waiver desk', () => {
     expect(withHiddenClaim).not.toContain('PRIVATE-OPPOSING-PLAN');
     expect(withHiddenClaim).not.toContain('Your signing order');
     expect(withHiddenClaim).toBe(noClaims);
-    expect(withHiddenClaim).toContain('released by other teams');
+    expect(withHiddenClaim).toContain('joins you on his existing contract');
     expect(withHiddenClaim).toContain('Available to claim');
     expect(withHiddenClaim).toContain('Your released players');
     expect(withHiddenClaim).toContain('Decided before Week 1 kickoff');

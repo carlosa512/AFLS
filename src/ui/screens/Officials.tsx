@@ -71,9 +71,9 @@ export function Officials({ league }: { league: League }) {
       }
     >
       <p className="muted" style={{ marginTop: 0 }}>
-        Each game gets one of {rows.length} crews. Some throw flags all day, some let the linemen hold. You can't see
-        their habits, only what they call. Holding is offensive holding; coverage is pass interference and defensive
-        holding; roughing is roughing the passer. Ranks show once a crew has worked {RANK_MIN_GAMES} games.
+        Each game gets one of {rows.length} crews. Crews call games differently, and you only see what they call.
+        Holding is offensive holding. Coverage is pass interference and defensive holding. Roughing is roughing the
+        passer. Ranks show once a crew has worked {RANK_MIN_GAMES} games.
       </p>
       {seasons.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>
@@ -203,8 +203,8 @@ export function GameOfficials({ league, game, away, home }: { league: League; ga
       </div>
       {line && (
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Accepted penalties; declined and offsetting flags are counted apart. Crew avg: per game, both teams, over the{' '}
-          {line.games} game{line.games === 1 ? '' : 's'} it has worked this season.
+          Accepted penalties only. Crew avg is per game for both teams over the {line.games} game
+          {line.games === 1 ? '' : 's'} it has worked this season.
         </p>
       )}
     </Panel>

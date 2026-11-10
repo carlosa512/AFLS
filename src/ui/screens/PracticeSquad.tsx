@@ -39,10 +39,10 @@ export function PracticeSquad({ league }: { league: League }) {
     const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
-        <p>Personnel transactions are not active in this career yet.</p>
+        <p>This league started before practice squads and waivers were added.</p>
         <p className="small muted">
-          Practice squads add up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once
-          on, they stay on for this career.
+          Turning them on gives every club a practice squad of up to 16, waivers, one-game call-ups and squad signings
+          between clubs. They can&rsquo;t be turned off again.
         </p>
         <button
           className="btn btn-primary"
@@ -225,10 +225,6 @@ export function PracticeSquad({ league }: { league: League }) {
           {places > 16 ? ', plus one International Pathway player,' : ''} train with your team outside the main roster.
           Use up to two for one game with a temporary call-up, or sign a player to the 53-man roster.
         </p>
-        <p className="small muted">
-          Squad deals pay by the week. Releasing a player stops later checks. Moving a player off the main roster
-          requires a release first; other clubs may get a chance to claim him.
-        </p>
         <div className="facts">
           <span className="fact">
             <span className="eyebrow">Players</span>
@@ -290,11 +286,18 @@ export function PracticeSquad({ league }: { league: League }) {
           <p className="small muted">
             A standard spot covers players with no seasons of service. A season of service means at least six
             regular-season games on the main roster, called up or on injured reserve. Players with one or two seasons
-            use the special slots; three or more makes a veteran.
+            use the special slots. Three or more seasons makes a veteran.
+          </p>
+          <p className="small muted">
+            Squad deals pay by the week, and releasing a player stops later checks. To move a player down from the main
+            roster you release him first, and other clubs may claim him.
           </p>
         </details>
         {mine && (
-          <label className="row small">
+          <label
+            className="row small"
+            title="They refill open places, plan call-ups when we're short and pick futures deals."
+          >
             <input
               type="checkbox"
               checked={league.teams[teamId].autoSquad !== false}
@@ -305,7 +308,7 @@ export function PracticeSquad({ league }: { league: League }) {
                 })
               }
             />
-            Staff run the squad: refill open places, plan call-ups when we're short, pick futures deals
+            Staff run the squad
           </label>
         )}
         {window && <p className="callout">{window}</p>}

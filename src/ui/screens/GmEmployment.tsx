@@ -196,7 +196,7 @@ export function SpectatorHome({ league }: { league: League }) {
 export function PublicRoster({ league, teamId }: { league: League; teamId: number }) {
   return (
     <Panel title={`${league.teams[teamId].city} ${league.teams[teamId].name}`}>
-      <p className="muted">Public roster. Organization reports and roster controls require a GM appointment.</p>
+      <p className="muted">You see what the public sees until you hold a GM job.</p>
       <ul className="gm-public-roster">
         {teamPlayers(league, teamId).map((p) => (
           <li key={p.id}>

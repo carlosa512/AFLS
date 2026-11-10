@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.25',
+    date: '2026-11-10',
+    title: 'Fewer words on every screen',
+    text: 'Screens say less. The paragraphs under headings that explained the game are cut or folded away, and the hints that stay are plain sentences.',
+  },
+  {
     version: '0.4.24',
     date: '2026-11-10',
     title: 'Am I benched?',

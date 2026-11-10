@@ -452,10 +452,7 @@ export function OffersPanel({ league }: { league: League }) {
         offers.map((o) => <OfferCard key={o.id} league={league} offer={o} onDone={setDone} />)
       ) : (
         <Panel title={<h2>Offers</h2>}>
-          <p className="muted">
-            No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to
-            draw calls.
-          </p>
+          <p className="muted">No offers on your desk. Put a player on the block or shop him to draw calls.</p>
         </Panel>
       )}
     </>
@@ -512,8 +509,8 @@ export function BlockPanel({ league }: { league: League }) {
   return (
     <Panel title={<h2>Your block</h2>}>
       <p className="muted small">
-        On the block, interest grows fast and teams call sooner; they also know you want to sell. Untouchable, nobody
-        asks. <b>Shop</b> calls every team that needs him now.
+        Teams call sooner about a player on the block, and they know you want to sell. Nobody asks about an Untouchable.{' '}
+        <b>Shop</b> calls every team that needs him now.
       </p>
       {note && (
         <p className="callout" role="status">

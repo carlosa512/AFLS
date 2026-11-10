@@ -96,7 +96,7 @@ function Term({ value, onChange, label }: { value: number; onChange: (n: number)
 
 function Member({ league, s, open, outlook }: { league: League; s: Staff; open: boolean; outlook?: ResignOutlook }) {
   const teamId = league.userTeamId;
-  const { he, his, him } = pron(s);
+  const { he, He, his, His, him } = pron(s);
   // Another club's scout: the same card to read, without the deal notes and buttons (those are his club's).
   const theirs = s.teamId !== league.userTeamId;
   const expiring = !theirs && isExpiring(league, s);
@@ -146,10 +146,10 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
         <>
           <p className="small staff-note">
             {outlook === 'budget'
-              ? `Deal up: ${he} leaves when free agency opens. Your staff budget can't cover ${his} ask of ${money(staffAsk(league, s, 2))} a year for 2 years.`
+              ? `${His} deal is up and ${he} leaves when free agency opens. Your staff budget can't cover ${his} ask of ${money(staffAsk(league, s, 2))} a year for 2 years.`
               : outlook === 'chair'
-                ? `Deal up: ${he} leaves when free agency opens. All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`
-                : `Deal up: re-signs for 2 years at ${money(staffAsk(league, s, 2))} when free agency opens unless you let ${him} go.`}
+                ? `${His} deal is up and ${he} leaves when free agency opens. All ${STAFF_SLOTS[s.role]} ${ROLE_LABEL[s.role].toLowerCase()} jobs are filled.`
+                : `${His} deal is up. ${He} re-signs for 2 years at ${money(staffAsk(league, s, 2))} when free agency opens unless you let ${him} go.`}
           </p>
           <div className="staff-actions">
             <button
@@ -280,10 +280,10 @@ function ScoutLink({
 /** What each chair does, true to how reads are worked out (`readFor`). */
 const SCOUT_ROLE_LINE: Record<StaffRole, string> = {
   director:
-    'Runs the department: the Director’s read backs up every group, a step behind a specialist’s, and covers any group no scout does.',
+    'Runs the department. The Director reads every group a little less sharply than a specialist would, and covers any group no scout has.',
   collegeScout:
-    'Reads draft prospects in a position group: what they are now (evaluation) and what they could become (projection).',
-  proScout: 'Reads players already in the league in a position group: free agents and trade targets.',
+    'Reads draft prospects in one position group. Evaluation is what they are now and projection is what they could become.',
+  proScout: 'Reads free agents and trade targets in one position group.',
 };
 
 /** A scout's full card: his ratings, what his chair does, and for one on the market, what hiring him would sharpen. */
@@ -541,8 +541,8 @@ export function StaffScreen({ league }: { league: League }) {
         </div>
         <p className="muted small staff-lede">
           Staff are paid from their own budget, not the cap
-          {dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. Your scouts set how wide your ranges are: a
-          sharper read is closer to the truth and surer of it.
+          {dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. Better scouts give you narrower, truer
+          ranges.
         </p>
         <div className="callout staff-next">
           <span>
@@ -559,8 +559,7 @@ export function StaffScreen({ league }: { league: League }) {
 
       <Panel title="How your staff reads players">
         <p className="muted small" style={{ marginTop: 0 }}>
-          The number is how well each group is read for you, and by whom: whoever scores highest. A scout gets +3 on
-          their own group and −3 on others; the Director reads every group at their rating −1.
+          A higher number is a sharper read. The name is whoever reads that group best for you.
         </p>
         <div className="table-scroll">
           <table className="read-table">
@@ -614,8 +613,8 @@ export function StaffScreen({ league }: { league: League }) {
                 <b className="staff-name">Open chair</b>
                 <span className="muted small">
                   {r === 'director'
-                    ? 'No Director: every group without a specialist is read badly until you hire one.'
-                    : `Room for one more ${ROLE_LABEL[r].toLowerCase()}: a specialist in a group nobody covers sharpens it.`}
+                    ? 'Without a Director, every group that has no specialist is read badly.'
+                    : `You have room for one more ${ROLE_LABEL[r].toLowerCase()}. A specialist sharpens a group nobody covers.`}
                 </span>
                 <div className="staff-actions">
                   <button className="btn btn-sm" onClick={() => showCandidates(r, 'any')}>
@@ -667,15 +666,13 @@ export function StaffScreen({ league }: { league: League }) {
             </span>
           }
         >
-          <p className="muted small" style={{ marginTop: 0 }}>
-            Best first.{' '}
-            {role === 'director'
-              ? director && isExpiring(league, director)
-                ? 'Hiring one replaces your Director, whose deal is up. '
-                : 'You can only hold one Director, so dismiss yours before hiring another. '
-              : ''}
-            Tap a name to see how hiring them would change your reads.
-          </p>
+          {role === 'director' && (
+            <p className="muted small" style={{ marginTop: 0 }}>
+              {director && isExpiring(league, director)
+                ? 'Hiring one replaces your Director, whose deal is up.'
+                : 'You can only hold one Director, so dismiss yours before hiring another.'}
+            </p>
+          )}
           {candidates.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>
               Nobody on the market fits that filter.

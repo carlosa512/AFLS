@@ -141,7 +141,7 @@ export function LockerRoom({ league }: { league: League }) {
       <p className="muted">The way our coaches see it.</p>
       <Section id="locker-morale" title="Morale">
         <p className="muted small">
-          A player's mood moves how he practices, grows and plays, and what he asks for in a new deal.
+          A player's mood affects how he practices, grows and plays, and what he asks for in a new deal.
         </p>
         {roomStep === undefined ? (
           <p className="muted">Nobody on the roster yet.</p>

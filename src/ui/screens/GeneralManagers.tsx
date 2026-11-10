@@ -215,9 +215,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
             </table>
           </div>
         ) : (
-          <p className="muted small">
-            No GM games recorded yet. Earlier results are not attributed to this appointment.
-          </p>
+          <p className="muted small">No games on record yet. Results from before the record began are not counted.</p>
         )}
       </Section>
       {coaches.length > 0 && (
@@ -256,9 +254,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
               ))}
             </ol>
           ) : (
-            <p className="muted small">
-              Promoted from scouting director. Earlier scouting appointments are not recorded.
-            </p>
+            <p className="muted small">Promoted from scouting director. Earlier scouting jobs are not on record.</p>
           )}
         </Section>
       )}
@@ -336,9 +332,6 @@ export function GeneralManagers({ league }: { league: League }) {
         title={
           <div>
             <h2>General managers</h2>
-            <p className="muted small gm-directory-intro">
-              The people building the league. Open a name for appointments, results and scouting history.
-            </p>
           </div>
         }
       >

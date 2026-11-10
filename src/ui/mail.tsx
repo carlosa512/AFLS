@@ -640,7 +640,7 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
         </table>
       </div>
       <p className="small muted" style={{ margin: '8px 0 0' }}>
-        Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs; kicking work is listed
+        Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs. Kicking work is listed
         separately.
       </p>
     </Card>
@@ -1369,7 +1369,9 @@ function InjuryCards({ league, s }: { league: League; s: Extract<MailSubject, { 
           <button className="btn btn-sm" onClick={() => store.mutate((l) => placeOnIr(l, l.players[p.id]))}>
             Place on IR
           </button>
-          <span className="muted small">Off the 53 for at least four weeks: the spot is free for a replacement.</span>
+          <span className="muted small">
+            He is off the 53 for at least four weeks, and his spot is free for a replacement.
+          </span>
         </div>
       )}
     </>
@@ -1632,8 +1634,8 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value compares your pick with where the consensus ranked him: a round of the board later is a steal, a round
-          earlier a reach.
+          Value compares your pick with where the consensus ranked him. A player taken a round later than his rank is a
+          steal, and one taken a round earlier is a reach.
         </p>
       </Card>
       {trades.length > 0 ? (
@@ -1911,7 +1913,7 @@ function DeadlineCards({
     return (
       <>
         <p className="muted small" style={{ margin: 0 }}>
-          The trade deadline has passed: rosters are set until the new league year.
+          The trade deadline has passed. Rosters are set until the new league year.
         </p>
         {day}
       </>
@@ -3316,7 +3318,7 @@ function ClaimProblem({ league, entryId }: { league: League; entryId: number }) 
   if (!problem || claimed) return null;
   return (
     <p className="mail-row-note small">
-      {/roster move/.test(problem) ? 'We need a roster spot first: pick who goes on the Waiver wire screen.' : problem}
+      {/roster move/.test(problem) ? 'We need a roster spot first. Pick who goes on the Waiver wire screen.' : problem}
     </p>
   );
 }

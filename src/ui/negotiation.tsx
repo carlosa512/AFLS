@@ -152,7 +152,7 @@ export function NegotiationDialog({
         <div
           className="patience"
           aria-label={`Agent patience: ${patience} of ${d.patience}`}
-          title="Agent patience: lowball offers use it up; insults cost two"
+          title="Agent patience. Lowball offers use it up, and an insulting one costs two."
         >
           {Array.from({ length: d.patience }, (_, i) => (
             <i key={i} className={i < patience ? 'on' : ''} />
@@ -216,7 +216,7 @@ export function NegotiationDialog({
       />
       {offer.years < 5 && (
         <div className="field-row">
-          <span title="Spreads the bonus over more cap years. The player doesn't care; future you might.">
+          <span title="Spreads the bonus over more cap years. Whatever is left comes due as dead money when the deal voids.">
             Void years
           </span>
           <div className="seg" role="group" aria-label="Void years">

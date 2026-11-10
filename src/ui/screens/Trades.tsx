@@ -610,7 +610,7 @@ function TradeTable({ league }: { league: League }) {
             {verdict ? (
               <LinkedText league={league} text={verdict.message} />
             ) : (
-              'Tick players or picks on both sides to build an offer.'
+              'Add players or picks on both sides to make an offer.'
             )}
           </span>
           {impact && (
@@ -660,8 +660,7 @@ function TradeTable({ league }: { league: League }) {
         </div>
         <AssetPicker league={league} partnerId={partnerId} mine={a} theirs={b} onMine={setMine} onTheirs={setTheirs} />
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Traded players take their salary with them; any bonus money stays on your cap as dead money. Teams want a
-          small win in their own eyes, and each GM hears only a few proposals from you a week.
+          A traded player takes his salary with him. His bonus money stays on your cap as dead money.
         </p>
       </Panel>
     </>

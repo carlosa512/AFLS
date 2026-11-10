@@ -97,7 +97,7 @@ function Term({ value, onChange, label }: { value: number; onChange: (n: number)
 
 function Member({ league, m, open }: { league: League; m: Medic; open: boolean }) {
   const teamId = league.userTeamId;
-  const { he, His, his, him } = pron(m);
+  const { he, He, His, his, him } = pron(m);
   // Another club's medic: the same card to read, without the deal notes and buttons (those are his club's).
   const theirs = m.teamId !== league.userTeamId;
   const expiring = !theirs && isMedicExpiring(league, m);
@@ -138,10 +138,10 @@ function Member({ league, m, open }: { league: League; m: Medic; open: boolean }
       {expiring && (
         <p className="small staff-note">
           {outlook === 'stays'
-            ? `Deal up: re-signs for 2 years at ${money(medicAsk(league, m, 2))} when free agency opens unless you let ${him} go.`
+            ? `${His} deal is up. ${He} re-signs for 2 years at ${money(medicAsk(league, m, 2))} when free agency opens unless you let ${him} go.`
             : outlook === 'budget'
-              ? `Deal up: ${he} leaves when free agency opens. Your medical budget can't cover ${his} ask of ${money(medicAsk(league, m, 2))}.`
-              : `Deal up: ${he} leaves when free agency opens. ${His} chair is taken.`}
+              ? `${His} deal is up and ${he} leaves when free agency opens. Your medical budget can't cover ${his} ask of ${money(medicAsk(league, m, 2))}.`
+              : `${His} deal is up and ${he} leaves when free agency opens. ${His} chair is taken.`}
         </p>
       )}
       {!theirs && (
@@ -198,9 +198,11 @@ function MedicLink({ m, avatar = false }: { m: Medic; avatar?: boolean }) {
 
 /** What each chair does, true to how the department is worked out (`departmentOf`). */
 const MEDIC_ROLE_LINE: Record<MedicRole, string> = {
-  doctor: 'Makes the call on every injury (how good the layoff estimates are) and has a hand in rehab and prevention.',
-  physio: 'Runs rehab with the other physiotherapist: the biggest say in how soon injured players get back.',
-  scientist: 'Runs load management: the biggest say in soft-tissue injuries and how fast players get their legs back.',
+  doctor:
+    'Makes the call on every injury, which sets how good the layoff estimates are, and has a hand in rehab and prevention.',
+  physio: 'Runs rehab with the other physiotherapist and has the biggest say in how soon injured players get back.',
+  scientist:
+    'Runs load management and has the biggest say in soft-tissue injuries and how fast players get their legs back.',
 };
 
 /** What hiring `m` would do to your department, in words with the ratings for the tap. */
@@ -344,8 +346,8 @@ function InjuryReport({ league }: { league: League }) {
     <Panel title="Injury report">
       <p className="muted small" style={{ marginTop: 0 }}>
         {team.autoInjuries === false
-          ? 'You manage injuries yourself: place long injuries on reserve and sign replacements from the player card and free agency.'
-          : "Your staff moves long injuries to reserve, brings players back when there's room, and covers a short position from the roster. Signings and cuts are yours. Turn that off on the roster screen."}
+          ? 'You handle injuries yourself. Put long injuries on reserve and sign replacements from the player card and free agency.'
+          : 'Your staff handles injured reserve and covers a short position from the roster. You can turn that off on the Roster screen.'}
       </p>
       {hurt.length === 0 ? (
         <p className="muted">Nobody is hurt.</p>
@@ -397,7 +399,7 @@ function InjuryReport({ league }: { league: League }) {
               <span className={conditionTone(p.condition ?? 100)}>{Math.round(p.condition ?? 100)}%</span>
             </span>
           ))}
-          . Below 65 in a game the injury risk climbs fast; a week off brings most of it back.
+          . Below 65 the injury risk in a game climbs fast. A week off brings most of it back.
         </p>
       )}
     </Panel>
@@ -484,10 +486,6 @@ function LeagueInjuries({ league }: { league: League }) {
   return (
     <>
       <Panel title="Who's banged up">
-        <p className="muted small" style={{ marginTop: 0 }}>
-          Players out now (playing through it on injections doesn't count), on injured reserve, and hurt this {season}{' '}
-          season. Tap a team to see its injuries.
-        </p>
         <div className="table-scroll">
           <table>
             <thead>
@@ -688,7 +686,7 @@ function Department({ league }: { league: League }) {
               numbers={
                 shows(e.rehab)
                   ? `Layoffs ${pct(e.rehab)} shorter than the standard timeline.`
-                  : 'The standard clinical timeline: a physiotherapy above 9 starts to shorten it.'
+                  : 'Layoffs follow the standard timeline.'
               }
             >
               <b>Rehab:</b> <b className={rehabVerdict(dept).tone}>{rehabVerdict(dept).word}</b>
@@ -701,7 +699,7 @@ function Department({ league }: { league: League }) {
           </li>
           <li>
             <Exact
-              numbers={`${shows(e.prevention) ? `${pct(e.prevention)} fewer soft-tissue injuries` : 'No edge on soft-tissue injuries (a sports science above 10 starts to cut them)'}${shows(e.recovery) ? `, and ${pct(e.recovery)} more of a player's lost condition back each week` : ''}.`}
+              numbers={`${shows(e.prevention) ? `${pct(e.prevention)} fewer soft-tissue injuries` : 'Soft-tissue injuries at the usual rate'}${shows(e.recovery) ? `, and ${pct(e.recovery)} more of a player's lost condition back each week` : ''}.`}
             >
               <b>Prevention:</b> <b className={preventionVerdict(dept).tone}>{preventionVerdict(dept).word}</b>
               {' · '}
@@ -724,10 +722,7 @@ function Department({ league }: { league: League }) {
             .
           </li>
         </ul>
-        <p className="muted small staff-lede">
-          Staff are paid from their own budget, not the cap. Elite rehab (18–20) takes up to a quarter off every layoff;
-          anything at 9 or below follows the standard timeline, never a slower one.
-        </p>
+        <p className="muted small staff-lede">Staff are paid from their own budget, not the cap.</p>
       </Panel>
 
       <InjuryReport league={league} />
@@ -752,7 +747,7 @@ function Department({ league }: { league: League }) {
               <li key={`${r}-${i}`} className="staff-card vacant">
                 <b className="staff-name">Open chair</b>
                 <span className="muted small">
-                  An empty {MEDIC_ROLE_LABEL[r].toLowerCase()} chair works like a replacement-level clinician (6).
+                  A stand-in well below average covers the {MEDIC_ROLE_LABEL[r].toLowerCase()} chair until you hire.
                 </span>
                 <div className="staff-actions">
                   <button className="btn btn-sm" onClick={() => setRole(r)}>
@@ -783,10 +778,6 @@ function Department({ league }: { league: League }) {
           </div>
         }
       >
-        <p className="muted small" style={{ marginTop: 0 }}>
-          Best first. Physios carry most of the rehab, the sports scientist most of the prevention, the head doctor both
-          and the diagnosis. Tap a name to see what hiring them would change in your department.
-        </p>
         {candidates.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             Nobody on the market for that role.

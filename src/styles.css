@@ -4878,10 +4878,6 @@ button.tip-pill {
   justify-content: space-between;
   gap: 4px 12px;
 }
-.gm-directory-intro {
-  margin: 5px 0 0;
-  font-weight: 400;
-}
 .gm-filters {
   flex-wrap: wrap;
   margin-bottom: 14px;

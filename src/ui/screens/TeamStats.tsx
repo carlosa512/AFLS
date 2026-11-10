@@ -120,7 +120,7 @@ export function TeamStats({ league }: { league: League }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Regular season, from the box scores. Per-game columns divide by games played. Click a column to sort.
+        Regular season only.
       </p>
       <div className="table-scroll">
         <table>

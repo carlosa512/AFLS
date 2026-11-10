@@ -199,14 +199,14 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
           <input type="checkbox" checked={designate} onChange={(e) => setDesignate(e.target.checked)} />
           <span>
             <b>Post-June 1 designation</b> ({POST_JUNE1_LIMIT - team.postJune1Used} of {POST_JUNE1_LIMIT} left). Only
-            this year's bonus share counts now; the rest moves to {league.season + 1}. Same total, different timing.
+            this year's bonus share counts now and the rest moves to {league.season + 1}. The total is the same.
           </span>
         </label>
       ) : preview.postJune1 ? (
         <p className="muted small">After June 1, remaining bonus money is charged to next year's cap automatically.</p>
       ) : (
         <p className="muted small">
-          No post-June 1 designations left this league year: all remaining bonus money hits now.
+          No post-June 1 designations left this league year, so all remaining bonus money counts now.
         </p>
       )}
       {preview.waiver && (
@@ -377,8 +377,8 @@ export function RestructureDialog({
       }
     >
       <p className="small" style={{ margin: 0 }}>
-        Convert base salary into a bonus spread over {preview.years} league years. Room now, a bigger bill later, and
-        more dead money if you ever cut him.
+        Convert base salary into a bonus spread over {preview.years} league years. It frees room now, raises his cap hit
+        in later years and adds dead money if you cut him.
       </p>
       <label htmlFor={sliderId} className="eyebrow">
         Salary to convert: <b className="num">{money(amount)}</b> of {money(full.max)}

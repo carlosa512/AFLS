@@ -111,8 +111,8 @@ Never as a standing paragraph under the heading, shown on every visit.
 
 ## Not consistent yet
 
-- Standing intro paragraphs under panel headings are being removed ("Words on a screen"); many screens still
-  have them. Heading levels vary between screens.
+- Heading levels vary between screens.
+- A rating on the player card opens on a tap but doesn't look like it, so the card still says "Tap a rating".
 - New Game shows no record for each club (a new league has no history).
 - League history sorts by season and your record, not by champion; the coaches' grades table has no Grade sort
   (it follows Rank).

@@ -304,7 +304,7 @@ function Awards({ league }: { league: League }) {
     return (
       <Panel title="Awards">
         <p className="muted" style={{ margin: 0 }}>
-          Players of the week are named after each week of the regular season, the season's awards when it ends.
+          Players of the week are named after each week of the regular season. The season's awards come when it ends.
         </p>
       </Panel>
     );
@@ -336,8 +336,7 @@ function Awards({ league }: { league: League }) {
         </select>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Voted on the numbers and the standings, the way the press votes: players of the week and month as the season
-        goes, the season's awards when the regular season ends. Teams are where each player played at the time.
+        Teams are where each player played at the time.
       </p>
       {awards ? (
         <div className="grid-2">
@@ -411,7 +410,7 @@ function Records({ league }: { league: League }) {
     <>
       <h2>Single-season records</h2>
       <p className="muted small" style={{ marginTop: 0 }}>
-        The best regular seasons since the league began. Career totals are under Leaders (choose “Career totals”).
+        Career totals are under Leaders.
       </p>
       <div className="grid-3">
         {LEADER_CATEGORIES.map((cat) => {

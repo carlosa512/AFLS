@@ -187,7 +187,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
     <Panel title="Game-day roster">
       <p>
         Next game: <TeamLink team={league.teams[g.homeId === teamId ? g.awayId : g.homeId]} />. Staff picks the active
-        list automatically; you can adjust it below.
+        list, and you can change it below.
       </p>
       <div className="facts">
         <span className="fact">
@@ -214,8 +214,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
         </span>
       </div>
       <p className="small muted">
-        Dress 47 players, or 48 with eight offensive linemen. Call-ups keep their squad place and return automatically.
-        Your choices lock 90 minutes before kickoff. Staff replaces a saved list if player availability changes.
+        Dress 47 players, or 48 with eight offensive linemen. Your choices lock 90 minutes before kickoff.
       </p>
       {elevationRecords(league)
         .filter(
@@ -239,7 +238,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
       ))}
       {day.emergencyQbId !== undefined && (
         <p className="small">
-          Emergency QB: <PlayerLink league={league} player={league.players[day.emergencyQbId]} />. Can enter only when
+          Emergency QB: <PlayerLink league={league} player={league.players[day.emergencyQbId]} />. He can play only when
           both active QBs are unavailable.
         </p>
       )}
@@ -430,7 +429,7 @@ export function PoachAction({ league, player }: { league: League; player: Player
           <p>
             <PlayerLink league={league} player={player} /> joins your 53 from the <TeamLink team={league.teams[from]} />{' '}
             practice squad on a minimum deal, three weeks of it guaranteed. It's decided before this week's first
-            kickoff; another club may offer more years.
+            kickoff, and another club may offer more years.
           </p>
           <label className="row">
             Years{' '}

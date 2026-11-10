@@ -174,9 +174,9 @@ function NextGame({ league }: { league: League }) {
         {game.neutral
           ? 'Neutral site.'
           : isHome
-            ? 'Home game: a small edge in every matchup.'
+            ? 'Home game, a small edge in every matchup.'
             : `Road game in ${opp.city}.`}{' '}
-        Press Play to watch it live. Unit ratings are starter averages on the 1–20 scale.
+        Unit ratings are starter averages on the 1–20 scale.
       </p>
     </Panel>
   );
@@ -611,7 +611,7 @@ function OffseasonHome({ league }: { league: League }) {
                   Let the coaches make the cuts
                 </button>
                 <span className="muted small">
-                  Keeps the best value at each position, signs minimum fill-ins if a group runs thin.
+                  Keeps the best value at each position and signs minimum fill-ins if a group runs thin.
                 </span>
               </div>
             )}

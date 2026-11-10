@@ -116,15 +116,14 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
       {league.phase === 'resign' ? (
         <Panel title="Expiring contracts">
           <p className="muted small" style={{ marginTop: 0 }}>
-            Anyone you don't re-sign or tag becomes a free agent when free agency opens. Asks are market value plus his
-            agent's appetite.
+            Anyone you don't re-sign or tag becomes a free agent when free agency opens.
             {tagged ? (
               <>
                 {' '}
                 You tagged <PlayerLink league={league} player={tagged} /> this year.
               </>
             ) : (
-              ' You have one franchise tag: a fully guaranteed one-year deal.'
+              ' You have one franchise tag, a fully guaranteed one-year deal.'
             )}
           </p>
           {expiring.length === 0 ? (
@@ -221,8 +220,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
       {options.length > 0 && (
         <Panel title="Fifth-year options">
           <p className="muted small" style={{ marginTop: 0 }}>
-            First-round picks after three seasons. Exercising adds a fully guaranteed fifth year at a salary set by how
-            he ranks at his position.
+            Exercising an option adds a fully guaranteed fifth year. The salary depends on how he ranks at his position.
           </p>
           <div className="table-scroll">
             <table>
@@ -274,8 +272,8 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
 
       <Panel title="Extension candidates">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Players in the last two years of their deals (rookies after three seasons). Extending early can beat a rising
-          market; the old bonus keeps counting.
+          Extending early can cost less than waiting for the market to rise. His old bonus keeps counting against the
+          cap.
         </p>
         {extensions.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
@@ -362,8 +360,7 @@ function FreeAgents({
     return (
       <Panel title="Coming to market">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Free agency opens when you advance. These players' deals have run out; their teams may still re-sign or tag
-          them first.
+          Free agency opens when you advance. Their teams may still re-sign or tag these players first.
         </p>
         <div className="table-scroll">
           <table>

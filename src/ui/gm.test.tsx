@@ -161,7 +161,7 @@ describe('GM cards and directory', () => {
     const l = world();
     const html = renderCard(l, l.gms[l.teams[1].gmId!]);
     expect(html).toContain('Recorded from');
-    expect(html).toContain('Earlier results are not attributed');
+    expect(html).toContain('before the record began');
   });
 
   it('links GM names in text and supports explicit GM references', () => {

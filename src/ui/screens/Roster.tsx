@@ -530,10 +530,8 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
           )}
           {isUser && grouped && (
             <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-              Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
-              <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
-              auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position (auto-sort keeps
-              him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
+              Starters sit above the yellow line. Dragging a player turns auto-sort off. A player lined up out of
+              position with &ldquo;Play at…&rdquo; plays worse there.
             </p>
           )}
           {isUser && grouped && <SpotNotes league={league} teamId={teamId} />}
@@ -744,7 +742,7 @@ function RosterRow({
         {needsReps && (
           <span
             className="tag-pill tag-warn name-sub"
-            title="Young and still growing, but he rarely plays: snaps speed up his development."
+            title="He is young and still growing but rarely plays. Playing speeds up his development."
           >
             Needs reps
           </span>

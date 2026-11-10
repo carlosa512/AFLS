@@ -154,10 +154,6 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
       </Panel>
 
       <Panel title="Five-year outlook">
-        <p className="muted small" style={{ marginTop: 0 }}>
-          Money already committed in each league year. Bonus money pushed into void years comes due as dead money when
-          those deals void.
-        </p>
         <CapChart league={league} teamId={teamId} />
       </Panel>
 
@@ -182,8 +178,8 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           <>
             {isUser && (
               <p className="muted small" style={{ marginTop: 0 }}>
-                "If released" shows today's dead money and cap room{isOffseason(league.phase) ? ' (pre-June 1)' : ''}.
-                Every button previews the full split before anything happens.
+                &ldquo;If released&rdquo; is today's dead money and cap room
+                {isOffseason(league.phase) ? ' (pre-June 1)' : ''}.
               </p>
             )}
             <div className="table-scroll">
@@ -323,9 +319,6 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
   );
   return (
     <>
-      <p className="small muted">
-        Compare weekly pay with current ability and your scouts’ estimate of future ability.
-      </p>
       {!rows.length ? (
         <p>No practice squad contracts.</p>
       ) : (

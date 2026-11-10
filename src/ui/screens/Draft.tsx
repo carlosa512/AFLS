@@ -162,22 +162,21 @@ export function Draft({ league }: { league: League }) {
             }
           >
             <p className="muted small" style={{ marginTop: 0 }}>
-              Each scouting visit narrows a range:{' '}
               <b>
                 {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
               </b>{' '}
-              this year.
+              this year. Each visit narrows a prospect&rsquo;s range.
             </p>
             <details className="more">
               <summary>How to read the board</summary>
               <p className="muted small">
-                <b>Your grade</b> is your scouts' estimate (a dashed grade is a guess). <b>Risk</b> runs from that grade
-                to his ceiling: solid to where your scouts think he lands, faded to the best case. Short and solid is a
-                ready player, long and fading a project; <b>Safe</b> and <b>Boom-or-bust</b> mark the ends. The number
-                before his name is his <b>consensus</b> rank, roughly where the league will take him; the pill says how
-                far your staff's board parts from it (▲ when your staff likes him more). A dozen spots or more makes him
-                a <b>Sleeper</b> or a <b>Fade</b>. <b>Notes</b> are his makeup and his habits on film, once your scouts
-                know him ("?" means not yet; dashed tags are early word).
+                <b>Your grade</b> is your scouts' estimate, and a dashed grade is a guess. <b>Risk</b> runs from that
+                grade to his ceiling. The solid part is where your scouts think he lands and the faded part is the best
+                case. <b>Safe</b> and <b>Boom-or-bust</b> mark the two ends. The number before his name is his{' '}
+                <b>consensus</b> rank, roughly where the league will take him. The pill shows how far your staff's board
+                is from it (▲ when your staff likes him more). A dozen spots or more makes him a <b>Sleeper</b> or a{' '}
+                <b>Fade</b>. <b>Notes</b> are his makeup and his habits on film once your scouts know him. "?" means not
+                yet, and dashed tags are early word.
               </p>
             </details>
             <div className="table-scroll">

@@ -474,7 +474,7 @@ export function ScoutButton({ league, player, label = 'Scout' }: { league: Leagu
           ? 'Your staff already knows him well'
           : left <= 0
             ? 'No scouting visits left this year'
-            : `Send a scout: narrows his ranges (${left} visits left this year)`
+            : `Send a scout to narrow his ranges (${left} visits left this year)`
       }
       onClick={() => store.mutate((l) => void scoutPlayer(l, player.id))}
     >
@@ -557,7 +557,7 @@ function AttrRow({
               At {position}: {used.join(', ').toLowerCase()}.
             </>
           ) : (
-            <>The engine doesn't use it at {position}.</>
+            <>It doesn't matter at {position}.</>
           )}{' '}
           <span className="muted">{AGING_TEXT[agingFamily(position, attr)]}</span>
         </p>
