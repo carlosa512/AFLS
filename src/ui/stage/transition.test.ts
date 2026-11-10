@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_W } from '../../engine/field/ballPath';
 import type { PlayLogEntry } from '../../engine/types';
-import { BENCH, celebrates, JOG, SPRINT, transition, type Mark } from './transition';
+import { BENCH, benchY, celebrates, JOG, SPRINT, transition, type Mark } from './transition';
 
 const mark = (x: number, y: number, home = true): Mark => ({ x, y, home });
 
@@ -354,5 +354,27 @@ describe('the change-over before a kickoff', () => {
   it('gives the moment a beat, but not forever', () => {
     expect(tr.duration).toBeGreaterThan(6);
     expect(tr.duration).toBeLessThan(20);
+  });
+});
+
+describe('the benches after the teams switch ends', () => {
+  it('stay where they are: in the log’s coordinates the home bench is then on the far side', () => {
+    expect(benchY(true, false)).toBe(-BENCH);
+    expect(benchY(false, false)).toBe(FIELD_W + BENCH);
+    expect(benchY(true, true)).toBe(FIELD_W + BENCH);
+    expect(benchY(false, true)).toBe(-BENCH);
+  });
+
+  it('send a man going off, and bring one coming on, by his own bench', () => {
+    const prev = new Map<number, Mark>([
+      [1, mark(30, 20)],
+      [3, mark(40, 25)], // a home man going off
+    ]);
+    const next = { ids: [1, 4], home: [true, true], pos: new Float32Array([40, 20, 50, 26]) };
+    const tr = transition(prev, next, { swapped: true });
+    expect(tr.moves.find((m) => m.id === 3)!.to.y).toBe(FIELD_W + BENCH);
+    expect(tr.moves.find((m) => m.id === 4)!.from.y).toBe(FIELD_W + BENCH);
+    const plain = transition(prev, next);
+    expect(plain.moves.find((m) => m.id === 3)!.to.y).toBe(-BENCH);
   });
 });

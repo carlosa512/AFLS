@@ -7,7 +7,7 @@ import { Rng } from '../../engine/rng';
 import { FIELD_W } from '../../engine/field/ballPath';
 import type { Exit } from './calls';
 import type { Pt } from '../../engine/field/formations';
-import { BENCH, type Mark } from './transition';
+import { benchY, type Mark } from './transition';
 
 /** Everyone where the play left him, before anything moves. */
 const BEAT = 0.8;
@@ -55,10 +55,17 @@ function walk(a: Pt, b: Pt, t0: number, pace: number, t: number): Pt {
 }
 const takes = (a: Pt, b: Pt, pace: number) => Math.max(0.3, Math.hypot(b.x - a.x, b.y - a.y) / pace);
 
-export function injuryScene(spots: ReadonlyMap<number, Mark>, hurtId: number, exit: Exit, seed: string): InjuryScene {
+export function injuryScene(
+  spots: ReadonlyMap<number, Mark>,
+  hurtId: number,
+  exit: Exit,
+  seed: string,
+  /** The teams have switched ends: his bench is on the other side of the log's coordinates. */
+  swapped = false,
+): InjuryScene {
   const rng = new Rng(seed);
   const down = spots.get(hurtId)!;
-  const sideline = down.home ? -BENCH : FIELD_W + BENCH;
+  const sideline = benchY(down.home, swapped);
 
   // Each team gathers on its own side of him (toward where its men are), in a loose knot.
   const centre = (home: boolean): Pt => {

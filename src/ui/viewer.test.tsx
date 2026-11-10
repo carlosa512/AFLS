@@ -7,7 +7,9 @@ import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
-import { handoverFor, TopDownField } from './screens/TopDownField';
+import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from './screens/TopDownField';
+import { FIELD_W } from '../engine/field/ballPath';
+import { stadiumSpot } from './stage/ends';
 import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
@@ -661,5 +663,87 @@ describe('the end zones', () => {
     expect(html).toContain(`>${home.name.toUpperCase()}</text>`);
     expect(html).toContain(`>${home.city.toUpperCase()}</text>`);
     expect(html).not.toContain(`>${away.name.toUpperCase()}</text>`);
+  });
+});
+
+describe('All-22 switching ends', () => {
+  const view = (layout: View['layout'], phi: number, swap: boolean): View => ({
+    layout,
+    dir: 1,
+    cx: 38,
+    span: 45,
+    phi,
+    swap,
+  });
+  /** A point through an SVG `matrix(a b c d e f)`. */
+  const through = (matrix: string, x: number, y: number): [number, number] => {
+    const [a, b, c, d, e, f] = matrix.match(/-?[\d.]+(?:e-?\d+)?/g)!.map(Number);
+    return [a * x + c * y + e, b * x + d * y + f];
+  };
+
+  it('stands every man on the paint where the stadium has him, whichever way the field is turned', () => {
+    // Either layout, the home side's ball or the away side's (the upright field turns with it), before and after
+    // the ends switch: a change of possession on a quarter's first play is one of these.
+    for (const layout of ['wide', 'upright'] as const)
+      for (const phi of [0, Math.PI])
+        for (const swap of [false, true])
+          for (const [x, y] of [
+            [30, 10],
+            [95, 50],
+            [50, FIELD_W / 2],
+          ]) {
+            const v = view(layout, phi, swap);
+            const spot = stadiumSpot(x, y, swap ? 2 : 1);
+            const [px, py] = through(fieldTransform(v), spot.x, spot.y);
+            const [sx, sy] = toScreen(v, x, y);
+            expect(sx).toBeCloseTo(px, 3);
+            expect(sy).toBeCloseTo(py, 3);
+          }
+  });
+
+  it('on a wide screen turns the men half way round and leaves the paint alone', () => {
+    const [ax, ay] = toScreen(view('wide', 0, false), 30, 10);
+    const [bx, by] = toScreen(view('wide', 0, true), 30, 10);
+    expect([bx, by]).toEqual([100 - ax, FIELD_W - ay]);
+    expect(fieldTransform(view('wide', 0, true))).toBe(fieldTransform(view('wide', 0, false)));
+  });
+
+  it('on a phone leaves the men attacking up the screen and turns the paint under them', () => {
+    expect(toScreen(view('upright', 0, true), 30, 10)).toEqual(toScreen(view('upright', 0, false), 30, 10));
+    expect(fieldTransform(view('upright', 0, true))).not.toBe(fieldTransform(view('upright', 0, false)));
+  });
+
+  it('draws a second-quarter play turned round, on the same paint', () => {
+    const index = plays.findIndex((e) => e.kind === 'pass' && e.quarter === 1 && e.clock > 200);
+    const shot = (quarter: number) => {
+      const html = render(
+        <TopDownField
+          league={league}
+          record={game.result!.field!}
+          game={game}
+          home={league.teams[game.homeId]}
+          away={league.teams[game.awayId]}
+          plays={plays.map((e, i) => (i === index ? { ...e, quarter } : e))}
+          index={index}
+          animKey="t"
+          speed={1}
+          onDone={() => {}}
+        />,
+      );
+      const dots = [...html.matchAll(/class="dot" transform="translate\(([-\d.]+) ([-\d.]+)\)"/g)].map((m) => [
+        Number(m[1]),
+        Number(m[2]),
+      ]);
+      const paint = /<g transform="matrix[^"]*">([\s\S]*?)<line/.exec(html)![1];
+      return { dots, paint };
+    };
+    const first = shot(1);
+    const second = shot(2);
+    expect(first.dots).toHaveLength(22);
+    expect(second.paint).toBe(first.paint);
+    second.dots.forEach(([x, y], i) => {
+      expect(x).toBeCloseTo(100 - first.dots[i][0], 1);
+      expect(y).toBeCloseTo(FIELD_W - first.dots[i][1], 1);
+    });
   });
 });

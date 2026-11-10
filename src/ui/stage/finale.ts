@@ -8,7 +8,7 @@ import { Rng } from '../../engine/rng';
 import type { PlayLogEntry } from '../../engine/types';
 import { FIELD_W, MID } from '../../engine/field/ballPath';
 import type { Pt } from '../../engine/field/formations';
-import { BENCH, type Mark } from './transition';
+import { benchY, type Mark } from './transition';
 
 export type FinaleKind = 'walkoff' | 'win' | 'tie';
 
@@ -82,6 +82,8 @@ export function finaleScene(opts: {
   /** A playoff win: the sideline comes on whatever the finish. A title: confetti too. */
   playoff: boolean;
   title: boolean;
+  /** The teams have switched ends: each bench is on the other side of the log's coordinates. */
+  swapped?: boolean;
   colors: readonly string[];
   seed: string;
 }): FinaleScene {
@@ -110,7 +112,7 @@ export function finaleScene(opts: {
   /** Off toward his own sideline, the nearest way, angling a little toward the team area. */
   const sidelineFor = (m: Mark): Pt => ({
     x: m.x + (Math.max(32, Math.min(68, m.x)) - m.x) * 0.4,
-    y: m.home ? -BENCH : FIELD_W + BENCH,
+    y: benchY(m.home, opts.swapped),
   });
 
   for (const [id, m] of spots) {
@@ -160,7 +162,8 @@ export function finaleScene(opts: {
     for (const id of opts.sideline) {
       const from = {
         x: 32 + rng.next() * 36,
-        y: winnersHome ? -BENCH - rng.next() * 1.5 : FIELD_W + BENCH + rng.next() * 1.5,
+        // Their own bench, and a step or two behind it.
+        y: benchY(winnersHome, opts.swapped) + (winnersHome !== !!opts.swapped ? -1 : 1) * rng.next() * 1.5,
       };
       plan.set(id, {
         from,
