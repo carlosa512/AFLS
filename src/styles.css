@@ -1525,7 +1525,7 @@ select {
 }
 .viewer-bug {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: auto 1fr 1fr auto;
   font-family: var(--font-display);
   font-weight: 800;
 }
@@ -1551,6 +1551,17 @@ select {
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+/* The network's mark. White: on this screen yellow is for what is happening now. */
+.vb-net {
+  display: grid;
+  place-items: center;
+  padding: 0 9px;
+  background: var(--scene-ink);
+  color: var(--scene-bg);
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
 }
 /* Under the name: the record going in and the timeouts left (a used one dimmed). */
 .vb-id {
@@ -1728,6 +1739,180 @@ select {
   .drop,
   .flake {
     animation: none;
+  }
+}
+
+/* ───────── the moments a game stops for: drawn over the field in either view ───────── */
+.viewer-scene {
+  position: relative;
+}
+.moments {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  bottom: 7%;
+  display: flex;
+  pointer-events: none;
+}
+.moments .linklike {
+  pointer-events: auto;
+}
+/* A banner: the side's block, the call and the line under it, a note at the side. */
+.moment-banner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  border-radius: 6px;
+  overflow: hidden;
+  color: var(--scene-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+.mb-who {
+  display: grid;
+  place-items: center;
+  padding: 0 clamp(10px, 2.4vw, 20px);
+  background: var(--scene-panel);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(1.3rem, 4.6vw, 2.2rem);
+}
+.moment-banner.flag .mb-who {
+  background: var(--marker);
+  color: var(--marker-ink);
+}
+.mb-what {
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: clamp(6px, 1.4vw, 10px) clamp(10px, 2vw, 16px);
+  background: rgba(6, 10, 9, 0.8);
+}
+.mb-what b {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(1.2rem, 4.2vw, 2rem);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.mb-what span {
+  font-size: clamp(0.7rem, 2vw, 0.87rem);
+  font-weight: 400;
+}
+.mb-side {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  padding: 0 clamp(10px, 2vw, 16px);
+  background: rgba(6, 10, 9, 0.8);
+  font-family: var(--font-data);
+  font-size: clamp(0.62rem, 1.8vw, 0.75rem);
+  font-weight: 400;
+  color: var(--scene-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .mb-side {
+    display: none;
+  }
+}
+/* A player's line after a big gain: his number, his name, his numbers so far. */
+.moment-player {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  max-width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  color: var(--scene-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.mp-num {
+  display: grid;
+  place-items: center;
+  min-width: clamp(44px, 9vw, 64px);
+  background: var(--scene-panel);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(1.3rem, 4.6vw, 2.1rem);
+}
+.mp-txt {
+  display: grid;
+  gap: 1px;
+  padding: clamp(6px, 1.4vw, 10px) clamp(10px, 2vw, 16px);
+  background: rgba(6, 10, 9, 0.8);
+}
+.mp-txt .linklike {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 3.8vw, 1.6rem);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+.mp-txt small {
+  font-size: clamp(0.62rem, 1.8vw, 0.75rem);
+  color: var(--scene-muted);
+}
+.mp-txt .num {
+  font-size: clamp(0.75rem, 2.4vw, 1rem);
+  font-weight: 600;
+  color: #fff;
+}
+/* All-22 times its own flag, injury and change-of-possession calls to its staging; they wear the banner. (Two
+   classes, to outrank the pill those calls used to be.) */
+.td-call.td-moment,
+.td-banner.td-moment {
+  left: 3%;
+  right: 3%;
+  top: auto;
+  bottom: 7%;
+  transform: none;
+  width: auto;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  display: flex;
+  white-space: normal;
+}
+/* A score or a takeaway: that side's bench hops, and at home the crowd lights up. */
+@keyframes bf-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.4px);
+  }
+}
+@keyframes bf-roar {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.7);
+  }
+}
+.viewer-scene:has(.moments[data-cheer='home']) .bench.home .bench-man,
+.viewer-scene:has(.moments[data-cheer='away']) .bench.away .bench-man {
+  animation: bf-hop 0.5s ease-in-out infinite;
+}
+.viewer-scene:has(.moments[data-cheer='home']) .crowd {
+  animation: bf-roar 0.4s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .viewer-scene .bench-man,
+  .viewer-scene .crowd {
+    animation: none !important;
   }
 }
 

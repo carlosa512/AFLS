@@ -29,6 +29,8 @@ import { celebrates, transition, type Huddle, type Mark } from '../stage/transit
 import { FieldPaint } from './FieldPaint';
 import { downLines } from './BroadcastField';
 import { endsSwitched } from '../stage/ends';
+import { flagParts } from '../moments';
+import { MomentBanner } from './GameMoments';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
@@ -1166,16 +1168,31 @@ export function TopDownField({
           // A new element for each play: the last play's call never carries over, shown, onto this one.
           key={index}
           ref={callRef}
-          className={`td-call ${hurtCall ? 'td-call-injury' : 'td-call-flag'}`}
+          className="td-call td-moment"
           style={{ opacity: 0 }}
           aria-live="polite"
         >
-          {callText}
+          {hurtCall ? (
+            <MomentBanner
+              tone="injury"
+              team={hurtCall.team === home.abbrev ? home : hurtCall.team === away.abbrev ? away : null}
+              head="Injury"
+              line={injuryBanner(hurtCall, exit ?? 'walk')}
+            />
+          ) : (
+            <MomentBanner tone="flag" team={null} {...flagParts(callText)} />
+          )}
         </div>
       )}
       {handover && (
-        <div ref={bannerRef} className="td-banner" style={{ opacity: 0 }} aria-live="polite">
-          {handover} · {(entry.offense === home.id ? home : away).abbrev} ball
+        <div ref={bannerRef} className="td-banner td-moment" style={{ opacity: 0 }} aria-live="polite">
+          <MomentBanner
+            tone="turnover"
+            team={entry.offense === home.id ? home : away}
+            head={handover}
+            line=""
+            side={`${(entry.offense === home.id ? home : away).city} ball`}
+          />
         </div>
       )}
       {cardPlayer && (

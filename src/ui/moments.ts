@@ -119,9 +119,7 @@ function bannerFor(plays: readonly PlayLogEntry[], index: number, home: Team, aw
   // A flag, in the words All-22 already uses: the foul, on whom, what it cost.
   const flag = flagCall(e);
   if (flag) {
-    const [head, ...rest] = flag.split(' · ');
-    const [line, side] = rest.length > 1 ? rest : ['', rest[0]];
-    return { kind: 'banner', tone: 'flag', teamId: null, head, line, ...(side ? { side } : {}) };
+    return { kind: 'banner', tone: 'flag', teamId: null, ...flagParts(flag) };
   }
   return null;
 }
@@ -195,4 +193,25 @@ export function momentHold(moments: readonly Moment[], speed: number): number {
     else if (m.kind === 'quarter') hold = Math.max(hold, speed >= FAST ? 0 : QUARTER_MS / speed);
   }
   return hold;
+}
+
+/** A flag's call (`flagCall`) as a banner's three parts: the foul, on whom, what it cost. */
+export function flagParts(call: string): { head: string; line: string; side?: string } {
+  const [head, ...rest] = call.split(' · ');
+  const [line, side] = rest.length > 1 ? rest : ['', rest[0]];
+  return { head, line, ...(side ? { side } : {}) };
+}
+
+/**
+ * The moments of the play on screen, as a screen may show them: none until its result has been shown, and none for
+ * a play the highlight level skipped past (it landed still, with others; only the play that is shown gets one).
+ */
+export function playMoments(
+  plays: readonly PlayLogEntry[],
+  index: number,
+  o: { home: Team; away: Team; names: PlayNames; record?: FieldRecord; over?: boolean; told: boolean; still: boolean },
+): Moment[] {
+  return o.told && !o.still
+    ? momentsFor(plays, index, o.home, o.away, o.names, { record: o.record, over: o.over })
+    : [];
 }

@@ -13,6 +13,9 @@ import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
 import { surfaceFor } from './screens/FieldPaint';
 import { skyOf } from './screens/BroadcastPaint';
+import { GameMoments, MomentBanner } from './screens/GameMoments';
+import { playMoments, type Moment } from './moments';
+import { flagCall } from './stage/calls';
 import { weatherAt, type Weather } from '../engine/weather';
 import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
@@ -957,5 +960,115 @@ describe('the drive on the grass', () => {
     const names = buildPlayNames(league, game);
     const pass = plays.findIndex((e, i) => e.kind === 'pass' && !!driveAt(plays, i, home.id));
     expect(names.re!.test(field(pass))).toBe(false);
+  });
+});
+
+describe('the moments over the field', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const names = buildPlayNames(league, game);
+  const over = (moments: Moment[], speed = 1, own?: ('flag' | 'injury' | 'turnover')[]) =>
+    render(<GameMoments league={league} home={home} away={away} moments={moments} speed={speed} own={own} />);
+  const td: Moment = {
+    kind: 'banner',
+    tone: 'score',
+    teamId: home.id,
+    head: 'Touchdown',
+    line: 'A run',
+    side: '4 plays',
+  };
+  const flag: Moment = { kind: 'banner', tone: 'flag', teamId: null, head: 'Offside', line: 'NO X.Man', side: '5 yds' };
+  const man = Object.keys(game.result!.playerTeams).map(Number)[0];
+  const line: Moment = { kind: 'player', playerId: man, teamId: home.id, number: 19, line: '5 rec · 56 yds' };
+
+  it('draws a banner in the side’s colours with its call, its line and its note', () => {
+    const html = render(<MomentBanner tone="score" team={home} head="Touchdown" line="A run" side="4 plays" />);
+    expect(html).toContain('class="moment-banner score"');
+    expect(html).toContain(`>${home.abbrev}<`);
+    expect(html).toContain('>Touchdown<');
+    expect(html).toContain('>A run<');
+    expect(html).toContain('>4 plays<');
+    expect(html).toContain(home.colors[0]);
+  });
+
+  it('marks a flag as a flag, on no team’s colours', () => {
+    const html = over([flag]);
+    expect(html).toContain('class="moment-banner flag"');
+    expect(html).toContain('>FLAG<');
+  });
+
+  it('shows a player’s line whole, his name a link to his card', () => {
+    const html = over([line]);
+    expect(html).toContain('class="moment-player"');
+    expect(html).toMatch(/class="mp-num"[^>]*>19</);
+    expect(html).toMatch(/<button type="button" class="linklike"/);
+    expect(html).toContain('>5 rec · 56 yds<');
+  });
+
+  it('shows one thing at a time: a banner, not a line with it', () => {
+    const html = over([td, line]);
+    expect(html).toContain('moment-banner');
+    expect(html).not.toContain('moment-player');
+  });
+
+  it('skips the player’s line when the game is sped up, and keeps the banner', () => {
+    expect(over([line], 4)).not.toContain('moment-player');
+    expect(over([td], 8)).toContain('moment-banner');
+  });
+
+  it('leaves to a view what the view announces itself', () => {
+    expect(over([flag], 1, ['flag'])).not.toContain('moment-banner');
+    expect(over([td], 1, ['flag'])).toContain('moment-banner');
+  });
+
+  it('says which bench has something to cheer', () => {
+    expect(over([td])).toContain('data-cheer="home"');
+    expect(over([{ ...td, teamId: away.id }])).toContain('data-cheer="away"');
+    expect(over([flag])).not.toContain('data-cheer');
+  });
+
+  it('makes nothing of a play until its result is shown, nor of one the highlights skipped past', () => {
+    const scored = plays.findIndex(
+      (e, i) => i > 0 && e.homeScore + e.awayScore - plays[i - 1].homeScore - plays[i - 1].awayScore >= 6,
+    );
+    const opts = { home, away, names, record: game.result!.field, over: true };
+    expect(playMoments(plays, scored, { ...opts, told: true, still: false }).map((m) => m.kind)).toContain('banner');
+    expect(playMoments(plays, scored, { ...opts, told: false, still: false })).toEqual([]);
+    expect(playMoments(plays, scored, { ...opts, told: true, still: true })).toEqual([]);
+  });
+
+  it('is in the replay, round either view, under the SNN mark', () => {
+    const html = render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />);
+    expect(html).toContain('class="viewer-scene"');
+    expect(html).toMatch(/class="vb-net"[^>]*>SNN</);
+  });
+
+  it('gives All-22’s own call the banner’s look', () => {
+    const index = plays.findIndex((e) => !!flagCall(e) && e.kind === 'penalty');
+    const html = render(
+      <TopDownField
+        league={league}
+        record={game.result!.field!}
+        game={game}
+        home={home}
+        away={away}
+        plays={plays}
+        index={index}
+        animKey="t"
+        speed={1}
+        onDone={() => {}}
+      />,
+    );
+    expect(html).toContain('class="moment-banner flag"');
+  });
+
+  it('keeps yellow for the flag alone, and stops the cheering for a viewer who asks for less motion', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    const rules = [...css.matchAll(/([^{}]*\.(?:moment-|mb-|mp-)[^{}]*)\{([^}]*)\}/g)];
+    const yellow = rules.filter((m) => /--marker\b/.test(m[2])).map((m) => m[1].trim());
+    expect(yellow.length).toBeGreaterThan(0);
+    for (const sel of yellow) expect(sel).toMatch(/\.flag/);
+    const reduced = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/g)];
+    expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.crowd/.test(m[0]))).toBe(true);
   });
 });

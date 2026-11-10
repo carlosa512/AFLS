@@ -24,6 +24,8 @@ import {
 import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
+import { momentHold, playMoments } from '../moments';
+import { ALL22_OWN, GameMoments, shownMoments } from './GameMoments';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
@@ -90,7 +92,13 @@ export function LiveGame({ league }: { league: League }) {
     // A skipped batch's hold was the pause: the highlight follows at once.
     if (s.still) return step();
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
-    timer.current = setTimeout(next, (all22 ? holdAfter(entry) : HOLD_MS) / speed);
+    // A moment (a score's banner, a player's line) holds the screen long enough to be read.
+    const made = shownMoments(
+      playMoments(s.plays, s.current, { ...momentFacts, told: true, still: false }),
+      speed,
+      own,
+    );
+    timer.current = setTimeout(next, Math.max((all22 ? holdAfter(entry) : HOLD_MS) / speed, momentHold(made, speed)));
   };
   const togglePlay = () => {
     clearTimeout(timer.current);
@@ -110,6 +118,10 @@ export function LiveGame({ league }: { league: League }) {
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
   const recent = s.plays.slice(0, told ? s.current + 1 : s.current).reverse();
+  // What the play on screen gives the viewer to show: nothing until its result has been seen.
+  const momentFacts = { home, away, names, record, over: s.finished };
+  const moments = playMoments(s.plays, s.current, { ...momentFacts, told, still: s.still });
+  const own = all22 ? ALL22_OWN : undefined;
 
   const broadcast = (
     <Field
@@ -149,26 +161,29 @@ export function LiveGame({ league }: { league: League }) {
               label={label}
             />
 
-            {all22 ? (
-              <TopDownField
-                league={league}
-                record={record}
-                game={game}
-                home={home}
-                away={away}
-                plays={s.plays}
-                index={s.current}
-                animKey={`live:${s.gameId}:${s.current}`}
-                speed={speed}
-                still={s.still}
-                final={s.sim.over && s.current === s.plays.length - 1}
-                onDone={onDone}
-                onSnap={() => setSnapKey(playKey)}
-                fallback={broadcast}
-              />
-            ) : (
-              broadcast
-            )}
+            <div className="viewer-scene">
+              {all22 ? (
+                <TopDownField
+                  league={league}
+                  record={record}
+                  game={game}
+                  home={home}
+                  away={away}
+                  plays={s.plays}
+                  index={s.current}
+                  animKey={`live:${s.gameId}:${s.current}`}
+                  speed={speed}
+                  still={s.still}
+                  final={s.sim.over && s.current === s.plays.length - 1}
+                  onDone={onDone}
+                  onSnap={() => setSnapKey(playKey)}
+                  fallback={broadcast}
+                />
+              ) : (
+                broadcast
+              )}
+              <GameMoments league={league} home={home} away={away} moments={moments} speed={speed} own={own} />
+            </div>
 
             <div className="viewer-sit">
               <DownBar entry={entry} home={home} away={away} />

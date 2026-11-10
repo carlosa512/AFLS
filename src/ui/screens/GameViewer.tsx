@@ -12,6 +12,8 @@ import { holdAfter, TopDownField } from './TopDownField';
 import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
+import { momentHold, playMoments } from '../moments';
+import { ALL22_OWN, GameMoments, shownMoments } from './GameMoments';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
@@ -254,6 +256,8 @@ export function GameViewer({
   const speeds = all22 ? ALL22_SPEEDS : SPEEDS;
   const shownSpeed = all22 ? allSpeed(speed) : speed;
   const atEnd = index >= plays.length - 1;
+  const momentFacts = { home, away, names, record: game.result.field, over: true };
+  const own = all22 ? ALL22_OWN : undefined;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
   const go = (i: number, keepPlaying = false, skipped = false) => {
@@ -279,7 +283,10 @@ export function GameViewer({
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
-    timer.current = setTimeout(() => advanceFrom(index), (all22 ? holdAfter(entry) : 650) / shownSpeed);
+    // A moment (a score's banner, a player's line) holds the screen long enough to be read.
+    const made = shownMoments(playMoments(plays, index, { ...momentFacts, told: true, still: false }), shownSpeed, own);
+    const hold = Math.max((all22 ? holdAfter(entry) : 650) / shownSpeed, momentHold(made, shownSpeed));
+    timer.current = setTimeout(() => advanceFrom(index), hold);
   };
   const step = (dir: 1 | -1) => {
     const n = nextShown(plays, index, home.id, pick, dir);
@@ -306,6 +313,8 @@ export function GameViewer({
       ? playLabel(plays[index - 1], home.id)
       : '';
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
+  // What the play on screen gives the viewer to show: nothing until its result has been seen.
+  const moments = playMoments(plays, index, { ...momentFacts, told, still });
   const final = atEnd && !playing;
 
   const broadcast = (
@@ -351,26 +360,29 @@ export function GameViewer({
             label={label}
           />
 
-          {all22 ? (
-            <TopDownField
-              league={league}
-              record={game.result.field}
-              game={game}
-              home={home}
-              away={away}
-              plays={plays}
-              index={index}
-              animKey={`${index}:${run}`}
-              speed={shownSpeed}
-              still={still}
-              final={index === plays.length - 1}
-              onDone={onDone}
-              onSnap={() => setSnapped(true)}
-              fallback={broadcast}
-            />
-          ) : (
-            broadcast
-          )}
+          <div className="viewer-scene">
+            {all22 ? (
+              <TopDownField
+                league={league}
+                record={game.result.field}
+                game={game}
+                home={home}
+                away={away}
+                plays={plays}
+                index={index}
+                animKey={`${index}:${run}`}
+                speed={shownSpeed}
+                still={still}
+                final={index === plays.length - 1}
+                onDone={onDone}
+                onSnap={() => setSnapped(true)}
+                fallback={broadcast}
+              />
+            ) : (
+              broadcast
+            )}
+            <GameMoments league={league} home={home} away={away} moments={moments} speed={shownSpeed} own={own} />
+          </div>
 
           <div className="viewer-sit">
             <DownBar entry={entry} home={home} away={away} />

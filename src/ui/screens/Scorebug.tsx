@@ -65,6 +65,10 @@ export function Scorebug({
   const period = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
   return (
     <div className="viewer-bug">
+      {/* The game's own network signs the broadcast. White: yellow is for what is happening now. */}
+      <span className="vb-net" aria-label="SNN, the Sports News Network">
+        SNN
+      </span>
       {[away, home].map((t) => {
         const isHome = t.id === home.id;
         const timeouts = isHome ? left.home : left.away;
