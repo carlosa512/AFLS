@@ -28,7 +28,7 @@ import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { playoffRace } from './season/standings';
 import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
-import { say } from './voice';
+import { say, toldKeys } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { playerOvr, STARTERS } from './positions';
 import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
@@ -131,8 +131,15 @@ export function benchKickoff(league: League, game?: Game): void {
       const p = league.players[pid];
       return !!p && p.teamId === team.id && !couldPlay(league, p);
     });
-    // A holder out again will be told again when he is back: the reminder starts over.
-    for (const pid of out) if (team.jobs?.held[pid]) delete team.jobs.held[pid].reminded;
+    // At your club, a holder out is owed the reminder once he can play (it starts over if he had one), and a holder who
+    // starts is owed nothing: the reminder lasts from one to the other, whatever a kickoff in between reads.
+    const held = team.jobs?.held ?? {};
+    for (const pid of out) {
+      if (!held[pid]) continue;
+      delete held[pid].reminded;
+      if (id === yourClub(league)) held[pid].cleared = league.players[pid].injuries?.length ?? 0;
+    }
+    for (const pid of ids) if (held[pid]) delete held[pid].cleared;
     team.kickoff = { week: league.week, ids, at, out };
   }
 }
@@ -575,11 +582,15 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
         }
       }
 
-    // (2) A holder who sat healthy with no question open: the hit lands, and he asks.
+    // (2) A holder who sat healthy with no question open: the hit lands, and he asks. At your club a man back from being
+    // out whose reminder you have not been sent yet is still inside his grace: the game he sat opens nothing. With the
+    // staff sorting the chart there is no reminder, and the one-game rule applies at once.
+    const told = mine && !team.autoDepth ? toldKeys(league) : undefined;
     for (const { holder, other } of sat) {
       if (questionOf(team, holder.id) || !holder.morale) continue;
       const held = jobs.held[holder.id];
       if (!held) continue;
+      if (told && reminderOwed(held) && !told.has(restoreKey(league, holder.id, held.cleared!))) continue;
       const q: JobQuestion = { pos: held.pos, holder: holder.id, since: clock };
       if (other) q.other = other.id;
       (jobs.questions ??= []).push(q);
@@ -649,24 +660,32 @@ export function listedWord(league: League, p: Player): string {
   return at === undefined || at >= ORDINALS.length ? 'down the chart' : ORDINALS[at];
 }
 
+/** The reminder's key in the letters: the man and the injury count he was out with, so being out again tells it anew. */
+export const restoreKey = (league: League, playerId: number, injuries: number) =>
+  `restore:${league.season}:${playerId}:${injuries}`;
+
+/** He was out at a kickoff since he last started, and you have not chosen Leave it. */
+const reminderOwed = (h: NonNullable<Team['jobs']>['held'][number]) =>
+  h.cleared !== undefined && h.reminded === undefined;
+
 /**
- * Your job-holders who were out at the last kickoff, can play this week and are not in a starting spot: the head coach
- * says so, once, with the chart in your hands. With staff sorting the chart there is nothing to put back.
+ * Your job-holders who were out at a kickoff since they last started, can play now and are not in a starting spot: the
+ * head coach says so, once, with the chart in your hands. It lasts until he is in a starting spot, starts, is out again
+ * or you choose Leave it, not one kickoff: a step the coach does not write cannot lose it. With staff sorting the chart
+ * there is nothing to put back.
  */
 export function clearedNotStarting(league: League): Player[] {
   const yours = yourClub(league);
   if (!BENCH.on || !inGames(league) || yours === null) return [];
   const team = league.teams[yours];
-  const k = team.kickoff;
-  if (!k || team.autoDepth) return [];
-  const out = new Set(k.out ?? []);
+  if (team.autoDepth) return [];
   const starting = startingIds(league, team);
   const men: Player[] = [];
   for (const [sid, h] of Object.entries(team.jobs?.held ?? {})) {
     const id = Number(sid);
     const p = league.players[id];
-    if (!p || p.teamId !== team.id || p.retired || h.reminded !== undefined) continue;
-    if (out.has(id) && couldPlay(league, p) && !starting.has(id)) men.push(p);
+    if (!p || p.teamId !== team.id || p.retired || !reminderOwed(h)) continue;
+    if (couldPlay(league, p) && !starting.has(id)) men.push(p);
   }
   return men.sort((a, b) => a.id - b.id);
 }

@@ -667,6 +667,50 @@ describe('the head coach’s letters on a benching', () => {
     ).toHaveLength(1);
   });
 
+  it('the reminder outlasts a held step: cleared the step after a letter, it comes in the next, and he waits for it', () => {
+    const { l, team, q } = club('bench-reminder-held');
+    // Step c: a letter filed for something else.
+    benchKickoff(l);
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    const filer = activeRoster(l, l.userTeamId).find((p) => p.position !== 'QB' && p.morale)!;
+    filer.morale!.talk = { club: l.userTeamId, ask: { cause: 'snaps', at: l.moraleAt! } };
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    // Step c+1: he was out at kickoff and is cleared after it, listed third. The coach does not write this step.
+    q[0].injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 1,
+      estimate: [1, 2],
+      season: l.season,
+      week: l.week,
+      where: 'game',
+    };
+    order(team, [q[1].id, q[2].id, q[0].id]);
+    benchKickoff(l);
+    delete q[0].injury;
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    // Step c+2: he sat a game healthy before the reminder reached you, and does not ask; the reminder comes now.
+    step(l);
+    expect(q[0].morale?.talk?.ask).toBeUndefined();
+    expect(team.jobs!.questions ?? []).toHaveLength(0);
+    const last = letters(l).at(-1)!;
+    expect(letters(l)).toHaveLength(2);
+    const row = rowsOf(last).find((r) => r.restore?.playerId === q[0].id);
+    expect(row).toBeDefined();
+    expect(restoreCard(l, q[0].id).state).toBe('open');
+    expect(needsYou(l, last)).toBe(true);
+    expect(rowsOf(last).some((r) => r.bench?.playerId === q[0].id)).toBe(false);
+    // Leave it, and the one-game rule applies: he sits again and asks.
+    dismissReminder(l, q[0].id);
+    step(l);
+    expect(q[0].morale?.talk?.ask?.cause).toBe('benched');
+  });
+
   it('a benching that closes is told in one closing row, once', () => {
     const { l, team, q } = club('bench-closing');
     order(team, [q[1].id, q[0].id]);

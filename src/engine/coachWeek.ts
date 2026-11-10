@@ -13,6 +13,7 @@ import {
   cutdownDone,
   listedWord,
   restoreCard,
+  restoreKey,
 } from './benching';
 import { BENCH_BEFORE, BENCH_CLOSE, BENCH_STILL, BENCH_TOOK, CLEARED, JOBS_ROW, type JobsFact } from './benchVoice';
 import { manSheet, momentSheet, coachSheet, type CoachSheet, type ManSheet } from './castSheet';
@@ -290,7 +291,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
 
   // ───── tier 1: a starter cleared and not back in his spot ─────
   for (const p of clearedNotStarting(league)) {
-    const key = `restore:${league.season}:${p.id}:${p.injuries?.length ?? 0}`;
+    const key = restoreKey(league, p.id, league.teams[user].jobs!.held[p.id].cleared!);
     const man = sheet(p);
     if (told.has(key) || !man) continue;
     const note = say(
