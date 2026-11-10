@@ -4722,6 +4722,109 @@ button.tip-pill {
   margin-top: 16px;
   padding-top: 14px;
 }
+/* The Arena Gazette: a paper's stats page. Serif heads between rules, a bar a row from zero, a tick at the league average. */
+.gazette {
+  display: grid;
+  gap: 18px;
+  border-top: 3px double var(--line);
+  padding-top: 12px;
+}
+.gazette-table h4 {
+  margin: 0 0 6px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+.gazette-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gazette-rows li {
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1.1fr) minmax(70px, 1.4fr) 3.6em;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.gazette-rows li.is-gap {
+  margin-top: 6px;
+  border-top: 2px dashed var(--line);
+  border-radius: 0 0 4px 4px;
+  padding-top: 8px;
+}
+.gazette-rows li.is-user {
+  background: color-mix(in srgb, var(--marker) 18%, transparent);
+}
+.gazette-rank {
+  text-align: right;
+  color: var(--muted);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+.gazette-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gazette-track {
+  position: relative;
+  height: 12px;
+  background: var(--surface-2);
+  border-radius: 2px;
+}
+.gazette-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.gazette-bar.is-good {
+  background: var(--win);
+}
+.gazette-bar.is-bad {
+  background: var(--loss);
+}
+.gazette-avg {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+}
+.gazette-avg.is-key {
+  position: static;
+  display: inline-block;
+  height: 10px;
+  margin: 0 4px 0 0;
+  vertical-align: middle;
+}
+.gazette-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.gazette-key {
+  margin: 6px 0 0;
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .gazette-rows li {
+    grid-template-columns: 1.8em minmax(0, 1fr) 3.4em;
+  }
+  .gazette-track {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    height: 8px;
+  }
+}
 .mail-focus-why {
   margin: 0 0 10px;
 }

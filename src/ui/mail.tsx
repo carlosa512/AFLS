@@ -347,51 +347,72 @@ const gazetteValue = (t: GazetteTable, v: number) =>
     ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}`
     : `${Math.round(v * 100)}%`;
 
-/** The Gazette's tables as filed: rank, club or player, the number; a gap where the middle of the league is left out. */
+/**
+ * The Gazette's tables as a paper's stats page: a bar a row, drawn from zero (a number below zero runs left of the
+ * line), a tick at the league's average, our row marked; a gap where the middle of the league is left out.
+ */
 function GazetteCards({ league, tables }: { league: League; tables: GazetteTable[] }) {
   // Our row stands out only while we run a club (between jobs, none is ours).
   const mine = employed(league);
   return (
-    <>
-      {tables.map((t) => (
-        <Card key={t.title} title={t.title}>
-          <div className="table-scroll">
-            <table className="mail-table">
-              <tbody>
-                {t.rows.map((r, i) => {
-                  const p = r.playerId === undefined ? undefined : league.players[r.playerId];
-                  const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
-                  return (
-                    <tr
-                      key={`${r.teamId}:${r.playerId ?? ''}`}
-                      className={
-                        [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
-                          .filter(Boolean)
-                          .join(' ') || undefined
-                      }
-                    >
-                      <td className="num small muted">{r.rank}</td>
-                      <td>
-                        {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
-                        {t.players ? (
-                          <span className="small muted">
-                            {' '}
-                            <TeamLink team={league.teams[r.teamId]} />
-                          </span>
-                        ) : (
+    <div className="gazette">
+      {tables.map((t) => {
+        const values = [...t.rows.map((r) => r.value), ...(t.avg === undefined ? [] : [t.avg])];
+        const lo = Math.min(0, ...values);
+        const hi = Math.max(0, ...values);
+        const at = (v: number) => (hi === lo ? 0 : ((v - lo) / (hi - lo)) * 100);
+        const zero = at(0);
+        return (
+          <section className="gazette-table" key={t.title}>
+            <h4>{t.title}</h4>
+            <ol className="gazette-rows">
+              {t.rows.map((r, i) => {
+                const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+                const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
+                const end = at(r.value);
+                const good = t.lowerBetter ? r.value <= (t.avg ?? r.value) : r.value >= (t.avg ?? r.value);
+                return (
+                  <li
+                    key={`${r.teamId}:${r.playerId ?? ''}`}
+                    className={
+                      [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'is-gap' : '']
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                  >
+                    <span className="gazette-rank">{r.rank}</span>
+                    <span className="gazette-who">
+                      {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
+                      {t.players ? (
+                        <span className="small muted">
+                          {' '}
                           <TeamLink team={league.teams[r.teamId]} />
-                        )}
-                      </td>
-                      <td className="num">{gazetteValue(t, r.value)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ))}
-    </>
+                        </span>
+                      ) : (
+                        <TeamLink team={league.teams[r.teamId]} />
+                      )}
+                    </span>
+                    <span className="gazette-track" aria-hidden="true">
+                      <span
+                        className={`gazette-bar${t.avg === undefined ? '' : good ? ' is-good' : ' is-bad'}`}
+                        style={{ left: `${Math.min(zero, end)}%`, width: `${Math.max(1, Math.abs(end - zero))}%` }}
+                      />
+                      {t.avg !== undefined && <span className="gazette-avg" style={{ left: `${at(t.avg)}%` }} />}
+                    </span>
+                    <span className="gazette-value">{gazetteValue(t, r.value)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            {t.avg !== undefined && (
+              <p className="gazette-key small muted">
+                <span className="gazette-avg is-key" /> League average {gazetteValue(t, t.avg)}
+              </p>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
