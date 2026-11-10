@@ -120,7 +120,7 @@ export function TeamStats({ league }: { league: League }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Regular season only.
+        Regular season.
       </p>
       <div className="table-scroll">
         <table>

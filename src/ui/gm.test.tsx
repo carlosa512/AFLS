@@ -84,7 +84,7 @@ describe('GM cards and directory', () => {
     expect(renderToStaticMarkup(<GmJobs league={l} />)).toContain('Between GM jobs');
     const p = Object.values(l.players).find((p) => p.teamId === l.userTeamId)!;
     const card = renderToStaticMarkup(<PublicPlayerCard league={l} player={p} onClose={() => {}} />);
-    expect(card).toContain('Public career results');
+    expect(card).not.toContain('Public career results');
     expect(card).not.toContain('Scouting report');
     expect(renderToStaticMarkup(<PublicRoster league={l} teamId={l.userTeamId} />)).not.toContain('Release');
   });
@@ -101,7 +101,7 @@ describe('GM cards and directory', () => {
     ]) {
       expect(html).toContain('Owner mandate');
       expect(html).toContain('Give this program another year.');
-      expect(html).toContain('Already under contract');
+      expect(html).toContain('Under contract through');
     }
     const html = renderToStaticMarkup(<CoachesScreen league={l} />);
     expect(html).toMatch(new RegExp(`aria-label="Dismiss[^\"]*${coach.firstName} ${coach.lastName}" disabled=""`));
@@ -161,7 +161,7 @@ describe('GM cards and directory', () => {
     const l = world();
     const html = renderCard(l, l.gms[l.teams[1].gmId!]);
     expect(html).toContain('Recorded from');
-    expect(html).toContain('before the record began');
+    expect(html).toContain('No GM games yet');
   });
 
   it('links GM names in text and supports explicit GM references', () => {

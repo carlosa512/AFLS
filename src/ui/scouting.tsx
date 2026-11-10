@@ -640,7 +640,7 @@ export function DevelopmentChart({ league, player: p }: { league: League; player
     return (
       <p className="muted small" style={{ margin: 0 }}>
         {points.length
-          ? `Rated ${points[0].ovr.toFixed(1)} in ${points[0].season}. His development history starts next league year.`
+          ? `Rated ${points[0].ovr.toFixed(1)} in ${points[0].season}.`
           : 'No development history on file yet.'}
       </p>
     );

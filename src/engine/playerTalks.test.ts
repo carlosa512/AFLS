@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleAdvance, moraleContext, type MoraleContext } from './morale';
-import { aiReply, answerRoomTalk, answerTalk, canPromise, roomAsks, talksAt, talkStep, waitFor } from './playerTalks';
+import {
+  aiReply,
+  answerRoomTalk,
+  answerTalk,
+  BOILING,
+  canPromise,
+  losingReachesYou,
+  roomAsks,
+  talksAt,
+  talkStep,
+  waitFor,
+} from './playerTalks';
 import { activeRoster, setTeam } from './roster';
 import { POSITIONS, type League, type MoraleJolt, type Player } from './types';
 
@@ -347,6 +358,41 @@ describe("talks: the club's losing", () => {
   });
 });
 
+describe('talks: the losing reaches you only when it boils over', () => {
+  it('comes from a captain, or from anyone once the club has lost four straight', () => {
+    const l = fresh();
+    const p = sulker(l, l.userTeamId, 0);
+    const ctx = moraleContext(l);
+    const run = (n: number): MoraleContext => ({
+      ...ctx,
+      records: new Map([[l.userTeamId, { ...ctx.records.get(l.userTeamId)!, streak: `L${n}` }]]),
+    });
+    expect(losingReachesYou(l, p, run(BOILING - 1))).toBe(false);
+    expect(losingReachesYou(l, p, run(BOILING))).toBe(true);
+    l.teams[l.userTeamId].captains = { season: l.season, offense: p.id, defense: -1, specialTeams: -1 };
+    expect(losingReachesYou(l, p, run(0))).toBe(true);
+  });
+
+  it('files no ask for a man without standing, and leaves an AI club alone', () => {
+    const l = fresh();
+    const p = sulker(l, l.userTeamId, 0);
+    p.morale = { level: -4 };
+    p.personality = { ...p.personality, winning: 1 };
+    l.history.push({ season: l.season - 1, records: { [l.userTeamId]: { w: 0, l: 17, t: 0 } } } as never);
+    steps(l, 3);
+    expect(p.morale!.talk?.ask).toBeUndefined();
+    expect(p.morale!.talk?.answered).toBeUndefined();
+  });
+
+  it('keeps the words of "lead the room" apart from a plain reassurance', () => {
+    const l = fresh();
+    const p = sulker(l, l.userTeamId, 0);
+    p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    expect(answerRoomTalk(l, 'team', 'reassure', true)).toBe(1);
+    expect(p.morale!.talk!.answered).toMatchObject({ reply: 'reassure', lead: true });
+  });
+});
+
 describe('talks: the losing inside the gap', () => {
   /** A rookie whose only weight is a losing club (last season's record), asking at his third step down. */
   function loser(l: League, teamId: number): Player {
@@ -367,6 +413,8 @@ describe('talks: the losing inside the gap', () => {
 
     const m = fresh();
     const q = loser(m, m.userTeamId);
+    // A captain: the losing reaches your desk only from a man the room follows.
+    m.teams[m.userTeamId].captains = { season: m.season, offense: q.id, defense: -1, specialTeams: -1 };
     m.teams[m.userTeamId].losingAnswer = { team: { reply: 'firm', at: m.moraleAt! - 10 } };
     steps(m, 3);
     expect(q.morale!.talk?.ask).toEqual({ cause: 'losing', at: m.moraleAt });

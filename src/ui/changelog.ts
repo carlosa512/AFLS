@@ -13,10 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.26',
+    date: '2026-11-10',
+    title: 'Plainer hints',
+    text: "Tooltips, dialogs and the draft board's guide are plain sentences now, and the staff job descriptions are shorter.",
+  },
+  {
     version: '0.4.25',
     date: '2026-11-10',
-    title: 'Fewer words on every screen',
-    text: 'Screens say less. The paragraphs under headings that explained the game are cut or folded away, and the hints that stay are plain sentences.',
+    title: 'Letters that get to the point',
+    text: 'Scouting reports, the waiver wire, the Gazette and the squad letter read cleaner and do more. Screens explain themselves less, and the losing reaches you only when it boils over.',
   },
   {
     version: '0.4.24',

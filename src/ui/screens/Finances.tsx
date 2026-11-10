@@ -176,12 +176,6 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
           <SquadContracts league={league} players={squad} isUser={isUser} />
         ) : (
           <>
-            {isUser && (
-              <p className="muted small" style={{ marginTop: 0 }}>
-                &ldquo;If released&rdquo; is today's dead money and cap room
-                {isOffseason(league.phase) ? ' (pre-June 1)' : ''}.
-              </p>
-            )}
             <div className="table-scroll">
               <table>
                 <thead>
@@ -195,7 +189,19 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     <SortTh label="APY" k="apy" sort={sort} onSort={onSort} className="num" />
                     <SortTh label="Thru" k="thru" sort={sort} onSort={onSort} className="num" />
                     <SortTh label="Gtd left" k="gtd" sort={sort} onSort={onSort} className="num" />
-                    <SortTh label="If released: dead" k="dead" sort={sort} onSort={onSort} className="num" />
+                    <SortTh
+                      label={
+                        <span
+                          title={`Today's dead money and cap room if released${isOffseason(league.phase) ? ' (pre-June 1)' : ''}. Bonus money pushed into void years comes due as dead money when those deals void.`}
+                        >
+                          If released: dead
+                        </span>
+                      }
+                      k="dead"
+                      sort={sort}
+                      onSort={onSort}
+                      className="num"
+                    />
                     <SortTh label="Saves" k="saves" sort={sort} onSort={onSort} className="num" />
                     {isUser && <th>Actions</th>}
                   </tr>
@@ -248,7 +254,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
         <Panel title="Dead money">
           {dead.length === 0 ? (
             <p className="muted" style={{ margin: 0 }}>
-              None. Dead money appears when you release or trade a player with bonus money or guarantees left.
+              None.
             </p>
           ) : (
             <table>

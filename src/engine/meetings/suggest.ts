@@ -382,25 +382,26 @@ export function choicesFor(
 
   const backings: Backing[] = [];
   const named: number[] = [];
-  // A meeting about the man running their side (L4) is about him: what's behind it is the notice, or words. A talk with
-  // an agent or a man's snaps answers something else, and reads that way.
-  const aboutCoach = topic === 'coordinator';
-  const dealMen = aboutCoach
+  // A meeting about the man running their side (L4) is about him: what's behind it is the notice, or words. A meeting
+  // about the losing is about the losing: a move while the window is open, or words. A talk with an agent, a man's
+  // snaps or a feud answers something nobody raised, and reads that way.
+  const narrow = topic === 'coordinator' || topic === 'losing';
+  const dealMen = narrow
     ? []
     : men.filter((p) => grievancesOf(league, p, ctx).has('deal') && !league.negotiations[p.id]);
   if (dealMen.length) backings.push('talks');
-  const snapsMan = (aboutCoach ? [] : men)
+  const snapsMan = (narrow ? [] : men)
     .filter(
       (p) =>
         grievancesOf(league, p, ctx).has('snaps') && !isStarter(league, p) && (actualRole(league, p, ctx) ?? 0) < 2,
     )
     .sort((a, b) => moraleLevel(league, a) - moraleLevel(league, b) || a.id - b.id)[0];
   if (snapsMan) backings.push('snaps');
-  const feud = aboutCoach ? null : feudIn(men);
+  const feud = narrow ? null : feudIn(men);
   if (feud) backings.push('feud');
-  if (!aboutCoach && league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK && losingNow)
+  if (topic !== 'coordinator' && league.phase === 'regular' && league.week <= TRADE_DEADLINE_WEEK && losingNow)
     backings.push('move');
-  if (aboutCoach && scope !== 'team') backings.push('notice');
+  if (topic === 'coordinator' && scope !== 'team') backings.push('notice');
   backings.push('words');
   // The men each commitment would name, in the order the commitments are offered.
   const namedFor: NonNullable<MeetingSuggestion['namedFor']> = {};

@@ -673,10 +673,7 @@ export function Folded({
         index={index}
         folded
       />
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted small">
-          {talk ? `A conversation with the ${lead.from}, newest first.` : `${t.messages.length} letters.`}
-        </span>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
         <button className="linklike small" onClick={() => setOpenIds(allOpen ? [] : t.messages.map((m) => m.id))}>
           {allOpen ? 'Hide all' : 'Show all'}
         </button>

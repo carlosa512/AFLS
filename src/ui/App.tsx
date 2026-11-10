@@ -310,7 +310,7 @@ export function App() {
                 label: 'Sim offseason…',
                 fn: (l) => simOffseason(l, true),
                 title: 'Let the AI run your offseason?',
-                body: 'Your front office makes every call through to week 1: re-signings, tags, free agency, the draft and cuts. You can review every move on the Cap screen afterwards.',
+                body: 'Your front office is handling the offseason.',
                 ok: 'Sim to week 1',
                 cancel: "I'll do it myself",
                 then: { view: 'home' },

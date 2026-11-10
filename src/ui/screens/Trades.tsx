@@ -659,9 +659,6 @@ function TradeTable({ league }: { league: League }) {
           )}
         </div>
         <AssetPicker league={league} partnerId={partnerId} mine={a} theirs={b} onMine={setMine} onTheirs={setTheirs} />
-        <p className="muted small" style={{ marginBottom: 0 }}>
-          A traded player takes his salary with him. His bonus money stays on your cap as dead money.
-        </p>
       </Panel>
     </>
   );

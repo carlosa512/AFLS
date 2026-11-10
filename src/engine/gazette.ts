@@ -7,6 +7,7 @@
 import { employed } from './employment';
 import { ordinal } from './opposition';
 import { computeRecords, conferenceSeeds } from './season/standings';
+import { stableHash } from './voice';
 import type { AdvancedStats, GazetteTable, GazetteUnit, League, Team } from './types';
 
 export type { GazetteTable };
@@ -223,7 +224,8 @@ function teamTable(league: League, stats: Map<number, TeamAdvanced>, m: TeamMeas
   const shown = ranked.filter(
     (r) => r.rank <= 5 || r.rank > ranked.length - 3 || (employed(league) && r.teamId === league.userTeamId),
   );
-  return { title: m.title, unit: m.unit, ...(m.lowerBetter ? { lowerBetter: true as const } : {}), rows: shown };
+  const avg = ranked.reduce((a, r) => a + r.value, 0) / (ranked.length || 1);
+  return { title: m.title, unit: m.unit, ...(m.lowerBetter ? { lowerBetter: true as const } : {}), avg, rows: shown };
 }
 
 function playerTable(league: League, players: Map<number, PlayerAdvanced>, m: PlayerMeasure): GazetteTable {
@@ -293,7 +295,35 @@ const recordOf = (league: League, teamId: number) => {
 interface Story {
   subject: string;
   lead: string;
+  /** The lead already told the column's first table (its leader and the gap behind him). */
+  covers?: true;
 }
+
+type Ends = { top: string; v: string; bottom: string; w: string; phrase: string };
+/** A team table in a sentence: who leads it and who is last. A column rotates through them, so no two read alike. */
+const TEAM_LINES: readonly ((e: Ends) => string)[] = [
+  (e) => `The ${e.top} are the league's best in ${e.phrase} at ${e.v}; the ${e.bottom} are last at ${e.w}.`,
+  (e) => `In ${e.phrase}, the ${e.top} lead at ${e.v} and the ${e.bottom} bring up the rear at ${e.w}.`,
+  (e) => `Nobody beats the ${e.top} in ${e.phrase} (${e.v}). The ${e.bottom} sit at the other end, at ${e.w}.`,
+];
+type Leader = { who: string; club: string; v: string };
+/** A player table in a sentence: its leader, in the measure's own words. */
+const PLAYER_LINES: Record<PlayerMeasure, readonly ((l: Leader) => string)[]> = {
+  qb: [
+    (l) =>
+      `${l.who} of the ${l.club} has been the most efficient quarterback, worth ${l.v} expected points a dropback.`,
+    (l) => `At quarterback, ${l.who} of the ${l.club} leads the league at ${l.v} expected points a dropback.`,
+  ],
+  rusher: [
+    (l) =>
+      `${l.who} of the ${l.club} leads the running backs: ${l.v} of his carries have kept the offense on schedule.`,
+    (l) => `Among running backs, ${l.who} of the ${l.club} has the best success rate, at ${l.v}.`,
+  ],
+  rush: [
+    (l) => `${l.who} of the ${l.club} leads the pass rushers, with pressure on ${l.v} of his rushes.`,
+    (l) => `No pass rusher wins more often than ${l.who} of the ${l.club}: pressure on ${l.v} of his rushes.`,
+  ],
+};
 
 /** The story: the first of the column's conditions that holds. */
 function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamMeasure[]): Story {
@@ -311,6 +341,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
     return {
       subject: `The ${name(team(first.id))} lead the league in ${m.phrase} by a distance`,
       lead: `The ${name(team(first.id))} lead the league at ${fmt(m.unit, first.v)}, ${fmt(m.unit, gap)} clear of the ${name(team(second.id))}. Nobody else is close.`,
+      covers: true,
     };
   // 2. Our club at either end of a table in this column.
   if (employed(league))
@@ -421,13 +452,39 @@ export function gazetteFor(
       : edition === 'wrap'
         ? wrapStory(league, stats)
         : story(league, stats, measures);
+  // Each table in a sentence of its own, the templates rotating from a spot the edition fixes.
+  const turn = stableHash(`${league.seed}:${league.season}:${edition}`);
+  const mine = employed(league) ? league.userTeamId : null;
   const context = tables
-    .filter((t) => t.rows.length > 1)
-    .map((t) => {
-      const top = t.rows[0],
-        bottom = t.rows.at(-1)!;
-      return `${t.title}: ${t.players ? top.name : `the ${top.name}`} lead${t.players ? 's' : ''} at ${fmt(t.unit, top.value)}${t.players ? '' : `; the ${bottom.name} trail at ${fmt(t.unit, bottom.value)}`}.`;
+    .map((t, i) => {
+      const theme = themes[i];
+      const top = t.rows[0];
+      const bottom = t.rows.at(-1);
+      if (!top || !bottom || t.rows.length < 2) return '';
+      if (theme in TEAM) {
+        if (i === 0 && s.covers) return '';
+        const ends = {
+          top: top.name,
+          v: fmt(t.unit, top.value),
+          bottom: bottom.name,
+          w: fmt(t.unit, bottom.value),
+          phrase: TEAM[theme as keyof typeof TEAM].phrase,
+        };
+        return TEAM_LINES[(turn + i) % TEAM_LINES.length](ends);
+      }
+      const lines = PLAYER_LINES[theme as PlayerMeasure];
+      const lead = lines[(turn + i) % lines.length]({
+        who: top.name,
+        club: name(league.teams[top.teamId]),
+        v: fmt(t.unit, top.value),
+      });
+      // Our best man on the list, when he is on it and not leading it.
+      const ours = t.rows.find((r) => r.teamId === mine);
+      return ours && ours !== top && ours.rank <= 10
+        ? `${lead} The ${name(league.teams[ours.teamId])}' ${ours.name} is ${ordinal(ours.rank)}.`
+        : lead;
     })
+    .filter(Boolean)
     .join(' ');
   const us = league.teams[league.userTeamId];
   const close = employed(league)

@@ -5,7 +5,7 @@
  * the user's view only: our scouts' reads, the doctor's estimate, the public consensus.
  */
 import { useState, type ReactNode } from 'react';
-import { focusMatchups } from '../engine/opposition';
+import { focusMatchups, type MatchupFact } from '../engine/opposition';
 import { periodLine, playerOfTheGame } from '../engine/awards';
 import {
   asPromoted,
@@ -64,7 +64,7 @@ import {
 } from '../engine/staff';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
-import { LinkedText, moveIndex, MoveText, nameIndex } from './moves';
+import { LinkedText, linkedSegments, moveIndex, MoveText, nameIndex } from './moves';
 import { TalkContractButton } from './negotiation';
 import {
   deadlineDayTrades,
@@ -159,7 +159,9 @@ import { talkCard } from '../engine/talkMail';
 import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
+import { FuturesCell } from './personnel';
 import { wireClaim } from '../engine/waiverMail';
+import { movesClosed, reSigns } from './staffCopy';
 
 /** How many rows a list in a card shows before "See all". */
 const SHOW = 3;
@@ -347,51 +349,72 @@ const gazetteValue = (t: GazetteTable, v: number) =>
     ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(2)}`
     : `${Math.round(v * 100)}%`;
 
-/** The Gazette's tables as filed: rank, club or player, the number; a gap where the middle of the league is left out. */
+/**
+ * The Gazette's tables as a paper's stats page: a bar a row, drawn from zero (a number below zero runs left of the
+ * line), a tick at the league's average, our row marked; a gap where the middle of the league is left out.
+ */
 function GazetteCards({ league, tables }: { league: League; tables: GazetteTable[] }) {
   // Our row stands out only while we run a club (between jobs, none is ours).
   const mine = employed(league);
   return (
-    <>
-      {tables.map((t) => (
-        <Card key={t.title} title={t.title}>
-          <div className="table-scroll">
-            <table className="mail-table">
-              <tbody>
-                {t.rows.map((r, i) => {
-                  const p = r.playerId === undefined ? undefined : league.players[r.playerId];
-                  const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
-                  return (
-                    <tr
-                      key={`${r.teamId}:${r.playerId ?? ''}`}
-                      className={
-                        [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'mail-gap' : '']
-                          .filter(Boolean)
-                          .join(' ') || undefined
-                      }
-                    >
-                      <td className="num small muted">{r.rank}</td>
-                      <td>
-                        {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
-                        {t.players ? (
-                          <span className="small muted">
-                            {' '}
-                            <TeamLink team={league.teams[r.teamId]} />
-                          </span>
-                        ) : (
+    <div className="gazette">
+      {tables.map((t) => {
+        const values = [...t.rows.map((r) => r.value), ...(t.avg === undefined ? [] : [t.avg])];
+        const lo = Math.min(0, ...values);
+        const hi = Math.max(0, ...values);
+        const at = (v: number) => (hi === lo ? 0 : ((v - lo) / (hi - lo)) * 100);
+        const zero = at(0);
+        return (
+          <section className="gazette-table" key={t.title}>
+            <h4>{t.title}</h4>
+            <ol className="gazette-rows">
+              {t.rows.map((r, i) => {
+                const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+                const gap = i > 0 && r.rank > t.rows[i - 1].rank + 1;
+                const end = at(r.value);
+                const good = t.lowerBetter ? r.value <= (t.avg ?? r.value) : r.value >= (t.avg ?? r.value);
+                return (
+                  <li
+                    key={`${r.teamId}:${r.playerId ?? ''}`}
+                    className={
+                      [mine && r.teamId === league.userTeamId ? 'is-user' : '', gap ? 'is-gap' : '']
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                  >
+                    <span className="gazette-rank">{r.rank}</span>
+                    <span className="gazette-who">
+                      {p ? <PlayerLink league={league} player={p} pos={false} /> : t.players ? r.name : null}
+                      {t.players ? (
+                        <span className="small muted">
+                          {' '}
                           <TeamLink team={league.teams[r.teamId]} />
-                        )}
-                      </td>
-                      <td className="num">{gazetteValue(t, r.value)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ))}
-    </>
+                        </span>
+                      ) : (
+                        <TeamLink team={league.teams[r.teamId]} />
+                      )}
+                    </span>
+                    <span className="gazette-track" aria-hidden="true">
+                      <span
+                        className={`gazette-bar${t.avg === undefined ? '' : good ? ' is-good' : ' is-bad'}`}
+                        style={{ left: `${Math.min(zero, end)}%`, width: `${Math.max(1, Math.abs(end - zero))}%` }}
+                      />
+                      {t.avg !== undefined && <span className="gazette-avg" style={{ left: `${at(t.avg)}%` }} />}
+                    </span>
+                    <span className="gazette-value">{gazetteValue(t, r.value)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            {t.avg !== undefined && (
+              <p className="gazette-key small muted">
+                <span className="gazette-avg is-key" /> Average {gazetteValue(t, t.avg)}
+              </p>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -534,7 +557,7 @@ function LeagueNewsCards({ league, report }: { league: League; report: NonNullab
           </table>
         </div>
         <p className="small muted" style={{ margin: '8px 0 0' }}>
-          Official order includes tiebreakers. Back is the gap in games.
+          Back = games behind.
         </p>
       </Card>
     );
@@ -639,10 +662,6 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
           </tbody>
         </table>
       </div>
-      <p className="small muted" style={{ margin: '8px 0 0' }}>
-        Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs. Kicking work is listed
-        separately.
-      </p>
     </Card>
   );
 }
@@ -662,11 +681,11 @@ function TalkCards({
   room?: 'team';
 }) {
   const card = talkCard(league, s);
-  const answer = (reply: TalkReply) =>
+  const answer = (reply: TalkReply, lead = false) =>
     store.mutate((l) =>
       room && (reply === 'reassure' || reply === 'firm')
-        ? answerRoomTalk(l, room, reply)
-        : answerTalk(l, s.playerId, reply),
+        ? answerRoomTalk(l, room, reply, lead)
+        : answerTalk(l, s.playerId, reply, lead),
     );
   if (card.state === 'closed')
     return (
@@ -697,12 +716,29 @@ function TalkCards({
             {card.cause === 'deal' ? 'Promise a new deal' : 'Promise more snaps'}
           </button>
         )}
-        <button className="btn btn-sm" onClick={() => answer('reassure')}>
-          Reassure him
-        </button>
-        <button className="btn btn-sm" onClick={() => answer('firm')}>
-          Be firm
-        </button>
+        {card.cause === 'losing' ? (
+          // The losing has its own three answers: what you are actually telling him.
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              We'll turn this around
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('reassure', true)}>
+              I need you to lead the room
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              That's on the coach and you
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              Reassure him
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              Be firm
+            </button>
+          </>
+        )}
         {/* About money: talk contract right here, when his deal is open to it. Opening talks isn't an answer. */}
         {card.cause === 'deal' && league.players[s.playerId] && (
           <TalkContractButton league={league} player={league.players[s.playerId]} />
@@ -1034,10 +1070,8 @@ function MatchupCards({
       {game.playoffRound && <PlayoffPath league={league} game={game} />}
       <OpponentCard league={league} opp={opp} game={game} />
       {live && <MatchupsCard league={league} opp={opp} />}
-      <div className="mail-split">
-        <WatchCard league={league} opp={opp} season={s.season} />
-        <TheirInjuries league={league} opp={opp} />
-      </div>
+      <WatchCard league={league} opp={opp} season={s.season} />
+      <TheirInjuries league={league} opp={opp} />
     </>
   );
 }
@@ -1156,7 +1190,7 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
   );
 }
 
-/** One or two useful contests, with the football evidence behind the scout's read. */
+/** One or two useful contests: who has the edge, the coach's sentence on it, and each side's number with its league rank. */
 function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   const focuses = focusMatchups(league, opp.id);
   return (
@@ -1164,110 +1198,115 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
       {focuses.map((f) => (
         <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
-            <b>{f.matchup.title}</b>
-            <span className="small muted">
-              {f.side === 'attack' ? 'Our offense vs their defense' : 'Their offense vs our defense'}
-            </span>
+            <b>{f.heading}</b>
             <span
               className={`tag-pill ${f.advantage === 'ours' ? 'tag-good' : f.advantage === 'theirs' ? 'tag-bad' : ''}`}
             >
               {f.label}
             </span>
           </div>
-          <p className="small">{f.why}</p>
+          <p className="mail-focus-why">{f.why}</p>
           {f.facts.length > 0 && (
-            <div className="mail-focus-facts">
+            <div className="mail-focus-bars">
               {f.facts.map((fact) => (
-                <div key={fact.teamId}>
-                  <b className="small">
-                    <TeamLink team={league.teams[fact.teamId]} />
-                  </b>
-                  <span className="small">
-                    {fact.label}: <strong>{fact.value}</strong>
-                  </span>
-                  <span className="muted small">
-                    {fact.rank ? `${ordinal(fact.rank)} in league · ` : ''}
-                    {fact.games} games
-                  </span>
-                </div>
+                <RankBar key={fact.teamId} league={league} fact={fact} mine={fact.teamId === league.userTeamId} />
               ))}
             </div>
           )}
-          <div className="mail-focus-leaders">
-            <span className="small muted">Unit leaders</span>
-            {[f.matchup.offense.lead, f.matchup.defense.lead].map((id, i) =>
-              id !== undefined && league.players[id] ? (
-                <span key={`${i}:${id}`}>
-                  <PlayerAvatar
-                    player={league.players[id]}
-                    team={league.teams[i === 0 ? f.offenseId : f.defenseId]}
-                    size={28}
-                  />
-                  <PlayerLink league={league} player={league.players[id]} />
-                  <span className="small muted">({league.players[id].position})</span>
-                </span>
-              ) : null,
-            )}
-          </div>
         </section>
       ))}
     </Card>
   );
 }
 
-const FIELD_POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S'];
+/** One side's number in a contest: the club, the stat, and a bar for where it ranks in the league (longer is better). */
+function RankBar({ league, fact, mine }: { league: League; fact: MatchupFact; mine: boolean }) {
+  const clubs = league.teams.length;
+  const share = fact.rank ? (clubs + 1 - fact.rank) / clubs : 0;
+  const tone = !fact.rank ? '' : fact.rank <= clubs / 3 ? ' is-good' : fact.rank > (2 * clubs) / 3 ? ' is-bad' : '';
+  return (
+    <div className={`rank-bar${mine ? ' is-mine' : ''}`}>
+      <span className="rank-bar-who">
+        <b>{league.teams[fact.teamId].name}</b>
+        <span className="muted">
+          {' '}
+          {fact.label.toLowerCase()} {fact.value}
+        </span>
+      </span>
+      {fact.rank && (
+        <>
+          <span className="rank-bar-track" aria-hidden="true">
+            <span className={`rank-bar-fill${tone}`} style={{ width: `${Math.round(share * 100)}%` }} />
+          </span>
+          <span className="rank-bar-rank">{ordinal(fact.rank)}</span>
+        </>
+      )}
+    </div>
+  );
+}
 
-/** Their two best starters as our scouts see them, with this season's numbers. */
+const FIELD_POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DT', 'EDGE', 'LB', 'CB', 'S'];
+/** How many of their men the report puts a face to. */
+const WATCH = 4;
+
+/**
+ * Their men to know going in: whoever leads the units in the contests above, then their best starters as our scouts
+ * see them, each with his face (his number on it) and this season's line.
+ */
 function WatchCard({ league, opp, season }: { league: League; opp: Team; season: number }) {
+  const leads = focusMatchups(league, opp.id)
+    .map((f) => (f.side === 'attack' ? f.matchup.defense.lead : f.matchup.offense.lead))
+    .flatMap((id) => (id !== undefined && league.players[id]?.teamId === opp.id ? [league.players[id]] : []));
   const best = FIELD_POSITIONS.flatMap((pos) => starters(league, opp, pos))
     .map((p) => ({ p, ovr: seenOvr(league, p) }))
     .sort((a, b) => b.ovr - a.ovr)
-    .slice(0, 2);
-  if (!best.length) return null;
+    .map(({ p }) => p);
+  const men = [...new Set([...leads, ...best])].slice(0, WATCH);
+  if (!men.length) return null;
   return (
     <Card title="Players to watch">
-      {best.map(({ p }) => (
-        <div className="mail-row" key={p.id}>
-          <span className="pos">{p.position}</span>
-          <span>
-            <PlayerLink league={league} player={p} short />
-            <span className="muted small" style={{ display: 'block' }}>
-              {honorLine(p, statLine(p, season)) || 'No stats yet this season'}
+      <div className="watch-grid">
+        {men.map((p) => (
+          <div className="watch-man" key={p.id}>
+            <PlayerAvatar player={p} team={opp} size={52} />
+            <span className="watch-man-who">
+              <span>
+                <span className="pos">{p.position}</span> <PlayerLink league={league} player={p} />
+              </span>
+              <span className="muted small">{honorLine(p, statLine(p, season)) || 'No stats yet this season'}</span>
             </span>
-          </span>
-        </div>
-      ))}
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }
 
-/** Their injury report (public, like the NFL's): the longest layoffs first, three at a time. */
+/** Their injury report (public, like the NFL's): the longest layoffs first, a line a man. */
 function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
   const nav = useNav();
   const hurt = teamPlayers(league, opp.id)
     .filter((p) => p.injury || p.ir)
     .sort((a, b) => (b.injury?.estimate[1] ?? 99) - (a.injury?.estimate[1] ?? 99));
   return (
-    <Card title="Their injuries">
+    <Card title="Who they're missing">
       {hurt.length === 0 && (
         <p className="muted small" style={{ margin: 0 }}>
           Nobody on their report.
         </p>
       )}
-      {hurt.slice(0, SHOW).map((p) => (
-        <div className="mail-row" key={p.id}>
-          <span className="pos">{p.position}</span>
-          <span>
+      <ul className="missing-list">
+        {hurt.slice(0, SHOW).map((p) => (
+          <li key={p.id}>
+            <span className="pos">{p.position}</span>
             <PlayerLink league={league} player={p} short />
-            {p.injury && (
-              <span className="muted small" style={{ display: 'block' }}>
-                {injuryLabel(p.injury.type)}
-              </span>
-            )}
-          </span>
-          <InjuryTag league={league} p={p} />
-        </div>
-      ))}
+            {p.injury && <span className="muted small">{injuryLabel(p.injury.type)}</span>}
+            <span className="missing-tag">
+              <InjuryTag league={league} p={p} />
+            </span>
+          </li>
+        ))}
+      </ul>
       {hurt.length > SHOW && (
         <div className="mail-more">
           <span className="muted">+{hurt.length - SHOW} more</span>
@@ -1634,8 +1673,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value compares your pick with where the consensus ranked him. A player taken a round later than his rank is a
-          steal, and one taken a round earlier is a reach.
+          Value: vs consensus.
         </p>
       </Card>
       {trades.length > 0 ? (
@@ -1689,12 +1727,14 @@ function TradeCards({ league, s }: { league: League; s: Extract<MailSubject, { k
     <div className="mail-split">
       <Card>
         <span className="eyebrow">You sent</span>
+        <Faces league={league} text={sent} />
         <p style={{ margin: '6px 0 0' }}>
           <LinkedText league={league} text={sent} />
         </p>
       </Card>
       <Card>
         <span className="eyebrow">You got</span>
+        <Faces league={league} text={got} />
         <p style={{ margin: '6px 0 0' }}>
           <LinkedText league={league} text={got} />
         </p>
@@ -1880,11 +1920,7 @@ function ClearedCards({
       )}
       {canSit && (
         <Card className="mail-fact-card">
-          <span className="small">
-            {sitting
-              ? 'He sits this week’s game and is back the week after.'
-              : 'Sitting him this week spends the first of his two riskiest weeks on the sideline.'}
-          </span>
+          {sitting && <span className="small">He sits this week’s game and is back the week after.</span>}
           <button
             className="btn btn-sm"
             onClick={() => store.mutate((l) => sitAfterClear(l, l.players[p.id], !sitting))}
@@ -1913,7 +1949,7 @@ function DeadlineCards({
     return (
       <>
         <p className="muted small" style={{ margin: 0 }}>
-          The trade deadline has passed. Rosters are set until the new league year.
+          Trade deadline has passed.
         </p>
         {day}
       </>
@@ -2274,7 +2310,7 @@ const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string 
   stays: {
     label: 'Re-signs',
     tone: 'tag-good',
-    tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.',
+    tip: reSigns(null, 'them'),
   },
   budget: {
     label: 'Leaves: budget',
@@ -2690,7 +2726,7 @@ function PoachedCards({
             is our {title} now.
           </>
         ) : (
-          'Coaching moves are closed until the next re-sign window.'
+          movesClosed('Coaching')
         )}
       </p>
     );
@@ -3136,31 +3172,48 @@ function SectionCard({
           return cell !== '' && /^[\d$.,\s%-]+[MK]?$/.test(cell) && Number.isFinite(n) ? n : cell;
         });
   // Rows the writer annotates (a note, a claim) read as a list: the facts on one line, his words in full beneath.
-  if (section.rows.some((r) => r.note || r.claim))
+  if (section.rows.some((r) => r.note || r.claim || r.futures))
     return (
       <Card title={section.title}>
         {section.lead && <p className="inbox-body">{section.lead}</p>}
+        {/* Said once for the letter, not under every row: the buttons show it too. */}
+        {section.rows.some((r) => r.claim && noRoomFor(league, r.claim.entryId)) && (
+          <p className="small muted" style={{ margin: '0 0 6px' }}>
+            {NO_ROOM}
+          </p>
+        )}
         <ul className="mail-rows">
           {section.rows.map((r, j) => {
             const p = r.playerId === undefined ? undefined : league.players[r.playerId];
             const facts = r.cells
-              .slice(1, -1)
-              // Numbers carry their column's name ("Age 22"); words read on their own.
-              .map((c, k) => (cols[k + 1] && /^[\d$]/.test(c) ? `${cols[k + 1]} ${c}` : c))
+              // A squad row's cells are all facts; elsewhere the last cell is the row's side label.
+              .slice(1, r.futures ? undefined : -1)
+              // Numbers carry their column's name ("Our read 9"); an age or a deal reads on its own, as do words.
+              .map((c, k) =>
+                cols[k + 1] && /^[\d$]/.test(c) && cols[k + 1] !== 'Age' && cols[k + 1] !== 'Deal'
+                  ? `${cols[k + 1]} ${c}`
+                  : c,
+              )
               .join(' · ');
             return (
               <li key={j} className="mail-row">
                 <div className="mail-row-head">
-                  {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
-                  {facts && <span className="small muted"> {facts}</span>}
+                  {p && <Face league={league} player={p} />}
+                  <span>
+                    {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
+                    {facts && <span className="small muted"> {facts}</span>}
+                  </span>
                 </div>
                 <div className="mail-row-side">
                   {r.contract ? (
                     <CallPill league={league} playerId={r.contract.playerId} filed={r.cells.at(-1)!} />
                   ) : (
-                    r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>
+                    r.cells.length > 1 && !r.futures && <span className="small">{r.cells.at(-1)}</span>
                   )}
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
+                  {r.futures && league.players[r.futures.playerId] && (
+                    <FuturesCell league={league} player={league.players[r.futures.playerId]} />
+                  )}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
                 {r.talk && (
@@ -3169,7 +3222,6 @@ function SectionCard({
                 {r.negotiate && onNegotiate && (
                   <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
                 )}
-                {r.claim && <ClaimProblem league={league} entryId={r.claim.entryId} />}
                 {r.contract && (
                   <ContractControls
                     league={league}
@@ -3210,7 +3262,14 @@ function SectionCard({
                 <tr key={j}>
                   {r.cells.map((c, k) => (
                     <td key={k}>
-                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : c}
+                      {k === 0 && p ? (
+                        <span className="mail-face-cell">
+                          <Face league={league} player={p} />
+                          <PlayerLink league={league} player={p} pos />
+                        </span>
+                      ) : (
+                        <Moved text={c} />
+                      )}
                       {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
                     </td>
                   ))}
@@ -3226,6 +3285,52 @@ function SectionCard({
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A face big enough to read the number on it, wherever a letter's row or line is about one player. */
+const FACE = 36;
+function Face({ league, player, size = FACE }: { league: League; player: Player; size?: number }) {
+  return (
+    <span className="mail-face">
+      <PlayerAvatar player={player} team={player.teamId !== null ? league.teams[player.teamId] : null} size={size} />
+    </span>
+  );
+}
+
+/** The players a line of a letter names, as faces: a trade's two sides read at a glance. */
+function Faces({ league, text }: { league: League; text: string }) {
+  const ids = [
+    ...new Set(
+      linkedSegments(league, text).flatMap((seg) =>
+        typeof seg !== 'string' && seg.who.kind === 'player' && league.players[seg.who.id] ? [seg.who.id] : [],
+      ),
+    ),
+  ];
+  if (!ids.length) return null;
+  return (
+    <div className="mail-faces">
+      {ids.map((id) => (
+        <Face key={id} league={league} player={league.players[id]} size={44} />
+      ))}
+    </div>
+  );
+}
+
+/** A cell that carries a change ("12 ▲1", "9 ▼2"): the number, then the change in its colour. */
+function Moved({ text }: { text: string }) {
+  const m = /^(.*?)\s*([▲▼])(\d+)$/.exec(text);
+  if (!m) return <>{text}</>;
+  const up = m[2] === '▲';
+  return (
+    <>
+      {m[1]}{' '}
+      <span className={`small ${up ? 'tone-good' : 'tone-bad'}`}>
+        <span aria-hidden="true">{m[2]}</span>
+        {m[3]}
+        <span className="visually-hidden">{up ? ' up' : ' down'} this season</span>
+      </span>
+    </>
   );
 }
 
@@ -3291,35 +3396,49 @@ function PeopleSection({
   );
 }
 
-/** A wire row's claim, put in from the letter: the waiver screen's claim, with its reason when it can't go in. */
+const NO_ROOM = 'Our roster is full. Make room on the Waiver wire screen to claim.';
+
+/** A claim on this wire entry is held up only by a full roster. */
+function noRoomFor(league: League, entryId: number): boolean {
+  if (!league.personnel?.waivers?.pending.some((e) => e.id === entryId)) return false;
+  const { problem, claimed } = wireClaim(league, entryId);
+  return !claimed && !!problem && /roster move/.test(problem);
+}
+
+/**
+ * A wire row's claim, put in from the letter: the waiver screen's claim. When it can't go in the button reads off and
+ * says why on hover or on a tap (a disabled button would swallow the tap).
+ */
 function ClaimButton({ league, entryId }: { league: League; entryId: number }) {
+  const [why, setWhy] = useState(false);
   const pending = league.personnel?.waivers?.pending.some((e) => e.id === entryId);
   if (!pending) return <span className="muted small">Settled</span>;
   const { claim, problem, claimed } = wireClaim(league, entryId);
   if (claimed) return <span className="muted small">Claimed</span>;
+  const reason = problem && /roster move/.test(problem) ? NO_ROOM : problem;
+  if (reason)
+    return (
+      <span className="claim-off">
+        <button
+          className="btn btn-sm is-off"
+          aria-disabled="true"
+          aria-expanded={why}
+          title={reason}
+          onClick={() => setWhy((w) => !w)}
+        >
+          {reason === NO_ROOM ? 'No room' : 'Claim'}
+        </button>
+        {why && (
+          <span className="claim-why small" role="status">
+            {reason}
+          </span>
+        )}
+      </span>
+    );
   return (
-    <>
-      <button
-        className="btn btn-sm btn-primary"
-        disabled={!!problem}
-        title={problem ?? undefined}
-        onClick={() => store.mutate((l) => setWaiverClaim(l, claim))}
-      >
-        Claim
-      </button>
-    </>
-  );
-}
-
-/** Why a wire row's claim can't go in yet, under its note: a full 53 is made room for on the waiver screen. */
-function ClaimProblem({ league, entryId }: { league: League; entryId: number }) {
-  if (!league.personnel?.waivers?.pending.some((e) => e.id === entryId)) return null;
-  const { problem, claimed } = wireClaim(league, entryId);
-  if (!problem || claimed) return null;
-  return (
-    <p className="mail-row-note small">
-      {/roster move/.test(problem) ? 'We need a roster spot first. Pick who goes on the Waiver wire screen.' : problem}
-    </p>
+    <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => setWaiverClaim(l, claim))}>
+      Claim
+    </button>
   );
 }
 

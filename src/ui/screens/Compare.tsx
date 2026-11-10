@@ -33,7 +33,7 @@ export function Compare({ league }: { league: League }) {
     return (
       <Panel title="Compare players">
         <p className="muted" style={{ margin: 0 }}>
-          Open any player and choose <b>Compare</b> to line up to three players side by side.
+          Choose <b>Compare</b> on a player to start.
         </p>
       </Panel>
     );
@@ -76,10 +76,6 @@ export function Compare({ league }: { league: League }) {
         </button>
       }
     >
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Your own players&rsquo; numbers are exact and everyone else&rsquo;s are scouted ranges. Stars compare a player
-        with everyone at his position in the league.
-      </p>
       <div className="table-scroll">
         <table className="compare-table">
           <thead>

@@ -39,15 +39,14 @@ export function PracticeSquad({ league }: { league: League }) {
     const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
-        <p>This league started before practice squads and waivers were added.</p>
-        <p className="small muted">
-          Turning them on gives every club a practice squad of up to 16, waivers, one-game call-ups and squad signings
-          between clubs. They can&rsquo;t be turned off again.
-        </p>
+        <p>Turn on personnel transactions?</p>
         <button
           className="btn btn-primary"
           disabled={!!blocked}
-          title={blocked ?? undefined}
+          title={
+            blocked ??
+            'Adds practice squads of up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once on, they stay on for this career.'
+          }
           onClick={() => store.mutate(turnOnPersonnel)}
         >
           Turn on practice squads
@@ -287,10 +286,6 @@ export function PracticeSquad({ league }: { league: League }) {
             A standard spot covers players with no seasons of service. A season of service means at least six
             regular-season games on the main roster, called up or on injured reserve. Players with one or two seasons
             use the special slots. Three or more seasons makes a veteran.
-          </p>
-          <p className="small muted">
-            Squad deals pay by the week, and releasing a player stops later checks. To move a player down from the main
-            roster you release him first, and other clubs may claim him.
           </p>
         </details>
         {mine && (

@@ -96,7 +96,7 @@ describe('the Locker Room’s word on what moods do (G2)', () => {
     roster[2].morale = { level: 5, jolts: [] };
     const html = render(<LockerRoom league={l} />);
     const count = (s: string) => html.split(s).length - 1;
-    expect(count('mood affects how he practices, grows and plays, and what he asks for in a new deal')).toBe(1);
+    expect(count('mood moves how he practices, grows and plays, and what he asks for in a new deal')).toBe(0);
     expect(count('costing him in practice and on game day')).toBe(1);
     expect(count('lifting his practice and his play')).toBe(1);
     // On his own row: after his name, before the next man's.

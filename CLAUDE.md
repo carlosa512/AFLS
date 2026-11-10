@@ -114,9 +114,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
   gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
   turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
-  moves its decision against a no-habits baseline (more of its log entries; the rare six are judged on built scenes, the QB trade-up one pooled over eight draft classes). Run it
+  moves its decision against a no-habits baseline (more of its log entries, pooled over four leagues; the rare six are judged on built scenes, the QB trade-up one pooled over eight draft classes). Run it
   after changing `gmHabits.ts`, `gmHabitsYear.ts`, `gmTraits.ts` or a habit hook in `offseason/` or `trade/`. Nothing may be
-  flagged.
+  flagged. `npm run check` and CI run it as two checks (`gm-habits` the churn, `gm-habits-fx` the effects with `--no-churn`), so each fits a job.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in
@@ -364,11 +364,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     no word settle it by the chart, a man finding out from the depth chart losing more (`BENCH_SIZE`: sit, backIn, thisWeek, earn, his, kept,
     broken, unsure, settled, chart). An AI club answers at once (`aiBenchReply`, by its GM). `benchWeek` runs in the morale step and draws nothing;
     `BENCH.on` false turns every writer off. A cleared starter not in a starting spot gets a reminder with "Put him back" (`clearedNotStarting`,
-    `putBack`, `dismissReminder`). Its words are `benchVoice.ts`, its rows `coachWeek.ts`'s, a note a week while a question waits and a closing
+    `putBack`, `dismissReminder`). After a club's last game of the year (`lastGameOfYear`) nobody asks: what was owed is settled
+    and open questions close with nothing said. Its words are `benchVoice.ts`, its rows `coachWeek.ts`'s, a note a week while a question waits and a closing
     when it ends (`benchStory`, `benchCard`) · `playerTalks.ts` players speaking up (G3): who asks (three
     steps down with a cause, two a club a step, eight steps' quiet after an answer), your answers (`answerTalk`) and the
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
-    run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;
+    run at the end of each morale step; the losing reaches your desk only from a leader, a voice or a captain, or from anyone once
+    the club has lost `BOILING` straight (`losingReachesYou`, your club only), and it has its own three answers (two
+    reassure, one of them `lead`, one firm); `promiseMail.ts` is the head coach's season's-end reminder of open promises;
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins, holdouts (G4a) and trade requests (G4b): who
     escalates (`escalation`: a soured talk, four Very poor steps; a deal from the re-sign window to camp, snaps, the losing
@@ -416,7 +419,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `docs/superpowers/specs/2026-11-02-team-meetings-design.md`): when a head coach suggests one (`suggest.ts`: calendar
     moments once a season; trouble when a room turns Split or Down, three straight losses, a feud starting, a leader
     benched or traded; cooldowns per room, team and club), the choices offered (approach, what's behind it, timing),
-    how each man takes it (`react.ts`: a score from fit, the coach against his makeup, the backing, the coach's word and
+    (a meeting about the losing backs only a move or words), how each man takes it (`react.ts`: a score from fit, the coach against his makeup, the backing, the coach's word and
     history, luck on the meeting's own stream; a `meeting` jolt, a quarter as far for a man with nothing wrong),
     commitments kept or broken (`commitments.ts`; AI clubs by their GM's tendencies), the GM address in a crisis
     (`address.ts`), each head coach's hidden credibility (`credibility.ts`, read in words; a worn-thin word adds up to a
@@ -512,7 +515,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `tr.is-user`, tabs as routes, and the fog-of-war list of what a screen may show. The "screen contract" tests
   in `ui/ui.test.ts` enforce it. **Screen text follows its "Words on a screen" section:** no paragraph under a
   heading that describes the panel, explains a control or tells how the sim works inside; a rule of the game goes
-  on the dialog, the disabled button or the tooltip where it decides something; plain full sentences. When a
+  on the dialog, the disabled button or the tooltip where it decides something; a few words where they do, else a
+  plain sentence. When a
   change adds or edits screen text, run `npm run copy` and read the lines you touched in `.check/copy.txt`.
 
 ## Conventions

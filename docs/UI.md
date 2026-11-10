@@ -74,8 +74,8 @@ screen text: a line that sounds odd on its own is odd on the screen.
 - **What the panel is.** No paragraph under a heading that describes the panel or lists what is in it. If the
   heading and the table don't say it, fix the heading. ("The people building the league. Open a name for
   appointments, results and scouting history." under *General managers*.)
-- **How to use a control.** No "Tap a name to see…", "Click a column to sort", "Tick players on both sides".
-  A thing that can be clicked looks like it.
+- **How to use a control.** No "Click a column to sort", "Tick players on both sides". A thing that can be
+  clicked looks like it. Where it doesn't yet, a few words do ("Tap a room for detail.").
 - **How the sim works inside.** No formula, threshold or tuning number ("A scout gets +3 on their own group and
   −3 on others", "a physiotherapy above 9 starts to shorten it"). Say the result, in the row it belongs to
   ("Layoffs 12% shorter").
@@ -98,10 +98,13 @@ Never as a standing paragraph under the heading, shown on every visit.
 
 **How a line is written**
 
-- A full sentence with a verb, the way you would say it to someone across a desk. One sentence for a hint; if
-  it needs three, it is a fold.
+- Short first. A label or a few words do where the screen gives the context ("Home game.", "No offers.",
+  "$1.2M over budget.").
+- When a line needs a sentence, write a plain one with a verb, the way you would say it to someone across a
+  desk. If it needs three, it is a fold.
 - No colon or semicolon joining two thoughts. Write two sentences, or cut one. ("It goes past your coaching
-  budget: the owner decides." becomes "The owner has to approve this.")
+  budget: the owner decides." became "$1.2M over budget.") A label before a colon is fine ("Deal up: he leaves
+  when free agency opens.").
 - No pair with the verb dropped from the second half ("a round later is a steal, a round earlier a reach",
   "Short and solid is a ready player, long and fading a project").
 - No line written to sound good. ("The player doesn't care; future you might.", "Some throw flags all day,

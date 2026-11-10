@@ -279,7 +279,7 @@ export function momentSheet(league: League): MomentSheet {
   const week: MomentSheet['week'] =
     phase === 'preseason'
       ? 'camp'
-      : phase === 'playoffs'
+      : phase === 'playoffs' && !seasonDone(league)
         ? 'playoffs'
         : phase !== 'regular'
           ? 'offseason'

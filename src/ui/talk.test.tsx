@@ -37,7 +37,14 @@ describe('two players the same step', () => {
     deliverMail(l);
     const m = l.inbox!.find((x) => x.id.startsWith('coach:'))!;
     const html = render(<MailSections league={l} sections={m.sections!} />);
-    expect(html.match(/Reassure him/g)).toHaveLength(2);
+    expect(html.match(/Reassure him/g)).toHaveLength(1);
+    // The losing has its own three answers.
+    for (const words of [
+      'We&#x27;ll turn this around',
+      'I need you to lead the room',
+      'That&#x27;s on the coach and you',
+    ])
+      expect(html).toContain(words);
     expect(html.match(/Promise a new deal/g)).toHaveLength(1);
     expect(html).toContain(a.lastName);
     expect(html).toContain(b.lastName);
@@ -55,6 +62,7 @@ describe('a player’s letter', () => {
     expect(show(deal.l, deal.m)).toContain('Promise a new deal');
     const losing = letter('losing');
     expect(show(losing.l, losing.m)).not.toContain('Promise');
+    expect(show(losing.l, losing.m)).not.toContain('Reassure him');
   });
 
   it('shows what you said once answered, with no buttons', () => {
@@ -103,7 +111,7 @@ describe('the losing across letters', () => {
     const second = l.inbox!.filter((x) => x.id.startsWith('coach:')).find((x) => x.id !== first.id)!;
     const old = render(<MailSections league={l} sections={first.sections!} letterId={first.id} />);
     const fresh = render(<MailSections league={l} sections={second.sections!} letterId={second.id} />);
-    expect(old).not.toContain('Reassure him');
-    expect(fresh).toContain('Reassure him');
+    expect(old).not.toContain('I need you to lead the room');
+    expect(fresh).toContain('I need you to lead the room');
   });
 });

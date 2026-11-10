@@ -25,7 +25,8 @@ import { addJolt, expectedRole, liveSize, moraleClock, moraleContext, type Moral
 import { buildAutoDepthChart, isAvailable, placeAt, teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
-import { playoffRace } from './season/standings';
+import { winnerOf } from './season/playoffs';
+import { conferenceSeeds, playoffRace } from './season/standings';
 import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { LETTER_GAP, PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { say } from './voice';
@@ -463,17 +464,40 @@ function settleOut(league: League, team: Team, clock: number): void {
  */
 export function endJobs(league: League): void {
   for (const team of league.teams) {
-    for (const q of [...(team.jobs?.questions ?? [])]) {
-      for (const id of [q.holder, q.other]) if (id !== undefined && league.players[id]) clearUnsure(league.players[id]);
-      const open = openStory(league, storyOn(team, q));
-      // Closed at the story's own last beat: the old year's, not the new one's.
-      const s = closeStory(league, storyOn(team, q), 'ended', open?.beats.at(-1)?.at ?? q.since);
-      if (s) markTold(s, COACH);
-      closeQuestion(league, team, q);
-    }
+    closeQuietly(league, team);
     delete team.jobs;
     delete team.kickoff;
   }
+}
+
+/** A club's open questions end with nothing said: no hit, the story told (the year only ended). */
+function closeQuietly(league: League, team: Team): void {
+  for (const q of [...(team.jobs?.questions ?? [])]) {
+    for (const id of [q.holder, q.other]) if (id !== undefined && league.players[id]) clearUnsure(league.players[id]);
+    const open = openStory(league, storyOn(team, q));
+    // Closed at the story's own last beat: the old year's, not the new one's.
+    const s = closeStory(league, storyOn(team, q), 'ended', open?.beats.at(-1)?.at ?? q.since);
+    if (s) markTold(s, COACH);
+    closeQuestion(league, team, q);
+  }
+}
+
+/**
+ * The game just played was the club's last of the year: the regular season's last week with no playoff place, a playoff
+ * game lost, or the final. Read before the next round is drawn, so the schedule alone can't say.
+ */
+function lastGameOfYear(league: League, teamId: number, seeds: () => Set<number>): boolean {
+  if (league.phase === 'playoffs') {
+    const g = league.games.find(
+      (x) =>
+        x.season === league.season &&
+        x.week === league.week &&
+        x.result &&
+        (x.homeId === teamId || x.awayId === teamId),
+    );
+    return !!g && (g.playoffRound === 'FINAL' || winnerOf(g) !== teamId);
+  }
+  return league.week >= REGULAR_SEASON_WEEKS && !seeds().has(teamId);
 }
 
 /** Did he sit this week: he could play at kickoff and was not in a starting spot. */
@@ -487,6 +511,8 @@ const satThisWeek = (k: NonNullable<Team['kickoff']>, id: number) => !k.ids.incl
 export function benchWeek(league: League, ctx: MoraleContext, clock: number): void {
   if (!BENCH.on || !inGames(league)) return;
   const yours = yourClub(league);
+  let field: Set<number> | undefined;
+  const seeds = () => (field ??= new Set(league.conferences.flatMap((_, c) => conferenceSeeds(league, c))));
   for (const team of league.teams) {
     if (team.id === yours) noteCleared(league, team, clock);
     const k = team.kickoff;
@@ -496,6 +522,9 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       continue;
     }
     const mine = team.id === yours;
+    // The club's year ended with this game: nobody asks where he stands with no game left to start. What was owed is
+    // still settled by it, then whatever is open closes with nothing said (jobs are set again at camp).
+    const ended = lastGameOfYear(league, team.id, seeds);
     // A man gone from the club takes his question with him.
     settleGone(league, team, clock);
     // One of the two out for the rest of the season settles it with no hit.
@@ -524,7 +553,11 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       delete q.soft;
       delete q.answered;
       if (q.asked) q.asked = q.asked.filter((id) => id !== p.id);
-      if (mine) fileAsk(league, team, q, p, clock);
+      if (mine && !ended) fileAsk(league, team, q, p, clock);
+    }
+    if (ended) {
+      closeQuietly(league, team);
+      continue;
     }
 
     // While either man can't play the question rests: no start counts toward three in a row.

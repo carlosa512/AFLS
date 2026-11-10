@@ -202,16 +202,19 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
             this year's bonus share counts now and the rest moves to {league.season + 1}. The total is the same.
           </span>
         </label>
-      ) : preview.postJune1 ? (
-        <p className="muted small">After June 1, remaining bonus money is charged to next year's cap automatically.</p>
-      ) : (
+      ) : preview.postJune1 ? null : (
         <p className="muted small">
           No post-June 1 designations left this league year, so all remaining bonus money counts now.
         </p>
       )}
       {preview.waiver && (
         <>
-          <p className="small">If another club claims him · {waiverDecision(league).toLowerCase()}</p>
+          <p
+            className="small"
+            title="He goes on waivers with his existing contract. These figures show the cost if he clears; a successful claim transfers unpaid salary and guarantees to the new club."
+          >
+            If another club claims him · {waiverDecision(league).toLowerCase()}
+          </p>
           <div className="facts">
             <Num label={`Dead money ${league.season} if claimed`} value={preview.waiver.assigned.thisYear} />
             <Num label={`Dead money ${league.season + 1} if claimed`} value={preview.waiver.assigned.nextYear} />
@@ -219,18 +222,14 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
           </div>
         </>
       )}
-      <p className="muted small">
-        {waiverApplies(league, player)
-          ? 'He goes on waivers with his existing contract. These figures show the cost if he clears; a successful claim transfers unpaid salary and guarantees to the new club. His roster spot opens now, while the potential release cost remains reserved until the notice settles.'
-          : 'He becomes a free agent. Guaranteed salary is still owed and counts as dead money.'}
-      </p>
+      {!waiverApplies(league, player) && <p className="muted small">He becomes a free agent.</p>}
       {league.personnel?.enabled && !player.injury && (
-        <label className="check-row">
+        <label
+          className="check-row"
+          title="Other clubs can claim him or win his signature; this reserves no rights or roster spot."
+        >
           <input type="checkbox" checked={invite} onChange={(e) => setInvite(e.target.checked)} />
-          <span>
-            Invite him back on a practice squad deal if available. Other clubs can claim him or win his signature; this
-            reserves no rights or roster spot.
-          </span>
+          <span>Invite him back on a practice squad deal if available.</span>
         </label>
       )}
     </Dialog>

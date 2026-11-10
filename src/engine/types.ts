@@ -574,6 +574,8 @@ export interface Talk {
     at: number;
     ask: number;
     cause?: TalkCause;
+    /** The losing answered by asking him to lead the room: `reply` is 'reassure', the words differ. */
+    lead?: true;
     /** A benched ask's own answer (`benching.ts`); `reply` holds the nearest of the three. */
     bench?: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete';
   };
@@ -1554,6 +1556,8 @@ export interface GazetteTable {
   players?: true;
   /** Lower is better (a defense's numbers allowed). */
   lowerBetter?: true;
+  /** The average of the clubs a team table ranks (the league, or the playoff field), for the mark on its bars. */
+  avg?: number;
   rows: GazetteRow[];
 }
 
@@ -1734,6 +1738,8 @@ export interface MailSection {
     note?: string;
     /** A waiver claim the row offers (the waiver letter's wire). */
     claim?: { entryId: number };
+    /** A practice squad man the row keeps or lets go (the futures letter): its button is drawn from the league as it is. */
+    futures?: { playerId: number };
     /** An expiring player the row acts on (the contracts letter): its buttons are drawn from the league as it is. */
     contract?: { playerId: number };
     /** A player who spoke up (a step's players' letters): his answers are drawn from his talk record. */

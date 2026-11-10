@@ -70,11 +70,6 @@ export function Officials({ league }: { league: League }) {
         )
       }
     >
-      <p className="muted" style={{ marginTop: 0 }}>
-        Each game gets one of {rows.length} crews. Crews call games differently, and you only see what they call.
-        Holding is offensive holding. Coverage is pass interference and defensive holding. Roughing is roughing the
-        passer. Ranks show once a crew has worked {RANK_MIN_GAMES} games.
-      </p>
       {seasons.length === 0 ? (
         <p className="muted" style={{ margin: 0 }}>
           The crews' numbers start with the next game played.
