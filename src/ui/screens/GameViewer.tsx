@@ -6,13 +6,14 @@ import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
-import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { HIGHLIGHTS_KEY, STAGE_TABS, TAB_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
 import { asRan } from '../../engine/field/stage';
 import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
+import { GamePanel, PlayersPanel, StageTabs } from './GamePanels';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -486,6 +487,9 @@ export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v:
 /** Broadcast or All-22, picked on this device. */
 export const useViewPick = () => usePref<ViewKind>(VIEW_KEY, VIEWS, 'broadcast');
 
+/** Plays, Game or Players under the field on a narrow window, picked on this device. */
+export const useStageTab = () => usePref(TAB_KEY, STAGE_TABS, 'plays');
+
 /** The highlight level picked on this device. */
 export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
 
@@ -550,6 +554,7 @@ export function GameViewer({
   const [snapped, setSnapped] = useState(true);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
+  const [tab, setTab] = useStageTab();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
 
@@ -655,115 +660,138 @@ export function GameViewer({
         </span>
       </div>
 
-      <section className="viewer">
-        <Scorebug
-          league={league}
-          game={game}
-          home={home}
-          away={away}
-          plays={plays}
-          index={index}
-          told={told}
-          final={final}
-          label={label}
-        />
-
-        {all22 ? (
-          <TopDownField
+      <div className="game-stage" data-tab={tab}>
+        <section className="viewer">
+          <Scorebug
             league={league}
-            record={game.result.field}
             game={game}
             home={home}
             away={away}
             plays={plays}
             index={index}
-            animKey={`${index}:${run}`}
-            speed={shownSpeed}
-            still={still}
-            final={index === plays.length - 1}
-            onDone={onDone}
-            onSnap={() => setSnapped(true)}
-            fallback={broadcast}
+            told={told}
+            final={final}
+            label={label}
           />
-        ) : (
-          broadcast
-        )}
 
-        <div className="viewer-sit">
-          <DownBar entry={entry} home={home} away={away} />
-          <span className="viewer-tag">{tag}</span>
-        </div>
+          {all22 ? (
+            <TopDownField
+              league={league}
+              record={game.result.field}
+              game={game}
+              home={home}
+              away={away}
+              plays={plays}
+              index={index}
+              animKey={`${index}:${run}`}
+              speed={shownSpeed}
+              still={still}
+              final={index === plays.length - 1}
+              onDone={onDone}
+              onSnap={() => setSnapped(true)}
+              fallback={broadcast}
+            />
+          ) : (
+            broadcast
+          )}
 
-        <GameTimeline
+          <div className="viewer-sit">
+            <DownBar entry={entry} home={home} away={away} />
+            <span className="viewer-tag">{tag}</span>
+          </div>
+
+          <GameTimeline
+            home={home}
+            away={away}
+            plays={plays}
+            index={index}
+            told={told}
+            replay
+            onJump={(i) => go(i)}
+            transport={
+              <>
+                <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
+                  ◀◀
+                </button>
+                <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+                  {playing ? '❚❚' : '▶'}
+                </button>
+                <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
+                  ▶▶
+                </button>
+              </>
+            }
+            settings={
+              <>
+                <button
+                  className="vc-speed"
+                  onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
+                  aria-label="Playback speed"
+                >
+                  {shownSpeed}×
+                </button>
+                <HighlightSwitch value={pick} onChange={setPick} />
+              </>
+            }
+          />
+        </section>
+        <StageTabs value={tab} onChange={setTab} />
+        <GamePanel
+          league={league}
+          game={game}
           home={home}
           away={away}
           plays={plays}
-          index={index}
-          told={told}
-          replay
-          onJump={(i) => go(i)}
-          transport={
-            <>
-              <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
-                ◀◀
-              </button>
-              <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-                {playing ? '❚❚' : '▶'}
-              </button>
-              <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
-                ▶▶
-              </button>
-            </>
-          }
-          settings={
-            <>
-              <button
-                className="vc-speed"
-                onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
-                aria-label="Playback speed"
-              >
-                {shownSpeed}×
-              </button>
-              <HighlightSwitch value={pick} onChange={setPick} />
-            </>
-          }
+          shown={told ? index : index - 1}
+          names={names}
+          result={game.result}
         />
-      </section>
+        <PlayersPanel
+          league={league}
+          home={home}
+          away={away}
+          plays={plays}
+          shown={told ? index : index - 1}
+          names={names}
+          record={game.result.field}
+          playerTeams={game.result.playerTeams}
+        />
 
-      <section className="panel">
-        <div className="play-log" aria-label="Plays so far">
-          {recent.map((p, i) => {
-            const idx = index - i - (told ? 0 : 1);
-            const team = p.offense === home.id ? home : away;
-            return (
-              // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
-              <div
-                key={idx}
-                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
-                onClick={() => go(idx)}
-              >
-                <span className="pc-meta">
-                  <TeamChip team={team} />
-                  <button
-                    className="linklike num muted"
-                    onClick={() => go(idx)}
-                    aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}
-                  >
-                    {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
-                  </button>
-                </span>
-                <span className="pc-body">
-                  <span className="pc-sit">{situation(p, home, away)}</span>
-                  <span>
-                    <PlayText text={p.text} names={names} />
+        <section className="panel game-log">
+          <div className="play-log" aria-label="Plays so far">
+            {recent.map((p, i) => {
+              const idx = index - i - (told ? 0 : 1);
+              const team = p.offense === home.id ? home : away;
+              return (
+                // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
+                <div
+                  key={idx}
+                  className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                  onClick={() => go(idx)}
+                >
+                  <span className="pc-meta">
+                    <TeamChip team={team} />
+                    <button
+                      className="linklike num muted"
+                      onClick={() => go(idx)}
+                      aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}
+                    >
+                      {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
+                    </button>
                   </span>
-                </span>
-                <span className="pc-tag">{playLabel(p, home.id)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                  <span className="pc-body">
+                    <span className="pc-sit">{situation(p, home, away)}</span>
+                    <span>
+                      <PlayText text={p.text} names={names} />
+                    </span>
+                  </span>
+                  <span className="pc-tag">{playLabel(p, home.id)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
     </>
   );
 }

@@ -11,7 +11,8 @@ import { handoverFor, TopDownField } from './screens/TopDownField';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
 import { contrast } from './color';
-import { drivesOf } from './gameRead';
+import { buildPlayNames, drivesOf, SHOWN_TEAM, teamStatsAt } from './gameRead';
+import { GamePanel, PlayersPanel } from './screens/GamePanels';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
 
@@ -449,5 +450,106 @@ describe('a club’s colour on the timeline', () => {
 
   it('uses the second colour when the first is all but black', () => {
     expect(laneColor(['#101820', '#d3bc8d'])).toBe('#d3bc8d');
+  });
+});
+
+describe('the panels beside the field', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const names = buildPlayNames(league, game);
+  const last = plays.length - 1;
+  const gamePanel = (list: PlayLogEntry[], shown: number) =>
+    render(
+      <GamePanel
+        league={league}
+        game={game}
+        home={home}
+        away={away}
+        plays={list}
+        shown={shown}
+        names={names}
+        result={game.result}
+      />,
+    );
+  const playersPanel = (shown: number) =>
+    render(
+      <PlayersPanel
+        league={league}
+        home={home}
+        away={away}
+        plays={plays}
+        shown={shown}
+        names={names}
+        record={game.result!.field}
+        playerTeams={game.result!.playerTeams}
+      />,
+    );
+
+  it('shows the team numbers through the play on screen, under the box score’s labels', () => {
+    const mid = Math.floor(last / 2);
+    const html = gamePanel(plays, mid);
+    const at = teamStatsAt(plays, mid, home.id);
+    for (const label of ['First downs', 'Total yards', 'Passing', 'Rushing', '3rd down', 'Turnovers'])
+      expect(html).toContain(`>${label}<`);
+    const row = /data-stat="totalYds">([\s\S]*?)<span class="cmp-bar"/.exec(html)![1];
+    expect(row).toMatch(new RegExp(`<span class="cmp-a num"[^>]*>${at.away.totalYds}</span>`));
+    expect(row).toMatch(new RegExp(`<span class="cmp-h num"[^>]*>${at.home.totalYds}</span>`));
+    expect(html).not.toContain('Possession');
+    expect(SHOWN_TEAM).toContain('totalYds');
+  });
+
+  it('ends on the box score', () => {
+    const html = gamePanel(plays, last);
+    const row = (id: string) => new RegExp(`data-stat="${id}">([\\s\\S]*?)<span class="cmp-bar"`).exec(html)![1];
+    expect(row('totalYds')).toMatch(new RegExp(`<span class="cmp-a num"[^>]*>${game.result!.away.totalYds}</span>`));
+    expect(row('firstDowns')).toMatch(
+      new RegExp(`<span class="cmp-h num"[^>]*>${game.result!.home.firstDowns}</span>`),
+    );
+    // The score by quarter, and the final in the last column.
+    expect(html).toContain(`<td class="tot num">${game.result!.homeScore}</td>`);
+  });
+
+  it('shows a man hurt only once the play it happened on has been seen, as a link to him', () => {
+    const [name, id] = [...names.ids][0];
+    const p = league.players[id];
+    const hurt: PlayLogEntry = {
+      ...plays[10],
+      kind: undefined,
+      down: 0,
+      from: undefined,
+      to: undefined,
+      who: undefined,
+      text: `Injury: ${league.teams[p.teamId!].abbrev} ${p.position} ${name} (ankle sprain) is out for the game.`,
+    };
+    const list = [...plays.slice(0, 11), hurt, ...plays.slice(11)];
+    expect(gamePanel(list, 10)).not.toContain('Injuries');
+    const html = gamePanel(list, 11);
+    expect(html).toContain('>Injuries<');
+    expect(html).toMatch(/class="game-injuries">[\s\S]*?<button type="button" class="linklike"/);
+    expect(html).toContain('ankle sprain');
+  });
+
+  it('names a leader a team in passing, rushing and receiving, each a link to his card', () => {
+    const html = playersPanel(last);
+    for (const label of ['Passing', 'Rushing', 'Receiving']) expect(html).toContain(`>${label}<`);
+    const rows = html.match(/class="lead-row"/g) ?? [];
+    expect(rows).toHaveLength(6);
+    expect(html.match(/class="lead-row">[\s\S]*?<button type="button" class="linklike"/g)).toHaveLength(6);
+    expect(html).not.toContain('Tackles');
+  });
+
+  it('has nothing odd to say before the first play', () => {
+    const html = gamePanel(plays, -1) + playersPanel(-1);
+    expect(html).not.toMatch(/undefined|NaN/);
+    expect(html).toContain('No plays yet');
+  });
+
+  it('sits beside the field in the replay, with tabs for a narrow window', () => {
+    const html = render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />);
+    expect(html).toContain('class="game-stage" data-tab="plays"');
+    const tabs = /aria-label="Below the field">([\s\S]*?)<\/span>/.exec(html)![1];
+    expect(tabs.match(/<button/g)).toHaveLength(3);
+    for (const cls of ['stage-rail rail-game', 'stage-rail rail-players', 'panel game-log'])
+      expect(html).toContain(`class="${cls}"`);
   });
 });

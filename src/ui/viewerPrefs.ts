@@ -32,3 +32,12 @@ export function usePref<T extends string>(key: string, allowed: readonly T[], fa
   };
   return [value, set];
 }
+
+/** Under the field on a narrow window: the plays, the game's panel or the players'. */
+export type StageTab = 'plays' | 'game' | 'players';
+export const STAGE_TABS: readonly StageTab[] = ['plays', 'game', 'players'];
+export const TAB_KEY = 'afls-viewer-tab';
+/** The Players panel: the leaders, or one team's lines. */
+export type WhoPick = 'leaders' | 'away' | 'home';
+export const WHO_PICKS: readonly WhoPick[] = ['leaders', 'away', 'home'];
+export const WHO_KEY = 'afls-viewer-who';

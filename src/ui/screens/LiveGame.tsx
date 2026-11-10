@@ -18,6 +18,7 @@ import {
   situation,
   allSpeed,
   useHighlightPick,
+  useStageTab,
   usePlayNames,
   useViewPick,
   ViewSwitch,
@@ -25,6 +26,7 @@ import {
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
+import { GamePanel, PlayersPanel, StageTabs } from './GamePanels';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -40,6 +42,7 @@ export function LiveGame({ league }: { league: League }) {
   const names = usePlayNames(league, game);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
+  const [tab, setTab] = useStageTab();
   // The play whose finish has been shown: until then its result, its line in the log and its points stay hidden.
   const [toldKey, setToldKey] = useState('');
   // The play whose snap All-22 has shown: until then the last play's result stays up.
@@ -126,147 +129,177 @@ export function LiveGame({ league }: { league: League }) {
           <ViewSwitch value={viewPick} onChange={setViewPick} />
         </div>
       )}
-      <section className="viewer">
-        <Scorebug
+      <div className="game-stage" data-tab={tab}>
+        <div className="stage-mid">
+          <section className="viewer">
+            <Scorebug
+              league={league}
+              game={game}
+              home={home}
+              away={away}
+              plays={s.plays}
+              index={s.current}
+              told={told}
+              live
+              final={s.finished}
+              label={label}
+            />
+
+            {all22 ? (
+              <TopDownField
+                league={league}
+                record={record}
+                game={game}
+                home={home}
+                away={away}
+                plays={s.plays}
+                index={s.current}
+                animKey={`live:${s.gameId}:${s.current}`}
+                speed={speed}
+                still={s.still}
+                final={s.sim.over && s.current === s.plays.length - 1}
+                onDone={onDone}
+                onSnap={() => setSnapKey(playKey)}
+                fallback={broadcast}
+              />
+            ) : (
+              broadcast
+            )}
+
+            <div className="viewer-sit">
+              <DownBar entry={entry} home={home} away={away} />
+              <span className="viewer-tag">
+                {told
+                  ? playLabel(entry, home.id)
+                  : all22 && snapKey !== playKey && s.current > 0
+                    ? playLabel(s.plays[s.current - 1], home.id)
+                    : ''}
+              </span>
+            </div>
+
+            <GameTimeline
+              home={home}
+              away={away}
+              plays={s.plays}
+              index={s.current}
+              told={told}
+              replay={false}
+              transport={
+                s.finished ? null : (
+                  <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
+                    {s.playing ? '❚❚' : '▶'}
+                  </button>
+                )
+              }
+              settings={
+                s.finished ? null : (
+                  <>
+                    <button
+                      className="vc-speed"
+                      onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
+                      aria-label="Playback speed"
+                    >
+                      {speed}×
+                    </button>
+                    <HighlightSwitch value={pick} onChange={setPick} />
+                    <button className="vc-skip" onClick={simToFinal}>
+                      Sim to final
+                    </button>
+                  </>
+                )
+              }
+            />
+          </section>
+
+          {s.finished && result && (
+            <section className="panel live-final">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="row">
+                  <span
+                    className={`res-${verdict}`}
+                    style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}
+                  >
+                    {employed(league) ? verdict : 'Final'}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 'var(--step-3)',
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {us}–{them}
+                  </span>
+                </span>
+                <span className="row" style={{ gap: 8 }}>
+                  <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
+                    Box score
+                  </button>
+                  <button className="btn btn-sm" onClick={() => nav.watchGame(game.id)}>
+                    Watch replay
+                  </button>
+                  <button className="btn btn-sm btn-primary" onClick={() => nav.go({ view: 'home' })}>
+                    Continue
+                  </button>
+                </span>
+              </div>
+              <p className="muted" style={{ margin: 0 }}>
+                The rest of the league's games are in. Head back to Home for this week's scores.
+              </p>
+            </section>
+          )}
+        </div>
+        <StageTabs value={tab} onChange={setTab} />
+        <GamePanel
           league={league}
           game={game}
           home={home}
           away={away}
           plays={s.plays}
-          index={s.current}
-          told={told}
-          live
-          final={s.finished}
-          label={label}
+          shown={told ? s.current : s.current - 1}
+          names={names}
+          result={result}
         />
-
-        {all22 ? (
-          <TopDownField
-            league={league}
-            record={record}
-            game={game}
-            home={home}
-            away={away}
-            plays={s.plays}
-            index={s.current}
-            animKey={`live:${s.gameId}:${s.current}`}
-            speed={speed}
-            still={s.still}
-            final={s.sim.over && s.current === s.plays.length - 1}
-            onDone={onDone}
-            onSnap={() => setSnapKey(playKey)}
-            fallback={broadcast}
-          />
-        ) : (
-          broadcast
-        )}
-
-        <div className="viewer-sit">
-          <DownBar entry={entry} home={home} away={away} />
-          <span className="viewer-tag">
-            {told
-              ? playLabel(entry, home.id)
-              : all22 && snapKey !== playKey && s.current > 0
-                ? playLabel(s.plays[s.current - 1], home.id)
-                : ''}
-          </span>
-        </div>
-
-        <GameTimeline
+        <PlayersPanel
+          league={league}
           home={home}
           away={away}
           plays={s.plays}
-          index={s.current}
-          told={told}
-          replay={false}
-          transport={
-            s.finished ? null : (
-              <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
-                {s.playing ? '❚❚' : '▶'}
-              </button>
-            )
-          }
-          settings={
-            s.finished ? null : (
-              <>
-                <button
-                  className="vc-speed"
-                  onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
-                  aria-label="Playback speed"
-                >
-                  {speed}×
-                </button>
-                <HighlightSwitch value={pick} onChange={setPick} />
-                <button className="vc-skip" onClick={simToFinal}>
-                  Sim to final
-                </button>
-              </>
-            )
-          }
+          shown={told ? s.current : s.current - 1}
+          names={names}
+          record={record}
+          playerTeams={result?.playerTeams}
         />
-      </section>
 
-      {s.finished && result && (
-        <section className="panel live-final">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="row">
-              <span
-                className={`res-${verdict}`}
-                style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', lineHeight: 1 }}
-              >
-                {employed(league) ? verdict : 'Final'}
-              </span>
-              <span
-                style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--step-3)', fontWeight: 800, lineHeight: 1 }}
-              >
-                {us}–{them}
-              </span>
-            </span>
-            <span className="row" style={{ gap: 8 }}>
-              <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
-                Box score
-              </button>
-              <button className="btn btn-sm" onClick={() => nav.watchGame(game.id)}>
-                Watch replay
-              </button>
-              <button className="btn btn-sm btn-primary" onClick={() => nav.go({ view: 'home' })}>
-                Continue
-              </button>
-            </span>
+        <section className="panel game-log">
+          <div className="play-log" aria-label="Plays so far">
+            {recent.map((p, i) => {
+              const team = p.offense === home.id ? home : away;
+              return (
+                <div
+                  key={s.current - i - (told ? 0 : 1)}
+                  className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                >
+                  <span className="pc-meta">
+                    <TeamChip team={team} />
+                    <span className="num muted">
+                      {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
+                    </span>
+                  </span>
+                  <span className="pc-body">
+                    <span className="pc-sit">{situation(p, home, away)}</span>
+                    <span>
+                      <PlayText text={p.text} names={names} />
+                    </span>
+                  </span>
+                  <span className="pc-tag">{playLabel(p, home.id)}</span>
+                </div>
+              );
+            })}
           </div>
-          <p className="muted" style={{ margin: 0 }}>
-            The rest of the league's games are in. Head back to Home for this week's scores.
-          </p>
         </section>
-      )}
-
-      <section className="panel">
-        <div className="play-log" aria-label="Plays so far">
-          {recent.map((p, i) => {
-            const team = p.offense === home.id ? home : away;
-            return (
-              <div
-                key={s.current - i - (told ? 0 : 1)}
-                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
-              >
-                <span className="pc-meta">
-                  <TeamChip team={team} />
-                  <span className="num muted">
-                    {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
-                  </span>
-                </span>
-                <span className="pc-body">
-                  <span className="pc-sit">{situation(p, home, away)}</span>
-                  <span>
-                    <PlayText text={p.text} names={names} />
-                  </span>
-                </span>
-                <span className="pc-tag">{playLabel(p, home.id)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      </div>
     </>
   );
 }
