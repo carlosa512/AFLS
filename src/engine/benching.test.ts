@@ -1,15 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerBench,
+  benchCard,
+  benchFact,
   BENCH,
   BENCH_SIZE,
   benchKickoff,
   benchWeek,
+  clearedNotStarting,
+  confirmLineup,
   countStarts,
+  dismissReminder,
   EARN,
   endJobs,
   holdsJob,
+  lineupProblem,
   movedBy,
+  putBack,
+  restoreCard,
   questionOf,
   setJobs,
 } from './benching';
@@ -294,8 +302,10 @@ describe('your answers', () => {
     const broke = setup('bench-broke');
     order(broke.team, [broke.q[1].id, broke.q[0].id]);
     moodWeek(broke.l);
-    // The talks' own answer reaches the same place until the letter has its own row.
-    expect(answerTalk(broke.l, broke.q[0].id, 'promise')).toBe(true);
+    // The talks' own answers never reach a benched ask: it has its own row and its own four.
+    expect(answerTalk(broke.l, broke.q[0].id, 'promise')).toBe(false);
+    expect(broke.q[0].morale!.talk!.ask?.cause).toBe('benched');
+    expect(answerBench(broke.l, broke.q[0].id, 'backIn')).toBe(true);
     const when = moodWeek(broke.l);
     expect(jolts(broke.q[0], 'broken', when).map((j) => j.size)).toEqual([BENCH_SIZE.broken]);
     expect(broke.q[0].morale!.talk!.broken).toBe(1);
@@ -671,7 +681,7 @@ describe('mid-story: injuries', () => {
     expect(unsure(a.q[0])).toBe(0);
     expect(lift(a.q[0])).toBe(0);
     expect(a.q[0].morale!.talk?.ask?.cause).not.toBe('benched');
-    expect(storyOf(a.l, a.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+    expect(storyOf(a.l, a.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'outOther' });
     expect(storyOf(a.l, a.q[0].id)!.closed).toBeDefined();
     // The holder out: the job is the other man's until the new league year.
     const b = sitHolder('mid-out-holder');
@@ -682,7 +692,7 @@ describe('mid-story: injuries', () => {
     expect(holdsJob(b.team, b.q[0].id)).toBe(false);
     expect(unsure(b.q[1])).toBe(0);
     expect(lift(b.q[1])).toBe(0);
-    expect(storyOf(b.l, b.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+    expect(storyOf(b.l, b.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'outHolder' });
   });
 
   it('a one-week injury in the last regular week does not close the question of a club still alive', () => {
@@ -706,7 +716,7 @@ describe('mid-story: injuries', () => {
     l.games.push({ ...g, week: 21, result: undefined });
     moodWeek(l);
     expect(questionOf(team, q[0].id)).toBeUndefined();
-    expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+    expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'outOther' });
   });
 
   it('a long layoff that ends before the season does is only a pause', () => {
@@ -988,5 +998,181 @@ describe('mid-story: the people writing', () => {
     l.phase = 'resign';
     releaseCoach(l, l.userTeamId, pc.id);
     expect(roomCoach(l, q[0]).from).toBe(headCoach(l).from);
+  });
+});
+
+// ───────── the lineup step, the reminder and the card ─────────
+
+describe('the lineup step', () => {
+  it('asks only with the chart yours and the season unconfirmed, and confirming answers it', () => {
+    const l = createLeague({ seed: 'lineup-step' });
+    const team = l.teams[l.userTeamId];
+    expect(lineupProblem(l)).toBe(false);
+    l.phase = 'preseason';
+    team.autoDepth = true;
+    expect(lineupProblem(l)).toBe(false);
+    team.autoDepth = false;
+    expect(lineupProblem(l)).toBe(true);
+    confirmLineup(l);
+    expect(team.lineupSet).toBe(l.season);
+    expect(lineupProblem(l)).toBe(false);
+    // A year on it asks again.
+    l.season++;
+    expect(lineupProblem(l)).toBe(true);
+  });
+
+  it('with the 53 still to submit, the lineup is the next step`s', () => {
+    const l = createLeague({ seed: 'lineup-53', personnel: true });
+    l.phase = 'preseason';
+    l.teams[l.userTeamId].autoDepth = false;
+    l.personnel!.clock = { season: l.season, cutdown: false };
+    expect(lineupProblem(l)).toBe(false);
+    l.personnel!.clock = { season: l.season, cutdown: true };
+    expect(lineupProblem(l)).toBe(true);
+  });
+});
+
+describe('the cleared starter', () => {
+  /** The QB1 was out at the last kickoff, is healthy now, and the chart lists him third. */
+  function cleared(seed: string) {
+    const { l, team, q } = setup(seed);
+    team.autoDepth = false;
+    q[0].injury = hurt(l);
+    order(team, [q[1].id, q[2].id, q[0].id]);
+    benchKickoff(l);
+    delete q[0].injury;
+    return { l, team, q };
+  }
+
+  it('lists a job-holder back from injury listed third, and nobody else', () => {
+    const { l, q } = cleared('cleared-list');
+    expect(clearedNotStarting(l).map((p) => p.id)).toEqual([q[0].id]);
+  });
+
+  it('is nobody when the staff sorts the chart, when he is still hurt, or when he starts', () => {
+    const a = cleared('cleared-auto');
+    a.team.autoDepth = true;
+    expect(clearedNotStarting(a.l)).toEqual([]);
+    const b = cleared('cleared-hurt');
+    b.q[0].injury = hurt(b.l);
+    expect(clearedNotStarting(b.l)).toEqual([]);
+    const c = cleared('cleared-starts');
+    order(c.team, [c.q[0].id, c.q[1].id, c.q[2].id]);
+    expect(clearedNotStarting(c.l)).toEqual([]);
+    // A man who was never out is not reminded: sitting him is the question's business.
+    const d = setup('cleared-never');
+    d.team.autoDepth = false;
+    order(d.team, [d.q[1].id, d.q[2].id, d.q[0].id]);
+    benchKickoff(d.l);
+    expect(clearedNotStarting(d.l)).toEqual([]);
+  });
+
+  it('putBack puts him among the starters, and a hand-sorted chart stays hand-sorted', () => {
+    const { l, team, q } = cleared('cleared-putback');
+    putBack(l, q[0].id);
+    expect(team.depthChart.QB.indexOf(q[0].id)).toBeLessThan(1);
+    expect(team.autoDepth).toBe(false);
+    expect(clearedNotStarting(l)).toEqual([]);
+    expect(restoreCard(l, q[0].id)).toEqual({ state: 'closed', line: 'He is back in the starting spots.' });
+  });
+
+  it('Leave it ends the reminder, and being out again starts it over', () => {
+    const { l, team, q } = cleared('cleared-leave');
+    expect(restoreCard(l, q[0].id).state).toBe('open');
+    dismissReminder(l, q[0].id);
+    expect(clearedNotStarting(l)).toEqual([]);
+    expect(restoreCard(l, q[0].id)).toEqual({ state: 'closed', line: 'You left him where he is.' });
+    q[0].injury = hurt(l);
+    l.week++;
+    benchKickoff(l);
+    expect(team.jobs!.held[q[0].id].reminded).toBeUndefined();
+  });
+});
+
+describe('the benching card', () => {
+  it('his row has four answers with the other man named last, the other man`s row has three', () => {
+    const { l, team, q } = sitHolder('card-options');
+    const holder = benchCard(l, { playerId: q[0].id, clock: 0 });
+    expect(holder.state).toBe('open');
+    expect(holder.options!.map((o) => o.value)).toEqual(['backIn', 'thisWeek', 'earn', 'his']);
+    expect(holder.options!.at(-1)!.label).toBe(`It's ${q[1].lastName}'s job now`);
+    const other = benchCard(l, { playerId: q[1].id, clock: 0 });
+    expect(other.role).toBe('other');
+    expect(other.options!.map((o) => o.label)).toEqual([
+      "The job's yours",
+      'Keep competing',
+      `It's ${q[0].lastName}'s job`,
+    ]);
+    expect(team.jobs!.questions).toHaveLength(1);
+  });
+
+  it('stays answerable while the question is open, with no ask on file', () => {
+    const { l, q } = sitHolder('card-noask');
+    delete q[0].morale!.talk!.ask;
+    expect(benchCard(l, { playerId: q[0].id, clock: 0 }).state).toBe('open');
+    expect(answerBench(l, q[0].id, 'earn')).toBe(true);
+    const done = benchCard(l, { playerId: q[0].id, clock: 0 });
+    expect(done.state).toBe('answered');
+    expect(done.said).toBe('You told him to earn it back.');
+    expect(done.line).toBeTruthy();
+    expect(benchCard(l, { playerId: q[1].id, clock: 0 }).said).toContain(q[0].lastName);
+  });
+
+  it('closes with a line for every way a benching ends, none of them the generic one', () => {
+    const lines: string[] = [];
+    const closing = (seed: string, end: (s: ReturnType<typeof sitHolder>) => void, who = 0) => {
+      const s = sitHolder(seed);
+      end(s);
+      const card = benchCard(s.l, { playerId: s.q[who].id, clock: 0 });
+      expect(card.state).toBe('closed');
+      lines.push(card.line!);
+    };
+    closing('close-his', (s) => answerBench(s.l, s.q[0].id, 'his'));
+    closing('close-keeps', (s) => answerBench(s.l, s.q[1].id, 'his'));
+    closing('close-back', (s) => {
+      answerBench(s.l, s.q[0].id, 'backIn');
+      order(s.team, [s.q[0].id, s.q[1].id]);
+      moodWeek(s.l);
+    });
+    closing('close-left', (s) => {
+      setTeam(s.l, s.q[1], null);
+      moodWeek(s.l);
+    });
+    // The holder gone: the man who stays has the card.
+    closing(
+      'close-left-holder',
+      (s) => {
+        setTeam(s.l, s.q[0], null);
+        moodWeek(s.l);
+      },
+      1,
+    );
+    closing('close-out', (s) => {
+      s.q[1].injury = lost(s.l);
+      moodWeek(s.l);
+    });
+    closing('close-chart', (s) => {
+      for (let i = 0; i < EARN; i++) moodWeek(s.l);
+    });
+    closing('close-earned-back', (s) => {
+      answerBench(s.l, s.q[0].id, 'earn');
+      order(s.team, [s.q[0].id, s.q[1].id]);
+      for (let i = 0; i < EARN; i++) moodWeek(s.l);
+    });
+    expect(lines.every((x) => x && !/That one is closed/.test(x))).toBe(true);
+    expect(new Set(lines).size).toBe(lines.length);
+  }, 60_000);
+});
+
+describe('his words', () => {
+  it('a ten-year captain and a second-year man ask differently, and the staff is never named as the GM', () => {
+    const { l, team, q } = sitHolder('words-ask');
+    const ctx = moraleContext(l);
+    q[0].experience = 10;
+    const vet = benchFact(l, q[0], ctx)!;
+    expect(vet.role).toBe('holder');
+    expect(vet.other!.last).toBe(q[1].lastName);
+    team.autoDepth = true;
+    expect(benchFact(l, q[0], ctx)!.by).toBe('staff');
   });
 });

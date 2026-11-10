@@ -5,7 +5,6 @@
  * `morale.ts`). One talk step runs at the end of every morale step; like the rest of morale it draws nothing and fills
  * no shared cache, so it can't move play.
  */
-import { answerBench } from './benching';
 import {
   addJolt,
   DOWN_REASONS,
@@ -200,18 +199,11 @@ export function answerTalk(league: League, playerId: number, reply: TalkReply): 
   const p = league.players[playerId];
   const ask = p?.morale?.talk?.ask;
   if (!p || p.teamId === null || p.teamId !== yourClub(league) || !ask) return false;
-  // A benched ask has its own answers: until its letter has its own row (storylines Task 13), the three map onto them.
-  if (ask.cause === 'benched') return answerBench(league, playerId, benchReplyFor(league, p, reply));
+  // A benched ask has its own answers (`answerBench`, from its own row): the talks' three do not reach it.
+  if (ask.cause === 'benched') return false;
   if (reply === 'promise' && !canPromise(ask.cause)) return false;
   applyReply(league, p, reply, league.moraleAt ?? ask.at, moraleContext(league), ask.cause);
   return true;
-}
-
-/** The talk replies on a benched ask, by his side of the question: a promise, a reassurance, a firm word to earn it. */
-function benchReplyFor(league: League, p: Player, reply: TalkReply) {
-  const holder = league.teams[p.teamId!].jobs?.questions?.some((q) => q.holder === p.id) ?? false;
-  if (holder) return reply === 'promise' ? 'backIn' : reply === 'reassure' ? 'thisWeek' : 'earn';
-  return reply === 'promise' ? 'yours' : 'compete';
 }
 
 /** Your men with a losing ask waiting on you: the losing is the club's, so the room is always 'team'. */

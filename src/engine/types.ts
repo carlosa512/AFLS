@@ -1744,6 +1744,10 @@ export interface MailSection {
     before?: string;
     /** The meeting request's choices, drawn from the suggestion waiting on you (`meetingCard`). */
     meeting?: { clock: number; scope: MeetingScope };
+    /** A man's job question (the benching chain): his answers are drawn from the question as it stands (`benchCard`). */
+    bench?: { playerId: number; clock: number };
+    /** A starter cleared and not in his spot: Put him back and Leave it (`restoreCard`). */
+    restore?: { playerId: number };
     /** His row speaks for the club's losing: the one answer goes to every man with an open ask (`answerRoomTalk`). */
     talkRoom?: { unit: 'team'; clock: number };
   }[];

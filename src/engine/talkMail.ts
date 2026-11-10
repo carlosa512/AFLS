@@ -4,6 +4,7 @@
  * from the league as it is (`talkCard`), so nothing about it is stored on the message. Letters filed as `talk:` ids
  * by older saves still read through `talkNeedsYou`.
  */
+import { benchFact } from './benching';
 import { employed } from './employment';
 import { canPromise } from './playerTalks';
 import { askWords, TALK_ANSWER, TALK_SUBJECT } from './playerVoice';
@@ -31,12 +32,15 @@ export function talkRows(league: League, clock: number, said: string[]): MailSec
     const man = manSheet(league, p, ctx);
     if (!man) continue;
     const key = `talk:${league.season}:${clock}:${p.id}`;
-    const words = askWords({ man, moment, cause: ask.cause }, { key, recent });
+    // A benched ask is about his job question, and his row answers it (`benchCard`), not through the talks.
+    const bench = ask.cause === 'benched' ? benchFact(league, p, ctx) : null;
+    if (ask.cause === 'benched' && !bench) continue;
+    const words = askWords({ man, moment, cause: ask.cause, ...(bench ? { bench } : {}) }, { key, recent });
     rows.push({
       playerId: p.id,
       cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[ask.cause]],
       note: `“${words}”`,
-      talk: { playerId: p.id, clock },
+      ...(bench ? { bench: { playerId: p.id, clock } } : { talk: { playerId: p.id, clock } }),
     });
   }
   return rows;

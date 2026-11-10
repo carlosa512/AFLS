@@ -3,6 +3,8 @@
  * outspoken man (`loud`) says it sharper, a calm one (`calm`) plainer. His ask in his terms, never a number about his
  * mood; nothing here is a trait or a marble.
  */
+import { BENCH_ASK } from './benchVoice';
+import type { BenchFact } from './benching';
 import type { TalkCause, TalkReply } from './types';
 import type { ManSheet, MomentSheet } from './castSheet';
 import { say, sentencesOf, type Line } from './voice';
@@ -276,6 +278,8 @@ export interface AskFact {
   man: ManSheet;
   moment: MomentSheet;
   cause: TalkCause;
+  /** A benched ask reads the job question it is about (`benchFact`). */
+  bench?: BenchFact;
 }
 
 const veteranOf = (f: AskFact) => /veteran/.test(f.man.years);
@@ -361,8 +365,19 @@ function cap(s: string): string {
 
 /** The grievance itself. Plain lines read only the cause; the rest also read what the sheet knows about him. */
 export const ASK_CORE: readonly Line<AskFact>[] = [
-  // benched: a placeholder until the benching's own lines (storylines Task 13).
-  { when: (f) => f.cause === 'benched', reads: 1, text: () => "I sat this week, and I'd like to know where I stand." },
+  // benched: his words come from the job question (`BENCH_ASK`); with no question to read, the plain line.
+  ...BENCH_ASK.map(
+    (l): Line<AskFact> => ({
+      when: (f) => f.cause === 'benched' && !!f.bench && (l.when?.(f.bench) ?? true),
+      reads: (l.reads ?? 0) + 1,
+      text: (f) => l.text(f.bench!),
+    }),
+  ),
+  {
+    when: (f) => f.cause === 'benched' && !f.bench,
+    reads: 1,
+    text: () => "I sat, and I'd like to know where I stand.",
+  },
   // snaps
   {
     when: (f) => f.cause === 'snaps',

@@ -7,18 +7,22 @@
  * jobs when the season starts, hurt or not. "Started" is read at kickoff from the chart and availability, never from
  * snap counts: a man hurt in the game still started.
  */
+import { BENCH_CLOSE, BENCH_REPLY, benchSaid, type BenchCloseFact } from './benchVoice';
+import { manSheet, type ManSheet } from './castSheet';
 import { onDidNotReport } from './disputeRead';
+import { employed } from './employment';
 import { sittingAfterClear } from './injuries';
 import { addJolt, expectedRole, liveSize, moraleClock, moraleContext, type MoraleContext } from './morale';
-import { isAvailable, teamPlayers } from './roster';
+import { buildAutoDepthChart, isAvailable, placeAt, teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { playoffRace } from './season/standings';
 import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
+import { say } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { STARTERS } from './positions';
-import type { Game, JobQuestion, League, Player, Position, TalkReply, Team } from './types';
+import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
 
 /** Tests turn it off to prove play is untouched. */
 export const BENCH = { on: true };
@@ -118,6 +122,8 @@ export function benchKickoff(league: League, game?: Game): void {
       const p = league.players[pid];
       return !!p && p.teamId === team.id && !couldPlay(league, p);
     });
+    // A holder out again will be told again when he is back: the reminder starts over.
+    for (const pid of out) if (team.jobs?.held[pid]) delete team.jobs.held[pid].reminded;
     team.kickoff = { week: league.week, ids, at, out };
   }
 }
@@ -315,7 +321,8 @@ function applyBench(
   if (reply === 'his') sour(man, clock);
   beat(league, storyOn(team, q), 'answered', clock, { how: reply });
   if (reply === 'his') {
-    closeStory(league, storyOn(team, q), 'settled', clock, 'his');
+    // The holder told it is the other's job ('his'), or the other told it is the holder's ('keeps').
+    closeStory(league, storyOn(team, q), 'settled', clock, man.id === q.holder ? 'his' : 'keeps');
     closeQuestion(league, team, q);
   }
 }
@@ -393,7 +400,7 @@ function settleGone(league: League, team: Team, clock: number): void {
       if (!jobs.held[q.other]) jobs.held[q.other] = { pos: q.pos, since: clock };
       delete jobs.runs?.[q.other];
     }
-    closeStory(league, storyOn(team, q), 'left', clock);
+    closeStory(league, storyOn(team, q), 'left', clock, here(q.holder) ? 'other' : 'holder');
     closeQuestion(league, team, q);
   }
 }
@@ -408,13 +415,16 @@ function settleOut(league: League, team: Team, clock: number): void {
     const out = [q.holder, q.other].find((id) => id !== undefined && outForSeason(league, league.players[id]));
     if (out === undefined) continue;
     const other = q.other === undefined || out === q.other ? undefined : league.players[q.other];
+    // What the story says: the job moved to the other man, the holder keeps it, or nothing moved.
+    let how = out === q.other ? 'outOther' : 'out';
     if (other && !outForSeason(league, other)) {
       delete jobs!.held[q.holder];
       if (!jobs!.held[other.id]) jobs!.held[other.id] = { pos: q.pos, since: clock };
       if (jobs!.runs) delete jobs!.runs[other.id];
+      how = 'outHolder';
     }
     for (const id of [q.holder, q.other]) if (id !== undefined) clearUnsure(league.players[id]);
-    closeStory(league, storyOn(team, q), 'settled', clock, 'out');
+    closeStory(league, storyOn(team, q), 'settled', clock, how);
     closeQuestion(league, team, q);
   }
 }
@@ -524,7 +534,14 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
         addJolt(holder, 'benched', BENCH_SIZE.chart, clock);
         sour(holder, clock);
       }
-      closeStory(league, storyOn(team, q), 'settled', clock, q.answered ? 'earned' : 'chart');
+      // Who won it: the other man took the job, or the holder started his way back to it.
+      closeStory(
+        league,
+        storyOn(team, q),
+        'settled',
+        clock,
+        `${q.answered ? 'earned' : 'chart'}${otherWon ? '' : 'Back'}`,
+      );
       closeQuestion(league, team, q);
     }
 
@@ -573,3 +590,225 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
 
 /** Could he play at kickoff (in a starting spot or not): read from the week's note, as `countStarts` reads it. */
 const couldAtKickoff = (k: NonNullable<Team['kickoff']>, id: number) => !(k.out ?? []).includes(id);
+
+// ───────── setting the lineup, and the reminder ─────────
+
+/**
+ * The advance button asks for your lineup: the last step of camp, with the chart yours to sort (staff sorting it is their
+ * lineup) and not yet confirmed this league year. The men in the starting spots then hold the jobs.
+ */
+export function lineupProblem(league: League): boolean {
+  if (league.phase !== 'preseason' || !employed(league)) return false;
+  const team = league.teams[league.userTeamId];
+  if (team.autoDepth || team.lineupSet === league.season) return false;
+  // Where cut-down day is two steps (the 53, then the claims), the lineup is the second's.
+  const clock = league.personnel?.clock;
+  return !league.personnel?.enabled || (clock?.season === league.season && clock.cutdown);
+}
+
+/** The lineup is set: the advance button starts the season. */
+export function confirmLineup(league: League): void {
+  const yours = yourClub(league);
+  if (yours !== null) league.teams[yours].lineupSet = league.season;
+}
+
+/** The men who would start this week: the chart's starting spots, skipping anyone who could not play. */
+function startingIds(league: League, team: Team): Set<number> {
+  const starting = new Set<number>();
+  for (const pos of Object.keys(team.depthChart) as Position[])
+    for (const p of startersAt(league, team, pos)) starting.add(p.id);
+  return starting;
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
+
+/** Where the chart lists him, as a word: "third", or "down the chart" past the fifth. */
+export function listedWord(league: League, p: Player): string {
+  const chart = p.teamId === null ? undefined : league.teams[p.teamId].depthChart;
+  const at = chart
+    ? Object.values(chart).flatMap((ids) => (ids.includes(p.id) ? [ids.indexOf(p.id)] : []))[0]
+    : undefined;
+  return at === undefined || at >= ORDINALS.length ? 'down the chart' : ORDINALS[at];
+}
+
+/**
+ * Your job-holders who were out at the last kickoff, can play this week and are not in a starting spot: the head coach
+ * says so, once, with the chart in your hands. With staff sorting the chart there is nothing to put back.
+ */
+export function clearedNotStarting(league: League): Player[] {
+  const yours = yourClub(league);
+  if (!BENCH.on || !inGames(league) || yours === null) return [];
+  const team = league.teams[yours];
+  const k = team.kickoff;
+  if (!k || team.autoDepth) return [];
+  const out = new Set(k.out ?? []);
+  const starting = startingIds(league, team);
+  const men: Player[] = [];
+  for (const [sid, h] of Object.entries(team.jobs?.held ?? {})) {
+    const id = Number(sid);
+    const p = league.players[id];
+    if (!p || p.teamId !== team.id || p.retired || h.reminded !== undefined) continue;
+    if (out.has(id) && couldPlay(league, p) && !starting.has(id)) men.push(p);
+  }
+  return men.sort((a, b) => a.id - b.id);
+}
+
+/**
+ * The reminder's "Put him back": among his own position's men where auto-sort would file him, and no lower than the last
+ * starting spot, since he holds a job there. A hand-sorted chart stays hand-sorted.
+ */
+export function putBack(league: League, playerId: number): void {
+  const p = league.players[playerId];
+  const yours = yourClub(league);
+  if (!p || yours === null || p.teamId !== yours) return;
+  const team = league.teams[yours];
+  const rank = new Map(buildAutoDepthChart(teamPlayers(league, yours))[p.position].map((id, i) => [id, i]));
+  const mine = rank.get(p.id) ?? Infinity;
+  const list = team.depthChart[p.position].filter((id) => id !== p.id);
+  const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
+  placeAt(league, p.id, p.position, Math.min(at < 0 ? list.length : at, STARTERS[p.position] - 1));
+}
+
+/** The reminder's "Leave it": he is not told about again until he has been out again. */
+export function dismissReminder(league: League, playerId: number): void {
+  const yours = yourClub(league);
+  const held = yours === null ? undefined : league.teams[yours].jobs?.held[playerId];
+  if (held) held.reminded = league.moraleAt ?? moraleClock(league);
+}
+
+// ───────── what a letter may say about a question ─────────
+
+/** The story a job question is told in: the holder's, open or (once closed) the latest. */
+export function benchStory(league: League, p: Player): Story | undefined {
+  const team = p.teamId === null ? undefined : league.teams[p.teamId];
+  const q = team && questionOf(team, p.id);
+  if (team && q) return openStory(league, storyOn(team, q));
+  const all = [...(league.stories?.open ?? []), ...(league.stories?.closed ?? [])];
+  return all
+    .filter((s) => s.kind === 'benched' && (s.playerId === p.id || s.other === p.id))
+    .sort((a, b) => (b.closed ?? Infinity) - (a.closed ?? Infinity) || b.id - a.id)[0];
+}
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three'];
+
+/** What a line may say about a man's open job question: both men's sheets, whose move it was, and how long it has run. */
+export interface BenchFact {
+  man: ManSheet;
+  /** The man across from him in the question (null when nobody was named). */
+  other: ManSheet | null;
+  by: 'you' | 'staff';
+  backFromInjury: boolean;
+  role: 'holder' | 'other';
+  /** Weeks since he sat, as a word: "no", "one", "two", "three", "many". */
+  weeksOpen: string;
+  otherAsked: boolean;
+  /** The man across from him is plainly the better on his own read: he knows who is ahead of him. */
+  better: boolean;
+}
+
+/** His row's facts: null unless he is yours and part of an open job question. */
+export function benchFact(league: League, p: Player, ctx: MoraleContext): BenchFact | null {
+  if (p.teamId === null || p.teamId !== yourClub(league)) return null;
+  const team = league.teams[p.teamId];
+  const q = questionOf(team, p.id);
+  const man = manSheet(league, p, ctx);
+  if (!q || !man) return null;
+  const role = q.holder === p.id ? 'holder' : 'other';
+  const acrossId = role === 'holder' ? q.other : q.holder;
+  const across = acrossId === undefined ? undefined : league.players[acrossId];
+  const other = across ? manSheet(league, across, ctx) : null;
+  if (acrossId !== undefined && !other) return null;
+  const weeks = Math.max(0, (league.moraleAt ?? moraleClock(league)) - q.since);
+  return {
+    man,
+    other,
+    by: movedBy(team),
+    backFromInjury: man.backFromInjury,
+    role,
+    weeksOpen: weeks < COUNT_WORDS.length ? COUNT_WORDS[weeks] : 'many',
+    otherAsked: q.other !== undefined && !!q.asked?.includes(q.other),
+    better: expectedRole(p, ctx) < 2,
+  };
+}
+
+/** The reminder's two buttons while it waits on you, and what became of it once it does not. */
+export function restoreCard(league: League, playerId: number): { state: 'open' | 'closed'; line?: string } {
+  if (clearedNotStarting(league).some((p) => p.id === playerId)) return { state: 'open' };
+  const yours = yourClub(league);
+  const team = yours === null ? undefined : league.teams[yours];
+  const p = league.players[playerId];
+  if (!team || !p || p.teamId !== team.id) return { state: 'closed' };
+  if (team.jobs?.held[playerId]?.reminded !== undefined) return { state: 'closed', line: 'You left him where he is.' };
+  return startingIds(league, team).has(playerId)
+    ? { state: 'closed', line: 'He is back in the starting spots.' }
+    : { state: 'closed' };
+}
+
+/** What a benching story's closing line reads: its last beat, the two men's names and the holder's sheet when ours. */
+export function benchCloseFact(league: League, s: Story): BenchCloseFact {
+  const b = s.beats[s.beats.length - 1];
+  const holder = s.playerId === undefined ? undefined : league.players[s.playerId];
+  const other = s.other === undefined ? undefined : league.players[s.other];
+  return {
+    beat: b.kind,
+    ...(b.how !== undefined ? { how: b.how } : {}),
+    holder: holder?.lastName ?? 'He',
+    ...(other ? { other: other.lastName } : {}),
+    man: holder ? manSheet(league, holder, moraleContext(league)) : null,
+  };
+}
+
+export interface BenchCardView {
+  /** Open: it needs your answer. Answered: what you said. Closed: the question is over (or he is gone). */
+  state: 'open' | 'answered' | 'closed';
+  role?: 'holder' | 'other';
+  options?: { value: BenchReply | OtherReply; label: string }[];
+  said?: string;
+  line?: string;
+}
+
+/** What a man's benching row shows now, read off the league: his open question, never only his ask. */
+export function benchCard(league: League, s: { playerId: number; clock: number }): BenchCardView {
+  const p = league.players[s.playerId];
+  if (!p || p.teamId === null || p.teamId !== yourClub(league)) return { state: 'closed' };
+  const team = league.teams[p.teamId];
+  const q = questionOf(team, p.id);
+  const ctx = moraleContext(league);
+  const lastOf = (id: number | undefined) => (id === undefined ? undefined : league.players[id]?.lastName);
+  if (q && !q.answered) {
+    const holder = q.holder === p.id;
+    const him = lastOf(holder ? q.other : q.holder);
+    const options: NonNullable<BenchCardView['options']> = holder
+      ? [
+          { value: 'backIn', label: "You're back in next week" },
+          { value: 'thisWeek', label: 'It was just this week' },
+          { value: 'earn', label: 'Earn it back' },
+          { value: 'his', label: him ? `It's ${him}'s job now` : "It's not your job now" },
+        ]
+      : [
+          { value: 'yours', label: "The job's yours" },
+          { value: 'compete', label: 'Keep competing' },
+          { value: 'his', label: `It's ${him}'s job` },
+        ];
+    return { state: 'open', role: holder ? 'holder' : 'other', options };
+  }
+  if (q?.answered) {
+    const { reply, by } = q.answered;
+    const man = league.players[by];
+    if (by !== p.id)
+      return { state: 'answered', said: `You answered ${man.lastName}. That is the word for both of them.` };
+    const sheet = manSheet(league, man, ctx);
+    return {
+      state: 'answered',
+      said: benchSaid(reply, lastOf(q.other)),
+      ...(sheet
+        ? { line: say(BENCH_REPLY, { man: sheet, reply }, { key: `bench:${p.id}:${q.answered.at}`, slot: 'reply' }) }
+        : {}),
+    };
+  }
+  // The question is over: the story's closing says how, and what you told whom is in its own line.
+  const story = benchStory(league, p);
+  if (story?.closed === undefined) return { state: 'closed' };
+  const line = say(BENCH_CLOSE, benchCloseFact(league, story), { key: `bench:${story.id}:close`, slot: 'close' });
+  return { state: 'closed', line };
+}
