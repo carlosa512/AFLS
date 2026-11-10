@@ -207,9 +207,10 @@ const bridgeScore = () => {
   return { moved: 0, what: 'no club bridged' };
 };
 
-const tradeUpScore = () => {
-  // Its own world, as the unit test's (`trade/draft.test.ts`): a class with a quarterback sitting just under the bar.
-  const l = draftDayLeague('draft-trades-qb-b');
+/** One draft class: the picks where the habit makes a QB trade-up that would not happen with habits off, and the picks
+ * where it stops one that would have. */
+const tradeUpClass = (seed: string) => {
+  const l = draftDayLeague(seed);
   let found = 0;
   let lost = 0;
   // Sixty-four picks, not thirty-two (as the unit test).
@@ -229,7 +230,29 @@ const tradeUpScore = () => {
     simDraft(l, new Rng(`qb-${i}`), { stopAtUser: false, limit: 1 });
     draftTrades.off = false;
   }
-  return { moved: lost ? -1 : found, what: `${found} QB trade-ups on that are none off` };
+  return { found, lost };
+};
+
+/** Worlds the QB trade-up scene pools (owner approved, Nov 10): a draft class with a quarterback in the habit's window
+ * is a matter of the league's luck (one world on the 0.4.24 branch had none, found 0), so the bar (found > 0, lost = 0)
+ * is judged on the sum of several classes, as the unit test's one world could not. */
+const TRADE_UP_WORLDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((k) => `draft-trades-qb-${k}`);
+
+const tradeUpScore = () => {
+  let found = 0;
+  let lost = 0;
+  const per: string[] = [];
+  for (const seed of TRADE_UP_WORLDS) {
+    const r = tradeUpClass(seed);
+    found += r.found;
+    lost += r.lost;
+    per.push(`${seed.slice(-1)}: ${r.found}/${r.lost}`);
+  }
+  console.log(`  tradeUpQb per world (found/lost): ${per.join(', ')}`);
+  return {
+    moved: lost ? -1 : found,
+    what: `${found} QB trade-ups on that are none off, ${lost} the other way (pooled over ${TRADE_UP_WORLDS.length} draft classes)`,
+  };
 };
 
 const youngQbScore = () => {
