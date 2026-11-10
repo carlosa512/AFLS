@@ -1,7 +1,7 @@
 /**
  * The head coach's weekly letter (docs/superpowers/specs/2026-11-09-storylines-design.md, section 3): the editor that
- * gathers what could be told from your club's open stories and the staff's notes, ranks it, and files one letter a step
- * or none. It replaces the separate player-talk, meeting-request, meeting-result and staff-notes letters. Rebuilds are
+ * gathers what could be told from your club's open stories and the staff's notes, ranks it, and files at most one
+ * letter every other step (`LETTER_GAP`), none in a quiet step. It replaces the separate player-talk, meeting-request, meeting-result and staff-notes letters. Rebuilds are
  * safe: a step's letter is filed once, and nothing here draws from any stream.
  */
 import {
@@ -172,6 +172,8 @@ const hasHistory = (m: ManSheet) => m.asks !== 'first' || !!m.lastAnswer || m.ke
 
 interface Gathered {
   items: WeekItem[];
+  /** Stories the letter tells by another row (a room that recovered, in its meeting's result): told once it is filed. */
+  quiet: Story[];
   coachNote?: Pick<InboxMessage, 'coachNoteKey' | 'coachNote'>;
 }
 
@@ -182,6 +184,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   const ctx = moraleContext(league);
   const sheet = (p: Player | undefined) => (p ? manSheet(league, p, ctx) : null);
   const items: WeekItem[] = [];
+  const quiet: Story[] = [];
   const remember = (text?: string) => {
     if (text) said.push(...sentencesOf(text));
   };
@@ -351,7 +354,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     if (!s.told?.coach || !untold(league, s, COACH).length) continue;
     // A room that recovered in the letter that tells its meeting: the result already says where it stands.
     if (s.kind === 'room' && lastBeat(s).kind === 'recovered' && due.some((r) => r.scope === s.unit)) {
-      markTold(s, COACH);
+      quiet.push(s);
       continue;
     }
     const b = lastBeat(s);
@@ -627,7 +630,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
 
   const kept = fitItems(items, clock);
   const call = kept.some((i) => i.call);
-  return { items: kept, ...(call && staff.coachNote ? { coachNote: staff.coachNote } : {}) };
+  return { items: kept, quiet, ...(call && staff.coachNote ? { coachNote: staff.coachNote } : {}) };
 }
 
 /** Within this many points on our scouts' read the next man is close to the last starter (words only on the page). */
@@ -701,7 +704,10 @@ function coachFact(league: League): CoachSheet {
     : { name: 'Coaching staff', style: styleOf(10.5), motto: '', isNew: false, word: 'steady' };
 }
 
-/** One letter a step: filed once (a rebuild after your answer files nothing and changes nothing), none in a quiet step. */
+/**
+ * At most one letter every other step: filed once (a rebuild after your answer files nothing and changes nothing), none
+ * in a quiet step or the step after a letter.
+ */
 export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   if (!employed(league)) return [];
   const clock = stepNow(league);
@@ -712,7 +718,7 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   if (told.has(id)) return [];
   const sender = headCoach(league);
   const said = seasonSaid(league, sender.from, 'coach:');
-  const { items, coachNote } = gather(league, told, said, have);
+  const { items, quiet, coachNote } = gather(league, told, said, have);
   // Notes alone never make a letter: something to answer, a clock, or a result or a closing that cannot wait does, and
   // the rest ride along. A result with nothing owed, or a story closing, waits for the next letter, two steps at most.
   if (!items.some(files)) return [];
@@ -745,12 +751,17 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
     const rows = items.filter((i) => i.section === section).map((i) => i.row);
     return rows.length ? [{ title, rows, layout: 'people' as const }] : [];
   });
-  const covered = [...new Set([id, ...items.flatMap((i) => [i.key, ...(i.covers ?? [])])])];
-  // Told: each story's beats so far belong to this outlet now.
-  for (const sid of new Set(items.flatMap((i) => (i.storyId === undefined ? [] : [i.storyId])))) {
+  // Told: each story's beats so far belong to this outlet now, and the letter keeps a `told:` key for each story in it
+  // (what the season's replay counts as the stories the coach told, a silent close aside).
+  const storyIds = [...new Set(items.flatMap((i) => (i.storyId === undefined ? [] : [i.storyId])))];
+  const covered = [
+    ...new Set([id, ...items.flatMap((i) => [i.key, ...(i.covers ?? [])]), ...storyIds.map((sid) => `told:${sid}`)]),
+  ];
+  for (const sid of storyIds) {
     const s = storyById(league, sid);
     if (s) markTold(s, COACH);
   }
+  for (const s of quiet) markTold(s, COACH);
   return [
     {
       id,

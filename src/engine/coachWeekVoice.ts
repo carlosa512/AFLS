@@ -271,13 +271,12 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.result,
     reads: 2,
-    text: () => `We said our piece last week. Now to see what it did.`,
+    text: () => `We said our piece. Now to see what it did.`,
   },
   {
     when: (f) => f.result && f.moment.streak?.kind === 'lost',
     reads: 3,
-    text: (f) =>
-      `${cap(f.moment.streak!.games)} defeats running, and I have just spoken to them. Here is how it landed.`,
+    text: (f) => `${cap(f.moment.streak!.games)} defeats running, and I have spoken to them. Here is how it landed.`,
   },
   {
     when: (f) => f.moment.streak?.kind === 'lost',
@@ -312,7 +311,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.closing && f.items <= 2,
     reads: 2,
-    text: () => `Something closed this week.`,
+    text: () => `Something has closed.`,
   },
   {
     when: (f) => f.moment.week === 'push',
@@ -356,7 +355,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
     when: (f) => f.closing && f.items + f.asks >= 2,
     text: () => `One thing is settled, and that frees me for the rest.`,
   },
-  { when: (f) => f.closing, text: () => `We got something off the list this week.` },
+  { when: (f) => f.closing, text: () => `We got something off the list.` },
 ];
 
 // ───────── the others of a room who said the same ─────────

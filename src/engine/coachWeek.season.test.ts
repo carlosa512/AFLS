@@ -1,7 +1,7 @@
 /**
- * One whole season played as a GM who answers everything, then the head coach's weekly letters read together: one a
- * step, no sentence twice, no room told twice inside three steps, every meeting's result in the next letter. Slow
- * (a full season of sims), so it lives apart from the fast letter tests.
+ * One whole season played as a GM who answers everything, then the head coach's weekly letters read together: at most
+ * one every other step, no sentence twice, no room told twice inside three steps, every meeting's result told within
+ * two steps. Slow (a full season of sims), so it lives apart from the fast letter tests.
  */
 import { moraleClock } from './morale';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -12,7 +12,7 @@ import { acceptGmOffer, pendingGmOffers } from './leadership';
 import { playWeek } from './league';
 import { answerMeeting } from './meetings';
 import { advanceOffseason } from './offseason';
-import { answerBench, benchCard, couldPlay, holdsJob, questionOf } from './benching';
+import { answerBench, couldPlay, holdsJob, questionOf } from './benching';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import type { InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
@@ -23,13 +23,16 @@ const dupes = (xs: string[]) => {
   for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
   return [...n].filter(([, c]) => c > 1).map(([s, c]) => `${c}x ${s}`);
 };
-/** Every sentence a letter says: its body, and each row's note, what it was before, and its quote. */
+/** Every sentence a letter says: its body, and each row's note (a man's quote, for an ask) and the line before it. */
 const sentences = (ms: InboxMessage[]) =>
   ms.flatMap((m) => [
     ...sentencesOf(m.body),
     ...rowsOf(m).flatMap((r) => [...sentencesOf(r.note), ...sentencesOf(r.before)]),
   ]);
 const clockOf = (m: InboxMessage) => Number(m.id.split(':')[2]);
+/** The stories the coach told over the season: the `told:` keys his letters carry (a story closed silently has none). */
+const storiesTold = (ms: InboxMessage[]) =>
+  new Set(ms.flatMap((m) => (m.covered ?? []).filter((k) => k.startsWith('told:')))).size;
 /** A room named in "The rooms" of two letters less than `gap` steps apart. */
 function roomsToldWithin(ms: InboxMessage[], gap: number): string[] {
   const out: string[] = [];
@@ -109,6 +112,9 @@ const storiesOpened = (l: League) =>
 // and staff stories closing with the season ("told" also counts a story closed silently, which is marked told):
 //   mail1, 3     |    7   | 8   |  8    |  0
 //   vol2, 10     |    9   | 7   |  7    |  0
+// After the final fix wave, "told" counted from the letters' `told:` keys (a story closed silently is not told):
+//   mail1, 3     |    7   | 3   |  8    |  0
+//   vol2, 10     |    9   | 4   |  7    |  0
 describe.each([
   { seed: 'mail1', team: 3 },
   { seed: 'vol2', team: 10 },
@@ -130,10 +136,7 @@ describe.each([
     expect(heldWithoutResult(l)).toEqual([]);
   });
   it('letters', () => expect(coach.length).toBeLessThanOrEqual(12));
-  it('stories the coach told', () => {
-    const all = [...(l.stories?.open ?? []), ...(l.stories?.closed ?? [])];
-    expect(all.filter((s) => (s.told?.coach ?? 0) > 0).length).toBeLessThanOrEqual(10);
-  });
+  it('stories the coach told', () => expect(storiesTold(coach)).toBeLessThanOrEqual(10));
   it('stories opened', () => expect(storiesOpened(l).length).toBeLessThanOrEqual(12));
   it('rows', () => expect(Math.max(...coach.map((m) => rowsOf(m).length))).toBeLessThanOrEqual(6));
   it('open', () => expect(l.stories!.open.length).toBeLessThanOrEqual(4));
@@ -153,6 +156,20 @@ function playBenchSeason(seed: string, userTeamId: number) {
   let sat: { holder: number; other: number } | undefined;
   let sitWeek = 0;
   let answered = false;
+  // The step the holder first asked about the job, and the step the question was answered.
+  let asked: number | undefined;
+  let answeredAt: number | undefined;
+  // Each coach letter's bench rows for men not on the club at the moment it was filed.
+  const offClub: string[] = [];
+  const seen = new Set<string>();
+  const readFiled = () => {
+    for (const m of l.inbox ?? []) {
+      if (!m.id.startsWith('coach:') || seen.has(m.id)) continue;
+      seen.add(m.id);
+      for (const r of rowsOf(m))
+        if (r.bench && l.players[r.bench.playerId]?.teamId !== userTeamId) offClub.push(`${m.id} ${r.bench.playerId}`);
+    }
+  };
   for (let i = 0; i < 100; i++) {
     if (l.phase === 'complete') break;
     if (l.phase === 'resign' && pendingGmOffers(l)) {
@@ -177,18 +194,21 @@ function playBenchSeason(seed: string, userTeamId: number) {
     } else advanceOffseason(l, { autoUser: true });
     if (!employed(l) && !pendingGmOffers(l)) break;
     deliverMail(l);
+    readFiled();
     for (const p of Object.values(l.players)) {
       const ask = p.teamId === l.userTeamId ? p.morale?.talk?.ask : undefined;
       if (!ask) continue;
       if (ask.cause === 'losing') answerRoomTalk(l, 'team', 'reassure');
       // The scenario's job question is left open until the answer below.
       else if (ask.cause === 'benched') {
+        if (sat && p.id === sat.holder && asked === undefined) asked = ask.at;
         if (sat && (p.id === sat.holder || p.id === sat.other) && !answered) continue;
         answerBench(l, p.id, questionOf(team, p.id)?.holder === p.id ? 'thisWeek' : 'compete');
       } else answerTalk(l, p.id, 'reassure');
     }
     if (sat && !answered && l.week >= sitWeek + 2 && questionOf(team, sat.holder)) {
       answered = answerBench(l, sat.other, 'his');
+      if (answered) answeredAt = l.moraleAt;
     }
     const pend = team.meetings?.pending;
     if (pend)
@@ -198,8 +218,9 @@ function playBenchSeason(seed: string, userTeamId: number) {
         timing: pend.timings[0],
       });
     deliverMail(l);
+    readFiled();
   }
-  return { l, sat, answered };
+  return { l, sat, answered, offClub, waited: { asked, answeredAt } };
 }
 
 // The benching scenario on three seeds that overran the bounds before the every-other-step rule, as measured:
@@ -207,6 +228,10 @@ function playBenchSeason(seed: string, userTeamId: number) {
 //   bench1, 5    |    9    |  8   |  10    |    6     |     3      |  3
 //   bench2, 7    |   10    |  7   |   8    |    6     |     3      |  3
 //   vol3, 2      |   10    | 10   |  12    |    6     |     3      |  3
+// After the final fix wave ("told" from the letters' `told:` keys):
+//   bench1, 5    |    9    |  6   |  10    |    6     |     3
+//   bench2, 7    |   10    |  7   |   8    |    6     |     3
+//   vol3, 2      |   10    |  7   |  12    |    6     |     3
 describe.each([
   { seed: 'bench1', team: 5 },
   { seed: 'bench2', team: 7 },
@@ -216,8 +241,10 @@ describe.each([
   let coach: InboxMessage[];
   let sat: { holder: number; other: number } | undefined;
   let answered = false;
+  let offClub: string[] = [];
+  let waited: { asked?: number; answeredAt?: number } = {};
   beforeAll(() => {
-    ({ l, sat, answered } = playBenchSeason(seed, TEAM));
+    ({ l, sat, answered, offClub, waited } = playBenchSeason(seed, TEAM));
     coach = coachLetters(l);
   }, 180_000);
   const benchRows = () =>
@@ -241,23 +268,29 @@ describe.each([
     expect(ask.length).toBeGreaterThanOrEqual(1);
     expect(closed.length).toBeGreaterThanOrEqual(1);
     expect(benchRows().length).toBeGreaterThanOrEqual(3);
-    // The ask is the first bench row of the holder, and the two weeks it waited filed no second ask for him.
+    // The ask is the first bench row of the holder, and the weeks it waited filed no second ask for him: from his ask to
+    // your answer the letters carry one ask of his (a `talk:` key), the rest of his rows notes that it is still waiting.
+    // (A later question, once this one is answered, may ask again.)
     const first = coach.findIndex((m) => rowsOf(m).some((r) => r.bench && r.playerId === sat!.holder));
     expect(first).toBeGreaterThanOrEqual(0);
-    expect(questionOf(l.teams[TEAM], sat!.holder)).toBeUndefined();
-  });
-  it('leaves no open row for a man who is off the club', () => {
-    const open = coach.flatMap((m) =>
-      rowsOf(m).filter(
-        (r) => r.bench && l.players[r.bench.playerId]?.teamId !== TEAM && benchCard(l, r.bench).state === 'open',
+    const { asked, answeredAt } = waited;
+    expect(asked).toBeDefined();
+    expect(answeredAt).toBeDefined();
+    const asks = new Set(
+      coach.flatMap((m) =>
+        (m.covered ?? []).filter((k) => {
+          const [kind, , at, id] = k.split(':');
+          return kind === 'talk' && Number(id) === sat!.holder && Number(at) >= asked! && Number(at) <= answeredAt!;
+        }),
       ),
     );
-    expect(open).toEqual([]);
+    expect(asks.size).toBe(1);
+    expect(questionOf(l.teams[TEAM], sat!.holder)).toBeUndefined();
   });
+  it('files no bench row for a man who is off the club', () => expect(offClub).toEqual([]));
   it('keeps the volume bounds', () => {
     expect(coach.length).toBeLessThanOrEqual(12);
-    const all = [...(l.stories?.open ?? []), ...(l.stories?.closed ?? [])];
-    expect(all.filter((s) => (s.told?.coach ?? 0) > 0).length).toBeLessThanOrEqual(10);
+    expect(storiesTold(coach)).toBeLessThanOrEqual(10);
     expect(storiesOpened(l).length).toBeLessThanOrEqual(12);
     expect(Math.max(...coach.map((m) => rowsOf(m).length))).toBeLessThanOrEqual(6);
     expect(l.stories!.open.length).toBeLessThanOrEqual(4);

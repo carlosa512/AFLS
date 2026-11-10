@@ -96,8 +96,8 @@ export function lettersSentences(m: Pick<InboxMessage, 'body' | 'sections'>): st
 }
 
 /**
- * Every sentence a sender filed this league year: each message's body and each section row's note, split where a
- * sentence ends (and every letter whose id starts with `idPrefix`, whoever signed it). What a letter writes next steps
+ * Every sentence a sender filed this league year: each message's body and each section row's note and `before` line,
+ * split where a sentence ends (and every letter whose id starts with `idPrefix`, whoever signed it). What a letter writes next steps
  * around all of it, so no sentence comes twice in a year.
  */
 export function seasonSaid(league: League, from: string, idPrefix?: string): string[] {
