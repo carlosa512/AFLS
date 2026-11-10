@@ -1556,7 +1556,7 @@ export interface GazetteTable {
   players?: true;
   /** Lower is better (a defense's numbers allowed). */
   lowerBetter?: true;
-  /** The league's average on a team table, for the mark on its bars. */
+  /** The average of the clubs a team table ranks (the league, or the playoff field), for the mark on its bars. */
   avg?: number;
   rows: GazetteRow[];
 }

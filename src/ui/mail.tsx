@@ -408,7 +408,7 @@ function GazetteCards({ league, tables }: { league: League; tables: GazetteTable
             </ol>
             {t.avg !== undefined && (
               <p className="gazette-key small muted">
-                <span className="gazette-avg is-key" /> League average {gazetteValue(t, t.avg)}
+                <span className="gazette-avg is-key" /> Average {gazetteValue(t, t.avg)}
               </p>
             )}
           </section>

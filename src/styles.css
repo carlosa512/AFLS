@@ -4726,8 +4726,11 @@ button.tip-pill {
 .gazette {
   display: grid;
   gap: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-top: 3px double var(--line);
-  padding-top: 12px;
+  border-radius: 8px;
+  padding: 14px 16px;
 }
 .gazette-table h4 {
   margin: 0 0 6px;
