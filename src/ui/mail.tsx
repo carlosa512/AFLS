@@ -188,6 +188,9 @@ function KindCards({ league, message }: { league: League; message: InboxMessage 
           {message.tradeReport && <TradeNewsCards league={league} report={message.tradeReport} />}
         </>
       );
+    case 'coachWeek':
+      // The sections carry everything: each person's row has his words and his own answers.
+      return null;
     case 'matchup':
       return <MatchupCards league={league} s={s} live={briefingCurrent(league, message)} />;
     case 'injury':
@@ -3013,6 +3016,7 @@ function SectionCard({
   onNegotiate?: (playerId: number) => void;
 }) {
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
+  if (section.layout === 'people') return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3110,6 +3114,64 @@ function SectionCard({
           </tbody>
         </table>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * The head coach's weekly letter: a row a person. His face and name on one line with muted facts, what the coach
+ * remembers of him (muted), his words, then the row's own control: his answers, the request's choices or Negotiate.
+ */
+function PeopleSection({
+  league,
+  section,
+  onNegotiate,
+}: {
+  league: League;
+  section: MailSection;
+  onNegotiate?: (playerId: number) => void;
+}) {
+  return (
+    <Card title={section.title}>
+      {section.lead && <p className="inbox-body">{section.lead}</p>}
+      <ul className="mail-rows">
+        {section.rows.map((r, j) => {
+          const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+          const coach = r.coachId === undefined ? undefined : league.coaches[r.coachId];
+          // A room's row is the room, then his coach: "D-line" and "Dan Reed, defensive line coach".
+          const byCoach = !!coach && r.cells.length > 1;
+          const name = byCoach ? r.cells[1] : r.cells[0];
+          const facts = (byCoach ? r.cells.slice(0, 1) : r.cells.slice(1)).filter(Boolean);
+          return (
+            <li key={j} className="coach-person">
+              <div className="coach-person-head">
+                {(p || coach) && (
+                  <span className="coach-person-face">
+                    {p ? (
+                      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={32} />
+                    ) : (
+                      <StaffAvatar person={coach!} size={32} />
+                    )}
+                  </span>
+                )}
+                <span className="coach-person-name">
+                  {p ? <PlayerLink league={league} player={p} pos /> : <strong>{name}</strong>}
+                  {facts.length > 0 && <span className="small muted"> {facts.join(' · ')}</span>}
+                </span>
+              </div>
+              {r.before && <p className="coach-person-before">{r.before}</p>}
+              {r.note && <p className="coach-person-note">{r.note}</p>}
+              {r.talk && <TalkCards league={league} s={r.talk} />}
+              {r.meeting && (
+                <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
+              )}
+              {r.negotiate && onNegotiate && (
+                <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }

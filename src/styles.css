@@ -4406,6 +4406,52 @@ button.tip-pill {
     text-align: left;
   }
 }
+/* The head coach's weekly letter: a row a person, stacked top to bottom (face and name, what came before, his words, the controls). */
+.coach-person {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.coach-person:first-child {
+  border-top: 0;
+}
+.coach-person-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.coach-person-face {
+  flex: none;
+  display: inline-flex;
+}
+.coach-person-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.coach-person-before {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--step--1, 0.875em);
+}
+.coach-person-note {
+  margin: 0;
+  max-width: 70ch;
+}
+.coach-person .meeting-held {
+  display: grid;
+  gap: 4px;
+}
+.coach-person .mail-card {
+  margin-top: 2px;
+}
+@media (max-width: 640px) {
+  .coach-person-head {
+    align-items: flex-start;
+  }
+}
 /* A ranked table that leaves out the middle of the league: a dashed rule where the ranks jump. */
 .mail-table tr.mail-gap td {
   border-top: 2px dashed var(--line);

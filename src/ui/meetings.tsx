@@ -14,7 +14,13 @@ export function MeetingChoices({ league, s }: { league: League; s: { clock: numb
   const [approach, setApproach] = useState<Approach | undefined>(only(card.approaches));
   const [backing, setBacking] = useState<Backing | undefined>(only(card.backings));
   const [timing, setTiming] = useState<Timing | undefined>(only(card.timings));
-  if (card.state === 'held') return <p className="meeting-said">{card.said}</p>;
+  if (card.state === 'held')
+    return (
+      <div className="meeting-held">
+        {card.setFor && <p className="meeting-said">{card.setFor}</p>}
+        <p className="meeting-said">{card.said}</p>
+      </div>
+    );
   if (card.state === 'passed') return <p className="muted small">This one has passed.</p>;
   const timings = card.timings ?? [];
   const when = timings.length ? timing : card.timing;

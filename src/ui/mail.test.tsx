@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { deliverMail, mailForOffer, offerMailId, threads } from '../engine/inbox';
 import { applyInjury, NEED, sitAfterClear } from '../engine/injuries';
 import { chooseCover, isAvailable, setTeam } from '../engine/roster';
@@ -17,7 +18,9 @@ import { noteTone, OfferCard, showNote } from './offers';
 import { nameIndex } from './moves';
 import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './screens/Inbox';
 import { badgeOn, contrast } from './color';
-import { adviceDraft, MailCards, Person, weekBack, weeksMissed } from './mail';
+import { answerMeeting, requestMeeting } from '../engine/meetings';
+import { activeRoster } from '../engine/roster';
+import { adviceDraft, MailCards, MailSections, Person, weekBack, weeksMissed } from './mail';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -1032,5 +1035,71 @@ describe('the all-clear for a concussion his first test cleared', () => {
     expect(renderToStaticMarkup(<MailCards league={league} message={message} />)).not.toMatch(
       /Sit him this week|Play him after all/,
     );
+  });
+});
+
+describe('the head coach’s weekly letter on screen', () => {
+  /** A step with a man asking, a room turned and a request waiting: the three kinds of row in one letter. */
+  function weekLetter() {
+    const l = createLeague({ seed: 'coach-letter-ui' });
+    const p = activeRoster(l, l.userTeamId)[0];
+    p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! } } };
+    const s = requestMeeting(l, 'DL')!;
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith('coach:'))!;
+    return { l, p, s, m };
+  }
+  const show = (l: League, m: InboxMessage) =>
+    renderToStaticMarkup(
+      <>
+        <MailCards league={l} message={m} />
+        <MailSections league={l} sections={m.sections ?? []} />
+      </>,
+    );
+
+  it('gives every person row a face and a linked name', () => {
+    const { l, p, m } = weekLetter();
+    const html = show(l, m);
+    const rows = m.sections!.flatMap((s) => s.rows);
+    expect(html.match(/class="coach-person"/g)).toHaveLength(rows.length);
+    const faced = rows.filter((r) => r.playerId !== undefined || r.coachId !== undefined);
+    expect(faced.length).toBeGreaterThan(0);
+    expect(html.match(/class="coach-person-face"/g)).toHaveLength(faced.length);
+    // His name opens his card: a link, with his position.
+    expect(html).toMatch(new RegExp(`class="linklike"><span>[^<]*${p.lastName}`));
+  });
+
+  it('shows a man’s answers in his row and the request’s choices in "What I want to do"', () => {
+    const { l, m } = weekLetter();
+    const html = show(l, m);
+    const asks = html.slice(html.indexOf('Who came to see me'), html.indexOf('What I want to do'));
+    expect(asks).toContain('Reassure him');
+    expect(asks).not.toContain('Go ahead');
+    const want = html.slice(html.indexOf('What I want to do'));
+    expect(want).toContain('Go ahead');
+    expect(want).not.toContain('Reassure him');
+  });
+
+  it('after Go ahead the row says when it is set for, and no result yet', () => {
+    const { l, s, m } = weekLetter();
+    answerMeeting(l, {
+      approach: s.approaches[0],
+      backing: s.backings[0],
+      timing: s.timings[0],
+    });
+    const html = show(l, m);
+    expect(html).toMatch(/(I'll tell you|You will hear) how it went/);
+    expect(html).toContain('You went ahead');
+    expect(html).not.toContain('Go ahead');
+  });
+
+  it('renders no rating anywhere in the letter', () => {
+    const { l, m } = weekLetter();
+    const html = show(l, m);
+    // Overall and potential never print; a ratings table or a "Pot"/"Ovr" label would be a leak.
+    expect(html).not.toMatch(/\bOvr\b|\bPot\b|\bOVR\b|potential|rating/i);
+    // The screen contract (ui.test.ts) bars the truth in source: the new code reads none of it.
+    const src = readFileSync('src/ui/mail.tsx', 'utf8') + readFileSync('src/ui/meetings.tsx', 'utf8');
+    expect(src).not.toMatch(/\b(p|player)\.ratings\b|\bplayerOvr\b|\.potential\b/);
   });
 });

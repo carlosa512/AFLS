@@ -18,7 +18,7 @@ import type {
   TeamMeetings,
 } from '../types';
 import { manSheet } from '../castSheet';
-import { readsDown, RESULT_MAN, RESULT_ROOM, type ResultFact } from '../coachWeekVoice';
+import { readsDown, RESULT_MAN, RESULT_ROOM, SET_FOR, type ResultFact } from '../coachWeekVoice';
 import { unitRead } from '../standing';
 import { around, say, seasonSaid } from '../voice';
 import { credibilityRead, type CredibilityRead } from './credibility';
@@ -324,6 +324,8 @@ export interface MeetingCardView {
   byCoach?: boolean;
   /** What you went ahead with, in a sentence. */
   said?: string;
+  /** Held: when it is set for, in the coach's words. The result comes in a later letter, never here. */
+  setFor?: string;
 }
 
 /** What a suggestion letter shows now, read off the league: your club only. */
@@ -343,6 +345,11 @@ export function meetingCard(league: League, s: { clock: number; scope: MeetingSc
     return {
       state: 'held',
       said: `You went ahead: ${parts.join(' · ')}`,
+      setFor: say(
+        SET_FOR,
+        { timing: held.timing, scope: held.scope, noun: SCOPE_NOUN[held.scope], backing: held.backing },
+        { key: `setFor:${held.clock}:${held.scope}`, slot: 'setFor' },
+      ),
     };
   }
   if (!p || p.clock !== s.clock || p.scope !== s.scope || !f) return { state: 'passed' };
