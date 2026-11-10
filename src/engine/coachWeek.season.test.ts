@@ -98,6 +98,9 @@ const storiesOpened = (l: League) =>
 //   seed, team   | letters | told | opened | still open
 //   mail1, 3     |   11   | 5   |  7    |  3
 //   vol2, 10     |   11   | 8   |  11   |  4
+// After the benching chain (storylines Task 11) and a closing riding in the next letter like a result:
+//   mail1, 3     |   11   | 5   |  8    |  3
+//   vol2, 10     |   11   | 5   |  8    |  4
 describe.each([
   { seed: 'mail1', team: 3 },
   { seed: 'vol2', team: 10 },

@@ -104,9 +104,9 @@ waiting on you), "The rooms" (the position coaches' turns, chemistry and warning
 request and its choices) and "From the staff room" (his word with the players, a depth-chart call, habit work).
 
 What goes in is ranked in five tiers. Asks and the request are always told; a meeting's result is told too, riding in the next letter filed for another
-reason and filing one alone only when it owes something or has waited two steps (`RESULT_WAIT`); a story closing and a
-clock coming due too; a room or the staff room only while fresh (`STALE` steps) and only as many as fit under `MAX_ROWS`
-rows a letter. Notes alone never file a letter: they ride along with something to answer, a closing, a result or a clock.
+reason and filing one alone only when it owes something or has waited two steps (`RESULT_WAIT`); a story closing the
+same way (it needs no answer, so it rides, and files alone only after two steps); a clock coming due is told too; a room or the staff room only while fresh (`STALE` steps) and only as many as fit under `MAX_ROWS`
+rows a letter. Notes alone never file a letter: they ride along with something to answer, a clock, or a result or closing that has waited.
 The losing is the club's: one story, one row, with the man asking who counts most quoted and the others named in a
 sentence, and one answer for them all; a man who asks about it again inside `LOSING_GAP` steps (four, for the whole club)
 is answered as you answered it. A meeting makes no story of its own: it only adds beats to a room already open because it

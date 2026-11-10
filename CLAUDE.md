@@ -276,7 +276,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     week's items (asks and an ask still waiting, his meeting request, a story closing, last step's meeting told a
     step on, a deal's or promise's clock, the rooms, the staff room), ranks them in five tiers, keeps tiers one to
     three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
-    tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter), and
+    tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter, and a
+    meeting's result or a story closing rides in the next letter, filing one alone only after `RESULT_WAIT` steps), and
     words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
     `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
     one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across

@@ -58,7 +58,10 @@ export interface WeekItem {
   /** A room whose row says a man feeds it. */
   link?: NonNullable<OpeningFact['link']>;
   result?: true;
-  /** A result that files a letter alone: it owes something (a Negotiate row) or has waited `RESULT_WAIT` steps. */
+  /**
+   * A result or a closing that files a letter alone: it owes something (a Negotiate row) or has waited `RESULT_WAIT`
+   * steps. Without it, either rides in the next letter filed for another reason.
+   */
   forces?: true;
   /** Which row of a meeting's result it is, for what to cut first. */
   part?: 'man' | 'told' | 'next' | 'talks';
@@ -71,8 +74,12 @@ export interface WeekItem {
 export const MAX_ROWS = 6;
 /** Steps a tier 4 or 5 item may wait before it is dropped. */
 export const STALE = 3;
-/** Steps a meeting's result waits for a letter filed for another reason before it files one itself. */
+/** Steps a meeting's result or a story's closing waits for a letter filed for another reason before it files one itself. */
 export const RESULT_WAIT = 2;
+/** Waited long enough to file a letter alone (a result or a closing that rides until then). */
+const waited = (clock: number, born: number) => clock - born >= RESULT_WAIT;
+/** What files a letter: tiers one to three, except a result or a closing still riding (`forces` unset). */
+const files = (i: WeekItem) => i.tier <= 3 && (!(i.result || i.closing) || !!i.forces);
 /** Men a meeting's result names, besides its room row. */
 export const RESULT_MEN = 2;
 /** Steps a room's losing waits before it comes to you again (`playerTalks.ts` answers a man sooner as you did). */
@@ -310,6 +317,8 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       storyId: s.id,
       born: b.at,
       closing: true,
+      // It needs no answer: it rides in the next letter, and files one alone once it has waited.
+      ...(waited(clock, b.at) ? { forces: true as const } : {}),
       head: fact,
     });
   }
@@ -329,7 +338,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         ...(story ? { storyId: story.id } : {}),
         // Every row carries the result's key: whichever the letter keeps tells it.
         covers: [key],
-        ...(rows.some((x) => x.negotiate) || clock - r.clock >= RESULT_WAIT ? { forces: true as const } : {}),
+        ...(rows.some((x) => x.negotiate) || waited(clock, r.clock) ? { forces: true as const } : {}),
         result: true,
         part: row.negotiate ? 'talks' : row.cells[1] === 'What I told them' ? 'told' : row.cells[1] ? 'next' : 'man',
         head: { kind: 'room', beat: 'held', noun: SCOPE_NOUN[r.scope] },
@@ -510,9 +519,9 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   const sender = headCoach(league);
   const said = seasonSaid(league, sender.from, 'coach:');
   const { items, coachNote } = gather(league, told, said, have);
-  // Notes alone never make a letter: something to answer, a story closing, a clock or a result that cannot wait does, and
-  // the rest ride along. A result with nothing owed waits in the log for the next letter, two steps at most.
-  if (!items.some((i) => i.tier <= 3 && (!i.result || i.forces))) return [];
+  // Notes alone never make a letter: something to answer, a clock, or a result or a closing that cannot wait does, and
+  // the rest ride along. A result with nothing owed, or a story closing, waits for the next letter, two steps at most.
+  if (!items.some(files)) return [];
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
   const heads = ranked.flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []));

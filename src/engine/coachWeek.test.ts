@@ -9,6 +9,7 @@ import { moraleClock, moraleContext } from './morale';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, weightOf, type Unit } from './standing';
+import { beat, closeStory, COACH, markTold } from './stories';
 import { shareWord } from './storiesStep';
 import { ATTRIBUTES, type InboxMessage, type League, type Player, type TalkCause } from './types';
 
@@ -256,6 +257,49 @@ describe('the head coach’s weekly letter', () => {
     deliverMail(o);
     const owes = rowsOf(letters(o).at(-1)!).some((r) => r.negotiate);
     expect(letters(o)).toHaveLength(owes ? 2 : 1);
+  });
+
+  /** A man's snaps story, told by the coach, closing at this step: a closing with nothing to answer. */
+  function closing(l: League): number {
+    const p = activeRoster(l, l.userTeamId)[3];
+    const on = { kind: 'snaps' as const, teamId: l.userTeamId, playerId: p.id };
+    markTold(beat(l, on, 'asked', l.moraleAt! - 3)!, COACH);
+    return closeStory(l, on, 'kept', l.moraleAt!)!.id;
+  }
+  const closes = (m: InboxMessage, id: number) => (m.covered ?? []).some((k) => k.startsWith(`story:${id}:`));
+
+  it('files a closing alone only when it has waited two steps', () => {
+    const l = inSeason();
+    const id = closing(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(0);
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(0);
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    expect(closes(letters(l)[0], id)).toBe(true);
+    // Told once.
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+  });
+
+  it('rides a closing in a letter filed for something else in between', () => {
+    const l = inSeason();
+    const id = closing(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(0);
+    nextStep(l);
+    const p = asking(l, 'deal');
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    expect(closes(letters(l)[0], id)).toBe(true);
+    answerTalk(l, p.id, 'reassure');
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
   });
 
   it('carries an unanswered ask as a short row, never his quote twice', () => {
