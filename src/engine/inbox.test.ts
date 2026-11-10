@@ -1700,14 +1700,7 @@ describe("the young players' review", () => {
     }
     expect(section(m, 'Ahead of our grades')!.rows[0].cells[4]).toContain('▲');
     expect(section(m, 'Behind our grades')!.rows[0].cells[4]).toContain('▼');
-    expect(section(m, 'Ahead of our grades')!.columns).toEqual([
-      'Player',
-      'Age',
-      'Came in',
-      'Overall',
-      'Ceiling',
-      'Our read',
-    ]);
+    expect(section(m, 'Ahead of our grades')!.columns).toEqual(['Player', 'Age', 'Came in', 'Overall', 'Ceiling']);
     expect(rows(m).some((r) => r.playerId === theirs.id)).toBe(false);
     expect((league.inbox ?? []).some((x) => x.id.startsWith(`ceiling:${league.season}:`))).toBe(false);
   });
@@ -1741,16 +1734,17 @@ describe("the young players' review", () => {
     shift(rookie, -3);
     deliverMail(league);
     const row = rowFor(review()[0], rookie);
-    expect(row.cells.at(-1)).toBe('Behind where we had him coming out. Still early.');
-    expect(row.cells.join(' ')).not.toContain('what you see is about what you get');
+    // The row is numbers: his ceiling on our read and how far the year moved it. The letter says it is early.
+    expect(row.cells.at(-1)).toMatch(/^\d+ ▼\d+$/);
     expect(review()[0].body).toContain("It's early for the rookies");
   });
 
-  it('a third-year behind reads close to his ceiling', () => {
-    const { league, third, shift, review, rowFor } = setup();
+  it('a third-year behind is listed with what the year took off his ceiling', () => {
+    const { league, third, shift, review, rowFor, section } = setup();
     shift(third, -3);
     deliverMail(league);
-    expect(rowFor(review()[0], third).cells.at(-1)).toBe('Close to his ceiling: what you see is about what you get.');
+    expect(section(review()[0], 'Behind our grades')!.rows.map((r) => r.playerId)).toEqual([third.id]);
+    expect(rowFor(review()[0], third).cells.at(-1)).toMatch(/^\d+ ▼\d+$/);
   });
 
   it('who we thought: a rookie who held is listed, a second-year who held is not', () => {
@@ -1761,7 +1755,7 @@ describe("the young players' review", () => {
     const [m] = review();
     expect(section(m, 'Who we thought he was')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
     expect(rows(m).some((r) => r.playerId === second.id)).toBe(false);
-    expect(rowFor(m, rookie).cells.at(-1)).toBe('Right on his draft grade.');
+    expect(rowFor(m, rookie).cells.at(-1)).toMatch(/^\d+$/);
     expect(m.body).toBe("With the season done, this year's rookies are about who we thought they were.");
   });
 

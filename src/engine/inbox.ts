@@ -220,35 +220,25 @@ function futuresMail(league: League, have: Set<string>): Draft[] {
   if (have.has(id)) return [];
   const picks = futuresKept(league, user).map((x) => league.players[x]);
   const staff = league.teams[user].autoSquad !== false;
-  // The whole squad, a row a man: who the scouts would keep first, each with a button to change it.
+  // The whole squad, a row a man: what the scouts see in him, and his own button. The call is yours, so the letter
+  // makes none for you. The men marked to stay (staff's picks while they run the squad) come first.
   const liked = new Set(futuresPicks(league, user));
   const kept = new Set(picks.map((p) => p.id));
   const rows = practiceSquad(league, user)
-    .map((p) => ({ p, view: perceive(league, user, p) }))
-    .sort(
-      (a, b) => Number(kept.has(b.p.id)) - Number(kept.has(a.p.id)) || b.view.potMid - a.view.potMid || a.p.id - b.p.id,
-    )
-    .map(({ p, view }) => {
-      const wants = !takesMinimum(league, p, user);
-      const note = wants
+    .map((p) => ({ p, pot: perceive(league, user, p).potMid }))
+    .sort((a, b) => Number(kept.has(b.p.id)) - Number(kept.has(a.p.id)) || b.pot - a.pot || a.p.id - b.p.id)
+    .map(({ p }) => ({
+      playerId: p.id,
+      cells: [fullName(p), String(p.age)],
+      note: !takesMinimum(league, p, user)
         ? 'Wants an NFL contract, not a futures deal.'
         : liked.has(p.id)
           ? p.age <= 23
             ? `Young, with a ceiling above our backups at ${p.position}.`
             : `His ceiling is at least our backup level at ${p.position}.`
-          : `Doesn't project past our backups at ${p.position}.`;
-      return {
-        playerId: p.id,
-        cells: [
-          fullName(p),
-          String(p.age),
-          String(Math.round(view.ovr)),
-          wants ? '' : kept.has(p.id) ? "We'd keep" : "We'd let go",
-        ],
-        note,
-        futures: { playerId: p.id },
-      };
-    });
+          : `Doesn't project past our backups at ${p.position}.`,
+      futures: { playerId: p.id },
+    }));
   return [
     {
       id,
@@ -257,11 +247,9 @@ function futuresMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...director(league),
       category: 'scouting',
-      subject: picks.length ? `Squad players worth keeping: ${picks.length}` : 'Nobody on the squad to keep',
-      body: picks.length
-        ? `Our season is over, so practice squad deals end at the new league year. We'd keep ${small(picks.length)} on futures deals: minimum contracts for next season. ${staff ? 'Staff will sign them unless you change it below.' : 'Mark who stays below before the new league year.'}`
-        : "Our season is over and the practice squad deals end at the new league year. On our read nobody there reaches our backups' level, so we'd let them go.",
-      sections: [{ title: 'The practice squad', columns: ['Player', 'Age', 'Our read', 'Our call'], rows }],
+      subject: 'Practice squad: who stays for next season',
+      body: `Our season is over, so practice squad deals end at the new league year. Anyone you keep signs a futures deal: a minimum contract for next season. ${staff && picks.length ? `Staff have marked ${small(picks.length)} to stay.` : 'Nobody is marked to stay yet.'}`,
+      sections: [{ title: 'The practice squad', columns: ['Player', 'Age'], rows }],
       actions: [{ kind: 'team', teamId: user }],
     },
   ];
@@ -2558,21 +2546,6 @@ function positionMovedMail(league: League, have: Set<string>): Draft[] {
 
 type Verdict = 'ahead' | 'held' | 'behind';
 
-/** Our read on a young player after his ceiling settled, by his year (0 rookie, 1 second, 2 third). */
-const CEILING_READ: Record<Verdict, readonly string[]> = {
-  ahead: [
-    'Playing above his draft grade.',
-    'More upside than we gave him credit for.',
-    'Still climbing past our projection.',
-  ],
-  held: ['Right on his draft grade.'],
-  behind: [
-    'Behind where we had him coming out. Still early.',
-    "Hasn't taken the second-year step.",
-    'Close to his ceiling: what you see is about what you get.',
-  ],
-};
-
 const CEILING_TITLE: Record<Verdict, string> = {
   ahead: 'Ahead of our grades',
   held: 'Who we thought he was',
@@ -2641,8 +2614,9 @@ function seasonOver(league: League, teamId: number): boolean {
 /**
  * The director's review of the young players once our season is over (docs/superpowers/specs/
  * 2026-11-02-ceiling-review-letter-design.md): whose ceiling settled a point or more ahead of or behind our read,
- * and the rookies who are who we thought. The condition is our read before and after, never the true change, and
- * the words follow his year: nobody is called done before his last settle. Once a season; a season that already
+ * and the rookies who are who we thought. The condition is our read before and after, never the true change. A row
+ * is numbers (his overall and ceiling on our read, each with the year's change); the letter's own line says it is
+ * early for the rookies, so nobody is called done before his last settle. Once a season; a season that already
  * filed the old one-off letters (`ceiling:${season}:${id}`) isn't told twice.
  */
 function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
@@ -2697,19 +2671,12 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
     .filter((v) => rows[v].length)
     .map((v) => ({
       title: CEILING_TITLE[v],
-      columns: ['Player', 'Age', 'Came in', 'Overall', 'Ceiling', 'Our read'],
+      columns: ['Player', 'Age', 'Came in', 'Overall', 'Ceiling'],
       rows: [...rows[v]]
         .sort((a, b) => a.year - b.year || Math.abs(b.moved) - Math.abs(a.moved) || a.p.id - b.p.id)
-        .map(({ p, year, moved, ovr, grew, pot }) => ({
+        .map(({ p, moved, ovr, grew, pot }) => ({
           playerId: p.id,
-          cells: [
-            fullName(p),
-            String(p.age),
-            cameIn(p),
-            withChange(ovr, grew),
-            withChange(pot, moved),
-            CEILING_READ[v][year] ?? CEILING_READ[v][0],
-          ],
+          cells: [fullName(p), String(p.age), cameIn(p), withChange(ovr, grew), withChange(pot, moved)],
         })),
     }));
   return [

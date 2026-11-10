@@ -64,7 +64,7 @@ import {
 } from '../engine/staff';
 import { boardValue, reachOrSteal } from '../engine/offseason/draft';
 import { GameStar, KeyStats, LineScore, standouts, Standouts } from './game';
-import { LinkedText, moveIndex, MoveText, nameIndex } from './moves';
+import { LinkedText, linkedSegments, moveIndex, MoveText, nameIndex } from './moves';
 import { TalkContractButton } from './negotiation';
 import {
   deadlineDayTrades,
@@ -1725,12 +1725,14 @@ function TradeCards({ league, s }: { league: League; s: Extract<MailSubject, { k
     <div className="mail-split">
       <Card>
         <span className="eyebrow">You sent</span>
+        <Faces league={league} text={sent} />
         <p style={{ margin: '6px 0 0' }}>
           <LinkedText league={league} text={sent} />
         </p>
       </Card>
       <Card>
         <span className="eyebrow">You got</span>
+        <Faces league={league} text={got} />
         <p style={{ margin: '6px 0 0' }}>
           <LinkedText league={league} text={got} />
         </p>
@@ -3182,7 +3184,8 @@ function SectionCard({
           {section.rows.map((r, j) => {
             const p = r.playerId === undefined ? undefined : league.players[r.playerId];
             const facts = r.cells
-              .slice(1, -1)
+              // A squad row's cells are all facts; elsewhere the last cell is the row's side label.
+              .slice(1, r.futures ? undefined : -1)
               // Numbers carry their column's name ("Our read 9"); an age or a deal reads on its own, as do words.
               .map((c, k) =>
                 cols[k + 1] && /^[\d$]/.test(c) && cols[k + 1] !== 'Age' && cols[k + 1] !== 'Deal'
@@ -3193,14 +3196,17 @@ function SectionCard({
             return (
               <li key={j} className="mail-row">
                 <div className="mail-row-head">
-                  {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
-                  {facts && <span className="small muted"> {facts}</span>}
+                  {p && <Face league={league} player={p} />}
+                  <span>
+                    {p ? <PlayerLink league={league} player={p} pos /> : r.cells[0]}
+                    {facts && <span className="small muted"> {facts}</span>}
+                  </span>
                 </div>
                 <div className="mail-row-side">
                   {r.contract ? (
                     <CallPill league={league} playerId={r.contract.playerId} filed={r.cells.at(-1)!} />
                   ) : (
-                    r.cells.length > 1 && <span className="small">{r.cells.at(-1)}</span>
+                    r.cells.length > 1 && !r.futures && <span className="small">{r.cells.at(-1)}</span>
                   )}
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                   {r.futures && league.players[r.futures.playerId] && (
@@ -3254,7 +3260,14 @@ function SectionCard({
                 <tr key={j}>
                   {r.cells.map((c, k) => (
                     <td key={k}>
-                      {k === 0 && p ? <PlayerLink league={league} player={p} pos /> : <Moved text={c} />}
+                      {k === 0 && p ? (
+                        <span className="mail-face-cell">
+                          <Face league={league} player={p} />
+                          <PlayerLink league={league} player={p} pos />
+                        </span>
+                      ) : (
+                        <Moved text={c} />
+                      )}
                       {k === r.cells.length - 1 && r.note && <div className="small muted">{r.note}</div>}
                     </td>
                   ))}
@@ -3270,6 +3283,35 @@ function SectionCard({
         </table>
       </div>
     </Card>
+  );
+}
+
+/** A face big enough to read the number on it, wherever a letter's row or line is about one player. */
+const FACE = 36;
+function Face({ league, player, size = FACE }: { league: League; player: Player; size?: number }) {
+  return (
+    <span className="mail-face">
+      <PlayerAvatar player={player} team={player.teamId !== null ? league.teams[player.teamId] : null} size={size} />
+    </span>
+  );
+}
+
+/** The players a line of a letter names, as faces: a trade's two sides read at a glance. */
+function Faces({ league, text }: { league: League; text: string }) {
+  const ids = [
+    ...new Set(
+      linkedSegments(league, text).flatMap((seg) =>
+        typeof seg !== 'string' && seg.who.kind === 'player' && league.players[seg.who.id] ? [seg.who.id] : [],
+      ),
+    ),
+  ];
+  if (!ids.length) return null;
+  return (
+    <div className="mail-faces">
+      {ids.map((id) => (
+        <Face key={id} league={league} player={league.players[id]} size={44} />
+      ))}
+    </div>
   );
 }
 

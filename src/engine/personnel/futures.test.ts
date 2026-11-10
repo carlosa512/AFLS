@@ -142,10 +142,9 @@ describe('futures deals', () => {
         .sort(),
     );
     expect(rows.every((r) => r.futures?.playerId === r.playerId && !!r.note)).toBe(true);
-    const calls = rows.map((r) => r.cells.at(-1));
-    expect(calls.lastIndexOf("We'd keep")).toBeLessThan(
-      calls.includes("We'd let go") ? calls.indexOf("We'd let go") : 99,
-    );
+    // The call is yours: the row is the man and his age, with no grade and no verdict beside them.
+    expect(rows.every((r) => r.cells.length === 2)).toBe(true);
+    expect(JSON.stringify(letters[0])).not.toMatch(/We'd keep|We'd let go|Our read/);
     newLeagueYear();
     deliverMail(l);
     deliverMail(l);

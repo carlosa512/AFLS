@@ -134,7 +134,7 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
         const p = league.players[id];
         return (
           <li key={id} className="row" style={{ gap: 8 }}>
-            <PlayerAvatar player={p} team={team} size={24} />
+            <PlayerAvatar player={p} team={team} size={36} />
             <PlayerLink league={league} player={p} pos />
             <Ovr league={league} player={p} />
             <span className="muted small">
