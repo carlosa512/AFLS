@@ -17,6 +17,8 @@ const young = (m: ManSheet) => /rookie|year man/.test(m.years);
 /** The man across from him, named: a line that reads it is only chosen when there is one. */
 const across = (f: BenchFact) => f.other!.last;
 const holder = (f: BenchFact) => f.role === 'holder';
+/** A word was given on this question and broken: somebody was told, so no line says nobody was. */
+const told = (f: BenchFact) => !!f.wordBroken;
 
 /** His words when he asks where he stands. A holder sat at some point; the other man sat this week after starting. */
 export const BENCH_ASK: readonly Line<BenchFact>[] = [
@@ -76,15 +78,32 @@ export const BENCH_ASK: readonly Line<BenchFact>[] = [
     reads: 2,
     text: (f) => `I understand ${across(f)} is the better man right now. I'd still like to hear where I stand.`,
   },
+  // A word you gave him, broken: he says so first.
+  {
+    when: (f) => holder(f) && f.wordBroken === 'backIn',
+    reads: 3,
+    text: () => 'You told me I was back in. Then I sat.',
+  },
+  {
+    when: (f) => holder(f) && f.wordBroken === 'thisWeek',
+    reads: 3,
+    text: () => 'You said it was one week. Then I sat again.',
+  },
+  {
+    when: (f) => !holder(f) && f.wordBroken === 'yours',
+    reads: 3,
+    text: () => 'You told me it was mine. Then I sat.',
+  },
   // The other man: he started for the holder, and now he has sat again with nobody saying a word.
-  { when: (f) => !holder(f), text: () => 'I started, and then I sat. Nobody has told me where I stand.' },
+  { when: (f) => !holder(f) && !told(f), text: () => 'I started, and then I sat. Nobody has told me where I stand.' },
+  { when: (f) => !holder(f) && told(f), text: () => "I started, and then I sat. I'd like to know where I stand." },
   {
     when: (f) => !holder(f) && !!f.other,
     reads: 1,
     text: (f) => `I filled in for ${across(f)}, and now I'm out again. Whose job is it?`,
   },
   {
-    when: (f) => !holder(f) && !!f.other && veteran(f.man),
+    when: (f) => !holder(f) && !!f.other && veteran(f.man) && !told(f),
     reads: 2,
     text: (f) =>
       `I've played long enough to know when nobody is saying anything. ${across(f)} has the job, or I do. Which is it?`,
@@ -142,16 +161,31 @@ export const BENCH_BEFORE: readonly Line<BenchFact>[] = [
   },
   { when: (f) => f.man.dispute, reads: 2, text: (f) => `${f.man.last} is already in a dispute with us.` },
   {
-    when: (f) => !holder(f) && !!f.other,
+    when: (f) => !holder(f) && !!f.other && !told(f),
     reads: 2,
     text: (f) => `${f.man.last} started for ${across(f)}, then sat again, and neither of them has been told a thing.`,
+  },
+  {
+    when: (f) => holder(f) && f.wordBroken === 'backIn',
+    reads: 3,
+    text: (f) => `${f.man.last} was told he was back in, and then he sat again.`,
+  },
+  {
+    when: (f) => holder(f) && f.wordBroken === 'thisWeek',
+    reads: 3,
+    text: (f) => `${f.man.last} was told it was one week, and he sat again.`,
+  },
+  {
+    when: (f) => !holder(f) && f.wordBroken === 'yours',
+    reads: 3,
+    text: (f) => `${f.man.last} was told the job was his, and then he sat.`,
   },
 ];
 
 /** A question nobody has answered, a week on: only ever worded while it is open and unanswered. */
 export const BENCH_STILL: readonly Line<BenchFact>[] = [
   {
-    when: (f) => holder(f) && !!f.other && f.otherAsked,
+    when: (f) => holder(f) && !!f.other && f.otherAsked && !told(f),
     reads: 3,
     text: (f) => `${f.man.last} still hasn't heard from you. Now ${across(f)} is asking too.`,
   },
@@ -171,7 +205,7 @@ export const BENCH_STILL: readonly Line<BenchFact>[] = [
     text: (f) => `${f.man.last} has had this hanging over him for weeks.`,
   },
   {
-    when: (f) => holder(f) && !!f.other,
+    when: (f) => holder(f) && !!f.other && !told(f),
     reads: 1,
     text: (f) => `Nobody has told ${f.man.last} or ${across(f)} whose job it is.`,
   },
@@ -182,8 +216,22 @@ export const BENCH_STILL: readonly Line<BenchFact>[] = [
   },
   { when: holder, text: (f) => `${f.man.last} is still waiting to hear where he stands.` },
   {
-    when: (f) => !holder(f),
+    when: (f) => holder(f) && f.wordBroken === 'backIn',
+    reads: 3,
+    text: (f) => `${f.man.last} sat after you told him he was back in, and he has not heard from you since.`,
+  },
+  {
+    when: (f) => holder(f) && f.wordBroken === 'thisWeek',
+    reads: 3,
+    text: (f) => `${f.man.last} sat again after you told him it was one week, and he has not heard from you since.`,
+  },
+  {
+    when: (f) => !holder(f) && !told(f),
     text: (f) => `${f.man.last} sat after starting, and still nobody has told him where he stands.`,
+  },
+  {
+    when: (f) => !holder(f) && told(f),
+    text: (f) => `${f.man.last} sat after starting, and he is still waiting to hear where he stands.`,
   },
 ];
 

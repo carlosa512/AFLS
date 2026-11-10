@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerBench,
   benchCard,
-  behindInRoom,
   benchFact,
   BENCH,
   BENCH_SIZE,
@@ -38,11 +37,12 @@ import { releasePlayer } from './finance/cap';
 import { playWeek, startLiveGame } from './league';
 import { ensureWaivers, setWaiverClaim } from './personnel/waivers';
 import { initialService } from './personnel/service';
-import { playerOvr, STARTERS } from './positions';
+import { STARTERS } from './positions';
 import { addJolt, heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import { addPlayer, setTeam } from './roster';
+import { perceive } from './scouting';
 import type { Injury, League, Player, Team } from './types';
 
 afterEach(() => {
@@ -1187,13 +1187,29 @@ describe('his words', () => {
 });
 
 describe('fix round 1', () => {
-  it('a rookie who is his room’s best is not "behind" anyone, a depth man is', () => {
-    const { l, team } = setup('fix-better');
-    const room = teamPlayersOf(l, team, 'QB').sort((a, b) => playerOvr(b) - playerOvr(a));
-    const ctx = moraleContext(l);
-    room[0].experience = 0;
-    expect(behindInRoom(room[0], ctx)).toBe(false);
-    expect(behindInRoom(room.at(-1)!, ctx)).toBe(true);
+  it('"better" reads the man across from him on our scouts\' read, not the rest of the room', () => {
+    const rate = (p: Player, v: number) => {
+      for (const k of Object.keys(p.ratings) as (keyof Player['ratings'])[]) p.ratings[k] = v;
+    };
+    // The room's best is hurt; a lesser man started over the holder: nobody across from him is the better man.
+    const a = setup('fix-better-a');
+    rate(a.q[0], 12);
+    rate(a.q[1], 8);
+    rate(a.q[2], 18);
+    a.q[2].injury = hurt(a.l);
+    order(a.team, [a.q[1].id, a.q[0].id]);
+    moodWeek(a.l);
+    expect(questionOf(a.team, a.q[0].id)?.other).toBe(a.q[1].id);
+    expect(benchFact(a.l, a.q[0], moraleContext(a.l))!.better).toBe(false);
+    // The man who started over him reads plainly better: he knows it.
+    const b = setup('fix-better-b');
+    rate(b.q[0], 8);
+    rate(b.q[1], 16);
+    order(b.team, [b.q[1].id, b.q[0].id]);
+    moodWeek(b.l);
+    const ours = (p: Player) => perceive(b.l, b.team.id, p).ovr;
+    expect(ours(b.q[1]) - ours(b.q[0])).toBeGreaterThan(1);
+    expect(benchFact(b.l, b.q[0], moraleContext(b.l))!.better).toBe(true);
   });
 
   it('an answered row says how it stands now, and a broken word says so when it opens again', () => {
@@ -1214,6 +1230,9 @@ describe('fix round 1', () => {
     const again = benchCard(a.l, { playerId: a.q[0].id, clock: 0 });
     expect(again.state).toBe('open');
     expect(again.stands).toBe('He sat again, so your word did not hold.');
+    // His row's facts know a word was given and broken: no line says nobody told him.
+    expect(benchFact(a.l, a.q[0], moraleContext(a.l))!.wordBroken).toBe('backIn');
+    expect(benchFact(c.l, c.q[0], moraleContext(c.l))!.wordBroken).toBeNull();
   });
 
   it('both men gone: the closing says nothing about who has the job', () => {

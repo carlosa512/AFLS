@@ -62,6 +62,7 @@ const fact = (o: Partial<BenchFact> = {}): BenchFact => ({
   weeksOpen: 'no',
   otherAsked: false,
   better: false,
+  wordBroken: null,
   ...o,
 });
 
@@ -87,17 +88,20 @@ const facts: BenchFact[] = men.flatMap((m) =>
     (['you', 'staff'] as const).flatMap((by) =>
       [true, false].flatMap((withOther) =>
         ['no', 'one', 'two', 'three', 'many'].flatMap((weeksOpen) =>
-          [true, false].map((better) =>
-            fact({
-              man: m,
-              role,
-              by,
-              weeksOpen,
-              better,
-              backFromInjury: m.backFromInjury,
-              other: withOther ? man({ id: 2, last: 'Reyes' }) : null,
-              otherAsked: withOther && weeksOpen !== 'no',
-            }),
+          [true, false].flatMap((better) =>
+            ([null, 'backIn', 'thisWeek', 'yours'] as const).map((wordBroken) =>
+              fact({
+                man: m,
+                role,
+                by,
+                weeksOpen,
+                better,
+                wordBroken,
+                backFromInjury: m.backFromInjury,
+                other: withOther ? man({ id: 2, last: 'Reyes' }) : null,
+                otherAsked: withOther && weeksOpen !== 'no',
+              }),
+            ),
           ),
         ),
       ),
@@ -113,6 +117,21 @@ describe('the benching chain’s words', () => {
       if (!f.other) for (const t of every(BENCH_ASK, f)) expect(t).not.toContain('undefined');
       expect(say(BENCH_ASK, f, { key: 'k', slot: 'ask' })).toBeTruthy();
     }
+  });
+
+  it('a word given and broken: no line says nobody told them, and the man it was given to says so', () => {
+    for (const f of facts.filter((x) => x.wordBroken))
+      for (const bank of [BENCH_ASK, BENCH_BEFORE, BENCH_STILL])
+        for (const t of every(bank, f))
+          expect(t).not.toMatch(/nobody (has told|is saying)|been told a thing|hasn't heard from you|nobody has told/i);
+    // A line about the broken word is only his when the word was his: the holder's back in, the other man's job.
+    const his = (f: BenchFact) =>
+      f.role === 'holder' ? f.wordBroken === 'backIn' || f.wordBroken === 'thisWeek' : f.wordBroken === 'yours';
+    for (const f of facts.filter((x) => x.wordBroken && !his(x)))
+      for (const t of every(BENCH_ASK, f)) expect(t).not.toMatch(/You told me|You said/);
+    expect(every(BENCH_ASK, fact({ role: 'other', wordBroken: 'yours' }))).toContain(
+      'You told me it was mine. Then I sat.',
+    );
   });
 
   it('with the staff sorting the chart no line says the GM sat, benched or moved him', () => {

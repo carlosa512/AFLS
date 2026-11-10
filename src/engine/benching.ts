@@ -30,7 +30,7 @@ import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { say, toldKeys } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import { playerOvr, STARTERS } from './positions';
+import { STARTERS } from './positions';
 import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
 
 /** Tests turn it off to prove play is untouched. */
@@ -739,15 +739,33 @@ export interface BenchFact {
   /** Weeks since he sat, as a word: "no", "one", "two", "three", "many". */
   weeksOpen: string;
   otherAsked: boolean;
-  /** The man across from him is plainly the better on his own read: he knows who is ahead of him. */
+  /** The man across from him reads plainly better on our scouts' read (words only): he knows who is ahead of him. */
   better: boolean;
+  /**
+   * The question was answered and that word broken, by its reply (`backIn` and `thisWeek` were the holder's, `yours`
+   * the other man's): somebody was told, so no line says nobody was. Null while no word has been given and broken.
+   */
+  wordBroken: 'backIn' | 'thisWeek' | 'yours' | null;
 }
 
-/** He ranks at or beyond the starting spots of his room, by the measure `expectedRole` reads: he knows who is ahead. */
-export function behindInRoom(p: Player, ctx: MoraleContext): boolean {
-  const ovr = playerOvr(p);
-  const ahead = (ctx.rooms.get(`${p.teamId}:${p.position}`) ?? []).filter((o) => o > ovr + 1e-9).length;
-  return ahead >= STARTERS[p.position];
+/** How far ahead on our scouts' read the man across from him must be before he is plainly the better (no close call). */
+const PLAINLY = 0.5;
+
+/**
+ * The man across from him reads plainly better on your club's own read: the letter's fact, never the true ratings. The
+ * mood rule that halves an honest answer reads `expectedRole`, which is the sim's and stays on the truth.
+ */
+function plainlyBetter(league: League, teamId: number, p: Player, other: Player | undefined): boolean {
+  return !!other && perceive(league, teamId, other).ovr - perceive(league, teamId, p).ovr > PLAINLY;
+}
+
+/** The word given on a question and broken since (he sat again): read from its story's last answer, broken or not. */
+function brokenWord(story: Story | undefined): BenchFact['wordBroken'] {
+  const beats = [...(story?.beats ?? [])].reverse();
+  const at = beats.findIndex((b) => b.kind === 'answered' || b.kind === 'broken' || b.kind === 'satAgain');
+  if (at < 0 || beats[at].kind === 'answered') return null;
+  const how = beats.slice(at + 1).find((b) => b.kind === 'answered')?.how;
+  return how === 'backIn' || how === 'thisWeek' || how === 'yours' ? how : null;
 }
 
 /** His row's facts: null unless he is yours and part of an open job question. */
@@ -771,7 +789,8 @@ export function benchFact(league: League, p: Player, ctx: MoraleContext): BenchF
     role,
     weeksOpen: weeks < COUNT_WORDS.length ? COUNT_WORDS[weeks] : 'many',
     otherAsked: q.other !== undefined && !!q.asked?.includes(q.other),
-    better: behindInRoom(p, ctx),
+    better: plainlyBetter(league, team.id, p, across),
+    wordBroken: brokenWord(openStory(league, storyOn(team, q))),
   };
 }
 
