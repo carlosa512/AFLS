@@ -106,7 +106,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [x] **Morale and holdouts** · **Done** (0.3.0; hooks into #6 and #8): every rostered player has a mood (0.2.21,
       `morale.ts`): a weekly target from his contract against his market, the role he plays against the one he expects
       (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
-      with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
+      with fading jolts for big moments (a benching, a raise, the C, a friend cut). A healthy starter left off the lineup asks where he stands and you answer (0.4.24, `benching.ts`: jobs set on cut-down day and earned by three starts, your lineup set in camp, four answers, AI clubs answer theirs). Your players' moods show as
       smileys on the Roster and the Locker Room's morale board, a pill on the card, and in the head coach's locker
       room report; `npm run morale` holds the league's moods to range. Players speak up (0.2.22, `playerTalks.ts`):
       an unhappy man with a cause writes to you (a step's letters as one message), you promise, reassure or stand

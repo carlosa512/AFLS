@@ -112,6 +112,13 @@ sentence, and one answer for them all; a man who asks about it again inside `LOS
 is answered as you answered it. A meeting makes no story of its own: it only adds beats to a room already open because it
 turned, and the letters tell meetings from the meetings log. A room has one story a league year: when it turns again
 after recovering, the same story re-opens and only the new beats are told.
+A benched job-holder's question (`benching.ts`) is told in the same letter: his ask in "Who came to see me" the step he
+sits (his words by what he knows: who started, what you told him before; the other man asks about the job rather than
+a benching), a note a week while it waits ("still waiting on you", a tier-4 note that rides along and never files a
+letter), how he took your answer in "Since last week", and one closing row when it ends (your word, three straight
+starts, the question settled by an injury or a trade), told like a meeting's result. A cleared starter left off the
+lineup is a row of its own, with "Put him back". The benching's lines are in `benchVoice.ts` and obey the same rule:
+no sentence twice in a league year, a before-line left out when it has nothing new.
 A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
 and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
 together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).

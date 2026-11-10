@@ -170,7 +170,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
   way, Anchors calming a room; and backing the staff (L4): the staff edge centred, rooms in doubt and lost, lawyers'
   rooms doubting more, notices kept, AI clubs relieving coordinators at the NFL's rate. Run it after changing
-  `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`,
+  `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
 - `npm run build` — web build to `dist/`
@@ -343,13 +343,26 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `personality.ts` the personality name and one-sentence character line read off traits and agent dials (never stored;
     `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view, captains
     (`nameCaptains`) · `morale.ts` each player's mood: a weekly target (contract, role, team, locker room, promises
-    from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments;
+    from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments (a benching's drop and its answers come from `benching.ts`, `BENCH_SIZE`);
     an answer eases the grievance it answered while it holds (`heardWeight`: an open promise, a reassurance until the
     quiet ends);
     `moraleWeek` in `playWeek`, `moraleStep` at each offseason step, nothing drawn from any stream; screens read it only
     through `moraleView` (your players only, in words); its effects (G2) read one scale, `moodLean` (talks in `demand`,
     position learning in `learnRate`) or `moodPull` against `moraleMean` (the growth tilt, `DevYear.mood` and
-    `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `playerTalks.ts` players speaking up (G3): who asks (three
+    `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `benching.ts` who holds a starting job (storylines, the benching chain; spec `docs/superpowers/specs/2026-11-09-storylines-design.md`
+    §8–10): the men in a chart's starting spots hold the jobs from cut-down day (`setJobs`; hurt or not, `Team.jobs.held`), a man earns one by
+    `EARN` starts in a row and the longest-sitting holder gives his up, and a club's jobs clear at the new league year. Who started is read at kickoff from the chart and
+    availability (`benchKickoff`, `Team.kickoff`), never from snaps. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
+    `Team.lineupSet`: the advance button stops at the door once a year, unless staff sort the chart). A healthy holder left off the lineup
+    asks where he stands the same step (`benchWeek`, a `benched` ask, `JobQuestion` in `Team.jobs.questions`, `questionOf`) and, unanswered, is unsure
+    each week he sits without ever being "ignored"; the other man who starts in his place asks too once the chart swaps back. Four answers to
+    the holder (`BenchReply`: back in next week, just this week, earn it, it's his job now) and three to the other man (`OtherReply`), one
+    answer clearing both (`answerBench`); a promise is kept or broken by the next start (a hurt man pauses it), and three starts in a row with
+    no word settle it by the chart, a man finding out from the depth chart losing more (`BENCH_SIZE`: sit, backIn, thisWeek, earn, his, kept,
+    broken, unsure, settled, chart). An AI club answers at once (`aiBenchReply`, by its GM). `benchWeek` runs in the morale step and draws nothing;
+    `BENCH.on` false turns every writer off. A cleared starter not in a starting spot gets a reminder with "Put him back" (`clearedNotStarting`,
+    `putBack`, `dismissReminder`). Its words are `benchVoice.ts`, its rows `coachWeek.ts`'s, a note a week while a question waits and a closing
+    when it ends (`benchStory`, `benchCard`) · `playerTalks.ts` players speaking up (G3): who asks (three
     steps down with a cause, two a club a step, eight steps' quiet after an answer), your answers (`answerTalk`) and the
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;

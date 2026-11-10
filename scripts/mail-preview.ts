@@ -10,7 +10,7 @@
  * `deadline.json` (trade deadline week), `late.json` (week 15), `end.json` (the re-sign window), `camp.json` (training camp),
  * `wire.json` (cut-down day, the wire full), `cutdown.json` (the next season's first week, after cut-down day), and the
  * head coach's weekly letter: `room.json` (the first step it has a "The rooms" row) and `result.json` (the first
- * with a "Since last week" row telling a meeting's result).
+ * with a "Since last week" row telling a meeting's result) and `bench.json` (the first with a row asking about his job).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -76,6 +76,12 @@ const coachLetterHas = (l: League, title: string) => {
   return !!m?.sections?.some((sec) => sec.title === title);
 };
 
+/** The newest head coach's letter has a row asking where a benched man stands. */
+const coachLetterBench = (l: League) => {
+  const m = [...(l.inbox ?? [])].reverse().find((x) => x.id.startsWith('coach:'));
+  return !!m?.sections?.some((sec) => sec.rows.some((r) => r.bench));
+};
+
 const moments: [string, (l: League) => boolean][] = [
   ['deadline', (l) => l.phase === 'regular' && l.week >= TRADE_DEADLINE_WEEK && l.season === startSeason],
   // The stretch run: a few weeks of the staff's notes behind it.
@@ -88,6 +94,7 @@ const moments: [string, (l: League) => boolean][] = [
   // The head coach's weekly letter: one with a rooms row, one telling last step's meeting.
   ['room', (l) => coachLetterHas(l, 'The rooms')],
   ['result', (l) => coachLetterHas(l, 'Since last week')],
+  ['bench', coachLetterBench],
 ];
 const done = new Set<string>();
 for (let i = 0; i < 400 && done.size < moments.length; i++) {

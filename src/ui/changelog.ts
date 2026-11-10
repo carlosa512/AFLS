@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.24',
+    date: '2026-11-10',
+    title: 'Am I benched?',
+    text: "Sit a starter and he'll ask where he stands, so tell him. A new save is recommended for this to read cleanly.",
+  },
+  {
     version: '0.4.23',
     date: '2026-11-10',
     title: 'One letter from the coach',
