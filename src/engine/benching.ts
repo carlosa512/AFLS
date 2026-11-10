@@ -27,16 +27,16 @@ export const BENCH = { on: true };
  * with `npm run morale` (the benching's drop and recovery, band shares, asks per club) with no range moved.
  */
 export const BENCH_SIZE = {
-  sit: -1.5,
+  sit: -1.25,
   backIn: 0.75,
   thisWeek: 0.5,
   earn: -0.5,
-  his: -1.5,
+  his: -1,
   kept: 1.5,
-  broken: -3,
+  broken: -2.5,
   unsure: -0.5,
-  settled: 0.5,
-  chart: -1.5,
+  settled: 0.75,
+  chart: -1.25,
 };
 /** Your answers to the man who sat holding the job, and to the other man of the question. */
 export type BenchReply = 'backIn' | 'thisWeek' | 'earn' | 'his';
