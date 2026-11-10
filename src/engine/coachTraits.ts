@@ -149,19 +149,19 @@ type Side = 'high' | 'low';
 const WORDS: Record<keyof CoachTraits, Record<Side, { name: string; line: string }>> = {
   ambition: {
     high: { name: 'Climber', line: 'He wants his own team, and soon.' },
-    low: { name: 'Lifer', line: 'Happy where he is; he doesn’t chase the next job.' },
+    low: { name: 'Lifer', line: 'He is happy where he is and doesn’t chase the next job.' },
   },
   loyalty: {
     high: { name: 'Loyal Lieutenant', line: 'Answers when his old boss calls, and stays when he’s wanted.' },
-    low: { name: 'Hired Gun', line: 'Goes where the job is best; don’t count on a hometown discount.' },
+    low: { name: 'Hired Gun', line: 'He goes where the job is best, so don’t count on a hometown discount.' },
   },
   adaptability: {
     high: { name: 'Chameleon', line: 'Runs whatever his head coach asks.' },
     low: { name: 'True Believer', line: 'Runs his own system wherever he goes.' },
   },
   discipline: {
-    high: { name: 'Disciplinarian', line: 'Runs a tight ship: few flags, a quieter room.' },
-    low: { name: 'Player’s Coach', line: 'His players love him; so do the officials’ flags.' },
+    high: { name: 'Disciplinarian', line: 'Runs a tight ship, with few flags and a quieter room.' },
+    low: { name: 'Player’s Coach', line: 'His players love him, and his teams draw more flags.' },
   },
 };
 const HEAD_LOW_AMBITION = 'If he lost this job, he’d run a side of the ball again rather than wait.';

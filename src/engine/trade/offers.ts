@@ -518,7 +518,7 @@ export function acceptOffer(league: League, id: number, release: readonly number
     if (chosen.length < over)
       return {
         ok: false,
-        message: `You'd be ${over} over the roster limit: choose who to release.`,
+        message: `You'd be ${over} over the roster limit. Choose who to release.`,
         release: cutChoice(league, after, rosterLimit(league), yours),
       };
     cut = chosen.slice(0, over).map((p) => p.id);
@@ -593,7 +593,7 @@ function finish(
   if (myCall === 'failed' || myCall === 'concerns') {
     const e = mine.find((x) => x.result === myCall)!;
     pending('yours');
-    return { ok: false, exam: true, message: `${e.note} Your call: walk away, ask for less, or take him anyway.` };
+    return { ok: false, exam: true, message: `${e.note} It's your call. Walk away, ask for less, or take him anyway.` };
   }
   return settle(league, proposal.sides, meta, aiId, exams, opts);
 }
@@ -655,7 +655,7 @@ function settle(
     .filter((e) => e.result === 'rehab')
     .map((e) => ` ${e.note}`)
     .join('');
-  const message = `Done: the trade with the ${ai.name} is official.${rehab}`;
+  const message = `The trade with the ${ai.name} is official.${rehab}`;
   if (offer) {
     offer.status = 'accepted';
     offer.outcome = message;
@@ -742,7 +742,7 @@ export function answerEnquiry(
   const bid = file(ctx, market, team, 'bid', bidFor(ctx, team, league.players[pid]));
   if (bid) {
     bid.replyTo = offer.id;
-    offer.outcome = `You asked for an offer: the ${team.name} came back with one.`;
+    offer.outcome = `You asked for an offer, and the ${team.name} came back with one.`;
   } else {
     offer.outcome = `You asked for an offer, but the ${team.name} couldn't make the numbers work.`;
   }
@@ -817,7 +817,7 @@ export function counterOffer(league: League, id: number, proposal: TradeProposal
   }
   Object.assign(next, { patience, final: patience <= 0 || undefined, replyTo: offer.id });
   offer.status = 'answered';
-  offer.outcome = "You countered: they've come back with an answer.";
+  offer.outcome = "You countered, and they've come back with an answer.";
   return {
     result: 'countered',
     message: next.final ? 'That is his final offer.' : 'He has come back with a counter.',

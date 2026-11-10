@@ -804,8 +804,8 @@ function budgetProblem(
   const m = (k: number) => `$${(k / 1000).toFixed(2)}M`;
   const by = `Over your coaching budget by ${m(over)}${replacing ? `, even after dismissing ${coachName(replacing)}` : ''}`;
   return owner.amount > 0
-    ? `${by}; your owner will add ${m(owner.amount)} (${owner.why}), no more.`
-    : `${by}, and your owner won’t go over: ${owner.why}.`;
+    ? `${by}. Your owner will add ${m(owner.amount)} (${owner.why}) and no more.`
+    : `${by}, and your owner won’t go over (${owner.why}).`;
 }
 
 export const coachRoom = (league: League, teamId: number) => coachBudget(league, teamId) - coachPayroll(league, teamId);
@@ -922,11 +922,11 @@ export function coachMoveProblem(
   const holder = sitting(league, teamId, c);
   if (move === 'extend') {
     if (c.teamId !== teamId || !isCoachExpiring(league, c)) return 'Only expiring deals can be extended.';
-    if (holder) return `His chair is taken: ${coachName(holder)} is your ${coachTitle(c).toLowerCase()}.`;
+    if (holder) return `His chair is taken. ${coachName(holder)} is your ${coachTitle(c).toLowerCase()}.`;
   } else {
     if (c.teamId !== null) return 'He isn’t available.';
     if (holder)
-      return `You already have a ${coachTitle(c).toLowerCase()}: replace ${coachName(holder)} or dismiss him first.`;
+      return `You already have a ${coachTitle(c).toLowerCase()}. Replace ${coachName(holder)} or dismiss him first.`;
   }
   return budget ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, move)) : null;
 }
@@ -942,7 +942,7 @@ export function replaceProblem(league: League, teamId: number, c: Coach, years =
   if (years < 1 || years > maxYears(c.role))
     return `A ${coachTitle(c).toLowerCase()} signs for 1–${maxYears(c.role)} years.`;
   const holder = sitting(league, teamId, c);
-  if (!holder) return 'Nobody sits in that chair: hire him instead.';
+  if (!holder) return 'Nobody sits in that chair, so hire him instead.';
   return budget
     ? budgetProblem(league, teamId, chairOf(c), moveOverspend(league, teamId, c, years, 'replace'), holder)
     : null;
@@ -1268,7 +1268,7 @@ export function promotionProblem(league: League, teamId: number, c: Coach, years
   if (years < 1 || years > maxYears(chair.role))
     return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
   const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
-  if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  if (holder) return `${coachName(holder)} holds that chair. Dismiss him first.`;
   // He could move up: whether he wants to is his call (the same answer every club gets this offseason).
   const no = refusal(league, c, chair);
   if (no) return no;
@@ -1294,7 +1294,7 @@ export function poachProblem(league: League, teamId: number, c: Coach, years = 2
   if (years < 1 || years > maxYears(chair.role))
     return `A ${COACH_ROLE_LABEL[chair.role].toLowerCase()} signs for 1–${maxYears(chair.role)} years.`;
   const holder = teamCoaches(league, teamId).find((x) => sameChair(chairOf(x), chair) && !isCoachExpiring(league, x));
-  if (holder) return `${coachName(holder)} holds that chair: dismiss him first.`;
+  if (holder) return `${coachName(holder)} holds that chair. Dismiss him first.`;
   const no = refusal(league, c, chair);
   if (no) return no;
   return budget ? budgetProblem(league, teamId, chair, moveOverspend(league, teamId, c, years, 'poach')) : null;
@@ -2121,7 +2121,7 @@ const stepUpJob = (role: CoachRole) => (role === 'headCoach' ? 'head-coach' : 'c
 function refusal(league: League, c: Coach, chair: Chair): string | null {
   return wantsStepUp(league.seed, league.season, c, chair.role)
     ? null
-    : `He’s happy as ${titleLower(c)}: he won’t take ${stepUpJob(chair.role)} talks.`;
+    : `He’s happy as ${titleLower(c)} and won’t take ${stepUpJob(chair.role)} talks.`;
 }
 
 /** Before the season: no AI team starts with an empty chair (vacancies from retirements). */

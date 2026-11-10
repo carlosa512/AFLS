@@ -53,7 +53,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   proStyle: {
     id: 'proStyle',
     label: 'Pro Style',
-    about: 'Balanced under center and in the gun: a bit of everything, no glaring tell.',
+    about: 'Balanced under center and in the gun, with a bit of everything and no glaring tell.',
     personnel: '11',
     outside: 0.4,
     depth: [0, 0, 0],
@@ -68,7 +68,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   westCoast: {
     id: 'westCoast',
     label: 'West Coast',
-    about: 'Timing throws underneath; backs and tight ends catch a lot, the yards come after the catch.',
+    about: 'Timing throws underneath. Backs and tight ends catch a lot, and the yards come after the catch.',
     personnel: '11',
     outside: 0.4,
     depth: [0.08, -0.04, -0.04],
@@ -88,7 +88,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   airRaid: {
     id: 'airRaid',
     label: 'Air Raid',
-    about: 'Four wide, spread the field and throw: the slot receivers eat, the tight end sits.',
+    about: 'Four wide receivers spread the field. The slots get the ball and the tight end rarely does.',
     personnel: '10',
     outside: 0.45,
     depth: [-0.02, 0.05, -0.03],
@@ -103,7 +103,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   vertical: {
     id: 'vertical',
     label: 'Air Coryell',
-    about: 'Vertical passing: stretch the field with the outside receivers and take shots deep.',
+    about: 'Vertical passing that stretches the field with the outside receivers and takes shots deep.',
     personnel: '11',
     outside: 0.4,
     depth: [-0.07, 0.02, 0.05],
@@ -135,7 +135,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   power: {
     id: 'power',
     label: 'Power Gap',
-    about: 'Two tight ends and downhill runs between the tackles; shots off play action.',
+    about: 'Two tight ends and downhill runs between the tackles, with shots off play action.',
     personnel: '12',
     outside: 0.25,
     depth: [-0.02, -0.01, 0.03],
@@ -150,7 +150,7 @@ export const OFF_SCHEMES: Record<OffSchemeId, OffScheme> = {
   spreadOption: {
     id: 'spreadOption',
     label: 'Spread Option',
-    about: 'Read option and RPOs from the gun: the quarterback runs, the throws come quick.',
+    about: 'Read option and RPOs from the gun. The quarterback runs and the throws come out quick.',
     personnel: '11',
     outside: 0.5,
     depth: [0.06, -0.03, -0.03],
@@ -201,7 +201,7 @@ export const FRONTS: Record<FrontId, Front> = {
   fourThree: {
     id: 'fourThree',
     label: '4-3',
-    about: 'Four down linemen win their gaps; two linebackers run and hit behind them.',
+    about: 'Four down linemen win their gaps, and two linebackers run and hit behind them.',
     rush: { edge: 0.55, dt: 0.35, lb: 0.1 },
     run: { dt: 0.35, edge: 0.25, lb: 0.3, s: 0.1 },
     rushAdj: 0,
@@ -214,7 +214,7 @@ export const FRONTS: Record<FrontId, Front> = {
   wide9: {
     id: 'wide9',
     label: '4-3 Wide 9',
-    about: 'Ends split way outside and pin their ears back: more heat, softer against runs to the edge.',
+    about: 'Ends line up wide and rush hard. More pressure, but softer against runs to the edge.',
     rush: { edge: 0.65, dt: 0.28, lb: 0.07 },
     run: { dt: 0.4, edge: 0.2, lb: 0.3, s: 0.1 },
     rushAdj: 0.35,
@@ -240,7 +240,8 @@ export const FRONTS: Record<FrontId, Front> = {
   fireZone: {
     id: 'fireZone',
     label: '3-4 Fire Zone',
-    about: 'Odd front that sends pressure from everywhere: linebackers and DBs blitz, zone behind it.',
+    about:
+      'An odd front that sends pressure from everywhere. Linebackers and defensive backs blitz with zone behind them.',
     rush: { edge: 0.55, dt: 0.25, lb: 0.2 },
     run: { dt: 0.35, edge: 0.25, lb: 0.3, s: 0.1 },
     rushAdj: 0.45,
@@ -253,7 +254,7 @@ export const FRONTS: Record<FrontId, Front> = {
   nickel: {
     id: 'nickel',
     label: '4-2-5 Nickel',
-    about: 'Lighter and faster: an extra defensive back as the base, built to stop the pass first.',
+    about: 'Lighter and faster, with an extra defensive back as the base. Built to stop the pass first.',
     rush: { edge: 0.55, dt: 0.35, lb: 0.1 },
     run: { dt: 0.35, edge: 0.25, lb: 0.25, s: 0.15 },
     rushAdj: 0.1,
@@ -291,7 +292,7 @@ export const COVERAGES: Record<CoverageId, Coverage> = {
   cover1: {
     id: 'cover1',
     label: 'Cover 1 Man',
-    about: 'Press man across the board with one safety deep: lockdown corners win it, beaten ones lose it.',
+    about: 'Press man across the board with one safety deep. It depends on the corners winning their matchups.',
     man: true,
     twoHigh: false,
     sep: [-0.15, 0, 0.1],
@@ -304,7 +305,8 @@ export const COVERAGES: Record<CoverageId, Coverage> = {
   cover2: {
     id: 'cover2',
     label: 'Tampa 2',
-    about: 'Two deep safeties and a middle linebacker who carries the seam: nothing over the top, holes in between.',
+    about:
+      'Two deep safeties and a middle linebacker who carries the seam. Little gets over the top, but there are holes in between.',
     man: false,
     twoHigh: true,
     sep: [0.1, 0.25, -0.45],
@@ -317,7 +319,8 @@ export const COVERAGES: Record<CoverageId, Coverage> = {
   cover3: {
     id: 'cover3',
     label: 'Cover 3',
-    about: 'Single-high zone: a safety in the box against the run, the deep thirds closed, the flats open.',
+    about:
+      'Single-high zone with a safety in the box against the run. The deep thirds are closed and the flats are open.',
     man: false,
     twoHigh: false,
     sep: [0.2, -0.05, -0.15],
@@ -331,7 +334,7 @@ export const COVERAGES: Record<CoverageId, Coverage> = {
     id: 'quarters',
     label: 'Quarters',
     about:
-      'Cover 4 pattern-matching: safeties read the run and rob the deep ball. Hard to throw on, weaker in the flats.',
+      'Cover 4 pattern-matching. Safeties read the run and rob the deep ball. Hard to throw on, weaker in the flats.',
     man: false,
     twoHigh: true,
     sep: [0.25, -0.1, -0.3],

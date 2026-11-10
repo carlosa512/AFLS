@@ -409,11 +409,11 @@ describe('what scouts can say about makeup', () => {
     wr.traits.durability = 11;
     wr.age = 27;
     expect(careerOutlook(league, me, wr)).toBe(
-      'His physical tools should start to fade after about 29; his technique should hold up through about 30.',
+      'His physical tools should start to fade after about 29, and his technique should hold up through about 30.',
     );
     wr.age = 30;
     expect(careerOutlook(league, me, wr)).toBe(
-      'His physical tools have started to fade; his technique should hold up through about 30.',
+      'His physical tools have started to fade, but his technique should hold up through about 30.',
     );
     // The report says the same in one of its reviewed wordings: the tools going first, the technique holding this year.
     expect(scoutReport(league, me, wr)[2]).toMatch(
@@ -427,11 +427,13 @@ describe('what scouts can say about makeup', () => {
       / wide receiver (whose value now rests on his technique|living on his technique now)\.$/,
     );
     wr.age = 31;
-    expect(careerOutlook(league, me, wr)).toMatch(/^Past his prime/);
+    expect(careerOutlook(league, me, wr)).toMatch(/^He is past his prime/);
     const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;
     ol.traits.durability = 11;
     ol.age = 32;
-    expect(careerOutlook(league, me, ol)).toBe('In the last year of his prime: expect the decline to start next year.');
+    expect(careerOutlook(league, me, ol)).toBe(
+      'He is in the last year of his prime. Expect the decline to start next year.',
+    );
   });
 
   it('projects a grinder closer to his ceiling than a coaster, within bounds', () => {

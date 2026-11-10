@@ -202,7 +202,7 @@ export function medicMoveProblem(league: League, teamId: number, m: Medic, move:
   if (move === 'extend') {
     if (m.teamId !== teamId || !isMedicExpiring(league, m)) return 'Only expiring deals can be extended.';
     if (held >= MEDIC_SLOTS[m.role])
-      return `${His} chair is taken: your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
+      return `${His} chair is taken. Your ${label} job${MEDIC_SLOTS[m.role] > 1 ? 's are' : ' is'} filled.`;
   } else {
     if (m.teamId !== null) return `${He} isn’t available.`;
     if (held >= MEDIC_SLOTS[m.role])

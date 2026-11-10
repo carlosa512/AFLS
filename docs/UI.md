@@ -63,8 +63,9 @@ A screen shows what your club knows, nothing more (CLAUDE.md, "True vs. perceive
 
 A screen is for a player who is deciding something. A line of text stays only if the player would miss it: it
 tells them something they can't see on the screen and need for the decision in front of them. Everything else
-goes. This covers screen text (headings, hints, empty states, tooltips, dialogs). Letters and reports are a
-person's voice and follow the prose rules in CLAUDE.md.
+goes. This covers screen text (headings, hints, empty states, tooltips, dialogs) wherever it is written,
+`src/engine` included: scout report sentences, scheme, rating and habit descriptions, and the reason a move is
+blocked. Letters are a person's voice and follow the prose rules in CLAUDE.md.
 
 `npm run copy` lists every sentence the screens can show in `.check/copy.txt`. Read that list after changing
 screen text: a line that sounds odd on its own is odd on the screen.

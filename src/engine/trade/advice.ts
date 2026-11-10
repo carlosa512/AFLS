@@ -70,7 +70,7 @@ export function dealAdvice(league: League, [theirs, yours]: readonly [TradeSide,
     else if (seen(next) < seen(p) - 2)
       out.push({
         who: 'coach',
-        line: `We'd be thin at ${p.position} without ${name(p)}: ${name(next)} is next up.`,
+        line: `We'd be thin at ${p.position} without ${name(p)}. ${name(next)} is next up.`,
         tone: 'warn',
       });
   }

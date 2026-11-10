@@ -20,14 +20,14 @@ must show it moving play.
 | Deep accuracy (`throwAccDeep`) | Passing | Technique | Ball placement on intermediate and deep throws. |
 | Ball security (`carrying`) | Ball skills | Technique | Holding on through contact: fewer fumbles on runs and catches. |
 | Elusiveness (`elusiveness`) | Ball skills | Physical | Making tacklers miss: broken tackles, yards after the catch, returns. |
-| Hands (`catching`) | Ball skills | Technique | Catching what reaches him; for defenders, turning breakups into interceptions. |
+| Hands (`catching`) | Ball skills | Technique | Catching what reaches him. For defenders, turning breakups into interceptions. |
 | Route running (`routeRunning`) | Ball skills | Technique | Getting open: separation from the man covering him, and how often the QB looks his way. |
 | Pass blocking (`passBlock`) | Blocking | Technique | Pass protection technique: keeps the pocket clean and the QB upright. |
 | Run blocking (`runBlock`) | Blocking | Technique | Run-blocking technique: wins at the point of attack and opens lanes. |
 | Tackling (`tackling`) | Defense | Technique | Finishing plays: fewer broken tackles and less yardage after the catch. |
 | Pass rush (`passRush`) | Defense | Technique | Pass-rush moves: pressure, sacks and hurried throws. |
 | Run stopping (`runStop`) | Defense | Technique | Shedding blocks and plugging gaps against the run. |
-| Coverage (`coverage`) | Defense | Technique | Staying with receivers and closing windows; safeties also help over the top. |
+| Coverage (`coverage`) | Defense | Technique | Staying with receivers and closing windows. Safeties also help over the top. |
 | Kick power (`kickPower`) | Kicking | Physical | Leg strength: field-goal range, touchbacks and punt distance. |
 | Kick accuracy (`kickAccuracy`) | Kicking | Technique | Field goals and extra points, and pinning punts inside the 20. |
 
@@ -35,7 +35,7 @@ must show it moving play.
 
 | Contest | Read for | Blend | Decides |
 |---|---|---|---|
-| Pass protection (`passPro`) | OL, TE, RB | Pass blocking 70%, Strength 15%, Agility 10%, Awareness 5% | pressure and sacks; backs pick up blitzes |
+| Pass protection (`passPro`) | OL, TE, RB | Pass blocking 70%, Strength 15%, Agility 10%, Awareness 5% | pressure and sacks, and backs picking up blitzes |
 | Run blocking (`runBlocking`) | OL, TE | Run blocking 70%, Strength 20%, Awareness 10% | yards at the line on runs |
 | Edge rush (`edgeRush`) | EDGE, LB | Pass rush 65%, Speed 20%, Agility 10%, Strength 5% | pressure off the edge and on blitzes, and who gets the sack |
 | Interior rush (`interiorRush`) | DT | Pass rush 65%, Strength 20%, Agility 15% | pressure up the middle, and who gets the sack |
