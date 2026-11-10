@@ -104,7 +104,10 @@ waiting on you), "The rooms" (the position coaches' turns, chemistry and warning
 request and its choices) and "From the staff room" (his word with the players, a depth-chart call, habit work).
 
 What goes in is ranked in five tiers. Asks, the request and a meeting's result are always told; a story closing and a
-clock coming due too; a room or the staff room only as many as fit (`EXTRA`) and only while fresh (`STALE` steps).
+clock coming due too; a room or the staff room only while fresh (`STALE` steps) and only as many as fit under `MAX_ROWS`
+rows a letter. Notes alone never file a letter: they ride along with something to answer, a closing, a result or a clock.
+The losing is a room's: one row, with the man of it who counts most quoted and the others named in a sentence, and one
+answer for them all; a man of that room who asks again inside `LOSING_GAP` steps is answered as you answered it.
 A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
 and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
 together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).

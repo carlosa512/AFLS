@@ -16,7 +16,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.23',
     date: '2026-11-10',
     title: 'One letter from the coach',
-    text: "Your head coach now writes one letter a week: who came to see him, how last week's meeting went, the rooms and what he wants to do. A new save is recommended.",
+    text: "Your head coach now writes one letter a week: who came to see him, how last week's meeting went, the rooms and what he wants to do.",
   },
   {
     version: '0.4.22',

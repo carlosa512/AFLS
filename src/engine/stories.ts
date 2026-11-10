@@ -4,7 +4,7 @@
  * writing a beat draws nothing from any stream.
  */
 import { employed } from './employment';
-import type { Beat, BeatKind, League, OutletId, Player, Story, TalkCause } from './types';
+import type { Beat, BeatKind, CoachRoom, League, OutletId, Player, Position, Story, TalkCause } from './types';
 
 export type StoryOn = Pick<Story, 'kind' | 'teamId' | 'playerId' | 'unit' | 'coachId'>;
 
@@ -34,6 +34,8 @@ const same = (s: Story, on: StoryOn) =>
  */
 export function talkStoryOn(league: League, p: Player, cause: TalkCause): StoryOn {
   const teamId = p.teamId!;
+  // The losing is a room's, not a man's: his ask adds a beat to his room's story.
+  if (cause === 'losing') return { kind: 'room', teamId, unit: talkRoomOf(p) };
   if (cause !== 'feud') return { kind: cause, teamId, playerId: p.id };
   const mate = feudMate(league, p);
   return { kind: 'feud', teamId, playerId: mate === undefined ? p.id : Math.min(p.id, mate) };
@@ -43,6 +45,21 @@ export function talkStoryOn(league: League, p: Player, cause: TalkCause): StoryO
 function feudMate(league: League, p: Player): number | undefined {
   return p.ties?.find((t) => t.kind === 'feud' && league.players[t.with]?.teamId === p.teamId)?.with;
 }
+
+const ROOM_OF: Partial<Record<Position, CoachRoom>> = {
+  QB: 'QB',
+  RB: 'RB',
+  WR: 'WR',
+  TE: 'WR',
+  OL: 'OL',
+  DT: 'DL',
+  EDGE: 'DL',
+  LB: 'LB',
+  CB: 'DB',
+  S: 'DB',
+};
+/** The room a man's losing is told with (kept here, as `coaching.ts`'s table, so this file imports no engine code): a specialist's is the team's. */
+export const talkRoomOf = (p: Player): CoachRoom | 'team' => ROOM_OF[p.position] ?? 'team';
 
 /** A beat on a man's talk story: one line at each site (a feud's story also learns the other man of the pair). */
 export function talkBeat(
@@ -55,6 +72,9 @@ export function talkBeat(
 ): Story | null {
   const mate = cause === 'feud' ? feudMate(league, p) : undefined;
   const other = mate === undefined ? undefined : Math.max(p.id, mate);
+  // The losing joins its room's story when there is one; a room with no story of its own (it has not turned) gets none from
+  // a man's ask, or every club in a losing year would open a story a room.
+  if (cause === 'losing' && !openStory(league, talkStoryOn(league, p, cause))) return null;
   return beat(league, talkStoryOn(league, p, cause), kind, at, other === undefined ? extra : { ...extra, other });
 }
 
@@ -129,9 +149,28 @@ export function markTold(s: Story, outlet: Outlet): void {
   (s.told ??= {})[outlet.id] = s.beats.length;
 }
 
-/** Closed stories from before last league year are forgotten. */
+/**
+ * Every open room story of your club with nothing open on it (no commitment from a meeting) closes, told or not: rooms
+ * end with the season, so they do not pile up. Silent: the coach has nothing to say about a story that only ended.
+ */
+export function closeRoomStories(league: League): void {
+  const open = league.teams[league.userTeamId]?.meetings?.open ?? [];
+  for (const s of [...(league.stories?.open ?? [])]) {
+    if (s.kind !== 'room' || s.teamId !== league.userTeamId || open.some((c) => c.scope === s.unit)) continue;
+    const closed = closeStory(
+      league,
+      { kind: 'room', teamId: s.teamId, unit: s.unit },
+      'ended',
+      s.beats.at(-1)?.at ?? s.opened,
+    );
+    if (closed) markTold(closed, COACH);
+  }
+}
+
+/** Closed stories from before last league year are forgotten; the rooms still open close. */
 export function storiesNewYear(league: League): void {
   if (!league.stories) return;
+  closeRoomStories(league);
   const floor = (league.season - 1) * YEAR;
   league.stories.closed = league.stories.closed.filter((s) => (s.closed ?? 0) >= floor);
 }

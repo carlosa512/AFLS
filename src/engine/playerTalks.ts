@@ -19,9 +19,9 @@ import {
   type MoraleContext,
   type MoraleFactors,
 } from './morale';
-import { closeStory, talkBeat } from './stories';
+import { closeStory, talkBeat, talkRoomOf } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import type { League, Player, Talk, TalkCause, TalkReply } from './types';
+import type { CoachRoom, League, Player, Talk, TalkCause, TalkReply } from './types';
 
 const YEAR = 32;
 const CAMP = 7;
@@ -31,6 +31,8 @@ const DOWN_STEPS = 3;
 const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */
 const WAIT = 2;
+/** A room's losing comes to you once in this many steps: a man of it asking sooner is answered as you last answered the room. */
+export const LOSING_GAP = 4;
 
 export const CAUSE_OF: Record<string, TalkCause> = {
   'Wants more snaps': 'snaps',
@@ -198,6 +200,29 @@ export function answerTalk(league: League, playerId: number, reply: TalkReply): 
   return true;
 }
 
+/** Your men of one room with a losing ask waiting on you. */
+export function roomAsks(league: League, room: CoachRoom | 'team'): Player[] {
+  const yours = yourClub(league);
+  return Object.values(league.players).filter(
+    (p) => p.teamId === yours && p.morale?.talk?.ask?.cause === 'losing' && talkRoomOf(p) === room,
+  );
+}
+
+/**
+ * Your answer to a room's losing: every man of it with an open ask hears the same reply, and the room's answer is kept
+ * so a man asking inside `LOSING_GAP` steps is answered as you did. How many men it answered.
+ */
+export function answerRoomTalk(league: League, room: CoachRoom | 'team', reply: 'reassure' | 'firm'): number {
+  const yours = yourClub(league);
+  const men = roomAsks(league, room);
+  const at = men[0]?.morale?.talk?.ask?.at;
+  let answered = 0;
+  for (const p of men) if (answerTalk(league, p.id, reply)) answered++;
+  if (answered && yours !== null && at !== undefined)
+    (league.teams[yours].losingAnswer ??= {})[room] = { reply, at: league.moraleAt ?? at };
+  return answered;
+}
+
 /**
  * One talk step, after the moods have moved: who left his club, his run of bad steps, your letters left unanswered,
  * then the new asks (two a club, the unhappiest first), answered at once at an AI club.
@@ -242,7 +267,15 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     list.push({ p, level, cause });
     candidates.set(p.teamId, list);
   }
-  for (const [teamId, list] of candidates) {
+  for (const [teamId, all] of candidates) {
+    // Your room told about the losing lately: a man of it who asks again is answered as you answered it, and files no ask.
+    const had = teamId === yours ? league.teams[yours].losingAnswer : undefined;
+    const list = all.filter(({ p, cause }) => {
+      const last = cause === 'losing' ? had?.[talkRoomOf(p)] : undefined;
+      if (!last || clock - last.at >= LOSING_GAP) return true;
+      applyReply(league, p, last.reply, clock, ctx, cause);
+      return false;
+    });
     list.sort((a, b) => a.level - b.level || a.p.id - b.p.id);
     for (const { p, cause } of list.slice(0, PER_CLUB)) {
       if (teamId === yours) {

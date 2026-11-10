@@ -12,7 +12,8 @@ import { moraleClock, moraleContext, moraleView, viewContext, type MoraleContext
 import { CAUSE_OF } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { tierOf, unitOf, unitRead, UNITS, weightOf } from './standing';
-import { beat, closeStory, openStory, STORIES, type StoryOn } from './stories';
+import { beat, closeRoomStories, closeStory, COACH, markTold, openStory, STORIES, type StoryOn } from './stories';
+import { momentSheet } from './castSheet';
 import type { Beat, BeatKind, CoachRoom, League, Player, Story, StoryKind, TalkCause } from './types';
 
 /** Steps a turn must still stand before it is told: the second week running. */
@@ -79,7 +80,7 @@ const MAN_STORIES: readonly StoryKind[] = ['deal', 'snaps', 'benched', 'losing',
 
 // ───────── men who left, a losing run lifted ─────────
 
-function departures(league: League, user: number, clock: number, ctx: MoraleContext): void {
+function departures(league: League, user: number, clock: number): void {
   for (const s of [...(league.stories?.open ?? [])]) {
     if (s.teamId !== user || !MAN_STORIES.includes(s.kind) || s.playerId === undefined) continue;
     const p = league.players[s.playerId];
@@ -87,10 +88,6 @@ function departures(league: League, user: number, clock: number, ctx: MoraleCont
     if (!onClub(p, user) || (s.other !== undefined && !onClub(mate, user))) {
       closeStory(league, onOf(s), 'left', clock);
       continue;
-    }
-    if (s.kind === 'losing') {
-      const view = moraleView(league, p, ctx);
-      if (view && view.step >= 4) closeStory(league, onOf(s), 'lifted', clock);
     }
   }
 }
@@ -153,7 +150,9 @@ function meetingRooms(league: League, user: number, clock: number): void {
     if (s.teamId !== user || s.kind !== 'room' || s.beats.some((b) => b.kind === 'turned')) continue;
     if ((s.beats.at(-1)?.at ?? clock) >= clock) continue;
     if (m?.pending?.scope === s.unit || m?.open.some((c) => c.scope === s.unit)) continue;
-    closeStory(league, onOf(s), 'ended', clock);
+    const closed = closeStory(league, onOf(s), 'ended', clock);
+    // It only ended: nothing to tell.
+    if (closed) markTold(closed, COACH);
   }
 }
 
@@ -244,10 +243,14 @@ export function storiesStep(league: League): void {
   const user = league.userTeamId;
   const clock = league.moraleAt ?? moraleClock(league);
   const ctx = moraleContext(league);
-  departures(league, user, clock, ctx);
+  departures(league, user, clock);
   feuds(league, user, clock);
-  rooms(league, user, clock, ctx);
-  meetingRooms(league, user, clock);
+  // Your club's last game is played: the rooms close with the season, and none turns again until the next one.
+  if (momentSheet(league).seasonOver) closeRoomStories(league);
+  else {
+    rooms(league, user, clock, ctx);
+    meetingRooms(league, user, clock);
+  }
   staff(league, user, clock);
   links(league, user, ctx);
 }

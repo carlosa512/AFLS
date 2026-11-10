@@ -13,6 +13,7 @@ import {
   HEADLINE,
   LINK,
   OPENING,
+  SAME,
   STILL_WAITING,
   type OpeningFact,
   type StoryFact,
@@ -23,14 +24,18 @@ import { meetingCard, requestRow, resultRows, suggestionId, resultId } from './m
 import { SCOPE_NOUN, styleOf } from './meetings/facts';
 import { meetingsOf } from './meetings/suggest';
 import { moraleContext, moraleClock, YEAR } from './morale';
+import { roomAsks } from './playerTalks';
+import { weightOf } from './standing';
 import { TALK_SUBJECT } from './playerVoice';
 import { headCoach, type Draft } from './senders';
 import { staffRows } from './staffNotes';
-import { COACH, markTold, openStory, storyById, talkStoryOn, untold } from './stories';
+import { COACH, markTold, openStory, storyById, talkRoomOf, talkStoryOn, untold } from './stories';
 import { shareWord, tellable } from './storiesStep';
 import { talkCard, talkRows } from './talkMail';
-import type { CoachRoom, InboxMessage, League, MailSection, MeetingRecord, Player, Story } from './types';
+import type { CoachRoom, InboxMessage, League, MailSection, Player, Story } from './types';
 import { around, sentencesOf, seasonSaid, say, toldKeys } from './voice';
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const coachWeekId = (season: number, clock: number) => `coach:${season}:${clock}`;
 
@@ -53,15 +58,21 @@ export interface WeekItem {
   /** A room whose row says a man feeds it. */
   link?: NonNullable<OpeningFact['link']>;
   result?: true;
+  /** Which row of a meeting's result it is, for what to cut first. */
+  part?: 'man' | 'told' | 'next' | 'talks';
   closing?: true;
   /** The depth-chart call: its note key rides on the letter, and only when this row is kept. */
   call?: true;
 }
 
-/** Rows beyond tiers 1 to 3 a letter may carry. */
-export const EXTRA = 4;
+/** Rows a letter may carry: what needs your answer always fits, and the rest is cut from the lowest tier up. */
+export const MAX_ROWS = 6;
 /** Steps a tier 4 or 5 item may wait before it is dropped. */
 export const STALE = 3;
+/** Men a meeting's result names, besides its room row. */
+export const RESULT_MEN = 2;
+/** Steps a room's losing waits before it comes to you again (`playerTalks.ts` answers a man sooner as you did). */
+export { LOSING_GAP } from './playerTalks';
 
 const SECTIONS: { section: WeekItem['section']; title: string }[] = [
   { section: 'since', title: 'Since last week' },
@@ -71,14 +82,23 @@ const SECTIONS: { section: WeekItem['section']; title: string }[] = [
   { section: 'staff', title: 'From the staff room' },
 ];
 
-/** Everything of tiers 1 to 3, then the freshest tier 4 and 5 items that fit: what waits a week waits, and past three steps it goes. */
+/** What goes first when a letter is over `MAX_ROWS`: the notes, then the rest of tier 3, closings, then a result's rows from its men inward. */
+function dropOrder(i: WeekItem): number {
+  if (i.tier === 1) return 0;
+  if (i.part) return { man: 20, talks: 15, told: 12, next: 11 }[i.part];
+  return i.tier === 5 ? 50 : i.tier === 4 ? 40 : i.tier === 3 ? 30 : 25;
+}
+
+/** The week's items as the letter holds them: stale notes gone, then cut from the lowest tier up to `MAX_ROWS` rows. */
 export function fitItems(items: WeekItem[], clock: number): WeekItem[] {
-  const must = items.filter((i) => i.tier <= 3);
-  const extra = items
-    .filter((i) => i.tier > 3 && clock - i.born < STALE)
-    .sort((a, b) => a.tier - b.tier || a.born - b.born)
-    .slice(0, EXTRA);
-  return items.filter((i) => must.includes(i) || extra.includes(i));
+  const live = items.filter((i) => i.tier <= 3 || clock - i.born < STALE);
+  const cut = new Set<WeekItem>();
+  const order = live.filter((i) => i.tier > 1).sort((a, b) => dropOrder(b) - dropOrder(a) || b.born - a.born);
+  for (const i of order) {
+    if (live.length - cut.size <= MAX_ROWS) break;
+    cut.add(i);
+  }
+  return live.filter((i) => !cut.has(i));
 }
 
 const stepNow = (league: League) => league.moraleAt ?? moraleClock(league);
@@ -115,21 +135,52 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     .filter((p) => p.teamId === user && p.morale?.talk?.ask)
     .sort((a, b) => a.morale!.talk!.ask!.at - b.morale!.talk!.ask!.at || a.id - b.id);
   const fresh = (p: Player) => !askTold(told, league.season, p.morale!.talk!.ask!.at, p.id);
+  const causeOfAsk = (p: Player) => p.morale!.talk!.ask!.cause;
+  const askKey = (p: Player) => `talk:${league.season}:${p.morale!.talk!.ask!.at}:${p.id}`;
+  // The losing is a room's: one row for the man of it with the most standing, the others named in a sentence, one answer.
+  const heaviest = (men: Player[]) =>
+    [...men].sort((a, b) => weightOf(league, b, ctx) - weightOf(league, a, ctx) || a.id - b.id)[0];
+  const roomsAsking = [...new Set(askers.filter((p) => causeOfAsk(p) === 'losing').map(talkRoomOf))];
+  const freshLosing = new Map<string, Player[]>();
+  const waitingLosing = new Map<string, Player>();
+  for (const room of roomsAsking) {
+    const men = askers.filter((p) => causeOfAsk(p) === 'losing' && talkRoomOf(p) === room);
+    const news = men.filter(fresh);
+    if (news.length) freshLosing.set(room, news);
+    else waitingLosing.set(room, heaviest(men));
+  }
+  const spokesmen = new Map([...freshLosing].map(([room, men]) => [heaviest(men).id, room]));
+  const quoted = (p: Player) => causeOfAsk(p) !== 'losing' || spokesmen.has(p.id);
   for (const at of [...new Set(askers.map((p) => p.morale!.talk!.ask!.at))]) {
-    const ids = new Set(askers.filter((p) => p.morale!.talk!.ask!.at === at && fresh(p)).map((p) => p.id));
+    const ids = new Set(askers.filter((p) => p.morale!.talk!.ask!.at === at && fresh(p) && quoted(p)).map((p) => p.id));
     if (!ids.size) continue;
     for (const row of talkRows(league, at, said)) {
       if (row.playerId === undefined || !ids.has(row.playerId)) continue;
       const p = league.players[row.playerId];
       const cause = p.morale!.talk!.ask!.cause;
       const man = sheet(p);
-      const key = `talk:${league.season}:${at}:${p.id}`;
+      const key = askKey(p);
       const out: Row = { ...row };
       if (man && hasHistory(man)) {
         out.before = say(BEFORE, { man }, { key, slot: 'before', ...around(league, said) });
         remember(out.before);
       }
       remember(out.note);
+      // His room's others, named: they said the same, and one answer goes to them all.
+      const room = spokesmen.get(p.id);
+      const others = room ? (freshLosing.get(room) ?? []).filter((m) => m.id !== p.id) : [];
+      if (room) {
+        out.talkRoom = { unit: room as CoachRoom | 'team', clock: at };
+        if (others.length) {
+          const same = say(
+            SAME,
+            { names: others.map((m) => m.lastName) },
+            { key, slot: 'same', ...around(league, said) },
+          );
+          remember(same);
+          out.note = `${out.note ?? ''} ${same}`.trim();
+        }
+      }
       const story = openStory(league, talkStoryOn(league, p, cause));
       const mate = story?.other === undefined ? undefined : league.players[story.other]?.lastName;
       items.push({
@@ -138,14 +189,22 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         section: 'asks',
         row: out,
         born: at,
+        ...(others.length ? { covers: others.map(askKey) } : {}),
         ...(story ? { storyId: story.id } : {}),
-        head: { kind: story?.kind ?? cause, beat: 'asked', ...(man ? { man } : {}), ...(mate ? { mate } : {}) },
+        head: {
+          kind: cause === 'losing' ? 'losing' : (story?.kind ?? cause),
+          beat: 'asked',
+          ...(man ? { man } : {}),
+          ...(mate ? { mate } : {}),
+        },
       });
     }
   }
   for (const p of askers) {
     const ask = p.morale!.talk!.ask!;
     if (fresh(p) || ask.at >= clock) continue;
+    // A room's losing waits as one row, its heaviest man's.
+    if (ask.cause === 'losing' && waitingLosing.get(talkRoomOf(p))?.id !== p.id) continue;
     const man = sheet(p);
     if (!man) continue;
     const key = `waiting:${clock}:${p.id}`;
@@ -161,10 +220,11 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         cells: [nameOf(p), TALK_SUBJECT[ask.cause]],
         note,
         talk: { playerId: p.id, clock: ask.at },
+        ...(ask.cause === 'losing' ? { talkRoom: { unit: talkRoomOf(p), clock: ask.at } } : {}),
       },
       born: ask.at,
       ...(story ? { storyId: story.id } : {}),
-      head: { kind: story?.kind ?? ask.cause, beat: 'asked', man },
+      head: { kind: ask.cause === 'losing' ? 'losing' : (story?.kind ?? ask.cause), beat: 'asked', man },
     });
   }
 
@@ -187,9 +247,26 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     }
   }
 
+  // A meeting held last step is told in this letter: its rows, once.
+  const job = league.gms[league.userGmId]?.appointments.at(-1);
+  const arrived = job?.teamId === user ? (job.clock ?? -Infinity) : -Infinity;
+  const due = meetingsOf(league.teams[user]).log.filter(
+    (r) =>
+      r.kind !== 'gm' &&
+      Math.floor(r.clock / YEAR) === league.season &&
+      r.clock > arrived &&
+      clock > r.clock &&
+      !told.has(resultId(league.season, r.clock, r.scope)),
+  );
+
   // ───── tier 2: a story closing ─────
   for (const s of league.stories?.closed ?? []) {
     if (!s.told?.coach || !untold(league, s, COACH).length) continue;
+    // A room that recovered in the letter that tells its meeting: the result already says where it stands.
+    if (s.kind === 'room' && lastBeat(s).kind === 'recovered' && due.some((r) => r.scope === s.unit)) {
+      markTold(s, COACH);
+      continue;
+    }
     const b = lastBeat(s);
     const p = s.playerId === undefined ? undefined : league.players[s.playerId];
     const man = sheet(p);
@@ -212,7 +289,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       section: 'since',
       row: {
         ...(p ? { playerId: p.id } : {}),
-        cells: [p ? nameOf(p) : coach ? coachName(coach) : (nounOf(s) ?? 'The club'), 'Closed'],
+        cells: [p ? nameOf(p) : coach ? coachName(coach) : cap(nounOf(s) ?? 'the club'), 'Closed'],
         note,
       },
       storyId: s.id,
@@ -223,15 +300,9 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   }
 
   // ───── tier 3: last step's meeting, told a step after it was held ─────
-  const job = league.gms[league.userGmId]?.appointments.at(-1);
-  const arrived = job?.teamId === user ? (job.clock ?? -Infinity) : -Infinity;
-  const log: MeetingRecord[] = meetingsOf(league.teams[user]).log;
-  for (const r of log) {
-    if (r.kind === 'gm' || Math.floor(r.clock / YEAR) !== league.season || r.clock <= arrived || clock <= r.clock)
-      continue;
+  for (const r of due) {
     const key = resultId(league.season, r.clock, r.scope);
-    if (told.has(key)) continue;
-    const rows = resultRows(league, r, said);
+    const rows = resultRows(league, r, said, RESULT_MEN);
     const story = openStory(league, { kind: 'room', teamId: user, unit: r.scope });
     rows.forEach((row, i) =>
       items.push({
@@ -240,9 +311,11 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         section: 'since',
         row,
         born: r.clock,
-        ...(story && i === 0 ? { storyId: story.id } : {}),
-        ...(i === 0 ? { covers: [key] } : {}),
+        ...(story ? { storyId: story.id } : {}),
+        // Every row carries the result's key: whichever the letter keeps tells it.
+        covers: [key],
         result: true,
+        part: row.negotiate ? 'talks' : row.cells[1] === 'What I told them' ? 'told' : row.cells[1] ? 'next' : 'man',
         head: { kind: 'room', beat: 'held', noun: SCOPE_NOUN[r.scope] },
       }),
     );
@@ -279,7 +352,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       section: 'since',
       row: {
         ...(p ? { playerId: p.id } : {}),
-        cells: [p ? nameOf(p) : (noun ?? 'The club'), 'The clock'],
+        cells: [p ? nameOf(p) : cap(noun ?? 'the club'), 'The clock'],
         note,
         // A deal coming due is the moment to sit down with him.
         ...(s.kind === 'deal' && p ? { negotiate: { playerId: p.id } } : {}),
@@ -420,7 +493,8 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   const sender = headCoach(league);
   const said = seasonSaid(league, sender.from, 'coach:');
   const { items, coachNote } = gather(league, told, said, have);
-  if (!items.length) return [];
+  // Notes alone never make a letter: something to answer, a story closing, a result or a clock does, and they ride along.
+  if (!items.some((i) => i.tier <= 3)) return [];
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
   const heads = ranked.flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []));
@@ -476,6 +550,7 @@ export function coachWeekNeedsYou(league: League, m: InboxMessage): boolean {
     sec.rows.some(
       (r) =>
         (r.talk && talkCard(league, r.talk).state === 'open') ||
+        (r.talkRoom && roomAsks(league, r.talkRoom.unit).length > 0) ||
         (r.meeting && meetingCard(league, r.meeting).state === 'open'),
     ),
   );

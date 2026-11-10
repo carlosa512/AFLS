@@ -241,9 +241,9 @@ export const OPENING: readonly Line<OpeningFact>[] = [
     text: () => `We are done for the year. A few of my people are still on my mind.`,
   },
   {
-    when: (f) => f.moment.seasonOver,
+    when: (f) => f.moment.seasonOver && f.asks > 0,
     reads: 1,
-    text: () => `The games are behind us. Here is who I still need to hear from.`,
+    text: () => `The games are behind us. Here is who still needs an answer.`,
   },
   {
     when: (f) => f.result && f.moment.streak?.kind === 'lost',
@@ -338,16 +338,51 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   { text: () => `Here is what I am watching right now.` },
   { text: () => `This is what has crossed my desk.` },
   { text: () => `A look at the people around me.` },
-  { text: () => `You should hear this from me before you hear it elsewhere.` },
-  { text: () => `There are things you should know before the next game.` },
+  { text: () => `Here is what I have for you this time.` },
+  {
+    when: (f) => !f.moment.seasonOver && f.moment.week !== 'offseason' && f.moment.week !== 'camp',
+    text: () => `There are things you should know before the next game.`,
+  },
   { text: () => `This is what the week has left me with.` },
   { text: () => `Here is the state of the locker room as I see it.` },
   { text: () => `Small things add up in a locker room, so here they are.` },
-  { text: () => `One more letter from my desk, and this one matters.` },
+  { text: () => `Another letter from my desk.` },
   { when: (f) => f.items + f.asks >= 2, text: () => `A few things from me this week.` },
   { when: (f) => f.asks > 0 && f.items > 0, text: () => `Some of this needs you, and some is for your information.` },
-  { when: (f) => f.closing, text: () => `One thing is settled, and that frees me for the rest.` },
+  {
+    when: (f) => f.closing && f.items + f.asks >= 2,
+    text: () => `One thing is settled, and that frees me for the rest.`,
+  },
   { when: (f) => f.closing, text: () => `We got something off the list this week.` },
+];
+
+// ───────── the others of a room who said the same ─────────
+
+export interface SameFact {
+  /** The last names of the men of the room, besides the one quoted. */
+  names: string[];
+}
+
+const nameList = (names: string[]) =>
+  names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+/** One sentence of the coach's for the men of a room who asked about the losing besides the one quoted. */
+export const SAME: readonly Line<SameFact>[] = [
+  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `${nameList(f.names)} said the same.` },
+  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `${nameList(f.names)} came to me about it too.` },
+  {
+    when: (f) => f.names.length > 0,
+    reads: 1,
+    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'is' : 'are'} in the same place.`,
+  },
+  {
+    when: (f) => f.names.length > 0,
+    reads: 1,
+    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'feels' : 'feel'} it too.`,
+  },
+  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `Add ${nameList(f.names)} to that.` },
+  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `${nameList(f.names)} asked me the same thing.` },
+  { text: () => '' },
 ];
 
 // ───────── what came before with a man ─────────

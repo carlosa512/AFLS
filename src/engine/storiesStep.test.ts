@@ -4,7 +4,7 @@ import { createLeague } from './generate';
 import { addJolt, moraleClock, moraleContext } from './morale';
 import { activeRoster, setTeam } from './roster';
 import { tierOf, unitOf, weightOf, type Unit } from './standing';
-import { beat, openStory, STORIES, storyById } from './stories';
+import { beat, closeRoomStories, COACH, openStory, STORIES, storyById, talkBeat, untold } from './stories';
 import { HOLD, shareWord, storiesStep, tellable } from './storiesStep';
 import type { League, Player } from './types';
 
@@ -154,16 +154,26 @@ describe('men who left', () => {
     expect(s.beats.at(-1)!.kind).toBe('left');
   });
 
-  it('lifts a losing story when he reads Okay or better', () => {
+  it("puts a man's losing on his room's story, and opens none of his own", () => {
     const l = fresh();
     const p = men(l, 'DL')[0];
-    const s = beat(l, { kind: 'losing', teamId: l.userTeamId, playerId: p.id }, 'asked', l.moraleAt!)!;
-    p.morale!.level = -4;
-    next(l);
-    expect(openStory(l, { kind: 'losing', teamId: l.userTeamId, playerId: p.id })).toBe(s);
-    p.morale!.level = 1;
-    next(l);
-    expect(s.beats.at(-1)!.kind).toBe('lifted');
+    // No story for the room yet: his ask opens nothing.
+    talkBeat(l, p, 'losing', 'asked', l.moraleAt!);
+    expect(l.stories?.open ?? []).toHaveLength(0);
+    const room = beat(l, { kind: 'room', teamId: l.userTeamId, unit: 'DL' }, 'turned', l.moraleAt!, { how: 'Down' })!;
+    talkBeat(l, p, 'losing', 'asked', l.moraleAt! + 1);
+    expect(room.beats.map((b) => b.kind)).toEqual(['turned', 'asked']);
+    expect(openStory(l, { kind: 'losing', teamId: l.userTeamId, playerId: p.id })).toBeUndefined();
+  });
+
+  it('closes every open room story quietly when the club has no game left', () => {
+    const l = fresh();
+    const room = beat(l, { kind: 'room', teamId: l.userTeamId, unit: 'DL' }, 'turned', l.moraleAt!, { how: 'Down' })!;
+    closeRoomStories(l);
+    expect(l.stories!.open).toHaveLength(0);
+    expect(room.beats.at(-1)!.kind).toBe('ended');
+    // Told already: no letter has anything to say about it.
+    expect(untold(l, room, COACH)).toHaveLength(0);
   });
 });
 

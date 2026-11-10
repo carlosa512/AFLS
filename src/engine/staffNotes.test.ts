@@ -22,6 +22,11 @@ const nextStep = (l: League) => {
   l.week++;
   if (l.moraleAt !== undefined) l.moraleAt++;
 };
+/** A man's ask is what files the week's letter: notes alone never do, they ride along. */
+const withAsk = (l: League) => {
+  const p = activeRoster(l, l.userTeamId).find((x) => x.morale && !x.morale.talk)!;
+  p.morale!.talk = { club: l.userTeamId, ask: { cause: 'snaps', at: l.moraleAt ?? moraleClock(l) } };
+};
 const matchups = (l: League) => l.inbox!.filter((m) => m.id.startsWith('matchup:'));
 
 /** Our WR coach prefers a hard-working young receiver over a veteran a little ahead of him: a recommendation. */
@@ -46,6 +51,7 @@ describe('the staff notes in the weekly letter', () => {
   it("carries the week's depth-chart call, once, and the staff remember they said it", () => {
     const { l, t } = recommending();
     const a = t.coachAdvice!.at(-1)!;
+    withAsk(l);
     deliverMail(l);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
@@ -75,6 +81,7 @@ describe('the staff notes in the weekly letter', () => {
   it('files in a week with a note even without a game, and not in a week without one', () => {
     const { l, t } = recommending();
     for (const g of l.games) if (g.week === l.week && (g.homeId === t.id || g.awayId === t.id)) g.week = 99;
+    withAsk(l);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
     const quiet = copy(template);
@@ -100,6 +107,7 @@ describe('the staff notes in the weekly letter', () => {
       coachName: `${c.firstName} ${c.lastName}`,
       receptive: true,
     };
+    withAsk(l);
     deliverMail(l);
     const [m] = notes(l);
     expect(m).toBeDefined();
@@ -126,6 +134,7 @@ describe('the staff notes in the weekly letter', () => {
       };
     };
     note(l.week);
+    withAsk(l);
     deliverMail(l);
     nextStep(l);
     note(l.week);
@@ -193,6 +202,7 @@ describe('staff notes: the position coach on his unit', () => {
   it('files it in the week’s notes, in his words, and remembers it', () => {
     const l = inSeason();
     splitUnit(l, 'WR');
+    withAsk(l);
     deliverMail(l);
     const m = notes(l).at(-1)!;
     const row = rowsOf(m).find((r) => r.cells[0] === ROOM_LABEL.WR)!;
@@ -240,6 +250,7 @@ describe('staff notes: the position coach on his unit', () => {
     const l = inSeason();
     l.week = TRADE_DEADLINE_WEEK;
     splitUnit(l, 'WR');
+    withAsk(l);
     deliverMail(l);
     const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
     expect(report.sections?.find((s) => s.title === 'The room')).toBeUndefined();
@@ -274,13 +285,12 @@ describe('staff notes: chemistry (L3)', () => {
     const line = activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === 'OL');
     deliverMail(l);
     for (const p of line) p.morale = { level: -9, jolts: [] };
-    l.week = 6;
-    deliverMail(l);
-    l.week = 7;
+    nextStep(l);
+    withAsk(l);
     deliverMail(l);
     // A room told about in the last three steps waits its turn: the note comes once the gap has passed.
-    for (const week of [8, 9]) {
-      l.week = week;
+    for (let i = 0; i < 3; i++) {
+      nextStep(l);
       deliverMail(l);
     }
     const rows = notes(l)

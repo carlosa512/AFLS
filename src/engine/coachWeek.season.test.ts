@@ -3,7 +3,7 @@
  * step, no sentence twice, no room told twice inside three steps, every meeting's result in the next letter. Slow
  * (a full season of sims), so it lives apart from the fast letter tests.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { employed } from './employment';
@@ -11,7 +11,8 @@ import { acceptGmOffer, pendingGmOffers } from './leadership';
 import { playWeek } from './league';
 import { answerMeeting } from './meetings';
 import { advanceOffseason } from './offseason';
-import { answerTalk } from './playerTalks';
+import { answerRoomTalk, answerTalk } from './playerTalks';
+import { talkRoomOf } from './stories';
 import type { InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
 
@@ -52,31 +53,58 @@ function heldWithoutResult(l: League): string[] {
     .filter((k) => !covered.has(k));
 }
 
-describe("the head coach's letters over a season", () => {
-  it('keep their promises', () => {
-    const l = createLeague({ seed: 'mail1', userTeamId: 3 });
+/** One season played as a GM who answers everything (a room's losing once, as its row does) to the end of the playoffs. */
+function playSeason(seed: string, userTeamId: number): League {
+  const l = createLeague({ seed, userTeamId });
+  deliverMail(l);
+  for (let i = 0; i < 100; i++) {
+    if (l.phase === 'complete') break;
+    if (l.phase === 'resign' && pendingGmOffers(l)) {
+      const offers = l.leadership.search!.offers;
+      acceptGmOffer(l, (offers.find((o) => o.teamId === l.userTeamId) ?? offers[0]).teamId);
+    } else if (l.phase === 'regular' || l.phase === 'playoffs') playWeek(l);
+    else advanceOffseason(l, { autoUser: true });
+    if (!employed(l) && !pendingGmOffers(l)) break;
     deliverMail(l);
-    for (let i = 0; i < 100; i++) {
-      if (l.phase === 'complete') break;
-      if (l.phase === 'resign' && pendingGmOffers(l)) {
-        const offers = l.leadership.search!.offers;
-        acceptGmOffer(l, (offers.find((o) => o.teamId === l.userTeamId) ?? offers[0]).teamId);
-      } else if (l.phase === 'regular' || l.phase === 'playoffs') playWeek(l);
-      else advanceOffseason(l, { autoUser: true });
-      if (!employed(l) && !pendingGmOffers(l)) break;
-      deliverMail(l);
-      for (const p of Object.values(l.players))
-        if (p.teamId === l.userTeamId && p.morale?.talk?.ask) answerTalk(l, p.id, 'reassure');
-      const pend = l.teams[l.userTeamId].meetings?.pending;
-      if (pend)
-        answerMeeting(l, {
-          approach: pend.approaches[0],
-          backing: pend.backings[pend.backings.length - 1],
-          timing: pend.timings[0],
-        });
-      deliverMail(l);
+    for (const p of Object.values(l.players)) {
+      const ask = p.teamId === l.userTeamId ? p.morale?.talk?.ask : undefined;
+      if (!ask) continue;
+      if (ask.cause === 'losing') answerRoomTalk(l, talkRoomOf(p), 'reassure');
+      else answerTalk(l, p.id, 'reassure');
     }
-    const coach = l.inbox!.filter((m) => m.id.startsWith('coach:'));
+    const pend = l.teams[l.userTeamId].meetings?.pending;
+    if (pend)
+      answerMeeting(l, {
+        approach: pend.approaches[0],
+        backing: pend.backings[pend.backings.length - 1],
+        timing: pend.timings[0],
+      });
+    deliverMail(l);
+  }
+  return l;
+}
+
+const coachLetters = (l: League) => l.inbox!.filter((m) => m.id.startsWith('coach:'));
+const storiesOpened = (l: League) =>
+  [...(l.stories?.open ?? []), ...(l.stories?.closed ?? [])].filter((s) => Math.floor(s.opened / 32) === l.season);
+
+// The bounds are the owner's ("less is more with how many emails we already get"). Where the replay misses one it is
+// `it.fails`, with the numbers measured when it was written: a miss is a design question, not a number to move.
+describe.each([
+  // mail1: 13 letters (four meetings, each a request and a result).
+  { seed: 'mail1', team: 3, over: ['letters'] },
+  // vol2, a 3-13 club: 15 letters (a losing room row nearly every step) and 15 stories opened (11 of them rooms).
+  { seed: 'vol2', team: 10, over: ['letters', 'opened'] },
+])("the head coach's letters over a season: $seed", ({ seed, team, over }) => {
+  let l: League;
+  let coach: InboxMessage[];
+  beforeAll(() => {
+    l = playSeason(seed, team);
+    coach = coachLetters(l);
+  }, 180_000);
+  const bound = (name: string, check: () => void) => (over.includes(name) ? it.fails : it)(name, check);
+
+  it('keeps their promises', () => {
     expect(coach.length).toBeGreaterThan(5);
     expect(new Set(coach.map((m) => m.id)).size).toBe(coach.length);
     expect(l.inbox!.some((m) => /^(talk|meeting|meeting-result|staffNotes):/.test(m.id))).toBe(false);
@@ -84,5 +112,9 @@ describe("the head coach's letters over a season", () => {
     expect(dupes(coach.map((m) => m.subject))).toEqual([]);
     expect(roomsToldWithin(coach, 3)).toEqual([]);
     expect(heldWithoutResult(l)).toEqual([]);
-  }, 180_000);
+  });
+  bound('letters', () => expect(coach.length).toBeLessThanOrEqual(12));
+  bound('opened', () => expect(storiesOpened(l).length).toBeLessThanOrEqual(10));
+  bound('rows', () => expect(Math.max(...coach.map((m) => rowsOf(m).length))).toBeLessThanOrEqual(6));
+  bound('open', () => expect(l.stories!.open.length).toBeLessThanOrEqual(4));
 });

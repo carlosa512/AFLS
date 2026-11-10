@@ -110,6 +110,7 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { statLine } from '../engine/stats';
 import type {
   AdviceRow,
+  CoachRoom,
   GazetteTable,
   Coach,
   DealKind,
@@ -152,7 +153,7 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
-import { answerTalk } from '../engine/playerTalks';
+import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
 import { talkCard } from '../engine/talkMail';
 import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
@@ -646,9 +647,23 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
 }
 
 /** A player's letter (G3): your three answers while it's open, what you said and his reply once it's answered. */
-function TalkCards({ league, s }: { league: League; s: { clock: number; playerId: number } }) {
+function TalkCards({
+  league,
+  s,
+  room,
+}: {
+  league: League;
+  s: { clock: number; playerId: number };
+  /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
+  room?: CoachRoom | 'team';
+}) {
   const card = talkCard(league, s);
-  const answer = (reply: TalkReply) => store.mutate((l) => answerTalk(l, s.playerId, reply));
+  const answer = (reply: TalkReply) =>
+    store.mutate((l) =>
+      room && (reply === 'reassure' || reply === 'firm')
+        ? answerRoomTalk(l, room, reply)
+        : answerTalk(l, s.playerId, reply),
+    );
   if (card.state === 'closed')
     return (
       <Card>
@@ -3054,7 +3069,7 @@ function SectionCard({
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
-                {r.talk && <TalkCards league={league} s={r.talk} />}
+                {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} />}
                 {r.negotiate && onNegotiate && (
                   <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
                 )}
@@ -3161,7 +3176,7 @@ function PeopleSection({
               </div>
               {r.before && <p className="coach-person-before">{r.before}</p>}
               {r.note && <p className="coach-person-note">{r.note}</p>}
-              {r.talk && <TalkCards league={league} s={r.talk} />}
+              {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} />}
               {r.meeting && (
                 <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
               )}

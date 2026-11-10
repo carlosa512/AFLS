@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { coachWeekId, EXTRA, fitItems, STALE, type WeekItem } from './coachWeek';
+import { coachWeekId, fitItems, MAX_ROWS, STALE, type WeekItem } from './coachWeek';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { answerMeeting, requestMeeting } from './meetings';
 import { moraleClock, moraleContext } from './morale';
-import { answerTalk } from './playerTalks';
+import { answerRoomTalk, answerTalk } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, weightOf, type Unit } from './standing';
 import { shareWord } from './storiesStep';
@@ -78,6 +78,25 @@ describe('the head coach’s weekly letter', () => {
     expect(m.body).not.toMatch(/\d/);
   });
 
+  it("brings a room's losing as one row and one answer, whoever of the room asked", () => {
+    const l = inSeason();
+    const dl = activeRoster(l, l.userTeamId).filter((p) => p.position === 'DT' || p.position === 'EDGE');
+    for (const p of dl.slice(0, 3))
+      p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    deliverMail(l);
+    const [m] = letters(l);
+    const asks = m.sections!.find((x) => x.title === 'Who came to see me')!.rows;
+    expect(asks).toHaveLength(1);
+    expect(asks[0].talkRoom).toEqual({ unit: 'DL', clock: l.moraleAt });
+    // The others of the room are named in a sentence of his own, outside the quote.
+    expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|Add)/);
+    expect(needsYou(l, m)).toBe(true);
+    expect(answerRoomTalk(l, 'DL', 'reassure')).toBe(3);
+    expect(needsYou(l, m)).toBe(false);
+    // The room's answer is kept, so a man of it asking inside the gap is answered the same (`talkStep`).
+    expect(l.teams[l.userTeamId].losingAnswer?.DL?.reply).toBe('reassure');
+  });
+
   it('files nothing in a quiet step', () => {
     const l = inSeason();
     deliverMail(l);
@@ -92,16 +111,22 @@ describe('the head coach’s weekly letter', () => {
     born,
   });
 
-  it('keeps every tier 1 to 3 item and at most four more', () => {
+  it('holds a letter to its rows, cutting from the lowest tier up', () => {
     const items = [
       ...[1, 2, 3, 1, 2, 3].map((t, n) => item(t as WeekItem['tier'], 10, n)),
       ...[4, 5, 4, 5, 4, 5, 4].map((t, n) => item(t as WeekItem['tier'], 10, 10 + n)),
     ];
     const kept = fitItems(items, 10);
-    expect(kept.filter((i) => i.tier <= 3)).toHaveLength(6);
-    expect(kept.filter((i) => i.tier > 3)).toHaveLength(EXTRA);
-    // The rooms come before the staff room when something must wait.
-    expect(kept.filter((i) => i.tier > 3).every((i) => i.tier === 4)).toBe(true);
+    expect(kept).toHaveLength(MAX_ROWS);
+    // The notes wait first, the staff room before the rooms; what needs an answer always stays.
+    expect(kept.every((i) => i.tier <= 3)).toBe(true);
+    expect(kept.filter((i) => i.tier === 1)).toHaveLength(2);
+    expect(fitItems([...items.slice(0, 1), item(1, 10, 20), item(1, 10, 21)], 10)).toHaveLength(3);
+  });
+
+  it('keeps every tier 1 item even past the rows', () => {
+    const asks = Array.from({ length: MAX_ROWS + 2 }, (_, n) => item(1, 10, n));
+    expect(fitItems([...asks, item(2, 10, 99)], 10)).toHaveLength(MAX_ROWS + 2);
   });
 
   it('drops a room note that has waited three steps', () => {
@@ -268,6 +293,10 @@ describe('the head coach’s weekly letter', () => {
     t.depthChart.WR = wr.map((p) => p.id);
     updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
     const a = t.coachAdvice!.at(-1)!;
+    // A note alone files nothing; with a man's ask in the week it rides along.
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(0);
+    asking(l, 'snaps');
     deliverMail(l);
     const [m] = letters(l);
     expect(m.coachNoteKey).toBe(adviceKey(a, 'offer'));

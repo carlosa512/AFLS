@@ -57,13 +57,13 @@ const HABIT: readonly Line<HabitFact>[] = [
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} is on ${f.player}'s habit every day: he ${QUIRKS[f.habit].clause}. He listens, and it is showing.`,
+      `${f.coach} is on ${f.player}'s habit every day: he ${QUIRKS[f.habit].clause}. He is taking to the work.`,
   },
   {
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.player} asked ${f.coach} for extra work on it: he ${QUIRKS[f.habit].clause}. That is a good sign.`,
+      `${f.player} is putting the work in with ${f.coach}: he ${QUIRKS[f.habit].clause}. That is a good sign.`,
   },
   {
     when: (f) => !f.receptive,
@@ -327,7 +327,9 @@ export function staffRows(
     for (const c of chemistryNotes(league, told, said)) {
       if (rested(c.unit) && !rooms.has(c.unit)) continue;
       covered.push(c.key);
-      const own = rooms.get(c.unit);
+      // The room's row is signed by its position coach when the club has one, the head coach when it has none.
+      const pc = teamCoaches(league, league.userTeamId).find((x) => x.role === 'positionCoach' && x.room === c.unit);
+      const own = rooms.get(c.unit) ?? (pc ? room(c.unit, pc.id) : undefined);
       if (own) {
         own.notes.push(c.note);
         own.keys.push(c.key);

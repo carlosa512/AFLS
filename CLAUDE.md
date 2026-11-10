@@ -275,9 +275,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     already use, so the fog of war holds. `coachWeek.ts` the editor of the head coach's weekly letter: it gathers the
     week's items (asks and an ask still waiting, his meeting request, a story closing, last step's meeting told a
     step on, a deal's or promise's clock, the rooms, the staff room), ranks them in five tiers, keeps tiers one to
-    three whole and at most `EXTRA` fresher ones of four and five (a lower item waits `STALE` steps, then goes), and
+    three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
+    tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter), and
     words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
-    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). `coachWeek.season.test.ts` plays a
+    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is a room's, not a man's:
+    his ask adds a beat to his room's story (`talkRoomOf`), the letter has one row and one answer for the room
+    (`talkRoom`, `answerRoomTalk`), and a man of it asking inside `LOSING_GAP` steps is answered as you last answered
+    the room (`Team.losingAnswer`, `talkStep`). Room stories close with the season and the league year, silently. `coachWeek.season.test.ts` plays a
     season and holds the letters to it: one a step, no sentence twice, no room told twice inside three steps, every
     meeting's result in the next letter
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,

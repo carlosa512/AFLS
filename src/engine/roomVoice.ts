@@ -536,7 +536,6 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
   },
   { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `${unitIs_(f.unit)} clicking right now.` },
   { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `${U(f)} playing like one group.` },
-  { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `Nothing to fix in ${f.unit} at the moment.` },
   {
     when: (f) => f.word === 'Out of sync' && !!f.spark?.sour,
     reads: 3,
@@ -556,7 +555,7 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
   {
     when: (f) => f.word === 'Out of sync',
     reads: 1,
-    text: (f) => `${unitIs_(f.unit)} out of sync; nobody is on the same page.`,
+    text: (f) => `${unitIs_(f.unit)} out of sync, and I'd rather fix it before it costs us.`,
   },
   {
     when: (f) => f.word === 'Out of sync',

@@ -210,14 +210,14 @@ function toldWords(league: League, r: MeetingRecord, key: string, said: string[]
  * well or bristled, each by how he took it then and how he reads now; the room by its read now against its read then.
  * `said` is what the sender has already said this league year; every sentence used goes onto it.
  */
-function resultParts(league: League, r: MeetingRecord, said: string[]) {
+function resultParts(league: League, r: MeetingRecord, said: string[], limit = Infinity) {
   const teamId = league.userTeamId;
   const ctx = moraleContext(league);
   const key = resultId(league.season, r.clock, r.scope);
   const c = commitmentOf(league, r);
   const noun = SCOPE_NOUN[r.scope];
   const mens: MailSection['rows'] = [];
-  for (const { p, outcome } of namedByResult(league, r, ctx)) {
+  for (const { p, outcome } of namedByResult(league, r, ctx).slice(0, limit)) {
     const man = manSheet(league, p, ctx);
     if (!man) continue;
     const note = say(
@@ -258,8 +258,8 @@ function resultParts(league: League, r: MeetingRecord, said: string[]) {
  * A meeting's result as rows of the weekly letter: each man named, the room with what he told it, then what we owe
  * them and its Negotiate rows. `said` is what the sender said this league year (`seasonSaid`), and grows as rows are written.
  */
-export function resultRows(league: League, r: MeetingRecord, said: string[]): MailSection['rows'] {
-  const { key, noun, mens, room, next, talks } = resultParts(league, r, said);
+export function resultRows(league: League, r: MeetingRecord, said: string[], men = Infinity): MailSection['rows'] {
+  const { key, noun, mens, room, next, talks } = resultParts(league, r, said, men);
   const told = toldWords(league, r, key, said);
   return [
     ...mens,

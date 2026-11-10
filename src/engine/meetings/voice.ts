@@ -462,22 +462,22 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `I asked ${f.speaker!.first} to say it. He's earned the room, so listen to him.`,
+    text: (f) => `Listen up, all of you. I asked ${f.speaker!.last} to say it, and he has earned this room.`,
   },
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `${f.speaker!.first} spoke for me today, and he said it better than I would have.`,
+    text: (f) => `${f.speaker!.last} spoke for me today, and he said it better than I would have.`,
   },
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `${f.speaker!.first} has been through this before. I let him tell you how it goes.`,
+    text: (f) => `Men, ${f.speaker!.last} has been through this before. Hear how it goes from him.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `I let one of your own do the talking. Take it from him as you'd take it from me.`,
+    text: () => `Men, one of your own is doing the talking. Take it from him as you'd take it from me.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
@@ -487,12 +487,12 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `This one comes from inside the room. Listen to the men you follow.`,
+    text: () => `Men, this one comes from inside the room. Listen to the ones you follow.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `I stepped back and let the leaders talk. It means more from them.`,
+    text: () => `Men, I stepped back and let the leaders talk. It means more from them.`,
   },
   {
     when: (f) => f.approach === 'losing',
