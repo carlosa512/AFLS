@@ -525,6 +525,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   (`GamePanels.tsx`). A number goes on screen only if `gameRead.test.ts` holds it to the box score (`SHOWN_TEAM`,
   `SHOWN_LINE`); tackles and possession can't be read exactly and stay in the box score. Spec:
   `docs/superpowers/specs/2026-11-10-broadcast-info-design.md`.
+  Teams switch ends each quarter in both views (`stage/ends.ts`): the paint is the stadium and never moves, and what a
+  play makes is placed through `stadiumSpot`; never mirror a group, it mirrors its text. The broadcast field
+  (`BroadcastField.tsx`, its camera in `broadcastView.ts`) is painted by `BroadcastPaint.tsx` from the facts All-22
+  paints with (`FieldPaint.tsx`: `endZones`, both the home club's), with a stand, a crowd and the game's weather
+  behind it. `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
+  a giveaway, a flag or an injury; a player's line after a 20-yard gain; a card at the quarter, the half and the
+  final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
+  half has come). Spec: `docs/superpowers/specs/2026-11-10-broadcast-field-and-moments-design.md`.
 
 ## Conventions
 

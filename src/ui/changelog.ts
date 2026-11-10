@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.28',
+    date: '2026-11-10',
+    title: 'A stadium, and the big moments',
+    text: "Game day has a painted field, a crowd and the weather you're playing in. Scores, turnovers, flags and injuries get a banner, teams switch ends each quarter, and a live game stops at the half.",
+  },
+  {
     version: '0.4.27',
     date: '2026-11-10',
     title: 'The broadcast tells you more',

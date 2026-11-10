@@ -1573,6 +1573,7 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
   font-family: var(--font-data);
   font-size: 0.68rem;
   font-weight: 600;

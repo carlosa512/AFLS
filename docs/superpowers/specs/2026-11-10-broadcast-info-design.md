@@ -222,6 +222,9 @@ This is UI and a reader of the log: nothing the sim reads changes, so no sims ar
 
 ## Out of scope, for later passes
 
+The field and the moments were built next, with the network look, in part two
+(`2026-11-10-broadcast-field-and-moments-design.md`). What is still for later:
+
 - **The field:** All-22's paint on the broadcast field, where the drive started, the red zone, names on the play.
 - **Moments:** banners for touchdowns and turnovers, a player's line after a big play, cards at the half and the
   final.

@@ -11,7 +11,7 @@ import { Rng } from '../../engine/rng';
 import type { Team } from '../../engine/types';
 import type { Weather } from '../../engine/weather';
 import { mix } from '../color';
-import { endZoneLetter, facing, project, pt, quad, VIEW_W } from './broadcastView';
+import { endZoneLetter, facing, project, pt, quad, VIEW_H, VIEW_W } from './broadcastView';
 import { endZones, GREENS, POSTS, surfaceFor, TEAM_AREA, type EndZone } from './FieldPaint';
 
 const FIELD_FONT = { fontFamily: 'var(--font-field)' };
@@ -364,9 +364,12 @@ export const WeatherFall = memo(function WeatherFall({ weather }: { weather: Wea
   const share = weather.precip === 'mixed' ? 0.5 : 1;
   const drops = weather.precip === 'snow' ? 0 : Math.round(DROPS * share) * hard;
   const flakes = weather.precip === 'rain' ? 0 : Math.round(FLAKES * share) * hard;
+  // Where each one hangs when nothing moves (a viewer who asked for less motion): spread down the picture, not in a
+  // row along the top. The fall's own animation takes over the transform when it runs.
   const timing = (seconds: number) => ({
     animationDuration: `${seconds.toFixed(2)}s`,
     animationDelay: `-${(rng.next() * seconds).toFixed(2)}s`,
+    transform: `translateY(${(rng.next() * (VIEW_H - 10)).toFixed(0)}px)`,
   });
   return (
     <g className="weather-fall" aria-hidden="true">
