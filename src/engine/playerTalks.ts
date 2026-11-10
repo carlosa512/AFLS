@@ -5,6 +5,7 @@
  * `morale.ts`). One talk step runs at the end of every morale step; like the rest of morale it draws nothing and fills
  * no shared cache, so it can't move play.
  */
+import { answerBench } from './benching';
 import { employed } from './employment';
 import {
   addJolt,
@@ -19,6 +20,7 @@ import {
   type MoraleContext,
   type MoraleFactors,
 } from './morale';
+import { teamPlayers } from './roster';
 import { closeStory, talkBeat } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, Player, Talk, TalkCause, TalkReply } from './types';
@@ -28,7 +30,7 @@ const CAMP = 7;
 /** Steps in a row at Poor or worse before he asks (he asks on the third). */
 const DOWN_STEPS = 3;
 /** Asks a club hears in one step. */
-const PER_CLUB = 2;
+export const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */
 const WAIT = 2;
 /** A room's losing comes to you once in this many steps: a man of it asking sooner is answered as you last answered the room. */
@@ -41,9 +43,14 @@ export const CAUSE_OF: Record<string, TalkCause> = {
   'Noticed who got paid': 'deal',
   'The losing is wearing on him': 'losing',
   'A feud in the room': 'feud',
+  // A job question left open (`benching.ts`): asked about there, never through the talks' own asks.
+  "Doesn't know where he stands": 'benched',
 };
 
-/** Only what he asks for can be promised: snaps or a deal. The losing and a feud get an answer, not a promise. */
+/**
+ * Only what he asks for can be promised: snaps or a deal. The losing and a feud get an answer, not a promise; a benching
+ * has its own promise ("back in next week", `answerBench`).
+ */
 export const canPromise = (cause: TalkCause) => cause === 'snaps' || cause === 'deal';
 
 /** Players talk in season, in the re-sign window and at camp; not on every free-agency day or at the draft. */
@@ -65,6 +72,11 @@ export function aiReply(league: League, teamId: number, cause: TalkCause): TalkR
   if (canPromise(cause) && traits.loyalty - traits.stubbornness >= 0.2) return 'promise';
   return traits.stubbornness >= 0.6 ? 'firm' : 'reassure';
 }
+
+/** Your men whose benched ask was filed this step. */
+const teamPlayersAsking = (league: League, teamId: number, clock: number) =>
+  teamPlayers(league, teamId).filter((p) => p.morale?.talk?.ask?.cause === 'benched' && p.morale.talk.ask.at === clock)
+    .length;
 
 /** The club whose letters you answer: yours, while you have a job. */
 const yourClub = (league: League) => (employed(league) ? league.userTeamId : null);
@@ -195,9 +207,18 @@ export function answerTalk(league: League, playerId: number, reply: TalkReply): 
   const p = league.players[playerId];
   const ask = p?.morale?.talk?.ask;
   if (!p || p.teamId === null || p.teamId !== yourClub(league) || !ask) return false;
+  // A benched ask has its own answers: until its letter has its own row (storylines Task 13), the three map onto them.
+  if (ask.cause === 'benched') return answerBench(league, playerId, benchReplyFor(league, p, reply));
   if (reply === 'promise' && !canPromise(ask.cause)) return false;
   applyReply(league, p, reply, league.moraleAt ?? ask.at, moraleContext(league), ask.cause);
   return true;
+}
+
+/** The talk replies on a benched ask, by his side of the question: a promise, a reassurance, a firm word to earn it. */
+function benchReplyFor(league: League, p: Player, reply: TalkReply) {
+  const holder = league.teams[p.teamId!].jobs?.questions?.some((q) => q.holder === p.id) ?? false;
+  if (holder) return reply === 'promise' ? 'backIn' : reply === 'reassure' ? 'thisWeek' : 'earn';
+  return reply === 'promise' ? 'yours' : 'compete';
 }
 
 /** Your men with a losing ask waiting on you: the losing is the club's, so the room is always 'team'. */
@@ -246,7 +267,9 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     if (moraleStepOf(level) <= 3) talkOf(p).downSince ??= clock;
     else if (m.talk) delete m.talk.downSince;
     const t = m.talk;
-    if (t?.ask && clock >= t.ask.at + WAIT) applyReply(league, p, 'ignored', clock, ctx, t.ask.cause);
+    // A benched ask waits on you as long as his question stays open: not knowing is what it costs (`benching.ts`).
+    if (t?.ask && t.ask.cause !== 'benched' && clock >= t.ask.at + WAIT)
+      applyReply(league, p, 'ignored', clock, ctx, t.ask.cause);
     tidy(p);
     const now = m.talk;
     if (
@@ -259,8 +282,10 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
       (now.answered && clock < now.answered.at + QUIET)
     )
       continue;
+    // A man of an open job question talks about it there.
+    if (league.teams[p.teamId].jobs?.questions?.some((q) => q.holder === p.id || q.other === p.id)) continue;
     const cause = talkCause(league, p, moraleFactors(league, p, ctx), clock);
-    if (!cause) continue;
+    if (!cause || cause === 'benched') continue;
     const list = candidates.get(p.teamId) ?? [];
     list.push({ p, level, cause });
     candidates.set(p.teamId, list);
@@ -275,7 +300,9 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
       return false;
     });
     list.sort((a, b) => a.level - b.level || a.p.id - b.p.id);
-    for (const { p, cause } of list.slice(0, PER_CLUB)) {
+    // The benched asks filed this step (`benchWeek`, your club) come first.
+    const filed = teamId === yours ? teamPlayersAsking(league, teamId, clock) : 0;
+    for (const { p, cause } of list.slice(0, Math.max(0, PER_CLUB - filed))) {
       if (teamId === yours) {
         talkOf(p).ask = { cause, at: clock };
         talkBeat(league, p, cause, 'asked', clock);

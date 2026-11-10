@@ -28,6 +28,7 @@ export const TALK_SUBJECT: Record<TalkCause, string> = {
   deal: 'About my contract',
   losing: 'About the losing',
   feud: 'About the room',
+  benched: 'About my job',
 };
 
 // Every line that fits his ask is equally likely (one specificity, fallback aside): what the staff can see about him
@@ -360,6 +361,8 @@ function cap(s: string): string {
 
 /** The grievance itself. Plain lines read only the cause; the rest also read what the sheet knows about him. */
 export const ASK_CORE: readonly Line<AskFact>[] = [
+  // benched: a placeholder until the benching's own lines (storylines Task 13).
+  { when: (f) => f.cause === 'benched', reads: 1, text: () => "I sat this week, and I'd like to know where I stand." },
   // snaps
   {
     when: (f) => f.cause === 'snaps',

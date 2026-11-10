@@ -54,6 +54,7 @@ const THING: Record<TalkCause, string> = {
   snaps: 'his snaps',
   losing: 'the losing',
   feud: 'the feud',
+  benched: 'his job',
 };
 /** The grievance behind his top mood reason, when it is one of the four he can ask about. */
 const causeOf = (man: ManSheet): TalkCause | null => (man.reason ? (CAUSE_OF[man.reason] ?? null) : null);

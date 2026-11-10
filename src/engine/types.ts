@@ -391,7 +391,10 @@ export type MoraleJolt =
   // G4: a holdout who gave in.
   | 'gaveIn'
   // L2: a team meeting landing or bristling (`meetings/react.ts`).
-  | 'meeting';
+  | 'meeting'
+  // A job question left open, and a clear word on it (`benching.ts`).
+  | 'unsure'
+  | 'settled';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -424,7 +427,8 @@ export interface Dispute {
 }
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
-export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+/** `benched`: a job-holder sat healthy asks where he stands (`benching.ts`). */
+export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched';
 /** What a meeting is about: a grievance, nothing in particular, or a room's doubt in its coordinator (L4). */
 export type MeetingTopic = TalkCause | 'none' | 'coordinator';
 // ───────── team meetings (L2, `meetings/`) ─────────
@@ -565,7 +569,14 @@ export interface Talk {
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
-  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number; cause?: TalkCause };
+  answered?: {
+    reply: TalkReply | 'ignored';
+    at: number;
+    ask: number;
+    cause?: TalkCause;
+    /** A benched ask's own answer (`benching.ts`); `reply` holds the nearest of the three. */
+    bench?: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete';
+  };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
    * since it was made, and where his club's games and his snaps stood at the last check (`seen`). A deal promise is
@@ -1089,6 +1100,10 @@ export interface JobQuestion {
   promise?: { to: number; at: number };
   /** "Just this week". */
   soft?: { to: number; at: number };
+  /** The answer it was given, and when (none: nobody has told them). Cleared when a word given to it is broken. */
+  answered?: { reply: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete'; at: number; by: number };
+  /** Starts in a row the holder has made since he sat: three settle it his way, as three earn the other man the job. */
+  back?: number;
 }
 
 export interface Team {

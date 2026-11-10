@@ -122,6 +122,7 @@ const ANSWERS: Record<TalkCause, Exclude<Backing, 'words'>> = {
   snaps: 'snaps',
   feud: 'feud',
   losing: 'move',
+  benched: 'snaps',
 };
 
 export function suggestFact(league: League, teamId: number, s: MeetingSuggestion, ctx?: MoraleContext): SuggestFact {

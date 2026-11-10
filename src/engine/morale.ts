@@ -15,6 +15,7 @@ import { activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
+import { benchWeek } from './benching';
 import { talkStep } from './playerTalks';
 import { calmOf, friendPull, honouredSince, TONE, toneOf, unitOf, voiceOf, type VoiceRef } from './standing';
 import { disputeStep } from './disputes';
@@ -305,6 +306,8 @@ export const CAUSE_FACTOR: Record<TalkCause, 'role' | 'contract' | 'team' | 'roo
   deal: 'contract',
   losing: 'team',
   feud: 'room',
+  // Sat healthy, he wants his place back: the role he was playing.
+  benched: 'role',
 };
 
 /**
@@ -437,6 +440,8 @@ const JOLT_WORDS: Record<MoraleJolt, string> = {
   ignored: 'Feels ignored',
   gaveIn: 'Gave in on his holdout',
   meeting: 'The coach got through to him',
+  unsure: "Doesn't know where he stands",
+  settled: 'Knows where he stands',
 };
 
 /** A meeting jolt is the one kind that goes either way (L2): one that bristled reads as this. */
@@ -464,6 +469,7 @@ export const DOWN_REASONS: ReadonlySet<string> = new Set([
   JOLT_WORDS.firm,
   JOLT_WORDS.ignored,
   JOLT_WORDS.gaveIn,
+  JOLT_WORDS.unsure,
   MEETING_DOWN,
   ...Object.values(WAITING).map((w) => w!.text),
 ]);
@@ -607,13 +613,9 @@ function newJolts(
   };
   const teamId = p.teamId!;
   const wasStarter = () => !!p.stats[season - 1] && seasonRole(league, p, season - 1)?.role === 'starter';
-  // Benched: a starter last season who isn't one now, by his snaps once his club has three games in (while he's been
-  // dressing), or at the new league year when his room has passed him.
-  const played = games(ctx.records.get(teamId));
-  if (played >= 3 && (p.stats[season]?.gp ?? 0) >= played - 1) {
-    const now = actualRole(league, p, ctx);
-    if (now !== null && now < 2 && wasStarter()) add('benched', 'benched', -3);
-  } else if (week === 0 && expectedRole(p, ctx) < 2 && wasStarter()) add('benched', 'benched', -3);
+  // Benched at the new league year, when his room has passed him: there is no game to sit. In season a benching is a
+  // job-holder sat healthy, and lands through his question (`benchWeek` in `benching.ts`).
+  if (week === 0 && expectedRole(p, ctx) < 2 && wasStarter()) add('benched', 'benched', -3);
   for (const t of p.ties ?? []) {
     const b = league.players[t.with];
     if (!b) continue;
@@ -686,7 +688,9 @@ export function moraleAdvance(league: League, clock: number): void {
     if (p.contract) m.apy = p.contract.apy;
   }
   rememberClinches(league, clinched, spots);
-  // Then they talk: asks, answers, promises (G3); then talks gone wrong escalate (G4).
+  // Then the week's benchings (their asks first), then they talk: asks, answers, promises (G3); then talks gone wrong
+  // escalate (G4).
+  if (league.phase === 'regular' || league.phase === 'playoffs') benchWeek(league, ctx, clock);
   talkStep(league, ctx, clock, week, newYear);
   disputeStep(league, ctx, clock, week, newYear);
 }
