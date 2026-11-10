@@ -5,6 +5,12 @@
 import { employed } from './employment';
 import type { League, Player, Talk } from './types';
 
+/**
+ * The head coach writes at most every other step (`coachWeek.ts`): the step after a letter files none. It is also the
+ * longest a cleared starter's reminder can take to reach you, so his grace (`benching.ts`) runs this many steps.
+ */
+export const LETTER_GAP = 2;
+
 /** Asks a club hears in one step. */
 export const PER_CLUB = 2;
 

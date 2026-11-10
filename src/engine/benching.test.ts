@@ -1098,6 +1098,52 @@ describe('the cleared starter', () => {
   });
 });
 
+describe('the cleared starter’s grace', () => {
+  /** Step c: the QB1 was out at kickoff and can play after it, listed third; your club's chart is hand-sorted. */
+  function back(seed: string) {
+    const { l, team, q } = setup(seed);
+    team.autoDepth = false;
+    q[0].injury = hurt(l);
+    order(team, [q[1].id, q[2].id, q[0].id]);
+    benchKickoff(l);
+    delete q[0].injury;
+    const c = moraleClock(l, true);
+    moraleAdvance(l, c);
+    l.week++;
+    return { l, team, q, c };
+  }
+
+  it('runs from the step he could play again: a game sat inside it opens nothing, the next one does', () => {
+    const { l, team, q, c } = back('grace-clock');
+    expect(team.jobs!.held[q[0].id].cleared).toBe(c);
+    expect(clearedNotStarting(l).map((p) => p.id)).toEqual([q[0].id]);
+    // Sat at c+1: still inside the reminder's longest way to you.
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+    expect(q[0].morale?.talk?.ask).toBeUndefined();
+    expect(clearedNotStarting(l).map((p) => p.id)).toEqual([q[0].id]);
+    // Sat again at c+2: the one-game rule, he asks.
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeDefined();
+    expect(q[0].morale?.talk?.ask?.cause).toBe('benched');
+  });
+
+  it('Leave it ends the grace at once', () => {
+    const { l, team, q } = back('grace-leave');
+    dismissReminder(l, q[0].id);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeDefined();
+  });
+
+  it('a holder who starts again is owed nothing', () => {
+    const { l, team, q } = back('grace-starts');
+    order(team, [q[0].id, q[1].id, q[2].id]);
+    moodWeek(l);
+    expect(team.jobs!.held[q[0].id].out).toBeUndefined();
+    expect(team.jobs!.held[q[0].id].cleared).toBeUndefined();
+  });
+});
+
 describe('the benching card', () => {
   it('his row has four answers with the other man named last, the other man’s row has three', () => {
     const { l, team, q } = sitHolder('card-options');

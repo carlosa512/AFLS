@@ -27,8 +27,8 @@ import { perceive } from './scouting';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
 import { playoffRace } from './season/standings';
 import { beat, closeStory, COACH, markTold, openStory } from './stories';
-import { PER_CLUB, talkOf, yourClub } from './talkBasics';
-import { say, toldKeys } from './voice';
+import { LETTER_GAP, PER_CLUB, talkOf, yourClub } from './talkBasics';
+import { say } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { STARTERS } from './positions';
 import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
@@ -137,9 +137,14 @@ export function benchKickoff(league: League, game?: Game): void {
     for (const pid of out) {
       if (!held[pid]) continue;
       delete held[pid].reminded;
-      if (id === yourClub(league)) held[pid].cleared = league.players[pid].injuries?.length ?? 0;
+      delete held[pid].cleared;
+      if (id === yourClub(league)) held[pid].out = league.players[pid].injuries?.length ?? 0;
     }
-    for (const pid of ids) if (held[pid]) delete held[pid].cleared;
+    for (const pid of ids)
+      if (held[pid]) {
+        delete held[pid].out;
+        delete held[pid].cleared;
+      }
     team.kickoff = { week: league.week, ids, at, out };
   }
 }
@@ -483,6 +488,7 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
   if (!BENCH.on || !inGames(league)) return;
   const yours = yourClub(league);
   for (const team of league.teams) {
+    if (team.id === yours) noteCleared(league, team, clock);
     const k = team.kickoff;
     // A bye, or a season over: no game, so nothing counts (but a man who left is still gone).
     if (!k || k.week !== league.week) {
@@ -583,14 +589,14 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       }
 
     // (2) A holder who sat healthy with no question open: the hit lands, and he asks. At your club a man back from being
-    // out whose reminder you have not been sent yet is still inside his grace: the game he sat opens nothing. With the
-    // staff sorting the chart there is no reminder, and the one-game rule applies at once.
-    const told = mine && !team.autoDepth ? toldKeys(league) : undefined;
+    // out is in his grace for `LETTER_GAP` steps from the step he could play again (the longest the coach's reminder can
+    // take to reach you), unless you chose Leave it: a game he sits in it opens nothing. With the staff sorting the chart
+    // there is no reminder, and the one-game rule applies at once.
     for (const { holder, other } of sat) {
       if (questionOf(team, holder.id) || !holder.morale) continue;
       const held = jobs.held[holder.id];
       if (!held) continue;
-      if (told && reminderOwed(held) && !told.has(restoreKey(league, holder.id, held.cleared!))) continue;
+      if (mine && !team.autoDepth && inGrace(held, clock)) continue;
       const q: JobQuestion = { pos: held.pos, holder: holder.id, since: clock };
       if (other) q.other = other.id;
       (jobs.questions ??= []).push(q);
@@ -664,9 +670,23 @@ export function listedWord(league: League, p: Player): string {
 export const restoreKey = (league: League, playerId: number, injuries: number) =>
   `restore:${league.season}:${playerId}:${injuries}`;
 
+type Held = NonNullable<Team['jobs']>['held'][number];
+
 /** He was out at a kickoff since he last started, and you have not chosen Leave it. */
-const reminderOwed = (h: NonNullable<Team['jobs']>['held'][number]) =>
-  h.cleared !== undefined && h.reminded === undefined;
+const reminderOwed = (h: Held) => h.out !== undefined && h.reminded === undefined;
+
+/** Inside his grace: cleared fewer than `LETTER_GAP` steps ago, and the reminder not answered with Leave it. */
+const inGrace = (h: Held, clock: number) =>
+  reminderOwed(h) && h.cleared !== undefined && clock - h.cleared < LETTER_GAP;
+
+/** The step each of your holders who was out can play again: his grace runs from it (read off the league, no mail). */
+function noteCleared(league: League, team: Team, clock: number): void {
+  for (const [sid, h] of Object.entries(team.jobs?.held ?? {})) {
+    const p = league.players[Number(sid)];
+    if (h.out !== undefined && h.cleared === undefined && p && p.teamId === team.id && couldPlay(league, p))
+      h.cleared = clock;
+  }
+}
 
 /**
  * Your job-holders who were out at a kickoff since they last started, can play now and are not in a starting spot: the

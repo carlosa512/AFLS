@@ -402,6 +402,8 @@ describe('save v92', () => {
   });
 });
 
+// v93's job entries also carry `out` and `cleared` (the cleared starter's reminder and grace): optional and added on this
+// branch's own v93 before it shipped, so no step reads or writes them and no version moved.
 describe('save v93', () => {
   it('a v92 save in week 6 holds the chart starters with three games as job-holders, no questions', () => {
     const l = createLeague({ seed: 'v93-wk' });

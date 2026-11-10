@@ -1109,11 +1109,12 @@ export interface JobQuestion {
 export interface Team {
   /**
    * Who holds a starting job at each position, kept by `benching.ts`: set on cut-down day, earned by three starts in a
-   * row, cleared at the new league year. At your club, `cleared`: he was out at a kickoff (his injury count then, which
-   * keys the coach's reminder), kept until he starts or is out again; `reminded`: you chose Leave it on that reminder.
+   * row, cleared at the new league year. At your club, `out`: he was out at a kickoff (his injury count then, which
+   * keys the coach's reminder), kept until he starts; `cleared`: the step he could play again after it (his grace runs
+   * from it); `reminded`: you chose Leave it on that reminder.
    */
   jobs?: {
-    held: Record<number, { pos: Position; since: number; cleared?: number; reminded?: number }>;
+    held: Record<number, { pos: Position; since: number; out?: number; cleared?: number; reminded?: number }>;
     runs?: Record<number, number>;
     questions?: JobQuestion[];
   };

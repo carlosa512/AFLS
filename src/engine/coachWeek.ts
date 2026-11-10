@@ -43,6 +43,7 @@ import { POSITION_NAMES, STARTERS } from './positions';
 import { perceive } from './scouting';
 import { TALK_SUBJECT } from './playerVoice';
 import { headCoach, type Draft } from './senders';
+import { LETTER_GAP } from './talkBasics';
 import { staffRows } from './staffNotes';
 import { COACH, markTold, openStory, storyById, talkStoryOn, untold } from './stories';
 import { shareWord, tellable } from './storiesStep';
@@ -96,10 +97,11 @@ export interface WeekItem {
 /** Rows a letter may carry: what needs your answer always fits, and the rest is cut from the lowest tier up. */
 export const MAX_ROWS = 6;
 /**
- * The head coach writes at most every other step: after a letter, the next step files none and what it gathered waits
- * (items keep their `born`). A suggestion to your club waits a step longer (`meetings/index.ts`), so it is carried.
+ * The head coach writes at most every other step (`LETTER_GAP`, kept with the talks' basics so the benching chain reads
+ * it without importing the letters): after a letter, the next step files none and what it gathered waits (items keep
+ * their `born`). A suggestion to your club waits a step longer (`meetings/index.ts`), so it is carried.
  */
-export const LETTER_GAP = 2;
+export { LETTER_GAP };
 /**
  * Steps before a promise or a commitment comes due that its warning may be told (at `due` it is already judged). Two, so
  * a step the coach does not write (`LETTER_GAP`) cannot swallow it; it is told once either way.
@@ -299,7 +301,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
 
   // ───── tier 1: a starter cleared and not back in his spot ─────
   for (const p of clearedNotStarting(league)) {
-    const key = restoreKey(league, p.id, league.teams[user].jobs!.held[p.id].cleared!);
+    const key = restoreKey(league, p.id, league.teams[user].jobs!.held[p.id].out!);
     const man = sheet(p);
     if (told.has(key) || !man) continue;
     const note = say(
