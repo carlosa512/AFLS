@@ -179,3 +179,25 @@ describe('askWords', () => {
           }
   });
 });
+
+describe('a benching answer is not a talk answer', () => {
+  const FALSE =
+    /still waiting|make it right|be fine|be patient|hang in there|firm with me|to me straight|never heard|silence|follow through/;
+  const every = (bank: readonly { when?: (f: AskFact) => boolean; text: (f: AskFact) => string }[], f: AskFact) =>
+    bank.filter((l) => !l.when || l.when(f)).map((l) => l.text(f));
+
+  it('a man told he was back in, who started, then asks about his deal: no line reads a talk promise or a no', () => {
+    for (const reply of ['promise', 'reassure', 'firm'] as const)
+      for (const kept of [false, true]) {
+        const f = fact({ asks: 'second', lastAnswer: { reply, when: 'in week 4', cause: 'benched' }, kept }, 'deal');
+        for (const bank of [ASK_HISTORY, ASK_CLOSE]) for (const t of every(bank, f)) expect(t).not.toMatch(FALSE);
+      }
+  });
+
+  it('"follow through" never follows a kept promise', () => {
+    const f = fact({ asks: 'second', lastAnswer: { reply: 'promise', when: 'at camp', cause: 'deal' }, kept: true });
+    for (const t of every(ASK_CLOSE, f)) expect(t).not.toMatch(/follow through/);
+    const open = fact({ asks: 'second', lastAnswer: { reply: 'promise', when: 'at camp', cause: 'deal' } });
+    expect(every(ASK_CLOSE, open)).toContain("I'm asking you to follow through.");
+  });
+});

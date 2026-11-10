@@ -240,6 +240,17 @@ describe('the head coach’s weekly lines', () => {
     expect(line).toMatch(/D-line is down/);
   });
 
+  it('a benching answer is never called back as a talk: no promise waiting, no no, no "about this before"', () => {
+    for (const reply of ['promise', 'reassure', 'firm'] as const)
+      for (const kept of [false, true]) {
+        const m = man({ asks: 'second', lastAnswer: { reply, when: 'in week 4', cause: 'benched' }, kept });
+        for (const l of every(BEFORE, { man: m, cause: 'deal' }))
+          expect(l).not.toMatch(
+            /your word, and|make it right|patient|hang in|told him no|turned him down|about this|raised it/,
+          );
+      }
+  });
+
   it('calls back to what you told a man, by when', () => {
     const line = say(BEFORE, { man: man({ asks: 'second', lastAnswer: { reply: 'promise', when: 'at camp' } }) }, at);
     expect(line).toMatch(/at camp/i);

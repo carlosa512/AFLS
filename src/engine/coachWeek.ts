@@ -226,7 +226,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         if (!out.before) delete out.before;
         remember(out.before);
       } else if (man && hasHistory(man)) {
-        out.before = say(BEFORE, { man }, { key, slot: 'before', ...around(league, said) });
+        out.before = say(BEFORE, { man, cause }, { key, slot: 'before', ...around(league, said) });
         remember(out.before);
       }
       remember(out.note);

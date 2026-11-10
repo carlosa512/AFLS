@@ -7,7 +7,7 @@
  * words, nothing about ratings, and no line says a meeting fixed anything. Types only from the cast sheet, so this
  * file stays a leaf.
  */
-import type { CoachSheet, ManSheet, MomentSheet } from './castSheet';
+import { talkAnswer, type CoachSheet, type ManSheet, type MomentSheet } from './castSheet';
 import { verb } from './meetings/voice';
 import { CAUSE_OF } from './playerTalks';
 import type { UnitWord } from './standing';
@@ -392,7 +392,12 @@ export const SAME: readonly Line<SameFact>[] = [
 
 export interface BeforeFact {
   man: ManSheet;
+  /** What he is asking about now: "about this before" holds only when his last answer was about the same. */
+  cause?: TalkCause;
 }
+
+/** His last answer was about what he is asking now (or the sheet does not say). */
+const sameAsk = (f: BeforeFact) => !f.cause || !f.man.lastAnswer?.cause || f.man.lastAnswer.cause === f.cause;
 
 /** The callback: what you told him last time, whether it held, and that he has been here before. */
 export const BEFORE: readonly Line<BeforeFact>[] = [
@@ -422,43 +427,43 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
     text: () => `He is in a dispute with the club right now.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise' && !f.man.kept && !f.man.broken,
+    when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,
     reads: 3,
     text: (f) => `${cap(whenOf(f.man.lastAnswer!.when))} you gave him your word, and he is still waiting on it.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise' && !f.man.kept && !f.man.broken,
+    when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,
     reads: 3,
     text: (f) =>
       `You told him ${whenOf(f.man.lastAnswer!.when)} you would make it right, and nothing has come of it yet.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise' && f.man.kept && !f.man.broken,
+    when: (f) => talkAnswer(f.man)?.reply === 'promise' && f.man.kept && !f.man.broken,
     reads: 4,
     text: () => `You have kept your word to him this year.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 3,
     text: (f) => `You told him to be patient ${whenOf(f.man.lastAnswer!.when)}, and he is back about it.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 3,
     text: (f) => `${cap(whenOf(f.man.lastAnswer!.when))} you told him to hang in there, and here he is again.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'firm',
+    when: (f) => talkAnswer(f.man)?.reply === 'firm',
     reads: 3,
     text: (f) => `You told him no ${whenOf(f.man.lastAnswer!.when)}, and he is back anyway.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'firm',
+    when: (f) => talkAnswer(f.man)?.reply === 'firm',
     reads: 3,
     text: (f) => `${cap(whenOf(f.man.lastAnswer!.when))} you turned him down, and that did not settle it.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'ignored',
+    when: (f) => talkAnswer(f.man)?.reply === 'ignored',
     reads: 3,
     text: (f) => `He never got an answer ${whenOf(f.man.lastAnswer!.when)}, and he is back.`,
   },
@@ -468,17 +473,17 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
     text: () => `You kept your word to him before.`,
   },
   {
-    when: (f) => f.man.asks === 'again',
+    when: (f) => f.man.asks === 'again' && sameAsk(f),
     reads: 2,
     text: () => `He has been to me about this more than once now.`,
   },
   {
-    when: (f) => f.man.asks === 'second',
+    when: (f) => f.man.asks === 'second' && sameAsk(f),
     reads: 2,
     text: () => `He has been to me about this before.`,
   },
   {
-    when: (f) => f.man.asks === 'second',
+    when: (f) => f.man.asks === 'second' && sameAsk(f),
     reads: 2,
     text: () => `He has raised it before.`,
   },

@@ -202,6 +202,14 @@ export function manSheet(league: League, p: Player, ctx: MoraleContext): ManShee
   };
 }
 
+/**
+ * His last answer when it was a talk's, not a job question's. A benching's word is kept or broken by his next game and
+ * the talk record never hears which (a kept "back in" bumps nothing), so a line about a promise still waiting, a refusal
+ * or following through reads only this.
+ */
+export const talkAnswer = (m: Pick<ManSheet, 'lastAnswer'>): ManSheet['lastAnswer'] =>
+  m.lastAnswer?.cause === 'benched' ? null : m.lastAnswer;
+
 export interface CoachSheet {
   name: string;
   style: Style;

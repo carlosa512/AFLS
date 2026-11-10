@@ -6,7 +6,7 @@
 import { BENCH_ASK } from './benchVoice';
 import type { BenchFact } from './benching';
 import type { TalkCause, TalkReply } from './types';
-import type { ManSheet, MomentSheet } from './castSheet';
+import { talkAnswer, type ManSheet, type MomentSheet } from './castSheet';
 import { say, sentencesOf, type Line } from './voice';
 
 export interface LetterFact {
@@ -298,47 +298,47 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: () => 'I took you at your word before, and it did not hold.',
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise' && !f.man.kept && !f.man.broken,
+    when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,
     reads: 2,
     text: (f) => `You made me a promise ${f.man.lastAnswer!.when}, and I'm still waiting on it.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise',
+    when: (f) => talkAnswer(f.man)?.reply === 'promise',
     reads: 2,
     text: (f) => `You told me ${f.man.lastAnswer!.when} you would make it right.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 2,
     text: (f) => `You told me ${f.man.lastAnswer!.when} that it would be fine. It isn't yet.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 2,
     text: (f) => `${cap(f.man.lastAnswer!.when)} you said to be patient. I have been.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 2,
     text: (f) => `You asked me to hang in there ${f.man.lastAnswer!.when}. I'm still hanging.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'firm',
+    when: (f) => talkAnswer(f.man)?.reply === 'firm',
     reads: 2,
     text: (f) => `You were firm with me ${f.man.lastAnswer!.when}, and I took it. I still had to come back.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'firm',
+    when: (f) => talkAnswer(f.man)?.reply === 'firm',
     reads: 2,
     text: (f) => `You gave it to me straight ${f.man.lastAnswer!.when}. I'm coming back anyway.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'ignored',
+    when: (f) => talkAnswer(f.man)?.reply === 'ignored',
     reads: 2,
     text: (f) => `I wrote to you ${f.man.lastAnswer!.when} and never heard back.`,
   },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'ignored',
+    when: (f) => talkAnswer(f.man)?.reply === 'ignored',
     reads: 2,
     text: (f) => `I came to you ${f.man.lastAnswer!.when} and got silence.`,
   },
@@ -811,7 +811,8 @@ export const ASK_CLOSE: readonly Line<AskFact>[] = [
   { when: (f) => youngOf(f), reads: 1, text: () => 'Thanks for hearing me out.' },
   { when: (f) => f.man.asks !== 'first', reads: 1, text: () => "I'd like an answer this time." },
   {
-    when: (f) => f.man.lastAnswer?.reply === 'promise' || f.man.lastAnswer?.reply === 'reassure',
+    // A word still out, never one he saw kept.
+    when: (f) => (talkAnswer(f.man)?.reply === 'promise' || talkAnswer(f.man)?.reply === 'reassure') && !f.man.kept,
     reads: 1,
     text: () => "I'm asking you to follow through.",
   },

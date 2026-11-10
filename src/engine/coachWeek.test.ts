@@ -807,6 +807,29 @@ describe('the head coach’s letters on a benching', () => {
     expect(q[0].morale?.talk?.ask?.cause).toBe('benched');
   });
 
+  it('told he was back in, he started, and when he asks about his deal nothing says a promise is still out', () => {
+    const { l, team, q } = club('bench-then-deal');
+    order(team, [q[1].id, q[0].id]);
+    step(l);
+    expect(answerBench(l, q[0].id, 'backIn')).toBe(true);
+    order(team, [q[0].id, q[1].id]);
+    step(l);
+    expect(q[0].morale!.talk!.answered).toMatchObject({ cause: 'benched', reply: 'promise' });
+    expect(q[0].morale!.talk!.kept ?? 0).toBe(0);
+    for (let i = 0; i < 2; i++) {
+      l.moraleAt = l.moraleAt! + 1;
+      q[0].morale!.talk!.ask = { cause: 'deal', at: l.moraleAt };
+      deliverMail(l);
+    }
+    const row = letters(l)
+      .flatMap(rowsOf)
+      .find((r) => r.talk?.playerId === q[0].id)!;
+    expect(row).toBeDefined();
+    expect(`${row.before ?? ''} ${row.note ?? ''}`).not.toMatch(
+      /still waiting|make it right|nothing has come|told him no|turned him down|follow through|about this before|raised it before/,
+    );
+  });
+
   it('a benching that closes is told in one closing row, once', () => {
     const { l, team, q } = club('bench-closing');
     order(team, [q[1].id, q[0].id]);
