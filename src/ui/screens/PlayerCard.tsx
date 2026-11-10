@@ -1177,9 +1177,6 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
 
       <Section id="ratings" title={`Ratings at ${p.position}`}>
         <AttributeList player={p} view={view} />
-        <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-          Tap a rating for what it does.
-        </p>
       </Section>
 
       <Section id="development" title={`Development${view.exact ? '' : ' (as your scouts see it)'}`}>
@@ -1205,7 +1202,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
                 <span
                   className="tag-pill tag-warn"
                   style={{ marginLeft: 0 }}
-                  title="Young players develop faster with snaps; sitting slows him down."
+                  title="Young players develop faster when they play."
                 >
                   Needs reps
                 </span>

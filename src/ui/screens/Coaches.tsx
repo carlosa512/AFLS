@@ -1096,7 +1096,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
                 className="btn btn-sm btn-danger"
                 onClick={() => {
                   store.mutate((l) => releaseCoach(l, l.userTeamId, c.id));
-                  announce(`Dismissed ${name}; ${money(pay)} severance booked.`, 'mine');
+                  announce(`Dismissed ${name}. ${money(pay)} severance booked.`, 'mine');
                 }}
               >
                 Pay {money(pay)} and dismiss {c.firstName}
@@ -1313,7 +1313,7 @@ function KickRow({ c, compact }: { c: Coach; compact: boolean }) {
       </TipPill>
       <span className="muted small">
         {yards(fx.kickoff)} yds a kickoff{compact ? '' : ' return'}, {yards(fx.punt)} a punt
-        {compact ? '' : ' return; as much again in coverage'}
+        {compact ? '' : ' return, and as much again in coverage'}
       </span>
     </span>
   );
@@ -1490,7 +1490,7 @@ function PoachOffer({ league, c }: { league: League; c: Coach }) {
         </p>
       ) : (
         <p className="small muted staff-why">
-          A promotion: {from} can’t block it, and no severance is owed.
+          {from} can’t block a promotion, and no severance is owed.
           {over > 0 && ` ${money(over)} over budget.`}
         </p>
       )}
@@ -1743,7 +1743,7 @@ function OwnerLine({ league }: { league: League }) {
         <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
         {head.amount > 0
           ? `He’ll go ${money(Math.max(head.amount, coord.amount))} past budget.`
-          : `He won’t go past the budget this year: ${head.why}.`}
+          : `He won’t go past the budget this year (${head.why}).`}
       </p>
       <OwnerMandates league={league} teamId={teamId} />
     </>
@@ -1863,8 +1863,8 @@ export function CoachesScreen({ league }: { league: League }) {
       step = {
         text: (
           <>
-            <b>Deal up:</b> <CoachLink c={lostCoach} />, your {chairNoun(lostToBudget)}, leaves when free agency opens:
-            your coaching budget can&rsquo;t cover his ask of {money(coachAsk(league, lostCoach, 2))} a year.{' '}
+            <b>Deal up:</b> <CoachLink c={lostCoach} />, your {chairNoun(lostToBudget)}, leaves when free agency opens.
+            Your coaching budget can&rsquo;t cover his ask of {money(coachAsk(league, lostCoach, 2))} a year.{' '}
             {vacancyText(staying, lostToBudget)}
           </>
         ),
@@ -1917,7 +1917,7 @@ export function CoachesScreen({ league }: { league: League }) {
               ),
               button: { label: 'Show him', go: () => showCandidates(targetOf(chairOf(best.c))) },
             }
-          : { text: <>Your staff is in good shape: nobody you can afford would clearly improve it.</> };
+          : { text: <>Your staff is in good shape. Nobody you can afford would clearly improve it.</> };
     }
   }
 
@@ -2023,9 +2023,6 @@ export function CoachesScreen({ league }: { league: League }) {
         </Panel>
 
         <Panel title="Who coaches your players">
-          <p className="muted small" style={{ marginTop: 0 }}>
-            Tap a room for detail.
-          </p>
           <ul className="room-list">
             {ALL_ROOMS.map((r) => (
               <RoomRow
@@ -2173,7 +2170,10 @@ export function CoachesScreen({ league }: { league: League }) {
                 </button>
               </div>
               {(tab === 'head' || tab === 'coord') && (
-                <label className="small cover-switch" title="Promote from within: other staffs' coaches, one rung up.">
+                <label
+                  className="small cover-switch"
+                  title="Coaches on other staffs who would take a promotion to this job."
+                >
                   <input
                     type="checkbox"
                     checked={otherStaffs}

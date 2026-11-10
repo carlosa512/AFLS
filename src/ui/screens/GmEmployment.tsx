@@ -87,7 +87,7 @@ export function GmJobs({ league }: { league: League }) {
           <h3>Extension through {extension.through}</h3>
           <p>
             Your deal with the <TeamLink team={league.teams[extension.teamId]} full /> is up, and the owner wants you
-            back. Decline and your job ends: you go into the GM job market.
+            back. If you decline, your job ends and you go into the GM job market.
           </p>
           <b>Owner expectations</b>
           <p>{gmOfferTerms(league, extension).expectation}</p>

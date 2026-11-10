@@ -119,7 +119,7 @@ export function Officials({ league }: { league: League }) {
       )}
       {seasons.length > 0 && ranked === 0 && (
         <p className="muted small" style={{ marginBottom: 0 }}>
-          No crew has worked {RANK_MIN_GAMES} games yet: too few to rank.
+          No crew has worked {RANK_MIN_GAMES} games yet, so none are ranked.
         </p>
       )}
     </Panel>

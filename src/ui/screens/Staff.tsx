@@ -187,7 +187,7 @@ function Member({ league, s, open, outlook }: { league: League; s: Staff; open: 
                 className="btn btn-sm btn-danger"
                 onClick={() => {
                   store.mutate((l) => releaseStaff(l, l.userTeamId, s.id));
-                  announce(`Dismissed ${name}; ${money(pay)} severance booked.`);
+                  announce(`Dismissed ${name}. ${money(pay)} severance booked.`);
                 }}
               >
                 Pay {money(pay)} and dismiss {s.firstName}

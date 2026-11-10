@@ -74,8 +74,9 @@ screen text: a line that sounds odd on its own is odd on the screen.
 - **What the panel is.** No paragraph under a heading that describes the panel or lists what is in it. If the
   heading and the table don't say it, fix the heading. ("The people building the league. Open a name for
   appointments, results and scouting history." under *General managers*.)
-- **How to use a control.** No "Click a column to sort", "Tick players on both sides". A thing that can be
-  clicked looks like it. Where it doesn't yet, a few words do ("Tap a room for detail.").
+- **How to use a control.** No "Tap a room for detail", "Click a column to sort", "Tick players on both
+  sides". A thing that can be tapped looks like it (a chevron on a row that opens, a dotted line under a
+  rating that explains itself). If it doesn't, fix the control, not the text.
 - **How the sim works inside.** No formula, threshold or tuning number ("A scout gets +3 on their own group and
   −3 on others", "a physiotherapy above 9 starts to shorten it"). Say the result, in the row it belongs to
   ("Layoffs 12% shorter").
@@ -100,6 +101,10 @@ Never as a standing paragraph under the heading, shown on every visit.
 
 - Short first. A label or a few words do where the screen gives the context ("Home game.", "No offers.",
   "$1.2M over budget.").
+- Short is not shorthand. A line has to be clear to someone reading it for the first time, with no
+  abbreviation or dropped words to decode. ("Value: vs consensus." became "Value compares your pick with his
+  consensus rank."; "Dress 47 (48 with eight OL)." became "Dress 47 players, or 48 with eight offensive
+  linemen.")
 - When a line needs a sentence, write a plain one with a verb, the way you would say it to someone across a
   desk. If it needs three, it is a fold.
 - No colon or semicolon joining two thoughts. Write two sentences, or cut one. ("It goes past your coaching
@@ -115,7 +120,6 @@ Never as a standing paragraph under the heading, shown on every visit.
 ## Not consistent yet
 
 - Heading levels vary between screens.
-- A rating on the player card opens on a tap but doesn't look like it, so the card still says "Tap a rating".
 - New Game shows no record for each club (a new league has no history).
 - League history sorts by season and your record, not by champion; the coaches' grades table has no Grade sort
   (it follows Rank).

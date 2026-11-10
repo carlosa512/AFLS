@@ -1673,7 +1673,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value: vs consensus.
+          Value compares your pick with his consensus rank.
         </p>
       </Card>
       {trades.length > 0 ? (

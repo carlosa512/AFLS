@@ -213,7 +213,7 @@ export function AssetPicker({
             </ul>
           ) : (
             <p className="muted small">
-              {q ? 'Nobody by that name.' : chip === 'fits' ? 'Nothing stands out: pick a position.' : 'Nobody here.'}
+              {q ? 'Nobody by that name.' : chip === 'fits' ? 'Nothing stands out. Pick a position.' : 'Nobody here.'}
             </p>
           )}
         </>
@@ -543,7 +543,7 @@ function TradeTable({ league }: { league: League }) {
         <div className="notice">Deadline day: trades close when you play week {league.week}.</div>
       )}
       {counterTo !== undefined && (
-        <div className="notice">Countering the {partner.name}' offer: change the deal and propose it.</div>
+        <div className="notice">Countering the {partner.name}' offer. Change the deal and propose it.</div>
       )}
       {done && (
         <p className="callout" role="status">

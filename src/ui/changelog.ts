@@ -16,7 +16,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.26',
     date: '2026-11-10',
     title: 'Plainer hints',
-    text: "Tooltips, dialogs and the draft board's guide are plain sentences now, and the staff job descriptions are shorter.",
+    text: "Tooltips, dialogs and the draft board's guide are plain sentences now. The last tap hints are gone, and ratings show they open with a clearer dotted line.",
   },
   {
     version: '0.4.25',

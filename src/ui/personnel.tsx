@@ -69,7 +69,9 @@ export function CallupAction({ league, player }: { league: League; player: Playe
         className="btn btn-sm"
         disabled={existing.status !== 'planned' || !!g.personnel?.elevationsFiled || !!liveLock()}
         title={
-          existing.status === 'planned' ? 'Cancel this planned call-up' : 'Filed for this game; returns automatically'
+          existing.status === 'planned'
+            ? 'Cancel this planned call-up'
+            : 'Filed for this game. He returns automatically.'
         }
         onClick={() =>
           store.mutate((l) => cancelElevation(l, l.players[player.id], l.games.find((x) => x.id === g.id)!))
@@ -115,7 +117,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
           <p>
             <PlayerLink league={league} player={player} /> will be available against{' '}
             <TeamLink team={league.teams[g.homeId === player.teamId ? g.awayId : g.homeId]} />. Your main roster stays
-            at {activeRoster(league, player.teamId).length}/53; no cut is needed.
+            at {activeRoster(league, player.teamId).length}/53, so no cut is needed.
           </p>
           <p>
             {g.playoffRound
@@ -138,7 +140,7 @@ export function CallupAction({ league, player }: { league: League; player: Playe
             {g.playoffRound
               ? 'Playoff call-ups have no three-game limit.'
               : `${3 - elevationUses(league, player)} regular-season call-ups remain before this game.`}{' '}
-            Files at kickoff; back on the practice squad after the game.
+            Files at kickoff. He is back on the practice squad after the game.
           </p>
           {issue && <p role="alert">{issue}</p>}
         </Dialog>
@@ -213,7 +215,9 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
           <b>{money(calls.reduce((sum, e) => sum + e.additionalCap, 0))}</b>
         </span>
       </div>
-      <p className="small muted">Dress 47 (48 with eight OL). Locks 90 minutes before kickoff.</p>
+      <p className="small muted">
+        Dress 47 players, or 48 with eight offensive linemen. Your choices lock 90 minutes before kickoff.
+      </p>
       {elevationRecords(league)
         .filter(
           (e) =>

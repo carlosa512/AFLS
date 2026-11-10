@@ -39,7 +39,7 @@ export function PracticeSquad({ league }: { league: League }) {
     const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
-        <p>Turn on personnel transactions?</p>
+        <p>This league started before practice squads and waivers were added.</p>
         <button
           className="btn btn-primary"
           disabled={!!blocked}
