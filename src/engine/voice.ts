@@ -87,9 +87,12 @@ export function sentencesOf(text: string | undefined): string[] {
 /** The key a filed sentence is kept under in `League.mailTold`, so evicting its letter does not forget it. */
 export const saidKey = (sentence: string) => `said:${stableHash(sentence)}`;
 
-/** Every sentence of a letter: its body and each section row's note. */
+/** Every sentence of a letter: its body and each section row's note and the coach's line before it. */
 export function lettersSentences(m: Pick<InboxMessage, 'body' | 'sections'>): string[] {
-  return [...sentencesOf(m.body), ...(m.sections ?? []).flatMap((sec) => sec.rows.flatMap((r) => sentencesOf(r.note)))];
+  return [
+    ...sentencesOf(m.body),
+    ...(m.sections ?? []).flatMap((sec) => sec.rows.flatMap((r) => [...sentencesOf(r.note), ...sentencesOf(r.before)])),
+  ];
 }
 
 /**

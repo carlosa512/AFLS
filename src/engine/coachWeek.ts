@@ -10,6 +10,7 @@ import {
   benchFact,
   benchStory,
   clearedNotStarting,
+  cutdownDone,
   listedWord,
   restoreCard,
 } from './benching';
@@ -207,7 +208,10 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       // A benched ask is his job question's: the coach's line before it reads the question, not his history.
       const bench = row.bench ? benchFact(league, p, ctx) : null;
       if (bench) {
-        out.before = say(BENCH_BEFORE, bench, { key, slot: 'before', ...around(league, said) }) || undefined;
+        const wording = around(league, said);
+        out.before = say(BENCH_BEFORE, bench, { key, slot: 'before', ...wording }) || undefined;
+        // The line is optional: said already this year, it is left out rather than said again.
+        if (out.before && wording.skip(out.before)) out.before = undefined;
         if (!out.before) delete out.before;
         remember(out.before);
       } else if (man && hasHistory(man)) {
@@ -573,7 +577,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
 
   // ───── tier 5: who holds each job, as camp ends ─────
   const jobsKey = `jobs:${league.season}`;
-  if (league.phase === 'preseason' && !told.has(jobsKey)) {
+  if (cutdownDone(league) && !told.has(jobsKey)) {
     const fact = jobsFact(league);
     const note = say(JOBS_ROW, fact, { key: jobsKey, slot: 'jobs', ...around(league, said) });
     remember(note);
@@ -595,7 +599,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
 const CLOSE_CALL = 0.5;
 
 /** Who starts at camp's end by room, and the one spot where our scouts read the next man closest to the last starter. */
-function jobsFact(league: League): JobsFact {
+export function jobsFact(league: League): JobsFact {
   const team = league.teams[league.userTeamId];
   const parts: string[] = [];
   let close: JobsFact['close'];
@@ -610,10 +614,18 @@ function jobsFact(league: League): JobsFact {
     const last = starting.at(-1)!;
     const next = chart[STARTERS[pos]];
     if (!next || starting.length < STARTERS[pos]) continue;
-    const diff = Math.abs(perceive(league, team.id, last).ovr - perceive(league, team.id, next).ovr);
+    const lastRead = perceive(league, team.id, last).ovr;
+    const nextRead = perceive(league, team.id, next).ovr;
+    const diff = Math.abs(lastRead - nextRead);
     if (diff <= CLOSE_CALL && diff < gap) {
       gap = diff;
-      close = { pos: POSITION_NAMES[pos].toLowerCase(), first: last.lastName, second: next.lastName };
+      // `ahead`: the scouts read the second man above the starter, which the line must not call "behind" him.
+      close = {
+        pos: POSITION_NAMES[pos].toLowerCase(),
+        first: last.lastName,
+        second: next.lastName,
+        ahead: nextRead > lastRead,
+      };
     }
   }
   return { lineup: parts.join(' '), ...(close ? { close } : {}) };
