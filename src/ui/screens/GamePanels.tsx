@@ -79,7 +79,7 @@ export function GamePanel({
   /** A finished game's result: its weather as played, and the doctor's word on each injury. */
   result?: GameResult;
 }) {
-  const stats = useMemo(() => teamStatsAt(plays, shown, home.id), [plays, shown, home.id]);
+  const stats = useMemo(() => teamStatsAt(plays, shown, home.id), [plays, plays.length, shown, home.id]);
   const quarters = quartersAt(plays, shown);
   const hurt = injuriesAt(plays, shown, names);
   const columns = Math.max(4, quarters.home.length);
@@ -247,7 +247,10 @@ export function PlayersPanel({
   playerTeams?: Record<number, number>;
 }) {
   const [who, setWho] = usePref(WHO_KEY, WHO_PICKS, 'leaders');
-  const lines = useMemo(() => linesAt(plays, shown, home.id, names, record), [plays, shown, home.id, names, record]);
+  const lines = useMemo(
+    () => linesAt(plays, shown, home.id, names, record),
+    [plays, plays.length, shown, home.id, names, record],
+  );
   const colors = { [home.id]: laneColor(home.colors), [away.id]: laneColor(away.colors) };
   /** A team's men in a category, most first. */
   const men = (team: Team, c: Category) =>

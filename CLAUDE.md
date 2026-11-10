@@ -511,6 +511,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `docs/UI.md`**: names through `PlayerLink`/`TeamLink`, one `TeamPicker`, tables sorted with `SortTh`, your row
   `tr.is-user`, tabs as routes, and the fog-of-war list of what a screen may show. The "screen contract" tests
   in `ui/ui.test.ts` enforce it.
+  The game viewer (`screens/GameViewer.tsx` the replay, `LiveGame.tsx` the live game) reads everything around the field
+  from the play log through `ui/gameRead.ts`: score by quarter, timeouts, drives, team numbers and player lines through
+  the play on screen, for the scorebug (`Scorebug.tsx`), the drive timeline (`GameTimeline.tsx`) and the two panels
+  (`GamePanels.tsx`). A number goes on screen only if `gameRead.test.ts` holds it to the box score (`SHOWN_TEAM`,
+  `SHOWN_LINE`); tackles and possession can't be read exactly and stay in the box score. Spec:
+  `docs/superpowers/specs/2026-11-10-broadcast-info-design.md`.
 
 ## Conventions
 

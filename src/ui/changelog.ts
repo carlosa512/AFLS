@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.26',
+    date: '2026-11-10',
+    title: 'The broadcast tells you more',
+    text: 'Watching a game now shows records, timeouts, a drive timeline you can jump around in a replay, and team stats, leaders and injuries as they happen.',
+  },
+  {
     version: '0.4.25',
     date: '2026-11-10',
     title: 'Letters that get to the point',

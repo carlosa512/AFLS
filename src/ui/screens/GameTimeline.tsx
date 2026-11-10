@@ -87,12 +87,15 @@ export function GameTimeline({
   const area = useRef<HTMLDivElement>(null);
   const [picked, setPicked] = useState<number | null>(null);
 
+  // A live game's log is one list that grows in place: anything remembered from it is keyed on its length too, or it
+  // would go stale as plays arrive (the playhead once sat at the kickoff all game).
+  const logged = plays.length;
   // What has been shown, read as a game still going: the drive on the field and its numbers so far.
-  const soFar = useMemo(() => drivesOf(plays.slice(0, shown + 1), home.id, true), [plays, shown, home.id]);
+  const soFar = useMemo(() => drivesOf(plays.slice(0, shown + 1), home.id, true), [plays, logged, shown, home.id]);
   // A replay knows the rest; a live game has nothing more to draw.
-  const whole = useMemo(() => drivesOf(plays, home.id), [plays, home.id]);
+  const whole = useMemo(() => (replay ? drivesOf(plays, home.id) : []), [plays, logged, replay, home.id]);
   const drives = replay ? whole : soFar;
-  const seconds = useMemo(() => secondsOf(plays), [plays]);
+  const seconds = useMemo(() => secondsOf(plays), [plays, logged]);
   const total = gameLength(replay ? plays : plays.slice(0, index + 1));
   const pct = (s: number) => `${((Math.min(s, total) / total) * 100).toFixed(2)}%`;
   const now = seconds[index] ?? 0;
