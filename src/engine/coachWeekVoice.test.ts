@@ -288,7 +288,8 @@ describe('the head coach’s weekly lines', () => {
     const two = every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false });
     for (const l of two) expect(l).not.toMatch(/One thing|Short one|needs you/);
     // A story with nobody to name says nothing about him.
-    expect(every(CLOSING, { kind: 'deal', beat: 'kept' })).toEqual(['That one is closed.']);
+    for (const l of every(CLOSING, { kind: 'deal', beat: 'kept' }))
+      expect(l).toMatch(/^(That one|We can stop|That is)/);
     // A plural room takes a plural verb at its close.
     for (const l of every(CLOSING, { kind: 'room', beat: 'recovered', noun: 'the receivers' }))
       expect(l).not.toMatch(/receivers is|itself/);

@@ -418,7 +418,7 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   const told = toldKeys(league);
   if (told.has(id)) return [];
   const sender = headCoach(league);
-  const said = seasonSaid(league, sender.from);
+  const said = seasonSaid(league, sender.from, 'coach:');
   const { items, coachNote } = gather(league, told, said, have);
   if (!items.length) return [];
 

@@ -278,6 +278,11 @@ describe('staff notes: chemistry (L3)', () => {
     deliverMail(l);
     l.week = 7;
     deliverMail(l);
+    // A room told about in the last three steps waits its turn: the note comes once the gap has passed.
+    for (const week of [8, 9]) {
+      l.week = week;
+      deliverMail(l);
+    }
     const rows = notes(l)
       .flatMap(rowsOf)
       .filter((r) => /out of sync/i.test(r.note ?? ''));

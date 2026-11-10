@@ -39,7 +39,9 @@ export function say<C>(
 ): string {
   const fits = bank.filter((l) => !l.when || l.when(c));
   if (!fits.length) return '';
-  const heard = (t: string) => !!at.recent?.some((b) => b.includes(t)) || !!at.skip?.(t);
+  // A line of two sentences is said again when either was, so a recent list kept sentence by sentence still catches it.
+  const said = (t: string) => !!at.recent?.some((b) => b.includes(t) || sentencesOf(t).some((s) => b.includes(s)));
+  const heard = (t: string) => said(t) || !!at.skip?.(t);
   const levels = [...new Set(fits.map((l) => l.reads ?? 0))].sort((a, b) => b - a);
   const group = (reads: number) => fits.filter((l) => (l.reads ?? 0) === reads).map((l) => l.text(c));
   let pool: string[] | undefined;
@@ -53,7 +55,7 @@ export function say<C>(
     }
   if (!pool) {
     const texts = group(levels[0]);
-    const fresh = texts.filter((t) => !at.recent?.some((b) => b.includes(t)));
+    const fresh = texts.filter((t) => !said(t));
     pool = fresh.length ? fresh : texts;
   }
   return pool[stableHash(`${at.key}:${at.slot}`) % pool.length];
@@ -92,12 +94,16 @@ export function lettersSentences(m: Pick<InboxMessage, 'body' | 'sections'>): st
 
 /**
  * Every sentence a sender filed this league year: each message's body and each section row's note, split where a
- * sentence ends. What a letter writes next steps around all of it, so no sentence comes twice in a year.
+ * sentence ends (and every letter whose id starts with `idPrefix`, whoever signed it). What a letter writes next steps
+ * around all of it, so no sentence comes twice in a year.
  */
-export function seasonSaid(league: League, from: string): string[] {
+export function seasonSaid(league: League, from: string, idPrefix?: string): string[] {
   const out: string[] = [];
+  // A letter series (`idPrefix`) is one voice however many people have signed it: a new head coach does not reuse
+  // what the last one's players said.
   for (const m of league.inbox ?? [])
-    if (m.from === from && m.season === league.season) out.push(...lettersSentences(m));
+    if ((m.from === from || (idPrefix && m.id.startsWith(idPrefix))) && m.season === league.season)
+      out.push(...lettersSentences(m));
   return out;
 }
 

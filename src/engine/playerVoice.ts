@@ -5,7 +5,7 @@
  */
 import type { TalkCause, TalkReply } from './types';
 import type { ManSheet, MomentSheet } from './castSheet';
-import { say, type Line } from './voice';
+import { say, sentencesOf, type Line } from './voice';
 
 export interface LetterFact {
   name: string;
@@ -200,6 +200,9 @@ export const TALK_CLOSE: readonly Line<LetterFact>[] = [
   { text: () => 'Let me know where you stand.' },
   { text: () => "I'd appreciate a straight answer." },
   { text: () => "I'm around if you want to talk." },
+  { text: () => "I'd rather hear it from you than guess." },
+  { text: () => 'I hope this one gets a real answer.' },
+  { text: () => 'You know where to find me.' },
   { text: () => 'I wanted you to hear it from me first.' },
 ];
 
@@ -310,6 +313,11 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: (f) => `${cap(f.man.lastAnswer!.when)} you said to be patient. I have been.`,
   },
   {
+    when: (f) => f.man.lastAnswer?.reply === 'reassure',
+    reads: 2,
+    text: (f) => `You asked me to hang in there ${f.man.lastAnswer!.when}. I'm still hanging.`,
+  },
+  {
     when: (f) => f.man.lastAnswer?.reply === 'firm',
     reads: 2,
     text: (f) => `You were firm with me ${f.man.lastAnswer!.when}, and I took it. I still had to come back.`,
@@ -370,6 +378,24 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   },
   { when: (f) => f.cause === 'snaps', reads: 1, text: () => 'I need to know where I stand with the coaches.' },
   { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I don't feel like I'm part of the plan on Sundays." },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I'd like to know what I have to do to play more." },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => 'I want a clear picture of my role.' },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I'd like to hear how the coaches see my playing time." },
+  {
+    when: (f) => f.cause === 'snaps',
+    reads: 1,
+    text: () => "I've been waiting for my chance, and I'd like to know when it comes.",
+  },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => 'My snaps are on my mind more than they should be.' },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I'd like to know what the plan is for my playing time." },
+  {
+    when: (f) => f.cause === 'snaps',
+    reads: 1,
+    text: () => 'Standing on the sideline is hard when I know I can help.',
+  },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I want a fair look, and I don't think I have had one." },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => 'Tell me what I am missing, and I will fix it.' },
+  { when: (f) => f.cause === 'snaps', reads: 1, text: () => "I'd like to earn more snaps, so tell me how." },
   {
     when: (f) => f.cause === 'snaps' && f.man.loud && f.man.role !== 'starter',
     reads: 2,
@@ -421,6 +447,37 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   { when: (f) => f.cause === 'deal', reads: 1, text: () => 'I want to be here, and I need the contract to say so.' },
   { when: (f) => f.cause === 'deal', reads: 1, text: () => "I think it's time we talked money." },
   { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'm not asking for a favor. I'm asking for what's fair." },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to talk about where my contract stands." },
+  {
+    when: (f) => f.cause === 'deal',
+    reads: 1,
+    text: () => "It isn't about being greedy. It's about being treated fairly.",
+  },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to see where we are on a new deal." },
+  {
+    when: (f) => f.cause === 'deal',
+    reads: 1,
+    text: () => "I keep thinking about my contract, and I'd like it settled.",
+  },
+  {
+    when: (f) => f.cause === 'deal',
+    reads: 1,
+    text: () => "I'd like to sit down about my deal when you get a chance.",
+  },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => 'I would like some clarity on my contract.' },
+  {
+    when: (f) => f.cause === 'deal',
+    reads: 1,
+    text: () => "I'd like my contract to be something we both feel good about.",
+  },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I don't want this to drag on. Can we talk about my deal?" },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "There's a conversation we should have about my contract." },
+  {
+    when: (f) => f.cause === 'deal',
+    reads: 1,
+    text: () => 'My agent keeps asking me where this stands, and I have nothing to tell him.',
+  },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to know the club's plans for my contract." },
   {
     when: (f) => f.cause === 'deal' && f.man.loud,
     reads: 2,
@@ -466,6 +523,41 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     reads: 1,
     text: () => 'I came here to win games, and that is not what is happening.',
   },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "Something has to change, and I'd like to hear what." },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => "I'm not asking for a miracle. I'm asking for a direction.",
+  },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I keep asking myself what we are doing wrong.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'd like to know what the plan is." },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I came to talk about the losing.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "I can't keep pretending this is going fine." },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => 'The room is asking me what is going on, and I have no answer.',
+  },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I want to hear that someone has a way out of this.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'We keep saying the same things, and nothing changes.' },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => "I don't want to hear another speech. I want to hear a plan.",
+  },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => 'Every week it is the same story, and I am running out of patience.',
+  },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I need to believe this team can turn it around.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'Something is wrong here, and everybody can see it.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'd like to know what you see that I don't." },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => 'It is hard to show up on Monday after a week like that.',
+  },
   {
     when: (f) => f.cause === 'losing' && f.man.loud,
     reads: 2,
@@ -486,6 +578,41 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     reads: 2,
     text: () => "Look at the standings. We aren't good enough yet.",
   },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => "I've been patient, and I'd like to see something for it.",
+  },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I want to know someone is listening.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "If this keeps up, I'd like to hear what comes next." },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => "I'm not blaming anyone. I just want to know where this goes.",
+  },
+  {
+    when: (f) => f.cause === 'losing',
+    reads: 1,
+    text: () => "People are starting to give up in that room, and I don't want to be one of them.",
+  },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'd like to hear how you plan to turn this around." },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "This isn't what I signed up for." },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => "I can take a lot, but I can't take going nowhere." },
+  {
+    when: (f) => f.cause === 'losing' && f.moment.seasonOver,
+    reads: 2,
+    text: () => "The year ended badly, and I'd like to hear what changes.",
+  },
+  {
+    when: (f) => f.cause === 'losing' && f.moment.seasonOver,
+    reads: 2,
+    text: () => "I'd rather settle this now than carry it into next year.",
+  },
+  {
+    when: (f) => f.cause === 'losing' && f.moment.seasonOver,
+    reads: 2,
+    text: () => "Before another year starts, I'd like to know we are headed somewhere different.",
+  },
   { when: (f) => f.cause === 'losing' && youngOf(f), reads: 2, text: () => 'I came up to learn how to win.' },
   {
     when: (f) => f.cause === 'losing' && veteranOf(f),
@@ -505,6 +632,21 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   },
   { when: (f) => f.cause === 'feud', reads: 1, text: () => "I can't keep ignoring what's going on in my room." },
   { when: (f) => f.cause === 'feud', reads: 1, text: () => 'Something has to be done about my room.' },
+  {
+    when: (f) => f.cause === 'feud',
+    reads: 1,
+    text: () => "There's friction in my room, and I'd rather deal with it now.",
+  },
+  { when: (f) => f.cause === 'feud', reads: 1, text: () => "It's wearing on the whole room, not just me." },
+  { when: (f) => f.cause === 'feud', reads: 1, text: () => "I'd like the air cleared before it gets worse." },
+  { when: (f) => f.cause === 'feud', reads: 1, text: () => "I can't focus on football with this going on." },
+  {
+    when: (f) => f.cause === 'feud',
+    reads: 1,
+    text: () => 'This has been building for weeks, and somebody has to step in.',
+  },
+  { when: (f) => f.cause === 'feud', reads: 1, text: () => "I'd like you to hear it from me before it blows up." },
+  { when: (f) => f.cause === 'feud', reads: 1, text: () => 'Either this gets sorted out, or it gets worse.' },
   { when: (f) => f.cause === 'feud', reads: 1, text: () => "It isn't about football. It's about the guys around me." },
   {
     when: (f) => f.cause === 'feud',
@@ -672,16 +814,18 @@ export const ASK_CLOSE: readonly Line<AskFact>[] = [
  */
 export function askWords(f: AskFact, at: { key: string; recent: string[] }): string {
   const out: string[] = [];
-  const slot = (bank: readonly Line<AskFact>[], name: string) => {
+  const slot = (bank: readonly Line<AskFact>[], name: string, optional = true) => {
     // Lines already said are set aside first, so a narrow fit never falls back on a sentence the letter already holds;
-    // only when every line that fits has been said does one come round again.
+    // only when every line that fits has been said does the grievance come round again.
     const fits = bank.filter((l) => !l.when || l.when(f));
-    const unused = fits.filter((l) => !at.recent.some((b) => b.includes(l.text(f))));
+    const unused = fits.filter((l) => !sentencesOf(l.text(f)).some((s) => at.recent.some((b) => b.includes(s))));
+    // His grievance has to be said; the rest is color, and a man with nothing new to add adds nothing.
+    if (optional && !unused.length) return;
     const s = say(unused.length ? unused : fits, f, { key: at.key, slot: name, recent: at.recent });
     if (s) out.push(s);
   };
   if (f.man.asks !== 'first' || f.man.kept || f.man.broken) slot(ASK_HISTORY, 'history');
-  slot(ASK_CORE, 'core');
+  slot(ASK_CORE, 'core', false);
   slot(ASK_COLOR, 'color');
   slot(ASK_CLOSE, 'close');
   at.recent.push(...out);

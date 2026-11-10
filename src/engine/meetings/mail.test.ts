@@ -67,7 +67,10 @@ describe('meetings: the letters', () => {
     const owed = rows.find((r) => r.cells[1] === 'Where that leaves us')!;
     expect(told.note).toMatch(/“/);
     if (backing !== 'words') expect(owed.note).toMatch(/within|before|by the/);
-    else expect(owed.note).toMatch(/doesn't change what's bothering them/);
+    else
+      expect(owed.note).toMatch(
+        /bothering|fix what is wrong|little room|not gone away|enough alone|still there|short quiet/,
+      );
     expect(ids(l, 'meeting-result:')).toHaveLength(0);
   });
 

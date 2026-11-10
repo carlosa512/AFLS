@@ -31,6 +31,9 @@ import { traitOf } from '../coachTraits';
 import {
   approachLabel,
   ASK,
+  ASK_CALL,
+  ASK_CALL_MOMENT,
+  ASK_OPEN,
   ASKED,
   backingLabel,
   CANDID,
@@ -94,13 +97,26 @@ const requestSubject = (s: MeetingSuggestion): string =>
 function requestWords(league: League, s: MeetingSuggestion, id: string, said: string[]): string[] {
   const f = suggestFact(league, league.userTeamId, s);
   const key = { key: id, ...around(league, said) };
-  if (s.kind === 'moment' && s.moment) return [MOMENT_LEAD[s.moment], say(ASK, f, { ...key, slot: 'ask' })];
+  // His read is a plus: once he has said it this year he says no more, and the ask stands without it.
+  const read = (): string => {
+    const t = say(ASK, f, { ...key, slot: 'ask' });
+    return t && !key.skip(t) ? t : '';
+  };
+  const ask = (): string =>
+    [
+      s.kind === 'moment' ? '' : say(ASK_OPEN, f, { ...key, slot: 'open' }),
+      say(s.kind === 'moment' ? ASK_CALL_MOMENT : ASK_CALL, f, { ...key, slot: 'call' }),
+      read(),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  if (s.kind === 'moment' && s.moment) return [MOMENT_LEAD[s.moment], ask()];
   const lead = say(READ_LEAD, f, { ...key, slot: 'lead' });
   const why = f.driver && lead.includes(f.driver.last) ? say(READ_WHY, f, { ...key, slot: 'why' }) : '';
   return [
     [s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '', lead, why].filter(Boolean).join(' '),
     say(READ_ROOM, f, { ...key, slot: 'room' }),
-    say(ASK, f, { ...key, slot: 'ask' }),
+    ask(),
   ];
 }
 
@@ -111,7 +127,7 @@ function requestWords(league: League, s: MeetingSuggestion, id: string, said: st
 export function requestRow(league: League): MailSection['rows'][number] | null {
   const s = meetingsOf(league.teams[league.userTeamId]).pending;
   if (!s || s.kind === 'gm' || !employed(league)) return null;
-  const said = seasonSaid(league, headCoach(league).from);
+  const said = seasonSaid(league, headCoach(league).from, 'coach:');
   const id = suggestionId(league.season, s.clock, s.scope);
   return {
     cells: [requestSubject(s)],

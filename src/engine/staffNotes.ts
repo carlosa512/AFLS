@@ -9,7 +9,7 @@ import { COACH_ROLE_LABEL, coachName, coachTitle, ROOM_LABEL, teamCoaches } from
 import { moraleClock, moraleContext, viewContext } from './morale';
 import { meetingStaffRows } from './meetings/mail';
 import { beliefFact, beliefWarnKey, chemFact, chemKey, lastTold, unitFact, unitKey } from './roomFacts';
-import { CHEM_ROOMS, chemistryOf } from './chemistry';
+import { CHEM_ROOMS, chemistryOf, type ChemRoom } from './chemistry';
 import type { StaffRow } from './meetings/mail';
 import { BELIEF_WARN, CHEM_NOTE, UNIT_TURN, type UnitFact } from './roomVoice';
 import { roomView, type Unit, type UnitView, type UnitWord } from './standing';
@@ -52,6 +52,28 @@ const HABIT: readonly Line<HabitFact>[] = [
     reads: 1,
     text: (f) =>
       `${f.coach} has a project in ${f.player}: he ${QUIRKS[f.habit].clause}. Don't expect it gone by Sunday.`,
+  },
+  {
+    when: (f) => f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.coach} is on ${f.player}'s habit every day: he ${QUIRKS[f.habit].clause}. He listens, and it is showing.`,
+  },
+  {
+    when: (f) => f.receptive,
+    reads: 1,
+    text: (f) =>
+      `${f.player} asked ${f.coach} for extra work on it: he ${QUIRKS[f.habit].clause}. That is a good sign.`,
+  },
+  {
+    when: (f) => !f.receptive,
+    reads: 1,
+    text: (f) => `${f.coach} keeps at ${f.player}: he ${QUIRKS[f.habit].clause}. It is not sinking in yet.`,
+  },
+  {
+    when: (f) => !f.receptive,
+    reads: 1,
+    text: (f) => `${f.player} still ${QUIRKS[f.habit].clause}, and ${f.coach} is the one who has to break it.`,
   },
 ];
 
@@ -199,7 +221,7 @@ export function staffRows(
   coachNote?: Pick<InboxMessage, 'coachNoteKey' | 'coachNote'>;
 } {
   const sender = headCoach(league);
-  const said = seasonSaid(league, sender.from);
+  const said = seasonSaid(league, sender.from, 'coach:');
   const clock = moraleClock(league);
   const key = `staffRows:${league.season}:${clock}`;
   const covered: string[] = [];
@@ -267,10 +289,27 @@ export function staffRows(
     return row;
   };
   if (!leaveRooms) {
+    // A room told about by anything (a turn, its chemistry, its coach's belief) in the last few steps is left alone:
+    // what it has to say waits its turn, and a room never comes up twice in the same fortnight.
+    const memory = lastTold(told, league.userTeamId);
+    const now = moraleClock(league);
+    const warned = new Map<string, number>();
+    for (const k of told) {
+      const w = k.match(/^belief-warn:(\d+):(\d+):(\w+)$/);
+      if (w && Number(w[2]) === league.userTeamId)
+        warned.set(w[3], Math.max(warned.get(w[3]) ?? -Infinity, Number(w[1])));
+    }
+    const rested = (unit: Unit) =>
+      [
+        memory.units.get(unit)?.clock,
+        memory.chem.get(unit as ChemRoom)?.clock,
+        memory.belief.get(unit as CoachRoom)?.clock,
+        warned.get(unit),
+      ].some((c) => c !== undefined && now - c < NOTE_GAP);
     const turn = unitTurnFor(league, told);
     const story = turn && openStory(league, { kind: 'room', teamId: league.userTeamId, unit: turn.unit as CoachRoom });
     // A room's turn must have stood: the week it turns is too soon to tell.
-    if (turn && (!story || tellable(league, story, clock))) {
+    if (turn && !rested(turn.unit) && (!story || tellable(league, story, clock))) {
       const note = say(UNIT_TURN, turn.fact, { key, slot: `unit:${turn.unit}`, ...wording(league, sender.from, said) });
       said.push(note);
       covered.push(turn.key);
@@ -279,12 +318,14 @@ export function staffRows(
       row.keys.push(turn.key);
     }
     for (const w of beliefRows(league, told, said)) {
+      if (rested(w.unit) && !rooms.has(w.unit)) continue;
       covered.push(w.key);
       const row = room(w.unit, w.coachId);
       row.notes.push(w.note);
       row.keys.push(w.key);
     }
     for (const c of chemistryNotes(league, told, said)) {
+      if (rested(c.unit) && !rooms.has(c.unit)) continue;
       covered.push(c.key);
       const own = rooms.get(c.unit);
       if (own) {

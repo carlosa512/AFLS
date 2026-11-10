@@ -535,6 +535,8 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
     text: (f) => `${unitIs_(f.unit)} clicking, and ${f.anchor} keeps them steady.`,
   },
   { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `${unitIs_(f.unit)} clicking right now.` },
+  { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `${U(f)} playing like one group.` },
+  { when: (f) => f.word === 'Clicking', reads: 1, text: (f) => `Nothing to fix in ${f.unit} at the moment.` },
   {
     when: (f) => f.word === 'Out of sync' && !!f.spark?.sour,
     reads: 3,
@@ -552,6 +554,16 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
   },
   { when: (f) => f.word === 'Out of sync', reads: 1, text: (f) => `${unitIs_(f.unit)} out of sync right now.` },
   {
+    when: (f) => f.word === 'Out of sync',
+    reads: 1,
+    text: (f) => `${unitIs_(f.unit)} out of sync; nobody is on the same page.`,
+  },
+  {
+    when: (f) => f.word === 'Out of sync',
+    reads: 1,
+    text: (f) => `${unitIs_(f.unit)} out of sync, and it shows in the work.`,
+  },
+  {
     when: (f) => f.word === 'Still learning each other' && f.newStarters >= 1,
     reads: 2,
     text: (f) => `${U(f)} still learning each other. ${cap(starters_(f.newStarters))} ${where(f.unit)}.`,
@@ -568,6 +580,8 @@ export const CHEM_NOTE: readonly Line<ChemFact>[] = [
     text: (f) => `${unitIs_(f.unit)} gelling. ${isOf(f.anchor!)} holding them together.`,
   },
   { text: (f) => `${unitIs_(f.unit)} gelling.` },
+  { text: (f) => `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'is' : 'are'} coming together.` },
+  { text: (f) => `I like how ${f.unit} ${SINGULAR.has(f.unit) ? 'is' : 'are'} coming along.` },
 ];
 
 /** The Locker Room card's short reason beside the word; empty when nothing stands out. */
@@ -612,11 +626,24 @@ export const BELIEF_WARN: readonly Line<BeliefFact>[] = [
     text: (f) => `${f.lawyer} has been in ${ears(f.unit)} about ${calls(f)} since Sunday.`,
   },
   {
-    reads: 1,
-    text: (f) =>
-      `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'is' : 'are'} quieter in meetings with ${f.coach}. Nothing said yet.`,
+    when: (f) => !!f.lawyer,
+    reads: 2,
+    text: (f) => `${f.lawyer} keeps picking at ${calls(f)} around ${f.unit}.`,
   },
-  { text: (f) => `I'm hearing some grumbling in ${f.unit} about ${calls(f)}. Nothing loud yet.` },
+  {
+    reads: 1,
+    text: (f) => `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'is' : 'are'} quieter in meetings with ${f.coach}.`,
+  },
+  {
+    reads: 1,
+    text: (f) => `${cap(f.unit)} ${SINGULAR.has(f.unit) ? 'is' : 'are'} slower to take ${f.coach}'s word these days.`,
+  },
+  {
+    reads: 1,
+    text: (f) => `Something is off between ${f.unit} and ${f.coach}, though nobody has said so.`,
+  },
+  { text: (f) => `I'm hearing some grumbling in ${f.unit} about ${calls(f)}.` },
+  { text: (f) => `${cap(f.unit)} ${listens(f.unit)} to ${f.coach} with less patience than before.` },
 ];
 
 /** The head coach's report, when a room's read of the man running its side has changed since he last told it. */
