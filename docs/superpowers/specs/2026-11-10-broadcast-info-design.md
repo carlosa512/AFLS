@@ -23,15 +23,17 @@ This pass adds what a broadcast tells you, around the field you already have:
 
 ## Decisions
 
-Agreed with the owner unless marked *(proposed)*.
+Agreed with the owner (Nov 10).
 
+0. **Screens only.** Nothing in `src/engine/` changes, nothing is added to the save and no tuning number moves. A
+   number the play log can't give exactly is left off the screen, not fixed in the engine.
 1. **The field is untouched.** Field paint, big-play graphics and a network look are a later pass (see Out of scope).
 2. **Both screens, both views.** The live game and *Watch replay* get the same scorebug, timeline and panels, around
    Broadcast or All-22.
 3. **Nothing ahead of the picture.** The scorebug, the panels and the play log read through the play on screen, as
    the play log does today (`told` in both screens). The one exception is the replay's timeline: it draws the whole
    game, later drives dimmed, because finding the big moments is what it is for. A live game's timeline fills in as
-   the game is played. *(proposed)*
+   the game is played.
 4. **Fewer strips, not more.** Between the scorebug and the play log there are three: the field, one bar (down and
    distance left, the last result right), and the timeline with the buttons on it. No separate drive strip: the
    timeline's caption is the drive summary.
@@ -42,8 +44,7 @@ Agreed with the owner unless marked *(proposed)*.
 7. **Panels beside the field on a wide window, tabs under it otherwise.** The field is never narrower than today's
    760px: this screen may grow to 1320px wide (the rest of the game stays at 1180px), and the panels sit beside the
    field only when the window has room for both (about 1280px). Below that they are tabs under the viewer: *Plays*,
-   *Game*, *Players*. *(proposed: the owner has not yet said whether this screen may go wider than the others. If
-   not, the panels shrink the field to 688px at 1180px.)*
+   *Game*, *Players*.
 8. **The box score's words.** Stat rows, the injuries list and the score by quarter use the labels and helpers
    `BoxScore.tsx` already has, so the two screens never say one thing two ways.
 9. **No starters list and no other scores, for now.** A starters list would be 44 names with nothing beside them:
@@ -85,7 +86,7 @@ linesAt(plays, index, homeId, names): Map<number, RunningLine>
 ```
 
 `RunningTeam` is the part of `TeamGameStats` the panel shows: `totalYds`, `passYds`, `rushYds`, `firstDowns`,
-`thirdDownAtt`, `thirdDownConv`, `turnovers`, `top`. `RunningLine` is the part of `StatLine` the Players panel
+`thirdDownAtt`, `thirdDownConv`, `turnovers`. `RunningLine` is the part of `StatLine` the Players panel
 shows: passing (`passCmp`, `passAtt`, `passYds`, `passTd`, interceptions), rushing (`rushAtt`, `rushYds`, rushing
 touchdowns), receiving (catches, yards, touchdowns), tackles and sacks.
 
@@ -101,18 +102,17 @@ A first probe over one week's 16 games, with a throwaway reader, found:
 | Turnovers, third downs converted | 32 of 32 |
 | Catches and receiving yards, by player | every player |
 | Score by quarter | 31 of 32 (an overtime game's empty fifth quarter) |
-| Third downs tried | 25 of 32 |
-| First downs | 8 of 32 (first downs by penalty are not counted yet) |
+| Third downs tried | 32 of 32, once kneels and spikes on third down count as the engine counts them |
+| First downs | 31 of 32, read from the next snap (a new first down with a new line to gain) plus touchdowns |
 | Rushes by player | 76 of 107 (scrambles and kneels were not given to the quarterback) |
+| Possession | never: the log's clock does not say whose time ran at a quarter's turn |
 
-So the shape works and the rest is care. Where the log really cannot say something (the passer on a game kept
-before v71, perhaps a first down by penalty), the choices in order are: read it from what the game already keeps
-(`GameResult.field`, the play's text through `usePlayNames`); add one small optional fact to `PlayLogEntry` (no save
-migration: old games lack it and that row is hidden for them); drop the row. Never show a number that can end the
-game different from the box score.
+So the shape works and the rest is care. Where the log cannot say something exactly, the choices in order are: read
+it from what the game already keeps (`GameResult.field`, the play's text through `usePlayNames`, the foul registry
+in `penalties.ts`); drop the row. Never show a number that can end the game different from the box score, and never
+change the engine or the save to get one (Decision 0).
 
-Possession is the engine's own count (`top`); the reader adds each play's time to the side that had the ball, and
-the test holds it to the box score like the rest.
+**Possession is left off** for that reason. It stays in the box score.
 
 **Injuries** come from the log's own line (`Injury: BUF RB D.Grimes (back) is out for the game.`), which carries
 the quarter and clock. A finished game also has `GameResult.injuries` with the doctor's estimate; the panel shows
@@ -176,7 +176,8 @@ routes, filters are `seg`). The tab picked and the Players toggle are remembered
 - The weather in one line, from `weatherAt` for the quarter on screen: `Night · 64°F · Wind 7 mph`, or `Indoors`.
 - The score by quarter (`quartersAt`), quarters not yet played shown as a dot.
 - Team stats, away on the left and home on the right, each row a label between two numbers over a thin split bar:
-  Total yards, Passing, Rushing, First downs, 3rd down, Possession, Turnovers. The labels are the box score's.
+  Total yards, Passing, Rushing, First downs, 3rd down, Turnovers. The labels are the box score's. A row whose
+  number fails the equality test of §1 is left out.
 - **Injuries:** the players hurt so far in this game, each a `PlayerLink` with what the doctor said. With none,
   the section is left out, as in the box score.
 
@@ -195,21 +196,15 @@ Nothing in either panel is a rating, a range or a hidden trait: it is all box-sc
 - `.viewer` loses its fixed 760px cap in favour of the stage grid: `232px minmax(760px, 1fr) 232px` when the window
   fits it, one column otherwise. The stage may be 1320px wide; nothing else on the page moves.
 - The play log stays under the stage at full width on a wide window; on a narrow one it is the *Plays* tab.
-- `GameViewer.tsx` is 800 lines and holds the broadcast field, the labels, the name linking and the replay screen.
-  This pass moves what both screens share into their own files, because it has to touch all of it anyway:
-  `BroadcastField.tsx` (today's `Field` and its projection, unchanged), `Scorebug.tsx`, `GameTimeline.tsx`,
-  `GamePanels.tsx`, `PlayLog.tsx` (the list both screens now write out twice). `GameViewer.tsx` and `LiveGame.tsx`
-  keep their own state and controls. No behaviour changes in the move.
+- New files only: `gameRead.ts`, `screens/Scorebug.tsx`, `screens/GameTimeline.tsx`, `screens/GamePanels.tsx`.
+  `GameViewer.tsx` and `LiveGame.tsx` keep everything they hold today (the broadcast field, the labels, the name
+  linking, their own state) and use the new components. Nothing is moved for its own sake.
 
-## 6. Three pull requests
+## 6. One pull request
 
-Each is usable on its own. None finishes an MVP item, so each bumps the last number of the version and adds a
-changelog line (`docs/VERSIONING.md`).
-
-1. **The reader and the scorebug.** `gameRead.ts` with its tests (the box-score equality test included, for every
-   number later PRs show), the shared `Scorebug` with records and timeouts, the down pill, and the file moves of §5.
-2. **The timeline.** `GameTimeline` in both screens, the buttons on it, *Broadcast | All-22* beside *Box score*.
-3. **The panels.** `GamePanel`, `PlayersPanel`, the tabs, the wider stage.
+One pull request, built in this order so each step can be looked at on its own: the reader and its tests, the
+scorebug and the down pill, the timeline, the panels and the wider stage. It finishes no MVP item, so it bumps the
+last number of the version and adds one changelog line (`docs/VERSIONING.md`).
 
 ## 7. Testing
 
@@ -218,7 +213,7 @@ This is UI and a reader of the log: nothing the sim reads changes, so no sims ar
 - `gameRead.test.ts`: the equality test of §1 over several seeds; drives (a touchdown drive, a missed kick, a pick,
   a fumble lost, a turnover on downs, a safety, the half and the game running out, a drive across a quarter);
   timeouts across the half and into overtime; an overtime game's quarters; a two-point try (not a rush or a pass in
-  the count); a snap wiped out by a flag.
+  the count); a snap wiped out by a flag; a kneel on third down.
 - Component tests in the style of the existing `ui/*.test.tsx`: nothing past the play on screen in the scorebug or
   the panels; the live timeline draws nothing ahead of the playhead; the replay timeline draws the whole game.
 - The screen contract (`ui/ui.test.ts`): names through `PlayerLink`, no rating on the screen.
