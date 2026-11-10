@@ -115,9 +115,9 @@ export function beat(
   if (!STORIES.on || on.teamId !== league.userTeamId || !employed(league)) return null;
   const stories = (league.stories ??= { next: 1, open: [], closed: [] });
   let s = openStory(league, on);
-  // A room has one story a league year: turning again after it closed re-opens that story (`told` stays, so what was
+  // A subject has one story a league year: a beat after it closed re-opens that story (`told` stays, so what was
   // told is not told again) instead of starting another.
-  if (!s && on.kind === 'room') {
+  if (!s) {
     const was = stories.closed.find((c) => same(c, on) && Math.floor((c.closed ?? 0) / YEAR) === Math.floor(at / YEAR));
     if (was) {
       stories.closed.splice(stories.closed.indexOf(was), 1);
@@ -162,15 +162,18 @@ export function markTold(s: Story, outlet: Outlet): void {
 
 /**
  * Every open room story of your club with nothing open on it (no commitment from a meeting) closes, told or not: rooms
- * end with the season, so they do not pile up. Silent: the coach has nothing to say about a story that only ended.
+ * end with the season, so they do not pile up; so do the staff's (a coach's standing is a season's matter, belief
+ * halves at the new year). Silent: the coach has nothing to say about a story that only ended. A man's deal or snaps
+ * story is not closed: it carries into the re-sign window as the same story.
  */
 export function closeRoomStories(league: League): void {
   const open = league.teams[league.userTeamId]?.meetings?.open ?? [];
   for (const s of [...(league.stories?.open ?? [])]) {
-    if (s.kind !== 'room' || s.teamId !== league.userTeamId || open.some((c) => c.scope === s.unit)) continue;
+    if (s.teamId !== league.userTeamId) continue;
+    if (s.kind === 'room' ? open.some((c) => c.scope === s.unit) : s.kind !== 'staff') continue;
     const closed = closeStory(
       league,
-      { kind: 'room', teamId: s.teamId, unit: s.unit },
+      { kind: s.kind, teamId: s.teamId, unit: s.unit, coachId: s.coachId },
       'ended',
       s.beats.at(-1)?.at ?? s.opened,
     );

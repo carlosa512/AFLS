@@ -8,11 +8,12 @@ import { BELIEF, beliefOf, beliefRead, runnerOf, SIDE_ROOMS, type BeliefRead } f
 import { teamCoaches } from './coaching';
 import { employed } from './employment';
 import { credibilityRead } from './meetings/credibility';
-import { moraleClock, moraleContext, moraleView, viewContext, type MoraleContext } from './morale';
+import { disputeOf } from './disputeRead';
+import { moraleClock, moraleContext, moraleView, QUIET, viewContext, type MoraleContext } from './morale';
 import { CAUSE_OF } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { tierOf, unitOf, unitRead, UNITS, weightOf } from './standing';
-import { beat, closeRoomStories, closeStory, openStory, STORIES, type StoryOn } from './stories';
+import { beat, closeRoomStories, closeStory, COACH, markTold, openStory, STORIES, type StoryOn } from './stories';
 import { momentSheet } from './castSheet';
 import type { Beat, BeatKind, CoachRoom, League, Player, Story, StoryKind, TalkCause } from './types';
 
@@ -89,6 +90,31 @@ function departures(league: League, user: number, clock: number): void {
       closeStory(league, onOf(s), 'left', clock);
       continue;
     }
+  }
+}
+
+// ───────── a story gone quiet ─────────
+
+/**
+ * A man's deal, snaps or feud story with nothing pending closes quietly, told so it is never a closing row: no ask on
+ * him for that cause, no promise or commitment naming him, no dispute, no deadline, a feud no longer standing, and
+ * `QUIET` steps since its last beat (the talks' quiet after an answer). Raised again that year, it re-opens with its
+ * history (`beat` in `stories.ts`). A benching has its own closes.
+ */
+function quiet(league: League, user: number, clock: number): void {
+  const named = new Set((league.teams[user].meetings?.open ?? []).flatMap((c) => c.named));
+  for (const s of [...(league.stories?.open ?? [])]) {
+    if (s.teamId !== user || s.playerId === undefined || !['deal', 'snaps', 'feud'].includes(s.kind)) continue;
+    const p = league.players[s.playerId];
+    const last = s.beats[s.beats.length - 1];
+    if (!onClub(p, user) || !last || clock - last.at < QUIET || s.due !== undefined) continue;
+    const t = p.morale?.talk;
+    const cause = causeOf(s.kind);
+    if (t?.promise || (t?.ask && (!cause || t.ask.cause === cause)) || disputeOf(p) || named.has(p.id)) continue;
+    if (s.kind === 'feud' && (p.ties ?? []).some((x) => x.kind === 'feud' && onClub(league.players[x.with], user)))
+      continue;
+    const closed = closeStory(league, onOf(s), 'quiet', clock);
+    if (closed) markTold(closed, COACH);
   }
 }
 
@@ -229,11 +255,12 @@ export function storiesStep(league: League): void {
   const ctx = moraleContext(league);
   departures(league, user, clock);
   feuds(league, user, clock);
+  quiet(league, user, clock);
   // Your club's last game is played: the rooms close with the season, and none turns again until the next one.
   if (momentSheet(league).seasonOver) closeRoomStories(league);
   else {
     rooms(league, user, clock, ctx);
+    staff(league, user, clock);
   }
-  staff(league, user, clock);
   links(league, user, ctx);
 }

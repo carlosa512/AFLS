@@ -94,6 +94,11 @@ export interface WeekItem {
 
 /** Rows a letter may carry: what needs your answer always fits, and the rest is cut from the lowest tier up. */
 export const MAX_ROWS = 6;
+/**
+ * The head coach writes at most every other step: after a letter, the next step files none and what it gathered waits
+ * (items keep their `born`). A suggestion to your club waits a step longer (`meetings/index.ts`), so it is carried.
+ */
+export const LETTER_GAP = 2;
 /** Steps a tier 4 or 5 item may wait before it is dropped. */
 export const STALE = 3;
 /** Steps a meeting's result or a story's closing waits for a letter filed for another reason before it files one itself. */
@@ -681,6 +686,8 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   // Notes alone never make a letter: something to answer, a clock, or a result or a closing that cannot wait does, and
   // the rest ride along. A result with nothing owed, or a story closing, waits for the next letter, two steps at most.
   if (!items.some(files)) return [];
+  // Every other step: a letter filed last step holds this one's items (an ask is not ignored, a suggestion not lapsed, before it).
+  if (told.has(coachWeekId(league.season, clock - (LETTER_GAP - 1)))) return [];
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
   const heads = ranked

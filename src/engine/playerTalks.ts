@@ -28,8 +28,12 @@ const YEAR = 32;
 const CAMP = 7;
 /** Steps in a row at Poor or worse before he asks (he asks on the third). */
 const DOWN_STEPS = 3;
-/** Steps a letter waits for your answer before he takes the silence as one. */
-const WAIT = 2;
+/**
+ * Steps a letter waits for your answer before he takes the silence as one. Your club's is one longer: the head coach
+ * writes at most every other step (`LETTER_GAP`), so an ask held a step still reaches you before it can be ignored.
+ */
+export const WAIT = 2;
+export const waitFor = (league: League, p: Player) => (p.teamId === yourClub(league) ? WAIT + 1 : WAIT);
 /** A room's losing comes to you once in this many steps: a man of it asking sooner is answered as you last answered the room. */
 export const LOSING_GAP = 4;
 
@@ -253,7 +257,7 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     else if (m.talk) delete m.talk.downSince;
     const t = m.talk;
     // A benched ask waits on you as long as his question stays open: not knowing is what it costs (`benching.ts`).
-    if (t?.ask && t.ask.cause !== 'benched' && clock >= t.ask.at + WAIT)
+    if (t?.ask && t.ask.cause !== 'benched' && clock >= t.ask.at + waitFor(league, p))
       applyReply(league, p, 'ignored', clock, ctx, t.ask.cause);
     tidy(p);
     const now = m.talk;

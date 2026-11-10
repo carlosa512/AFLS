@@ -1758,6 +1758,7 @@ export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room
 export type OutletId = 'coach';
 export type BeatKind =
   | 'asked'
+  | 'quiet'
   | 'answered'
   | 'promised'
   | 'kept'
