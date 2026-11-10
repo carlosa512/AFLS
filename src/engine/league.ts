@@ -150,6 +150,9 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
   freshStaff(league);
+  // Every club's lineup is noted before the week's earlier games are played, as `playWeek` does; the live pair is
+  // read again at its own kickoff below, after whatever the earlier games changed.
+  benchKickoff(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
   // Who starts is read from the chart as the game kicks off, before anything is played.

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { BENCH, benchKickoff, countStarts, EARN, holdsJob, setJobs } from './benching';
 import { createLeague } from './generate';
-import { playWeek } from './league';
+import { gameTime } from './personnel/calendar';
+import { playWeek, startLiveGame } from './league';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { setTeam } from './roster';
 import type { Injury, League, Player, Team } from './types';
@@ -191,5 +192,20 @@ describe('record-keeping only', () => {
     expect(JSON.stringify(a.games.map((g) => g.result))).toBe(JSON.stringify(b.games.map((g) => g.result)));
     const moods = (l: League) => JSON.stringify(Object.values(l.players).map((p) => [p.id, p.morale]));
     expect(moods(a)).toBe(moods(b));
+    expect(JSON.stringify(a.rngState)).toBe(JSON.stringify(b.rngState));
+  }, 120_000);
+});
+
+describe('a live game', () => {
+  it("notes the clubs of the week's earlier games before it plays them", () => {
+    const l = createLeague({ seed: 'bench-live', personnel: true });
+    const games = l.games.filter((g) => g.season === l.season && g.week === l.week);
+    const last = Math.max(...games.map(gameTime));
+    const live = games.find((g) => gameTime(g) === last)!;
+    const early = games.find((g) => gameTime(g) < last)!;
+    startLiveGame(l, live);
+    expect(early.result).toBeDefined();
+    expect(l.teams[early.homeId].kickoff?.week).toBe(l.week);
+    expect(l.teams[early.awayId].kickoff?.week).toBe(l.week);
   }, 120_000);
 });
