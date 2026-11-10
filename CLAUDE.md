@@ -113,7 +113,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
   moves its decision against a no-habits baseline (more of its log entries, pooled over four leagues; the rare six are judged on built scenes, the QB trade-up one pooled over eight draft classes). Run it
   after changing `gmHabits.ts`, `gmHabitsYear.ts`, `gmTraits.ts` or a habit hook in `offseason/` or `trade/`. Nothing may be
-  flagged.
+  flagged. `npm run check` and CI run it as two checks (`gm-habits` the churn, `gm-habits-fx` the effects with `--no-churn`), so each fits a job.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
   gained and lost; `npm run quirks -- --effects` also gives each quirk to every player at its positions
   and checks it moves its stat the right way. Run it after changing `quirks.ts` or a quirk hook in

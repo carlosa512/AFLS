@@ -106,11 +106,20 @@ const CHECKS = {
     summary: /Needs attention.*|Every quirk.*|▼ Nobody carries.*/,
     detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
   },
-  // The AI general managers' habits: churn in four leagues and every habit's effect against a no-habits baseline.
+  // The AI general managers' habits, in two checks so each fits a CI job: the churn in four ten-season leagues, and
+  // every habit's effect against a no-habits baseline (four leagues pooled, then the built scenes).
   'gm-habits': {
-    cmd: ['npm', 'run', 'gm-habits', '--', '--effects'],
+    cmd: ['npm', 'run', 'gm-habits'],
     cores: CORES,
-    secs: 640,
+    secs: 500,
+    slow: true,
+    summary: /Needs attention.*|Every habit.*/,
+    detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
+  },
+  'gm-habits-fx': {
+    cmd: ['npm', 'run', 'gm-habits', '--', '--effects', '--no-churn'],
+    cores: CORES,
+    secs: 900,
     slow: true,
     summary: /Needs attention.*|Every habit.*/,
     detail: /^[▲▼]|NO EFFECT|WRONG WAY/,
@@ -252,8 +261,11 @@ const RULES: [RegExp, Name[]][] = [
   [/^src\/engine\/(?!.*\.test\.ts$)(quirks|match\/|generate|coaching|schemes|attributes|positions|traits)/, ['quirks']],
   [/^scripts\/quirks\.ts$/, ['quirks']],
   // GM habits: the bag, its new-year step, the traits it hangs on, and the AI decisions that read it.
-  [/^src\/engine\/(?!.*\.test\.ts$)(gmHabits|gmHabitsYear|gmTraits|offseason\/|trade\/)/, ['gm-habits']],
-  [/^scripts\/gm-habits(-league)?\.ts$/, ['gm-habits']],
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(gmHabits|gmHabitsYear|gmTraits|offseason\/|trade\/)/,
+    ['gm-habits', 'gm-habits-fx'],
+  ],
+  [/^scripts\/gm-habits(-league)?\.ts$/, ['gm-habits', 'gm-habits-fx']],
   // Weather: the rolls and their effects, and what builds the leagues and schedules they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(weather|data\/stadiums|match\/|generate|season\/schedule)/, ['weather']],
   [/^scripts\/weather\.ts$/, ['weather']],

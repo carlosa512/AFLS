@@ -12,6 +12,7 @@
  *   npm run gm-habits                              # churn
  *   npm run gm-habits -- --effects                 # also the effects, 3 seasons a league
  *   npm run gm-habits -- --effects --only=bpa,gunShy   # just these effects, no churn
+ *   npm run gm-habits -- --effects --no-churn      # every effect, no churn (the `gm-habits-fx` check)
  */
 import { fork } from 'node:child_process';
 import { bandOf } from './band';
@@ -38,6 +39,8 @@ import type { HabitRun } from './gm-habits-league';
 
 const args = process.argv.slice(2);
 const effects = args.includes('--effects');
+/** The effects alone (CI runs the two parts as two checks, side by side: together they pass the job's time limit). */
+const noChurn = args.includes('--no-churn');
 const only = args
   .find((a) => a.startsWith('--only='))
   ?.slice(7)
@@ -386,7 +389,7 @@ async function fx(): Promise<void> {
   for (const [id, r] of scenes) verdict(id, r.moved, r.what);
 }
 
-if (!only) await churn();
+if (!only && !noChurn) await churn();
 if (effects) await fx();
 console.log(
   flags.length ? `\nNeeds attention: ${[...new Set(flags)].join(', ')}.` : '\nEvery habit moves its decision.',
