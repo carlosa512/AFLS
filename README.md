@@ -8,31 +8,29 @@ and what is true. Think you know ball?
 
 ![A week at the desk: home, the head coach's letter, the depth chart, a rookie's card, a trade offer for him, then the locker room and a touchdown in All-22](docs/media/demo.gif)
 
-**Alpha.** Runs in your browser, saves in your browser. No account, no server.
-
 ## Every snap, on film
 
 ![One play in All-22: a 46-yard completion down the right side](docs/media/all22.gif)
 
-Twenty-two men, every snap of your games. Watch it back in All-22.
+Watch it live or in play-back in All-22.
 
 ## What's in the game
 
-- **Every snap is a matchup.** Real contests between the men on the field, not a dice roll for the score.
-- **You see what your scouts see.** Ranges, not truths. Reports in words, not numbers.
-- **A cap with teeth.** Dead money, restructures, tags, void years. Mistakes follow you.
-- **A trade market that bites back.** Rival GMs have habits, a memory of you, and a doctor who reads the file.
-- **A locker room.** Moods, promises, holdouts, and trade requests that leak.
-- **Staff who matter.** Scouts, coaches and doctors, each with a budget, a market and a carousel.
-- **A job you can lose.** Owners have patience. It runs out.
-- **An inbox worth reading.** Your coach, your scouts and the GM across the table, each in their own voice.
+- **Every snap is a matchup.** Real contests between the players on the field, not a random dice roll for the scores sake.
+- **You see what your scouts see.** Ranges, not truths. You're only as good as your scouts, and in turn your ability to trust that information.
+- **A cap with teeth.** Dead money, restructures, tags, void years - it's all here. You'll wear those mistakes on your cap for years to come.
+- **A trade market that fights back.** Rival GMs have habits, a memory of you, and a doctor who reads the file. So no taking advantage of relationships here, betray a friend or befriend a rival, that's up to you.
+- **A real locker room.** Moods, promises, holdouts, and trade requests that leak. Players react, much more than they are static. Let the good times, or bad times roll.
+- **Staff who matter.** Scouts, coaches and doctors, each with a budget, a market and a carousel. Championships are often won behind the scenes. 
+- **A job you can lose.** Owners have patience. It runs out if you don't hold up your end of the bargain.
+- **Inbox worth reading.** Your coach, your scouts and your fellow GM, and sometimes even your players all have something to tell you. What you do with all this information is ultimatley your choice.
 
 ## Screens
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/media/coach-letter.png" alt="The head coach's weekly letter: three players came to see him about their contracts and snaps, each with answer buttons"><br><sub><b>The head coach's letter.</b> Who came to see him, and your answer to each.</sub></td>
-    <td width="50%"><img src="docs/media/trade-offer.png" alt="The trade desk in the dark theme: Buffalo offers three picks for a rookie tackle, with the head coach's and the cap's notes"><br><sub><b>The trade desk.</b> Buffalo wants your rookie tackle.</sub></td>
+    <td width="50%"><img src="docs/media/coach-letter.png" alt="The head coach's weekly letter: three players came to see him about their contracts and snaps, each with answer buttons"><br><sub><b>The head coach's letter.</b> Who came to see him, and your answers.</sub></td>
+    <td width="50%"><img src="docs/media/trade-offer.png" alt="The trade desk in the dark theme: Buffalo offers three picks for a rookie tackle, with the head coach's and the cap's notes"><br><sub><b>The trade desk.</b> Buffalo's GM wants your rookie tackle in this example.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/media/locker-room.png" alt="The Locker Room: the room's mood, what is on players' minds, and who needs a word"><br><sub><b>The Locker Room.</b> Who's happy, who isn't, and why.</sub></td>
@@ -44,12 +42,10 @@ Twenty-two men, every snap of your games. Watch it back in All-22.
 
 <table>
   <tr>
-    <td width="50%" valign="top"><img src="docs/media/player-card.png" alt="A rookie tackle's card in 2026: overall 15.1, potential shown as a range of 15 to 20, and a scout's report that calls him a projection"><br><sub><b>2026, a rookie.</b> His ceiling is a guess: 15 to 20.</sub></td>
-    <td width="50%" valign="top"><img src="docs/media/player-card-two-years-on.png" alt="The same player in 2028: overall 17.4, potential settled at 17, rating arrows and a development curve from 15.1 to 17.1"><br><sub><b>2028, the same player.</b> Now you know.</sub></td>
+    <td width="50%" valign="top"><img src="docs/media/player-card.png" alt="A rookie tackle's card in 2026: overall 15.1, potential shown as a range of 15 to 20, and a scout's report that calls him a projection"><br><sub><b>2026, a rookie.</b> His ceiling is a guess somewhere 15 to 20.</sub></td>
+    <td width="50%" valign="top"><img src="docs/media/player-card-two-years-on.png" alt="The same player in 2028: overall 17.4, potential settled at 17, rating arrows and a development curve from 15.1 to 17.1"><br><sub><b>2028, the same player.</b> Now you know a bit more and can see how he's come along.</sub></td>
   </tr>
 </table>
-
-The GM in this save was fired by Denver after three seasons. New York hired him that spring.
 
 ## Light and dark, desktop and phone
 
@@ -71,7 +67,7 @@ The GM in this save was fired by Denver after three seasons. New York hired him 
 
 ## Checked against the NFL
 
-Nothing is tuned by feel. Ten simulated seasons, per team per game:
+Nothing tuned by feel, all towards NFL ranges:
 
 | Stat              |  Sim | NFL range |
 | ----------------- | ---: | --------: |
@@ -83,8 +79,6 @@ Nothing is tuned by feel. Ten simulated seasons, per team per game:
 | Interceptions     | 0.71 | 0.65–0.85 |
 | Third-down %      | 39.9 |     37–41 |
 | Home team wins %  | 54.5 |     53–57 |
-
-The same goes for careers, trades, injuries, weather and the flags.
 
 ## Play
 
