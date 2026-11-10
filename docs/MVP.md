@@ -77,7 +77,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, trade stories and the
       offseason front-office digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted
       by the engine) and rookie impact reports join the inbox; a Stats screen tab for the advanced numbers and
-      narrative arcs remain future work. See `docs/NEWS.md`.
+      narrative arcs remain future work. The head coach's weekly letter now tells your club's storylines from a story
+      store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories
+      and season arcs have somewhere to start. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars
       (`staffAvatar.tsx`, `docs/AVATARS.md`). Scouts and medics can be women (`woman`, drawn with the name in
       `identity.ts`), but coaches never are.
@@ -104,7 +106,7 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [x] **Morale and holdouts** · **Done** (0.3.0; hooks into #6 and #8): every rostered player has a mood (0.2.21,
       `morale.ts`): a weekly target from his contract against his market, the role he plays against the one he expects
       (a depth man accepts depth), his team's results and his locker room, around a resting level his makeup sets,
-      with fading jolts for big moments (a benching, a raise, the C, a friend cut). Your players' moods show as
+      with fading jolts for big moments (a benching, a raise, the C, a friend cut). A healthy starter left off the lineup asks where he stands and you answer (0.4.24, `benching.ts`: jobs set on cut-down day and earned by three starts, your lineup set in camp, four answers, AI clubs answer theirs). Your players' moods show as
       smileys on the Roster and the Locker Room's morale board, a pill on the card, and in the head coach's locker
       room report; `npm run morale` holds the league's moods to range. Players speak up (0.2.22, `playerTalks.ts`):
       an unhappy man with a cause writes to you (a step's letters as one message), you promise, reassure or stand

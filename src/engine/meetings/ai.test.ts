@@ -54,13 +54,19 @@ describe('meetings: clubs and the calendar', () => {
     expect(m.pending).toBeUndefined();
   });
 
-  it('yours waits on you, and lapses at the next step without coming straight back', () => {
+  it('yours waits on you a step longer (the coach writes every other step), then lapses without coming straight back', () => {
     const l = calm();
     const unit = trouble(l, USER);
     meetingsStep(l);
     const m = l.teams[USER].meetings!;
     expect(m.pending?.scope).toBe(unit);
     expect(m.log).toEqual([]);
+    const made = m.pending!;
+    // The next step it is still the one waiting, the same suggestion: no second one while it is held.
+    next(l);
+    expect(m.pending).toBe(made);
+    expect(m.pending!.clock).toBe(made.clock);
+    // A step later it lapses.
     next(l);
     expect(m.pending).toBeUndefined();
   });

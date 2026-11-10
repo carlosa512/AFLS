@@ -391,7 +391,10 @@ export type MoraleJolt =
   // G4: a holdout who gave in.
   | 'gaveIn'
   // L2: a team meeting landing or bristling (`meetings/react.ts`).
-  | 'meeting';
+  | 'meeting'
+  // A job question left open, and a clear word on it (`benching.ts`).
+  | 'unsure'
+  | 'settled';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -424,7 +427,8 @@ export interface Dispute {
 }
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
-export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud';
+/** `benched`: a job-holder sat healthy asks where he stands (`benching.ts`). */
+export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched';
 /** What a meeting is about: a grievance, nothing in particular, or a room's doubt in its coordinator (L4). */
 export type MeetingTopic = TalkCause | 'none' | 'coordinator';
 // ───────── team meetings (L2, `meetings/`) ─────────
@@ -491,6 +495,8 @@ export interface MeetingRecord {
   moment?: Moment;
   /** What it was about: a feud met about once isn't trouble again. */
   topic?: MeetingTopic;
+  /** The room's read when it was held, when it was in trouble (Split or Down). */
+  word?: 'Split' | 'Down';
 }
 
 /** What the head coach (or the crisis) puts in front of you: only the choices that fit right now. */
@@ -563,7 +569,14 @@ export interface Talk {
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
-  answered?: { reply: TalkReply | 'ignored'; at: number; ask: number; cause?: TalkCause };
+  answered?: {
+    reply: TalkReply | 'ignored';
+    at: number;
+    ask: number;
+    cause?: TalkCause;
+    /** A benched ask's own answer (`benching.ts`); `reply` holds the nearest of the three. */
+    bench?: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete';
+  };
   /**
    * An open promise. A snaps promise counts its games: `role` asked for, `left` games to keep it in, `games` and `snaps`
    * since it was made, and where his club's games and his snaps stood at the last check (`seen`). A deal promise is
@@ -1076,7 +1089,44 @@ export interface PlayingAt {
   since?: { season: number; week: number };
 }
 
+export interface JobQuestion {
+  pos: Position;
+  holder: number;
+  other?: number;
+  since: number;
+  asked?: number[];
+  paused?: true;
+  /** "Back in next week": owed his next available game. */
+  promise?: { to: number; at: number };
+  /** "Just this week". */
+  soft?: { to: number; at: number };
+  /** The answer it was given, and when (none: nobody has told them). Cleared when a word given to it is broken. */
+  answered?: { reply: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete'; at: number; by: number };
+  /** Starts in a row the holder has made since he sat: three settle it his way, as three earn the other man the job. */
+  back?: number;
+}
+
 export interface Team {
+  /**
+   * Who holds a starting job at each position, kept by `benching.ts`: set on cut-down day, earned by three starts in a
+   * row, cleared at the new league year. At your club, `out`: he was out at a kickoff (his injury count then, which
+   * keys the coach's reminder), kept until he starts; `cleared`: the step he could play again after it (his grace runs
+   * from it); `reminded`: you chose Leave it on that reminder.
+   */
+  jobs?: {
+    held: Record<number, { pos: Position; since: number; out?: number; cleared?: number; reminded?: number }>;
+    runs?: Record<number, number>;
+    questions?: JobQuestion[];
+  };
+  /**
+   * Who started this week, read from the chart at kickoff (not from snaps). `at`: the position each started at;
+   * `out`: job-holders who could not play at kickoff (so a man healed or hurt by week's end is read as he was).
+   */
+  kickoff?: { week: number; ids: number[]; at?: Record<number, Position>; out?: number[] };
+  /** The season you confirmed your lineup for. */
+  lineupSet?: number;
+  /** What you last told the club about the losing, so a man asking inside `LOSING_GAP` steps is answered the same. */
+  losingAnswer?: { team?: { reply: 'reassure' | 'firm'; at: number } };
   /** Rooms whose belief in their coordinator fell past the warning line after a bad game in the last step (L4). */
   beliefFell?: { clock: number; rooms: CoachRoom[] };
   coachAdvice?: CoachAdvice[];
@@ -1674,6 +1724,8 @@ export interface MailSection {
   title: string;
   lead?: string;
   columns?: string[];
+  /** 'people': a row a person, with his face (the weekly letter). */
+  layout?: 'people';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
@@ -1688,7 +1740,80 @@ export interface MailSection {
     talk?: { playerId: number; clock: number };
     /** A player the row offers contract talks with (the promises reminder's deals). */
     negotiate?: { playerId: number };
+    /** A position coach's face, for a room's row (the weekly letter). */
+    coachId?: number;
+    /** The coach's line on what came before with this man, above his quote (the weekly letter). */
+    before?: string;
+    /** The meeting request's choices, drawn from the suggestion waiting on you (`meetingCard`). */
+    meeting?: { clock: number; scope: MeetingScope };
+    /** A man's job question (the benching chain): his answers are drawn from the question as it stands (`benchCard`). */
+    bench?: { playerId: number; clock: number };
+    /** A starter cleared and not in his spot: Put him back and Leave it (`restoreCard`). */
+    restore?: { playerId: number };
+    /** His row speaks for the club's losing: the one answer goes to every man with an open ask (`answerRoomTalk`). */
+    talkRoom?: { unit: 'team'; clock: number };
   }[];
+}
+
+/** Storylines (`stories.ts`): what happened to one subject of your club, beat by beat. Record-keeping only: the sim never reads it. */
+export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff';
+export type OutletId = 'coach';
+export type BeatKind =
+  | 'asked'
+  | 'quiet'
+  | 'answered'
+  | 'promised'
+  | 'kept'
+  | 'broken'
+  | 'commitment'
+  | 'dispute'
+  | 'disputeEnd'
+  | 'leaked'
+  | 'turned'
+  | 'eased'
+  | 'suggested'
+  | 'held'
+  | 'passed'
+  | 'recovered'
+  | 'started'
+  | 'ended'
+  | 'warned'
+  | 'doubt'
+  | 'worn'
+  | 'stood'
+  | 'notice'
+  | 'relieved'
+  | 'sat'
+  | 'backIn'
+  | 'satAgain'
+  | 'swapped'
+  | 'settled'
+  | 'left'
+  | 'lifted'
+  /** A headline only, for the cleared-starter reminder: it is never filed as a beat. */
+  | 'cleared';
+/** `at` is the morale clock; `pub` marks a beat the public could know; `how` is a short reason or reply. */
+export interface Beat {
+  at: number;
+  kind: BeatKind;
+  pub?: true;
+  how?: string;
+}
+export interface Story {
+  id: number;
+  kind: StoryKind;
+  teamId: number;
+  playerId?: number;
+  unit?: CoachRoom | 'ST' | 'team';
+  coachId?: number;
+  other?: number;
+  opened: number;
+  closed?: number;
+  due?: number;
+  feeds?: number[];
+  beats: Beat[];
+  /** Per outlet, how many beats it has already told. */
+  told?: Partial<Record<OutletId, number>>;
 }
 
 export interface InboxMessage {
@@ -2134,6 +2259,8 @@ export interface League {
   transactions: Transaction[];
   /** The user's mail, oldest first (see `inbox.ts`). Unset until the first delivery. */
   inbox?: InboxMessage[];
+  /** Your club's storylines (see `stories.ts`). Unset until the first beat. */
+  stories?: { next: number; open: Story[]; closed: Story[] };
   /** Eviction boundary: older mail cannot return; same-date IDs distinguish removed mail from new arrivals. */
   mailFloor?: { date: number; ids: string[] };
   /** What digest letters have told (their `covered` keys), by league year: it outlives the letters' eviction. */

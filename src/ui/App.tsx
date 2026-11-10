@@ -1,4 +1,5 @@
 import { GmAvatar } from './gm';
+import { lineupProblem } from '../engine/benching';
 import { employed } from '../engine/employment';
 import { pendingGmOffers, userExtensionOffer } from '../engine/leadership';
 import { GeneralManagers } from './screens/GeneralManagers';
@@ -118,6 +119,8 @@ export function offseasonStep(league: League): Step | null {
             run: (l) => advanceOffseason(l),
             then: { view: 'office', tab: 'waivers' },
           };
+        // The men in the starting spots hold the jobs when the season starts: your lineup first, with the chart yours.
+        if (lineupProblem(league)) return { label: 'Set your lineup', run: () => {}, then: { view: 'roster' } };
         if (waiversPending(league))
           return {
             label: 'Resolve claims and start the season',
@@ -125,6 +128,7 @@ export function offseasonStep(league: League): Step | null {
             then: { view: 'home' },
           };
       }
+      if (lineupProblem(league)) return { label: 'Set your lineup', run: () => {}, then: { view: 'roster' } };
       return { label: `Start the ${league.season} season`, run: (l) => advanceOffseason(l), then: { view: 'home' } };
     default:
       return null;

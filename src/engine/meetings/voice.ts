@@ -1,6 +1,6 @@
-import type { Approach, Backing, MeetingTopic, Moment, Outcome, Timing } from '../types';
+import type { Approach, Backing, MeetingTopic, Moment, Timing } from '../types';
 import type { Line } from '../voice';
-import type { ManFact, Reason, Record3, Style, SuggestFact } from './facts';
+import type { ManFact, Record3, Style, SuggestFact } from './facts';
 import type { CredibilityRead } from './credibility';
 
 /** A room's verb: "the receivers are", "the D-line is" (the plural nouns end in s). */
@@ -107,6 +107,18 @@ export const READ_LEAD: readonly Line<SuggestFact>[] = [
         ? `They've got something on their minds.`
         : `${cap(f.noun)} ${verb(f.noun, 'has something on its mind', 'have something on their minds')}.`,
   },
+  {
+    text: (f) =>
+      f.asked ? `I don't like what I'm seeing in there.` : `I don't like what I'm seeing from ${f.noun} lately.`,
+  },
+  {
+    text: (f) =>
+      f.asked ? `There is something in there that needs saying.` : `Something with ${f.noun} needs saying.`,
+  },
+  {
+    text: (f) =>
+      f.asked ? `They need to hear from me.` : `${cap(f.noun)} ${verb(f.noun, 'needs', 'need')} to hear from me.`,
+  },
 ];
 
 /** Why the man driving it matters: his years, his job, his deal. */
@@ -174,49 +186,78 @@ export const MOMENT_LEAD: Record<Moment, string> = {
   end: "The season's over. I want a word with the team before they scatter.",
 };
 
-/** His ask, and his read on what would reach the room when one thing would. */
+/** How he says he wants the meeting. Each line is its own sentence, so the next letter can word it another way. */
+export const ASK_OPEN: readonly Line<SuggestFact>[] = [
+  { when: (f) => f.style === 'terse', reads: 1, text: (f) => `I want ${f.noun} in a room this week.` },
+  { text: (f) => `I want to get ${f.noun} together this week.` },
+  { text: (f) => `I think I should sit down with ${f.noun} soon.` },
+  { text: (f) => `${cap(f.noun)} should hear from me before the weekend.` },
+  { text: (f) => `I'd like a few minutes with ${f.noun} before the next game.` },
+  { text: (f) => `It is time ${f.noun} heard it from me.` },
+  { text: (f) => `I want ${f.noun} in front of me for this.` },
+  { text: (f) => `I'd rather talk to ${f.noun} face to face.` },
+];
+
+/** His ask of you before he does it. */
+export const ASK_CALL: readonly Line<SuggestFact>[] = [
+  { when: (f) => f.style === 'terse', reads: 1, text: () => `Your call on how.` },
+  { text: () => `Before I do, I need your call.` },
+  { text: () => `I won't do it without your say.` },
+  { text: () => `Tell me how you want it handled.` },
+  { text: () => `How hard I go is up to you.` },
+  { text: () => `I need to know where you stand first.` },
+  { text: () => `You set the tone, and I'll follow it.` },
+  { text: () => `Give me the word, and tell me what to say.` },
+];
+
+/** The same ask at a calendar moment, where the choices are several. */
+export const ASK_CALL_MOMENT: readonly Line<SuggestFact>[] = [
+  { text: () => `Before I do, I need your call on a couple of things.` },
+  { text: () => `A couple of choices are yours before I start.` },
+  { text: () => `I need you to decide a couple of things first.` },
+  { text: () => `There are a couple of things only you can settle first.` },
+  { text: () => `Give me your word on a couple of things, and I'll go ahead.` },
+  { text: () => `Two or three calls are yours to make before I stand up.` },
+];
+
+/** His read on what would reach the room, when one thing would. Nothing fits for the plain case. */
 export const ASK: readonly Line<SuggestFact>[] = [
   {
     when: (f) => !!f.coord,
     reads: 3,
-    text: (f) =>
-      `I want to get ${f.noun} together this week. Before I do, I need your call. My read: either we stand behind ${f.coord!.last}, or we tell them it changes.`,
+    text: (f) => `My read: either we stand behind ${f.coord!.last}, or we tell them it changes.`,
+  },
+  {
+    when: (f) => !!f.coord,
+    reads: 3,
+    text: (f) => `Where I come down: we stand behind ${f.coord!.last} or we tell them that something changes.`,
   },
   {
     when: (f) => f.advice === 'talks' && f.dealMen.length === 1,
     reads: 3,
     text: (f) =>
-      `I want to get ${f.noun} together this week. Before I do, I need your call. If you want my read: telling ${f.dealMen[0].last} we're talking to his agent is the only thing that reaches him on the money.`,
+      `If you want my read: telling ${f.dealMen[0].last} we're talking to his agent is the only thing that reaches him on the money.`,
   },
   {
     when: (f) => f.advice === 'talks',
     reads: 2,
-    text: (f) =>
-      `I want to get ${f.noun} together this week. Before I do, I need your call. If you want my read: only talks with their agents will reach them on the money.`,
+    text: () => `If you want my read: only talks with their agents will reach them on the money.`,
   },
   {
     when: (f) => f.advice === 'snaps' && !!f.snapsMan,
     reads: 3,
-    text: (f) =>
-      `I want to get ${f.noun} together this week. Before I do, I need your call. My read: words won't do it for ${f.snapsMan!.last}. Snaps will.`,
+    text: (f) => `My read: words won't do it for ${f.snapsMan!.last}. Snaps will.`,
   },
   {
     when: (f) => f.advice === 'move',
     reads: 2,
-    text: () =>
-      `I want them together this week. Before I do, I need your call. My read: they want to see us do something, not hear about it.`,
+    text: () => `My read: they want to see us do something, not hear about it.`,
   },
   {
-    when: (f) => f.kind === 'moment',
-    reads: 1,
-    text: () => `Before I do, I need your call on a couple of things.`,
+    when: (f) => f.advice === 'move',
+    reads: 2,
+    text: () => `I think they need a move from us more than a speech.`,
   },
-  {
-    when: (f) => f.style === 'terse',
-    reads: 1,
-    text: (f) => `I want ${f.noun} in a room this week. Your call on how.`,
-  },
-  { text: (f) => `I want to get ${f.noun} together this week. Before I do, I need your call.` },
 ];
 
 // ───────── the choices: a question each, short answers ─────────
@@ -363,91 +404,223 @@ export const TOLD: readonly Line<ToldFact>[] = [
     text: () => `Who we are doesn't change with the week. Do your job and trust the man next to you.`,
   },
   {
+    when: (f) => f.approach === 'straight',
+    reads: 1,
+    text: () => `Here is where we are. Nobody is going to fix this for us, so keep it in this room and work.`,
+  },
+  {
+    when: (f) => f.approach === 'straight',
+    reads: 1,
+    text: () =>
+      `I'm not going to dress it up. Some of you are unhappy, and I know it. Say it to me, not to each other.`,
+  },
+  {
+    when: (f) => f.approach === 'straight',
+    reads: 1,
+    text: () => `You know what's bothering you, and so do I. Bring it to me and we'll deal with it.`,
+  },
+  {
+    when: (f) => f.approach === 'straight',
+    reads: 1,
+    text: () => `What's said in this room stays in this room. What's done on Sunday is what counts.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !!f.speaker,
+    reads: 2,
+    text: (f) => `${f.speaker!.first}, I'm talking to you. Whatever's on your mind, you bring it to me first.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !!f.speaker,
+    reads: 2,
+    text: (f) => `${f.speaker!.first}, you've said enough to everyone but me. Come see me.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !!f.speaker,
+    reads: 2,
+    text: (f) => `Everybody here knows what ${f.speaker!.first} has been saying. It ends today.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !f.speaker,
+    reads: 2,
+    text: () => `Somebody in this room has been talking everywhere but to me. It ends today.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !f.speaker,
+    reads: 2,
+    text: () => `If you've got something to say, I'm the one you say it to.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !f.speaker,
+    reads: 2,
+    text: () => `I'm not naming anyone. You know who you are, and you know what to do.`,
+  },
+  {
+    when: (f) => f.approach === 'callout' && !f.speaker,
+    reads: 2,
+    text: () => `It stops with this meeting. I'm not going to say it twice.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !!f.speaker,
+    reads: 2,
+    text: (f) => `Listen up, all of you. I asked ${f.speaker!.last} to say it, and he has earned this room.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !!f.speaker,
+    reads: 2,
+    text: (f) => `${f.speaker!.last} spoke for me today, and he said it better than I would have.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !!f.speaker,
+    reads: 2,
+    text: (f) => `Men, ${f.speaker!.last} has been through this before. Hear how it goes from him.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !f.speaker,
+    reads: 2,
+    text: () => `Men, one of your own is doing the talking. Take it from him as you'd take it from me.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !f.speaker,
+    reads: 2,
+    text: () => `The room's leaders spoke today. They said what I'd have said.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !f.speaker,
+    reads: 2,
+    text: () => `Men, this one comes from inside the room. Listen to the ones you follow.`,
+  },
+  {
+    when: (f) => f.approach === 'leader' && !f.speaker,
+    reads: 2,
+    text: () => `Men, I stepped back and let the leaders talk. It means more from them.`,
+  },
+  {
+    when: (f) => f.approach === 'losing',
+    reads: 1,
+    text: () => `Losing is on all of us, me first. Nobody in here gets to hide from it.`,
+  },
+  {
+    when: (f) => f.approach === 'losing',
+    reads: 1,
+    text: () => `The record is what it is. The next game is the only one we can change.`,
+  },
+  {
+    when: (f) => f.approach === 'losing',
+    reads: 1,
+    text: () => `I've seen teams quit in a spot like this. Not this one.`,
+  },
+  {
+    when: (f) => f.approach === 'losing',
+    reads: 1,
+    text: () => `We're losing, and you all know it. Stop looking for someone to blame and play.`,
+  },
+  {
+    when: (f) => f.approach === 'standard',
+    reads: 1,
+    text: () => `This is how we do things here, and it doesn't change when the results do.`,
+  },
+  {
+    when: (f) => f.approach === 'standard',
+    reads: 1,
+    text: () => `The standard is the standard. Meet it or the man behind you will.`,
+  },
+  {
+    when: (f) => f.approach === 'standard',
+    reads: 1,
+    text: () => `We know what's expected in this building. Nothing about the week changes that.`,
+  },
+  {
+    when: (f) => f.approach === 'standard',
+    reads: 1,
+    text: () => `Do it the way we've always done it. Everything else follows.`,
+  },
+  {
+    when: (f) => f.approach === 'ownIt',
+    reads: 1,
+    text: () => `This one is on me. If it's wrong, I'll fix it, and nobody else carries it.`,
+  },
+  {
+    when: (f) => f.approach === 'ownIt',
+    reads: 1,
+    text: () => `I put us here, and I'll take the heat for it. You play.`,
+  },
+  {
+    when: (f) => f.approach === 'ownIt',
+    reads: 1,
+    text: () => `If you want to blame somebody, blame me. Then get back to work.`,
+  },
+  {
+    when: (f) => f.approach === 'ownIt',
+    reads: 1,
+    text: () => `That's mine. I should have seen it sooner.`,
+  },
+  {
+    when: (f) => f.approach === 'raiseBar',
+    reads: 1,
+    text: () => `The bar just went up. I expect more from every one of you starting today.`,
+  },
+  {
+    when: (f) => f.approach === 'raiseBar',
+    reads: 1,
+    text: () => `What was good enough last week isn't now. Raise it.`,
+  },
+  {
+    when: (f) => f.approach === 'raiseBar',
+    reads: 1,
+    text: () => `I'm asking for more, and I'm asking it of everyone, starters included.`,
+  },
+  {
+    when: (f) => f.approach === 'raiseBar',
+    reads: 1,
+    text: () => `You can do more than you've been doing. I'm not going to ask politely again.`,
+  },
+  {
+    when: (f) => f.approach === 'freshStart',
+    reads: 1,
+    text: () => `Everybody starts clean today. What happened before is over.`,
+  },
+  {
+    when: (f) => f.approach === 'freshStart',
+    reads: 1,
+    text: () => `New week, clean slate. Show me something I haven't seen.`,
+  },
+  {
+    when: (f) => f.approach === 'freshStart',
+    reads: 1,
+    text: () => `I'm putting the past in a drawer. Nobody here is judged by it.`,
+  },
+  {
+    when: (f) => f.approach === 'freshStart',
+    reads: 1,
+    text: () => `Whatever was said before, forget it. We start over here.`,
+  },
+  {
+    when: (f) => f.approach === 'backHim',
+    reads: 1,
+    text: () => `I stand behind my coordinator, and so will you. He has my full backing.`,
+  },
+  {
+    when: (f) => f.approach === 'backHim',
+    reads: 1,
+    text: () => `The plan is sound. Run it the way he drew it.`,
+  },
+  {
+    when: (f) => f.approach === 'backHim',
+    reads: 1,
+    text: () => `If you've got a problem with the calls, bring it to me. He's not going anywhere this week.`,
+  },
+  {
+    when: (f) => f.approach === 'backHim',
+    reads: 1,
+    text: () => `He works harder than anyone in this building. Give him your attention.`,
+  },
+  {
     when: (f) => f.style === 'terse',
     reads: 1,
     text: () => `Whatever it is, it stays in this building. Do your job.`,
   },
   { text: () => `I know what's on your minds. It stays in this building and off the field.` },
 ];
-
-export interface WentFact {
-  man: ManFact;
-  outcome: Exclude<Outcome, 'shrug'>;
-  reason: Reason;
-  topic: MeetingTopic;
-}
-
-/** One man's reaction, always with its reason. */
-export const WENT: readonly Line<WentFact>[] = [
-  {
-    when: (f) => f.outcome === 'lands' && f.reason === 'answered' && f.topic === 'deal',
-    reads: 3,
-    text: (f) => `${f.man.last} took it well. He heard the part about his agent, and that's what he needed.`,
-  },
-  {
-    when: (f) => f.outcome === 'lands' && f.reason === 'answered',
-    reads: 2,
-    text: (f) => `${f.man.last} took it well. He heard what we're going to do about it.`,
-  },
-  {
-    when: (f) => f.outcome === 'lands' && f.reason === 'heard',
-    reads: 2,
-    text: (f) => `${f.man.last} took it well; it was the thing on his mind.`,
-  },
-  {
-    when: (f) => f.outcome === 'lands' && f.reason === 'leader',
-    reads: 2,
-    text: (f) => `${f.man.last} bought in. It meant more coming from a teammate.`,
-  },
-  {
-    when: (f) => f.outcome === 'lands' && f.reason === 'content',
-    reads: 1,
-    text: (f) => `${f.man.last} nodded along; he didn't need the speech.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'calledOut',
-    reads: 3,
-    text: (f) => `${f.man.last} didn't like being called out in front of the room.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'friendCalledOut',
-    reads: 3,
-    text: (f) => `${f.man.last} didn't like seeing his friend called out.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'money',
-    reads: 2,
-    text: (f) => `${f.man.last} wanted to hear about money, not speeches.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'dugIn',
-    reads: 2,
-    text: (f) => `${f.man.last} has dug in; nothing I said was going to reach him.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'again',
-    reads: 2,
-    text: (f) => `${f.man.last} rolled his eyes. He's heard this one from me before.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles' && f.reason === 'tone',
-    reads: 2,
-    text: (f) => `${f.man.last} took the tone personally.`,
-  },
-  {
-    when: (f) => f.outcome === 'bristles',
-    reads: 1,
-    text: (f) => `${f.man.last} didn't like being kept late over somebody else's problem.`,
-  },
-];
-
-/** The rest of the room, counted like a coach. */
-export function restLine(shrugs: number, noun: string): string {
-  if (shrugs <= 0) return '';
-  if (shrugs === 1) return 'One of them just shrugged.';
-  if (shrugs <= 4) return `${cap(['', '', 'two', 'three', 'four'][shrugs])} of them just shrugged.`;
-  return `Most of ${noun === 'the team' ? 'the rest' : noun} just shrugged.`;
-}
 
 export interface NextFact {
   backing: Backing;
@@ -494,6 +667,12 @@ export const NEXT: readonly Line<NextFact>[] = [
     text: (f) => `They expect the depth chart to move ${f.window}. If it doesn't, the next speech won't land.`,
   },
   { text: () => `It buys us a little time. It doesn't change what's bothering them.` },
+  { text: () => `That gets us some patience. It does not fix what is wrong.` },
+  { text: () => `They will give us a little room, and no more than that.` },
+  { text: (f) => `What is eating at ${f.noun} has not gone away because I said a few words.` },
+  { text: () => `It was worth saying. It was never going to be enough alone.` },
+  { text: () => `A speech settles a room for a while. The trouble underneath is still there.` },
+  { text: () => `We have bought a short quiet, and we should use it.` },
 ];
 
 // ───────── the staff notes: a commitment coming due, his word ─────────
@@ -502,43 +681,51 @@ export interface DueFact {
   backing: Exclude<Backing, 'words'>;
   noun: string;
   named: ManFact[];
+  /** When it comes due, as words: "next week", "in two weeks", or "soon" away from the season's weeks. */
+  when: string;
+  /** You made it, in your own address to the club: the head coach says "you told", not "I told". */
+  you?: boolean;
 }
 
+/** Who made the promise, as the head coach says it. */
+const told = (f: DueFact) => (f.you ? 'you told' : 'I told');
+const What = (f: DueFact) => `What ${told(f)} ${f.noun}`;
+
+/** A commitment still open, one or two steps before it is judged (`coachWeek.ts`): nothing has kept it yet. */
 export const DUE: readonly Line<DueFact>[] = [
   {
     when: (f) => f.backing === 'talks' && f.named.length === 1,
     reads: 2,
-    text: (f) =>
-      `What I told ${f.noun} comes due next week: talks with ${f.named[0].last}'s agent. Nothing's opened yet.`,
+    text: (f) => `${What(f)} comes due ${f.when}: talks with ${f.named[0].last}'s agent. Nothing's opened yet.`,
   },
   {
     when: (f) => f.backing === 'talks',
     reads: 1,
-    text: (f) =>
-      `What I told ${f.noun} comes due next week: talks with ${list(f.named)}'s agents. Nothing's opened yet.`,
+    text: (f) => `${What(f)} comes due ${f.when}: talks with ${list(f.named)}'s agents. Nothing's opened yet.`,
   },
   {
     when: (f) => f.backing === 'snaps' && f.named.length === 1,
     reads: 2,
-    text: (f) => `What I told ${f.noun} comes due next week: ${f.named[0].last}'s snaps. He's still not getting them.`,
+    text: (f) => `${What(f)} comes due ${f.when}: ${f.named[0].last}'s snaps. He's still not getting them.`,
   },
   {
     when: (f) => f.backing === 'feud' && f.named.length === 2,
     reads: 2,
     text: (f) =>
-      `What I told ${f.noun} comes due next week: one of ${both(f.named[0], f.named[1])} going. They're both still here.`,
+      `${What(f)} comes due ${f.when}: one of ${both(f.named[0], f.named[1])} going. They're both still here.`,
   },
   {
     when: (f) => f.backing === 'move',
     reads: 1,
-    text: () => `The deadline's close, and I told them we'd bring someone in.`,
+    text: (f) => `The deadline's close, and ${told(f)} them we'd bring someone in.`,
   },
   {
     when: (f) => f.backing === 'jobs',
     reads: 1,
-    text: () => `I told them nobody's job was safe. The depth chart hasn't moved, and it comes due next week.`,
+    text: (f) =>
+      `${cap(told(f))} them nobody's job was safe. The depth chart hasn't moved, and it comes due ${f.when}.`,
   },
-  { text: (f) => `What I told ${f.noun} comes due next week.` },
+  { text: (f) => `${What(f)} comes due ${f.when}.` },
 ];
 
 export interface CandidFact {
@@ -571,6 +758,28 @@ export const CANDID: readonly Line<CandidFact>[] = [
     reads: 1,
     text: () =>
       `I'll be straight with you: my word's worn thin with the players. Another team meeting won't fix it; something has to change.`,
+  },
+  {
+    when: (f) => f.read === 'believes',
+    reads: 1,
+    text: () => `The players are listening to me right now. I'd rather not waste that on a meeting we don't need.`,
+  },
+  {
+    when: (f) => f.read === 'steady' && f.better,
+    reads: 2,
+    text: () => `The players have started to take my word again. Another promise kept and it holds.`,
+  },
+  {
+    when: (f) => f.read === 'heardBefore',
+    reads: 1,
+    text: () =>
+      `The players have sat through enough talks from me. If I call another, it needs something real behind it.`,
+  },
+  {
+    when: (f) => f.read === 'wornThin',
+    reads: 1,
+    text: () =>
+      `My word has worn thin with the players. Another team meeting won't bring it back; something we do will.`,
   },
 ];
 

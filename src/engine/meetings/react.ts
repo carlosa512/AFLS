@@ -13,7 +13,8 @@ import {
 } from '../morale';
 import { characterZ } from '../personality';
 import { Rng } from '../rng';
-import { tierOf, weightOf } from '../standing';
+import { tierOf, unitRead, weightOf } from '../standing';
+import { roomBeat } from '../stories';
 import { effectiveTraits } from '../traits';
 import type {
   Approach,
@@ -28,7 +29,7 @@ import type {
   Timing,
 } from '../types';
 import { CRED, credibilityOf, shiftCredibility } from './credibility';
-import { openCommitment } from './commitments';
+import { noteCommitment, openCommitment } from './commitments';
 import { dugIn, grievancesOf, headCoachOf, meetingsOf, membersOf } from './suggest';
 
 /**
@@ -245,6 +246,8 @@ export function holdMeeting(
   const m = meetingsOf(team);
   const s = m.pending;
   if (!s) throw new Error('No meeting is waiting.');
+  // The room's read as it stands, before this meeting moves anyone's mood.
+  const read = s.kind === 'trouble' && s.scope !== 'team' ? unitRead(league, teamId, s.scope, ctx)?.word : undefined;
   const rng = meetingRng(league, teamId, s, s.kind === 'gm' ? 'gm' : s.scope);
   const men = membersOf(league, teamId, s.scope)
     .map((p) => ({ p, w: weightOf(league, p, ctx) }))
@@ -291,6 +294,7 @@ export function holdMeeting(
     timing: s.kind === 'trouble' ? choice.timing : 'monday',
     outcomes,
     topic: s.topic,
+    ...(read === 'Split' || read === 'Down' ? { word: read } : {}),
     ...(s.moment ? { moment: s.moment } : {}),
     ...(choice.approach === 'leader' && s.leader !== undefined
       ? { speaker: s.leader }
@@ -299,8 +303,14 @@ export function holdMeeting(
         : {}),
   };
   m.log.push(record);
+  roomBeat(league, { kind: 'room', teamId, unit: s.scope }, 'held', s.clock, {
+    how: `${choice.approach}:${choice.backing}:${record.timing}`,
+  });
   const c = openCommitment(league, teamId, record, s, lift);
-  if (c) m.open.push(c);
+  if (c) {
+    m.open.push(c);
+    noteCommitment(league, teamId, c);
+  }
   if (s.kind !== 'gm') {
     const hc = headCoachOf(league, teamId);
     if (hc && men.length) {

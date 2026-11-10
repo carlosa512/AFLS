@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import type { InboxMessage } from './types';
-import { MOTTOS, mottoOf, recentBodies, say, stableHash, toldKeys, type Line } from './voice';
+import { deliverMail } from './inbox';
+import { playWeek } from './league';
+import { headCoach } from './senders';
+import {
+  around,
+  MOTTOS,
+  mottoOf,
+  recentBodies,
+  saidBefore,
+  saidKey,
+  say,
+  seasonSaid,
+  sentencesOf,
+  stableHash,
+  toldKeys,
+  type Line,
+} from './voice';
 
 describe('the line picker', () => {
   it('the most specific matching line wins', () => {
@@ -75,5 +91,100 @@ describe('what the inbox has told', () => {
     l.inbox = ['1', '2', '3', '4', '5', '6', '7'].map((n) => msg(n, 'Coach', `body ${n}`));
     l.inbox.push(msg('o', 'Doctor', 'other'));
     expect(recentBodies(l, 'Coach')).toEqual(['body 7', 'body 6', 'body 5', 'body 4', 'body 3']);
+  });
+});
+
+describe('seasonSaid', () => {
+  it('reads bodies and row notes of this league year only, split into sentences', () => {
+    const l = createLeague({ seed: 'voice-said' });
+    const base = { phase: 'regular' as const, week: 1, category: 'staff' as const, read: true, actions: [] };
+    l.inbox = [
+      { ...base, id: 'a', season: l.season, from: 'Coach', subject: 'a', body: 'One thing. Two things? Three!' },
+      {
+        ...base,
+        id: 'b',
+        season: l.season,
+        from: 'Coach',
+        subject: 'b',
+        body: 'Lead.',
+        sections: [{ title: 't', rows: [{ cells: ['x'], note: '“He said so. Then more.”' }] }],
+      },
+      { ...base, id: 'c', season: l.season - 1, from: 'Coach', subject: 'c', body: 'Last year.' },
+      { ...base, id: 'd', season: l.season, from: 'Doctor', subject: 'd', body: 'Not his.' },
+    ];
+    expect(seasonSaid(l, 'Coach')).toEqual([
+      'One thing.',
+      'Two things?',
+      'Three!',
+      'Lead.',
+      'He said so.',
+      'Then more.',
+    ]);
+  });
+});
+
+describe('what was said, after the inbox forgets it', () => {
+  it('steps from a group that has all been said to the next one that has not', () => {
+    const bank: Line<object>[] = [
+      { reads: 2, text: () => 'Narrow one.' },
+      { reads: 2, text: () => 'Narrow two.' },
+      { reads: 1, text: () => 'Plain.' },
+    ];
+    const at = { key: 'k', slot: 's', skip: (t: string) => t.startsWith('Narrow') };
+    expect(say(bank, {}, at)).toBe('Plain.');
+    // With nothing left unsaid it still answers, from the most specific group.
+    expect(say(bank, {}, { ...at, skip: () => true })).toMatch(/^Narrow/);
+  });
+
+  it('knows a multi-sentence line by any sentence of it, quotes aside', () => {
+    expect(sentencesOf('“One. Two.”')).toEqual(['One.', 'Two.']);
+    const l = createLeague({ seed: 'said-before' });
+    l.mailTold = { [saidKey('Two.')]: l.season, [saidKey('Old.')]: l.season - 1 };
+    expect(saidBefore(l, 'One. Two.')).toBe(true);
+    expect(saidBefore(l, 'Old.')).toBe(false);
+    expect(around(l, ['A sentence here. Another.']).skip('Another.')).toBe(true);
+  });
+
+  it('remembers what was said after the inbox evicts it', () => {
+    const l = createLeague({ seed: 'said-evicted' });
+    deliverMail(l);
+    const coach = headCoach(l).from;
+    const early = l.inbox!.filter((m) => m.body && m.from === coach).slice(0, 6);
+    expect(early.length).toBeGreaterThan(0);
+    const filler = Array.from({ length: 300 }, (_, i) => ({
+      ...l.inbox![0],
+      id: `filler:${i}`,
+      from: 'Filler',
+      body: `Filler ${i}.`,
+      sections: undefined,
+      covered: undefined,
+      week: 18,
+      phase: 'regular' as const,
+    }));
+    l.inbox!.push(...filler);
+    playWeek(l);
+    deliverMail(l);
+    const gone = early.filter((m) => !l.inbox!.some((x) => x.id === m.id));
+    expect(gone.length).toBeGreaterThan(0);
+    const m = gone[0];
+    const sentence = sentencesOf(m.body)[0];
+    expect(seasonSaid(l, m.from)).not.toContain(sentence);
+    expect(saidBefore(l, sentence)).toBe(true);
+    // Only the head coach's sentences are kept: another sender's are not.
+    const other = l.inbox!.find((x) => x.from !== coach && x.from !== 'Filler' && x.body);
+    if (other) {
+      const s2 = sentencesOf(other.body).find(
+        (x) =>
+          !sentencesOf(
+            l
+              .inbox!.filter((y) => y.from === coach)
+              .map((y) => y.body)
+              .join(' '),
+          ).includes(x),
+      );
+      if (s2) expect(saidBefore(l, s2)).toBe(false);
+    }
+    const bank = [{ text: () => sentence }, { text: () => 'Something else.' }];
+    expect(say(bank, {}, { key: 'k', slot: 's', ...around(l, seasonSaid(l, m.from)) })).toBe('Something else.');
   });
 });

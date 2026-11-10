@@ -10,12 +10,13 @@ import { addJolt, expectedRole, moraleContext, moraleLevel, moraleFactors, type 
 import { aiCutdown, aiSettle, winNow } from './offseason/ai';
 import { demand, extensionBlocker, ROSTER_MAX, rosterLimit } from './offseason/negotiation';
 import { aiReply, canPromise, gameCount, talkCause, talksAt } from './playerTalks';
+import { beat } from './stories';
 import { TRAIT_MEAN } from './traits';
 import { emptyMarket } from './trade/execute';
 import { employed } from './employment';
 import { playerOvr, STARTERS } from './positions';
 import { activeRoster, isAvailable } from './roster';
-import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player, Rumor } from './types';
+import type { Dispute, DisputeChoice, DisputeHow, DisputeKind, League, Player, Rumor, TalkCause } from './types';
 import { DISPUTE_LABEL, DISPUTE_PUBLIC, DISPUTE_SAID, disputeStanding } from './disputeVoice';
 
 export { aiSettle } from './offseason/ai';
@@ -90,6 +91,13 @@ export function giveInLimit(league: League, p: Player): number {
   return base * (0.05 + 0.45 * resolve);
 }
 
+/** A dispute's story is his deal's, or his snaps'. */
+const disputeOn = (p: Player, d: { cause: TalkCause; club: number }) => ({
+  kind: d.cause === 'snaps' ? ('snaps' as const) : ('deal' as const),
+  teamId: d.club,
+  playerId: p.id,
+});
+
 /**
  * A dispute's end: how it went on file for the letters; rust when he comes back in season having missed camp; the talk
  * soured again when he played or gave in without a deal (a trade request can follow in season, G4b).
@@ -99,6 +107,7 @@ export function endDispute(league: League, p: Player, how: DisputeHow, clock: nu
   const d = m.dispute!;
   const start = league.season * YEAR;
   m.disputeEnd = { kind: d.kind, since: d.since, how, at: clock };
+  beat(league, disputeOn(p, d), 'disputeEnd', clock, { how });
   delete m.dispute;
   const missedCamp = d.since <= start + CAMP && clock >= start + REGULAR;
   if (missedCamp && how !== 'released' && how !== 'newYear')
@@ -170,6 +179,7 @@ export const outspoken = (p: Player): boolean => (p.traits.controversy - TRAIT_M
 function leak(league: League, p: Player, clock: number): void {
   const d = p.morale!.dispute!;
   d.public = clock;
+  beat(league, disputeOn(p, d), 'leaked', clock, { pub: true });
   const team = league.teams[p.teamId!];
   const market = (league.market ??= emptyMarket());
   const rumor: Rumor = {
@@ -239,6 +249,7 @@ function runRequest(
   if (d.refused && week === CAMP && refusedAt < clock && level <= VERY_POOR && extendable(league, p)) {
     // Hardened: the request becomes a hold-in, a new dispute with its own letter.
     m.dispute = { kind: 'holdIn', cause: 'deal', since: clock, club: d.club };
+    beat(league, disputeOn(p, m.dispute), 'dispute', clock, { how: 'holdIn' });
     if (p.teamId !== yourClub(league)) aiAnswerDispute(league, p, clock);
   }
 }
@@ -446,6 +457,7 @@ export function disputeStep(league: League, ctx: MoraleContext, clock: number, w
     const m = p.morale!;
     const s = m.talk!.sour!;
     m.dispute = { kind, cause: s.cause, since: clock, club: p.teamId! };
+    beat(league, disputeOn(p, m.dispute), 'dispute', clock, { how: kind });
     // A holdout who starts at camp is out at once.
     if (m.dispute.kind === 'holdOut' && week >= CAMP) m.dispute.out = true;
     delete m.talk!.sour;

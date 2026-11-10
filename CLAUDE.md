@@ -37,7 +37,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
-  `morale`, live trees and leagues with no founding tree left in `careers`, head-coach retreads, median dead money and median kickoff room in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
+  `morale`, live trees, leagues with no founding tree left and QB rushing leaders in `careers`, head-coach retreads, median dead money and median kickoff room in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
   deals with a future pick and starting quarterbacks traded in season in `trades`, win spread and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
@@ -111,7 +111,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
   gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
   turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
-  moves its decision against a no-habits baseline (more of its log entries; the rare six are judged on built scenes). Run it
+  moves its decision against a no-habits baseline (more of its log entries; the rare six are judged on built scenes, the QB trade-up one pooled over eight draft classes). Run it
   after changing `gmHabits.ts`, `gmHabitsYear.ts`, `gmTraits.ts` or a habit hook in `offseason/` or `trade/`. Nothing may be
   flagged.
 - `npm run quirks` — run the quirk marble bag for 10 seasons and check how often each quirk is carried,
@@ -170,7 +170,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
   way, Anchors calming a room; and backing the staff (L4): the staff edge centred, rooms in doubt and lost, lawyers'
   rooms doubting more, notices kept, AI clubs relieving coordinators at the NFL's rate. Run it after changing
-  `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`,
+  `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
 - `npm run build` — web build to `dist/`
@@ -251,12 +251,42 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
     letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`),
-    the director's daily waiver letter (`waiverMail.ts`), the weekly staff notes (`staffNotes.ts`), the re-sign window's contracts letter (`contractMail.ts`: our call on
+    the director's daily waiver letter (`waiverMail.ts`), the head coach's weekly letter (`coachWeek.ts`: one letter a
+    step or none, `coach:{season}:{clock}`, which replaces the separate player-talk, meeting-request, meeting-result
+    and staff-notes letters; its rows are people, each with a face and its own answer; `staffNotes.ts` now gives it
+    the rooms and the staff room), the re-sign window's contracts letter (`contractMail.ts`: our call on
     each player from `resignCall`, the AI's own rule, and buttons drawn live from the league); a digest's tables
     are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
-    through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
-    five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
+    through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of a sentence the sender
+    has filed this league year: `seasonSaid` and `around`, a line of two sentences counting as said when either was);
+    `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
+  - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
+    losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
+    letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
+    (`STORIES.on` turns it off in tests to prove play is untouched). Each story keeps how many beats each outlet has
+    told (`told`, `markTold`, `untold`) and an outlet is a reader of the store (`Outlet`, `COACH` sees your own club's
+    beats; a public outlet, after alpha, only the beats marked `pub`), so two outlets never repeat each other.
+    `storiesStep.ts` the step after morale and the meetings: beats for what is read rather than done (a room turning
+    Down or Split and holding, a feud, the staff's standing), the links between a man's story and his room's, the men
+    who left, and `tellable` (a turn must have stood a week); it may read `standing.ts`, `morale.ts`, `belief.ts` and
+    `coaching.ts`, and none of those may import it. `castSheet.ts` what a line may say about one man, the coach writing
+    and the moment (`manSheet`, `coachSheet`, `momentSheet`): words and booleans only, each fact through a reader screens
+    already use, so the fog of war holds. `coachWeek.ts` the editor of the head coach's weekly letter: it gathers the
+    week's items (asks and an ask still waiting, his meeting request, a story closing, last step's meeting told a
+    step on, a deal's or promise's clock, the rooms, the staff room), ranks them in five tiers, keeps tiers one to
+    three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
+    tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter, and a
+    meeting's result or a story closing rides in the next letter, filing one alone only after `RESULT_WAIT` steps), and
+    words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
+    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
+    one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across
+    rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
+    inside it is answered as you last answered, `Team.losingAnswer`, `talkStep`, your club only). A meeting makes no story
+    (`roomBeat` adds its beats only to a room already open because it turned), and its result rides in the next letter filed
+    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none and its items wait, keeping their `born`; so nothing is lost, your club's ask is ignored after three steps (`waitFor` in `playerTalks.ts`; an AI club's after two) and a suggestion to your club lives a step longer (`meetings/index.ts`, `PENDING_STEPS`, no second one while it is held). Room and staff stories close with the season and the league year, silently; every kind has one story a subject a league year (a beat after it closed re-opens it, keeping what was told), and a man's deal, snaps or feud story with nothing pending closes quietly after `QUIET` steps (`quiet` in `storiesStep.ts`, told so never a closing row). `coachWeek.season.test.ts` plays a
+    season and holds the letters to it: at most one every other step, no sentence twice, no room told twice inside three steps, every
+    meeting held told within two steps
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
     an index beside the league kept by `setTeam` and `addPlayer`)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
@@ -313,13 +343,26 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `personality.ts` the personality name and one-sentence character line read off traits and agent dials (never stored;
     `TRAITS_ON` keeps a trait out of names until its job ships), `personalityRead` for a team's view, captains
     (`nameCaptains`) · `morale.ts` each player's mood: a weekly target (contract, role, team, locker room, promises
-    from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments;
+    from G3, a resting level from his makeup), a level that moves part of the way there, fading jolts for big moments (a benching's drop and its answers come from `benching.ts`, `BENCH_SIZE`);
     an answer eases the grievance it answered while it holds (`heardWeight`: an open promise, a reassurance until the
     quiet ends);
     `moraleWeek` in `playWeek`, `moraleStep` at each offseason step, nothing drawn from any stream; screens read it only
     through `moraleView` (your players only, in words); its effects (G2) read one scale, `moodLean` (talks in `demand`,
     position learning in `learnRate`) or `moodPull` against `moraleMean` (the growth tilt, `DevYear.mood` and
-    `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `playerTalks.ts` players speaking up (G3): who asks (three
+    `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `benching.ts` who holds a starting job (storylines, the benching chain; spec `docs/superpowers/specs/2026-11-09-storylines-design.md`
+    §8–10): the men in a chart's starting spots hold the jobs from cut-down day (`setJobs`; hurt or not, `Team.jobs.held`), a man earns one by
+    `EARN` starts in a row and the longest-sitting holder gives his up, and a club's jobs clear at the new league year. Who started is read at kickoff from the chart and
+    availability (`benchKickoff`, `Team.kickoff`), never from snaps. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
+    `Team.lineupSet`: the advance button stops at the door once a year, unless staff sort the chart). A healthy holder left off the lineup
+    asks where he stands the same step (`benchWeek`, a `benched` ask, `JobQuestion` in `Team.jobs.questions`, `questionOf`) and, unanswered, is unsure
+    each week he sits without ever being "ignored"; the other man who starts in his place asks too once the chart swaps back. Four answers to
+    the holder (`BenchReply`: back in next week, just this week, earn it, it's his job now) and three to the other man (`OtherReply`), one
+    answer clearing both (`answerBench`); a promise is kept or broken by the next start (a hurt man pauses it), and three starts in a row with
+    no word settle it by the chart, a man finding out from the depth chart losing more (`BENCH_SIZE`: sit, backIn, thisWeek, earn, his, kept,
+    broken, unsure, settled, chart). An AI club answers at once (`aiBenchReply`, by its GM). `benchWeek` runs in the morale step and draws nothing;
+    `BENCH.on` false turns every writer off. A cleared starter not in a starting spot gets a reminder with "Put him back" (`clearedNotStarting`,
+    `putBack`, `dismissReminder`). Its words are `benchVoice.ts`, its rows `coachWeek.ts`'s, a note a week while a question waits and a closing
+    when it ends (`benchStory`, `benchCard`) · `playerTalks.ts` players speaking up (G3): who asks (three
     steps down with a cause, two a club a step, eight steps' quiet after an answer), your answers (`answerTalk`) and the
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; `promiseMail.ts` is the head coach's season's-end reminder of open promises;

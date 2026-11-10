@@ -1,9 +1,11 @@
 import { beliefWeek } from './belief';
+import { benchKickoff } from './benching';
 import { aiRelieve } from './relieve';
 import { freshChemistry } from './chemistry';
 import { freshStaff } from './staffEdge';
 import { credibilityWeek } from './meetings/credibility';
 import { meetingsStep } from './meetings';
+import { storiesStep } from './storiesStep';
 import { moraleWeek } from './morale';
 import { mentoringWeek } from './mentoring';
 import { coachQuirksWeek, recordCoachEvidence } from './coachQuirks';
@@ -148,8 +150,13 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
   freshStaff(league);
+  // Every club's lineup is noted before the week's earlier games are played, as `playWeek` does; the live pair is
+  // read again at its own kickoff below, after whatever the earlier games changed.
+  benchKickoff(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
+  // Who starts is read from the chart as the game kicks off, before anything is played.
+  benchKickoff(league, game);
   prepareGame(league, game);
   return startGame(league, game, {
     playoff: !!game.playoffRound,
@@ -180,6 +187,7 @@ function playWeekControlled(league: League): Game[] {
   freshStaff(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
+  benchKickoff(league);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
@@ -210,6 +218,8 @@ function playWeekControlled(league: League): Game[] {
     // An AI club whose rooms have turned on a coordinator, losing and among the worst on his side, may let him go.
     aiRelieve(league);
     meetingsStep(league);
+    // Then the story beats for what is read rather than done: rooms, feuds, the staff, the links.
+    storiesStep(league);
   }
   league.week++;
   leadershipWeek(league);

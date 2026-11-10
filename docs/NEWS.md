@@ -93,6 +93,53 @@ No hidden ratings, invented morale, rumors without simulation support, or claims
 records alone. The existing categories, links and threading remain. Publications have no
 private scouting knowledge and are never marked Needs you.
 
+## The head coach's weekly letter and the story store
+
+The head coach writes to you once a step or not at all (`coachWeek.ts`, id `coach:{season}:{clock}`). It replaced the
+separate letters for a player's ask, the meeting request, a meeting's result and the staff notes; those ids still
+parse, answer and render in an old save, and nothing new files under them. One letter holds up to five sections,
+each a list of people with a face, their words and their own buttons: "Since last week" (a story closing, last
+step's meeting told one step on, a promise's or deal's clock), "Who came to see me" (the asks, and an ask still
+waiting on you), "The rooms" (the position coaches' turns, chemistry and warnings), "What I want to do" (his meeting
+request and its choices) and "From the staff room" (his word with the players, a depth-chart call, habit work).
+
+What goes in is ranked in five tiers. Asks and the request are always told; a meeting's result is told too, riding in the next letter filed for another
+reason and filing one alone only when it owes something or has waited two steps (`RESULT_WAIT`); a story closing the
+same way (it needs no answer, so it rides, and files alone only after two steps); a clock coming due is told too; a room or the staff room only while fresh (`STALE` steps) and only as many as fit under `MAX_ROWS`
+rows a letter. Notes alone never file a letter: they ride along with something to answer, a clock, or a result or closing that has waited.
+The losing is the club's: one story, one row, with the man asking who counts most quoted and the others named in a
+sentence, and one answer for them all; a man who asks about it again inside `LOSING_GAP` steps (four, for the whole club)
+is answered as you answered it. A meeting makes no story of its own: it only adds beats to a room already open because it
+turned, and the letters tell meetings from the meetings log. A room has one story a league year: when it turns again
+after recovering, the same story re-opens and only the new beats are told.
+A benched job-holder's question (`benching.ts`) is told in the same letter: his ask in "Who came to see me" the step he
+sits (his words by what he knows: who started, what you told him before; the other man asks about the job rather than
+a benching), a note a week while it waits ("still waiting on you", a tier-4 note that rides along and never files a
+letter), how he took your answer in "Since last week", and one closing row when it ends (your word, three straight
+starts, the question settled by an injury or a trade), told like a meeting's result. A cleared starter left off the
+lineup is a row of its own, with "Put him back". The benching's lines are in `benchVoice.ts` and obey the same rule:
+no sentence twice in a league year, a before-line left out when it has nothing new.
+The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none, and what it gathered waits for the next with its own clock, so nothing is lost (your club's ask is ignored after three steps, and a meeting request waits a step longer). A story has one telling a league year per subject: a deal that went quiet (eight steps with nothing pending) closes without a closing row, and re-opens with its history if he raises it again, so the coach can say it is the second time; staff stories close with the season.
+A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
+and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
+together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).
+
+Every sentence is chosen by a condition on the cast sheet (`castSheet.ts`: one man, the coach writing, the moment), by
+the rule in `voice.ts`: the most specific line that fits, and none the sender has said this league year. A sentence of
+a player's quote counts, a two-sentence line is said when either half was, an optional part (his history, a colour
+line, a closing, the coach's read) is left out when it has nothing new to say, and a letter series is one voice
+whoever signs it. `coachWeek.season.test.ts` plays a season as a GM who answers everything and holds the letters
+to it.
+
+The letters read from a story store (`stories.ts`, `League.stories`), not from the sim. A story is one subject of your
+club (a man's deal, snaps, benching or losing, a feud, a room, a coach) with its beats in order; `storiesStep.ts` writes
+the beats that are read rather than done, after every morale step. Nothing in the sim reads the store and writing a
+beat draws nothing, so play is the same with it on or off. Each story keeps how many beats each outlet has told, and
+an outlet is a reader with a rule for what it may see (`Outlet.sees`): the coach sees your own club's beats. A beat
+marked public (a starter benched, a request leaked, a coordinator relieved) is what an SNN story or a season arc
+could read later, as another outlet over the same store, without telling a beat twice. That is the seam the "full
+news and media outlets" item in `docs/MVP.md` builds on; no public outlet reads it yet.
+
 ## Attention and history
 
 `needsYou` means a present management task. Opponent briefings, ordinary injury notices and deadline

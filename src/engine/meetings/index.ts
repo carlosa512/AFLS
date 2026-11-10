@@ -1,5 +1,6 @@
 import { managesTeam } from '../employment';
 import { moraleContext, YEAR } from '../morale';
+import { dropStories, roomBeat } from '../stories';
 import type { League, MeetingRecord, MeetingScope, MeetingSuggestion } from '../types';
 import { addressSuggestion, gmAddressOpen, holdGmAddress } from './address';
 import { aiChoice } from './ai';
@@ -29,8 +30,14 @@ export type { MeetingChoice } from './react';
 /** An AI GM at a crisis speaks to his team this often (once a season at most). */
 export const AI_ADDRESS = { chance: 0.25 };
 
+/** Steps after it was made that a suggestion to your club still waits (an AI club's lapses at once). */
+const PENDING_STEPS = 1;
+
+/** A meeting's room is a story of its own (the team, for a meeting of everyone). */
+const roomOn = (teamId: number, s: MeetingSuggestion) => ({ kind: 'room' as const, teamId, unit: s.scope });
+
 /**
- * One step: last season's log cleared, a pending suggestion from an earlier step lapsed, then each club's meeting: an
+ * One step: last season's log cleared, a pending suggestion lapsed (yours after a second step), then each club's meeting: an
  * AI club (or yours, with the coach's hand) holds it at once, yours otherwise waits on you. Then the commitments.
  */
 export function meetingsStep(league: League): void {
@@ -56,7 +63,9 @@ export function meetingsStep(league: League): void {
     }
     m.log = m.log.filter((r) => Math.floor(r.clock / YEAR) === league.season);
     const yours = managesTeam(league, team.id);
-    if (m.pending && (m.pending.clock < clock || !yours)) delete m.pending;
+    // Yours lives one step longer than an AI club's: the head coach writes every other step, so a suggestion made the
+    // step after a letter is carried in the next one and can still be answered there.
+    if (m.pending && (!yours || clock - m.pending.clock > PENDING_STEPS)) delete m.pending;
     if (!yours && gmAddressOpen(league, team.id, ctx)) {
       const s = addressSuggestion(league, team.id, ctx);
       const rng = meetingRng(league, team.id, s, 'gm:choice');
@@ -70,15 +79,19 @@ export function meetingsStep(league: League): void {
         }
       }
     }
+    // A suggestion of yours still waiting is the only one: no second while it is held.
+    if (yours && m.pending) continue;
     const s = suggestMeeting(league, team.id, ctx);
     if (!s) continue;
     if (yours && !m.byCoach) {
       m.pending = s;
+      roomBeat(league, roomOn(team.id, s), 'suggested', clock, { how: s.topic });
       continue;
     }
     const choice = aiChoice(league, team.id, s, meetingRng(league, team.id, s, `${s.scope}:choice`), ctx);
     if (!choice) continue;
     m.pending = s;
+    roomBeat(league, roomOn(team.id, s), 'suggested', clock, { how: s.topic });
     holdMeeting(league, team.id, choice, undefined, ctx);
   }
   judgeCommitments(league);
@@ -97,6 +110,7 @@ export function answerMeeting(league: League, answer: MeetingChoice | 'skip'): M
   const s = m.pending;
   if (!s) return null;
   if (answer === 'skip') {
+    if (s.kind !== 'gm') roomBeat(league, roomOn(league.userTeamId, s), 'passed', stepClock(league));
     delete m.pending;
     return null;
   }
@@ -129,6 +143,7 @@ export function requestMeeting(league: League, scope: MeetingScope): MeetingSugg
   };
   markOffered(league, teamId, scope);
   m.pending = s;
+  roomBeat(league, roomOn(teamId, s), 'suggested', clock, { how: s.topic });
   return s;
 }
 
@@ -145,4 +160,5 @@ export function requestAddress(league: League): MeetingSuggestion | null {
 export function leaveClub(league: League, teamId: number): void {
   const m = league.teams[teamId]?.meetings;
   if (m) delete m.pending;
+  dropStories(league, teamId);
 }

@@ -18,7 +18,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(91);
+    expect(SAVE_VERSION).toBe(93);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -370,7 +370,7 @@ describe('save v90', () => {
     const before = JSON.parse(JSON.stringify(l.transactions));
     l.version = 89;
     const up = migrateLeague(l)!;
-    expect(up.version).toBeGreaterThanOrEqual(90);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.transactions).toEqual(before);
   });
 });
@@ -389,5 +389,56 @@ describe('save v91', () => {
     expect(up.market!.talks[3].asks).toBe(1);
     expect(up.market!.offers).toHaveLength(1);
     for (const g of Object.values(up.gms)) expect(g.withYou).toBeUndefined();
+  });
+});
+
+describe('save v92', () => {
+  it('v91 saves load as v92 with no stories', () => {
+    const l = createLeague({ seed: 'v92' });
+    l.version = 91;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBeGreaterThanOrEqual(92);
+    expect(up.stories).toBeUndefined();
+  });
+});
+
+// v93's job entries also carry `out` and `cleared` (the cleared starter's reminder and grace): optional and added on this
+// branch's own v93 before it shipped, so no step reads or writes them and no version moved.
+describe('save v93', () => {
+  it('a v92 save in week 6 holds the chart starters with three games as job-holders, no questions', () => {
+    const l = createLeague({ seed: 'v93-wk' });
+    l.phase = 'preseason';
+    nameCaptains(l);
+    l.phase = 'regular';
+    for (let i = 0; i < 5; i++) playWeek(l);
+    for (const t of l.teams) delete t.jobs;
+    l.version = 92;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    let held = 0;
+    for (const t of up.teams) {
+      expect(t.jobs?.questions).toBeUndefined();
+      for (const sid of Object.keys(t.jobs!.held)) {
+        const p = up.players[Number(sid)];
+        expect(p.teamId).toBe(t.id);
+        expect(p.stats[up.season]?.gp ?? 0).toBeGreaterThanOrEqual(3);
+        held++;
+      }
+    }
+    expect(held).toBeGreaterThan(0);
+  }, 60_000);
+
+  it('a v92 save in the preseason has your lineup set, and in the offseason no jobs', () => {
+    const l = createLeague({ seed: 'v93-pre' });
+    l.phase = 'preseason';
+    delete l.teams[l.userTeamId].lineupSet;
+    l.version = 92;
+    expect(migrateLeague(l)!.teams[l.userTeamId].lineupSet).toBe(l.season);
+    const o = createLeague({ seed: 'v93-off' });
+    o.phase = 'resign';
+    o.version = 92;
+    const up = migrateLeague(o)!;
+    expect(up.teams.some((t) => t.jobs)).toBe(false);
+    expect(up.teams[up.userTeamId].lineupSet).toBeUndefined();
   });
 });

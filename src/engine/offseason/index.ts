@@ -1,7 +1,10 @@
+import { endJobs, setJobs } from '../benching';
 import { habitsNewYear } from '../gmHabitsYear';
 import { memoryNewYear } from '../gmMemory';
 import { beliefNewYear } from '../belief';
 import { meetingsStep } from '../meetings';
+import { storiesStep } from '../storiesStep';
+import { storiesNewYear } from '../stories';
 import { moraleStep } from '../morale';
 import { lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
@@ -125,6 +128,8 @@ export function beginOffseason(league: League): void {
   const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
 
   league.season++;
+  // Jobs clear at the new league year and are set again on cut-down day.
+  endJobs(league);
   ageGms(league);
   // Rooms' belief in their coordinators carries into the new year at half (L4).
   beliefNewYear(league);
@@ -236,6 +241,7 @@ export function beginOffseason(league: League): void {
 
   generateDraftClass(league, rng);
   habitsNewYear(league);
+  storiesNewYear(league);
   cflArrivals(league);
   league.games = league.games.filter((g) => g.season >= last);
   // Last season's games keep their box scores and scoring plays; full replays are for the season being played.
@@ -261,6 +267,7 @@ export function beginOffseason(league: League): void {
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
   meetingsStep(league);
+  storiesStep(league);
 }
 
 /** Problems the user must fix before the calendar can move on (the season's weeks included). */
@@ -440,6 +447,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       league.faDay = 0;
       league.negotiations = {};
       for (const team of league.teams) syncDepthChart(league, team);
+      // The men in the starting spots now hold the jobs.
+      setJobs(league);
       break;
     default:
       throw new Error(`Not in the offseason (${league.phase})`);
@@ -453,6 +462,7 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
   meetingsStep(league);
+  storiesStep(league);
   return league.phase;
 }
 

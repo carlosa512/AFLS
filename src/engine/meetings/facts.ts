@@ -1,9 +1,8 @@
-import { temperamentOf } from '../traits';
 import { beliefOf, beliefRead, runnerOf } from '../belief';
 import { chairHolder, teamCoaches } from '../coaching';
 import { traitOf } from '../coachTraits';
 import { yearsLeft } from '../finance/contract';
-import { moraleContext, YEAR, type MoraleContext } from '../morale';
+import { moraleContext, type MoraleContext } from '../morale';
 import { STARTERS } from '../positions';
 import { computeRecords } from '../season/standings';
 import { unitRead } from '../standing';
@@ -11,7 +10,6 @@ import type {
   Backing,
   CoachRoom,
   League,
-  MeetingRecord,
   MeetingScope,
   MeetingSuggestion,
   Moment,
@@ -20,7 +18,6 @@ import type {
   TalkCause,
 } from '../types';
 import { credibilityRead, type CredibilityRead } from './credibility';
-import { dugIn, grievancesOf } from './suggest';
 
 /**
  * What a meeting's letters may read (L2, spec §5): your club only, in words and flags. The letters' lines are picked
@@ -125,6 +122,7 @@ const ANSWERS: Record<TalkCause, Exclude<Backing, 'words'>> = {
   snaps: 'snaps',
   feud: 'feud',
   losing: 'move',
+  benched: 'snaps',
 };
 
 export function suggestFact(league: League, teamId: number, s: MeetingSuggestion, ctx?: MoraleContext): SuggestFact {
@@ -158,68 +156,6 @@ export function suggestFact(league: League, teamId: number, s: MeetingSuggestion
     ...(answer && s.backings.includes(answer) ? { advice: answer } : {}),
     ...coordFact(league, teamId, s),
   };
-}
-
-/** Why a man took a meeting the way he did, in the terms the score used (`react.ts`). */
-export type Reason =
-  | 'answered' // what's behind it answers his grievance
-  | 'heard' // the topic was his grievance
-  | 'leader' // a friend or a leader he follows said it
-  | 'content' // nothing wrong: he didn't need it
-  | 'calledOut' // he was the one called out
-  | 'friendCalledOut'
-  | 'money' // he wants a deal and only words came
-  | 'dugIn' // he's in a dispute, or his talks have soured
-  | 'tone' // a blunt coach and a short fuse
-  | 'again' // the room has heard this one before this year
-  | 'notHis'; // somebody else's problem
-
-const friends = (a: Player, b?: Player) =>
-  !!b &&
-  ((a.ties ?? []).some((t) => t.kind === 'friend' && t.with === b.id) ||
-    (b.ties ?? []).some((t) => t.kind === 'friend' && t.with === a.id));
-
-const BACKED: Record<Exclude<Backing, 'words'>, TalkCause> = {
-  talks: 'deal',
-  snaps: 'snaps',
-  feud: 'feud',
-  move: 'losing',
-  jobs: 'losing',
-  notice: 'losing',
-};
-
-/** The reason a man reacted as he did: read off the same facts the score was. */
-export function reasonFor(
-  league: League,
-  teamId: number,
-  p: Player,
-  r: MeetingRecord,
-  landed: boolean,
-  ctx: MoraleContext,
-): Reason {
-  const g = grievancesOf(league, p, ctx);
-  const speaker = r.speaker !== undefined ? league.players[r.speaker] : undefined;
-  const sameAgain = (league.teams[teamId].meetings?.log ?? []).some(
-    (m) =>
-      m !== r &&
-      m.scope === r.scope &&
-      m.approach === r.approach &&
-      m.clock < r.clock &&
-      Math.floor(m.clock / YEAR) === league.season,
-  );
-  if (landed) {
-    if (r.backing !== 'words' && g.has(BACKED[r.backing])) return 'answered';
-    if (r.topic && r.topic !== 'none' && r.topic !== 'coordinator' && g.has(r.topic)) return 'heard';
-    if (r.approach === 'leader' && speaker && (friends(p, speaker) || p.id !== speaker.id)) return 'leader';
-    return g.size ? 'heard' : 'content';
-  }
-  if (r.approach === 'callout' && speaker?.id === p.id) return 'calledOut';
-  if (r.approach === 'callout' && friends(p, speaker)) return 'friendCalledOut';
-  if (dugIn(p)) return 'dugIn';
-  if (g.has('deal') && r.backing !== 'talks') return 'money';
-  if (sameAgain) return 'again';
-  if (r.approach === 'straight' && temperamentOf(p) <= 7) return 'tone';
-  return 'notHis';
 }
 
 function coordFact(league: League, teamId: number, s: MeetingSuggestion): Pick<SuggestFact, 'coord'> {

@@ -152,7 +152,9 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
-import { answerTalk } from '../engine/playerTalks';
+import { answerBench, benchCard, dismissReminder, putBack, restoreCard } from '../engine/benching';
+import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
+import { newestLosingLetter } from '../engine/coachWeek';
 import { talkCard } from '../engine/talkMail';
 import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
@@ -188,6 +190,9 @@ function KindCards({ league, message }: { league: League; message: InboxMessage 
           {message.tradeReport && <TradeNewsCards league={league} report={message.tradeReport} />}
         </>
       );
+    case 'coachWeek':
+      // The sections carry everything: each person's row has his words and his own answers.
+      return null;
     case 'matchup':
       return <MatchupCards league={league} s={s} live={briefingCurrent(league, message)} />;
     case 'injury':
@@ -643,9 +648,26 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
 }
 
 /** A player's letter (G3): your three answers while it's open, what you said and his reply once it's answered. */
-function TalkCards({ league, s }: { league: League; s: { clock: number; playerId: number } }) {
+function TalkCards({
+  league,
+  s,
+  room,
+  older,
+}: {
+  league: League;
+  s: { clock: number; playerId: number };
+  /** An older letter's losing row: it says what was said, and the newest letter holds the buttons. */
+  older?: boolean;
+  /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
+  room?: 'team';
+}) {
   const card = talkCard(league, s);
-  const answer = (reply: TalkReply) => store.mutate((l) => answerTalk(l, s.playerId, reply));
+  const answer = (reply: TalkReply) =>
+    store.mutate((l) =>
+      room && (reply === 'reassure' || reply === 'firm')
+        ? answerRoomTalk(l, room, reply)
+        : answerTalk(l, s.playerId, reply),
+    );
   if (card.state === 'closed')
     return (
       <Card>
@@ -659,6 +681,12 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
         <p className="muted" style={{ margin: 0 }}>
           “{card.line}”
         </p>
+      </Card>
+    );
+  if (older)
+    return (
+      <Card>
+        <span className="muted small">The losing is answered in my latest letter.</span>
       </Card>
     );
   return (
@@ -679,6 +707,80 @@ function TalkCards({ league, s }: { league: League; s: { clock: number; playerId
         {card.cause === 'deal' && league.players[s.playerId] && (
           <TalkContractButton league={league} player={league.players[s.playerId]} />
         )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * A man's job question (the benching chain): his answers while it is open (four for the man who sat, three for the man who
+ * started in his place), what you told him once you have, and how it ended once it is over. Read off the question as it
+ * stands, so an older row stays answerable while nobody has spoken.
+ */
+function BenchCards({ league, s }: { league: League; s: { playerId: number; clock: number } }) {
+  const card = benchCard(league, s);
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">{card.line ?? 'This question is closed.'}</span>
+      </Card>
+    );
+  if (card.state === 'answered')
+    return (
+      <Card>
+        <p style={{ margin: 0 }}>{card.said}</p>
+        {card.line && (
+          <p className="muted" style={{ margin: 0 }}>
+            “{card.line}”
+          </p>
+        )}
+        {card.stands && (
+          <p className="muted small" style={{ margin: 0 }}>
+            {card.stands}
+          </p>
+        )}
+      </Card>
+    );
+  return (
+    <Card title="Your answer">
+      {card.stands && (
+        <p className="muted small" style={{ margin: '0 0 6px' }}>
+          {card.stands}
+        </p>
+      )}
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {card.options!.map((o) => (
+          <button
+            key={o.value}
+            className="btn btn-sm"
+            onClick={() => store.mutate((l) => answerBench(l, s.playerId, o.value))}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** The reminder for a starter cleared and not in his spot: put him back, or leave it as it is. */
+function RestoreCards({ league, playerId }: { league: League; playerId: number }) {
+  const card = restoreCard(league, playerId);
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">{card.line ?? 'This one is settled.'}</span>
+      </Card>
+    );
+  return (
+    <Card title="Your call">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => putBack(l, playerId))}>
+          Put him back
+        </button>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => dismissReminder(l, playerId))}>
+          Leave it
+        </button>
       </div>
     </Card>
   );
@@ -2988,16 +3090,21 @@ export function MailSections({
   league,
   sections,
   onNegotiate,
+  letterId,
 }: {
   league: League;
   sections: MailSection[];
+  /** The letter these tables belong to: only the newest letter's losing row has buttons. */
+  letterId?: string;
   /** Open contract talks with a player (the contracts letter's Negotiate). */
   onNegotiate?: (playerId: number) => void;
 }) {
+  // Once a letter: only the newest letter's losing row has buttons.
+  const older = letterId !== undefined && newestLosingLetter(league) !== letterId;
   return (
     <>
       {sections.map((sec, i) => (
-        <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} />
+        <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} older={older} />
       ))}
     </>
   );
@@ -3007,12 +3114,16 @@ function SectionCard({
   league,
   section,
   onNegotiate,
+  older,
 }: {
   league: League;
   section: MailSection;
   onNegotiate?: (playerId: number) => void;
+  older?: boolean;
 }) {
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
+  if (section.layout === 'people')
+    return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3050,7 +3161,9 @@ function SectionCard({
                   {r.claim && <ClaimButton league={league} entryId={r.claim.entryId} />}
                 </div>
                 {r.note && <p className="mail-row-note">{r.note}</p>}
-                {r.talk && <TalkCards league={league} s={r.talk} />}
+                {r.talk && (
+                  <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} older={!!r.talkRoom && older} />
+                )}
                 {r.negotiate && onNegotiate && (
                   <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
                 )}
@@ -3110,6 +3223,68 @@ function SectionCard({
           </tbody>
         </table>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * The head coach's weekly letter: a row a person. His face and name on one line with muted facts, what the coach
+ * remembers of him (muted), his words, then the row's own control: his answers, the request's choices or Negotiate.
+ */
+function PeopleSection({
+  league,
+  section,
+  onNegotiate,
+  older,
+}: {
+  league: League;
+  section: MailSection;
+  onNegotiate?: (playerId: number) => void;
+  older?: boolean;
+}) {
+  return (
+    <Card title={section.title}>
+      {section.lead && <p className="inbox-body">{section.lead}</p>}
+      <ul className="mail-rows">
+        {section.rows.map((r, j) => {
+          const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+          const coach = r.coachId === undefined ? undefined : league.coaches[r.coachId];
+          // A room's row is the room, then his coach: "D-line" and "Dan Reed, defensive line coach".
+          const byCoach = !!coach && r.cells.length > 1;
+          const name = byCoach ? r.cells[1] : r.cells[0];
+          const facts = (byCoach ? r.cells.slice(0, 1) : r.cells.slice(1)).filter(Boolean);
+          return (
+            <li key={j} className="coach-person">
+              <div className="coach-person-head">
+                {(p || coach) && (
+                  <span className="coach-person-face">
+                    {p ? (
+                      <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={32} />
+                    ) : (
+                      <StaffAvatar person={coach!} size={32} />
+                    )}
+                  </span>
+                )}
+                <span className="coach-person-name">
+                  {p ? <PlayerLink league={league} player={p} pos /> : <strong>{name}</strong>}
+                  {facts.length > 0 && <span className="small muted"> {facts.join(' · ')}</span>}
+                </span>
+              </div>
+              {r.before && <p className="coach-person-before">{r.before}</p>}
+              {r.note && <p className="coach-person-note">{r.note}</p>}
+              {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} older={!!r.talkRoom && older} />}
+              {r.bench && <BenchCards league={league} s={r.bench} />}
+              {r.restore && <RestoreCards league={league} playerId={r.restore.playerId} />}
+              {r.meeting && (
+                <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
+              )}
+              {r.negotiate && onNegotiate && (
+                <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }

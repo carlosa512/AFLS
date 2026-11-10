@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleAdvance, moraleContext, type MoraleContext } from './morale';
-import { aiReply, answerTalk, canPromise, talksAt, talkStep } from './playerTalks';
+import { aiReply, answerRoomTalk, answerTalk, canPromise, roomAsks, talksAt, talkStep, waitFor } from './playerTalks';
 import { activeRoster, setTeam } from './roster';
 import { POSITIONS, type League, type MoraleJolt, type Player } from './types';
 
@@ -141,12 +141,12 @@ describe('talks: the answers', () => {
     }
   });
 
-  it('closes an unanswered letter as ignored by the second step, and a late answer does nothing', () => {
+  it('closes an unanswered letter as ignored by the third step for your club, and a late answer does nothing', () => {
     const l = fresh();
     const p = sulker(l, l.userTeamId, 0);
     steps(l, 3);
     const at = p.morale!.talk!.ask!.at;
-    steps(l, 1);
+    steps(l, 2);
     expect(p.morale!.talk!.ask).toBeDefined();
     steps(l, 1);
     expect(p.morale!.talk!.ask).toBeUndefined();
@@ -155,6 +155,14 @@ describe('talks: the answers', () => {
     const before = JSON.stringify(p.morale);
     expect(answerTalk(l, p.id, 'reassure')).toBe(false);
     expect(JSON.stringify(p.morale)).toBe(before);
+  });
+
+  it("waits a step longer on your club's ask than on an AI club's (the coach writes every other step)", () => {
+    const l = fresh();
+    const mine = sulker(l, l.userTeamId, 0);
+    const theirs = sulker(l, (l.userTeamId + 1) % 32, 0);
+    expect(waitFor(l, mine)).toBe(waitFor(l, theirs) + 1);
+    expect(waitFor(l, theirs)).toBe(2);
   });
 
   it("refuses an answer for another club's player", () => {
@@ -318,7 +326,60 @@ describe('talks: what an answer was about (G4)', () => {
     expect(p.morale!.talk!.answered?.cause).toBe(cause);
     const q = sulker(l, l.userTeamId, 1);
     q.morale!.talk = { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } };
-    steps(l, 2);
+    steps(l, 3);
     expect(q.morale!.talk?.answered).toMatchObject({ reply: 'ignored', cause: 'losing' });
+  });
+});
+
+describe("talks: the club's losing", () => {
+  it('is answered once for every man with an open ask, whatever his room, and the answer is kept', () => {
+    const l = fresh();
+    const dl = activeRoster(l, l.userTeamId).filter((p) => p.position === 'DT' || p.position === 'EDGE');
+    const wr = activeRoster(l, l.userTeamId).find((p) => p.position === 'WR')!;
+    for (const p of [dl[0], wr])
+      p.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+    expect(roomAsks(l)).toHaveLength(2);
+    expect(answerRoomTalk(l, 'team', 'reassure')).toBe(2);
+    expect(dl[0].morale!.talk?.answered?.reply).toBe('reassure');
+    expect(wr.morale!.talk?.answered?.reply).toBe('reassure');
+    expect(l.teams[l.userTeamId].losingAnswer?.team).toEqual({ reply: 'reassure', at: l.moraleAt });
+    expect(answerRoomTalk(l, 'team', 'firm')).toBe(0);
+  });
+});
+
+describe('talks: the losing inside the gap', () => {
+  /** A rookie whose only weight is a losing club (last season's record), asking at his third step down. */
+  function loser(l: League, teamId: number): Player {
+    const p = sulker(l, teamId, 0);
+    p.morale = { level: -4 };
+    p.personality = { ...p.personality, winning: 1 };
+    l.history.push({ season: l.season - 1, records: { [teamId]: { w: 0, l: 17, t: 0 } } } as never);
+    return p;
+  }
+
+  it('answers your man as you last answered, files no ask, and asks again once the gap has passed', () => {
+    const l = fresh();
+    const p = loser(l, l.userTeamId);
+    l.teams[l.userTeamId].losingAnswer = { team: { reply: 'firm', at: l.moraleAt! } };
+    steps(l, 3);
+    expect(p.morale!.talk?.ask).toBeUndefined();
+    expect(p.morale!.talk?.answered).toMatchObject({ reply: 'firm', cause: 'losing' });
+
+    const m = fresh();
+    const q = loser(m, m.userTeamId);
+    m.teams[m.userTeamId].losingAnswer = { team: { reply: 'firm', at: m.moraleAt! - 10 } };
+    steps(m, 3);
+    expect(q.morale!.talk?.ask).toEqual({ cause: 'losing', at: m.moraleAt });
+  });
+
+  it('leaves an AI club to its GM', () => {
+    const l = fresh();
+    const other = (l.userTeamId + 1) % 32;
+    l.teams[other].gm = { ...l.teams[other].gm!, loyalty: 0.3, stubbornness: 0.1 };
+    const p = loser(l, other);
+    l.teams[l.userTeamId].losingAnswer = { team: { reply: 'firm', at: l.moraleAt! } };
+    steps(l, 3);
+    expect(p.morale!.talk?.ask).toBeUndefined();
+    expect(p.morale!.talk?.answered).toMatchObject({ reply: aiReply(l, other, 'losing'), cause: 'losing' });
   });
 });

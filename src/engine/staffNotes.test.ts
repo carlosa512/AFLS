@@ -6,15 +6,27 @@ import { deliverMail, mailSubject } from './inbox';
 import { moraleClock } from './morale';
 import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
-import { unitTurnFor } from './staffNotes';
+import { staffRows, unitTurnFor } from './staffNotes';
+import { storiesStep } from './storiesStep';
 import { toldKeys } from './voice';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
-import { ATTRIBUTES, type League } from './types';
+import { ATTRIBUTES, type InboxMessage, type League } from './types';
 
 const BANNED = /marble|\btraits?\b|z-score/i;
 const template = createLeague({ seed: 'coach-story-tests' });
 const copy = <T>(v: T): T => structuredClone(v);
-const notes = (l: League) => l.inbox!.filter((m) => m.id.startsWith('staffNotes:'));
+/** The staff's notes ride in the head coach's weekly letter now. */
+const notes = (l: League) => l.inbox!.filter((m) => m.id.startsWith('coach:'));
+const rowsOf = (m: InboxMessage) => (m.sections ?? []).flatMap((x) => x.rows);
+const nextStep = (l: League) => {
+  l.week++;
+  if (l.moraleAt !== undefined) l.moraleAt++;
+};
+/** A man's ask is what files the week's letter: notes alone never do, they ride along. */
+const withAsk = (l: League) => {
+  const p = activeRoster(l, l.userTeamId).find((x) => x.morale && !x.morale.talk)!;
+  p.morale!.talk = { club: l.userTeamId, ask: { cause: 'snaps', at: l.moraleAt ?? moraleClock(l) } };
+};
 const matchups = (l: League) => l.inbox!.filter((m) => m.id.startsWith('matchup:'));
 
 /** Our WR coach prefers a hard-working young receiver over a veteran a little ahead of him: a recommendation. */
@@ -35,20 +47,26 @@ function recommending() {
   return { l, t };
 }
 
-describe('the staff-notes letter', () => {
+describe('the staff notes in the weekly letter', () => {
   it("carries the week's depth-chart call, once, and the staff remember they said it", () => {
     const { l, t } = recommending();
     const a = t.coachAdvice!.at(-1)!;
+    withAsk(l);
     deliverMail(l);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
     const [m] = notes(l);
-    expect(mailSubject(m)).toEqual({ kind: 'staffNotes', season: l.season, week: l.week });
+    expect(mailSubject(m)).toMatchObject({ kind: 'coachWeek', season: l.season });
     expect(m.coachNoteKey).toBe(adviceKey(a, 'offer'));
     expect(a.noted?.offer).toBe(l.week);
-    const rows = m.sections![0].rows;
-    expect(rows.some((r) => r.playerId === a.playerId)).toBe(true);
-    expect(m.body + rows.map((r) => r.cells.join(' ')).join(' ')).not.toMatch(BANNED);
+    const staffRoom = m.sections!.find((x) => x.title === 'From the staff room')!;
+    expect(staffRoom.rows.some((r) => r.playerId === a.playerId)).toBe(true);
+    expect(
+      m.body +
+        rowsOf(m)
+          .map((r) => r.cells.join(' '))
+          .join(' '),
+    ).not.toMatch(BANNED);
   });
 
   it('leaves the opposition report to the opponent', () => {
@@ -63,6 +81,7 @@ describe('the staff-notes letter', () => {
   it('files in a week with a note even without a game, and not in a week without one', () => {
     const { l, t } = recommending();
     for (const g of l.games) if (g.week === l.week && (g.homeId === t.id || g.awayId === t.id)) g.week = 99;
+    withAsk(l);
     deliverMail(l);
     expect(notes(l)).toHaveLength(1);
     const quiet = copy(template);
@@ -88,11 +107,12 @@ describe('the staff-notes letter', () => {
       coachName: `${c.firstName} ${c.lastName}`,
       receptive: true,
     };
+    withAsk(l);
     deliverMail(l);
     const [m] = notes(l);
     expect(m).toBeDefined();
-    expect(m.sections![0].rows[0].note).toMatch(/peeks into the backfield|Peeks in the Backfield/i);
-    expect(m.sections![0].rows[0].playerId).toBe(p.id);
+    const row = rowsOf(m).find((r) => r.playerId === p.id)!;
+    expect(row.note).toMatch(/watches the backfield|Peeks in the Backfield/i);
     for (const r of l.inbox!.filter((x) => x.id.startsWith('recap:')))
       expect(r.body).not.toMatch(/focused coaching attention/);
   });
@@ -114,11 +134,16 @@ describe('the staff-notes letter', () => {
       };
     };
     note(l.week);
+    withAsk(l);
     deliverMail(l);
-    l.week++;
+    nextStep(l);
     note(l.week);
     deliverMail(l);
-    expect(notes(l)).toHaveLength(1);
+    expect(
+      notes(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.playerId === p.id && /backfield/i.test(r.note ?? '')),
+    ).toHaveLength(1);
   });
 });
 
@@ -177,9 +202,10 @@ describe('staff notes: the position coach on his unit', () => {
   it('files it in the week’s notes, in his words, and remembers it', () => {
     const l = inSeason();
     splitUnit(l, 'WR');
+    withAsk(l);
     deliverMail(l);
     const m = notes(l).at(-1)!;
-    const row = m.sections![0].rows.find((r) => r.cells[0] === ROOM_LABEL.WR)!;
+    const row = rowsOf(m).find((r) => r.cells[0] === ROOM_LABEL.WR)!;
     expect(row.note).toMatch(/\b(my|I|I'm)\b/i);
     expect(row.note).not.toMatch(BANNED);
     expect(m.covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
@@ -224,10 +250,11 @@ describe('staff notes: the position coach on his unit', () => {
     const l = inSeason();
     l.week = TRADE_DEADLINE_WEEK;
     splitUnit(l, 'WR');
+    withAsk(l);
     deliverMail(l);
     const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
     expect(report.sections?.find((s) => s.title === 'The room')).toBeUndefined();
-    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(true);
+    expect(notes(l).some((m) => rowsOf(m).some((r) => r.cells[0] === ROOM_LABEL.WR))).toBe(true);
   });
 
   it("leaves a turn to the season's first report when it goes out the same day", () => {
@@ -239,7 +266,7 @@ describe('staff notes: the position coach on his unit', () => {
     expect(report.sections!.find((s) => s.title === 'The room')!.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)).toBe(
       true,
     );
-    expect(notes(l).some((m) => m.sections?.some((s) => s.rows.some((r) => r.cells[0] === ROOM_LABEL.WR)))).toBe(false);
+    expect(notes(l).some((m) => rowsOf(m).some((r) => r.cells[0] === ROOM_LABEL.WR))).toBe(false);
   });
 
   it('stays quiet when the room has no position coach', () => {
@@ -258,16 +285,83 @@ describe('staff notes: chemistry (L3)', () => {
     const line = activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === 'OL');
     deliverMail(l);
     for (const p of line) p.morale = { level: -9, jolts: [] };
-    l.week = 6;
+    nextStep(l);
+    withAsk(l);
     deliverMail(l);
-    l.week = 7;
-    deliverMail(l);
+    // A room told about in the last three steps waits its turn: the note comes once the gap has passed.
+    for (let i = 0; i < 3; i++) {
+      nextStep(l);
+      deliverMail(l);
+    }
     const rows = notes(l)
-      .flatMap((m) => m.sections ?? [])
-      .flatMap((s) => s.rows)
+      .flatMap(rowsOf)
       .filter((r) => /out of sync/i.test(r.note ?? ''));
     expect(rows).toHaveLength(1);
     expect(rows[0].cells[0]).toBe(ROOM_LABEL.OL);
     expect(rows[0].note).not.toMatch(/\d|chemistry/i);
+  });
+});
+
+describe('staff rows for the weekly letter', () => {
+  const men = (l: League, unit: Unit) =>
+    activeRoster(l, l.userTeamId).filter((p) => unitOf(p.position) === unit && p.morale);
+  const splitUnit = (l: League, unit: Unit) =>
+    men(l, unit).forEach((p, i) => {
+      p.morale!.level = i % 2 ? 2 : -2;
+      delete p.morale!.jolts;
+    });
+  const inSeason = () => {
+    const l = copy(template);
+    l.phase = 'regular';
+    l.week = 6;
+    for (const u of UNITS) {
+      if (u === 'ST') continue;
+      men(l, u).forEach((p) => {
+        p.morale!.level = 0;
+        delete p.morale!.jolts;
+      });
+      l.mailTold = { ...l.mailTold, [`unit:${moraleClock(l) - 5}:${l.userTeamId}:${u}:Settled`]: 1 };
+    }
+    return l;
+  };
+
+  it('one row a room: chemistry rides in the position coach’s note', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:Out of sync`]: 1 };
+    const { rooms, covered } = staffRows(l, toldKeys(l));
+    const chemNotes = covered.filter((k) => k.startsWith('chem:')).length;
+    const wr = rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR);
+    expect(wr).toHaveLength(1);
+    expect(wr[0].coachId).toBeDefined();
+    expect(wr[0].note).toBeTruthy();
+    // The room was told Out of sync before, so its chemistry now is news: a clause in the same note.
+    expect(chemNotes).toBeGreaterThan(0);
+    expect(covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
+    expect(rooms.map((r) => r.note).join(' ')).not.toMatch(/shrug|\d/i);
+  });
+
+  it('a room is not told the week it turns', () => {
+    const l = inSeason();
+    splitUnit(l, 'WR');
+    // The league's step has run to this week's clock (the template's is from week one).
+    l.moraleAt = moraleClock(l);
+    storiesStep(l);
+    const story = l.stories!.open.find((s) => s.kind === 'room' && s.unit === 'WR')!;
+    expect(story.beats.at(-1)!.kind).toBe('turned');
+    expect(staffRows(l, toldKeys(l)).rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR)).toHaveLength(0);
+    // A step later it still stands, and the coach tells it.
+    for (const b of story.beats) b.at -= 1;
+    expect(staffRows(l, toldKeys(l)).rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR)).toHaveLength(1);
+  });
+
+  it('holds the rooms back on a report’s day, and carries the depth-chart call with its key', () => {
+    const { l, t } = recommending();
+    const a = t.coachAdvice!.at(-1)!;
+    splitUnit(l, 'WR');
+    const held = staffRows(l, toldKeys(l), { leaveRooms: true });
+    expect(held.rooms).toHaveLength(0);
+    expect(held.staff.some((r) => r.playerId === a.playerId)).toBe(true);
+    expect(held.coachNote?.coachNoteKey).toBe(adviceKey(a, 'offer'));
   });
 });

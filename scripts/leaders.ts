@@ -32,6 +32,16 @@ export const LEADER_TARGETS: {
   { key: 'defInt', label: 'interceptions', first: [7, 10.5], fifth: [5, 6.5], ceiling: 11 },
 ];
 
+/** Quarterback rushing leaders swing with the league (how mobile a world's passers are): outside the usual range above (as
+ * `npm run careers` widens it) a run warns (⚠), and it fails only outside these. Measured over the check's four leagues, the #5 averaged 410 on main
+ * and 394 locally (375 in CI) against a 380 floor, single leagues from 329 to 500, so main itself sat about one standard
+ * deviation over the floor; the normal band is about two past it, the ceiling given the same proportional slack. Both
+ * bands are the owner's call (Nov 10, 2026: "just make that a band warning like the others … maybe if its outside a
+ * larger range"); neither is moved to get a run green. */
+export const LEADER_NORMAL: Record<string, { first: [number, number]; fifth: [number, number] }> = {
+  'QB rushing yds': { first: [520, 1150], fifth: [320, 745] },
+};
+
 /**
  * Seasons a leader may pass the record in `seasons` played: one in fifteen, plus one standard
  * deviation of luck (a league that's right on the NFL's rate still has unlucky stretches).

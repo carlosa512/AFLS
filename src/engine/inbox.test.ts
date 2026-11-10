@@ -166,6 +166,7 @@ describe('inbox', () => {
         'staffNotes',
         'positionMoves',
         'meeting',
+        'coachWeek',
       ],
       contracts: ['waivers', 'contract'],
     };
@@ -449,12 +450,12 @@ describe('inbox', () => {
     if (fa.walked.length)
       expect(wrap.body.split(`${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}`).length).toBe(2);
     // (The coaches' position suggestion is staff mail that may still ask, through the draft and camp; so is a player who
-    // speaks up at camp, until you answer him, and the head coach's meeting suggestion until you answer it.)
+    // speaks up at camp, until you answer him, and the head coach's meeting suggestion until you answer it: both ride in his weekly letter.)
     for (const m of league.inbox!)
       expect(
         needsYou(league, m) &&
           m.category === 'staff' &&
-          !['positionOffer', 'talk', 'meeting'].includes(mailSubject(m)?.kind ?? ''),
+          !['positionOffer', 'talk', 'meeting', 'coachWeek'].includes(mailSubject(m)?.kind ?? ''),
       ).toBe(false);
   });
 

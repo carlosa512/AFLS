@@ -1,11 +1,12 @@
 import { MONTHS } from '../awards';
 import { employed } from '../employment';
-import { moraleContext, YEAR } from '../morale';
+import { moraleContext, YEAR, type MoraleContext } from '../morale';
 import { captainsNow, weightOf } from '../standing';
 import { headCoach, type Draft } from '../senders';
 import { computeRecords } from '../season/standings';
 import type {
   Approach,
+  CoachRoom,
   Backing,
   League,
   MailSection,
@@ -16,10 +17,13 @@ import type {
   Player,
   TeamMeetings,
 } from '../types';
-import { recentBodies, say } from '../voice';
+import { manSheet } from '../castSheet';
+import { readsDown, RESULT_MAN, RESULT_ROOM, SET_FOR, type ResultFact } from '../coachWeekVoice';
+import { unitRead } from '../standing';
+import { around, say, seasonSaid } from '../voice';
 import { credibilityRead, type CredibilityRead } from './credibility';
 import { deadlineClock } from './commitments';
-import { manFact, reasonFor, SCOPE_NOUN, styleOf, suggestFact, type ManFact, type SuggestFact } from './facts';
+import { manFact, SCOPE_NOUN, styleOf, suggestFact, type ManFact, type SuggestFact } from './facts';
 
 import { gmAddressOpen } from './address';
 import { COOLDOWN, headCoachOf, meetingsOf, membersOf, offCooldown, ROOMS, stepClock } from './suggest';
@@ -27,6 +31,9 @@ import { traitOf } from '../coachTraits';
 import {
   approachLabel,
   ASK,
+  ASK_CALL,
+  ASK_CALL_MOMENT,
+  ASK_OPEN,
   ASKED,
   backingLabel,
   CANDID,
@@ -40,20 +47,18 @@ import {
   READ_LEAD,
   READ_ROOM,
   READ_WHY,
-  restLine,
   SNN_RUMOR,
   TIMING_LABEL,
   TOLD,
   verb,
-  WENT,
   yearParagraph,
   type YearFact,
 } from './voice';
 
 /**
- * The meetings' letters (L2, spec §5), filed by `deliverMail` like every letter: the head coach's suggestion (what a
- * choice shows is read off the league as it is: `meetingCard`), the result of a meeting, a captain's word after your
- * address; and what the staff notes, the season's-end report and SNN add.
+ * The meetings' mail (L2, spec §5): the head coach's suggestion and a meeting's result are rows of his weekly letter
+ * (`requestRow`, `resultRows`; what a choice shows is read off the league as it is: `meetingCard`); a captain's word
+ * after your address and SNN's rumor are letters of their own; and what the staff notes and the season's-end report add.
  */
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -80,39 +85,55 @@ const base = (league: League) => ({
   category: 'staff' as const,
 });
 
-/** The head coach's suggestion waiting on you, as a letter: his read, then his ask. */
-function suggestionLetter(league: League, have: Set<string>): Draft[] {
-  const teamId = league.userTeamId;
-  const m = meetingsOf(league.teams[teamId]);
-  const s = m.pending;
-  if (!s || s.kind === 'gm') return [];
-  const id = suggestionId(league.season, s.clock, s.scope);
-  if (have.has(id)) return [];
-  const f = suggestFact(league, teamId, s);
-  const key = { key: id, recent: recentBodies(league, headCoach(league).from) };
-  const [lead, why] = leadAndWhy(f, key);
-  const paragraphs =
-    s.kind === 'moment' && s.moment
-      ? [MOMENT_LEAD[s.moment], say(ASK, f, { ...key, slot: 'ask' })]
-      : [
-          [s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '', lead, why].filter(Boolean).join(' '),
-          say(READ_ROOM, f, { ...key, slot: 'room' }),
-          say(ASK, f, { ...key, slot: 'ask' }),
-        ];
+/** The subject a suggestion goes by. */
+const requestSubject = (s: MeetingSuggestion): string =>
+  s.moment
+    ? SUBJECT_MOMENT[s.moment]
+    : s.asked
+      ? `About ${SCOPE_NOUN[s.scope]}`
+      : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : verb(SCOPE_NOUN[s.scope], 'wants', 'want')} a word`;
+
+/** What the head coach says of a suggestion: his lead and read, then what he wants to do about it. */
+function requestWords(league: League, s: MeetingSuggestion, id: string, said: string[]): string[] {
+  const f = suggestFact(league, league.userTeamId, s);
+  const key = { key: id, ...around(league, said) };
+  // His read is a plus: once he has said it this year he says no more, and the ask stands without it.
+  const read = (): string => {
+    const t = say(ASK, f, { ...key, slot: 'ask' });
+    return t && !key.skip(t) ? t : '';
+  };
+  const ask = (): string =>
+    [
+      s.kind === 'moment' ? '' : say(ASK_OPEN, f, { ...key, slot: 'open' }),
+      say(s.kind === 'moment' ? ASK_CALL_MOMENT : ASK_CALL, f, { ...key, slot: 'call' }),
+      read(),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  if (s.kind === 'moment' && s.moment) return [MOMENT_LEAD[s.moment], ask()];
+  const lead = say(READ_LEAD, f, { ...key, slot: 'lead' });
+  const why = f.driver && lead.includes(f.driver.last) ? say(READ_WHY, f, { ...key, slot: 'why' }) : '';
   return [
-    {
-      ...base(league),
-      id,
-      ...headCoach(league),
-      subject: s.moment
-        ? SUBJECT_MOMENT[s.moment]
-        : s.asked
-          ? `About ${SCOPE_NOUN[s.scope]}`
-          : `${cap(SCOPE_NOUN[s.scope])} ${s.scope === 'team' ? 'needs' : verb(SCOPE_NOUN[s.scope], 'wants', 'want')} a word`,
-      body: paragraphs.filter(Boolean).join('\n\n'),
-      actions: [{ kind: 'locker' }],
-    },
+    [s.asked ? say(ASKED, f, { ...key, slot: 'asked' }) : '', lead, why].filter(Boolean).join(' '),
+    say(READ_ROOM, f, { ...key, slot: 'room' }),
+    ask(),
   ];
+}
+
+/**
+ * The pending suggestion as a row of the weekly letter ("What I want to do"): his lead, his read and his ask as its
+ * note, and the suggestion it asks about, so the letter draws its choices from the league as it is.
+ */
+export function requestRow(league: League): MailSection['rows'][number] | null {
+  const s = meetingsOf(league.teams[league.userTeamId]).pending;
+  if (!s || s.kind === 'gm' || !employed(league)) return null;
+  const said = seasonSaid(league, headCoach(league).from, 'coach:');
+  const id = suggestionId(league.season, s.clock, s.scope);
+  return {
+    cells: [requestSubject(s)],
+    note: requestWords(league, s, id, said).filter(Boolean).join(' '),
+    meeting: { clock: s.clock, scope: s.scope },
+  };
 }
 
 /** The letter's opening and, only right after a lead that named him, why the man driving it matters ("He's…"). */
@@ -132,91 +153,120 @@ function windowWords(opened: number, closes: number): string {
 const men = (league: League, ids: number[]): ManFact[] =>
   ids.flatMap((id) => (league.players[id] ? [manFact(league, league.players[id])] : []));
 
-/** A meeting held: what he told them, how it went, where that leaves us. */
-function resultLetter(league: League, r: MeetingRecord): Draft {
-  const teamId = league.userTeamId;
-  const id = resultId(league.season, r.clock, r.scope);
-  const ctx = moraleContext(league);
-  const hc = headCoachOf(league, teamId);
-  const style = styleOf(hc ? traitOf(hc, 'discipline') : 10.5);
-  const noun = SCOPE_NOUN[r.scope];
-  const c = meetingsOf(league.teams[teamId]).open.find((x) => x.opened === r.clock && x.scope === r.scope);
-  const named = men(league, c?.named ?? []);
-  const speaker =
-    r.speaker !== undefined && league.players[r.speaker] ? manFact(league, league.players[r.speaker]) : undefined;
-  const key = { key: id, recent: recentBodies(league, headCoach(league).from) };
-  const told = say(
-    TOLD,
-    {
-      style,
-      approach: r.approach,
-      backing: r.backing,
-      topic: r.topic ?? 'none',
-      noun,
-      named,
-      speaker,
-      ...(r.moment ? { moment: r.moment } : {}),
-    },
-    { ...key, slot: 'told' },
-  );
-  // Who to name: two who took it well and one who bristled, the room's heaviest first.
+/** The commitment a held meeting opened, while it is still open. */
+const commitmentOf = (league: League, r: MeetingRecord) =>
+  meetingsOf(league.teams[league.userTeamId]).open.find((x) => x.opened === r.clock && x.scope === r.scope);
+
+/** The men a result names, each with how he took it: the commitment's, then two who landed and one who bristled. */
+function namedByResult(
+  league: League,
+  r: MeetingRecord,
+  ctx: MoraleContext,
+): { p: Player; outcome: ResultFact['outcome'] }[] {
+  const c = commitmentOf(league, r);
+  // Who to name: the room's heaviest first.
   const byWeight = (ids: number[]) =>
     ids
       .map((pid) => league.players[pid])
       .filter((p): p is Player => !!p)
       .sort((a, b) => weightOf(league, b, ctx) - weightOf(league, a, ctx) || a.id - b.id);
-  const went = [
-    ...byWeight(r.outcomes.lands)
-      .slice(0, 2)
-      .map((p) => ({ p, outcome: 'lands' as const })),
-    ...byWeight(r.outcomes.bristles)
-      .slice(0, 1)
-      .map((p) => ({ p, outcome: 'bristles' as const })),
-  ].map(({ p, outcome }) => ({
-    p,
-    outcome,
-    // The man a commitment names was answered by it, even though the meeting has since eased what he wanted.
-    reason:
-      outcome === 'lands' && c?.named.includes(p.id)
-        ? ('answered' as const)
-        : reasonFor(league, teamId, p, r, outcome === 'lands', ctx),
-  }));
-  // Two who took it the same way share a line: "Same with Harden." rather than the sentence twice.
-  const wentLines = went.map(({ p, outcome, reason }, i) =>
-    i > 0 && went[i - 1].outcome === outcome && went[i - 1].reason === reason
-      ? `Same with ${p.lastName}.`
-      : say(
-          WENT,
-          { man: manFact(league, p), outcome, reason, topic: r.topic ?? 'none' },
-          { ...key, slot: `went:${p.id}` },
-        ),
+  const outcomeOf = (p: Player): ResultFact['outcome'] =>
+    r.outcomes.lands.includes(p.id) ? 'lands' : r.outcomes.bristles.includes(p.id) ? 'bristles' : 'none';
+  const picked = [
+    ...byWeight(c?.named ?? []),
+    ...byWeight(r.outcomes.lands).slice(0, 2),
+    ...byWeight(r.outcomes.bristles).slice(0, 1),
+  ];
+  return picked.filter((p, i) => picked.indexOf(p) === i).map((p) => ({ p, outcome: outcomeOf(p) }));
+}
+
+/** What he told them, in quotes: the same words however the result is filed. */
+function toldWords(league: League, r: MeetingRecord, key: string, said: string[]): string {
+  const teamId = league.userTeamId;
+  const hc = headCoachOf(league, teamId);
+  const c = commitmentOf(league, r);
+  const speaker =
+    r.speaker !== undefined && league.players[r.speaker] ? manFact(league, league.players[r.speaker]) : undefined;
+  const told = say(
+    TOLD,
+    {
+      style: styleOf(hc ? traitOf(hc, 'discipline') : 10.5),
+      approach: r.approach,
+      backing: r.backing,
+      topic: r.topic ?? 'none',
+      noun: SCOPE_NOUN[r.scope],
+      named: men(league, c?.named ?? []),
+      speaker,
+      ...(r.moment ? { moment: r.moment } : {}),
+    },
+    { key, slot: 'told', ...around(league, said) },
   );
-  const room = membersOf(league, teamId, r.scope).length;
-  const shrugs = room - r.outcomes.lands.length - r.outcomes.bristles.length;
-  const rest = restLine(Math.max(0, shrugs), noun);
+  said.push(told);
+  return told;
+}
+
+/**
+ * A result told from where each man is now, a step after the meeting: the commitment's men and the heaviest who took it
+ * well or bristled, each by how he took it then and how he reads now; the room by its read now against its read then.
+ * `said` is what the sender has already said this league year; every sentence used goes onto it.
+ */
+function resultParts(league: League, r: MeetingRecord, said: string[], limit = Infinity) {
+  const teamId = league.userTeamId;
+  const ctx = moraleContext(league);
+  const key = resultId(league.season, r.clock, r.scope);
+  const c = commitmentOf(league, r);
+  const noun = SCOPE_NOUN[r.scope];
+  const mens: MailSection['rows'] = [];
+  for (const { p, outcome } of namedByResult(league, r, ctx).slice(0, limit)) {
+    const man = manSheet(league, p, ctx);
+    if (!man) continue;
+    const note = say(
+      RESULT_MAN,
+      { man, outcome, named: !!c?.named.includes(p.id), nowDown: readsDown(man), topic: r.topic ?? 'none' },
+      { key, slot: `man:${p.id}`, ...around(league, said) },
+    );
+    said.push(note);
+    mens.push({ playerId: p.id, cells: [`${p.firstName} ${p.lastName}`], note });
+  }
+  const now = r.scope === 'team' ? null : (unitRead(league, teamId, r.scope as CoachRoom, ctx)?.word ?? null);
+  const room = say(RESULT_ROOM, { noun, then: r.word ?? null, now }, { key, slot: 'room', ...around(league, said) });
+  if (room) said.push(room);
   const next = say(
     NEXT,
-    { backing: r.backing, noun, named, window: c ? windowWords(c.opened, c.closes) : 'within a few weeks' },
-    { ...key, slot: 'next' },
+    {
+      backing: r.backing,
+      noun,
+      named: men(league, c?.named ?? []),
+      window: c ? windowWords(c.opened, c.closes) : 'within a few weeks',
+    },
+    { key, slot: 'next', ...around(league, said) },
   );
-  const rows: MailSection['rows'] =
-    r.backing === 'talks'
-      ? named.map((n) => ({
+  said.push(next);
+  const talks: MailSection['rows'] =
+    r.backing === 'talks' && c
+      ? men(league, c.named).map((n) => ({
           playerId: n.id,
           cells: [`${n.first} ${n.last}`],
-          note: `Talks with his agent, ${windowWords(c!.opened, c!.closes)}.`,
+          note: `Talks with his agent, ${windowWords(c.opened, c.closes)}.`,
           negotiate: { playerId: n.id },
         }))
       : [];
-  return {
-    ...base(league),
-    id,
-    ...headCoach(league),
-    subject: `How it went with ${noun}`,
-    body: [`What I told them: “${told}”`, [...wentLines, rest].filter(Boolean).join(' '), next].join('\n\n'),
-    ...(rows.length ? { sections: [{ title: 'What we owe them', rows }] } : {}),
-    actions: [{ kind: 'locker' }],
-  };
+  return { key, noun, mens, room, next, talks };
+}
+
+/**
+ * A meeting's result as rows of the weekly letter: each man named, the room with what he told it, then what we owe
+ * them and its Negotiate rows. `said` is what the sender said this league year (`seasonSaid`), and grows as rows are written.
+ */
+export function resultRows(league: League, r: MeetingRecord, said: string[], men = Infinity): MailSection['rows'] {
+  const { key, noun, mens, room, next, talks } = resultParts(league, r, said, men);
+  const told = toldWords(league, r, key, said);
+  return [
+    ...mens,
+    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}“${told}”` },
+    { cells: [cap(noun), 'Where that leaves us'], note: next },
+    ...talks,
+  ];
 }
 
 /** After your address: the captain the room listens to most, for the players. */
@@ -250,7 +300,7 @@ function captainLetter(league: League, r: MeetingRecord): Draft | null {
   };
 }
 
-/** Results and the captain's word for meetings held at your club this league year, each once. */
+/** The captain's word for your address to the team this league year, once each (results are the weekly letter's). */
 function heldLetters(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   // A meeting at or before the step you took the job was held before you came: it isn't yours to hear about.
@@ -258,15 +308,11 @@ function heldLetters(league: League, have: Set<string>): Draft[] {
   const arrived = job?.teamId === league.userTeamId ? (job.clock ?? -Infinity) : -Infinity;
   for (const r of meetingsOf(league.teams[league.userTeamId]).log) {
     if (Math.floor(r.clock / YEAR) !== league.season || r.clock <= arrived) continue;
-    if (r.kind === 'gm') {
-      const id = captainId(league.season, r.clock);
-      if (have.has(id)) continue;
-      const letter = captainLetter(league, r);
-      if (letter) out.push(letter);
-    } else {
-      if (have.has(resultId(league.season, r.clock, r.scope))) continue;
-      out.push(resultLetter(league, r));
-    }
+    if (r.kind !== 'gm') continue;
+    const id = captainId(league.season, r.clock);
+    if (have.has(id)) continue;
+    const letter = captainLetter(league, r);
+    if (letter) out.push(letter);
   }
   return out;
 }
@@ -274,7 +320,7 @@ function heldLetters(league: League, have: Set<string>): Draft[] {
 /** The meetings' own letters for your club. */
 export function meetingMail(league: League, have: Set<string>): Draft[] {
   if (!employed(league)) return [];
-  const out = [...heldLetters(league, have), ...suggestionLetter(league, have), ...rumorMail(league, have)];
+  const out = [...heldLetters(league, have), ...rumorMail(league, have)];
   for (const d of out) have.add(d.id);
   return out;
 }
@@ -294,6 +340,8 @@ export interface MeetingCardView {
   byCoach?: boolean;
   /** What you went ahead with, in a sentence. */
   said?: string;
+  /** Held: when it is set for, in the coach's words. The result comes in a later letter, never here. */
+  setFor?: string;
 }
 
 /** What a suggestion letter shows now, read off the league: your club only. */
@@ -313,6 +361,11 @@ export function meetingCard(league: League, s: { clock: number; scope: MeetingSc
     return {
       state: 'held',
       said: `You went ahead: ${parts.join(' · ')}`,
+      setFor: say(
+        SET_FOR,
+        { timing: held.timing, scope: held.scope, noun: SCOPE_NOUN[held.scope], backing: held.backing },
+        { key: `setFor:${held.clock}:${held.scope}`, slot: 'setFor' },
+      ),
     };
   }
   if (!p || p.clock !== s.clock || p.scope !== s.scope || !f) return { state: 'passed' };
@@ -449,25 +502,55 @@ export interface StaffRow {
 
 const CRED_RANK: Record<CredibilityRead, number> = { wornThin: 0, heardBefore: 1, steady: 2, believes: 3 };
 
-/** The head coach's own rows this week: a commitment coming due, and his word when it has moved since he last said. */
-export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] {
+/** A commitment's due row: its key (told once), who it names, and the head coach's warning. */
+export interface DueRow {
+  key: string;
+  playerId?: number;
+  label: string;
+  note: string;
+  negotiate?: number;
+}
+
+/**
+ * Your club's open commitments within `window` steps of coming due, each once (`due:` keys): every one of them, whether
+ * or not a story holds it, since most have none. Its words are chosen around `said`, which grows.
+ */
+export function dueRows(league: League, told: Set<string>, said: string[], window: number): DueRow[] {
   const teamId = league.userTeamId;
-  const m = league.teams[teamId].meetings;
   const clock = stepClock(league);
-  const rows: StaffRow[] = [];
-  for (const c of m?.open ?? []) {
-    if (c.closes - clock !== 1) continue;
+  const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
+  const rows: DueRow[] = [];
+  for (const c of league.teams[teamId].meetings?.open ?? []) {
+    const left = c.closes - clock;
+    if (left < 1 || left > window) continue;
     const key = `due:${c.opened}:${c.scope}:${c.backing}`;
     if (told.has(key)) continue;
     const named = men(league, c.named);
+    // Steps are weeks in the season; away from it they are the calendar's moments, so "soon" is all that is true.
+    const when = !inSeason ? 'soon' : left === 1 ? 'next week' : 'in two weeks';
+    const note = say(
+      DUE,
+      { backing: c.backing, noun: SCOPE_NOUN[c.scope], named, when, ...(c.by === 'gm' ? { you: true } : {}) },
+      { key, slot: 'due', ...around(league, said) },
+    );
+    if (!note) continue;
+    said.push(note);
     rows.push({
       key,
       ...(named[0] ? { playerId: named[0].id } : {}),
       label: named.length === 1 ? `${named[0].first} ${named[0].last}` : cap(SCOPE_NOUN[c.scope]),
-      note: say(DUE, { backing: c.backing, noun: SCOPE_NOUN[c.scope], named }, { key, slot: 'due' }),
+      note,
       ...(c.backing === 'talks' && named.length === 1 ? { negotiate: named[0].id } : {}),
     });
   }
+  return rows;
+}
+
+/** The head coach's word with the players, when it has moved since he last said (`cred:` keys). */
+export function meetingStaffRows(league: League, told: Set<string>, said?: string[]): StaffRow[] {
+  const teamId = league.userTeamId;
+  const clock = stepClock(league);
+  const rows: StaffRow[] = [];
   const hc = headCoachOf(league, teamId);
   if (hc) {
     const read = credibilityRead(hc);
@@ -486,9 +569,10 @@ export function meetingStaffRows(league: League, told: Set<string>): StaffRow[] 
         note: say(
           CANDID,
           { read, better: !!lastRead && CRED_RANK[read] > CRED_RANK[lastRead] },
-          { key, slot: 'candid' },
+          { key, slot: 'candid', ...(said ? around(league, said) : {}) },
         ),
       });
+      if (said) said.push(rows.at(-1)!.note);
     }
   }
   return rows.filter((r) => r.note);
