@@ -759,9 +759,19 @@ function plainlyBetter(league: League, teamId: number, p: Player, other: Player 
   return !!other && perceive(league, teamId, other).ovr - perceive(league, teamId, p).ovr > PLAINLY;
 }
 
+/**
+ * This question's beats in its story: from the last time he sat. A story re-opened in the same league year keeps an
+ * earlier question's beats before that, which say nothing about this one.
+ */
+function questionBeats(story: Story | undefined) {
+  const beats = story?.beats ?? [];
+  const from = beats.map((b) => b.kind).lastIndexOf('sat');
+  return from < 0 ? beats : beats.slice(from);
+}
+
 /** The word given on a question and broken since (he sat again): read from its story's last answer, broken or not. */
 function brokenWord(story: Story | undefined): BenchFact['wordBroken'] {
-  const beats = [...(story?.beats ?? [])].reverse();
+  const beats = [...questionBeats(story)].reverse();
   const at = beats.findIndex((b) => b.kind === 'answered' || b.kind === 'broken' || b.kind === 'satAgain');
   if (at < 0 || beats[at].kind === 'answered') return null;
   const how = beats.slice(at + 1).find((b) => b.kind === 'answered')?.how;
@@ -856,7 +866,7 @@ export function benchCard(league: League, s: { playerId: number; clock: number }
           { value: 'his', label: `It's ${him}'s job` },
         ];
     // A word given and broken: the row is open again, and says so.
-    const last = [...(benchStory(league, p)?.beats ?? [])]
+    const last = [...questionBeats(benchStory(league, p))]
       .reverse()
       .find((b) => ['answered', 'broken', 'satAgain'].includes(b.kind));
     const broken = last?.kind === 'broken' ? 'brokenPromise' : last?.kind === 'satAgain' ? 'brokenSoft' : undefined;

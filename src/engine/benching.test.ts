@@ -1235,6 +1235,21 @@ describe('fix round 1', () => {
     expect(benchFact(c.l, c.q[0], moraleContext(c.l))!.wordBroken).toBeNull();
   });
 
+  it('a question re-opened in the same year reads only its own beats: an earlier broken word is not this one', () => {
+    const { l, team, q } = sitHolder('fix-reopened-word');
+    const s = openStory(l, { kind: 'benched', teamId: team.id, playerId: q[0].id })!;
+    const now = s.beats.at(-1)!;
+    s.beats = [
+      { at: now.at - 6, kind: 'sat' },
+      { at: now.at - 5, kind: 'answered', how: 'thisWeek' },
+      { at: now.at - 4, kind: 'satAgain' },
+      { at: now.at - 2, kind: 'settled', how: 'earnedBack' },
+      now,
+    ];
+    expect(benchFact(l, q[0], moraleContext(l))!.wordBroken).toBeNull();
+    expect(benchCard(l, { playerId: q[0].id, clock: 0 }).stands).toBeUndefined();
+  });
+
   it('both men gone: the closing says nothing about who has the job', () => {
     const { l, team, q } = sitHolder('fix-both');
     setTeam(l, q[0], null);
