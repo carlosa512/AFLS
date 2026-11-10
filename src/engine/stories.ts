@@ -115,6 +115,7 @@ export function beat(
   if (!STORIES.on || on.teamId !== league.userTeamId || !employed(league)) return null;
   const stories = (league.stories ??= { next: 1, open: [], closed: [] });
   let s = openStory(league, on);
+  const fresh = !s || kind === 'sat';
   // A subject has one story a league year: a beat after it closed re-opens that story (`told` stays, so what was
   // told is not told again) instead of starting another.
   if (!s) {
@@ -133,7 +134,10 @@ export function beat(
     if (on.coachId !== undefined) s.coachId = on.coachId;
     stories.open.push(s);
   }
+  // The other man is this telling's: a story re-opened, or a man benched again, names whoever this beat names, or
+  // nobody (a later benching must not keep the last question's man, for its closing or for who left).
   if (extra.other !== undefined) s.other = extra.other;
+  else if (fresh) delete s.other;
   if (extra.due === null) delete s.due;
   else if (extra.due !== undefined) s.due = extra.due;
   push(s, kind, at, extra.how, extra.pub);

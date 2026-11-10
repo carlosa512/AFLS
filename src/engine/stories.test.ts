@@ -8,6 +8,9 @@ import { disputeStep, endDispute } from './disputes';
 import { answerMeeting, requestMeeting } from './meetings';
 import { judgeCommitments } from './meetings/commitments';
 import type { League, Player, TalkCause } from './types';
+import { benchCloseFact } from './benching';
+import { BENCH_CLOSE } from './benchVoice';
+import { say } from './voice';
 import {
   beat,
   closeStory,
@@ -128,6 +131,27 @@ describe('the story store', () => {
     expect(untold(l, b, COACH).map((x) => x.kind)).toEqual(['quiet', 'asked']);
     // The history is still on it: the first answer reads as "the second time on his deal".
     expect(b.beats.filter((x) => x.kind === 'answered')[0].how).toBe('reassure');
+  });
+
+  it('a benching re-opened the same year with nobody named keeps no man from the last question', () => {
+    const l = createLeague({ seed: 'stories-reopen-bench' });
+    const team = l.teams[l.userTeamId];
+    const [holder, first] = team.depthChart.QB.map((id) => l.players[id]);
+    const on = { kind: 'benched' as const, teamId: l.userTeamId, playerId: holder.id };
+    beat(l, on, 'sat', 1, { pub: true, other: first.id });
+    closeStory(l, on, 'settled', 3, 'earnedBack');
+    // Benched again later the same year, nobody named as the man who started.
+    const s = beat(l, on, 'sat', 8, { pub: true })!;
+    expect(s.other).toBeUndefined();
+    const closed = closeStory(l, on, 'settled', 9, 'out')!;
+    const f = benchCloseFact(l, closed);
+    expect(f.other).toBeUndefined();
+    expect(say(BENCH_CLOSE, f, { key: 'k', slot: 'close' })).not.toContain(first.lastName);
+    // A feud re-opened learns its other man again from the beat that re-opens it.
+    const feud = { kind: 'feud' as const, teamId: l.userTeamId, playerId: holder.id };
+    beat(l, feud, 'started', 1, { other: first.id });
+    closeStory(l, feud, 'ended', 2);
+    expect(beat(l, feud, 'started', 4, { other: first.id + 1 })!.other).toBe(first.id + 1);
   });
 
   it('tracks what each outlet has told', () => {
