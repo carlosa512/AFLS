@@ -9,6 +9,7 @@ import {
   BENCH_TOOK,
   benchSaid,
   CLEARED,
+  CLOSE_ENDS,
   JOBS_ROW,
   type BenchCloseFact,
 } from './benchVoice';
@@ -212,5 +213,24 @@ describe('the benching chain’s words', () => {
         { key: 'k', slot: 's' },
       ),
     ).toBe("Reyes is gone, so it's Gibson's job again.");
+  });
+
+  it('sweep: every closing the engine can file reads a specific line, with and without a named other man', () => {
+    for (const end of CLOSE_ENDS)
+      for (const withOther of end.needsOther ? [true] : [true, false])
+        for (const m of [null, ...men]) {
+          const f: BenchCloseFact = {
+            beat: end.beat,
+            ...(end.how ? { how: end.how } : {}),
+            holder: 'Gibson',
+            ...(withOther ? { other: 'Reyes' } : {}),
+            man: m,
+          };
+          const said = say(BENCH_CLOSE, f, { key: 'k', slot: 's' });
+          expect(said, `${end.beat}/${end.how}/${withOther}`).not.toBe('');
+          expect(said).not.toMatch(/^The question over|That one is closed/);
+          expect(said).not.toContain('undefined');
+          expect(said).toContain(end.how === 'both' || end.how === 'other' ? 'Reyes' : 'Gibson');
+        }
   });
 });

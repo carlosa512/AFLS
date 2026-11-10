@@ -30,6 +30,10 @@ import { PER_CLUB } from './talkBasics';
 import { roomCoach, headCoach } from './senders';
 import { openStory, untold, COACH } from './stories';
 import { gameTime } from './personnel/calendar';
+import { benchCloseFact } from './benching';
+import { BENCH_CLOSE } from './benchVoice';
+import { say } from './voice';
+import { beat } from './stories';
 import { releasePlayer } from './finance/cap';
 import { playWeek, startLiveGame } from './league';
 import { ensureWaivers, setWaiverClaim } from './personnel/waivers';
@@ -1196,7 +1200,9 @@ describe('fix round 1', () => {
     const a = sitHolder('fix-stands-a');
     answerBench(a.l, a.q[0].id, 'backIn');
     expect(benchCard(a.l, { playerId: a.q[0].id, clock: 0 }).stands).toBe('He is waiting on his next game.');
-    expect(benchCard(a.l, { playerId: a.q[1].id, clock: 0 }).stands).toBe('He is waiting on his next game.');
+    expect(benchCard(a.l, { playerId: a.q[1].id, clock: 0 }).stands).toBe(
+      `${a.q[0].lastName} is waiting on his next game.`,
+    );
     const b = sitHolder('fix-stands-b');
     answerBench(b.l, b.q[0].id, 'thisWeek');
     expect(benchCard(b.l, { playerId: b.q[0].id, clock: 0 }).stands).toBe('He is watching to see if he starts again.');
@@ -1271,3 +1277,49 @@ describe('fix round 1', () => {
 
 const teamPlayersOf = (l: League, team: Team, pos: Player['position']) =>
   team.depthChart[pos].map((id) => l.players[id]).filter((p) => p.teamId === team.id);
+
+describe('fix round 2', () => {
+  const closingOf = (l: League, id: number) => {
+    const story = [...l.stories!.closed].find((x) => x.kind === 'benched' && x.playerId === id)!;
+    return { beat: story.beats.at(-1)!, text: say(BENCH_CLOSE, benchCloseFact(l, story), { key: 'k', slot: 's' }) };
+  };
+
+  it('the holder leaves with no other man in the question: "holder", and a line that names him', () => {
+    const { l, team, q } = setup('fix2-none');
+    // He sits for nobody who holds no job: no man is named.
+    order(team, [q[0].id]);
+    const k = team.jobs!;
+    k.questions = [{ pos: 'QB', holder: q[0].id, since: moraleClock(l) }];
+    beat(l, { kind: 'benched', teamId: team.id, playerId: q[0].id }, 'sat', moraleClock(l), { pub: true });
+    setTeam(l, q[0], null);
+    moodWeek(l);
+    const c = closingOf(l, q[0].id);
+    expect(c.beat).toMatchObject({ kind: 'left', how: 'holder' });
+    expect(c.text).toContain(q[0].lastName);
+    expect(c.text).not.toMatch(/That one is closed|^The question over/);
+  });
+
+  it('the holder leaves and the other stays: the job is the other man`s; both gone: nothing about the job', () => {
+    const a = sitHolder('fix2-holder');
+    setTeam(a.l, a.q[0], null);
+    moodWeek(a.l);
+    const x = closingOf(a.l, a.q[0].id);
+    expect(x.beat).toMatchObject({ how: 'holder' });
+    expect(x.text).toBe(`${a.q[0].lastName} is gone, so the job is ${a.q[1].lastName}'s now.`);
+    const b = sitHolder('fix2-both');
+    setTeam(b.l, b.q[0], null);
+    setTeam(b.l, b.q[1], null);
+    moodWeek(b.l);
+    const y = closingOf(b.l, b.q[0].id);
+    expect(y.beat).toMatchObject({ how: 'both' });
+    expect(y.text).toContain('both gone');
+    expect(y.text).not.toMatch(/job/);
+  });
+
+  it('on the other man`s card the promise names the man it went to', () => {
+    const { l, q } = sitHolder('fix2-stands');
+    answerBench(l, q[0].id, 'backIn');
+    expect(benchCard(l, { playerId: q[0].id, clock: 0 }).stands).toBe('He is waiting on his next game.');
+    expect(benchCard(l, { playerId: q[1].id, clock: 0 }).stands).toBe(`${q[0].lastName} is waiting on his next game.`);
+  });
+});

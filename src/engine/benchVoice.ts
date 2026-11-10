@@ -427,12 +427,31 @@ export const JOBS_ROW: readonly Line<JobsFact>[] = [
 /** How your word stands now, read off the question: waiting on his next game, a one-game word, the job open, or broken. */
 export interface StandsFact {
   state: 'promise' | 'soft' | 'open' | 'brokenPromise' | 'brokenSoft';
+  /** Who the word went to, when it is not the man whose card this is. */
+  to?: string;
 }
 
 export const BENCH_STANDS: readonly Line<StandsFact>[] = [
-  { when: (f) => f.state === 'promise', text: () => 'He is waiting on his next game.' },
-  { when: (f) => f.state === 'soft', text: () => 'He is watching to see if he starts again.' },
+  { when: (f) => f.state === 'promise', text: (f) => `${f.to ?? 'He'} is waiting on his next game.` },
+  { when: (f) => f.state === 'soft', text: (f) => `${f.to ?? 'He'} is watching to see if he starts again.` },
   { when: (f) => f.state === 'open', text: () => 'The job is still open.' },
   { when: (f) => f.state === 'brokenPromise', text: () => 'He sat again, so your word did not hold.' },
   { when: (f) => f.state === 'brokenSoft', text: () => 'He sat again.' },
+];
+
+/** Every way a benching story closes, as the engine files it: its beat, how, and whether the line names the other man. */
+export const CLOSE_ENDS: readonly { beat: BeatKind; how?: string; needsOther: boolean }[] = [
+  { beat: 'backIn', needsOther: false },
+  { beat: 'left', how: 'other', needsOther: true },
+  { beat: 'left', how: 'holder', needsOther: false },
+  { beat: 'left', how: 'both', needsOther: true },
+  { beat: 'settled', how: 'out', needsOther: false },
+  { beat: 'settled', how: 'outHolder', needsOther: true },
+  { beat: 'settled', how: 'outOther', needsOther: true },
+  { beat: 'settled', how: 'his', needsOther: false },
+  { beat: 'settled', how: 'keeps', needsOther: true },
+  { beat: 'settled', how: 'earned', needsOther: true },
+  { beat: 'settled', how: 'earnedBack', needsOther: false },
+  { beat: 'settled', how: 'chart', needsOther: true },
+  { beat: 'settled', how: 'chartBack', needsOther: false },
 ];

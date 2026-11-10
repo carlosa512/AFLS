@@ -400,7 +400,13 @@ function settleGone(league: League, team: Team, clock: number): void {
       if (!jobs.held[q.other]) jobs.held[q.other] = { pos: q.pos, since: clock };
       delete jobs.runs?.[q.other];
     }
-    closeStory(league, storyOn(team, q), 'left', clock, here(q.holder) ? 'other' : here(q.other) ? 'holder' : 'both');
+    closeStory(
+      league,
+      storyOn(team, q),
+      'left',
+      clock,
+      here(q.holder) ? 'other' : q.other !== undefined && !here(q.other) ? 'both' : 'holder',
+    );
     closeQuestion(league, team, q);
   }
 }
@@ -820,7 +826,14 @@ export function benchCard(league: League, s: { playerId: number; clock: number }
     const { reply, by } = q.answered;
     const man = league.players[by];
     const state: StandsFact['state'] = q.promise ? 'promise' : q.soft ? 'soft' : 'open';
-    const stands = say(BENCH_STANDS, { state }, { key: `bench:${p.id}:${q.answered.at}`, slot: 'stands' });
+    // On the other man's card, the word was given to someone else: name him.
+    const owed = (q.promise ?? q.soft)?.to;
+    const to = owed !== undefined && owed !== p.id ? lastOf(owed) : undefined;
+    const stands = say(
+      BENCH_STANDS,
+      { state, ...(to ? { to } : {}) },
+      { key: `bench:${p.id}:${q.answered.at}`, slot: 'stands' },
+    );
     if (by !== p.id) return { state: 'answered', said: `You answered ${man.lastName}.`, stands };
     const sheet = manSheet(league, man, ctx);
     return {
