@@ -134,7 +134,7 @@ function SideList({ league, side }: { league: League; side: TradeSide }) {
         const p = league.players[id];
         return (
           <li key={id} className="row" style={{ gap: 8 }}>
-            <PlayerAvatar player={p} team={team} size={24} />
+            <PlayerAvatar player={p} team={team} size={36} />
             <PlayerLink league={league} player={p} pos />
             <Ovr league={league} player={p} />
             <span className="muted small">
@@ -350,6 +350,15 @@ export function OfferCard({
       }
     >
       {!compact && <p>{body}</p>}
+      {enquiry &&
+        offer.sides
+          .filter((side) => side.teamId === league.userTeamId && side.players.length > 0)
+          .map((side) => (
+            <div key={side.teamId}>
+              <div className="eyebrow">Asking about</div>
+              <SideList league={league} side={side} />
+            </div>
+          ))}
       {!enquiry && (
         <div className="grid-2">
           <div>
@@ -452,20 +461,17 @@ export function OffersPanel({ league }: { league: League }) {
         offers.map((o) => <OfferCard key={o.id} league={league} offer={o} onDone={setDone} />)
       ) : (
         <Panel title={<h2>Offers</h2>}>
-          <p className="muted">
-            No offers on your desk. Teams call about players they've been watching; put one on the block or shop him to
-            draw calls.
-          </p>
+          <p className="muted">No offers. Put a player on the block to draw calls.</p>
         </Panel>
       )}
     </>
   );
 }
 
-const STATUS: [TradeStatus | null, string][] = [
-  [null, 'Available'],
-  ['listed', 'On the block'],
-  ['untouchable', 'Untouchable'],
+const STATUS: [TradeStatus | null, string, string][] = [
+  [null, 'Available', 'Teams may ask about him as usual'],
+  ['listed', 'On the block', 'Interest grows fast and teams call sooner; they also know you want to sell'],
+  ['untouchable', 'Untouchable', 'Nobody asks about him'],
 ];
 
 /** Your status picker for one player: Available, On the block, Untouchable. */
@@ -473,9 +479,10 @@ export function StatusPicker({ league, player }: { league: League; player: Playe
   const status = league.market?.status[player.id] ?? null;
   return (
     <div className="seg seg-sm" role="group" aria-label={`Trade status for ${player.firstName} ${player.lastName}`}>
-      {STATUS.map(([s, label]) => (
+      {STATUS.map(([s, label, tip]) => (
         <button
           key={label}
+          title={tip}
           aria-pressed={status === s}
           onClick={() => store.mutate((l) => setTradeStatus(l, player.id, s))}
         >
@@ -511,10 +518,6 @@ export function BlockPanel({ league }: { league: League }) {
   const asked = askedAbout(league);
   return (
     <Panel title={<h2>Your block</h2>}>
-      <p className="muted small">
-        On the block, interest grows fast and teams call sooner; they also know you want to sell. Untouchable, nobody
-        asks. <b>Shop</b> calls every team that needs him now.
-      </p>
       {note && (
         <p className="callout" role="status">
           {note}
@@ -537,7 +540,7 @@ export function BlockPanel({ league }: { league: League }) {
                 <button
                   className="btn btn-sm"
                   disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment}
-                  title={blocked ?? undefined}
+                  title={blocked ?? 'Calls every team that needs him now'}
                   onClick={() => shop(p)}
                 >
                   Shop
@@ -562,7 +565,7 @@ export function BlockPanel({ league }: { league: League }) {
                 <button
                   className="btn btn-sm"
                   disabled={!!blocked || league.market?.shopped[p.id] === league.market?.moment}
-                  title={blocked ?? undefined}
+                  title={blocked ?? 'Calls every team that needs him now'}
                   onClick={() => shop(p)}
                 >
                   Shop

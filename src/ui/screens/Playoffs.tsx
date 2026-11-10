@@ -45,9 +45,11 @@ export function Playoffs({ league }: { league: League }) {
   if (league.phase === 'regular') {
     return (
       <>
-        <div className="notice">
-          The top seven teams in each conference make the playoffs: four division winners and three wild cards. The 1
-          seed gets a bye. This is the field if the season ended today.
+        <div
+          className="notice"
+          title="The top seven teams in each conference make the playoffs: four division winners and three wild cards. The 1 seed gets a bye."
+        >
+          This is the field if the season ended today.
         </div>
         <div className="grid-2">
           {league.conferences.map((conf, c) => (

@@ -92,20 +92,22 @@ export function Waivers({ league }: { league: League }) {
   return (
     <div className="stack">
       <Panel title="Waiver wire">
-        <p>
-          {filter === 'released'
-            ? 'These are players you released. Other teams can claim them; unclaimed players become free agents.'
-            : filter === 'mine'
-              ? 'These are your plans to add players. No roster move happens unless you win the claim.'
-              : 'These players were released by other teams. Plan a claim to add one on his existing contract.'}
-        </p>
+        <details className="more">
+          <summary>How waivers work</summary>
+          <p className="muted small">
+            Players you release can be claimed by other teams; unclaimed players become free agents. Plan a claim to add
+            a released player on his existing contract. No roster move happens unless you win the claim. If several
+            teams want a player, the team nearest the front gets him, and your signing order decides which of your
+            claims we try first.
+          </p>
+        </details>
         {filter !== 'released' && (
           <p className="small muted">
             Your place in line:{' '}
             <b>
               {waiverOrder(league).indexOf(teamId) + 1} of {league.teams.length}
             </b>
-            . If several teams want a player, the team nearest the front gets him.
+            .
           </p>
         )}
         <div className="seg" role="group" aria-label="Waiver players">
@@ -126,7 +128,6 @@ export function Waivers({ league }: { league: League }) {
             <p>
               <b>{waiverDecision(league)}</b>
             </p>
-            <p className="small muted">Every open claim is decided together, by waiver priority.</p>
           </div>
         )}
         {!rows.length ? (
@@ -202,9 +203,6 @@ export function Waivers({ league }: { league: League }) {
       </Panel>
       {mine.length > 0 && filter !== 'released' && (
         <Panel title="Your signing order">
-          <p className="small muted">
-            We try to sign players in this order. Put your favorite first if you cannot fit everyone.
-          </p>
           <ol>
             {mine.map((c, index) => {
               const e = pending.find((e) => e.id === c.entryId)!;
@@ -273,17 +271,10 @@ export function Waivers({ league }: { league: League }) {
         >
           <p>
             <PlayerLink league={league} player={league.players[entry.playerId]} /> joins your main roster if you win.
-            His current contract stays in place.
           </p>
           <RosterMovePicker league={league} teamId={teamId} value={move} onChange={setMove} />
-          <p className="small muted">
-            {move
-              ? 'The selected roster move happens only if you win. If you lose, you keep your player.'
-              : 'Keep everyone if there is room for the new player.'}
-          </p>
-          <p className="small muted">
-            {waiverDecision(league)}. “Save claim” files your plan; it does not advance time.
-          </p>
+          {!move && <p className="small muted">Keep everyone if there is room for the new player.</p>}
+          <p className="small muted">{waiverDecision(league)}.</p>
           {planProblem && (
             <p className="callout callout-bad" role="status">
               {planProblem}

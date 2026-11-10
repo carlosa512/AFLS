@@ -121,9 +121,12 @@ export function Standings({ league }: { league: League }) {
           </div>
         </Panel>
       ))}
-      <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-        Ties are broken by head-to-head, division record, conference record, point differential and points scored.
-      </p>
+      <details className="more">
+        <summary>Tiebreakers</summary>
+        <p className="muted small">
+          Ties are broken by head-to-head, division record, conference record, point differential and points scored.
+        </p>
+      </details>
     </>
   );
 }

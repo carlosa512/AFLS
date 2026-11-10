@@ -116,15 +116,14 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
       {league.phase === 'resign' ? (
         <Panel title="Expiring contracts">
           <p className="muted small" style={{ marginTop: 0 }}>
-            Anyone you don't re-sign or tag becomes a free agent when free agency opens. Asks are market value plus his
-            agent's appetite.
+            Unsigned players hit free agency.
             {tagged ? (
               <>
                 {' '}
                 You tagged <PlayerLink league={league} player={tagged} /> this year.
               </>
             ) : (
-              ' You have one franchise tag: a fully guaranteed one-year deal.'
+              ' One franchise tag left.'
             )}
           </p>
           {expiring.length === 0 ? (
@@ -212,17 +211,13 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
           )}
         </Panel>
       ) : (
-        <div className="notice">
-          The re-sign window opens at the start of each offseason. During the year you can extend players in the last
-          two years of their deals.
-        </div>
+        <div className="notice">Re-signing opens in the offseason.</div>
       )}
 
       {options.length > 0 && (
         <Panel title="Fifth-year options">
           <p className="muted small" style={{ marginTop: 0 }}>
-            First-round picks after three seasons. Exercising adds a fully guaranteed fifth year at a salary set by how
-            he ranks at his position.
+            First-rounders after three seasons.
           </p>
           <div className="table-scroll">
             <table>
@@ -274,8 +269,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
 
       <Panel title="Extension candidates">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Players in the last two years of their deals (rookies after three seasons). Extending early can beat a rising
-          market; the old bonus keeps counting.
+          In the last two years of their deals.
         </p>
         {extensions.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
@@ -362,8 +356,7 @@ function FreeAgents({
     return (
       <Panel title="Coming to market">
         <p className="muted small" style={{ marginTop: 0 }}>
-          Free agency opens when you advance. These players' deals have run out; their teams may still re-sign or tag
-          them first.
+          Free agency opens when you advance.
         </p>
         <div className="table-scroll">
           <table>
@@ -429,7 +422,7 @@ function FreeAgents({
     >
       <p className="muted small" style={{ marginTop: 0 }}>
         {league.phase === 'freeAgency'
-          ? `Day ${league.faDay} of ${FA_DAYS}. Other teams sign players each time you advance a day, and asks soften as the market cools.`
+          ? `Day ${league.faDay} of ${FA_DAYS}.`
           : 'Players still unsigned take less the longer they wait.'}
       </p>
       <div className="table-scroll">

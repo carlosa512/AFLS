@@ -132,7 +132,19 @@ describe('futures deals', () => {
   it('your director writes once when the window opens, and once at the new league year', () => {
     deliverMail(l);
     deliverMail(l);
-    expect((l.inbox ?? []).filter((m) => m.id.startsWith('futures:'))).toHaveLength(1);
+    const letters = (l.inbox ?? []).filter((m) => m.id.startsWith('futures:'));
+    expect(letters).toHaveLength(1);
+    // A row a squad man, each with its own keep button and the scouts' call, the ones we'd keep first.
+    const rows = letters[0].sections![0].rows;
+    expect(rows.map((r) => r.playerId).sort()).toEqual(
+      practiceSquad(l, l.userTeamId)
+        .map((p) => p.id)
+        .sort(),
+    );
+    expect(rows.every((r) => r.futures?.playerId === r.playerId && !!r.note)).toBe(true);
+    // The call is yours: the row is the man and his age, with no grade and no verdict beside them.
+    expect(rows.every((r) => r.cells.length === 2)).toBe(true);
+    expect(JSON.stringify(letters[0])).not.toMatch(/We'd keep|We'd let go|Our read/);
     newLeagueYear();
     deliverMail(l);
     deliverMail(l);

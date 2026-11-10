@@ -4,17 +4,17 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
 {
   "ARI": {
     "kept": [
+      1536,
       1485,
-      1528,
+      1530,
       1526,
       1509,
+      1501,
       1508,
-      1507,
-      1503,
+      1495,
+      1761,
     ],
-    "tagged": [
-      1536,
-    ],
+    "tagged": [],
   },
   "ATL": {
     "kept": [
@@ -23,9 +23,12 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1316,
       1294,
       1300,
+      1275,
       1324,
     ],
-    "tagged": [],
+    "tagged": [
+      1281,
+    ],
   },
   "BAL": {
     "kept": [
@@ -44,7 +47,6 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1329,
       1377,
-      1378,
       1350,
       1354,
       1363,
@@ -55,8 +57,8 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "CHI": {
     "kept": [
       1077,
-      1112,
       1071,
+      1078,
       1068,
       1062,
     ],
@@ -84,6 +86,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       337,
       325,
       1758,
+      1702,
       1025,
     ],
     "tagged": [],
@@ -93,23 +96,23 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       884,
       886,
       890,
+      857,
       853,
       874,
-      895,
       878,
+      868,
       865,
-      882,
     ],
-    "tagged": [
-      857,
-    ],
+    "tagged": [],
   },
   "DEN": {
     "kept": [
       656,
       653,
-      644,
+      688,
+      640,
       659,
+      646,
     ],
     "tagged": [
       668,
@@ -118,8 +121,8 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "DET": {
     "kept": [
       1144,
-      1117,
       1124,
+      1143,
       1126,
       1148,
     ],
@@ -127,10 +130,10 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "GB": {
     "kept": [
-      1193,
       1195,
       1218,
-      1196,
+      1173,
+      1216,
     ],
     "tagged": [],
   },
@@ -141,10 +144,10 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       477,
       1344,
       469,
-      466,
       472,
       437,
       444,
+      454,
       1697,
       470,
     ],
@@ -152,16 +155,14 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "IND": {
     "kept": [],
-    "tagged": [
-      774,
-    ],
+    "tagged": [],
   },
   "JAX": {
     "kept": [
-      574,
       531,
       556,
       560,
+      572,
       535,
       550,
     ],
@@ -182,12 +183,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "LAC": {
     "kept": [
       1070,
-      837,
       825,
       809,
-      830,
       839,
-      806,
       848,
     ],
     "tagged": [],
@@ -195,23 +193,23 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "LAS": {
     "kept": [
       1581,
+      1579,
       1586,
       1553,
+      1565,
       1546,
       1570,
-      1543,
+      1769,
     ],
-    "tagged": [
-      1579,
-    ],
+    "tagged": [],
   },
   "LV": {
     "kept": [
       743,
       769,
       759,
+      761,
       751,
-      1749,
       746,
       788,
     ],
@@ -224,18 +222,19 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       859,
       58,
       78,
-      59,
     ],
     "tagged": [],
   },
   "MIN": {
     "kept": [
       1228,
-      557,
+      563,
       1265,
+      1240,
       1267,
       1236,
       1751,
+      1243,
       1266,
     ],
     "tagged": [],
@@ -243,7 +242,8 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "NE": {
     "kept": [
       274,
-      150,
+      149,
+      128,
       152,
       146,
       154,
@@ -251,30 +251,26 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       113,
       158,
     ],
-    "tagged": [
-      149,
-    ],
+    "tagged": [],
   },
   "NO": {
     "kept": [
       1395,
       1426,
-      1427,
+      1402,
       1420,
       1421,
-      1397,
-      1430,
     ],
     "tagged": [],
   },
   "NYE": {
     "kept": [
       950,
+      929,
       938,
       923,
       943,
       802,
-      1718,
     ],
     "tagged": [],
   },
@@ -288,6 +284,8 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       533,
       167,
       1705,
+      187,
+      206,
     ],
     "tagged": [],
   },
@@ -295,6 +293,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       986,
       1214,
+      974,
       997,
       985,
       987,
@@ -303,42 +302,41 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "PIT": {
     "kept": [
-      397,
-      375,
+      424,
       423,
+      379,
+      382,
       392,
     ],
     "tagged": [
-      867,
+      397,
     ],
   },
   "SEA": {
     "kept": [
-      1652,
       927,
       1687,
-      1664,
+      1658,
       1668,
       1685,
       1645,
       1655,
-      1761,
     ],
-    "tagged": [],
+    "tagged": [
+      1652,
+    ],
   },
   "SF": {
     "kept": [
       1610,
-      1600,
-      1626,
       1643,
       1638,
-      1636,
-      1596,
       1639,
       1618,
     ],
-    "tagged": [],
+    "tagged": [
+      1634,
+    ],
   },
   "TB": {
     "kept": [
@@ -353,10 +351,10 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       632,
       595,
       587,
-      635,
       589,
       630,
       1757,
+      586,
       618,
     ],
     "tagged": [],
@@ -364,16 +362,12 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "WAS": {
     "kept": [
       1044,
-      1031,
-      1049,
-      1016,
-      1009,
-      1053,
-      1779,
-    ],
-    "tagged": [
       1574,
+      1498,
+      1034,
+      1009,
     ],
+    "tagged": [],
   },
 }
 `;

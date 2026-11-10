@@ -67,7 +67,9 @@ describe('focused opposition briefing', () => {
     expect(focus.length).toBeLessThanOrEqual(2);
     const line = focus.find((f) => f.side === 'attack' && f.matchup.title === 'Trenches')!;
     expect(line).toBeDefined();
-    expect(line.label).toContain('Clear scouted edge: ours');
+    expect(line.label).toBe('Edge: us');
+    expect(line).toMatchObject({ basis: 'film', clear: true, heading: 'Our line vs their front' });
+    expect(line.why).toContain('Our line should win this one against their front.');
     expect(line.facts).toHaveLength(2);
     expect(line.facts[0].label).toBe('Sacks allowed');
     expect(line.facts[0].value).toBe('3.2% of dropbacks');
@@ -78,7 +80,8 @@ describe('focused opposition briefing', () => {
     const [focus, ...rest] = focusMatchups(l, 1);
     expect(rest).toHaveLength(0);
     expect(focus.advantage).toBeNull();
-    expect(focus.why).toContain('even on film');
+    expect(focus.label).toBe('Even');
+    expect(focus.why).toMatch(/^Nothing between our .* and their .* on film\.$/);
   });
   it('uses season efficiency to find an opening when the scouting grades are level', () => {
     const l = setup();
@@ -89,7 +92,9 @@ describe('focused opposition briefing', () => {
     const [focus] = focusMatchups(l, 1);
     expect(focus.side).toBe('attack');
     expect(focus.matchup.title).toBe('Pass game');
-    expect(focus.label).toBe('Results edge: ours');
+    expect(focus.label).toBe('Edge: us');
+    expect(focus.basis).toBe('results');
+    expect(focus.why).toBe('Even on film, but the numbers lean our way.');
     expect(focus.facts[0].value).toBe('11.0 yards per attempt');
   });
   it('calls out results that contradict a clear scouting edge', () => {
@@ -102,7 +107,7 @@ describe('focused opposition briefing', () => {
       if (g.homeId === 1) g.result!.away.sacked = 5;
     }
     const line = focusMatchups(l, 1).find((f) => f.side === 'attack' && f.matchup.title === 'Trenches')!;
-    expect(line.why).toContain('The results say otherwise');
+    expect(line.why).toContain('The numbers so far say otherwise');
   });
   it('does not use future games or fabricate statistics before enough games exist', () => {
     const l = setup();

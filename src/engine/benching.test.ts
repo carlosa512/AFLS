@@ -43,6 +43,8 @@ import { advanceOffseason, beginOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import { addPlayer, setTeam } from './roster';
 import { perceive } from './scouting';
+import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { conferenceSeeds } from './season/standings';
 import type { Injury, League, Player, Team } from './types';
 
 afterEach(() => {
@@ -638,6 +640,43 @@ const exits: [string, (l: League, p: Player) => void][] = [
   ['is traded or claimed', (l, p) => setTeam(l, p, (l.userTeamId + 1) % l.teams.length)],
   ['retires', (_l, p) => void (p.retired = true)],
 ];
+
+describe("the club's last game of the year", () => {
+  /** A user's club that misses the playoffs on the standings as they are, parked at the regular season's last week. */
+  function lastWeek(seed: string) {
+    const probe = createLeague({ seed });
+    const seeded = new Set(probe.conferences.flatMap((_, c) => conferenceSeeds(probe, c)));
+    const out = probe.teams.find((t) => !seeded.has(t.id))!.id;
+    const l = createLeague({ seed, userTeamId: out });
+    const team = l.teams[out];
+    expect(l.conferences.flatMap((_, c) => conferenceSeeds(l, c))).not.toContain(out);
+    setJobs(l);
+    l.week = REGULAR_SEASON_WEEKS;
+    return { l, team, q: team.depthChart.QB.map((id) => l.players[id]) };
+  }
+
+  it('opens no question and files no ask when a holder sits it out with no game left', () => {
+    const { l, team, q } = lastWeek('last-game');
+    order(team, [q[1].id, q[0].id]);
+    const clock = moodWeek(l);
+    expect(team.jobs?.questions ?? []).toHaveLength(0);
+    expect(q[0].morale?.talk?.ask).toBeUndefined();
+    expect(jolts(q[0], 'benched', clock)).toHaveLength(0);
+  });
+
+  it('closes an open question with nothing said, and still asks a week earlier', () => {
+    const { l, team, q } = lastWeek('last-game-open');
+    l.week = REGULAR_SEASON_WEEKS - 1;
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    expect(team.jobs!.questions).toHaveLength(1);
+    expect(q[0].morale?.talk?.ask?.cause).toBe('benched');
+    moodWeek(l);
+    expect(team.jobs?.questions ?? []).toHaveLength(0);
+    expect(q[0].morale?.talk?.ask).toBeUndefined();
+    expect(unsure(q[0])).toBe(0);
+  });
+});
 
 describe('mid-story: injuries', () => {
   it('a job-holder on injured reserve keeps his job and his cover never earns it', () => {

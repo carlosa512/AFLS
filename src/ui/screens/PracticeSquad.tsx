@@ -39,15 +39,14 @@ export function PracticeSquad({ league }: { league: League }) {
     const blocked = canTurnOnPersonnel(league);
     return (
       <Panel title="Practice squad">
-        <p>Personnel transactions are not active in this career yet.</p>
-        <p className="small muted">
-          Practice squads add up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once
-          on, they stay on for this career.
-        </p>
+        <p>Turn on personnel transactions?</p>
         <button
           className="btn btn-primary"
           disabled={!!blocked}
-          title={blocked ?? undefined}
+          title={
+            blocked ??
+            'Adds practice squads of up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once on, they stay on for this career.'
+          }
           onClick={() => store.mutate(turnOnPersonnel)}
         >
           Turn on practice squads
@@ -224,10 +223,6 @@ export function PracticeSquad({ league }: { league: League }) {
           <TeamLink team={league.teams[teamId]} full /> · Up to 16 players
           {places > 16 ? ', plus one International Pathway player,' : ''} train with your team outside the main roster.
           Use up to two for one game with a temporary call-up, or sign a player to the 53-man roster.
-        </p>
-        <p className="small muted">
-          Squad deals pay by the week. Releasing a player stops later checks. Moving a player off the main roster
-          requires a release first; other clubs may get a chance to claim him.
         </p>
         <div className="facts">
           <span className="fact">

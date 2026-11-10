@@ -215,9 +215,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
             </table>
           </div>
         ) : (
-          <p className="muted small">
-            No GM games recorded yet. Earlier results are not attributed to this appointment.
-          </p>
+          <p className="muted small">No GM games yet.</p>
         )}
       </Section>
       {coaches.length > 0 && (
@@ -256,9 +254,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
               ))}
             </ol>
           ) : (
-            <p className="muted small">
-              Promoted from scouting director. Earlier scouting appointments are not recorded.
-            </p>
+            <p className="muted small">Promoted from scouting director.</p>
           )}
         </Section>
       )}
@@ -332,16 +328,7 @@ export function GeneralManagers({ league }: { league: League }) {
         </div>
         <CareerFigures league={league} gm={you} />
       </Panel>
-      <Panel
-        title={
-          <div>
-            <h2>General managers</h2>
-            <p className="muted small gm-directory-intro">
-              The people building the league. Open a name for appointments, results and scouting history.
-            </p>
-          </div>
-        }
-      >
+      <Panel title={<h2>General managers</h2>}>
         <div className="seg gm-filters" role="group" aria-label="GM employment">
           {filters.map(([key, label]) => (
             <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>

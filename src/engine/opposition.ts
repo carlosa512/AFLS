@@ -30,7 +30,15 @@ export interface MatchupFocus {
   offenseId: number;
   defenseId: number;
   advantage: 'ours' | 'theirs' | null;
+  /** What the edge rests on: our scouts' film, or only the season's results. */
+  basis: 'film' | 'results' | null;
+  /** A wide gap on film. */
+  clear: boolean;
+  /** "Our line vs their front". */
+  heading: string;
+  /** "Edge: us", "Edge: them" or "Even". */
   label: string;
+  /** One sentence on the read, in the head coach's words. */
   why: string;
   facts: MatchupFact[];
 }
@@ -129,6 +137,12 @@ function evidence(all: Map<number, Totals>, teamId: number, title: string, offen
     games: s.games,
   };
 }
+/** A contest's two units as a coach names them: the offense's, then the defense's. */
+const UNITS: Record<string, [string, string]> = {
+  Trenches: ['line', 'front'],
+  'Run game': ['run game', 'linebackers'],
+  'Pass game': ['passing game', 'secondary'],
+};
 export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th')}`;
 export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
@@ -169,28 +183,34 @@ export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
     const statGap = off?.rank && def?.rank ? (def.rank - off.rank) * (side === 'attack' ? 1 : -1) : 0;
     const film = gap >= 0.08 ? 'ours' : gap <= -0.08 ? 'theirs' : null;
     const advantage = film ?? (Math.abs(statGap) >= 4 ? (statGap > 0 ? 'ours' : 'theirs') : null);
-    const label = film
-      ? `${Math.abs(gap) >= 0.4 ? 'Clear' : 'Small'} scouted edge: ${film === 'ours' ? 'ours' : 'theirs'}`
-      : advantage
-        ? `Results edge: ${advantage === 'ours' ? 'ours' : 'theirs'}`
-        : 'Fine margins';
-    const offName = `${side === 'attack' ? 'Our' : 'Their'} ${matchup.offense.title.toLowerCase().replace(/^qb/, 'quarterback')}`;
-    const defName = `${side === 'attack' ? 'their' : 'our'} ${matchup.defense.title.toLowerCase()}`;
-    const rank = (score: number) => ordinal(Math.round(score * 100));
-    // One line: the two units' places on our read (league percentiles), and what that adds up to.
-    const read = `${offName} (${rank(matchup.offense.score)}) vs ${defName} (${rank(matchup.defense.score)})`;
-    const conclusion = film
-      ? `${Math.abs(gap) >= 0.4 ? 'a clear' : 'a small'} opening for ${film === 'ours' ? 'us' : 'them'}.`
-      : advantage
-        ? `close on film; the results favour ${advantage === 'ours' ? 'us' : 'them'}.`
-        : 'even on film.';
+    const clear = Math.abs(gap) >= 0.4;
+    const basis = film ? 'film' : advantage ? 'results' : null;
+    const label = advantage === 'ours' ? 'Edge: us' : advantage === 'theirs' ? 'Edge: them' : 'Even';
+    // Each unit by the name a coach would use, ours first whichever side of the ball it plays.
+    const [offUnit, defUnit] = UNITS[matchup.title] ?? ['offense', 'defense'];
+    const [mine, theirs] = side === 'attack' ? [offUnit, defUnit] : [defUnit, offUnit];
+    const heading = side === 'attack' ? `Our ${offUnit} vs their ${defUnit}` : `Their ${offUnit} vs our ${defUnit}`;
+    // One sentence on what our film says, then a word when the season's numbers disagree with it.
+    const read =
+      film === 'ours'
+        ? clear
+          ? `Our ${mine} should win this one against their ${theirs}.`
+          : `A slight edge for our ${mine} over their ${theirs}.`
+        : film === 'theirs'
+          ? clear
+            ? `Their ${theirs} is a real problem for our ${mine}.`
+            : `Their ${theirs} has a slight edge on our ${mine}.`
+          : advantage
+            ? `Even on film, but the numbers lean ${advantage === 'ours' ? 'our' : 'their'} way.`
+            : `Nothing between our ${mine} and their ${theirs} on film.`;
     const caution =
       film && statGap * gap < 0 && Math.abs(statGap) >= 4
-        ? ' The results say otherwise.'
-        : Math.abs(gap) >= 0.4 && off?.rank && def?.rank && Math.abs(statGap) <= 4
-          ? ' The results are closer than that.'
+        ? ' The numbers so far say otherwise.'
+        : clear && off?.rank && def?.rank && Math.abs(statGap) <= 4
+          ? ' The numbers have it closer.'
           : '';
+    const why = `${read}${caution}`;
 
-    return { side, matchup, offenseId, defenseId, advantage, label, why: `${read}: ${conclusion}${caution}`, facts };
+    return { side, matchup, offenseId, defenseId, advantage, basis, clear, heading, label, why, facts };
   });
 }

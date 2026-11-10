@@ -162,11 +162,9 @@ export function Draft({ league }: { league: League }) {
             }
           >
             <p className="muted small" style={{ marginTop: 0 }}>
-              Each scouting visit narrows a range:{' '}
               <b>
-                {league.scoutPoints} visit{league.scoutPoints === 1 ? '' : 's'} left
-              </b>{' '}
-              this year.
+                {league.scoutPoints} scouting visit{league.scoutPoints === 1 ? '' : 's'} left.
+              </b>
             </p>
             <details className="more">
               <summary>How to read the board</summary>

@@ -149,7 +149,7 @@ describe('the offer card', () => {
       html = renderToStaticMarkup(
         <Folded league={league} t={thread} needs={new Set()} index={nameIndex(league)} act={() => {}} />,
       );
-      expect(html).toContain(`A conversation with the ${thread.messages[0].from}, newest first.`);
+      expect(html).not.toContain('A conversation with the');
       expect(html).toContain('Open');
       break;
     }
@@ -339,9 +339,12 @@ describe('the opposition report', () => {
     const count = html.match(/class="mail-focus"/g)!.length;
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThanOrEqual(2);
-    expect(html).toContain('Unit leaders');
-    expect(html).toMatch(/(Our|Their) .* \(\d+(st|nd|rd|th)\) vs/);
-    expect(html).toMatch(/Our offense vs their defense|Their offense vs our defense/);
+    // A plain heading, a plain tag and one sentence: no percentiles, no "scouted edge".
+    expect(html).toMatch(/<b>(Our|Their) [a-z ]+ vs (their|our) [a-z ]+<\/b>/);
+    expect(html).toMatch(/Edge: us|Edge: them|Even/);
+    expect(html).not.toMatch(/scouted edge|\(\d+(st|nd|rd|th)\) vs/i);
+    expect(html).toContain('Players to watch');
+    expect(html).toContain('Who they&#x27;re missing');
     expect(html).not.toContain('mail-matchup-score');
   });
   it('reads each matchup in one line and does not invent early-season statistics', () => {
@@ -352,8 +355,8 @@ describe('the opposition report', () => {
     expect(html).not.toContain('Higher unit percentiles');
     expect(html).not.toContain('Not enough games yet');
     expect(html).not.toContain('percentile');
-    expect(html).toMatch(/\((\d+)(st|nd|rd|th)\) vs (our|their) .* \((\d+)(st|nd|rd|th)\): /);
-    expect(html).not.toContain('mail-focus-facts');
+    expect(html).toMatch(/class="mail-focus-why">[^<]+\.<\/p>/);
+    expect(html).not.toContain('mail-focus-bars');
     expect(html).not.toMatch(/NaN|Infinity|71th/);
   });
 });
@@ -370,7 +373,7 @@ describe('current briefings without a task badge', () => {
     expect(live).toContain('mail-card');
     league.phase = 'complete';
     const closed = renderToStaticMarkup(<MailCards league={league} message={message} />);
-    expect(closed).toContain('The trade deadline has passed');
+    expect(closed).toContain('Trade deadline has passed');
   });
 });
 

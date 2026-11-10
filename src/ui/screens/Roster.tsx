@@ -528,14 +528,6 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               </button>
             </p>
           )}
-          {isUser && grouped && (
-            <p className="muted" style={{ marginTop: 0, fontSize: 'var(--step--1)' }}>
-              Starters sit above the yellow line, in the spots your coordinators' schemes use. Drag a player by the{' '}
-              <span aria-hidden="true">⠿</span> handle (or focus it and press ↑/↓) to promote or bench him; that turns
-              auto-sort off for your team. In a pinch, "Play at…" lines a player up at another position (auto-sort keeps
-              him there): out of position he takes a knock, smaller in his own room or at a spot he has played.
-            </p>
-          )}
           {isUser && grouped && <SpotNotes league={league} teamId={teamId} />}
           <span className="visually-hidden" aria-live="polite">
             {announcement}
@@ -792,7 +784,7 @@ function PlayAt({ p, slot, onPick }: { p: Player; slot: Position; onPick: (pos: 
     <select
       className="play-at"
       aria-label={`Play ${p.firstName} ${p.lastName} at another position`}
-      title="Line him up at another position"
+      title="Line him up at another position. Out of position he takes a knock, smaller in his own room or at a spot he has played."
       value=""
       onChange={(e) => {
         const pos = e.target.value as Position;

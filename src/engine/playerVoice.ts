@@ -214,9 +214,46 @@ export interface AnswerFact {
   reply: TalkReply | 'ignored';
   loud: boolean;
   calm: boolean;
+  /** The ask was about the losing (its three answers have their own words). */
+  losing?: boolean;
+  /** You asked him to lead the room through it. */
+  lead?: boolean;
 }
 
 export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
+  { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "I can do that. They'll hear it from me first." },
+  { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "All right. I'll get the room pulling the same way." },
+  {
+    when: (f) => !!f.losing && !!f.lead && f.loud,
+    reads: 4,
+    text: () => "I've been saying it in there already. I'll say it louder.",
+  },
+  {
+    when: (f) => !!f.losing && f.reply === 'reassure' && !f.lead,
+    reads: 3,
+    text: () => "Then let's see it on Sunday. I'm with you.",
+  },
+  {
+    when: (f) => !!f.losing && f.reply === 'reassure' && !f.lead,
+    reads: 3,
+    text: () => "That's what I needed to hear. I'll tell the others.",
+  },
+  {
+    when: (f) => !!f.losing && f.reply === 'reassure' && !f.lead && f.loud,
+    reads: 4,
+    text: () => "I'll believe it when the scoreboard says so. But all right.",
+  },
+  {
+    when: (f) => !!f.losing && f.reply === 'firm' && f.calm,
+    reads: 4,
+    text: () => "Fair. I'll start with my own film.",
+  },
+  {
+    when: (f) => !!f.losing && f.reply === 'firm' && f.loud,
+    reads: 4,
+    text: () => "That's not what I came up here to hear.",
+  },
+  { when: (f) => !!f.losing && f.reply === 'firm', reads: 3, text: () => "Understood. We'll sort it out downstairs." },
   {
     when: (f) => f.reply === 'promise' && f.cause === 'snaps',
     reads: 2,

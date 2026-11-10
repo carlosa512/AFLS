@@ -63,6 +63,9 @@ const SAID: Record<string, string> = {
   reassure: 'You reassured him.',
   firm: 'You were firm with him.',
   ignored: 'You left his letter unanswered.',
+  'losing:reassure': "You told him we'll turn this around.",
+  'losing:lead': 'You asked him to lead the room through it.',
+  'losing:firm': "You told him that's on the coach and the players.",
 };
 
 /** What a player's letter shows now, read off the league: your players only. */
@@ -76,10 +79,12 @@ export function talkCard(league: League, s: { clock: number; playerId: number })
   if (!a || a.ask !== s.clock) return { state: 'closed' };
   // A promise still open says what it was for; once it's settled the letter just says you made one.
   const cause = t.promise?.kind;
-  const said = a.reply !== 'promise' ? SAID[a.reply] : cause ? SAID[`promise:${cause}`] : 'You made him a promise.';
+  const losing = a.cause === 'losing' ? SAID[`losing:${a.lead ? 'lead' : a.reply}`] : undefined;
+  const said =
+    a.reply !== 'promise' ? (losing ?? SAID[a.reply]) : cause ? SAID[`promise:${cause}`] : 'You made him a promise.';
   const line = say(
     TALK_ANSWER,
-    { cause: cause ?? 'losing', reply: a.reply, ...manner(p) },
+    { cause: cause ?? 'losing', reply: a.reply, losing: a.cause === 'losing', lead: !!a.lead, ...manner(p) },
     { key: `talk:${Math.floor(s.clock / 32)}:${s.clock}:${p.id}`, slot: 'answer' },
   );
   return { state: 'answered', cause, said, line };

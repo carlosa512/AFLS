@@ -733,12 +733,7 @@ function PositionSection({ league, player: p }: { league: League; player: Player
       {away && (
         <div className="notice stack">
           <span>{lineupText(p, slot)}.</span>
-          {knockAt(p, slot) !== 'none' && (
-            <span className="muted small">
-              Everything he does there is worse for it, a little or a lot. He is a{' '}
-              {POSITION_NAMES[p.position].toLowerCase()}; put him back when you can.
-            </span>
-          )}
+          {knockAt(p, slot) !== 'none' && <span className="muted small">Out of position.</span>}
           <span>
             <button className="btn btn-sm" onClick={() => store.mutate((l) => placeBack(l, p.id))}>
               Back to {p.position}
@@ -821,7 +816,7 @@ function PositionSection({ league, player: p }: { league: League; player: Player
         <>
           {!inOffseason && (
             <p className="small" style={{ margin: 0 }}>
-              Position moves start in the offseason. Until then, this is what your coaches think.
+              Moves start in the offseason.
             </p>
           )}
           <ul className="move-list" aria-label="Positions the coaches could teach him">
@@ -1183,11 +1178,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
       <Section id="ratings" title={`Ratings at ${p.position}`}>
         <AttributeList player={p} view={view} />
         <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-          Bold ratings make up his overall at {p.position}; tap any rating to see what it does in a game. Scale: 1–5
-          poor, 6–10 backup, 11–15 starter, 16–20 elite.
-          {view.exact
-            ? ' Arrows show the change since last season.'
-            : ' Ranges are your scouts’ estimates; film and scouting visits narrow them.'}
+          Tap a rating for what it does.
         </p>
       </Section>
 
@@ -1211,10 +1202,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
             {reps.needs && (
               <>
                 {' '}
-                <span className="tag-pill tag-warn" style={{ marginLeft: 0 }}>
+                <span
+                  className="tag-pill tag-warn"
+                  style={{ marginLeft: 0 }}
+                  title="Young players develop faster with snaps; sitting slows him down."
+                >
                   Needs reps
-                </span>{' '}
-                Young players develop faster with snaps; sitting slows him down.
+                </span>
               </>
             )}
           </p>
@@ -1289,7 +1283,6 @@ export function PublicPlayerCard({ league, player, onClose }: { league: League; 
       <p>
         {player.position} · Age {player.age}
       </p>
-      <p className="muted">Public career results. Scouting files belong to the team that prepared them.</p>
       <StatsTable league={league} player={player} />
     </Sheet>
   );

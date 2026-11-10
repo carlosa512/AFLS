@@ -541,13 +541,12 @@ describe('mail through a season', () => {
       // Case-sensitive: a name like Keenan is not a NaN.
       expect(words).not.toMatch(/\bNaN\b/);
     }
-    // A waiver row's read is our scouts', not the player's true overall.
+    // A waiver row carries no grade: the man, his age, his deal and what happened or our chance.
     for (const m of digests.filter((x) => x.id.startsWith('waivers:')))
-      for (const sec of m.sections!)
-        for (const r of sec.rows) {
-          const p = league.players[r.playerId!];
-          if (p && sec.columns?.[2] === 'Our read' && p.teamId !== user) expect(Number(r.cells[2])).not.toBeNaN();
-        }
+      for (const sec of m.sections!) {
+        expect(sec.columns).not.toContain('Our read');
+        for (const r of sec.rows) expect(r.cells).toHaveLength(4);
+      }
   });
 
   it('marks deadline day only: the director’s mails carry the weeks before', () => {
@@ -1693,7 +1692,14 @@ describe("the young players' review", () => {
     expect(m.subject).toBe("How the young players' year went");
     expect(section(m, 'Ahead of our grades')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
     expect(section(m, 'Behind our grades')!.rows.map((r) => r.playerId)).toEqual([second.id]);
-    expect(section(m, 'Ahead of our grades')!.columns).toEqual(['Player', 'Pos', 'Age', 'Came in', 'Our read']);
+    // His overall and his ceiling on our read, each with the year's change when it moved a point.
+    for (const r of [...section(m, 'Ahead of our grades')!.rows, ...section(m, 'Behind our grades')!.rows]) {
+      expect(r.cells[3]).toMatch(/^\d+( [▲▼]\d+)?$/);
+      expect(r.cells[4]).toMatch(/^\d+ [▲▼]\d+$/);
+    }
+    expect(section(m, 'Ahead of our grades')!.rows[0].cells[4]).toContain('▲');
+    expect(section(m, 'Behind our grades')!.rows[0].cells[4]).toContain('▼');
+    expect(section(m, 'Ahead of our grades')!.columns).toEqual(['Player', 'Age', 'Came in', 'Overall', 'Ceiling']);
     expect(rows(m).some((r) => r.playerId === theirs.id)).toBe(false);
     expect((league.inbox ?? []).some((x) => x.id.startsWith(`ceiling:${league.season}:`))).toBe(false);
   });
@@ -1727,16 +1733,17 @@ describe("the young players' review", () => {
     shift(rookie, -3);
     deliverMail(league);
     const row = rowFor(review()[0], rookie);
-    expect(row.cells.at(-1)).toBe('Behind where we had him coming out. Still early.');
-    expect(row.cells.join(' ')).not.toContain('what you see is about what you get');
+    // The row is numbers: his ceiling on our read and how far the year moved it. The letter says it is early.
+    expect(row.cells.at(-1)).toMatch(/^\d+ ▼\d+$/);
     expect(review()[0].body).toContain("It's early for the rookies");
   });
 
-  it('a third-year behind reads close to his ceiling', () => {
-    const { league, third, shift, review, rowFor } = setup();
+  it('a third-year behind is listed with what the year took off his ceiling', () => {
+    const { league, third, shift, review, rowFor, section } = setup();
     shift(third, -3);
     deliverMail(league);
-    expect(rowFor(review()[0], third).cells.at(-1)).toBe('Close to his ceiling: what you see is about what you get.');
+    expect(section(review()[0], 'Behind our grades')!.rows.map((r) => r.playerId)).toEqual([third.id]);
+    expect(rowFor(review()[0], third).cells.at(-1)).toMatch(/^\d+ ▼\d+$/);
   });
 
   it('who we thought: a rookie who held is listed, a second-year who held is not', () => {
@@ -1747,7 +1754,7 @@ describe("the young players' review", () => {
     const [m] = review();
     expect(section(m, 'Who we thought he was')!.rows.map((r) => r.playerId)).toEqual([rookie.id]);
     expect(rows(m).some((r) => r.playerId === second.id)).toBe(false);
-    expect(rowFor(m, rookie).cells.at(-1)).toBe('Right on his draft grade.');
+    expect(rowFor(m, rookie).cells.at(-1)).toMatch(/^\d+$/);
     expect(m.body).toBe("With the season done, this year's rookies are about who we thought they were.");
   });
 
@@ -1773,8 +1780,8 @@ describe("the young players' review", () => {
     shift(rookie, 3);
     shift(extra, 3);
     deliverMail(league);
-    expect(rowFor(review()[0], rookie).cells[3]).toBe(`${league.season} R1, No. 12`);
-    expect(rowFor(review()[0], extra).cells[3]).toBe('Undrafted');
+    expect(rowFor(review()[0], rookie).cells[2]).toBe(`${league.season} R1, No. 12`);
+    expect(rowFor(review()[0], extra).cells[2]).toBe('Undrafted');
   });
 
   it('old saves: an old one-off this season means no review', () => {

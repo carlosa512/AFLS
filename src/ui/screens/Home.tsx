@@ -126,11 +126,7 @@ function NextGame({ league }: { league: League }) {
     return (
       <Panel title={title}>
         <p className="muted" style={{ margin: 0 }}>
-          {topSeedBye
-            ? 'You earned the top seed and skip the Wild Card round. Play the week to see who you will host in the Divisional Round.'
-            : eliminated
-              ? 'Your team is out of the playoffs. Sim ahead to see who wins the title, then start next season.'
-              : 'No game this week. Use it to tune your depth chart, then play the week to see the league results.'}
+          {topSeedBye ? 'Bye: top seed.' : eliminated ? 'Your team is out of the playoffs.' : 'Bye week.'}
         </p>
       </Panel>
     );
@@ -171,12 +167,7 @@ function NextGame({ league }: { league: League }) {
         </p>
       )}
       <p className="muted" style={{ margin: 0, fontSize: 'var(--step--1)' }}>
-        {game.neutral
-          ? 'Neutral site.'
-          : isHome
-            ? 'Home game: a small edge in every matchup.'
-            : `Road game in ${opp.city}.`}{' '}
-        Press Play to watch it live. Unit ratings are starter averages on the 1–20 scale.
+        {game.neutral ? 'Neutral site.' : isHome ? 'Home game.' : `Road game in ${opp.city}.`}
       </p>
     </Panel>
   );
@@ -363,8 +354,7 @@ function ChampionBanner({ league }: { league: League }) {
         {team.city} {team.name}
       </h2>
       <p style={{ margin: 0, opacity: 0.9 }}>
-        {isUser ? 'You won it all. ' : ''}Press “Begin {league.season + 1} offseason” to open the new league year:
-        re-signings, free agency, the draft and training camp.
+        {isUser ? 'You won it all. ' : ''}Begin the {league.season + 1} offseason when ready.
       </p>
     </section>
   );
@@ -536,13 +526,13 @@ function OffseasonHome({ league }: { league: League }) {
     }
     case 'freeAgency':
       title = `Free agency · day ${league.faDay} of ${FA_DAYS}`;
-      body = `Make offers now: rival teams sign players every time you advance a day, but asks drop as the market cools. You have ${money(Math.round(sheet.space))} of room and ${roster.length} players.`;
+      body = `Make offers. ${money(Math.round(sheet.space))} of room, ${roster.length} players.`;
       action = { label: 'Free agents', go: () => nav.go({ view: 'office', tab: 'fa' }) };
       break;
     case 'draft':
       title = 'The draft';
       body = myPick
-        ? `Your next pick: round ${myPick.round}, No. ${myPick.overall}. Sim to it, then pick from the big board or let your scouts choose.`
+        ? `Your next pick: round ${myPick.round}, No. ${myPick.overall}.`
         : 'You have no picks left in this draft.';
       action = { label: 'Draft room', go: () => nav.go({ view: 'office', tab: 'draft' }) };
       break;
@@ -552,8 +542,7 @@ function OffseasonHome({ league }: { league: League }) {
       action = { label: 'Cap & cuts', go: () => nav.go({ view: 'cap' }) };
       if (league.personnel?.enabled && league.personnel.clock?.cutdown) {
         title = 'Cutdown waiver wire';
-        body =
-          'The initial cuts are in. Review claims before continuing; claimed players bring their existing contracts, and unclaimed players become free agents. Starting the season handles later notices automatically, or you can process them individually on the wire.';
+        body = 'Initial cuts are in. Review waiver claims.';
         action = { label: 'Review waiver wire', go: () => nav.go({ view: 'office', tab: 'waivers' }) };
       }
       break;
@@ -610,9 +599,7 @@ function OffseasonHome({ league }: { league: League }) {
                 <button className="btn btn-sm" onClick={() => store.mutate(autoCutdown)}>
                   Let the coaches make the cuts
                 </button>
-                <span className="muted small">
-                  Keeps the best value at each position, signs minimum fill-ins if a group runs thin.
-                </span>
+                <span className="muted small">Auto-cut to 53.</span>
               </div>
             )}
           </Panel>
@@ -670,9 +657,7 @@ function WaiverNotice({ league }: { league: League }) {
       <p>
         {league.personnel.waivers!.pending.length} players awaiting waivers. {waiverDecision(league)}.
       </p>
-      <p className="small muted">
-        Review claims before continuing. Your players are released only if a claim you submitted wins.
-      </p>
+      <p className="small muted">Review waiver claims.</p>
     </Panel>
   );
 }

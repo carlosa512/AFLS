@@ -33,7 +33,10 @@ export function MeetingChoices({ league, s }: { league: League; s: { clock: numb
   return (
     <div className="meeting-choices">
       <Pick label={card.questions!.approach} options={card.approaches!} value={approach} onPick={setApproach} />
-      <Pick label={card.questions!.backing} options={card.backings!} value={backing} onPick={setBacking} />
+      {/* One thing on offer is no choice: it goes ahead as it is. */}
+      {card.backings!.length > 1 && (
+        <Pick label={card.questions!.backing} options={card.backings!} value={backing} onPick={setBacking} />
+      )}
       {timings.length > 0 && (
         <Pick label={card.questions!.timing} options={timings} value={timing} onPick={setTiming} />
       )}
