@@ -149,7 +149,14 @@ describe('GMs make room to keep their core', () => {
     const cut = [...before]
       .map((id) => l.players[id])
       .filter((x) => x.teamId === null && x.left?.some((d) => d.how === 'cut'));
-    for (const x of cut) expect(playerOvr(x)).toBeLessThan(playerOvr(p));
+    // The keeper a cut makes room for is whoever the window then signs (best first, so a better man than the fixture's
+    // own keeper may take the room: the benching chain's moods, 0.4.24, left an OL 15.3 ahead of this LB 14.5).
+    const signed = [...before]
+      .map((id) => l.players[id])
+      .filter((x) => x.teamId === team.id && x.contract && x.contract.signedSeason === l.season);
+    expect(signed.length).toBeGreaterThan(0);
+    const bar = Math.max(playerOvr(p), ...signed.map(playerOvr));
+    for (const x of cut) expect(playerOvr(x)).toBeLessThan(bar);
   });
 
   it('restructures only a player it plans to keep starting', () => {
