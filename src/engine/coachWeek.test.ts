@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { answerBench, benchCard, benchKickoff, dismissReminder, restoreCard, setJobs } from './benching';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { coachWeekId, fitItems, newestLosingLetter, MAX_ROWS, STALE, type WeekItem } from './coachWeek';
+import { coachWeekId, fitItems, newestLosingLetter, MAX_ROWS, STALE, weekItems, type WeekItem } from './coachWeek';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { answerMeeting, requestMeeting } from './meetings';
-import { moraleClock, moraleContext } from './morale';
+import { moraleAdvance, moraleClock, moraleContext } from './morale';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, weightOf, type Unit } from './standing';
 import { beat, closeStory, COACH, markTold } from './stories';
+import { seasonSaid, toldKeys } from './voice';
 import { shareWord } from './storiesStep';
 import { ATTRIBUTES, type InboxMessage, type League, type Player, type TalkCause } from './types';
 
@@ -483,5 +485,142 @@ describe('the head coach’s weekly letter', () => {
       kind: 'meeting',
       result: true,
     });
+  });
+});
+
+// ───────── the benching chain's rows ─────────
+
+describe('the head coach’s letters on a benching', () => {
+  /** A club with a QB room of three, jobs set, and the chart hand-sorted. */
+  function club(seed: string) {
+    const l = createLeague({ seed });
+    const team = l.teams[l.userTeamId];
+    setJobs(l);
+    team.autoDepth = false;
+    const q = team.depthChart.QB.map((id) => l.players[id]);
+    return { l, team, q };
+  }
+  const order = (team: League['teams'][number], ids: number[]) => {
+    team.depthChart.QB = [...ids, ...team.depthChart.QB.filter((id) => !ids.includes(id))];
+  };
+  /** One week as the calendar runs it: kickoff noted, the morale step with its benching, the letters filed. */
+  function step(l: League) {
+    benchKickoff(l);
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    deliverMail(l);
+  }
+  const benchRows = (l: League) =>
+    letters(l)
+      .flatMap(rowsOf)
+      .filter((r) => r.bench);
+
+  it('files his ask with a bench row, never a talk row, and the card has his four answers', () => {
+    const { l, team, q } = club('bench-letter');
+    order(team, [q[1].id, q[0].id]);
+    step(l);
+    const [m] = letters(l);
+    const row = rowsOf(m).find((r) => r.bench?.playerId === q[0].id)!;
+    expect(row).toBeDefined();
+    expect(row.talk).toBeUndefined();
+    expect(row.note).toMatch(/^“/);
+    expect(benchCard(l, row.bench!).options).toHaveLength(4);
+    expect(needsYou(l, m)).toBe(true);
+    // Answered, the letter stops asking.
+    answerBench(l, q[0].id, 'earn');
+    expect(needsYou(l, m)).toBe(false);
+  });
+
+  it('a week on, the question still open reads differently and names the other man once he has asked', () => {
+    const { l, team, q } = club('bench-still');
+    order(team, [q[1].id, q[0].id]);
+    step(l);
+    const first = letters(l)
+      .flatMap(rowsOf)
+      .find((r) => r.bench?.playerId === q[0].id)!;
+    // Swapped back with nobody told: the other man sits and asks.
+    order(team, [q[0].id, q[1].id]);
+    step(l);
+    const second = letters(l).at(-1)!;
+    const rows = rowsOf(second).filter((r) => r.bench);
+    expect(rows.map((r) => r.bench!.playerId).sort()).toEqual([q[0].id, q[1].id].sort());
+    expect(rows.find((r) => r.bench!.playerId === q[1].id)!.note).toMatch(/^“/);
+    const still = rows.find((r) => r.bench!.playerId === q[0].id)!;
+    expect(still.note).not.toBe(first.note);
+    expect(still.note).toContain(q[1].lastName);
+    expect(benchCard(l, rows.find((r) => r.bench!.playerId === q[1].id)!.bench!).options).toHaveLength(3);
+    // The old row stays answerable while the question is open.
+    expect(benchCard(l, first.bench!).state).toBe('open');
+  });
+
+  it('a question left open is a note that rides along and never files a letter, and the ask itself is tier one', () => {
+    const { l, team, q } = club('bench-quiet');
+    order(team, [q[1].id, q[0].id]);
+    step(l);
+    expect(
+      weekItems(l, new Set(), [])
+        .filter((i) => i.row.bench)
+        .map((i) => i.tier),
+    ).toEqual([1]);
+    // A week later, with nobody answering, the same question is a tier four note.
+    benchKickoff(l);
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    const mine = weekItems(l, toldKeys(l), seasonSaid(l, letters(l)[0].from, 'coach:')).filter((i) => i.row.bench);
+    expect(mine.map((i) => i.tier)).toEqual([4]);
+  });
+
+  it('the reminder is told once, with Put him back and Leave it', () => {
+    const { l, team, q } = club('bench-reminder');
+    q[0].injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 1,
+      estimate: [1, 2],
+      season: l.season,
+      week: l.week,
+      where: 'game',
+    };
+    order(team, [q[1].id, q[2].id, q[0].id]);
+    benchKickoff(l);
+    delete q[0].injury;
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    deliverMail(l);
+    const rows = letters(l)
+      .flatMap(rowsOf)
+      .filter((r) => r.restore);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toMatch(/Put him back\?$/);
+    expect(restoreCard(l, q[0].id).state).toBe('open');
+    dismissReminder(l, q[0].id);
+    nextStep(l);
+    deliverMail(l);
+    nextStep(l);
+    deliverMail(l);
+    expect(
+      letters(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.restore),
+    ).toHaveLength(1);
+  });
+
+  it('a benching that closes is told in one closing row, once', () => {
+    const { l, team, q } = club('bench-closing');
+    order(team, [q[1].id, q[0].id]);
+    step(l);
+    answerBench(l, q[0].id, 'his');
+    const closing = () =>
+      letters(l)
+        .flatMap(rowsOf)
+        .filter((r) => r.cells[1] === 'Closed' && r.playerId === q[0].id);
+    for (let i = 0; i < 4; i++) {
+      nextStep(l);
+      deliverMail(l);
+    }
+    expect(closing()).toHaveLength(1);
+    expect(closing()[0].note).toContain(q[0].lastName);
+    expect(closing()[0].note).not.toMatch(/That one is closed/);
+    expect(benchRows(l).length).toBeGreaterThan(0);
   });
 });

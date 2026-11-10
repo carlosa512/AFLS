@@ -12,6 +12,7 @@ import { acceptGmOffer, pendingGmOffers } from './leadership';
 import { playWeek } from './league';
 import { answerMeeting } from './meetings';
 import { advanceOffseason } from './offseason';
+import { answerBench, questionOf } from './benching';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import type { InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
@@ -74,6 +75,9 @@ function playSeason(seed: string, userTeamId: number): League {
       const ask = p.teamId === l.userTeamId ? p.morale?.talk?.ask : undefined;
       if (!ask) continue;
       if (ask.cause === 'losing') answerRoomTalk(l, 'team', 'reassure');
+      // A benched ask has its own answers: "just this week" to the man who sat, "keep competing" to the other.
+      else if (ask.cause === 'benched')
+        answerBench(l, p.id, questionOf(l.teams[l.userTeamId], p.id)?.holder === p.id ? 'thisWeek' : 'compete');
       else answerTalk(l, p.id, 'reassure');
     }
     const pend = l.teams[l.userTeamId].meetings?.pending;

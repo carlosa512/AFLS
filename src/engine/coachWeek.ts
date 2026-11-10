@@ -4,6 +4,16 @@
  * or none. It replaces the separate player-talk, meeting-request, meeting-result and staff-notes letters. Rebuilds are
  * safe: a step's letter is filed once, and nothing here draws from any stream.
  */
+import {
+  benchCard,
+  benchCloseFact,
+  benchFact,
+  benchStory,
+  clearedNotStarting,
+  listedWord,
+  restoreCard,
+} from './benching';
+import { BENCH_BEFORE, BENCH_CLOSE, BENCH_STILL, BENCH_TOOK, CLEARED, JOBS_ROW, type JobsFact } from './benchVoice';
 import { manSheet, momentSheet, coachSheet, type CoachSheet, type ManSheet } from './castSheet';
 import { coachName, coachTitle, ROOM_LABEL, teamCoaches } from './coaching';
 import {
@@ -13,6 +23,7 @@ import {
   HEADLINE,
   LINK,
   OPENING,
+  readsDown,
   SAME,
   STILL_WAITING,
   type OpeningFact,
@@ -26,13 +37,23 @@ import { meetingsOf } from './meetings/suggest';
 import { moraleContext, moraleClock, YEAR } from './morale';
 import { roomAsks } from './playerTalks';
 import { weightOf } from './standing';
+import { POSITION_NAMES, STARTERS } from './positions';
+import { perceive } from './scouting';
 import { TALK_SUBJECT } from './playerVoice';
 import { headCoach, type Draft } from './senders';
 import { staffRows } from './staffNotes';
 import { COACH, markTold, openStory, storyById, talkStoryOn, untold } from './stories';
 import { shareWord, tellable } from './storiesStep';
 import { talkCard, talkRows } from './talkMail';
-import type { CoachRoom, InboxMessage, League, MailSection, Player, Story } from './types';
+import {
+  POSITIONS,
+  type CoachRoom,
+  type InboxMessage,
+  type League,
+  type MailSection,
+  type Player,
+  type Story,
+} from './types';
 import { around, sentencesOf, seasonSaid, say, toldKeys } from './voice';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -183,7 +204,13 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       const man = sheet(p);
       const key = askKey(p);
       const out: Row = { ...row };
-      if (man && hasHistory(man)) {
+      // A benched ask is his job question's: the coach's line before it reads the question, not his history.
+      const bench = row.bench ? benchFact(league, p, ctx) : null;
+      if (bench) {
+        out.before = say(BENCH_BEFORE, bench, { key, slot: 'before', ...around(league, said) }) || undefined;
+        if (!out.before) delete out.before;
+        remember(out.before);
+      } else if (man && hasHistory(man)) {
         out.before = say(BEFORE, { man }, { key, slot: 'before', ...around(league, said) });
         remember(out.before);
       }
@@ -203,7 +230,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
           out.note = `${out.note ?? ''} ${same}`.trim();
         }
       }
-      const story = openStory(league, talkStoryOn(league, p, cause));
+      const story = cause === 'benched' ? benchStory(league, p) : openStory(league, talkStoryOn(league, p, cause));
       const mate = story?.other === undefined ? undefined : league.players[story.other]?.lastName;
       items.push({
         tier: 1,
@@ -215,7 +242,8 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
         ...(story ? { storyId: story.id } : {}),
         head: {
           kind: cause === 'losing' ? 'losing' : (story?.kind ?? cause),
-          beat: 'asked',
+          // The other man of a job question is asking about the job, not whether he is benched.
+          beat: bench?.role === 'other' ? 'swapped' : 'asked',
           ...(man ? { man } : {}),
           ...(mate ? { mate } : {}),
         },
@@ -224,7 +252,8 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   }
   for (const p of askers) {
     const ask = p.morale!.talk!.ask!;
-    if (fresh(p) || ask.at >= clock) continue;
+    // A benched ask waits as long as his question is open, in a note a week (below), never as a row that files a letter.
+    if (fresh(p) || ask.at >= clock || ask.cause === 'benched') continue;
     // A room's losing waits as one row, its heaviest man's.
     if (ask.cause === 'losing' && waitingLoser?.id !== p.id) continue;
     const man = sheet(p);
@@ -247,6 +276,27 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       born: ask.at,
       ...(story ? { storyId: story.id } : {}),
       head: { kind: ask.cause === 'losing' ? 'losing' : (story?.kind ?? ask.cause), beat: 'asked', man },
+    });
+  }
+
+  // ───── tier 1: a starter cleared and not back in his spot ─────
+  for (const p of clearedNotStarting(league)) {
+    const key = `restore:${league.season}:${p.id}:${p.injuries?.length ?? 0}`;
+    const man = sheet(p);
+    if (told.has(key) || !man) continue;
+    const note = say(
+      CLEARED,
+      { man, listed: listedWord(league, p) },
+      { key, slot: 'cleared', ...around(league, said) },
+    );
+    remember(note);
+    items.push({
+      tier: 1,
+      key,
+      section: 'want',
+      row: { playerId: p.id, cells: [nameOf(p), 'Cleared'], note, restore: { playerId: p.id } },
+      born: clock,
+      head: { kind: 'benched', beat: 'cleared', man },
     });
   }
 
@@ -303,7 +353,10 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       ...(nounOf(s) ? { noun: nounOf(s) } : {}),
       ...(coach ? { coach: coach.lastName } : {}),
     };
-    const note = say(CLOSING, fact, { key, slot: 'closing', ...around(league, said) });
+    const note =
+      s.kind === 'benched'
+        ? say(BENCH_CLOSE, benchCloseFact(league, s), { key, slot: 'closing', ...around(league, said) })
+        : say(CLOSING, fact, { key, slot: 'closing', ...around(league, said) });
     remember(note);
     items.push({
       tier: 2,
@@ -387,6 +440,57 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     });
   }
 
+  // ───── tier 4: a job question, a week on ─────
+  // Notes that ride along and never file a letter: how he took your answer, and a question still waiting on you.
+  const jobs = league.teams[user].jobs;
+  for (const q of jobs?.questions ?? []) {
+    const holder = league.players[q.holder];
+    if (!holder) continue;
+    const story = benchStory(league, holder);
+    // The holder asking again this step is his own row's: the note is for the weeks he has waited without one.
+    const asksNow = items.some((i) => i.tier === 1 && i.row.bench?.playerId === q.holder);
+    if (q.answered && clock > q.answered.at) {
+      const p = league.players[q.answered.by];
+      const key = `took:${league.season}:${q.answered.at}:${q.answered.by}`;
+      const man = sheet(p);
+      if (!told.has(key) && man) {
+        const note = say(
+          BENCH_TOOK,
+          { man, reply: q.answered.reply, down: readsDown(man) },
+          { key, slot: 'took', ...around(league, said) },
+        );
+        remember(note);
+        items.push({
+          tier: 4,
+          key,
+          section: 'since',
+          row: { playerId: p.id, cells: [nameOf(p), 'How he took it'], note },
+          born: q.answered.at,
+          ...(story ? { storyId: story.id } : {}),
+        });
+      }
+    } else if (!q.answered && q.since < clock && !asksNow) {
+      const fact = benchFact(league, holder, ctx);
+      if (!fact) continue;
+      const key = `still:${league.season}:${clock}:${q.holder}`;
+      const note = say(BENCH_STILL, fact, { key, slot: 'still', ...around(league, said) });
+      remember(note);
+      items.push({
+        tier: 4,
+        key,
+        section: 'asks',
+        row: {
+          playerId: holder.id,
+          cells: [nameOf(holder), TALK_SUBJECT.benched],
+          note,
+          bench: { playerId: holder.id, clock: holder.morale?.talk?.ask?.at ?? q.since },
+        },
+        born: clock,
+        ...(story ? { storyId: story.id } : {}),
+      });
+    }
+  }
+
   // ───── tier 4 and 5: the rooms and the staff room ─────
   const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
   const staff = inSeason
@@ -467,9 +571,52 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     });
   });
 
+  // ───── tier 5: who holds each job, as camp ends ─────
+  const jobsKey = `jobs:${league.season}`;
+  if (league.phase === 'preseason' && !told.has(jobsKey)) {
+    const fact = jobsFact(league);
+    const note = say(JOBS_ROW, fact, { key: jobsKey, slot: 'jobs', ...around(league, said) });
+    remember(note);
+    items.push({
+      tier: 5,
+      key: jobsKey,
+      section: 'staff',
+      row: { cells: ['The lineup', 'Who holds each job'], note },
+      born: clock,
+    });
+  }
+
   const kept = fitItems(items, clock);
   const call = kept.some((i) => i.call);
   return { items: kept, ...(call && staff.coachNote ? { coachNote: staff.coachNote } : {}) };
+}
+
+/** Within this many points on our scouts' read the next man is close to the last starter (words only on the page). */
+const CLOSE_CALL = 0.5;
+
+/** Who starts at camp's end by room, and the one spot where our scouts read the next man closest to the last starter. */
+function jobsFact(league: League): JobsFact {
+  const team = league.teams[league.userTeamId];
+  const parts: string[] = [];
+  let close: JobsFact['close'];
+  let gap = Infinity;
+  for (const pos of POSITIONS) {
+    const chart = team.depthChart[pos]
+      .map((id) => league.players[id])
+      .filter((p): p is Player => !!p && p.teamId === team.id);
+    const starting = chart.slice(0, STARTERS[pos]);
+    if (!starting.length) continue;
+    parts.push(`${POSITION_NAMES[pos]}: ${starting.map((p) => p.lastName).join(', ')}.`);
+    const last = starting.at(-1)!;
+    const next = chart[STARTERS[pos]];
+    if (!next || starting.length < STARTERS[pos]) continue;
+    const diff = Math.abs(perceive(league, team.id, last).ovr - perceive(league, team.id, next).ovr);
+    if (diff <= CLOSE_CALL && diff < gap) {
+      gap = diff;
+      close = { pos: POSITION_NAMES[pos].toLowerCase(), first: last.lastName, second: next.lastName };
+    }
+  }
+  return { lineup: parts.join(' '), ...(close ? { close } : {}) };
 }
 
 /** The week's items, in the order the letter reads them: ranked, budgeted, words chosen around what he said this year. */
@@ -524,10 +671,12 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
   if (!items.some(files)) return [];
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
-  const heads = ranked.flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []));
+  const heads = ranked
+    .flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []))
+    .filter(Boolean);
   const subject = subjectFor(league, heads.length ? heads : ['From the staff room']);
   const top = ranked.find((i) => i.head)?.head;
-  const asks = items.filter((i) => i.section === 'asks' || i.section === 'want').length;
+  const asks = items.filter((i) => (i.section === 'asks' || i.section === 'want') && i.tier === 1).length;
   const link = items.find((i) => i.link)?.link;
   const fact: OpeningFact = {
     moment: momentSheet(league),
@@ -589,6 +738,8 @@ export function coachWeekNeedsYou(league: League, m: InboxMessage): boolean {
     sec.rows.some(
       (r) =>
         (r.talk && !r.talkRoom && talkCard(league, r.talk).state === 'open') ||
+        (r.bench && benchCard(league, r.bench).state === 'open') ||
+        (r.restore && restoreCard(league, r.restore.playerId).state === 'open') ||
         (r.talkRoom && newestLosingLetter(league) === m.id && roomAsks(league, r.talkRoom.unit).length > 0) ||
         (r.meeting && meetingCard(league, r.meeting).state === 'open'),
     ),

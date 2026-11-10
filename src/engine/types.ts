@@ -1786,7 +1786,9 @@ export type BeatKind =
   | 'swapped'
   | 'settled'
   | 'left'
-  | 'lifted';
+  | 'lifted'
+  /** A headline only, for the cleared-starter reminder: it is never filed as a beat. */
+  | 'cleared';
 /** `at` is the morale clock; `pub` marks a beat the public could know; `how` is a short reason or reply. */
 export interface Beat {
   at: number;
