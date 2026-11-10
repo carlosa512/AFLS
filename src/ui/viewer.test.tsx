@@ -18,7 +18,7 @@ import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
 import { contrast } from './color';
-import { buildPlayNames, drivesOf, SHOWN_TEAM, teamStatsAt } from './gameRead';
+import { buildPlayNames, driveAt, drivesOf, SHOWN_TEAM, teamStatsAt } from './gameRead';
 import { GamePanel, PlayersPanel } from './screens/GamePanels';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
@@ -900,5 +900,62 @@ describe('the stadium and the weather', () => {
     const css = readFileSync('src/styles.css', 'utf8');
     const reduced = /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/g;
     expect([...css.matchAll(reduced)].some((m) => /\.drop/.test(m[0]) && /\.flake/.test(m[0]))).toBe(true);
+  });
+});
+
+describe('the drive on the grass', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const all = drivesOf(plays, home.id);
+  const long = all.find((d) => d.snaps >= 6)!;
+  const mid = long.first + 3;
+  const field = (index: number, o: Partial<PlayLogEntry> = {}) =>
+    render(
+      <Field
+        home={home}
+        away={away}
+        drive={driveAt(plays, index, home.id)}
+        entry={{ ...plays[index], ...o }}
+        restX={50}
+        animKey="t"
+        speed={1}
+        onDone={() => {}}
+      />,
+    );
+
+  it('finds the drive a snap belongs to, and none for a kickoff', () => {
+    expect(driveAt(plays, mid, home.id)).toMatchObject({ teamId: long.teamId });
+    expect(
+      driveAt(
+        plays,
+        plays.findIndex((e) => e.kind === 'kickoff'),
+        home.id,
+      ),
+    ).toBeUndefined();
+    // Where it began, in the field's own coordinates: the home side counts from 0, the away side from 100.
+    const began = long.teamId === home.id ? long.from : 100 - long.from;
+    expect(driveAt(plays, mid, home.id)!.from).toBe(began);
+  });
+
+  it('tints the grass from where the drive began to the ball, and says where that was', () => {
+    const html = field(mid);
+    expect(html).toContain('class="drive-band"');
+    expect(html).toContain('>Drive began<');
+  });
+
+  it('draws no band on a drive’s first snap, nor on a kickoff', () => {
+    expect(field(long.first)).not.toContain('class="drive-band"');
+    expect(field(plays.findIndex((e) => e.kind === 'kickoff'))).not.toContain('class="drive-band"');
+  });
+
+  it('reddens the last twenty yards while the offense snaps the ball inside them', () => {
+    expect(field(mid, { yardLine: 85, distance: 10 })).toContain('class="red-zone"');
+    expect(field(mid, { yardLine: 75, distance: 10 })).not.toContain('class="red-zone"');
+  });
+
+  it('puts no player’s name on the field', () => {
+    const names = buildPlayNames(league, game);
+    const pass = plays.findIndex((e, i) => e.kind === 'pass' && !!driveAt(plays, i, home.id));
+    expect(names.re!.test(field(pass))).toBe(false);
   });
 });

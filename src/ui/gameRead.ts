@@ -504,3 +504,19 @@ export function recordBefore(league: League, teamId: number, game: Game): { w: n
   }
   return r;
 }
+
+/**
+ * The drive the play at `index` belongs to, as far as that play: who has it and where it began, in the field's own
+ * coordinates (the home side counts up from 0, the away side down from 100). None for a kickoff, an extra point or a
+ * note between drives.
+ */
+export function driveAt(
+  plays: readonly PlayLogEntry[],
+  index: number,
+  homeId: number,
+): { teamId: number; from: number; first: number } | undefined {
+  const drives = drivesOf(plays.slice(0, index + 1), homeId, true);
+  const d = drives[drives.length - 1];
+  if (!d || index > d.last || !plays[index].down || plays[index].offense !== d.teamId) return undefined;
+  return { teamId: d.teamId, from: d.teamId === homeId ? d.from : 100 - d.from, first: d.first };
+}

@@ -11,6 +11,7 @@ import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
+import { driveAt } from '../gameRead';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
@@ -313,6 +314,7 @@ export function GameViewer({
       away={away}
       neutral={game.neutral}
       weather={weatherAt(game.result.weather ?? gameWeather(league, game), entry.quarter)}
+      drive={driveAt(plays, index, home.id)}
       entry={entry}
       restX={restingSpot(plays, index, home.id)}
       animKey={`${index}:${run}`}

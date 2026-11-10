@@ -9,7 +9,7 @@ import { buildPath, FIELD_W, MID, pointAt, snapYFor } from '../../engine/field/b
 import { endsSwitched } from '../stage/ends';
 import type { Weather } from '../../engine/weather';
 import { FieldGround, FieldPosts, Stadium, WeatherFall } from './BroadcastPaint';
-import { project, VIEW_H, VIEW_W } from './broadcastView';
+import { project, quad, VIEW_H, VIEW_W } from './broadcastView';
 
 export { project } from './broadcastView';
 
@@ -53,6 +53,73 @@ interface FieldMemory {
 }
 
 // ───────── field ─────────
+/** Inside this many yards of the goal line, the offense is in the red zone. */
+const RED_ZONE = 20;
+
+/**
+ * What the drive has put on the grass, under the lines: a band in the offense's colour from where it began to this
+ * snap, the spot it began marked and named, and the last twenty yards reddened once the ball is snapped inside them.
+ * Drawn where the stadium has them this quarter.
+ */
+function DriveMarks({
+  home,
+  away,
+  entry,
+  drive,
+}: {
+  home: Team;
+  away: Team;
+  entry: PlayLogEntry | undefined;
+  drive?: { teamId: number; from: number };
+}) {
+  const los = downLines(entry, home.id)?.los;
+  if (!entry?.down || los === null || los === undefined) return null;
+  const q = entry.quarter;
+  const homeBall = entry.offense === home.id;
+  const began = drive && Math.abs(drive.from - los) >= 1 ? drive.from : null;
+  // Its far end on screen, where the label sits: the far sideline is the log's near one once the ends are switched.
+  const b = began === null ? null : project(began, endsSwitched(q) ? 0 : FIELD_W, 0, q);
+  const a = began === null ? null : project(began, endsSwitched(q) ? FIELD_W : 0, 0, q);
+  return (
+    <g className="drive-marks">
+      {began !== null && a && b && (
+        <>
+          <polygon
+            className="drive-band"
+            points={quad(began, los, 0, FIELD_W, q)}
+            fill={(homeBall ? home : away).colors[0]}
+            opacity={0.24}
+          />
+          <line
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke="#fff"
+            strokeWidth={0.8}
+            strokeDasharray="2.5 2"
+            opacity={0.7}
+          />
+          <g transform={`translate(${b.x.toFixed(1)} ${(b.y - 7).toFixed(1)})`}>
+            <rect x={-19} y={-4.4} width={38} height={8.4} rx={2} fill="rgba(6,10,9,0.82)" />
+            <text textAnchor="middle" y={1.9} fontSize={5.2} fill="#fff" fontWeight={700}>
+              Drive began
+            </text>
+          </g>
+        </>
+      )}
+      {entry.yardLine >= 100 - RED_ZONE && (
+        <polygon
+          className="red-zone"
+          points={homeBall ? quad(100 - RED_ZONE, 100, 0, FIELD_W, q) : quad(0, RED_ZONE, 0, FIELD_W, q)}
+          fill="#ff3b30"
+          opacity={0.2}
+        />
+      )}
+    </g>
+  );
+}
+
 /** A mild, dry afternoon: what is drawn when a caller has no weather to give. */
 const FAIR: Weather = { roof: 'outdoors', tempF: 60, windMph: 5, precip: 'none' };
 
@@ -61,6 +128,7 @@ export function Field({
   away,
   neutral,
   weather = FAIR,
+  drive,
   entry,
   restX,
   animKey,
@@ -74,6 +142,8 @@ export function Field({
   neutral?: boolean;
   /** The conditions in the quarter on screen (`weatherAt`): the sky, what is falling, the wind in the flags. */
   weather?: Weather;
+  /** The drive this snap belongs to (`driveAt`): where it began is marked on the grass. */
+  drive?: { teamId: number; from: number };
   entry: PlayLogEntry | undefined;
   restX: number;
   animKey: string;
@@ -252,6 +322,7 @@ export function Field({
       <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
       <Stadium home={home} away={away} neutral={neutral} weather={weather} />
       <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
+      <DriveMarks home={home} away={away} entry={entry} drive={drive} />
       <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
       <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
       <path

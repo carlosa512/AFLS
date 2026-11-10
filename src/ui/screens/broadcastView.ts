@@ -25,13 +25,16 @@ export function project(fx: number, fy: number, h = 0, quarter = 1): { x: number
   return { x: VIEW_W / 2 + ((50 - x) / 120) * rowW, y: NEAR.y + (FAR.y - NEAR.y) * t - h * 2.2 * scale, scale };
 }
 
-export const pt = (x: number, y: number, h = 0): string => {
-  const p = project(x, y, h);
+export const pt = (x: number, y: number, h = 0, quarter = 1): string => {
+  const p = project(x, y, h, quarter);
   return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
 };
-/** The four corners of a strip of field from `x0` to `x1`, across it or between two y's. */
-export const quad = (x0: number, x1: number, y0 = 0, y1 = FIELD_W): string =>
-  `${pt(x0, y0)} ${pt(x1, y0)} ${pt(x1, y1)} ${pt(x0, y1)}`;
+/**
+ * The four corners of a strip of field from `x0` to `x1`, across it or between two y's. With a quarter, the strip is
+ * something a play made (the drive's band), drawn where the stadium has it then.
+ */
+export const quad = (x0: number, x1: number, y0 = 0, y1 = FIELD_W, quarter = 1): string =>
+  `${pt(x0, y0, 0, quarter)} ${pt(x1, y0, 0, quarter)} ${pt(x1, y1, 0, quarter)} ${pt(x0, y1, 0, quarter)}`;
 
 type Vec = [number, number];
 /** Screen vectors for one yard along the field's x and along its y at a spot: what lays a shape flat on the grass. */
