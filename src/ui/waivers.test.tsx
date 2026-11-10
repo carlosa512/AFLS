@@ -62,7 +62,7 @@ describe('waiver desk', () => {
     expect(withHiddenClaim).not.toContain('PRIVATE-OPPOSING-PLAN');
     expect(withHiddenClaim).not.toContain('Your signing order');
     expect(withHiddenClaim).toBe(noClaims);
-    expect(withHiddenClaim).toContain('released by other teams');
+    expect(withHiddenClaim).toContain('How waivers work');
     expect(withHiddenClaim).toContain('Available to claim');
     expect(withHiddenClaim).toContain('Your released players');
     expect(withHiddenClaim).toContain('Decided before Week 1 kickoff');

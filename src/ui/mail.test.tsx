@@ -373,7 +373,7 @@ describe('current briefings without a task badge', () => {
     expect(live).toContain('mail-card');
     league.phase = 'complete';
     const closed = renderToStaticMarkup(<MailCards league={league} message={message} />);
-    expect(closed).toContain('The trade deadline has passed');
+    expect(closed).toContain('Trade deadline has passed');
   });
 });
 
