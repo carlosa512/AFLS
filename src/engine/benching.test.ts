@@ -22,10 +22,10 @@ import { roomCoach, headCoach } from './senders';
 import { openStory, untold, COACH } from './stories';
 import { gameTime } from './personnel/calendar';
 import { playWeek, startLiveGame } from './league';
-import { heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
+import { addJolt, heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
-import { setTeam } from './roster';
+import { addPlayer, setTeam } from './roster';
 import type { Injury, League, Player, Team } from './types';
 
 afterEach(() => {
@@ -685,6 +685,30 @@ describe('mid-story: injuries', () => {
     expect(storyOf(b.l, b.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
   });
 
+  it('a one-week injury in the last regular week does not close the question of a club still alive', () => {
+    const { l, team, q } = sitHolder('mid-late-alive');
+    l.week = 17;
+    q[1].injury = { ...hurt(l), weeksRemaining: 2, estimate: [1, 3] };
+    // Nobody in the league has played: every club is still in the race.
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeDefined();
+    expect(questionOf(team, q[0].id)!.paused).toBe(true);
+    expect(storyOf(l, q[0].id)!.closed).toBeUndefined();
+  });
+
+  it('the same injury closes it in the playoffs when no game is left to play', () => {
+    const { l, team, q } = sitHolder('mid-late-playoffs');
+    l.phase = 'playoffs';
+    l.week = 21;
+    q[1].injury = { ...hurt(l), weeksRemaining: 6, estimate: [4, 8] };
+    // A game on the books keeps the club playing; the injury outlasts the playoffs' last week.
+    const g = l.games.find((x) => x.season === l.season && (x.homeId === team.id || x.awayId === team.id))!;
+    l.games.push({ ...g, week: 21, result: undefined });
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+    expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+  });
+
   it('a long layoff that ends before the season does is only a pause', () => {
     const { l, team, q } = sitHolder('mid-pause-only');
     q[1].injury = { ...hurt(l), weeksRemaining: 3 };
@@ -738,7 +762,7 @@ describe('mid-story: trades, cuts and retirements', () => {
     },
   );
 
-  it.each(exits)('the holder %s: his job is empty, the other man earns it by three starts', (_n, go) => {
+  it.each(exits)("the holder %s with the question open: the job is the other man's at once", (_n, go) => {
     const { l, team, q } = sitHolder(`mid-holder-${_n}`);
     moodWeek(l);
     order(team, [q[0].id, q[1].id]);
@@ -747,10 +771,20 @@ describe('mid-story: trades, cuts and retirements', () => {
     go(l, q[0]);
     moodWeek(l);
     expect(holdsJob(team, q[0].id)).toBe(false);
+    expect(holdsJob(team, q[1].id)).toBe(true);
     expect(questionOf(team, q[1].id)).toBeUndefined();
     expect(unsure(q[1])).toBe(0);
     expect(lift(q[1])).toBe(0);
     expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'left' });
+  });
+
+  it.each(exits)('the holder %s with no question open: his job is empty, and three starts earn it', (_n, go) => {
+    const { l, team, q } = setup(`mid-empty-${_n}`);
+    go(l, q[0]);
+    moodWeek(l);
+    expect(holdsJob(team, q[0].id)).toBe(false);
+    expect(holdsJob(team, q[1].id)).toBe(false);
+    expect(team.jobs!.questions).toBeUndefined();
     for (let i = 0; i < EARN; i++) moodWeek(l);
     expect(holdsJob(team, q[1].id)).toBe(true);
   });
@@ -843,8 +877,14 @@ describe('mid-story: positions', () => {
     const { l, team } = setup('mid-kicker');
     const k = l.players[team.depthChart.K[0]];
     expect(team.jobs!.held[k.id].pos).toBe('K');
-    const spare = Object.values(l.players).find((p) => p.position === 'K' && p.teamId === null);
-    if (!spare) return;
+    // A second kicker, signed for the test when the league has no spare one.
+    const spare: Player = structuredClone(k);
+    spare.id = Math.max(...Object.keys(l.players).map(Number)) + 1;
+    spare.firstName = 'Spare';
+    spare.lastName = 'Kicker';
+    spare.teamId = null;
+    delete spare.morale;
+    addPlayer(l, spare);
     setTeam(l, spare, team.id);
     team.depthChart.K = [spare.id, k.id, ...team.depthChart.K.slice(1)];
     moodWeek(l);
@@ -857,12 +897,15 @@ describe('mid-story: the calendar', () => {
     const { l, team, q } = setup('mid-over');
     l.phase = 'playoffs';
     l.week = 19;
+    // A man already unsure when the season ends: nothing more lands on him and nothing is cleared either.
+    addJolt(q[2], 'unsure', BENCH_SIZE.unsure, moraleClock(l));
     order(team, [q[1].id, q[0].id]);
     moodWeek(l);
     moodWeek(l);
     expect(team.jobs!.questions).toBeUndefined();
     expect(jolts(q[0], 'benched')).toEqual([]);
     expect(unsure(q[0])).toBe(0);
+    expect(unsure(q[2])).toBe(1);
     expect(q[0].morale!.talk?.ask).toBeUndefined();
   });
 

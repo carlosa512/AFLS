@@ -13,6 +13,7 @@ import { addJolt, expectedRole, liveSize, moraleClock, moraleContext, type Moral
 import { isAvailable, teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { playoffRace } from './season/standings';
 import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { temperamentOf, TRAIT_MEAN } from './traits';
@@ -353,16 +354,26 @@ export function aiBenchReply(league: League, teamId: number, holder: Player, oth
 /** Weeks a season has in all: the regular season and up to four rounds of playoffs. */
 const SEASON_WEEKS = REGULAR_SEASON_WEEKS + 4;
 
-/** Out for the rest of the season: a layoff longer than the weeks still to play (the playoffs only once they have begun). */
+/**
+ * Out for the rest of the season: a layoff longer than the weeks still to play. A club still alive counts the playoffs
+ * too (a one-week injury in week 17 is not the end of a season for a club that has clinched or is still in the race);
+ * a club out of the race has only the regular season left.
+ */
 export function outForSeason(league: League, p: Player): boolean {
-  const left = (league.phase === 'playoffs' ? SEASON_WEEKS : REGULAR_SEASON_WEEKS) - league.week;
-  return !!p.injury && p.injury.weeksRemaining > Math.max(0, left);
+  if (!p.injury) return false;
+  const longer = (total: number) => p.injury!.weeksRemaining > Math.max(0, total - league.week);
+  if (league.phase === 'playoffs') return longer(SEASON_WEEKS);
+  if (!longer(REGULAR_SEASON_WEEKS)) return false;
+  // Past the regular season's end: out, unless his club could still be playing in January.
+  const alive = p.teamId !== null && !playoffRace(league, p.teamId).out;
+  return alive ? longer(SEASON_WEEKS) : true;
 }
 
 /**
  * Men gone from the club (traded, cut, claimed, retired) take what they held with them, game week or not: no job, no run,
  * and a question they were part of closes with "left". The man who stays is not told anything, so his weeks of not knowing
- * clear with no lift. A holder who leaves leaves his job empty; whoever starts three in a row earns it.
+ * clear with no lift. A holder who leaves with no question open leaves his job empty (whoever starts three in a row
+ * earns it); with one open the job is the other man's at once.
  */
 function settleGone(league: League, team: Team, clock: number): void {
   const jobs = team.jobs;
@@ -377,6 +388,11 @@ function settleGone(league: League, team: Team, clock: number): void {
     if (here(q.holder) && (q.other === undefined || here(q.other))) continue;
     const stays = [q.holder, q.other].find((id) => id !== undefined && here(id));
     if (stays !== undefined) clearUnsure(league.players[stays]);
+    // The holder left with a question open: the job is the other man's by fact (with no question open it is just empty).
+    if (!here(q.holder) && q.other !== undefined && here(q.other)) {
+      if (!jobs.held[q.other]) jobs.held[q.other] = { pos: q.pos, since: clock };
+      delete jobs.runs?.[q.other];
+    }
     closeStory(league, storyOn(team, q), 'left', clock);
     closeQuestion(league, team, q);
   }
