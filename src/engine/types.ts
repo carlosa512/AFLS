@@ -1078,7 +1078,36 @@ export interface PlayingAt {
   since?: { season: number; week: number };
 }
 
+export interface JobQuestion {
+  pos: Position;
+  holder: number;
+  other?: number;
+  since: number;
+  asked?: number[];
+  paused?: true;
+  /** "Back in next week": owed his next available game. */
+  promise?: { to: number; at: number };
+  /** "Just this week". */
+  soft?: { to: number; at: number };
+}
+
 export interface Team {
+  /**
+   * Who holds a starting job at each position, kept by `benching.ts`: set on cut-down day, earned by three starts in a
+   * row, cleared at the new league year. `reminded`: a cleared holder not listed in a starting spot was told.
+   */
+  jobs?: {
+    held: Record<number, { pos: Position; since: number; reminded?: number }>;
+    runs?: Record<number, number>;
+    questions?: JobQuestion[];
+  };
+  /**
+   * Who started this week, read from the chart at kickoff (not from snaps). `at`: the position each started at;
+   * `out`: job-holders who could not play at kickoff (so a man healed or hurt by week's end is read as he was).
+   */
+  kickoff?: { week: number; ids: number[]; at?: Record<number, Position>; out?: number[] };
+  /** The season you confirmed your lineup for. */
+  lineupSet?: number;
   /** What you last told the club about the losing, so a man asking inside `LOSING_GAP` steps is answered the same. */
   losingAnswer?: { team?: { reply: 'reassure' | 'firm'; at: number } };
   /** Rooms whose belief in their coordinator fell past the warning line after a bad game in the last step (L4). */

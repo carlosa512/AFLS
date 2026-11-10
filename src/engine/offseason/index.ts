@@ -1,3 +1,4 @@
+import { setJobs } from '../benching';
 import { habitsNewYear } from '../gmHabitsYear';
 import { memoryNewYear } from '../gmMemory';
 import { beliefNewYear } from '../belief';
@@ -127,6 +128,11 @@ export function beginOffseason(league: League): void {
   const carry = league.teams.map((t) => Math.max(0, capSheet(league, t.id).space));
 
   league.season++;
+  // Jobs clear at the new league year and are set again on cut-down day.
+  for (const team of league.teams) {
+    delete team.jobs;
+    delete team.kickoff;
+  }
   ageGms(league);
   // Rooms' belief in their coordinators carries into the new year at half (L4).
   beliefNewYear(league);
@@ -444,6 +450,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       league.faDay = 0;
       league.negotiations = {};
       for (const team of league.teams) syncDepthChart(league, team);
+      // The men in the starting spots now hold the jobs.
+      setJobs(league);
       break;
     default:
       throw new Error(`Not in the offseason (${league.phase})`);

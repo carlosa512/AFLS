@@ -1,4 +1,5 @@
 import { beliefWeek } from './belief';
+import { benchKickoff } from './benching';
 import { aiRelieve } from './relieve';
 import { freshChemistry } from './chemistry';
 import { freshStaff } from './staffEdge';
@@ -151,6 +152,8 @@ export function startLiveGame(league: League, game: Game): LiveGame {
   freshStaff(league);
   playEarlierGames(league, game);
   captureManagement(league, game);
+  // Who starts is read from the chart as the game kicks off, before anything is played.
+  benchKickoff(league, game);
   prepareGame(league, game);
   return startGame(league, game, {
     playoff: !!game.playoffRound,
@@ -181,6 +184,7 @@ function playWeekControlled(league: League): Game[] {
   freshStaff(league);
   const weekPlayed = league.phase;
   const games = gamesInWeek(league).filter((g) => !g.result);
+  benchKickoff(league);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
