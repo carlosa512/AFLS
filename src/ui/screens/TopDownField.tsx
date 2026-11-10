@@ -955,7 +955,7 @@ export function TopDownField({
         onPointerDown={onTap}
       >
         <g ref={fieldRef} transform={fieldTransform(view)}>
-          <FieldPaint home={home} away={away} />
+          <FieldPaint home={home} away={away} neutral={game.neutral} />
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
         </g>

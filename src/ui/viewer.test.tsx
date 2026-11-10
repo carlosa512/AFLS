@@ -8,6 +8,7 @@ import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { handoverFor, TopDownField } from './screens/TopDownField';
+import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
 import { contrast } from './color';
@@ -623,5 +624,42 @@ describe('the panels beside the field', () => {
     expect(tabs.match(/<button/g)).toHaveLength(3);
     for (const cls of ['stage-rail rail-game', 'stage-rail rail-players', 'panel game-log'])
       expect(html).toContain(`class="${cls}"`);
+  });
+});
+
+describe('the end zones', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+
+  it('are both the home club’s at a home game: its nickname in one, its city in the other', () => {
+    const [low, high] = endZones(home, away);
+    expect(low).toEqual({ text: home.name.toUpperCase(), fill: home.colors[0], stroke: home.colors[1] });
+    expect(high).toEqual({ text: home.city.toUpperCase(), fill: home.colors[0], stroke: home.colors[1] });
+  });
+
+  it('are one a team at a neutral site', () => {
+    const [low, high] = endZones(home, away, true);
+    expect(low.text).toBe(home.name.toUpperCase());
+    expect(high).toEqual({ text: away.name.toUpperCase(), fill: away.colors[0], stroke: away.colors[1] });
+  });
+
+  it('are what All-22 paints', () => {
+    const html = render(
+      <TopDownField
+        league={league}
+        record={game.result!.field!}
+        game={game}
+        home={home}
+        away={away}
+        plays={plays}
+        index={plays.findIndex((e) => e.kind === 'pass')}
+        animKey="t"
+        speed={1}
+        onDone={() => {}}
+      />,
+    );
+    expect(html).toContain(`>${home.name.toUpperCase()}</text>`);
+    expect(html).toContain(`>${home.city.toUpperCase()}</text>`);
+    expect(html).not.toContain(`>${away.name.toUpperCase()}</text>`);
   });
 });
