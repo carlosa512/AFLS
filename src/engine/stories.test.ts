@@ -93,7 +93,7 @@ describe('the story store', () => {
     expect(c.id).not.toBe(a.id);
   });
 
-  it('closes into `closed`, and the same subject opens a new story afterwards', () => {
+  it('closes into `closed`, and the same subject re-opens that story later the same league year', () => {
     const l = createLeague({ seed: 'stories-close' });
     const on = { kind: 'feud' as const, teamId: l.userTeamId, playerId: 4 };
     expect(closeStory(l, on, 'ended', 5)).toBeNull();
@@ -105,8 +105,29 @@ describe('the story store', () => {
     expect(l.stories!.open).toHaveLength(0);
     expect(l.stories!.closed).toHaveLength(1);
     const b = beat(l, on, 'started', 20)!;
-    expect(b.id).not.toBe(a.id);
-    expect(storyById(l, a.id)).toBe(a);
+    expect(b.id).toBe(a.id);
+    expect(b.closed).toBeUndefined();
+    expect(l.stories!.closed).toHaveLength(0);
+    expect(b.beats.map((x) => x.kind)).toEqual(['started', 'ended', 'started']);
+    // In another league year it is a new story.
+    closeStory(l, on, 'ended', 21);
+    const c = beat(l, on, 'started', 21 + 32)!;
+    expect(c.id).not.toBe(a.id);
+  });
+
+  it('re-opens a deal story for any kind, keeping what was told, so the earlier answer can be called back', () => {
+    const l = createLeague({ seed: 'stories-reopen-deal' });
+    const on = { kind: 'deal' as const, teamId: l.userTeamId, playerId: 9 };
+    const a = beat(l, on, 'asked', 1)!;
+    beat(l, on, 'answered', 2, { how: 'reassure' });
+    markTold(a, COACH);
+    closeStory(l, on, 'quiet', 12);
+    const b = beat(l, on, 'asked', 14)!;
+    expect(b.id).toBe(a.id);
+    expect(b.told?.coach).toBe(2);
+    expect(untold(l, b, COACH).map((x) => x.kind)).toEqual(['quiet', 'asked']);
+    // The history is still on it: the first answer reads as "the second time on his deal".
+    expect(b.beats.filter((x) => x.kind === 'answered')[0].how).toBe('reassure');
   });
 
   it('tracks what each outlet has told', () => {
@@ -192,7 +213,8 @@ describe('beats at the sim’s events', () => {
   it('an ask left unanswered is ignored on the story', () => {
     const l = fresh();
     const p = asking(l, 'snaps');
-    const next = l.moraleAt! + 2;
+    // Your club's ask waits three steps before it is taken as ignored (`waitFor`).
+    const next = l.moraleAt! + 3;
     moraleAdvance(l, next);
     const s = openStory(l, { kind: 'snaps', teamId: l.userTeamId, playerId: p.id })!;
     expect(kinds(s)).toEqual(['asked', 'answered']);

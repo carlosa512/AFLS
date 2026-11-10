@@ -5,6 +5,7 @@ import { STARTERS } from './positions';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
 import {
   coachWeekId,
+  LETTER_GAP,
   fitItems,
   jobsFact,
   newestLosingLetter,
@@ -16,7 +17,7 @@ import {
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
-import { answerMeeting, requestMeeting } from './meetings';
+import { answerMeeting, meetingsStep, requestMeeting } from './meetings';
 import { moraleAdvance, moraleClock, moraleContext } from './morale';
 import { answerRoomTalk, answerTalk } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
@@ -70,6 +71,10 @@ function asking(l: League, cause: TalkCause = 'snaps', index = 0): Player {
 const nextStep = (l: League) => {
   l.moraleAt = l.moraleAt! + 1;
 };
+/** The next step the coach may write: he writes at most every other step (`LETTER_GAP`). */
+const nextLetter = (l: League) => {
+  l.moraleAt = l.moraleAt! + LETTER_GAP;
+};
 
 describe('the head coach’s weekly letter', () => {
   it('files one letter for a step with an ask, a room and a request, and none of the old ids', () => {
@@ -118,7 +123,7 @@ describe('the head coach’s weekly letter', () => {
     deliverMail(l);
     const first = letters(l)[0];
     expect(needsYou(l, first)).toBe(true);
-    nextStep(l);
+    nextLetter(l);
     b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
     deliverMail(l);
     const second = letters(l).find((m) => m.id !== first.id && rowsOf(m).some((r) => r.talkRoom))!;
@@ -136,7 +141,7 @@ describe('the head coach’s weekly letter', () => {
       a.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
       deliverMail(l);
       const first = letters(l)[0];
-      nextStep(l);
+      nextLetter(l);
       b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
       deliverMail(l);
       const second = letters(l).find((m) => m.id !== first.id)!;
@@ -154,7 +159,7 @@ describe('the head coach’s weekly letter', () => {
       first[how] = true;
       second[how] = true;
       expect(newestLosingLetter(l)).toBeUndefined();
-      nextStep(l);
+      nextLetter(l);
       deliverMail(l);
       const fresh = letters(l).filter((m) => m !== first && m !== second);
       expect(fresh).toHaveLength(1);
@@ -163,6 +168,49 @@ describe('the head coach’s weekly letter', () => {
       deliverMail(l);
       expect(letters(l).filter((m) => m !== first && m !== second)).toHaveLength(1);
     });
+  });
+
+  it("writes at most every other step: the second step's ask rides in the third step's letter, still answerable", () => {
+    const l = inSeason();
+    const a = asking(l, 'deal', 0);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    nextStep(l);
+    const b = asking(l, 'deal', 1);
+    deliverMail(l);
+    // Nothing is filed the step after a letter, and nothing is lost: the ask waits, open, not ignored.
+    expect(letters(l)).toHaveLength(1);
+    expect(b.morale!.talk!.ask).toBeDefined();
+    expect(answerTalk(l, b.id, 'reassure')).toBe(true);
+    b.morale!.talk = { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! } };
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(2);
+    expect(rowsOf(letters(l)[1]).some((r) => r.talk?.playerId === b.id)).toBe(true);
+    expect(needsYou(l, letters(l)[1])).toBe(true);
+    expect(a.morale!.talk!.ask).toBeDefined();
+  });
+
+  it('a suggestion made the step after a letter is held, carried in the next letter and still answerable', () => {
+    const l = inSeason();
+    asking(l, 'deal', 0);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    nextStep(l);
+    expect(requestMeeting(l, 'DL')).not.toBeNull();
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    nextStep(l);
+    meetingsStep(l);
+    const pending = l.teams[l.userTeamId].meetings!.pending!;
+    expect(pending.scope).toBe('DL');
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(2);
+    const want = rowsOf(letters(l)[1]).find((r) => r.meeting);
+    expect(want?.meeting).toMatchObject({ scope: 'DL', clock: pending.clock });
+    expect(
+      answerMeeting(l, { approach: pending.approaches[0], backing: pending.backings[0], timing: pending.timings[0] }),
+    ).not.toBeNull();
   });
 
   it('files nothing in a quiet step', () => {
@@ -242,7 +290,7 @@ describe('the head coach’s weekly letter', () => {
 
   it('rides a meeting’s result in the next letter filed for something else', () => {
     const l = held('words');
-    nextStep(l);
+    nextLetter(l);
     const p = asking(l, 'deal');
     deliverMail(l);
     expect(letters(l)).toHaveLength(2);
@@ -250,7 +298,7 @@ describe('the head coach’s weekly letter', () => {
     expect(l.inbox!.some((m) => OLD.test(m.id))).toBe(false);
     // Told once.
     answerTalk(l, p.id, 'reassure');
-    nextStep(l);
+    nextLetter(l);
     deliverMail(l);
     expect(letters(l)).toHaveLength(2);
   });
@@ -322,12 +370,12 @@ describe('the head coach’s weekly letter', () => {
     const [first] = letters(l);
     const quote = rowsOf(first).find((r) => r.talk?.playerId === p.id)!.note!;
     expect(quote).toMatch(/^“/);
-    nextStep(l);
+    nextLetter(l);
     deliverMail(l);
     const second = letters(l)[1];
     const row = rowsOf(second).find((r) => r.talk?.playerId === p.id)!;
     expect(row.note).not.toMatch(/“/);
-    expect(row.talk).toEqual({ playerId: p.id, clock: l.moraleAt! - 1 });
+    expect(row.talk).toEqual({ playerId: p.id, clock: l.moraleAt! - LETTER_GAP });
     expect(textOf(second)).not.toContain(quote.slice(1, -1).split(/(?<=[.?!]) /)[0]);
     expect(row.note).toContain(p.lastName);
   });
@@ -551,6 +599,9 @@ describe('the head coach’s letters on a benching', () => {
       .find((r) => r.bench?.playerId === q[0].id)!;
     // Swapped back with nobody told: the other man sits and asks.
     order(team, [q[0].id, q[1].id]);
+    step(l);
+    // The coach writes every other step: the other man's ask waits a step and comes in the next letter.
+    expect(letters(l)).toHaveLength(1);
     step(l);
     const second = letters(l).at(-1)!;
     const rows = rowsOf(second).filter((r) => r.bench);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { moraleAdvance, moraleContext, type MoraleContext } from './morale';
-import { aiReply, answerRoomTalk, answerTalk, canPromise, roomAsks, talksAt, talkStep } from './playerTalks';
+import { aiReply, answerRoomTalk, answerTalk, canPromise, roomAsks, talksAt, talkStep, waitFor } from './playerTalks';
 import { activeRoster, setTeam } from './roster';
 import { POSITIONS, type League, type MoraleJolt, type Player } from './types';
 
@@ -141,12 +141,12 @@ describe('talks: the answers', () => {
     }
   });
 
-  it('closes an unanswered letter as ignored by the second step, and a late answer does nothing', () => {
+  it('closes an unanswered letter as ignored by the third step for your club, and a late answer does nothing', () => {
     const l = fresh();
     const p = sulker(l, l.userTeamId, 0);
     steps(l, 3);
     const at = p.morale!.talk!.ask!.at;
-    steps(l, 1);
+    steps(l, 2);
     expect(p.morale!.talk!.ask).toBeDefined();
     steps(l, 1);
     expect(p.morale!.talk!.ask).toBeUndefined();
@@ -155,6 +155,14 @@ describe('talks: the answers', () => {
     const before = JSON.stringify(p.morale);
     expect(answerTalk(l, p.id, 'reassure')).toBe(false);
     expect(JSON.stringify(p.morale)).toBe(before);
+  });
+
+  it("waits a step longer on your club's ask than on an AI club's (the coach writes every other step)", () => {
+    const l = fresh();
+    const mine = sulker(l, l.userTeamId, 0);
+    const theirs = sulker(l, (l.userTeamId + 1) % 32, 0);
+    expect(waitFor(l, mine)).toBe(waitFor(l, theirs) + 1);
+    expect(waitFor(l, theirs)).toBe(2);
   });
 
   it("refuses an answer for another club's player", () => {
@@ -318,7 +326,7 @@ describe('talks: what an answer was about (G4)', () => {
     expect(p.morale!.talk!.answered?.cause).toBe(cause);
     const q = sulker(l, l.userTeamId, 1);
     q.morale!.talk = { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } };
-    steps(l, 2);
+    steps(l, 3);
     expect(q.morale!.talk?.answered).toMatchObject({ reply: 'ignored', cause: 'losing' });
   });
 });

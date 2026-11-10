@@ -4,7 +4,7 @@ import { endGmAppointment } from './gm';
 import { createLeague } from './generate';
 import { acceptGmOffer, beginGmSearch, leadershipEvent } from './leadership';
 import { talkCard } from './talkMail';
-import { addJolt, moraleClock, moraleContext } from './morale';
+import { addJolt, moraleClock, moraleContext, QUIET } from './morale';
 import { activeRoster, setTeam, teamPlayers } from './roster';
 import { tierOf, unitOf, weightOf, type Unit } from './standing';
 import { beat, closeRoomStories, closeStory, COACH, openStory, STORIES, storyById, talkBeat, untold } from './stories';
@@ -339,5 +339,112 @@ describe('mid-story: the people writing', () => {
     const mine = teamPlayers(l, target)[0];
     expect(beat(l, { kind: 'deal', teamId: target, playerId: mine.id }, 'asked', clock + 2)).not.toBeNull();
     expect(l.stories!.open).toHaveLength(1);
+  });
+});
+
+describe('a story gone quiet', () => {
+  /** A man's deal story: asked and answered a long time ago, nothing pending. */
+  function dealStory(l: League, age = QUIET) {
+    const p = activeRoster(l, l.userTeamId)[5];
+    const on = { kind: 'deal' as const, teamId: l.userTeamId, playerId: p.id };
+    const at = l.moraleAt! - age;
+    const s = beat(l, on, 'asked', at - 1)!;
+    beat(l, on, 'answered', at, { how: 'reassure' });
+    return { p, on, s };
+  }
+
+  it('closes a deal story with nothing pending once its last beat is eight steps old, told so no closing row', () => {
+    const l = fresh();
+    const { s } = dealStory(l);
+    storiesStep(l);
+    expect(s.beats.at(-1)!.kind).toBe('quiet');
+    expect(l.stories!.open).not.toContain(s);
+    expect(untold(l, s, COACH)).toHaveLength(0);
+  });
+
+  it('waits until the last beat is old enough', () => {
+    const l = fresh();
+    const { s } = dealStory(l, QUIET - 1);
+    storiesStep(l);
+    expect(l.stories!.open).toContain(s);
+  });
+
+  it.each([
+    [
+      'an open ask on him for that cause',
+      (p: Player, l: League) => (p.morale!.talk = { club: l.userTeamId, ask: { cause: 'deal', at: l.moraleAt! } }),
+    ],
+    [
+      'an open promise',
+      (p: Player, l: League) =>
+        (p.morale!.talk = {
+          club: l.userTeamId,
+          promise: { kind: 'deal', made: l.moraleAt! - 9, due: l.moraleAt! + 5 } as never,
+        }),
+    ],
+    [
+      'an open dispute',
+      (p: Player) => (p.morale!.dispute = { kind: 'holdIn', cause: 'deal', since: 1, club: p.teamId! } as never),
+    ],
+    [
+      'a commitment from a meeting naming him',
+      (p: Player, l: League) => {
+        l.teams[l.userTeamId].meetings!.open = [
+          { backing: 'talks', scope: 'WR', opened: 1, closes: 99, named: [p.id], boughtIn: [], by: 'coach' },
+        ];
+      },
+    ],
+  ])('does not close with %s', (_name, block) => {
+    const l = fresh();
+    const { p, s } = dealStory(l);
+    p.morale ??= { level: 0 };
+    block(p, l);
+    storiesStep(l);
+    expect(l.stories!.open).toContain(s);
+  });
+
+  it('does not close a story with a deadline (`due`)', () => {
+    const l = fresh();
+    const { on, s } = dealStory(l);
+    beat(l, on, 'promised', l.moraleAt! - QUIET, { due: l.moraleAt! + 3 });
+    storiesStep(l);
+    expect(l.stories!.open).toContain(s);
+  });
+
+  it('leaves a benching alone, and a standing feud', () => {
+    const l = fresh();
+    const p = activeRoster(l, l.userTeamId)[5];
+    const b = beat(l, { kind: 'benched', teamId: l.userTeamId, playerId: p.id }, 'sat', l.moraleAt! - 20)!;
+    storiesStep(l);
+    expect(l.stories!.open).toContain(b);
+  });
+
+  it('re-opens with its history when he raises it again that league year, so a callback reads the earlier answer', () => {
+    const l = fresh();
+    const { on, s } = dealStory(l);
+    storiesStep(l);
+    expect(l.stories!.open).not.toContain(s);
+    const again = beat(l, on, 'asked', l.moraleAt! + 2)!;
+    expect(again.id).toBe(s.id);
+    expect(again.beats.map((b) => b.kind)).toEqual(['asked', 'answered', 'quiet', 'asked']);
+    expect(again.beats[1].how).toBe('reassure');
+    expect(untold(l, again, COACH).map((b) => b.kind)).toEqual(['asked']);
+  });
+});
+
+describe('the end of the season', () => {
+  it('closes staff stories silently with the room stories, and leaves a man’s deal story open', () => {
+    const l = fresh();
+    const c = teamCoaches(l, l.userTeamId).find((x) => x.role === 'offCoord')!;
+    c.belief = { WR: -0.3 };
+    storiesStep(l);
+    const staff = openStory(l, { kind: 'staff', teamId: l.userTeamId, coachId: c.id })!;
+    const p = activeRoster(l, l.userTeamId)[5];
+    const deal = beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: p.id }, 'asked', l.moraleAt!)!;
+    closeRoomStories(l);
+    expect(l.stories!.open).not.toContain(staff);
+    expect(staff.beats.at(-1)!.kind).toBe('ended');
+    expect(untold(l, staff, COACH)).toHaveLength(0);
+    expect(l.stories!.open).toContain(deal);
   });
 });

@@ -25,16 +25,23 @@ const base = (() => {
   deliverMail(l);
   return JSON.stringify(l);
 })();
-const fresh = (): League => JSON.parse(base);
+const fresh = (): League => {
+  const l: League = JSON.parse(base);
+  // The step before may have left a suggestion waiting (yours is held a step longer): these tests start with none.
+  delete l.teams[l.userTeamId].meetings?.pending;
+  return l;
+};
 const ids = (l: League, prefix: string) => (l.inbox ?? []).filter((m) => m.id.startsWith(prefix));
-const coach = (l: League) => ids(l, 'coach:');
+// The letters these tests file, not the one the base save already holds from its own last step.
+const baseLetters = new Set(ids(JSON.parse(base) as League, 'coach:').map((m) => m.id));
+const coach = (l: League) => ids(l, 'coach:').filter((m) => !baseLetters.has(m.id));
 const rowsOf = (m: InboxMessage) => (m.sections ?? []).flatMap((x) => x.rows);
 const hc = (l: League) => teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
 
 describe('meetings: the letters', () => {
   it('a suggestion waiting on you is a row of the weekly letter, once', () => {
     const l = fresh();
-    l.moraleAt = stepClock(l);
+    l.moraleAt = stepClock(l) + 2; // past the letter the base filed: the coach writes every other step
     expect(requestMeeting(l, 'DL')).not.toBeNull();
     deliverMail(l);
     deliverMail(l);
@@ -51,7 +58,7 @@ describe('meetings: the letters', () => {
 
   it('answering tells the result a step on, in rows that name the window', () => {
     const l = fresh();
-    l.moraleAt = stepClock(l);
+    l.moraleAt = stepClock(l) + 2; // past the letter the base filed: the coach writes every other step
     const s = requestMeeting(l, 'DL')!;
     deliverMail(l);
     const backing = s.backings.find((b) => b !== 'words') ?? 'words';
@@ -77,7 +84,7 @@ describe('meetings: the letters', () => {
 
   it("a commitment's last week adds a due row to the weekly letter, once", () => {
     const l = fresh();
-    l.moraleAt = stepClock(l);
+    l.moraleAt = stepClock(l) + 2; // past the letter the base filed: the coach writes every other step
     const team = l.teams[l.userTeamId];
     const wr = l.players[team.depthChart.WR[0]];
     // The story a held meeting's commitment opens: a deal, due in two steps.
@@ -229,7 +236,7 @@ describe('meetings: letters from a new club', () => {
   it('tells no result for a meeting held before you took the job, and tells one held after', () => {
     const l = fresh();
     l.phase = 'resign';
-    l.moraleAt = stepClock(l);
+    l.moraleAt = stepClock(l) + 2; // past the letter the base filed: the coach writes every other step
     const held = (clock: number): MeetingRecord => ({
       clock,
       scope: 'team',

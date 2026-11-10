@@ -105,6 +105,10 @@ const storiesOpened = (l: League) =>
 // After the benching chain (storylines Task 11) and a closing riding in the next letter like a result:
 //   mail1, 3     |   11   | 5   |  8    |  3
 //   vol2, 10     |   11   | 5   |  8    |  4
+// After the head coach wrote at most every other step (`LETTER_GAP`), a suggestion held a step, stories closing quietly
+// and staff stories closing with the season ("told" also counts a story closed silently, which is marked told):
+//   mail1, 3     |    7   | 8   |  8    |  0
+//   vol2, 10     |    9   | 7   |  7    |  0
 describe.each([
   { seed: 'mail1', team: 3 },
   { seed: 'vol2', team: 10 },
@@ -198,17 +202,22 @@ function playBenchSeason(seed: string, userTeamId: number) {
   return { l, sat, answered };
 }
 
-// Measured when written (bench5, team 25): 10 letters, 7 stories told, 7 opened, 6 rows at most, 3 open, 5 benching rows.
-// The holder's ask in the step he sat, answered "his job" two weeks on, his closing in the next letter. The week between files no letter of its own: a "still waiting" note only rides along
-// when a letter is filed for another reason, so it is not counted here.
-describe("the head coach's letters over a season with a benching: bench5", () => {
-  const TEAM = 25;
+// The benching scenario on three seeds that overran the bounds before the every-other-step rule, as measured:
+//   seed, team   | letters | told | opened | max rows | still open | benching rows
+//   bench1, 5    |    9    |  8   |  10    |    6     |     3      |  3
+//   bench2, 7    |   10    |  7   |   8    |    6     |     3      |  3
+//   vol3, 2      |   10    | 10   |  12    |    6     |     3      |  3
+describe.each([
+  { seed: 'bench1', team: 5 },
+  { seed: 'bench2', team: 7 },
+  { seed: 'vol3', team: 2 },
+])("the head coach's letters over a season with a benching: $seed", ({ seed, team: TEAM }) => {
   let l: League;
   let coach: InboxMessage[];
   let sat: { holder: number; other: number } | undefined;
   let answered = false;
   beforeAll(() => {
-    ({ l, sat, answered } = playBenchSeason('bench5', TEAM));
+    ({ l, sat, answered } = playBenchSeason(seed, TEAM));
     coach = coachLetters(l);
   }, 180_000);
   const benchRows = () =>
