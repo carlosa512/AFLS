@@ -221,6 +221,8 @@ describe('cards', () => {
     expect(last(2, 3)).toEqual([{ kind: 'half' }]);
     expect(last(3, 4)).toEqual([{ kind: 'quarter', head: 'End of the third quarter' }]);
     expect(last(4, 5)).toEqual([{ kind: 'quarter', head: 'End of regulation' }]);
+    // A playoff game goes on through as many overtime periods as it takes.
+    expect(last(5, 6)).toEqual([{ kind: 'quarter', head: 'End of overtime' }]);
     expect(last(4)).toEqual([{ kind: 'final' }]);
   });
 
@@ -254,6 +256,11 @@ describe('how long the screen holds', () => {
     expect(momentHold([player], 4)).toBe(0);
     expect(momentHold([quarter], 1)).toBe(2000);
     expect(momentHold([quarter], 8)).toBe(0);
+  });
+
+  it('holds a banner and then the quarter’s card, one after the other', () => {
+    expect(momentHold([score, quarter], 1)).toBe(2600 + 2000);
+    expect(momentHold([score, quarter], 4)).toBe(BANNER_FLOOR);
   });
 
   it('adds nothing for an ordinary play', () => {

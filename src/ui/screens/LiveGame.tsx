@@ -24,7 +24,7 @@ import {
 import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
-import { momentHold, playMoments } from '../moments';
+import { momentHold, periodHold, playMoments } from '../moments';
 import { ALL22_OWN, GameMoments, shownMoments } from './GameMoments';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
@@ -97,17 +97,20 @@ export function LiveGame({ league }: { league: League }) {
     if (s.still) return step();
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
     // A moment (a score's banner, a player's line) holds the screen long enough to be read.
-    const made = shownMoments(
-      playMoments(s.plays, s.current, { ...momentFacts, told: true, still: false }),
-      speed,
-      own,
-    );
+    const all = playMoments(s.plays, s.current, { ...momentFacts, told: true, still: false });
+    const made = shownMoments(all, speed, own);
     // The half, reached by playing: the game waits on its card until Continue.
     if (made.some((m) => m.kind === 'half')) {
       live.update({ playing: false });
       return setWaitKey(playKey);
     }
-    timer.current = setTimeout(next, Math.max((all22 ? holdAfter(entry) : HOLD_MS) / speed, momentHold(made, speed)));
+    // A quarter's card comes up after the play's banner, whichever view draws it.
+    const hold = Math.max(
+      (all22 ? holdAfter(entry) : HOLD_MS) / speed,
+      momentHold(made, speed),
+      periodHold(all, speed),
+    );
+    timer.current = setTimeout(next, hold);
   };
   const togglePlay = () => {
     clearTimeout(timer.current);

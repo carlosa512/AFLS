@@ -5,6 +5,7 @@
  * one thing at a time, whole (nothing is revealed bit by bit). Spec:
  * docs/superpowers/specs/2026-11-10-broadcast-field-and-moments-design.md §3.
  */
+import { useEffect, useState } from 'react';
 import type { FieldRecord, League, PlayLogEntry, Team } from '../../engine/types';
 import { PlayerLink } from '../components';
 import {
@@ -16,7 +17,7 @@ import {
   type RunningLine,
   type RunningTeam,
 } from '../gameRead';
-import { momentHold, type Moment, type Tone } from '../moments';
+import { cardWait, momentHold, type Moment, type Tone } from '../moments';
 import { laneColor } from './GameTimeline';
 
 /** What All-22 announces itself, timed to its own staging (the officials confer, the trainers come out). */
@@ -237,7 +238,18 @@ export function GameMoments({
   // Never a line with a banner: one thing to read at a time.
   const player = banner ? undefined : shown.find((m): m is Extract<Moment, { kind: 'player' }> => m.kind === 'player');
   const man = player ? league.players[player.playerId] : undefined;
-  const up = card && facts ? card : null;
+  // A card waits for the play's banner to be read (this view's or All-22's own): the play that ends a game is told
+  // before the final comes up over it.
+  const due = card && facts ? card : null;
+  const wait = due ? cardWait(moments, speed) : 0;
+  const key = due && facts ? `${facts.shown}:${due.kind}` : '';
+  const [waited, setWaited] = useState('');
+  useEffect(() => {
+    if (!key || !wait || waited === key) return;
+    const t = setTimeout(() => setWaited(key), wait);
+    return () => clearTimeout(t);
+  }, [key, wait, waited]);
+  const up = due && (!wait || waited === key) ? due : null;
   if (!banner && !(player && man) && !up) return null;
   // A score or a takeaway: the bench of the side it went to has something to cheer (and the crowd, at home).
   const cheer =

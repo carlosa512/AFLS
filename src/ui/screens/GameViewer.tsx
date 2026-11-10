@@ -12,7 +12,7 @@ import { holdAfter, TopDownField } from './TopDownField';
 import { Field, restingSpot } from './BroadcastField';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
-import { momentHold, playMoments } from '../moments';
+import { momentHold, periodHold, playMoments } from '../moments';
 import { ALL22_OWN, GameMoments, HALF_MS, shownMoments } from './GameMoments';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
@@ -290,10 +290,14 @@ export function GameViewer({
     if (still) return go(index + 1, true);
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
     // A moment (a score's banner, a player's line) holds the screen long enough to be read.
-    const made = shownMoments(playMoments(plays, index, { ...momentFacts, told: true, still: false }), shownSpeed, own);
-    // The half's card stays up a while before the replay carries on.
-    const half = made.some((m) => m.kind === 'half') ? HALF_MS / shownSpeed : 0;
-    const hold = Math.max((all22 ? holdAfter(entry) : 650) / shownSpeed, momentHold(made, shownSpeed), half);
+    const all = playMoments(plays, index, { ...momentFacts, told: true, still: false });
+    const made = shownMoments(all, shownSpeed, own);
+    // A period's card comes up after the play's banner; the half's stays up a while before the replay carries on.
+    const hold = Math.max(
+      (all22 ? holdAfter(entry) : 650) / shownSpeed,
+      momentHold(made, shownSpeed),
+      periodHold(all, shownSpeed, HALF_MS),
+    );
     timer.current = setTimeout(() => advanceFrom(index), hold);
   };
   const step = (dir: 1 | -1) => {

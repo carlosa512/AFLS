@@ -174,7 +174,9 @@ export function momentsFor(
             ? 'End of the first quarter'
             : e.quarter === 3
               ? 'End of the third quarter'
-              : 'End of regulation',
+              : e.quarter === 4
+                ? 'End of regulation'
+                : 'End of overtime',
       });
   } else if (!next && opts.over) out.push({ kind: 'final' });
   return out;
@@ -186,13 +188,35 @@ export function momentsFor(
  * (an overlay draws no moment whose hold is 0). The half and the final wait on their own (`GameMoments`).
  */
 export function momentHold(moments: readonly Moment[], speed: number): number {
-  let hold = 0;
+  // A banner or a line is read first, then the quarter's card: one after the other, never one over the other.
+  let read = 0;
+  let card = 0;
   for (const m of moments) {
-    if (m.kind === 'banner') hold = Math.max(hold, Math.max(BANNER_FLOOR, BANNER_MS / speed));
-    else if (m.kind === 'player') hold = Math.max(hold, speed >= FAST ? 0 : (BANNER_MS + LINE_BEAT) / speed);
-    else if (m.kind === 'quarter') hold = Math.max(hold, speed >= FAST ? 0 : QUARTER_MS / speed);
+    if (m.kind === 'banner') read = Math.max(read, Math.max(BANNER_FLOOR, BANNER_MS / speed));
+    else if (m.kind === 'player') read = Math.max(read, speed >= FAST ? 0 : (BANNER_MS + LINE_BEAT) / speed);
+    else if (m.kind === 'quarter') card = Math.max(card, speed >= FAST ? 0 : QUARTER_MS / speed);
   }
-  return hold;
+  return read + card;
+}
+
+/**
+ * How long a period's card waits before it comes up: as long as the play's banner is read, whichever view draws it
+ * (a walk-off touchdown is told before the final card, not under it).
+ */
+export function cardWait(moments: readonly Moment[], speed: number): number {
+  const banner = moments.find((m) => m.kind === 'banner');
+  return banner ? momentHold([banner], speed) : 0;
+}
+
+/**
+ * How long the screen holds a play that ends a period, by playing into it: the wait for its banner, then the card
+ * (the half's for as long as the screen gives it). Nothing for a play with no card at this speed.
+ */
+export function periodHold(moments: readonly Moment[], speed: number, halfMs = 0): number {
+  const half = moments.some((m) => m.kind === 'half');
+  const quarter = moments.filter((m) => m.kind === 'quarter');
+  const card = half ? halfMs / speed : momentHold(quarter, speed);
+  return card > 0 ? cardWait(moments, speed) + card : 0;
 }
 
 /** A flag's call (`flagCall`) as a banner's three parts: the foul, on whom, what it cost. */

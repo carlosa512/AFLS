@@ -12,7 +12,7 @@ import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
 import { surfaceFor } from './screens/FieldPaint';
-import { skyOf } from './screens/BroadcastPaint';
+import { sameWeather, skyOf } from './screens/BroadcastPaint';
 import { GameMoments, MomentBanner } from './screens/GameMoments';
 import { playMoments, type Moment } from './moments';
 import { flagCall } from './stage/calls';
@@ -1139,5 +1139,39 @@ describe('the cards at the quarter, the half and the final', () => {
   it('signs every card SNN', () => {
     for (const kind of ['half', 'final', 'quarter'] as const)
       expect(card(kind, half)).toMatch(/class="mc-net"[^>]*>SNN</);
+  });
+});
+
+describe('what the review found', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const names = buildPlayNames(league, game);
+
+  it('shows a period-ending play’s banner before the card, never the card over it', () => {
+    // A walk-off touchdown is the game's biggest moment: the final card waits for its banner.
+    const td: Moment = { kind: 'banner', tone: 'score', teamId: home.id, head: 'Touchdown', line: 'A run' };
+    const html = render(
+      <GameMoments
+        league={league}
+        home={home}
+        away={away}
+        moments={[td, { kind: 'final' }]}
+        speed={1}
+        card={{ kind: 'final' }}
+        facts={{ plays, shown: plays.length - 1, names }}
+      />,
+    );
+    expect(html).toContain('moment-banner score');
+    expect(html).not.toContain('moment-card');
+  });
+
+  it('knows two readings of the same weather apart from a change in it, so the stadium is drawn once', () => {
+    const w: Weather = { roof: 'outdoors', tempF: 60, windMph: 6, precip: 'none', night: true };
+    expect(sameWeather(w, { ...w })).toBe(true);
+    expect(sameWeather(w, { ...w, tempF: 40 })).toBe(true);
+    expect(sameWeather(w, { ...w, precip: 'rain' })).toBe(false);
+    expect(sameWeather(w, { ...w, windMph: 20 })).toBe(false);
+    expect(sameWeather(w, { ...w, night: undefined })).toBe(false);
+    expect(sameWeather({ ...w, precip: 'rain' }, { ...w, precip: 'rain', heavy: true })).toBe(false);
   });
 });
