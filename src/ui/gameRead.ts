@@ -300,15 +300,20 @@ export function linesAt(
  * period is as long as the clock it opened on (ten minutes in the regular season, fifteen in the playoffs).
  */
 export function secondsOf(plays: readonly PlayLogEntry[]): number[] {
+  const endOf = periodEnds(plays);
+  return plays.map((e) => endOf(e.quarter) - e.clock);
+}
+
+/** When each period ends, in game seconds: 900 a quarter, an overtime period as long as the clock it opened on. */
+function periodEnds(plays: readonly PlayLogEntry[]): (quarter: number) => number {
   const opened = new Map<number, number>();
   for (const e of plays) if (e.quarter > 4 && !opened.has(e.quarter)) opened.set(e.quarter, e.clock);
   const length = (q: number) => (q <= 4 ? 900 : (opened.get(q) ?? 900));
-  const startOf = (q: number) => {
+  return (quarter) => {
     let s = 0;
-    for (let k = 1; k < q; k++) s += length(k);
+    for (let k = 1; k <= quarter; k++) s += length(k);
     return s;
   };
-  return plays.map((e) => startOf(e.quarter) + length(e.quarter) - e.clock);
 }
 
 /** How long the game on this log runs: regulation, plus the overtime it has reached. */
@@ -374,6 +379,7 @@ const kicked = (e: PlayLogEntry) => !/No play\./.test(e.text);
  */
 export function drivesOf(plays: readonly PlayLogEntry[], homeId: number, live = false): Drive[] {
   const seconds = secondsOf(plays);
+  const endOf = periodEnds(plays);
   const drives: Drive[] = [];
   /** The drive being played, its spot after its last snap, and whether it has ended (it then waits for the next one). */
   let open: Drive | null = null;
@@ -397,7 +403,8 @@ export function drivesOf(plays: readonly PlayLogEntry[], homeId: number, live = 
     // Over when the next thing happens in its half; at its own last snap when nothing does.
     const n = plays[last + 1];
     open.end = n && half(n.quarter) === half(plays[last].quarter) ? seconds[last + 1] : seconds[last];
-    if (how === 'half' || how === 'end') open.end = Math.max(open.end, half(plays[last].quarter) * 1800);
+    // The clock ran out on it: it lasted to the end of its period (the half, regulation, or an overtime).
+    if (how === 'half' || how === 'end') open.end = Math.max(open.end, endOf(plays[last].quarter));
     done = true;
   };
   for (let i = 0; i < plays.length; i++) {

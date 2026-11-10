@@ -54,7 +54,9 @@ export function driveCaption(d: Drive, plays: readonly PlayLogEntry[], current: 
   const size = `${count(d.snaps, 'play')} · ${d.yards} yds`;
   if (current) return `${size} · ${gameClock(Math.max(0, Math.round(d.end - d.start)))}`;
   const scored = d.how === 'td' ? `, ${plays[d.last].text.replace(/[,.]? ?TOUCHDOWN.*$/, '')}` : '';
-  return `${when(plays[d.first])} · ${size} · ${ENDED[d.how]}${scored}`;
+  // The fourth quarter's end is the end of regulation: there is overtime to come, or the log would say the game ended.
+  const how = d.how === 'half' && plays[d.last].quarter === 4 ? 'End of regulation' : ENDED[d.how];
+  return `${when(plays[d.first])} · ${size} · ${how}${scored}`;
 }
 
 export function GameTimeline({
@@ -121,9 +123,28 @@ export function GameTimeline({
     while (i + 1 < seconds.length && seconds[i + 1] <= t) i++;
     return i;
   };
-  const drag = (e: PointerEvent<HTMLDivElement>) => {
-    if (!replay || !onJump || (e.type === 'pointermove' && !(e.buttons & 1))) return;
-    onJump(playAt(e.clientX));
+  /**
+   * A press on the track (replay only). A drag scrubs, wherever it began and ended; a press let go where it landed
+   * is a click: on a drive it jumps to the drive's first snap, on bare track to that moment. Left button only.
+   */
+  const press = useRef<{ x: number; drive: number | null; moved: boolean } | null>(null);
+  const pressed = (e: PointerEvent<HTMLDivElement>) => {
+    if (!replay || !onJump || e.button !== 0) return;
+    const bar = (e.target as HTMLElement).closest<HTMLElement>('.tl-drive');
+    press.current = { x: e.clientX, drive: bar ? Number(bar.dataset.first) : null, moved: false };
+    // The drag keeps coming here even when the pointer leaves the track.
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const dragged = (e: PointerEvent<HTMLDivElement>) => {
+    const p = press.current;
+    if (!p || (!p.moved && Math.abs(e.clientX - p.x) < 4)) return;
+    p.moved = true;
+    onJump?.(playAt(e.clientX));
+  };
+  const released = (e: PointerEvent<HTMLDivElement>) => {
+    const p = press.current;
+    press.current = null;
+    if (p && !p.moved) onJump?.(p.drive ?? playAt(e.clientX));
   };
 
   // Regulation's four quarters, and one more section for whatever overtime was played.
@@ -141,8 +162,10 @@ export function GameTimeline({
           <div
             className={`tl-area${replay ? ' can-jump' : ''}`}
             ref={area}
-            onPointerDown={drag}
-            onPointerMove={drag}
+            onPointerDown={pressed}
+            onPointerMove={dragged}
+            onPointerUp={released}
+            onPointerCancel={() => (press.current = null)}
             onMouseLeave={() => setPicked(null)}
           >
             {sections.map((s) => (
@@ -162,17 +185,21 @@ export function GameTimeline({
                   className={`tl-drive ${side}${later ? ' later' : ''}${picked === i ? ' picked' : ''}`}
                   style={{
                     left: pct(d.start),
-                    width: `max(4px, calc(${pct(Math.max(0, end - d.start))} - 2px))`,
+                    width: `max(4px, calc(${pct(Math.max(0, Math.min(end, total) - d.start))} - 2px))`,
                     background: colors[side],
                   }}
                   aria-label={label}
                   title={label}
                   disabled={!replay}
-                  onPointerDown={(e) => e.stopPropagation()}
+                  data-first={d.first}
                   onMouseEnter={() => setPicked(i)}
                   onFocus={() => setPicked(i)}
                   onBlur={() => setPicked(null)}
-                  onClick={() => onJump?.(d.first)}
+                  // The pointer is handled on the track (a drag across a bar must not end as a click on it): this is
+                  // the keyboard's Enter or Space, which arrives as a click with no detail.
+                  onClick={(e) => {
+                    if (e.detail === 0) onJump?.(d.first);
+                  }}
                 />
               );
             })}
@@ -187,8 +214,12 @@ export function GameTimeline({
                   style={{ left: pct(d.end) }}
                 />
               );
-              if (d.points.home > 0) return cls('home', 'score');
-              if (d.points.away > 0) return cls('away', 'score');
+              // Both sides can score before the next drive: a touchdown, then the kickoff run back.
+              const scores = [
+                d.points.home > 0 ? cls('home', 'score') : null,
+                d.points.away > 0 ? cls('away', 'score') : null,
+              ].filter(Boolean);
+              if (scores.length) return scores;
               return GAVE_UP.has(d.how) ? cls(d.teamId === home.id ? 'home' : 'away', 'miss') : null;
             })}
             <div className="tl-head" style={{ left: pct(now) }} />

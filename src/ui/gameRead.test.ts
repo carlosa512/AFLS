@@ -264,6 +264,20 @@ describe('drives', () => {
     expect(drives[0].end).toBeGreaterThan(900);
   });
 
+  it('ends an overtime drive the clock ran out on at the end of the period, not past it', () => {
+    const plays = [
+      entry({ quarter: 4, clock: 100 }),
+      kickoff({ quarter: 5, clock: 600 }),
+      entry({ quarter: 5, clock: 300, offense: AWAY, from: 75, to: 72 }),
+      entry({ quarter: 5, clock: 40, offense: AWAY, down: 2, from: 72, to: 70 }),
+    ];
+    const drives = drivesOf(plays, HOME);
+    expect(drives.map((d) => d.how)).toEqual(['half', 'end']);
+    // Regulation ends at 3600; a ten-minute overtime at 4200.
+    expect(drives[0].end).toBe(3600);
+    expect(drives[1].end).toBe(4200);
+  });
+
   it('leaves the last drive of a live game open', () => {
     expect(drivesOf([entry()], HOME, true)[0].how).toBe('on');
     expect(drivesOf([entry()], HOME)[0].how).toBe('end');

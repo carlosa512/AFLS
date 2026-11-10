@@ -426,6 +426,78 @@ describe('the timeline', () => {
     expect(driveCaption(punt, plays, false)).toMatch(/ · Punt$/);
   });
 
+  it('marks both scores when a kick is run back right after a touchdown', () => {
+    const snap = (o: Partial<PlayLogEntry>): PlayLogEntry => ({
+      quarter: 1,
+      clock: 800,
+      offense: home.id,
+      down: 1,
+      distance: 10,
+      yardLine: 25,
+      text: 'A.Back rush for 3 yards',
+      homeScore: 0,
+      awayScore: 0,
+      kind: 'run',
+      from: 25,
+      to: 28,
+      ...o,
+    });
+    const list = [
+      snap({ text: 'A.Back rush for 75 yards, TOUCHDOWN', to: 102, homeScore: 6 }),
+      snap({ kind: 'xp', down: 0, clock: 790, text: 'K.Icker extra point is GOOD.', homeScore: 7 }),
+      snap({
+        kind: 'kickoff',
+        down: 0,
+        clock: 790,
+        text: 'Returned 100 yards for a TOUCHDOWN',
+        homeScore: 7,
+        awayScore: 6,
+      }),
+      snap({
+        kind: 'xp',
+        down: 0,
+        clock: 775,
+        offense: away.id,
+        text: 'K.Icker extra point is GOOD.',
+        homeScore: 7,
+        awayScore: 7,
+      }),
+      snap({ kind: 'kickoff', down: 0, clock: 775, homeScore: 7, awayScore: 7 }),
+      snap({ clock: 770, homeScore: 7, awayScore: 7 }),
+    ];
+    const html = line(list, list.length - 1, true);
+    expect(count(html, 'tl-mark score home')).toBe(1);
+    expect(count(html, 'tl-mark score away')).toBe(1);
+  });
+
+  it('never draws a drive past the end of the track', () => {
+    const last = plays[plays.length - 1];
+    const overtime = [
+      ...plays,
+      { ...last, quarter: 5, clock: 600, kind: 'kickoff' as const, down: 0 },
+      { ...last, quarter: 5, clock: 300, kind: 'run' as const, down: 1, text: 'A.Back rush for 3 yards' },
+    ];
+    const html = line(overtime, overtime.length - 1, true);
+    for (const m of html.matchAll(
+      /class="tl-drive[^"]*" style="left:([\d.]+)%;width:max\(4px, calc\(([\d.]+)% - 2px\)\)/g,
+    ))
+      expect(Number(m[1]) + Number(m[2])).toBeLessThanOrEqual(100.01);
+  });
+
+  it('calls the end of the fourth quarter the end of regulation, not of a half', () => {
+    const list = [
+      { ...plays[1], quarter: 4, clock: 30, down: 1, kind: 'run' as const, text: 'A.Back rush for 3 yards' },
+      { ...plays[1], quarter: 5, clock: 600, down: 0, kind: 'kickoff' as const },
+    ];
+    const [d] = drivesOf(list, home.id);
+    expect(driveCaption(d, list, false)).toMatch(/ · End of regulation$/);
+  });
+
+  it('shows where the keyboard is when the slider has the focus', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.tl:has\(#viewer-scrub:focus-visible\) \.tl-area \{[^}]*outline:/);
+  });
+
   it('is what the replay draws, with the view switch up beside Box score', () => {
     const html = render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />);
     expect(html).toContain('class="tl-area can-jump"');

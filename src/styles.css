@@ -2005,6 +2005,12 @@ main.wrap:has(.game-stage) {
   grid-row: 1 / span 2;
   height: 52px;
 }
+/* The slider behind the track is how the keyboard scrubs: show where it is. */
+.tl:has(#viewer-scrub:focus-visible) .tl-area {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
 .tl-area.can-jump {
   cursor: pointer;
   /* A sideways drag scrubs; an up-and-down one still scrolls the page. */
