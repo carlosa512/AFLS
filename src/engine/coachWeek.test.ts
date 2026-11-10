@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { answerBench, benchCard, benchKickoff, dismissReminder, restoreCard, setJobs } from './benching';
+import { perceive } from './scouting';
+import { STARTERS } from './positions';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { coachWeekId, fitItems, newestLosingLetter, MAX_ROWS, STALE, weekItems, type WeekItem } from './coachWeek';
+import {
+  coachWeekId,
+  fitItems,
+  jobsFact,
+  newestLosingLetter,
+  MAX_ROWS,
+  STALE,
+  weekItems,
+  type WeekItem,
+} from './coachWeek';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
@@ -13,7 +24,7 @@ import { UNITS, unitOf, weightOf, type Unit } from './standing';
 import { beat, closeStory, COACH, markTold } from './stories';
 import { seasonSaid, toldKeys } from './voice';
 import { shareWord } from './storiesStep';
-import { ATTRIBUTES, type InboxMessage, type League, type Player, type TalkCause } from './types';
+import { ATTRIBUTES, POSITIONS, type InboxMessage, type League, type Player, type TalkCause } from './types';
 
 const template = createLeague({ seed: 'coach-week' });
 const copy = <T>(v: T): T => structuredClone(v);
@@ -622,5 +633,32 @@ describe('the head coach’s letters on a benching', () => {
     expect(closing()[0].note).toContain(q[0].lastName);
     expect(closing()[0].note).not.toMatch(/That one is closed/);
     expect(benchRows(l).length).toBeGreaterThan(0);
+  });
+
+  it('the camp jobs row waits for the cut-down moment, is told once a season, and calls a battle close only by our scouts` read', () => {
+    const { l } = club('bench-camp');
+    l.phase = 'preseason';
+    l.personnel!.enabled = true;
+    l.personnel!.clock = { season: l.season, cutdown: false };
+    expect(weekItems(l, new Set(), []).some((i) => i.key.startsWith('jobs:'))).toBe(false);
+    l.personnel!.clock = { season: l.season, cutdown: true };
+    const row = weekItems(l, new Set(), []).find((i) => i.key.startsWith('jobs:'))!;
+    expect(row.tier).toBe(5);
+    expect(row.row.note).toContain('Quarterback:');
+    expect(weekItems(l, new Set([row.key]), []).some((i) => i.key.startsWith('jobs:'))).toBe(false);
+    // The close battle, if any, is the nearest pair within half a point, and "ahead" says which way the scouts read it.
+    const fact = jobsFact(l);
+    const team = l.teams[l.userTeamId];
+    const gaps = POSITIONS.flatMap((pos) => {
+      const chart = team.depthChart[pos].map((id) => l.players[id]);
+      const last = chart[STARTERS[pos] - 1];
+      const next = chart[STARTERS[pos]];
+      if (!last || !next) return [];
+      const a = perceive(l, team.id, last).ovr;
+      const b = perceive(l, team.id, next).ovr;
+      return Math.abs(a - b) <= 0.5 ? [{ pos, diff: Math.abs(a - b), ahead: b > a }] : [];
+    }).sort((x, y) => x.diff - y.diff);
+    if (!gaps.length) expect(fact.close).toBeUndefined();
+    else expect(fact.close).toMatchObject({ ahead: gaps[0].ahead });
   });
 });

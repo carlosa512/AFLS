@@ -512,9 +512,9 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
               className="callout callout-note row"
               style={{ margin: '0 0 10px', gap: 12, justifyContent: 'space-between' }}
             >
-              <span>These men start the season holding their jobs. Sit one of them healthy and he'll ask you why.</span>
+              <strong>Week 1 lineup</strong>
               <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => confirmLineup(l))}>
-                Lineup set
+                Confirm
               </button>
             </div>
           )}

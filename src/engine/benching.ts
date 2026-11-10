@@ -7,7 +7,7 @@
  * jobs when the season starts, hurt or not. "Started" is read at kickoff from the chart and availability, never from
  * snap counts: a man hurt in the game still started.
  */
-import { BENCH_CLOSE, BENCH_REPLY, benchSaid, type BenchCloseFact } from './benchVoice';
+import { BENCH_CLOSE, BENCH_REPLY, BENCH_STANDS, benchSaid, type StandsFact, type BenchCloseFact } from './benchVoice';
 import { manSheet, type ManSheet } from './castSheet';
 import { onDidNotReport } from './disputeRead';
 import { employed } from './employment';
@@ -21,7 +21,7 @@ import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { say } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import { STARTERS } from './positions';
+import { playerOvr, STARTERS } from './positions';
 import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
 
 /** Tests turn it off to prove play is untouched. */
@@ -400,7 +400,7 @@ function settleGone(league: League, team: Team, clock: number): void {
       if (!jobs.held[q.other]) jobs.held[q.other] = { pos: q.pos, since: clock };
       delete jobs.runs?.[q.other];
     }
-    closeStory(league, storyOn(team, q), 'left', clock, here(q.holder) ? 'other' : 'holder');
+    closeStory(league, storyOn(team, q), 'left', clock, here(q.holder) ? 'other' : here(q.other) ? 'holder' : 'both');
     closeQuestion(league, team, q);
   }
 }
@@ -602,8 +602,15 @@ export function lineupProblem(league: League): boolean {
   const team = league.teams[league.userTeamId];
   if (team.autoDepth || team.lineupSet === league.season) return false;
   // Where cut-down day is two steps (the 53, then the claims), the lineup is the second's.
+  return cutdownDone(league);
+}
+
+/** Camp is at its last step: with practice squads on, the 53 are submitted; without, there is nothing left to wait for. */
+export function cutdownDone(league: League): boolean {
   const clock = league.personnel?.clock;
-  return !league.personnel?.enabled || (clock?.season === league.season && clock.cutdown);
+  return (
+    league.phase === 'preseason' && (!league.personnel?.enabled || (clock?.season === league.season && clock.cutdown))
+  );
 }
 
 /** The lineup is set: the advance button starts the season. */
@@ -706,6 +713,13 @@ export interface BenchFact {
   better: boolean;
 }
 
+/** He ranks at or beyond the starting spots of his room, by the measure `expectedRole` reads: he knows who is ahead. */
+export function behindInRoom(p: Player, ctx: MoraleContext): boolean {
+  const ovr = playerOvr(p);
+  const ahead = (ctx.rooms.get(`${p.teamId}:${p.position}`) ?? []).filter((o) => o > ovr + 1e-9).length;
+  return ahead >= STARTERS[p.position];
+}
+
 /** His row's facts: null unless he is yours and part of an open job question. */
 export function benchFact(league: League, p: Player, ctx: MoraleContext): BenchFact | null {
   if (p.teamId === null || p.teamId !== yourClub(league)) return null;
@@ -727,7 +741,7 @@ export function benchFact(league: League, p: Player, ctx: MoraleContext): BenchF
     role,
     weeksOpen: weeks < COUNT_WORDS.length ? COUNT_WORDS[weeks] : 'many',
     otherAsked: q.other !== undefined && !!q.asked?.includes(q.other),
-    better: expectedRole(p, ctx) < 2,
+    better: behindInRoom(p, ctx),
   };
 }
 
@@ -765,6 +779,8 @@ export interface BenchCardView {
   options?: { value: BenchReply | OtherReply; label: string }[];
   said?: string;
   line?: string;
+  /** How your word stands now (waiting on his next game, the job still open, broken). */
+  stands?: string;
 }
 
 /** What a man's benching row shows now, read off the league: his open question, never only his ask. */
@@ -790,17 +806,27 @@ export function benchCard(league: League, s: { playerId: number; clock: number }
           { value: 'compete', label: 'Keep competing' },
           { value: 'his', label: `It's ${him}'s job` },
         ];
-    return { state: 'open', role: holder ? 'holder' : 'other', options };
+    // A word given and broken: the row is open again, and says so.
+    const last = [...(benchStory(league, p)?.beats ?? [])]
+      .reverse()
+      .find((b) => ['answered', 'broken', 'satAgain'].includes(b.kind));
+    const broken = last?.kind === 'broken' ? 'brokenPromise' : last?.kind === 'satAgain' ? 'brokenSoft' : undefined;
+    const stands = broken
+      ? say(BENCH_STANDS, { state: broken }, { key: `bench:${p.id}:${q.since}`, slot: 'stands' })
+      : '';
+    return { state: 'open', role: holder ? 'holder' : 'other', options, ...(stands ? { stands } : {}) };
   }
   if (q?.answered) {
     const { reply, by } = q.answered;
     const man = league.players[by];
-    if (by !== p.id)
-      return { state: 'answered', said: `You answered ${man.lastName}. That is the word for both of them.` };
+    const state: StandsFact['state'] = q.promise ? 'promise' : q.soft ? 'soft' : 'open';
+    const stands = say(BENCH_STANDS, { state }, { key: `bench:${p.id}:${q.answered.at}`, slot: 'stands' });
+    if (by !== p.id) return { state: 'answered', said: `You answered ${man.lastName}.`, stands };
     const sheet = manSheet(league, man, ctx);
     return {
       state: 'answered',
       said: benchSaid(reply, lastOf(q.other)),
+      stands,
       ...(sheet
         ? { line: say(BENCH_REPLY, { man: sheet, reply }, { key: `bench:${p.id}:${q.answered.at}`, slot: 'reply' }) }
         : {}),

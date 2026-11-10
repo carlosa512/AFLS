@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerBench,
   benchCard,
+  behindInRoom,
   benchFact,
   BENCH,
   BENCH_SIZE,
@@ -29,7 +30,11 @@ import { PER_CLUB } from './talkBasics';
 import { roomCoach, headCoach } from './senders';
 import { openStory, untold, COACH } from './stories';
 import { gameTime } from './personnel/calendar';
+import { releasePlayer } from './finance/cap';
 import { playWeek, startLiveGame } from './league';
+import { ensureWaivers, setWaiverClaim } from './personnel/waivers';
+import { initialService } from './personnel/service';
+import { playerOvr, STARTERS } from './positions';
 import { addJolt, heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
@@ -1176,3 +1181,93 @@ describe('his words', () => {
     expect(benchFact(l, q[0], ctx)!.by).toBe('staff');
   });
 });
+
+describe('fix round 1', () => {
+  it('a rookie who is his room`s best is not "behind" anyone, a depth man is', () => {
+    const { l, team } = setup('fix-better');
+    const room = teamPlayersOf(l, team, 'QB').sort((a, b) => playerOvr(b) - playerOvr(a));
+    const ctx = moraleContext(l);
+    room[0].experience = 0;
+    expect(behindInRoom(room[0], ctx)).toBe(false);
+    expect(behindInRoom(room.at(-1)!, ctx)).toBe(true);
+  });
+
+  it('an answered row says how it stands now, and a broken word says so when it opens again', () => {
+    const a = sitHolder('fix-stands-a');
+    answerBench(a.l, a.q[0].id, 'backIn');
+    expect(benchCard(a.l, { playerId: a.q[0].id, clock: 0 }).stands).toBe('He is waiting on his next game.');
+    expect(benchCard(a.l, { playerId: a.q[1].id, clock: 0 }).stands).toBe('He is waiting on his next game.');
+    const b = sitHolder('fix-stands-b');
+    answerBench(b.l, b.q[0].id, 'thisWeek');
+    expect(benchCard(b.l, { playerId: b.q[0].id, clock: 0 }).stands).toBe('He is watching to see if he starts again.');
+    const c = sitHolder('fix-stands-c');
+    answerBench(c.l, c.q[0].id, 'earn');
+    expect(benchCard(c.l, { playerId: c.q[0].id, clock: 0 }).stands).toBe('The job is still open.');
+    // The word broken: he sat again, the card is open again and says why.
+    moodWeek(a.l);
+    const again = benchCard(a.l, { playerId: a.q[0].id, clock: 0 });
+    expect(again.state).toBe('open');
+    expect(again.stands).toBe('He sat again, so your word did not hold.');
+  });
+
+  it('both men gone: the closing says nothing about who has the job', () => {
+    const { l, team, q } = sitHolder('fix-both');
+    setTeam(l, q[0], null);
+    setTeam(l, q[1], null);
+    moodWeek(l);
+    expect(team.jobs!.questions).toBeUndefined();
+    const story = [...l.stories!.closed].find((s) => s.kind === 'benched' && s.playerId === q[0].id)!;
+    expect(story.beats.at(-1)).toMatchObject({ kind: 'left', how: 'both' });
+  });
+
+  it('claims resolved after the lineup is set leave a hand-sorted chart`s starters as confirmed', () => {
+    const l = createLeague({ seed: 'fix-claims', personnel: true });
+    const team = l.teams[l.userTeamId];
+    l.phase = 'preseason';
+    l.personnel!.clock = { season: l.season, cutdown: true };
+    team.autoDepth = false;
+    const starting = () =>
+      Object.fromEntries(
+        (Object.keys(team.depthChart) as (keyof typeof team.depthChart)[]).map((pos) => [
+          pos,
+          team.depthChart[pos].slice(0, STARTERS[pos]),
+        ]),
+      );
+    // A better receiver than any of ours comes off another club's roster; our last receiver is the man we cut for him.
+    const other = l.teams[(team.id + 3) % l.teams.length];
+    const star = teamPlayersOf(l, other, 'WR').at(-1)!;
+    for (const k of Object.keys(star.ratings) as (keyof Player['ratings'])[]) star.ratings[k] = 19;
+    star.contract = {
+      kind: 'rookie',
+      signedSeason: l.season,
+      signedWeek: -1,
+      apy: 1500,
+      length: 2,
+      years: [
+        { season: l.season, base: 1000, guaranteed: 800 },
+        { season: l.season + 1, base: 1100, guaranteed: 600 },
+      ],
+      bonuses: [{ amount: 1200, start: l.season, years: 3, source: 'signing' }],
+    };
+    star.service = initialService(0, l.season - 1);
+    ensureWaivers(l).originalOrder.teams = l.teams.map((t) => t.id);
+    releasePlayer(l, star);
+    const entry = l.personnel!.waivers!.pending.find((e) => e.playerId === star.id)!;
+    const spare = teamPlayersOf(l, team, 'WR').at(-1)!;
+    spare.contract!.bonuses = [];
+    spare.contract!.years.forEach((y) => (y.guaranteed = 0));
+    setWaiverClaim(l, { entryId: entry.id, teamId: team.id, cutIds: [spare.id], preference: 0 });
+    confirmLineup(l);
+    const before = starting();
+    advanceOffseason(l);
+    expect(l.phase).toBe('regular');
+    expect(star.teamId).toBe(team.id);
+    // Every starter we confirmed still starts; the claimed man is behind them on a hand-sorted chart.
+    expect(starting()).toEqual(before);
+    for (const id of Object.values(before).flat()) expect(holdsJob(team, id)).toBe(true);
+    expect(holdsJob(team, star.id)).toBe(false);
+  }, 120_000);
+});
+
+const teamPlayersOf = (l: League, team: Team, pos: Player['position']) =>
+  team.depthChart[pos].map((id) => l.players[id]).filter((p) => p.teamId === team.id);

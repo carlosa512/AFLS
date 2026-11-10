@@ -734,10 +734,20 @@ function BenchCards({ league, s }: { league: League; s: { playerId: number; cloc
             “{card.line}”
           </p>
         )}
+        {card.stands && (
+          <p className="muted small" style={{ margin: 0 }}>
+            {card.stands}
+          </p>
+        )}
       </Card>
     );
   return (
     <Card title="Your answer">
+      {card.stands && (
+        <p className="muted small" style={{ margin: '0 0 6px' }}>
+          {card.stands}
+        </p>
+      )}
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         {card.options!.map((o) => (
           <button

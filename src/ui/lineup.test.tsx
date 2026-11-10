@@ -42,12 +42,27 @@ describe('setting your lineup', () => {
     expect(offseasonStep(l)!.label).toBe(`Start the ${l.season} season`);
   });
 
-  it('the depth chart carries the banner and the Lineup set button until you confirm', () => {
+  it('with practice squads on, the lineup comes after the 53 are submitted, ahead of the claims step', () => {
+    const l = createLeague({ seed: 'lineup-personnel', personnel: true });
+    l.phase = 'preseason';
+    l.teams[l.userTeamId].autoDepth = false;
+    l.personnel!.clock = { season: l.season, cutdown: false };
+    expect(offseasonStep(l)!.label).toBe('Submit the 53 and open cutdown claims');
+    l.personnel!.clock = { season: l.season, cutdown: true };
+    const step = offseasonStep(l)!;
+    expect(step.label).toBe('Set your lineup');
+    expect(step.then).toEqual({ view: 'roster' });
+    confirmLineup(l);
+    expect(offseasonStep(l)!.label).not.toBe('Set your lineup');
+  });
+
+  it('the depth chart carries the banner and the Confirm button until you confirm', () => {
     const l = camp(false);
     const html = roster(l);
-    expect(html).toContain('These men start the season holding their jobs.');
-    expect(html).toContain('Lineup set');
+    expect(html).toContain('Week 1 lineup');
+    expect(html).toContain('Confirm');
+    expect(html).not.toContain('holding their jobs');
     confirmLineup(l);
-    expect(roster(l)).not.toContain('Lineup set');
+    expect(roster(l)).not.toContain('Week 1 lineup');
   });
 });

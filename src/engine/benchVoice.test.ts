@@ -157,8 +157,15 @@ describe('the benching chain’s words', () => {
           expect(t).toMatch(/Put him back\?$/);
         }
       }
-    for (const close of [undefined, { pos: 'left guard', first: 'Moore', second: 'Kelly' }])
-      for (const t of every(JOBS_ROW, { lineup: 'Quarterback: Reyes.', ...(close ? { close } : {}) })) clean(t);
+    for (const ahead of [false, true]) {
+      const close = { pos: 'left guard', first: 'Moore', second: 'Kelly', ahead };
+      for (const t of every(JOBS_ROW, { lineup: 'Quarterback: Reyes.', close })) {
+        clean(t);
+        // A second man the scouts read higher is never "behind" the starter.
+        if (ahead) expect(t).not.toMatch(/right behind|close to/);
+      }
+    }
+    for (const t of every(JOBS_ROW, { lineup: 'Quarterback: Reyes.' })) clean(t);
   });
 
   it('every way a benching ends has its own line, and none falls back to "That one is closed"', () => {
@@ -167,6 +174,7 @@ describe('the benching chain’s words', () => {
       ['left', 'other', true],
       ['left', 'holder', true],
       ['left', 'holder', false],
+      ['left', 'both', true],
       ['settled', 'out', true],
       ['settled', 'outHolder', true],
       ['settled', 'outOther', true],

@@ -158,17 +158,17 @@ export const BENCH_STILL: readonly Line<BenchFact>[] = [
   {
     when: (f) => holder(f) && f.weeksOpen === 'one',
     reads: 2,
-    text: (f) => `${f.man.last} has been waiting a week on you.`,
+    text: (f) => `${f.man.last} has had this hanging over him for a week.`,
   },
   {
     when: (f) => holder(f) && f.weeksOpen === 'two',
     reads: 2,
-    text: (f) => `${f.man.last} has waited two weeks for an answer.`,
+    text: (f) => `${f.man.last} has had this hanging over him for two weeks.`,
   },
   {
     when: (f) => holder(f) && (f.weeksOpen === 'three' || f.weeksOpen === 'many'),
     reads: 2,
-    text: (f) => `${f.man.last} has been left wondering for weeks.`,
+    text: (f) => `${f.man.last} has had this hanging over him for weeks.`,
   },
   {
     when: (f) => holder(f) && !!f.other,
@@ -311,6 +311,7 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   closed('backIn', undefined, (f) => `${f.holder} is back in the lineup, so the benching is behind us.`),
   closed('left', 'other', (f) => `${f.other} is gone, so it's ${poss(f.holder)} job again.`, named),
   closed('left', 'holder', (f) => `${f.holder} is gone, so the job is ${poss(f.other!)} now.`, named),
+  closed('left', 'both', (f) => `${f.holder} and ${f.other} are both gone, so there is nothing left to settle.`, named),
   closed(
     'left',
     'holder',
@@ -396,22 +397,42 @@ export function benchSaid(reply: TookFact['reply'], other: string | undefined): 
 /** The camp row on who holds each job: the starters by room, and one spot where our scouts see the next man close. */
 export interface JobsFact {
   lineup: string;
-  close?: { pos: string; first: string; second: string };
+  /** `ahead`: our scouts read the second man above the last starter. */
+  close?: { pos: string; first: string; second: string; ahead: boolean };
 }
 
 export const JOBS_ROW: readonly Line<JobsFact>[] = [
   { text: (f) => `Here is who starts as camp ends. ${f.lineup}` },
   { text: (f) => `This is the lineup I have as camp ends. ${f.lineup}` },
   {
-    when: (f) => !!f.close,
+    when: (f) => !!f.close && !f.close.ahead,
     reads: 1,
     text: (f) =>
       `Here is who starts as camp ends. ${f.lineup} At ${f.close!.pos}, our scouts have ${f.close!.second} right behind ${f.close!.first}.`,
   },
   {
-    when: (f) => !!f.close,
+    when: (f) => !!f.close && !f.close.ahead,
     reads: 1,
     text: (f) =>
       `This is the lineup I have as camp ends. ${f.lineup} At ${f.close!.pos}, ${f.close!.second} is close to ${f.close!.first} on our scouts' read.`,
   },
+  {
+    when: (f) => !!f.close?.ahead,
+    reads: 1,
+    text: (f) =>
+      `Here is who starts as camp ends. ${f.lineup} At ${f.close!.pos}, our scouts read ${f.close!.second} slightly ahead of ${f.close!.first}.`,
+  },
+];
+
+/** How your word stands now, read off the question: waiting on his next game, a one-game word, the job open, or broken. */
+export interface StandsFact {
+  state: 'promise' | 'soft' | 'open' | 'brokenPromise' | 'brokenSoft';
+}
+
+export const BENCH_STANDS: readonly Line<StandsFact>[] = [
+  { when: (f) => f.state === 'promise', text: () => 'He is waiting on his next game.' },
+  { when: (f) => f.state === 'soft', text: () => 'He is watching to see if he starts again.' },
+  { when: (f) => f.state === 'open', text: () => 'The job is still open.' },
+  { when: (f) => f.state === 'brokenPromise', text: () => 'He sat again, so your word did not hold.' },
+  { when: (f) => f.state === 'brokenSoft', text: () => 'He sat again.' },
 ];
