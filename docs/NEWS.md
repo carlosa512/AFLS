@@ -119,6 +119,7 @@ letter), how he took your answer in "Since last week", and one closing row when 
 starts, the question settled by an injury or a trade), told like a meeting's result. A cleared starter left off the
 lineup is a row of its own, with "Put him back". The benching's lines are in `benchVoice.ts` and obey the same rule:
 no sentence twice in a league year, a before-line left out when it has nothing new.
+The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none, and what it gathered waits for the next with its own clock, so nothing is lost (your club's ask is ignored after three steps, and a meeting request waits a step longer). A story has one telling a league year per subject: a deal that went quiet (eight steps with nothing pending) closes without a closing row, and re-opens with its history if he raises it again, so the coach can say it is the second time; staff stories close with the season.
 A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
 and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
 together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).
