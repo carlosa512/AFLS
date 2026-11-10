@@ -27,7 +27,7 @@ import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UM
 import { asRan, stagePlay, type StagedPlay } from '../../engine/field/stage';
 import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
 import { FieldPaint } from './FieldPaint';
-import { downLines } from './GameViewer';
+import { downLines } from './BroadcastField';
 import { endsSwitched } from '../stage/ends';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */

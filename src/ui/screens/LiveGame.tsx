@@ -9,12 +9,10 @@ import { live, useLive } from '../live';
 import { shows } from '../highlights';
 import {
   DownBar,
-  Field,
   HighlightSwitch,
   inPlay,
   playLabel,
   PlayText,
-  restingSpot,
   situation,
   allSpeed,
   useHighlightPick,
@@ -23,6 +21,7 @@ import {
   useViewPick,
   ViewSwitch,
 } from './GameViewer';
+import { Field, restingSpot } from './BroadcastField';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
