@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { PlayLogEntry, Team } from '../../engine/types';
 import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
+import { endsSwitched, stadiumSpot } from '../stage/ends';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -16,7 +17,12 @@ const VIEW_H = 176;
 const NEAR = { y: 166, w: 346 };
 const FAR = { y: 66, w: 226 };
 
-function project(x: number, y: number, h = 0) {
+/**
+ * A field spot to the picture. Given the quarter, the spot is first put where the stadium has it (teams switch ends
+ * each quarter, `stage/ends.ts`); the paint, which never moves, is drawn without one.
+ */
+export function project(fx: number, fy: number, h = 0, quarter = 1) {
+  const { x, y } = stadiumSpot(fx, fy, quarter);
   const t = y / FIELD_W;
   const rowW = NEAR.w + (FAR.w - NEAR.w) * t;
   const scale = rowW / NEAR.w;
@@ -63,6 +69,8 @@ interface FieldMemory {
   y: number;
   los: number | null;
   gain: number | null;
+  /** Whether the ends were switched when this was drawn: a new quarter starts from the other side, with no sweep. */
+  swapped: boolean;
 }
 
 // ───────── field ─────────
@@ -97,9 +105,12 @@ export function Field({
   doneRef.current = onDone;
 
   useEffect(() => {
+    // Teams switch ends each quarter: the play is drawn where the stadium has it, read from its own quarter.
+    const quarter = entry?.quarter ?? 1;
+    const swapped = endsSwitched(quarter);
     const place = (x: number, y: number, h: number, opacity = 1) => {
-      const b = project(x, y, h);
-      const g = project(x, y, 0);
+      const b = project(x, y, h, quarter);
+      const g = project(x, y, 0, quarter);
       ballRef.current?.setAttribute('cx', String(b.x));
       ballRef.current?.setAttribute('cy', String(b.y));
       ballRef.current?.setAttribute('rx', String(4.4 * b.scale * (1 + h / 60)));
@@ -114,8 +125,8 @@ export function Field({
     const drawLine = (el: SVGLineElement | null, x: number | null, opacity: number) => {
       if (!el) return;
       if (x === null || opacity <= 0) return el.setAttribute('opacity', '0');
-      const a = project(x, 0);
-      const b = project(x, FIELD_W);
+      const a = project(x, 0, 0, quarter);
+      const b = project(x, FIELD_W, 0, quarter);
       el.setAttribute('x1', String(a.x));
       el.setAttribute('y1', String(a.y));
       el.setAttribute('x2', String(b.x));
@@ -132,10 +143,16 @@ export function Field({
       drawLine(el, a + (b - a) * ease(t), 1);
     };
 
-    const prev = memory.current;
+    const drawn = memory.current;
+    // A new quarter from the other side: nothing carries across, so no ball is swept over the field and no line slid.
+    const prev = drawn && drawn.swapped === swapped ? drawn : null;
     const lines = downLines(entry, home.id) ?? (prev ? { los: prev.los, gain: prev.gain } : { los: null, gain: null });
-    const from = prev ? { ...prev } : { x: restX, y: MID, ...lines };
-    memory.current = { ...from };
+    const from = prev
+      ? { ...prev }
+      : drawn
+        ? { x: restX, y: MID, los: null, gain: null, swapped }
+        : { x: restX, y: MID, ...lines, swapped };
+    memory.current = { ...from, swapped };
     const settleLines = () => Object.assign(memory.current!, lines);
     const snapY = snapYFor(entry, from.y);
     const segs = entry ? buildPath(entry, home.id, snapY) : [];
@@ -154,7 +171,7 @@ export function Field({
     for (const seg of segs) {
       for (let i = 0; i <= 12; i++) {
         const p = pointAt(seg, i / 12);
-        const q = project(p.x, p.y, p.h);
+        const q = project(p.x, p.y, p.h, quarter);
         pts.push(`${q.x.toFixed(1)},${q.y.toFixed(1)}`);
       }
     }

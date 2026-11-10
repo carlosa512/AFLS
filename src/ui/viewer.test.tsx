@@ -10,6 +10,7 @@ import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from './screens/TopDownField';
 import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
+import { project } from './screens/BroadcastField';
 import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
@@ -745,5 +746,22 @@ describe('All-22 switching ends', () => {
       expect(x).toBeCloseTo(100 - first.dots[i][0], 1);
       expect(y).toBeCloseTo(FIELD_W - first.dots[i][1], 1);
     });
+  });
+});
+
+describe('the broadcast field switching ends', () => {
+  it('draws a spot where the stadium has it that quarter', () => {
+    expect(project(100, 10, 0, 2)).toEqual(project(0, FIELD_W - 10, 0, 1));
+    expect(project(30, 20, 3, 4)).toEqual(project(70, FIELD_W - 20, 3, 3));
+  });
+
+  it('reads the quarter it is given, whatever came before', () => {
+    // A highlight level can go from the second quarter straight to the fourth: both are switched.
+    expect(project(30, 20, 0, 4)).toEqual(project(30, 20, 0, 2));
+    expect(project(30, 20, 0, 5)).toEqual(project(30, 20, 0, 1));
+  });
+
+  it('leaves a spot alone in the first quarter, and when no quarter is given', () => {
+    expect(project(30, 20, 0)).toEqual(project(30, 20, 0, 1));
   });
 });
