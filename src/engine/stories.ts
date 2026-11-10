@@ -185,3 +185,13 @@ export function storiesNewYear(league: League): void {
   const floor = (league.season - 1) * YEAR;
   league.stories.closed = league.stories.closed.filter((s) => (s.closed ?? 0) >= floor);
 }
+
+/**
+ * You left a club (or lost the job): its stories were about men you managed, so they go, open and closed. At the next club
+ * the store starts empty from the step you arrive. Record-keeping only; nothing in the sim reads it.
+ */
+export function dropStories(league: League, teamId: number): void {
+  if (!league.stories) return;
+  league.stories.open = league.stories.open.filter((s) => s.teamId !== teamId);
+  league.stories.closed = league.stories.closed.filter((s) => s.teamId !== teamId);
+}

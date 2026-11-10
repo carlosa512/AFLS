@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { releaseCoach, teamCoaches } from './coaching';
+import { endGmAppointment } from './gm';
 import { createLeague } from './generate';
+import { acceptGmOffer, beginGmSearch, leadershipEvent } from './leadership';
+import { talkCard } from './talkMail';
 import { addJolt, moraleClock, moraleContext } from './morale';
-import { activeRoster, setTeam } from './roster';
+import { activeRoster, setTeam, teamPlayers } from './roster';
 import { tierOf, unitOf, weightOf, type Unit } from './standing';
-import { beat, closeRoomStories, COACH, openStory, STORIES, storyById, talkBeat, untold } from './stories';
+import { beat, closeRoomStories, closeStory, COACH, openStory, STORIES, storyById, talkBeat, untold } from './stories';
 import { HOLD, shareWord, storiesStep, tellable } from './storiesStep';
 import type { League, Player } from './types';
 
@@ -289,5 +292,52 @@ describe('shareWord', () => {
     const ctx = moraleContext(l);
     const words = new Set(activeRoster(l, l.userTeamId).map((p) => shareWord(l, p, ctx)));
     expect([...words].every((w) => w === null || w === 'part' || w === 'most')).toBe(true);
+  });
+});
+
+describe('mid-story: the people writing', () => {
+  it('a coordinator relieved closes his staff story with "relieved"', () => {
+    const l = fresh();
+    const c = teamCoaches(l, l.userTeamId).find((x) => x.role === 'offCoord')!;
+    c.belief = { WR: -0.3 };
+    storiesStep(l);
+    const s = openStory(l, { kind: 'staff', teamId: l.userTeamId, coachId: c.id })!;
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, c.id);
+    l.phase = 'regular';
+    leadershipEvent(l, { teamId: l.userTeamId, kind: 'coachRelieved', coachId: c.id, report: 'Relieved.' });
+    next(l);
+    expect(s.beats.at(-1)!.kind).toBe('relieved');
+    expect(s.closed).toBeDefined();
+  });
+
+  it('you leave your job: open rows close, the old club’s stories are dropped, the new club’s start empty', () => {
+    const l = fresh();
+    const old = l.userTeamId;
+    const man = men(l, 'DL')[0];
+    const clock = l.moraleAt!;
+    man.morale!.talk = { club: old, ask: { cause: 'deal', at: clock } };
+    beat(l, { kind: 'deal', teamId: old, playerId: man.id }, 'asked', clock);
+    const done = beat(l, { kind: 'snaps', teamId: old, playerId: man.id }, 'asked', clock)!;
+    closeStory(l, { kind: 'snaps', teamId: old, playerId: man.id }, 'left', clock);
+    expect(done.closed).toBeDefined();
+    expect(talkCard(l, { clock, playerId: man.id }).state).toBe('open');
+    const target = l.teams.find((t) => t.id !== old)!.id;
+    l.phase = 'resign';
+    endGmAppointment(l, l.userGmId, 'dismissed');
+    endGmAppointment(l, l.teams[target].gmId!, 'dismissed');
+    // Between jobs: nothing you press would answer him, and no story is kept.
+    expect(talkCard(l, { clock, playerId: man.id }).state).toBe('closed');
+    expect(beat(l, { kind: 'deal', teamId: old, playerId: man.id }, 'answered', clock + 1)).toBeNull();
+    beginGmSearch(l);
+    l.leadership.search!.offers = [{ teamId: target, through: l.season + 2, expiresRound: 2 }];
+    acceptGmOffer(l, target);
+    expect([...l.stories!.open, ...l.stories!.closed].filter((s) => s.teamId === old)).toEqual([]);
+    expect(talkCard(l, { clock, playerId: man.id }).state).toBe('closed');
+    // The new club's store starts empty, and its first beat opens a story.
+    expect([...l.stories!.open, ...l.stories!.closed]).toEqual([]);
+    const mine = teamPlayers(l, target)[0];
+    expect(beat(l, { kind: 'deal', teamId: target, playerId: mine.id }, 'asked', clock + 2)).not.toBeNull();
+    expect(l.stories!.open).toHaveLength(1);
   });
 });

@@ -7,12 +7,19 @@ import {
   benchWeek,
   countStarts,
   EARN,
+  endJobs,
   holdsJob,
   movedBy,
   questionOf,
   setJobs,
 } from './benching';
+import { releaseCoach, hireCoach, teamCoaches } from './coaching';
 import { createLeague } from './generate';
+import { deliverMail } from './inbox';
+import { talkCard } from './talkMail';
+import { PER_CLUB } from './talkBasics';
+import { roomCoach, headCoach } from './senders';
+import { openStory, untold, COACH } from './stories';
 import { gameTime } from './personnel/calendar';
 import { playWeek, startLiveGame } from './league';
 import { heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
@@ -590,5 +597,353 @@ describe('fix round 1', () => {
     team.losingAnswer = { team: { reply: 'firm', at: asked } };
     moodWeek(l);
     expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at: asked });
+  });
+});
+
+// ───────── when things change mid-story (spec section 5) ─────────
+
+/** A club's benched story for a man, open or closed. */
+const storyOf = (l: League, id: number) =>
+  [...l.stories!.open, ...l.stories!.closed].find((s) => s.kind === 'benched' && s.playerId === id);
+/** Out for the rest of the season, however far into it we are. */
+const lost = (l: League): Injury => ({ ...hurt(l), weeksRemaining: 40, estimate: [30, 50] });
+/** Opens the question: the holder sits, the other man starts, and the holder has asked. */
+function sitHolder(seed: string) {
+  const s = setup(seed);
+  order(s.team, [s.q[1].id, s.q[0].id]);
+  moodWeek(s.l);
+  return s;
+}
+const exits: [string, (l: League, p: Player) => void][] = [
+  ['is cut', (l, p) => setTeam(l, p, null)],
+  ['is traded or claimed', (l, p) => setTeam(l, p, (l.userTeamId + 1) % l.teams.length)],
+  ['retires', (_l, p) => void (p.retired = true)],
+];
+
+describe('mid-story: injuries', () => {
+  it('a job-holder on injured reserve keeps his job and his cover never earns it', () => {
+    const { l, team, q } = setup('mid-ir');
+    q[0].injury = hurt(l);
+    q[0].ir = { season: l.season, week: l.week, weeks: 0 };
+    setJobs(l);
+    for (let i = 0; i < EARN + 1; i++) moodWeek(l);
+    expect(holdsJob(team, q[0].id)).toBe(true);
+    expect(holdsJob(team, q[1].id)).toBe(false);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+  });
+
+  it('a man waiting on your answer gets hurt: his ask stays open and he is not unsure', () => {
+    const { l, team, q } = sitHolder('mid-ask-hurt');
+    const ask = q[0].morale!.talk!.ask;
+    expect(ask?.cause).toBe('benched');
+    q[0].injury = hurt(l);
+    moodWeek(l);
+    moodWeek(l);
+    expect(q[0].morale!.talk!.ask).toEqual(ask);
+    expect(questionOf(team, q[0].id)!.paused).toBe(true);
+    expect(unsure(q[0])).toBe(0);
+    expect(unsure(q[1])).toBe(0);
+  });
+
+  it('a paused question resumes when both can play: the run goes on from where it was', () => {
+    const { l, team, q } = sitHolder('mid-resume');
+    expect(team.jobs!.runs![q[1].id]).toBe(1);
+    q[0].injury = hurt(l);
+    moodWeek(l);
+    expect(team.jobs!.runs![q[1].id]).toBe(1);
+    delete q[0].injury;
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)!.paused).toBeUndefined();
+    expect(team.jobs!.runs![q[1].id]).toBe(2);
+    expect(unsure(q[0])).toBe(1);
+  });
+
+  it('one of them out for the rest of the season closes the question with no hit: the job is the other man’s', () => {
+    // The other man out: the holder keeps it.
+    const a = sitHolder('mid-out-other');
+    a.q[1].injury = lost(a.l);
+    const before = jolts(a.q[0], 'benched').reduce((t, j) => t + j.size, 0);
+    moodWeek(a.l);
+    expect(questionOf(a.team, a.q[0].id)).toBeUndefined();
+    expect(holdsJob(a.team, a.q[0].id)).toBe(true);
+    expect(holdsJob(a.team, a.q[1].id)).toBe(false);
+    expect(jolts(a.q[0], 'benched').reduce((t, j) => t + j.size, 0)).toBe(before);
+    expect(unsure(a.q[0])).toBe(0);
+    expect(lift(a.q[0])).toBe(0);
+    expect(a.q[0].morale!.talk?.ask?.cause).not.toBe('benched');
+    expect(storyOf(a.l, a.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+    expect(storyOf(a.l, a.q[0].id)!.closed).toBeDefined();
+    // The holder out: the job is the other man's until the new league year.
+    const b = sitHolder('mid-out-holder');
+    b.q[0].injury = lost(b.l);
+    moodWeek(b.l);
+    expect(questionOf(b.team, b.q[0].id)).toBeUndefined();
+    expect(holdsJob(b.team, b.q[1].id)).toBe(true);
+    expect(holdsJob(b.team, b.q[0].id)).toBe(false);
+    expect(unsure(b.q[1])).toBe(0);
+    expect(lift(b.q[1])).toBe(0);
+    expect(storyOf(b.l, b.q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'settled', how: 'out' });
+  });
+
+  it('a long layoff that ends before the season does is only a pause', () => {
+    const { l, team, q } = sitHolder('mid-pause-only');
+    q[1].injury = { ...hurt(l), weeksRemaining: 3 };
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)!.paused).toBe(true);
+    expect(storyOf(l, q[0].id)!.closed).toBeUndefined();
+  });
+
+  it('"back in next week" and the other man gets hurt: he starts as promised, and it is kept', () => {
+    const { l, team, q } = sitHolder('mid-promise-other');
+    expect(answerBench(l, q[0].id, 'backIn')).toBe(true);
+    q[1].injury = hurt(l);
+    const at = moodWeek(l);
+    expect(jolts(q[0], 'kept', at)).toHaveLength(1);
+    expect(jolts(q[0], 'broken')).toEqual([]);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+  });
+
+  it('the doctor’s sit is not a benching and the week counts for nobody', () => {
+    const { l, team, q } = setup('mid-doctor');
+    q[0].injuries = [
+      { type: 'concussion', season: l.season, week: l.week - 1, weeks: 1, held: true },
+    ] as unknown as Player['injuries'];
+    q[0].injury = { ...hurt(l), type: 'concussion', weeksRemaining: 1, estimate: [1, 1], week: l.week - 1 };
+    order(team, [q[0].id, q[1].id]);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+    expect(jolts(q[0], 'benched')).toEqual([]);
+    expect(team.jobs!.runs?.[q[1].id]).toBeUndefined();
+  });
+});
+
+describe('mid-story: trades, cuts and retirements', () => {
+  it.each(exits)(
+    'the other man of a question %s: it closes "left", the holder keeps the job with no lift',
+    (_n, go) => {
+      const { l, team, q } = sitHolder(`mid-other-${_n}`);
+      moodWeek(l);
+      expect(unsure(q[0])).toBe(1);
+      go(l, q[1]);
+      moodWeek(l);
+      expect(questionOf(team, q[0].id)).toBeUndefined();
+      expect(holdsJob(team, q[0].id)).toBe(true);
+      expect(unsure(q[0])).toBe(0);
+      expect(lift(q[0])).toBe(0);
+      expect(q[0].morale!.talk?.ask?.cause).not.toBe('benched');
+      const s = storyOf(l, q[0].id)!;
+      expect(s.beats.at(-1)).toMatchObject({ kind: 'left' });
+      expect(s.closed).toBeDefined();
+      expect(s.beats.filter((b) => b.kind === 'left')).toHaveLength(1);
+    },
+  );
+
+  it.each(exits)('the holder %s: his job is empty, the other man earns it by three starts', (_n, go) => {
+    const { l, team, q } = sitHolder(`mid-holder-${_n}`);
+    moodWeek(l);
+    order(team, [q[0].id, q[1].id]);
+    moodWeek(l);
+    expect(unsure(q[1])).toBe(1);
+    go(l, q[0]);
+    moodWeek(l);
+    expect(holdsJob(team, q[0].id)).toBe(false);
+    expect(questionOf(team, q[1].id)).toBeUndefined();
+    expect(unsure(q[1])).toBe(0);
+    expect(lift(q[1])).toBe(0);
+    expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'left' });
+    for (let i = 0; i < EARN; i++) moodWeek(l);
+    expect(holdsJob(team, q[1].id)).toBe(true);
+  });
+
+  it('he leaves with an ask unanswered: his row closes, and nobody else is left asking about him', () => {
+    const { l, team, q } = sitHolder('mid-ask-leaves');
+    const at = q[0].morale!.talk!.ask!.at;
+    expect(talkCard(l, { clock: at, playerId: q[0].id }).state).toBe('open');
+    setTeam(l, q[0], (team.id + 1) % l.teams.length);
+    moodWeek(l);
+    expect(talkCard(l, { clock: at, playerId: q[0].id }).state).toBe('closed');
+    expect(q[1].morale!.talk?.ask).toBeUndefined();
+  });
+
+  it('he leaves in a bye week: the question closes then, not a game later', () => {
+    const { l, team, q } = sitHolder('mid-bye-leave');
+    const bye = Array.from({ length: 17 }, (_, i) => i + 2).find(
+      (w) =>
+        !l.games.some((g) => g.season === l.season && g.week === w && (g.homeId === team.id || g.awayId === team.id)),
+    )!;
+    l.week = bye;
+    setTeam(l, q[1], (team.id + 1) % l.teams.length);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+    expect(storyOf(l, q[0].id)!.beats.at(-1)).toMatchObject({ kind: 'left' });
+  });
+
+  it('a new man arriving and starting over a holder is an ordinary benching, and he is the other', () => {
+    const { l, team, q } = setup('mid-arrives');
+    const away = l.teams.find((t) => t.id !== team.id)!;
+    const newcomer = l.players[away.depthChart.QB[0]];
+    setTeam(l, newcomer, team.id);
+    order(team, [newcomer.id, q[0].id]);
+    const at = moodWeek(l);
+    expect(questionOf(team, q[0].id)!.other).toBe(newcomer.id);
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at });
+    expect(jolts(q[0], 'benched', at).map((j) => j.size)).toEqual([BENCH_SIZE.sit]);
+    expect(storyOf(l, q[0].id)!.other).toBe(newcomer.id);
+    expect(holdsJob(team, newcomer.id)).toBe(false);
+  });
+});
+
+describe('mid-story: positions', () => {
+  it('jobs are read from the chart after cut-down day’s flips', () => {
+    const { l, team } = setup('mid-flip');
+    const wr = l.players[team.depthChart.WR[0]];
+    team.depthChart.WR = team.depthChart.WR.filter((id) => id !== wr.id);
+    team.depthChart.TE = [wr.id, ...team.depthChart.TE];
+    setJobs(l);
+    expect(team.jobs!.held[wr.id].pos).toBe('TE');
+  });
+
+  it('a left-to-right tackle move is nothing: a job is a place among the starters', () => {
+    const { l, team } = setup('mid-line');
+    const [a, b, ...rest] = team.depthChart.OL;
+    team.depthChart.OL = [b, a, ...rest];
+    moodWeek(l);
+    expect(team.jobs!.questions).toBeUndefined();
+    expect(Object.values(l.players).filter((p) => p.teamId === team.id && p.morale?.talk?.ask)).toEqual([]);
+  });
+
+  it('two holders sitting the same week each open a question naming the one who started highest; a third ask waits', () => {
+    const { l, team } = setup('mid-two-sit');
+    const wr = team.depthChart.WR.map((id) => l.players[id]);
+    team.depthChart.WR = [wr[3].id, wr[4].id, wr[5].id, wr[0].id, wr[1].id, wr[2].id];
+    const at = moodWeek(l);
+    const qs = team.jobs!.questions!;
+    expect(qs.map((q) => q.holder).sort()).toEqual([wr[0].id, wr[1].id, wr[2].id].sort());
+    expect(qs.every((q) => q.other === wr[3].id)).toBe(true);
+    const asking = () => wr.slice(0, 3).filter((p) => p.morale?.talk?.ask?.cause === 'benched');
+    expect(asking()).toHaveLength(PER_CLUB);
+    expect(wr.slice(0, 3).every((p) => holdsJob(team, p.id))).toBe(true);
+    const hits = wr.slice(0, 3).flatMap((p) => jolts(p, 'benched', at));
+    expect(hits).toHaveLength(3);
+    moodWeek(l);
+    expect(asking()).toHaveLength(3);
+  });
+
+  it('no man is named when every man who started already holds a job', () => {
+    const { l, team, q } = setup('mid-none');
+    team.jobs!.held[q[1].id] = { pos: 'QB', since: 0 };
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    const question = questionOf(team, q[0].id)!;
+    expect(question.other).toBeUndefined();
+    expect(storyOf(l, q[0].id)!.other).toBeUndefined();
+  });
+
+  it('a kicker is one job like any other', () => {
+    const { l, team } = setup('mid-kicker');
+    const k = l.players[team.depthChart.K[0]];
+    expect(team.jobs!.held[k.id].pos).toBe('K');
+    const spare = Object.values(l.players).find((p) => p.position === 'K' && p.teamId === null);
+    if (!spare) return;
+    setTeam(l, spare, team.id);
+    team.depthChart.K = [spare.id, k.id, ...team.depthChart.K.slice(1)];
+    moodWeek(l);
+    expect(questionOf(team, k.id)).toMatchObject({ pos: 'K', other: spare.id });
+  });
+});
+
+describe('mid-story: the calendar', () => {
+  it('the club’s season over: no new benching and nobody is unsure', () => {
+    const { l, team, q } = setup('mid-over');
+    l.phase = 'playoffs';
+    l.week = 19;
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    moodWeek(l);
+    expect(team.jobs!.questions).toBeUndefined();
+    expect(jolts(q[0], 'benched')).toEqual([]);
+    expect(unsure(q[0])).toBe(0);
+    expect(q[0].morale!.talk?.ask).toBeUndefined();
+  });
+
+  it('a playoff game is a game like any other', () => {
+    const { l, team, q } = setup('mid-playoff');
+    const g = l.games.find((x) => x.season === l.season && (x.homeId === team.id || x.awayId === team.id))!;
+    l.phase = 'playoffs';
+    l.week = 19;
+    l.games.push({ ...g, week: 19, result: undefined });
+    order(team, [q[1].id, q[0].id]);
+    const at = moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeDefined();
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at });
+  });
+
+  it('the new league year closes an open question quietly, its ask with it, and clears jobs', () => {
+    const { l, team, q } = sitHolder('mid-year');
+    const s = storyOf(l, q[0].id)!;
+    expect(untold(l, s, COACH).length).toBeGreaterThan(0);
+    l.phase = 'complete';
+    beginOffseason(l);
+    expect(team.jobs).toBeUndefined();
+    expect(team.kickoff).toBeUndefined();
+    expect(s.closed).toBeDefined();
+    expect(s.beats.at(-1)!.kind).toBe('ended');
+    expect(untold(l, s, COACH)).toEqual([]);
+    expect(openStory(l, { kind: 'benched', teamId: team.id, playerId: q[0].id })).toBeUndefined();
+    expect(q[0].morale!.talk?.ask?.cause).not.toBe('benched');
+  }, 120_000);
+
+  it('endJobs on a league with no jobs does nothing', () => {
+    const l = createLeague({ seed: 'mid-nojobs' });
+    expect(() => endJobs(l)).not.toThrow();
+  });
+});
+
+describe('mid-story: the people writing', () => {
+  it('the chair is empty: "Coaching staff" signs the letter that carries the ask', () => {
+    const { l } = sitHolder('mid-chair');
+    const hc = teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, hc.id);
+    l.phase = 'regular';
+    expect(headCoach(l).from).toBe('Coaching staff');
+    deliverMail(l);
+    const letter = (l.inbox ?? []).filter((m) => m.id.startsWith('coach:')).at(-1)!;
+    expect(letter.from).toBe('Coaching staff');
+  });
+
+  it('a new head coach mid-story: the letters come from him', () => {
+    const { l } = sitHolder('mid-new-hc');
+    const old = teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, old.id);
+    // The market's head coaches, the first the budget lets us sign.
+    const next = Object.values(l.coaches)
+      .filter((c) => c.role === 'headCoach' && c.teamId === null && c.id !== old.id)
+      .find((c) => {
+        try {
+          hireCoach(l, l.userTeamId, c.id);
+          return true;
+        } catch {
+          return false;
+        }
+      })!;
+    expect(next).toBeDefined();
+    l.phase = 'regular';
+    deliverMail(l);
+    const letter = (l.inbox ?? []).filter((m) => m.id.startsWith('coach:')).at(-1)!;
+    expect(letter.from).toContain(next.lastName);
+    expect(letter.from).not.toContain(old.lastName);
+  });
+
+  it('a position coach leaves: his room’s row is the head coach’s until the chair is filled', () => {
+    const { l, q } = setup('mid-poscoach');
+    const pc = teamCoaches(l, l.userTeamId).find(
+      (c) => c.role === 'positionCoach' && roomCoach(l, q[0]).from.includes(c.lastName),
+    )!;
+    expect(pc).toBeDefined();
+    l.phase = 'resign';
+    releaseCoach(l, l.userTeamId, pc.id);
+    expect(roomCoach(l, q[0]).from).toBe(headCoach(l).from);
   });
 });

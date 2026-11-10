@@ -1,4 +1,4 @@
-import { setJobs } from '../benching';
+import { endJobs, setJobs } from '../benching';
 import { habitsNewYear } from '../gmHabitsYear';
 import { memoryNewYear } from '../gmMemory';
 import { beliefNewYear } from '../belief';
@@ -129,10 +129,7 @@ export function beginOffseason(league: League): void {
 
   league.season++;
   // Jobs clear at the new league year and are set again on cut-down day.
-  for (const team of league.teams) {
-    delete team.jobs;
-    delete team.kickoff;
-  }
+  endJobs(league);
   ageGms(league);
   // Rooms' belief in their coordinators carries into the new year at half (L4).
   beliefNewYear(league);

@@ -12,7 +12,8 @@ import { sittingAfterClear } from './injuries';
 import { addJolt, expectedRole, liveSize, moraleClock, moraleContext, type MoraleContext } from './morale';
 import { isAvailable, teamPlayers } from './roster';
 import { perceive } from './scouting';
-import { beat, closeStory } from './stories';
+import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { STARTERS } from './positions';
@@ -349,6 +350,78 @@ export function aiBenchReply(league: League, teamId: number, holder: Player, oth
   return 'earn';
 }
 
+/** Weeks a season has in all: the regular season and up to four rounds of playoffs. */
+const SEASON_WEEKS = REGULAR_SEASON_WEEKS + 4;
+
+/** Out for the rest of the season: a layoff longer than the weeks still to play (the playoffs only once they have begun). */
+export function outForSeason(league: League, p: Player): boolean {
+  const left = (league.phase === 'playoffs' ? SEASON_WEEKS : REGULAR_SEASON_WEEKS) - league.week;
+  return !!p.injury && p.injury.weeksRemaining > Math.max(0, left);
+}
+
+/**
+ * Men gone from the club (traded, cut, claimed, retired) take what they held with them, game week or not: no job, no run,
+ * and a question they were part of closes with "left". The man who stays is not told anything, so his weeks of not knowing
+ * clear with no lift. A holder who leaves leaves his job empty; whoever starts three in a row earns it.
+ */
+function settleGone(league: League, team: Team, clock: number): void {
+  const jobs = team.jobs;
+  if (!jobs) return;
+  const here = (id: number | undefined) => {
+    const p = id === undefined ? undefined : league.players[id];
+    return !!p && p.teamId === team.id && !p.retired;
+  };
+  for (const id of Object.keys(jobs.held).map(Number)) if (!here(id)) delete jobs.held[id];
+  for (const id of Object.keys(jobs.runs ?? {}).map(Number)) if (!here(id)) delete jobs.runs![id];
+  for (const q of [...(jobs.questions ?? [])]) {
+    if (here(q.holder) && (q.other === undefined || here(q.other))) continue;
+    const stays = [q.holder, q.other].find((id) => id !== undefined && here(id));
+    if (stays !== undefined) clearUnsure(league.players[stays]);
+    closeStory(league, storyOn(team, q), 'left', clock);
+    closeQuestion(league, team, q);
+  }
+}
+
+/**
+ * A man of an open question is out for the rest of the season: it closes with no hit to anyone, and the job is the other
+ * man's until the new league year (a hurt holder's job moves only here; otherwise he keeps it). Nobody was told, so no lift.
+ */
+function settleOut(league: League, team: Team, clock: number): void {
+  const jobs = team.jobs;
+  for (const q of [...(jobs?.questions ?? [])]) {
+    const out = [q.holder, q.other].find((id) => id !== undefined && outForSeason(league, league.players[id]));
+    if (out === undefined) continue;
+    const other = q.other === undefined || out === q.other ? undefined : league.players[q.other];
+    if (other && !outForSeason(league, other)) {
+      delete jobs!.held[q.holder];
+      if (!jobs!.held[other.id]) jobs!.held[other.id] = { pos: q.pos, since: clock };
+      if (jobs!.runs) delete jobs!.runs[other.id];
+    }
+    for (const id of [q.holder, q.other]) if (id !== undefined) clearUnsure(league.players[id]);
+    closeStory(league, storyOn(team, q), 'settled', clock, 'out');
+    closeQuestion(league, team, q);
+  }
+}
+
+/**
+ * The new league year: jobs and the week's note clear and are set again on cut-down day. An open question closes quietly
+ * (its asks with it) and its story ends told: the coach has nothing to say about a question the year only ended.
+ */
+export function endJobs(league: League): void {
+  for (const team of league.teams) {
+    for (const q of [...(team.jobs?.questions ?? [])]) {
+      for (const id of [q.holder, q.other]) if (id !== undefined && league.players[id]) clearUnsure(league.players[id]);
+      const open = openStory(league, storyOn(team, q));
+      // Closed at the story's own last beat: the old year's, not the new one's.
+      const s = closeStory(league, storyOn(team, q), 'ended', open?.beats.at(-1)?.at ?? q.since);
+      if (s) markTold(s, COACH);
+      closeQuestion(league, team, q);
+    }
+    delete team.jobs;
+    delete team.kickoff;
+  }
+}
+
 /** Did he sit this week: he could play at kickoff and was not in a starting spot. */
 const satThisWeek = (k: NonNullable<Team['kickoff']>, id: number) => !k.ids.includes(id) && !(k.out ?? []).includes(id);
 
@@ -362,19 +435,16 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
   const yours = yourClub(league);
   for (const team of league.teams) {
     const k = team.kickoff;
-    // A bye, or a season over: no game, so nothing counts.
-    if (!k || k.week !== league.week) continue;
+    // A bye, or a season over: no game, so nothing counts (but a man who left is still gone).
+    if (!k || k.week !== league.week) {
+      settleGone(league, team, clock);
+      continue;
+    }
     const mine = team.id === yours;
-    const here = (id: number | undefined) => {
-      const p = id === undefined ? undefined : league.players[id];
-      return !!p && p.teamId === team.id && !p.retired;
-    };
     // A man gone from the club takes his question with him.
-    for (const q of [...(team.jobs?.questions ?? [])])
-      if (!here(q.holder) || (q.other !== undefined && !here(q.other))) {
-        closeStory(league, storyOn(team, q), 'left', clock);
-        closeQuestion(league, team, q);
-      }
+    settleGone(league, team, clock);
+    // One of the two out for the rest of the season settles it with no hit.
+    settleOut(league, team, clock);
 
     // (1) What is owed: his next game he could play decides a promise or a soft word.
     for (const q of [...(team.jobs?.questions ?? [])]) {

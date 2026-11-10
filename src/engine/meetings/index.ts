@@ -1,6 +1,6 @@
 import { managesTeam } from '../employment';
 import { moraleContext, YEAR } from '../morale';
-import { roomBeat } from '../stories';
+import { dropStories, roomBeat } from '../stories';
 import type { League, MeetingRecord, MeetingScope, MeetingSuggestion } from '../types';
 import { addressSuggestion, gmAddressOpen, holdGmAddress } from './address';
 import { aiChoice } from './ai';
@@ -153,4 +153,5 @@ export function requestAddress(league: League): MeetingSuggestion | null {
 export function leaveClub(league: League, teamId: number): void {
   const m = league.teams[teamId]?.meetings;
   if (m) delete m.pending;
+  dropStories(league, teamId);
 }
