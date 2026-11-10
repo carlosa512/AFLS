@@ -152,6 +152,7 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
+import { answerBench, benchCard, dismissReminder, putBack, restoreCard } from '../engine/benching';
 import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
 import { newestLosingLetter } from '../engine/coachWeek';
 import { talkCard } from '../engine/talkMail';
@@ -706,6 +707,70 @@ function TalkCards({
         {card.cause === 'deal' && league.players[s.playerId] && (
           <TalkContractButton league={league} player={league.players[s.playerId]} />
         )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * A man's job question (the benching chain): his answers while it is open (four for the man who sat, three for the man who
+ * started in his place), what you told him once you have, and how it ended once it is over. Read off the question as it
+ * stands, so an older row stays answerable while nobody has spoken.
+ */
+function BenchCards({ league, s }: { league: League; s: { playerId: number; clock: number } }) {
+  const card = benchCard(league, s);
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">{card.line ?? 'This question is closed.'}</span>
+      </Card>
+    );
+  if (card.state === 'answered')
+    return (
+      <Card>
+        <p style={{ margin: 0 }}>{card.said}</p>
+        {card.line && (
+          <p className="muted" style={{ margin: 0 }}>
+            “{card.line}”
+          </p>
+        )}
+      </Card>
+    );
+  return (
+    <Card title="Your answer">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {card.options!.map((o) => (
+          <button
+            key={o.value}
+            className="btn btn-sm"
+            onClick={() => store.mutate((l) => answerBench(l, s.playerId, o.value))}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** The reminder for a starter cleared and not in his spot: put him back, or leave it as it is. */
+function RestoreCards({ league, playerId }: { league: League; playerId: number }) {
+  const card = restoreCard(league, playerId);
+  if (card.state === 'closed')
+    return (
+      <Card>
+        <span className="muted small">{card.line ?? 'This one is settled.'}</span>
+      </Card>
+    );
+  return (
+    <Card title="Your call">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => putBack(l, playerId))}>
+          Put him back
+        </button>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => dismissReminder(l, playerId))}>
+          Leave it
+        </button>
       </div>
     </Card>
   );
@@ -3198,6 +3263,8 @@ function PeopleSection({
               {r.before && <p className="coach-person-before">{r.before}</p>}
               {r.note && <p className="coach-person-note">{r.note}</p>}
               {r.talk && <TalkCards league={league} s={r.talk} room={r.talkRoom?.unit} older={!!r.talkRoom && older} />}
+              {r.bench && <BenchCards league={league} s={r.bench} />}
+              {r.restore && <RestoreCards league={league} playerId={r.restore.playerId} />}
               {r.meeting && (
                 <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
               )}

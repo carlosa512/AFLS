@@ -21,6 +21,8 @@ import { badgeOn, contrast } from './color';
 import { answerMeeting, requestMeeting } from '../engine/meetings';
 import { activeRoster } from '../engine/roster';
 import { adviceDraft, MailCards, MailSections, Person, weekBack, weeksMissed } from './mail';
+import { answerBench, benchKickoff, dismissReminder, setJobs } from '../engine/benching';
+import { moraleAdvance, moraleClock } from '../engine/morale';
 
 // Fallbacks, tried in order until one has what a test needs: an opening league that commits as a settled one does
 // files fewer swap offers to you (none of trades-0..9 had one with players both ways by week 9 once rentals for
@@ -1101,5 +1103,74 @@ describe('the head coach’s weekly letter on screen', () => {
     // The screen contract (ui.test.ts) bars the truth in source: the new code reads none of it.
     const src = readFileSync('src/ui/mail.tsx', 'utf8') + readFileSync('src/ui/meetings.tsx', 'utf8');
     expect(src).not.toMatch(/\b(p|player)\.ratings\b|\bplayerOvr\b|\.potential\b/);
+  });
+});
+
+describe('the benching rows on screen', () => {
+  /** The club's QB1 sat for the QB2: his ask is filed in the week's letter. */
+  function benchLetter() {
+    const l = createLeague({ seed: 'bench-letter-ui' });
+    const team = l.teams[l.userTeamId];
+    setJobs(l);
+    team.autoDepth = false;
+    const q = team.depthChart.QB.map((id) => l.players[id]);
+    team.depthChart.QB = [q[1].id, q[0].id, ...team.depthChart.QB.slice(2)];
+    benchKickoff(l);
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith('coach:'))!;
+    return { l, q, m };
+  }
+  const show = (l: League, m: InboxMessage) =>
+    renderToStaticMarkup(<MailSections league={l} sections={m.sections ?? []} />);
+
+  it('shows his four answers with the other man named on the last, and his face and quote', () => {
+    const { l, q, m } = benchLetter();
+    const html = show(l, m);
+    for (const label of ['You&#x27;re back in next week', 'It was just this week', 'Earn it back'])
+      expect(html).toContain(label);
+    expect(html).toContain(`It&#x27;s ${q[1].lastName}&#x27;s job now`);
+    expect(html).not.toContain('Reassure him');
+    expect(html).toMatch(/class="coach-person-face"/);
+  });
+
+  it('after your answer the row says what you told him, and the buttons are gone', () => {
+    const { l, q, m } = benchLetter();
+    answerBench(l, q[0].id, 'earn');
+    const html = show(l, m);
+    expect(html).toContain('You told him to earn it back.');
+    expect(html).not.toContain('Your answer');
+  });
+
+  it('the reminder has Put him back and Leave it, and says what became of it afterwards', () => {
+    const l = createLeague({ seed: 'bench-restore-ui' });
+    const team = l.teams[l.userTeamId];
+    setJobs(l);
+    team.autoDepth = false;
+    const q = team.depthChart.QB.map((id) => l.players[id]);
+    q[0].injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 1,
+      estimate: [1, 2],
+      season: l.season,
+      week: l.week,
+      where: 'game',
+    };
+    team.depthChart.QB = [q[1].id, q[2].id, q[0].id];
+    benchKickoff(l);
+    delete q[0].injury;
+    moraleAdvance(l, moraleClock(l, true));
+    l.week++;
+    deliverMail(l);
+    const m = l.inbox!.find((x) => x.id.startsWith('coach:'))!;
+    const html = show(l, m);
+    expect(html).toContain('Put him back');
+    expect(html).toContain('Leave it');
+    dismissReminder(l, q[0].id);
+    const after = show(l, m);
+    expect(after).not.toContain('Put him back</button>');
+    expect(after).toContain('You left him where he is.');
   });
 });

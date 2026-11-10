@@ -8,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { confirmLineup, lineupProblem } from '../../engine/benching';
 import { coachName, coordinatorOf, teamCoaches, teamScheme } from '../../engine/coaching';
 import { POSITION_NAMES } from '../../engine/positions';
 import { PERSONNEL_LABEL, spotsFor, type TeamScheme } from '../../engine/schemes';
@@ -506,6 +507,17 @@ export function Roster({ league, teamId }: { league: League; teamId: number }) {
             ) : undefined
           }
         >
+          {isUser && lineupProblem(league) && (
+            <div
+              className="callout callout-note row"
+              style={{ margin: '0 0 10px', gap: 12, justifyContent: 'space-between' }}
+            >
+              <span>These men start the season holding their jobs. Sit one of them healthy and he'll ask you why.</span>
+              <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => confirmLineup(l))}>
+                Lineup set
+              </button>
+            </div>
+          )}
           {grouped && <SchemeStrip league={league} teamId={teamId} scheme={scheme} />}
           {grouped && isUser && <Returners league={league} team={team} />}
           {!grouped && (
