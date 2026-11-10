@@ -5,7 +5,7 @@
  *    manager carries, how many come and go a year, that every habit shows up and none takes over, that nobody carries
  *    more than three, and that someone turns Gun-Shy.
  * 2. Effects (`--effects`): five common habits are replayed (a baseline league with habits off, then one league per
- *    habit pinned on for every AI club, one seed) and must write more of their own log entries than the baseline. The
+ *    habit pinned on for every AI club, four leagues pooled) and must write more of their own log entries than the baseline. The
  *    six rare ones (bridgeQb, tradeUpQb, youngQb, firstsForStars, gunShy, swaps: about five swaps a league in three
  *    seasons) are judged on built scenes: the moment each lean acts, run with the habit on and with every habit off.
  *
@@ -48,7 +48,10 @@ if (only && !effects) {
 }
 const CHURN_SEEDS = ['habits-1', 'habits-2', 'habits-3', 'habits-4'];
 const CHURN_SEASONS = 10;
-const FX_SEED = 'habits-fx';
+// Four leagues pooled (the owner's call, Nov 10): on one, a mood change that reshuffles the seasons left Drafts Best
+// Available tied at 127 entries each way while three other leagues showed it by 13 to 24. The bar is unchanged: more
+// entries with the habit on than off.
+const FX_SEEDS = ['habits-fx', 'fx-b', 'fx-c', 'fx-d'];
 const FX_SEASONS = 3;
 const flags: string[] = [];
 
@@ -360,20 +363,25 @@ function verdict(id: string, moved: number, what: string): void {
 async function fx(): Promise<void> {
   const ids = REPLAYED.filter((id) => !only || only.includes(id));
   console.log(
-    `\nGM habit effects: ${REPLAYED.length} habits replayed ${FX_SEASONS} seasons on one seed with each on for every AI club,\n` +
+    `\nGM habit effects: ${REPLAYED.length} habits replayed ${FX_SEASONS} seasons on ${FX_SEEDS.length} leagues with each on for every AI club,\n` +
       `${SCENES.length} rare ones judged on built scenes\n`,
   );
-  const leagues = Promise.all([
-    play(FX_SEED, FX_SEASONS, { GM_HABITS_OFF: '1' }),
-    ...ids.map((id) => play(FX_SEED, FX_SEASONS, { GM_HABITS_FORCE: id })),
-  ]);
-  // The scenes run here while the leagues play in their own processes.
+  // One league's batch at a time (its baseline and each habit side by side), so the processes fit the machine.
+  const batch = (seed: string) =>
+    Promise.all([
+      play(seed, FX_SEASONS, { GM_HABITS_OFF: '1' }),
+      ...ids.map((id) => play(seed, FX_SEASONS, { GM_HABITS_FORCE: id })),
+    ]);
+  const first = batch(FX_SEEDS[0]);
+  // The scenes run here while the first leagues play in their own processes.
   const scenes = SCENES.filter((id) => !only || only.includes(id)).map((id) => [id, SCENE_SCORES[id]()] as const);
-  const [base, ...runs] = await leagues;
+  const batches = [await first];
+  for (const seed of FX_SEEDS.slice(1)) batches.push(await batch(seed));
   const logs = (r: HabitRun, id: HabitId) => sum(r.years.map((y) => y.logCounts[id] ?? 0));
   ids.forEach((id, i) => {
-    const more = logs(runs[i], id) - logs(base, id);
-    verdict(id, more, `${logs(runs[i], id)} log entries vs ${logs(base, id)}`);
+    const on = sum(batches.map(([, ...runs]) => logs(runs[i], id)));
+    const off = sum(batches.map(([base]) => logs(base, id)));
+    verdict(id, on - off, `${on} log entries vs ${off} (${FX_SEEDS.length} leagues)`);
   });
   for (const [id, r] of scenes) verdict(id, r.moved, r.what);
 }
