@@ -14,6 +14,7 @@ import {
   fitsNextYear,
   fundedRoom,
   inSeasonReserve,
+  isYoungStar,
   spendable,
   YOUNG_PROVE_IT_YEARS,
   KEEP_MIN,
@@ -329,6 +330,23 @@ describe('the market clears', () => {
       first.morale = { ...(first.morale ?? ({} as never)), talk: { club: t.id, promise: { kind: 'deal', made: 0 } } };
       expect(fundedRoom(l, t, 'WR').cut?.id).not.toBe(first.id);
     }
+  });
+
+  it('never cuts a young star on a minimum deal: waived after the last pass, he would sit unsigned at kickoff', () => {
+    const { l } = lastCall();
+    const market = leagueMarket(l);
+    let checked = 0;
+    for (const t of l.teams.slice(0, 10)) {
+      const first = fundedRoom(l, t, 'WR').cut;
+      if (!first) continue;
+      // A late-round steal: 26, rated like a star, still on his minimum deal.
+      first.age = 26;
+      for (const k of Object.keys(first.ratings) as (keyof typeof first.ratings)[]) first.ratings[k] = 18;
+      expect(isYoungStar(l, first, marketApy(market, first))).toBe(true);
+      expect(fundedRoom(l, t, 'WR').cut?.id).not.toBe(first.id);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('a man cut in a swap joins the castoffs: unsigned by the end of camp, he may leave football', () => {

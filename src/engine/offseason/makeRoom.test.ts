@@ -11,9 +11,11 @@ import type { League, Player } from '../types';
 import {
   aiCapCompliance,
   aiResignWindow,
+  capCut,
   cutRoom,
   expiringPlayers,
   inPlans,
+  isYoungStar,
   nextYearCeiling,
   nextYearNeeds,
   resignCall,
@@ -451,5 +453,26 @@ describe('what a cut frees', () => {
     for (let i = 0; i < 60; i++)
       l.draftPicks.push({ id: -1 - i, season: l.season, round: 7, ownerId: team.id, originalTeamId: team.id });
     expect(cutRoom(l, team.id, cut)).toBeCloseTo(releasePreview(l, cut).savings, 6);
+  });
+});
+
+describe('a keeper’s room after the market has closed', () => {
+  it('never cuts a young star once camp’s last call has passed, and still may before it', () => {
+    // A league at kickoff: many clubs' cheapest room per point played is a 27- or 28-year-old starter on a big deal.
+    const l = createLeague({ seed: 'cut-1' });
+    const market = leagueMarket(l);
+    const star = (p: Player | null) => !!p && isYoungStar(l, p, marketApy(market, p));
+    const cuts = (phase: League['phase']) => {
+      l.phase = phase;
+      return l.teams.map((t) => capCut(l, t, false, true));
+    };
+    // Before kickoff the free-agency passes still place a man cut for a keeper; the same clubs' cut is a young star.
+    const before = cuts('preseason');
+    expect(before.filter(star).length).toBeGreaterThan(0);
+    // From kickoff (a dispute settled in season, `aiSettle`) the cut is another man, or none.
+    for (const phase of ['regular', 'playoffs'] as const) expect(cuts(phase).filter(star)).toEqual([]);
+    // Room the cap demands (`fairOnly` off) is the law and still takes today's cut.
+    l.phase = 'regular';
+    expect(l.teams.some((t) => star(capCut(l, t)))).toBe(true);
   });
 });

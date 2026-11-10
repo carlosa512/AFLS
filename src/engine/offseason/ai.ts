@@ -291,8 +291,12 @@ export function fundedRoom(
 ): { room: number; cut: Player | null } {
   const roster = activeRoster(league, team.id);
   const count = (pos: Position) => roster.filter((p) => p.position === pos).length;
+  const market = leagueMarket(league);
   const cuttable = roster
     .filter((p) => p.contract?.kind === 'minimum' && !p.ir)
+    // Never a young star on a minimum deal (a late-round steal): he'd go on waivers after the market's last pass and
+    // sit unsigned at kickoff (the owner's rule), a 13.0 tackle let go for the man who replaced him.
+    .filter((p) => !isYoungStar(league, p, marketApy(market, p)))
     // Never a man the personnel rules lock (a release would throw) or one promised a deal (G4).
     .filter((p) => !personnelMoveLock(league, p) && !promisedDeal(p))
     .filter((p) => {
@@ -933,7 +937,15 @@ export function capCut(league: League, team: Team, desperate = false, fairOnly =
   // First the cuts that leave both years better off, never a deal it made this league year: a club doesn't extend a
   // man and cut him weeks later while anyone else frees the room (a traced six-season league read 23 cuts whose dead
   // money passed twice their savings: $52M burned to free $6M).
-  const fair = cuts.filter((x) => x.twoYear > 0 && x.p.contract!.signedSeason !== league.season);
+  // Once camp's last call has passed no market is left to place him, so a keeper's room never cuts a young star (the
+  // owner's rule): a dispute settled at kickoff cut a 28-year-old starter for a teammate's raise, and he sat unsigned.
+  const closed = fairOnly && (league.phase === 'regular' || league.phase === 'playoffs') ? leagueMarket(league) : null;
+  const fair = cuts.filter(
+    (x) =>
+      x.twoYear > 0 &&
+      x.p.contract!.signedSeason !== league.season &&
+      !(closed && isYoungStar(league, x.p, marketApy(closed, x.p))),
+  );
   // Ranked by the room it needs now: ranked by two years, a re-sign-window cut (all its dead money this year) that freed
   // $1M now and $40M next came first, a $104M cut for $1M of room.
   if (fair.length) return fair.sort((a, b) => playerOvr(a.p) / a.now - playerOvr(b.p) / b.now)[0].p;
