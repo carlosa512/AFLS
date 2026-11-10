@@ -285,6 +285,12 @@ export interface AskFact {
 const veteranOf = (f: AskFact) => /veteran/.test(f.man.years);
 const youngOf = (f: AskFact) => /rookie|year man/.test(f.man.years);
 
+/**
+ * The answer a callback may read: his last talk answer, never for a benched ask. A job question's own word is told by its
+ * lines (`BENCH_ASK` reads the broken word), and an answer about his deal or his snaps is not about the job he sat out of.
+ */
+const callback = (f: AskFact) => (f.cause === 'benched' ? null : talkAnswer(f.man));
+
 /** What you told him last time, or that you never kept or never meant it. Only a man who has been here before. */
 export const ASK_HISTORY: readonly Line<AskFact>[] = [
   {
@@ -298,47 +304,47 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: () => 'I took you at your word before, and it did not hold.',
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,
+    when: (f) => callback(f)?.reply === 'promise' && !f.man.kept && !f.man.broken,
     reads: 2,
     text: (f) => `You made me a promise ${f.man.lastAnswer!.when}, and I'm still waiting on it.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'promise',
+    when: (f) => callback(f)?.reply === 'promise',
     reads: 2,
     text: (f) => `You told me ${f.man.lastAnswer!.when} you would make it right.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
+    when: (f) => callback(f)?.reply === 'reassure',
     reads: 2,
     text: (f) => `You told me ${f.man.lastAnswer!.when} that it would be fine. It isn't yet.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
+    when: (f) => callback(f)?.reply === 'reassure',
     reads: 2,
     text: (f) => `${cap(f.man.lastAnswer!.when)} you said to be patient. I have been.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'reassure',
+    when: (f) => callback(f)?.reply === 'reassure',
     reads: 2,
     text: (f) => `You asked me to hang in there ${f.man.lastAnswer!.when}. I'm still hanging.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'firm',
+    when: (f) => callback(f)?.reply === 'firm',
     reads: 2,
     text: (f) => `You were firm with me ${f.man.lastAnswer!.when}, and I took it. I still had to come back.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'firm',
+    when: (f) => callback(f)?.reply === 'firm',
     reads: 2,
     text: (f) => `You gave it to me straight ${f.man.lastAnswer!.when}. I'm coming back anyway.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'ignored',
+    when: (f) => callback(f)?.reply === 'ignored',
     reads: 2,
     text: (f) => `I wrote to you ${f.man.lastAnswer!.when} and never heard back.`,
   },
   {
-    when: (f) => talkAnswer(f.man)?.reply === 'ignored',
+    when: (f) => callback(f)?.reply === 'ignored',
     reads: 2,
     text: (f) => `I came to you ${f.man.lastAnswer!.when} and got silence.`,
   },
@@ -348,7 +354,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
     text: () => 'You kept your word to me before, and I have not forgotten that.',
   },
   {
-    when: (f) => f.man.asks === 'again',
+    when: (f) => f.man.asks === 'again' && f.man.lastAnswer?.cause === f.cause,
     reads: 1,
     text: () => "This isn't the first time I've had to bring this up.",
   },
@@ -812,7 +818,7 @@ export const ASK_CLOSE: readonly Line<AskFact>[] = [
   { when: (f) => f.man.asks !== 'first', reads: 1, text: () => "I'd like an answer this time." },
   {
     // A word still out, never one he saw kept.
-    when: (f) => (talkAnswer(f.man)?.reply === 'promise' || talkAnswer(f.man)?.reply === 'reassure') && !f.man.kept,
+    when: (f) => (callback(f)?.reply === 'promise' || callback(f)?.reply === 'reassure') && !f.man.kept,
     reads: 1,
     text: () => "I'm asking you to follow through.",
   },

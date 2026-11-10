@@ -201,3 +201,25 @@ describe('a benching answer is not a talk answer', () => {
     expect(every(ASK_CLOSE, open)).toContain("I'm asking you to follow through.");
   });
 });
+
+describe('a benched ask calls back nothing from another cause', () => {
+  const every = (bank: readonly { when?: (f: AskFact) => boolean; text: (f: AskFact) => string }[], f: AskFact) =>
+    bank.filter((l) => !l.when || l.when(f)).map((l) => l.text(f));
+  const OTHER =
+    /make it right|be fine|be patient|hang in there|firm with me|to me straight|never heard|silence|follow through|still waiting|first time I've had to bring/;
+
+  it('his last answer was about his deal or snaps: the job question reads none of it', () => {
+    for (const cause of ['deal', 'snaps', 'losing'] as const)
+      for (const reply of ['promise', 'reassure', 'firm', 'ignored'] as const)
+        for (const asks of ['second', 'again'] as const) {
+          const f = fact({ asks, lastAnswer: { reply, when: 'in week 4', cause } }, 'benched');
+          for (const bank of [ASK_HISTORY, ASK_CLOSE]) for (const t of every(bank, f)) expect(t).not.toMatch(OTHER);
+          expect(askWords(f, { key: `k:${cause}:${reply}:${asks}`, recent: [] })).not.toMatch(OTHER);
+        }
+  });
+
+  it('a talk ask still calls back its own cause', () => {
+    const f = fact({ asks: 'second', lastAnswer: { reply: 'reassure', when: 'in week 4', cause: 'deal' } }, 'deal');
+    expect(every(ASK_HISTORY, f).some((t) => /week 4/.test(t))).toBe(true);
+  });
+});

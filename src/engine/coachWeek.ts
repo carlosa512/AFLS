@@ -1,8 +1,9 @@
 /**
  * The head coach's weekly letter (docs/superpowers/specs/2026-11-09-storylines-design.md, section 3): the editor that
  * gathers what could be told from your club's open stories and the staff's notes, ranks it, and files at most one
- * letter every other step (`LETTER_GAP`), none in a quiet step. It replaces the separate player-talk, meeting-request, meeting-result and staff-notes letters. Rebuilds are
- * safe: a step's letter is filed once, and nothing here draws from any stream.
+ * letter every other step (`LETTER_GAP`), none in a quiet step. It replaces the separate player-talk, meeting-request,
+ * meeting-result and staff-notes letters. Rebuilds are safe: a step's letter is filed once, and nothing here draws from
+ * any stream.
  */
 import {
   benchCard,
