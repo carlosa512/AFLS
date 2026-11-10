@@ -74,6 +74,25 @@ describe('the story store', () => {
     expect(s!.beats.slice(-3).map((b) => b.at)).toEqual([17, 18, 19]);
   });
 
+  it('re-opens a room story that turns again in the same league year, and starts a new one in a later year', () => {
+    const l = createLeague({ seed: 'stories-room' });
+    const on = { kind: 'room' as const, teamId: l.userTeamId, unit: 'QB' as const };
+    const a = beat(l, on, 'turned', 10)!;
+    markTold(a, COACH);
+    closeStory(l, on, 'recovered', 14);
+    markTold(a, COACH);
+    const b = beat(l, on, 'turned', 20)!;
+    expect(b).toBe(a);
+    expect(a.closed).toBeUndefined();
+    expect(a.beats.map((x) => x.kind)).toEqual(['turned', 'recovered', 'turned']);
+    expect(untold(l, a, COACH).map((x) => x.kind)).toEqual(['turned']);
+    expect(l.stories!.open).toHaveLength(1);
+    expect(l.stories!.closed).toHaveLength(0);
+    closeStory(l, on, 'recovered', 25);
+    const c = beat(l, on, 'turned', 40)!;
+    expect(c.id).not.toBe(a.id);
+  });
+
   it('closes into `closed`, and the same subject opens a new story afterwards', () => {
     const l = createLeague({ seed: 'stories-close' });
     const on = { kind: 'feud' as const, teamId: l.userTeamId, playerId: 4 };

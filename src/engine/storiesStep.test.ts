@@ -87,10 +87,10 @@ describe('rooms', () => {
     expect(openStory(l, { kind: 'room', teamId: l.userTeamId, unit: 'DL' })).toBeUndefined();
     expect(s.beats.map((b) => b.kind)).toEqual(['turned', 'eased', 'recovered']);
     expect(tellable(l, s, l.moraleAt!)).toBe(true);
-    // Back to Down later opens a new story.
+    // Back to Down in the same league year re-opens the same story.
     setUnit(l, 'DL', -4);
     next(l);
-    expect(room(l, 'DL').id).not.toBe(s.id);
+    expect(room(l, 'DL').id).toBe(s.id);
   });
 
   it('records nothing for a calm league, or with stories off', () => {

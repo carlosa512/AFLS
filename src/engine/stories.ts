@@ -115,6 +115,17 @@ export function beat(
   if (!STORIES.on || on.teamId !== league.userTeamId || !employed(league)) return null;
   const stories = (league.stories ??= { next: 1, open: [], closed: [] });
   let s = openStory(league, on);
+  // A room has one story a league year: turning again after it closed re-opens that story (`told` stays, so what was
+  // told is not told again) instead of starting another.
+  if (!s && on.kind === 'room') {
+    const was = stories.closed.find((c) => same(c, on) && Math.floor((c.closed ?? 0) / YEAR) === Math.floor(at / YEAR));
+    if (was) {
+      stories.closed.splice(stories.closed.indexOf(was), 1);
+      delete was.closed;
+      stories.open.push(was);
+      s = was;
+    }
+  }
   if (!s) {
     s = { id: stories.next++, kind: on.kind, teamId: on.teamId, opened: at, beats: [] };
     if (on.playerId !== undefined) s.playerId = on.playerId;

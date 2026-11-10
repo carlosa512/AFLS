@@ -283,7 +283,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
     inside it is answered as you last answered, `Team.losingAnswer`, `talkStep`, your club only). A meeting makes no story
     (`roomBeat` adds its beats only to a room already open because it turned), and its result rides in the next letter filed
-    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. Room stories close with the season and the league year, silently. `coachWeek.season.test.ts` plays a
+    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. Room stories close with the season and the league year, silently; a room has one story a league year (turning again re-opens it, keeping what was told). `coachWeek.season.test.ts` plays a
     season and holds the letters to it: one a step, no sentence twice, no room told twice inside three steps, every
     meeting held told within two steps
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,

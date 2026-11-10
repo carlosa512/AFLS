@@ -110,7 +110,8 @@ rows a letter. Notes alone never file a letter: they ride along with something t
 The losing is the club's: one story, one row, with the man asking who counts most quoted and the others named in a
 sentence, and one answer for them all; a man who asks about it again inside `LOSING_GAP` steps (four, for the whole club)
 is answered as you answered it. A meeting makes no story of its own: it only adds beats to a room already open because it
-turned, and the letters tell meetings from the meetings log.
+turned, and the letters tell meetings from the meetings log. A room has one story a league year: when it turns again
+after recovering, the same story re-opens and only the new beats are told.
 A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
 and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
 together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).
