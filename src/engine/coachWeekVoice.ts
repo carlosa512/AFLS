@@ -569,20 +569,16 @@ const clockOn = (kind: StoryKind, at: ClockFact['at'], text: (f: ClockFact) => s
 export const CLOCK: readonly Line<ClockFact>[] = [
   clockOn('deal', 'half', (f) => `We are halfway through the time we gave on ${poss(f.man!.last)} deal.`),
   clockOn('deal', 'half', (f) => `We are halfway on ${poss(f.man!.last)} deal, and nothing has closed it.`),
-  clockOn('deal', 'due', (f) => `${poss(f.man!.last)} deal comes due this week.`),
-  clockOn('deal', 'due', (f) => `This is the week for ${poss(f.man!.last)} deal.`),
+  clockOn('deal', 'due', (f) => `${poss(f.man!.last)} deal comes due soon.`),
+  clockOn('deal', 'due', (f) => `Time is nearly up on ${poss(f.man!.last)} deal.`),
   clockOn('snaps', 'half', (f) => `We are halfway on ${poss(f.man!.last)} snaps.`),
-  clockOn('snaps', 'due', (f) => `${poss(f.man!.last)} snaps come due this week. The depth chart is the answer.`),
-  clockOn('room', 'half', (f) => `We are halfway on what I told ${f.noun ?? 'the room'}.`),
-  clockOn('room', 'half', (f) => `Half the time I gave ${f.noun ?? 'the room'} is gone.`),
-  clockOn('room', 'due', (f) => `What I told ${f.noun ?? 'the room'} comes due this week.`),
-  clockOn(
-    'room',
-    'due',
-    (f) => `This is the week ${f.noun ?? 'the room'} ${isOf(f.noun ?? 'the room')} owed an answer.`,
-  ),
+  clockOn('snaps', 'due', (f) => `${poss(f.man!.last)} snaps come due soon. The depth chart is the answer.`),
+  clockOn('room', 'half', (f) => `We are halfway on what we told ${f.noun ?? 'the room'}.`),
+  clockOn('room', 'half', (f) => `Half the time we gave ${f.noun ?? 'the room'} is gone.`),
+  clockOn('room', 'due', (f) => `Time is nearly up on what we told ${f.noun ?? 'the room'}.`),
+  clockOn('room', 'due', (f) => `${cap(f.noun ?? 'the room')} ${isOf(f.noun ?? 'the room')} owed an answer soon.`),
   { when: (f) => f.at === 'half', reads: 1, text: () => `We are halfway on a promise.` },
-  { when: (f) => f.at === 'due', reads: 1, text: () => `A promise comes due this week.` },
+  { when: (f) => f.at === 'due', reads: 1, text: () => `A promise comes due soon.` },
   { text: () => `A promise is running down.` },
 ];
 

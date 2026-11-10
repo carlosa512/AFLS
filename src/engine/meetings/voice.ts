@@ -681,43 +681,51 @@ export interface DueFact {
   backing: Exclude<Backing, 'words'>;
   noun: string;
   named: ManFact[];
+  /** When it comes due, as words: "next week", "in two weeks", or "soon" away from the season's weeks. */
+  when: string;
+  /** You made it, in your own address to the club: the head coach says "you told", not "I told". */
+  you?: boolean;
 }
 
+/** Who made the promise, as the head coach says it. */
+const told = (f: DueFact) => (f.you ? 'you told' : 'I told');
+const What = (f: DueFact) => `What ${told(f)} ${f.noun}`;
+
+/** A commitment still open, one or two steps before it is judged (`coachWeek.ts`): nothing has kept it yet. */
 export const DUE: readonly Line<DueFact>[] = [
   {
     when: (f) => f.backing === 'talks' && f.named.length === 1,
     reads: 2,
-    text: (f) =>
-      `What I told ${f.noun} comes due next week: talks with ${f.named[0].last}'s agent. Nothing's opened yet.`,
+    text: (f) => `${What(f)} comes due ${f.when}: talks with ${f.named[0].last}'s agent. Nothing's opened yet.`,
   },
   {
     when: (f) => f.backing === 'talks',
     reads: 1,
-    text: (f) =>
-      `What I told ${f.noun} comes due next week: talks with ${list(f.named)}'s agents. Nothing's opened yet.`,
+    text: (f) => `${What(f)} comes due ${f.when}: talks with ${list(f.named)}'s agents. Nothing's opened yet.`,
   },
   {
     when: (f) => f.backing === 'snaps' && f.named.length === 1,
     reads: 2,
-    text: (f) => `What I told ${f.noun} comes due next week: ${f.named[0].last}'s snaps. He's still not getting them.`,
+    text: (f) => `${What(f)} comes due ${f.when}: ${f.named[0].last}'s snaps. He's still not getting them.`,
   },
   {
     when: (f) => f.backing === 'feud' && f.named.length === 2,
     reads: 2,
     text: (f) =>
-      `What I told ${f.noun} comes due next week: one of ${both(f.named[0], f.named[1])} going. They're both still here.`,
+      `${What(f)} comes due ${f.when}: one of ${both(f.named[0], f.named[1])} going. They're both still here.`,
   },
   {
     when: (f) => f.backing === 'move',
     reads: 1,
-    text: () => `The deadline's close, and I told them we'd bring someone in.`,
+    text: (f) => `The deadline's close, and ${told(f)} them we'd bring someone in.`,
   },
   {
     when: (f) => f.backing === 'jobs',
     reads: 1,
-    text: () => `I told them nobody's job was safe. The depth chart hasn't moved, and it comes due next week.`,
+    text: (f) =>
+      `${cap(told(f))} them nobody's job was safe. The depth chart hasn't moved, and it comes due ${f.when}.`,
   },
-  { text: (f) => `What I told ${f.noun} comes due next week.` },
+  { text: (f) => `${What(f)} comes due ${f.when}.` },
 ];
 
 export interface CandidFact {

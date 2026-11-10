@@ -25,7 +25,16 @@ import { UNITS, unitOf, weightOf, type Unit } from './standing';
 import { beat, closeStory, COACH, markTold } from './stories';
 import { seasonSaid, toldKeys } from './voice';
 import { shareWord } from './storiesStep';
-import { ATTRIBUTES, POSITIONS, type InboxMessage, type League, type Player, type TalkCause } from './types';
+import {
+  ATTRIBUTES,
+  POSITIONS,
+  type Commitment,
+  type InboxMessage,
+  type League,
+  type Player,
+  type TalkCause,
+} from './types';
+import { noteCommitment } from './meetings/commitments';
 
 const template = createLeague({ seed: 'coach-week' });
 const copy = <T>(v: T): T => structuredClone(v);
@@ -211,6 +220,93 @@ describe('the head coach’s weekly letter', () => {
     expect(
       answerMeeting(l, { approach: pending.approaches[0], backing: pending.backings[0], timing: pending.timings[0] }),
     ).not.toBeNull();
+  });
+
+  /** An open commitment at your club, coming due `left` steps from now. */
+  function commit(l: League, c: Partial<Commitment> & Pick<Commitment, 'backing' | 'scope' | 'named'>, left: number) {
+    const full: Commitment = { opened: l.moraleAt! - 1, closes: l.moraleAt! + left, boughtIn: [], by: 'coach', ...c };
+    const m = (l.teams[l.userTeamId].meetings ??= { open: [], log: [] } as never);
+    m.open.push(full);
+    return { c: full, key: `due:${full.opened}:${full.scope}:${full.backing}` };
+  }
+  const dueKeys = (l: League) =>
+    letters(l)
+      .flatMap((m) => m.covered ?? [])
+      .filter((k) => /^due:|^clock:\d+:\d+:due$/.test(k));
+
+  it('a commitment held by no story is warned before it comes due, and a letter two steps out already carries it', () => {
+    const l = inSeason();
+    const p = activeRoster(l, l.userTeamId)[3];
+    const { key } = commit(l, { backing: 'snaps', scope: 'team', named: [p.id] }, 2);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    const row = rowsOf(letters(l)[0]).find((r) => r.cells[1] === 'The clock')!;
+    expect(row.note).toContain('in two weeks');
+    expect(row.note).toContain(p.lastName);
+    expect(letters(l)[0].covered).toContain(key);
+    // Told once: the next letter does not warn again.
+    nextLetter(l);
+    asking(l, 'deal', 0);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(2);
+    expect(dueKeys(l)).toEqual([key]);
+  });
+
+  it('a letter three steps out and a held step still warn before it comes due', () => {
+    const l = inSeason();
+    const { key } = commit(l, { backing: 'jobs', scope: 'DL', named: [] }, 3);
+    asking(l, 'deal', 0);
+    deliverMail(l);
+    expect(dueKeys(l)).toEqual([]);
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    nextStep(l);
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(2);
+    expect(dueKeys(l)).toEqual([key]);
+    expect(textOf(letters(l)[1])).toContain('next week');
+  });
+
+  it("a promise's clock is told two steps before it comes due, so a held step cannot swallow it", () => {
+    const l = inSeason();
+    const p = activeRoster(l, l.userTeamId)[5];
+    beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: p.id }, 'promised', l.moraleAt! - 1, {
+      due: l.moraleAt! + 2,
+    });
+    deliverMail(l);
+    expect(letters(l)).toHaveLength(1);
+    expect(dueKeys(l)).toHaveLength(1);
+    nextStep(l);
+    deliverMail(l);
+    nextStep(l);
+    asking(l, 'deal', 0);
+    deliverMail(l);
+    expect(dueKeys(l)).toHaveLength(1);
+  });
+
+  it("the GM's own address is his to have said, not the coach's", () => {
+    const l = inSeason();
+    commit(l, { backing: 'jobs', scope: 'team', named: [], by: 'gm' }, 1);
+    deliverMail(l);
+    const row = rowsOf(letters(l)[0]).find((r) => r.cells[1] === 'The clock')!;
+    expect(row.note).toMatch(/^You told them/);
+  });
+
+  it('a talks commitment with a deal story is warned exactly once, with its Negotiate button', () => {
+    const l = inSeason();
+    const p = activeRoster(l, l.userTeamId)[4];
+    const { c, key } = commit(l, { backing: 'talks', scope: unitOf(p.position) as never, named: [p.id] }, 3);
+    noteCommitment(l, l.userTeamId, c);
+    for (let i = 0; i < 4; i++) {
+      deliverMail(l);
+      nextStep(l);
+    }
+    expect(dueKeys(l)).toEqual([key]);
+    const row = letters(l)
+      .flatMap(rowsOf)
+      .find((r) => r.cells[1] === 'The clock' && r.note?.includes('comes due'))!;
+    expect(row.negotiate).toEqual({ playerId: p.id });
   });
 
   it('files nothing in a quiet step', () => {

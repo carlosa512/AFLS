@@ -33,7 +33,7 @@ import {
 } from './coachWeekVoice';
 import { employed } from './employment';
 import { reportTellsRooms } from './lockerReport';
-import { meetingCard, requestRow, resultRows, suggestionId, resultId } from './meetings/mail';
+import { dueRows, meetingCard, requestRow, resultRows, suggestionId, resultId } from './meetings/mail';
 import { SCOPE_NOUN, styleOf } from './meetings/facts';
 import { meetingsOf } from './meetings/suggest';
 import { moraleContext, moraleClock, YEAR } from './morale';
@@ -100,6 +100,11 @@ export const MAX_ROWS = 6;
  * (items keep their `born`). A suggestion to your club waits a step longer (`meetings/index.ts`), so it is carried.
  */
 export const LETTER_GAP = 2;
+/**
+ * Steps before a promise or a commitment comes due that its warning may be told (at `due` it is already judged). Two, so
+ * a step the coach does not write (`LETTER_GAP`) cannot swallow it; it is told once either way.
+ */
+export const DUE_WINDOW = 2;
 /** Steps a tier 4 or 5 item may wait before it is dropped. */
 export const STALE = 3;
 /** Steps a meeting's result or a story's closing waits for a letter filed for another reason before it files one itself. */
@@ -415,8 +420,10 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     const start = [...s.beats].reverse().find((b) => b.kind === 'promised' || b.kind === 'commitment');
     if (!start || s.due - start.at < 1) continue;
     const half = start.at + Math.ceil((s.due - start.at) / 2);
-    const at = clock >= s.due - 1 ? 'due' : clock >= half && s.due - start.at >= 2 ? 'half' : null;
+    const at = clock >= s.due - DUE_WINDOW ? 'due' : clock >= half && s.due - start.at >= 2 ? 'half' : null;
     if (!at) continue;
+    // A commitment coming due is told from the club's open commitments (below), held by a story or not: never twice.
+    if (at === 'due' && start.kind === 'commitment') continue;
     const key = `clock:${s.id}:${s.due}:${at}`;
     if (told.has(key)) continue;
     const p = s.playerId === undefined ? undefined : league.players[s.playerId];
@@ -447,6 +454,28 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       },
       born: clock,
       head: { kind: s.kind, beat: start.kind, ...(man ? { man } : {}), ...(noun ? { noun } : {}) },
+    });
+  }
+
+  // ───── tier 3: a commitment coming due, every one of them ─────
+  for (const r of dueRows(league, told, said, DUE_WINDOW)) {
+    const c = meetingsOf(league.teams[user]).open.find((x) => r.key === `due:${x.opened}:${x.scope}:${x.backing}`);
+    const man = sheet(r.playerId === undefined ? undefined : league.players[r.playerId]);
+    const deal = c?.backing === 'talks' && r.negotiate !== undefined && !!man;
+    const noun = c ? SCOPE_NOUN[c.scope] : undefined;
+    // Like a story's clock, it tells no story's beats: the room's turn or the man's deal is told in its own row.
+    items.push({
+      tier: 3,
+      key: r.key,
+      section: 'since',
+      row: {
+        ...(r.playerId !== undefined ? { playerId: r.playerId } : {}),
+        cells: [r.label, 'The clock'],
+        note: r.note,
+        ...(r.negotiate !== undefined ? { negotiate: { playerId: r.negotiate } } : {}),
+      },
+      born: clock,
+      head: deal ? { kind: 'deal', beat: 'commitment', man: man! } : { kind: 'room', beat: 'commitment', noun },
     });
   }
 

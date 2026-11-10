@@ -269,7 +269,7 @@ export function staffRows(
     });
   }
   // His word with the players has no story to hang on: it comes with the staff's notes.
-  for (const r of meetingStaffRows(league, told, said).filter((x) => x.key.startsWith('cred:'))) {
+  for (const r of meetingStaffRows(league, told, said)) {
     covered.push(r.key);
     staffKeys.push([r.key]);
     staff.push({ cells: [r.label, sender.from], note: r.note });

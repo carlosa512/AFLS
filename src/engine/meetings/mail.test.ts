@@ -7,8 +7,8 @@ import { beginOffseason } from '../offseason';
 import { simToEndOfSeason } from '../league';
 import { acceptGmOffer, beginGmSearch } from '../leadership';
 import { endGmAppointment } from '../gm';
-import type { InboxMessage, League, MeetingRecord } from '../types';
-import { beat } from '../stories';
+import type { Commitment, InboxMessage, League, MeetingRecord } from '../types';
+import { noteCommitment } from './commitments';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
 import { meetingCard, meetingNeedsYou, requestRow, resultRows, yearParagraphFor } from './mail';
@@ -87,10 +87,18 @@ describe('meetings: the letters', () => {
     l.moraleAt = stepClock(l) + 2; // past the letter the base filed: the coach writes every other step
     const team = l.teams[l.userTeamId];
     const wr = l.players[team.depthChart.WR[0]];
-    // The story a held meeting's commitment opens: a deal, due in two steps.
-    beat(l, { kind: 'deal', teamId: team.id, playerId: wr.id }, 'commitment', stepClock(l) - 2, {
-      due: stepClock(l) + 2,
-    });
+    // A held meeting's talks commitment, opened three steps ago and due in three: its deal story's clock runs with it.
+    const c: Commitment = {
+      backing: 'talks',
+      scope: unitOf('WR') as Commitment['scope'],
+      opened: stepClock(l) - 3,
+      closes: stepClock(l) + 3,
+      named: [wr.id],
+      boughtIn: [],
+      by: 'coach',
+    };
+    (team.meetings ??= { open: [], log: [] } as never).open.push(c);
+    noteCommitment(l, team.id, c);
     const due = () =>
       coach(l)
         .flatMap(rowsOf)
@@ -99,7 +107,7 @@ describe('meetings: the letters', () => {
       deliverMail(l);
       l.moraleAt!++;
     }
-    // Halfway, then due: each told once, and the man has his Negotiate button.
+    // Halfway (the story's clock), then due (the commitment's row): each told once, and the man has his Negotiate button.
     expect(due()).toHaveLength(2);
     expect(due().at(-1)!.note).toMatch(new RegExp(wr.lastName));
     expect(due().at(-1)!.negotiate?.playerId).toBe(wr.id);

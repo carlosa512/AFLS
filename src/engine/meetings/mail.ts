@@ -502,29 +502,55 @@ export interface StaffRow {
 
 const CRED_RANK: Record<CredibilityRead, number> = { wornThin: 0, heardBefore: 1, steady: 2, believes: 3 };
 
-/** The head coach's own rows this week: a commitment coming due, and his word when it has moved since he last said. */
-export function meetingStaffRows(league: League, told: Set<string>, said?: string[]): StaffRow[] {
+/** A commitment's due row: its key (told once), who it names, and the head coach's warning. */
+export interface DueRow {
+  key: string;
+  playerId?: number;
+  label: string;
+  note: string;
+  negotiate?: number;
+}
+
+/**
+ * Your club's open commitments within `window` steps of coming due, each once (`due:` keys): every one of them, whether
+ * or not a story holds it, since most have none. Its words are chosen around `said`, which grows.
+ */
+export function dueRows(league: League, told: Set<string>, said: string[], window: number): DueRow[] {
   const teamId = league.userTeamId;
-  const m = league.teams[teamId].meetings;
   const clock = stepClock(league);
-  const rows: StaffRow[] = [];
-  for (const c of m?.open ?? []) {
-    if (c.closes - clock !== 1) continue;
+  const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
+  const rows: DueRow[] = [];
+  for (const c of league.teams[teamId].meetings?.open ?? []) {
+    const left = c.closes - clock;
+    if (left < 1 || left > window) continue;
     const key = `due:${c.opened}:${c.scope}:${c.backing}`;
     if (told.has(key)) continue;
     const named = men(league, c.named);
+    // Steps are weeks in the season; away from it they are the calendar's moments, so "soon" is all that is true.
+    const when = !inSeason ? 'soon' : left === 1 ? 'next week' : 'in two weeks';
+    const note = say(
+      DUE,
+      { backing: c.backing, noun: SCOPE_NOUN[c.scope], named, when, ...(c.by === 'gm' ? { you: true } : {}) },
+      { key, slot: 'due', ...around(league, said) },
+    );
+    if (!note) continue;
+    said.push(note);
     rows.push({
       key,
       ...(named[0] ? { playerId: named[0].id } : {}),
       label: named.length === 1 ? `${named[0].first} ${named[0].last}` : cap(SCOPE_NOUN[c.scope]),
-      note: say(
-        DUE,
-        { backing: c.backing, noun: SCOPE_NOUN[c.scope], named },
-        { key, slot: 'due', ...(said ? around(league, said) : {}) },
-      ),
+      note,
       ...(c.backing === 'talks' && named.length === 1 ? { negotiate: named[0].id } : {}),
     });
   }
+  return rows;
+}
+
+/** The head coach's word with the players, when it has moved since he last said (`cred:` keys). */
+export function meetingStaffRows(league: League, told: Set<string>, said?: string[]): StaffRow[] {
+  const teamId = league.userTeamId;
+  const clock = stepClock(league);
+  const rows: StaffRow[] = [];
   const hc = headCoachOf(league, teamId);
   if (hc) {
     const read = credibilityRead(hc);

@@ -129,7 +129,7 @@ describe('meetings: the coach’s words', () => {
   });
 
   it('the staff notes, the year and the captain read plainly', () => {
-    clean(say(DUE, { backing: 'talks', noun: 'the D-line', named: [man('Mitchell')] }, at));
+    clean(say(DUE, { backing: 'talks', noun: 'the D-line', named: [man('Mitchell')], when: 'next week' }, at));
     for (const read of ['believes', 'steady', 'heardBefore', 'wornThin'] as const)
       clean(say(CANDID, { read, better: true }, at));
     const year = yearParagraph({
