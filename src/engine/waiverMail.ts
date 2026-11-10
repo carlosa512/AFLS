@@ -248,7 +248,6 @@ export function waiverMail(league: League, have: Set<string>): Draft[] {
   if (wire.length)
     sections.push({
       title: 'On the wire now',
-      lead: 'Worth a claim before the wire settles. Depth where we need it, and room to grow.',
       columns: ['Player', 'Age', 'Our read', 'Deal', 'Our chance'],
       rows: wire,
     });
