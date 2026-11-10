@@ -22,7 +22,7 @@ This pass does three things:
 
 ## Decisions
 
-Agreed with the owner (Nov 10) unless marked *(proposed)*.
+Agreed with the owner (Nov 10).
 
 0. **Screens only**, as in part one. Nothing in `src/engine/` changes, nothing is added to the save, no tuning
    number moves. Weather is read through the functions that already exist.
@@ -52,24 +52,26 @@ where a view draws things, so it lives in one pure helper both views use.
 /** Whether the teams have switched from where they started: the second and fourth quarters, and every other
  *  overtime period after them (5 as 1, 6 as 2…). */
 export function endsSwitched(quarter: number): boolean; // quarter % 2 === 0
-/** A field x as a view should draw it this quarter: itself, or its mirror. */
-export function viewX(x: number, quarter: number): number; // switched ? 100 - x : x
+/** A spot in the log's coordinates as the stadium has it this quarter: itself, or turned half way round
+ *  midfield (100 − x, the field's width − y), so a team's left is still its left. */
+export function stadiumSpot(x: number, y: number, quarter: number): { x: number; y: number };
 ```
 
 **The stadium stays put; the men and the ball move.** The paint (lines, numbers, end zones, the midfield mark,
-goalposts, benches) is drawn the same in every quarter. Everything that comes from a play goes through `viewX`
-first: the ball's path, the line of scrimmage and the line to gain, the drive's band, and in All-22 every dot.
+goalposts, benches) is drawn the same in every quarter. Everything that comes from a play goes through
+`stadiumSpot` first: the ball's path, the line of scrimmage and the line to gain, the drive's band, and in All-22 every dot.
 Mirroring a group would mirror its text, so nothing is mirrored by a transform.
 
-- **Broadcast:** `project(x, y, h)` takes the quarter and maps `viewX(x)`.
-- **All-22, wide:** `toScreen` maps `viewX(x)` for the men and the ball; the field group keeps its transform.
+- **Broadcast:** `project(x, y, h)` takes the quarter and maps `stadiumSpot(x, y)`.
+- **All-22, wide:** `toScreen` maps `stadiumSpot` for the men and the ball; the field group keeps its transform.
 - **All-22, upright** (a phone): the offense still attacks up the screen and the field still turns with the ball.
   The only visible change is which painted end zone is ahead of them.
 - **The cut.** The first play of a new quarter starts with the ball on the other side of the picture. Both views
   cover it with the quarter card of §3 and the quick dip to dark All-22 already uses when the field turns (`DIP`).
   The broadcast field's memory of where the ball lay (`FieldMemory`) is cleared at the switch, so nothing sweeps
   across the field.
-- The scorebug keeps away on the left and home on the right. The benches do not move: home near, away far.
+- The scorebug keeps away on the left and home on the right. The benches do not move: home near, away far. A man
+  coming on, the trainers and a celebrating sideline still come from their own bench.
 
 **End zones.** `FieldPaint` and the broadcast paint take the same rule: at a home game the end zone at x < 0 reads
 the home club's nickname and the one at x > 100 its city, both in its colours. At a neutral site (`game.neutral`)
@@ -148,10 +150,14 @@ yellow, and it is the thing happening now). The facts come from readers that exi
 `injuryCall`, `handoverFor`, `fumbleIn`, the play's own text.
 
 **A player's line**, bottom left: his number in his club's colours, his name (a `PlayerLink`, so it opens his card),
-his position and club, and his line so far from `linesAt`, worded as the Players panel words a leader. Shown after:
+his position and club, and his line so far from `linesAt`, worded as the Players panel words a leader.
 
-- a gain of 20 yards or more from scrimmage (the man who gained it);
-- the play on which a man passes 100 rushing yards, 100 receiving yards or 300 passing yards. *(proposed)*
+- **Only on a big play:** a gain of 20 yards or more from scrimmage, for the man who gained it. (Owner, Nov 10. No
+  milestone lines.)
+- **No spoilers:** it appears when the play's result is shown, never while the play is running, and its numbers
+  count that play.
+- **All at once, and a beat longer:** the whole line appears together, and the hold before the next play is 1.2
+  seconds longer at 1× than a big play's usual hold, so it can be read.
 
 Never together with a banner: a touchdown's banner wins.
 
@@ -164,7 +170,6 @@ Never together with a banner: a touchdown's banner wins.
   final* beside it. In a replay it shows for five seconds at 1× and the replay carries on; stepping or scrubbing dismisses it.
 - **The final:** the same card with the final score, and the buttons the live game's result panel has today (*Box
   score*, *Watch replay*, *Continue*). In the live game it replaces that panel, so the result is said once.
-  *(proposed)*
 
 **The bench and the crowd.** While a score or takeaway banner is up, the bench of the side it went to hops and,
 when that side is at home, the crowd brightens.
@@ -172,7 +177,7 @@ when that side is at home, the crowd brightens.
 **When they show.** A moment appears when its play's result has been shown and lasts through the hold before the
 next play. Broadcast takes All-22's hold after a big play (`holdAfter`) so a banner can be read; an ordinary play's
 hold does not change. At 4× and 8×, banners show for a shorter beat, never under 0.8 seconds, and the player's line and the
-quarter card are skipped. *(proposed)* Plays the highlight level skipped past make no moment: only the play that is
+quarter card are skipped. Plays the highlight level skipped past make no moment: only the play that is
 shown does.
 
 **All-22.** Its flag, injury and change-of-possession strips are tied to its staging (the officials confer, the
@@ -186,18 +191,20 @@ cards come from the shared overlay, as in Broadcast. All-22's last-play finale p
 - New: `ui/stage/ends.ts`, `ui/moments.ts`, `screens/BroadcastField.tsx`, `screens/BroadcastPaint.tsx`,
   `screens/GameMoments.tsx`, and their tests.
 - Changed: `screens/GameViewer.tsx` and `screens/LiveGame.tsx` (the overlay, the halftime wait, the final card, the
-  hold), `screens/TopDownField.tsx` (`viewX`, the banner's look), `screens/FieldPaint.tsx` (end zones, exports),
+  hold), `screens/TopDownField.tsx` (`stadiumSpot`, the banner's look), the bench
+  and sideline helpers in `ui/stage/`, `screens/FieldPaint.tsx` (end zones, exports),
   `screens/Scorebug.tsx` (the SNN tab), `src/styles.css`.
 
 ## 5. Testing
 
 Screens only, so no sims (`CLAUDE.md`, case 1).
 
-- `ends.test.ts`: quarters 1 to 4 and overtime; `viewX` is its own inverse; with the ends switched, the offense's
-  goal line is drawn at the far end from where it was.
+- `ends.test.ts`: quarters 1 to 4 and overtime; `stadiumSpot` is its own inverse and leaves midfield where it is;
+  with the ends switched, the offense's goal line is drawn at the far end from where it was and its left is still
+  its left.
 - `moments.test.ts`, on hand-built logs and on real games: each row of the banner table; a wiped-out snap makes a
-  flag and nothing else; a touchdown never also makes a player's line; a 25-yard gain makes one; the play that takes
-  a back from 96 to 104 yards makes one and the next does not; the last play of the second quarter makes the half
+  flag and nothing else; a touchdown never also makes a player's line; a 25-yard gain makes one and a 19-yard gain
+  does not; the last play of the second quarter makes the half
   card and the last play of the game the final; nothing is made for a play not yet told. Over a week of real games:
   every scoring play makes exactly one score banner for the side whose score went up.
 - Component tests (`renderToStaticMarkup`): at a home game both end zones carry the home club's words and at a
