@@ -429,8 +429,9 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     const keys = staff.staffKeys[i] ?? [];
     const isCall = keys.length === 0 && !callSeen && !!callKey;
     if (isCall) callSeen = true;
+    // A depth-chart call puts a decision in front of you, so it files a letter alone; habit work is a note (tier 5).
     items.push({
-      tier: 5,
+      tier: isCall ? 3 : 5,
       key: isCall ? `call:${callKey}` : (keys[0] ?? `staff:${clock}:${i}`),
       section: 'staff',
       row,
