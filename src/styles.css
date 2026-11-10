@@ -1660,13 +1660,6 @@ select {
   color: var(--marker);
   line-height: 1;
 }
-.viewer-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px 14px;
-  flex-wrap: wrap;
-}
 .vc-btn,
 .vc-speed {
   border: 0;
@@ -1695,10 +1688,10 @@ select {
   letter-spacing: 0;
   font-family: var(--font-data);
 }
-/* Highlight level: one pill split three ways, the picked one lit like the play button. */
+/* Highlight level: one pill split three ways. Grey, like speed: on this screen yellow means "now". */
 .vc-levels {
   display: inline-flex;
-  height: 44px;
+  height: 36px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   padding: 3px;
@@ -1706,23 +1699,265 @@ select {
 .vc-level {
   border: 0;
   border-radius: 999px;
-  min-width: 44px;
-  padding: 0 10px;
+  min-width: 40px;
+  padding: 0 9px;
   background: none;
-  color: var(--scene-ink);
+  color: var(--scene-muted);
   font-family: var(--font-data);
   font-weight: 700;
-  font-size: var(--step--1);
+  font-size: 0.75rem;
   cursor: pointer;
 }
 .vc-level.on {
-  background: var(--marker);
-  color: var(--marker-ink);
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
-.vc-scrub {
-  flex: 1 1 140px;
+
+/* ───────── the game timeline: drives on the clock, the buttons riding on it ───────── */
+.viewer-top {
+  justify-content: flex-end;
+}
+.tl {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.tl-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+.tl-main > .tl-grid:first-child {
+  grid-column: 1 / -1;
+}
+.tl-transport {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tl-transport .vc-btn {
+  min-width: 36px;
+  height: 36px;
+  font-size: 0.7rem;
+}
+.tl-transport .vc-play {
+  min-width: 48px;
+  height: 48px;
+  font-size: 1.05rem;
+}
+.tl-grid {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: center;
+}
+.tl-lab {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+.tl-area {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  height: 52px;
+}
+.tl-area.can-jump {
+  cursor: pointer;
+  /* A sideways drag scrubs; an up-and-down one still scrolls the page. */
+  touch-action: pan-y;
+}
+.tl-q {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+.tl-q:first-child {
+  border-left: 0;
+}
+.tl-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+/* A live game's time still to come. */
+.tl-future {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.045) 5px 6px);
+}
+.tl-drive {
+  position: absolute;
+  height: 12px;
+  border: 0;
+  padding: 0;
+  border-radius: 3px;
+  opacity: 0.85;
+  cursor: pointer;
+}
+.tl-drive:disabled {
+  cursor: default;
+}
+.tl-drive.away {
+  top: 8px;
+}
+.tl-drive.home {
+  top: 32px;
+}
+.tl-drive.later {
+  opacity: 0.38;
+}
+.tl-drive.picked,
+.tl-drive:focus-visible {
+  opacity: 1;
+  outline: 0;
+  box-shadow:
+    0 0 0 2px var(--scene-bg),
+    0 0 0 3px #fff;
+}
+.tl-mark {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin-left: -6px;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.tl-mark.away {
+  top: 9.5px;
+}
+.tl-mark.home {
+  top: 33.5px;
+}
+.tl-mark.score {
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--scene-bg);
+}
+.tl-mark.miss {
+  background: var(--scene-bg);
+  border: 1.5px solid #fff;
+}
+.tl-mark.later {
+  opacity: 0.5;
+}
+.tl-head {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  pointer-events: none;
+}
+.tl-head::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--marker);
+  border: 2px solid var(--scene-bg);
+}
+.tl-qs {
+  grid-column: 2;
+  display: flex;
+  margin-top: 2px;
+  font-family: var(--font-data);
+  font-size: 0.62rem;
+  color: var(--scene-muted);
+}
+.tl-qs span {
+  padding-left: 4px;
+  overflow: hidden;
+}
+.tl-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+.tl-cap {
+  flex: 1 1 260px;
   min-width: 0;
-  accent-color: var(--marker);
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  color: var(--scene-muted);
+}
+.tl-cap b {
+  color: var(--scene-ink);
+  font-weight: 600;
+}
+.tl-set {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tl-set .vc-speed {
+  min-width: 40px;
+  height: 36px;
+  font-size: 0.75rem;
+  color: var(--scene-ink);
+}
+.tl-set .vc-skip {
+  min-height: 36px;
+  font-size: var(--step--1);
+}
+.tl-key {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-family: var(--font-data);
+  font-size: 0.62rem;
+  color: var(--scene-muted);
+}
+.tl-key i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  transform: rotate(45deg);
+}
+.tl-key .score {
+  background: #fff;
+}
+.tl-key .miss {
+  border: 1.5px solid #fff;
+}
+@media (max-width: 640px) {
+  /* On a phone the buttons sit under the track, in thumb reach. */
+  .tl-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tl-transport {
+    order: 2;
+    justify-content: center;
+    gap: 12px;
+  }
+  .tl-transport .vc-btn {
+    min-width: 44px;
+    height: 44px;
+    font-size: 0.8rem;
+  }
+  .tl-transport .vc-play {
+    min-width: 56px;
+    height: 56px;
+    font-size: 1.2rem;
+  }
 }
 .play-card {
   display: grid;
@@ -1802,14 +2037,6 @@ select {
   50% {
     opacity: 0.35;
   }
-}
-.live-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--scene-muted);
-  margin-left: auto;
 }
 .vc-skip {
   border: 1px solid rgba(255, 255, 255, 0.25);

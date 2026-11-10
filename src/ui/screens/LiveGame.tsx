@@ -24,6 +24,7 @@ import {
 } from './GameViewer';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
+import { GameTimeline } from './GameTimeline';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -120,6 +121,11 @@ export function LiveGame({ league }: { league: League }) {
   );
   return (
     <>
+      {record && (
+        <div className="row viewer-top">
+          <ViewSwitch value={viewPick} onChange={setViewPick} />
+        </div>
+      )}
       <section className="viewer">
         <Scorebug
           league={league}
@@ -166,26 +172,38 @@ export function LiveGame({ league }: { league: League }) {
           </span>
         </div>
 
-        {!s.finished && (
-          <div className="viewer-controls">
-            <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
-              {s.playing ? '❚❚' : '▶'}
-            </button>
-            <button
-              className="vc-speed"
-              onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
-              aria-label="Playback speed"
-            >
-              {speed}×
-            </button>
-            <HighlightSwitch value={pick} onChange={setPick} />
-            {record && <ViewSwitch value={viewPick} onChange={setViewPick} />}
-            <span className="live-label">Live</span>
-            <button className="vc-skip" onClick={simToFinal}>
-              Sim to final
-            </button>
-          </div>
-        )}
+        <GameTimeline
+          home={home}
+          away={away}
+          plays={s.plays}
+          index={s.current}
+          told={told}
+          replay={false}
+          transport={
+            s.finished ? null : (
+              <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
+                {s.playing ? '❚❚' : '▶'}
+              </button>
+            )
+          }
+          settings={
+            s.finished ? null : (
+              <>
+                <button
+                  className="vc-speed"
+                  onClick={() => live.update({ speed: speeds[(speeds.indexOf(speed) + 1) % speeds.length] })}
+                  aria-label="Playback speed"
+                >
+                  {speed}×
+                </button>
+                <HighlightSwitch value={pick} onChange={setPick} />
+                <button className="vc-skip" onClick={simToFinal}>
+                  Sim to final
+                </button>
+              </>
+            )
+          }
+        />
       </section>
 
       {s.finished && result && (

@@ -9,6 +9,9 @@ import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
 import { handoverFor, TopDownField } from './screens/TopDownField';
 import { downParts, Scorebug } from './screens/Scorebug';
+import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
+import { contrast } from './color';
+import { drivesOf } from './gameRead';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
 
@@ -114,7 +117,7 @@ describe('the view switch', () => {
       html
         .replace(/<div class="td-field[\s\S]*?<\/svg>(<div class="td-card[\s\S]*?<\/div>)?<\/div>/, '')
         .replace(/<svg class="field-scene[\s\S]*?<\/svg>/, '')
-        .replace(/<span class="vc-levels" role="group" aria-label="View">[\s\S]*?<\/span>/, '');
+        .replace(/<span class="seg" role="group" aria-label="View">[\s\S]*?<\/span>/, '');
     const broadcast = withView('broadcast', viewer);
     const all22 = withView('all22', viewer);
     expect(all22).toContain('td-field');
@@ -341,5 +344,110 @@ describe('the down and the spot', () => {
 
   it('has nothing to say between snaps', () => {
     expect(downParts(play({ down: 0, kind: 'kickoff' }), home, away)).toBeNull();
+  });
+});
+
+describe('the timeline', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const all = drivesOf(plays, home.id);
+  // A play in the middle of the third drive: two drives done, more to come.
+  const mid = all[2].first + 1;
+  const line = (list: PlayLogEntry[], index: number, replay: boolean) =>
+    render(
+      <GameTimeline
+        home={home}
+        away={away}
+        plays={list}
+        index={index}
+        told
+        replay={replay}
+        onJump={() => {}}
+        transport={null}
+        settings={null}
+      />,
+    );
+  const count = (html: string, cls: string) => html.match(new RegExp(`class="${cls}[" ]`, 'g'))?.length ?? 0;
+
+  it('draws only what a live game has shown', () => {
+    const html = line(plays, mid, false);
+    expect(count(html, 'tl-drive')).toBe(3);
+    expect(html).not.toContain('later');
+    expect(html).toContain('class="tl-future"');
+    expect(html).not.toContain('id="viewer-scrub"');
+  });
+
+  it('draws the whole game in a replay, the drives to come dimmed', () => {
+    const html = line(plays, mid, true);
+    expect(count(html, 'tl-drive')).toBe(all.length);
+    expect(html.match(/class="tl-drive[^"]* later/g)).toHaveLength(all.length - 3);
+    expect(html).not.toContain('class="tl-future"');
+  });
+
+  it('marks every drive that ended in a score or gave the ball away', () => {
+    const html = line(plays, plays.length - 1, true);
+    const scored = all.filter((d) => d.points.home + d.points.away > 0).length;
+    const gaveUp = all.filter(
+      (d) => d.points.home + d.points.away === 0 && ['missed', 'int', 'fumble', 'downs'].includes(d.how),
+    ).length;
+    expect(count(html, 'tl-mark score')).toBe(scored);
+    expect(count(html, 'tl-mark miss')).toBe(gaveUp);
+  });
+
+  it('keeps the slider for the keyboard in a replay', () => {
+    const html = line(plays, mid, true);
+    expect(html).toContain('id="viewer-scrub"');
+    expect(html).toContain(`max="${plays.length - 1}"`);
+    expect(html).toContain(`value="${mid}"`);
+  });
+
+  it('has four quarters, and a fifth section once there is overtime', () => {
+    expect(count(line(plays, mid, true), 'tl-q')).toBe(4);
+    const last = plays[plays.length - 1];
+    const overtime = [...plays, { ...last, quarter: 5, clock: 600 }, { ...last, quarter: 5, clock: 300 }];
+    expect(count(line(overtime, mid, true), 'tl-q')).toBe(5);
+  });
+
+  it('captions the drive on the field with its plays, yards and time so far', () => {
+    const html = line(plays, mid, false);
+    expect(html).toMatch(
+      new RegExp(
+        `class="tl-cap"><b>${all[2].teamId === home.id ? home.city : away.city} drive</b> · \\d+ plays? · -?\\d+ yds · \\d+:\\d\\d<`,
+      ),
+    );
+  });
+
+  it('captions a finished drive with when it began and how it ended', () => {
+    const td = all.find((d) => d.how === 'td')!;
+    const text = driveCaption(td, plays, false);
+    expect(text).toMatch(/^Q[1-4] \d+:\d\d · \d+ plays? · \d+ yds · Touchdown, /);
+    const punt = all.find((d) => d.how === 'punt')!;
+    expect(driveCaption(punt, plays, false)).toMatch(/ · Punt$/);
+  });
+
+  it('is what the replay draws, with the view switch up beside Box score', () => {
+    const html = render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />);
+    expect(html).toContain('class="tl-area can-jump"');
+    expect(html).not.toContain('viewer-controls');
+    expect(html.indexOf('aria-label="View"')).toBeLessThan(html.indexOf('class="viewer"'));
+  });
+});
+
+describe('a club’s colour on the timeline', () => {
+  const SCENE = '#0b1210';
+
+  it('keeps a colour that already reads on the night scene', () => {
+    expect(laneColor(['#ffb612', '#101820'])).toBe('#ffb612');
+  });
+
+  it('lightens a dark colour rather than swap it for the club’s other one', () => {
+    const blue = laneColor(['#00338d', '#c60c30']);
+    expect(contrast(SCENE, blue)).toBeGreaterThanOrEqual(3);
+    // Still a blue: more blue in it than red.
+    expect(parseInt(blue.slice(5, 7), 16)).toBeGreaterThan(parseInt(blue.slice(1, 3), 16));
+  });
+
+  it('uses the second colour when the first is all but black', () => {
+    expect(laneColor(['#101820', '#d3bc8d'])).toBe('#d3bc8d');
   });
 });

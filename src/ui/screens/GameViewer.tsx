@@ -12,6 +12,7 @@ import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
+import { GameTimeline } from './GameTimeline';
 
 // ───────── 2.5D field projection ─────────
 // Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
@@ -469,17 +470,12 @@ const ALL22_SPEEDS = [1, 2, 4];
 /** All-22 plays at 1×, 2× or 4×: a faster pick from the broadcast view (8×) drops to 4×. */
 export const allSpeed = (speed: number): 1 | 2 | 4 => (speed >= 4 ? 4 : speed > 1 ? 2 : 1);
 
-/** Broadcast | All-22: shown only for games that kept who was on the field. */
+/** Broadcast | All-22, above the viewer: shown only for games that kept who was on the field. */
 export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {
   return (
-    <span className="vc-levels" role="group" aria-label="View">
+    <span className="seg" role="group" aria-label="View">
       {VIEWS.map((v) => (
-        <button
-          key={v}
-          className={`vc-level${v === value ? ' on' : ''}`}
-          aria-pressed={v === value}
-          onClick={() => onChange(v)}
-        >
+        <button key={v} aria-pressed={v === value} onClick={() => onChange(v)}>
           {v === 'all22' ? 'All-22' : 'Broadcast'}
         </button>
       ))}
@@ -651,9 +647,12 @@ export function GameViewer({
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
           ← Back
         </button>
-        <button className="btn btn-sm" onClick={onBoxScore}>
-          Box score
-        </button>
+        <span className="row" style={{ gap: 10 }}>
+          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
+          <button className="btn btn-sm" onClick={onBoxScore}>
+            Box score
+          </button>
+        </span>
       </div>
 
       <section className="viewer">
@@ -695,36 +694,40 @@ export function GameViewer({
           <span className="viewer-tag">{tag}</span>
         </div>
 
-        <div className="viewer-controls">
-          <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
-            ◀◀
-          </button>
-          <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? '❚❚' : '▶'}
-          </button>
-          <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
-            ▶▶
-          </button>
-          <button
-            className="vc-speed"
-            onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
-            aria-label="Playback speed"
-          >
-            {shownSpeed}×
-          </button>
-          <HighlightSwitch value={pick} onChange={setPick} />
-          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
-          <input
-            className="vc-scrub"
-            type="range"
-            id="viewer-scrub"
-            min={0}
-            max={plays.length - 1}
-            value={index}
-            onChange={(e) => go(Number(e.target.value))}
-            aria-label="Jump to play"
-          />
-        </div>
+        <GameTimeline
+          home={home}
+          away={away}
+          plays={plays}
+          index={index}
+          told={told}
+          replay
+          onJump={(i) => go(i)}
+          transport={
+            <>
+              <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
+                ◀◀
+              </button>
+              <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+                {playing ? '❚❚' : '▶'}
+              </button>
+              <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
+                ▶▶
+              </button>
+            </>
+          }
+          settings={
+            <>
+              <button
+                className="vc-speed"
+                onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
+                aria-label="Playback speed"
+              >
+                {shownSpeed}×
+              </button>
+              <HighlightSwitch value={pick} onChange={setPick} />
+            </>
+          }
+        />
       </section>
 
       <section className="panel">
