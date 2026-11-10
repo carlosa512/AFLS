@@ -321,7 +321,14 @@ export function heardWeight(p: Player, factor: keyof MoraleFactors, clock: numbe
   let w = 1;
   if (t.promise && CAUSE_FACTOR[t.promise.kind] === factor) w *= 1 - 0.75 * Math.max(0, 1 - 0.25 * (t.broken ?? 0));
   const a = t.answered;
-  if (a?.reply === 'reassure' && a.cause && CAUSE_FACTOR[a.cause] === factor && clock < a.at + QUIET)
+  // A benching's mood comes only from its own jolts (`BENCH_SIZE`): its answers ease nothing else.
+  if (
+    a?.reply === 'reassure' &&
+    a.cause &&
+    a.cause !== 'benched' &&
+    CAUSE_FACTOR[a.cause] === factor &&
+    clock < a.at + QUIET
+  )
     w *= 1 - 0.25 * 0.5 ** ((t.reassured ?? 1) - 1);
   return w;
 }

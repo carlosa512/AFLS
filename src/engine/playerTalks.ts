@@ -6,7 +6,6 @@
  * no shared cache, so it can't move play.
  */
 import { answerBench } from './benching';
-import { employed } from './employment';
 import {
   addJolt,
   DOWN_REASONS,
@@ -21,6 +20,7 @@ import {
   type MoraleFactors,
 } from './morale';
 import { teamPlayers } from './roster';
+import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { closeStory, talkBeat } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, Player, Talk, TalkCause, TalkReply } from './types';
@@ -29,8 +29,6 @@ const YEAR = 32;
 const CAMP = 7;
 /** Steps in a row at Poor or worse before he asks (he asks on the third). */
 const DOWN_STEPS = 3;
-/** Asks a club hears in one step. */
-export const PER_CLUB = 2;
 /** Steps a letter waits for your answer before he takes the silence as one. */
 const WAIT = 2;
 /** A room's losing comes to you once in this many steps: a man of it asking sooner is answered as you last answered the room. */
@@ -77,11 +75,6 @@ export function aiReply(league: League, teamId: number, cause: TalkCause): TalkR
 const teamPlayersAsking = (league: League, teamId: number, clock: number) =>
   teamPlayers(league, teamId).filter((p) => p.morale?.talk?.ask?.cause === 'benched' && p.morale.talk.ask.at === clock)
     .length;
-
-/** The club whose letters you answer: yours, while you have a job. */
-const yourClub = (league: League) => (employed(league) ? league.userTeamId : null);
-
-const talkOf = (p: Player): Talk => (p.morale!.talk ??= { club: p.teamId! });
 
 /** A talk record holding nothing is nothing in the save. */
 function tidy(p: Player) {

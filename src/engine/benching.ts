@@ -8,16 +8,15 @@
  * snap counts: a man hurt in the game still started.
  */
 import { onDidNotReport } from './disputeRead';
-import { employed } from './employment';
 import { sittingAfterClear } from './injuries';
 import { addJolt, expectedRole, liveSize, moraleClock, moraleContext, type MoraleContext } from './morale';
-import { PER_CLUB } from './playerTalks';
 import { isAvailable, teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { beat, closeStory } from './stories';
+import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { STARTERS } from './positions';
-import type { Game, JobQuestion, League, Player, Position, Talk, TalkReply, Team } from './types';
+import type { Game, JobQuestion, League, Player, Position, TalkReply, Team } from './types';
 
 /** Tests turn it off to prove play is untouched. */
 export const BENCH = { on: true };
@@ -206,12 +205,7 @@ export function questionOf(team: Team, playerId: number): JobQuestion | undefine
 /** Whose move it was: the depth chart is the staff's while they sort it, yours otherwise. */
 export const movedBy = (team: Team): 'you' | 'staff' => (team.autoDepth ? 'staff' : 'you');
 
-/** The club whose letters you answer: yours, while you have a job. */
-const yourClub = (league: League) => (employed(league) ? league.userTeamId : null);
-
 const storyOn = (team: Team, q: JobQuestion) => ({ kind: 'benched' as const, teamId: team.id, playerId: q.holder });
-
-const talkOf = (p: Player): Talk => (p.morale!.talk ??= { club: p.teamId! });
 
 /** The nearest of the three talk replies, for what reads a talk's record (the quiet after it, the letters). */
 const TALK_OF: Record<BenchReply | OtherReply, TalkReply> = {
@@ -223,11 +217,24 @@ const TALK_OF: Record<BenchReply | OtherReply, TalkReply> = {
   his: 'firm',
 };
 
-function closeQuestion(team: Team, q: JobQuestion): void {
+/** A question closed, whatever closed it: an ask about it still waiting on you goes with it. */
+function closeQuestion(league: League, team: Team, q: JobQuestion): void {
+  for (const id of [q.holder, q.other]) {
+    const t = id === undefined ? undefined : league.players[id]?.morale?.talk;
+    if (t?.ask?.cause === 'benched') delete t.ask;
+  }
   const qs = team.jobs?.questions;
   if (!qs) return;
   qs.splice(qs.indexOf(q), 1);
   if (!qs.length) delete team.jobs!.questions;
+}
+
+/** A benching sours his talk (over snaps, so disputes' rules apply); an escalation already running keeps its count. */
+function sour(p: Player, clock: number): void {
+  if (!p.morale) return;
+  const t = talkOf(p);
+  const was = t.sour;
+  t.sour = { cause: 'snaps', at: clock, run: was?.run ?? 0, ...(was?.after ? { after: was.after } : {}) };
 }
 
 /** His weeks of not knowing, taken back: a clear word replaces them. */
@@ -285,11 +292,12 @@ function applyBench(
   } else if (reply === 'earn' || reply === 'compete') {
     addJolt(man, 'benched', honest(man, BENCH_SIZE.earn, ctx), clock);
   } else {
-    // His job now: the other man of the two holds it from today, and this one takes the full hit.
+    // His job now: the other man of the two holds it (the holder told it's the other's, or the other told it's the
+    // holder's, who keeps it as he held it), and this one takes the full hit.
     const jobs = team.jobs!;
     delete jobs.held[man.id];
     if (jobs.runs) for (const p of pair) delete jobs.runs[p.id];
-    if (winner) jobs.held[winner.id] = { pos: q.pos, since: clock };
+    if (winner && !jobs.held[winner.id]) jobs.held[winner.id] = { pos: q.pos, since: clock };
     addJolt(man, 'benched', honest(man, BENCH_SIZE.his, ctx), clock);
   }
   q.answered = { reply, at: clock, by: man.id };
@@ -302,11 +310,11 @@ function applyBench(
     if (t.ask?.cause === 'benched') delete t.ask;
   }
   // The final word sours his talk as a firm no does: a veteran may want out by the rules disputes have (over snaps).
-  if (reply === 'his' && man.morale) talkOf(man).sour = { cause: 'snaps', at: clock, run: 0 };
+  if (reply === 'his') sour(man, clock);
   beat(league, storyOn(team, q), 'answered', clock, { how: reply });
   if (reply === 'his') {
     closeStory(league, storyOn(team, q), 'settled', clock, 'his');
-    closeQuestion(team, q);
+    closeQuestion(league, team, q);
   }
 }
 
@@ -365,7 +373,7 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
     for (const q of [...(team.jobs?.questions ?? [])])
       if (!here(q.holder) || (q.other !== undefined && !here(q.other))) {
         closeStory(league, storyOn(team, q), 'left', clock);
-        closeQuestion(team, q);
+        closeQuestion(league, team, q);
       }
 
     // (1) What is owed: his next game he could play decides a promise or a soft word.
@@ -376,20 +384,22 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       if (k.ids.includes(owed.to)) {
         if (q.promise) addJolt(p, 'kept', BENCH_SIZE.kept, clock);
         closeStory(league, storyOn(team, q), 'backIn', clock);
-        closeQuestion(team, q);
+        closeQuestion(league, team, q);
         continue;
       }
-      // Broken: he sat again, and he is back to not knowing where he stands.
-      const t = p.morale ? talkOf(p) : undefined;
+      // Broken: he sat again, and he is back to not knowing where he stands. At your club he asks again; an AI club
+      // answers again at once (below).
       if (q.promise) {
         addJolt(p, 'broken', BENCH_SIZE.broken, clock);
-        if (t) t.broken = (t.broken ?? 0) + 1;
+        if (p.morale) talkOf(p).broken = (talkOf(p).broken ?? 0) + 1;
       } else addJolt(p, 'broken', BENCH_SIZE.chart, clock);
-      if (t) t.sour = { cause: 'snaps', at: clock, run: 0 };
+      sour(p, clock);
       beat(league, storyOn(team, q), q.promise ? 'broken' : 'satAgain', clock);
       delete q.promise;
       delete q.soft;
       delete q.answered;
+      if (q.asked) q.asked = q.asked.filter((id) => id !== p.id);
+      if (mine) fileAsk(league, team, q, p, clock);
     }
 
     // While either man can't play the question rests: no start counts toward three in a row.
@@ -412,7 +422,9 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       else (jobs.runs ??= {})[id] = run;
     }
 
-    // (4) Three starts in a row settle a question: the other man earned the job, or the holder kept it.
+    // (4) Three starts in a row settle a question: the other man earned the job, or the holder kept it. Both men's
+    // weeks of not knowing end. Nobody told them and the holder lost the job: he hears it from the depth chart, and it
+    // sours; the other man only covered, so the holder winning it back costs him nothing.
     for (const q of [...(jobs.questions ?? [])]) {
       if (paused.has(q)) continue;
       if (k.ids.includes(q.holder)) q.back = (q.back ?? 0) + 1;
@@ -420,37 +432,31 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       const otherWon = q.other !== undefined && !heldBefore.has(q.other) && !!jobs.held[q.other];
       const holderWon = (q.back ?? 0) >= EARN;
       if (!otherWon && !holderWon) continue;
-      const loserId = otherWon ? q.holder : q.other;
-      const loser = loserId === undefined ? undefined : league.players[loserId];
-      // Nobody told them: the one who lost out hears it from the depth chart, and it sours.
-      if (!q.answered && loser) {
-        clearUnsure(loser);
-        addJolt(loser, 'benched', BENCH_SIZE.chart, clock);
-        if (loser.morale) {
-          const t = talkOf(loser);
-          t.sour = { cause: 'snaps', at: clock, run: 0 };
-          if (t.ask?.cause === 'benched') delete t.ask;
-        }
-      }
-      for (const id of [q.holder, q.other]) {
-        const p = id === undefined ? undefined : league.players[id];
-        if (p?.morale?.talk?.ask?.cause === 'benched') delete p.morale.talk.ask;
+      for (const id of [q.holder, q.other]) if (id !== undefined) clearUnsure(league.players[id]);
+      const holder = league.players[q.holder];
+      if (otherWon && !q.answered) {
+        addJolt(holder, 'benched', BENCH_SIZE.chart, clock);
+        sour(holder, clock);
       }
       closeStory(league, storyOn(team, q), 'settled', clock, q.answered ? 'earned' : 'chart');
-      closeQuestion(team, q);
+      closeQuestion(league, team, q);
     }
 
     // (3) At your club, a question nobody has answered: whichever of the two sat this week doesn't know where he
-    // stands, and a man of it who hasn't asked yet asks now.
+    // stands, and a man of it who hasn't asked yet asks now (the holder whether he sat again or not: his ask was only
+    // held back by the club's two a step).
     if (mine)
       for (const q of jobs.questions ?? []) {
-        if (q.answered || paused.has(q) || q.since === clock) continue;
+        if (q.answered || q.since === clock) continue;
         for (const id of [q.holder, q.other]) {
-          if (id === undefined || !satThisWeek(k, id)) continue;
+          if (id === undefined) continue;
+          const sat = !paused.has(q) && satThisWeek(k, id);
           const p = league.players[id];
-          const live = (p.morale?.jolts ?? []).filter((j) => j.kind === 'unsure' && liveSize(j, clock) <= -0.25);
-          if (live.length < UNSURE_MAX) addJolt(p, 'unsure', BENCH_SIZE.unsure, clock);
-          if (fileAsk(league, team, q, p, clock))
+          if (sat) {
+            const live = (p.morale?.jolts ?? []).filter((j) => j.kind === 'unsure' && liveSize(j, clock) <= -0.25);
+            if (live.length < UNSURE_MAX) addJolt(p, 'unsure', BENCH_SIZE.unsure, clock);
+          }
+          if ((sat || id === q.holder) && fileAsk(league, team, q, p, clock))
             beat(league, storyOn(team, q), id === q.holder ? 'asked' : 'swapped', clock, { other: q.other });
         }
       }

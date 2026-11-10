@@ -4,6 +4,7 @@ import {
   BENCH,
   BENCH_SIZE,
   benchKickoff,
+  benchWeek,
   countStarts,
   EARN,
   holdsJob,
@@ -14,9 +15,9 @@ import {
 import { createLeague } from './generate';
 import { gameTime } from './personnel/calendar';
 import { playWeek, startLiveGame } from './league';
-import { moraleAdvance, moraleClock } from './morale';
+import { heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
 import { advanceOffseason, beginOffseason } from './offseason';
-import { answerTalk } from './playerTalks';
+import { answerRoomTalk, answerTalk } from './playerTalks';
 import { setTeam } from './roster';
 import type { Injury, League, Player, Team } from './types';
 
@@ -416,5 +417,178 @@ describe('your answers', () => {
     expect(movedBy(team)).toBe('staff');
     team.autoDepth = false;
     expect(movedBy(team)).toBe('you');
+  });
+});
+
+describe('fix round 1', () => {
+  it('a rival traded away after a swap-back leaves no benched ask on the man who stays', () => {
+    const { l, team, q } = setup('bench-gone');
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    order(team, [q[0].id, q[1].id]);
+    moodWeek(l);
+    expect(q[1].morale!.talk!.ask?.cause).toBe('benched');
+    setTeam(l, q[0], (team.id + 1) % l.teams.length);
+    moodWeek(l);
+    expect(questionOf(team, q[1].id)).toBeUndefined();
+    expect(q[1].morale!.talk?.ask?.cause).not.toBe('benched');
+  });
+
+  it('a benched answer eases nothing but its own jolts', () => {
+    const { l, q } = setup('bench-heard');
+    const at = l.moraleAt!;
+    q[0].morale!.talk = { club: q[0].teamId!, answered: { reply: 'reassure', at, ask: at, cause: 'benched' } };
+    expect(heardWeight(q[0], 'role', at)).toBe(1);
+    q[0].morale!.talk.answered!.cause = 'snaps';
+    expect(heardWeight(q[0], 'role', at)).toBeLessThan(1);
+  });
+
+  it('a broken word files his ask again, and the row can be answered again', () => {
+    const { l, team, q } = setup('bench-reask');
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    answerBench(l, q[0].id, 'thisWeek');
+    const when = moodWeek(l);
+    expect(questionOf(team, q[0].id)!.answered).toBeUndefined();
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at: when });
+    expect(answerBench(l, q[0].id, 'earn')).toBe(true);
+  });
+
+  it('an AI club answers again at once when its word breaks', () => {
+    const { l } = setup('bench-ai-reask');
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    team.gm = { ...team.gm, loyalty: 1, stubbornness: 0 };
+    const q = team.depthChart.QB.map((id) => l.players[id]);
+    q[0].experience = 8;
+    for (const k of Object.keys(q[0].ratings) as (keyof Player['ratings'])[]) q[0].ratings[k] = 20;
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)!.answered?.reply).toBe('backIn');
+    const when = moodWeek(l);
+    expect(jolts(q[0], 'broken', when)).toHaveLength(1);
+    expect(questionOf(team, q[0].id)!.answered).toMatchObject({ reply: 'backIn', at: when });
+  });
+
+  it('the holder winning it back by the chart costs the other man nothing', () => {
+    const { l, team, q } = setup('bench-back');
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    order(team, [q[0].id, q[1].id]);
+    let at = 0;
+    for (let i = 0; i < EARN; i++) at = moodWeek(l);
+    expect(questionOf(team, q[0].id)).toBeUndefined();
+    expect(holdsJob(team, q[0].id)).toBe(true);
+    expect(jolts(q[1], 'benched', at)).toEqual([]);
+    expect(q[1].morale!.talk?.sour).toBeUndefined();
+    expect(unsure(q[1])).toBe(0);
+    expect(unsure(q[0])).toBe(0);
+    expect(q[1].morale!.talk?.ask?.cause).not.toBe('benched');
+  });
+
+  it('a benching never resets an escalation already running', () => {
+    const { l, team, q } = setup('bench-run');
+    order(team, [q[1].id, q[0].id]);
+    for (let i = 1; i < EARN; i++) moodWeek(l);
+    // The third start settles it by the chart; read straight after the benching, before the disputes' own step.
+    q[0].morale!.talk = { club: team.id, sour: { cause: 'deal', at: 0, run: 3, after: 'holdIn' } };
+    benchKickoff(l);
+    benchWeek(l, moraleContext(l), moraleClock(l, true));
+    expect(holdsJob(team, q[1].id)).toBe(true);
+    expect(q[0].morale!.talk!.sour).toMatchObject({ cause: 'snaps', run: 3, after: 'holdIn' });
+  });
+
+  it('a holder held back by the two asks a step asks the next step, sitting or not', () => {
+    const { l, team, q } = setup('bench-held');
+    const clock = moraleClock(l, true);
+    const others = Object.values(l.players).filter((p) => p.teamId === team.id && p.position !== 'QB' && p.morale);
+    for (const p of others.slice(0, 2)) p.morale!.talk = { club: team.id, ask: { cause: 'deal', at: clock } };
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    expect(q[0].morale!.talk?.ask).toBeUndefined();
+    expect(questionOf(team, q[0].id)).toBeDefined();
+    order(team, [q[0].id, q[1].id]);
+    const at = moodWeek(l);
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at });
+  });
+
+  it('"his" from the other man\'s row leaves the holder\'s job as he held it', () => {
+    const { l, team, q } = setup('bench-his-other');
+    const since = team.jobs!.held[q[0].id].since;
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    order(team, [q[0].id, q[1].id]);
+    moodWeek(l);
+    expect(answerBench(l, q[1].id, 'his')).toBe(true);
+    expect(team.jobs!.held[q[0].id].since).toBe(since);
+    expect(holdsJob(team, q[1].id)).toBe(false);
+  });
+
+  it('benchWeek draws nothing, week after week', () => {
+    const { l, team, q } = setup('bench-rng');
+    for (let i = 0; i < 4; i++) {
+      order(team, i % 2 ? [q[0].id, q[1].id] : [q[1].id, q[0].id]);
+      benchKickoff(l);
+      const clock = moraleClock(l, true);
+      const ctx = moraleContext(l);
+      const before = JSON.stringify(l.rngState);
+      benchWeek(l, ctx, clock);
+      expect(JSON.stringify(l.rngState)).toBe(before);
+      l.moraleAt = clock;
+      l.week++;
+    }
+    expect(questionOf(team, q[0].id)).toBeDefined();
+  });
+
+  it('pauses while either man is hurt: nobody unsure, no start counted', () => {
+    const { l, team, q } = setup('bench-pause');
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    expect(team.jobs!.runs![q[1].id]).toBe(1);
+    // The holder hurt: the other man's start counts for nothing.
+    q[0].injury = hurt(l);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)!.paused).toBe(true);
+    expect(team.jobs!.runs![q[1].id]).toBe(1);
+    delete q[0].injury;
+    // The other man hurt and a third man starting: the holder sat, but isn't unsure, and the run waits.
+    q[1].injury = hurt(l);
+    order(team, [q[2].id, q[0].id, q[1].id]);
+    moodWeek(l);
+    expect(questionOf(team, q[0].id)!.paused).toBe(true);
+    expect(unsure(q[0])).toBe(0);
+    expect(team.jobs!.runs![q[1].id]).toBe(1);
+  });
+
+  it('a bye and a club whose season is over do nothing', () => {
+    const { l, team, q } = setup('bench-idle');
+    order(team, [q[1].id, q[0].id]);
+    moodWeek(l);
+    const was = JSON.stringify(team.jobs);
+    const bye = Array.from({ length: 17 }, (_, i) => i + 2).find(
+      (w) =>
+        !l.games.some((g) => g.season === l.season && g.week === w && (g.homeId === team.id || g.awayId === team.id)),
+    )!;
+    l.week = bye;
+    l.moraleAt = moraleClock(l);
+    moodWeek(l);
+    expect(JSON.stringify(team.jobs)).toBe(was);
+    expect(unsure(q[0])).toBe(0);
+    // The playoffs without them: no game, nothing counts.
+    l.phase = 'playoffs';
+    l.week = 19;
+    moodWeek(l);
+    expect(JSON.stringify(team.jobs)).toBe(was);
+    expect(unsure(q[0])).toBe(0);
+  });
+
+  it("a benched ask is never answered by the losing's answers", () => {
+    const { l, team, q } = setup('bench-losing');
+    order(team, [q[1].id, q[0].id]);
+    const asked = moodWeek(l);
+    expect(answerRoomTalk(l, 'team', 'firm')).toBe(0);
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at: asked });
+    team.losingAnswer = { team: { reply: 'firm', at: asked } };
+    moodWeek(l);
+    expect(q[0].morale!.talk!.ask).toEqual({ cause: 'benched', at: asked });
   });
 });
