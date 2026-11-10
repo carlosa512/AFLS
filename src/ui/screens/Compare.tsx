@@ -33,8 +33,7 @@ export function Compare({ league }: { league: League }) {
     return (
       <Panel title="Compare players">
         <p className="muted" style={{ margin: 0 }}>
-          Open any player and choose <b>Compare</b> to line up to three players side by side: ratings, stars, potential
-          and combine numbers, with the best in each row highlighted.
+          Choose <b>Compare</b> on a player to start.
         </p>
       </Panel>
     );
