@@ -140,9 +140,6 @@ export function LockerRoom({ league }: { league: League }) {
       <h1>Locker Room</h1>
       <p className="muted">The way our coaches see it.</p>
       <Section id="locker-morale" title="Morale">
-        <p className="muted small">
-          A player's mood moves how he practices, grows and plays, and what he asks for in a new deal.
-        </p>
         {roomStep === undefined ? (
           <p className="muted">Nobody on the roster yet.</p>
         ) : (
@@ -352,7 +349,7 @@ export function LockerRoom({ league }: { league: League }) {
         )}
         {meetings?.address && (
           <div className="meeting-banner">
-            <span>Things have gone far enough that you can talk to the team yourself, once this season.</span>
+            <span>Address the team (once a season).</span>
             <div>
               <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => void requestAddress(l))}>
                 Address the team

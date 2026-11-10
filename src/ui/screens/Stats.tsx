@@ -304,7 +304,7 @@ function Awards({ league }: { league: League }) {
     return (
       <Panel title="Awards">
         <p className="muted" style={{ margin: 0 }}>
-          Players of the week are named after each week of the regular season, the season's awards when it ends.
+          No awards yet.
         </p>
       </Panel>
     );
@@ -335,10 +335,6 @@ function Awards({ league }: { league: League }) {
           ))}
         </select>
       </div>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Voted on the numbers and the standings, the way the press votes: players of the week and month as the season
-        goes, the season's awards when the regular season ends. Teams are where each player played at the time.
-      </p>
       {awards ? (
         <div className="grid-2">
           <Panel title={<h3>Season awards</h3>}>
@@ -721,11 +717,10 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Regular season. Click a column to sort.
+        Regular season.
         {tableRates.length
           ? ` Averages and percentages rank qualified players first: ${tableRates.map((r) => minimumText(RATES[r], scope)).join(', ')}.`
-          : ''}{' '}
-        Team is each player's current team.
+          : ''}
       </p>
       <div className="table-scroll">
         <table>

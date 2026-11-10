@@ -72,7 +72,7 @@ export function GmJobs({ league }: { league: League }) {
               This is you, GM of <TeamLink team={league.teams[user.teamId]} full />.
             </>
           ) : (
-            <>This is you. Your career continues in this league.</>
+            <>This is you.</>
           )}
         </span>
       </div>
@@ -104,10 +104,6 @@ export function GmJobs({ league }: { league: League }) {
       )}
       {active && !extension && (user.teamId === null || user.appointments.at(-1)?.interim) && (
         <>
-          <p>
-            Review the owner's terms before accepting. You can keep an offer while considering other openings during the
-            staffing window.
-          </p>
           <ul className="gm-job-offers">
             {search.offers.map((o) => {
               const terms = gmOfferTerms(league, o);
@@ -148,11 +144,7 @@ export function GmJobs({ league }: { league: League }) {
           </div>
         </>
       )}
-      {!active && !employed(league) && (
-        <p className="muted">
-          Watch games or simulate this season. The next staffing window brings another chance to return.
-        </p>
-      )}
+      {!active && !employed(league) && <p className="muted">Next chance: the next staffing window.</p>}
     </Panel>
   );
 }
@@ -164,14 +156,8 @@ export function SpectatorHome({ league }: { league: League }) {
     <div className="stack">
       <GmJobs league={league} />
       <Panel title="Watch the league">
-        <p>
-          Your former team is managed by its new GM. Advance the week to simulate, or watch any scheduled game below.
-        </p>
-        {!games.length && (
-          <p className="muted">
-            Live games are available during the season. Continue the calendar to follow the league.
-          </p>
-        )}
+        <p>Your former team is managed by its new GM.</p>
+        {!games.length && <p className="muted">Live games start with the season.</p>}
         <ul className="gm-job-offers">
           {games.map((g) => (
             <li key={g.id}>
@@ -196,7 +182,7 @@ export function SpectatorHome({ league }: { league: League }) {
 export function PublicRoster({ league, teamId }: { league: League; teamId: number }) {
   return (
     <Panel title={`${league.teams[teamId].city} ${league.teams[teamId].name}`}>
-      <p className="muted">Public roster. Organization reports and roster controls require a GM appointment.</p>
+      <p className="muted">Public roster.</p>
       <ul className="gm-public-roster">
         {teamPlayers(league, teamId).map((p) => (
           <li key={p.id}>

@@ -126,7 +126,6 @@ export function Waivers({ league }: { league: League }) {
             <p>
               <b>{waiverDecision(league)}</b>
             </p>
-            <p className="small muted">Every open claim is decided together, by waiver priority.</p>
           </div>
         )}
         {!rows.length ? (
@@ -276,14 +275,8 @@ export function Waivers({ league }: { league: League }) {
             His current contract stays in place.
           </p>
           <RosterMovePicker league={league} teamId={teamId} value={move} onChange={setMove} />
-          <p className="small muted">
-            {move
-              ? 'The selected roster move happens only if you win. If you lose, you keep your player.'
-              : 'Keep everyone if there is room for the new player.'}
-          </p>
-          <p className="small muted">
-            {waiverDecision(league)}. “Save claim” files your plan; it does not advance time.
-          </p>
+          {!move && <p className="small muted">Keep everyone if there is room for the new player.</p>}
+          <p className="small muted">{waiverDecision(league)}.</p>
           {planProblem && (
             <p className="callout callout-bad" role="status">
               {planProblem}

@@ -160,6 +160,7 @@ import { MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
 import { wireClaim } from '../engine/waiverMail';
+import { movesClosed, reSigns } from './staffCopy';
 
 /** How many rows a list in a card shows before "See all". */
 const SHOW = 3;
@@ -555,7 +556,7 @@ function LeagueNewsCards({ league, report }: { league: League; report: NonNullab
           </table>
         </div>
         <p className="small muted" style={{ margin: '8px 0 0' }}>
-          Official order includes tiebreakers. Back is the gap in games.
+          Back = games behind.
         </p>
       </Card>
     );
@@ -660,10 +661,6 @@ function RookieImpactCards({ league, report }: { league: League; report: NonNull
           </tbody>
         </table>
       </div>
-      <p className="small muted" style={{ margin: '8px 0 0' }}>
-        Work for {league.teams[report.teamId].name} only. Snaps count scrimmage downs; kicking work is listed
-        separately.
-      </p>
     </Card>
   );
 }
@@ -1673,8 +1670,7 @@ function DraftClassCards({ league, s }: { league: League; s: Extract<MailSubject
           </table>
         </div>
         <p className="muted small" style={{ margin: '8px 0 0' }}>
-          Value compares your pick with where the consensus ranked him: a round of the board later is a steal, a round
-          earlier a reach.
+          Value: vs consensus.
         </p>
       </Card>
       {trades.length > 0 ? (
@@ -1919,11 +1915,7 @@ function ClearedCards({
       )}
       {canSit && (
         <Card className="mail-fact-card">
-          <span className="small">
-            {sitting
-              ? 'He sits this week’s game and is back the week after.'
-              : 'Sitting him this week spends the first of his two riskiest weeks on the sideline.'}
-          </span>
+          {sitting && <span className="small">He sits this week’s game and is back the week after.</span>}
           <button
             className="btn btn-sm"
             onClick={() => store.mutate((l) => sitAfterClear(l, l.players[p.id], !sitting))}
@@ -1952,7 +1944,7 @@ function DeadlineCards({
     return (
       <>
         <p className="muted small" style={{ margin: 0 }}>
-          The trade deadline has passed: rosters are set until the new league year.
+          Trade deadline has passed.
         </p>
         {day}
       </>
@@ -2313,7 +2305,7 @@ const OUTLOOK: Record<ResignOutlook, { label: string; tone: string; tip: string 
   stays: {
     label: 'Re-signs',
     tone: 'tag-good',
-    tip: 'Re-signs for 2 years at the ask when free agency opens, unless you let them go.',
+    tip: reSigns(null, 'them'),
   },
   budget: {
     label: 'Leaves: budget',
@@ -2729,7 +2721,7 @@ function PoachedCards({
             is our {title} now.
           </>
         ) : (
-          'Coaching moves are closed until the next re-sign window.'
+          movesClosed('Coaching')
         )}
       </p>
     );

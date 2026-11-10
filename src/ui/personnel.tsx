@@ -213,10 +213,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
           <b>{money(calls.reduce((sum, e) => sum + e.additionalCap, 0))}</b>
         </span>
       </div>
-      <p className="small muted">
-        Dress 47 players, or 48 with eight offensive linemen. Call-ups keep their squad place and return automatically.
-        Your choices lock 90 minutes before kickoff. Staff replaces a saved list if player availability changes.
-      </p>
+      <p className="small muted">Dress 47 (48 with eight OL). Locks 90 minutes before kickoff.</p>
       {elevationRecords(league)
         .filter(
           (e) =>
@@ -468,10 +465,6 @@ export function SquadSignings({ league }: { league: League }) {
     .reverse();
   return (
     <Panel title="Squad signings">
-      <p className="small muted">
-        Any club can sign another club's practice squad player to its 53, except the two each club protects this week
-        and a club it plays this week. Offers are decided before the week's first kickoff.
-      </p>
       {mine.map((o) => (
         <p key={o.playerId}>
           Your offer: <PlayerLink league={league} player={league.players[o.playerId]} /> · {o.years}{' '}

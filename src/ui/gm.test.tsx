@@ -101,7 +101,7 @@ describe('GM cards and directory', () => {
     ]) {
       expect(html).toContain('Owner mandate');
       expect(html).toContain('Give this program another year.');
-      expect(html).toContain('Already under contract');
+      expect(html).toContain('Under contract through');
     }
     const html = renderToStaticMarkup(<CoachesScreen league={l} />);
     expect(html).toMatch(new RegExp(`aria-label="Dismiss[^\"]*${coach.firstName} ${coach.lastName}" disabled=""`));

@@ -173,6 +173,7 @@ import {
 } from '../coaching';
 import { band, money, ordinal, PHASE_LABELS } from '../format';
 import { rosterFit, StaffNum, StaffSkill } from '../scouting';
+import { leavesOverBudget, movesClosed, reSigns } from '../staffCopy';
 import { store } from '../store';
 import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 
@@ -260,16 +261,16 @@ function Rates({ c }: { c: Pick<Coach, 'youth' | 'veterans'> }) {
 /** What each play-calling or defensive style tag means on the field. */
 const STYLE_TIP: Record<string, string> = {
   'Pass-first': 'Calls more passes than the down and distance call for.',
-  'Balanced play-calling': 'Balances run and pass calls around the down, distance and game situation.',
-  'Balanced on 4th down': 'Weighs fourth-down attempts, punts and field goals around the game situation.',
-  'Balanced defense': 'Varies defensive calls with the situation, without a strong overall lean.',
+  'Balanced play-calling': 'Balances run and pass calls.',
+  'Balanced on 4th down': 'Weighs fourth-down attempts, punts and field goals.',
+  'Balanced defense': 'Varies defensive calls.',
   'Run-first': 'Calls more runs than the down and distance call for.',
   'Aggressive on 4th down': 'Goes for it on fourth down more often than most head coaches.',
   'Conservative on 4th down': 'Punts and kicks on fourth down more often than most head coaches.',
   'Blitz-happy': 'Sends extra rushers far more often than most defenses.',
   'Rushes four': 'Rarely blitzes: rushes four and drops seven into coverage.',
-  'Press man': 'Man-to-man coverage: the matchups decide more, and defenders play with their backs to the ball.',
-  'Two-high shell': 'Two safeties deep: harder to beat over the top, one fewer defender near the line against the run.',
+  'Press man': 'Man coverage.',
+  'Two-high shell': 'Two-high safeties.',
   'Stops the run first': 'Built to stop the run, giving a little up against the pass.',
   'Built for the pass': 'Built to stop the pass, giving a little up against the run.',
 };
@@ -502,13 +503,16 @@ function OwnerDialog({
 /** Who does what, for the chairs a list shows: one line each, true to what the engine has them do. */
 function RoleGuide({ roles }: { roles: CoachRole[] }) {
   return (
-    <ul className="muted small role-guide">
-      {roles.map((r) => (
-        <li key={r}>
-          <b>{COACH_ROLE_LABEL[r]}:</b> {ROLE_LINE[r].charAt(0).toLowerCase() + ROLE_LINE[r].slice(1)}
-        </li>
-      ))}
-    </ul>
+    <details className="more">
+      <summary>What each coach does</summary>
+      <ul className="muted small role-guide">
+        {roles.map((r) => (
+          <li key={r}>
+            <b>{COACH_ROLE_LABEL[r]}:</b> {ROLE_LINE[r].charAt(0).toLowerCase() + ROLE_LINE[r].slice(1)}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -1039,14 +1043,14 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         <>
           <p className="small staff-note">
             {outlook === 'budget' ? (
-              `Deal up: he leaves when free agency opens. Your coaching budget can't cover his ask of ${money(ask2)} a year for 2 years.`
+              `Deal up: ${leavesOverBudget('coaching', 'he', 'his', money(ask2))}`
             ) : outlook === 'chair' ? (
               <>
                 Deal up: he leaves when free agency opens. {taker ? <CoachLink c={taker} /> : 'Someone else'} now holds
                 the {coachTitle(c).toLowerCase()} chair.
               </>
             ) : (
-              `Deal up: re-signs for 2 years at ${money(ask2)} a year when free agency opens unless you let him go.`
+              `Deal up: ${reSigns(money(ask2), 'him')}`
             )}
           </p>
           <div className="staff-actions">
@@ -1157,9 +1161,7 @@ function Member({ league, c, open, outlook }: { league: League; c: Coach; open: 
         <FitLine league={league} c={asPromoted(league, c, up)} hc={yourHeadCoach(league)} whose="your" promoted />
       )}
       {(extendOver > 0 || promoOver > 0) && (
-        <p className="small muted staff-why">
-          {extendOver > 0 ? 'Extending him' : 'Promoting him'} goes past your coaching budget: the owner decides.
-        </p>
+        <p className="small muted staff-why">{money(extendOver > 0 ? extendOver : promoOver)} over budget.</p>
       )}
       {!theirs && open && up && !aboveHeld && promoProblem && (
         <p className="small muted staff-why">
@@ -1438,9 +1440,6 @@ function RoomRow({
             </table>
           </div>
           <p className="muted small room-detail-note">
-            {room === null
-              ? 'The special teams coordinator coaches the kickers and punters, with the head coach and the S&C coach beside him.'
-              : 'A position coach counts most for his room, a coordinator for his side of the ball, the head coach a little for everyone, and the S&C coach most for the body.'}{' '}
             {count.young} of these players {count.young === 1 ? 'is' : 'are'} under {YOUNG_UNDER} (growth) and{' '}
             {count.old} {count.old === 1 ? 'is' : 'are'} {PAST_PRIME_WORDS} (decline). The exact figures, against a
             typical staff, rounded.
@@ -1492,7 +1491,7 @@ function PoachOffer({ league, c }: { league: League; c: Coach }) {
       ) : (
         <p className="small muted staff-why">
           A promotion: {from} can’t block it, and no severance is owed.
-          {over > 0 && ' It goes past your coaching budget: the owner decides.'}
+          {over > 0 && ` ${money(over)} over budget.`}
         </p>
       )}
       {ask && (
@@ -1626,7 +1625,7 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
         <p className="small staff-why muted">
           {/* The ratings box wraps as a unit, so no bracket is left dangling at the end of a line. */}
           Replaces <CoachLink c={holder} /> — <Rates c={holder} />.{' '}
-          {sev > 0 ? `${money(sev)} severance books against this year’s coaching budget.` : 'No severance.'}
+          {sev > 0 ? `${money(sev)} severance.` : 'No severance.'}
         </p>
       )}
       {pushed.length > 0 && (
@@ -1688,11 +1687,7 @@ function Candidate({ league, c, open }: { league: League; c: Coach; open: boolea
           </button>
         )}
       </div>
-      {over > 0 && (
-        <p className="small muted staff-why">
-          Hiring him goes {money(over)} past your coaching budget: the owner decides.
-        </p>
-      )}
+      {over > 0 && <p className="small muted staff-why">{money(over)} over budget.</p>}
       {open && problem && (
         <p className="small muted staff-why">
           <CoachNote league={league} text={problem} />
@@ -1730,10 +1725,7 @@ export function OwnerMandates({ league, teamId, coachId }: { league: League; tea
             <CoachLink c={coach} /> stays as {coachTitle(coach).toLowerCase()} through <b>{mandate.through}</b>.
           </p>
           <p className="small">{mandate.reason}</p>
-          <p className="small muted">
-            Already under contract. Salary counts toward the coaching budget. This chair stays filled for the promised
-            period.
-          </p>
+          <p className="small muted">Under contract through {mandate.through}.</p>
         </div>
       ))}
     </div>
@@ -1745,13 +1737,12 @@ function OwnerLine({ league }: { league: League }) {
   const head = ownerLeeway(league, teamId, { role: 'headCoach' });
   const coord = ownerLeeway(league, teamId, { role: 'offCoord' });
   const spend = ownerBudgetNote(league.teams[teamId].staffBudgetMult);
-  const chairs = coord.amount > 0 ? 'a head coach or an offensive or defensive coordinator' : 'a new head coach';
   return (
     <>
       <p className="muted small staff-lede">
         <b>Owner:</b> {spend === 'Big-spending owner' ? 'a big spender. ' : spend ? 'on a tight budget. ' : ''}
         {head.amount > 0
-          ? `He’ll add up to ${money(Math.max(head.amount, coord.amount))} past the budget this year for ${chairs} (${head.why}).`
+          ? `He’ll go ${money(Math.max(head.amount, coord.amount))} past budget.`
           : `He won’t go past the budget this year: ${head.why}.`}
       </p>
       <OwnerMandates league={league} teamId={teamId} />
@@ -1954,10 +1945,6 @@ export function CoachesScreen({ league }: { league: League }) {
     .sort((a, b) => b.score - a.score || b.value - a.value);
   const candidates = sort === 'roster' ? ranked : [...ranked].sort((a, b) => b.value - a.value);
   const shown = showAll ? candidates : candidates.slice(0, LIMIT);
-  const totals = ALL_ROOMS.reduce(
-    (s, r) => ({ young: s.young + (counts.get(r)?.young ?? 0), old: s.old + (counts.get(r)?.old ?? 0) }),
-    { young: 0, old: 0 },
-  );
 
   // ── your coaches, in groups ──
   const leavers = mine.filter((c) => isCoachExpiring(league, c) && forecast.get(c.id) !== 'stays');
@@ -1982,7 +1969,7 @@ export function CoachesScreen({ league }: { league: League }) {
         </p>
         {!open && (
           <div className="notice">
-            Coaching moves open in the re-sign window and free agency.
+            {movesClosed('Coaching')}
             {league.phase === 'preseason' || league.phase === 'regular'
               ? ' From camp through the regular season you can relieve a coordinator.'
               : ''}
@@ -2022,13 +2009,6 @@ export function CoachesScreen({ league }: { league: League }) {
           >
             <i style={{ width: `${pct}%` }} />
           </div>
-          <p className="muted small staff-lede">
-            Coaches are paid from their own budget, not the cap
-            {dead > 0 ? ` (${money(dead)} of this year's is severance)` : ''}. <b>Youth development</b> speeds up
-            players under {YOUNG_UNDER}; <b>Veteran care</b> slows the decline of players past their prime. A coach
-            rated {TYPICAL} is typical and changes nothing. Development runs once a year, so a new hire takes effect at
-            next year&rsquo;s.
-          </p>
           <OwnerLine league={league} />
           {step && (
             <div className="callout staff-next">
@@ -2044,9 +2024,7 @@ export function CoachesScreen({ league }: { league: League }) {
 
         <Panel title="Who coaches your players">
           <p className="muted small" style={{ marginTop: 0 }}>
-            Against a typical staff, once the re-sign window closes. <b>Young players</b>: how fast your players under{' '}
-            {YOUNG_UNDER} develop. <b>Veterans</b>: how well your players past their prime hold up. Tap a room to see
-            who counts, with the exact figures.
+            Tap a room for detail.
           </p>
           <ul className="room-list">
             {ALL_ROOMS.map((r) => (
@@ -2195,10 +2173,7 @@ export function CoachesScreen({ league }: { league: League }) {
                 </button>
               </div>
               {(tab === 'head' || tab === 'coord') && (
-                <label
-                  className="small cover-switch"
-                  title="Coaches on other staffs, for the chair one rung above theirs: a position coach as your coordinator, a coordinator as your head coach. Only in the re-sign window and free agency."
-                >
+                <label className="small cover-switch" title="Promote from within: other staffs' coaches, one rung up.">
                   <input
                     type="checkbox"
                     checked={otherStaffs}
@@ -2212,9 +2187,7 @@ export function CoachesScreen({ league }: { league: League }) {
               )}
             </div>
             <p className="muted small" style={{ marginTop: 0 }}>
-              {sort === 'roster'
-                ? `Ranked by what each hire would do for the players you have: faster growth for your ${totals.young} under ${YOUNG_UNDER}, slower decline for your ${totals.old} ${PAST_PRIME_WORDS}. It takes effect at next year’s development. Tap a name to see what he would do.`
-                : 'Ranked by overall quality in the job: youth development and veteran care, weighted for what the job leans on.'}
+              {sort === 'roster' ? 'Best first, by effect on your roster.' : 'Best first.'}
             </p>
             <RoleGuide roles={ROLES_OF[tab]} />
             {candidates.length === 0 ? (
@@ -2282,9 +2255,7 @@ function PositionWork({ league }: { league: League }) {
       }
     >
       <p className="muted small" style={{ marginTop: 0 }}>
-        Teaching a player a new position takes the spring program, camp and practice weeks; he keeps playing his own
-        until he&rsquo;s ready, and moves on cut-down day. Up to {MAX_LEARNERS} at a time. Start one from a
-        player&rsquo;s card.
+        Up to {MAX_LEARNERS} at a time. Start one from a player&rsquo;s card.
       </p>
       {now.length > 0 ? (
         <ul className="move-list">

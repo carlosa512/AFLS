@@ -77,10 +77,6 @@ export function Compare({ league }: { league: League }) {
         </button>
       }
     >
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Your staff's view: exact for your own players, scouted ranges for everyone else. The best value in each row is
-        shaded. Stars are measured against every player at that position in the league.
-      </p>
       <div className="table-scroll">
         <table className="compare-table">
           <thead>
