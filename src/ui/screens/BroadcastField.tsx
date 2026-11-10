@@ -7,8 +7,9 @@ import { useEffect, useRef } from 'react';
 import type { PlayLogEntry, Team } from '../../engine/types';
 import { buildPath, FIELD_W, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { endsSwitched } from '../stage/ends';
-import { FieldGround, FieldPosts } from './BroadcastPaint';
-import { FAR, project, VIEW_H, VIEW_W } from './broadcastView';
+import type { Weather } from '../../engine/weather';
+import { FieldGround, FieldPosts, Stadium, WeatherFall } from './BroadcastPaint';
+import { project, VIEW_H, VIEW_W } from './broadcastView';
 
 export { project } from './broadcastView';
 
@@ -52,10 +53,14 @@ interface FieldMemory {
 }
 
 // ───────── field ─────────
+/** A mild, dry afternoon: what is drawn when a caller has no weather to give. */
+const FAIR: Weather = { roof: 'outdoors', tempF: 60, windMph: 5, precip: 'none' };
+
 export function Field({
   home,
   away,
   neutral,
+  weather = FAIR,
   entry,
   restX,
   animKey,
@@ -67,6 +72,8 @@ export function Field({
   away: Team;
   /** A neutral site: each team has an end zone (`endZones`). */
   neutral?: boolean;
+  /** The conditions in the quarter on screen (`weatherAt`): the sky, what is falling, the wind in the flags. */
+  weather?: Weather;
   entry: PlayLogEntry | undefined;
   restX: number;
   animKey: string;
@@ -242,15 +249,9 @@ export function Field({
       role="img"
       aria-label="Field view of the current play"
     >
-      <defs>
-        <pattern id="crowd" width="9" height="7" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.16)" />
-          <circle cx="6.5" cy="5" r="1.5" fill="rgba(255,255,255,0.09)" />
-        </pattern>
-      </defs>
       <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
-      <rect y="6" width={VIEW_W} height={FAR.y - 16} fill="url(#crowd)" />
-      <FieldGround home={home} away={away} neutral={neutral} />
+      <Stadium home={home} away={away} neutral={neutral} weather={weather} />
+      <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
       <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
       <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
       <path
@@ -266,6 +267,7 @@ export function Field({
       <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
       <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
       <FieldPosts />
+      <WeatherFall weather={weather} />
     </svg>
   );
 }

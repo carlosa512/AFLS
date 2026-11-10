@@ -22,6 +22,7 @@ import {
   ViewSwitch,
 } from './GameViewer';
 import { Field, restingSpot } from './BroadcastField';
+import { gameWeather, weatherAt } from '../../engine/weather';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
@@ -113,6 +114,8 @@ export function LiveGame({ league }: { league: League }) {
     <Field
       home={home}
       away={away}
+      neutral={game.neutral}
+      weather={weatherAt(gameWeather(league, game), entry.quarter)}
       entry={entry}
       restX={restingSpot(s.plays, s.current, home.id)}
       animKey={`live:${s.gameId}:${s.current}`}

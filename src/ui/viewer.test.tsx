@@ -12,6 +12,8 @@ import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
 import { surfaceFor } from './screens/FieldPaint';
+import { skyOf } from './screens/BroadcastPaint';
+import { weatherAt, type Weather } from '../engine/weather';
 import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
@@ -818,5 +820,85 @@ describe('the painted broadcast field', () => {
     // The ball and the lines are placed as the play runs; everything in the markup is the stadium, which never moves.
     expect(field({ quarter: 2 })).toBe(field({ quarter: 1 }));
     expect(field()).toContain('class="ground"');
+  });
+});
+
+describe('the stadium and the weather', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const dry: Weather = { roof: 'outdoors', tempF: 60, windMph: 6, precip: 'none' };
+  const field = (weather: Weather, quarter = 1) =>
+    render(
+      <Field
+        home={home}
+        away={away}
+        weather={weatherAt(weather, quarter)}
+        entry={{ ...plays[5], quarter }}
+        restX={50}
+        animKey="t"
+        speed={1}
+        onDone={() => {}}
+      />,
+    );
+
+  it('reads the sky off the weather', () => {
+    expect(skyOf(dry)).toBe('day');
+    expect(skyOf({ ...dry, night: true })).toBe('night');
+    expect(skyOf({ ...dry, precip: 'rain' })).toBe('overcast');
+    expect(skyOf({ ...dry, precip: 'snow', night: true })).toBe('overcast');
+    expect(skyOf({ ...dry, roof: 'dome', night: true })).toBe('roof');
+    expect(skyOf({ ...dry, roof: 'closed' })).toBe('roof');
+  });
+
+  it('builds a stand with a crowd behind the far sideline, in place of the dots', () => {
+    const html = field(dry);
+    expect(html).toContain('class="stadium sky-day"');
+    expect(html.match(/class="fan"/g)!.length).toBeGreaterThan(500);
+    expect(html).not.toContain('url(#crowd)');
+  });
+
+  it('turns the lights on at night, and never under a roof', () => {
+    expect(field({ ...dry, night: true })).toContain('class="lights"');
+    expect(field(dry)).not.toContain('class="lights"');
+    expect(field({ ...dry, roof: 'dome', night: true })).not.toContain('class="lights"');
+  });
+
+  it('lets rain and snow fall outdoors only, twice as hard when heavy', () => {
+    const drops = (html: string) => html.match(/class="drop"/g)?.length ?? 0;
+    const flakes = (html: string) => html.match(/class="flake"/g)?.length ?? 0;
+    const rain = field({ ...dry, precip: 'rain' });
+    expect(drops(rain)).toBeGreaterThan(0);
+    expect(flakes(rain)).toBe(0);
+    expect(drops(field({ ...dry, precip: 'rain', heavy: true }))).toBe(drops(rain) * 2);
+    const snow = field({ ...dry, precip: 'snow' });
+    expect(flakes(snow)).toBeGreaterThan(0);
+    expect(drops(snow)).toBe(0);
+    const mixed = field({ ...dry, precip: 'mixed' });
+    expect(drops(mixed)).toBeGreaterThan(0);
+    expect(flakes(mixed)).toBeGreaterThan(0);
+    const dome = field({ ...dry, roof: 'dome', precip: 'rain' });
+    expect(drops(dome) + flakes(dome)).toBe(0);
+  });
+
+  it('keeps the field dry until the rain starts', () => {
+    const late: Weather = { ...dry, precip: 'rain', onset: 3 };
+    expect(field(late, 2)).not.toContain('class="drop"');
+    expect(field(late, 3)).toContain('class="drop"');
+  });
+
+  it('flies flags that lean with the wind, and hang still indoors', () => {
+    const lean = (html: string) => Number(/class="flags" data-lean="([\d.]+)"/.exec(html)![1]);
+    expect(lean(field({ ...dry, windMph: 22 }))).toBeGreaterThan(lean(field({ ...dry, windMph: 4 })));
+    expect(lean(field({ ...dry, roof: 'dome', windMph: 22 }))).toBe(0);
+  });
+
+  it('draws the same crowd every time', () => {
+    expect(field(dry)).toBe(field(dry));
+  });
+
+  it('stops the rain and the snow for a viewer who asks for less motion', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/g;
+    expect([...css.matchAll(reduced)].some((m) => /\.drop/.test(m[0]) && /\.flake/.test(m[0]))).toBe(true);
   });
 });

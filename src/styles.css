@@ -1697,6 +1697,40 @@ select {
   color: #fff;
 }
 
+/* ───────── the broadcast field's weather: rain falls, snow drifts, unless the viewer asks for less motion ───────── */
+@keyframes bf-fall {
+  from {
+    transform: translate(14px, -60px);
+  }
+  to {
+    transform: translate(-14px, 200px);
+  }
+}
+@keyframes bf-drift {
+  from {
+    transform: translate(6px, -30px);
+  }
+  to {
+    transform: translate(-10px, 200px);
+  }
+}
+.drop {
+  stroke: rgba(200, 220, 255, 0.5);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  animation: bf-fall linear infinite;
+}
+.flake {
+  fill: rgba(255, 255, 255, 0.9);
+  animation: bf-drift linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop,
+  .flake {
+    animation: none;
+  }
+}
+
 /* ───────── the game's stage: the viewer, a panel each side when the window has room, tabs under it when not ───────── */
 /* This screen alone may run wider than the page, so the panels never cost the field its width. */
 main.wrap:has(.game-stage) {
