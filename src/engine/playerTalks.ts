@@ -19,6 +19,7 @@ import {
   type MoraleFactors,
 } from './morale';
 import { teamPlayers } from './roster';
+import { tierOf, weightOf } from './standing';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { closeStory, talkBeat } from './stories';
 import { temperamentOf, TRAIT_MEAN } from './traits';
@@ -36,6 +37,20 @@ export const WAIT = 2;
 export const waitFor = (league: League, p: Player) => (p.teamId === yourClub(league) ? WAIT + 1 : WAIT);
 /** A room's losing comes to you once in this many steps: a man of it asking sooner is answered as you last answered the room. */
 export const LOSING_GAP = 4;
+/** A losing run this long and any man may bring it to you; short of it, only the men the room follows do. */
+export const BOILING = 4;
+
+/**
+ * The losing reaches your desk only when it is boiling over: from a leader, a voice or a captain, or from anyone once the
+ * club has lost `BOILING` straight. The rest of it stays with the coaches (the rooms' notes tell it). Your club only: an
+ * AI GM's answers stay as they were, so the league's moods don't move.
+ */
+export function losingReachesYou(league: League, p: Player, ctx: MoraleContext): boolean {
+  if (p.teamId === null) return false;
+  const streak = ctx.records.get(p.teamId)?.streak ?? '';
+  if (streak[0] === 'L' && Number(streak.slice(1)) >= BOILING) return true;
+  return tierOf(league, p, weightOf(league, p, ctx)) !== null;
+}
 
 export const CAUSE_OF: Record<string, TalkCause> = {
   'Wants more snaps': 'snaps',
@@ -198,15 +213,18 @@ function applyReply(
 /**
  * Your answer to his letter. Nothing happens (false) unless he's yours, his ask is still open, and a promise is for what
  * he asked (snaps or a deal). It lands at the clock of the last morale step, the one his letter came from or after.
+ * `lead` is the losing's "I need you to lead the room": a reassurance in what it does, its own words in the letter.
  */
-export function answerTalk(league: League, playerId: number, reply: TalkReply): boolean {
+export function answerTalk(league: League, playerId: number, reply: TalkReply, lead = false): boolean {
   const p = league.players[playerId];
   const ask = p?.morale?.talk?.ask;
   if (!p || p.teamId === null || p.teamId !== yourClub(league) || !ask) return false;
   // A benched ask has its own answers (`answerBench`, from its own row): the talks' three do not reach it.
   if (ask.cause === 'benched') return false;
   if (reply === 'promise' && !canPromise(ask.cause)) return false;
+  const losing = ask.cause === 'losing';
   applyReply(league, p, reply, league.moraleAt ?? ask.at, moraleContext(league), ask.cause);
+  if (lead && losing && reply === 'reassure' && p.morale?.talk?.answered) p.morale.talk.answered.lead = true;
   return true;
 }
 
@@ -220,12 +238,12 @@ export function roomAsks(league: League, _room: 'team' = 'team'): Player[] {
  * Your answer to a room's losing: every man of it with an open ask hears the same reply, and the room's answer is kept
  * so a man asking inside `LOSING_GAP` steps is answered as you did. How many men it answered.
  */
-export function answerRoomTalk(league: League, room: 'team', reply: 'reassure' | 'firm'): number {
+export function answerRoomTalk(league: League, room: 'team', reply: 'reassure' | 'firm', lead = false): number {
   const yours = yourClub(league);
   const men = roomAsks(league, room);
   const at = men[0]?.morale?.talk?.ask?.at;
   let answered = 0;
-  for (const p of men) if (answerTalk(league, p.id, reply)) answered++;
+  for (const p of men) if (answerTalk(league, p.id, reply, lead)) answered++;
   if (answered && yours !== null && at !== undefined)
     (league.teams[yours].losingAnswer ??= {})[room] = { reply, at: league.moraleAt ?? at };
   return answered;
@@ -282,12 +300,14 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
   for (const [teamId, all] of candidates) {
     // Your room told about the losing lately: a man of it who asks again is answered as you answered it, and files no ask.
     const had = teamId === yours ? league.teams[yours].losingAnswer : undefined;
-    const list = all.filter(({ p, cause }) => {
-      const last = cause === 'losing' ? had?.team : undefined;
-      if (!last || clock - last.at >= LOSING_GAP) return true;
-      applyReply(league, p, last.reply, clock, ctx, cause);
-      return false;
-    });
+    const list = all
+      .filter(({ p, cause }) => {
+        const last = cause === 'losing' ? had?.team : undefined;
+        if (!last || clock - last.at >= LOSING_GAP) return true;
+        applyReply(league, p, last.reply, clock, ctx, cause);
+        return false;
+      })
+      .filter(({ p, cause }) => teamId !== yours || cause !== 'losing' || losingReachesYou(league, p, ctx));
     list.sort((a, b) => a.level - b.level || a.p.id - b.p.id);
     // The benched asks filed this step (`benchWeek`, your club) come first.
     const filed = teamId === yours ? teamPlayersAsking(league, teamId, clock) : 0;

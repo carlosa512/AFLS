@@ -36,7 +36,7 @@ function span(entries: ChangelogEntry[]): string {
 
 /**
  * The version tag, shown on every screen; it opens the version history: one fold per line of versions (0.4, 0.3…),
- * the newest open with every update in it listed, the older ones a click away.
+ * the newest open; each update inside folds to its title, the newest of them open.
  */
 export function VersionTag({ className = 'app-version' }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -60,15 +60,18 @@ export function VersionTag({ className = 'app-version' }: { className?: string }
                     </span>
                   </summary>
                   <ul className="changelog-list">
-                    {l.entries.map((e) => (
+                    {l.entries.map((e, j) => (
                       <li key={e.version}>
-                        <div>
-                          <strong>{e.title}</strong>{' '}
-                          <span className="muted small">
-                            v{e.version} · {day(e.date)}
-                          </span>
-                        </div>
-                        <p>{e.text}</p>
+                        {/* Each update folds to its title; only the newest starts open. */}
+                        <details open={i === 0 && j === 0}>
+                          <summary tabIndex={0}>
+                            <strong>{e.title}</strong>{' '}
+                            <span className="muted small">
+                              v{e.version} · {day(e.date)}
+                            </span>
+                          </summary>
+                          <p>{e.text}</p>
+                        </details>
                       </li>
                     ))}
                   </ul>

@@ -662,11 +662,11 @@ function TalkCards({
   room?: 'team';
 }) {
   const card = talkCard(league, s);
-  const answer = (reply: TalkReply) =>
+  const answer = (reply: TalkReply, lead = false) =>
     store.mutate((l) =>
       room && (reply === 'reassure' || reply === 'firm')
-        ? answerRoomTalk(l, room, reply)
-        : answerTalk(l, s.playerId, reply),
+        ? answerRoomTalk(l, room, reply, lead)
+        : answerTalk(l, s.playerId, reply, lead),
     );
   if (card.state === 'closed')
     return (
@@ -697,12 +697,29 @@ function TalkCards({
             {card.cause === 'deal' ? 'Promise a new deal' : 'Promise more snaps'}
           </button>
         )}
-        <button className="btn btn-sm" onClick={() => answer('reassure')}>
-          Reassure him
-        </button>
-        <button className="btn btn-sm" onClick={() => answer('firm')}>
-          Be firm
-        </button>
+        {card.cause === 'losing' ? (
+          // The losing has its own three answers: what you are actually telling him.
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              We'll turn this around
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('reassure', true)}>
+              I need you to lead the room
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              That's on the coach and you
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              Reassure him
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              Be firm
+            </button>
+          </>
+        )}
         {/* About money: talk contract right here, when his deal is open to it. Opening talks isn't an answer. */}
         {card.cause === 'deal' && league.players[s.playerId] && (
           <TalkContractButton league={league} player={league.players[s.playerId]} />

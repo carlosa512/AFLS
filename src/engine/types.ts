@@ -574,6 +574,8 @@ export interface Talk {
     at: number;
     ask: number;
     cause?: TalkCause;
+    /** The losing answered by asking him to lead the room: `reply` is 'reassure', the words differ. */
+    lead?: true;
     /** A benched ask's own answer (`benching.ts`); `reply` holds the nearest of the three. */
     bench?: 'backIn' | 'thisWeek' | 'earn' | 'his' | 'yours' | 'compete';
   };
