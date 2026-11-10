@@ -13,6 +13,7 @@ import { PlayerLink, WeatherNote } from '../components';
 import {
   injuriesAt,
   linesAt,
+  lineWords,
   quartersAt,
   SHOWN_LINE,
   SHOWN_TEAM,
@@ -177,7 +178,6 @@ export function GamePanel({
 
 const n = (x: number | undefined) => x ?? 0;
 const has = (key: keyof RunningLine) => SHOWN_LINE.includes(key);
-const extra = (count: number, word: string) => (count ? ` · ${count} ${word}` : '');
 
 interface Category {
   label: string;
@@ -192,26 +192,19 @@ const CATEGORIES: readonly Category[] = [
     label: 'Passing',
     in: (l) => n(l.passAtt) > 0,
     rank: (l) => n(l.passYds) * 1000 + n(l.passAtt),
-    line: (l, short) =>
-      `${n(l.passCmp)}/${n(l.passAtt)} · ${n(l.passYds)}${short ? '' : ' yds'}${extra(n(l.passTd), 'TD')}${extra(n(l.passInt), 'INT')}`,
+    line: (l, short) => lineWords('passing', l, short),
   },
   {
     label: 'Rushing',
     in: (l) => n(l.rushAtt) > 0,
     rank: (l) => n(l.rushYds) * 1000 + n(l.rushAtt),
-    line: (l, short) =>
-      short
-        ? `${n(l.rushAtt)} · ${n(l.rushYds)}${extra(n(l.rushTd), 'TD')}`
-        : `${n(l.rushAtt)} car · ${n(l.rushYds)} yds${extra(n(l.rushTd), 'TD')}`,
+    line: (l, short) => lineWords('rushing', l, short),
   },
   {
     label: 'Receiving',
     in: (l) => n(l.rec) > 0,
     rank: (l) => n(l.recYds) * 1000 + n(l.rec),
-    line: (l, short) =>
-      short
-        ? `${n(l.rec)} · ${n(l.recYds)}${extra(n(l.recTd), 'TD')}`
-        : `${n(l.rec)} rec · ${n(l.recYds)} yds${extra(n(l.recTd), 'TD')}`,
+    line: (l, short) => lineWords('receiving', l, short),
   },
 ];
 /** Sacks and picks: a row among a team's lines, never a leader's category (most games have one or none). */

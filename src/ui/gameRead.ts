@@ -70,7 +70,7 @@ const offenseTd = (e: PlayLogEntry) => /TOUCHDOWN/.test(e.text) && !lostBall(e);
 
 const clampField = (x: number) => Math.min(100, Math.max(0, x));
 /** Yards the offense made: to where the ball came out on a lost fumble, never past a goal line. */
-function gainOf(e: PlayLogEntry, homeId: number): number {
+export function gainOf(e: PlayLogEntry, homeId: number): number {
   if (e.from === undefined || e.to === undefined) return 0;
   const f = fumbleIn(e);
   const end = f?.lost ? f.x : e.to;
@@ -519,4 +519,23 @@ export function driveAt(
   const d = drives[drives.length - 1];
   if (!d || index > d.last || !plays[index].down || plays[index].offense !== d.teamId) return undefined;
   return { teamId: d.teamId, from: d.teamId === homeId ? d.from : 100 - d.from, first: d.first };
+}
+
+// ───────── a line in words ─────────
+
+const n0 = (x: number | undefined) => x ?? 0;
+const also = (count: number, word: string) => (count ? ` · ${count} ${word}` : '');
+
+/**
+ * A player's line in words, one wording wherever it shows (the Players panel, the line after a big play, the half's
+ * leaders): long with its units ("5 rec · 56 yds") or short for a row under a heading ("5 · 56").
+ */
+export function lineWords(kind: 'passing' | 'rushing' | 'receiving', l: RunningLine, short = false): string {
+  if (kind === 'passing')
+    return `${n0(l.passCmp)}/${n0(l.passAtt)} · ${n0(l.passYds)}${short ? '' : ' yds'}${also(n0(l.passTd), 'TD')}${also(n0(l.passInt), 'INT')}`;
+  const [count, yards, td, unit] =
+    kind === 'rushing'
+      ? [n0(l.rushAtt), n0(l.rushYds), n0(l.rushTd), 'car']
+      : [n0(l.rec), n0(l.recYds), n0(l.recTd), 'rec'];
+  return short ? `${count} · ${yards}${also(td, 'TD')}` : `${count} ${unit} · ${yards} yds${also(td, 'TD')}`;
 }
