@@ -1,4 +1,5 @@
-import { seedMorale } from './morale';
+import { moraleClock, seedMorale } from './morale';
+import { STARTERS } from './positions';
 import { seedFoundingTrees } from './trees';
 import { teamRatings } from './roster';
 import { lockVerdicts } from './draftGrade';
@@ -37,7 +38,7 @@ import { PLAYOFF_ROUNDS } from './season/playoffs';
 import { addStats, statSeasons } from './stats';
 import { generateQuirks } from './quirks';
 import { generateTraits } from './traits';
-import type { Injury, League, StatLine, TradeMarket } from './types';
+import type { Injury, League, Position, StatLine, Team, TradeMarket } from './types';
 import { POSITIONS } from './types';
 import { initialPersonnelState, PERSONNEL_RULES } from './personnel/rules';
 import { ensureService } from './personnel/service';
@@ -373,7 +374,34 @@ export function migrateLeague(league: League): League | null {
   }
   // v92: storylines (`League.stories`). Optional, born with the first beat: nothing to rewrite.
   if (league.version < 92) league.version = 92;
+  // v93: the benching chain (`Team.jobs`, `Team.kickoff`, `Team.lineupSet`). A save in season starts its job-holders from
+  // the chart, a save from the preseason on has your lineup set so nobody is stopped at the door, an offseason save has
+  // no jobs (cut-down day sets them).
+  if (league.version < 93) {
+    toV93(league);
+    league.version = 93;
+  }
   return league;
+}
+
+/** v93: see `migrate`. A man in a chart's starting spot who has played three games holds the job; no questions open. */
+function toV93(league: League): void {
+  if (league.phase === 'regular' || league.phase === 'playoffs') {
+    const since = moraleClock(league);
+    for (const team of league.teams) {
+      const held: NonNullable<Team['jobs']>['held'] = {};
+      for (const pos of Object.keys(team.depthChart) as Position[]) {
+        for (const id of team.depthChart[pos].slice(0, STARTERS[pos])) {
+          const p = league.players[id];
+          if (p && p.teamId === team.id && !p.retired && (p.stats[league.season]?.gp ?? 0) >= 3)
+            held[id] = { pos, since };
+        }
+      }
+      team.jobs = { held };
+    }
+  } else if (league.phase === 'preseason') {
+    league.teams[league.userTeamId].lineupSet = league.season;
+  }
 }
 
 /** v91: talks lose `trust`; pending offers and cooldowns stay. */
