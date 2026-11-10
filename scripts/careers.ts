@@ -29,7 +29,7 @@ import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { LeagueRun } from './careers-league';
-import { LEADER_TARGETS, overRecordAllowed } from './leaders';
+import { LEADER_NORMAL, LEADER_TARGETS, overRecordAllowed } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
 // A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
 if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
@@ -441,7 +441,7 @@ const leaders = LEADER_TARGETS.map(({ label, first, fifth, ceiling }) => {
   return {
     label,
     over: tops.filter((t) => t[0] > ceiling).length,
-    text: `${label} ${check('#1', rank(0), f1, f2, digits)}, ${check('#5', rank(4), v1, v2, digits)}`,
+    text: `${label} ${check('#1', rank(0), f1, f2, digits, LEADER_NORMAL[label]?.first)}, ${check('#5', rank(4), v1, v2, digits, LEADER_NORMAL[label]?.fifth)}`,
   };
 });
 console.log(
