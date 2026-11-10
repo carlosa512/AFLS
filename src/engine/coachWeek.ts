@@ -150,7 +150,12 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   const askers = Object.values(league.players)
     .filter((p) => p.teamId === user && p.morale?.talk?.ask)
     .sort((a, b) => a.morale!.talk!.ask!.at - b.morale!.talk!.ask!.at || a.id - b.id);
-  const fresh = (p: Player) => !askTold(told, league.season, p.morale!.talk!.ask!.at, p.id);
+  // The losing's asks are told again when no letter in the inbox holds their row (it was archived or deleted): the GM
+  // always has somewhere to answer. A letter on file for this step holds one, so nothing is quoted twice in a step.
+  const stranded = newestLosingLetter(league) === undefined;
+  const fresh = (p: Player) =>
+    (stranded && p.morale!.talk!.ask!.cause === 'losing') ||
+    !askTold(told, league.season, p.morale!.talk!.ask!.at, p.id);
   const causeOfAsk = (p: Player) => p.morale!.talk!.ask!.cause;
   const askKey = (p: Player) => `talk:${league.season}:${p.morale!.talk!.ask!.at}:${p.id}`;
   // The losing is the club's: one row for the man asking with the most standing, the others named in a sentence, one answer.
@@ -560,7 +565,11 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
 /** The newest coach letter holding the losing's row: its buttons answer every open losing ask, and older rows only say what was said. */
 export function newestLosingLetter(league: League): string | undefined {
   const held = (league.inbox ?? []).filter(
-    (m) => m.id.startsWith('coach:') && m.sections?.some((sec) => sec.rows.some((r) => r.talkRoom)),
+    (m) =>
+      m.id.startsWith('coach:') &&
+      !m.archived &&
+      !m.deleted &&
+      m.sections?.some((sec) => sec.rows.some((r) => r.talkRoom)),
   );
   return held.at(-1)?.id;
 }

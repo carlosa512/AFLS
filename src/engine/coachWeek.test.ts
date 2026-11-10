@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { adviceKey, updateCoachAdvice } from './coachDecisions';
-import { coachWeekId, fitItems, MAX_ROWS, STALE, type WeekItem } from './coachWeek';
+import { coachWeekId, fitItems, newestLosingLetter, MAX_ROWS, STALE, type WeekItem } from './coachWeek';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
@@ -113,6 +113,42 @@ describe('the head coach’s weekly letter', () => {
     expect(needsYou(l, second)).toBe(true);
     expect(answerRoomTalk(l, 'team', 'reassure')).toBe(2);
     expect(needsYou(l, second)).toBe(false);
+  });
+
+  describe.each([['archived'], ['deleted']] as const)('a losing letter %s with asks open', (how) => {
+    function twoLetters() {
+      const l = inSeason();
+      const [a, b] = activeRoster(l, l.userTeamId).filter((p) => p.position === 'WR');
+      a.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+      deliverMail(l);
+      const first = letters(l)[0];
+      nextStep(l);
+      b.morale = { level: -4, talk: { club: l.userTeamId, ask: { cause: 'losing', at: l.moraleAt! } } };
+      deliverMail(l);
+      const second = letters(l).find((m) => m.id !== first.id)!;
+      return { l, first, second };
+    }
+    it('hands the buttons to an older letter in the inbox', () => {
+      const { l, first, second } = twoLetters();
+      second[how] = true;
+      expect(newestLosingLetter(l)).toBe(first.id);
+      expect(needsYou(l, first)).toBe(true);
+      expect(needsYou(l, second)).toBe(false);
+    });
+    it('is told again in the next step when no letter is left, and only once', () => {
+      const { l, first, second } = twoLetters();
+      first[how] = true;
+      second[how] = true;
+      expect(newestLosingLetter(l)).toBeUndefined();
+      nextStep(l);
+      deliverMail(l);
+      const fresh = letters(l).filter((m) => m !== first && m !== second);
+      expect(fresh).toHaveLength(1);
+      expect(rowsOf(fresh[0]).some((r) => r.talkRoom)).toBe(true);
+      expect(needsYou(l, fresh[0])).toBe(true);
+      deliverMail(l);
+      expect(letters(l).filter((m) => m !== first && m !== second)).toHaveLength(1);
+    });
   });
 
   it('files nothing in a quiet step', () => {
