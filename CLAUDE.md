@@ -251,12 +251,35 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
     letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`),
-    the director's daily waiver letter (`waiverMail.ts`), the weekly staff notes (`staffNotes.ts`), the re-sign window's contracts letter (`contractMail.ts`: our call on
+    the director's daily waiver letter (`waiverMail.ts`), the head coach's weekly letter (`coachWeek.ts`: one letter a
+    step or none, `coach:{season}:{clock}`, which replaces the separate player-talk, meeting-request, meeting-result
+    and staff-notes letters; its rows are people, each with a face and its own answer; `staffNotes.ts` now gives it
+    the rooms and the staff room), the re-sign window's contracts letter (`contractMail.ts`: our call on
     each player from `resignCall`, the AI's own rule, and buttons drawn live from the league); a digest's tables
     are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
-    through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of the sender's last
-    five letters); `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
+    through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of a sentence the sender
+    has filed this league year: `seasonSaid` and `around`, a line of two sentences counting as said when either was);
+    `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
+  - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
+    losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
+    letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
+    (`STORIES.on` turns it off in tests to prove play is untouched). Each story keeps how many beats each outlet has
+    told (`told`, `markTold`, `untold`) and an outlet is a reader of the store (`Outlet`, `COACH` sees your own club's
+    beats; a public outlet, after alpha, only the beats marked `pub`), so two outlets never repeat each other.
+    `storiesStep.ts` the step after morale and the meetings: beats for what is read rather than done (a room turning
+    Down or Split and holding, a feud, the staff's standing), the links between a man's story and his room's, the men
+    who left, and `tellable` (a turn must have stood a week); it may read `standing.ts`, `morale.ts`, `belief.ts` and
+    `coaching.ts`, and none of those may import it. `castSheet.ts` what a line may say about one man, the coach writing
+    and the moment (`manSheet`, `coachSheet`, `momentSheet`): words and booleans only, each fact through a reader screens
+    already use, so the fog of war holds. `coachWeek.ts` the editor of the head coach's weekly letter: it gathers the
+    week's items (asks and an ask still waiting, his meeting request, a story closing, last step's meeting told a
+    step on, a deal's or promise's clock, the rooms, the staff room), ranks them in five tiers, keeps tiers one to
+    three whole and at most `EXTRA` fresher ones of four and five (a lower item waits `STALE` steps, then goes), and
+    words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
+    `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). `coachWeek.season.test.ts` plays a
+    season and holds the letters to it: one a step, no sentence twice, no room told twice inside three steps, every
+    meeting's result in the next letter
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
     an index beside the league kept by `setTeam` and `addPlayer`)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,

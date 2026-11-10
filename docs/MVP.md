@@ -77,7 +77,9 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, trade stories and the
       offseason front-office digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted
       by the engine) and rookie impact reports join the inbox; a Stats screen tab for the advanced numbers and
-      narrative arcs remain future work. See `docs/NEWS.md`.
+      narrative arcs remain future work. The head coach's weekly letter now tells your club's storylines from a story
+      store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories
+      and season arcs have somewhere to start. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars
       (`staffAvatar.tsx`, `docs/AVATARS.md`). Scouts and medics can be women (`woman`, drawn with the name in
       `identity.ts`), but coaches never are.
