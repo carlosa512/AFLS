@@ -1822,6 +1822,71 @@ export interface Story {
   told?: Partial<Record<OutletId, number>>;
 }
 
+/** What an edition story is: a game, or one of the week's other public events (`snnWeek.ts`). */
+export type EditionKind =
+  | 'game'
+  | 'division'
+  | 'trade'
+  | 'rumor'
+  | 'starOut'
+  | 'leaderOut'
+  | 'run'
+  | 'speak'
+  | 'room'
+  | 'mentor';
+
+/** A final as SNN's weekly edition keeps it. */
+export interface EditionScore {
+  gameId: number;
+  homeId: number;
+  awayId: number;
+  home: number;
+  away: number;
+  overtime?: true;
+}
+
+/** One story of SNN's weekly edition, as it read when filed: later games, trades and pruning cannot rewrite it. */
+export interface EditionStory {
+  /** What it is about, for the edition's `covered`: 'game:{gameId}', 'run:{teamId}:{season}:{startWeek}'… */
+  key: string;
+  kind: EditionKind;
+  /** The one thing it says: a game's angle (`snnStory.ts`), a trade's, 'streak', 'faded', 'bye'… */
+  angle: string;
+  tier: 1 | 2 | 3 | 4 | 5;
+  /** The club the angle is about. */
+  clubId: number;
+  /** It is about the reader's club. */
+  yours?: true;
+  kicker: string;
+  headline: string;
+  /** The closed tile's one or two sentences. */
+  summary: string;
+  picture: { playerId?: number; coachId?: number; gameId?: number; teamIds?: number[] };
+  score?: EditionScore;
+  /** At most three. */
+  numbers: { value: string; label: string }[];
+  /** Two to four. */
+  paragraphs: string[];
+  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
+  links: InboxAction[];
+}
+
+/** SNN's weekly edition (`snnWeek.ts`): a front page whose tiles open into stories. */
+export interface Edition {
+  /** 'Week 9', 'Wild Card'… */
+  label: string;
+  scores: EditionScore[];
+  lead: EditionStory;
+  /** The reader's club, while he runs one and its game is not the lead. */
+  club?: EditionStory;
+  tiles: EditionStory[];
+  race?: { division: string; rows: { teamId: number; w: number; l: number; t: number; last: string; next: string }[] };
+  /** In the playoffs, in place of the race and the game of the week. */
+  bracket?: { results: EditionScore[]; next: { homeId: number; awayId: number }[] };
+  /** The game of the week, with each club's record as text. */
+  next?: { gameId: number; homeId: number; awayId: number; home: string; away: string };
+}
+
 export interface InboxMessage {
   /** Internal correspondence belongs to the club, even after its GM changes jobs. */
   organizationId?: number;
@@ -1848,6 +1913,8 @@ export interface InboxMessage {
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** SNN's weekly edition (`snnWeek.ts`), as filed. */
+  edition?: Edition;
   /** The head coach's rundown for a new GM, as filed: unit ranks on our scouts' read (1 = the league's best), key players, prospects. */
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */
