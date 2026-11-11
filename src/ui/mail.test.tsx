@@ -20,7 +20,7 @@ import { aboutOf, clubOf, Folded, MessageBody, sender, SenderAvatar } from './sc
 import { badgeOn, contrast } from './color';
 import { answerMeeting, requestMeeting } from '../engine/meetings';
 import { activeRoster } from '../engine/roster';
-import { adviceDraft, MailCards, MailSections, Person, weekBack, weeksMissed } from './mail';
+import { adviceDraft, MailCards, MailSections, MatchupsCard, Person, weekBack, weeksMissed } from './mail';
 import { answerBench, benchKickoff, dismissReminder, setJobs } from '../engine/benching';
 import { moraleAdvance, moraleClock } from '../engine/morale';
 
@@ -340,8 +340,10 @@ describe('the opposition report', () => {
     expect(count).toBeGreaterThanOrEqual(1);
     expect(count).toBeLessThanOrEqual(2);
     // A plain heading, a plain tag and one sentence: no percentiles, no "scouted edge".
-    expect(html).toMatch(/<b>(Our|Their) [a-z ]+ vs (their|our) [a-z ]+<\/b>/);
-    expect(html).toMatch(/Edge: us|Edge: them|Even/);
+    // Our unit first, named in full, whichever side of the ball it plays.
+    expect(html).toMatch(/<b>Our [a-z ]+ vs their [a-z ]+<\/b>/);
+    expect(html).not.toMatch(/<b>Their /);
+    expect(html).toMatch(/Edge: us|Edge: them|Even|Split/);
     expect(html).not.toMatch(/scouted edge|\(\d+(st|nd|rd|th)\) vs/i);
     expect(html).toContain('Players to watch');
     expect(html).toContain('Who they&#x27;re missing');
@@ -356,8 +358,58 @@ describe('the opposition report', () => {
     expect(html).not.toContain('Not enough games yet');
     expect(html).not.toContain('percentile');
     expect(html).toMatch(/class="mail-focus-why">[^<]+\.<\/p>/);
-    expect(html).not.toContain('mail-focus-bars');
+    expect(html).not.toContain('class="duel');
     expect(html).not.toMatch(/NaN|Infinity|71th/);
+  });
+  it('draws one two-ended bar a matchup, ours on the left, and tags a split', () => {
+    // Every man a 10, five weeks of level box scores: then our line graded far ahead of their rush, and sacked a lot.
+    const l = createLeague({ seed: 'duel-card' });
+    l.userTeamId = 0;
+    l.week = 6;
+    l.games = [];
+    for (const p of Object.values(l.players)) {
+      l.knowledge[p.id] = 1;
+      const top = p.teamId === 0 && p.position === 'OL';
+      const low = p.teamId === 1 && ['DT', 'EDGE'].includes(p.position);
+      for (const k of Object.keys(p.ratings)) p.ratings[k as keyof typeof p.ratings] = top ? 20 : low ? 1 : 10;
+    }
+    const side = (sacked: number) => ({
+      ...({ firstDowns: 20, plays: 65, totalYds: 310, passYds: 210, rushYds: 100, passAtt: 30, passCmp: 20 } as const),
+      ...({ rushAtt: 25, turnovers: 0, penalties: 3, penaltyYds: 20, thirdDownAtt: 12, thirdDownConv: 5 } as const),
+      ...({ fourthDownAtt: 0, fourthDownConv: 0, redZoneAtt: 3, redZoneTd: 2, top: 1800 } as const),
+      sacked,
+    });
+    const game = (homeId: number, awayId: number, week: number): Game => ({
+      id: l.nextGameId++,
+      season: l.season,
+      homeId,
+      awayId,
+      week,
+      result: {
+        homeScore: 24,
+        awayScore: 10,
+        overtime: false,
+        quarters: { home: [7, 7, 7, 3], away: [0, 7, 0, 3] },
+        home: side(homeId === 0 ? 7 : 1),
+        away: side(homeId === 1 ? 5 : 1),
+        playerStats: {},
+        playerTeams: {},
+      },
+    });
+    for (let w = 1; w <= 5; w++) {
+      l.games.push(game(0, 4, w), game(1, 5, w), game(2, 3, w));
+      for (let t = 6; t < 32; t += 2) l.games.push(game(t, t + 1, w));
+    }
+    const html = renderToStaticMarkup(<MatchupsCard league={l} opp={l.teams[1]} />);
+    expect(html.match(/class="duel"/g)!.length).toBe(html.match(/class="mail-focus"/g)!.length);
+    expect(html).not.toContain('rank-bar');
+    expect(html).toContain('tag-pill tag-split');
+    expect(html).toContain('>Split<');
+    // Ours is the left side, and the stats favour them: their end of the bar is the red one.
+    expect(html).toMatch(/duel-side is-ours"><div class="duel-cap"><b>Our offensive line<\/b>/);
+    expect(html).toMatch(/duel-side is-theirs">.*?duel-fill is-bad/s);
+    expect(html).toContain('allows a sack on');
+    expect(html).toContain('gets a sack on');
   });
 });
 

@@ -5787,39 +5787,67 @@ button.tip-pill {
 .mail-focus-why {
   margin: 0 0 10px;
 }
-/* A contest's two numbers, one under the other: club and stat, a bar for the league rank, the rank. */
-.mail-focus-bars {
-  display: grid;
-  gap: 6px;
+/* A contest's two numbers on one bar: ours grows left from the middle, theirs right, the longer side the better season. */
+.tag-split {
+  background: color-mix(in srgb, var(--tie) 24%, var(--surface));
+  color: color-mix(in srgb, var(--tie) 70%, var(--ink));
 }
-.rank-bar {
+.duel {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(60px, 1fr) 3.2em;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: start;
+}
+.duel-mid {
+  background: var(--line);
+  align-self: stretch;
+}
+.duel-side {
+  display: grid;
+  gap: 4px;
   font-size: var(--step--1);
+  min-width: 0;
 }
-.rank-bar-track {
-  height: 8px;
-  border-radius: 4px;
+.duel-side.is-ours {
+  text-align: right;
+}
+.duel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.duel-side.is-theirs .duel-row {
+  flex-direction: row-reverse;
+}
+.duel-track {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
   background: var(--surface-2);
+  display: flex;
   overflow: hidden;
 }
-.rank-bar-fill {
-  display: block;
+.duel-side.is-ours .duel-track {
+  justify-content: flex-end;
+}
+.duel-fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 5px;
   background: var(--muted);
 }
-.rank-bar-fill.is-good {
+.duel-fill.is-good {
   background: var(--win);
 }
-.rank-bar-fill.is-bad {
+.duel-fill.is-bad {
   background: var(--loss);
 }
-.rank-bar-rank {
+.duel-rank {
+  font-weight: 600;
+  min-width: 2.6em;
+  text-align: left;
+}
+.duel-side.is-theirs .duel-rank {
   text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 /* Their men to know: a face with his number, his name and this season's line. */
 .watch-grid {
@@ -5858,13 +5886,13 @@ button.tip-pill {
 .missing-tag {
   margin-left: auto;
 }
-@media (max-width: 640px) {
-  .rank-bar {
-    grid-template-columns: minmax(0, 1fr) 3.2em;
+/* On a phone the rank sits over its bar, so the bar keeps its length. */
+@media (max-width: 480px) {
+  .duel-row {
+    flex-wrap: wrap;
   }
-  .rank-bar-track {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .duel-track {
+    flex-basis: 100%;
   }
 }
 

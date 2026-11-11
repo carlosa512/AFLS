@@ -1191,27 +1191,26 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
 }
 
 /** One or two useful contests: who has the edge, the coach's sentence on it, and each side's number with its league rank. */
-function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
+export function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   const focuses = focusMatchups(league, opp.id);
+  const tone = { us: ' tag-good', them: ' tag-bad', split: ' tag-split', even: '' } as const;
   return (
     <Card title="Key matchups">
       {focuses.map((f) => (
         <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
             <b>{f.heading}</b>
-            <span
-              className={`tag-pill ${f.advantage === 'ours' ? 'tag-good' : f.advantage === 'theirs' ? 'tag-bad' : ''}`}
-            >
-              {f.label}
-            </span>
+            <span className={`tag-pill${tone[f.tag]}`}>{f.label}</span>
           </div>
           <p className="mail-focus-why">{f.why}</p>
-          {f.facts.length > 0 && (
-            <div className="mail-focus-bars">
-              {f.facts.map((fact) => (
-                <RankBar key={fact.teamId} league={league} fact={fact} mine={fact.teamId === league.userTeamId} />
-              ))}
-            </div>
+          {f.ours && f.theirs && (
+            <DuelBar
+              ours={f.ours}
+              theirs={f.theirs}
+              lean={f.lean}
+              names={f.heading.replace(/^Our /, '').split(' vs their ')}
+              clubs={league.teams.length}
+            />
           )}
         </section>
       ))}
@@ -1219,28 +1218,51 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   );
 }
 
-/** One side's number in a contest: the club, the stat, and a bar for where it ranks in the league (longer is better). */
-function RankBar({ league, fact, mine }: { league: League; fact: MatchupFact; mine: boolean }) {
-  const clubs = league.teams.length;
-  const share = fact.rank ? (clubs + 1 - fact.rank) / clubs : 0;
-  const tone = !fact.rank ? '' : fact.rank <= clubs / 3 ? ' is-good' : fact.rank > (2 * clubs) / 3 ? ' is-bad' : '';
+/**
+ * One matchup's two numbers on one bar: our unit grows left from the middle, theirs grows right, and the longer side has
+ * had the better season (a bar's length is its league rank). Green when the stats this season favour us, red when they
+ * favour them, grey when they are within four places.
+ */
+function DuelBar({
+  ours,
+  theirs,
+  lean,
+  names,
+  clubs,
+}: {
+  ours: MatchupFact;
+  theirs: MatchupFact;
+  lean: 'us' | 'them' | 'close' | null;
+  names: string[];
+  clubs: number;
+}) {
+  const side = (fact: MatchupFact, mine: boolean) => {
+    const share = fact.rank ? (clubs + 1 - fact.rank) / clubs : 0;
+    const tone = mine ? (lean === 'us' ? ' is-good' : '') : lean === 'them' ? ' is-bad' : '';
+    return (
+      <div className={`duel-side ${mine ? 'is-ours' : 'is-theirs'}`}>
+        <div className="duel-cap">
+          <b>
+            {mine ? 'Our' : 'Their'} {names[mine ? 0 : 1]}
+          </b>
+        </div>
+        {fact.rank && (
+          <div className="duel-row">
+            <span className="duel-rank num">{ordinal(fact.rank)}</span>
+            <span className="duel-track" aria-hidden="true">
+              <span className={`duel-fill${tone}`} style={{ width: `${Math.round(share * 100)}%` }} />
+            </span>
+          </div>
+        )}
+        <div className="duel-stat muted">{fact.label}</div>
+      </div>
+    );
+  };
   return (
-    <div className={`rank-bar${mine ? ' is-mine' : ''}`}>
-      <span className="rank-bar-who">
-        <b>{league.teams[fact.teamId].name}</b>
-        <span className="muted">
-          {' '}
-          {fact.label.toLowerCase()} {fact.value}
-        </span>
-      </span>
-      {fact.rank && (
-        <>
-          <span className="rank-bar-track" aria-hidden="true">
-            <span className={`rank-bar-fill${tone}`} style={{ width: `${Math.round(share * 100)}%` }} />
-          </span>
-          <span className="rank-bar-rank">{ordinal(fact.rank)}</span>
-        </>
-      )}
+    <div className="duel">
+      {side(ours, true)}
+      <span className="duel-mid" aria-hidden="true" />
+      {side(theirs, false)}
     </div>
   );
 }

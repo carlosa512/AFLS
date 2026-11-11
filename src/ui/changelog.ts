@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.31',
+    date: '2026-11-11',
+    title: 'Key matchups you can read',
+    text: 'The opposition report names each unit in full, puts yours first and says what your scouts grade and what the stats this season show. One bar a matchup shows who has had the better year.',
+  },
+  {
     version: '0.4.30',
     date: '2026-11-11',
     title: 'A stadium for every club',
