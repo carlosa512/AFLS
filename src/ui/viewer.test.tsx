@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
-import type { PlayLogEntry } from '../engine/types';
+import type { Game, PlayLogEntry } from '../engine/types';
+import { uniformFor } from './uniform';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
@@ -11,8 +12,11 @@ import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from '
 import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
+import { groundFrame } from './screens/broadcastView';
 import { surfaceFor } from './screens/FieldPaint';
-import { sameWeather, skyOf } from './screens/BroadcastPaint';
+import { sameWeather } from './screens/BroadcastPaint';
+import { buildingFor } from './stadiums/buildings';
+import { gameStadium, homeGamesBefore } from './stadiums/gameLook';
 import { GameMoments, MomentBanner } from './screens/GameMoments';
 import { playMoments, type Moment } from './moments';
 import { flagCall } from './stage/calls';
@@ -143,6 +147,7 @@ describe('the view switch', () => {
     const strip = (html: string) =>
       html
         .replace(/<div class="td-field[\s\S]*?<\/svg>(<div class="td-card[\s\S]*?<\/div>)?<\/div>/, '')
+        .replace(/<canvas class="stadium-picture"[^>]*><\/canvas>/, '')
         .replace(/<svg class="field-scene[\s\S]*?<\/svg>/, '')
         .replace(/<span class="seg" role="group" aria-label="View">[\s\S]*?<\/span>/, '');
     const broadcast = withView('broadcast', viewer);
@@ -860,28 +865,6 @@ describe('the stadium and the weather', () => {
       />,
     );
 
-  it('reads the sky off the weather', () => {
-    expect(skyOf(dry)).toBe('day');
-    expect(skyOf({ ...dry, night: true })).toBe('night');
-    expect(skyOf({ ...dry, precip: 'rain' })).toBe('overcast');
-    expect(skyOf({ ...dry, precip: 'snow', night: true })).toBe('overcast');
-    expect(skyOf({ ...dry, roof: 'dome', night: true })).toBe('roof');
-    expect(skyOf({ ...dry, roof: 'closed' })).toBe('roof');
-  });
-
-  it('builds a stand with a crowd behind the far sideline, in place of the dots', () => {
-    const html = field(dry);
-    expect(html).toContain('class="stadium sky-day"');
-    expect(html.match(/class="fan"/g)!.length).toBeGreaterThan(500);
-    expect(html).not.toContain('url(#crowd)');
-  });
-
-  it('turns the lights on at night, and never under a roof', () => {
-    expect(field({ ...dry, night: true })).toContain('class="lights"');
-    expect(field(dry)).not.toContain('class="lights"');
-    expect(field({ ...dry, roof: 'dome', night: true })).not.toContain('class="lights"');
-  });
-
   it('lets rain and snow fall outdoors only, twice as hard when heavy', () => {
     const drops = (html: string) => html.match(/class="drop"/g)?.length ?? 0;
     const flakes = (html: string) => html.match(/class="flake"/g)?.length ?? 0;
@@ -903,16 +886,6 @@ describe('the stadium and the weather', () => {
     const late: Weather = { ...dry, precip: 'rain', onset: 3 };
     expect(field(late, 2)).not.toContain('class="drop"');
     expect(field(late, 3)).toContain('class="drop"');
-  });
-
-  it('flies flags that lean with the wind, and hang still indoors', () => {
-    const lean = (html: string) => Number(/class="flags" data-lean="([\d.]+)"/.exec(html)![1]);
-    expect(lean(field({ ...dry, windMph: 22 }))).toBeGreaterThan(lean(field({ ...dry, windMph: 4 })));
-    expect(lean(field({ ...dry, roof: 'dome', windMph: 22 }))).toBe(0);
-  });
-
-  it('draws the same crowd every time', () => {
-    expect(field(dry)).toBe(field(dry));
   });
 
   it('stops the rain and the snow for a viewer who asks for less motion', () => {
@@ -1085,7 +1058,7 @@ describe('the moments over the field', () => {
     expect(yellow.length).toBeGreaterThan(0);
     for (const sel of yellow) expect(sel).toMatch(/\.flag/);
     const reduced = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/g)];
-    expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.crowd/.test(m[0]))).toBe(true);
+    expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.stadium-picture/.test(m[0]))).toBe(true);
   });
 });
 
@@ -1189,5 +1162,87 @@ describe('what the review found', () => {
     expect(sameWeather(w, { ...w, windMph: 20 })).toBe(false);
     expect(sameWeather(w, { ...w, night: undefined })).toBe(false);
     expect(sameWeather({ ...w, precip: 'rain' }, { ...w, precip: 'rain', heavy: true })).toBe(false);
+  });
+});
+
+describe('the field through the stadium’s camera', () => {
+  it('draws the field where the stadium has it', () => {
+    expect(project(-10, 0).x).toBeCloseTo(327.93, 1); // the end line behind the home goal line, near side
+    expect(project(-10, 0).y).toBeCloseTo(171.98, 1);
+    expect(project(110, FIELD_W).x).toBeCloseTo(80, 0);
+    expect(project(110, FIELD_W).y).toBeCloseTo(90, 0);
+    expect(project(50, 0).scale).toBeCloseTo(1, 3);
+    expect(project(50, FIELD_W).scale).toBeCloseTo(0.676, 2);
+    expect(project(50, 26, 10).y).toBeLessThan(project(50, 26, 0).y);
+  });
+  it('lays a yard along the field level across the picture, and a yard across it up the picture', () => {
+    const f = groundFrame(50, 26);
+    expect(f.dx[0]).toBeLessThan(0); // x runs right to left
+    expect(Math.abs(f.dx[1])).toBeLessThan(0.01);
+    expect(f.dy[1]).toBeLessThan(0);
+  });
+});
+
+describe('the building behind the field', () => {
+  const FAIR: Weather = { roof: 'outdoors', tempF: 60, windMph: 5, precip: 'none' };
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const own = home.colors as [string, string];
+
+  it('puts the club’s building behind the field, as the game has it', () => {
+    const html = withView('broadcast', viewer);
+    expect(html).toContain('class="stadium-picture"');
+    expect(html).toContain(`data-building="${buildingFor(home.abbrev, game.season, own).id}"`);
+    expect(html).toMatch(
+      /data-look="(day|night)(@#[0-9a-fA-F]+)?:(none|rain|snow|mixed)(\+lying)?:(none|open|closed):0\.\d+"/,
+    );
+    expect(html).not.toContain('class="stadium sky-');
+  });
+  it('keeps the picture and the play in one box', () => {
+    const html = withView('broadcast', viewer);
+    expect(html).toMatch(/<canvas class="stadium-picture"[^>]*><\/canvas><svg class="field-scene"/);
+  });
+  it('shuts a roof at the quarter the rain comes, not before', () => {
+    const roofed = league.games.find((g) =>
+      ['ATL', 'HOU', 'IND', 'DAL', 'ARI'].includes(league.teams[g.homeId].abbrev),
+    )!;
+    const w: Weather = { roof: 'open', tempF: 70, windMph: 5, precip: 'rain', onset: 3 };
+    const at = (q: number) => gameStadium(league, roofed, weatherAt(w, q)).look.roof;
+    expect([at(1), at(2), at(3), at(4)]).toEqual(['open', 'open', 'closed', 'closed']);
+  });
+  it('fills a playoff game and counts only earlier home games for the early rule', () => {
+    expect(gameStadium(league, { ...game, playoffRound: 'WC' }, FAIR).look.fill).toBe(0.97);
+    expect(homeGamesBefore(league, game)).toBe(0); // week 1
+    expect(gameStadium(league, game, FAIR).look.fill).toBe(0.8); // 0–0, a first home game
+  });
+  it('uses one colour from each club at a neutral site, and the building of the game’s own season', () => {
+    const s = gameStadium(league, { ...game, neutral: true }, FAIR);
+    expect(s.colors).toEqual([home.colors[0], away.colors[0]]);
+    expect(s.building.id).toBe(buildingFor(home.abbrev, game.season, own).id);
+  });
+  it('dresses the crowd in the jersey of a colour rush or blackout night, and not for a classic or a plain game', () => {
+    const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
+    const club = league.teams[open.homeId];
+    const theme = (uniform?: Game['uniform'], neutral = false) =>
+      gameStadium(league, { ...open, uniform, neutral }, FAIR).look.theme;
+    expect(theme('rush')).toBe(uniformFor(league, club, { ...open, uniform: 'rush' }).kit.jersey);
+    expect(theme('blackout')).toBe(uniformFor(league, club, { ...open, uniform: 'blackout' }).kit.jersey);
+    expect(theme('classic')).toBeUndefined();
+    expect(theme()).toBeUndefined();
+    expect(theme('rush', true)).toBeUndefined();
+  });
+  it('plays a night kickoff at a neutral site under the lights', () => {
+    const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
+    const at = (et: number) =>
+      gameStadium(league, { ...open, neutral: true, kickoff: { day: 'sun', et } }, FAIR).look.night;
+    expect(at(20 * 60 + 20)).toBe(true);
+    expect(at(13 * 60)).toBe(false);
+  });
+  it('lets snow lie outdoors while it falls or in a freezing deep winter, and never of a building’s own accord', () => {
+    const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
+    expect(gameStadium(league, { ...open, week: 2 }, FAIR).look.lying).toBe(false);
+    expect(gameStadium(league, { ...open, week: 2 }, { ...FAIR, precip: 'snow' }).look.lying).toBe(true);
+    expect(gameStadium(league, { ...open, week: 15 }, { ...FAIR, tempF: 20 }).look.lying).toBe(true);
+    expect(gameStadium(league, { ...open, week: 15 }, { ...FAIR, tempF: 45 }).look.lying).toBe(false);
   });
 });

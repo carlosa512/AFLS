@@ -8,7 +8,9 @@ import type { PlayLogEntry, Team } from '../../engine/types';
 import { buildPath, FIELD_W, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { endsSwitched } from '../stage/ends';
 import type { Weather } from '../../engine/weather';
-import { FieldGround, FieldPosts, Stadium, WeatherFall } from './BroadcastPaint';
+import { plainView, type StadiumView } from '../stadiums/gameLook';
+import { StadiumPicture } from '../stadiums/StadiumPicture';
+import { FieldGround, FieldPosts, WeatherFall } from './BroadcastPaint';
 import { project, quad, VIEW_H, VIEW_W } from './broadcastView';
 
 export { project } from './broadcastView';
@@ -128,6 +130,7 @@ export function Field({
   away,
   neutral,
   weather = FAIR,
+  stadium,
   drive,
   entry,
   restX,
@@ -142,6 +145,8 @@ export function Field({
   neutral?: boolean;
   /** The conditions in the quarter on screen (`weatherAt`): the sky, what is falling, the wind in the flags. */
   weather?: Weather;
+  /** The ground behind the field (`gameStadium`); a caller with no game gets the club's building on a clear day. */
+  stadium?: StadiumView;
   /** The drive this snap belongs to (`driveAt`): where it began is marked on the grass. */
   drive?: { teamId: number; from: number };
   entry: PlayLogEntry | undefined;
@@ -312,56 +317,75 @@ export function Field({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey]);
 
+  const view = stadium ?? plainView(home.abbrev, home.colors as [string, string]);
   return (
-    <svg
-      className="field-scene"
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      role="img"
-      aria-label="Field view of the current play"
-    >
-      <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
-      <Stadium home={home} away={away} neutral={neutral} weather={weather} />
-      <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
-      <DriveMarks home={home} away={away} entry={entry} drive={drive} />
-      <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
-      <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
-      <path
-        ref={trailRef}
-        fill="none"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        pathLength={1}
-        strokeDasharray="1"
-        strokeDashoffset="0"
-        opacity="0.9"
-      />
-      <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
-      <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
-      <FieldPosts />
-      <WeatherFall weather={weather} />
+    <>
+      <StadiumPicture view={view} />
+      <svg
+        className="field-scene"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        role="img"
+        aria-label="Field view of the current play"
+      >
+        <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
+        <DriveMarks home={home} away={away} entry={entry} drive={drive} />
+        <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
+        <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
+        <path
+          ref={trailRef}
+          fill="none"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          pathLength={1}
+          strokeDasharray="1"
+          strokeDashoffset="0"
+          opacity="0.9"
+        />
+        <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
+        <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
+        <FieldPosts />
+        <Falling weather={weather} view={stadium} />
+      </svg>
+    </>
+  );
+}
+
+/** Where a roof's cut edge crosses the picture: under a roof, what falls outside is drawn above it and no lower. */
+const ROOF_LINE = 21;
+/** What is falling. Outdoors, the game's weather over everything; under a roof, the day outside, stopped at the roof. */
+function Falling({ weather, view }: { weather: Weather; view?: StadiumView }) {
+  if (!view || view.look.roof === 'none') return <WeatherFall weather={weather} />;
+  if (view.look.precip === 'none') return null;
+  return (
+    <svg x={0} y={0} width={VIEW_W} height={ROOF_LINE} viewBox={`0 0 ${VIEW_W} ${ROOF_LINE}`} className="outside-fall">
+      <WeatherFall weather={{ roof: 'outdoors', tempF: 40, windMph: 5, precip: view.look.precip }} />
     </svg>
   );
 }
 
-/** The stadium before the kickoff: the paint and the weather, with no ball and no lines on it yet. */
+/** The stadium before the kickoff: the building, the paint and the weather, with no ball and no lines on it yet. */
 export function IdleField({
   home,
   away,
   neutral,
   weather = FAIR,
+  stadium,
 }: {
   home: Team;
   away: Team;
   neutral?: boolean;
   weather?: Weather;
+  stadium?: StadiumView;
 }) {
+  const view = stadium ?? plainView(home.abbrev, home.colors as [string, string]);
   return (
-    <svg className="field-scene" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="The field before kickoff">
-      <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
-      <Stadium home={home} away={away} neutral={neutral} weather={weather} />
-      <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
-      <FieldPosts />
-      <WeatherFall weather={weather} />
-    </svg>
+    <>
+      <StadiumPicture view={view} />
+      <svg className="field-scene" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="The field before kickoff">
+        <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
+        <FieldPosts />
+        <Falling weather={weather} view={stadium} />
+      </svg>
+    </>
   );
 }

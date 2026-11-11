@@ -1,0 +1,38 @@
+/** Liberty North (Cincinnati is among the five agreed). */
+import type { Building } from '../types';
+
+export const LIBERTY_NORTH: Record<string, Building> = {
+  // A brick bowl, open at one end to the harbor. (The owner dropped the masts, Nov 11: realism over theme.)
+  BAL: {
+    id: 'BAL',
+    rim: { kind: 'flat', h: 23.8 },
+    openEnd: 'right',
+    seat: '#1c1436',
+    wall: '#8a4b3a',
+    ground: '#7a7f83',
+    features: [],
+    setting: { kind: 'harbor' },
+  },
+  // Mill yard: a sawtooth factory roofline, and a gantry crane that carries the lights. On the lake, among the docks.
+  CLE: {
+    id: 'CLE',
+    rim: { kind: 'sawtooth', h: 23.6, rise: 4.2, every: 14 },
+    seat: '#2a1a0c',
+    wall: '#8a4b3a',
+    ground: '#7a7f83',
+    features: [{ kind: 'gantry', col: '#d98a1f' }],
+    setting: { kind: 'lake', docks: true },
+  },
+  // Dark steel and a yellow truss round the club deck, where the rivers meet.
+  PIT: {
+    id: 'PIT',
+    rim: { kind: 'flat', h: 24.2 },
+    seat: '#1a1d22',
+    wall: '#3a3f45',
+    face: '#2b2f34',
+    ground: '#7a7f83',
+    // the furnace stacks were dropped (the owner, Nov 11): realism over theme
+    features: [{ kind: 'truss', col: '#ffb612' }],
+    setting: { kind: 'confluence' },
+  },
+};

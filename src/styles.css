@@ -1619,9 +1619,6 @@ select {
   width: 100%;
   height: auto;
 }
-.scene-bg {
-  fill: var(--scene-bg);
-}
 .viewer-sit {
   display: flex;
   justify-content: space-between;
@@ -1745,6 +1742,17 @@ select {
 
 /* ───────── the moments a game stops for: drawn over the field in either view ───────── */
 .viewer-scene {
+  position: relative;
+}
+/* The club's building: a picture behind the field, in the same box as the SVG the play is drawn in. */
+.stadium-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.viewer-scene > .field-scene {
   position: relative;
 }
 .moments {
@@ -2114,12 +2122,12 @@ select {
 .viewer-scene:has(.moments[data-cheer='away']) .bench.away .bench-man {
   animation: bf-hop 0.5s ease-in-out infinite;
 }
-.viewer-scene:has(.moments[data-cheer='home']) .crowd {
+.viewer-scene:has(.moments[data-cheer='home']) .stadium-picture {
   animation: bf-roar 0.4s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) {
   .viewer-scene .bench-man,
-  .viewer-scene .crowd {
+  .viewer-scene .stadium-picture {
     animation: none !important;
   }
 }

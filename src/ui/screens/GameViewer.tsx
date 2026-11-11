@@ -12,6 +12,7 @@ import { holdAfter, TopDownField } from './TopDownField';
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard, PREGAME_MS } from './PregameCard';
 import { gameWeather, weatherAt } from '../../engine/weather';
+import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
 import { momentHold, periodHold, playMoments } from '../moments';
 import { ALL22_OWN, GameMoments, HALF_MS, shownMoments } from './GameMoments';
@@ -360,6 +361,7 @@ export function GameViewer({
       away={away}
       neutral={game.neutral}
       weather={weatherAt(game.result.weather ?? gameWeather(league, game), entry.quarter)}
+      stadium={gameStadium(league, game, weatherAt(game.result.weather ?? gameWeather(league, game), entry.quarter))}
       drive={driveAt(plays, index, home.id)}
       entry={entry}
       restX={restingSpot(plays, index, home.id)}
@@ -404,6 +406,7 @@ export function GameViewer({
                 away={away}
                 neutral={game.neutral}
                 weather={weatherAt(game.result.weather ?? gameWeather(league, game), 1)}
+                stadium={gameStadium(league, game, weatherAt(game.result.weather ?? gameWeather(league, game), 1))}
               />
             ) : all22 ? (
               <TopDownField

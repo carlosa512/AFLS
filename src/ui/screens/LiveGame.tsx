@@ -24,6 +24,7 @@ import {
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard } from './PregameCard';
 import { gameWeather, weatherAt } from '../../engine/weather';
+import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
 import { momentHold, periodHold, playMoments } from '../moments';
 import { ALL22_OWN, GameMoments, shownMoments } from './GameMoments';
@@ -161,6 +162,7 @@ export function LiveGame({ league }: { league: League }) {
       away={away}
       neutral={game.neutral}
       weather={weatherAt(gameWeather(league, game), entry.quarter)}
+      stadium={gameStadium(league, game, weatherAt(gameWeather(league, game), entry.quarter))}
       drive={driveAt(s.plays, s.current, home.id)}
       entry={entry}
       restX={restingSpot(s.plays, s.current, home.id)}
@@ -200,6 +202,7 @@ export function LiveGame({ league }: { league: League }) {
                   away={away}
                   neutral={game.neutral}
                   weather={weatherAt(gameWeather(league, game), 1)}
+                  stadium={gameStadium(league, game, weatherAt(gameWeather(league, game), 1))}
                 />
               ) : all22 ? (
                 <TopDownField
