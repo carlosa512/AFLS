@@ -158,7 +158,11 @@ Read from what the viewer already reads (`weatherAt(gameWeather(...), quarter)`)
   11: "No constant snow"): on a clear autumn day Buffalo is green.
 - **A roof that opens:** `open` draws the opening and the leaves; `closed` draws the roof whole, with its seam. A
   dome is always whole.
-- **Under a roof** nothing falls and the light inside is even.
+- **Under a roof** nothing falls inside and the light is even (the owner, Nov 11: weather stops at the roof). What
+  falls outside may show above the roof's edge and no lower. In the game that outside weather is not known today:
+  for a roofed ground the engine reports "indoors" and keeps the open-air weather to itself (`openAir` in
+  `weather.ts` is not exported). Showing it would need that one export, which is the engine's and so outside this
+  pass; until then a roofed ground shows no weather at all.
 
 ## Painting and speed
 

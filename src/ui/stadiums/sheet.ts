@@ -103,9 +103,18 @@ function sketchField(pen: Pen, colors: [string, string], night: boolean) {
   pen.flush();
 }
 
+/** Roughly where a roof's cut edge crosses the picture: weather is drawn above it only. */
+const ROOF_LINE = 21;
 /** What is falling, over the picture (the game has its own layer for this). */
 function sketchFall(ctx: CanvasRenderingContext2D, look: Look, scale: number) {
-  if (look.precip === 'none' || look.roof === 'closed') return;
+  if (look.precip === 'none') return;
+  // Under a roof nothing falls inside: what falls outside is shown, and stops at the roof.
+  if (look.roof !== 'none') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, FRAME.w * scale, ROOF_LINE * scale);
+    ctx.clip();
+  }
   let n = 7;
   const next = () => (n = (n * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 520; i++) {
@@ -125,6 +134,7 @@ function sketchFall(ctx: CanvasRenderingContext2D, look: Look, scale: number) {
       ctx.fill();
     }
   }
+  if (look.roof !== 'none') ctx.restore();
 }
 
 /** A sample play, drawn the way the game's own layer would: the drive's band, both lines, a pass and a banner. */

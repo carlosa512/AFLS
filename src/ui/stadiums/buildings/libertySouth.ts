@@ -3,23 +3,27 @@ import { BRICK, STEEL } from '../land/kit';
 import type { Building } from '../types';
 
 export const LIBERTY_SOUTH: Record<string, Building> = {
-  // A steel roof that slides open in one long slot over the field, its two halves parked flat either side. Out of town.
+  // A pale, nearly flat roof ribbed with steel, open in one long slot over the field; pale concrete walls and deep red
+  // seats set it apart from Indianapolis's brick and navy. Out of town.
   HOU: {
     id: 'HOU',
     rim: { kind: 'flat', h: 23.8 },
-    seat: '#0b2230',
-    wall: '#56606b',
-    windows: '#cfe6f2',
+    seat: '#4a1320',
+    wall: '#c9ccd0',
+    windows: '#9fc3d6',
+    face: '#0b2230',
     ground: '#7d8f6a',
     roof: {
       kind: 'slab',
-      profile: { kind: 'flat', h: 39, crown: 1.5, fall: 2.5 },
-      th: 4.2,
-      skin: '#b9c2c8',
-      section: '#dfe3e6',
-      edge: '#c7ced3',
-      opening: { x0: -52, x1: 52, z1: 66 },
-      leaves: { xi: 54, xo: 116, yi: 2.2, yo: 2.2, th: 2, z1: 68, skin: '#9aa5ad' },
+      profile: { kind: 'flat', h: 40, crown: 0.6, fall: 1.5 },
+      th: 5,
+      skin: '#eef0f1',
+      section: '#f4f5f5',
+      rib: 'rgba(60,72,84,.7)',
+      web: 'rgba(60,72,84,.85)',
+      edge: '#56606b',
+      opening: { x0: -58, x1: 58, z1: 64 },
+      leaves: { xi: 60, xo: 118, yi: 1.6, yo: 1.6, th: 1.6, z1: 66, skin: '#dfe3e6' },
     },
     features: [],
     setting: { kind: 'suburb', trees: 'round', canal: false },
