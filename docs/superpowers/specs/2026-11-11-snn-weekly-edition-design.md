@@ -42,18 +42,21 @@ Sources are listed at the end.
 1. **News stays in the inbox.** No News tab.
 2. **News is read, then acted on elsewhere.** A publication never asks for an answer and is never Needs you. Every
    story links to the man, the club or the screen where you would act.
-3. **One edition a week in season**, regular season and playoffs. It replaces SNN's separate in-season mails.
+3. **One edition a week in season**, regular season and playoffs. It replaces SNN's separate in-season mails, so SNN
+   sends one mail a week. Offseason SNN mail is unchanged.
 4. **The edition is a front page**: a scores strip, a lead story, tiles, the race and the game of the week. A tile
    opens its story in place.
 5. **Pictures are the game's own drawings.** No bylines and no journalists: the outlet signs.
 6. **Stories are in a beat writer's voice**: plain, and they say what the facts mean. Opinion (the column) is spec 2.
 7. **The writing rules in section 3** hold for every story, and tests enforce the ones a test can.
 8. **Quotes are plain and rare**: at most one a story, from the head coach of the club it is about, a judgment on a
-   fact in the story, never a new event.
+   fact in the story, never a new event. A player who speaks out is the one player quoted.
 9. **The sim never reads mail.** An article causes nothing. Where coverage and a reaction go together (spec 2), the
    play causes both.
-10. **Two small fixes ride along**: the Gazette's table headings and the opposition report's Key matchups card.
-11. **All three specs are built on the session's branch, one after the other**, with one pull request at the end
+10. **Cutoffs come from counts**: each angle's cutoff was set from how often it fires in the NFL and in our league
+    (section 3), and the owner agreed them.
+11. **Two small fixes ride along**: the Gazette's table headings and the opposition report's Key matchups card.
+12. **All three specs are built on the session's branch, one after the other**, with one pull request at the end
     when the owner asks for it.
 
 ## 1. The edition
@@ -94,8 +97,18 @@ story.
 | --- | --- |
 | The weekly public headline (`press:{season}:{week}:division:…`, `…:trade:…`, `…:rumor:…` from `leagueNews`) | A candidate story in that week's edition |
 | Other clubs' in-season coaching and front-office roundups (`leadership-week:…`) | A candidate story in that week's edition |
+| A player speaks out (`speak:…`), a coach losing his room ("a room slipping away", the meetings rumor) and coaching-tree stories (`tree:…`), when they arise in season | A candidate story in that week's edition |
 | The deadline-day trade edition | Stays its own mail (deadline day is its own moment on the calendar), drawn with the story block |
-| Offseason SNN digests (front-office carousel, coaching carousel), the Gazette, league-office notices, the owner | Unchanged |
+| The Gazette, league-office notices, the owner | Unchanged |
+
+So in season SNN sends one mail a week. Out of season SNN's mail stays as it is, because it is tables and short
+notices and there are no weekly games to build an edition around:
+
+- **The front-office carousel**, once an offseason step: GMs out, hired, extended and on the hot seat, interim head
+  coaches.
+- **The coaching carousel**, once in free agency: every club with a new head coach.
+- **Off the market**, once when free agency opens: the players their clubs re-signed or tagged first.
+- **A player speaks out** and **coaching-tree stories**, when they arise out of season.
 
 Old ids still parse, open and render in an old save, and nothing new files under them. The selection rules in
 `docs/NEWS.md` for division stories, trades and rumors (public evidence only, no provisional clinch, the user's own
@@ -107,18 +120,19 @@ decide today which is filed.
 `src/engine/snnWeek.ts` has the shape of the head coach's weekly letter (`coachWeek.ts`): gather, rank, cut, word.
 
 **Gather.** One candidate for each game of the week (its angle, section 3), each division lead change, each trade and
-rumor the current rules would report, each star lost for the season, each coach or GM out at another club, and each
-club's run.
+rumor the current rules would report, each star lost for the season, each coach or GM out at another club, each
+club's run, and the three items SNN files on its own today (a player speaking out, a coach losing his room, a coach
+facing his mentor).
 
 **Rank.** Five tiers, the top one first:
 
 | Tier | Candidates |
 | --- | --- |
 | 1 | A head coach or GM out. A star traded (a deal today's trade-news rule calls a star deal) |
-| 2 | A run ends (an unbeaten club loses, a winless club wins, a streak of five or more ends). A division lead changes hands in week 10 or later |
-| 3 | An upset. A star out for the season |
-| 4 | One player's big day. A comeback. A result against the yardage. A quarterback lost mid-game |
-| 5 | A blowout. Overtime or a tie. A run that continues. Another trade. A rumor. Any other game |
+| 2 | An unbeaten club at 5–0 or better loses. A winless club at 0–5 or worse wins. A division lead changes hands in week 10 or later |
+| 3 | An upset. A tie. A streak of six or more ends. A star out for the season |
+| 4 | One player's day. A comeback. A result against the yardage. A quarterback lost mid-game. A player speaks out. A coach losing his room |
+| 5 | A rout. Overtime. A run that continues. Another trade. A rumor. A coach facing his mentor. Any other game |
 
 Inside a tier the higher stakes win (the two clubs' combined record, a division game ahead of one that is not), then a
 stable hash of the edition's id. No randomness from the sim's streams.
@@ -160,19 +174,51 @@ Every game gets exactly one, the first that fits:
 
 | Angle | When |
 | --- | --- |
-| A run ends | The loser was 5–0 or better, or the winner was 0–5 or worse, or a winning or losing streak of five or more ended |
-| An upset | After week 4, the winner's winning percentage before the game was at least .350 below the loser's |
-| A comeback | The winner trailed by ten or more at halftime |
-| Against the yardage | The winner was outgained by 100 yards or more, or the loser outgained the winner by 100 or more with three or more turnovers |
-| One player's day | Three touchdowns, 150 scrimmage yards, 400 passing yards or four passing touchdowns, three sacks, or two interceptions |
+| An unbeaten or winless run ends | The loser was 5–0 or better, or the winner was 0–5 or worse |
+| An upset | After week 5, the winner's winning percentage before the game was at least .400 below the loser's |
+| A tie | |
+| A streak ends | A winning or losing streak of six or more ended |
+| A comeback | The winner trailed by ten or more at the end of any quarter |
+| Against the yardage | The winner was outgained by 100 yards or more |
+| One player's day | Three touchdowns scored, 200 scrimmage yards, 400 passing yards, five passing touchdowns, three sacks, or three interceptions |
 | A quarterback lost | The starter left hurt and his backup had ten or more dropbacks |
-| A blowout | A margin of 21 or more by a club ahead at the end of every quarter |
-| Overtime or a tie | |
+| A rout | A margin of 28 or more by a club ahead at the end of every quarter |
+| Overtime | |
 | The result | Otherwise: the score and the two numbers that decided it (`gameStory.ts`'s reading, in the third person) |
 
 A game that fits several keeps the facts of the others as support: the lead in the reference picture is "one
 player's day" and uses the lost quarterback as its why. `src/engine/snnStory.ts` holds the angles as pure functions
 of a result and the standings before it.
+
+#### Where the cutoffs come from
+
+An angle is news only if it is rare, so each cutoff was set from how often it fires: in the NFL
+(`scripts/research-edition.py`, nflverse play-by-play 2021–25, 1,359 games) and in our own league (three leagues, a
+season each, a small sample). Rates are a week unless marked.
+
+| Angle | Cutoff | NFL | Our league | A real one |
+| --- | --- | --- | --- | --- |
+| An upset | .400 below, after week 5 | 0.54 | 0.52 | 2021 week 11: the 1–8 Texans beat the 8–2 Titans 22–13 |
+| A comeback | Ten down at the end of a quarter | 1.01 | 0.67 | 2022 week 15: the Vikings beat the Colts 39–36 from 33 down at halftime |
+| Against the yardage | Outgained by 100 | 0.94 | 0.57 | |
+| One player's day | The six marks above | 2.7 games | 3.7 games | Jonathan Taylor's five touchdowns at Buffalo, 2021 week 11 |
+| A quarterback lost | Starter hurt, backup ten dropbacks | | 0.33 | |
+| A rout | 28, ahead after every quarter | 0.81 | 0.94 | |
+| Overtime | | 0.93 | 0.93 | |
+| A tie | | 4 in five seasons | 3 in three seasons | |
+| An unbeaten club loses | 5–0 or better | 1.2 a season | 1.3 a season | 2024 week 11: the 9–0 Chiefs lost 30–21 to the Bills |
+| A winless club wins | 0–5 or worse | 0.6 a season | 1.0 a season | 2025 week 8: the 0–7 Jets beat the Bengals 39–38 |
+| A streak ends | Six or more | 8.2 a season | 9.3 a season | |
+
+The first draft's cutoffs were looser and the counts ruled them out. An upset at .350 after week 4 fired 0.80 times
+a week, and 82% of those NFL winners were underdogs of three points or more against 92% at the cutoff above. A
+comeback judged only at halftime missed the fourth-quarter ones. One player's day at 150 scrimmage yards, four
+passing touchdowns or two interceptions fired in 41% of NFL games and half of ours. A 21-point win happens about
+twice a week. A streak of five ends almost every week and would have outranked upsets.
+
+Our league showed bigger single days than the NFL's (200 scrimmage yards about twice as often) and fewer comebacks.
+Three seasons is too few to act on, and the owner has noted it for a later look. The cutoffs are constants in
+`snnStory.ts`, to be tuned from a season of editions.
 
 ### The other kinds
 
@@ -182,7 +228,10 @@ of a result and the standings before it.
 | Trade | A seller's second sale of the season. A club at .600 or better adding. A swap. A rental | `league.market.history`, `keyTradeNews`'s selection |
 | Star out | Who, how long, what he had done | The game's public injuries and the doctor's public estimate |
 | Coach or GM out | Who, the record he leaves, who steps in | `leadership.events` (another club's; ours stay with the owner) |
-| A run | Won or lost five straight, or started 5–0 or better and has lost two of its last three | Results |
+| A run | Won or lost six straight, or started 5–0 or better and has lost two of its last three | Results |
+| A player speaks out | What he said, the fact behind it (the job he lost, the deal that passed him), his club's next game | `speakEvents` in `lockerMail.ts`, in season |
+| A coach losing his room | The losing run, then the report | `snnRumor` in `meetings/mail.ts`, as rare as today |
+| A coach facing his mentor | Who taught whom, and the game | The tree stories in `lockerMail.ts`, in season |
 
 A star is judged from public production only: a weekly award this season, a top-five place in the league in a major
 stat, or a club's starting quarterback. Trade stories keep today's rule for the headline player.
@@ -231,7 +280,7 @@ And the trade from the top of this document, with only facts the league holds:
 | At most two numbers in a sentence. The rest go in the three number chips | The season test |
 | No sentence twice in a league year | `say` with `around`, as the letters do |
 | Words match the stakes: a verb for a margin is chosen by the margin | The line's condition |
-| No job talk in this spec. A coach who is out is reported, nothing more | No such lines in the bank |
+| No job talk in this spec. A coach who is out is reported, nothing more. The one item on a coach losing his room keeps today's rare trigger and reports it, without a view on his job | No such lines in the bank |
 
 The callbacks a story may use: a club's record some weeks ago, an earlier meeting this season, an earlier trade by
 the same club this season, a weekly award in the last four weeks, a top-three or bottom-three league rank in a stat,
@@ -244,7 +293,8 @@ is about. His line is chosen like any other: by a condition on a fact that is in
 judgment on that fact. "He's 32 and he was our best player in the fourth quarter." fits a back with three
 touchdowns in a game his club closed with 21 points in the fourth. A line that needs an event the sim did not make
 ("he asked for the ball") cannot be written. A coach's motto (`mottoOf`) may appear once a season. Player quotes
-wait for spec 2.
+wait for spec 2, with one exception: a player who speaks out is quoted, because his words are the story. That story
+still ends on a fact.
 
 ## 4. On screen
 
