@@ -170,12 +170,30 @@ describe('the land outside', () => {
 });
 
 describe('the buildings', () => {
-  it('draws the five the owner agreed', () => {
-    expect(Object.keys(BUILDINGS).sort()).toEqual(expect.arrayContaining(['ATL', 'BUF', 'CIN', 'DEN', 'MIN']));
-    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['MIA', 'NE', 'NYK'])); // Liberty East
-    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['BAL', 'CLE', 'PIT'])); // Liberty North
-    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['HOU', 'IND', 'JAX', 'TEN'])); // Liberty South
-    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['KC', 'LV', 'LAC'])); // Liberty West
+  it('draws every club done so far', () => {
+    const done = [
+      'BUF',
+      'MIA',
+      'NE',
+      'NYK',
+      'BAL',
+      'CIN',
+      'CLE',
+      'PIT',
+      'HOU',
+      'IND',
+      'JAX',
+      'TEN',
+      'DEN',
+      'KC',
+      'LV',
+      'LAC',
+    ];
+    done.push('DAL', 'NYE', 'PHI', 'WAS'); // Frontier East
+    // next division
+    done.push('MIN', 'ATL'); // agreed ahead of their divisions
+    expect(Object.keys(BUILDINGS).sort()).toEqual([...done].sort());
+    for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(b.id).toBe(abbrev);
   });
   it('gives every listed building the roof the game says its club has', () => {
     for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(roofKindOf(b), abbrev).toBe(STADIUMS[abbrev].roof);

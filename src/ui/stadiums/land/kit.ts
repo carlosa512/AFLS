@@ -4,7 +4,7 @@
  */
 import { CAM, FRAME, toFrame } from '../camera';
 import { shade } from '../colour';
-import type { Pt } from '../pen';
+import { byColour, type Pt } from '../pen';
 import type { Scene } from '../types';
 
 export const P = (X: number, Y: number, Z: number): Pt => {
@@ -175,6 +175,7 @@ export function tower(s: Scene, x: number, z: number, w: number, d: number, h: n
   const sky = s.tone('#cfe3ee');
   const lit = s.lamp('#f3dfa2');
   const side = s.tone(shade(glass, 0.75));
+  const panes: [Pt[], string][] = [];
   for (let y = 3.4; y + 2.4 < h; y += 3.5) {
     const off = !inView || toFrame(x, y, z).y < -12;
     for (let c = 0; c < cols; c++) {
@@ -182,7 +183,7 @@ export function tower(s: Scene, x: number, z: number, w: number, d: number, h: n
       if (off) continue;
       const xa = x0 + (c + 0.16) * cw;
       const fill = s.look.night ? (a < 0.45 ? lit : day) : a < 0.16 ? sky : a < 0.32 ? lit : day;
-      s.pen.poly(
+      panes.push([
         [
           P(xa, y, z - 0.03),
           P(xa + cw * 0.68, y, z - 0.03),
@@ -190,11 +191,13 @@ export function tower(s: Scene, x: number, z: number, w: number, d: number, h: n
           P(xa, y + 2.1, z - 0.03),
         ],
         fill,
-      );
+      ]);
     }
     if (!off)
-      s.pen.poly([P(sx, y, z + 1), P(sx, y, z + d - 1), P(sx, y + 2.1, z + d - 1), P(sx, y + 2.1, z + 1)], side);
+      panes.push([[P(sx, y, z + 1), P(sx, y, z + d - 1), P(sx, y + 2.1, z + d - 1), P(sx, y + 2.1, z + 1)], side]);
   }
+  // a building's windows, a colour at a time
+  byColour(s.pen, panes);
   if (inView && h > 14 && toFrame(x, h, z).y > -8)
     box(s, x + w * 0.12, z + d * 0.3, w * 0.3, d * 0.3, 2, shade(col, 0.8), h);
 }

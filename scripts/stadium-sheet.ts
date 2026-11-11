@@ -1,13 +1,14 @@
 /**
  * The owner's stadium review pages: `npm run stadiums -- <group> [--time]`. A preview, not a check, except with
- * `--time`: it then paints each building with the processor slowed six times (a mid-range phone) and fails if one
- * takes more than 300 ms. Pages land in `.check/stadiums/<group>.html`, self-contained.
+ * `--time`: it then paints each building at a phone's size with the processor slowed six times and fails if one costs
+ * more than 1.6 times a fixed job timed beside it. Pages land in `.check/stadiums/<group>.html`, self-contained.
  */
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
-const LIMIT_MS = 300;
+/** A building may cost this many times the fixed job (20,000 small shapes): about 300 ms where that job takes 190. */
+const LIMIT = 1.6;
 const SLOWDOWN = 6;
 const args = process.argv.slice(2);
 const group = args.find((a) => !a.startsWith('--')) ?? 'agreed';
@@ -86,16 +87,39 @@ if (time) {
   await tab.goto(`file://${process.cwd()}/${file}`);
   const cdp = await tab.context().newCDPSession(tab);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: SLOWDOWN });
-  // the middle of three paintings: one run on a shared machine swings by a fifth
-  const runs: Record<string, number>[] = [];
-  for (let i = 0; i < 3; i++)
-    runs.push(await tab.evaluate(() => (window as unknown as { timeAll: () => Record<string, number> }).timeAll()));
-  const ms = Object.fromEntries(Object.keys(runs[0]).map((k) => [k, runs.map((r) => r[k]).sort((a, b) => a - b)[1]]));
+  // A shared machine's speed swings by a fifth from run to run, so a building is judged against a fixed job timed in
+  // the same breath (20,000 small filled shapes), each taken as the best of five: the ratio holds when the clock does not.
+  const runs: { job: number; ms: Record<string, number> }[] = [];
+  for (let i = 0; i < 5; i++)
+    runs.push(
+      await tab.evaluate(() => {
+        const c = document.createElement('canvas');
+        c.width = 1170;
+        c.height = 611;
+        const g = c.getContext('2d')!;
+        const t0 = performance.now();
+        for (let n = 0; n < 20000; n++) {
+          g.fillStyle = n % 7 ? '#334455' : '#aa5533';
+          g.beginPath();
+          const x = (n * 37) % 1100;
+          const y = (n * 91) % 580;
+          g.rect(x, y, 9, 6);
+          g.fill();
+        }
+        g.getImageData(0, 0, 1, 1);
+        const job = performance.now() - t0;
+        return { job, ms: (window as unknown as { timeAll: () => Record<string, number> }).timeAll() };
+      }),
+    );
   await browser.close();
+  const job = Math.min(...runs.map((r) => r.job));
+  console.log(`fixed job ${Math.round(job)} ms (processor slowed ${SLOWDOWN}×)`);
   let over = 0;
-  for (const [club, t] of Object.entries(ms)) {
-    console.log(`${t > LIMIT_MS ? '✗' : '✓'} ${club} ${t} ms (limit ${LIMIT_MS}, processor slowed ${SLOWDOWN}×)`);
-    if (t > LIMIT_MS) over++;
+  for (const club of Object.keys(runs[0].ms)) {
+    const t = Math.min(...runs.map((r) => r.ms[club]));
+    const ratio = t / job;
+    console.log(`${ratio > LIMIT ? '✗' : '✓'} ${club} ${t} ms, ${ratio.toFixed(2)}× the fixed job (limit ${LIMIT}×)`);
+    if (ratio > LIMIT) over++;
   }
   if (over) process.exit(1);
 }

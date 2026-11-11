@@ -7,7 +7,7 @@ import { at, DECKS, type Post } from './bowl';
 import { CAM, FRAME, toFrame } from './camera';
 import { mix } from './colour';
 import { crowdPalette, sectionFill } from './crowd';
-import type { Pt } from './pen';
+import { byColour, type Pt } from './pen';
 import { SLAB_CUT, slabReach, slabTop } from './roof';
 import type { Building, Scene } from './types';
 
@@ -171,7 +171,7 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
         const az = a.z + a.nz * d;
         const bx = c.x + c.nx * d;
         const bz = c.z + c.nz * d;
-        const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 0.92));
+        const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 1.02));
         const k = light(a) * (1 - 0.45 * (open(i) ? 0 : under));
         const here = sectionFill(look.fill, ti, a.part, lean(ti * 100 + Math.floor(i / 13)));
         const empty = s.tone(chair, k);
@@ -212,7 +212,12 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
         );
       }
     }
-    // the deck's front: a face with a ribbon board and a rail; under it, the dark gap where the concourse runs
+    // the deck's front: a face with a ribbon board and a rail; under it, the dark gap where the concourse runs.
+    // Gathered first and drawn a colour at a time: none of them overlaps another of its kind.
+    const gaps: [Pt[], string][] = [];
+    const faces: [Pt[], string][] = [];
+    const boards: [Pt[], string][] = [];
+    const front = ti ? (b.face ?? wear[1]) : mix(s.colors[0], '#000000', 0.45);
     for (let i = 0; i < N - 1; i++) {
       if (gone(i)) continue;
       const a = wall[i];
@@ -220,16 +225,9 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
       const k = light(a);
       if (ti) {
         const U = decks[ti - 1];
-        pen.poly([A(a, U.d1, U.y1), A(c, U.d1, U.y1), A(c, T.d0, T.y0 - T.face), A(a, T.d0, T.y0 - T.face)], dark);
-      }
-      const front = ti ? (b.face ?? wear[1]) : mix(s.colors[0], '#000000', 0.45);
-      pen.poly(
-        [A(a, T.d0, T.y0 - T.face), A(c, T.d0, T.y0 - T.face), A(c, T.d0, T.y0), A(a, T.d0, T.y0)],
-        s.tone(front, k),
-      );
-      if (ti) {
+        gaps.push([[A(a, U.d1, U.y1), A(c, U.d1, U.y1), A(c, T.d0, T.y0 - T.face), A(a, T.d0, T.y0 - T.face)], dark]);
         const board = i % 9 < 5 ? s.colors[0] : '#f4f4f0';
-        pen.poly(
+        boards.push([
           [
             A(a, T.d0, T.y0 - T.face * 0.62),
             A(c, T.d0, T.y0 - T.face * 0.62),
@@ -237,9 +235,16 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
             A(a, T.d0, T.y0 - T.face * 0.3),
           ],
           look.night ? s.lamp(board) : s.tone(board, k),
-        );
+        ]);
       }
+      faces.push([
+        [A(a, T.d0, T.y0 - T.face), A(c, T.d0, T.y0 - T.face), A(c, T.d0, T.y0), A(a, T.d0, T.y0)],
+        s.tone(front, k),
+      ]);
     }
+    byColour(pen, gaps);
+    byColour(pen, faces);
+    byColour(pen, boards);
     let rail: Pt[] = [];
     const endRail = () => {
       if (rail.length > 1) pen.line(rail, 'rgba(240,244,246,.75)', 0.2);

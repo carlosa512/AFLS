@@ -6,18 +6,23 @@ import type { RoofType } from '../../../engine/data/stadiums';
 import { lift, lum, mix } from '../colour';
 import type { Building } from '../types';
 import { AGREED } from './agreed';
+import { FRONTIER_EAST } from './frontierEast';
 import { LIBERTY_EAST } from './libertyEast';
 import { LIBERTY_NORTH } from './libertyNorth';
 import { LIBERTY_SOUTH } from './libertySouth';
 import { LIBERTY_WEST } from './libertyWest';
 
-export const BUILDINGS: Record<string, Building> = {
-  ...AGREED,
-  ...LIBERTY_EAST,
-  ...LIBERTY_NORTH,
-  ...LIBERTY_SOUTH,
-  ...LIBERTY_WEST,
-};
+/** One entry a file of buildings: a new division is one more line here. */
+const FILES: Record<string, Building>[] = [
+  AGREED,
+  LIBERTY_EAST,
+  LIBERTY_NORTH,
+  LIBERTY_SOUTH,
+  LIBERTY_WEST,
+  FRONTIER_EAST,
+  // next division
+];
+export const BUILDINGS: Record<string, Building> = Object.assign({}, ...FILES);
 export const LATER: Record<string, { season: number; building: Building }[]> = {};
 
 export function plainBowl(colors: [string, string]): Building {

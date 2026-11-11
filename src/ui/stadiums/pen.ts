@@ -15,7 +15,7 @@ export interface Pen {
 }
 
 /** A dot smaller than this many pixels in radius is drawn square. */
-const SQUARE_UNDER = 1.9;
+const SQUARE_UNDER = 2.6;
 
 /**
  * A pen on a canvas. Dots and boxes are the bulk of a building (a seat each), so they wait in one list a colour and
@@ -117,4 +117,18 @@ export function recorder(): Pen & { shapes: Shape[] } {
     box: (_x, _y, _w, _h, fill) => void shapes.push({ kind: 'box', fill }),
     flush: () => {},
   };
+}
+
+/**
+ * Draws shapes that do not overlap one another a colour at a time, so each colour is one path: a row of windows or a
+ * deck's ribbon board in alternating colours would otherwise be a path a shape.
+ */
+export function byColour(pen: Pen, shapes: [Pt[], string][]): void {
+  const groups = new Map<string, Pt[][]>();
+  for (const [pts, fill] of shapes) {
+    const g = groups.get(fill);
+    if (g) g.push(pts);
+    else groups.set(fill, [pts]);
+  }
+  for (const [fill, list] of groups) for (const pts of list) pen.poly(pts, fill);
 }

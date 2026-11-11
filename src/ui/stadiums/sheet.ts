@@ -34,6 +34,8 @@ export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec
   'liberty-north': { title: 'Liberty North', tiles: ['BAL', 'CIN', 'CLE', 'PIT'].map(club) },
   'liberty-south': { title: 'Liberty South', tiles: ['HOU', 'IND', 'JAX', 'TEN'].map(club) },
   'liberty-west': { title: 'Liberty West', tiles: ['DEN', 'KC', 'LV', 'LAC'].map(club) },
+  'frontier-east': { title: 'Frontier East', tiles: ['DAL', 'NYE', 'PHI', 'WAS'].map(club) },
+  // next division
   checks: {
     title: 'Three things not seen yet',
     intro:
