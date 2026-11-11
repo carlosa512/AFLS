@@ -114,6 +114,14 @@ before the pull request: none after this plan.
     table: { head: string[]; rows: string[][] }; facts: Record<string, string | number>; of?: string }`.
     `key` is `column:{season}:{subjectKey}:{rung}{+|-}` and a fix's is `column:{season}:{subjectKey}:fix`, where
     `subjectKey` is `unit:{teamId}:{unit}`, `coach:{coachId}` or `gm:{gmId}`. `of` is the key a fix corrects.
+    Every claim also carries `context: ClubContext`.
+  - `interface ClubContext { w: number; l: number; t: number; place: number; gap: number; race: 'in' | 'edge' |
+    'out'; stage: 'early' | 'middle' | 'runIn'; left: number; last: { w: number; l: number } | null;
+    span: { w: number; l: number }; before: { w: number; l: number } }` and
+    `clubContext(l: League, teamId: number, week: number): ClubContext`. `race` is `'in'` holding a playoff place or
+    within one game of one, `'edge'` within two, else `'out'` (from `computeRecords` and the playoff seeding the
+    Playoffs screen uses). `stage` is early through Week 8, middle through Week 13, then the run-in. `last` is last
+    season's record from `league.history`, null in a league's first season.
   - `columnClaims(l: League, week: number, have: Set<string>): Claim[]`: every claim that holds after `week` and has
     not been made.
   - `pickColumn(claims: Claim[], opt: { taken: Set<number>; userTeamId: number | null; yoursTold: number;
@@ -134,8 +142,11 @@ before the pull request: none after this plan.
   - **Fix.** For each rung key in `have` from this season with no fix yet: a unit blame whose unit is now `rank <=
     16` with `won >= 3`; a unit credit whose unit is now `rank > 24`; a coach or GM blame whose club has won
     `fixWins` straight; a coach credit whose club has lost `fixWins` straight.
-- `pickColumn` order: a fix first, then rung (3, 2, 1), then `margin` (how far past the bar, as a share of it), then
-  the club's record, then `stableHash(editionId + key)`. Skip a claim whose club is in `taken`. Skip a claim about
+- `pickColumn` order: a fix first, then rung (3, 2, 1), then **stakes**, then `margin` (how far past the bar, as a
+  share of it), then `stableHash(editionId + key)`. Stakes, highest first: a contender's blame (`race: 'in'`), a
+  surprise (a credit for a club that had a losing record last season, or a blame for one that won ten or more), a
+  club on the edge, then the rest. A club that is `'out'` gets at most one unit-blame Column a season (a lookup of
+  its `unit:` blame keys in `have`). Skip a claim whose club is in `taken`. Skip a claim about
   the user's club when `yoursTold >= LADDER.yoursASeason` or `yoursLastWeek`.
 
 - [ ] **Step 1: Write the failing tests** in `snnColumn.test.ts`. Hand-built leagues (records and box scores set
@@ -149,6 +160,10 @@ before the pull request: none after this plan.
     that key; a second call with the fix key in `have` gives none.
   - a coach dismissed after his rung-2 claim: no rung 3 and no fix is written about him, and his interim successor
     gets no claim above rung 1.
+  - `clubContext`: a 9–2 division leader in Week 12 is `race: 'in'`, `stage: 'middle'`, `left: 6`; a 2–9 club is
+    `'out'`; Week 6 is `'early'`, Week 15 `'runIn'`; `last` is null in a first season.
+  - two unit blames of equal rung and margin, one at a 9–2 club and one at a 2–9 club: `pickColumn` returns the
+    9–2 club's. A 2–9 club with a unit-blame key already in `have` gets no second one.
   - `pickColumn` returns the rung 3 over a rung 1, a fix over both, null when every club is `taken`, and never the
     user's club when `yoursTold` is 3 or `yoursLastWeek` is true.
   - every claim's `table.rows.length` is 2 to 4 and each row has `head.length` cells.
@@ -202,6 +217,10 @@ bars, set them in `FORM` and `LADDER`, and re-run.
   - `ruleBreaks` for a `column`: "a Column carries an evidence table of two to four rows", "more than one sentence
     under eight words in a paragraph", "more than one number in a sentence", "the argument has two or three
     sentences".
+- **Context shapes the words** (`claim.context`): each bank has forms for a contender, a club on the edge and a
+  club that is out, and the argument's last sentence comes from the stage: early says how small the sample is ("four
+  games is a third of their season so far"), the middle says where it leaves them in the race, the run-in says what
+  is at stake with the games left. A Column about a club that is `'out'` never says its season depends on the unit.
 - Line banks: one a rung and direction (seven: `1-`, `1+`, `2-` coach, `2-` GM, `2+`, `3-`, `fix`), at least four
   first-paragraph forms and four argument forms each, every argument sentence joining a cause to its effect with
   "until", "since", "when", "because" or "and". The spec's rewritten Las Vegas text is the reference for `1-`. A
@@ -209,7 +228,9 @@ bars, set them in `FORM` and `LADDER`, and re-run.
 
 - [ ] **Step 1: Write the failing tests.** In `storyRules.test.ts`: a `column` story with no table breaks a rule;
   with the mock-up's four short sentences it breaks "more than one sentence under eight words"; the spec's rewritten
-  text with a three-row table breaks none. In `snnColumn.test.ts`: for every claim of a nine-week league and every
+  text with a three-row table breaks none. In `snnColumn.test.ts`: the same unit blame written for a 9–2 club and for a 2–9 club gives two
+  different first paragraphs, the first naming the race and the second never using "playoff", "seed" or "race"; the
+  same claim at Week 6 names the sample and at Week 15 names the games left. And for every claim of a nine-week league and every
   hand-built claim of Task 2, `ruleBreaks(l, columnStory(l, claim, at))` is empty, the headline is at most the
   headline limit, and no paragraph names a rating or a mood (the fog-of-war word list the edition tests use).
 - [ ] **Step 2: Run** both files. Expected: FAIL.

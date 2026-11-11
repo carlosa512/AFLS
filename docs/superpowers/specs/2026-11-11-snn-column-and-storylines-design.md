@@ -78,6 +78,29 @@ owners could not do. They read only public facts: records, this season's box sco
 "unit" is one of the units the Key matchups card already names (`opposition.ts`: the passing game, the run game, the
 offensive line, the pass rush, the run defense, the coverage), judged by the same public stats and league places.
 
+### It knows where the season is
+
+The owner's note on the plan: the Column must take into account how clubs are doing as the season goes on. The same
+four bad games mean different things at 9–2 and at 2–9, in Week 6 and in Week 15. Every claim carries its context,
+from the public table only:
+
+- **Where the club stands:** its record, its place in the division, and whether it is in the playoff race (holding
+  a place or within two games of one), on the edge of it, or out of it.
+- **Where the season is:** early (through Week 8), the middle (Weeks 9 to 13) or the run-in (Week 14 on), and the
+  games left.
+- **What was expected:** last season's record, so a club is read against where it came from (a 6–5 club that won
+  four games last year is not a 6–5 club that won thirteen).
+- **The trend:** its record in the span against its record before it.
+
+Context does two jobs:
+
+- **It chooses.** A contender's one weakness, and a surprise in either direction, outrank a struggling club's
+  latest problem. A club already out of the race gets at most one unit-blame Column a season: after that the Column
+  about it is about the men in charge, on the ladder, or it is about someone else.
+- **It shapes the words.** Early, the Column says how small the sample is. In the run-in it says what is at stake
+  and how many games are left. For a contender the problem is "the one thing between them and the top seed". For a
+  club that is out, it is about next year. A Column never tells a 2–9 club its season depends on its run defense.
+
 ### Its limits
 
 - **One rung at a time.** "It's time" only follows an earlier "fair to ask" about the same man, this season or last.
