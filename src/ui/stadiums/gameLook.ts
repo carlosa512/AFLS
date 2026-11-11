@@ -63,12 +63,14 @@ export function gameStadium(league: League, game: Game, weather: Weather): Stadi
     };
   }
   const snowing = weather.precip === 'snow' || weather.precip === 'mixed';
+  // a neutral site's weather names no night (the game plays it as indoors): the kickoff slot still says
+  const night = !!weather.night || (!!game.neutral && isNight(league, game));
   return {
     building,
     colors,
     seed: home.abbrev,
     look: {
-      night: !!weather.night,
+      night,
       theme,
       precip: weather.precip,
       lying: snowing || (weather.tempF <= 32 && game.week >= DEEP_WINTER),

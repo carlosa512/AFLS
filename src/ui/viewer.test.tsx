@@ -1231,6 +1231,13 @@ describe('the building behind the field', () => {
     expect(theme()).toBeUndefined();
     expect(theme('rush', true)).toBeUndefined();
   });
+  it('plays a night kickoff at a neutral site under the lights', () => {
+    const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
+    const at = (et: number) =>
+      gameStadium(league, { ...open, neutral: true, kickoff: { day: 'sun', et } }, FAIR).look.night;
+    expect(at(20 * 60 + 20)).toBe(true);
+    expect(at(13 * 60)).toBe(false);
+  });
   it('lets snow lie outdoors while it falls or in a freezing deep winter, and never of a building’s own accord', () => {
     const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
     expect(gameStadium(league, { ...open, week: 2 }, FAIR).look.lying).toBe(false);
