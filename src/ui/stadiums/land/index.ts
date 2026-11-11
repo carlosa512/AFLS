@@ -1,6 +1,27 @@
 /** The kinds of land a building can stand in. Each follows the lie of the land round a real ground, nothing more. */
 import type { Scene, SettingUse } from '../types';
-import { box, bridge, city, highway, houses, lined, lot, marsh, P, patch, street, tower, water, woods } from './kit';
+import {
+  boat,
+  box,
+  bridge,
+  BRICK,
+  city,
+  crane,
+  highway,
+  houses,
+  lined,
+  lot,
+  marsh,
+  P,
+  patch,
+  railYard,
+  ship,
+  STEEL,
+  street,
+  tower,
+  water,
+  woods,
+} from './kit';
 
 type Painter<K extends SettingUse['kind']> = (s: Scene, use: Extract<SettingUse, { kind: K }>) => void;
 const pickFrom = (s: Scene, list: string[]) => list[Math.floor(s.rng.next() * list.length)];
@@ -125,6 +146,61 @@ const marshland: Painter<'marsh'> = (s, use) => {
   if (use.highway) highway(s, 196);
 };
 
+/** In town by the water: rail yards behind the ground, brick blocks beyond them, then the harbor and its ships. */
+const harbor: Painter<'harbor'> = (s) => {
+  railYard(s, 138, 164);
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -200, sgn > 0 ? 200 : -134, 10, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 136], 6);
+  }
+  street(s, [-430, 168], [430, 168], 6, '#6f757a', 0.6);
+  for (let x = -280; x < 280; x += 40)
+    tower(s, x + 20, 174, 28 + s.rng.next() * 8, 18, 9 + s.rng.next() * 12, pickFrom(s, BRICK));
+  water(s, 200, 330, '#5f8fa6');
+  s.pen.poly(patch(-460, 460, 196, 200), s.tone('#8d9296'));
+  for (const x of [-170, 40]) {
+    s.pen.poly(patch(x - 5, x + 5, 200, 232), s.tone('#8d9296'));
+    ship(s, x + 34, 210, 46);
+  }
+  crane(s, -120, 200);
+  crane(s, 96, 200);
+};
+
+/** On a lake: a shore road, docks with ships and cranes, and the water running to the top of the picture. */
+const lake: Painter<'lake'> = (s, use) => {
+  water(s, 160, 340, '#5a8ba8');
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -200, sgn > 0 ? 200 : -134, 10, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 150], 6);
+  }
+  lot(s, -110, 110, 138, 148);
+  street(s, [-430, 153], [430, 153], 6, '#6f757a', 0.7);
+  s.pen.poly(patch(-460, 460, 157, 161), s.tone('#9a9d98'));
+  if (use.docks) {
+    for (const x of [-200, -60, 110]) {
+      s.pen.poly(patch(x - 7, x + 7, 160, 205), s.tone('#8d9296'));
+      crane(s, x, 164);
+      crane(s, x, 186);
+    }
+    ship(s, -132, 172, 50);
+    ship(s, 40, 190, 44);
+  } else {
+    lined(s, -300, 300, 151);
+    for (let n = 0; n < 46; n++) boat(s, -150 + (n % 12) * 9 + s.rng.next() * 3, 166 + Math.floor(n / 12) * 7);
+  }
+};
+
+/** Where two rivers meet: one across behind the ground, one coming in from the side, bridges, and the city beyond. */
+const confluence: Painter<'confluence'> = (s) => {
+  city(s, { z0: 196, height: 'high', palette: [...STEEL, ...BRICK], ground: '#7a7f83' });
+  water(s, 124, 186);
+  s.pen.poly(patch(-250, -190, 150, 340), s.tone('#6f9db3'));
+  street(s, [-430, 119], [430, 119], 6, '#6f757a', 0.6);
+  lined(s, -430, 430, 123);
+  for (const sgn of [-1, 1]) lot(s, sgn > 0 ? 134 : -190, sgn > 0 ? 190 : -134, 16, 112);
+  for (const x of [-120, 20, 150]) bridge(s, x, 124, 186, '#d9a514');
+};
+
 export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = {
   none: () => {},
   town,
@@ -133,4 +209,7 @@ export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = {
   downtown,
   suburb,
   marsh: marshland,
+  harbor,
+  lake,
+  confluence,
 };

@@ -21,6 +21,8 @@ export type Rim =
   | { kind: 'peaks'; h: number; rise: number; every: number }
   /** A castle's wall: every other stretch a step higher. */
   | { kind: 'battlements'; h: number; step: number }
+  /** A factory's roofline: a slope and a drop, over and over. */
+  | { kind: 'sawtooth'; h: number; rise: number; every: number }
   /** Low at midfield, rising to the ends, like a ship's rail. */
   | { kind: 'saddle'; h: number; rise: number };
 
@@ -58,6 +60,12 @@ export type SettingUse =
   | { kind: 'outOfTown'; trees: 'pine' | 'round'; sheds: boolean; shops?: boolean }
   /** Streets of houses, with car parks by the ground and perhaps a canal. */
   | { kind: 'suburb'; trees: 'palm' | 'round' | 'pine'; canal: boolean }
+  /** In town by the water: rail yards, brick blocks, then a harbor with ships. */
+  | { kind: 'harbor' }
+  /** On a lake: docks with ships and cranes, and the water to the top of the picture. */
+  | { kind: 'lake'; docks: boolean }
+  /** Where two rivers meet: bridges, and the city across the water. */
+  | { kind: 'confluence' }
   /** Marshland cut by channels, with a highway across it. */
   | { kind: 'marsh'; highway: boolean }
   | { kind: 'river'; bridges: number; boat: boolean }
@@ -65,12 +73,16 @@ export type SettingUse =
 
 /** Things on a building the painter knows how to draw in space. */
 export type FeatureUse =
-  | { kind: 'stacks'; x: number[]; cap: string }
+  | { kind: 'stacks'; x: number[]; cap: string; body?: string; glow?: boolean }
   | { kind: 'wheel' }
   /** Shade blades standing round the rim like fins. */
   | { kind: 'fins'; skin: string }
   /** A ship's masts over the far side, with sails and a pennant each. */
-  | { kind: 'masts'; x: number[] }
+  | { kind: 'masts'; x: number[]; rake?: number; rigging?: boolean; bare?: boolean }
+  /** A crane's gantry across the far side, carrying the lights. */
+  | { kind: 'gantry'; col: string }
+  /** A steel truss running round the face of the club deck. */
+  | { kind: 'truss'; col: string }
   /** Square towers on the far wall, with battlements and a banner. */
   | { kind: 'towers'; x: number[] };
 

@@ -7,8 +7,9 @@ import { lift, lum, mix } from '../colour';
 import type { Building } from '../types';
 import { AGREED } from './agreed';
 import { LIBERTY_EAST } from './libertyEast';
+import { LIBERTY_NORTH } from './libertyNorth';
 
-export const BUILDINGS: Record<string, Building> = { ...AGREED, ...LIBERTY_EAST };
+export const BUILDINGS: Record<string, Building> = { ...AGREED, ...LIBERTY_EAST, ...LIBERTY_NORTH };
 export const LATER: Record<string, { season: number; building: Building }[]> = {};
 
 export function plainBowl(colors: [string, string]): Building {

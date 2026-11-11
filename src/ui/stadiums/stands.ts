@@ -56,6 +56,7 @@ export function bowlOf(b: Building, wall: Post[]): Bowl {
       if (b.rim.kind === 'peaks')
         return b.rim.h + b.rim.rise * tri(p.u / b.rim.every) * (0.45 + 0.55 * Math.abs(Math.sin(p.u / 26)));
       if (b.rim.kind === 'battlements') return b.rim.h + (Math.floor(p.i / 3) % 2 ? b.rim.step : 0);
+      if (b.rim.kind === 'sawtooth') return b.rim.h + b.rim.rise * (p.u / b.rim.every - Math.floor(p.u / b.rim.every));
       if (b.rim.kind === 'saddle') return b.rim.h + b.rim.rise * Math.min(1, Math.abs(p.x) / 60) ** 2;
       return b.rim.h;
     },

@@ -23,31 +23,94 @@ export function fins(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse,
   }
 }
 
-/** Masts over the far side: a pole, two spars with a sail under each, and a pennant. */
+/**
+ * Masts over the far side: a pole, two spars with a sail under each, and a pennant. A clipper's are raked (they lean
+ * aft), carry their sails furled and are held by rigging run down to the rail.
+ */
 export function masts(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse, { kind: 'masts' }>) {
   const d = topOf(b).d1 + 2;
+  const rake = use.rake ?? 0;
   use.x.forEach((x, n) => {
     const i = farPost(bowl, x);
-    if (i < 6) return;
-    const A = (k: number, y: number): Pt => {
-      const p = at(bowl.wall[i + k], d, y);
-      return [p.x, p.y];
-    };
+    if (i < 10) return;
     const r = bowl.rim(bowl.wall[i]);
     const top = r + (n % 2 ? 30 : 26);
+    const A = (k: number, y: number): Pt => {
+      const lean = (rake * (y - r)) / (top - r);
+      const p = at(bowl.wall[Math.round(i + k + lean)], d, y);
+      return [p.x, p.y];
+    };
+    if (use.rigging)
+      for (const k of [-8, -4, 4, 8]) {
+        const foot = at(bowl.wall[i + k], d, r);
+        s.pen.line([A(0, top - 2), [foot.x, foot.y]], s.tone('#3b2c1c'), 0.18);
+      }
     for (const [y, half] of [
       [r + 16, 4],
       [r + 8, 5],
     ] as [number, number][]) {
-      s.pen.poly(
-        [A(-half + 1, y - 0.3), A(half - 1, y - 0.3), A(half - 2, y - 6.5), A(-half + 2, y - 6.5)],
-        s.tone('#ece6d4'),
-      );
+      if (use.bare)
+        s.pen.poly(
+          [A(-half + 1, y - 0.2), A(half - 1, y - 0.2), A(half - 1, y - 1.3), A(-half + 1, y - 1.3)],
+          s.tone('#ece6d4'),
+        );
+      else
+        s.pen.poly(
+          [A(-half + 1, y - 0.3), A(half - 1, y - 0.3), A(half - 2, y - 6.5), A(-half + 2, y - 6.5)],
+          s.tone('#ece6d4'),
+        );
       s.pen.line([A(-half, y), A(half, y)], s.tone('#3b2c1c'), 0.45);
     }
     s.pen.line([A(0, r - 1), A(0, top)], s.tone('#3b2c1c'), 0.6);
     s.pen.poly([A(0, top), A(3, top - 1.2), A(0, top - 2.4)], s.tone(lift(s.colors[1])));
   });
+}
+
+/** A gantry across the far side: two legs, a pair of girders braced between, a row of lamps under them, a trolley. */
+export function gantry(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse, { kind: 'gantry' }>) {
+  const d = topOf(b).d1 + 2;
+  const i0 = farPost(bowl, -54);
+  const i1 = farPost(bowl, 54);
+  if (i0 < 0 || i1 < 0) return;
+  const A = (i: number, y: number): Pt => {
+    const p = at(bowl.wall[i], d, y);
+    return [p.x, p.y];
+  };
+  const base = Math.max(bowl.rim(bowl.wall[i0]), bowl.rim(bowl.wall[i1]));
+  const lo = base + 9;
+  const hi = lo + 2.6;
+  const col = s.tone(use.col);
+  for (const i of [i0, i1]) s.pen.poly([A(i, base - 2), A(i + 2, base - 2), A(i + 2, hi), A(i, hi)], col);
+  const web: Pt[] = [];
+  for (let i = i0; i <= i1 + 2; i += 2) web.push(A(i, (i - i0) % 4 ? hi : lo));
+  s.pen.line(web, col, 0.3);
+  s.pen.line([A(i0, lo), A(i1 + 2, lo)], col, 0.55);
+  s.pen.line([A(i0, hi), A(i1 + 2, hi)], col, 0.55);
+  for (let i = i0 + 3; i < i1; i += 4) {
+    const p = at(bowl.wall[i], d, lo - 0.9);
+    s.pen.box(p.x - 0.9, p.y, 1.8, 0.6, s.lamp('#fff6cf'));
+  }
+  const mid = Math.round((i0 + i1) / 2) + 9;
+  s.pen.poly([A(mid, lo - 2.2), A(mid + 4, lo - 2.2), A(mid + 4, lo), A(mid, lo)], s.tone('#3a3f44'));
+  s.pen.flush();
+}
+
+/** A truss round the face of the club deck: a zigzag between its two edges. */
+export function truss(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse, { kind: 'truss' }>) {
+  const deck = (b.decks ?? DECKS)[1];
+  if (!deck) return;
+  const col = s.lamp(use.col);
+  let run: Pt[] = [];
+  const end = () => {
+    if (run.length > 1) s.pen.line(run, col, 0.22);
+    run = [];
+  };
+  bowl.wall.forEach((p, i) => {
+    if (bowl.open(i)) return end();
+    const q = at(p, deck.d0 - 0.05, i % 2 ? deck.y0 - 0.1 : deck.y0 - deck.face + 0.1);
+    run.push([q.x, q.y]);
+  });
+  end();
 }
 
 /** Square towers on the far wall: taller than the rim, with battlements, a slit and a banner. */

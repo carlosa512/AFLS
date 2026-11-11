@@ -308,3 +308,46 @@ export function marsh(s: Scene, z0: number, z1: number) {
     s.pen.line([P(x, 0, z), P(x + 0.3, 1.6, z)], s.tone(n % 3 ? '#a59f62' : '#6f7d4c'), 0.25);
   }
 }
+
+const WAGONS = ['#8a3b2e', '#3f5d7a', '#6b6f45', '#4a4d52', '#a0703a'];
+/** A rail yard: tracks side by side along X, with strings of wagons standing on some. */
+export function railYard(s: Scene, z0: number, z1: number) {
+  s.pen.poly(patch(-460, 460, z0, z1), s.tone('#6b655c'));
+  for (let z = z0 + 1.5; z < z1 - 1; z += 3.2) {
+    s.pen.line([P(-460, 0.05, z), P(460, 0.05, z)], s.tone('#3d3a36'), 0.22);
+    let x = -320 + s.rng.next() * 60;
+    while (x < 320) {
+      const n = Math.floor(s.rng.next() * 7);
+      for (let k = 0; k < n; k++) {
+        const col = pick(s, WAGONS);
+        if (seen(x, 1, z, 6)) box(s, x, z - 1, 11, 2, 2.6, col);
+        x += 12.2;
+      }
+      x += 30 + s.rng.next() * 90;
+    }
+  }
+}
+const BOXES = ['#b3472f', '#2f6a8a', '#c9a23a', '#4a6b4f', '#8b8f94'];
+/** A ship lying along X: a dark hull, a white house aft, and containers stacked on deck. */
+export function ship(s: Scene, x: number, z: number, len: number) {
+  box(s, x, z, len, 7, 3, '#2b3138');
+  box(s, x + len * 0.38, z + 1, len * 0.14, 5, 5, '#e9e7e0', 3);
+  for (let k = -0.42; k < 0.26; k += 0.115)
+    box(s, x + len * k + len * 0.05, z + 1, len * 0.1, 5, 2.2 + Math.floor(s.rng.next() * 2) * 2.2, pick(s, BOXES), 3);
+}
+/** A dock crane: legs, a cab, and a boom reaching out over the water. */
+export function crane(s: Scene, x: number, z: number) {
+  const col = s.tone('#c2562f');
+  for (const dx of [-3, 3]) s.pen.line([P(x + dx, 0, z), P(x + dx, 16, z)], col, 0.4);
+  s.pen.line([P(x - 3, 9, z), P(x + 3, 9, z)], col, 0.3);
+  s.pen.line([P(x - 3, 16, z), P(x + 3, 16, z)], col, 0.5);
+  s.pen.line([P(x, 16, z - 5), P(x, 16, z + 16)], col, 0.5);
+  s.pen.line([P(x, 22, z), P(x, 16, z + 16)], col, 0.25);
+  s.pen.line([P(x, 16, z), P(x, 22, z)], col, 0.3);
+}
+/** A sailing boat at a mooring. */
+export function boat(s: Scene, x: number, z: number) {
+  if (!seen(x, 1, z, 4)) return;
+  box(s, x, z, 5, 1.6, 0.7, '#f1efe8');
+  s.pen.line([P(x, 0.7, z + 0.8), P(x, 6, z + 0.8)], s.tone('#d8d8d2'), 0.15);
+}
