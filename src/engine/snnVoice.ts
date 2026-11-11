@@ -1030,6 +1030,18 @@ const OWN_HEAD: GL[] = [
 const PLAIN: GameFacts['angle'][] = ['result', 'rout', 'overtime'];
 
 /**
+ * A story's paragraphs: what happened and why as one, what it means and what is next as the other. A sentence to a
+ * paragraph reads as a list of points; a story is prose. With nothing for one of the two, the first sentence stands
+ * alone and the rest follow it.
+ */
+function prose(first: string[], second: string[]): string[] {
+  const [a, b] = [first.filter(Boolean), second.filter(Boolean)];
+  if (a.length && b.length) return [a.join(' '), b.join(' ')];
+  const all = [...a, ...b];
+  return all.length > 1 ? [all[0], all.slice(1).join(' ')] : all;
+}
+
+/**
  * Two short facts as one sentence. A shared subject is said once ("had five sacks and got 130 rushing yards from…"), and
  * a club is not named at the end of one clause and the start of the next. Two sentences that already hold an "and" are
  * left as two: joined, they run on.
@@ -1057,8 +1069,7 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
   const s = gameSheet(l, cand, focus);
   const a = s.f.angle;
   const own = opt.yours !== undefined && PLAIN.includes(a) && s.ws !== s.ls;
-  const raw: string[] = [];
-  raw.push(pickLine(l, own ? OWN : LEDE[a], s, at, cand.key, 'lede'));
+  const lede = pickLine(l, own ? OWN : LEDE[a], s, at, cand.key, 'lede');
 
   // Why: the two most telling facts the lede has not already used, as one sentence.
   const whys: string[] = [];
@@ -1085,7 +1096,6 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
       );
     }
   }
-  if (why.length) raw.push(why.join(' '));
 
   // What it means: where the story's club stands, and one callback. A callback said before is left out.
   const meanId = s.ws === s.ls ? s.W : focus === s.L ? s.L : s.W;
@@ -1095,11 +1105,10 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
   const means = [stand, back ? pickLine(l, [{ text: () => back }], s, at, cand.key, 'callback', true) : '']
     .filter(Boolean)
     .join(' ');
-  if (means) raw.push(means);
   // What is next.
   const next = nextLine(l, s.week, focus === s.L ? [s.L, s.W] : [s.W, s.L], form >> 3);
-  if (next) raw.push(next);
-  // A story has two paragraphs at least: a week-1 game with nothing behind it and nothing ahead says where it stood.
+  const raw = prose([lede, ...why], [means, next]);
+  // A story has two paragraphs at least: a game with nothing behind it and nothing ahead says where it left them.
   if (raw.length < 2) raw.push(`${c(s.W)} are ${rec(standingOf(l, s.week, s.W).row)}.`);
 
   const club = opt.yours ?? cand.clubId;
@@ -1126,7 +1135,9 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
     kicker: kickerOf(l, [s.g.homeId, s.g.awayId]),
     headline,
     // A closed tile: what happened, and the first reason for it when the story has one.
-    summary: why.length ? `${paragraphs[0]} ${sentencesOf(paragraphs[1])[0]}` : paragraphs[0],
+    summary: sentencesOf(paragraphs[0])
+      .slice(0, why.length ? 2 : 1)
+      .join(' '),
     picture: star ? { playerId: star.id, gameId: s.g.id } : { teamIds: [s.W, s.L], gameId: s.g.id },
     score: scoreOf(s.g),
     cast,
@@ -1208,24 +1219,23 @@ function runStory(l: League, cand: Candidate, at: Wording): EditionStory {
     },
     [0, 0],
   );
-  const raw: string[] = [];
+  const first: string[] = [];
   let headline: string;
   if (run.faded) {
     headline = `The ${l.teams[id].name} were ${n}–0. They have lost two of three.`;
-    raw.push(`${C(id)} started ${n}–0 and have lost two of their last three, the latest ${them}–${us} to ${C(opp)}.`);
+    first.push(`${C(id)} started ${n}–0 and have lost two of their last three, the latest ${them}–${us} to ${C(opp)}.`);
   } else if (run.length > 0) {
     headline = `${l.teams[id].name} have won ${w(n)} straight`;
-    raw.push(`${C(id)} beat ${C(opp)} ${us}–${them} for their ${nth(n)} win in a row.`);
-    raw.push(`They have outscored opponents ${pf}–${pa} in that run.`);
+    first.push(`${C(id)} beat ${C(opp)} ${us}–${them} for their ${nth(n)} win in a row.`);
+    first.push(`They have outscored opponents ${pf}–${pa} in that run.`);
   } else {
     headline = `${l.teams[id].name} have lost ${w(n)} straight`;
-    raw.push(`${C(id)} lost ${them}–${us} to ${C(opp)}, their ${nth(n)} defeat in a row.`);
-    raw.push(`They have been outscored ${pa}–${pf} in that run.`);
+    first.push(`${C(id)} lost ${them}–${us} to ${C(opp)}, their ${nth(n)} defeat in a row.`);
+    first.push(`They have been outscored ${pa}–${pf} in that run.`);
   }
   const stand = standingLine(l, week, id, stableHash(`${at.editionId}:${cand.key}`), null);
-  if (stand) raw.push(stand);
   const next = nextLine(l, week, [id]);
-  if (next) raw.push(next);
+  const raw = prose(first, [stand, next]);
   const ref = referrer(l, { playerIds: [] });
   const paragraphs = raw.map((p) => resolve(p, ref));
   at.said.push(...paragraphs.flatMap((p) => sentencesOf(p)));
@@ -1238,7 +1248,7 @@ function runStory(l: League, cand: Candidate, at: Wording): EditionStory {
     clubId: id,
     kicker: st.division,
     headline,
-    summary: paragraphs[0],
+    summary: sentencesOf(paragraphs[0])[0],
     picture: { teamIds: [id] },
     cast: [],
     numbers: run.faded
@@ -1298,15 +1308,14 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
           : (tot.sacks ?? 0) > 0
             ? `had ${w(tot.sacks)} ${plural(tot.sacks, 'sack')} and ${tot.tackles ?? 0} tackles`
             : `had ${tot.tackles ?? 0} tackles`;
-  const raw = [
+  const first = [
     `${C(id)} lost ${POSITION[p.position] ?? 'player'} ${M(p.id)} to ${injuryPhrase(hurt.type)} in the ${QUARTER[hurt.quarter] ?? 'fourth'} quarter of their ${result} ${C(opp)}. He will miss the rest of the season.`,
   ];
   const award = recentAward(l, p.id, g.week);
-  raw.push(`${M(p.id)} ${did} this season.${award ? ` He was ${award}.` : ''}`);
+  first.push(`${M(p.id)} ${did} this season.${award ? ` He was ${award}.` : ''}`);
   const stand = standingLine(l, g.week, id, stableHash(`${at.editionId}:${cand.key}`), null);
-  if (stand) raw.push(stand);
   const next = nextLine(l, g.week, [id]);
-  if (next) raw.push(next);
+  const raw = prose(first, [stand, next]);
   const ref = referrer(l, { playerIds: [p.id] });
   const paragraphs = raw.map((x) => resolve(x, ref));
   at.said.push(...paragraphs.flatMap((x) => sentencesOf(x)));
@@ -1318,7 +1327,7 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
     clubId: id,
     kicker: standingOf(l, g.week, id).division,
     headline: `${l.teams[id].name} lose ${p.lastName} for the season`,
-    summary: paragraphs[0],
+    summary: sentencesOf(paragraphs[0]).slice(0, 2).join(' '),
     picture: { playerId: p.id, gameId: g.id },
     cast: [p.id],
     numbers:

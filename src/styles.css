@@ -5735,8 +5735,20 @@ button.tip-pill {
 .ed-summary,
 .ed-p {
   font-size: 1.0625rem;
-  line-height: 1.5;
+  line-height: 1.55;
   margin: 10px 0;
+}
+/* A story is prose: a reading measure, and a paragraph's space between paragraphs. */
+.ed-p {
+  max-width: 66ch;
+  margin: 14px 0;
+}
+/* A club's chip on a band of a club's colour (navy on navy, black on black): a ring in the band's ink sets it off. */
+.ed-hero .chip,
+.ed-front-pic .chip {
+  box-shadow:
+    inset 0 -4px 0 var(--c2),
+    0 0 0 2px var(--ed-ink, #fff);
 }
 .ed-front-pic {
   display: grid;

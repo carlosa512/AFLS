@@ -159,7 +159,7 @@ function Front({
           Read the story ▾
         </button>
       </div>
-      <div className="ed-front-pic" style={{ color: ink }}>
+      <div className="ed-front-pic" style={{ color: ink, '--ed-ink': ink } as CSSProperties}>
         <Picture league={league} story={story} size={96} />
         {story.numbers.length > 0 && (
           <div className="ed-front-stats">
@@ -261,7 +261,10 @@ export function StoryBlock({
   const links = story.links.filter((a) => label(league, a));
   return (
     <article className="ed-story">
-      <div className="ed-hero" style={{ ...colours(league, story.clubId), color: ink }}>
+      <div
+        className="ed-hero"
+        style={{ ...colours(league, story.clubId), color: ink, '--ed-ink': ink } as CSSProperties}
+      >
         <div>
           <div className="ed-hero-kicker">
             {lead ? 'Lead story · ' : ''}
