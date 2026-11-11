@@ -190,6 +190,9 @@ describe('the buildings', () => {
       'LAC',
     ];
     done.push('DAL', 'NYE', 'PHI', 'WAS'); // Frontier East
+    done.push('CHI', 'DET', 'GB'); // Frontier North
+    done.push('CAR', 'NO', 'TB'); // Frontier South
+    done.push('ARI', 'LAS', 'SF', 'SEA'); // Frontier West
     // next division
     done.push('MIN', 'ATL'); // agreed ahead of their divisions
     expect(Object.keys(BUILDINGS).sort()).toEqual([...done].sort());

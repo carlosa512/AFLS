@@ -7,6 +7,9 @@ import { lift, lum, mix } from '../colour';
 import type { Building } from '../types';
 import { AGREED } from './agreed';
 import { FRONTIER_EAST } from './frontierEast';
+import { FRONTIER_NORTH } from './frontierNorth';
+import { FRONTIER_SOUTH } from './frontierSouth';
+import { FRONTIER_WEST } from './frontierWest';
 import { LIBERTY_EAST } from './libertyEast';
 import { LIBERTY_NORTH } from './libertyNorth';
 import { LIBERTY_SOUTH } from './libertySouth';
@@ -20,6 +23,9 @@ const FILES: Record<string, Building>[] = [
   LIBERTY_SOUTH,
   LIBERTY_WEST,
   FRONTIER_EAST,
+  FRONTIER_NORTH,
+  FRONTIER_SOUTH,
+  FRONTIER_WEST,
   // next division
 ];
 export const BUILDINGS: Record<string, Building> = Object.assign({}, ...FILES);
