@@ -197,6 +197,11 @@ carries the play (the field's lines, the ball, banners: still SVG, through the s
 
 ## The 37 buildings
 
+**Tone (the owner, Nov 11): realism over theme.** A building should read as a real stadium first. Pittsburgh's
+furnace stacks and New York's keep are the level to aim for; ship's masts and sails on Baltimore and New England were
+dropped. Ideas below that lean on a costume (sails, a carnival tent, a star truss) are to be drawn as plainer
+buildings whose materials, roofline and setting carry the club.
+
 First ideas, from the concept page. Each division is drawn and reviewed before it is built, so every line here can
 still change. "Setting" is the lie of the land round the real ground, nothing more.
 

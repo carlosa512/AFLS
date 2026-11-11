@@ -14,7 +14,7 @@ export const LIBERTY_EAST: Record<string, Building> = {
     features: [{ kind: 'fins', skin: '#f4f4f0' }],
     setting: { kind: 'suburb', trees: 'palm', canal: true },
   },
-  // Flagship: a ship of the line. Three masts over a stern gallery of lit windows; the rail rises to bow and stern.
+  // A timber-clad bowl with a gallery of lit windows, its rail rising toward each end. (Masts dropped, Nov 11.)
   NE: {
     id: 'NE',
     rim: { kind: 'saddle', h: 23.4, rise: 4.5 },
@@ -22,7 +22,7 @@ export const LIBERTY_EAST: Record<string, Building> = {
     wall: '#8a6238',
     windows: '#e8dcae',
     ground: '#62794f',
-    features: [{ kind: 'masts', x: [-38, 0, 38] }],
+    features: [],
     setting: { kind: 'outOfTown', trees: 'round', sheds: false, shops: true },
   },
   // The Keep: a castle. A battlement rim and four square towers with banners. On the marshes, by the highway.

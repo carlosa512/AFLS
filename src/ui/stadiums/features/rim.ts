@@ -23,49 +23,6 @@ export function fins(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse,
   }
 }
 
-/**
- * Masts over the far side: a pole, two spars with a sail under each, and a pennant. A clipper's are raked (they lean
- * aft), carry their sails furled and are held by rigging run down to the rail.
- */
-export function masts(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse, { kind: 'masts' }>) {
-  const d = topOf(b).d1 + 2;
-  const rake = use.rake ?? 0;
-  use.x.forEach((x, n) => {
-    const i = farPost(bowl, x);
-    if (i < 10) return;
-    const r = bowl.rim(bowl.wall[i]);
-    const top = r + (n % 2 ? 30 : 26);
-    const A = (k: number, y: number): Pt => {
-      const lean = (rake * (y - r)) / (top - r);
-      const p = at(bowl.wall[Math.round(i + k + lean)], d, y);
-      return [p.x, p.y];
-    };
-    if (use.rigging)
-      for (const k of [-8, -4, 4, 8]) {
-        const foot = at(bowl.wall[i + k], d, r);
-        s.pen.line([A(0, top - 2), [foot.x, foot.y]], s.tone('#3b2c1c'), 0.18);
-      }
-    for (const [y, half] of [
-      [r + 16, 4],
-      [r + 8, 5],
-    ] as [number, number][]) {
-      if (use.bare)
-        s.pen.poly(
-          [A(-half + 1, y - 0.2), A(half - 1, y - 0.2), A(half - 1, y - 1.3), A(-half + 1, y - 1.3)],
-          s.tone('#ece6d4'),
-        );
-      else
-        s.pen.poly(
-          [A(-half + 1, y - 0.3), A(half - 1, y - 0.3), A(half - 2, y - 6.5), A(-half + 2, y - 6.5)],
-          s.tone('#ece6d4'),
-        );
-      s.pen.line([A(-half, y), A(half, y)], s.tone('#3b2c1c'), 0.45);
-    }
-    s.pen.line([A(0, r - 1), A(0, top)], s.tone('#3b2c1c'), 0.6);
-    s.pen.poly([A(0, top), A(3, top - 1.2), A(0, top - 2.4)], s.tone(lift(s.colors[1])));
-  });
-}
-
 /** A gantry across the far side: two legs, a pair of girders braced between, a row of lamps under them, a trolley. */
 export function gantry(s: Scene, b: Building, bowl: Bowl, use: Extract<FeatureUse, { kind: 'gantry' }>) {
   const d = topOf(b).d1 + 2;

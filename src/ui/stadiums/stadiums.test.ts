@@ -167,7 +167,7 @@ describe('the land outside', () => {
       'confluence',
     ] as const)
       expect(SETTINGS[kind]).toBeTypeOf('function');
-    for (const kind of ['stacks', 'wheel', 'fins', 'masts', 'towers', 'gantry', 'truss'] as const)
+    for (const kind of ['stacks', 'wheel', 'fins', 'towers', 'gantry', 'truss'] as const)
       expect(FEATURES[kind].paint).toBeTypeOf('function');
   });
   it('draws a town with windows on its buildings and no people', () => {

@@ -2,7 +2,7 @@
 import type { Building } from '../types';
 
 export const LIBERTY_NORTH: Record<string, Building> = {
-  // Clipper rig: raked masts with their sails furled, held by rigging, over a brick bowl open at one end to the harbor.
+  // A brick bowl, open at one end to the harbor. (The owner dropped the masts, Nov 11: realism over theme.)
   BAL: {
     id: 'BAL',
     rim: { kind: 'flat', h: 23.8 },
@@ -10,7 +10,7 @@ export const LIBERTY_NORTH: Record<string, Building> = {
     seat: '#1c1436',
     wall: '#8a4b3a',
     ground: '#7a7f83',
-    features: [{ kind: 'masts', x: [-44, -16, 12], rake: 3, rigging: true, bare: true }],
+    features: [],
     setting: { kind: 'harbor' },
   },
   // Mill yard: a sawtooth factory roofline, and a gantry crane that carries the lights. On the lake, among the docks.

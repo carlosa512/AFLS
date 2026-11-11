@@ -77,8 +77,6 @@ export type FeatureUse =
   | { kind: 'wheel' }
   /** Shade blades standing round the rim like fins. */
   | { kind: 'fins'; skin: string }
-  /** A ship's masts over the far side, with sails and a pennant each. */
-  | { kind: 'masts'; x: number[]; rake?: number; rigging?: boolean; bare?: boolean }
   /** A crane's gantry across the far side, carrying the lights. */
   | { kind: 'gantry'; col: string }
   /** A steel truss running round the face of the club deck. */
