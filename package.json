@@ -50,6 +50,7 @@
     "dropback": "tsx scripts/dropback.ts",
     "situations": "tsx scripts/situations.ts",
     "gm-letters": "tsx scripts/gm-letters.ts",
+    "editions": "tsx scripts/editions.ts",
     "copy": "tsx scripts/copy.ts"
   },
   "dependencies": {

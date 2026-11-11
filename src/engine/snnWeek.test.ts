@@ -45,11 +45,11 @@ describe('ranking the week', () => {
 
 describe('cutting the week to the edition', () => {
   const others = [
-    c('game:1', 2, 1.4, { clubId: 20, teams: [20, 21] }),
-    c('game:2', 3, 1.2, { clubId: 22, teams: [22, 23] }),
-    c('game:3', 4, 1.1, { clubId: 24, teams: [24, 25] }),
-    c('game:4', 4, 1.0, { clubId: 26, teams: [26, 27] }),
-    c('game:5', 5, 0.9, { clubId: 28, teams: [28, 29] }),
+    c('game:1', 2, 1.4, { clubId: 20, teams: [20, 21], angle: 'unbeatenFalls' }),
+    c('game:2', 3, 1.2, { clubId: 22, teams: [22, 23], angle: 'upset' }),
+    c('game:3', 4, 1.1, { clubId: 24, teams: [24, 25], angle: 'day' }),
+    c('game:4', 4, 1.0, { clubId: 26, teams: [26, 27], angle: 'comeback' }),
+    c('game:5', 5, 0.9, { clubId: 28, teams: [28, 29], angle: 'rout' }),
   ];
 
   it('keeps the user’s game for Your club, and leads with the rest of the league', () => {
@@ -81,6 +81,15 @@ describe('cutting the week to the edition', () => {
     const e = cutEdition(rankCandidates([...others, hurt, yours(5)], ID), USER)!;
     expect(e.clubExtra?.key).toBe('starOut:7:9');
     expect(e.tiles.map((x) => x.key)).not.toContain('starOut:7:9');
+  });
+
+  it('tells one angle twice at most among the lead and the tiles', () => {
+    const day = (n: number) =>
+      c(`game:d${n}`, 4, 2 - n / 10, { clubId: 50 + n, teams: [50 + n, 60 + n], angle: 'day' });
+    const e = cutEdition(rankCandidates([day(1), day(2), day(3), day(4), others[4]], ID), null)!;
+    const angles = [e.lead, ...e.tiles].map((x) => x.angle);
+    expect(angles.filter((x) => x === 'day')).toHaveLength(2);
+    expect(angles).toContain('rout');
   });
 
   it('runs one trade tile unless a second is the top tier', () => {

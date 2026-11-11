@@ -1,0 +1,57 @@
+/**
+ * The writing rules of SNN's edition that a test can hold (spec §3): what `snnWeek.season.test.ts` holds every story to
+ * and what `npm run editions` lists at the top of a season's read-through. Each break is a short message; none is a
+ * story that keeps the rules. The rules a test cannot hold (one angle, sentences that join facts, no filler) are read.
+ */
+import type { EditionStory, League } from './types';
+import { sentencesOf } from './voice';
+
+const HEADLINE = 70;
+/** Digits a sentence may carry before the rest belong in the number chips. */
+const NUMBERS = 2;
+
+/** How many numbers a sentence holds: a record (7–1), a time (17:34) and an ordinal (31st) are one each. */
+function numbersIn(sentence: string, score?: EditionStory['score']): number {
+  let s = sentence;
+  // The final score is the result, not a stat.
+  if (score) for (const x of [`${score.home}–${score.away}`, `${score.away}–${score.home}`]) s = s.split(x).join('');
+  return (s.match(/\d[\d,.]*(?:[–:-]\d+)*/g) ?? []).length;
+}
+
+export function ruleBreaks(l: League, s: EditionStory): string[] {
+  const out: string[] = [];
+  const texts = [...s.paragraphs, s.summary, ...(s.quote ? [s.quote.text] : [])];
+  const sentences = texts.flatMap((t) => sentencesOf(t));
+  const short = (t: string) => (t.length > 60 ? `${t.slice(0, 57)}…` : t);
+  for (const x of sentences) {
+    if (x.includes(';')) out.push(`semicolon: "${short(x)}"`);
+    // A clock time is not a colon inside a sentence.
+    if (x.replace(/\d:\d\d/g, '').includes(':')) out.push(`colon inside a sentence: "${short(x)}"`);
+    if (numbersIn(x, s.score) > NUMBERS) out.push(`more than ${NUMBERS} numbers in a sentence: "${short(x)}"`);
+  }
+  if (s.paragraphs.length < 2 || s.paragraphs.length > 4)
+    out.push(`${s.paragraphs.length} paragraphs: a story has two to four`);
+  if (s.numbers.length > 3) out.push(`${s.numbers.length} number chips: at most three`);
+  if (s.headline.length > HEADLINE) out.push(`headline over ${HEADLINE} characters: "${short(s.headline)}"`);
+
+  // A story stops on a fact: its last sentence carries a number, a man of the story or a club.
+  const last = sentencesOf(s.paragraphs.at(-1)).at(-1) ?? '';
+  const names = [
+    ...s.cast.flatMap((id) => (l.players[id] ? [l.players[id].lastName] : [])),
+    ...l.teams.flatMap((t) => [t.name, t.city]),
+  ];
+  if (!/\d/.test(last) && !names.some((n) => last.includes(n))) out.push(`ends on no fact: "${short(last)}"`);
+
+  // A man's first mention is his full name.
+  const body = s.paragraphs.join(' ');
+  for (const id of s.cast) {
+    const p = l.players[id];
+    if (!p) continue;
+    const at = body.search(
+      new RegExp(`(?<![\\p{L}\\p{M}'-])${p.lastName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{M}])`, 'u'),
+    );
+    if (at >= 0 && !body.slice(0, at).endsWith(`${p.firstName} `))
+      out.push(`first mention is not the full name: ${p.lastName}`);
+  }
+  return out;
+}

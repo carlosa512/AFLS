@@ -1863,6 +1863,8 @@ export interface EditionStory {
   summary: string;
   picture: { playerId?: number; coachId?: number; gameId?: number; teamIds?: number[] };
   score?: EditionScore;
+  /** The men it names, in the order it names them: for linking a name in a paragraph, and for the rules. */
+  cast: number[];
   /** At most three. */
   numbers: { value: string; label: string }[];
   /** Two to four. */

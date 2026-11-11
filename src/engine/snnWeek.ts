@@ -7,8 +7,10 @@
 import { weeklyAwards } from './awards';
 import { gamesInWeek } from './league';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
-import type { EditionKind, Game, League, StatLine } from './types';
-import { stableHash } from './voice';
+import { employed } from './employment';
+import { writeStory } from './snnVoice';
+import type { Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
+import { seasonSaid, stableHash } from './voice';
 
 /** Something the week made that an edition could tell. */
 export interface Candidate {
@@ -240,6 +242,8 @@ export function rankCandidates(cs: Candidate[], editionId: string): Candidate[] 
   );
 }
 
+/** How many stories of one angle an edition runs among its lead and tiles. */
+const SAME_ANGLE = 2;
 /** Tiles in an edition: three, and a fourth when the reader's own game leads (it has no slot of its own then). */
 const TILES = 3;
 
@@ -254,7 +258,9 @@ export function cutEdition(
   if (!ranked.length) return null;
   const mine = (x: Candidate) => userTeamId !== null && x.kind === 'game' && x.teams.includes(userTeamId);
   const own = ranked.find(mine);
-  const leadYours = !!own && ranked[0] === own;
+  // The reader's own game leads only when it is real news (the top three tiers): a plain week's order is a coin toss,
+  // and his game has its own slot anyway.
+  const leadYours = !!own && ranked[0] === own && own.tier <= 3;
   const lead = leadYours ? own! : ranked.find((x) => !mine(x) && x.clubId !== userTeamId);
   if (!lead) {
     // Only the reader's own club made news (a bye week's lone candidate, a one-game round): it leads.
@@ -269,13 +275,69 @@ export function cutEdition(
   // The limit is on tiles: a trade that leads does not use it up.
   let trades = 0;
   const tiles: Candidate[] = [];
+  // Variety: an edition tells one angle twice at most among its lead and tiles (three "scores three" stories read as
+  // one story three times).
+  const told = new Map<string, number>([[lead.angle, 1]]);
   for (const x of ranked) {
     if (tiles.length >= TILES + (leadYours ? 1 : 0)) break;
     if (x === lead || x === club || mine(x) || used.has(x.clubId)) continue;
+    if ((told.get(x.angle) ?? 0) >= SAME_ANGLE) continue;
     if (x.kind === 'trade' && trades >= 1 && x.tier !== 1) continue;
     if (x.kind === 'trade') trades++;
     used.add(x.clubId);
+    told.set(x.angle, (told.get(x.angle) ?? 0) + 1);
     tiles.push(x);
   }
   return { lead, leadYours, club, clubExtra, tiles };
+}
+
+export const SNN = 'SNN — Sports News Network';
+const ROUNDS: Record<string, string> = {
+  WC: 'Wild Card',
+  DIV: 'Divisional round',
+  CONF: 'Conference finals',
+  FINAL: 'The final',
+};
+
+/** The edition's id for a week: `snn:{season}:w{week}`, or `snn:{season}:p{round}` in the playoffs. */
+export function editionId(l: League, week: number): string {
+  const round = gamesInWeek(l, week).find((g) => g.season === l.season)?.playoffRound;
+  return round ? `snn:${l.season}:p${round}` : `snn:${l.season}:w${week}`;
+}
+
+/** The edition for a completed week, or null while a game of it is unplayed. */
+export function buildEdition(l: League, week: number): Edition | null {
+  const all = gamesInWeek(l, week).filter((g) => g.season === l.season);
+  if (!all.length || all.some((g) => !g.result)) return null;
+  const user = employed(l) ? l.userTeamId : null;
+  const id = editionId(l, week);
+  const bye = user === null ? null : byeCandidate(l, week, user);
+  const ranked = rankCandidates(
+    [...gameCandidates(l, week), ...runCandidates(l, week), ...starOutCandidates(l, week), ...(bye ? [bye] : [])],
+    id,
+  );
+  const cut = cutEdition(ranked, user);
+  if (!cut) return null;
+  // Around everything SNN has said this league year, and everything this edition says as it goes.
+  const at = { editionId: id, said: [...seasonSaid(l, SNN, 'snn:')] };
+  const yours = user === null ? {} : { yours: user, extra: cut.clubExtra };
+  const lead = writeStory(l, cut.lead, at, cut.leadYours ? yours : {});
+  const club = cut.club ? writeStory(l, cut.club, at, yours) : undefined;
+  const tiles = cut.tiles.map((x) => writeStory(l, x, at, { quote: false }));
+  const round = all[0].playoffRound;
+  const scores: EditionScore[] = all.map((g) => ({
+    gameId: g.id,
+    homeId: g.homeId,
+    awayId: g.awayId,
+    home: g.result!.homeScore,
+    away: g.result!.awayScore,
+    ...(g.result!.overtime ? { overtime: true as const } : {}),
+  }));
+  return {
+    label: round ? (ROUNDS[round] ?? 'Playoffs') : `Week ${week}`,
+    scores,
+    lead,
+    ...(club ? { club } : {}),
+    tiles,
+  };
 }
