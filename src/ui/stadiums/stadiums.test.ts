@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { at, DECKS, wallLine } from './bowl';
 import { toFrame } from './camera';
 import { lum } from './colour';
@@ -11,8 +11,20 @@ import { FEATURES } from './features';
 import { SETTINGS } from './land';
 import { outsideWeather } from './outside';
 import { paintStadium } from './paint';
-import { recorder } from './pen';
+import { crowdPen, recorder, type Pt } from './pen';
 import type { Building, Look, Scene } from './types';
+
+/** A plain bowl and a fair day, for tests that paint one. */
+const bowl: Building = {
+  id: 'TEST',
+  rim: { kind: 'flat', h: 23.8 },
+  seat: '#16283a',
+  wall: '#a39c8c',
+  ground: '#7a7f83',
+  features: [],
+  setting: { kind: 'none' },
+};
+const look = (fill: number): Look => ({ night: false, precip: 'none', roof: 'none', fill });
 
 describe('the camera', () => {
   it('puts the field where the owner approved it', () => {
@@ -61,6 +73,113 @@ describe('the pen', () => {
   });
 });
 
+describe('the pen that keeps the crowd apart', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  // The suite has no canvas: a stand-in that writes down what was asked of it, and how it was to be laid on.
+  type Op = { op: string; how: string; fill: string };
+  const canvas = () => {
+    const ops: Op[] = [];
+    const state = { globalCompositeOperation: 'source-over', fillStyle: '', strokeStyle: '', lineWidth: 0 };
+    const note = (op: string) => () =>
+      void ops.push({
+        op,
+        how: state.globalCompositeOperation,
+        fill: op === 'stroke' ? state.strokeStyle : state.fillStyle,
+      });
+    const quiet = () => {};
+    const ctx = Object.assign(state, {
+      beginPath: quiet,
+      closePath: quiet,
+      moveTo: quiet,
+      lineTo: quiet,
+      rect: note('rect'),
+      arc: note('arc'),
+      fill: note('fill'),
+      stroke: note('stroke'),
+    });
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, ops };
+  };
+  const SQUARE: Pt[] = [
+    [0, 0],
+    [4, 0],
+    [4, 4],
+    [0, 4],
+  ];
+  const pens = (waves = 3) => {
+    vi.stubGlobal(
+      'Path2D',
+      class {
+        moveTo() {}
+        lineTo() {}
+        closePath() {}
+        rect() {}
+      },
+    );
+    const ground = canvas();
+    const crowd = Array.from({ length: waves }, canvas);
+    return {
+      ground,
+      crowd,
+      pen: crowdPen(
+        ground.ctx,
+        crowd.map((c) => c.ctx),
+        1,
+      ),
+    };
+  };
+  const people = (c: { ops: Op[] }) => c.ops.filter((o) => o.op === 'rect' || o.op === 'arc').length;
+
+  it('paints the people on the waves, neighbours on different ones, and none on the ground', () => {
+    const { ground, crowd, pen } = pens();
+    for (let i = 0; i < 6; i++) pen.dot(i, 1, 1, '#f00');
+    pen.flush();
+    expect(crowd.map(people)).toEqual([2, 2, 2]);
+    expect(people(ground)).toBe(0);
+  });
+  it('lets what is painted after a person hide him: a solid shape rubs him out, a see-through one tints him', () => {
+    const { ground, crowd, pen } = pens();
+    pen.dot(1, 1, 1, '#f00');
+    pen.poly(SQUARE, '#778899');
+    pen.poly(SQUARE, 'rgba(6,10,26,.16)');
+    pen.flush();
+    for (const c of crowd) {
+      const laid = c.ops.filter((o) => o.op === 'fill' && o.how !== 'source-over').map((o) => o.how);
+      expect(laid).toEqual(['destination-out', 'source-atop']);
+    }
+    // the ground gets both shapes as any canvas would
+    expect(ground.ops.filter((o) => o.op === 'fill').map((o) => o.fill)).toEqual(['#778899', 'rgba(6,10,26,.16)']);
+  });
+  it('hides nobody with what came before him, nor with a stand’s own fabric', () => {
+    const { crowd, pen } = pens();
+    pen.poly(SQUARE, '#778899');
+    pen.dot(1, 1, 1, '#f00');
+    pen.fabric!(true);
+    pen.poly(SQUARE, '#778899');
+    pen.line(SQUARE, 'rgba(0,0,0,.28)', 0.2);
+    pen.box(0, 0, 1, 1, '#93a3b3');
+    pen.fabric!(false);
+    pen.flush();
+    for (const c of crowd) expect(c.ops.every((o) => o.how === 'source-over')).toBe(true);
+  });
+  it('keeps the crowd in the one picture when it has no canvas of its own', () => {
+    const { ground, pen } = pens(0);
+    pen.dot(1, 1, 1, '#f00');
+    pen.flush();
+    expect(people(ground)).toBe(1);
+  });
+  it('gives the whole bowl’s crowd to the waves, and keeps a tunnel’s mouth from showing a man through it', () => {
+    const { ground, crowd, pen } = pens();
+    const whole = recorder();
+    paintStadium(whole, bowl, ['#fb4f14', '#002244'], look(0.8), 'TEST');
+    paintStadium(pen, bowl, ['#fb4f14', '#002244'], look(0.8), 'TEST');
+    const came = whole.shapes.filter((s) => s.kind === 'dot').length;
+    expect(crowd.map(people).reduce((a, b) => a + b, 0)).toBe(came);
+    // empty chairs are the ground's; nobody is
+    expect(people(ground)).toBe(whole.shapes.filter((s) => s.kind === 'box').length);
+    for (const c of crowd) expect(c.ops.some((o) => o.how === 'destination-out')).toBe(true);
+  });
+});
+
 describe('who turns up', () => {
   const rec = (w: number, l: number, t = 0) => ({ w, l, t });
   it('reads the record: .600 fills the ground, under .400 half of it', () => {
@@ -100,16 +219,6 @@ describe('who turns up', () => {
 });
 
 describe('the stands', () => {
-  const bowl: Building = {
-    id: 'TEST',
-    rim: { kind: 'flat', h: 23.8 },
-    seat: '#16283a',
-    wall: '#a39c8c',
-    ground: '#7a7f83',
-    features: [],
-    setting: { kind: 'none' },
-  };
-  const look = (fill: number): Look => ({ night: false, precip: 'none', roof: 'none', fill });
   const seats = (fill: number) => {
     const r = recorder();
     paintStadium(r, bowl, ['#fb4f14', '#002244'], look(fill), 'TEST');

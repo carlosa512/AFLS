@@ -29,7 +29,7 @@ import { celebrates, transition, type Huddle, type Mark } from '../stage/transit
 import { FieldPaint } from './FieldPaint';
 import { downLines } from './BroadcastField';
 import { endsSwitched } from '../stage/ends';
-import { flagParts } from '../moments';
+import { flagParts, INJURY_FLOOR } from '../moments';
 import { MomentBanner } from './GameMoments';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
@@ -84,6 +84,21 @@ export function toScreen(v: View, x: number, y: number): [number, number] {
 function viewBox(v: View): string {
   // Wide enough to take in the benches: a man coming on is seen on his sideline before he runs on.
   return v.layout === 'wide' ? '-12 -4.5 124 62.3' : `${-MID - 4.5} ${-v.span / 2} ${FIELD_W + 9} ${v.span}`;
+}
+/**
+ * Which edge of the wide field an injury's call sits along, so it is never over what it is about: away from the man
+ * down when he lies near an edge, else away from his own sideline, where the trainers come from and he leaves by. The
+ * upright window follows him and keeps the call at the foot.
+ */
+export function callEdge(v: View, man: { y: number; home: boolean } | undefined): 'top' | 'bottom' {
+  if (!man || v.layout !== 'wide') return 'bottom';
+  // How far down the screen he lies, 0 at the far sideline as drawn and 1 at the near one.
+  const down = toScreen(v, 0, man.y)[1] / FIELD_W;
+  if (down > 0.6) return 'top';
+  if (down < 0.4) return 'bottom';
+  // The home side's sideline is y = 0 in the log's coordinates.
+  const ownAtFoot = toScreen(v, 0, man.home ? 0 : FIELD_W)[1] > MID;
+  return ownAtFoot ? 'top' : 'bottom';
 }
 /** The field group's transform: the same mapping as `toScreen`, as an SVG matrix. */
 export function fieldTransform(v: View): string {
@@ -841,6 +856,9 @@ export function TopDownField({
       raf = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(raf);
     }
+    // An injury with no stoppage staged (a viewer who asked for less motion, a man the field never placed): its call
+    // is all there is of it, so with the hold that follows it stays up as long as Broadcast's banner at any speed.
+    const unstaged = hurtCall ? Math.max(0, INJURY_FLOOR - holdAfter(entry) / speed) : 0;
     if (still || reduced) {
       // Nothing moves, so the window jumps straight to where the play ended.
       clearBench();
@@ -861,10 +879,11 @@ export function TopDownField({
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
       }
-      const t = setTimeout(() => doneRef.current(), 450 / speed);
+      const t = setTimeout(() => doneRef.current(), Math.max(450 / speed, unstaged));
       return () => clearTimeout(t);
     }
     let raf = 0;
+    let wait: ReturnType<typeof setTimeout> | undefined;
     let t0 = 0;
     let prev = 0;
     // Starting set: the last play's men are gone at once.
@@ -922,13 +941,17 @@ export function TopDownField({
           clearBench();
           place(last, frame);
         }
-        doneRef.current();
+        if (unstaged) wait = setTimeout(() => doneRef.current(), unstaged);
+        else doneRef.current();
         return;
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(wait);
+    };
     // animKey names the play being shown; restarting on it replays the animation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [animKey, staged, layout]);
@@ -1169,6 +1192,7 @@ export function TopDownField({
           key={index}
           ref={callRef}
           className="td-call td-moment"
+          data-at={hurtCall && hurtId !== undefined ? callEdge(view, memory.current.spots.get(hurtId)) : undefined}
           style={{ opacity: 0 }}
           aria-live="polite"
         >

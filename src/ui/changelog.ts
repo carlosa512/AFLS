@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.31',
+    date: '2026-11-11',
+    title: 'The crowd jumps, defenders get a line',
+    text: 'A home score has the stands bouncing instead of flashing. The Players panel names top tacklers, an injury banner stays up longer at 2× and 4×, and a small caret marks where a drive began.',
+  },
+  {
     version: '0.4.30',
     date: '2026-11-11',
     title: 'A stadium for every club',
