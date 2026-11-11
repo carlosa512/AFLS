@@ -214,6 +214,12 @@ One review of the whole branch comes at the very end, before the pull request, n
 
 ## Not in this pass
 
+- **SNN on the calendar's big days** (draft day, cut-down day and the like). The owner asked for it after this spec
+  was approved. It gets its own spec, next after this one and before chains.
+- **A GM's "one move" at rung 1** (a trade or a draft class named for paying off or not). The ladder allows it.
+  Judging a trade from public production needs its own rules and counts, so the first build has the GM's rungs 2 and
+  3 only.
+
 - Benchings and requests at other clubs as storylines.
 - Backing a player as a promise the room and the press remember.
 - Season arcs, previews and wraps, GM columns across seasons, player quotes beyond the man who speaks out.
