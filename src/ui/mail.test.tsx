@@ -785,6 +785,12 @@ describe('the director’s advice card', () => {
 });
 
 describe('the Gazette’s numbers card', () => {
+  it('sets its table headings in the display font, like every other card heading', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.gazette-table h4 \{[^}]*font-family: var\(--font-display\)/);
+    // The only serif in the interface is the one painted on the field (`--font-field`).
+    expect(css).not.toMatch(/font-family:[^;]*(Georgia|Times New Roman)/);
+  });
   it('shows each table with links, values and our row marked', () => {
     const l = createLeague({ seed: 'gazette-card' });
     const qb = Object.values(l.players).find((p) => p.position === 'QB' && p.teamId !== null)!;

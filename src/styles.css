@@ -5678,7 +5678,7 @@ button.tip-pill {
   margin-top: 16px;
   padding-top: 14px;
 }
-/* The Arena Gazette: a paper's stats page. Serif heads between rules, a bar a row from zero, a tick at the league average. */
+/* The Arena Gazette: a paper's stats page. Heads between rules, a bar a row from zero, a tick at the league average. */
 .gazette {
   display: grid;
   gap: 18px;
@@ -5690,7 +5690,7 @@ button.tip-pill {
 }
 .gazette-table h4 {
   margin: 0 0 6px;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-display);
   font-size: var(--step-1);
   font-weight: 700;
   letter-spacing: 0;
