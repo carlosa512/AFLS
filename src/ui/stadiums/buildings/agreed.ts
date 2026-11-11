@@ -13,16 +13,14 @@ export const AGREED: Record<string, Building> = {
     features: [],
     setting: { kind: 'town', height: 'mid', palette: [...BRICK, ...STEEL], lots: true },
   },
-  // Storm porch: a roof over the back rows, glass behind it. Out of town, in the snow.
+  // Storm porch: a roof over the back rows, glass behind it. Out of town.
   BUF: {
     id: 'BUF',
     rim: { kind: 'flat', h: 27.2 },
     seat: '#172846',
     wall: '#bcd9e6',
     wallGlass: true,
-    ground: '#dde4e8',
-    plaza: '#c3c9cc',
-    winter: true,
+    ground: '#6b7a62',
     roof: { kind: 'canopy', d0: 22, d1: 34, y0: 26.4, y1: 28.4, skin: '#f1f4f6' },
     features: [],
     setting: { kind: 'outOfTown', trees: 'pine', sheds: true },
@@ -39,15 +37,14 @@ export const AGREED: Record<string, Building> = {
     features: [{ kind: 'wheel' }, { kind: 'stacks', x: [24, 33], cap: '#fb4f14' }],
     setting: { kind: 'river', bridges: 2, boat: true },
   },
-  // Canoe hull: the roof an upturned canoe. In town, towers and snow.
+  // Canoe hull: the roof an upturned canoe. In town, among towers.
   MIN: {
     id: 'MIN',
     rim: { kind: 'flat', h: 23.8 },
     seat: '#2a1a3d',
     wall: '#8a6238',
     windows: '#cfe6f2',
-    ground: '#aab2b7',
-    winter: true,
+    ground: '#80857f',
     roof: {
       kind: 'slab',
       profile: { kind: 'canoe', ends: 33, rise: 13, back: 29.5 },

@@ -11,6 +11,8 @@ export interface Look {
   roof: 'none' | 'open' | 'closed';
   /** The share of seats taken (`FILL` in `crowd.ts`). */
   fill: number;
+  /** Snow lies on the land and the roofs: it is falling, or it is deep winter and freezing. Never a building's own. */
+  lying?: boolean;
 }
 
 /** The top of the back wall along the bowl, in yards up. */
@@ -70,8 +72,6 @@ export interface Building {
   face?: string;
   plaza?: string;
   ground: string;
-  /** Drawn under snow whatever the day (a cold-weather ground's picture). */
-  winter?: boolean;
   roof?: Canopy | Slab;
   features: FeatureUse[];
   setting: SettingUse;
@@ -84,7 +84,7 @@ export interface Scene {
   rng: Rng;
   look: Look;
   colors: [string, string];
-  /** Snow lies: it is falling, or the building is a winter one. */
+  /** Snow lies (`Look.lying`, or it is falling). */
   snowy: boolean;
   /** A colour in this scene's light: `k` is how lit the surface is; night darkens everything. */
   tone(hex: string, k?: number): string;

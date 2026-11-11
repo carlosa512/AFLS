@@ -72,7 +72,7 @@ export function paintGround(s: Scene, b: Building, bowl: Bowl) {
         A(wall[i + 1], top.d1 + 11, 0),
         A(wall[i], top.d1 + 11, 0),
       ],
-      s.tone(plaza),
+      s.tone(plaza, s.look.night ? 0.6 : 1),
     );
   s.pen.poly([...wall.map((p) => A(p, 0, 0)), [FRAME.w, FRAME.h], [0, FRAME.h]], s.tone('#1d3a27'));
 }

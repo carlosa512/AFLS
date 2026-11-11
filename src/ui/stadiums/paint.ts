@@ -14,21 +14,25 @@ import { paintCanopy, paintSlab } from './roof';
 import { bowlOf, paintBowl, paintGround } from './stands';
 import type { Building, FeatureUse, Look, Scene } from './types';
 
-/** How much light is left at night. */
-const NIGHT = 0.55;
+/** At night the land outside goes dark and the ground stays floodlit: it is the lit thing in the picture. */
+const NIGHT_LAND = 0.36;
+const NIGHT_GROUND = 0.94;
 
 export function paintStadium(pen: Pen, b: Building, colors: [string, string], look: Look, seed: string): void {
   const snowing = look.precip === 'snow' || look.precip === 'mixed';
-  const dim = look.night ? NIGHT : 1;
   const s: Scene = {
     pen,
     rng: new Rng(`${seed}:land`),
     look,
     colors,
-    snowy: !!b.winter || snowing,
+    snowy: !!look.lying || snowing,
     // light in steps, so a deck is a dozen colours and not hundreds (the pen draws a colour's seats as one path)
-    tone: (hex, k = 1) => shade(hex, Math.round(k * dim * 20) / 20),
+    tone: (hex, k = 1) => shade(hex, Math.round(k * (look.night ? NIGHT_GROUND : 1) * 20) / 20),
     lamp: (hex) => hex,
+  };
+  const land: Scene = {
+    ...s,
+    tone: (hex, k = 1) => shade(hex, Math.round(k * (look.night ? NIGHT_LAND : 1) * 20) / 20),
   };
   const bowl = bowlOf(b, wallLine());
   const decks = b.decks ?? DECKS;
@@ -48,9 +52,9 @@ export function paintStadium(pen: Pen, b: Building, colors: [string, string], lo
       [FRAME.w, FRAME.h],
       [0, FRAME.h],
     ],
-    s.tone(s.snowy ? mix(b.ground, '#eef2f4', 0.6) : b.ground),
+    land.tone(s.snowy ? mix(b.ground, '#eef2f4', 0.6) : b.ground),
   );
-  (SETTINGS[b.setting.kind] as (s: Scene, u: Building['setting']) => void)(s, b.setting);
+  (SETTINGS[b.setting.kind] as (s: Scene, u: Building['setting']) => void)(land, b.setting);
   // the far land pales a little with distance
   if (!look.night)
     for (const [y, a] of [

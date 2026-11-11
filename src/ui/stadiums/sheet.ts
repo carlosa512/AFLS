@@ -43,11 +43,20 @@ export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec
       {
         ...club('DEN'),
         over: { night: true },
-        note: 'Night: the land and the stands darken; windows and ribbon boards stay lit.',
+        note: 'Night: the ground is floodlit and the land round it goes dark, with windows lit.',
       },
       { ...club('BUF'), over: { night: true }, note: 'Night, out of town.' },
       { ...club('DEN'), over: { precip: 'rain' }, note: 'Rain, with no sky to show it: only what falls.' },
-      { ...club('BUF'), over: { precip: 'snow' }, note: 'Snow: it falls, and it lies on the roof and the land.' },
+      {
+        ...club('BUF'),
+        over: { precip: 'snow' },
+        note: 'Snow falling: it lies on the roof and the land while it does.',
+      },
+      {
+        ...club('BUF'),
+        over: { lying: true },
+        note: 'A clear day in deep winter: snow lying, none falling. On any other clear day there is none.',
+      },
       { ...club('ATL'), over: { roof: 'open' }, note: 'The roof open.' },
       { ...club('ATL'), over: { roof: 'closed' }, note: 'The roof shut: one seam where the leaves meet.' },
     ],
@@ -60,8 +69,8 @@ const P = (X: number, Y: number, Z: number): Pt => {
 };
 /** The field, sketched: in the game the field's own paint and the play are drawn over the picture instead. */
 function sketchField(pen: Pen, colors: [string, string], night: boolean) {
-  const k = night ? '#1f5a2b' : '#2f7d3a';
-  const k2 = night ? '#246331' : '#368a41';
+  const k = night ? '#2c7637' : '#2f7d3a';
+  const k2 = night ? '#33823e' : '#368a41';
   for (let x = -50; x < 50; x += 5)
     pen.poly([P(x, 0, 0), P(x + 5, 0, 0), P(x + 5, 0, 53.33), P(x, 0, 53.33)], (x / 5) % 2 ? k : k2);
   for (const x of [-60, 50]) pen.poly([P(x, 0, 0), P(x + 10, 0, 0), P(x + 10, 0, 53.33), P(x, 0, 53.33)], colors[0]);
@@ -184,7 +193,13 @@ function sketchPlay(ctx: CanvasRenderingContext2D, scale: number, abbrev: string
 export interface Tile extends Spec {
   canvas: HTMLCanvasElement;
 }
-const state = { turnout: 'winning' as Turnout, night: false, precip: 'none' as Look['precip'], open: true };
+const state = {
+  turnout: 'winning' as Turnout,
+  night: false,
+  precip: 'none' as Look['precip'],
+  lying: false,
+  open: true,
+};
 
 export function paintTile(t: Tile): number {
   const club = TEAM_SEEDS.find((c) => c.abbrev === t.abbrev)!;
@@ -196,6 +211,7 @@ export function paintTile(t: Tile): number {
     precip: state.precip,
     roof: kind === 'outdoors' ? 'none' : kind === 'dome' || !state.open ? 'closed' : 'open',
     fill: FILL[state.turnout],
+    lying: state.lying,
     ...t.over,
   };
   const scale = WIDTH / FRAME.w;
@@ -235,7 +251,10 @@ function mount() {
     const [key, value] = b.dataset.set!.split(':');
     if (key === 'turnout') state.turnout = value as Turnout;
     if (key === 'light') state.night = value === 'night';
-    if (key === 'precip') state.precip = value as Look['precip'];
+    if (key === 'precip') {
+      state.lying = value === 'lying';
+      state.precip = value === 'lying' ? 'none' : (value as Look['precip']);
+    }
     if (key === 'roof') state.open = value === 'open';
     for (const o of document.querySelectorAll(`button[data-set^="${key}:"]`))
       o.setAttribute('aria-pressed', String(o === b));

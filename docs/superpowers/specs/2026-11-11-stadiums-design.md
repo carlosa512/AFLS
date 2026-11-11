@@ -49,8 +49,8 @@ Agreed with the owner (Nov 11) unless marked as a call still open.
    figures in windows or on streets.
 8. **Crowds follow the record.** A winning club's ground is full; a losing club's has empty seats, first high up,
    at the ends and in whole sections. The owner saw about half full for "losing" and accepted it.
-9. **Night and weather without a sky.** A night game darkens the land and the stands, lights the windows outside
-   and glows the floodlights. Rain and snow still fall over the picture as now. Snow lies on the land outside and on
+9. **Night and weather without a sky.** A night game darkens the land outside and lights its windows; the ground
+   stays floodlit. Rain and snow still fall over the picture as now. Snow lies on the land outside and on
    roofs while it falls. A roof that opens is drawn open or closed as the game has it.
 10. **Every club has its own building:** 32, plus the five the game already has coming (Tennessee 2027,
     Jacksonville 2028, Cleveland 2029, Washington 2030, Kansas City 2031), each from its season on.
@@ -151,9 +151,11 @@ The crowd still answers a score or a takeaway for the home side: the picture of 
 
 Read from what the viewer already reads (`weatherAt(gameWeather(...), quarter)`):
 
-- **Night:** the land and the stands are darkened; windows outside are lit; floodlights and roof lights glow.
-- **Rain, snow:** the falling layer over the picture stays as it is. While snow falls, the land outside and the top
-  of any roof are whitened.
+- **Night:** the land outside goes dark, with its windows lit. The ground itself stays floodlit: it is the lit
+  thing in the picture (the owner, Nov 11: a dark stadium looks like it needs a light).
+- **Rain, snow:** the falling layer over the picture stays as it is. Snow lies on the land outside and on roofs
+  while it falls, and on a freezing day from December on. No building is snowy of its own accord (the owner, Nov
+  11: "No constant snow"): on a clear autumn day Buffalo is green.
 - **A roof that opens:** `open` draws the opening and the leaves; `closed` draws the roof whole, with its seam. A
   dome is always whole.
 - **Under a roof** nothing falls and the light inside is even.

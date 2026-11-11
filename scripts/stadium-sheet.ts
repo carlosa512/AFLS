@@ -54,6 +54,7 @@ const page = (js: string) => `<title>Stadium Review: ${group}</title>
       ['none', 'Clear'],
       ['rain', 'Rain'],
       ['snow', 'Snow'],
+      ['lying', 'Snow lying'],
     ])}
     ${seg('Roof', 'roof', [
       ['open', 'Open'],
