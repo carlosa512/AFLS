@@ -8,7 +8,7 @@ The "screen contract" tests in `src/ui/ui.test.ts` enforce most of them: a new s
 
 A player's or a team's name always opens his card or the team's page, and looks the same everywhere.
 
-- **Players:** `PlayerLink` (`components.tsx`). Pass `avatar` (a size: 26 in tables, 28–32 for bigger rows) in
+- **Players:** `PlayerLink` (`components.tsx`). Pass `avatar` (a size: 32, the smallest that shows his number; never less) in
   tables and lists, and no avatar in a sentence. `short` gives "J. Smith" for tight cells (box scores, trade
   assets). `surname` gives "Smith" where the picture or sentence already says who. `pos` prefixes the position,
   only where the table has no Pos column.

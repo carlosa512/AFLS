@@ -31,7 +31,7 @@ describe('PlayerLink', () => {
   });
 
   it('adds the avatar and the player-link class in a table', () => {
-    const html = render(<PlayerLink league={league} player={signed()} avatar={26} />);
+    const html = render(<PlayerLink league={league} player={signed()} avatar={32} />);
     expect(html).toContain('class="linklike player-link"');
     expect(html).toContain('<svg');
   });
@@ -50,7 +50,7 @@ describe('PlayerLink', () => {
 
   it('draws a free agent in the free-agent grey', () => {
     const p = { ...signed(), teamId: null } as Player;
-    expect(() => render(<PlayerLink league={league} player={p} avatar={26} />)).not.toThrow();
+    expect(() => render(<PlayerLink league={league} player={p} avatar={32} />)).not.toThrow();
   });
 });
 

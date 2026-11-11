@@ -6,7 +6,7 @@ import { deliverMail, needsYou } from '../engine/inbox';
 import { gamesInWeek, playWeek } from '../engine/league';
 import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
-import { sortRows } from './components';
+import { NUMBER_MIN_PX, sortRows } from './components';
 import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
 import { hashToRoute, routeToHash, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
@@ -363,6 +363,20 @@ describe('screen contract', () => {
     )
     .filter((f) => !f.endsWith('components.tsx'));
   const src = (f: string) => readFileSync(f, 'utf8');
+
+  it('keeps iPhone Safari from enlarging the text of a table wider than the screen', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/html \{[^}]*-webkit-text-size-adjust: 100%;[^}]*text-size-adjust: 100%;/);
+  });
+
+  it('draws a player big enough to read his number, wherever a screen shows his picture', () => {
+    // Under `NUMBER_MIN_PX` the avatar is a plain figure with no number on it: no list is that tight.
+    const small: string[] = [];
+    for (const f of files)
+      for (const m of src(f).matchAll(/<PlayerLink\b[^>]*?\bavatar=\{(\d+)\}|<PlayerAvatar\b[^>]*?\bsize=\{(\d+)\}/g))
+        if (Number(m[1] ?? m[2]) < NUMBER_MIN_PX) small.push(`${f}: ${m[0].slice(0, 60)}`);
+    expect(small).toEqual([]);
+  });
 
   it('renders player names only through PlayerLink', () => {
     // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.

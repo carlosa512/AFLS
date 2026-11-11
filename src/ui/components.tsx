@@ -27,7 +27,8 @@ import { store } from './store';
 
 /** Free agents, prospects and staff on the market: the app's grey-green. */
 export const FREE_AGENT: TeamColors = { primary: '#4a554e', secondary: '#9aa59e' };
-const NUMBER_MIN_PX = 32; // below this the digits turn to mush, and every list shows the name beside him anyway
+/** Below this the digits turn to mush. Every list draws him at this size or more, so his number is always on him. */
+export const NUMBER_MIN_PX = 32;
 const NAMEPLATE_MIN_PX = 96; // below this the surname is too small to read
 /** From this size the helmet carries its decals (the flags and the green dot): below it they'd be a pixel of noise. */
 export const DECALS_MIN_PX = 56;
@@ -79,8 +80,8 @@ export function RookieMark() {
 
 /**
  * A player's picture slot. Until a portrait exists (a roster mod can set `player.portrait`), it draws him
- * from behind in his team's jersey: just the figure in lists; his build, head and number from 32px; the surname
- * and his height from 96px (`playerLook`).
+ * from behind in his team's jersey: his build, head and number from 32px, which is the smallest a screen draws him
+ * (`NUMBER_MIN_PX`; under it only the plain figure is left); the surname and his height from 96px (`playerLook`).
  * Decorative: the name is always shown beside it. Pass `game` to dress him for that game instead of this week's.
  */
 export function PlayerAvatar({
@@ -300,7 +301,7 @@ export function PlayerAvatar({
 
 /**
  * A player's name, and it always opens his card. The one way a screen shows a player: `avatar` (a size in
- * px) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells, `surname` ("Smith")
+ * px, 32 or more so his number shows) in tables and lists, none in a sentence; `short` ("J. Smith") for tight cells, `surname` ("Smith")
  * where the picture or the sentence already says who; `pos` only where the table has no position column.
  */
 export function PlayerLink({

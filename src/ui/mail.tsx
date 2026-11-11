@@ -2269,7 +2269,7 @@ function RundownCards({ league, r }: { league: League; r: NonNullable<InboxMessa
         const p = league.players[id];
         return (
           <p key={id} className="small" style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <PlayerAvatar player={p} team={team} size={24} /> <PlayerLink league={league} player={p} pos={false} />{' '}
+            <PlayerAvatar player={p} team={team} size={32} /> <PlayerLink league={league} player={p} pos={false} />{' '}
             <span className="muted">
               {p.position} · {p.age}
             </span>
