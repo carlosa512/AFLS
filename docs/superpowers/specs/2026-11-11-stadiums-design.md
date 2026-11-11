@@ -56,6 +56,7 @@ Agreed with the owner (Nov 11) unless marked as a call still open.
     Jacksonville 2028, Cleveland 2029, Washington 2030, Kansas City 2031), each from its season on.
 11. **Reviewed a division at a time, before any game code.** Eight pages of four, like the agreed page. The owner
     reviews each. Game code starts only when all eight are approved and the owner says "build it".
+    **As built:** all eight pages and the five to come were approved, and the owner said "build it" on 2026-11-11.
 12. **All-22 is untouched.** Its paint and its camera stay as they are.
 
 Calls still open, with the default this spec builds if nothing is said:

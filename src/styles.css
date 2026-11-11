@@ -1619,9 +1619,6 @@ select {
   width: 100%;
   height: auto;
 }
-.scene-bg {
-  fill: var(--scene-bg);
-}
 .viewer-sit {
   display: flex;
   justify-content: space-between;

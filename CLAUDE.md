@@ -528,8 +528,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   Teams switch ends each quarter in both views (`stage/ends.ts`): the paint is the stadium and never moves, and what a
   play makes is placed through `stadiumSpot`; never mirror a group, it mirrors its text. The broadcast field
   (`BroadcastField.tsx`, its camera in `broadcastView.ts`) is painted by `BroadcastPaint.tsx` from the facts All-22
-  paints with (`FieldPaint.tsx`: `endZones`, both the home club's), with a stand, a crowd and the game's weather
-  behind it. `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
+  paints with (`FieldPaint.tsx`: `endZones`, both the home club's). Behind it is the home club's building
+  (`src/ui/stadiums/`, spec `docs/superpowers/specs/2026-11-11-stadiums-design.md`): one painter (`paintStadium`) draws
+  a `Building` (a description in `buildings/`, one per club plus the five to come by season, `buildingFor`) onto a
+  canvas (`StadiumPicture.tsx`) through the one camera the field uses (`stadiums/camera.ts`, `toFrame`); `gameLook.ts`
+  reads the game for it (night, weather, the roof, the crowd from the home club's record; under a roof the weather
+  outside is show only, `outside.ts`). Screens only: nothing in the engine or the save. `npm run stadiums -- <group>`
+  writes a review page of a division's buildings (`--time` times them). `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
   a giveaway, a flag or an injury; a player's line after a 20-yard gain; a card at the quarter, the half and the
   final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
   half has come). Before the kickoff both screens show `PregameCard.tsx` over an idle field (`IdleField`): a live
