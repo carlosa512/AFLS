@@ -243,18 +243,39 @@ export const PALE = ['#d9d4c6', '#c9c2b0', '#b8b3a6', '#e3ddd0', '#a9a69c'];
 
 const HOUSE = ['#e6dccb', '#d9c7b0', '#cfd6d9', '#e9e3d6', '#c9b79f'];
 const ROOFS = ['#8a4b3a', '#5d646a', '#7a5a44', '#9a6b55'];
-/** Streets of houses: a house every 11 yards along rows 22 yards apart, each a box under a roof. */
+/**
+ * Streets of houses, no two alike: each its own width, depth, height and setback, some lots empty, some with a pool or
+ * a second wing, and the yards planted unevenly.
+ */
 export function houses(s: Scene, x0: number, x1: number, z0: number, z1: number, trees: 'pine' | 'round' | 'palm') {
+  const R = () => s.rng.next();
   for (let z = z1; z >= z0; z -= 22) {
-    street(s, [x0, z - 6], [x1, z - 6], 4, '#7b8084', 0.15);
-    for (let x = x0 + 5; x < x1; x += 11) {
+    street(s, [x0, z - 7], [x1, z - 7], 4, '#7b8084', 0.15);
+    for (let x = x0 + 5; x < x1; ) {
+      const plot = 9 + R() * 7;
+      const w = plot * (0.5 + R() * 0.28);
+      const d = 5 + R() * 4;
+      const h = R() < 0.25 ? 5.2 + R() : 2.6 + R() * 0.8;
+      const back = R() * 4;
       const wall = pick(s, HOUSE);
       const roof = pick(s, ROOFS);
-      const yard = s.rng.next() < 0.5;
-      if (!clearOf(x, z) || !seen(x, 2, z, 10)) continue;
-      box(s, x, z, 7, 6, 3, wall);
-      box(s, x, z - 0.3, 7.8, 6.6, 0.9, roof, 3);
-      if (yard) tree(s, x + 5, z + 2, trees === 'palm' ? 4 : 5, 0, trees);
+      const kind = R();
+      const planted = R();
+      const cx = x + plot / 2;
+      x += plot;
+      if (kind < 0.1 || !clearOf(cx, z) || !seen(cx, 2, z, 12)) continue; // an empty lot now and then
+      box(s, cx, z + back, w, d, h, wall);
+      box(s, cx, z + back - 0.3, w + 0.8, d + 0.6, 0.8, roof, h);
+      if (kind > 0.7) {
+        box(s, cx + w * 0.45, z + back - 2.5, w * 0.45, 3.5, 2.4, wall);
+        box(s, cx + w * 0.45, z + back - 2.8, w * 0.45 + 0.6, 4.1, 0.6, roof, 2.4);
+      }
+      if (kind > 0.45 && kind < 0.62)
+        s.pen.poly(patch(cx - 2.4, cx + 1.2, z + back + d + 1.5, z + back + d + 4), s.tone('#58b7cf'));
+      if (planted < 0.75)
+        tree(s, cx - plot * 0.38, z + back + 1 + planted * 5, (trees === 'palm' ? 3.4 : 4.2) + planted * 3, 0, trees);
+      if (planted > 0.55)
+        tree(s, cx + plot * 0.36, z - 2 + planted * 3, (trees === 'palm' ? 3 : 4) + planted * 2, 0, trees);
     }
   }
 }
