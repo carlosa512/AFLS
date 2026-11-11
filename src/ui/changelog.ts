@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.33',
+    date: '2026-11-11',
+    title: 'The final shows on highlights too',
+    text: 'On Key or Extended highlights a game watched to the end now brings up the Final card, and stops at halftime, even when the last plays were ones the highlights skipped.',
+  },
+  {
     version: '0.4.32',
     date: '2026-11-11',
     title: 'Cap opens mid-game; numbered icons',

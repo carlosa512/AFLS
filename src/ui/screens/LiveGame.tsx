@@ -6,7 +6,7 @@ import { useNav } from '../App';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { live, useLive } from '../live';
-import { shows } from '../highlights';
+import { stopsAt } from '../highlights';
 import {
   DownBar,
   HighlightSwitch,
@@ -88,7 +88,7 @@ export function LiveGame({ league }: { league: League }) {
   };
   /** Past the plays the highlight level skips (they land in the log together, still), or on to the next snap. */
   const next = () => {
-    if (pick !== 'full' && live.skipTo((plays, i) => shows(plays, i, home.id, pick))) return;
+    if (pick !== 'full' && live.skipTo((plays, i) => stopsAt(plays, i, home.id, pick))) return;
     step();
   };
   const onDone = () => {
@@ -97,17 +97,18 @@ export function LiveGame({ league }: { league: League }) {
     setToldKey(playKey);
     clearTimeout(timer.current);
     if (!s.playing || s.finished) return;
-    // A skipped batch's hold was the pause: the highlight follows at once.
-    if (s.still) return step();
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
     // A moment (a score's banner, a player's line) holds the screen long enough to be read.
     const all = playMoments(s.plays, s.current, { ...momentFacts, told: true, still: false });
     const made = shownMoments(all, speed, own);
-    // The half, reached by playing: the game waits on its card until Continue.
+    // The half, reached by playing (its last play watched, or landed on with a skipped batch): the game waits on
+    // its card until Continue.
     if (made.some((m) => m.kind === 'half')) {
       live.update({ playing: false });
       return setWaitKey(playKey);
     }
+    // A skipped batch's hold was the pause: the highlight follows at once.
+    if (s.still) return step();
     // A quarter's card comes up after the play's banner, whichever view draws it.
     const hold = Math.max(
       (all22 ? holdAfter(entry) : HOLD_MS) / speed,

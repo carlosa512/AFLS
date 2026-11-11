@@ -238,15 +238,16 @@ export function flagParts(call: string): { head: string; line: string; side?: st
 }
 
 /**
- * The moments of the play on screen, as a screen may show them: none until its result has been shown, and none for
- * a play the highlight level skipped past (it landed still, with others; only the play that is shown gets one).
+ * The moments of the play on screen, as a screen may show them: none until its result has been shown. A play the
+ * highlight level skipped past (it landed still, with others) gets no banner, line or quarter card of its own, but
+ * it still ends a half or the game: at Key the last snap is rarely one that shows, and the final is owed all the same.
  */
 export function playMoments(
   plays: readonly PlayLogEntry[],
   index: number,
   o: { home: Team; away: Team; names: PlayNames; record?: FieldRecord; over?: boolean; told: boolean; still: boolean },
 ): Moment[] {
-  return o.told && !o.still
-    ? momentsFor(plays, index, o.home, o.away, o.names, { record: o.record, over: o.over })
-    : [];
+  if (!o.told) return [];
+  const all = momentsFor(plays, index, o.home, o.away, o.names, { record: o.record, over: o.over });
+  return o.still ? all.filter((m) => m.kind === 'half' || m.kind === 'final') : all;
 }
