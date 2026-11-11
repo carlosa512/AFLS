@@ -32,15 +32,17 @@ export const FRONTIER_SOUTH: Record<string, Building> = {
     features: [],
     setting: { kind: 'downtown', palette: [...PALE, ...STEEL], streetTrees: true },
   },
-  // A wide white bowl with its corners open, on flat ground among car parks and palms.
+  // A horseshoe in coral stone, open at one end to the bay, with a shade roof over the back rows.
   TB: {
     id: 'TB',
-    rim: { kind: 'flat', h: 23.8 },
-    openCorners: true,
-    seat: '#3a1012',
-    wall: '#e4e0d6',
+    rim: { kind: 'flat', h: 27 },
+    openEnd: 'right',
+    seat: '#4a0e10',
+    wall: '#c98f73',
+    face: '#34302b',
     ground: '#86996b',
+    roof: { kind: 'canopy', d0: 21, d1: 34, y0: 26, y1: 28.4, skin: '#ece4d6' },
     features: [],
-    setting: { kind: 'suburb', trees: 'palm', canal: false },
+    setting: { kind: 'lake', docks: false },
   },
 };

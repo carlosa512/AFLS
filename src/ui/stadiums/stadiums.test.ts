@@ -4,6 +4,7 @@ import { toFrame } from './camera';
 import { lum } from './colour';
 import { crowdPalette, sectionFill, turnoutOf } from './crowd';
 import { STADIUMS } from '../../engine/data/stadiums';
+import { TEAM_SEEDS } from '../../engine/data/teams';
 import { Rng } from '../../engine/rng';
 import { BUILDINGS, buildingFor, LATER, roofKindOf } from './buildings';
 import { FEATURES } from './features';
@@ -213,8 +214,20 @@ describe('the buildings', () => {
     expect(roofKindOf(b)).toBe('outdoors');
   });
   it('uses the building of the game’s season, not today’s', () => {
-    // Filled in when the later buildings exist (Task 16): until then a club with no later building keeps its one.
-    expect(buildingFor('DEN', 2040, ['#fb4f14', '#002244']).id).toBe('DEN');
+    const c: [string, string] = ['#0c2340', '#4b92db'];
+    expect(buildingFor('TEN', 2026, c).id).toBe('TEN');
+    expect(buildingFor('TEN', 2027, c).id).toBe('TEN:2027');
+    expect(buildingFor('TEN', 2040, c).id).toBe('TEN:2027');
+    expect(buildingFor('DEN', 2040, c).id).toBe('DEN');
+  });
+  it('has a building for every club, and for every stadium the game has coming', () => {
+    for (const t of TEAM_SEEDS) expect(BUILDINGS[t.abbrev], t.abbrev).toBeDefined();
+    for (const [abbrev, st] of Object.entries(STADIUMS))
+      for (const ch of st.changes ?? [])
+        expect(
+          LATER[abbrev]?.some((l) => l.season === ch.season),
+          `${abbrev} ${ch.season}`,
+        ).toBe(true);
   });
 });
 

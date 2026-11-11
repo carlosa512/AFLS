@@ -38,7 +38,16 @@ export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec
   'frontier-north': { title: 'Frontier North', tiles: ['CHI', 'DET', 'GB', 'MIN'].map(club) },
   'frontier-south': { title: 'Frontier South', tiles: ['ATL', 'CAR', 'NO', 'TB'].map(club) },
   'frontier-west': { title: 'Frontier West', tiles: ['ARI', 'LAS', 'SF', 'SEA'].map(club) },
-  // next division
+  later: {
+    title: 'Coming later in a career',
+    tiles: [
+      { abbrev: 'TEN', season: 2027, note: 'From 2027.' },
+      { abbrev: 'JAX', season: 2028, note: 'From 2028.' },
+      { abbrev: 'CLE', season: 2029, note: 'From 2029.' },
+      { abbrev: 'WAS', season: 2030, note: 'From 2030.' },
+      { abbrev: 'KC', season: 2031, note: 'From 2031.' },
+    ],
+  },
   checks: {
     title: 'Three things not seen yet',
     intro:

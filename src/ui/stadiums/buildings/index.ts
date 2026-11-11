@@ -10,6 +10,7 @@ import { FRONTIER_EAST } from './frontierEast';
 import { FRONTIER_NORTH } from './frontierNorth';
 import { FRONTIER_SOUTH } from './frontierSouth';
 import { FRONTIER_WEST } from './frontierWest';
+import { LATER_BUILDINGS } from './later';
 import { LIBERTY_EAST } from './libertyEast';
 import { LIBERTY_NORTH } from './libertyNorth';
 import { LIBERTY_SOUTH } from './libertySouth';
@@ -29,7 +30,7 @@ const FILES: Record<string, Building>[] = [
   // next division
 ];
 export const BUILDINGS: Record<string, Building> = Object.assign({}, ...FILES);
-export const LATER: Record<string, { season: number; building: Building }[]> = {};
+export const LATER: Record<string, { season: number; building: Building }[]> = LATER_BUILDINGS;
 
 export function plainBowl(colors: [string, string]): Building {
   const seat = lum(colors[0]) < 0.12 ? mix(colors[0], '#3a4650', 0.6) : mix(colors[0], '#101418', 0.7);
