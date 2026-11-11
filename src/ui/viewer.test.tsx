@@ -25,7 +25,7 @@ import { endZones } from './screens/FieldPaint';
 import { downParts, Scorebug } from './screens/Scorebug';
 import { driveCaption, GameTimeline, laneColor } from './screens/GameTimeline';
 import { contrast } from './color';
-import { buildPlayNames, driveAt, drivesOf, SHOWN_TEAM, teamStatsAt } from './gameRead';
+import { buildPlayNames, driveAt, drivesOf, linesAt, SHOWN_LINE, SHOWN_TEAM, teamStatsAt } from './gameRead';
 import { GamePanel, PlayersPanel } from './screens/GamePanels';
 import { VIEW_KEY } from './viewerPrefs';
 import { vi } from 'vitest';
@@ -147,7 +147,7 @@ describe('the view switch', () => {
     const strip = (html: string) =>
       html
         .replace(/<div class="td-field[\s\S]*?<\/svg>(<div class="td-card[\s\S]*?<\/div>)?<\/div>/, '')
-        .replace(/<canvas class="stadium-picture"[^>]*><\/canvas>/, '')
+        .replace(/<canvas class="stadium-(?:picture|crowd)"[^>]*><\/canvas>/g, '')
         .replace(/<svg class="field-scene[\s\S]*?<\/svg>/, '')
         .replace(/<span class="seg" role="group" aria-label="View">[\s\S]*?<\/span>/, '');
     const broadcast = withView('broadcast', viewer);
@@ -632,13 +632,28 @@ describe('the panels beside the field', () => {
     expect(html).toContain('ankle sprain');
   });
 
-  it('names a leader a team in passing, rushing and receiving, each a link to his card', () => {
+  it('names a leader a team in passing, rushing, receiving and defense, each a link to his card', () => {
     const html = playersPanel(last);
-    for (const label of ['Passing', 'Rushing', 'Receiving']) expect(html).toContain(`>${label}<`);
+    for (const label of ['Passing', 'Rushing', 'Receiving', 'Defense']) expect(html).toContain(`>${label}<`);
     const rows = html.match(/class="lead-row"/g) ?? [];
-    expect(rows).toHaveLength(6);
-    expect(html.match(/class="lead-row">[\s\S]*?<button type="button" class="linklike"/g)).toHaveLength(6);
-    expect(html).not.toContain('Tackles');
+    expect(rows).toHaveLength(8);
+    expect(html.match(/class="lead-row">[\s\S]*?<button type="button" class="linklike"/g)).toHaveLength(8);
+  });
+
+  it('names the defenders from the first tackle on, by the box score’s own count', () => {
+    // The first snap somebody was tackled on: the panel has a defender to name from there, not only after a sack.
+    const tacklers = (i: number) =>
+      [...linesAt(plays, i, home.id, names, game.result!.field)].filter(([, l]) => l.tackles).map(([id]) => id);
+    const first = plays.findIndex((_, i) => tacklers(i).length > 0);
+    expect(playersPanel(first - 1)).not.toContain('>Defense<');
+    const html = playersPanel(first);
+    const defense = html.slice(html.indexOf('>Defense<'));
+    expect(defense).toMatch(/class="lead-row">[\s\S]*?<button type="button" class="linklike"/);
+    expect(defense).toMatch(/>1 tackle(?: · 1 sack)?</);
+    expect(SHOWN_LINE).toContain('tackles');
+    // At the final his line is the box score's.
+    const top = Object.entries(game.result!.playerStats).sort((a, b) => (b[1].tackles ?? 0) - (a[1].tackles ?? 0))[0];
+    expect(linesAt(plays, last, home.id, names, game.result!.field).get(Number(top[0]))?.tackles).toBe(top[1].tackles);
   });
 
   it('has nothing odd to say before the first play', () => {
@@ -932,7 +947,9 @@ describe('the drive on the grass', () => {
   it('tints the grass from where the drive began to the ball, and says where that was', () => {
     const html = field(mid);
     expect(html).toContain('class="drive-band"');
-    expect(html).toContain('>Drive began<');
+    // A caret whose tooltip names it: no label box on the grass.
+    expect(html).toMatch(/class="drive-caret"[^>]*><title>Drive began here<\/title>/);
+    expect(html).not.toContain('>Drive began<');
   });
 
   it('draws no band on a drive’s first snap, nor on a kickoff', () => {
@@ -1058,7 +1075,10 @@ describe('the moments over the field', () => {
     expect(yellow.length).toBeGreaterThan(0);
     for (const sel of yellow) expect(sel).toMatch(/\.flag/);
     const reduced = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/g)];
-    expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.stadium-picture/.test(m[0]))).toBe(true);
+    expect(reduced.some((m) => /bench-man/.test(m[0]) && /\.stadium-crowd/.test(m[0]))).toBe(true);
+    // The crowd jumps as the bench does; the picture itself never flashes.
+    expect(css).toMatch(/data-cheer='home'\]\) \.stadium-crowd \{\s*animation: bf-jump/);
+    expect(css).not.toContain('bf-roar');
   });
 });
 
@@ -1200,7 +1220,9 @@ describe('the building behind the field', () => {
   });
   it('keeps the picture and the play in one box', () => {
     const html = withView('broadcast', viewer);
-    expect(html).toMatch(/<canvas class="stadium-picture"[^>]*><\/canvas><svg class="field-scene"/);
+    expect(html).toMatch(
+      /<canvas class="stadium-picture"[^>]*><\/canvas>(?:<canvas class="stadium-crowd"[^>]*><\/canvas>){3}<svg class="field-scene"/,
+    );
   });
   it('shuts a roof at the quarter the rain comes, not before', () => {
     const roofed = league.games.find((g) =>

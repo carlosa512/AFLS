@@ -5,7 +5,16 @@ import { playWeek } from '../engine/league';
 import { packActors } from '../engine/playActors';
 import type { League, PlayLogEntry, Team } from '../engine/types';
 import { buildPlayNames, type PlayNames } from './gameRead';
-import { BANNER_FLOOR, BIG_GAIN, LINE_BEAT, momentHold, momentsFor, type Moment } from './moments';
+import {
+  BANNER_FLOOR,
+  BIG_GAIN,
+  INJURY_BEAT,
+  INJURY_FLOOR,
+  LINE_BEAT,
+  momentHold,
+  momentsFor,
+  type Moment,
+} from './moments';
 import { flagCall } from './stage/calls';
 
 const BUF = { id: 1, abbrev: 'BUF', city: 'Buffalo', name: 'Blizzard', colors: ['#00338d', '#c60c30'] } as Team;
@@ -249,6 +258,15 @@ describe('how long the screen holds', () => {
     expect(momentHold([score], 2)).toBe(1300);
     expect(momentHold([score], 4)).toBe(BANNER_FLOOR);
     expect(momentHold([score], 8)).toBe(BANNER_FLOOR);
+  });
+
+  it('holds an injury a beat longer than a score at every speed, and never under its own floor', () => {
+    const hurt: Moment = { kind: 'banner', tone: 'injury', teamId: 1, head: 'Injury', line: '' };
+    expect(momentHold([hurt], 1)).toBe(2600 + INJURY_BEAT);
+    expect(momentHold([hurt], 2)).toBe(INJURY_FLOOR);
+    expect(momentHold([hurt], 4)).toBe(INJURY_FLOOR);
+    expect(momentHold([hurt], 8)).toBe(INJURY_FLOOR);
+    for (const speed of [1, 2, 4, 8]) expect(momentHold([hurt], speed)).toBeGreaterThan(momentHold([score], speed));
   });
 
   it('holds a player’s line a beat longer, and skips it and the quarter card when sped up', () => {

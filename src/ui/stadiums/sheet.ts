@@ -8,6 +8,7 @@ import { buildingFor, roofKindOf } from './buildings';
 import { CAM, FRAME, toFrame } from './camera';
 import { lift, lum } from './colour';
 import { FILL, type Turnout } from './crowd';
+import { paintLayers, WAVES } from './layers';
 import { paintStadium } from './paint';
 import { canvasPen, type Pen, type Pt } from './pen';
 import type { Look } from './types';
@@ -231,7 +232,8 @@ const state = {
   open: true,
 };
 
-export function paintTile(t: Tile, width = WIDTH): number {
+/** Paints a tile and says how long its stadium took. `asGame`: time the game's own paint, crowd layers and all. */
+export function paintTile(t: Tile, width = WIDTH, asGame = false): number {
   const club = TEAM_SEEDS.find((c) => c.abbrev === t.abbrev)!;
   const colors = club.colors as [string, string];
   const b = buildingFor(t.abbrev, t.season, colors);
@@ -248,10 +250,18 @@ export function paintTile(t: Tile, width = WIDTH): number {
   t.canvas.width = width;
   t.canvas.height = FRAME.h * scale;
   const ctx = t.canvas.getContext('2d')!;
+  let ms = 0;
+  if (asGame) {
+    const fresh = () => document.createElement('canvas');
+    const [ground, waves] = [fresh(), Array.from({ length: WAVES }, fresh)];
+    const g0 = performance.now();
+    paintLayers(ground, waves, width, b, colors, look, t.abbrev);
+    ms = performance.now() - g0;
+  }
   const t0 = performance.now();
   const pen = canvasPen(ctx, scale);
   paintStadium(pen, b, colors, look, t.abbrev);
-  const ms = performance.now() - t0;
+  if (!asGame) ms = performance.now() - t0;
   sketchField(pen, colors, look.night);
   if (t.play) sketchPlay(ctx, scale, t.abbrev, colors);
   sketchFall(ctx, look, scale);
@@ -291,9 +301,9 @@ function mount() {
     paint();
   });
   paint();
-  // for `--time`: milliseconds to paint each building, the stadium alone
+  // for `--time`: milliseconds to paint each building as a game does, the stadium alone
   (window as unknown as { timeAll: () => Record<string, number> }).timeAll = () => {
-    const ms = Object.fromEntries(tiles.map((t) => [t.abbrev, Math.round(paintTile(t, PHONE_WIDTH))]));
+    const ms = Object.fromEntries(tiles.map((t) => [t.abbrev, Math.round(paintTile(t, PHONE_WIDTH, true))]));
     paint();
     return ms;
   };

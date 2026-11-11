@@ -184,9 +184,10 @@ routes, filters are `seg`). The tab picked and the Players toggle are remembered
 **Players** (right), with a toggle: *Leaders* · *BUF* · *NO* (the two abbreviations, yours marked the way the rest
 of the game marks your club).
 
-- *Leaders:* Passing, Rushing, Receiving and Tackles, the leading man of each team in each, with his line.
-- *A team:* that team's lines so far, grouped as the box score groups them: passing, rushing, receiving, defense.
-  Only players with something to show.
+- *Leaders:* Passing, Rushing, Receiving and Defense, the leading man of each team in each, with his line (a
+  defender's: tackles, sacks, picks; a sack and a pick count for more than a tackle in who leads).
+- *A team:* that team's lines so far, grouped as the box score groups them: passing, rushing, receiving, defense
+  (its top five defenders). Only players with something to show.
 - Every name is a `PlayerLink` (`short`), so it opens his card.
 
 Nothing in either panel is a rating, a range or a hidden trait: it is all box-score fact, which is public.

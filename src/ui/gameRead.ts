@@ -203,12 +203,13 @@ export interface RunningLine {
   rec?: number;
   recYds?: number;
   recTd?: number;
+  tackles?: number;
   sacks?: number;
   defInt?: number;
 }
 /**
- * The player numbers the equality test holds to the box score. Tackles are not among them: the log names a play's
- * first tackler only, and the box score also counts assists and the kicking game's tackles.
+ * The player numbers the equality test holds to the box score. Tackles are among them: the engine credits one man a
+ * snap (the tackler, or the sacker), and he is the play's `tackle`.
  */
 export const SHOWN_LINE: readonly (keyof RunningLine)[] = [
   'passAtt',
@@ -222,6 +223,7 @@ export const SHOWN_LINE: readonly (keyof RunningLine)[] = [
   'rec',
   'recYds',
   'recTd',
+  'tackles',
   'sacks',
   'defInt',
 ];
@@ -253,6 +255,7 @@ export function linesAt(
       record ? unitsAt(record, i)[e.offense === homeId ? 0 : 1].qb : names.ids.get(/^\S+/.exec(e.text)?.[0] ?? '');
     const gain = gainOf(e, homeId);
     const td = offenseTd(e);
+    add(who.tackle, 'tackles');
     switch (e.kind) {
       case 'pass':
       case 'incomplete':
@@ -528,9 +531,23 @@ const also = (count: number, word: string) => (count ? ` · ${count} ${word}` : 
 
 /**
  * A player's line in words, one wording wherever it shows (the Players panel, the line after a big play, the half's
- * leaders): long with its units ("5 rec · 56 yds") or short for a row under a heading ("5 · 56").
+ * leaders): long with its units ("5 rec · 56 yds") or short for a row under a heading ("5 · 56"). A defender's is
+ * what he has: "6 tackles · 1 sack · 1 INT" ("6 tkl · 1 sack · 1 INT" short).
  */
-export function lineWords(kind: 'passing' | 'rushing' | 'receiving', l: RunningLine, short = false): string {
+export function lineWords(
+  kind: 'passing' | 'rushing' | 'receiving' | 'defense',
+  l: RunningLine,
+  short = false,
+): string {
+  if (kind === 'defense') {
+    const tackles = n0(l.tackles);
+    const parts = [
+      tackles ? `${tackles} ${short ? 'tkl' : tackles === 1 ? 'tackle' : 'tackles'}` : '',
+      n0(l.sacks) ? `${n0(l.sacks)} sack${n0(l.sacks) === 1 ? '' : 's'}` : '',
+      n0(l.defInt) ? `${n0(l.defInt)} INT` : '',
+    ];
+    return parts.filter(Boolean).join(' · ');
+  }
   if (kind === 'passing')
     return `${n0(l.passCmp)}/${n0(l.passAtt)} · ${n0(l.passYds)}${short ? '' : ' yds'}${also(n0(l.passTd), 'TD')}${also(n0(l.passInt), 'INT')}`;
   const [count, yards, td, unit] =

@@ -523,7 +523,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   from the play log through `ui/gameRead.ts`: score by quarter, timeouts, drives, team numbers and player lines through
   the play on screen, for the scorebug (`Scorebug.tsx`), the drive timeline (`GameTimeline.tsx`) and the two panels
   (`GamePanels.tsx`). A number goes on screen only if `gameRead.test.ts` holds it to the box score (`SHOWN_TEAM`,
-  `SHOWN_LINE`); tackles and possession can't be read exactly and stay in the box score. Spec:
+  `SHOWN_LINE`: tackles, sacks and picks among them, so the Players panel always has defenders to name); possession
+  can't be read exactly and stays in the box score. Spec:
   `docs/superpowers/specs/2026-11-10-broadcast-info-design.md`.
   Teams switch ends each quarter in both views (`stage/ends.ts`): the paint is the stadium and never moves, and what a
   play makes is placed through `stadiumSpot`; never mirror a group, it mirrors its text. The broadcast field
@@ -531,12 +532,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   paints with (`FieldPaint.tsx`: `endZones`, both the home club's). Behind it is the home club's building
   (`src/ui/stadiums/`, spec `docs/superpowers/specs/2026-11-11-stadiums-design.md`): one painter (`paintStadium`) draws
   a `Building` (a description in `buildings/`, one per club plus the five to come by season, `buildingFor`) onto a
-  canvas (`StadiumPicture.tsx`) through the one camera the field uses (`stadiums/camera.ts`, `toFrame`); `gameLook.ts`
+  canvas (`StadiumPicture.tsx`) through the one camera the field uses (`stadiums/camera.ts`, `toFrame`); in a game the
+  people are painted on a few canvases of their own over it (`layers.ts`, `crowdPen`: what is drawn after a person
+  hides him there as it would on one canvas), so the crowd jumps for a home score while the building stands still; `gameLook.ts`
   reads the game for it (night, weather, the roof, the crowd from the home club's record, dressed in the club's jersey on its colour rush and blackout nights; under a roof the weather
   outside is show only, `outside.ts`). Screens only: nothing in the engine or the save. `npm run stadiums -- <group>`
   writes a review page of a division's buildings (`--time` times them). `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
-  a giveaway, a flag or an injury; a player's line after a 20-yard gain; a card at the quarter, the half and the
-  final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
+  a giveaway, a flag or an injury, the injury's held a beat longer and never under `INJURY_FLOOR` however fast the game
+  is played; a player's line after a 20-yard gain; a card at the quarter, the half and the final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
   half has come). Before the kickoff both screens show `PregameCard.tsx` over an idle field (`IdleField`): a live
   game starts waiting (`LiveSession.kicked`, `live.kickoff`) and takes who is out once, as it starts (`pregame.ts`,
   `LiveSession.out`: the league moves on when the game is recorded, so a replay has no list). Spec:

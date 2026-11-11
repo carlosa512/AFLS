@@ -60,8 +60,8 @@ const RED_ZONE = 20;
 
 /**
  * What the drive has put on the grass, under the lines: a band in the offense's colour from where it began to this
- * snap, the spot it began marked and named, and the last twenty yards reddened once the ball is snapped inside them.
- * Drawn where the stadium has them this quarter.
+ * snap, the spot it began marked (a dashed line under a caret that says so when pointed at), and the last twenty yards
+ * reddened once the ball is snapped inside them. Drawn where the stadium has them this quarter.
  */
 function DriveMarks({
   home,
@@ -79,7 +79,7 @@ function DriveMarks({
   const q = entry.quarter;
   const homeBall = entry.offense === home.id;
   const began = drive && Math.abs(drive.from - los) >= 1 ? drive.from : null;
-  // Its far end on screen, where the label sits: the far sideline is the log's near one once the ends are switched.
+  // Its far end on screen, where the caret sits: the far sideline is the log's near one once the ends are switched.
   const b = began === null ? null : project(began, endsSwitched(q) ? 0 : FIELD_W, 0, q);
   const a = began === null ? null : project(began, endsSwitched(q) ? FIELD_W : 0, 0, q);
   return (
@@ -102,11 +102,11 @@ function DriveMarks({
             strokeDasharray="2.5 2"
             opacity={0.7}
           />
-          <g transform={`translate(${b.x.toFixed(1)} ${(b.y - 7).toFixed(1)})`}>
-            <rect x={-19} y={-4.4} width={38} height={8.4} rx={2} fill="rgba(6,10,9,0.82)" />
-            <text textAnchor="middle" y={1.9} fontSize={5.2} fill="#fff" fontWeight={700}>
-              Drive began
-            </text>
+          {/* A caret over the line's far end; what it marks is its tooltip, so the grass carries no label. */}
+          <g className="drive-caret" transform={`translate(${b.x.toFixed(1)} ${(b.y - 1.2).toFixed(1)})`}>
+            <title>Drive began here</title>
+            <circle r={5} cy={-2.4} fill="transparent" />
+            <path d="M-3 -5H3L0 0Z" fill="#fff" stroke="rgba(6,10,9,0.82)" strokeWidth={0.7} strokeLinejoin="round" />
           </g>
         </>
       )}
