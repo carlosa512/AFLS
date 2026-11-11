@@ -116,7 +116,7 @@ A building is data, not code: one record a club in `src/ui/stadiums/` (screens o
 - **Roof:** none; a canopy over the back rows; or a slab (its profile, its skin and section colours, and for a roof
   that opens, the opening and the leaves).
 - **Colours:** seats, empty chairs, the wall, the deck faces.
-- **Features:** named things from a small set the painter knows how to draw in space (stacks, a wheel, masts,
+- **Features:** named things from a small set the painter knows how to draw in space (a wheel,
   towers, a spire, a clock tower, a gantry). A building lists which and where. A new kind is added to the painter
   once and can then be used by any building.
 - **Setting:** which land is outside (a city of a given height, car parks, woods, a river with bridges, a lake, a
@@ -202,9 +202,9 @@ carries the play (the field's lines, the ball, banners: still SVG, through the s
 
 ## The 37 buildings
 
-**Tone (the owner, Nov 11): realism over theme.** A building should read as a real stadium first. Pittsburgh's
-furnace stacks and New York's keep are the level to aim for; ship's masts and sails on Baltimore and New England were
-dropped. Ideas below that lean on a costume (sails, a carnival tent, a star truss) are to be drawn as plainer
+**Tone (the owner, Nov 11): realism over theme.** A building should read as a real stadium first. New York's
+keep is the level to aim for; ship's masts and sails on Baltimore and New England, and the smokestacks on Cincinnati
+and Pittsburgh, were dropped. Ideas below that lean on a costume (sails, a carnival tent, a star truss) are to be drawn as plainer
 buildings whose materials, roofline and setting carry the club.
 
 First ideas, from the concept page. Each division is drawn and reviewed before it is built, so every line here can
@@ -226,7 +226,7 @@ still change. "Setting" is the lie of the land round the real ground, nothing mo
 | Baltimore Clippers | Clipper rig: raked masts, one end open | Open air | In town: rail yards, brick blocks, the harbor beyond |
 | Cincinnati Steamers | Riverboat: white decks, twin stacks, a paddlewheel in the open end | Open air | On the river: bridges, a boat, a town on the far bank |
 | Cleveland Hammers | Mill yard: a sawtooth roofline, a gantry carrying the lights | Open air | On the lake: docks, the water to the top of the picture |
-| Pittsburgh Forge | Blast furnace: glowing stacks, a yellow truss | Open air | Where rivers meet: bridges, the city across the water |
+| Pittsburgh Forge | Dark steel, a yellow truss | Open air | Where rivers meet: bridges, the city across the water |
 
 **Liberty South**
 

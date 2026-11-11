@@ -75,7 +75,6 @@ export type SettingUse =
 
 /** Things on a building the painter knows how to draw in space. */
 export type FeatureUse =
-  | { kind: 'stacks'; x: number[]; cap: string; body?: string; glow?: boolean }
   | { kind: 'wheel' }
   /** Shade blades standing round the rim like fins. */
   | { kind: 'fins'; skin: string }

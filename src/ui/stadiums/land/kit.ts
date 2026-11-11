@@ -237,6 +237,8 @@ export function water(s: Scene, z0: number, z1: number, col = '#6f9db3') {
 }
 /** A bridge over water along Z at an X: a deck on piers under two arches. */
 export function bridge(s: Scene, x: number, z0: number, z1: number, col: string) {
+  // the piers first, so the deck lies over them and never the other way round
+  for (const z of [z0 + (z1 - z0) * 0.25, z0 + (z1 - z0) * 0.72]) box(s, x, z, 4, 4, 6.6, '#8d8f8c');
   s.pen.poly(patch(x - 3, x + 3, z0 - 6, z1 + 6, 7), s.tone('#7a8187'));
   for (const side of [x - 3, x + 3]) {
     const arch: Pt[] = [];
@@ -247,7 +249,6 @@ export function bridge(s: Scene, x: number, z0: number, z1: number, col: string)
       s.pen.line([P(side, 7, z), P(side, 7 + 15 * Math.sin((Math.PI * k) / 16), z)], s.tone(col), 0.3);
     }
   }
-  for (const z of [z0 + (z1 - z0) * 0.25, z0 + (z1 - z0) * 0.72]) box(s, x, z, 5, 4, 7, '#8d8f8c');
 }
 export const BRICK = ['#9a6b55', '#8a5a48', '#b08a6e', '#a39584', '#7d6a5c'];
 export const STEEL = ['#9aa5ad', '#b9c2c8', '#7f8b94', '#c9c4b6', '#8f989f'];
