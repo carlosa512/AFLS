@@ -199,6 +199,13 @@ reminders do not qualify merely because they are current. `briefingCurrent` sepa
 matchup and deadline cards still show live information. Shortages, eligible IR activations, offers, draft
 picks, scouting opportunities and existing contract/staff decisions keep their live checks.
 
+**A letter is filed under the week it is read in.** A recap, the injuries from a game and SNN's edition are about
+week 16, and they arrive once the desk has moved on to week 17's build-up, so the inbox files them under Week 17
+with that week's opposition report (`InboxMessage.filed`, read through `mailDate`; `week` stays the week the letter
+is about, which ids and the mail's own logic use). After a long advance each week's mail is filed the week after its
+own, never all under today. The last regular-season week's is filed as the playoffs open and the final's under the
+finished season. Mail filed before save format 94 keeps the week it was dated.
+
 The inbox still retains 300 entries, counting archived and deleted messages. Save format 36 adds the
 optional `mailFloor`: an eviction date plus IDs removed on that date. Dates before the boundary cannot
 return; unseen IDs on the same date can arrive. Only the boundary date's tombstones are retained, so the

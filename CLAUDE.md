@@ -248,7 +248,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
-    about so nothing doubles up. The sim never sends mail itself. A recap tells one thing that decided
+    about so nothing doubles up. A letter keeps the week it is about (`week`) and is filed under the week it is
+    read in (`filed`, read by screens through `mailDate`): a game's mail lands with the next week's build-up. The sim never sends mail itself. A recap tells one thing that decided
     the game, read off the box score (`gameStory`: comeback, lead let go, turnovers, control, a result
     against the yardage, a late shutdown, a close one; a routine game gets the yards); the opposition
     report is a briefing on our scouts' read, qualified when they barely know the team, and never

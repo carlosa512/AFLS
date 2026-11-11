@@ -1910,6 +1910,11 @@ export interface InboxMessage {
   phase: Phase;
   /** The week it's dated (0 in the offseason). */
   week: number;
+  /**
+   * Where the inbox files it, when that is not its own date: a game's mail arrives once the desk has moved on to the
+   * next week, and is read there. Screens read `mailDate`; `week` stays what the letter is about.
+   */
+  filed?: { phase: Phase; week: number };
   from: string;
   /** Another club's front office wrote it (offers, deals): the inbox draws it in that club's colours. */
   fromTeamId?: number;

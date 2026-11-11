@@ -1,4 +1,4 @@
-import { canReadMail } from '../engine/inbox';
+import { canReadMail, mailDate } from '../engine/inbox';
 /**
  * Home's small panels: our injuries, the opponent's injury report, the mail waiting for us and the season
  * so far. Each is a few rows deep, the rest a click away (the Medical screen, their roster, the inbox). Injuries show
@@ -185,8 +185,10 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
 }
 
 /** "Head coach · Week 9", "Kyle James's agent · Re-sign window": who it's from and when, in a line. */
-const fromLine = (from: string, m: InboxMessage) =>
-  `${from.split(', ')[1] ?? from} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+const fromLine = (from: string, m: InboxMessage) => {
+  const d = mailDate(m);
+  return `${from.split(', ')[1] ?? from} · ${d.phase === 'regular' || d.phase === 'playoffs' ? weekLabel(d.week) : PHASE_LABELS[d.phase]}`;
+};
 
 /**
  * What's waiting in the inbox (archived and deleted mail aside): what still needs you first, then the unread, newest

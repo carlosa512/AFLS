@@ -1,4 +1,4 @@
-import { canReadMail } from '../../engine/inbox';
+import { canReadMail, mailDate } from '../../engine/inbox';
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
   archiveMail,
@@ -119,8 +119,11 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
   }
 }
 
-const dateLabel = (m: InboxMessage) =>
-  `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+/** Where a letter is filed: the week it was read in (`mailDate`), not always the week it is about. */
+const dateLabel = (m: InboxMessage) => {
+  const d = mailDate(m);
+  return `${d.season} · ${d.phase === 'regular' || d.phase === 'playoffs' ? weekLabel(d.week) : PHASE_LABELS[d.phase]}`;
+};
 
 /** Outlets and offices get a fixed badge: initials of "SNN league desk" would read "SD". */
 const OUTLET_BADGES: Record<string, string> = {

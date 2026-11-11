@@ -11,8 +11,8 @@
  *
  *   --team  the club whose Roster (and, when you have a job, Cap) screen is shown; default: yours.
  *   --dark  the dark theme instead of the light one.
- *   --screens  only these, desktop and phone each: a comma list of `roster`, `locker` (the Locker Room) and `card`
- *              (your roster's first player's card).
+ *   --screens  only these, desktop and phone each: a comma list of `roster`, `locker` (the Locker Room), `card`
+ *              (your roster's first player's card) and `inbox` (the message list).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
  *   --edition  only SNN's weekly editions: the newest three (`--edition 5` for five) are opened in the inbox and shot
@@ -508,7 +508,10 @@ async function main() {
           } else if (name === 'locker') {
             await goTo(p, '#/locker', 'main h1');
             await shootPage(p, viewport, file(`locker${suffix}`));
-          } else console.warn(`No screen called "${name}" (roster, locker, card)`);
+          } else if (name === 'inbox') {
+            await goTo(p, '#/inbox', 'main');
+            await shootPage(p, viewport, file(`inbox${suffix}`));
+          } else console.warn(`No screen called "${name}" (roster, locker, card, inbox)`);
         }
     } else {
       const page = await newPage(DESKTOP, false);

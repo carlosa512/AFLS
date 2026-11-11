@@ -7,7 +7,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { deliverMail, needsYou } from './inbox';
+import { deliverMail, mailDate, needsYou } from './inbox';
 import { playWeek } from './league';
 import { ruleBreaks } from './storyRules';
 import type { EditionStory, InboxMessage, League } from './types';
@@ -112,6 +112,20 @@ describe('a season of editions', () => {
         expect(m.edition!.next).toBeUndefined();
       }
     }
+  });
+
+  it('is filed under the week it is read in, to the end of the season', () => {
+    const of = (week: number) => mailDate(editions().find((m) => m.week === week)!);
+    expect(of(12)).toMatchObject({ phase: 'regular', week: 13 });
+    // The last regular-season week is read as the playoffs open, the final once the season is over.
+    expect(of(18)).toMatchObject({ phase: 'playoffs', week: 19 });
+    expect(mailDate(editions().at(-1)!).phase).toBe('complete');
+    // And no date runs backwards down the inbox, so each week is one heading.
+    const order = ['regular', 'playoffs', 'complete'];
+    const keys = (l.inbox ?? [])
+      .filter((m) => m.season === l.season && order.includes(mailDate(m).phase))
+      .map((m) => order.indexOf(mailDate(m).phase) * 100 + mailDate(m).week);
+    for (let i = 1; i < keys.length; i++) expect(keys[i]).toBeGreaterThanOrEqual(keys[i - 1]);
   });
 
   it('is SNN’s only mail in season', () => {

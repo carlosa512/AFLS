@@ -2990,6 +2990,28 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
 const order = (m: Draft) => m.season * 1000 + PHASE_ORDER.indexOf(m.phase) * 100 + m.week;
 
 /**
+ * Where the inbox files a letter arriving now. One dated a week that is already played (a recap, the injuries, SNN's
+ * edition) arrives when the desk is in the next week's build-up, and is filed there: the week after its own, so a long
+ * advance does not pile a month of games under today. The last game's mail is filed under the finished season.
+ */
+function filedUnder(league: League, m: Draft): InboxMessage['filed'] {
+  if (m.season !== league.season || (m.phase !== 'regular' && m.phase !== 'playoffs')) return undefined;
+  const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
+  if (league.phase !== 'complete' && !(inSeason && league.week > m.week)) return undefined;
+  const next = m.week + 1;
+  if (next <= 18 || league.games.some((g) => g.season === league.season && g.week === next))
+    return { phase: next > 18 ? 'playoffs' : 'regular', week: next };
+  return league.phase === 'complete' ? { phase: 'complete', week: league.week } : undefined;
+}
+
+/** The date a screen files a letter under and shows on it. */
+export const mailDate = (m: Pick<InboxMessage, 'season' | 'phase' | 'week' | 'filed'>) => ({
+  season: m.season,
+  phase: m.filed?.phase ?? m.phase,
+  week: m.filed?.week ?? m.week,
+});
+
+/**
  * File whatever is new for the user. A league that has never had mail (an older save) gets its
  * first batch already read, so years of history don't land as unread.
  */
@@ -3087,6 +3109,7 @@ export function deliverMail(league: League): void {
   inbox.push(
     ...due.map((m) => ({
       ...m,
+      ...(filedUnder(league, m) ? { filed: filedUnder(league, m) } : {}),
       // A new game files what's already happened as read; the welcome and the rundown are the first things to open.
       read: first && !m.id.includes(':welcome:') && !m.id.startsWith('rundown:'),
       ...(m.category !== 'league' && employed(league) ? { organizationId: league.userTeamId } : {}),

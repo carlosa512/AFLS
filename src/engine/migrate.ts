@@ -383,6 +383,8 @@ export function migrateLeague(league: League): League | null {
   }
   // v94: SNN's weekly edition (`InboxMessage.edition`). Optional, filed with the next completed week: nothing to
   // rewrite, and the separate SNN mails an old save holds still open as they were.
+  // Also where a letter is filed when that is not its own date (`InboxMessage.filed`): stamped on mail as it
+  // arrives, so letters an old save holds stay under the week they were dated.
   if (league.version < 94) league.version = 94;
   return league;
 }

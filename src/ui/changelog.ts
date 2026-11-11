@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.36',
+    date: '2026-11-11',
+    title: 'Mail is filed the week you read it',
+    text: 'A game’s recap, injuries and news now sit under the week you are in when they arrive, with that week’s opposition report, instead of under the week just played.',
+  },
+  {
     version: '0.4.35',
     date: '2026-11-11',
     title: 'SNN’s weekly edition',
