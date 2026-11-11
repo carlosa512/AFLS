@@ -227,9 +227,29 @@ the version goes up once, with one changelog line.
 3. The moments: the reader and its tests, then the banners and the player's line, then the cards and the halftime
    wait.
 
+## Part three: the pregame card
+
+Added after parts one and two were reviewed, on the same branch. Screens only, like the rest.
+
+- **What.** A card over the field before the first play, in the look of the halftime and final cards
+  (`PregameCard.tsx`): the week and the kickoff slot, both clubs with their records coming in, the home city and the
+  conditions at kickoff, and who is out for each side (three names a side, then "and n more"; each name a
+  `PlayerLink`). On a phone the names give way to a count, and the Game panel under the field has the list ("Out").
+- **Where.** In the viewer the game already opens in. No new screen and no mail.
+- **A live game waits** on it for *Kick off* (the owner's call: the same rule as the half), with *Sim to final*
+  beside it. Play on the transport is the kickoff too. Leaving and coming back finds the card still up.
+- **A replay** shows it for about four seconds as it opens, or until anything is pressed, then shows the first play
+  as it did before.
+- **Nothing is on the field under it:** the stadium is drawn idle (no ball, no lines) and nothing of the first play
+  is told, so the card spoils nothing.
+- **Who is out** is read once, as the live game starts (`live.start` keeps it in the session): hurt men who cannot
+  play, longest layoff first by the doctor's estimate, the injury report's order. A man playing through it is not
+  out. It never says who would have started (that would lean on ratings a screen may not show). A finished game's
+  save does not keep who sat out and nothing is added to the save, so a replay's card has no list (exact or absent).
+
 ## Out of scope, for later
 
-- Other games' scores, a starters list, players out before kickoff.
+- Other games' scores, a starters list.
 - A neutral broadcast voice for the final (it would be engine text).
 - Sound.
 - Going back in a live game, and instant replays.

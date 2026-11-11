@@ -72,3 +72,32 @@ describe('looking a play ahead', () => {
     live.clear();
   });
 });
+
+describe('before the kickoff', () => {
+  it('a live game waits for its kickoff, and remembers who was out when it started', () => {
+    const league = createLeague({ seed: 'live-pregame' });
+    const game = league.games.find((g) => g.week === 1)!;
+    const man = Object.values(league.players).find((p) => p.teamId === game.homeId && !p.injury && !p.ir)!;
+    man.injury = {
+      type: 'hamstring',
+      severity: 'moderate',
+      weeksRemaining: 3,
+      estimate: [2, 4],
+      season: 1,
+      week: 0,
+      where: 'practice',
+    };
+    live.start(league, game);
+    const s = live.get()!;
+    expect(s.kicked).toBe(false);
+    expect(s.playing).toBe(false);
+    expect(s.out.home.map((o) => o.id)).toContain(man.id);
+    // Healing later (the week moving on) doesn't rewrite who missed this game.
+    delete man.injury;
+    expect(live.get()!.out.home).toContainEqual({ id: man.id, what: 'hamstring strain' });
+    live.kickoff();
+    expect(live.get()!.kicked).toBe(true);
+    expect(live.get()!.playing).toBe(true);
+    live.clear();
+  });
+});

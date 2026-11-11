@@ -87,8 +87,9 @@ describe('All-22', () => {
   });
 });
 
+// Past the pregame card a replay opens on, to the first play.
 const viewer = (g = game) =>
-  render(<GameViewer league={league} gameId={g.id} onBack={() => {}} onBoxScore={() => {}} />);
+  render(<GameViewer league={league} gameId={g.id} onBack={() => {}} onBoxScore={() => {}} pregame={false} />);
 const withView = (view: string, fn: () => string) => {
   vi.stubGlobal('localStorage', { getItem: (k: string) => (k === VIEW_KEY ? view : null), setItem: () => {} });
   try {
@@ -120,6 +121,21 @@ describe('the view switch', () => {
     expect(allSpeed(4)).toBe(4);
     expect(allSpeed(2)).toBe(2);
     expect(allSpeed(1)).toBe(1);
+  });
+
+  it('opens a replay on the pregame card in either view: no play on the field yet, no list of who sat out', () => {
+    for (const view of ['broadcast', 'all22']) {
+      const html = withView(view, () =>
+        render(<GameViewer league={league} gameId={game.id} onBack={() => {}} onBoxScore={() => {}} />),
+      );
+      expect(html).toContain('moment-card pregame');
+      expect(html).toContain('The field before kickoff');
+      expect(html).not.toContain('td-field');
+      expect(html).not.toContain('pg-out');
+      expect(html).not.toContain('Kick off');
+      // Nothing of the first play is told under the card.
+      expect(html).not.toContain(plays[0].text);
+    }
   });
 
   it('shows the same play, score and clock in either view', () => {

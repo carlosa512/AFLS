@@ -9,7 +9,8 @@ import { HIGHLIGHTS_KEY, STAGE_TABS, TAB_KEY, usePref, VIEW_KEY } from '../viewe
 import { asRan } from '../../engine/field/stage';
 import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
-import { Field, restingSpot } from './BroadcastField';
+import { Field, IdleField, restingSpot } from './BroadcastField';
+import { PregameCard, PREGAME_MS } from './PregameCard';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
 import { momentHold, periodHold, playMoments } from '../moments';
@@ -210,11 +211,14 @@ export function GameViewer({
   gameId,
   onBack,
   onBoxScore,
+  pregame = true,
 }: {
   league: League;
   gameId: number;
   onBack: () => void;
   onBoxScore: () => void;
+  /** Open on the pregame card (false: straight to the first play). */
+  pregame?: boolean;
 }) {
   const game = league.games.find((g) => g.id === gameId);
   const plays = game?.result?.plays ?? [];
@@ -235,8 +239,18 @@ export function GameViewer({
   const [tab, setTab] = useStageTab();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
+  // A replay opens on the pregame card: it holds a few seconds, or until anything is pressed, and then the first
+  // play is shown as before.
+  const [pre, setPre] = useState(pregame);
 
   useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (!pregame) return;
+    const t = setTimeout(() => setPre(false), PREGAME_MS);
+    return () => clearTimeout(t);
+    // Only as the replay opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pruned games keep only scoring plays; a replay needs the full log.
   if (!game?.result || !plays.some((p) => !p.scoring)) {
@@ -264,6 +278,7 @@ export function GameViewer({
 
   const go = (i: number, keepPlaying = false, skipped = false) => {
     clearTimeout(timer.current);
+    setPre(false);
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
     setStill(skipped);
     setSeen(false);
@@ -305,6 +320,11 @@ export function GameViewer({
     go(n === -1 ? (dir === 1 ? plays.length - 1 : 0) : n);
   };
   const togglePlay = () => {
+    // Play on the pregame card: the first play hasn't been shown yet, so it starts there.
+    if (pre) {
+      setPre(false);
+      return setPlaying(true);
+    }
     if (playing) {
       clearTimeout(timer.current);
       setPlaying(false);
@@ -316,7 +336,7 @@ export function GameViewer({
   };
   // Every play up to this one, newest first: nothing past the current play (nor the current one, until it's been
   // seen), so the log never spoils it.
-  const told = seen || !inPlay(entry);
+  const told = !pre && (seen || !inPlay(entry));
   // The result on the bar: this play's once it's been seen; before that (All-22's jog and huddle) the last play's
   // stays up until the snap.
   const tag = told
@@ -378,7 +398,14 @@ export function GameViewer({
           />
 
           <div className="viewer-scene">
-            {all22 ? (
+            {pre ? (
+              <IdleField
+                home={home}
+                away={away}
+                neutral={game.neutral}
+                weather={weatherAt(game.result.weather ?? gameWeather(league, game), 1)}
+              />
+            ) : all22 ? (
               <TopDownField
                 league={league}
                 record={game.result.field}
@@ -398,14 +425,15 @@ export function GameViewer({
             ) : (
               broadcast
             )}
+            {pre && <PregameCard league={league} game={game} home={home} away={away} label={label} />}
             <GameMoments
               league={league}
               home={home}
               away={away}
-              moments={moments}
+              moments={pre ? [] : moments}
               speed={shownSpeed}
               own={own}
-              card={card}
+              card={pre ? null : card}
               facts={{
                 plays,
                 shown: told ? index : index - 1,

@@ -342,3 +342,26 @@ export function Field({
     </svg>
   );
 }
+
+/** The stadium before the kickoff: the paint and the weather, with no ball and no lines on it yet. */
+export function IdleField({
+  home,
+  away,
+  neutral,
+  weather = FAIR,
+}: {
+  home: Team;
+  away: Team;
+  neutral?: boolean;
+  weather?: Weather;
+}) {
+  return (
+    <svg className="field-scene" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="The field before kickoff">
+      <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
+      <Stadium home={home} away={away} neutral={neutral} weather={weather} />
+      <FieldGround home={home} away={away} neutral={neutral} snow={weather.precip === 'snow'} />
+      <FieldPosts />
+      <WeatherFall weather={weather} />
+    </svg>
+  );
+}

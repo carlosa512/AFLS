@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.29',
+    date: '2026-11-11',
+    title: 'A word before kickoff',
+    text: 'A live game opens on a pregame card with the matchup, the weather and who is out, and waits for Kick off. A replay shows the card for a moment as it opens.',
+  },
+  {
     version: '0.4.28',
     date: '2026-11-10',
     title: 'A stadium, and the big moments',

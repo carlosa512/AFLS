@@ -1984,6 +1984,94 @@ select {
     display: none;
   }
 }
+/* The card before the kickoff: the clubs with their records, where and in what, and who is out. */
+.pg-club {
+  display: grid;
+  line-height: 1;
+}
+.pg-club small {
+  font-family: var(--font-data, ui-monospace, monospace);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--scene-muted);
+}
+.pg-at {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 0.87rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--scene-muted);
+}
+.pg-where,
+.pg-count {
+  padding: 0 14px 10px;
+  text-align: center;
+  font-size: clamp(0.7rem, 2.2vw, 0.82rem);
+  color: var(--scene-muted);
+}
+.pg-where b {
+  font-weight: 600;
+  color: var(--scene-ink);
+}
+.pg-out {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 0 14px;
+  padding: 8px 0 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: clamp(0.7rem, 2.2vw, 0.82rem);
+}
+.pg-out > div {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 0;
+}
+.pg-out h3 {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--scene-muted);
+}
+.pg-out span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pg-out i {
+  font-style: normal;
+  color: var(--scene-muted);
+}
+.pg-out .linklike {
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+.pg-right {
+  text-align: right;
+}
+.pg-count {
+  display: none;
+}
+@media (max-width: 480px) {
+  /* A phone's field is short: the names give way to a count (the Game tab under the field has the list). */
+  .pg-out {
+    display: none;
+  }
+  .pg-count {
+    display: block;
+  }
+  .pregame .mc-score {
+    padding-top: 6px;
+    padding-bottom: 2px;
+  }
+  .pg-where,
+  .pg-count {
+    padding-bottom: 5px;
+  }
+}
 
 /* All-22 times its own flag, injury and change-of-possession calls to its staging; they wear the banner. (Two
    classes, to outrank the pill those calls used to be.) */

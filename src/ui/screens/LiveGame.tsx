@@ -21,7 +21,8 @@ import {
   useViewPick,
   ViewSwitch,
 } from './GameViewer';
-import { Field, restingSpot } from './BroadcastField';
+import { Field, IdleField, restingSpot } from './BroadcastField';
+import { PregameCard } from './PregameCard';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { driveAt } from '../gameRead';
 import { momentHold, periodHold, playMoments } from '../moments';
@@ -72,7 +73,9 @@ export function LiveGame({ league }: { league: League }) {
   const away = league.teams[game.awayId];
   const entry = s.plays[s.current];
   const playKey = `${s.gameId}:${s.current}`;
-  const told = toldKey === playKey || s.finished || !inPlay(entry);
+  // Before the kickoff the game waits on its pregame card: no play is on the field yet.
+  const pre = !s.kicked && !s.finished;
+  const told = !pre && (toldKey === playKey || s.finished || !inPlay(entry));
   const record = s.sim.field();
   const all22 = viewPick === 'all22' && !!record;
   const speeds = all22 ? [1, 2, 4] : SPEEDS;
@@ -115,6 +118,8 @@ export function LiveGame({ league }: { league: League }) {
   const togglePlay = () => {
     clearTimeout(timer.current);
     setWaitKey('');
+    // Before the kickoff, Play is the kickoff: the first play is shown and the game runs on from it.
+    if (pre) return live.kickoff();
     const playing = !s.playing;
     live.update({ playing });
     if (playing) next();
@@ -189,7 +194,14 @@ export function LiveGame({ league }: { league: League }) {
             />
 
             <div className="viewer-scene">
-              {all22 ? (
+              {pre ? (
+                <IdleField
+                  home={home}
+                  away={away}
+                  neutral={game.neutral}
+                  weather={weatherAt(gameWeather(league, game), 1)}
+                />
+              ) : all22 ? (
                 <TopDownField
                   league={league}
                   record={record}
@@ -209,14 +221,26 @@ export function LiveGame({ league }: { league: League }) {
               ) : (
                 broadcast
               )}
+              {pre && (
+                <PregameCard
+                  league={league}
+                  game={game}
+                  home={home}
+                  away={away}
+                  out={s.out}
+                  label={label}
+                  onKickoff={live.kickoff}
+                  onSim={simToFinal}
+                />
+              )}
               <GameMoments
                 league={league}
                 home={home}
                 away={away}
-                moments={moments}
+                moments={pre ? [] : moments}
                 speed={speed}
                 own={own}
-                card={card}
+                card={pre ? null : card}
                 facts={{
                   plays: s.plays,
                   shown: told ? s.current : s.current - 1,
@@ -289,6 +313,7 @@ export function LiveGame({ league }: { league: League }) {
           shown={told ? s.current : s.current - 1}
           names={names}
           result={result}
+          out={s.out}
         />
         <PlayersPanel
           league={league}

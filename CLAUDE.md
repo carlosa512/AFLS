@@ -532,7 +532,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   behind it. `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
   a giveaway, a flag or an injury; a player's line after a 20-yard gain; a card at the quarter, the half and the
   final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
-  half has come). Spec: `docs/superpowers/specs/2026-11-10-broadcast-field-and-moments-design.md`.
+  half has come). Before the kickoff both screens show `PregameCard.tsx` over an idle field (`IdleField`): a live
+  game starts waiting (`LiveSession.kicked`, `live.kickoff`) and takes who is out once, as it starts (`pregame.ts`,
+  `LiveSession.out`: the league moves on when the game is recorded, so a replay has no list). Spec:
+  `docs/superpowers/specs/2026-11-10-broadcast-field-and-moments-design.md`.
 
 ## Conventions
 

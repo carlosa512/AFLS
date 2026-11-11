@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { estimateText, injuryLabel } from '../../engine/injuries';
 import type { FieldRecord, Game, GameResult, League, PlayLogEntry, Team } from '../../engine/types';
 import { gameWeather } from '../../engine/weather';
+import type { GameOut } from '../pregame';
 import { PlayerLink, WeatherNote } from '../components';
 import {
   injuriesAt,
@@ -68,6 +69,7 @@ export function GamePanel({
   shown,
   names,
   result,
+  out,
 }: {
   league: League;
   game: Game;
@@ -79,10 +81,17 @@ export function GamePanel({
   names: PlayNames;
   /** A finished game's result: its weather as played, and the doctor's word on each injury. */
   result?: GameResult;
+  /** A live game's men out at kickoff, each side (`live.start`). A replay has none. */
+  out?: GameOut;
 }) {
   const stats = useMemo(() => teamStatsAt(plays, shown, home.id), [plays, plays.length, shown, home.id]);
   const quarters = quartersAt(plays, shown);
   const hurt = injuriesAt(plays, shown, names);
+  // Who sat this one out, away first, as the pregame card had them.
+  const missing = [
+    ...(out?.away ?? []).map((m) => ({ ...m, abbrev: away.abbrev })),
+    ...(out?.home ?? []).map((m) => ({ ...m, abbrev: home.abbrev })),
+  ].filter((m) => league.players[m.id]);
   const columns = Math.max(4, quarters.home.length);
   const total = (list: number[]) => list.reduce((a, b) => a + b, 0);
   const colors = { home: laneColor(home.colors), away: laneColor(away.colors) };
@@ -153,6 +162,18 @@ export function GamePanel({
           })}
         </div>
       </section>
+      {missing.length > 0 && (
+        <section className="rail-card">
+          <h2>Out</h2>
+          <ul className="game-injuries">
+            {missing.map((m) => (
+              <li key={m.id}>
+                <b>{m.abbrev}</b> <PlayerLink league={league} player={league.players[m.id]} short pos />: {m.what}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {hurt.length > 0 && (
         <section className="rail-card">
           <h2>Injuries</h2>
