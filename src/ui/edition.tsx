@@ -201,11 +201,13 @@ function Tile({
         <LinkedText league={league} text={story.summary} about={about(story)} index={index} />
       </p>
       {story.numbers.length > 0 && (
-        <div className="ed-tile-meta num">
-          {story.numbers
-            .slice(0, 2)
-            .map((n) => `${n.value} ${n.label.toLowerCase()}`)
-            .join(' · ')}
+        <div className="ed-tile-meta">
+          {story.numbers.slice(0, 2).map((n) => (
+            <span className="ed-tile-stat" key={n.label}>
+              <b>{n.value}</b>
+              <span>{n.label}</span>
+            </span>
+          ))}
         </div>
       )}
       <button type="button" className="ed-more" onClick={() => onOpen(story.key)}>

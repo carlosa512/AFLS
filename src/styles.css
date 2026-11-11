@@ -5846,9 +5846,30 @@ button.tip-pill {
   padding-top: 8px;
   align-self: flex-start;
 }
+/* A tile's two numbers: the figure in the display face, its label small and quiet, as the open story's are. */
 .ed-tile-meta {
-  margin-top: 8px;
-  font-size: 0.74rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.ed-tile-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ed-tile-stat b {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.ed-tile-stat span {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--muted);
 }
 .ed-tile.is-yours {

@@ -123,10 +123,14 @@ describe('the weekly edition in the inbox', () => {
     expect(count(html, '<h3 class="ed-headline">')).toBe(1);
   });
 
-  it('gives a closed tile its numbers in one quiet line', () => {
+  it('gives a closed tile its numbers as figures with their labels, two at most', () => {
     const html = renderToStaticMarkup(<EditionCards league={l} message={message} />);
     expect(count(html, 'class="ed-tile-meta')).toBeGreaterThan(0);
-    expect(html).not.toMatch(/class="ed-tile-meta[^"]*">\s*</);
+    // Each is a figure and what it counts: never a bare run of text, never an empty one.
+    expect(count(html, 'class="ed-tile-stat"')).toBeGreaterThan(0);
+    expect(html).toMatch(/class="ed-tile-stat"><b>[^<]+<\/b><span>[^<]+<\/span>/);
+    for (const meta of html.match(/class="ed-tile-meta">.*?<\/div>/g) ?? [])
+      expect(count(meta, 'class="ed-tile-stat"')).toBeLessThanOrEqual(2);
   });
 
   it('draws the bracket in the playoffs and no race', () => {
