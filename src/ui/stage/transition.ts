@@ -120,7 +120,11 @@ export interface Transition {
   at(m: Move, t: number): Pt & { opacity: number };
 }
 
-const benchY = (home: boolean) => (home ? -BENCH : FIELD_W + BENCH);
+/**
+ * A team's sideline in the log's coordinates. The benches never move (home near, away far), but the log's coordinates
+ * turn half way round when the teams switch ends (`stage/ends.ts`), so the home bench is then on the far side of them.
+ */
+export const benchY = (home: boolean, swapped = false) => (home !== swapped ? -BENCH : FIELD_W + BENCH);
 /** A spot in his team's area: near where he is, if the area reaches that far, each his own. */
 const benchAt = (x: number, rng: Rng) => Math.max(TEAM_AREA[0], Math.min(TEAM_AREA[1], x + (rng.next() * 2 - 1) * 4));
 
@@ -191,6 +195,8 @@ export function transition(
     change?: boolean;
     /** Seconds at the line once everyone's set, for the moments before the snap (`presnap.ts`). */
     line?: number;
+    /** The teams have switched ends: each bench is on the other side of the log's coordinates (`benchY`). */
+    swapped?: boolean;
   } = {},
 ): Transition {
   const { party, huddle } = opts;
@@ -216,7 +222,7 @@ export function transition(
     const from = was ?? {
       // From the bench: on a change-over the kick units come from the team area, otherwise level with his spot.
       x: benchAt(to.x, rng),
-      y: benchY(next.home[k]),
+      y: benchY(next.home[k], opts.swapped),
     };
     const at = { x: from.x, y: from.y };
     const { pace, ...way } = style();
@@ -258,7 +264,7 @@ export function transition(
         joins: 0,
         hud: { x: was.x, y: was.y },
         gather: 0,
-        to: { x: benchX, y: benchY(was.home) },
+        to: { x: benchX, y: benchY(was.home, opts.swapped) },
         arrive: 0,
         ...(was !== caught ? { whistle: caught } : {}),
         enter: false,

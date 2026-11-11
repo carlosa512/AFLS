@@ -27,7 +27,10 @@ import { conference, CREW, crewSpots, crewTrack, flagThrow, flagAt as flagIn, UM
 import { asRan, stagePlay, type StagedPlay } from '../../engine/field/stage';
 import { celebrates, transition, type Huddle, type Mark } from '../stage/transition';
 import { FieldPaint } from './FieldPaint';
-import { downLines } from './GameViewer';
+import { downLines } from './BroadcastField';
+import { endsSwitched } from '../stage/ends';
+import { flagParts } from '../moments';
+import { MomentBanner } from './GameMoments';
 
 /** A dot's radius in yards: bigger sideways, where the whole field shares the width. */
 const DOT: Record<Layout, number> = { wide: 1.3, upright: 0.95 };
@@ -54,9 +57,15 @@ const FLAG_AT = 0.4;
 const BREAK = 2.6;
 
 /** Field (x, y) to the picture: sideways like the broadcast view, or upright with the offense attacking up. */
-interface View {
+export interface View {
   layout: Layout;
   dir: 1 | -1;
+  /**
+   * The teams have switched ends (`stage/ends.ts`). The paint is the stadium and never moves; the men are placed
+   * where the stadium has them: turned half way round on a wide screen, and on a phone left attacking up the screen
+   * with the paint turned under them.
+   */
+  swap: boolean;
   /** The upright window's centre yard line. */
   cx: number;
   span: number;
@@ -66,8 +75,8 @@ interface View {
    */
   phi: number;
 }
-function toScreen(v: View, x: number, y: number): [number, number] {
-  if (v.layout === 'wide') return [100 - x, FIELD_W - y];
+export function toScreen(v: View, x: number, y: number): [number, number] {
+  if (v.layout === 'wide') return v.swap ? [x, y] : [100 - x, FIELD_W - y];
   const c = Math.cos(v.phi);
   const s = Math.sin(v.phi);
   return [c * (y - MID) + s * (x - v.cx), s * (y - MID) - c * (x - v.cx)];
@@ -77,12 +86,15 @@ function viewBox(v: View): string {
   return v.layout === 'wide' ? '-12 -4.5 124 62.3' : `${-MID - 4.5} ${-v.span / 2} ${FIELD_W + 9} ${v.span}`;
 }
 /** The field group's transform: the same mapping as `toScreen`, as an SVG matrix. */
-function fieldTransform(v: View): string {
+export function fieldTransform(v: View): string {
   if (v.layout === 'wide') return `matrix(-1 0 0 -1 100 ${FIELD_W})`;
-  const c = Math.cos(v.phi);
-  const s = Math.sin(v.phi);
+  // With the ends switched the stadium is a half-turn from the log's coordinates: the paint takes that turn.
+  const phi = v.swap ? v.phi + Math.PI : v.phi;
+  const cx = v.swap ? 100 - v.cx : v.cx;
+  const c = Math.cos(phi);
+  const s = Math.sin(phi);
   const f = (n: number) => n.toFixed(4);
-  return `matrix(${f(s)} ${f(-c)} ${f(c)} ${f(s)} ${f(-c * MID - s * v.cx)} ${f(-s * MID + c * v.cx)})`;
+  return `matrix(${f(s)} ${f(-c)} ${f(c)} ${f(s)} ${f(-c * MID - s * cx)} ${f(-s * MID + c * cx)})`;
 }
 /** The upright field's turn for an offense attacking toward x = 100 (1) or x = 0 (-1). */
 const turnFor = (dir: 1 | -1) => (dir === 1 ? 0 : Math.PI);
@@ -205,6 +217,8 @@ interface Memory {
   cx: number;
   /** The upright field's turn as last drawn. */
   phi: number | null;
+  /** Whether the ends were switched when it was last drawn (null before anything was). */
+  swap: boolean | null;
   /** Where the officials last stood. */
   crew: { x: number; y: number }[] | null;
   /** Where the last play shown ended and whose man had the ball: a big one is celebrated there. */
@@ -273,6 +287,7 @@ export function TopDownField({
     ballY: MID,
     cx: 50,
     phi: null,
+    swap: null,
     crew: null,
     ended: null,
   });
@@ -319,6 +334,8 @@ export function TopDownField({
   }, [record, index, game.id]);
 
   const dir: 1 | -1 = entry && offenseSide(entry, home.id) === 1 ? -1 : 1;
+  /** Teams switch ends each quarter: read from the play's own quarter, never counted from what was shown. */
+  const swap = !!entry && endsSwitched(entry.quarter);
 
   /**
    * The huddles before this snap: the offense seven yards off the ball round its quarterback, the defense five yards
@@ -423,7 +440,9 @@ export function TopDownField({
     // The field turns with the ball: from where it was drawn last, through the change-over (none on a jump).
     const turnTo = turnFor(dir);
     const turnFrom = mem.phi ?? turnTo;
-    const view: View = { layout, dir, cx: mem.cx, span, phi: turnTo };
+    // The ends as last drawn: a new quarter switches them behind the same cut a change of possession gets.
+    const swapFrom = mem.swap ?? swap;
+    const view: View = { layout, dir, swap, cx: mem.cx, span, phi: turnTo };
     // Between plays: everyone jogs from where the last play left him to his spot, subs come and go (none on the
     // first play shown, which starts set).
     const big =
@@ -459,6 +478,7 @@ export function TopDownField({
             // Before a kickoff, and when the ball changes hands: the units change over at their sidelines.
             change: entry?.kind === 'kickoff' || !!handover || afterKick,
             line: pre?.line ?? 0,
+            swapped: swap,
           })
         : null;
     const ballFrom = mem.ballX === null || !following ? null : { x: mem.ballX, y: mem.ballY };
@@ -561,9 +581,12 @@ export function TopDownField({
       const g = gap!;
       // The ball's changed hands: the picture dips to dark and comes back the other way round (a camera cut, not a
       // spin), once the moment's been had and before the units change over.
-      if (turnFrom !== turnTo) {
+      if (turnFrom !== turnTo || swapFrom !== swap) {
         const cut = g.beat + g.celebrate + 0.2 + DIP;
         view.phi = t < cut ? turnFrom : turnTo;
+        view.swap = t < cut ? swapFrom : swap;
+        // The paint follows the cut on a phone (a wide screen's never moves).
+        fieldRef.current?.setAttribute('transform', fieldTransform(view));
         const dark = Math.max(0, 1 - Math.abs(t - cut) / DIP);
         svg.current?.style.setProperty('opacity', (1 - dark).toFixed(2));
       } else view.phi = turnTo;
@@ -655,6 +678,7 @@ export function TopDownField({
     const place = (step: number, seconds: number) => {
       drawBarks(null);
       view.phi = turnTo;
+      view.swap = swap;
       svg.current?.style.setProperty('opacity', '1');
       camera(s.ball[step * 3], seconds);
       rings(step === last ? Infinity : step * s.dt);
@@ -684,6 +708,7 @@ export function TopDownField({
       drawBall(s.ball[step * 3], s.ball[step * 3 + 1], s.ball[step * 3 + 2]);
       mem.cx = view.cx;
       mem.phi = turnTo;
+      mem.swap = swap;
       if (step === last) mem.ended = { index, at: madeIt() };
     };
     /** Who made the play, where it ended: the man with the ball (for a fumble, the side that came up with it). */
@@ -722,6 +747,7 @@ export function TopDownField({
               : { x: s.ball[last * 3], y: s.ball[last * 3 + 1] },
           hero: ending === 'walkoff' ? (s.carrier ?? kicker) : undefined,
           sideline,
+          swapped: swap,
           playoff: !!game.playoffRound,
           title: game.playoffRound === 'FINAL',
           colors: winners ? [winners.colors[0], winners.colors[1]] : [],
@@ -764,7 +790,7 @@ export function TopDownField({
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     // A man hurt on the last play: the stoppage on the field, from where that play left everyone.
     if (hurtId !== undefined && exit && following && !still && !reduced && mem.spots.has(hurtId)) {
-      const scene = injuryScene(mem.spots, hurtId, exit, `${league.seed}:${game.id}:hurt:${index}`);
+      const scene = injuryScene(mem.spots, hurtId, exit, `${league.seed}:${game.id}:hurt:${index}`, swap);
       const others = [...mem.spots.keys()].filter((id) => id !== hurtId);
       // Men in this entry's cast who weren't on the field for the last play stay out of sight until the next snap.
       for (const id of s.ids) if (!mem.spots.has(id)) drawDot(id, 0, -20, 0);
@@ -910,7 +936,7 @@ export function TopDownField({
   if (!record) return null;
   if (!staged) return <>{fallback}</>;
 
-  const view: View = { layout, dir, cx: memory.current.cx, span, phi: memory.current.phi ?? turnFor(dir) };
+  const view: View = { layout, dir, swap, cx: memory.current.cx, span, phi: memory.current.phi ?? turnFor(dir) };
   const kit = (t: Team, isAway: boolean) => kitFor({ primary: t.colors[0], secondary: t.colors[1] }, isAway);
   const homeKit = kit(home, false);
   const awayKit = kit(away, true);
@@ -940,8 +966,12 @@ export function TopDownField({
   };
 
   const cardPlayer = card !== null ? league.players[card] : undefined;
-  const losLine = (x: number | null, color: string) =>
-    x === null ? null : <line x1={x} y1={0} x2={x} y2={FIELD_W} stroke={color} strokeWidth={0.45} />;
+  // The lines sit on the paint, so they are drawn where the stadium has them this quarter.
+  const losLine = (x: number | null, color: string) => {
+    if (x === null) return null;
+    const at = swap ? 100 - x : x;
+    return <line x1={at} y1={0} x2={at} y2={FIELD_W} stroke={color} strokeWidth={0.45} />;
+  };
 
   return (
     <div className={`td-field td-${layout}`} ref={box}>
@@ -955,7 +985,7 @@ export function TopDownField({
         onPointerDown={onTap}
       >
         <g ref={fieldRef} transform={fieldTransform(view)}>
-          <FieldPaint home={home} away={away} />
+          <FieldPaint home={home} away={away} neutral={game.neutral} />
           {lines && losLine(lines.los, '#5aa9ff')}
           {lines && losLine(lines.gain, '#ffd43b')}
         </g>
@@ -1138,16 +1168,31 @@ export function TopDownField({
           // A new element for each play: the last play's call never carries over, shown, onto this one.
           key={index}
           ref={callRef}
-          className={`td-call ${hurtCall ? 'td-call-injury' : 'td-call-flag'}`}
+          className="td-call td-moment"
           style={{ opacity: 0 }}
           aria-live="polite"
         >
-          {callText}
+          {hurtCall ? (
+            <MomentBanner
+              tone="injury"
+              team={hurtCall.team === home.abbrev ? home : hurtCall.team === away.abbrev ? away : null}
+              head="Injury"
+              line={injuryBanner(hurtCall, exit ?? 'walk')}
+            />
+          ) : (
+            <MomentBanner tone="flag" team={null} {...flagParts(callText)} />
+          )}
         </div>
       )}
       {handover && (
-        <div ref={bannerRef} className="td-banner" style={{ opacity: 0 }} aria-live="polite">
-          {handover} · {(entry.offense === home.id ? home : away).abbrev} ball
+        <div ref={bannerRef} className="td-banner td-moment" style={{ opacity: 0 }} aria-live="polite">
+          <MomentBanner
+            tone="turnover"
+            team={entry.offense === home.id ? home : away}
+            head={handover}
+            line=""
+            side={`${(entry.offense === home.id ? home : away).city} ball`}
+          />
         </div>
       )}
       {cardPlayer && (

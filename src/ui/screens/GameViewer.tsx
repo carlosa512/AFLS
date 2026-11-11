@@ -1,344 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Game, League, Player, PlayLogEntry, Team } from '../../engine/types';
-import { teamPlayers } from '../../engine/roster';
+import type { Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
-import { buildPath, FIELD_W, HASH_HI, HASH_LO, MID, pointAt, snapYFor } from '../../engine/field/ballPath';
 import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
-import { HIGHLIGHTS_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
+import { HIGHLIGHTS_KEY, STAGE_TABS, TAB_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
 import { asRan } from '../../engine/field/stage';
 import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
-
-// ───────── 2.5D field projection ─────────
-// Field coordinates: x from -10 (home end zone) to 110 (away end zone), y from 0 (near
-// sideline) to 53.3 (far sideline), h = height above the turf in yards. Drawn mirrored so the
-// away team's end zone sits on the left, matching the away-then-home scorebug.
-const VIEW_W = 360;
-const VIEW_H = 176;
-const NEAR = { y: 166, w: 346 };
-const FAR = { y: 66, w: 226 };
-
-function project(x: number, y: number, h = 0) {
-  const t = y / FIELD_W;
-  const rowW = NEAR.w + (FAR.w - NEAR.w) * t;
-  const scale = rowW / NEAR.w;
-  return { x: VIEW_W / 2 + ((50 - x) / 120) * rowW, y: NEAR.y + (FAR.y - NEAR.y) * t - h * 2.2 * scale, scale };
-}
-const pt = (x: number, y: number) => {
-  const p = project(x, y);
-  return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-};
-const quad = (x0: number, x1: number) => `${pt(x0, 0)} ${pt(x1, 0)} ${pt(x1, FIELD_W)} ${pt(x0, FIELD_W)}`;
-
-/** Where the ball sits once a play is over (or before it, for plays without a path). */
-export function restingSpot(plays: PlayLogEntry[], index: number, homeId: number): number {
-  for (let i = index; i >= 0; i--) {
-    const e = plays[i];
-    if (e.to !== undefined) return e.kind === 'incomplete' ? e.from! : e.to;
-    if (e.down) return e.offense === homeId ? e.yardLine : 100 - e.yardLine;
-  }
-  return 50;
-}
-
-/** Line of scrimmage and line to gain in field coordinates, or null when no snap is set. */
-export function downLines(
-  e: PlayLogEntry | undefined,
-  homeId: number,
-): { los: number | null; gain: number | null } | undefined {
-  if (!e) return undefined;
-  if (e.down) {
-    const home = e.offense === homeId;
-    const los = home ? e.yardLine : 100 - e.yardLine;
-    const goalToGo = e.yardLine + e.distance >= 100;
-    return { los, gain: goalToGo ? null : home ? e.yardLine + e.distance : 100 - e.yardLine - e.distance };
-  }
-  // Kicks clear the lines; timeouts and other announcements leave them where they were.
-  if (e.kind === 'kickoff' || e.kind === 'xp' || e.kind === 'two') return { los: null, gain: null };
-  return undefined;
-}
-
-const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-
-/** What the field showed when the last animation finished, so the next one can pick up from there. */
-interface FieldMemory {
-  x: number;
-  y: number;
-  los: number | null;
-  gain: number | null;
-}
-
-// ───────── field ─────────
-export function Field({
-  home,
-  away,
-  entry,
-  restX,
-  animKey,
-  speed,
-  still = false,
-  onDone,
-}: {
-  home: Team;
-  away: Team;
-  entry: PlayLogEntry | undefined;
-  restX: number;
-  animKey: string;
-  speed: number;
-  /** A play the highlight level skipped: show where it ended without animating it. */
-  still?: boolean;
-  onDone: () => void;
-}) {
-  const ballRef = useRef<SVGEllipseElement>(null);
-  const shadowRef = useRef<SVGEllipseElement>(null);
-  const trailRef = useRef<SVGPathElement>(null);
-  const losRef = useRef<SVGLineElement>(null);
-  const gainRef = useRef<SVGLineElement>(null);
-  /** Live record of what is on screen, so an interrupted play hands off from where the ball really is. */
-  const memory = useRef<FieldMemory | null>(null);
-  const doneRef = useRef(onDone);
-  doneRef.current = onDone;
-
-  useEffect(() => {
-    const place = (x: number, y: number, h: number, opacity = 1) => {
-      const b = project(x, y, h);
-      const g = project(x, y, 0);
-      ballRef.current?.setAttribute('cx', String(b.x));
-      ballRef.current?.setAttribute('cy', String(b.y));
-      ballRef.current?.setAttribute('rx', String(4.4 * b.scale * (1 + h / 60)));
-      ballRef.current?.setAttribute('ry', String(2.7 * b.scale * (1 + h / 60)));
-      ballRef.current?.setAttribute('opacity', String(opacity));
-      shadowRef.current?.setAttribute('cx', String(g.x));
-      shadowRef.current?.setAttribute('cy', String(g.y + 1));
-      shadowRef.current?.setAttribute('rx', String(4.6 * g.scale));
-      shadowRef.current?.setAttribute('opacity', String(opacity));
-      if (memory.current) Object.assign(memory.current, { x, y });
-    };
-    const drawLine = (el: SVGLineElement | null, x: number | null, opacity: number) => {
-      if (!el) return;
-      if (x === null || opacity <= 0) return el.setAttribute('opacity', '0');
-      const a = project(x, 0);
-      const b = project(x, FIELD_W);
-      el.setAttribute('x1', String(a.x));
-      el.setAttribute('y1', String(a.y));
-      el.setAttribute('x2', String(b.x));
-      el.setAttribute('y2', String(b.y));
-      el.setAttribute('opacity', String(opacity));
-    };
-    /** Slide a line from `a` to `b`, fading it in or out when one end is missing. */
-    const lineAt = (el: SVGLineElement | null, a: number | null, b: number | null, t: number) => {
-      if (a === null && b === null) return drawLine(el, null, 0);
-      if (a === null) return drawLine(el, b, t);
-      if (b === null) return drawLine(el, a, 1 - t);
-      // A new series far away (turnover, kick): fade across rather than sweep the field.
-      if (Math.abs(b - a) > 25) return t < 0.5 ? drawLine(el, a, 1 - 2 * t) : drawLine(el, b, 2 * t - 1);
-      drawLine(el, a + (b - a) * ease(t), 1);
-    };
-
-    const prev = memory.current;
-    const lines = downLines(entry, home.id) ?? (prev ? { los: prev.los, gain: prev.gain } : { los: null, gain: null });
-    const from = prev ? { ...prev } : { x: restX, y: MID, ...lines };
-    memory.current = { ...from };
-    const settleLines = () => Object.assign(memory.current!, lines);
-    const snapY = snapYFor(entry, from.y);
-    const segs = entry ? buildPath(entry, home.id, snapY) : [];
-    // Plays without a path (timeouts, announcements) leave the ball where it lies.
-    const start = segs.length
-      ? { x: segs[0].x0, y: segs[0].y0 }
-      : Math.abs(from.x - restX) < 0.5
-        ? { x: from.x, y: from.y }
-        : { x: restX, y: snapY };
-    const last = segs[segs.length - 1];
-    const end = last ? { x: last.x1, y: last.y1 } : start;
-    const endOpacity = entry?.kind === 'incomplete' ? 0.35 : 1;
-
-    // Trail for this play only (not the re-spot).
-    const pts: string[] = [];
-    for (const seg of segs) {
-      for (let i = 0; i <= 12; i++) {
-        const p = pointAt(seg, i / 12);
-        const q = project(p.x, p.y, p.h);
-        pts.push(`${q.x.toFixed(1)},${q.y.toFixed(1)}`);
-      }
-    }
-    trailRef.current?.setAttribute('d', pts.length ? `M${pts.join('L')}` : '');
-    trailRef.current?.setAttribute('stroke', (entry?.offense === home.id ? home : away).colors[1]);
-
-    // Re-spot: carry the ball from where it lay to the new spot, and slide the chains.
-    const gap = Math.hypot(start.x - from.x, start.y - from.y);
-    const linesMove = from.los !== lines.los || from.gain !== lines.gain;
-    const teleport = gap > 40;
-    const respot = teleport
-      ? linesMove
-        ? 0.25
-        : 0
-      : gap > 0.3
-        ? 0.3 + Math.min(0.35, gap * 0.012)
-        : linesMove
-          ? 0.3
-          : 0;
-    const playTime = segs.reduce((sum, x) => sum + x.dur, 0);
-
-    const finish = () => {
-      place(end.x, end.y, 0, endOpacity);
-      lineAt(losRef.current, from.los, lines.los, 1);
-      lineAt(gainRef.current, from.gain, lines.gain, 1);
-      trailRef.current?.setAttribute('stroke-dashoffset', '0');
-      settleLines();
-    };
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced || still || (!segs.length && !respot)) {
-      finish();
-      const t = setTimeout(() => doneRef.current(), 450 / speed);
-      return () => clearTimeout(t);
-    }
-
-    const startPos = teleport ? start : from;
-    place(startPos.x, startPos.y, 0);
-    trailRef.current?.setAttribute('stroke-dashoffset', '1');
-    lineAt(losRef.current, from.los, lines.los, 0);
-    lineAt(gainRef.current, from.gain, lines.gain, 0);
-
-    let raf = 0;
-    let startAt = 0;
-    const tick = (now: number) => {
-      if (!startAt) startAt = now;
-      let t = ((now - startAt) / 1000) * speed;
-      if (t >= respot + playTime) {
-        finish();
-        doneRef.current();
-        return;
-      }
-      if (t < respot) {
-        const k = t / respot;
-        lineAt(losRef.current, from.los, lines.los, k);
-        lineAt(gainRef.current, from.gain, lines.gain, k);
-        if (!teleport) {
-          const e = ease(k);
-          place(from.x + (start.x - from.x) * e, from.y + (start.y - from.y) * e, 0);
-        }
-      } else {
-        lineAt(losRef.current, from.los, lines.los, 1);
-        lineAt(gainRef.current, from.gain, lines.gain, 1);
-        settleLines();
-        t -= respot;
-        trailRef.current?.setAttribute('stroke-dashoffset', String(1 - t / playTime));
-        for (const seg of segs) {
-          if (t <= seg.dur) {
-            const p = pointAt(seg, t / seg.dur);
-            place(p.x, p.y, p.h);
-            break;
-          }
-          t -= seg.dur;
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // animKey identifies the play being shown; restarting on it replays the animation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animKey]);
-
-  const endzoneLabel = (x: number, team: Team) => {
-    const p = project(x, MID);
-    return (
-      <text
-        x={p.x}
-        y={p.y + 4}
-        textAnchor="middle"
-        className="ez-text"
-        fontSize={11 * p.scale}
-        transform={`rotate(${x < 50 ? 90 : -90} ${p.x} ${p.y})`}
-      >
-        {team.abbrev}
-      </text>
-    );
-  };
-  const line = (x: number, color: string, width: number) => {
-    const a = project(x, 0);
-    const b = project(x, FIELD_W);
-    return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={width} strokeLinecap="round" />;
-  };
-  // One-yard ticks along each sideline and on both hashes.
-  const ticks = useMemo(() => {
-    const segs: string[] = [];
-    for (let x = 1; x < 100; x++) {
-      if (x % 5 === 0) continue;
-      for (const [y0, y1] of [
-        [0, 0.9],
-        [FIELD_W - 0.9, FIELD_W],
-        [HASH_LO - 0.45, HASH_LO + 0.45],
-        [HASH_HI - 0.45, HASH_HI + 0.45],
-      ]) {
-        const a = project(x, y0);
-        const b = project(x, y1);
-        segs.push(`M${a.x.toFixed(1)},${a.y.toFixed(1)}L${b.x.toFixed(1)},${b.y.toFixed(1)}`);
-      }
-    }
-    return segs.join('');
-  }, []);
-
-  return (
-    <svg
-      className="field-scene"
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      role="img"
-      aria-label="Field view of the current play"
-    >
-      <defs>
-        <pattern id="crowd" width="9" height="7" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1.5" fill="rgba(255,255,255,0.16)" />
-          <circle cx="6.5" cy="5" r="1.5" fill="rgba(255,255,255,0.09)" />
-        </pattern>
-      </defs>
-      <rect width={VIEW_W} height={VIEW_H} className="scene-bg" />
-      <rect y="6" width={VIEW_W} height={FAR.y - 16} fill="url(#crowd)" />
-      <polygon points={quad(-12, 112)} className="turf-edge" />
-      <polygon points={quad(-10, 110)} fill="#2f7a46" />
-      {Array.from({ length: 10 }, (_, i) => i * 10)
-        .filter((x) => (x / 10) % 2 === 0)
-        .map((x) => (
-          <polygon key={x} points={quad(x, x + 10)} fill="#2b7141" />
-        ))}
-      <polygon points={quad(-10, 0)} fill={home.colors[0]} />
-      <polygon points={quad(100, 110)} fill={away.colors[0]} />
-      {endzoneLabel(-5, home)}
-      {endzoneLabel(105, away)}
-      {Array.from({ length: 21 }, (_, i) => i * 5).map((x) => (
-        <g key={x}>{line(x, 'rgba(255,255,255,0.75)', x % 10 === 0 ? 1.1 : 0.6)}</g>
-      ))}
-      <path d={ticks} stroke="rgba(255,255,255,0.55)" strokeWidth="0.5" />
-      {Array.from({ length: 9 }, (_, i) => (i + 1) * 10).map((x) =>
-        [6, FIELD_W - 7].map((y) => {
-          const p = project(x, y);
-          return (
-            <text key={`${x}-${y}`} x={p.x} y={p.y + 3} textAnchor="middle" className="yard-num" fontSize={8 * p.scale}>
-              {x <= 50 ? x : 100 - x}
-            </text>
-          );
-        }),
-      )}
-      <polygon points={quad(-10, 110)} fill="none" stroke="#fff" strokeWidth="1.2" />
-      <line ref={losRef} stroke="#5aa9ff" strokeWidth="2" strokeLinecap="round" opacity="0" />
-      <line ref={gainRef} stroke="#ffd43b" strokeWidth="2.2" strokeLinecap="round" opacity="0" />
-      <path
-        ref={trailRef}
-        fill="none"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        pathLength={1}
-        strokeDasharray="1"
-        strokeDashoffset="0"
-        opacity="0.9"
-      />
-      <ellipse ref={shadowRef} rx="4" ry="1.6" fill="rgba(0,0,0,0.35)" />
-      <ellipse ref={ballRef} rx="4.4" ry="2.7" fill="#7a3f1d" stroke="#fff" strokeWidth="0.7" />
-    </svg>
-  );
-}
+import { Field, IdleField, restingSpot } from './BroadcastField';
+import { PregameCard, PREGAME_MS } from './PregameCard';
+import { gameWeather, weatherAt } from '../../engine/weather';
+import { driveAt } from '../gameRead';
+import { momentHold, periodHold, playMoments } from '../moments';
+import { ALL22_OWN, GameMoments, HALF_MS, shownMoments } from './GameMoments';
+import { buildPlayNames, type PlayNames } from '../gameRead';
+import { downParts, Scorebug } from './Scorebug';
+import { GameTimeline } from './GameTimeline';
+import { GamePanel, PlayersPanel, StageTabs } from './GamePanels';
 
 // ───────── viewer screen ─────────
 /** Plays whose result waits until it's been seen (from scrimmage, and at the posts); a kickoff, a punt, a flag or a
@@ -417,18 +97,20 @@ export function playLabel(e: PlayLogEntry, homeId: number): string {
 }
 
 export function situation(e: PlayLogEntry, home: Team, away: Team): string {
-  if (!e.down) return '';
-  const ord = ['', '1st', '2nd', '3rd', '4th'][e.down];
-  const goal = e.yardLine + e.distance >= 100;
-  const off = e.offense === home.id ? home : away;
-  const def = off === home ? away : home;
-  const spot =
-    e.yardLine === 50
-      ? 'midfield'
-      : e.yardLine < 50
-        ? `${off.abbrev} ${e.yardLine}`
-        : `${def.abbrev} ${100 - e.yardLine}`;
-  return `${ord} & ${goal ? 'Goal' : e.distance} · Ball on ${spot}`;
+  const p = downParts(e, home, away);
+  return p ? `${p.ord} & ${p.togo} · ${p.spot}` : '';
+}
+
+/** The left end of the bar under the field: the down as a pill, then the spot. Empty between snaps. */
+export function DownBar({ entry, home, away }: { entry: PlayLogEntry; home: Team; away: Team }) {
+  const p = downParts(entry, home, away);
+  if (!p) return <span className="num">{' '}</span>;
+  return (
+    <span className="vb-sit">
+      <span className="vb-down">{p.down}</span>
+      <span className="num">{p.spot}</span>
+    </span>
+  );
 }
 
 const SPEEDS = [1, 2, 4];
@@ -466,17 +148,12 @@ const ALL22_SPEEDS = [1, 2, 4];
 /** All-22 plays at 1×, 2× or 4×: a faster pick from the broadcast view (8×) drops to 4×. */
 export const allSpeed = (speed: number): 1 | 2 | 4 => (speed >= 4 ? 4 : speed > 1 ? 2 : 1);
 
-/** Broadcast | All-22: shown only for games that kept who was on the field. */
+/** Broadcast | All-22, above the viewer: shown only for games that kept who was on the field. */
 export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v: ViewKind) => void }) {
   return (
-    <span className="vc-levels" role="group" aria-label="View">
+    <span className="seg" role="group" aria-label="View">
       {VIEWS.map((v) => (
-        <button
-          key={v}
-          className={`vc-level${v === value ? ' on' : ''}`}
-          aria-pressed={v === value}
-          onClick={() => onChange(v)}
-        >
+        <button key={v} aria-pressed={v === value} onClick={() => onChange(v)}>
           {v === 'all22' ? 'All-22' : 'Broadcast'}
         </button>
       ))}
@@ -487,44 +164,20 @@ export function ViewSwitch({ value, onChange }: { value: ViewKind; onChange: (v:
 /** Broadcast or All-22, picked on this device. */
 export const useViewPick = () => usePref<ViewKind>(VIEW_KEY, VIEWS, 'broadcast');
 
+/** Plays, Game or Players under the field on a narrow window, picked on this device. */
+export const useStageTab = () => usePref(TAB_KEY, STAGE_TABS, 'plays');
+
 /** The highlight level picked on this device. */
 export const useHighlightPick = () => usePref<HighlightLevel>(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full');
 
-/** "K.Snyder": how the engine writes a player into a play. */
-const playName = (p: Player) => `${p.firstName[0]}.${p.lastName}`;
+export type { PlayNames } from '../gameRead';
 
-export interface PlayNames {
-  /** Every linkable name, longest first so "A.Macken" wins over "A.Mack". Null when there are none. */
-  re: RegExp | null;
-  ids: Map<string, number>;
-}
-
-/**
- * The players a game's plays can name, by how the play text writes them: everyone who suited up (a finished
- * game keeps them, so a replay still links after a trade or a retirement) or, while it's live, both
- * rosters. A name two of them share stays plain text rather than guess.
- */
+/** The players a game's plays can name (`buildPlayNames`), worked out once a game and again at the final whistle. */
 export function usePlayNames(league: League, game: Game | undefined): PlayNames {
   const done = !!game?.result;
-  return useMemo(() => {
-    if (!game) return { re: null, ids: new Map() };
-    const ids = game.result
-      ? Object.keys(game.result.playerTeams).map(Number)
-      : [...teamPlayers(league, game.homeId), ...teamPlayers(league, game.awayId)].map((p) => p.id);
-    const byName = new Map<string, number | null>();
-    for (const id of ids) {
-      const p = league.players[id];
-      if (!p) continue;
-      const key = playName(p);
-      byName.set(key, byName.has(key) ? null : id);
-    }
-    const names = new Map([...byName].filter((e): e is [string, number] => e[1] !== null));
-    if (!names.size) return { re: null, ids: names };
-    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const alternatives = [...names.keys()].sort((a, b) => b.length - a.length).map(escape);
-    return { re: new RegExp(`(${alternatives.join('|')})(?![A-Za-z])`, 'g'), ids: names };
-    // The rosters only matter until the final whistle; after that the game keeps its own list.
-  }, [game?.id, done]);
+  // The rosters only matter until the final whistle; after that the game keeps its own list.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => buildPlayNames(league, game), [game?.id, done]);
 }
 
 /** A play's text with every player in it a link to his card. A tap on a name doesn't also jump the replay. */
@@ -558,11 +211,14 @@ export function GameViewer({
   gameId,
   onBack,
   onBoxScore,
+  pregame = true,
 }: {
   league: League;
   gameId: number;
   onBack: () => void;
   onBoxScore: () => void;
+  /** Open on the pregame card (false: straight to the first play). */
+  pregame?: boolean;
 }) {
   const game = league.games.find((g) => g.id === gameId);
   const plays = game?.result?.plays ?? [];
@@ -574,14 +230,27 @@ export function GameViewer({
   // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
   // put up stay hidden, so the words never get ahead of the picture.
   const [seen, setSeen] = useState(false);
+  // The replay ran to its last play (it wasn't stepped or scrubbed there): the final card comes up.
+  const [ended, setEnded] = useState(false);
   // Whether the play shown has been snapped (All-22): until then the last play's result stays up.
   const [snapped, setSnapped] = useState(true);
   const [pick, setPick] = useHighlightPick();
   const [viewPick, setViewPick] = useViewPick();
+  const [tab, setTab] = useStageTab();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const names = usePlayNames(league, game);
+  // A replay opens on the pregame card: it holds a few seconds, or until anything is pressed, and then the first
+  // play is shown as before.
+  const [pre, setPre] = useState(pregame);
 
   useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (!pregame) return;
+    const t = setTimeout(() => setPre(false), PREGAME_MS);
+    return () => clearTimeout(t);
+    // Only as the replay opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pruned games keep only scoring plays; a replay needs the full log.
   if (!game?.result || !plays.some((p) => !p.scoring)) {
@@ -603,14 +272,18 @@ export function GameViewer({
   const speeds = all22 ? ALL22_SPEEDS : SPEEDS;
   const shownSpeed = all22 ? allSpeed(speed) : speed;
   const atEnd = index >= plays.length - 1;
+  const momentFacts = { home, away, names, record: game.result.field, over: true };
+  const own = all22 ? ALL22_OWN : undefined;
   const label = game.playoffRound ? ROUND_NAMES[game.playoffRound] : weekLabel(game.week);
 
   const go = (i: number, keepPlaying = false, skipped = false) => {
     clearTimeout(timer.current);
+    setPre(false);
     setIndex(Math.max(0, Math.min(plays.length - 1, i)));
     setStill(skipped);
     setSeen(false);
     setSnapped(false);
+    setEnded(false);
     setRun((r) => r + 1);
     if (!keepPlaying) setPlaying(false);
   };
@@ -624,17 +297,34 @@ export function GameViewer({
   const onDone = () => {
     setSeen(true);
     if (!playing) return;
-    if (atEnd) return setPlaying(false);
+    if (atEnd) {
+      setEnded(true);
+      return setPlaying(false);
+    }
     // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
     if (still) return go(index + 1, true);
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
-    timer.current = setTimeout(() => advanceFrom(index), (all22 ? holdAfter(entry) : 650) / shownSpeed);
+    // A moment (a score's banner, a player's line) holds the screen long enough to be read.
+    const all = playMoments(plays, index, { ...momentFacts, told: true, still: false });
+    const made = shownMoments(all, shownSpeed, own);
+    // A period's card comes up after the play's banner; the half's stays up a while before the replay carries on.
+    const hold = Math.max(
+      (all22 ? holdAfter(entry) : 650) / shownSpeed,
+      momentHold(made, shownSpeed),
+      periodHold(all, shownSpeed, HALF_MS),
+    );
+    timer.current = setTimeout(() => advanceFrom(index), hold);
   };
   const step = (dir: 1 | -1) => {
     const n = nextShown(plays, index, home.id, pick, dir);
     go(n === -1 ? (dir === 1 ? plays.length - 1 : 0) : n);
   };
   const togglePlay = () => {
+    // Play on the pregame card: the first play hasn't been shown yet, so it starts there.
+    if (pre) {
+      setPre(false);
+      return setPlaying(true);
+    }
     if (playing) {
       clearTimeout(timer.current);
       setPlaying(false);
@@ -646,7 +336,7 @@ export function GameViewer({
   };
   // Every play up to this one, newest first: nothing past the current play (nor the current one, until it's been
   // seen), so the log never spoils it.
-  const told = seen || !inPlay(entry);
+  const told = !pre && (seen || !inPlay(entry));
   // The result on the bar: this play's once it's been seen; before that (All-22's jog and huddle) the last play's
   // stays up until the snap.
   const tag = told
@@ -655,15 +345,22 @@ export function GameViewer({
       ? playLabel(plays[index - 1], home.id)
       : '';
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
-  /** The score on the board: the last play's until this one has been seen. */
-  const board = told ? entry : (plays[index - 1] ?? { homeScore: 0, awayScore: 0 });
-  const quarterLabel = entry.quarter <= 4 ? `Q${entry.quarter}` : 'OT';
+  // What the play on screen gives the viewer to show: nothing until its result has been seen.
+  const moments = playMoments(plays, index, { ...momentFacts, told, still });
+  // A period's card comes up only when the replay plays into it: stepped or scrubbed to, the play shows without one.
+  const period = shownMoments(moments, shownSpeed).find(
+    (m) => m.kind === 'quarter' || m.kind === 'half' || m.kind === 'final',
+  );
+  const card = period && (period.kind === 'final' ? ended : playing) ? period : null;
   const final = atEnd && !playing;
 
   const broadcast = (
     <Field
       home={home}
       away={away}
+      neutral={game.neutral}
+      weather={weatherAt(game.result.weather ?? gameWeather(league, game), entry.quarter)}
+      drive={driveAt(plays, index, home.id)}
       entry={entry}
       restX={restingSpot(plays, index, home.id)}
       animKey={`${index}:${run}`}
@@ -678,122 +375,173 @@ export function GameViewer({
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
           ← Back
         </button>
-        <button className="btn btn-sm" onClick={onBoxScore}>
-          Box score
-        </button>
+        <span className="row" style={{ gap: 10 }}>
+          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
+          <button className="btn btn-sm" onClick={onBoxScore}>
+            Box score
+          </button>
+        </span>
       </div>
 
-      <section className="viewer">
-        <div className="viewer-bug">
-          {[away, home].map((t) => (
-            <div key={t.id} className="vb-team" style={{ background: t.colors[0] }}>
-              <span className="vb-name">
-                {t.abbrev}
-                {entry.offense === t.id && entry.down ? <span className="vb-poss" aria-label="has the ball" /> : null}
-              </span>
-              <span className="vb-score">{t.id === home.id ? board.homeScore : board.awayScore}</span>
-            </div>
-          ))}
-          <div className="vb-clock">
-            <span>
-              {final ? `Final${game.result.overtime ? '/OT' : ''}` : `${quarterLabel} · ${gameClock(entry.clock)}`}
-            </span>
-            <span>{label}</span>
-          </div>
-        </div>
-
-        {all22 ? (
-          <TopDownField
+      <div className="game-stage" data-tab={tab}>
+        <section className="viewer">
+          <Scorebug
             league={league}
-            record={game.result.field}
             game={game}
             home={home}
             away={away}
             plays={plays}
             index={index}
-            animKey={`${index}:${run}`}
-            speed={shownSpeed}
-            still={still}
-            final={index === plays.length - 1}
-            onDone={onDone}
-            onSnap={() => setSnapped(true)}
-            fallback={broadcast}
+            told={told}
+            final={final}
+            label={label}
           />
-        ) : (
-          broadcast
-        )}
 
-        <div className="viewer-sit">
-          <span className="num">{situation(entry, home, away) || ' '}</span>
-          <span className="viewer-tag">{tag}</span>
-        </div>
+          <div className="viewer-scene">
+            {pre ? (
+              <IdleField
+                home={home}
+                away={away}
+                neutral={game.neutral}
+                weather={weatherAt(game.result.weather ?? gameWeather(league, game), 1)}
+              />
+            ) : all22 ? (
+              <TopDownField
+                league={league}
+                record={game.result.field}
+                game={game}
+                home={home}
+                away={away}
+                plays={plays}
+                index={index}
+                animKey={`${index}:${run}`}
+                speed={shownSpeed}
+                still={still}
+                final={index === plays.length - 1}
+                onDone={onDone}
+                onSnap={() => setSnapped(true)}
+                fallback={broadcast}
+              />
+            ) : (
+              broadcast
+            )}
+            {pre && <PregameCard league={league} game={game} home={home} away={away} label={label} />}
+            <GameMoments
+              league={league}
+              home={home}
+              away={away}
+              moments={pre ? [] : moments}
+              speed={shownSpeed}
+              own={own}
+              card={pre ? null : card}
+              facts={{
+                plays,
+                shown: told ? index : index - 1,
+                names,
+                record: game.result.field,
+                playerTeams: game.result.playerTeams,
+              }}
+              onBoxScore={card?.kind === 'final' ? onBoxScore : undefined}
+            />
+          </div>
 
-        <div className="viewer-controls">
-          <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
-            ◀◀
-          </button>
-          <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? '❚❚' : '▶'}
-          </button>
-          <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
-            ▶▶
-          </button>
-          <button
-            className="vc-speed"
-            onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
-            aria-label="Playback speed"
-          >
-            {shownSpeed}×
-          </button>
-          <HighlightSwitch value={pick} onChange={setPick} />
-          {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
-          <input
-            className="vc-scrub"
-            type="range"
-            id="viewer-scrub"
-            min={0}
-            max={plays.length - 1}
-            value={index}
-            onChange={(e) => go(Number(e.target.value))}
-            aria-label="Jump to play"
+          <div className="viewer-sit">
+            <DownBar entry={entry} home={home} away={away} />
+            <span className="viewer-tag">{tag}</span>
+          </div>
+
+          <GameTimeline
+            home={home}
+            away={away}
+            plays={plays}
+            index={index}
+            told={told}
+            replay
+            onJump={(i) => go(i)}
+            transport={
+              <>
+                <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
+                  ◀◀
+                </button>
+                <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+                  {playing ? '❚❚' : '▶'}
+                </button>
+                <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
+                  ▶▶
+                </button>
+              </>
+            }
+            settings={
+              <>
+                <button
+                  className="vc-speed"
+                  onClick={() => setSpeed(speeds[(speeds.indexOf(shownSpeed) + 1) % speeds.length])}
+                  aria-label="Playback speed"
+                >
+                  {shownSpeed}×
+                </button>
+                <HighlightSwitch value={pick} onChange={setPick} />
+              </>
+            }
           />
-        </div>
-      </section>
+        </section>
+        <StageTabs value={tab} onChange={setTab} />
+        <GamePanel
+          league={league}
+          game={game}
+          home={home}
+          away={away}
+          plays={plays}
+          shown={told ? index : index - 1}
+          names={names}
+          result={game.result}
+        />
+        <PlayersPanel
+          league={league}
+          home={home}
+          away={away}
+          plays={plays}
+          shown={told ? index : index - 1}
+          names={names}
+          record={game.result.field}
+          playerTeams={game.result.playerTeams}
+        />
 
-      <section className="panel">
-        <div className="play-log" aria-label="Plays so far">
-          {recent.map((p, i) => {
-            const idx = index - i - (told ? 0 : 1);
-            const team = p.offense === home.id ? home : away;
-            return (
-              // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
-              <div
-                key={idx}
-                className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
-                onClick={() => go(idx)}
-              >
-                <span className="pc-meta">
-                  <TeamChip team={team} />
-                  <button
-                    className="linklike num muted"
-                    onClick={() => go(idx)}
-                    aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}
-                  >
-                    {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
-                  </button>
-                </span>
-                <span className="pc-body">
-                  <span className="pc-sit">{situation(p, home, away)}</span>
-                  <span>
-                    <PlayText text={p.text} names={names} />
+        <section className="panel game-log">
+          <div className="play-log" aria-label="Plays so far">
+            {recent.map((p, i) => {
+              const idx = index - i - (told ? 0 : 1);
+              const team = p.offense === home.id ? home : away;
+              return (
+                // The whole card jumps to its play (the clock is the keyboard way in); a name opens the player.
+                <div
+                  key={idx}
+                  className={`play-card${i === 0 && told ? ' current' : ''}${p.scoring ? ' scoring' : ''}`}
+                  onClick={() => go(idx)}
+                >
+                  <span className="pc-meta">
+                    <TeamChip team={team} />
+                    <button
+                      className="linklike num muted"
+                      onClick={() => go(idx)}
+                      aria-label={`Jump to the play at ${p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} ${gameClock(p.clock)}`}
+                    >
+                      {p.quarter <= 4 ? `Q${p.quarter}` : 'OT'} {gameClock(p.clock)}
+                    </button>
                   </span>
-                </span>
-                <span className="pc-tag">{playLabel(p, home.id)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+                  <span className="pc-body">
+                    <span className="pc-sit">{situation(p, home, away)}</span>
+                    <span>
+                      <PlayText text={p.text} names={names} />
+                    </span>
+                  </span>
+                  <span className="pc-tag">{playLabel(p, home.id)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
     </>
   );
 }

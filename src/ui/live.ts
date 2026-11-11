@@ -7,6 +7,7 @@ import { useSyncExternalStore } from 'react';
 import { playWeek, recordResult, startLiveGame } from '../engine/league';
 import type { LiveGame } from '../engine/match/gameSim';
 import type { Game, League, PlayLogEntry } from '../engine/types';
+import { outAt, type GameOut } from './pregame';
 import { store } from './store';
 
 export interface LiveSession {
@@ -18,6 +19,10 @@ export interface LiveSession {
   current: number;
   speed: number;
   playing: boolean;
+  /** The game has kicked off: until it has, the screen holds on the pregame card and no play is shown. */
+  kicked: boolean;
+  /** Who was out for each side when the game started: the league moves on once it is recorded. */
+  out: GameOut;
   /** The result is recorded and the rest of the week has been played. */
   finished: boolean;
   /** The play on screen was skipped by the highlight level: show where it ended, don't animate it. */
@@ -62,10 +67,20 @@ export const live = {
       plays: sim.next(),
       current: 0,
       speed: session?.speed ?? 2,
-      playing: true,
+      playing: false,
+      kicked: false,
+      out: outAt(league, game),
       finished: false,
       still: false,
     };
+    emit();
+  },
+
+  /** Kick off: the game waits on its pregame card until this. */
+  kickoff() {
+    if (!session || session.kicked) return;
+    session.kicked = true;
+    session.playing = true;
     emit();
   },
 
@@ -82,6 +97,15 @@ export const live = {
     session.still = false;
     emit();
     return true;
+  },
+
+  /**
+   * The play after the one on screen, pulled from the engine if it hasn't been yet, and not shown: how the screen knows
+   * a quarter or the half has just ended. Undefined at the final whistle.
+   */
+  peek(): PlayLogEntry | undefined {
+    if (!session || !pull(session)) return undefined;
+    return session.plays[session.current + 1];
   },
 
   /**
@@ -111,6 +135,7 @@ export const live = {
     while (!s.sim.over) s.plays.push(...s.sim.next());
     s.current = s.plays.length - 1;
     s.playing = false;
+    s.kicked = true;
     s.finished = true;
     store.mutate((l) => {
       const game = l.games.find((g) => g.id === s.gameId);

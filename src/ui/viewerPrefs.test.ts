@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HIGHLIGHT_LEVELS } from './highlights';
-import { HIGHLIGHTS_KEY, readPref, writePref } from './viewerPrefs';
+import { HIGHLIGHTS_KEY, readPref, STAGE_TABS, TAB_KEY, WHO_KEY, WHO_PICKS, writePref } from './viewerPrefs';
 
 const memoryStorage = () => {
   const data = new Map<string, string>();
@@ -29,5 +29,17 @@ describe('viewer prefs', () => {
     expect(readPref(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full')).toBe('key');
     writePref(HIGHLIGHTS_KEY, 'loud');
     expect(readPref(HIGHLIGHTS_KEY, HIGHLIGHT_LEVELS, 'full')).toBe('full');
+  });
+});
+
+describe('the panels’ picks', () => {
+  it('opens on the plays and the leaders, and remembers another pick', () => {
+    vi.stubGlobal('localStorage', memoryStorage());
+    expect(readPref(TAB_KEY, STAGE_TABS, 'plays')).toBe('plays');
+    expect(readPref(WHO_KEY, WHO_PICKS, 'leaders')).toBe('leaders');
+    writePref(TAB_KEY, 'players');
+    writePref(WHO_KEY, 'home');
+    expect(readPref(TAB_KEY, STAGE_TABS, 'plays')).toBe('players');
+    expect(readPref(WHO_KEY, WHO_PICKS, 'leaders')).toBe('home');
   });
 });
