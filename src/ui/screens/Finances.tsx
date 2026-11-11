@@ -177,7 +177,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
         ) : (
           <>
             <div className="table-scroll">
-              <table>
+              <table className="cap-table">
                 <thead>
                   <tr>
                     <SortTh label="Player" k="name" sort={sort} onSort={onSort} desc={false} className="sticky-col" />
@@ -214,7 +214,7 @@ export function Finances({ league, teamId }: { league: League; teamId: number })
                     return (
                       <tr key={p.id}>
                         <td className="sticky-col">
-                          <PlayerLink league={league} player={p} avatar={26} />
+                          <PlayerLink league={league} player={p} avatar={32} />
                         </td>
                         <td>{p.position}</td>
                         <td className="num">{p.age}</td>
@@ -344,7 +344,7 @@ export function SquadContracts({ league, players, isUser }: { league: League; pl
               {rows.map((p) => (
                 <tr key={p.id}>
                   <td className="sticky-col">
-                    <PlayerLink league={league} player={p} avatar={26} />
+                    <PlayerLink league={league} player={p} avatar={32} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{weeklyMoney(weeklySquadPay(p))}</td>

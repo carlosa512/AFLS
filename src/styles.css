@@ -93,6 +93,12 @@ html,
 body {
   margin: 0;
 }
+/* iPhone Safari enlarges text in anything wider than the screen (a table that scrolls sideways: the Roster most of
+   all), and nothing else in the row grows with it. The sizes here are the sizes meant. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   background: var(--bg);
   color: var(--ink);
@@ -548,6 +554,13 @@ tr.is-user .sticky-col {
 .group-row.drop-target td {
   background: color-mix(in srgb, var(--marker) 22%, var(--surface-2));
   color: var(--text);
+}
+
+/* The cap sheet is the widest table with buttons on its end: a little less air between columns keeps Release on
+   the page at a desktop's width. */
+.cap-table th,
+.cap-table td {
+  padding-inline: 6px;
 }
 
 /* ───────── ratings ───────── */
@@ -1619,6 +1632,10 @@ select {
   width: 100%;
   height: auto;
 }
+/* Where the drive began: the caret's tooltip says so. */
+.drive-caret {
+  cursor: help;
+}
 .viewer-sit {
   display: flex;
   justify-content: space-between;
@@ -1745,12 +1762,17 @@ select {
   position: relative;
 }
 /* The club's building: a picture behind the field, in the same box as the SVG the play is drawn in. */
-.stadium-picture {
+.stadium-picture,
+.stadium-crowd {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+}
+/* The people in the stands, on canvases of their own over the building (`stadiums/layers.ts`). */
+.stadium-crowd {
+  pointer-events: none;
 }
 .viewer-scene > .field-scene {
   position: relative;
@@ -2100,7 +2122,12 @@ select {
   display: flex;
   white-space: normal;
 }
-/* A score or a takeaway: that side's bench hops, and at home the crowd lights up. */
+/* An injury's call moves to the far edge when the man down, or his way off, is under the near one (`callEdge`). */
+.td-call.td-moment[data-at='top'] {
+  top: 7%;
+  bottom: auto;
+}
+/* A score or a takeaway: that side's bench hops, and at home the crowd jumps with it. */
 @keyframes bf-hop {
   0%,
   100% {
@@ -2110,24 +2137,26 @@ select {
     transform: translateY(-2.4px);
   }
 }
-@keyframes bf-roar {
-  from {
-    filter: brightness(1);
+/* A share of the picture's height: about a person in the far stand, at any size. */
+@keyframes bf-jump {
+  0%,
+  100% {
+    transform: translateY(0);
   }
-  to {
-    filter: brightness(1.7);
+  50% {
+    transform: translateY(-0.5%);
   }
 }
 .viewer-scene:has(.moments[data-cheer='home']) .bench.home .bench-man,
 .viewer-scene:has(.moments[data-cheer='away']) .bench.away .bench-man {
   animation: bf-hop 0.5s ease-in-out infinite;
 }
-.viewer-scene:has(.moments[data-cheer='home']) .stadium-picture {
-  animation: bf-roar 0.4s ease-in-out infinite alternate;
+.viewer-scene:has(.moments[data-cheer='home']) .stadium-crowd {
+  animation: bf-jump 0.5s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .viewer-scene .bench-man,
-  .viewer-scene .stadium-picture {
+  .viewer-scene .stadium-crowd {
     animation: none !important;
   }
 }

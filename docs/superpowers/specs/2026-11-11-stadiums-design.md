@@ -145,8 +145,13 @@ each section leans a little its own way, so whole blocks thin out together. The 
 are never below Even, and a playoff game is full. Taken seats are in the home club's colours, as now; a neutral site
 splits the colours.
 
-The crowd still answers a score or a takeaway for the home side: the picture of the stands brightens for a beat
-(the same `data-cheer` hook as now). Nobody in it moves.
+The crowd still answers a score or a takeaway for the home side (the same `data-cheer` hook as now): the people
+jump, as the home bench does, and the building stands still. (First built as a brightening of the whole picture,
+which read as the screen flashing; changed on the owner's call, 0.4.31.) The people are painted on three canvases of
+their own over the building's, neighbours on different ones, each jumping a beat behind the last (`layers.ts`,
+`crowdPen` in `pen.ts`). What is painted after a person (a roof, a scoreboard, a tunnel's mouth, the night) hides or
+tints him there as it would on one canvas, so at rest the canvases together are the one picture, and nobody shows
+through a roof when the crowd is up. A viewer who asks for less motion sees no jump.
 
 **Themed nights (the owner, Nov 11).** A game the schedule stamped with the home club's colour rush or blackout
 (`Game.uniform`, `season/uniforms.ts`) is a themed night: four in five of the crowd wear the jersey the club wears
@@ -175,14 +180,18 @@ Read from what the viewer already reads (`weatherAt(gameWeather(...), quarter)`)
 
 ## Painting and speed
 
-The building, the land and the crowd are painted once on a canvas and kept as a picture behind the layer that
+The building, the land and the crowd are painted once (the building on a canvas, the people on three more over it,
+all in one pass) and kept as a picture behind the layer that
 carries the play (the field's lines, the ball, banners: still SVG, through the same camera). A building is about
 10,000 seats and a few thousand shapes outside; the prototype paints one in about 130 ms on a desktop.
 
 - It is painted when the screen opens and again only when what it shows changes: the quarter's weather, or the roof
-  opening or closing. Never while a play is running.
+  opening or closing. Never while a play is running. The pregame card's field and the play's are different
+  components, so the picture painted under the card is handed on to the play's canvases at the kickoff rather than
+  painted a second time as the first play starts (0.4.31; before it, every game opened painted its building twice).
 - The canvas is sized to the device, to at most 1440 pixels wide.
-- Budget: one painting in 300 ms or less on a mid-range phone. If a building misses it, the land outside is thinned
+- Budget: one painting in 360 ms or less on a mid-range phone (300 until 0.4.31: the owner raised it for the
+  crowd's own canvases, which add about a fifth; `LIMIT` in `scripts/stadium-sheet.ts`, 1.9 times its fixed job). If a building misses it, the land outside is thinned
   before the crowd is.
 - All draws come from the seeded `Rng`, keyed by the club: the same building is the same picture every time.
 
@@ -192,7 +201,7 @@ carries the play (the field's lines, the ball, banners: still SVG, through the s
 - `BroadcastPaint.tsx`: the flat stand, its crowd of dots, the sky, the two flags and the light towers go. The
   field's own paint (`FieldGround`, `FieldPosts`) stays and is drawn through the new camera. `WeatherFall` stays.
 - `BroadcastField.tsx` and `IdleField`: the building's picture sits where the stand was.
-- The crowd's cheer (`bf-hop`, `bf-roar` on the dots) becomes the brightening of the picture.
+- The crowd's cheer (`bf-hop`, `bf-roar` on the dots) becomes the people's jump (`bf-jump` on their canvases).
 
 ## Tests
 

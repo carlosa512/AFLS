@@ -186,7 +186,7 @@ export function PublicRoster({ league, teamId }: { league: League; teamId: numbe
       <ul className="gm-public-roster">
         {teamPlayers(league, teamId).map((p) => (
           <li key={p.id}>
-            <PlayerLink league={league} player={p} avatar={28} /> · {p.position} · Age {p.age}
+            <PlayerLink league={league} player={p} avatar={32} /> · {p.position} · Age {p.age}
           </li>
         ))}
       </ul>

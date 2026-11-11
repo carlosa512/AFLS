@@ -98,6 +98,14 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
     return m;
   };
   const dark = 'rgba(8,11,13,.92)';
+  // A stand's own fabric hides none of its people; a wall across the bowl, a stair or a tunnel's mouth can
+  // (`Pen.fabric`).
+  const hiding = (draw: () => void) => {
+    pen.fabric?.(false);
+    draw();
+    pen.fabric?.(true);
+  };
+  pen.fabric?.(true);
 
   // the back wall under the rim
   const wallFill = (k: number) => (b.wallGlass ? glass(s.tone(b.wall, k)) : s.tone(b.wall, k));
@@ -130,16 +138,18 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
     for (let i = 1; i < N - 1; i++)
       if (ti > 0 && gone(i) !== gone(i - 1)) {
         const p = wall[i];
-        pen.poly(
-          [
-            A(p, T.d0, T.y0 - T.face),
-            A(p, T.d0, T.y0),
-            A(p, T.d1, T.y1),
-            A(p, T.d1 + 1, T.y1),
-            A(p, T.d1 + 1, 0),
-            A(p, T.d0, 0),
-          ],
-          s.tone(b.wall, 0.8),
+        hiding(() =>
+          pen.poly(
+            [
+              A(p, T.d0, T.y0 - T.face),
+              A(p, T.d0, T.y0),
+              A(p, T.d1, T.y1),
+              A(p, T.d1 + 1, T.y1),
+              A(p, T.d1 + 1, 0),
+              A(p, T.d0, 0),
+            ],
+            s.tone(b.wall, 0.8),
+          ),
         );
       }
     for (let i = 0; i < N - 1; i++) {
@@ -193,22 +203,27 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
       if (!aisle(i) || gone(i)) continue;
       const a = wall[i];
       const c = wall[i + 1];
-      pen.poly(
-        [A(a, T.d0, T.y0), A(c, T.d0, T.y0), A(c, T.d1, T.y1), A(a, T.d1, T.y1)],
-        s.tone('#9aa1a4', light(a) * 0.9),
+      // at the ends, seen side-on, a stair's edge clips the people beside it
+      hiding(() =>
+        pen.poly(
+          [A(a, T.d0, T.y0), A(c, T.d0, T.y0), A(c, T.d1, T.y1), A(a, T.d1, T.y1)],
+          s.tone('#9aa1a4', light(a) * 0.9),
+        ),
       );
       if (T.rows > 8 && i % 26 === 6) {
         const r0 = Math.floor(T.rows * 0.42);
         const a2 = wall[Math.max(0, i - 1)];
         const c2 = wall[Math.min(N - 1, i + 2)];
-        pen.poly(
-          [
-            A(a2, rowD(r0), rowY(r0)),
-            A(c2, rowD(r0), rowY(r0)),
-            A(c2, rowD(r0 + 2), rowY(r0 + 2) + 0.4),
-            A(a2, rowD(r0 + 2), rowY(r0 + 2) + 0.4),
-          ],
-          '#0b0e10',
+        hiding(() =>
+          pen.poly(
+            [
+              A(a2, rowD(r0), rowY(r0)),
+              A(c2, rowD(r0), rowY(r0)),
+              A(c2, rowD(r0 + 2), rowY(r0 + 2) + 0.4),
+              A(a2, rowD(r0 + 2), rowY(r0 + 2) + 0.4),
+            ],
+            '#0b0e10',
+          ),
         );
       }
     }
@@ -253,6 +268,7 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
     wall.forEach((p, i) => (gone(i) ? endRail() : rail.push(A(p, T.d0, T.y0 + 0.35))));
     endRail();
   }
+  pen.fabric?.(false);
   // lights along the rim of an open-air ground with no roof
   if (!b.roof)
     for (let i = 4; i < N - 4; i += 6) {

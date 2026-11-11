@@ -313,7 +313,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
               ).map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <PlayerLink league={league} player={p} avatar={26} />
+                    <PlayerLink league={league} player={p} avatar={32} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">

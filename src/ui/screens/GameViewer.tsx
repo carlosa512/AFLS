@@ -4,7 +4,7 @@ import { useNav } from '../App';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import { TeamChip } from '../components';
 import { gameClock, weekLabel } from '../format';
-import { HIGHLIGHT_LEVELS, nextShown, type HighlightLevel } from '../highlights';
+import { HIGHLIGHT_LEVELS, nextShown, playOn, type HighlightLevel } from '../highlights';
 import { HIGHLIGHTS_KEY, STAGE_TABS, TAB_KEY, usePref, VIEW_KEY } from '../viewerPrefs';
 import { asRan } from '../../engine/field/stage';
 import { fumbleIn } from '../../engine/field/fumble';
@@ -290,10 +290,9 @@ export function GameViewer({
   };
   /** The next play to show from `from` at the level picked: past the plays it skips, they land together, still. */
   const advanceFrom = (from: number) => {
-    const n = nextShown(plays, from, home.id, pick, 1);
-    if (n === -1) return go(plays.length - 1, false, plays.length - 1 > from);
-    if (n > from + 1) return go(n - 1, true, true);
-    go(n, true);
+    // Still playing when the last play is reached past skipped ones: its end is what brings the final up.
+    const to = playOn(plays, from, home.id, pick);
+    go(to.index, true, to.still);
   };
   const onDone = () => {
     setSeen(true);
@@ -302,11 +301,13 @@ export function GameViewer({
       setEnded(true);
       return setPlaying(false);
     }
-    // A skipped batch has been shown: its hold was the pause, so the highlight follows at once.
-    if (still) return go(index + 1, true);
+    // A skipped batch has been shown: its hold was the pause, so the highlight follows at once, unless the batch
+    // ended the half, whose card gets its time.
+    const reached = playMoments(plays, index, { ...momentFacts, told: true, still });
+    if (still && !reached.length) return go(index + 1, true);
     // All-22 holds a beat on the play's end, longer after a kick, a score or a turnover, to read what happened.
     // A moment (a score's banner, a player's line) holds the screen long enough to be read.
-    const all = playMoments(plays, index, { ...momentFacts, told: true, still: false });
+    const all = still ? reached : playMoments(plays, index, { ...momentFacts, told: true, still: false });
     const made = shownMoments(all, shownSpeed, own);
     // A period's card comes up after the play's banner; the half's stays up a while before the replay carries on.
     const hold = Math.max(

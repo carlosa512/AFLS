@@ -209,7 +209,7 @@ export function Draft({ league }: { league: League }) {
                         <td className="sticky-col">
                           {/* The rank rides in the sticky cell: as a column of its own, the name would slide over it. */}
                           <span className="board-rank muted small">{gaps.get(p.id)!.consensus}</span>
-                          <PlayerLink league={league} player={p} avatar={26} />
+                          <PlayerLink league={league} player={p} avatar={32} />
                         </td>
                         <td>{p.position}</td>
                         <td>
@@ -659,7 +659,7 @@ function StaffTop5({
       <CardRow label="Your staff's top 5">
         {top.map((p) => (
           <OfficeCard key={p.id}>
-            <PlayerLink league={league} player={p} avatar={28} />
+            <PlayerLink league={league} player={p} avatar={32} />
             <span className="muted small">
               {p.position} · <OriginTag player={p} />
             </span>

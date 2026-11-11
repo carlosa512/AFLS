@@ -5,7 +5,17 @@ import { playWeek } from '../engine/league';
 import { packActors } from '../engine/playActors';
 import type { League, PlayLogEntry, Team } from '../engine/types';
 import { buildPlayNames, type PlayNames } from './gameRead';
-import { BANNER_FLOOR, BIG_GAIN, LINE_BEAT, momentHold, momentsFor, type Moment } from './moments';
+import {
+  BANNER_FLOOR,
+  BIG_GAIN,
+  INJURY_BEAT,
+  INJURY_FLOOR,
+  LINE_BEAT,
+  momentHold,
+  momentsFor,
+  playMoments,
+  type Moment,
+} from './moments';
 import { flagCall } from './stage/calls';
 
 const BUF = { id: 1, abbrev: 'BUF', city: 'Buffalo', name: 'Blizzard', colors: ['#00338d', '#c60c30'] } as Team;
@@ -251,6 +261,15 @@ describe('how long the screen holds', () => {
     expect(momentHold([score], 8)).toBe(BANNER_FLOOR);
   });
 
+  it('holds an injury a beat longer than a score at every speed, and never under its own floor', () => {
+    const hurt: Moment = { kind: 'banner', tone: 'injury', teamId: 1, head: 'Injury', line: '' };
+    expect(momentHold([hurt], 1)).toBe(2600 + INJURY_BEAT);
+    expect(momentHold([hurt], 2)).toBe(INJURY_FLOOR);
+    expect(momentHold([hurt], 4)).toBe(INJURY_FLOOR);
+    expect(momentHold([hurt], 8)).toBe(INJURY_FLOOR);
+    for (const speed of [1, 2, 4, 8]) expect(momentHold([hurt], speed)).toBeGreaterThan(momentHold([score], speed));
+  });
+
   it('holds a player’s line a beat longer, and skips it and the quarter card when sped up', () => {
     expect(momentHold([player], 1)).toBe(2600 + LINE_BEAT);
     expect(momentHold([player], 4)).toBe(0);
@@ -306,5 +325,37 @@ describe('on real games', () => {
       }
     expect(wrong).toEqual([]);
     expect(scores).toBeGreaterThan(100);
+  });
+});
+
+describe('a play the highlights skipped past', () => {
+  const facts = { home: BUF, away: NO, names: NAMES, told: true };
+  const kinds = (plays: PlayLogEntry[], index: number, o: { still: boolean; over?: boolean }) =>
+    playMoments(plays, index, { ...facts, ...o }).map((m) => m.kind);
+
+  it('has no banner and no quarter card of its own', () => {
+    const flagged = entry({ clock: 2, text: 'PENALTY on BUF: False start, 5 yards.', kind: 'penalty' });
+    const plays = [entry(), flagged, entry({ quarter: 2, clock: 900 })];
+    expect(kinds(plays, 1, { still: false })).toContain('quarter');
+    expect(kinds(plays, 1, { still: true })).toEqual([]);
+  });
+
+  it('still ends the half: its card comes up on a play nobody watched', () => {
+    const plays = [
+      entry({ quarter: 2, clock: 20 }),
+      entry({ quarter: 2, clock: 3 }),
+      entry({ quarter: 3, clock: 900 }),
+    ];
+    expect(kinds(plays, 1, { still: true })).toEqual(['half']);
+  });
+
+  it('still ends the game: Key highlights rarely show the last snap, and the final is owed all the same', () => {
+    const plays = [
+      entry({ quarter: 4, clock: 40 }),
+      entry({ quarter: 4, clock: 0, kind: 'kneel', text: 'Q.B kneels' }),
+    ];
+    expect(kinds(plays, 1, { still: true, over: true })).toEqual(['final']);
+    // a live game's last play reached is not the final until the game is recorded
+    expect(kinds(plays, 1, { still: true, over: false })).toEqual([]);
   });
 });

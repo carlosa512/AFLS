@@ -29,6 +29,10 @@ const BANNER_MS = 2600;
 export const LINE_BEAT = 1200;
 /** No banner is shorter than this, however fast the game is played. */
 export const BANNER_FLOOR = 800;
+/** An injury's banner holds this much longer than a score's, at 1×: a name, a position and what he hurt. */
+export const INJURY_BEAT = 1000;
+/** No injury's banner is shorter than this: at 2× and faster it is the one banner a viewer mustn't miss. */
+export const INJURY_FLOOR = 1800;
 const QUARTER_MS = 2000;
 /** At this speed and faster, the player's line and the quarter card are skipped. */
 const FAST = 4;
@@ -184,15 +188,22 @@ export function momentsFor(
 
 /**
  * How long the screen holds on a play's moments before the next play, in milliseconds (0: the view's usual hold).
- * Sped up, a banner is shorter but never under the floor, and the player's line and the quarter card are skipped
- * (an overlay draws no moment whose hold is 0). The half and the final wait on their own (`GameMoments`).
+ * Sped up, a banner is shorter but never under the floor (an injury's holds a beat longer, on a higher floor), and
+ * the player's line and the quarter card are skipped (an overlay draws no moment whose hold is 0). The half and the
+ * final wait on their own (`GameMoments`).
  */
 export function momentHold(moments: readonly Moment[], speed: number): number {
   // A banner or a line is read first, then the quarter's card: one after the other, never one over the other.
   let read = 0;
   let card = 0;
   for (const m of moments) {
-    if (m.kind === 'banner') read = Math.max(read, Math.max(BANNER_FLOOR, BANNER_MS / speed));
+    if (m.kind === 'banner')
+      read = Math.max(
+        read,
+        m.tone === 'injury'
+          ? Math.max(INJURY_FLOOR, (BANNER_MS + INJURY_BEAT) / speed)
+          : Math.max(BANNER_FLOOR, BANNER_MS / speed),
+      );
     else if (m.kind === 'player') read = Math.max(read, speed >= FAST ? 0 : (BANNER_MS + LINE_BEAT) / speed);
     else if (m.kind === 'quarter') card = Math.max(card, speed >= FAST ? 0 : QUARTER_MS / speed);
   }
@@ -227,15 +238,16 @@ export function flagParts(call: string): { head: string; line: string; side?: st
 }
 
 /**
- * The moments of the play on screen, as a screen may show them: none until its result has been shown, and none for
- * a play the highlight level skipped past (it landed still, with others; only the play that is shown gets one).
+ * The moments of the play on screen, as a screen may show them: none until its result has been shown. A play the
+ * highlight level skipped past (it landed still, with others) gets no banner, line or quarter card of its own, but
+ * it still ends a half or the game: at Key the last snap is rarely one that shows, and the final is owed all the same.
  */
 export function playMoments(
   plays: readonly PlayLogEntry[],
   index: number,
   o: { home: Team; away: Team; names: PlayNames; record?: FieldRecord; over?: boolean; told: boolean; still: boolean },
 ): Moment[] {
-  return o.told && !o.still
-    ? momentsFor(plays, index, o.home, o.away, o.names, { record: o.record, over: o.over })
-    : [];
+  if (!o.told) return [];
+  const all = momentsFor(plays, index, o.home, o.away, o.names, { record: o.record, over: o.over });
+  return o.still ? all.filter((m) => m.kind === 'half' || m.kind === 'final') : all;
 }

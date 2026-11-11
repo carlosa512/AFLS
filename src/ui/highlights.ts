@@ -72,3 +72,33 @@ export function nextShown(
   for (let i = from + dir; i >= 0 && i < plays.length; i += dir) if (shows(plays, i, homeId, pick)) return i;
   return -1;
 }
+
+/** The first play of the second half. */
+const opensHalf = (plays: readonly PlayLogEntry[], index: number): boolean =>
+  index > 0 && plays[index].quarter === 3 && plays[index - 1].quarter === 2;
+
+/**
+ * Whether playing on stops at this play: it shows at the level picked, or it opens the second half. Skipped plays
+ * never run past the half, so they land on its last play and the half's card has a play to come up on.
+ */
+export function stopsAt(plays: readonly PlayLogEntry[], index: number, homeId: number, pick: HighlightLevel): boolean {
+  return shows(plays, index, homeId, pick) || opensHalf(plays, index);
+}
+
+/**
+ * Where playing on from `from` goes at the level picked: the next play it stops at, or, when plays are skipped on
+ * the way, the play before it, landed still with the rest of the batch. With nothing more to stop at it reaches the
+ * last play, so the game always comes to its end.
+ */
+export function playOn(
+  plays: readonly PlayLogEntry[],
+  from: number,
+  homeId: number,
+  pick: HighlightLevel,
+): { index: number; still: boolean } {
+  const last = plays.length - 1;
+  let n = from + 1;
+  while (n <= last && !stopsAt(plays, n, homeId, pick)) n++;
+  if (n > last) return { index: last, still: last > from + 1 };
+  return n > from + 1 ? { index: n - 1, still: true } : { index: n, still: false };
+}

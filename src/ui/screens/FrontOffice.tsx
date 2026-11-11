@@ -160,7 +160,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                     return (
                       <tr key={p.id}>
                         <td className="sticky-col">
-                          <PlayerLink league={league} player={p} avatar={26} />
+                          <PlayerLink league={league} player={p} avatar={32} />
                         </td>
                         <td>{p.position}</td>
                         <td className="num">{p.age}</td>
@@ -234,7 +234,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                 {options.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <PlayerLink league={league} player={p} avatar={26} />
+                      <PlayerLink league={league} player={p} avatar={32} />
                     </td>
                     <td>{p.position}</td>
                     <td className="num">
@@ -295,7 +295,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                   return (
                     <tr key={p.id}>
                       <td>
-                        <PlayerLink league={league} player={p} avatar={26} />
+                        <PlayerLink league={league} player={p} avatar={32} />
                       </td>
                       <td>{p.position}</td>
                       <td className="num">{p.age}</td>
@@ -373,7 +373,7 @@ function FreeAgents({
               {pending.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <PlayerLink league={league} player={p} avatar={26} />
+                    <PlayerLink league={league} player={p} avatar={32} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>
@@ -444,7 +444,7 @@ function FreeAgents({
               return (
                 <tr key={p.id}>
                   <td className="sticky-col">
-                    <PlayerLink league={league} player={p} avatar={26} />
+                    <PlayerLink league={league} player={p} avatar={32} />
                   </td>
                   <td>{p.position}</td>
                   <td className="num">{p.age}</td>

@@ -13,16 +13,34 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.32',
+    version: '0.4.35',
     date: '2026-11-11',
     title: 'SNN’s weekly edition',
     text: 'One SNN mail a week in season, laid out as a front page: every score, the week’s lead story, your club, the rest of the league, your division’s race and the game of the week.',
   },
   {
-    version: '0.4.31',
+    version: '0.4.34',
     date: '2026-11-11',
     title: 'Key matchups you can read',
     text: 'The opposition report names each unit in full, puts yours first and says what your scouts grade and what the stats this season show. One bar a matchup shows who has had the better year.',
+  },
+  {
+    version: '0.4.33',
+    date: '2026-11-11',
+    title: 'The final shows on highlights too',
+    text: 'On Key or Extended highlights a game watched to the end now brings up the Final card, and stops at halftime, even when the last plays were ones the highlights skipped.',
+  },
+  {
+    version: '0.4.32',
+    date: '2026-11-11',
+    title: 'Cap opens mid-game; numbered icons',
+    text: 'Opening Cap during your live game no longer blanks the page. Player icons show jersey numbers everywhere, and iPhone tables stop blowing up their text.',
+  },
+  {
+    version: '0.4.31',
+    date: '2026-11-11',
+    title: 'The crowd jumps, defenders get a line',
+    text: 'A home score has the stands bouncing instead of flashing. The Players panel names top tacklers, an injury banner stays up longer at 2× and 4×, and a small caret marks where a drive began.',
   },
   {
     version: '0.4.30',

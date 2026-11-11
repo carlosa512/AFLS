@@ -367,7 +367,7 @@ function InjuryReport({ league }: { league: League }) {
               {hurt.map((p) => (
                 <tr key={p.id}>
                   <td className="sticky-col">
-                    <PlayerLink league={league} player={p} avatar={26} pos />
+                    <PlayerLink league={league} player={p} avatar={32} pos />
                   </td>
                   <td className="num">{p.age}</td>
                   <td className="num">
@@ -481,7 +481,7 @@ function LeagueInjuries({ league }: { league: League }) {
                   : (p.injury?.estimate[1] ?? 0),
   );
   const LIMIT = 15;
-  const name = (p: Player) => <PlayerLink league={league} player={p} avatar={26} pos />;
+  const name = (p: Player) => <PlayerLink league={league} player={p} avatar={32} pos />;
   return (
     <>
       <Panel title="Who's banged up">

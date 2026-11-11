@@ -1,8 +1,9 @@
 /**
  * The two panels beside the field (tabs under it on a narrow window). The game: its weather, the score by quarter,
- * each team's numbers and who got hurt. The players: the leaders, or one team's lines. Everything is read from the
- * play log through the last play whose result is on screen (`gameRead.ts`), so a live game and a replay say the same
- * and neither gets ahead of the picture. Only box-score facts: nothing here is a rating.
+ * each team's numbers and who got hurt. The players: the leaders (a defender a side among them), or one team's
+ * lines. Everything is read from the play log through the last play whose result is on screen (`gameRead.ts`), so a
+ * live game and a replay say the same and neither gets ahead of the picture. Only box-score facts: nothing here is a
+ * rating.
  * Spec: docs/superpowers/specs/2026-11-10-broadcast-info-design.md §4.
  */
 import { useMemo } from 'react';
@@ -228,16 +229,19 @@ const CATEGORIES: readonly Category[] = [
     line: (l, short) => lineWords('receiving', l, short),
   },
 ];
-/** Sacks and picks: a row among a team's lines, never a leader's category (most games have one or none). */
+/**
+ * Tackles, sacks and picks. A sack and a pick count for more than a tackle in who leads, so the man who made the big
+ * play is named over one who cleaned up behind it.
+ */
 const DEFENSE: Category = {
   label: 'Defense',
-  in: (l) => (has('sacks') && n(l.sacks) > 0) || (has('defInt') && n(l.defInt) > 0),
-  rank: (l) => n(l.sacks) + n(l.defInt),
-  line: (l) =>
-    [n(l.sacks) ? `${n(l.sacks)} sack${n(l.sacks) === 1 ? '' : 's'}` : '', n(l.defInt) ? `${n(l.defInt)} INT` : '']
-      .filter(Boolean)
-      .join(' · '),
+  in: (l) =>
+    (has('tackles') && n(l.tackles) > 0) || (has('sacks') && n(l.sacks) > 0) || (has('defInt') && n(l.defInt) > 0),
+  rank: (l) => n(l.tackles) + n(l.sacks) * 2 + n(l.defInt) * 3,
+  line: (l, short) => lineWords('defense', l, short),
 };
+/** A team's tab names this many defenders: most of an eleven has a tackle by the half. */
+const TOP_DEFENDERS = 5;
 
 export function PlayersPanel({
   league,
@@ -280,8 +284,13 @@ export function PlayersPanel({
   ];
   const team = who === 'home' ? home : who === 'away' ? away : null;
   const groups = team
-    ? [...CATEGORIES, DEFENSE].map((c) => ({ c, rows: men(team, c).map(([id, l]) => ({ id, l, teamId: team.id })) }))
-    : CATEGORIES.map((c) => ({
+    ? [...CATEGORIES, DEFENSE].map((c) => ({
+        c,
+        rows: men(team, c)
+          .slice(0, c === DEFENSE ? TOP_DEFENDERS : undefined)
+          .map(([id, l]) => ({ id, l, teamId: team.id })),
+      }))
+    : [...CATEGORIES, DEFENSE].map((c) => ({
         c,
         rows: [away, home].flatMap((t) =>
           men(t, c)
