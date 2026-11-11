@@ -35,6 +35,10 @@ export const LADDER = {
   yoursASeason: 3,
   /** Straight wins (or losses) that reverse a claim about a man. */
   fixWins: 4,
+  /** Editions between two Columns: it never runs two weeks running (the owner's rule G). */
+  rest: 1,
+  /** A man's job (blame for a head coach or a GM) comes up in one Column of this many at most. */
+  jobIn: 3,
 };
 
 export type Subject =
@@ -464,16 +468,39 @@ function stakes(c: Claim): number {
   return race === 'edge' ? 1 : 0;
 }
 
+/** A Column that has run this season, read back from its key. */
+const dirOf = (key: string): Claim['dir'] => (key.endsWith(':fix') ? 'fix' : key.endsWith('+') ? 'credit' : 'blame');
+const jobKey = (key: string) => /^column:\d+:(coach|gm):/.test(key) && key.endsWith('-');
+const isJob = (c: Claim) => c.subject.kind !== 'unit' && c.dir === 'blame';
+
 /**
- * The week's Column: a correction first, then the highest rung, then what is at stake, then the margin, then a stable
- * hash. A club the page already covers is passed over, and the reader's club is held to its limits.
+ * The week's Column, or none. How often it runs and about what is the owner's rule (set from five seasons of counts):
+ * never two weeks running, blame and credit in turn, and a man's job in one Column of three at most. Among what that
+ * leaves: a correction first, then the highest rung, then what is at stake, then the margin, then a stable hash. A club
+ * the page already covers is passed over, and the reader's club is held to its limits.
+ *
+ * `ran` is this season's Columns so far, newest first, by the week of their edition.
  */
 export function pickColumn(
   claims: Claim[],
-  opt: { taken: Set<number>; userTeamId: number | null; yoursTold: number; yoursLastWeek: boolean; editionId: string },
+  opt: {
+    taken: Set<number>;
+    userTeamId: number | null;
+    yoursTold: number;
+    yoursLastWeek: boolean;
+    editionId: string;
+    week: number;
+    ran: { week: number; key: string }[];
+  },
 ): Claim | null {
+  if (opt.ran.some((r) => opt.week - r.week <= LADDER.rest && r.week < opt.week)) return null;
+  // A correction takes no turn: the Column before it still decides whose turn it is.
+  const lastDir = opt.ran.map((r) => dirOf(r.key)).find((d) => d !== 'fix');
+  const jobLately = opt.ran.slice(0, LADDER.jobIn - 1).some((r) => jobKey(r.key));
   const open = claims.filter((c) => {
     if (opt.taken.has(c.teamId)) return false;
+    if (c.dir !== 'fix' && c.dir === lastDir) return false;
+    if (isJob(c) && jobLately) return false;
     const yours = opt.userTeamId !== null && c.teamId === opt.userTeamId;
     return !yours || (opt.yoursTold < LADDER.yoursASeason && !opt.yoursLastWeek);
   });

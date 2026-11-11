@@ -283,7 +283,15 @@ describe('choosing the week’s Column', () => {
       context: { w: 5, l: 5, t: 0, race: 'out', last: null },
       ...over,
     }) as Claim;
-  const opt = { taken: new Set<number>(), userTeamId: 1, yoursTold: 0, yoursLastWeek: false, editionId: 'snn:2026:w9' };
+  const opt = {
+    taken: new Set<number>(),
+    userTeamId: 1 as number | null,
+    yoursTold: 0,
+    yoursLastWeek: false,
+    editionId: 'snn:2026:w9',
+    week: 9,
+    ran: [] as { week: number; key: string }[],
+  };
 
   it('takes a correction first, then the higher rung', () => {
     const one = claim('a', { rung: 1 });
@@ -311,6 +319,82 @@ describe('choosing the week’s Column', () => {
     expect(pickColumn([mine], { ...opt, yoursLastWeek: true })).toBeNull();
     // A reader between jobs: nothing is his club's, and the Column still runs.
     expect(pickColumn([mine, theirs], { ...opt, userTeamId: null, yoursTold: 9 })!.key).toBe('mine');
+  });
+});
+
+describe('how often the Column runs, and about what (the owner’s rule G)', () => {
+  const claim = (key: string, over: Partial<Claim> = {}): Claim =>
+    ({
+      key,
+      subject: { kind: 'unit', teamId: 3, unit: 'run game' },
+      rung: 1,
+      dir: 'blame',
+      teamId: 3,
+      margin: 0.5,
+      numbers: [],
+      table: { head: ['', 'a', 'b'], rows: [] },
+      facts: {},
+      context: { w: 5, l: 5, t: 0, race: 'out', last: null },
+      ...over,
+    }) as Claim;
+  const blame = claim('column:2026:unit:3:run game:1-');
+  const credit = claim('column:2026:unit:4:pass rush:1+', { dir: 'credit', teamId: 4 });
+  const fix = claim('column:2026:unit:5:coverage:fix', { dir: 'fix', teamId: 5 });
+  const job = claim('column:2026:coach:77:2-', {
+    subject: { kind: 'coach', teamId: 6, coachId: 77 },
+    rung: 2,
+    teamId: 6,
+  });
+  const at = (week: number, ran: { week: number; key: string }[]) => ({
+    taken: new Set<number>(),
+    userTeamId: null,
+    yoursTold: 0,
+    yoursLastWeek: false,
+    editionId: `snn:2026:w${week}`,
+    week,
+    ran,
+  });
+  const UNIT_BLAME = 'column:2026:unit:9:run defense:1-';
+  const UNIT_CREDIT = 'column:2026:unit:9:run game:1+';
+  const COACH_BLAME = 'column:2026:coach:12:2-';
+
+  it('never runs two weeks running, not even a correction', () => {
+    expect(pickColumn([blame, credit, fix, job], at(9, [{ week: 8, key: UNIT_CREDIT }]))).toBeNull();
+    expect(pickColumn([blame, credit, fix, job], at(9, [{ week: 7, key: UNIT_CREDIT }]))).not.toBeNull();
+  });
+
+  it('takes blame and credit in turn, and a correction either way', () => {
+    expect(pickColumn([blame, credit], at(9, [{ week: 7, key: UNIT_BLAME }]))!.key).toBe(credit.key);
+    expect(pickColumn([blame, credit], at(9, [{ week: 7, key: UNIT_CREDIT }]))!.key).toBe(blame.key);
+    expect(pickColumn([blame], at(9, [{ week: 7, key: UNIT_BLAME }]))).toBeNull();
+    expect(pickColumn([blame, fix], at(9, [{ week: 7, key: UNIT_BLAME }]))!.key).toBe(fix.key);
+    // A correction does not use up a turn: the one before it still decides.
+    const ran = [
+      { week: 7, key: 'column:2026:unit:9:coverage:fix' },
+      { week: 5, key: UNIT_BLAME },
+    ];
+    expect(pickColumn([blame, credit], at(9, ran))!.key).toBe(credit.key);
+  });
+
+  it('asks about a man’s job in one Column in three at most', () => {
+    // The last two Columns hold one about a job: not again yet.
+    const soon = [
+      { week: 7, key: UNIT_CREDIT },
+      { week: 5, key: COACH_BLAME },
+    ];
+    expect(pickColumn([job, blame], at(9, soon))!.key).toBe(blame.key);
+    const later = [
+      { week: 9, key: UNIT_CREDIT },
+      { week: 7, key: UNIT_BLAME },
+      { week: 5, key: COACH_BLAME },
+    ];
+    expect(pickColumn([job, blame], at(11, later))!.key).toBe(job.key);
+    // Credit for a man is not a Column about his job.
+    const praised = [
+      { week: 7, key: 'column:2026:coach:12:2+' },
+      { week: 5, key: UNIT_BLAME },
+    ];
+    expect(pickColumn([job], at(9, praised))!.key).toBe(job.key);
   });
 });
 
