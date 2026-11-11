@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../engine/generate';
 import { simulateGame } from '../engine/match/gameSim';
 import type { PlayLogEntry } from '../engine/types';
-import { highlightLevel, nextShown, shows } from './highlights';
+import { highlightLevel, nextShown, playOn, shows, stopsAt } from './highlights';
 
 const HOME = 1;
 const AWAY = 2;
@@ -107,4 +107,39 @@ describe('highlight levels', () => {
     expect(extAvg).toBeGreaterThanOrEqual(60);
     expect(extAvg).toBeLessThanOrEqual(80);
   }, 120_000);
+});
+
+describe('playing on at a highlight level', () => {
+  const td = { text: 'Run, TOUCHDOWN', homeScore: 6 };
+  it('lands, still, on the play before the next one shown, then shows it', () => {
+    const plays = [entry(), entry(), entry(), entry(td), entry()];
+    expect(playOn(plays, 0, HOME, 'key')).toEqual({ index: 2, still: true });
+    expect(playOn(plays, 2, HOME, 'key')).toEqual({ index: 3, still: false });
+    expect(playOn(plays, 0, HOME, 'full')).toEqual({ index: 1, still: false });
+  });
+
+  it('reaches the last play when nothing more shows: the game still has an end to come to', () => {
+    const plays = [entry(td), entry(), entry(), entry({ kind: 'kneel' })];
+    expect(playOn(plays, 0, HOME, 'key')).toEqual({ index: 3, still: true });
+    expect(playOn(plays, 2, HOME, 'key')).toEqual({ index: 3, still: false });
+  });
+
+  it('never runs past the half: skipped plays stop on its last one, and the second half opens shown', () => {
+    const plays = [
+      entry({ quarter: 2, clock: 300 }),
+      entry({ quarter: 2, clock: 200 }),
+      entry({ quarter: 2, clock: 100 }),
+      entry({ quarter: 3, clock: 900, kind: 'kickoff', down: 0 }),
+      entry({ quarter: 3, clock: 880 }),
+      entry({ quarter: 3, clock: 840, ...td }),
+    ];
+    expect(shows(plays, 3, HOME, 'key')).toBe(false);
+    expect(stopsAt(plays, 3, HOME, 'key')).toBe(true);
+    expect(playOn(plays, 0, HOME, 'key')).toEqual({ index: 2, still: true });
+    expect(playOn(plays, 2, HOME, 'key')).toEqual({ index: 3, still: false });
+    expect(playOn(plays, 3, HOME, 'key')).toEqual({ index: 4, still: true });
+    // the first quarter's end is no stop
+    const first = [entry({ clock: 5 }), entry({ quarter: 2, clock: 900 }), entry({ quarter: 2, clock: 880, ...td })];
+    expect(playOn(first, 0, HOME, 'key')).toEqual({ index: 1, still: true });
+  });
 });

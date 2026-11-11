@@ -13,6 +13,7 @@ import {
   LINE_BEAT,
   momentHold,
   momentsFor,
+  playMoments,
   type Moment,
 } from './moments';
 import { flagCall } from './stage/calls';
@@ -324,5 +325,37 @@ describe('on real games', () => {
       }
     expect(wrong).toEqual([]);
     expect(scores).toBeGreaterThan(100);
+  });
+});
+
+describe('a play the highlights skipped past', () => {
+  const facts = { home: BUF, away: NO, names: NAMES, told: true };
+  const kinds = (plays: PlayLogEntry[], index: number, o: { still: boolean; over?: boolean }) =>
+    playMoments(plays, index, { ...facts, ...o }).map((m) => m.kind);
+
+  it('has no banner and no quarter card of its own', () => {
+    const flagged = entry({ clock: 2, text: 'PENALTY on BUF: False start, 5 yards.', kind: 'penalty' });
+    const plays = [entry(), flagged, entry({ quarter: 2, clock: 900 })];
+    expect(kinds(plays, 1, { still: false })).toContain('quarter');
+    expect(kinds(plays, 1, { still: true })).toEqual([]);
+  });
+
+  it('still ends the half: its card comes up on a play nobody watched', () => {
+    const plays = [
+      entry({ quarter: 2, clock: 20 }),
+      entry({ quarter: 2, clock: 3 }),
+      entry({ quarter: 3, clock: 900 }),
+    ];
+    expect(kinds(plays, 1, { still: true })).toEqual(['half']);
+  });
+
+  it('still ends the game: Key highlights rarely show the last snap, and the final is owed all the same', () => {
+    const plays = [
+      entry({ quarter: 4, clock: 40 }),
+      entry({ quarter: 4, clock: 0, kind: 'kneel', text: 'Q.B kneels' }),
+    ];
+    expect(kinds(plays, 1, { still: true, over: true })).toEqual(['final']);
+    // a live game's last play reached is not the final until the game is recorded
+    expect(kinds(plays, 1, { still: true, over: false })).toEqual([]);
   });
 });

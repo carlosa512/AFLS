@@ -542,7 +542,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   writes a review page of a division's buildings (`--time` times them). `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
   a giveaway, a flag or an injury, the injury's held a beat longer and never under `INJURY_FLOOR` however fast the game
   is played (All-22 stages its own, holds the same floor when no stoppage is staged, and puts the call along the edge
-  away from the man down: `callEdge` in `TopDownField.tsx`); a player's line after a 20-yard gain; a card at the quarter, the half and the final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
+  away from the man down: `callEdge` in `TopDownField.tsx`); a player's line after a 20-yard gain; a card at the quarter, the half and the final) and `GameMoments.tsx` draws it over either view; a play the highlights skipped past gets none of its own but still ends the half and the game (`playMoments`), and skipped plays never run past the half (`stopsAt`, `playOn` in `highlights.ts`); a live game waits at the half (`live.peek` tells it the
   half has come). Before the kickoff both screens show `PregameCard.tsx` over an idle field (`IdleField`): a live
   game starts waiting (`LiveSession.kicked`, `live.kickoff`) and takes who is out once, as it starts (`pregame.ts`,
   `LiveSession.out`: the league moves on when the game is recorded, so a replay has no list). Spec:
