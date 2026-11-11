@@ -1,14 +1,18 @@
 /**
  * The owner's stadium review pages: `npm run stadiums -- <group> [--time]`. A preview, not a check, except with
  * `--time`: it then paints each building at a phone's size with the processor slowed six times and fails if one costs
- * more than 1.6 times a fixed job timed beside it. Pages land in `.check/stadiums/<group>.html`, self-contained.
+ * more than 1.9 times a fixed job timed beside it. Pages land in `.check/stadiums/<group>.html`, self-contained.
  */
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
-/** A building may cost this many times the fixed job (20,000 small shapes): about 300 ms where that job takes 190. */
-const LIMIT = 1.6;
+/**
+ * A building may cost this many times the fixed job (20,000 small shapes): about 360 ms where that job takes 190.
+ * The owner's number: 1.6 while the crowd was part of the one picture, raised to 1.9 (0.4.31) for the canvases the
+ * crowd jumps on, which add about a fifth to a painting; a game paints its building once, not twice, since then.
+ */
+const LIMIT = 1.9;
 const SLOWDOWN = 6;
 const args = process.argv.slice(2);
 const group = args.find((a) => !a.startsWith('--')) ?? 'agreed';

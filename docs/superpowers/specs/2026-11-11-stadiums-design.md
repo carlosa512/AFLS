@@ -190,7 +190,8 @@ carries the play (the field's lines, the ball, banners: still SVG, through the s
   components, so the picture painted under the card is handed on to the play's canvases at the kickoff rather than
   painted a second time as the first play starts (0.4.31; before it, every game opened painted its building twice).
 - The canvas is sized to the device, to at most 1440 pixels wide.
-- Budget: one painting in 300 ms or less on a mid-range phone. If a building misses it, the land outside is thinned
+- Budget: one painting in 360 ms or less on a mid-range phone (300 until 0.4.31: the owner raised it for the
+  crowd's own canvases, which add about a fifth; `LIMIT` in `scripts/stadium-sheet.ts`, 1.9 times its fixed job). If a building misses it, the land outside is thinned
   before the crowd is.
 - All draws come from the seeded `Rng`, keyed by the club: the same building is the same picture every time.
 
