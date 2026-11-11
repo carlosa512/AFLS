@@ -10,7 +10,7 @@ import { playWeek } from './league';
 import { divisionLeadChange } from './news';
 import { computeRecords, divisionStandings } from './season/standings';
 import { newsCandidates, rankCandidates, type Candidate } from './snnWeek';
-import { layoffSpan, writeStory } from './snnVoice';
+import { joined, layoffSpan, writeStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
 import { reportableTrades } from './tradeNews';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
@@ -237,5 +237,40 @@ describe('how long a hurt star is gone', () => {
     // Hurt in week 15 and out four weeks, he is back for the second round: a playoff club's season is not over.
     expect(layoffSpan(15, 4)).toBe('the rest of the regular season');
     expect(layoffSpan(14, 4)).toBe('the rest of the regular season');
+  });
+});
+
+describe('a second story about the reader’s club', () => {
+  it('is a brief: its news only, with the standing and the next game left to the club’s own story', () => {
+    const t = l.teams.find((x) => x.id !== l.userTeamId)!;
+    const cand: Candidate = {
+      key: `run:${t.id}:x`,
+      kind: 'run',
+      angle: 'streak',
+      tier: 5,
+      stakes: 1,
+      clubId: t.id,
+      teams: [t.id],
+      run: { teamId: t.id, length: 6, startWeek: 11 },
+    };
+    const full = writeStory(l, cand, at());
+    expect(full.paragraphs.length).toBeGreaterThan(1);
+    const wording = at();
+    const brief = writeStory(l, cand, wording, { brief: true });
+    expect(brief.brief).toBe(true);
+    expect(brief.paragraphs).toEqual([full.paragraphs[0]]);
+    expect(ruleBreaks(l, brief)).toEqual([]);
+    // What it did not print is not held against the stories after it.
+    for (const cut of full.paragraphs.slice(1)) expect(wording.said.join(' ')).not.toContain(cut);
+  });
+});
+
+describe('two facts joined into one sentence', () => {
+  it('lowers a leading "For" that is no longer the start of a sentence', () => {
+    expect(joined('{c:3} turned it over three times.', 'For {c:4}, {M:9} had three sacks.')).toEqual([
+      '{c:3} turned it over three times, and for {c:4}, {M:9} had three sacks.',
+    ]);
+    // Left as two sentences, it still opens one.
+    expect(joined('{c:3} ran and threw.', 'For {c:4}, {M:9} had three sacks.')[1]).toMatch(/^For /);
   });
 });

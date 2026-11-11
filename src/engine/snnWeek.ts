@@ -572,7 +572,10 @@ export function buildEdition(l: League, week: number): Edition | null {
   const yours = user === null ? {} : { yours: user, extra: cut.clubExtra };
   const lead = writeStory(l, cut.lead, at, cut.leadYours ? yours : {});
   const club = cut.club ? writeStory(l, cut.club, at, yours) : undefined;
-  const tiles = cut.tiles.map((x) => writeStory(l, x, at, { quote: false }));
+  // A tile about the reader's own club stands beside his club's story: it says its news and stops.
+  const tiles = cut.tiles.map((x) =>
+    writeStory(l, x, at, { quote: false, ...(user !== null && x.clubId === user ? { brief: true as const } : {}) }),
+  );
   const round = all[0].playoffRound;
   const scores: EditionScore[] = all.map((g) => ({
     gameId: g.id,

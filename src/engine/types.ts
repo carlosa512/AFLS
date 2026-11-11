@@ -1869,6 +1869,8 @@ export interface EditionStory {
   numbers: { value: string; label: string }[];
   /** Two to four. */
   paragraphs: string[];
+  /** A second story about the reader's club: one paragraph, its news alone. */
+  brief?: true;
   quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
   links: InboxAction[];
   /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */

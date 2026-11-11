@@ -958,6 +958,11 @@ export interface StoryOptions {
   extra?: Candidate;
   /** False for a tile: only the lead and the reader's club carry a quote, so a page is not a wall of them. */
   quote?: false;
+  /**
+   * A second story about the reader's club says its news and stops: where the club stands and whom it plays next are
+   * in its own story on the same page.
+   */
+  brief?: true;
 }
 
 /**
@@ -1061,10 +1066,12 @@ function prose(first: string[], second: string[]): string[] {
  * a club is not named at the end of one clause and the start of the next. Two sentences that already hold an "and" are
  * left as two: joined, they run on.
  */
-function joined(a: string, b: string): string[] {
+export function joined(a: string, b: string): string[] {
   const subjectOf = (x: string) => /^(\{c:\d+\}) /.exec(x)?.[1];
   const forClub = (x: string) => / for (\{c:\d+\})\.$/.exec(x)?.[1];
   const drop = (x: string) => x.replace(/ for \{c:\d+\}\.$/, '.');
+  // "For Chicago, …" opens a sentence: after "and" it is no longer the start of one.
+  const inside = (x: string) => x.replace(/^For /, 'for ');
   const [sa, sb] = [subjectOf(a), subjectOf(b)];
   if (/ and /.test(a) || / and /.test(b)) {
     // Too long to join. Still no club named at the end of one sentence and the start of the next.
@@ -1072,11 +1079,11 @@ function joined(a: string, b: string): string[] {
     return [a, sa && forClub(b) === sa ? drop(b) : b];
   }
   // "X threw for 235 yards for Baltimore" then "Baltimore held the ball…": the club's own fact first, his without it.
-  if (sb && forClub(a) === sb) return [`${b.replace(/\.$/, '')}, and ${drop(a)}`];
+  if (sb && forClub(a) === sb) return [`${b.replace(/\.$/, '')}, and ${inside(drop(a))}`];
   const second = sa && forClub(b) === sa ? drop(b) : b;
   const head = a.replace(/\.$/, '');
   if (sa && second.startsWith(`${sa} `)) return [`${head} and ${second.slice(sa.length + 1)}`];
-  return [`${head}, and ${second}`];
+  return [`${head}, and ${inside(second)}`];
 }
 
 function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): EditionStory {
@@ -1732,7 +1739,15 @@ function mentorStory(l: League, cand: Candidate, at: Wording): EditionStory {
 
 /** One story from one candidate. Every sentence it uses goes onto `at.said`, so an edition never repeats itself. */
 export function writeStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions = {}): EditionStory {
-  const story = write(l, cand, at, opt);
+  let story = write(l, cand, at, opt);
+  if (opt.brief) {
+    // What is not printed is not held against the stories after it.
+    for (const cut of story.paragraphs.slice(1).flatMap((x) => sentencesOf(x))) {
+      const i = at.said.lastIndexOf(cut);
+      if (i >= 0) at.said.splice(i, 1);
+    }
+    story = { ...story, paragraphs: story.paragraphs.slice(0, 1), brief: true };
+  }
   return cand.covers?.length ? { ...story, covers: cand.covers } : story;
 }
 function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): EditionStory {

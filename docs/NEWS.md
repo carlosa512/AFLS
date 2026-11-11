@@ -105,8 +105,12 @@ division's race (the next round's pairings in the playoffs) and next week's game
 | 5 | A rout, overtime, a plain result, a run reaching six, a rumor, a coach facing his mentor, your bye |
 
 Inside a tier the clubs' records decide, then a stable hash. The cut: one story a club, one angle twice at most, one
-trade tile unless a second is tier 1. Your game leads only at tier 3 or better; otherwise it is the Your club tile, and
-the biggest other thing about your club is folded into that story. Deadline day's deals ride in the week 9 edition, so
+trade tile unless a second is tier 1. Your game leads only at tier 3 or better; otherwise it is the Your club tile. A star
+of yours lost for the season is told inside that story. The biggest other news about your club (first place taken, a
+man speaking out, a run reaching six) has one tile by right, as a brief: one paragraph, its news alone, since the
+standing and the next game are in your club's story. A coach or GM out at another club stays a candidate until it is
+told, so one from a week you skipped, or one an edition had no room for, runs in the next (below the lead once it is
+old news). Deadline day's deals ride in the week 9 edition, so
 SNN files one mail at that step.
 
 **Angles** (`snnStory.ts`, `CUT`): a game's angle is the first that fits, read from its box score and the standings

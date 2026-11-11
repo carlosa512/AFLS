@@ -100,3 +100,41 @@ describe('the writing rules a test can hold', () => {
     expect(change({ summary: 'Reed scored; Minnesota won.' })).toEqual([expect.stringMatching(/semicolon/)]);
   });
 });
+
+describe('two men with one surname', () => {
+  const two = {
+    ...league,
+    players: {
+      1: { id: 1, firstName: 'Jerome', lastName: 'Jackson' },
+      2: { id: 2, firstName: 'Daniel', lastName: 'Jackson' },
+    },
+  } as unknown as League;
+  const story = (first: string): EditionStory => ({
+    ...good,
+    headline: 'Jackson has three sacks in the Voyageurs’ win',
+    summary: first,
+    cast: [1, 2],
+    paragraphs: [first, 'Minnesota go to San Francisco next. Seattle host Green Bay.'],
+    quote: undefined,
+  });
+  it('holds each to his own first mention', () => {
+    const fine = story(
+      'Jerome Jackson had three sacks as the Voyageurs beat the Squall 35–14. Minnesota got 126 rushing yards from Daniel Jackson.',
+    );
+    expect(ruleBreaks(two, fine)).toEqual([]);
+  });
+  it('still catches a bare surname before either is named', () => {
+    const bare = story(
+      'Jackson had three sacks as the Voyageurs beat the Squall 35–14. Daniel Jackson ran for 126 yards.',
+    );
+    expect(ruleBreaks(two, bare).join(' ')).toContain('first mention is not the full name: Jackson');
+  });
+});
+
+describe('a brief', () => {
+  it('may be one paragraph, when the story says it is one', () => {
+    const one = { ...good, paragraphs: [good.paragraphs[0]], quote: undefined };
+    expect(ruleBreaks(league, one).join(' ')).toContain('1 paragraphs');
+    expect(ruleBreaks(league, { ...one, brief: true })).toEqual([]);
+  });
+});

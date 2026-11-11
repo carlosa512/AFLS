@@ -29,7 +29,8 @@ export function ruleBreaks(l: League, s: EditionStory): string[] {
     if (x.replace(/\d:\d\d/g, '').includes(':')) out.push(`colon inside a sentence: "${short(x)}"`);
     if (numbersIn(x, s.score) > NUMBERS) out.push(`more than ${NUMBERS} numbers in a sentence: "${short(x)}"`);
   }
-  if (s.paragraphs.length < 2 || s.paragraphs.length > 4)
+  // A brief (a second story about the reader's club) is its news alone: the rest is in the club's own story.
+  if ((s.paragraphs.length < 2 && !s.brief) || s.paragraphs.length > 4)
     out.push(`${s.paragraphs.length} paragraphs: a story has two to four`);
   if (s.numbers.length > 3) out.push(`${s.numbers.length} number chips: at most three`);
   if (s.headline.length > HEADLINE) out.push(`headline over ${HEADLINE} characters: "${short(s.headline)}"`);
@@ -50,7 +51,9 @@ export function ruleBreaks(l: League, s: EditionStory): string[] {
     const at = body.search(
       new RegExp(`(?<![\\p{L}\\p{M}'-])${p.lastName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{M}])`, 'u'),
     );
-    if (at >= 0 && !body.slice(0, at).endsWith(`${p.firstName} `))
+    // Two men of the story may share a surname: its first use must be one of theirs in full.
+    const namesakes = s.cast.flatMap((x) => (l.players[x]?.lastName === p.lastName ? [l.players[x].firstName] : []));
+    if (at >= 0 && !namesakes.some((first) => body.slice(0, at).endsWith(`${first} `)))
       out.push(`first mention is not the full name: ${p.lastName}`);
   }
   return out;
