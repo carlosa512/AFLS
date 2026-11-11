@@ -5866,10 +5866,10 @@ button.tip-pill {
   line-height: 1;
 }
 .ed-tile-stat span {
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--muted);
 }
 .ed-tile.is-yours {
