@@ -141,5 +141,15 @@ describe('the weekly edition in the inbox', () => {
     expect(html).toContain('class="ed-bracket"');
     expect(html).not.toContain('class="ed-race"');
     expect(html).not.toContain('class="ed-next"');
+    // The round's scores are told once, in the strip at the top.
+    expect(count(html, 'class="ed-ticker')).toBe(1);
+    // After the final there is no next round to draw.
+    const last = renderToStaticMarkup(
+      <EditionCards
+        league={l}
+        message={mail({ ...playoff, bracket: { results: edition.scores.slice(0, 1), next: [] } })}
+      />,
+    );
+    expect(last).not.toContain('class="ed-bracket"');
   });
 });

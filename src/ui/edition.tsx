@@ -414,10 +414,11 @@ export function RaceTable({ league, race }: { league: League; race: NonNullable<
 
 /** A playoff round: its results, and who meets next. */
 function Bracket({ league, bracket }: { league: League; bracket: NonNullable<Edition['bracket']> }) {
+  // The round's scores are the strip at the top of the page: here, only who plays whom next. Nothing after the final.
+  if (!bracket.next.length) return null;
   return (
     <section className="ed-bracket">
-      <h4 className="ed-section">The bracket</h4>
-      <ScoreStrip league={league} scores={bracket.results} />
+      <h4 className="ed-section">Next round</h4>
       {bracket.next.map((g) => (
         <div className="ed-next-line" key={`${g.awayId}:${g.homeId}`}>
           <TeamLink team={club(league, g.awayId)} chip /> at <TeamLink team={club(league, g.homeId)} chip />

@@ -19,7 +19,8 @@ import type { Edition, EditionStory } from '../src/engine/types';
 const args = process.argv.slice(2);
 const weeksAt = args.indexOf('--weeks');
 const weeks = weeksAt >= 0 ? Number(args[weeksAt + 1]) : 18;
-const seed = args.find((a, i) => !a.startsWith('--') && i !== weeksAt + 1) ?? 'editions';
+// The first bare word is the seed (`--weeks`'s own number is not one).
+const seed = args.find((a, i) => !a.startsWith('--') && (weeksAt < 0 || i !== weeksAt + 1)) ?? 'editions';
 
 const league = createLeague({ seed });
 const user = league.teams[league.userTeamId];
