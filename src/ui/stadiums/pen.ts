@@ -14,6 +14,9 @@ export interface Pen {
   flush(): void;
 }
 
+/** A dot smaller than this many pixels in radius is drawn square. */
+const SQUARE_UNDER = 1.9;
+
 /**
  * A pen on a canvas. Dots and boxes are the bulk of a building (a seat each), so they wait in one list a colour and
  * are drawn as one path each: on `flush`, and before any polygon or line, so what is on screen is in the order drawn.
@@ -86,7 +89,10 @@ export function canvasPen(ctx: CanvasRenderingContext2D, scale: number): Pen {
     },
     dot(x, y, r, fill) {
       endRun();
-      keep(dots, fill).push(x * scale, y * scale, r * scale);
+      // a far seat is a pixel or two across: a square reads the same there and costs a fraction of a circle
+      const rr = r * scale;
+      if (rr < SQUARE_UNDER) keep(boxes, fill).push(x * scale - rr * 0.9, y * scale - rr * 0.9, rr * 1.8, rr * 1.8);
+      else keep(dots, fill).push(x * scale, y * scale, rr);
     },
     box(x, y, w, h, fill) {
       endRun();

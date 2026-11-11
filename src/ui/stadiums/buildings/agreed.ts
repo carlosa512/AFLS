@@ -34,7 +34,8 @@ export const AGREED: Record<string, Building> = {
     wall: '#e4e2da',
     face: '#f2f0e8',
     ground: '#667f58',
-    features: [{ kind: 'wheel' }, { kind: 'stacks', x: [24, 33], cap: '#fb4f14' }],
+    // the twin stacks were dropped (the owner, Nov 11): realism over theme
+    features: [{ kind: 'wheel' }],
     setting: { kind: 'river', bridges: 2, boat: true },
   },
   // Canoe hull: the roof an upturned canoe. In town, among towers.

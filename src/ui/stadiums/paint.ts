@@ -9,6 +9,7 @@ import { FRAME } from './camera';
 import { mix, shade } from './colour';
 import { FEATURES } from './features';
 import { SETTINGS } from './land';
+import { underRoof } from './land/kit';
 import type { Pen } from './pen';
 import { paintCanopy, paintSlab } from './roof';
 import { bowlOf, paintBowl, paintGround } from './stands';
@@ -54,7 +55,10 @@ export function paintStadium(pen: Pen, b: Building, colors: [string, string], lo
     ],
     land.tone(s.snowy ? mix(b.ground, '#eef2f4', 0.6) : b.ground),
   );
+  // a roof hides the far land below its cut edge: a flat one down to about a ninth of the picture, an arched one further
+  underRoof(b.roof?.kind === 'slab' ? (b.roof.profile.kind === 'canoe' ? 40 : 24) : null);
   (SETTINGS[b.setting.kind] as (s: Scene, u: Building['setting']) => void)(land, b.setting);
+  underRoof(null);
   // the far land pales a little with distance
   if (!look.night)
     for (const [y, a] of [

@@ -68,7 +68,7 @@ export type SettingUse =
   | { kind: 'confluence' }
   /** Marshland cut by channels, with a highway across it. */
   | { kind: 'marsh'; highway: boolean }
-  | { kind: 'river'; bridges: number; boat: boolean }
+  | { kind: 'river'; bridges: number; boat: boolean; trees?: 'round' | 'palm'; city?: boolean }
   | { kind: 'downtown'; palette: string[]; streetTrees: boolean; glass?: string };
 
 /** Things on a building the painter knows how to draw in space. */

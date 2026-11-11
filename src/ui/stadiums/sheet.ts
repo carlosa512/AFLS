@@ -14,6 +14,8 @@ import type { Look } from './types';
 
 declare const GROUP: string;
 const WIDTH = 1440;
+/** The widest canvas a phone paints: 390 points across at three pixels a point. `--time` paints at this. */
+const PHONE_WIDTH = 1170;
 
 interface Spec {
   abbrev: string;
@@ -30,6 +32,7 @@ export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec
   agreed: { title: 'The five agreed', tiles: ['DEN', 'BUF', 'CIN', 'MIN', 'ATL'].map(club) },
   'liberty-east': { title: 'Liberty East', tiles: ['BUF', 'MIA', 'NE', 'NYK'].map(club) },
   'liberty-north': { title: 'Liberty North', tiles: ['BAL', 'CIN', 'CLE', 'PIT'].map(club) },
+  'liberty-south': { title: 'Liberty South', tiles: ['HOU', 'IND', 'JAX', 'TEN'].map(club) },
   checks: {
     title: 'Three things not seen yet',
     intro:
@@ -203,7 +206,7 @@ const state = {
   open: true,
 };
 
-export function paintTile(t: Tile): number {
+export function paintTile(t: Tile, width = WIDTH): number {
   const club = TEAM_SEEDS.find((c) => c.abbrev === t.abbrev)!;
   const colors = club.colors as [string, string];
   const b = buildingFor(t.abbrev, t.season, colors);
@@ -216,8 +219,8 @@ export function paintTile(t: Tile): number {
     lying: state.lying,
     ...t.over,
   };
-  const scale = WIDTH / FRAME.w;
-  t.canvas.width = WIDTH;
+  const scale = width / FRAME.w;
+  t.canvas.width = width;
   t.canvas.height = FRAME.h * scale;
   const ctx = t.canvas.getContext('2d')!;
   const t0 = performance.now();
@@ -264,7 +267,10 @@ function mount() {
   });
   paint();
   // for `--time`: milliseconds to paint each building, the stadium alone
-  (window as unknown as { timeAll: () => Record<string, number> }).timeAll = () =>
-    Object.fromEntries(tiles.map((t) => [t.abbrev, Math.round(paintTile(t))]));
+  (window as unknown as { timeAll: () => Record<string, number> }).timeAll = () => {
+    const ms = Object.fromEntries(tiles.map((t) => [t.abbrev, Math.round(paintTile(t, PHONE_WIDTH))]));
+    paint();
+    return ms;
+  };
 }
 if (typeof document !== 'undefined') mount();

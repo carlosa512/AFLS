@@ -183,6 +183,7 @@ describe('the buildings', () => {
     expect(Object.keys(BUILDINGS).sort()).toEqual(expect.arrayContaining(['ATL', 'BUF', 'CIN', 'DEN', 'MIN']));
     expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['MIA', 'NE', 'NYK'])); // Liberty East
     expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['BAL', 'CLE', 'PIT'])); // Liberty North
+    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['HOU', 'IND', 'JAX', 'TEN'])); // Liberty South
   });
   it('gives every listed building the roof the game says its club has', () => {
     for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(roofKindOf(b), abbrev).toBe(STADIUMS[abbrev].roof);

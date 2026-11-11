@@ -20,9 +20,18 @@ export const patch = (x0: number, x1: number, z0: number, z1: number, y = 0): Pt
 ];
 /** Outside the building and its plaza: nothing of the land is drawn nearer than this. */
 export const clearOf = (x: number, z: number) => Math.abs(x) > 124 || z > 112;
+/**
+ * Under a roof, the far land lower in the picture than this is behind the roof and the far stand: it is not drawn.
+ * Set by the painter for a roofed building, and cleared after.
+ */
+let cover: number | null = null;
+export const underRoof = (y: number | null) => {
+  cover = y;
+};
 /** Whether a spot is in the picture (with a margin), so what is off it is not drawn. */
 export const seen = (X: number, Y: number, Z: number, margin = 14): boolean => {
   const p = toFrame(X, Y, Z);
+  if (cover !== null && Z > 118 && p.y > cover) return false;
   return p.depth > 1 && p.x > -margin && p.x < FRAME.w + margin && p.y > -margin && p.y < FRAME.h + margin;
 };
 const pick = <T>(s: Scene, list: readonly T[]): T => list[Math.floor(s.rng.next() * list.length)];

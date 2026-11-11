@@ -73,24 +73,29 @@ const outOfTown: Painter<'outOfTown'> = (s, use) => {
 
 /** On a river: the water at the door, bridges over it, a boat, and a town on the far bank. */
 const river: Painter<'river'> = (s, use) => {
-  s.pen.poly([P(-480, 0, 190), P(480, 0, 190), P(480, 0, 330), P(-480, 0, 330)], s.tone('#4f6b4a'));
+  const trees = use.trees ?? 'round';
+  if (use.city) city(s, { z0: 198, height: 'high', palette: [...STEEL, ...BRICK], ground: '#7a7f83' });
+  else {
+    s.pen.poly([P(-480, 0, 190), P(480, 0, 190), P(480, 0, 330), P(-480, 0, 330)], s.tone('#4f6b4a'));
+    woods(s, -300, 300, 216, 242, trees, () => 0, 3.8);
+  }
   water(s, 124, 190);
-  woods(s, -440, 440, 216, 262, 'round', () => 0, 3.8);
-  const bank: [number, number, number][] = [
-    [-190, 30, 9],
-    [-146, 26, 13],
-    [-102, 34, 8],
-    [-20, 30, 11],
-    [24, 24, 16],
-    [150, 32, 9],
-    [196, 28, 12],
-    [240, 30, 8],
-  ];
-  for (const [x, w, h] of bank)
-    tower(s, x, 196, w, 16, h, pickFrom(s, ['#9a6b55', '#8a5a48', '#b08a6e', '#a39584', '#7d6a5c']));
+  if (!use.city) {
+    const bank: [number, number, number][] = [
+      [-190, 30, 9],
+      [-146, 26, 13],
+      [-102, 34, 8],
+      [-20, 30, 11],
+      [24, 24, 16],
+      [150, 32, 9],
+      [196, 28, 12],
+      [240, 30, 8],
+    ];
+    for (const [x, w, h] of bank) tower(s, x, 196, w, 16, h, pickFrom(s, BRICK));
+  }
   street(s, [-430, 119], [430, 119], 6, '#6f757a', 0.6);
   lot(s, 134, 190, 20, 112);
-  lined(s, -430, 430, 123.2);
+  lined(s, -430, 430, 123.2, trees);
   const spans: [number, string][] = [
     [108, '#4f5a62'],
     [-232, '#a5562f'],
