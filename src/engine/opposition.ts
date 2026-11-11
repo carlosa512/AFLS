@@ -202,7 +202,7 @@ export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
   ],
   usWeBelow: [
     (c) =>
-      `${forUs(c)}. Our ${c.our} is performing below expectations this season at ${at(c.mine)}. Their ${c.their} is ${at(c.them)}.`,
+      `${forUs(c)}. Our ${c.our} is performing below expectations this season, ranked ${at(c.mine)}. Their ${c.their} is ${at(c.them)}.`,
     (c) =>
       `${forUs(c)}. Our ${c.our} has performed below expectations this season and sits ${at(c.mine)}. Their ${c.their} is ${at(c.them)}.`,
   ],
@@ -223,7 +223,7 @@ export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
   ],
   themTheyBelow: [
     (c) =>
-      `${forThem(c)}. Their ${c.their} is performing below expectations this season at ${at(c.them)}. Our ${c.our} is ${at(c.mine)}.`,
+      `${forThem(c)}. Their ${c.their} is performing below expectations this season, ranked ${at(c.them)}. Our ${c.our} is ${at(c.mine)}.`,
     (c) =>
       `${forThem(c)}. Their ${c.their} has performed below expectations this season and sits ${at(c.them)}. Our ${c.our} is ${at(c.mine)}.`,
   ],

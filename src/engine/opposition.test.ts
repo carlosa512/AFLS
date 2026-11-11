@@ -131,7 +131,7 @@ describe('focused opposition briefing', () => {
     expect(rush.tag).toBe('us');
     expect(rush.ours!.teamId).toBe(0);
     expect(rush.why).toMatch(
-      /Our rush (is performing|has performed) below expectations this season (at|and sits) 32nd in sacks\./,
+      /Our rush (is performing|has performed) below expectations this season(, ranked| and sits) 32nd in sacks\./,
     );
     expect(rush.why).toMatch(/Their line is \d+(st|nd|rd|th) at preventing sacks\.$/);
   });
