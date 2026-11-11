@@ -74,10 +74,12 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 - [x] **Referees** · **Already in** (hooks into #2): seventeen officiating crews with hidden tendencies that
       multiply the engine's penalty rolls (`officials.ts`, `docs/OFFICIALS.md`).
-- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, trade stories and the
-      offseason front-office digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted
-      by the engine) and rookie impact reports join the inbox; a Stats screen tab for the advanced numbers and
-      narrative arcs remain future work. The head coach's weekly letter now tells your club's storylines from a story
+- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN's weekly edition (one mail a week in
+      season laid out as a front page: every score, a lead story, your club, the league's other stories, the race and
+      the game of the week, written to tested rules), its offseason front-office digest, the Arena Gazette's numbers
+      column (EPA, success rate and explosives, counted by the engine) and rookie impact reports join the inbox. Still
+      to come: an opinion column and your club's public storylines with players reacting to coverage, one thread a
+      story with the head coach, the owner and players, a Stats screen tab for the advanced numbers and season arcs. The head coach's weekly letter now tells your club's storylines from a story
       store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories
       and season arcs have somewhere to start. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars
