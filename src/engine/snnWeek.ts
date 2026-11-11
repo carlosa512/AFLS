@@ -6,6 +6,8 @@
  */
 import { weeklyAwards } from './awards';
 import { gamesInWeek } from './league';
+import { gameOfWeek } from './season/gameOfWeek';
+import { computeRecords, divisionStandings } from './season/standings';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
 import { employed } from './employment';
 import { writeStory } from './snnVoice';
@@ -305,6 +307,43 @@ export function editionId(l: League, week: number): string {
   return round ? `snn:${l.season}:p${round}` : `snn:${l.season}:w${week}`;
 }
 
+const recText = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
+/** The league as it stood once `week` was played. */
+const through = (l: League, week: number): League => ({
+  ...l,
+  games: l.games.filter((g) => g.season !== l.season || g.week <= week),
+});
+
+/** The reader's division after the week: each club's record, its result this week and who it plays next. */
+function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
+  const now = through(l, week);
+  const table = divisionStandings(now, computeRecords(now))[l.teams[userTeamId].division];
+  const game = (teamId: number, w: number) =>
+    l.games.find((g) => g.season === l.season && g.week === w && (g.homeId === teamId || g.awayId === teamId));
+  return {
+    division: table.division.name,
+    rows: table.teams.map((r) => {
+      const g = game(r.teamId, week);
+      const home = g?.homeId === r.teamId;
+      const [us, them] = !g?.result
+        ? [0, 0]
+        : home
+          ? [g.result.homeScore, g.result.awayScore]
+          : [g.result.awayScore, g.result.homeScore];
+      const n = week < 18 ? game(r.teamId, week + 1) : undefined;
+      const opp = n ? l.teams[n.homeId === r.teamId ? n.awayId : n.homeId].abbrev : '';
+      return {
+        teamId: r.teamId,
+        w: r.w,
+        l: r.l,
+        t: r.t,
+        last: g?.result ? `${us > them ? 'W' : us < them ? 'L' : 'T'} ${us}–${them}` : 'bye',
+        next: n ? `${n.homeId === r.teamId ? '' : 'at '}${opp}` : 'bye',
+      };
+    }),
+  };
+}
+
 /** The edition for a completed week, or null while a game of it is unplayed. */
 export function buildEdition(l: League, week: number): Edition | null {
   const all = gamesInWeek(l, week).filter((g) => g.season === l.season);
@@ -333,11 +372,25 @@ export function buildEdition(l: League, week: number): Edition | null {
     away: g.result!.awayScore,
     ...(g.result!.overtime ? { overtime: true as const } : {}),
   }));
-  return {
+  const edition: Edition = {
     label: round ? (ROUNDS[round] ?? 'Playoffs') : `Week ${week}`,
     scores,
     lead,
     ...(club ? { club } : {}),
     tiles,
   };
+  if (!round) {
+    if (user !== null) edition.race = raceOf(l, week, user);
+    const records = computeRecords(through(l, week));
+    const best = gameOfWeek(l, week + 1, records);
+    if (best)
+      edition.next = {
+        gameId: best.id,
+        homeId: best.homeId,
+        awayId: best.awayId,
+        home: recText(records.get(best.homeId)!),
+        away: recText(records.get(best.awayId)!),
+      };
+  }
+  return edition;
 }
