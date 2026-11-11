@@ -1035,11 +1035,15 @@ const PLAIN: GameFacts['angle'][] = ['result', 'rout', 'overtime'];
  * left as two: joined, they run on.
  */
 function joined(a: string, b: string): string[] {
-  if (/ and /.test(a) || / and /.test(b)) return [a, b];
   const subjectOf = (x: string) => /^(\{c:\d+\}) /.exec(x)?.[1];
   const forClub = (x: string) => / for (\{c:\d+\})\.$/.exec(x)?.[1];
   const drop = (x: string) => x.replace(/ for \{c:\d+\}\.$/, '.');
   const [sa, sb] = [subjectOf(a), subjectOf(b)];
+  if (/ and /.test(a) || / and /.test(b)) {
+    // Too long to join. Still no club named at the end of one sentence and the start of the next.
+    if (sb && forClub(a) === sb) return [b, drop(a)];
+    return [a, sa && forClub(b) === sa ? drop(b) : b];
+  }
   // "X threw for 235 yards for Baltimore" then "Baltimore held the ball…": the club's own fact first, his without it.
   if (sb && forClub(a) === sb) return [`${b.replace(/\.$/, '')}, and ${drop(a)}`];
   const second = sa && forClub(b) === sa ? drop(b) : b;
