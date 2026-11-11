@@ -336,43 +336,52 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
       });
   }
 
-  // A head coach, a GM or a coordinator out at another club, one story a club.
+  // A head coach, a GM or a coordinator out at another club, one story a club. Any change of the season not yet told
+  // is a candidate (an owner acts after the week's games, so his move is dated the week to come): one from a week the
+  // reader skipped, or one an earlier edition had no room for, still reaches him.
   const events = l.leadership.events.filter(
     (e) =>
       e.date.season === l.season &&
       e.date.phase === 'regular' &&
-      (e.date.week === week || e.date.week === week + 1) &&
+      e.date.week <= week + 1 &&
       e.teamId !== l.userTeamId &&
       ['coachInterim', 'gmDismissed', 'gmHired', 'coachRelieved'].includes(e.kind) &&
       !leadershipTold(have, e.date.season, e.date.week, e.id),
   );
   for (const teamId of new Set(events.map((e) => e.teamId))) {
     const mine = events.filter((e) => e.teamId === teamId);
-    const covers = mine.map((e) => `leadership:${e.date.season}:${e.id}`);
     const coach = mine.find((e) => e.kind === 'coachInterim');
     const gm = mine.find((e) => e.kind === 'gmDismissed');
     const relieved = mine.find((e) => e.kind === 'coachRelieved');
     const nameOf = (x?: { firstName: string; lastName: string }) => (x ? `${x.firstName} ${x.lastName}` : '');
     let leader: Candidate['leader'];
+    // The story tells one change, and marks only that one told: a club that lets its head coach and its GM go in one
+    // week gets the coach's story now and the GM's in the next edition.
+    let about: typeof mine = [];
     if (coach) {
       // The event names the interim; the man he replaces is in its public line.
       const gone = /dismissed (.+?) and named/.exec(coach.report)?.[1] ?? '';
       leader = { teamId, role: 'headCoach', out: gone, in: nameOf(l.coaches[coach.coachId!]) };
+      about = mine.filter((e) => e.kind === 'coachInterim');
     } else if (gm) {
       const next = mine.find((e) => e.kind === 'gmHired');
       leader = { teamId, role: 'gm', out: nameOf(l.gms[gm.gmId!]), in: next ? nameOf(l.gms[next.gmId!]) : undefined };
+      about = mine.filter((e) => e.kind === 'gmDismissed' || e.kind === 'gmHired');
     } else if (relieved) {
       const c = l.coaches[relieved.coachId!] ?? l.retiredCoaches?.[relieved.coachId!];
       const side = c?.role === 'offCoord' ? 'offensive' : c?.role === 'defCoord' ? 'defensive' : 'special teams';
       leader = { teamId, role: 'coordinator', out: nameOf(c), side };
+      about = mine.filter((e) => e.kind === 'coachRelieved');
     }
     if (!leader?.out) continue;
+    // News from an earlier week no longer leads the page: it runs among the week's other stories.
+    const old = about.every((e) => e.date.week < week);
     out.push({
-      key: `leaderOut:${l.season}:${Math.min(...mine.map((e) => e.id))}`,
-      covers,
+      key: `leaderOut:${l.season}:${Math.min(...about.map((e) => e.id))}`,
+      covers: about.map((e) => `leadership:${e.date.season}:${e.id}`),
       kind: 'leaderOut',
       angle: leader.role === 'coordinator' ? 'coordinatorOut' : leader.role === 'gm' ? 'gmOut' : 'coachOut',
-      tier: leader.role === 'coordinator' ? 4 : 1,
+      tier: leader.role === 'coordinator' || old ? 4 : 1,
       clubId: teamId,
       teams: [teamId],
       stakes: pct(teamId),
@@ -453,27 +462,35 @@ export function cutEdition(
     return { lead: ranked[0], leadYours: userTeamId !== null, tiles: [] };
   }
   const club = leadYours ? undefined : own;
-  // The biggest other public thing about the reader's club rides in its story, never in a tile of its own.
+  // A star of the reader's club lost in its game rides in that game's story, never in a tile of its own.
   const clubExtra =
-    userTeamId === null ? undefined : ranked.find((x) => x !== own && x !== lead && x.clubId === userTeamId);
+    userTeamId === null ? undefined : ranked.find((x) => x.clubId === userTeamId && x.kind === 'starOut');
   const used = new Set<number>([lead.clubId]);
-  if (userTeamId !== null) used.add(userTeamId);
+  // The biggest other news about the reader's club (first place taken, a man speaking out, a run) has a tile by right:
+  // his game's story cannot carry it, and nobody else will tell it. One a week, so the page stays the league's.
+  const ownNews =
+    userTeamId === null
+      ? undefined
+      : ranked.find((x) => x.clubId === userTeamId && x !== lead && x !== club && x !== clubExtra && !mine(x));
   // The limit is on tiles: a trade that leads does not use it up.
-  let trades = 0;
-  const tiles: Candidate[] = [];
+  let trades = ownNews?.kind === 'trade' ? 1 : 0;
+  const picked: Candidate[] = ownNews ? [ownNews] : [];
   // Variety: an edition tells one angle twice at most among its lead and tiles (three "scores three" stories read as
   // one story three times).
   const told = new Map<string, number>([[lead.angle, 1]]);
+  if (ownNews) told.set(ownNews.angle, (told.get(ownNews.angle) ?? 0) + 1);
   for (const x of ranked) {
-    if (tiles.length >= TILES + (leadYours ? 1 : 0)) break;
-    if (x === lead || x === club || mine(x) || used.has(x.clubId)) continue;
+    if (picked.length >= TILES + (leadYours ? 1 : 0)) break;
+    if (x === lead || x === club || mine(x) || x.clubId === userTeamId || used.has(x.clubId)) continue;
     if ((told.get(x.angle) ?? 0) >= SAME_ANGLE) continue;
     if (x.kind === 'trade' && trades >= 1 && x.tier !== 1) continue;
     if (x.kind === 'trade') trades++;
     used.add(x.clubId);
     told.set(x.angle, (told.get(x.angle) ?? 0) + 1);
-    tiles.push(x);
+    picked.push(x);
   }
+  // In the order the week ranked them.
+  const tiles = picked.sort((p, q) => ranked.indexOf(p) - ranked.indexOf(q));
   return { lead, leadYours, club, clubExtra, tiles };
 }
 

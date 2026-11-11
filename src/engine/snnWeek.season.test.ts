@@ -72,7 +72,10 @@ describe('a season of editions', () => {
   it('runs one story a club in an edition, and at most one angle twice', () => {
     for (const m of editions()) {
       const told = [m.edition!.lead, ...m.edition!.tiles];
-      expect(dupes(told.map((s) => String(s.clubId)))).toEqual([]);
+      // The reader's club may have one more: its game, and a tile for its other news.
+      const news = told.filter((s) => s.clubId === l.userTeamId && s.kind !== 'game');
+      expect(news.length).toBeLessThanOrEqual(1);
+      expect(dupes(told.filter((s) => !news.includes(s)).map((s) => String(s.clubId)))).toEqual([]);
       const angles = new Map<string, number>();
       for (const s of told) angles.set(s.angle, (angles.get(s.angle) ?? 0) + 1);
       for (const n of angles.values()) expect(n).toBeLessThanOrEqual(2);

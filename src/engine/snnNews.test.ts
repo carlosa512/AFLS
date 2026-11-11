@@ -10,7 +10,7 @@ import { playWeek } from './league';
 import { divisionLeadChange } from './news';
 import { computeRecords, divisionStandings } from './season/standings';
 import { newsCandidates, rankCandidates, type Candidate } from './snnWeek';
-import { writeStory } from './snnVoice';
+import { layoffSpan, writeStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
 import { reportableTrades } from './tradeNews';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
@@ -131,6 +131,48 @@ describe('news built by hand, for the kinds a season may not make', () => {
     expect(ruleBreaks(l, s)).toEqual([]);
   });
 
+  describe('a change at another club', () => {
+    const push = (id: number, week: number, kind: 'coachInterim' | 'gmDismissed') => {
+      const t = club();
+      l.leadership.events.push({
+        id,
+        date: { season: l.season, phase: 'regular', week },
+        teamId: t.id,
+        kind,
+        report: `${t.abbrev} dismissed Sam Rivers and named Lee Marsh interim head coach.`,
+        ...(kind === 'gmDismissed' ? { gmId: t.gmId! } : {}),
+      });
+      return `leadership:${l.season}:${id}`;
+    };
+    const of = (week: number, have: string[], id: string) =>
+      newsCandidates(l, week, new Set(have)).filter((c) => c.kind === 'leaderOut' && c.covers?.includes(id));
+    const clear = () => (l.leadership.events = l.leadership.events.filter((e) => e.id < 9000));
+
+    it('is still told from a week the reader skipped, once, and no longer as the week’s biggest news', () => {
+      const id = push(9001, 6, 'coachInterim');
+      // The week it happened it leads.
+      expect(of(6, [], id).map((c) => c.tier)).toEqual([1]);
+      // Six weeks on, after a long advance, it is still told, among the week's other stories.
+      const late = of(12, [], id);
+      expect(late.map((c) => c.tier)).toEqual([4]);
+      expect(of(12, late[0].covers!, id)).toHaveLength(0);
+      clear();
+    });
+
+    it('tells a head coach and a GM out at one club as two stories: the second waits for the next edition', () => {
+      const coach = push(9002, 12, 'coachInterim');
+      const gm = push(9003, 12, 'gmDismissed');
+      const first = of(12, [], coach);
+      expect(first.map((c) => c.angle)).toEqual(['coachOut']);
+      // The coach's story does not use up the GM's.
+      expect(first[0].covers).toEqual([coach]);
+      const second = of(13, [first[0].key, coach], gm);
+      expect(second.map((c) => c.angle)).toEqual(['gmOut']);
+      expect(second[0].key).not.toBe(first[0].key);
+      clear();
+    });
+  });
+
   it('quotes a player who speaks out, and still ends on a fact', () => {
     const p = man();
     const s = story({
@@ -185,5 +227,15 @@ describe('news built by hand, for the kinds a season may not make', () => {
     const out: Candidate = { ...base, key: 'a', kind: 'leaderOut', angle: 'coachOut', tier: 1, clubId: 1 };
     const game: Candidate = { ...base, key: 'b', kind: 'game', angle: 'unbeatenFalls', tier: 2, stakes: 2, clubId: 2 };
     expect(rankCandidates([game, out], 'snn:x')[0].key).toBe('a');
+  });
+});
+
+describe('how long a hurt star is gone', () => {
+  it('says the rest of the season only when the shortest estimate runs past the final', () => {
+    expect(layoffSpan(10, 14)).toBe('the rest of the season');
+    expect(layoffSpan(15, 7)).toBe('the rest of the season');
+    // Hurt in week 15 and out four weeks, he is back for the second round: a playoff club's season is not over.
+    expect(layoffSpan(15, 4)).toBe('the rest of the regular season');
+    expect(layoffSpan(14, 4)).toBe('the rest of the regular season');
   });
 });

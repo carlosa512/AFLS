@@ -84,6 +84,27 @@ describe('cutting the week to the edition', () => {
     expect(e.tiles.map((x) => x.key)).not.toContain('starOut:7:9');
   });
 
+  it('gives the biggest other news about the user’s club a tile by right, one a week, beside a star out in its story', () => {
+    const mine = (key: string, kind: Candidate['kind'], tier: Candidate['tier']) =>
+      c(key, tier, 1, { kind, angle: kind, clubId: USER, teams: [USER] });
+    const hurt = mine('starOut:7:9', 'starOut', 3);
+    const first = mine('division:2026:9:1', 'division', 2);
+    const speak = mine('speak:2026:7:traded', 'speak', 4);
+    const e = cutEdition(rankCandidates([...others, speak, hurt, first, yours(5)], ID), USER)!;
+    expect(e.clubExtra?.key).toBe(hurt.key);
+    const keys = e.tiles.map((x) => x.key);
+    expect(keys).toContain(first.key);
+    expect(keys).not.toContain(speak.key);
+    expect(keys).not.toContain(hurt.key);
+    // It never leads, and the page keeps its three tiles.
+    expect(e.lead.key).toBe('game:1');
+    expect(e.tiles).toHaveLength(3);
+    // With nothing bigger about his club, the man who spoke out gets the tile.
+    const quiet = cutEdition(rankCandidates([...others, speak, yours(5)], ID), USER)!;
+    expect(quiet.clubExtra).toBeUndefined();
+    expect(quiet.tiles.map((x) => x.key)).toContain(speak.key);
+  });
+
   it('tells one angle twice at most among the lead and the tiles', () => {
     const day = (n: number) =>
       c(`game:d${n}`, 4, 2 - n / 10, { clubId: 50 + n, teams: [50 + n, 60 + n], angle: 'day' });

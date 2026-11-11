@@ -1107,7 +1107,7 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
     if (p && hurt) {
       const award = recentAward(l, p.id, s.week);
       why.push(
-        `${cap(POSITION[p.position] ?? 'player')} ${M(p.id)} left with ${injuryPhrase(hurt.type)} and will miss the rest of the season.${award ? ` He was ${award}.` : ''}`,
+        `${cap(POSITION[p.position] ?? 'player')} ${M(p.id)} left with ${injuryPhrase(hurt.type)} and will miss ${layoffSpan(s.week, hurt.estimate[0])}.${award ? ` He was ${award}.` : ''}`,
       );
     }
   }
@@ -1286,6 +1286,15 @@ function runStory(l: League, cand: Candidate, at: Wording): EditionStory {
 
 // ───────── a star out for the season ─────────
 
+/** The final is played in week 22. */
+const FINAL_WEEK = 22;
+/**
+ * What a layoff costs a man hurt in `week`, from the shortest the doctors expect: his season only when it runs past the
+ * final. Hurt late in the year, he may be back for a playoff game, and a story says only what is sure.
+ */
+export const layoffSpan = (week: number, low: number) =>
+  low >= FINAL_WEEK - week ? 'the rest of the season' : 'the rest of the regular season';
+
 function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
   const p = l.players[cand.out!.playerId];
   const g = l.games.find((x) => x.id === cand.out!.gameId)!;
@@ -1327,7 +1336,7 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
             ? `had ${w(tot.sacks)} ${plural(tot.sacks, 'sack')} and ${tot.tackles ?? 0} tackles`
             : `had ${tot.tackles ?? 0} tackles`;
   const first = [
-    `${C(id)} lost ${POSITION[p.position] ?? 'player'} ${M(p.id)} to ${injuryPhrase(hurt.type)} in the ${QUARTER[hurt.quarter] ?? 'fourth'} quarter of their ${result} ${C(opp)}, and he will miss the rest of the season.`,
+    `${C(id)} lost ${POSITION[p.position] ?? 'player'} ${M(p.id)} to ${injuryPhrase(hurt.type)} in the ${QUARTER[hurt.quarter] ?? 'fourth'} quarter of their ${result} ${C(opp)}, and he will miss ${layoffSpan(g.week, hurt.estimate[0])}.`,
   ];
   const award = recentAward(l, p.id, g.week);
   first.push(`${M(p.id)} ${did} this season.${award ? ` He was ${award}.` : ''}`);

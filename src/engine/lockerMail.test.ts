@@ -58,6 +58,38 @@ describe('locker room letters', () => {
     expect(mail(l, `speak:${l.season}:${quiet.id}:`)).toHaveLength(0);
   });
 
+  it('does not carry a speak-out an edition already told', () => {
+    const { l } = world();
+    const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    const loud = ours.find((p) => {
+      p.traits = { ...p.traits, controversy: 20 };
+      return speaksOut(l, p, l.season, 'traded');
+    })!;
+    noteDeparture(l, loud, l.userTeamId, 'traded');
+    setTeam(l, loud, (l.userTeamId + 1) % 32);
+    const id = `speak:${l.season}:${loud.id}:traded`;
+    // An edition that told it keeps its key in `covered`, not in a mail id of its own.
+    l.inbox = [
+      ...(l.inbox ?? []),
+      {
+        id: `snn:${l.season}:w4`,
+        season: l.season,
+        phase: 'regular',
+        week: 4,
+        from: 'SNN — Sports News Network',
+        category: 'league',
+        subject: 'Week 4',
+        body: '',
+        read: true,
+        actions: [],
+        covered: [id],
+      },
+    ];
+    l.phase = 'resign';
+    deliverMail(l);
+    expect(mail(l, id)).toHaveLength(0);
+  });
+
   it('an agent says his man would like to come home, in free agency', () => {
     const { l } = world();
     l.phase = 'freeAgency';

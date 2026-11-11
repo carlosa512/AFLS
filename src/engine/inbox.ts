@@ -3009,7 +3009,8 @@ export function deliverMail(league: League): void {
       ...injuryMail(league, have),
       ...tradeMail(league, have),
       ...offerMail(league, have),
-      ...lockerMail(league, have),
+      // An edition that told a man speaking out keeps his key in `covered`, not in a mail id.
+      ...lockerMail(league, new Set([...have, ...toldKeys(league)])),
       ...lockerReportMail(league, have),
       ...coachWeekMail(league, have),
       ...meetingMail(league, have),
