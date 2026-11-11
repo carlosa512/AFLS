@@ -11,6 +11,7 @@ import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from '
 import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
+import { groundFrame } from './screens/broadcastView';
 import { surfaceFor } from './screens/FieldPaint';
 import { sameWeather, skyOf } from './screens/BroadcastPaint';
 import { GameMoments, MomentBanner } from './screens/GameMoments';
@@ -1189,5 +1190,23 @@ describe('what the review found', () => {
     expect(sameWeather(w, { ...w, windMph: 20 })).toBe(false);
     expect(sameWeather(w, { ...w, night: undefined })).toBe(false);
     expect(sameWeather({ ...w, precip: 'rain' }, { ...w, precip: 'rain', heavy: true })).toBe(false);
+  });
+});
+
+describe('the field through the stadium’s camera', () => {
+  it('draws the field where the stadium has it', () => {
+    expect(project(-10, 0).x).toBeCloseTo(327.93, 1); // the end line behind the home goal line, near side
+    expect(project(-10, 0).y).toBeCloseTo(171.98, 1);
+    expect(project(110, FIELD_W).x).toBeCloseTo(80, 0);
+    expect(project(110, FIELD_W).y).toBeCloseTo(90, 0);
+    expect(project(50, 0).scale).toBeCloseTo(1, 3);
+    expect(project(50, FIELD_W).scale).toBeCloseTo(0.676, 2);
+    expect(project(50, 26, 10).y).toBeLessThan(project(50, 26, 0).y);
+  });
+  it('lays a yard along the field level across the picture, and a yard across it up the picture', () => {
+    const f = groundFrame(50, 26);
+    expect(f.dx[0]).toBeLessThan(0); // x runs right to left
+    expect(Math.abs(f.dx[1])).toBeLessThan(0.01);
+    expect(f.dy[1]).toBeLessThan(0);
   });
 });
