@@ -148,7 +148,15 @@ splits the colours.
 The crowd still answers a score or a takeaway for the home side: the picture of the stands brightens for a beat
 (the same `data-cheer` hook as now). Nobody in it moves.
 
+**Themed nights (the owner, Nov 11).** A game the schedule stamped with the home club's colour rush or blackout
+(`Game.uniform`, `season/uniforms.ts`) is a themed night: four in five of the crowd wear the jersey the club wears
+that game (`uniformFor`), white for a whiteout, black for a blackout. Not for a classic, a plain game or a neutral
+site. `crowdPalette` in `crowd.ts`, `Look.theme`.
+
 ## Night and weather
+
+**As built:** at night the land is at 0.3 of its light, the stands at 0.86, and the dark comes down over the top of
+the picture, so a night game reads as one at a glance while the ground stays the lit thing.
 
 Read from what the viewer already reads (`weatherAt(gameWeather(...), quarter)`):
 

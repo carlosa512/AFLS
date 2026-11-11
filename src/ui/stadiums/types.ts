@@ -13,6 +13,8 @@ export interface Look {
   fill: number;
   /** Snow lies on the land and the roofs: it is falling, or it is deep winter and freezing. Never a building's own. */
   lying?: boolean;
+  /** A themed night: the one colour the crowd wears, the jersey of the club's colour rush or blackout that game. */
+  theme?: string;
 }
 
 /** The top of the back wall along the bowl, in yards up. */

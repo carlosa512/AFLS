@@ -5,6 +5,7 @@
 import type { Game, League } from '../../engine/types';
 import { isNight, type Weather } from '../../engine/weather';
 import { recordBefore } from '../gameRead';
+import { uniformFor } from '../uniform';
 import { buildingFor, roofKindOf } from './buildings';
 import { FILL, turnoutOf } from './crowd';
 import { outsideWeather } from './outside';
@@ -41,14 +42,19 @@ export function gameStadium(league: League, game: Game, weather: Weather): Stadi
   const roofed = roofKindOf(building) !== 'outdoors';
   const fill = FILL[turnoutOf(recordBefore(league, home.id, game), homeGamesBefore(league, game), !!game.playoffRound)];
   const colors: [string, string] = game.neutral ? [home.colors[0], away.colors[0]] : own;
+  // a colour rush or blackout night is a themed night: the crowd wears the jersey the club does
+  const worn = game.neutral ? undefined : uniformFor(league, home, game);
+  const theme = worn && (worn.set === 'rush' || worn.set === 'blackout') ? worn.kit.jersey : undefined;
   if (roofed) {
+    const night = isNight(league, game);
     const out = outsideWeather(String(league.seed), home.abbrev, game.season, game.id, game.week);
     return {
       building,
       colors,
       seed: home.abbrev,
       look: {
-        night: isNight(league, game),
+        night,
+        theme,
         precip: out.precip,
         lying: out.lying,
         roof: weather.roof === 'open' ? 'open' : 'closed',
@@ -63,6 +69,7 @@ export function gameStadium(league: League, game: Game, weather: Weather): Stadi
     seed: home.abbrev,
     look: {
       night: !!weather.night,
+      theme,
       precip: weather.precip,
       lying: snowing || (weather.tempF <= 32 && game.week >= DEEP_WINTER),
       roof: 'none',

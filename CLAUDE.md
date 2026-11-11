@@ -532,7 +532,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   (`src/ui/stadiums/`, spec `docs/superpowers/specs/2026-11-11-stadiums-design.md`): one painter (`paintStadium`) draws
   a `Building` (a description in `buildings/`, one per club plus the five to come by season, `buildingFor`) onto a
   canvas (`StadiumPicture.tsx`) through the one camera the field uses (`stadiums/camera.ts`, `toFrame`); `gameLook.ts`
-  reads the game for it (night, weather, the roof, the crowd from the home club's record; under a roof the weather
+  reads the game for it (night, weather, the roof, the crowd from the home club's record, dressed in the club's jersey on its colour rush and blackout nights; under a roof the weather
   outside is show only, `outside.ts`). Screens only: nothing in the engine or the save. `npm run stadiums -- <group>`
   writes a review page of a division's buildings (`--time` times them). `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
   a giveaway, a flag or an injury; a player's line after a 20-yard gain; a card at the quarter, the half and the

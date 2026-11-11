@@ -86,6 +86,17 @@ describe('who turns up', () => {
     expect(crowdPalette(['#000000', '#101010']).every((c) => lum(c) > 0.2)).toBe(true);
     expect(crowdPalette(['#fb4f14', '#002244'])[0]).toBe('#fb4f14');
   });
+  it('dresses a themed night in the jersey the club wears: its colour, white for a whiteout, black for a blackout', () => {
+    const own = crowdPalette(['#101820', '#ffb612'], '#ffb612');
+    expect(own[0]).toBe('#ffb612');
+    expect(own[1]).toBe('#ffb612');
+    expect(crowdPalette(['#0b162a', '#c83803'], '#F8FAFC').slice(0, 2)).toEqual(['#F8FAFC', '#F8FAFC']);
+    expect(lum(crowdPalette(['#0b162a', '#c83803'], '#000000')[0])).toBeLessThan(0.3);
+    // a dark jersey still makes a crowd you can see
+    expect(lum(crowdPalette(['#203731', '#ffb612'], '#203731')[0])).toBeGreaterThan(0.2);
+    // the same five places either way, so a seat's draw picks the same slot
+    expect(own).toHaveLength(crowdPalette(['#101820', '#ffb612']).length);
+  });
 });
 
 describe('the stands', () => {

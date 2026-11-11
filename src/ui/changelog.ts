@@ -16,7 +16,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.30',
     date: '2026-11-11',
     title: 'A stadium for every club',
-    text: 'Each club plays in its own building, set in its own city: open bowls, domes and roofs that open. The crowd turns out for a winner and thins for a loser.',
+    text: 'Each club plays in its own building, set in its own city: open bowls, domes and roofs that open. The crowd turns out for a winner, thins for a loser and dresses alike under the lights.',
   },
   {
     version: '0.4.29',

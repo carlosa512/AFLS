@@ -89,7 +89,7 @@ export function paintBowl(s: Scene, b: Building, bowl: Bowl, seed: string) {
   const decks = b.decks ?? DECKS;
   const top = decks[decks.length - 1];
   const crowd = new Rng(`${seed}:crowd`);
-  const wear = crowdPalette(s.colors);
+  const wear = crowdPalette(s.colors, s.look.theme);
   const chair = b.chair ?? mix(b.seat, '#93a3b3', 0.3);
   const mood = new Map<number, number>();
   const lean = (key: number) => {

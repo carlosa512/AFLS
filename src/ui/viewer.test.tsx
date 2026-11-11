@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
-import type { PlayLogEntry } from '../engine/types';
+import type { Game, PlayLogEntry } from '../engine/types';
+import { uniformFor } from './uniform';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
@@ -1192,7 +1193,9 @@ describe('the building behind the field', () => {
     const html = withView('broadcast', viewer);
     expect(html).toContain('class="stadium-picture"');
     expect(html).toContain(`data-building="${buildingFor(home.abbrev, game.season, own).id}"`);
-    expect(html).toMatch(/data-look="(day|night):(none|rain|snow|mixed)(\+lying)?:(none|open|closed):0\.\d+"/);
+    expect(html).toMatch(
+      /data-look="(day|night)(@#[0-9a-fA-F]+)?:(none|rain|snow|mixed)(\+lying)?:(none|open|closed):0\.\d+"/,
+    );
     expect(html).not.toContain('class="stadium sky-');
   });
   it('keeps the picture and the play in one box', () => {
@@ -1216,6 +1219,17 @@ describe('the building behind the field', () => {
     const s = gameStadium(league, { ...game, neutral: true }, FAIR);
     expect(s.colors).toEqual([home.colors[0], away.colors[0]]);
     expect(s.building.id).toBe(buildingFor(home.abbrev, game.season, own).id);
+  });
+  it('dresses the crowd in the jersey of a colour rush or blackout night, and not for a classic or a plain game', () => {
+    const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;
+    const club = league.teams[open.homeId];
+    const theme = (uniform?: Game['uniform'], neutral = false) =>
+      gameStadium(league, { ...open, uniform, neutral }, FAIR).look.theme;
+    expect(theme('rush')).toBe(uniformFor(league, club, { ...open, uniform: 'rush' }).kit.jersey);
+    expect(theme('blackout')).toBe(uniformFor(league, club, { ...open, uniform: 'blackout' }).kit.jersey);
+    expect(theme('classic')).toBeUndefined();
+    expect(theme()).toBeUndefined();
+    expect(theme('rush', true)).toBeUndefined();
   });
   it('lets snow lie outdoors while it falls or in a freezing deep winter, and never of a building’s own accord', () => {
     const open = league.games.find((g) => league.teams[g.homeId].abbrev === 'BUF')!;

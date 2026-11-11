@@ -15,9 +15,18 @@ import { paintCanopy, paintSlab } from './roof';
 import { bowlOf, paintBowl, paintGround } from './stands';
 import type { Building, FeatureUse, Look, Scene } from './types';
 
-/** At night the land outside goes dark and the ground stays floodlit: it is the lit thing in the picture. */
-const NIGHT_LAND = 0.36;
-const NIGHT_GROUND = 0.94;
+/**
+ * At night the land outside goes dark and the ground stays floodlit: it is the lit thing in the picture. The stands
+ * are a shade under the field's light, and the dark comes down over the top of the picture, deepest at its edge.
+ */
+const NIGHT_LAND = 0.3;
+const NIGHT_GROUND = 0.86;
+const NIGHT_SKY: [number, number][] = [
+  [0.1, 0.16],
+  [0.2, 0.14],
+  [0.32, 0.12],
+  [0.46, 0.1],
+];
 
 export function paintStadium(pen: Pen, b: Building, colors: [string, string], look: Look, seed: string): void {
   const snowing = look.precip === 'snow' || look.precip === 'mixed';
@@ -81,5 +90,16 @@ export function paintStadium(pen: Pen, b: Building, colors: [string, string], lo
   if (b.roof?.kind === 'canopy') paintCanopy(s, b.roof, bowl.wall, bowl.light, bowl.open);
   if (b.roof?.kind === 'slab') paintSlab(s, b, b.roof, decks[decks.length - 1]);
   use('front');
+  if (look.night)
+    for (const [h, a] of NIGHT_SKY)
+      pen.poly(
+        [
+          [0, 0],
+          [FRAME.w, 0],
+          [FRAME.w, FRAME.h * h],
+          [0, FRAME.h * h],
+        ],
+        `rgba(6,10,26,${a})`,
+      );
   pen.flush();
 }

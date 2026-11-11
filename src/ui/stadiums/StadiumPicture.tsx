@@ -13,7 +13,7 @@ import { canvasPen } from './pen';
 const MAX_WIDTH = 1440;
 
 export const lookKey = ({ look }: StadiumView): string =>
-  `${look.night ? 'night' : 'day'}:${look.precip}${look.lying ? '+lying' : ''}:${look.roof}:${look.fill}`;
+  `${look.night ? 'night' : 'day'}${look.theme ? `@${look.theme}` : ''}:${look.precip}${look.lying ? '+lying' : ''}:${look.roof}:${look.fill}`;
 
 /** Everything the picture shows: the same key, the same picture. */
 const viewKey = (view: StadiumView): string =>
