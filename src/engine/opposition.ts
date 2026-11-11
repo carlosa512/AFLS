@@ -147,39 +147,31 @@ const PHRASES: Record<string, [[string, string], [string, string]]> = {
   ],
 };
 /**
- * A contest's two units in full, the offense's then the defense's, each with the short name a second mention uses.
- * In full so nobody has to work out which side of the ball "line" or "front" is on.
+ * A contest's two units in full, the offense's then the defense's, so nobody has to work out which side of the ball
+ * "line" or "front" is on.
  */
-const UNITS: Record<string, [[string, string], [string, string]]> = {
-  Trenches: [
-    ['offensive line', 'line'],
-    ['pass rush', 'rush'],
-  ],
-  'Run game': [
-    ['run game', 'run game'],
-    ['run defense', 'run defense'],
-  ],
-  'Pass game': [
-    ['passing game', 'passing game'],
-    ['coverage', 'coverage'],
-  ],
+const UNITS: Record<string, [string, string]> = {
+  Trenches: ['offensive line', 'pass rush'],
+  'Run game': ['run game', 'run defense'],
+  'Pass game': ['passing game', 'coverage'],
 };
 
 /** What a line of the card may read: the two units, how far apart our scouts have them, and each one's number. */
 export interface MatchupWords {
-  /** Our unit and theirs in full, then the short names. */
+  /** Our unit and theirs, in full. */
   ours: string;
   theirs: string;
-  our: string;
-  their: string;
   /** "ahead of", or "well ahead of" for a wide gap on film. */
   ahead: string;
   mine?: { label: string; place: string; rank: number };
   them?: { label: string; place: string; rank: number };
 }
 const at = (f: MatchupWords['mine']) => `${ordinal(f!.rank)} ${f!.place}`;
-const ranks = (c: MatchupWords) => `Our ${c.our} is ${at(c.mine)} and their ${c.their} is ${at(c.them)}.`;
-const theirRanks = (c: MatchupWords) => `Their ${c.their} is ${at(c.them)} and our ${c.our} is ${at(c.mine)}.`;
+/** A fact's phrase after "We" or "They": "gets a sack on…" becomes "get a sack on…". */
+const plural = (label: string) => label.replace(/^(\w+)s /, '$1 ');
+// The first sentence names the two units. After it they are "we" and "they": a card full of "our" and "their" drags.
+const ranks = (c: MatchupWords) => `We are ${at(c.mine)} and they are ${at(c.them)}.`;
+const theirRanks = (c: MatchupWords) => `They are ${at(c.them)} and we are ${at(c.mine)}.`;
 const forUs = (c: MatchupWords) => `Our scouts grade our ${c.ours} ${c.ahead} their ${c.theirs}`;
 const forThem = (c: MatchupWords) => `Our scouts grade their ${c.theirs} ${c.ahead} our ${c.ours}`;
 const level = (c: MatchupWords) => `Our scouts see nothing between our ${c.ours} and their ${c.theirs}.`;
@@ -196,15 +188,15 @@ export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
   ],
   usTheyAbove: [
     (c) =>
-      `${forUs(c)}. Their ${c.their} is performing above expectations this season. It ${c.them!.label}, ${ordinal(c.them!.rank)} in the league, and our ${c.our} is ${at(c.mine)}.`,
+      `${forUs(c)}. They are performing above expectations this season. They ${plural(c.them!.label)}, ${ordinal(c.them!.rank)} in the league, and we are ${at(c.mine)}.`,
     (c) =>
-      `${forUs(c)}. Their ${c.their} has performed above expectations this season. It ${c.them!.label}, which ranks ${ordinal(c.them!.rank)}, and our ${c.our} is ${at(c.mine)}.`,
+      `${forUs(c)}. They have performed above expectations this season. They ${plural(c.them!.label)}, which ranks ${ordinal(c.them!.rank)}, and we are ${at(c.mine)}.`,
   ],
   usWeBelow: [
     (c) =>
-      `${forUs(c)}. Our ${c.our} is performing below expectations this season, ranked ${at(c.mine)}. Their ${c.their} is ${at(c.them)}.`,
+      `${forUs(c)}. We are performing below expectations this season, ranked ${at(c.mine)}. They are ${at(c.them)}.`,
     (c) =>
-      `${forUs(c)}. Our ${c.our} has performed below expectations this season and sits ${at(c.mine)}. Their ${c.their} is ${at(c.them)}.`,
+      `${forUs(c)}. We have performed below expectations this season and sit ${at(c.mine)}. They are ${at(c.them)}.`,
   ],
   usClose: [
     (c) => `${forUs(c)}. The stats this season have it close. ${ranks(c)}`,
@@ -217,15 +209,15 @@ export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
   ],
   themWeAbove: [
     (c) =>
-      `${forThem(c)}. Our ${c.our} is performing above expectations this season. It ${c.mine!.label}, ${ordinal(c.mine!.rank)} in the league, and their ${c.their} is ${at(c.them)}.`,
+      `${forThem(c)}. We are performing above expectations this season. We ${plural(c.mine!.label)}, ${ordinal(c.mine!.rank)} in the league, and they are ${at(c.them)}.`,
     (c) =>
-      `${forThem(c)}. Our ${c.our} has performed above expectations this season. It ${c.mine!.label}, which ranks ${ordinal(c.mine!.rank)}, and their ${c.their} is ${at(c.them)}.`,
+      `${forThem(c)}. We have performed above expectations this season. We ${plural(c.mine!.label)}, which ranks ${ordinal(c.mine!.rank)}, and they are ${at(c.them)}.`,
   ],
   themTheyBelow: [
     (c) =>
-      `${forThem(c)}. Their ${c.their} is performing below expectations this season, ranked ${at(c.them)}. Our ${c.our} is ${at(c.mine)}.`,
+      `${forThem(c)}. They are performing below expectations this season, ranked ${at(c.them)}. We are ${at(c.mine)}.`,
     (c) =>
-      `${forThem(c)}. Their ${c.their} has performed below expectations this season and sits ${at(c.them)}. Our ${c.our} is ${at(c.mine)}.`,
+      `${forThem(c)}. They have performed below expectations this season and sit ${at(c.them)}. We are ${at(c.mine)}.`,
   ],
   themClose: [
     (c) => `${forThem(c)}. The stats this season have it close. ${theirRanks(c)}`,
@@ -233,12 +225,12 @@ export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
   ],
   them: [(c) => `${forThem(c)}.`],
   levelUs: [
-    (c) => `${level(c)} The stats this season lean our way. ${ranks(c)}`,
     (c) => `${level(c)} The stats this season favor us. ${ranks(c)}`,
+    (c) => `${level(c)} The stats this season lean toward us. ${ranks(c)}`,
   ],
   levelThem: [
-    (c) => `${level(c)} The stats this season lean their way. ${theirRanks(c)}`,
     (c) => `${level(c)} The stats this season favor them. ${theirRanks(c)}`,
+    (c) => `${level(c)} The stats this season lean toward them. ${theirRanks(c)}`,
   ],
   level: [(c) => level(c)],
 };
@@ -319,17 +311,12 @@ export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
             : 'even';
     const label = { us: 'Edge: us', them: 'Edge: them', even: 'Even', split: 'Split' }[tag];
     // Our unit first, whichever side of the ball it plays, and each unit named in full.
-    const [offUnit, defUnit] = UNITS[matchup.title] ?? [
-      ['offense', 'offense'],
-      ['defense', 'defense'],
-    ];
+    const [offUnit, defUnit] = UNITS[matchup.title] ?? ['offense', 'defense'];
     const [mine, theirs] = side === 'attack' ? [offUnit, defUnit] : [defUnit, offUnit];
-    const heading = `Our ${mine[0]} vs their ${theirs[0]}`;
+    const heading = `Our ${mine} vs their ${theirs}`;
     const words: MatchupWords = {
-      ours: mine[0],
-      theirs: theirs[0],
-      our: mine[1],
-      their: theirs[1],
+      ours: mine,
+      theirs,
       ahead: clear ? 'well ahead of' : 'ahead of',
       ...(mineFact?.rank && theirFact?.rank
         ? {

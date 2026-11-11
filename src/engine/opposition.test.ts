@@ -98,7 +98,7 @@ describe('focused opposition briefing', () => {
     expect(focus.tag).toBe('us');
     expect(focus.heading).toBe('Our passing game vs their coverage');
     expect(focus.why).toContain('Our scouts see nothing between our passing game and their coverage.');
-    expect(focus.why).toContain('The stats this season lean our way.');
+    expect(focus.why).toMatch(/The stats this season (favor|lean toward) us\./);
     expect(focus.ours!.label).toBe('gains 11.0 yards an attempt');
   });
   it('tags a matchup Split when the film favours us and the stats favour them, and never makes the scouts wrong', () => {
@@ -114,8 +114,8 @@ describe('focused opposition briefing', () => {
     expect(line.tag).toBe('split');
     expect(line.label).toBe('Split');
     expect(line.lean).toBe('them');
-    expect(line.why).toMatch(/Their rush (is performing|has performed) above expectations this season\./);
-    expect(line.why).toContain('It gets a sack on');
+    expect(line.why).toMatch(/They (are performing|have performed) above expectations this season\./);
+    expect(line.why).toContain('They get a sack on');
   });
   it('puts our unit first on the other side of the ball, and says when it is below expectations', () => {
     const l = setup();
@@ -131,17 +131,15 @@ describe('focused opposition briefing', () => {
     expect(rush.tag).toBe('us');
     expect(rush.ours!.teamId).toBe(0);
     expect(rush.why).toMatch(
-      /Our rush (is performing|has performed) below expectations this season(, ranked| and sits) 32nd in sacks\./,
+      /We (are performing|have performed) below expectations this season(, ranked| and sit) 32nd in sacks\./,
     );
-    expect(rush.why).toMatch(/Their line is \d+(st|nd|rd|th) at preventing sacks\.$/);
+    expect(rush.why).toMatch(/They are \d+(st|nd|rd|th) at preventing sacks\.$/);
   });
   it('keeps every wording to the rules: the stats this season, no contradiction, no colon or semicolon', () => {
     const fact = (label: string, place: string, rank: number) => ({ label, place, rank });
     const c: MatchupWords = {
       ours: 'offensive line',
       theirs: 'pass rush',
-      our: 'line',
-      their: 'rush',
       ahead: 'ahead of',
       mine: fact('allows a sack on 5.1% of dropbacks', 'at preventing sacks', 15),
       them: fact('gets a sack on 10.5% of dropbacks', 'in sacks', 2),
@@ -152,6 +150,11 @@ describe('focused opposition briefing', () => {
       expect(why).not.toMatch(/say otherwise|should win|On talent|numbers|;|:/);
       expect(why).toMatch(/^Our scouts /);
       expect(why).not.toMatch(/undefined|NaN/);
+    }
+    // The units are named once, in the first sentence. After it they are "we" and "they".
+    for (const why of all) {
+      const [, ...rest] = why.split(/(?<=\.) /);
+      expect(rest.join(' ')).not.toMatch(/\b(our|their)\b/i);
     }
     // Wherever the stats are spoken of, they are "the stats this season".
     for (const why of all.filter((w) => /stats/.test(w))) expect(why).toMatch(/[Tt]he stats this season/);
