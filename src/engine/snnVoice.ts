@@ -1030,6 +1030,20 @@ const OWN_HEAD: GL[] = [
 ];
 const PLAIN: GameFacts['angle'][] = ['result', 'rout', 'overtime'];
 
+/** What a playoff result means: who goes on, to what, and who is out. */
+function playoffLine(s: GameSheet): string {
+  switch (s.g.playoffRound) {
+    case 'WC':
+      return `${c(s.W)} go on to the divisional round, and ${c(s.L)} are out.`;
+    case 'DIV':
+      return `${c(s.W)} go on to their conference final, and ${c(s.L)} are out.`;
+    case 'CONF':
+      return `${c(s.W)} will play for the championship, and ${c(s.L)} are out.`;
+    default:
+      return `${c(s.W)} are the league's champions.`;
+  }
+}
+
 /**
  * A story's paragraphs: what happened and why as one, what it means and what is next as the other. A sentence to a
  * paragraph reads as a list of points; a story is prose. With nothing for one of the two, the first sentence stands
@@ -1101,7 +1115,10 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
   // What it means: where the story's club stands, and one callback. A callback said before is left out.
   const meanId = s.ws === s.ls ? s.W : focus === s.L ? s.L : s.W;
   const form = stableHash(`${at.editionId}:${cand.key}:form`);
-  const stand = standingLine(l, s.week, meanId, form, s.ws === s.ls ? null : meanId === s.W);
+  // In the playoffs a record no longer moves: what the result does is send one club on and the other home.
+  const stand = s.g.playoffRound
+    ? playoffLine(s)
+    : standingLine(l, s.week, meanId, form, s.ws === s.ls ? null : meanId === s.W);
   const back = callback(s);
   const means = [stand, back ? pickLine(l, [{ text: () => back }], s, at, cand.key, 'callback', true) : '']
     .filter(Boolean)
@@ -1310,7 +1327,7 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
             ? `had ${w(tot.sacks)} ${plural(tot.sacks, 'sack')} and ${tot.tackles ?? 0} tackles`
             : `had ${tot.tackles ?? 0} tackles`;
   const first = [
-    `${C(id)} lost ${POSITION[p.position] ?? 'player'} ${M(p.id)} to ${injuryPhrase(hurt.type)} in the ${QUARTER[hurt.quarter] ?? 'fourth'} quarter of their ${result} ${C(opp)}. He will miss the rest of the season.`,
+    `${C(id)} lost ${POSITION[p.position] ?? 'player'} ${M(p.id)} to ${injuryPhrase(hurt.type)} in the ${QUARTER[hurt.quarter] ?? 'fourth'} quarter of their ${result} ${C(opp)}, and he will miss the rest of the season.`,
   ];
   const award = recentAward(l, p.id, g.week);
   first.push(`${M(p.id)} ${did} this season.${award ? ` He was ${award}.` : ''}`);
@@ -1328,7 +1345,7 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
     clubId: id,
     kicker: standingOf(l, g.week, id).division,
     headline: `${l.teams[id].name} lose ${p.lastName} for the season`,
-    summary: sentencesOf(paragraphs[0]).slice(0, 2).join(' '),
+    summary: sentencesOf(paragraphs[0])[0],
     picture: { playerId: p.id, gameId: g.id },
     cast: [p.id],
     numbers:
