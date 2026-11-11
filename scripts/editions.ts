@@ -2,6 +2,7 @@
  * A read-through of a season of SNN's weekly editions, for the owner to judge the words (a preview, not a check).
  *
  *   npm run editions [-- seed] [--weeks n]
+ *   npm run editions -- --seasons n [seed]   the counts for SNN's Column and your club's coverage (`editionCounts.ts`)
  *
  * Builds a league, plays the regular season and writes each week's edition to `.check/editions.md`: every story as its
  * kicker, headline, numbers, paragraphs and quote, marked LEAD, YOUR CLUB or TILE. At the top: every writing rule a
@@ -21,6 +22,15 @@ const weeksAt = args.indexOf('--weeks');
 const weeks = weeksAt >= 0 ? Number(args[weeksAt + 1]) : 18;
 // The first bare word is the seed (`--weeks`'s own number is not one).
 const seed = args.find((a, i) => !a.startsWith('--') && (weeksAt < 0 || i !== weeksAt + 1)) ?? 'editions';
+
+// `--seasons n`: the counts the owner sets the Column's bars from, in place of a season's words.
+const seasonsAt = args.indexOf('--seasons');
+if (seasonsAt >= 0) {
+  const { runCounts } = await import('./editionCounts');
+  const bare = args.find((a, i) => !a.startsWith('--') && i !== seasonsAt + 1 && (weeksAt < 0 || i !== weeksAt + 1));
+  runCounts(bare ?? 'counts', Number(args[seasonsAt + 1]) || 5);
+  process.exit(0);
+}
 
 const league = createLeague({ seed });
 const user = league.teams[league.userTeamId];

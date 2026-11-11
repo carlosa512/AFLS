@@ -60,7 +60,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `docs/UI.md`'s "Words on a screen". Run it after adding or changing text in `src/ui/`.
 - `npm run editions [-- seed] [--weeks n]` — a preview, not a check: plays a season and writes every SNN weekly edition
   to `.check/editions.md` (rule breaks at the top, then each week's stories as printed) for reading the words. Run it
-  after changing `snnWeek.ts`, `snnStory.ts`, `snnVoice.ts` or `storyRules.ts`; `npm run screens -- --edition` shoots one.
+  after changing `snnWeek.ts`, `snnStory.ts`, `snnVoice.ts` or `storyRules.ts`; `npm run screens -- --edition` shoots one. `--seasons n` plays
+  seasons and counts instead how often SNN's Column and your club's coverage would fire (by rung, about your club, the
+  conversation's bars): the figures the owner sets `FORM` (`slump.ts`) and `LADDER` (`snnColumn.ts`) from.
 - `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
   enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
   for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
