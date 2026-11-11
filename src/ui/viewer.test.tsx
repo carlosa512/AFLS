@@ -8,7 +8,7 @@ import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { NavContext, type Nav } from './nav';
 import { allSpeed, GameViewer, playLabel } from './screens/GameViewer';
-import { fieldTransform, handoverFor, TopDownField, toScreen, type View } from './screens/TopDownField';
+import { callEdge, fieldTransform, handoverFor, TopDownField, toScreen, type View } from './screens/TopDownField';
 import { FIELD_W } from '../engine/field/ballPath';
 import { stadiumSpot } from './stage/ends';
 import { Field, project } from './screens/BroadcastField';
@@ -749,6 +749,26 @@ describe('All-22 switching ends', () => {
     const [bx, by] = toScreen(view('wide', 0, true), 30, 10);
     expect([bx, by]).toEqual([100 - ax, FIELD_W - ay]);
     expect(fieldTransform(view('wide', 0, true))).toBe(fieldTransform(view('wide', 0, false)));
+  });
+
+  it('keeps an injury’s call off the man down, and off his way to his own sideline', () => {
+    const wide = view('wide', 0, false);
+    // Unswitched, the wide screen draws the home sideline (y = 0) along its foot.
+    expect(toScreen(wide, 50, 2)[1]).toBeGreaterThan(FIELD_W / 2);
+    // Down near the foot of the screen: the call goes to the top; near the top: it stays at the foot.
+    expect(callEdge(wide, { y: 6, home: false })).toBe('top');
+    expect(callEdge(wide, { y: FIELD_W - 6, home: true })).toBe('bottom');
+    // In the middle of the field: away from his own sideline, where the trainers come from and he leaves by.
+    expect(callEdge(wide, { y: FIELD_W / 2, home: true })).toBe('top');
+    expect(callEdge(wide, { y: FIELD_W / 2, home: false })).toBe('bottom');
+    // With the ends switched the sidelines are the other way up.
+    const turned = view('wide', 0, true);
+    expect(callEdge(turned, { y: FIELD_W / 2, home: true })).toBe('bottom');
+    expect(callEdge(turned, { y: 6, home: false })).toBe('bottom');
+    // A phone's window follows the man, and a call with nobody placed has nothing to avoid.
+    expect(callEdge(view('upright', 0, false), { y: 6, home: false })).toBe('bottom');
+    expect(callEdge(wide, undefined)).toBe('bottom');
+    expect(readFileSync('src/styles.css', 'utf8')).toMatch(/\.td-call\.td-moment\[data-at='top'\] \{\s*top:/);
   });
 
   it('on a phone leaves the men attacking up the screen and turns the paint under them', () => {

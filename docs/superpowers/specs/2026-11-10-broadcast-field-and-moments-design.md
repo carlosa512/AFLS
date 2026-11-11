@@ -177,7 +177,9 @@ when that side is at home, the crowd brightens.
 **When they show.** A moment appears when its play's result has been shown and lasts through the hold before the
 next play. Broadcast takes All-22's hold after a big play (`holdAfter`) so a banner can be read; an ordinary play's
 hold does not change. At 4× and 8×, banners show for a shorter beat, never under 0.8 seconds (an injury's holds a
-second longer at 1× and never under 1.8 seconds at any speed: it is the one a viewer mustn't miss), and the player's line and the
+second longer at 1× and never under 1.8 seconds at any speed: it is the one a viewer mustn't miss; All-22, which
+stages the stoppage itself, holds its call the same 1.8 seconds when nothing is staged, and sets it along the edge of
+the field away from the man down and his way off), and the player's line and the
 quarter card are skipped. Plays the highlight level skipped past make no moment: only the play that is
 shown does.
 

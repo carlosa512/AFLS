@@ -2109,6 +2109,11 @@ select {
   display: flex;
   white-space: normal;
 }
+/* An injury's call moves to the far edge when the man down, or his way off, is under the near one (`callEdge`). */
+.td-call.td-moment[data-at='top'] {
+  top: 7%;
+  bottom: auto;
+}
 /* A score or a takeaway: that side's bench hops, and at home the crowd jumps with it. */
 @keyframes bf-hop {
   0%,

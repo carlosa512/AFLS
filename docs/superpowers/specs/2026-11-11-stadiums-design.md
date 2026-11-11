@@ -186,7 +186,9 @@ carries the play (the field's lines, the ball, banners: still SVG, through the s
 10,000 seats and a few thousand shapes outside; the prototype paints one in about 130 ms on a desktop.
 
 - It is painted when the screen opens and again only when what it shows changes: the quarter's weather, or the roof
-  opening or closing. Never while a play is running.
+  opening or closing. Never while a play is running. The pregame card's field and the play's are different
+  components, so the picture painted under the card is handed on to the play's canvases at the kickoff rather than
+  painted a second time as the first play starts (0.4.31; before it, every game opened painted its building twice).
 - The canvas is sized to the device, to at most 1440 pixels wide.
 - Budget: one painting in 300 ms or less on a mid-range phone. If a building misses it, the land outside is thinned
   before the crowd is.

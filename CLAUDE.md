@@ -534,12 +534,15 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   a `Building` (a description in `buildings/`, one per club plus the five to come by season, `buildingFor`) onto a
   canvas (`StadiumPicture.tsx`) through the one camera the field uses (`stadiums/camera.ts`, `toFrame`); in a game the
   people are painted on a few canvases of their own over it (`layers.ts`, `crowdPen`: what is drawn after a person
-  hides him there as it would on one canvas), so the crowd jumps for a home score while the building stands still; `gameLook.ts`
+  hides him there as it would on one canvas), so the crowd jumps for a home score while the building stands still;
+  the picture painted under the pregame card is handed to the play's canvases at the kickoff (`kept` in
+  `StadiumPicture.tsx`), never painted twice; `gameLook.ts`
   reads the game for it (night, weather, the roof, the crowd from the home club's record, dressed in the club's jersey on its colour rush and blackout nights; under a roof the weather
   outside is show only, `outside.ts`). Screens only: nothing in the engine or the save. `npm run stadiums -- <group>`
   writes a review page of a division's buildings (`--time` times them). `ui/moments.ts` says what a play gives the screen to show once its result is told (a banner for a score,
   a giveaway, a flag or an injury, the injury's held a beat longer and never under `INJURY_FLOOR` however fast the game
-  is played; a player's line after a 20-yard gain; a card at the quarter, the half and the final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
+  is played (All-22 stages its own, holds the same floor when no stoppage is staged, and puts the call along the edge
+  away from the man down: `callEdge` in `TopDownField.tsx`); a player's line after a 20-yard gain; a card at the quarter, the half and the final) and `GameMoments.tsx` draws it over either view; a live game waits at the half (`live.peek` tells it the
   half has come). Before the kickoff both screens show `PregameCard.tsx` over an idle field (`IdleField`): a live
   game starts waiting (`LiveSession.kicked`, `live.kickoff`) and takes who is out once, as it starts (`pregame.ts`,
   `LiveSession.out`: the league moves on when the game is recorded, so a replay has no list). Spec:
