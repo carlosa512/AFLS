@@ -11,12 +11,13 @@ import { snnRumor } from './meetings/mail';
 import { divisionLeadChange } from './news';
 import type { SpeakEvent } from './relationships';
 import { reportableRumors, reportableTrades, type ReportableTrade } from './tradeNews';
-import { TRADE_DEADLINE_WEEK } from './trade/rules';
+import { isDeadlineDay, TRADE_DEADLINE_WEEK } from './trade/rules';
 import { gameOfWeek } from './season/gameOfWeek';
 import { computeRecords, divisionStandings } from './season/standings';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
 import { employed } from './employment';
 import { writeStory } from './snnVoice';
+import type { Draft } from './senders';
 import type { Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
@@ -288,7 +289,10 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
     });
 
   if (week <= TRADE_DEADLINE_WEEK) {
-    for (const t of reportableTrades(l, week, week)) {
+    // On deadline day (the last trading week is played) the day's own deals are dated the week to come: they are
+    // this edition's news too, and SNN files one mail at that step, not an edition and a deadline story.
+    const lastWeek = week === TRADE_DEADLINE_WEEK && isDeadlineDay(l) ? week + 1 : week;
+    for (const t of reportableTrades(l, week, lastWeek)) {
       if (has(`trade:${t.key}`)) continue;
       // A club that has already sent a player away this season for nothing but picks is selling again.
       const earlierSales = (l.market?.history ?? []).filter(
@@ -568,7 +572,11 @@ export function buildEdition(l: League, week: number): Edition | null {
     ...(club ? { club } : {}),
     tiles,
   };
-  if (!round) {
+  if (round) {
+    // The round's results, and who meets next once the next round is drawn.
+    const next = l.games.filter((g) => g.season === l.season && g.week === week + 1 && g.playoffRound && !g.result);
+    edition.bracket = { results: scores, next: next.map((g) => ({ homeId: g.homeId, awayId: g.awayId })) };
+  } else {
     if (user !== null) edition.race = raceOf(l, week, user);
     const records = computeRecords(through(l, week));
     const best = gameOfWeek(l, week + 1, records);
@@ -582,4 +590,49 @@ export function buildEdition(l: League, week: number): Edition | null {
       };
   }
   return edition;
+}
+
+/** A headline cut at a word, for the mail's subject. */
+const short = (text: string, max = 48) => {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max + 1);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 12)).replace(/[,.]$/, '')}…`;
+};
+
+/**
+ * SNN's edition for the latest completed week, as mail: filed at its moment only (a long advance gets one edition, not
+ * a backlog), once. Its body holds every paragraph it printed, for search and so the next edition steps around them;
+ * `covered` names what it told, under its own keys and the ids of the mails it replaces.
+ */
+export function editionMail(l: League): Draft[] {
+  if (!['regular', 'playoffs', 'complete'].includes(l.phase)) return [];
+  const played = l.games.filter((g) => g.season === l.season && g.result);
+  const week = Math.max(0, ...played.map((g) => g.week));
+  if (!week) return [];
+  const id = editionId(l, week);
+  if (toldKeys(l).has(id)) return [];
+  const edition = buildEdition(l, week);
+  if (!edition) return [];
+  const stories = [edition.lead, ...(edition.club ? [edition.club] : []), ...edition.tiles];
+  const round = gamesInWeek(l, week).find((g) => g.season === l.season)?.playoffRound;
+  return [
+    {
+      id,
+      season: l.season,
+      phase: round ? 'playoffs' : 'regular',
+      week,
+      from: SNN,
+      category: 'league',
+      subject: [
+        edition.label,
+        short(edition.lead.headline),
+        ...(edition.club ? [short(edition.club.headline)] : []),
+      ].join(' · '),
+      body: stories.flatMap((s) => [...s.paragraphs, ...(s.quote ? [s.quote.text] : [])]).join('\n\n'),
+      edition,
+      covered: [...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? [])]))],
+      // Each story carries its own buttons.
+      actions: [],
+    },
+  ];
 }

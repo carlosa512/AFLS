@@ -381,6 +381,9 @@ export function migrateLeague(league: League): League | null {
     toV93(league);
     league.version = 93;
   }
+  // v94: SNN's weekly edition (`InboxMessage.edition`). Optional, filed with the next completed week: nothing to
+  // rewrite, and the separate SNN mails an old save holds still open as they were.
+  if (league.version < 94) league.version = 94;
   return league;
 }
 

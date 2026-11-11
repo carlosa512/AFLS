@@ -3,7 +3,7 @@ import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { mentoringWeek } from './mentoring';
 import { noteDeparture, speaksOut } from './relationships';
-import { recapAside } from './lockerMail';
+import { recapAside, speakFacts } from './lockerMail';
 import type { League, Player } from './types';
 import { setTeam } from './roster';
 
@@ -36,9 +36,21 @@ describe('locker room letters', () => {
     const quiet = ours.find((p) => p !== loud)!;
     quiet.traits = { ...quiet.traits, controversy: 5 };
     noteDeparture(l, quiet, l.userTeamId, 'cut');
+    // In season it is a story of SNN's weekly edition (`snnWeek.ts`), from these facts, and no mail of its own.
+    const id = `speak:${l.season}:${loud!.id}:traded`;
+    const facts = speakFacts(l, new Set());
+    expect(facts.filter((f) => f.playerId === loud!.id)).toEqual([
+      { id, playerId: loud!.id, teamId: l.userTeamId, kind: 'traded' },
+    ]);
+    expect(facts.some((f) => f.playerId === quiet.id)).toBe(false);
+    expect(speakFacts(l, new Set([id])).some((f) => f.id === id)).toBe(false);
+    deliverMail(l);
+    expect(mail(l, id)).toHaveLength(0);
+    // Out of season SNN still carries it by itself, once.
+    l.phase = 'resign';
     deliverMail(l);
     deliverMail(l);
-    const m = mail(l, `speak:${l.season}:${loud!.id}:traded`);
+    const m = mail(l, id);
     expect(m).toHaveLength(1);
     expect(m[0].from).toBe('SNN league desk');
     expect(m[0].body).toContain(loud!.lastName);

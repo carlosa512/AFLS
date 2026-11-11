@@ -71,6 +71,8 @@ export function mentorFacts(
 
 /** SNN on a player speaking out: ours, or one who left us in the last three seasons. Neutral reporting, his words. */
 function speakMail(league: League, have: Set<string>): Draft[] {
+  // In season SNN's weekly edition tells it (`snnWeek.ts`).
+  if (league.phase === 'regular' || league.phase === 'playoffs') return [];
   const user = league.userTeamId;
   const out: Draft[] = [];
   for (const p of Object.values(league.players)) {
@@ -223,31 +225,7 @@ function treeMail(league: League, have: Set<string>): Draft[] {
       );
   }
   // The week before: a mentor and his disciple face each other as head coaches for the first time.
-  if (league.phase === 'regular') {
-    const headOf = (teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
-    for (const g of league.games) {
-      if (g.week !== league.week || g.result || g.season !== league.season) continue;
-      const [a, b] = [headOf(g.homeId), headOf(g.awayId)];
-      if (!a || !b) continue;
-      const pair = linksOf(league, b.id).some((k) => k.mentorId === a.id && k.as === 'headCoach')
-        ? [a, b]
-        : linksOf(league, a.id).some((k) => k.mentorId === b.id && k.as === 'headCoach')
-          ? [b, a]
-          : null;
-      if (!pair) continue;
-      const [mentor, disciple] = pair;
-      const id = `tree:meet:${mentor.id}:${disciple.id}`;
-      if (have.has(id)) continue;
-      out.push(
-        snn(
-          league,
-          id,
-          `${mentor.lastName} meets his old assistant`,
-          `${fullName(mentor)} faces ${fullName(disciple)}, who worked under him for years, for the first time as rival head coaches this week.`,
-        ),
-      );
-    }
-  }
+  // A coach facing his mentor is a story of that week's edition in season (`mentorFacts`, `snnWeek.ts`).
   return out;
 }
 

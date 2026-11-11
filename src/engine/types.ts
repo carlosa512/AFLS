@@ -1871,6 +1871,8 @@ export interface EditionStory {
   paragraphs: string[];
   quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
   links: InboxAction[];
+  /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */
+  covers?: string[];
 }
 
 /** SNN's weekly edition (`snnWeek.ts`): a front page whose tiles open into stories. */

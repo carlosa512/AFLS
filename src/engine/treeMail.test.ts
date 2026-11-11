@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
+import { mentorFacts } from './lockerMail';
 import { liveTrees } from './trees';
 import type { League } from './types';
 
-const BANNED = /marble|\btraits?\b|z-score/i;
 const mail = (l: League, prefix: string) => (l.inbox ?? []).filter((m) => m.id.startsWith(prefix));
 
 describe('tree news', () => {
-  it('SNN marks the first meeting of a mentor and his disciple as head coaches, once', () => {
+  it('SNN has the first meeting of a mentor and his disciple as head coaches, once, for its weekly edition', () => {
     const l = createLeague({ seed: 'tree-news' });
     l.phase = 'regular';
     const t = liveTrees(l).find(
@@ -20,12 +20,15 @@ describe('tree news', () => {
     const g = l.games.find((x) => x.week === l.week && !x.result)!;
     g.homeId = root.teamId!;
     g.awayId = d.teamId!;
+    const id = `tree:meet:${root.id}:${d.id}`;
+    const facts = mentorFacts(l, l.week, new Set());
+    expect(facts.filter((f) => f.id === id)).toEqual([
+      { id, mentorId: root.id, discipleId: d.id, homeId: root.teamId, awayId: d.teamId },
+    ]);
+    expect(mentorFacts(l, l.week, new Set([id])).some((f) => f.id === id)).toBe(false);
+    // In season the weekly edition tells it (`snnWeek.ts`): no mail of its own.
     deliverMail(l);
-    deliverMail(l);
-    const m = mail(l, `tree:meet:${root.id}:${d.id}`);
-    expect(m).toHaveLength(1);
-    expect(m[0].from).toBe('SNN league desk');
-    expect(m[0].body).not.toMatch(BANNED);
+    expect(mail(l, id)).toHaveLength(0);
   });
 
   it('SNN marks a tree born the season his second man is established in charge, and not for a founding tree', () => {

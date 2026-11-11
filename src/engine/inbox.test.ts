@@ -155,7 +155,7 @@ describe('inbox', () => {
       medical: ['injury', 'cleared', 'covering', 'shortHanded'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
-      league: ['race', 'news', 'leadership', 'gazette', 'locker', 'rumor'],
+      league: ['race', 'news', 'leadership', 'gazette', 'locker', 'rumor', 'edition'],
       staff: [
         'leadership',
         'gmOffer',
@@ -1851,7 +1851,8 @@ describe('GM notes on the front-office mail', () => {
   });
   it('gives a lone hire story one note', () => {
     const l = createLeague({ seed: 'gm-notes-lone' });
-    const [gm] = hire(l, 1, 1, 'regular');
+    // Out of season: another club's in-season change is a story of the weekly edition, not a mail of its own.
+    const [gm] = hire(l, 1, 1, 'resign');
     const [m] = leadershipMail(l, new Set());
     expect(m.gmNotes).toEqual([{ gmId: gm.id, line: reputation(l, gm) }]);
   });

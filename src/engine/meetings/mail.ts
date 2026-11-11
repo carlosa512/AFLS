@@ -320,7 +320,8 @@ function heldLetters(league: League, have: Set<string>): Draft[] {
 /** The meetings' own letters for your club. */
 export function meetingMail(league: League, have: Set<string>): Draft[] {
   if (!employed(league)) return [];
-  const out = [...heldLetters(league, have), ...rumorMail(league, have)];
+  // SNN's rumor on a coach losing his room is a story of the weekly edition now (`snnRumor`, read by `snnWeek.ts`).
+  const out = [...heldLetters(league, have)];
   for (const d of out) have.add(d.id);
   return out;
 }
@@ -628,26 +629,12 @@ export const yearParagraphFor = (league: League): string => {
 
 // ───────── SNN: a rumor for a coach clearly losing his room ─────────
 
-/** SNN's item on it: rare by design (a word worn thin and a losing run), once a coach a season. */
-function rumorMail(league: League, have: Set<string>): Draft[] {
-  const r = snnRumor(league, have);
-  if (!r) return [];
-  return [
-    {
-      ...base(league),
-      id: r.key,
-      from: 'SNN league desk',
-      category: 'league',
-      subject: 'Around the league: a room slipping away',
-      body: r.text,
-      actions: [{ kind: 'gms' }],
-    },
-  ];
-}
-
 const RUN = ['', '', '', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-/** One club this week whose head coach's word has worn thin while it loses, not yet rumored this season. */
+/**
+ * One club this week whose head coach's word has worn thin while it loses, not yet rumored this season: rare by design,
+ * once a coach a season. SNN's weekly edition tells it.
+ */
 export function snnRumor(
   league: League,
   told: Set<string>,

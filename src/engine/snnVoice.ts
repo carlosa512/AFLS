@@ -1706,6 +1706,10 @@ function mentorStory(l: League, cand: Candidate, at: Wording): EditionStory {
 
 /** One story from one candidate. Every sentence it uses goes onto `at.said`, so an edition never repeats itself. */
 export function writeStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions = {}): EditionStory {
+  const story = write(l, cand, at, opt);
+  return cand.covers?.length ? { ...story, covers: cand.covers } : story;
+}
+function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): EditionStory {
   if (cand.kind === 'division') return divisionStory(l, cand, at);
   if (cand.kind === 'trade') return tradeStory(l, cand, at);
   if (cand.kind === 'rumor') return rumorStory(l, cand, at);

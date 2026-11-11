@@ -169,13 +169,25 @@ export function divisionLeadChange(
   return { leaderId: after[0].teamId, formerId: before[0].teamId, division, before, after };
 }
 
-/** One chosen headline for the latest completed week; never backfill a skipped weekly feed. */
+/**
+ * Deadline day's trade story: it files at its own moment on the calendar, beside the weekly edition (`snnWeek.ts`)
+ * that carries the rest of the week's news.
+ */
+export function deadlineDayNews(l: League, have: Set<string>): Draft[] {
+  if (l.phase !== 'regular' || !isDeadlineDay(l)) return [];
+  if ([...have].some((id) => id.startsWith(tradeNewsSlot(l, l.week)))) return [];
+  return keyTradeNews(l, l.week);
+}
+
+/**
+ * One chosen headline for the latest completed week; never backfill a skipped weekly feed. `deliverMail` no longer
+ * files the weekly headline (the edition tells the week): this stays as the statement of what is reportable, which
+ * `news.test.ts` holds and the edition's candidates are drawn by.
+ */
 export function leagueNews(l: League, have: Set<string>): Draft[] {
   if (!['regular', 'playoffs', 'complete'].includes(l.phase)) return [];
-  if (isDeadlineDay(l) && ![...have].some((id) => id.startsWith(tradeNewsSlot(l, l.week)))) {
-    const deadline = keyTradeNews(l, l.week);
-    if (deadline.length) return deadline;
-  }
+  const deadline = deadlineDayNews(l, have);
+  if (deadline.length) return deadline;
   const completed = games(l).filter((g) => g.result);
   const week = Math.max(0, ...completed.map((g) => g.week));
   if (!week || games(l).some((g) => g.week === week && !g.result)) return [];

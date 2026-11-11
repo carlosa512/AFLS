@@ -53,7 +53,8 @@ import {
   teamCoaches,
   type Chair,
 } from './coaching';
-import { leagueNews, rookieImpactMail, matchupStakes } from './news';
+import { rookieImpactMail, matchupStakes } from './news';
+import { editionMail } from './snnWeek';
 import { capSpace } from './finance/cap';
 import {
   concussionCount,
@@ -775,6 +776,7 @@ export type MailSubject =
   | { kind: 'frontOffice'; season: number }
   | { kind: 'advice'; season: number; moment: string }
   | { kind: 'gazette'; season: number }
+  | { kind: 'edition'; season: number; week: number }
   | { kind: 'faWrap'; season: number }
   // SNN when free agency opens: who other clubs kept in the re-sign window (offMarketMail.ts).
   | { kind: 'offMarket'; season: number }
@@ -837,6 +839,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gazette') return { kind: 'gazette', season };
+  // SNN's weekly edition: `snn:{season}:w{week}`, or `snn:{season}:p{round}` in the playoffs.
+  if (category === 'snn') return { kind: 'edition', season, week: m.week };
   if (category === 'offMarket') return { kind: 'offMarket', season };
   if (category === 'coach') return { kind: 'coachWeek', season, clock: Number(a) };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
@@ -2878,11 +2882,8 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       ['warning', 'coachChange', 'gmExtended'].includes(e.kind)
     )
       continue;
-    if (!inside && !personal && e.date.phase === 'regular') {
-      const key = `${e.date.season}:${e.date.week}`;
-      weeks.set(key, [...(weeks.get(key) ?? []), e]);
-      continue;
-    }
+    // Another club's in-season change is a story of that week's edition (`newsCandidates` in `snnWeek.ts`).
+    if (!inside && !personal && e.date.phase === 'regular') continue;
     if (!inside && !personal && OFFSEASON_PHASES.includes(e.date.phase)) {
       const key = `${e.date.season}:${e.date.phase}`;
       steps.set(key, [...(steps.get(key) ?? []), e]);
@@ -3106,7 +3107,8 @@ export function deliverMail(league: League): void {
       fresh.push(...marketRecapMail(league, have));
   }
   fresh.push(
-    ...leagueNews(league, have),
+    // SNN in season: the weekly edition. Deadline day's deals ride in the edition of the week just played.
+    ...editionMail(league),
     ...gazetteMail(league, have),
     ...(employed(league) ? rookieImpactMail(league, draftClassOf(league, league.season), director(league)) : []),
     ...leadershipMail(league, have),
