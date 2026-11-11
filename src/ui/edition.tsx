@@ -200,6 +200,14 @@ function Tile({
       <p className="ed-tile-text">
         <LinkedText league={league} text={story.summary} about={about(story)} index={index} />
       </p>
+      {story.numbers.length > 0 && (
+        <div className="ed-tile-meta num">
+          {story.numbers
+            .slice(0, 2)
+            .map((n) => `${n.value} ${n.label.toLowerCase()}`)
+            .join(' · ')}
+        </div>
+      )}
       <button type="button" className="ed-more" onClick={() => onOpen(story.key)}>
         Read ▾
       </button>
@@ -277,7 +285,7 @@ export function StoryBlock({
             {story.yours ? 'Your club · ' : ''}
             {story.kicker}
           </div>
-          {s && first && second && (
+          {s && first && second ? (
             <>
               <div className="ed-hero-score">
                 <TeamChip team={club(league, first[0])} large />
@@ -290,12 +298,27 @@ export function StoryBlock({
                 {club(league, s.awayId).city} at {club(league, s.homeId).city} · Final{s.overtime ? ' · OT' : ''}
               </div>
             </>
+          ) : (
+            // No score to show (a trade, a coach out, a lead change): the band carries the headline and the numbers,
+            // so it is never an empty stripe with a lone number box under it.
+            <>
+              <h3 className="ed-headline">{story.headline}</h3>
+              {story.numbers.length > 0 && (
+                <div className="ed-hero-stats">
+                  {story.numbers.map((n) => (
+                    <span key={n.label}>
+                      <b>{n.value}</b> {n.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
         <Picture league={league} story={story} size={104} />
       </div>
-      <h3 className="ed-headline">{story.headline}</h3>
-      {story.numbers.length > 0 && (
+      {s && <h3 className="ed-headline">{story.headline}</h3>}
+      {s && story.numbers.length > 0 && (
         <div className="ed-stats">
           {story.numbers.map((n) => (
             <div className="ed-stat" key={n.label}>

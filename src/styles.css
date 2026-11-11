@@ -5743,12 +5743,13 @@ button.tip-pill {
   max-width: 66ch;
   margin: 14px 0;
 }
-/* A club's chip on a band of a club's colour (navy on navy, black on black): a ring in the band's ink sets it off. */
+/* A club's chip on a band of a club's colour (navy on navy, black on black): a thin, soft edge in the band's ink
+   sets it off without a halo. */
 .ed-hero .chip,
 .ed-front-pic .chip {
   box-shadow:
     inset 0 -4px 0 var(--c2),
-    0 0 0 2px var(--ed-ink, #fff);
+    0 0 0 1px color-mix(in srgb, var(--ed-ink, #fff) 38%, transparent);
 }
 .ed-front-pic {
   display: grid;
@@ -5801,12 +5802,25 @@ button.tip-pill {
   gap: 10px;
 }
 .ed-tile {
+  /* A column, so a short tile beside a long one keeps "Read" at its foot and no hole in the middle. */
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line);
   border-top: 4px solid var(--c1);
   border-radius: var(--radius);
   padding: 10px 12px;
   background: var(--surface);
   min-width: 0;
+}
+.ed-tile .ed-more {
+  margin-top: auto;
+  padding-top: 8px;
+  align-self: flex-start;
+}
+.ed-tile-meta {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
 }
 .ed-tile.is-yours {
   background: color-mix(in srgb, var(--marker) 9%, var(--surface));
@@ -5887,6 +5901,22 @@ button.tip-pill {
 .ed-story .ed-headline {
   font-size: 2.1rem;
   margin: 14px 0 10px;
+}
+/* In the band itself, when a story has no score to show there. */
+.ed-hero .ed-headline {
+  margin: 6px 0 8px;
+  color: inherit;
+}
+.ed-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: 0.8rem;
+  opacity: 0.92;
+}
+.ed-hero-stats b {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
 }
 .ed-stats {
   display: grid;

@@ -14,14 +14,14 @@ import type { League, Player } from './types';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 
+// Plain words, and no closing line that tries to land: the owner's read was that those turn cheesy fast.
 const SAID: Record<SpeakEvent, (p: Player, club: string) => string> = {
-  traded: (p, club) =>
-    `"I gave that place everything," ${p.lastName} said of the ${club}. "They'll see what they let go."`,
-  cut: (p, club) => `"They never gave me a real chance," ${p.lastName} said after the ${club} let him go.`,
+  traded: (p, club) => `"I gave that club everything I had," ${p.lastName} said of the ${club}.`,
+  cut: (p, club) => `"I never felt I got a real chance there," ${p.lastName} said after the ${club} let him go.`,
   benched: (p, club) =>
-    `"I'm a starter in this league," ${p.lastName} said of losing his job with the ${club}. "I'll prove it."`,
+    `"I think I am a starter in this league," ${p.lastName} said of losing his job with the ${club}.`,
   snubbed: (p, club) =>
-    `"You see who they pay," ${p.lastName} said of the ${club}'s latest deal. "That tells you everything."`,
+    `"You look at who gets paid and you draw your own conclusions," ${p.lastName} said of the ${club}'s latest deal.`,
 };
 
 /** The men who speak out now and have not been reported: the facts `speakMail` files and SNN's edition tells. */

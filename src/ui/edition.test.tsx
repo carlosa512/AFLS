@@ -117,6 +117,16 @@ describe('the weekly edition in the inbox', () => {
     expect(html).toContain('>Trades<');
     expect(html).toContain('>GM careers and jobs<');
     expect(html).not.toContain('ed-hero-score');
+    // With no score to show, the band carries the headline and the numbers: no empty band, no lone number box.
+    expect(html).toMatch(/class="ed-hero[^"]*"[^>]*>[\s\S]*?<h3 class="ed-headline">[\s\S]*?class="ed-who/);
+    expect(html).not.toContain('class="ed-stats"');
+    expect(count(html, '<h3 class="ed-headline">')).toBe(1);
+  });
+
+  it('gives a closed tile its numbers in one quiet line', () => {
+    const html = renderToStaticMarkup(<EditionCards league={l} message={message} />);
+    expect(count(html, 'class="ed-tile-meta')).toBeGreaterThan(0);
+    expect(html).not.toMatch(/class="ed-tile-meta[^"]*">\s*</);
   });
 
   it('draws the bracket in the playoffs and no race', () => {

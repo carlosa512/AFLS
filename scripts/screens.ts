@@ -451,7 +451,9 @@ async function main() {
         await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
       }
     } else if (flag('edition')) {
-      const page = await newPage(DESKTOP, false);
+      // `--wide`: a large monitor, where the reading pane is half as wide again.
+      const desk = flag('wide') ? { width: 2160, height: 1200 } : DESKTOP;
+      const page = await newPage(desk, false);
       const phone = await newPage(PHONE, true);
       const count = Number(option('edition')) || 3;
       const editions = (save.inbox ?? [])
@@ -462,7 +464,7 @@ async function main() {
         const slug = m.id.replace(/[^a-z0-9]+/gi, '-');
         const hash = `#/inbox/${encodeURIComponent(m.id)}`;
         for (const [p, viewport, suffix] of [
-          [page, DESKTOP, ''],
+          [page, desk, ''],
           [phone, PHONE, '-phone'],
         ] as const) {
           // The inbox opens a message as it mounts: go Home first, or it stays on the last one.
