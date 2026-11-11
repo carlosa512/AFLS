@@ -183,7 +183,7 @@ export function AssetPicker({
                 const added = picked.players.includes(p.id);
                 return (
                   <li key={p.id} className="picker-row">
-                    <PlayerLink league={league} player={p} avatar={26} pos short />
+                    <PlayerLink league={league} player={p} avatar={32} pos short />
                     <span className="num small picker-age">{p.age}</span>
                     <Ovr league={league} player={p} />
                     <span className="num small">
@@ -247,7 +247,7 @@ export function DealSlip({
             const name = `${p.firstName} ${p.lastName}`;
             return (
               <li key={id} className="deal-item">
-                <PlayerLink league={league} player={p} avatar={24} pos short />
+                <PlayerLink league={league} player={p} avatar={32} pos short />
                 <Ovr league={league} player={p} />
                 <span className="num small">
                   {p.contract ? money(Math.round(capHit(p.contract, league.season))) : 'practice squad'}

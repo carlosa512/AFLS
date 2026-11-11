@@ -86,7 +86,7 @@ export function Compare({ league }: { league: League }) {
                 return (
                   <th key={p.id}>
                     <span className="compare-head">
-                      <PlayerLink league={league} player={p} avatar={30} />
+                      <PlayerLink league={league} player={p} avatar={32} />
                       <span className="muted small">
                         {p.position} · {team ? team.abbrev : p.scouting && !p.draft ? 'Prospect' : 'Free agent'}
                       </span>

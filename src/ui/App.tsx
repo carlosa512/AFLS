@@ -45,6 +45,7 @@ import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
 import { Stats } from './screens/Stats';
 import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
+import { TabBoundary } from './boundary';
 import { MAX_COMPARE, NavContext, type Nav, type StaffKind } from './nav';
 import { store, useLeague } from './store';
 import { VersionTag } from './versionHistory';
@@ -426,42 +427,46 @@ export function App() {
       )}
 
       <main className="wrap">
-        {route.view === 'home' && (hasJob ? <Home league={league} /> : <SpectatorHome league={league} />)}
-        {route.view === 'roster' &&
-          (hasJob ? (
-            <Roster league={league} teamId={teamOr(route.teamId)} />
-          ) : (
-            <PublicRoster league={league} teamId={teamOr(route.teamId)} />
-          ))}
-        {route.view === 'cap' &&
-          (hasJob ? <Finances league={league} teamId={teamOr(route.teamId)} /> : <GeneralManagers league={league} />)}
-        {route.view === 'locker' && hasJob && <LockerRoom league={league} />}
-        {route.view === 'inbox' && (
-          <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
-        )}
-        {route.view === 'office' &&
-          (hasJob ? (
-            <FrontOffice league={league} tab={route.tab} pos={route.pos} sub={route.sub} />
-          ) : (
-            <GeneralManagers league={league} />
-          ))}
-        {route.view === 'schedule' && <Schedule league={league} />}
-        {route.view === 'standings' && <Standings league={league} />}
-        {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
-        {route.view === 'playoffs' && <Playoffs league={league} />}
-        {route.view === 'compare' && <Compare league={league} />}
-        {route.view === 'game' && (
-          <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />
-        )}
-        {route.view === 'live' && <LiveGame league={league} />}
-        {route.view === 'watch' && (
-          <GameViewer
-            league={league}
-            gameId={route.gameId}
-            onBack={() => leaveGame(route.back)}
-            onBoxScore={() => nav.openGame(route.gameId)}
-          />
-        )}
+        {/* A screen that breaks while drawing says so and leaves the bar above it working: uncaught, one bad row
+            blanks the whole app. Keyed by the screen, so moving to another starts clean. */}
+        <TabBoundary key={route.view} name={TABS.find((t) => t.view === route.view)?.label ?? 'This screen'}>
+          {route.view === 'home' && (hasJob ? <Home league={league} /> : <SpectatorHome league={league} />)}
+          {route.view === 'roster' &&
+            (hasJob ? (
+              <Roster league={league} teamId={teamOr(route.teamId)} />
+            ) : (
+              <PublicRoster league={league} teamId={teamOr(route.teamId)} />
+            ))}
+          {route.view === 'cap' &&
+            (hasJob ? <Finances league={league} teamId={teamOr(route.teamId)} /> : <GeneralManagers league={league} />)}
+          {route.view === 'locker' && hasJob && <LockerRoom league={league} />}
+          {route.view === 'inbox' && (
+            <Inbox key={`${route.messageId ?? ''}:${route.focus ?? ''}`} league={league} messageId={route.messageId} />
+          )}
+          {route.view === 'office' &&
+            (hasJob ? (
+              <FrontOffice league={league} tab={route.tab} pos={route.pos} sub={route.sub} />
+            ) : (
+              <GeneralManagers league={league} />
+            ))}
+          {route.view === 'schedule' && <Schedule league={league} />}
+          {route.view === 'standings' && <Standings league={league} />}
+          {route.view === 'stats' && <Stats league={league} tab={route.tab} />}
+          {route.view === 'playoffs' && <Playoffs league={league} />}
+          {route.view === 'compare' && <Compare league={league} />}
+          {route.view === 'game' && (
+            <BoxScore league={league} gameId={route.gameId} onBack={() => leaveGame(route.back)} />
+          )}
+          {route.view === 'live' && <LiveGame league={league} />}
+          {route.view === 'watch' && (
+            <GameViewer
+              league={league}
+              gameId={route.gameId}
+              onBack={() => leaveGame(route.back)}
+              onBoxScore={() => nav.openGame(route.gameId)}
+            />
+          )}
+        </TabBoundary>
       </main>
 
       {compareIds.length > 0 && route.view !== 'compare' && (

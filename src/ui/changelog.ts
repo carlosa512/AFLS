@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.32',
+    date: '2026-11-11',
+    title: 'Cap opens mid-game; numbered icons',
+    text: 'Opening Cap during your live game no longer blanks the page. Player icons show jersey numbers everywhere, and iPhone tables stop blowing up their text.',
+  },
+  {
     version: '0.4.31',
     date: '2026-11-11',
     title: 'The crowd jumps, defenders get a line',

@@ -93,6 +93,12 @@ html,
 body {
   margin: 0;
 }
+/* iPhone Safari enlarges text in anything wider than the screen (a table that scrolls sideways: the Roster most of
+   all), and nothing else in the row grows with it. The sizes here are the sizes meant. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   background: var(--bg);
   color: var(--ink);
@@ -548,6 +554,13 @@ tr.is-user .sticky-col {
 .group-row.drop-target td {
   background: color-mix(in srgb, var(--marker) 22%, var(--surface-2));
   color: var(--text);
+}
+
+/* The cap sheet is the widest table with buttons on its end: a little less air between columns keeps Release on
+   the page at a desktop's width. */
+.cap-table th,
+.cap-table td {
+  padding-inline: 6px;
 }
 
 /* ───────── ratings ───────── */

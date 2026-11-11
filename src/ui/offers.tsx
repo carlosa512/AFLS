@@ -530,7 +530,7 @@ export function BlockPanel({ league }: { league: League }) {
             const n = [...asked.values()].filter((ids) => ids.includes(p.id)).length;
             return (
               <OfficeCard key={p.id}>
-                <PlayerLink league={league} player={p} avatar={28} />
+                <PlayerLink league={league} player={p} avatar={32} />
                 <span className="row" style={{ gap: 6 }}>
                   <span className="muted small">{p.position}</span>
                   <Ovr league={league} player={p} />

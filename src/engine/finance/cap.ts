@@ -161,8 +161,8 @@ export interface ReleasePreview extends DeadMoneySplit {
 }
 
 export function releasePreview(league: League, player: Player, designatePostJune1 = false): ReleasePreview {
-  const personnelLock = personnelMoveLock(league, player);
-  if (personnelLock) throw new Error(personnelLock);
+  // A roster frozen for its game is no reason not to price a cut: this is a read (the Cap screen prices every
+  // contract on every draw), and the move itself refuses (`releasePlayer`, `releaseBlocker`).
   if (player.waiver) throw new Error('This player is already on waivers.');
   const team = league.teams[player.teamId!];
   const auto = autoPostJune1(league.phase);
