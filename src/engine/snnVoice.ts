@@ -214,6 +214,8 @@ interface GameSheet {
   ls: number;
   margin: number;
   score: string;
+  /** The score as a sentence about the result says it: "52–45 in overtime" when it went there. */
+  final: string;
   wBefore: ClubRecord;
   lBefore: ClubRecord;
   wq: number[];
@@ -290,6 +292,7 @@ function gameSheet(l: League, cand: Candidate, focus: number): GameSheet {
     ls,
     margin: ws - ls,
     score: `${ws}–${ls}`,
+    final: `${ws}–${ls}${r.overtime && ws !== ls ? ' in overtime' : ''}`,
     wBefore,
     lBefore,
     wq,
@@ -371,57 +374,57 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   day: [
     line(
       (s) =>
-        `${M(s.day!.p.id)}, ${s.day!.p.age} and in his ${nth(s.day!.p.experience + 1)} season, ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.score}.`,
+        `${M(s.day!.p.id)}, ${s.day!.p.age} and in his ${nth(s.day!.p.experience + 1)} season, ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.final}.`,
       (s) => s.day!.won && s.day!.p.age >= 31,
       3,
     ),
     line(
-      (s) => `Rookie ${M(s.day!.p.id)} ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.score}.`,
+      (s) => `Rookie ${M(s.day!.p.id)} ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.final}.`,
       (s) => s.day!.won && s.day!.p.experience === 0,
       3,
     ),
     line(
-      (s) => `${M(s.day!.p.id)} ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.score}.`,
+      (s) => `${M(s.day!.p.id)} ${s.day!.phrase} as ${C(s.W)} beat ${C(s.L)} ${s.final}.`,
       (s) => s.day!.won,
       2,
     ),
     line(
-      (s) => `${C(s.W)} beat ${C(s.L)} ${s.score} behind ${M(s.day!.p.id)}, who ${s.day!.phrase}.`,
+      (s) => `${C(s.W)} beat ${C(s.L)} ${s.final} behind ${M(s.day!.p.id)}, who ${s.day!.phrase}.`,
       (s) => s.day!.won,
       2,
     ),
     line(
-      (s) => `${M(s.day!.p.id)} ${s.day!.phrase}, and ${C(s.W)} beat ${C(s.L)} ${s.score}.`,
+      (s) => `${M(s.day!.p.id)} ${s.day!.phrase}, and ${C(s.W)} beat ${C(s.L)} ${s.final}.`,
       (s) => s.day!.won,
       2,
     ),
     line(
-      (s) => `${M(s.day!.p.id)} ${s.day!.phrase} for ${C(s.L)}, who still lost ${s.score} to ${C(s.W)}.`,
+      (s) => `${M(s.day!.p.id)} ${s.day!.phrase} for ${C(s.L)}, who still lost ${s.final} to ${C(s.W)}.`,
       (s) => !s.day!.won && s.ws !== s.ls,
       2,
     ),
     line(
       (s) =>
-        `${C(s.W)} beat ${C(s.L)} ${s.score} on a day when ${M(s.day!.p.id)} ${s.day!.phrase} for the losing side.`,
+        `${C(s.W)} beat ${C(s.L)} ${s.final} on a day when ${M(s.day!.p.id)} ${s.day!.phrase} for the losing side.`,
       (s) => !s.day!.won && s.ws !== s.ls,
       2,
     ),
-    line((s) => `${M(s.day!.p.id)} ${s.day!.phrase} in a ${s.score} tie between ${C(s.W)} and ${C(s.L)}.`),
+    line((s) => `${M(s.day!.p.id)} ${s.day!.phrase} in a ${s.final} tie between ${C(s.W)} and ${C(s.L)}.`),
   ],
   unbeatenFalls: [
-    line((s) => `${C(s.L)} lost for the first time this season, ${s.score} to ${C(s.W)}.`),
-    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.score} and ended their unbeaten start at ${w(s.lBefore.w)} games.`),
-    line((s) => `${C(s.L)} had won all ${w(s.lBefore.w)} of their games. ${C(s.W)} beat them ${s.score}.`),
+    line((s) => `${C(s.L)} lost for the first time this season, ${s.final} to ${C(s.W)}.`),
+    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended their unbeaten start at ${w(s.lBefore.w)} games.`),
+    line((s) => `${C(s.L)} had won all ${w(s.lBefore.w)} of their games. ${C(s.W)} beat them ${s.final}.`),
   ],
   winlessWins: [
-    line((s) => `${C(s.W)} won for the first time this season, ${s.score} over ${C(s.L)}.`),
-    line((s) => `After ${w(s.wBefore.l)} straight losses to open the season, ${C(s.W)} beat ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.score} for their first win in ${w(s.wBefore.l + 1)} games.`),
+    line((s) => `${C(s.W)} won for the first time this season, ${s.final} over ${C(s.L)}.`),
+    line((s) => `After ${w(s.wBefore.l)} straight losses to open the season, ${C(s.W)} beat ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} for their first win in ${w(s.wBefore.l + 1)} games.`),
   ],
   upset: [
-    line((s) => `${C(s.W)}, ${rec(s.wBefore)} coming in, beat the ${rec(s.lBefore)} ${N(s.L)} ${s.score}.`),
-    line((s) => `${C(s.W)} were ${rec(s.wBefore)} and ${C(s.L)} were ${rec(s.lBefore)}. ${c(s.W)} won ${s.score}.`),
-    line((s) => `${C(s.L)} came in at ${rec(s.lBefore)} and lost ${s.score} to ${C(s.W)}, who were ${rec(s.wBefore)}.`),
+    line((s) => `${C(s.W)}, ${rec(s.wBefore)} coming in, beat the ${rec(s.lBefore)} ${N(s.L)} ${s.final}.`),
+    line((s) => `${C(s.W)} were ${rec(s.wBefore)} and ${C(s.L)} were ${rec(s.lBefore)}. ${c(s.W)} won ${s.final}.`),
+    line((s) => `${C(s.L)} came in at ${rec(s.lBefore)} and lost ${s.final} to ${C(s.W)}, who were ${rec(s.wBefore)}.`),
   ],
   tie: [
     line((s) => `${C(s.W)} and ${C(s.L)} tied ${s.score}.`),
@@ -429,67 +432,67 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   ],
   streakEnds: [
     line(
-      (s) => `${C(s.W)} beat ${C(s.L)} ${s.score} and ended their winning streak at ${w(streakLen(s))}.`,
+      (s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended their winning streak at ${w(streakLen(s))}.`,
       (s) => s.f.streak!.length > 0,
       1,
     ),
     line(
-      (s) => `${C(s.L)} had won ${w(streakLen(s))} in a row. ${C(s.W)} beat them ${s.score}.`,
+      (s) => `${C(s.L)} had won ${w(streakLen(s))} in a row. ${C(s.W)} beat them ${s.final}.`,
       (s) => s.f.streak!.length > 0,
       1,
     ),
     line(
-      (s) => `${C(s.W)} beat ${C(s.L)} ${s.score} and ended a run of ${w(streakLen(s))} straight losses.`,
+      (s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended a run of ${w(streakLen(s))} straight losses.`,
       (s) => s.f.streak!.length < 0,
       1,
     ),
     line(
-      (s) => `After ${w(streakLen(s))} losses in a row, ${C(s.W)} beat ${C(s.L)} ${s.score}.`,
+      (s) => `After ${w(streakLen(s))} losses in a row, ${C(s.W)} beat ${C(s.L)} ${s.final}.`,
       (s) => s.f.streak!.length < 0,
       1,
     ),
   ],
   comeback: [
-    line((s) => `${C(s.W)} trailed by ${s.f.deficit} and beat ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.W)} came from ${s.f.deficit} points down to beat ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.L)} led by ${s.f.deficit} and lost ${s.score} to ${C(s.W)}.`),
+    line((s) => `${C(s.W)} trailed by ${s.f.deficit} and beat ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.W)} came from ${s.f.deficit} points down to beat ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.L)} led by ${s.f.deficit} and lost ${s.final} to ${C(s.W)}.`),
   ],
   yardage: [
-    line((s) => `${C(s.L)} gained ${-s.f.yards!} more yards than ${C(s.W)} and lost ${s.score}.`),
-    line((s) => `${C(s.W)} were outgained by ${-s.f.yards!} yards and beat ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.score} with ${-s.f.yards!} fewer yards.`),
+    line((s) => `${C(s.L)} gained ${-s.f.yards!} more yards than ${C(s.W)} and lost ${s.final}.`),
+    line((s) => `${C(s.W)} were outgained by ${-s.f.yards!} yards and beat ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} with ${-s.f.yards!} fewer yards.`),
   ],
   qbLost: [
     line(
       (s) =>
-        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter and ${s.qb!.teamId === s.W ? 'still beat' : 'lost to'} ${C(s.qb!.teamId === s.W ? s.L : s.W)} ${s.score}.`,
+        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter and ${s.qb!.teamId === s.W ? 'still beat' : 'lost to'} ${C(s.qb!.teamId === s.W ? s.L : s.W)} ${s.final}.`,
       (s) => s.ws !== s.ls,
       1,
     ),
     line(
       (s) =>
-        `${C(s.W)} beat ${C(s.L)} ${s.score} in a game ${c(s.qb!.teamId)} finished without quarterback ${M(s.qb!.starter.id)}, who left in the ${s.qb!.quarter} quarter with ${s.qb!.injury}.`,
+        `${C(s.W)} beat ${C(s.L)} ${s.final} in a game ${c(s.qb!.teamId)} finished without quarterback ${M(s.qb!.starter.id)}, who left in the ${s.qb!.quarter} quarter with ${s.qb!.injury}.`,
       (s) => s.ws !== s.ls,
       1,
     ),
     line(
       (s) =>
-        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter of a ${s.score} tie.`,
+        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter of a ${s.final} tie.`,
     ),
   ],
   rout: [
-    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.score} and led after every quarter.`),
-    line((s) => `${C(s.W)} routed ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.L)} never led in a ${s.score} loss to ${C(s.W)}.`),
+    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and led after every quarter.`),
+    line((s) => `${C(s.W)} routed ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.L)} never led in a ${s.final} loss to ${C(s.W)}.`),
   ],
   overtime: [
     line((s) => `${C(s.W)} beat ${C(s.L)} ${s.score} in overtime.`),
     line((s) => `${C(s.W)} needed overtime to beat ${C(s.L)} ${s.score}.`),
   ],
   result: [
-    line((s) => `${C(s.W)} ${beat(s)} ${C(s.L)} ${s.score}.`),
-    line((s) => `${C(s.W)} won ${s.score} over ${C(s.L)}.`),
-    line((s) => `${C(s.L)} lost ${s.score} to ${C(s.W)}.`),
+    line((s) => `${C(s.W)} ${beat(s)} ${C(s.L)} ${s.final}.`),
+    line((s) => `${C(s.W)} won ${s.final} over ${C(s.L)}.`),
+    line((s) => `${C(s.L)} lost ${s.final} to ${C(s.W)}.`),
   ],
 };
 
@@ -963,15 +966,15 @@ export interface StoryOptions {
  */
 const OWN: GL[] = [
   line(
-    (s) => `${C(s.focus)} ${beat(s)} ${C(s.L)} ${s.score}.`,
+    (s) => `${C(s.focus)} ${beat(s)} ${C(s.L)} ${s.final}.`,
     (s) => s.focus === s.W,
   ),
   line(
-    (s) => `${C(s.focus)} won ${s.score} over ${C(s.L)}.`,
+    (s) => `${C(s.focus)} won ${s.final} over ${C(s.L)}.`,
     (s) => s.focus === s.W,
   ),
   line(
-    (s) => `${C(s.focus)} beat ${C(s.L)} ${s.score} and led after every quarter.`,
+    (s) => `${C(s.focus)} beat ${C(s.L)} ${s.final} and led after every quarter.`,
     (s) => s.focus === s.W && s.f.angle === 'rout',
     2,
   ),
@@ -981,15 +984,15 @@ const OWN: GL[] = [
     2,
   ),
   line(
-    (s) => `${C(s.focus)} lost ${s.score} to ${C(s.W)}.`,
+    (s) => `${C(s.focus)} lost ${s.final} to ${C(s.W)}.`,
     (s) => s.focus === s.L,
   ),
   line(
-    (s) => `${C(s.focus)} were beaten ${s.score} by ${C(s.W)}.`,
+    (s) => `${C(s.focus)} were beaten ${s.final} by ${C(s.W)}.`,
     (s) => s.focus === s.L,
   ),
   line(
-    (s) => `${C(s.focus)} lost ${s.score} to ${C(s.W)} and trailed after every quarter.`,
+    (s) => `${C(s.focus)} lost ${s.final} to ${C(s.W)} and trailed after every quarter.`,
     (s) => s.focus === s.L && s.f.angle === 'rout',
     2,
   ),
@@ -1118,7 +1121,8 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
     ...(opt.yours !== undefined ? { yours: true as const } : {}),
     kicker: kickerOf(l, [s.g.homeId, s.g.awayId]),
     headline,
-    summary: paragraphs[0],
+    // A closed tile: what happened, and the first reason for it when the story has one.
+    summary: why.length ? `${paragraphs[0]} ${sentencesOf(paragraphs[1])[0]}` : paragraphs[0],
     picture: star ? { playerId: star.id, gameId: s.g.id } : { teamIds: [s.W, s.L], gameId: s.g.id },
     score: scoreOf(s.g),
     cast,

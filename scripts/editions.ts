@@ -33,7 +33,7 @@ const story = (tag: string, s: EditionStory, week: number): string => {
   ran.set(s.angle, (ran.get(s.angle) ?? 0) + 1);
   const numbers = s.numbers.map((n) => `**${n.value}** ${n.label}`).join(' · ');
   return [
-    `### ${tag} · ${s.kicker} · _${s.angle}_`,
+    `### ${tag} · ${s.kicker}`,
     `**${s.headline}**`,
     ...(numbers ? [numbers] : []),
     ...s.paragraphs,

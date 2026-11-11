@@ -561,9 +561,10 @@ export function MessageBody({
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
-      {m.body
+      {/* An edition's stories are its body: the mail's own text is only there for search. */}
+      {(m.edition ? '' : m.body)
         .split(/\n\s*\n/)
-        .filter((paragraph) => paragraph !== m.coachNote?.text)
+        .filter((paragraph) => paragraph && paragraph !== m.coachNote?.text)
         .map((paragraph, i) => (
           <p className="inbox-body" key={i}>
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />

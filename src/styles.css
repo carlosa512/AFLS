@@ -5678,6 +5678,335 @@ button.tip-pill {
   margin-top: 16px;
   padding-top: 14px;
 }
+/* SNN's weekly edition (ui/edition.tsx): a front page whose tiles open into stories. A club's two colours arrive as
+   --c1 and --c2 on the band, the tile or the quote that wears them. */
+.ed {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.ed-ticker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 5px;
+}
+.ed-score {
+  display: grid;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: var(--surface);
+  font-family: var(--font-data);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ed-score b {
+  color: var(--ink);
+}
+.ed-score.is-user {
+  background: color-mix(in srgb, var(--marker) 20%, var(--surface));
+  border-color: var(--marker);
+}
+.ed-score:hover {
+  border-color: var(--muted);
+}
+.ed-front {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+.ed-front-text {
+  padding: 14px 16px;
+  min-width: 0;
+}
+.ed-headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.9rem;
+  line-height: 1.02;
+  margin: 4px 0 8px;
+}
+.ed-summary,
+.ed-p {
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+.ed-front-pic {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 14px 10px;
+  background: linear-gradient(160deg, var(--c1) 0%, color-mix(in srgb, var(--c1) 70%, #000) 100%);
+}
+.ed-who {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+.ed-who .linklike {
+  text-decoration-color: currentColor;
+}
+.ed-who-clubs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ed-front-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 10px;
+  font-size: 0.72rem;
+}
+.ed-front-stats b {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+.ed-more {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-top: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--focus);
+}
+.ed-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ed-tile {
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--c1);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.ed-tile.is-yours {
+  background: color-mix(in srgb, var(--marker) 9%, var(--surface));
+}
+.ed-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.ed-kicker .chip {
+  font-size: 0.62rem;
+}
+.ed-tile-head {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.05;
+  margin: 6px 0;
+}
+.ed-tile-text {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.4;
+}
+/* A story opened in place takes the full width of the tiles' grid. */
+.ed-story {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px 14px;
+  background: var(--surface);
+  min-width: 0;
+}
+.ed-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  background: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--c1) 78%, #000) 0%,
+    var(--c1) 55%,
+    color-mix(in srgb, var(--c1) 72%, var(--c2)) 100%
+  );
+}
+.ed-hero-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  opacity: 0.85;
+}
+.ed-hero-score {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 3rem;
+  line-height: 1;
+  margin: 8px 0 6px;
+}
+.ed-hero-score i {
+  font-style: normal;
+  opacity: 0.5;
+  font-size: 1.6rem;
+}
+.ed-hero-sub {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.ed-story .ed-headline {
+  font-size: 2.1rem;
+  margin: 14px 0 10px;
+}
+.ed-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.ed-stat {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.ed-stat b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  line-height: 1;
+}
+.ed-stat span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.ed-quote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 4px solid var(--c1);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+}
+.ed-quote q {
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+.ed-quote cite {
+  display: block;
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.ed-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+.ed-section {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 4px;
+  margin: 10px 0 8px;
+}
+.ed-race {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ed-race th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ed-race td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.ed-race tr.is-user td {
+  background: color-mix(in srgb, var(--marker) 20%, var(--surface));
+  font-weight: 700;
+}
+.ed-race .is-win {
+  color: var(--win);
+}
+.ed-race .is-loss {
+  color: var(--loss);
+}
+.ed-next {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.ed-next-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+}
+@media (max-width: 640px) {
+  .ed-ticker {
+    display: flex;
+    overflow-x: auto;
+  }
+  .ed-score {
+    flex: none;
+    min-width: 76px;
+  }
+  .ed-front {
+    grid-template-columns: 1fr;
+  }
+  .ed-tiles {
+    grid-template-columns: 1fr;
+  }
+  .ed-headline,
+  .ed-story .ed-headline {
+    font-size: 1.6rem;
+  }
+  .ed-hero-score {
+    font-size: 2.2rem;
+  }
+  .ed-stats {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
 /* The Arena Gazette: a paper's stats page. Heads between rules, a bar a row from zero, a tick at the league average. */
 .gazette {
   display: grid;

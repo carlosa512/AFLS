@@ -130,6 +130,7 @@ import type {
 import { setTradeStatus, stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
+import { EditionCards } from './edition';
 import { Dialog, PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
 import { staffCall } from '../engine/staffCall';
 import { StaffAvatar } from './staffAvatar';
@@ -170,6 +171,8 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
   const notes = message.gmNotes?.filter((n) => league.gms[n.gmId]);
+  // SNN's weekly edition draws itself (`edition.tsx`): this file only hands it over.
+  if (message.edition) return <EditionCards league={league} message={message} />;
   return (
     <>
       {notes?.map((n) => (
