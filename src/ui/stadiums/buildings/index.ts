@@ -9,8 +9,15 @@ import { AGREED } from './agreed';
 import { LIBERTY_EAST } from './libertyEast';
 import { LIBERTY_NORTH } from './libertyNorth';
 import { LIBERTY_SOUTH } from './libertySouth';
+import { LIBERTY_WEST } from './libertyWest';
 
-export const BUILDINGS: Record<string, Building> = { ...AGREED, ...LIBERTY_EAST, ...LIBERTY_NORTH, ...LIBERTY_SOUTH };
+export const BUILDINGS: Record<string, Building> = {
+  ...AGREED,
+  ...LIBERTY_EAST,
+  ...LIBERTY_NORTH,
+  ...LIBERTY_SOUTH,
+  ...LIBERTY_WEST,
+};
 export const LATER: Record<string, { season: number; building: Building }[]> = {};
 
 export function plainBowl(colors: [string, string]): Building {

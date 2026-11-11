@@ -57,7 +57,9 @@ export interface Slab {
 export type SettingUse =
   | { kind: 'none' }
   | { kind: 'town'; height: 'low' | 'mid' | 'high'; palette: string[]; lots: boolean }
-  | { kind: 'outOfTown'; trees: 'pine' | 'round'; sheds: boolean; shops?: boolean }
+  | { kind: 'outOfTown'; trees: 'pine' | 'round'; sheds: boolean; shops?: boolean; highway?: boolean }
+  /** The desert's edge: bare ground, car parks, a highway, low sheds, perhaps rows of palms. */
+  | { kind: 'desert'; palms: boolean }
   /** Streets of houses, with car parks by the ground and perhaps a canal. */
   | { kind: 'suburb'; trees: 'palm' | 'round' | 'pine'; canal: boolean }
   /** In town by the water: rail yards, brick blocks, then a harbor with ships. */

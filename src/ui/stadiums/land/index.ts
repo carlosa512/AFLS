@@ -1,5 +1,6 @@
 /** The kinds of land a building can stand in. Each follows the lie of the land round a real ground, nothing more. */
 import type { Scene, SettingUse } from '../types';
+import { clearOf, seen } from './kit';
 import {
   boat,
   box,
@@ -50,7 +51,8 @@ const outOfTown: Painter<'outOfTown'> = (s, use) => {
     lot(s, sgn > 0 ? 134 : -230, sgn > 0 ? 230 : -134, 4, 112, tar);
     street(s, [sgn * 127, -40], [sgn * 127, 190], 6, road, 0.3);
   }
-  street(s, [-430, 191], [430, 191], 8, road, 0.6);
+  if (use.highway) highway(s, 193);
+  else street(s, [-430, 191], [430, 191], 8, road, 0.6);
   s.pen.poly(
     [P(-460, 0, 196), P(460, 0, 196), P(460, 0, 330), P(-460, 0, 330)],
     s.tone(s.snowy ? '#c6d0d4' : '#4f6b4a'),
@@ -206,6 +208,37 @@ const confluence: Painter<'confluence'> = (s) => {
   for (const x of [-120, 20, 150]) bridge(s, x, 124, 186, '#d9a514');
 };
 
+/** The desert's edge: bare ground with scrub, car parks, a highway, low sheds, and palms where someone planted them. */
+const desert: Painter<'desert'> = (s, use) => {
+  for (let n = 0; n < 500; n++) {
+    const x = -300 + s.rng.next() * 600;
+    const z = 120 + s.rng.next() * 120;
+    const r = 0.6 + s.rng.next() * 0.9;
+    if (!clearOf(x, z) || !seen(x, 0, z, 2)) continue;
+    s.pen.poly([P(x - r, 0, z), P(x + r, 0, z), P(x, r * 1.2, z)], s.tone(n % 3 ? '#8f8a5c' : '#a39566'));
+  }
+  lot(s, -220, 220, 138, 170);
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -220, sgn > 0 ? 220 : -134, 6, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 172], 6);
+  }
+  highway(s, 180);
+  for (let x = -260; x < 260; x += 58)
+    box(
+      s,
+      x + 20,
+      196,
+      34 + s.rng.next() * 14,
+      20,
+      5 + s.rng.next() * 3,
+      pickFrom(s, ['#cdbb9a', '#b9b3a6', '#d9cfba']),
+    );
+  if (use.palms) {
+    lined(s, -300, 300, 173.5, 'palm');
+    lined(s, -300, 300, 188, 'palm');
+  }
+};
+
 export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = {
   none: () => {},
   town,
@@ -217,4 +250,5 @@ export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = {
   harbor,
   lake,
   confluence,
+  desert,
 };

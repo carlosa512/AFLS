@@ -8,6 +8,7 @@ import { Rng } from '../../engine/rng';
 import { BUILDINGS, buildingFor, LATER, roofKindOf } from './buildings';
 import { FEATURES } from './features';
 import { SETTINGS } from './land';
+import { outsideWeather } from './outside';
 import { paintStadium } from './paint';
 import { recorder } from './pen';
 import type { Building, Look, Scene } from './types';
@@ -153,22 +154,12 @@ describe('the land outside', () => {
     };
     return { pen, s };
   };
-  it('has a painter for every kind of setting and every feature a building can ask for', () => {
-    for (const kind of [
-      'none',
-      'town',
-      'outOfTown',
-      'river',
-      'downtown',
-      'suburb',
-      'marsh',
-      'harbor',
-      'lake',
-      'confluence',
-    ] as const)
-      expect(SETTINGS[kind]).toBeTypeOf('function');
-    for (const kind of ['stacks', 'wheel', 'fins', 'towers', 'gantry', 'truss'] as const)
-      expect(FEATURES[kind].paint).toBeTypeOf('function');
+  it('has a painter for every kind of setting and every feature a building asks for', () => {
+    // read off the buildings themselves, so a new kind cannot be used without being drawn
+    for (const b of [...Object.values(BUILDINGS), ...Object.values(LATER).flatMap((l) => l.map((x) => x.building))]) {
+      expect(SETTINGS[b.setting.kind], `${b.id} ${b.setting.kind}`).toBeTypeOf('function');
+      for (const f of b.features) expect(FEATURES[f.kind].paint, `${b.id} ${f.kind}`).toBeTypeOf('function');
+    }
   });
   it('draws a town with windows on its buildings and no people', () => {
     const { pen, s } = scene();
@@ -184,6 +175,7 @@ describe('the buildings', () => {
     expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['MIA', 'NE', 'NYK'])); // Liberty East
     expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['BAL', 'CLE', 'PIT'])); // Liberty North
     expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['HOU', 'IND', 'JAX', 'TEN'])); // Liberty South
+    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['KC', 'LV', 'LAC'])); // Liberty West
   });
   it('gives every listed building the roof the game says its club has', () => {
     for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(roofKindOf(b), abbrev).toBe(STADIUMS[abbrev].roof);
@@ -202,5 +194,23 @@ describe('the buildings', () => {
   it('uses the building of the game’s season, not today’s', () => {
     // Filled in when the later buildings exist (Task 16): until then a club with no later building keeps its one.
     expect(buildingFor('DEN', 2040, ['#fb4f14', '#002244']).id).toBe('DEN');
+  });
+});
+
+describe('the day outside a roofed ground', () => {
+  it('is the same every time for a game, and only ever for show', () => {
+    expect(outsideWeather('s', 'MIN', 2026, 7, 16)).toEqual(outsideWeather('s', 'MIN', 2026, 7, 16));
+  });
+  it('snows in Minnesota in winter and never in Arizona', () => {
+    const days = (abbrev: string, week: number) =>
+      Array.from({ length: 300 }, (_, g) => outsideWeather('s', abbrev, 2026, g, week));
+    expect(days('MIN', 17).some((d) => d.precip === 'snow')).toBe(true);
+    expect(days('MIN', 17).some((d) => d.lying)).toBe(true);
+    expect(days('MIN', 1).some((d) => d.precip === 'snow' || d.lying)).toBe(false);
+    expect(days('ARI', 17).some((d) => d.precip === 'snow' || d.lying)).toBe(false);
+    expect(days('LV', 17).every((d) => d.precip !== 'snow')).toBe(true); // no climate of its own: the nearest it knows
+  });
+  it('says nothing of a place it does not know', () => {
+    expect(outsideWeather('s', 'XYZ', 2026, 1, 10)).toEqual({ precip: 'none', lying: false });
   });
 });

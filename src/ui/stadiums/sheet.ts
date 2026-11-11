@@ -33,6 +33,7 @@ export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec
   'liberty-east': { title: 'Liberty East', tiles: ['BUF', 'MIA', 'NE', 'NYK'].map(club) },
   'liberty-north': { title: 'Liberty North', tiles: ['BAL', 'CIN', 'CLE', 'PIT'].map(club) },
   'liberty-south': { title: 'Liberty South', tiles: ['HOU', 'IND', 'JAX', 'TEN'].map(club) },
+  'liberty-west': { title: 'Liberty West', tiles: ['DEN', 'KC', 'LV', 'LAC'].map(club) },
   checks: {
     title: 'Three things not seen yet',
     intro:
@@ -108,7 +109,7 @@ const ROOF_LINE = 21;
 /** What is falling, over the picture (the game has its own layer for this). */
 function sketchFall(ctx: CanvasRenderingContext2D, look: Look, scale: number) {
   if (look.precip === 'none') return;
-  // Under a roof nothing falls inside: what falls outside is shown, and stops at the roof.
+  // Under a roof nothing falls inside: what falls outside is shown, and stops at the roof (the owner, Nov 11).
   if (look.roof !== 'none') {
     ctx.save();
     ctx.beginPath();
