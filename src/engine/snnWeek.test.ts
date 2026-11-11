@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { gamesInWeek, playWeek } from './league';
 import {
+  buildEdition,
   byeCandidate,
   cutEdition,
   gameCandidates,
@@ -166,6 +167,27 @@ describe('the week’s candidates from a played league', () => {
       );
       expect(byeCandidate(l, week, user) === null).toBe(played);
     }
+  });
+
+  it('builds the race from the reader’s division and the game of the week from next week', () => {
+    const e = buildEdition(l, 9)!;
+    const division = l.teams.filter((t) => t.division === l.teams[l.userTeamId].division).map((t) => t.id);
+    expect(e.race!.division).toBe(l.divisions[l.teams[l.userTeamId].division].name);
+    expect(e.race!.rows.map((r) => r.teamId).sort()).toEqual(division.sort());
+    for (const r of e.race!.rows) {
+      expect(r.w + r.l + r.t).toBeGreaterThan(0);
+      expect(r.last).toMatch(/^(W|L|T) \d+–\d+$|^bye$/);
+      expect(r.next).toMatch(/^(at )?[A-Z]{2,3}$|^bye$/);
+    }
+    // First place first.
+    const pct = (r: { w: number; l: number; t: number }) => (r.w + r.t / 2) / (r.w + r.l + r.t);
+    expect(pct(e.race!.rows[0])).toBeGreaterThanOrEqual(pct(e.race!.rows.at(-1)!));
+    expect(e.next).toBeDefined();
+    const next = l.games.find((g) => g.id === e.next!.gameId)!;
+    expect(next.week).toBe(10);
+    expect(next.result).toBeUndefined();
+    expect(e.next!.home).toMatch(/^\d+–\d+(–\d+)?$/);
+    expect(e.bracket).toBeUndefined();
   });
 
   it('calls a man a star only on public production, and out only for the season', () => {

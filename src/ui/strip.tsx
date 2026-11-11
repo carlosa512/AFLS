@@ -6,6 +6,7 @@
 import { useRef, useState } from 'react';
 import { gamesInWeek } from '../engine/league';
 import { allSeeds, roundWeek } from '../engine/season/playoffs';
+import { gameOfWeek } from '../engine/season/gameOfWeek';
 import { computeRecords } from '../engine/season/standings';
 import type { Game, League, Team } from '../engine/types';
 import { isPrimeTime } from '../engine/season/kickoff';
@@ -44,15 +45,7 @@ export function stripGames(league: League, week: number, records: Records = comp
   const user = league.userTeamId;
   const games = gamesInWeek(league, week);
   const ours = (g: Game) => g.homeId === user || g.awayId === user;
-  const share = (id: number) => {
-    const r = records.get(id);
-    const n = r ? r.w + r.l + r.t : 0;
-    return r && n ? (r.w + 0.5 * r.t) / n : null;
-  };
-  const both = (g: Game) => (share(g.homeId) ?? NaN) + (share(g.awayId) ?? NaN);
-  const best = games
-    .filter((g) => !g.result && !g.playoffRound && !ours(g) && !Number.isNaN(both(g)))
-    .sort((a, b) => both(b) - both(a))[0];
+  const best = gameOfWeek(league, week, records);
   const tagOf = (g: Game) => {
     if (g.result) return `${ours(g) ? 'Your game · ' : ''}Final${g.result.overtime ? ' · OT' : ''}`;
     if (ours(g)) return 'Your game';
