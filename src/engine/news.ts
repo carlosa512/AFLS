@@ -153,6 +153,22 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
   return paragraphs.join('\n\n');
 }
 
+/**
+ * First place changing hands in the reader's division in a week (week 10 on, as the headline has always required): who
+ * leads now, who led, and the table before and after. The facts `leagueNews` reports and SNN's edition tells.
+ */
+export function divisionLeadChange(
+  l: League,
+  week: number,
+): { leaderId: number; formerId: number; division: number; before: TeamRecord[]; after: TeamRecord[] } | null {
+  if (week < 10 || week > 18 || !l.teams[l.userTeamId]) return null;
+  const division = l.teams[l.userTeamId].division;
+  const before = divisionStandings(through(l, week - 1))[division].teams;
+  const after = divisionStandings(through(l, week))[division].teams;
+  if (after[0].teamId === before[0].teamId) return null;
+  return { leaderId: after[0].teamId, formerId: before[0].teamId, division, before, after };
+}
+
 /** One chosen headline for the latest completed week; never backfill a skipped weekly feed. */
 export function leagueNews(l: League, have: Set<string>): Draft[] {
   if (!['regular', 'playoffs', 'complete'].includes(l.phase)) return [];

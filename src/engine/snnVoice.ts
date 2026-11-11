@@ -14,6 +14,7 @@ import { injuryLabel } from './injuries';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import { divisionStandings, computeRecords, type TeamRecord } from './season/standings';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
+import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { Candidate } from './snnWeek';
 import type { EditionScore, EditionStory, Game, GameResult, InboxAction, League, Player, StatLine } from './types';
 import { around, say, sentencesOf, stableHash, type Line } from './voice';
@@ -1363,8 +1364,355 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
   };
 }
 
+/** What a man has done this season through `week`, from the box scores, as a clause after "has": or '' with nothing to show. */
+function seasonSoFar(l: League, playerId: number, week: number): string {
+  const tot: Record<string, number> = {};
+  for (const x of l.games) {
+    const line =
+      x.season === l.season && !x.playoffRound && x.week <= week ? x.result?.playerStats[playerId] : undefined;
+    if (!line) continue;
+    for (const k of ['passYds', 'passTd', 'rushYds', 'rushTd', 'rec', 'recYds', 'sacks', 'tackles', 'defInt'] as const)
+      tot[k] = (tot[k] ?? 0) + (line[k] ?? 0);
+  }
+  if ((tot.passYds ?? 0) >= 300)
+    return `thrown for ${num(tot.passYds)} yards and ${w(tot.passTd ?? 0)} ${plural(tot.passTd ?? 0, 'touchdown')}`;
+  if ((tot.rushYds ?? 0) >= 100 && (tot.rushYds ?? 0) >= (tot.recYds ?? 0)) return `run for ${num(tot.rushYds)} yards`;
+  if ((tot.recYds ?? 0) >= 100) return `caught ${tot.rec} passes for ${num(tot.recYds)} yards`;
+  if ((tot.sacks ?? 0) >= 2) return `${w(tot.sacks)} sacks`;
+  if ((tot.defInt ?? 0) >= 2) return `intercepted ${w(tot.defInt)} passes`;
+  if ((tot.tackles ?? 0) >= 20) return `made ${tot.tackles} tackles`;
+  return '';
+}
+/** Where a club stands, or its bare record a week into the season when a place says nothing yet. */
+const placed = (l: League, week: number, teamId: number, form: number) =>
+  standingLine(l, week, teamId, form, null) || `${c(teamId)} are ${rec(standingOf(l, week, teamId).row)}.`;
+/** How far off the trade deadline is, said once an edition: or '' when it has passed or been said. */
+function deadlineLine(l: League, at: Wording, cand: Candidate, week: number): string {
+  const left = TRADE_DEADLINE_WEEK - week;
+  if (left < 0) return '';
+  const text =
+    left === 0
+      ? `The trade deadline follows the Week ${TRADE_DEADLINE_WEEK + 1} games.`
+      : left === 1
+        ? 'The trade deadline is a week away.'
+        : `The trade deadline is ${w(left)} weeks away.`;
+  return pickLine(l, [{ text: () => text }], null, at, cand.key, 'deadline', true);
+}
+
+// ───────── the week's other news ─────────
+
+/** A story that is not a game's: its sentences resolved in order, noted as said, and the fields every story has. */
+function compose(
+  l: League,
+  cand: Candidate,
+  at: Wording,
+  parts: { first: string[]; second: string[]; headline: string; kicker: string } & Pick<
+    EditionStory,
+    'picture' | 'numbers' | 'links'
+  > & { quote?: EditionStory['quote']; summary?: number },
+): EditionStory {
+  const raw = prose(parts.first, parts.second);
+  const cast = [...new Set(raw.flatMap(menIn))];
+  const ref = referrer(l, { playerIds: cast });
+  const paragraphs = raw.map((x) => resolve(x, ref));
+  at.said.push(...paragraphs.flatMap((x) => sentencesOf(x)));
+  return {
+    key: cand.key,
+    kind: cand.kind,
+    angle: cand.angle,
+    tier: cand.tier,
+    clubId: cand.clubId,
+    kicker: parts.kicker,
+    headline: parts.headline,
+    summary: sentencesOf(paragraphs[0])
+      .slice(0, parts.summary ?? 2)
+      .join(' '),
+    picture: parts.picture,
+    cast,
+    numbers: parts.numbers,
+    paragraphs,
+    ...(parts.quote ? { quote: parts.quote } : {}),
+    links: parts.links,
+  };
+}
+const form = (at: Wording, cand: Candidate) => stableHash(`${at.editionId}:${cand.key}`);
+const nickOf = (l: League, id: number) => l.teams[id].name;
+const townOf = (l: League, id: number) =>
+  l.teams.filter((x) => x.city === l.teams[id].city).length > 1 ? `the ${l.teams[id].name}` : l.teams[id].city;
+const lastWord = (name: string) => name.split(' ').at(-1) ?? name;
+/** A club's game in a week, from its own side. */
+function resultOf(l: League, teamId: number, week: number) {
+  const g = l.games.find(
+    (x) => x.season === l.season && x.week === week && x.result && (x.homeId === teamId || x.awayId === teamId),
+  );
+  if (!g) return null;
+  const home = g.homeId === teamId;
+  const [us, them] = home ? [g.result!.homeScore, g.result!.awayScore] : [g.result!.awayScore, g.result!.homeScore];
+  return { g, us, them, oppId: home ? g.awayId : g.homeId };
+}
+
+function divisionStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const { leaderId, formerId, week } = cand.division!;
+  const st = standingOf(l, week, leaderId);
+  const mine = resultOf(l, leaderId, week);
+  const theirs = resultOf(l, formerId, week);
+  const first: string[] = [];
+  if (mine && mine.us > mine.them)
+    first.push(
+      `${C(leaderId)} took over first place in the ${st.division} with a ${mine.us}–${mine.them} win over ${C(mine.oppId)}.`,
+    );
+  else if (mine && mine.us < mine.them)
+    first.push(
+      `${C(leaderId)} moved into first place in the ${st.division} despite a ${mine.them}–${mine.us} loss to ${C(mine.oppId)}.`,
+    );
+  else first.push(`${C(leaderId)} moved into first place in the ${st.division} without winning this week.`);
+  if (theirs && theirs.us < theirs.them && theirs.oppId !== leaderId)
+    first.push(`${C(formerId)} gave up the lead with a ${theirs.them}–${theirs.us} loss to ${C(theirs.oppId)}.`);
+  else if (theirs?.oppId !== leaderId) first.push(`${C(formerId)} had led the division.`);
+  return compose(l, cand, at, {
+    first,
+    second: [
+      standingLine(l, week, leaderId, form(at, cand), null),
+      nextLine(l, week, [leaderId, formerId], form(at, cand) >> 3),
+    ],
+    headline: `${nickOf(l, leaderId)} take first in the ${st.division}`,
+    kicker: st.division,
+    picture: { teamIds: [leaderId, formerId] },
+    numbers: [
+      { value: rec(st.row), label: 'Record' },
+      {
+        value: st.gap ? String(st.gap) : 'Level',
+        label: st.gap ? plural(st.gap, 'Game clear', 'Games clear') : 'At the top',
+      },
+    ],
+    links: [{ kind: 'standings' }, { kind: 'team', teamId: leaderId }],
+  });
+}
+
+function tradeStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const t = cand.trade!;
+  const p = l.players[t.playerId];
+  const [B, S] = [t.buyerId, t.sellerId];
+  const position = POSITION[p.position] ?? 'player';
+  const price = t.pick ? `a ${t.pick.season} ${nth(t.pick.round)}-round pick` : t.price.replace(/ \([A-Z]+\)/g, '');
+  // What he was to the club that let him go: every game of theirs, when that is so.
+  const theirGames = l.games.filter(
+    (g) =>
+      g.season === l.season &&
+      !g.playoffRound &&
+      g.result &&
+      g.week <= t.deal.week &&
+      (g.homeId === S || g.awayId === S),
+  );
+  const hisGames = theirGames.filter(
+    (g) => g.result!.playerTeams[p.id] === S && (g.result!.playerStats[p.id]?.snaps ?? 0) > 0,
+  ).length;
+  const every =
+    theirGames.length >= 3 && hisGames === theirGames.length ? 'who played every game for them this season, ' : '';
+  const recS = standingOf(l, t.week, S).row;
+  const first: string[] = [];
+  let headline: string;
+  if (cand.angle === 'secondSale') {
+    first.push(
+      `${C(S)} are ${rec(recS)} and selling.`,
+      `${M(p.id)}, ${p.age}, ${every}went to ${C(B)} for ${price}.`,
+      `He is the ${nth(t.earlierSales + 1)} player ${c(S)} have traded away this season.`,
+    );
+    headline = t.pick
+      ? `${nickOf(l, S)} sell ${p.lastName} to ${townOf(l, B)} for a ${nth(t.pick.round)}`
+      : `${nickOf(l, S)} sell again, ${p.lastName} to ${townOf(l, B)}`;
+  } else if (cand.angle === 'swap') {
+    first.push(`${C(B)} and ${C(S)} swapped players, with ${position} ${M(p.id)} going to ${c(B)}.`);
+    headline = `${nickOf(l, B)} get ${p.lastName} in a swap with ${townOf(l, S)}`;
+  } else if (cand.angle === 'contender') {
+    first.push(`${C(B)} added ${position} ${M(p.id)} from ${C(S)} for ${price}.`);
+    headline = `${nickOf(l, B)} add ${p.lastName} from ${townOf(l, S)}`;
+  } else {
+    first.push(`${C(S)} traded ${position} ${M(p.id)} to ${C(B)} for ${price}.`);
+    headline = t.pick
+      ? `${nickOf(l, S)} sell ${p.lastName} to ${townOf(l, B)} for a ${nth(t.pick.round)}`
+      : `${nickOf(l, S)} trade ${p.lastName} to ${townOf(l, B)}`;
+  }
+  const has = seasonSoFar(l, p.id, t.week);
+  if (has) first.push(`${M(p.id)} has ${has} this season.`);
+  const window = deadlineLine(l, at, cand, t.week);
+  return compose(l, cand, at, {
+    first,
+    // The standing last: a story ends on a name or a number.
+    second: [window, placed(l, t.week, B, form(at, cand))],
+    headline,
+    kicker: 'Trade',
+    picture: { playerId: p.id },
+    numbers: [
+      { value: String(p.age), label: 'Age' },
+      ...(t.pick ? [{ value: `${t.pick.season}`, label: `${cap(nth(t.pick.round))}-round pick` }] : []),
+    ],
+    links: [
+      { kind: 'player', playerId: p.id },
+      { kind: 'team', teamId: B },
+      { kind: 'team', teamId: S },
+      { kind: 'trades' },
+    ],
+  });
+}
+
+function rumorStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const r = cand.rumor!;
+  const p = l.players[r.playerId];
+  const position = POSITION[p.position] ?? 'player';
+  // Attributed interest, never an agreement or an offer nobody recorded.
+  const lede =
+    r.shopping || r.askerId === undefined
+      ? `${C(r.clubId)} are listening to offers for ${position} ${M(p.id)}, according to reports.`
+      : `${C(r.askerId)} have asked ${C(r.clubId)} about ${position} ${M(p.id)}, according to reports.`;
+  return compose(l, cand, at, {
+    first: [lede, `${M(p.id)} remains with ${c(r.clubId)}.`],
+    second: [deadlineLine(l, at, cand, r.week), placed(l, r.week, r.clubId, form(at, cand))],
+    headline:
+      r.shopping || r.askerId === undefined
+        ? `${nickOf(l, r.clubId)} listening on ${p.lastName}`
+        : `${nickOf(l, r.askerId)} ask about ${p.lastName}`,
+    kicker: 'Trade talk',
+    picture: { playerId: p.id },
+    numbers: [{ value: String(p.age), label: 'Age' }],
+    links: [{ kind: 'player', playerId: p.id }, { kind: 'team', teamId: r.clubId }, { kind: 'trades' }],
+  });
+}
+
+function leaderOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const x = cand.leader!;
+  const id = x.teamId;
+  const week = Math.max(
+    1,
+    ...l.games.filter((g) => g.season === l.season && g.result && !g.playoffRound).map((g) => g.week),
+  );
+  // The change and the record he leaves. Nothing on whether it was right: this spec reports, it does not judge.
+  const lede =
+    x.role === 'headCoach'
+      ? `${C(id)} dismissed head coach ${x.out}${x.in ? ` and named ${x.in} interim head coach` : ''}.`
+      : x.role === 'gm'
+        ? `${C(id)} dismissed general manager ${x.out}.${x.in ? ` ${x.in} takes over.` : ''}`
+        : `${C(id)} relieved ${x.side} coordinator ${x.out} of his duties.`;
+  const st = standingOf(l, week, id);
+  return compose(l, cand, at, {
+    first: [lede],
+    second: [standingLine(l, week, id, form(at, cand), null), nextLine(l, week, [id])],
+    headline:
+      x.role === 'coordinator'
+        ? `${nickOf(l, id)} relieve ${x.side} coordinator ${lastWord(x.out)}`
+        : `${nickOf(l, id)} dismiss ${x.role === 'gm' ? 'general manager' : 'head coach'} ${lastWord(x.out)}`,
+    kicker: st.division,
+    picture: { teamIds: [id] },
+    numbers: [{ value: rec(st.row), label: 'Record' }],
+    links: [{ kind: 'team', teamId: id }, { kind: 'gms' }],
+    summary: 1,
+  });
+}
+
+const SPOKE: Record<string, { about: string; head: string; quote: string }> = {
+  benched: {
+    about: 'losing his starting job with',
+    head: 'his benching',
+    quote: 'I think I am a starter in this league, and I intend to show it.',
+  },
+  traded: { about: 'being traded by', head: 'his trade', quote: 'I gave that club everything I had.' },
+  cut: { about: 'his release by', head: 'his release', quote: 'I never felt I got a real chance there.' },
+  snubbed: {
+    about: 'the contracts handed out by',
+    head: 'his contract',
+    quote: 'You look at who gets paid and you draw your own conclusions.',
+  },
+};
+function speakStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const x = cand.speak!;
+  const p = l.players[x.playerId];
+  const w0 = SPOKE[x.kind] ?? SPOKE.benched;
+  const week = Math.max(
+    1,
+    ...l.games.filter((g) => g.season === l.season && g.result && !g.playoffRound).map((g) => g.week),
+  );
+  return compose(l, cand, at, {
+    first: [
+      `${cap(POSITION[p.position] ?? 'player')} ${M(p.id)} spoke out this week about ${w0.about} ${C(x.teamId)}.`,
+    ],
+    second: [standingLine(l, week, x.teamId, form(at, cand), null), nextLine(l, week, [x.teamId])],
+    headline: `${p.lastName} speaks out about ${w0.head}`,
+    kicker: standingOf(l, week, x.teamId).division,
+    picture: { playerId: p.id },
+    numbers: [],
+    // His own words are the story: the one player an edition quotes.
+    quote: {
+      playerId: p.id,
+      name: `${p.firstName} ${p.lastName}`,
+      role: POSITION[p.position] ?? 'player',
+      text: w0.quote,
+    },
+    links: [
+      { kind: 'player', playerId: p.id },
+      { kind: 'team', teamId: x.teamId },
+    ],
+    summary: 1,
+  });
+}
+
+function roomStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const x = cand.room!;
+  const week = Math.max(
+    1,
+    ...l.games.filter((g) => g.season === l.season && g.result && !g.playoffRound).map((g) => g.week),
+  );
+  const st = standingOf(l, week, x.teamId);
+  return compose(l, cand, at, {
+    first: [x.text],
+    second: [standingLine(l, week, x.teamId, form(at, cand), null), nextLine(l, week, [x.teamId])],
+    headline: `Talk of a room slipping away in ${townOf(l, x.teamId)}`,
+    kicker: st.division,
+    picture: { coachId: x.coachId, teamIds: [x.teamId] },
+    numbers: [{ value: rec(st.row), label: 'Record' }],
+    links: [{ kind: 'team', teamId: x.teamId }, { kind: 'standings' }],
+    summary: 1,
+  });
+}
+
+function mentorStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const x = cand.mentor!;
+  const name = (id: number) => {
+    const k = l.coaches[id];
+    return k ? `${k.firstName} ${k.lastName}` : 'his old boss';
+  };
+  const dTeam = l.coaches[x.discipleId]?.teamId ?? x.awayId;
+  const mTeam = dTeam === x.homeId ? x.awayId : x.homeId;
+  const week = Math.max(
+    1,
+    ...l.games.filter((g) => g.season === l.season && g.result && !g.playoffRound).map((g) => g.week),
+  );
+  const [a, b] = [standingOf(l, week, dTeam).row, standingOf(l, week, mTeam).row];
+  return compose(l, cand, at, {
+    first: [
+      `${name(x.discipleId)} of ${C(dTeam)} faces ${name(x.mentorId)} of ${C(mTeam)} next week, the first time the two have met as head coaches.`,
+      `He worked under him for years.`,
+    ],
+    second: [`${c(dTeam)} are ${rec(a)} and ${c(mTeam)} are ${rec(b)}.`, `${c(x.homeId)} are at home.`],
+    headline: `${lastWord(name(x.mentorId))} meets his old assistant`,
+    kicker: kickerOf(l, [x.homeId, x.awayId]),
+    picture: { teamIds: [x.awayId, x.homeId] },
+    numbers: [],
+    links: [
+      { kind: 'team', teamId: dTeam },
+      { kind: 'team', teamId: mTeam },
+    ],
+  });
+}
+
 /** One story from one candidate. Every sentence it uses goes onto `at.said`, so an edition never repeats itself. */
 export function writeStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions = {}): EditionStory {
+  if (cand.kind === 'division') return divisionStory(l, cand, at);
+  if (cand.kind === 'trade') return tradeStory(l, cand, at);
+  if (cand.kind === 'rumor') return rumorStory(l, cand, at);
+  if (cand.kind === 'leaderOut') return leaderOutStory(l, cand, at);
+  if (cand.kind === 'speak') return speakStory(l, cand, at);
+  if (cand.kind === 'room') return roomStory(l, cand, at);
+  if (cand.kind === 'mentor') return mentorStory(l, cand, at);
   if (cand.kind === 'run') return runStory(l, cand, at);
   if (cand.kind === 'starOut') return starOutStory(l, cand, at);
   if (cand.angle === 'bye') return byeStory(l, cand, at);

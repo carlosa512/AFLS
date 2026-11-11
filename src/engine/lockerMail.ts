@@ -24,6 +24,51 @@ const SAID: Record<SpeakEvent, (p: Player, club: string) => string> = {
     `"You see who they pay," ${p.lastName} said of the ${club}'s latest deal. "That tells you everything."`,
 };
 
+/** The men who speak out now and have not been reported: the facts `speakMail` files and SNN's edition tells. */
+export function speakFacts(
+  league: League,
+  have: Set<string>,
+): { id: string; playerId: number; teamId: number; kind: SpeakEvent }[] {
+  const user = league.userTeamId;
+  const out: { id: string; playerId: number; teamId: number; kind: SpeakEvent }[] = [];
+  for (const p of Object.values(league.players)) {
+    if (p.retired) continue;
+    const ours = p.teamId === user || p.left?.some((d) => d.teamId === user && league.season - d.season <= 3);
+    if (!ours) continue;
+    for (const e of speakEvents(league, p)) {
+      const id = `speak:${league.season}:${p.id}:${e.kind}`;
+      if (have.has(id) || !speaksOut(league, p, league.season, e.kind)) continue;
+      out.push({ id, playerId: p.id, teamId: e.teamId, kind: e.kind });
+    }
+  }
+  return out;
+}
+
+/** Head coaches meeting the man they worked under, in a game of `week` not yet played and not yet reported. */
+export function mentorFacts(
+  league: League,
+  week: number,
+  have: Set<string>,
+): { id: string; mentorId: number; discipleId: number; homeId: number; awayId: number }[] {
+  const headOf = (teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
+  const out: { id: string; mentorId: number; discipleId: number; homeId: number; awayId: number }[] = [];
+  for (const g of league.games) {
+    if (g.week !== week || g.result || g.season !== league.season) continue;
+    const [a, b] = [headOf(g.homeId), headOf(g.awayId)];
+    if (!a || !b) continue;
+    const pair = linksOf(league, b.id).some((k) => k.mentorId === a.id && k.as === 'headCoach')
+      ? [a, b]
+      : linksOf(league, a.id).some((k) => k.mentorId === b.id && k.as === 'headCoach')
+        ? [b, a]
+        : null;
+    if (!pair) continue;
+    const id = `tree:meet:${pair[0].id}:${pair[1].id}`;
+    if (!have.has(id))
+      out.push({ id, mentorId: pair[0].id, discipleId: pair[1].id, homeId: g.homeId, awayId: g.awayId });
+  }
+  return out;
+}
+
 /** SNN on a player speaking out: ours, or one who left us in the last three seasons. Neutral reporting, his words. */
 function speakMail(league: League, have: Set<string>): Draft[] {
   const user = league.userTeamId;

@@ -217,6 +217,10 @@ const label = (league: League, a: InboxAction): string => {
       return a.teamId === league.userTeamId ? 'Your roster' : `${club(league, a.teamId).name} roster`;
     case 'standings':
       return 'Standings';
+    case 'trades':
+      return 'Trades';
+    case 'gms':
+      return 'GM careers and jobs';
     default:
       return '';
   }
@@ -244,6 +248,7 @@ export function StoryBlock({
     else if (a.kind === 'player') nav.openPlayer(a.playerId);
     else if (a.kind === 'team') nav.openTeam(a.teamId);
     else if (a.kind === 'standings') nav.go({ view: 'standings' });
+    else if (a.kind === 'trades' || a.kind === 'gms') nav.go({ view: 'office', tab: a.kind });
   };
   // The winner first, as a headline has it; the home club first on a tie.
   const [first, second] = !s
@@ -258,6 +263,7 @@ export function StoryBlock({
           [s.awayId, s.away],
         ];
   const coach = story.quote?.coachId === undefined ? undefined : league.coaches[story.quote.coachId];
+  const speaker = story.quote?.playerId === undefined ? undefined : league.players[story.quote.playerId];
   const links = story.links.filter((a) => label(league, a));
   return (
     <article className="ed-story">
@@ -307,6 +313,13 @@ export function StoryBlock({
       {story.quote && (
         <blockquote className="ed-quote" style={colours(league, story.yours ? league.userTeamId : story.clubId)}>
           {coach && <StaffAvatar person={coach} size={48} />}
+          {speaker && (
+            <PlayerAvatar
+              player={speaker}
+              team={speaker.teamId === null ? null : club(league, speaker.teamId)}
+              size={48}
+            />
+          )}
           <div>
             <q>{story.quote.text}</q>
             <cite>

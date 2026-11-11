@@ -154,19 +154,40 @@ export function tradePattern(l: League, deal: TradeRecord): { gmId: number; line
   return null;
 }
 
-/** One significant completed league deal; personal confirmations continue to handle the user's trades. */
-export function keyTradeNews(l: League, week: number): Draft[] {
-  const window = tradeNewsWindow(l, week);
-  if (!window) return [];
-  const division = l.teams[l.userTeamId].division;
+/** A deal the trade news would report, as facts: who it is about, who bought, who sold, what it cost. */
+export interface ReportableTrade {
+  deal: TradeRecord;
+  /** What makes a trade story's id. */
+  key: string;
+  /** The deal's best player on our scouts' read: the name a story leads with. */
+  playerId: number;
+  buyerId: number;
+  sellerId: number;
+  /** A deal the market itself counts as a star deal. */
+  star: boolean;
+  /** What the seller got, in words ("2027 second-round pick (NE)"). */
+  price: string;
+  /** The best pick in it, when there is one. */
+  pick?: { season: number; round: number };
+  /** Both sides sent a player. */
+  swap: boolean;
+}
+
+/**
+ * The completed deals of weeks `from`–`to` that are news, best first, by the rule the trade headline has always used:
+ * not the reader's own, every asset still on record, a player in it, and a star deal, an early-round pick or a man our
+ * scouts rate. The reader's division first among equals.
+ */
+export function reportableTrades(l: League, from: number, to: number): ReportableTrade[] {
+  const division = l.teams[l.userTeamId]?.division;
   const rating = (id: number) => perceive(l, l.userTeamId, l.players[id]).ovr;
   const lead = (r: TradeRecord) => leadPlayer(l, r);
   const candidates = (l.market?.history ?? []).filter(
     (r) =>
       r.season === l.season &&
       r.phase === 'regular' &&
-      r.week >= window.from &&
-      r.week <= window.to &&
+      r.week >= from &&
+      r.week <= to &&
       !r.sides.some((s) => s.teamId === l.userTeamId) &&
       complete(l, r) &&
       r.sides.some((s) => s.players.length) &&
@@ -180,6 +201,65 @@ export function keyTradeNews(l: League, week: number): Draft[] {
       Number(b.kind === 'star') - Number(a.kind === 'star') ||
       earlyPicks(l, b).length - earlyPicks(l, a).length,
   );
+  return candidates.map((deal) => {
+    const playerId = lead(deal);
+    const seller = deal.sides.find((s) => s.players.includes(playerId))!;
+    const buyer = deal.sides.find((s) => s !== seller)!;
+    const pick = buyer.picks
+      .map((id) => l.draftPicks.find((p) => p.id === id)!)
+      .sort((a, b) => a.round - b.round || a.season - b.season)[0];
+    return {
+      deal,
+      key: identity(deal),
+      playerId,
+      buyerId: buyer.teamId,
+      sellerId: seller.teamId,
+      star: deal.kind === 'star',
+      price: assets(l, buyer),
+      ...(pick ? { pick: { season: pick.season, round: pick.round } } : {}),
+      swap: deal.sides.every((x) => x.players.length > 0),
+    };
+  });
+}
+
+/** The week's attributed interest in a player, as the trade news would report it: who, where, and the market's words. */
+export function reportableRumors(
+  l: League,
+  from: number,
+  to: number,
+): {
+  key: string;
+  playerId: number;
+  clubId: number;
+  status: string;
+  text: string;
+  shopping: boolean;
+  askerId?: number;
+}[] {
+  if (l.phase !== 'regular' || to > TRADE_DEADLINE_WEEK) return [];
+  return discussedNames(l, from, to, 4).flatMap((r) => {
+    const source = l.market?.rumors.find((x) => x.id === r.sourceId);
+    if (!source) return [];
+    return [
+      {
+        key: String(source.id),
+        playerId: r.playerId,
+        clubId: r.clubId,
+        status: r.status,
+        text: source.text,
+        shopping: source.kind === 'shopping',
+        ...(source.kind === 'shopping' ? {} : { askerId: source.teamIds[0] }),
+      },
+    ];
+  });
+}
+
+/** One significant completed league deal; personal confirmations continue to handle the user's trades. */
+export function keyTradeNews(l: League, week: number): Draft[] {
+  const window = tradeNewsWindow(l, week);
+  if (!window) return [];
+  const lead = (r: TradeRecord) => leadPlayer(l, r);
+  const candidates = reportableTrades(l, window.from, window.to).map((x) => x.deal);
   const deal = candidates[0];
   if (!deal) return [];
   const playerId = lead(deal);

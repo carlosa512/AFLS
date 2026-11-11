@@ -4,7 +4,7 @@ import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
 import { buildEdition, SNN } from '../engine/snnWeek';
 import type { Edition, InboxMessage, League } from '../engine/types';
-import { EditionCards } from './edition';
+import { EditionCards, StoryBlock } from './edition';
 import { MailCards } from './mail';
 
 let l: League;
@@ -90,6 +90,33 @@ describe('the weekly edition in the inbox', () => {
     const html = renderToStaticMarkup(<EditionCards league={copy} message={message} open={withMan.key} />);
     expect(html).toContain('class="ed-story"');
     expect(html).toContain(withMan.paragraphs[0].slice(0, 12));
+  });
+
+  it('draws a player who is quoted, and sends a trade story to the trade screen', () => {
+    const p = Object.values(l.players).find((x) => x.teamId !== null && x.position === 'WR')!;
+    const html = renderToStaticMarkup(
+      <StoryBlock
+        league={l}
+        story={{
+          ...edition.lead,
+          kind: 'trade',
+          picture: { playerId: p.id },
+          score: undefined,
+          quote: {
+            playerId: p.id,
+            name: 'A Player',
+            role: 'wide receiver',
+            text: 'I gave that club everything I had.',
+          },
+          links: [{ kind: 'player', playerId: p.id }, { kind: 'trades' }, { kind: 'gms' }],
+        }}
+      />,
+    );
+    expect(html).toContain('I gave that club everything I had.');
+    expect(html).toMatch(/class="ed-quote"[^>]*><svg/);
+    expect(html).toContain('>Trades<');
+    expect(html).toContain('>GM careers and jobs<');
+    expect(html).not.toContain('ed-hero-score');
   });
 
   it('draws the bracket in the playoffs and no race', () => {

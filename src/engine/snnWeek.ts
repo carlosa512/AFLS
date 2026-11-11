@@ -6,13 +6,19 @@
  */
 import { weeklyAwards } from './awards';
 import { gamesInWeek } from './league';
+import { mentorFacts, speakFacts } from './lockerMail';
+import { snnRumor } from './meetings/mail';
+import { divisionLeadChange } from './news';
+import type { SpeakEvent } from './relationships';
+import { reportableRumors, reportableTrades, type ReportableTrade } from './tradeNews';
+import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { gameOfWeek } from './season/gameOfWeek';
 import { computeRecords, divisionStandings } from './season/standings';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
 import { employed } from './employment';
 import { writeStory } from './snnVoice';
 import type { Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
-import { seasonSaid, stableHash } from './voice';
+import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
 export interface Candidate {
@@ -31,6 +37,16 @@ export interface Candidate {
   game?: GameFacts;
   run?: { teamId: number; length: number; startWeek: number; faded?: true };
   out?: { playerId: number; gameId: number };
+  /** The ids today's separate mails file the same news under, so an edition is not a second telling of one. */
+  covers?: string[];
+  division?: { leaderId: number; formerId: number; week: number };
+  trade?: ReportableTrade & { week: number; earlierSales: number };
+  rumor?: { playerId: number; clubId: number; text: string; shopping: boolean; askerId?: number; week: number };
+  /** A head coach, a GM or a coordinator out: who went, and who steps in when someone is named. */
+  leader?: { teamId: number; role: 'headCoach' | 'gm' | 'coordinator'; out: string; in?: string; side?: string };
+  speak?: { playerId: number; teamId: number; kind: SpeakEvent };
+  room?: { teamId: number; coachId: number; text: string };
+  mentor?: { mentorId: number; discipleId: number; homeId: number; awayId: number };
 }
 
 /** A game's tier by its angle (spec §2). */
@@ -233,6 +249,170 @@ export function starOutCandidates(l: League, week: number): Candidate[] {
     }));
 }
 
+/** A leadership event's in-season mail ids: its own, or a roundup whose range holds it. */
+const leadershipTold = (have: Set<string>, season: number, week: number, id: number) =>
+  have.has(`leadership:${season}:${id}`) ||
+  [...have].some((x) => {
+    const [kind, s, w, range] = x.split(':');
+    if (kind !== 'leadership-week' || Number(s) !== season || Number(w) !== week) return false;
+    if (!range) return true;
+    const [from, to] = range.split('-').map(Number);
+    return id >= from && id <= to;
+  });
+
+/**
+ * The week's other public news: a division lead changing hands, trades and rumors (by the rules that decide today's
+ * trade news), a head coach, GM or coordinator out at another club, and the three items SNN files on its own today.
+ * Nothing already told, under its own key or the id of the mail it replaces.
+ */
+export function newsCandidates(l: League, week: number, have: Set<string>): Candidate[] {
+  if (week > 18) return [];
+  const out: Candidate[] = [];
+  const after = recordsBefore(l, week + 1);
+  const pct = (id: number) => recordPct(after.get(id) ?? { w: 0, l: 0, t: 0, streak: 0 });
+  const fresh = (c: Candidate) => !have.has(c.key) && !(c.covers ?? []).some((id) => have.has(id));
+  const has = (suffix: string) => [...have].some((id) => id.endsWith(suffix));
+
+  const lead = divisionLeadChange(l, week);
+  if (lead)
+    out.push({
+      key: `division:${l.season}:${week}:${lead.leaderId}`,
+      covers: [`press:${l.season}:${week}:division:${lead.leaderId}`],
+      kind: 'division',
+      angle: 'leadChange',
+      tier: 2,
+      clubId: lead.leaderId,
+      teams: [lead.leaderId, lead.formerId],
+      stakes: pct(lead.leaderId) + pct(lead.formerId),
+      division: { leaderId: lead.leaderId, formerId: lead.formerId, week },
+    });
+
+  if (week <= TRADE_DEADLINE_WEEK) {
+    for (const t of reportableTrades(l, week, week)) {
+      if (has(`trade:${t.key}`)) continue;
+      // A club that has already sent a player away this season for nothing but picks is selling again.
+      const earlierSales = (l.market?.history ?? []).filter(
+        (r) =>
+          r !== t.deal &&
+          r.season === l.season &&
+          r.phase === 'regular' &&
+          (r.week < t.deal.week ||
+            (r.week === t.deal.week &&
+              r !== t.deal &&
+              (l.market?.history ?? []).indexOf(r) < (l.market?.history ?? []).indexOf(t.deal))) &&
+          r.sides.some((s) => s.teamId === t.sellerId && s.players.length > 0) &&
+          r.sides.some((s) => s.teamId !== t.sellerId && s.players.length === 0),
+      ).length;
+      const angle =
+        earlierSales && !t.swap ? 'secondSale' : t.swap ? 'swap' : pct(t.buyerId) >= 0.6 ? 'contender' : 'sale';
+      out.push({
+        key: `trade:${t.key}`,
+        kind: 'trade',
+        angle,
+        // A star deal leads. A first-round pick changing hands is real news. Any other deal worth reporting ranks with
+        // a good game story: at the bottom tier it never reached a tile.
+        tier: t.star ? 1 : t.pick?.round === 1 ? 3 : 4,
+        clubId: angle === 'secondSale' || angle === 'sale' ? t.sellerId : t.buyerId,
+        teams: [t.buyerId, t.sellerId],
+        stakes: pct(t.buyerId) + pct(t.sellerId),
+        trade: { ...t, week, earlierSales },
+      });
+    }
+    const rumor = reportableRumors(l, week, week)[0];
+    if (rumor && !has(`rumor:${rumor.key}`))
+      out.push({
+        key: `rumor:${rumor.key}`,
+        kind: 'rumor',
+        angle: rumor.shopping ? 'shopping' : 'interest',
+        tier: 5,
+        clubId: rumor.clubId,
+        teams: [rumor.clubId, ...(rumor.askerId === undefined ? [] : [rumor.askerId])],
+        stakes: pct(rumor.clubId),
+        rumor: { ...rumor, week },
+      });
+  }
+
+  // A head coach, a GM or a coordinator out at another club, one story a club.
+  const events = l.leadership.events.filter(
+    (e) =>
+      e.date.season === l.season &&
+      e.date.phase === 'regular' &&
+      (e.date.week === week || e.date.week === week + 1) &&
+      e.teamId !== l.userTeamId &&
+      ['coachInterim', 'gmDismissed', 'gmHired', 'coachRelieved'].includes(e.kind) &&
+      !leadershipTold(have, e.date.season, e.date.week, e.id),
+  );
+  for (const teamId of new Set(events.map((e) => e.teamId))) {
+    const mine = events.filter((e) => e.teamId === teamId);
+    const covers = mine.map((e) => `leadership:${e.date.season}:${e.id}`);
+    const coach = mine.find((e) => e.kind === 'coachInterim');
+    const gm = mine.find((e) => e.kind === 'gmDismissed');
+    const relieved = mine.find((e) => e.kind === 'coachRelieved');
+    const nameOf = (x?: { firstName: string; lastName: string }) => (x ? `${x.firstName} ${x.lastName}` : '');
+    let leader: Candidate['leader'];
+    if (coach) {
+      // The event names the interim; the man he replaces is in its public line.
+      const gone = /dismissed (.+?) and named/.exec(coach.report)?.[1] ?? '';
+      leader = { teamId, role: 'headCoach', out: gone, in: nameOf(l.coaches[coach.coachId!]) };
+    } else if (gm) {
+      const next = mine.find((e) => e.kind === 'gmHired');
+      leader = { teamId, role: 'gm', out: nameOf(l.gms[gm.gmId!]), in: next ? nameOf(l.gms[next.gmId!]) : undefined };
+    } else if (relieved) {
+      const c = l.coaches[relieved.coachId!] ?? l.retiredCoaches?.[relieved.coachId!];
+      const side = c?.role === 'offCoord' ? 'offensive' : c?.role === 'defCoord' ? 'defensive' : 'special teams';
+      leader = { teamId, role: 'coordinator', out: nameOf(c), side };
+    }
+    if (!leader?.out) continue;
+    out.push({
+      key: `leaderOut:${l.season}:${Math.min(...mine.map((e) => e.id))}`,
+      covers,
+      kind: 'leaderOut',
+      angle: leader.role === 'coordinator' ? 'coordinatorOut' : leader.role === 'gm' ? 'gmOut' : 'coachOut',
+      tier: leader.role === 'coordinator' ? 4 : 1,
+      clubId: teamId,
+      teams: [teamId],
+      stakes: pct(teamId),
+      leader,
+    });
+  }
+
+  for (const f of speakFacts(l, have))
+    out.push({
+      key: f.id,
+      kind: 'speak',
+      angle: f.kind,
+      tier: 4,
+      clubId: f.teamId,
+      teams: [f.teamId],
+      stakes: pct(f.teamId),
+      speak: { playerId: f.playerId, teamId: f.teamId, kind: f.kind },
+    });
+  const room = snnRumor(l, have);
+  if (room)
+    out.push({
+      key: room.key,
+      kind: 'room',
+      angle: 'room',
+      tier: 4,
+      clubId: room.teamId,
+      teams: [room.teamId],
+      stakes: pct(room.teamId),
+      room: { teamId: room.teamId, coachId: room.coachId, text: room.text },
+    });
+  for (const m of mentorFacts(l, week + 1, have))
+    out.push({
+      key: m.id,
+      kind: 'mentor',
+      angle: 'mentor',
+      tier: 5,
+      clubId: m.homeId,
+      teams: [m.homeId, m.awayId],
+      stakes: pct(m.homeId) + pct(m.awayId),
+      mentor: { mentorId: m.mentorId, discipleId: m.discipleId, homeId: m.homeId, awayId: m.awayId },
+    });
+  return out.filter(fresh);
+}
+
 /** Top tier first, then the higher stakes, then a hash of the edition and the story: the same league, the same order. */
 export function rankCandidates(cs: Candidate[], editionId: string): Candidate[] {
   return [...cs].sort(
@@ -351,8 +531,17 @@ export function buildEdition(l: League, week: number): Edition | null {
   const user = employed(l) ? l.userTeamId : null;
   const id = editionId(l, week);
   const bye = user === null ? null : byeCandidate(l, week, user);
+  // What SNN has told already, under an edition's keys or the ids of the mails an edition replaces.
+  const have = toldKeys(l);
+  const told = (c: Candidate) => c.kind !== 'game' && (have.has(c.key) || !!c.covers?.some((x) => have.has(x)));
   const ranked = rankCandidates(
-    [...gameCandidates(l, week), ...runCandidates(l, week), ...starOutCandidates(l, week), ...(bye ? [bye] : [])],
+    [
+      ...gameCandidates(l, week),
+      ...runCandidates(l, week),
+      ...starOutCandidates(l, week),
+      ...newsCandidates(l, week, have),
+      ...(bye ? [bye] : []),
+    ].filter((c) => !told(c)),
     id,
   );
   const cut = cutEdition(ranked, user);

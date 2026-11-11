@@ -648,7 +648,10 @@ function rumorMail(league: League, have: Set<string>): Draft[] {
 const RUN = ['', '', '', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
 /** One club this week whose head coach's word has worn thin while it loses, not yet rumored this season. */
-export function snnRumor(league: League, told: Set<string>): { key: string; text: string } | null {
+export function snnRumor(
+  league: League,
+  told: Set<string>,
+): { key: string; text: string; teamId: number; coachId: number } | null {
   if (league.phase !== 'regular') return null;
   const records = computeRecords(league);
   for (const team of league.teams) {
@@ -663,6 +666,8 @@ export function snnRumor(league: League, told: Set<string>): { key: string; text
     if (told.has(key)) continue;
     return {
       key,
+      teamId: team.id,
+      coachId: hc.id,
       text: say(
         SNN_RUMOR,
         {
