@@ -1,0 +1,525 @@
+<title>Stadium Depth Study</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@800;900&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: one study. The new drawing large, the first sketch of the same building beside what changed. */
+  :root { color-scheme: dark; --bg: #0d1210; --panel: #141d19; --raise: #1c2722; --ink: #e9efea; --muted: #93a198; --line: #29342e; --marker: #ffd43b; --marker-ink: #1f1900;
+    --font-display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif; --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif; --font-data: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; padding-block: 24px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .wrap { max-width: 1120px; margin-inline: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 900; line-height: 1.05; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(34px, 6vw, 48px); } h2 { font-size: 26px; } h3 { font-size: 20px; }
+  p { margin: 0; max-width: 66ch; } ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 66ch; }
+  .eyebrow { font-family: var(--font-display); font-weight: 800; font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .muted { color: var(--muted); } section, .head { display: grid; gap: 14px; }
+  figure { margin: 0; display: grid; gap: 8px; min-width: 0; } figcaption { font-size: 13px; color: var(--muted); }
+  .frame { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+  .frame canvas, .frame svg { display: block; width: 100%; height: auto; }
+  .two { display: grid; gap: 18px; align-items: start; }
+  @media (min-width: 900px) { .two { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); } }
+  .calls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .call { background: var(--panel); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; }
+  .call b { font-size: 15px; } .call span { font-size: 14px; color: var(--muted); }
+  .studies { display: grid; gap: 22px 18px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .studies { grid-template-columns: repeat(2, minmax(0, 1fr)); } .studies .wide { grid-column: 1 / -1; } }
+  figcaption b { font-family: var(--font-display); font-weight: 900; font-size: 18px; color: var(--ink); letter-spacing: 0.01em; }
+  figcaption span { font: 600 12px var(--font-data); margin-left: 6px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .seg { display: inline-flex; background: var(--raise); border-radius: 999px; padding: 3px; }
+  .seg button { font: 600 13px var(--font-data); color: var(--muted); background: none; border: 0; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--marker); color: var(--marker-ink); }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+</style>
+<div class="wrap">
+  <header class="head">
+    <span class="eyebrow">AFLS · stadiums · five examples, next pass</span>
+    <h1>Five bowls, with their cities</h1>
+    <p>The same five with your notes worked in: roofs to the edges, surroundings after each club's real city with more detail, and a crowd that follows the club's record. Drawings only. No game code.</p>
+  </header>
+  <section>
+    <div class="bar">
+      <span class="muted">Crowd</span>
+      <span class="seg" role="group" aria-label="How the club is doing"><button data-crowd="win" aria-pressed="true">Winning</button><button data-crowd="even" aria-pressed="false">Even</button><button data-crowd="lose" aria-pressed="false">Losing</button></span>
+    </div>
+    <div class="studies" id="studies"></div>
+  </section>
+  <section>
+    <h2>What changed</h2>
+    <ul>
+      <li><b>Roofs reach the edges.</b> Minnesota's and Atlanta's roofs now run off both sides of the picture. The cut across the middle is as it was.</li>
+      <li><b>Each club's own setting.</b> Denver and the two roofed grounds sit in town. Buffalo sits out of town among car parks and woods. Cincinnati sits on its river, facing the far bank.</li>
+      <li><b>More detail.</b> Buildings have floors and windows. Woods are packed tight. Car parks have rows, streets have lane marks and traffic.</li>
+      <li><b>Crowds that follow the record.</b> Press Winning, Even or Losing. Empty seats show first high up, at the ends, and in whole sections.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>What I need to know</h2>
+    <div class="calls">
+      <div class="call"><b>Roof sides</b><span>I read "closer to the edge" as the roof reaching the sides of the picture. Say if you meant the sides coming forward toward the camera instead.</span></div>
+      <div class="call"><b>People in buildings</b><span>I read that as: buildings need windows, and people only need to be in the stadium. No figures in the windows.</span></div>
+      <div class="call"><b>How empty is "losing"?</b><span>About half full here. It can be gentler.</span></div>
+      <div class="call"><b>Real settings</b><span>These follow each city's lie of the land: downtown, out of town, on a river. No real landmark is copied.</span></div>
+    </div>
+    <p class="muted">The crowd would read the club's record, which the game already shows, so it needs nothing from the engine. When this pass is right I will do every club, a division at a time, for you to review.</p>
+  </section>
+</div>
+<script>
+// The stadium drawer for the concept sheet: one function, one config a building, the broadcast camera's frame.
+const W = 360, H = 188;
+// The frame's geometry: as the game has it, or with the camera tilted up to give the building more of the picture.
+let YB = 62, CY = 20, FY = 68, NY = 168, K = 1;
+const MAT = { brick: '#8a4b3a', stone: '#a39c8c', dark: '#5d5a55', steel: '#56606b', glass: '#6f97aa', timber: '#8a6238', adobe: '#c49770', concrete: '#8d9296', white: '#dfe3e0', black: '#23272c', chrome: '#aeb7bd' };
+function rng(seed) { let h = 2166136261; for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => { h += 0x6d2b79f5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = hex(a), B = hex(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+const lum = (c) => { const [r, g, b] = hex(c); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+const lift = (c) => (lum(c) < 0.16 ? mix(c, '#9aa3a8', 0.55) : c);
+const P = (pts) => pts.map((p) => p.map((n) => +n.toFixed(1)).join(',')).join(' ');
+
+function rimOff(kind, u, x) {
+  switch (kind) {
+    case 'wave': return 2.5 * Math.sin(x / 22);
+    case 'peak': return -7 * (1 - Math.abs(u));
+    case 'saddle': return -8 * Math.abs(u) + 3;
+    case 'steps': return -Math.round((1 - Math.abs(u)) * 3.4) * 3;
+    case 'jag': { const p = (x % 46) / 46; return -9 * (p < 0.5 ? p * 2 : 2 - p * 2) * (0.45 + 0.55 * Math.abs(Math.sin(x / 37))); }
+    case 'crenel': return Math.floor(x / 6) % 2 ? 0 : -2.6;
+    case 'pal': { const p = (x % 5) / 5; return -3 * (p < 0.5 ? p * 2 : 2 - p * 2); }
+    case 'crown': { const p = (((x + 18) % 36) / 36); return -7 * Math.max(0, 1 - Math.abs(p - 0.5) * 4.5); }
+    case 'gable': { const p = (x % 60) / 60; return -9 * (p < 0.5 ? p * 2 : 2 - p * 2); }
+    case 'saw': { const p = (x % 30) / 30; return -7 * p; }
+    default: return 0;
+  }
+}
+
+function backdrop(kind, R, night) {
+  const ink = night ? '#0b1220' : '#5f7387', far = night ? '#101a2c' : '#8fa3b5';
+  let s = '';
+  if (kind === 'city') {
+    for (let x = -4; x < W; ) { const w = 7 + R() * 12, h = 14 + R() * 34; s += `<rect x="${x.toFixed(1)}" y="${(60 - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${R() < 0.5 ? ink : far}"/>`; if (night) for (let k = 0; k < 5; k++) s += `<rect x="${(x + 1 + R() * (w - 2)).toFixed(1)}" y="${(60 - h + 2 + R() * 20).toFixed(1)}" width="1" height="1" fill="#f3d98a" opacity=".8"/>`; x += w + R() * 3; }
+  } else if (kind === 'mtn') {
+    s += `<polygon points="${P([[0, 60], [0, 34], [40, 14], [78, 30], [120, 6], [170, 28], [214, 10], [262, 26], [310, 8], [360, 30], [360, 60]])}" fill="${far}"/>`;
+    s += `<polygon points="${P([[112, 12], [120, 6], [129, 13], [123, 12], [119, 15]])}" fill="#eef3f6" opacity="${night ? 0.5 : 0.95}"/><polygon points="${P([[204, 15], [214, 10], [224, 15], [216, 14]])}" fill="#eef3f6" opacity="${night ? 0.5 : 0.95}"/><polygon points="${P([[301, 13], [310, 8], [320, 14], [311, 12]])}" fill="#eef3f6" opacity="${night ? 0.5 : 0.95}"/>`;
+  } else if (kind === 'pines') {
+    s += `<path d="M0 60 L0 30 Q90 18 180 28 T360 24 L360 60Z" fill="${far}"/>`;
+    for (let x = 0; x < W; x += 7 + R() * 5) { const h = 9 + R() * 8, y = 34 - R() * 8; s += `<polygon points="${P([[x, y + h], [x + 3, y], [x + 6, y + h]])}" fill="${night ? '#0c1a16' : '#3d5a48'}"/>`; }
+  } else if (kind === 'palms') {
+    s += `<rect x="0" y="40" width="${W}" height="20" fill="${night ? '#0d2030' : '#7fb7c9'}"/>`;
+    for (let i = 0; i < 9; i++) { const x = 12 + i * 42 + R() * 14, y = 14 + R() * 12; s += `<path d="M${x} 60 Q${x + 2} ${y + 20} ${x + 1} ${y}" stroke="${ink}" stroke-width="1.2" fill="none"/>`; for (const a of [-2.6, -1.9, -1.2, 0.2, 0.9, 1.6]) s += `<path d="M${x + 1} ${y} q${(Math.cos(a) * 5).toFixed(1)} ${(-3 + Math.sin(a)).toFixed(1)} ${(Math.cos(a) * 9).toFixed(1)} ${(Math.sin(a) * 2 + 3).toFixed(1)}" stroke="${night ? '#12301f' : '#3f7a55'}" stroke-width="1.3" fill="none"/>`; }
+  } else if (kind === 'desert') {
+    s += `<polygon points="${P([[0, 60], [0, 30], [30, 30], [38, 22], [84, 22], [92, 34], [150, 34], [160, 16], [196, 16], [206, 32], [270, 32], [280, 24], [330, 24], [340, 36], [360, 36], [360, 60]])}" fill="${night ? '#22192a' : '#c08a66'}"/>`;
+  } else if (kind === 'plain') {
+    s += `<rect x="0" y="44" width="${W}" height="16" fill="${far}"/>`;
+    for (let x = 6; x < W; x += 20 + R() * 30) s += `<ellipse cx="${x.toFixed(1)}" cy="43" rx="${(4 + R() * 5).toFixed(1)}" ry="3" fill="${ink}"/>`;
+  } else if (kind === 'harbor') {
+    s += `<rect x="0" y="42" width="${W}" height="18" fill="${night ? '#0d2030' : '#6f9db3'}"/>`;
+    for (let i = 0; i < 5; i++) { const x = 20 + i * 74 + R() * 20; s += `<path d="M${x} 60 V16 M${x - 3} 60 L${x} 30 L${x + 3} 60 M${x} 18 L${x + 22} 24 M${x} 18 L${x - 8} 24 M${x + 20} 24 v8" stroke="${ink}" stroke-width="1.1" fill="none"/>`; }
+  } else if (kind === 'hills') {
+    s += `<path d="M0 60 L0 36 Q50 16 110 32 T220 26 T360 30 L360 60Z" fill="${far}"/><path d="M0 60 L0 44 Q80 30 170 42 T360 38 L360 60Z" fill="${ink}" opacity=".7"/>`;
+  } else if (kind === 'river') {
+    s += `<rect x="0" y="40" width="${W}" height="20" fill="${night ? '#0d2030' : '#7aa3b8'}"/><path d="M0 60 L0 30 Q60 20 120 30 T360 26 L360 44 L0 44Z" fill="${far}" opacity=".8"/>`;
+    for (const x0 of [30, 210]) { s += `<path d="M${x0} 40 H${x0 + 120} M${x0} 40 Q${x0 + 60} 14 ${x0 + 120} 40" stroke="${ink}" stroke-width="1.3" fill="none"/>`; for (let k = 1; k < 8; k++) { const x = x0 + k * 15, u = k / 8, y = 40 - 26 * 4 * u * (1 - u) * 0.5; s += `<path d="M${x} 40 V${y.toFixed(1)}" stroke="${ink}" stroke-width=".7"/>`; } }
+  }
+  return s;
+}
+
+function star(cx, cy, r, fill) { const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.42 : r; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return `<polygon points="${P(pts)}" fill="${fill}"/>`; }
+
+function ornaments(c, rim, col, night, R, yLow) {
+  const [c1, c2] = col; let s = ''; const o = c.orn || [];
+  const lit = night ? '#ffd76a' : '#f4ead0';
+  if (o.includes('masts') || o.includes('rig')) {
+    const xs = o.includes('rig') ? [70, 150, 235, 300] : [90, 180, 270]; const rake = o.includes('rig') ? 5 : 0;
+    xs.forEach((x, i) => { const y = rim(x), top = y - (i % 2 ? 26 : 22) - (o.includes('rig') ? 2 : 0); s += `<path d="M${x} ${y + 3} L${x + rake} ${top}" stroke="#3b2c1c" stroke-width="1.5"/>`; for (const f of [0.35, 0.62]) { const yy = y + (top - y) * f, xx = x + rake * f, w = 9 - f * 6; s += `<path d="M${xx - w} ${yy} H${xx + w}" stroke="#3b2c1c" stroke-width="1"/>`; if (!o.includes('rig')) s += `<path d="M${xx - w + 1} ${yy + 0.6} H${xx + w - 1} L${xx + w - 2.5} ${yy + 5.5} H${xx - w + 2.5}Z" fill="#ece6d4" opacity=".92"/>`; } s += `<path d="M${x + rake} ${top} l7 2 l-7 2Z" fill="${lift(c2)}"/>`; if (o.includes('rig')) s += `<path d="M${x + rake} ${top} L${x - 26} ${rim(x - 26)} M${x + rake} ${top} L${x + 30} ${rim(x + 30)}" stroke="#3b2c1c" stroke-width=".5" opacity=".8"/>`; });
+    if (!o.includes('rig')) for (let x = 96; x < 266; x += 8) s += `<rect x="${x}" y="${rim(x) - 4.6 + 2.4 * Math.sin(x / 27)}" width="2.6" height="2" fill="${['#c8102e', '#f5d21b', '#1f5fbf', '#f4f4f4'][Math.floor(x / 8) % 4]}"/>`;
+  }
+  if (o.includes('towers') || o.includes('lookout')) {
+    const slim = o.includes('lookout'); const xs = slim ? [52, 308] : [38, 128, 232, 322];
+    for (const x of xs) { const y = rim(x), w = slim ? 7 : 12, top = y - (slim ? 30 : 11); s += `<rect x="${x - w / 2}" y="${top}" width="${w}" height="${y - top + 8}" fill="${mix(MAT[c.mat], '#000000', 0.18)}"/>`; if (slim) s += `<rect x="${x - 6}" y="${top - 3}" width="12" height="3.4" fill="${mix(MAT[c.mat], '#000000', 0.35)}"/><rect x="${x - 3.5}" y="${top - 7}" width="7" height="4" fill="${lit}"/>${night ? `<circle cx="${x}" cy="${top - 5}" r="9" fill="#ffd76a" opacity=".22"/>` : ''}<path d="M${x - 5} ${top - 7} L${x} ${top - 12} L${x + 5} ${top - 7}Z" fill="${c1}"/>`; else { for (let k = 0; k < 3; k++) s += `<rect x="${x - w / 2 + k * 4.6}" y="${top - 2.6}" width="2.8" height="2.6" fill="${mix(MAT[c.mat], '#000000', 0.18)}"/>`; s += `<rect x="${x - 0.8}" y="${top + 3}" width="1.6" height="5" fill="#1c1c1c"/><path d="M${x} ${top - 2.6} V${top - 12} l7 2 l-7 2" stroke="#333" stroke-width=".6" fill="${lift(c1)}"/>`; } }
+  }
+  if (o.includes('stacks')) {
+    const glow = o.includes('glow'); const xs = glow ? [74, 92, 268, 286] : [246, 264];
+    for (const x of xs) { const y = rim(x), top = y - 30; s += `<rect x="${x - 3}" y="${top}" width="6" height="${y - top + 6}" fill="${glow ? '#2b2d31' : '#e9e6dc'}"/><rect x="${x - 3.6}" y="${top}" width="7.2" height="3.4" fill="${glow ? '#111' : c1}"/>`; if (glow) s += `<ellipse cx="${x}" cy="${top - 1}" rx="3" ry="2" fill="#ff8a1e"/><circle cx="${x}" cy="${top - 2}" r="${night ? 9 : 6}" fill="#ffb347" opacity="${night ? 0.35 : 0.22}"/>`; else s += `<ellipse cx="${x + 4}" cy="${top - 5}" rx="6" ry="3.4" fill="#f2f2f2" opacity="${night ? 0.25 : 0.7}"/><ellipse cx="${x + 12}" cy="${top - 9}" rx="8" ry="4" fill="#f2f2f2" opacity="${night ? 0.18 : 0.5}"/>`; }
+  }
+  if (o.includes('spire')) { const y = rim(180); s += `<rect x="166" y="${y - 9}" width="28" height="12" fill="${mix(MAT[c.mat], '#ffffff', 0.12)}"/><rect x="171" y="${y - 17}" width="18" height="9" fill="${mix(MAT[c.mat], '#ffffff', 0.2)}"/><rect x="175.5" y="${y - 24}" width="9" height="8" fill="${mix(MAT[c.mat], '#ffffff', 0.28)}"/><path d="M178 ${y - 24} L180 ${y - 42} L182 ${y - 24}Z" fill="#cfd4d6"/><circle cx="180" cy="${y - 42}" r="1.1" fill="${night ? '#ff5a4d' : '#d9dcdc'}"/>`; for (let k = 0; k < 4; k++) s += `<rect x="${168.5 + k * 6.4}" y="${y - 7}" width="2" height="6" fill="${lit}" opacity=".85"/>`; }
+  if (o.includes('cupola')) { const y = rim(180); s += `<rect x="173" y="${y - 9}" width="14" height="10" fill="#e9e6dc"/><path d="M172 ${y - 9} Q180 ${y - 21} 188 ${y - 9}Z" fill="${mix(c1, '#3d7d74', 0.5)}"/><path d="M180 ${y - 16} V${y - 25}" stroke="#d8c074" stroke-width="1"/>`; for (let k = 0; k < 3; k++) s += `<rect x="${175 + k * 4}" y="${y - 7}" width="1.8" height="6" fill="#30363a"/>`; }
+  if (o.includes('clock')) { const y = rim(180); s += `<rect x="172" y="${y - 26}" width="16" height="30" fill="${mix(MAT[c.mat], '#000000', 0.12)}"/><path d="M170 ${y - 26} L180 ${y - 38} L190 ${y - 26}Z" fill="#3b4046"/><circle cx="180" cy="${y - 17}" r="5" fill="${night ? '#ffeab0' : '#f6f1e1'}" stroke="#2c2c2c" stroke-width=".6"/><path d="M180 ${y - 17} v-3.4 M180 ${y - 17} h2.4" stroke="#2c2c2c" stroke-width=".7"/>`; }
+  if (o.includes('pylons')) for (const x of [36, 108, 252, 324]) { const y = rim(x); s += `<path d="M${x} ${y + 2} V${y - 16}" stroke="#d9d9d9" stroke-width="1.4"/>` + star(x, y - 20, 5, lift(c2)); }
+  if (o.includes('gate')) { const y = rim(180); s += `<path d="M150 ${y + 4} V${y - 15} M210 ${y + 4} V${y - 15} M146 ${y - 15} H214 M146 ${y - 12} H214" stroke="#5a3d22" stroke-width="2.2" fill="none"/><rect x="166" y="${y - 10.5}" width="28" height="7" fill="${c1}" stroke="#e7d9b8" stroke-width=".6"/>` + star(180, y - 7, 2.6, lift(c2)); }
+  if (o.includes('gantry')) { const y = rim(180) - 4; s += `<path d="M34 ${y + 12} V${y - 14} M326 ${y + 12} V${y - 14} M26 ${y - 14} H334 M26 ${y - 10} H334" stroke="#d98a1f" stroke-width="2" fill="none"/>`; for (let x = 30; x < 330; x += 8) s += `<path d="M${x} ${y - 14} l4 4 l4 -4" stroke="#d98a1f" stroke-width=".6" fill="none"/>`; s += `<rect x="196" y="${y - 10}" width="12" height="5" fill="#3a3f44"/><path d="M202 ${y - 5} v6" stroke="#222" stroke-width=".8"/>`; for (let x = 44; x < 320; x += 12) s += `<rect x="${x}" y="${y - 9.4}" width="5" height="1.6" fill="${night ? '#fff6cf' : '#f1f1f1'}"/>`; }
+  if (o.includes('bastions')) for (const [x, d] of [[34, 1], [326, -1]]) { const y = rim(x); s += `<polygon points="${P([[x - 20 * d, y + 30], [x - 12 * d, y - 8], [x + 12 * d, y - 8], [x + 18 * d, y + 30]])}" fill="${mix(MAT[c.mat], '#000000', 0.12)}"/><rect x="${x - 13}" y="${y - 10.5}" width="26" height="3" fill="${mix(MAT[c.mat], '#ffffff', 0.2)}"/><path d="M${x} ${y - 10} V${y - 24} l8 2.4 l-8 2.4" stroke="#3a3a3a" stroke-width=".7" fill="${lift(c1)}"/>`; }
+  if (o.includes('truss')) { const y0 = yLow - 6 * K; s += `<rect x="-2" y="${y0 - 3.4}" width="364" height="3.4" fill="none" stroke="${lift(c2)}" stroke-width=".9"/>`; for (let x = 0; x < W; x += 6) s += `<path d="M${x} ${y0} l3 -3.4 l3 3.4" stroke="${lift(c2)}" stroke-width=".7" fill="none"/>`; }
+  if (o.includes('bunting')) { for (let x = 2; x < W; x += 6) s += `<path d="M${x} ${yLow + 0.4} h5 l-2.5 3.6Z" fill="${['#6b3fa0', '#2e8b57', '#e0b23c'][Math.floor(x / 6) % 3]}"/>`; }
+  if (o.includes('pagoda')) { const x = 306, y = rim(x); s += `<rect x="${x - 5}" y="${y - 26}" width="10" height="32" fill="#e9e6dc"/>`; for (let k = 0; k < 4; k++) s += `<path d="M${x - 11 + k} ${y - 4 - k * 8} H${x + 11 - k} L${x + 7 - k} ${y - 7 - k * 8} H${x - 7 + k}Z" fill="${k % 2 ? '#222' : c1}"/>`; s += `<path d="M${x} ${y - 31} v-8" stroke="#ddd" stroke-width=".8"/>`; }
+  return s;
+}
+
+function canopy(c, rim, rimBase, fx0, fx1, col, night) {
+  const [c1, c2] = col; const k = c.roof; if (!k) return ''; let s = '';
+  const lit = night ? '#fff6cf' : '#f4f4f4';
+  const edge = (f, step = 3) => { const pts = []; for (let x = fx0; x <= fx1; x += step) pts.push([x, f(x)]); return pts; };
+  if (k === 'slab' || k === 'arch') {
+    const top = (x) => (k === 'arch' ? rimBase - 8 - 9 * (1 - ((x - 180) / 190) ** 2) : rimBase - 10);
+    const up = edge(top), dn = edge((x) => top(x) + 3.4).reverse();
+    for (let x = fx0 + 14; x < fx1; x += 28) s += `<path d="M${x} ${top(x) + 3} L${x} ${rim(x)}" stroke="#39424a" stroke-width="1"/>`;
+    if (c.screens) for (let x = fx0 + 14; x < fx1 - 28; x += 28) s += `<rect x="${x + 0.6}" y="${top(x) + 3.4}" width="26.8" height="${rim(x) - top(x) - 3.4}" fill="#cfe6f2" opacity=".2"/>`;
+    s += `<polygon points="${P([...up, ...dn])}" fill="${c.roofCol || '#e3e6e6'}"/><polyline points="${P(edge((x) => top(x) + 3.4))}" fill="none" stroke="#2c3338" stroke-width="1.1"/>`;
+    if (c.snow) s += `<polyline points="${P(edge((x) => top(x) - 0.4))}" fill="none" stroke="#ffffff" stroke-width="1.8"/>`;
+    for (let x = fx0 + 6; x < fx1; x += 9) s += `<rect x="${x}" y="${top(x) + 3.8}" width="3.6" height="1" fill="${lit}"/>`;
+  } else if (k === 'sail') {
+    for (let x = fx0 + 2; x < fx1 - 6; x += 26) { const y = rimBase - 4; s += `<path d="M${x} ${y} Q${x + 6} ${y - 4} ${x + 13} ${y - 13} Q${x + 20} ${y - 4} ${x + 26} ${y}Z" fill="#f1ede0" stroke="#b9b29c" stroke-width=".5"/><path d="M${x + 13} ${y - 13} V${y - 18}" stroke="#55402a" stroke-width="1"/><path d="M${x} ${y} V${rim(x) + 2}" stroke="#55402a" stroke-width=".8"/>`; }
+  } else if (k === 'hood') {
+    const pts = [[-2, rimBase + 14], [-2, rimBase - 16], [362, rimBase - 16], [362, rimBase + 14], [334, rimBase - 2], [26, rimBase - 2]];
+    s += `<polygon points="${P(pts)}" fill="#3d464e"/><path d="M26 ${rimBase - 2} H334" stroke="${lift(c2)}" stroke-width="1.4"/>`;
+    for (let x = 6; x < W; x += 16) s += `<path d="M${x} ${rimBase - 16} L${x + (x - 180) * 0.05} ${rimBase - 2.6}" stroke="#57616a" stroke-width=".6"/>`;
+    for (let x = 30; x < 332; x += 9) s += `<rect x="${x}" y="${rimBase - 1}" width="3.6" height="1" fill="${lit}"/>`;
+  } else if (k === 'cable') {
+    const y = rimBase - 7;
+    for (const tx of [108, 252]) { s += `<path d="M${tx} ${rimBase + 4} V${rimBase - 34}" stroke="${c1}" stroke-width="2.2"/>`; for (let d = -84; d <= 84; d += 12) if (d) s += `<path d="M${tx} ${rimBase - 33} L${tx + d} ${y}" stroke="#d7dadb" stroke-width=".45"/>`; }
+    s += `<rect x="14" y="${y}" width="332" height="2.4" fill="#e6e8e8"/><rect x="14" y="${y + 2.4}" width="332" height=".8" fill="#2c3338"/>`;
+    for (let x = 20; x < 344; x += 9) s += `<rect x="${x}" y="${y + 3.4}" width="3.6" height=".9" fill="${lit}"/>`;
+  } else if (k === 'fins' || k === 'baffle') {
+    const tall = k === 'baffle';
+    for (let x = fx0 + 8; x < fx1 - 4; x += tall ? 20 : 13) { const y = rim(x); s += tall ? `<path d="M${x} ${y + 2} Q${x + 9} ${y - 12} ${x + 3} ${y - 27} L${x + 7} ${y - 27} Q${x + 14} ${y - 12} ${x + 5} ${y + 2}Z" fill="#aab3ba" stroke="#6d777f" stroke-width=".4"/>` : `<path d="M${x} ${y + 1} L${x + 10} ${y - 13} L${x + 12} ${y - 12} L${x + 5} ${y + 1}Z" fill="${Math.floor(x / 13) % 3 ? '#eef0ee' : lift(c2)}"/>`; }
+    if (tall) s += `<path d="M${fx0 + 10} ${rimBase - 27} H${fx1 - 8}" stroke="#6d777f" stroke-width=".6"/>`;
+  } else if (k === 'scale') {
+    for (let row = 0; row < 2; row++) for (let x = fx0 + (row ? 5 : 0); x < fx1; x += 10) s += `<path d="M${x} ${rimBase - 6 - row * 4} a5.6 5.6 0 0 1 11.2 0Z" fill="${row ? '#c9d1d6' : '#aeb7bd'}" stroke="#7d868c" stroke-width=".4"/>`;
+    s += `<rect x="${fx0}" y="${rimBase - 6}" width="${fx1 - fx0}" height="1.4" fill="#2c3338"/>`;
+    for (let x = fx0 + 14; x < fx1; x += 28) s += `<path d="M${x} ${rimBase - 5} V${rim(x)}" stroke="#39424a" stroke-width="1"/>`;
+  }
+  return s;
+}
+
+function ceiling(c, st, col, R, skyId, stretch) {
+  const CY = 20; // drawn at the game's size, then stretched
+  const [c1, c2] = col; const k = c.dome, night = st.night; let s = '';
+  const fan = (n, stroke, w = 0.6, f = 1.9) => { let o = ''; for (let i = 0; i <= n; i++) { const xf = (i / n) * W; o += `<path d="M${xf.toFixed(1)} ${CY} L${(180 + (xf - 180) * f).toFixed(1)} 0" stroke="${stroke}" stroke-width="${w}"/>`; } return o; };
+  const cross = (ys, stroke, w = 0.6, bow = 0) => ys.map((y) => `<path d="M0 ${y} Q180 ${y - bow} 360 ${y}" stroke="${stroke}" stroke-width="${w}" fill="none"/>`).join('');
+  const base = (fill) => `<rect x="0" y="0" width="${W}" height="${CY}" fill="${fill}"/>`;
+  if (k === 'truss' || c.type === 'ret') s += base(c.ceil || '#2a3036') + fan(14, '#69747d') + cross([13.5, 7.5, 2.5], '#69747d');
+  if (k === 'ribs') s += base(night ? '#8f8468' : '#dcd0b1') + fan(18, '#7a5a34', 0.9) + cross([14, 8, 3], '#7a5a34', 0.5, 3) + `<path d="M180 ${CY} V0" stroke="#5b4023" stroke-width="2.6"/>`;
+  if (k === 'net') { s += base(night ? '#1c2630' : '#cfe0e8'); for (let x = -60; x < W + 60; x += 14) s += `<path d="M${x} ${CY} L${x + 46} 0 M${x} ${CY} L${x - 46} 0" stroke="${night ? '#55616b' : '#8ea4b0'}" stroke-width=".5"/>`; }
+  if (k === 'tent') { const n = 16; for (let i = 0; i < n; i++) { const a = (i / n) * W, b = ((i + 1) / n) * W; s += `<polygon points="${P([[a, CY], [b, CY], [180 + (b - 180) * 1.9, 0], [180 + (a - 180) * 1.9, 0]])}" fill="${i % 2 ? '#f1ead6' : ['#6b3fa0', '#2e8b57', '#d9a92f'][Math.floor(i / 2) % 3]}"/>`; } for (let x = 0; x < W; x += 9) s += `<path d="M${x} ${CY - 0.4} q4.5 4.4 9 0Z" fill="#d9a92f"/>`; }
+  if (k === 'stars') { s += base('#070a14'); for (let i = 0; i < 90; i++) s += `<circle cx="${(R() * W).toFixed(1)}" cy="${(R() * (CY - 2) + 0.6).toFixed(1)}" r="${(0.25 + R() * 0.45).toFixed(2)}" fill="#fff8d8" opacity="${(0.5 + R() * 0.5).toFixed(2)}"/>`; s += `<ellipse cx="180" cy="8" rx="38" ry="5.6" fill="url(#${skyId})" stroke="${lift(c2)}" stroke-width="1"/>`; }
+  if (k === 'cog') { s += base('#30363c') + fan(20, '#58626a', 0.5); s += `<ellipse cx="180" cy="8" rx="92" ry="8" fill="none" stroke="#9aa4ab" stroke-width="2.6"/>`; for (let i = 0; i < 28; i++) { const a = (i / 28) * Math.PI * 2; s += `<path d="M${(180 + Math.cos(a) * 92).toFixed(1)} ${(8 + Math.sin(a) * 8).toFixed(1)} L${(180 + Math.cos(a) * 104).toFixed(1)} ${(8 + Math.sin(a) * 10.6).toFixed(1)}" stroke="#9aa4ab" stroke-width="3"/>`; } s += `<ellipse cx="180" cy="8" rx="30" ry="2.6" fill="none" stroke="${lift(c1)}" stroke-width="1.2"/>`; }
+  if (k === 'dune') { s += `<rect x="0" y="0" width="${W}" height="${CY}" fill="url(#chrome)"/>`; for (const [y, a] of [[16, 1.6], [11, 2.2], [6, 2.8], [2, 3.2]]) { const pts = []; for (let x = 0; x <= W; x += 6) pts.push([x, y + a * Math.sin(x / 26 + y)]); s += `<polyline points="${P(pts)}" fill="none" stroke="#f4f7f8" stroke-width=".7" opacity=".8"/>`; } }
+  if (k === 'wing') { s += base(night ? '#9aa0a0' : '#e7e9e5'); for (const y of [17, 12, 7, 2]) s += `<path d="M-4 ${y + 5 + (CY - y) * 0.25} L180 ${y} L364 ${y + 5 + (CY - y) * 0.25}" stroke="#9aa3a6" stroke-width=".7" fill="none"/>`; s += `<path d="M180 ${CY} V0" stroke="${c1}" stroke-width="2.4"/>`; }
+  if (k === 'shed') { s += base('#353b41') + fan(12, '#6c767e', 0.7); for (const [y, h] of [[13, 4.4], [6.6, 4], [1, 3.4]]) for (let i = 0; i < 12; i++) { const a = (i / 12) * W + 4, b = ((i + 1) / 12) * W - 4, f = 1 + (CY - y) / CY * 0.9; s += `<polygon points="${P([[180 + (a - 180) * f, y + h], [180 + (b - 180) * f, y + h], [180 + (b - 180) * f, y], [180 + (a - 180) * f, y]])}" fill="${night ? '#1d2a36' : '#cfe3ee'}" opacity=".9"/>`; } }
+  if (k === 'lantern') s += base(night ? '#e8c56a' : '#f3e6c0') + fan(12, '#7a5a34', 0.9) + cross([13.5, 7.5, 2.5], '#7a5a34', 0.9);
+  if (k === 'starroof') { s += base('#2a2f36') + fan(16, '#4a535b', 0.5); const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? 0.42 : 1; pts.push([180 + Math.cos(a) * 168 * rr, 9 + Math.sin(a) * 15 * rr]); } s += `<polygon points="${P(pts)}" fill="none" stroke="${lift(c2)}" stroke-width="1.8"/>`; }
+  if (k === 'drum') { s += base('#4f4c47'); for (const [rx, ry] of [[176, 17], [124, 11], [70, 5.6]]) s += `<ellipse cx="180" cy="2" rx="${rx}" ry="${ry}" fill="none" stroke="#86817a" stroke-width="1.3"/>`; s += fan(24, '#6b6760', 0.5, 1.5); }
+  // a roof that opens
+  if (c.type === 'ret') {
+    const shapes = { strip: `M64 15.5 H296 L336 3.5 H24Z`, doors: `M116 ${CY - 1} H244 L302 0 H58Z`, fan: `M70 8.5 A110 7.2 0 1 1 290 8.5 A110 7.2 0 1 1 70 8.5Z`, wings: `M180 ${CY - 2} L338 0 H22Z`, pincer: `M40 9.5 Q180 -9 320 9.5 Q180 24 40 9.5Z` };
+    const seams = { strip: `M24 9 H336`, doors: `M180 ${CY} V0`, fan: '', wings: `M180 ${CY} V0`, pincer: `M40 9.5 Q180 16 320 9.5` };
+    if (c.ret === 'fan') for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; s += `<path d="M${(180 + Math.cos(a) * 110).toFixed(1)} ${(8.5 + Math.sin(a) * 7.2).toFixed(1)} L${(180 + Math.cos(a) * 150).toFixed(1)} ${(8.5 + Math.sin(a) * 11.5).toFixed(1)}" stroke="#aab3ba" stroke-width="1"/>`; }
+    if (st.open) s += `<path d="${shapes[c.ret]}" fill="url(#${skyId})" stroke="${c.edge || '#c7ced3'}" stroke-width="1.4"/>`;
+    else s += `<path d="${seams[c.ret] || shapes[c.ret]}" fill="none" stroke="${c.edge || '#c7ced3'}" stroke-width="1.2"/>`;
+  }
+  for (let x = 8; x < W; x += 15) s += `<rect x="${x}" y="${CY - 1.6}" width="6" height="1.2" fill="${night ? '#fff6cf' : '#f7f7f2'}"/>`;
+  return `<g transform="scale(1 ${stretch})">${s}</g>`;
+}
+
+function drawStadium(t, st) {
+  const c = t.cfg, R = rng(t.id), col = t.colors, [c1, c2] = col, night = st.night, id = t.id;
+  const indoor = c.type !== 'out', mat = MAT[c.mat] || MAT.concrete;
+  K = st.wide ? 1.5 : 1; YB = st.wide ? 94 : 62; CY = st.wide ? 30 : 20; FY = YB + 6; NY = st.wide ? 176 : 168;
+  const h = (c.h || (indoor ? 37 : 38)) * K, rimBase = YB - h;
+  const corners = c.ends === 'corners', fx0 = corners ? 48 : -2, fx1 = corners ? 312 : 362;
+  const rim = (x) => rimBase + (indoor ? 0 : rimOff(c.rim, (x - 180) / 180, x));
+  const skies = { clear: ['#4f8cc6', '#cfe2ee'], grey: ['#737f89', '#bcc4ca'], fog: ['#9aa6ad', '#dfe4e4'], warm: ['#5f97c8', '#f0d7b0'] };
+  const [s0, s1] = night ? ['#05080f', '#13203a'] : skies[c.sky || 'clear'];
+  const skyId = `sky-${id}`, crId = `cr-${id}`;
+  const win = night ? '#f3d37a' : '#bcd9e6';
+  let s = `<defs><linearGradient id="${skyId}" x2="0" y2="1"><stop offset="0" stop-color="${s0}"/><stop offset="1" stop-color="${s1}"/></linearGradient><linearGradient id="chrome" x2="0" y2="1"><stop offset="0" stop-color="#e9eef1"/><stop offset=".5" stop-color="#8f9aa2"/><stop offset="1" stop-color="#c7d0d5"/></linearGradient><pattern id="${crId}" width="6" height="4.6" patternUnits="userSpaceOnUse"><rect width="6" height="4.6" fill="#1b211f"/><circle cx="1.2" cy="1.2" r=".85" fill="${lift(c1)}"/><circle cx="4.2" cy="1.1" r=".8" fill="#e6e6e6"/><circle cx="2.7" cy="3.4" r=".85" fill="${lift(c2)}"/><circle cx="5.5" cy="3.5" r=".7" fill="#59605d"/></pattern></defs>`;
+  s += `<rect width="${W}" height="${H}" fill="url(#${skyId})"/>`;
+  if (!indoor) { if (night) for (let i = 0; i < 26; i++) s += `<circle cx="${(R() * W).toFixed(1)}" cy="${(R() * 26).toFixed(1)}" r=".4" fill="#fff" opacity=".7"/>`; s += `<g transform="translate(0 ${(rimBase - (62 - h / K)).toFixed(1)})"><rect x="0" y="59" width="${W}" height="60" fill="${night ? '#0b1220' : '#5f7387'}"/>${backdrop(c.back, R, night)}${c.sky === 'fog' ? `<rect x="0" y="28" width="${W}" height="24" fill="#e6eaea" opacity="${night ? 0.25 : 0.75}"/>` : ''}</g>`; }
+  // light towers stand behind the bowl
+  if (c.lights === 'towers') for (const x of [44, 132, 228, 316]) { s += `<path d="M${x} ${YB} V7" stroke="#3a4148" stroke-width="1.4"/><rect x="${x - 8}" y="3" width="16" height="6" fill="#2c3238"/>`; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) s += `<circle cx="${x - 6 + i * 4}" cy="${4.6 + j * 2.8}" r=".9" fill="${night ? '#fffbe0' : '#e3e3de'}"/>`; if (night) s += `<circle cx="${x}" cy="6" r="13" fill="#fff6c8" opacity=".22"/>`; }
+  // the far stand: the back wall under its rim, then the decks
+  if (indoor) {
+    s += ceiling(c, st, col, R, skyId, CY / 20);
+    s += `<rect x="0" y="${CY}" width="${W}" height="${rimBase - CY + 6}" fill="${mat}"/>`;
+    const ww = c.win || 'grid';
+    if (ww === 'grid') for (let x = 3; x < W; x += 7) s += `<rect x="${x}" y="${CY + 1.2}" width="5" height="${rimBase - CY + 2.2}" fill="${win}" opacity=".85"/>`;
+    if (ww === 'slits') for (let x = 6; x < W; x += 11) s += `<rect x="${x}" y="${CY + 1.4}" width="1.6" height="${rimBase - CY + 1.6}" fill="${win}"/>`;
+    if (ww === 'arches') for (let x = 4; x < W; x += 10) s += `<path d="M${x} ${rimBase + 4} V${CY + 4} a3 3 0 0 1 6 0 V${rimBase + 4}Z" fill="${win}" opacity=".9"/>`;
+    if (ww === 'band') s += `<rect x="0" y="${CY + 1.4}" width="${W}" height="${rimBase - CY + 1.6}" fill="${win}" opacity=".75"/>`;
+  } else {
+    const top = []; for (let x = fx0; x <= fx1; x += 1) top.push([x, rim(x)]);
+    s += ornaments({ ...c, orn: (c.orn || []).filter((o) => ['stacks', 'glow', 'gantry'].includes(o)) }, rim, col, night, R, 0);
+    s += `<polygon points="${P([...top, [fx1, YB], [fx0, YB]])}" fill="${mat}"/>`;
+    const wk = c.wall || 'arch';
+    for (let x = fx0 + 4; x < fx1 - 4; x += wk === 'col' ? 5 : 8) {
+      const y = rimBase + 1.2;
+      if (wk === 'arch') s += `<path d="M${x} ${y + 4.4} V${y + 1.6} a1.7 1.7 0 0 1 3.4 0 V${y + 4.4}Z" fill="#1d2226" opacity=".8"/>`;
+      if (wk === 'col') s += `<rect x="${x}" y="${y - 0.4}" width="1.5" height="5.6" fill="#f0ede4"/>`;
+      if (wk === 'lit') s += `<rect x="${x}" y="${y + 0.6}" width="4.6" height="3.4" fill="${night ? '#f3d37a' : '#e8dcae'}" stroke="#3b2c1c" stroke-width=".4"/>`;
+      if (wk === 'plank') s += `<path d="M${x} ${rim(x) + 0.6} V${y + 5} M${x + 4} ${rim(x + 4) + 0.6} V${y + 5}" stroke="#5a3d22" stroke-width=".6"/>`;
+      if (wk === 'slit') s += `<rect x="${x + 1}" y="${y + 0.6}" width="1" height="3.6" fill="#1d2226"/>`;
+      if (wk === 'brace') s += `<path d="M${x} ${y + 5} l4 -5 l4 5" stroke="#2f363c" stroke-width=".6" fill="none"/>`;
+    }
+    if (wk === 'col') s += `<rect x="${fx0}" y="${rimBase - 0.4}" width="${fx1 - fx0}" height="1.3" fill="#f0ede4"/>`;
+  }
+  const tiers = c.tiers || 2; const lowH = (tiers === 3 ? 12 : 15) * K; const yUp = rimBase + 6 * K; const s5 = 5 * K, s2 = 2 * K;
+  const band = (y0, y1, fill, op = 1) => `<rect x="${fx0}" y="${y0}" width="${fx1 - fx0}" height="${y1 - y0}" fill="${fill}" opacity="${op}"/>`;
+  const yLow = YB - lowH;
+  s += band(yUp, yLow - s5, `url(#${crId})`);
+  if (tiers === 3) { const ym = yUp + (yLow - s5 - yUp) * 0.5; s += band(ym - 1, ym + 1.2, mix(mat, '#000000', 0.35)) + band(ym - 1, ym - 0.3, lift(c2)); }
+  s += band(yLow - s5, yLow - s2, '#141a1d'); for (let x = fx0 + 3; x < fx1 - 3; x += 6) s += `<rect x="${x}" y="${yLow - s5 + 0.5 * K}" width="4.2" height="${2 * K}" fill="${win}" opacity="${night ? 0.85 : 0.6}"/>`;
+  s += band(yLow - s2, yLow, c.check ? '#f2f2f2' : c1); if (c.check) for (let x = fx0; x < fx1; x += 4) s += `<rect x="${x}" y="${yLow - s2 + (Math.floor(x / 4) % 2) * K}" width="2" height="${K}" fill="#111"/>`; else s += band(yLow - 0.7, yLow - 0.2, lift(c2));
+  s += band(yLow, YB, `url(#${crId})`);
+  for (let x = fx0 + 20; x < fx1 - 6; x += 26) { s += `<path d="M${x} ${yUp} L${(x + (x - 180) * 0.035).toFixed(1)} ${YB}" stroke="#0f1413" stroke-width=".7" opacity=".8"/>`; s += `<rect x="${(x + 11).toFixed(1)}" y="${YB - lowH * 0.55}" width="4.4" height="2.6" rx=".6" fill="#0c0f10"/>`; }
+  s += `<rect x="${fx0}" y="${yUp}" width="${fx1 - fx0}" height="${YB - yUp}" fill="#000" opacity="${night ? 0.3 : 0.06}"/>`;
+  if (corners) for (const x of [fx0, fx1 - 5]) s += `<rect x="${x}" y="${rim(x) - 2}" width="5" height="${YB - rim(x) + 2}" fill="${mix(mat, '#000000', 0.25)}"/>`;
+  if (!indoor) s += ornaments({ ...c, orn: (c.orn || []).filter((o) => !['stacks', 'glow', 'gantry'].includes(o)) }, rim, col, night, R, yLow) + canopy(c, rim, rimBase, fx0, fx1, col, night);
+  if (c.lights === 'rim' && !['slab', 'arch', 'hood', 'cable'].includes(c.roof)) for (let x = fx0 + 6; x < fx1 - 4; x += 12) { s += `<rect x="${x}" y="${rim(x) - 1.6}" width="5" height="1.3" fill="${night ? '#fff6cf' : '#f4f4f4'}"/>`; if (night) s += `<circle cx="${x + 2.5}" cy="${rim(x) - 1}" r="4" fill="#fff6c8" opacity=".16"/>`; }
+  // the wall along the field
+  s += `<rect x="0" y="${YB}" width="${W}" height="4.4" fill="${mix(c1, '#101010', 0.35)}"/><rect x="0" y="${YB + 4.4}" width="${W}" height="${H}" fill="#173321"/>`;
+  // the ends: stands that run toward the camera, cut by the frame
+  const wedge = (open) => {
+    const topY = indoor ? CY : rim(50), nearTop = indoor ? -14 * K : topY - 27 * K;
+    if (open) { let o = `<g transform="translate(0 ${YB - 62})"><rect x="12" y="30" width="34" height="17" fill="#15191c" stroke="#3b4248" stroke-width="1"/><rect x="14" y="32" width="30" height="9" fill="${mix(c1, '#000000', 0.2)}"/><rect x="14" y="42" width="30" height="3" fill="${night ? '#f3d37a' : '#d9d9d9'}" opacity=".8"/><path d="M18 47 V60 M40 47 V60" stroke="#3b4248" stroke-width="1.6"/></g>`; if (c.wheel) o = `<g transform="translate(0 ${YB - 62})"><circle cx="27" cy="42" r="17" fill="none" stroke="${c1}" stroke-width="2.4"/><circle cx="27" cy="42" r="12" fill="none" stroke="${c1}" stroke-width="1"/>` + Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; return `<path d="M27 42 L${(27 + Math.cos(a) * 17).toFixed(1)} ${(42 + Math.sin(a) * 17).toFixed(1)}" stroke="${c1}" stroke-width="1"/>`; }).join('') + `<circle cx="27" cy="42" r="2.4" fill="#e9e6dc"/></g>`; return o + `<polygon points="${P([[60, FY - 4], [0, NY - 4], [0, NY - 28], [58, FY - 13]])}" fill="${mix(mat, '#000000', 0.2)}"/><polygon points="${P([[58, FY - 13], [0, NY - 28], [0, NY - 32], [58, FY - 14.6]])}" fill="${mix(mat, '#ffffff', 0.2)}"/>`; }
+    const fb = [60, FY - 4], nb = [0, NY - 4], ft = [50, topY], nt = [0, nearTop]; const L = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    let o = `<polygon points="${P([fb, nb, nt, ft])}" fill="url(#${crId})"/><polygon points="${P([fb, nb, nt, ft])}" fill="#000" opacity="${night ? 0.5 : 0.3}"/>`;
+    o += `<polygon points="${P([L(fb, ft, 0.4), L(nb, nt, 0.4), L(nb, nt, 0.47), L(fb, ft, 0.47)])}" fill="${c1}"/><polygon points="${P([L(fb, ft, 0.47), L(nb, nt, 0.47), L(nb, nt, 0.55), L(fb, ft, 0.55)])}" fill="#141a1d"/>`;
+    if (!indoor) o += `<polygon points="${P([L(fb, ft, 0.86), L(nb, nt, 0.86), nt, ft])}" fill="${mix(mat, '#000000', 0.15)}"/>`;
+    if (!indoor && ['slab', 'hood', 'scale', 'arch'].includes(c.roof)) o += `<polygon points="${P([[50, topY - (c.roof === 'hood' ? 16 : 10)], [0, nearTop - 22], [0, nearTop - 6], [50, topY - (c.roof === 'hood' ? 2 : 6.6)]])}" fill="${c.roof === 'hood' ? '#3d464e' : c.roofCol || '#d5d9d9'}"/>`;
+    return o + `<path d="M${fb[0]} ${fb[1]} L${ft[0]} ${ft[1]}" stroke="#0c0f10" stroke-width="1" opacity=".7"/>`;
+  };
+  s += `<g>${wedge(c.ends === 'openL')}</g><g transform="translate(${W} 0) scale(-1 1)">${wedge(c.ends === 'openR')}</g>`;
+  // the field, simply
+  const fxA = (f, near) => (near ? 7 + 346 * f : 67 + 226 * f);
+  for (let i = 0; i < 12; i++) { const a = i / 12, b = (i + 1) / 12; s += `<polygon points="${P([[fxA(a), FY], [fxA(b), FY], [fxA(b, 1), NY], [fxA(a, 1), NY]])}" fill="${i === 0 || i === 11 ? mix(c1, '#0c0c0c', 0.1) : i % 2 ? '#2f7d3a' : '#35873f'}" stroke="#eef3ee" stroke-width=".5" stroke-opacity=".55"/>`; }
+  s += `<ellipse cx="180" cy="${(FY + NY) / 2 - 5}" rx="13" ry="${(7 * (NY - FY)) / 100}" fill="${c1}" stroke="#fff" stroke-width="1"/>`;
+  s += `<polygon points="${P([[67, FY], [293, FY], [353, NY], [7, NY]])}" fill="#000" opacity="${night ? 0.18 : 0}"/>`;
+  for (const [x, y] of [[34, FY + (NY - FY) * 0.54], [326, FY + (NY - FY) * 0.54]]) s += `<path d="M${x} ${y} v-16 M${x - 5} ${y - 16} h10 M${x - 5} ${y - 16} v-12 M${x + 5} ${y - 16} v-12" stroke="#ffd43b" stroke-width="1.3" fill="none"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t.city} ${t.nick}: ${t.idea}">${s}</svg>`;
+}
+// One line a building: who plays there, the idea, and the parts the drawer puts together.
+const T = (id, city, nick, c1, c2, idea, line, cfg, from) => ({ id, ab: id.replace(/\d+$/, ''), city, nick, colors: [c1, c2], idea, line, cfg, from });
+const TEAMS = [
+  // open air
+  T('BUF', 'Buffalo', 'Blizzard', '#00338d', '#c60c30', 'Storm porch', 'A deep roof over every seat with glass wind screens under it. Snow sits on top; the wind stays out.', { type: 'out', back: 'plain', sky: 'grey', roof: 'slab', snow: 1, screens: 1, mat: 'steel', wall: 'brace', lights: 'rim', ends: 'closed' }),
+  T('MIA', 'Miami', 'Barracudas', '#008e97', '#fc4c02', 'Fin blades', 'Shade blades like dorsal fins ring a bowl with open corners that let the sea breeze through.', { type: 'out', back: 'palms', sky: 'warm', roof: 'fins', mat: 'white', wall: 'slit', lights: 'towers', ends: 'corners', h: 34 }),
+  T('NE', 'New England', 'Admirals', '#002244', '#c60c30', 'Flagship', 'A ship of the line: three masts with signal flags over a stern gallery of lit windows.', { type: 'out', back: 'harbor', rim: 'saddle', orn: ['masts'], mat: 'timber', wall: 'lit', lights: 'rim', ends: 'closed' }),
+  T('NYK', 'New York', 'Knights', '#125740', '#ffffff', 'The Keep', 'A castle: a battlement rim, four square towers and banners.', { type: 'out', back: 'city', rim: 'crenel', orn: ['towers'], mat: 'stone', wall: 'slit', lights: 'rim', ends: 'closed', tiers: 3 }),
+  T('BAL', 'Baltimore', 'Clippers', '#241773', '#9e7c0c', 'Clipper rig', 'Raked masts and rigging over a brick bowl, with one end open to the harbor.', { type: 'out', back: 'harbor', orn: ['rig'], mat: 'brick', wall: 'arch', lights: 'rim', ends: 'openR' }),
+  T('CIN', 'Cincinnati', 'Steamers', '#fb4f14', '#000000', 'Riverboat', 'White decks with railings, twin stacks, and a paddlewheel at the open end.', { type: 'out', back: 'river', orn: ['stacks'], mat: 'white', wall: 'col', lights: 'rim', ends: 'openL', wheel: 1, tiers: 3 }),
+  T('CLE', 'Cleveland', 'Hammers', '#311d00', '#ff3c00', 'Mill yard', 'A sawtooth factory roofline, and a gantry crane that carries the lights.', { type: 'out', back: 'city', sky: 'grey', rim: 'saw', orn: ['gantry'], mat: 'brick', wall: 'slit', ends: 'closed' }),
+  T('PIT', 'Pittsburgh', 'Forge', '#101820', '#ffb612', 'Blast furnace', 'Furnace stacks glow at the corners and a yellow truss carries the upper deck.', { type: 'out', back: 'river', orn: ['stacks', 'glow', 'truss'], mat: 'black', wall: 'brace', lights: 'towers', ends: 'closed' }),
+  T('JAX', 'Jacksonville', 'Tarpons', '#006778', '#d7a22a', 'Sun bowl', 'A low, wide-open bowl with palm courts in the corners.', { type: 'out', back: 'palms', sky: 'warm', mat: 'white', wall: 'arch', lights: 'towers', ends: 'corners', h: 31 }),
+  T('TEN', 'Tennessee', 'Outlaws', '#0c2340', '#4b92db', 'Stockade', 'Timber palisade walls and a ranch gate over midfield.', { type: 'out', back: 'hills', rim: 'pal', orn: ['gate'], mat: 'timber', wall: 'plank', lights: 'towers', ends: 'closed' }),
+  T('DEN', 'Denver', 'Summit', '#fb4f14', '#002244', 'Ridgeline', 'The upper rim is cut into sharp peaks, like the range behind it.', { type: 'out', back: 'mtn', rim: 'jag', mat: 'stone', wall: 'slit', lights: 'rim', ends: 'closed', tiers: 3, h: 40 }),
+  T('KC', 'Kansas City', 'Marshals', '#e31837', '#ffb81c', 'Courthouse square', 'A clock tower at midfield and star pylons along the rim.', { type: 'out', back: 'plain', orn: ['clock', 'pylons'], mat: 'brick', wall: 'arch', lights: 'towers', ends: 'closed' }),
+  T('NYE', 'New York', 'Empire', '#0b2265', '#a71930', 'Setback tower', 'Art-deco setbacks step up to a spire at midfield.', { type: 'out', back: 'city', rim: 'steps', orn: ['spire'], mat: 'stone', wall: 'slit', lights: 'rim', ends: 'closed', tiers: 3 }),
+  T('PHI', 'Philadelphia', 'Founders', '#004c54', '#a5acaf', 'Colonnade', 'A brick arcade with white columns and a cupola over midfield.', { type: 'out', back: 'city', orn: ['cupola'], mat: 'brick', wall: 'col', lights: 'towers', ends: 'closed' }),
+  T('WAS', 'Washington', 'Sentinels', '#5a1414', '#ffb612', 'Rampart', 'Two lookout towers with beacons, and a wall that dips to midfield.', { type: 'out', back: 'hills', rim: 'saddle', orn: ['lookout'], mat: 'dark', wall: 'slit', lights: 'rim', ends: 'closed' }),
+  T('CHI', 'Chicago', 'Gale', '#0b162a', '#c83803', 'Windbreak', 'Tall curved baffles on the lake side turn the wind up and over the bowl.', { type: 'out', back: 'city', roof: 'baffle', mat: 'concrete', wall: 'slit', lights: 'rim', ends: 'closed' }),
+  T('GB', 'Green Bay', 'Lumberjacks', '#203731', '#ffb612', 'Timber lodge', 'Log gables along the rim and a pine ridge behind the open end.', { type: 'out', back: 'pines', rim: 'gable', mat: 'timber', wall: 'plank', lights: 'towers', ends: 'openL' }),
+  T('CAR', 'Carolina', 'Monarchs', '#0085ca', '#101820', 'Crown', 'The rim rises into crown points, each tipped with a light.', { type: 'out', back: 'pines', rim: 'crown', mat: 'steel', wall: 'arch', lights: 'rim', ends: 'closed' }),
+  T('TB', 'Tampa Bay', 'Corsairs', '#d50a0a', '#34302b', 'Sea fort', 'Coral-stone bastions at each end and sailcloth shade over the sideline.', { type: 'out', back: 'palms', sky: 'warm', roof: 'sail', orn: ['bastions'], mat: 'adobe', wall: 'slit', lights: 'towers', ends: 'closed', h: 34 }),
+  T('SF', 'San Francisco', 'Fog', '#aa0000', '#b3995d', 'Cable-hung', 'A thin roof hangs on cables from two towers. The fog rolls in under it.', { type: 'out', back: 'hills', sky: 'fog', roof: 'cable', mat: 'concrete', wall: 'arch', ends: 'closed' }),
+  T('SEA', 'Seattle', 'Squall', '#002244', '#69be28', 'Storm hood', 'One deep roof wraps the whole bowl and tips the rain off the back.', { type: 'out', back: 'mtn', sky: 'grey', roof: 'hood', mat: 'steel', wall: 'brace', ends: 'closed' }),
+  // a fixed roof
+  T('LV', 'Las Vegas', 'Mirage', '#000000', '#a5acaf', 'Chrome dunes', 'A rippled mirror roof like a line of dunes, over a wall of glass.', { type: 'dome', dome: 'dune', mat: 'chrome', win: 'band' }),
+  T('LAC', 'Los Angeles', 'Condors', '#0080c6', '#ffc20e', 'Wingspan', 'Two long white roof wings meet at a spine over midfield.', { type: 'dome', dome: 'wing', mat: 'white', win: 'grid' }),
+  T('LAS', 'Los Angeles', 'Stars', '#003594', '#ffd100', 'Planetarium', 'A dark ceiling of pin lights around one round skylight.', { type: 'dome', dome: 'stars', mat: 'black', win: 'slits' }),
+  T('DET', 'Detroit', 'Gears', '#0076b6', '#b0b7bc', 'Cog ring', 'A toothed steel ring holds the roof up over brick factory walls.', { type: 'dome', dome: 'cog', mat: 'brick', win: 'arches' }),
+  T('MIN', 'Minnesota', 'Voyageurs', '#4f2683', '#ffc62f', 'Canoe hull', 'The roof is an upturned canoe: pale skin on curved ribs, and a keel.', { type: 'dome', dome: 'ribs', mat: 'timber', win: 'grid' }),
+  T('NO', 'New Orleans', 'Krewe', '#101820', '#d3bc8d', 'Carnival tent', 'A striped big-top ceiling, with bunting on every deck.', { type: 'dome', dome: 'tent', orn: ['bunting'], mat: 'black', win: 'arches' }),
+  // a roof that opens
+  T('HOU', 'Houston', 'Wildcatters', '#03202f', '#a71930', 'Long slot', 'Steel lattice trusses carry a roof that slides open in one long slot over the field.', { type: 'ret', ret: 'strip', mat: 'steel', win: 'grid' }),
+  T('IND', 'Indianapolis', 'Racers', '#002c5f', '#a2aaad', 'Speedway', 'A banked oval with checkered trim. The roof folds back like a fan.', { type: 'ret', ret: 'fan', mat: 'brick', win: 'arches', check: 1 }),
+  T('DAL', 'Dallas', 'Stampede', '#003594', '#869397', 'Barn doors', 'Two great roof leaves slide apart like barn doors.', { type: 'ret', ret: 'doors', mat: 'timber', win: 'slits', ceil: '#3a2f26' }),
+  T('ATL', 'Atlanta', 'Firebirds', '#a71930', '#000000', 'Wings up', 'Two roof wings lift from the far side and open the field to the sky.', { type: 'ret', ret: 'wings', mat: 'black', win: 'band', edge: '#ff7a3c', ceil: '#1c1a1c' }),
+  T('ARI', 'Arizona', 'Scorpions', '#97233f', '#000000', 'Pincers', 'Earth-coloured walls and two curved roof leaves that close like pincers.', { type: 'ret', ret: 'pincer', mat: 'adobe', win: 'slits', ceil: '#5a4a40' }),
+  // what the game already has coming
+  T('TEN27', 'Tennessee', 'Outlaws', '#0c2340', '#4b92db', 'Lantern barn', 'A great timber barn under a glowing translucent roof.', { type: 'dome', dome: 'lantern', mat: 'timber', win: 'slits' }, 2027),
+  T('JAX28', 'Jacksonville', 'Tarpons', '#006778', '#d7a22a', 'Silver scales', 'The sun bowl rebuilt under a shade roof of overlapping silver scales.', { type: 'out', back: 'palms', sky: 'warm', roof: 'scale', mat: 'white', wall: 'arch', ends: 'closed', lights: 'rim', h: 34 }, 2028),
+  T('CLE29', 'Cleveland', 'Hammers', '#311d00', '#ff3c00', 'Mill shed', 'One long steel shed with rows of sawtooth skylights.', { type: 'dome', dome: 'shed', mat: 'brick', win: 'slits' }, 2029),
+  T('WAS30', 'Washington', 'Sentinels', '#5a1414', '#ffb612', 'The Citadel', 'A low stone drum with slit windows under a ring roof.', { type: 'dome', dome: 'drum', mat: 'dark', win: 'slits' }, 2030),
+  T('KC31', 'Kansas City', 'Marshals', '#e31837', '#ffb81c', 'Star roof', 'A fixed roof carried on one five-pointed star truss.', { type: 'dome', dome: 'starroof', mat: 'brick', win: 'arches' }, 2031),
+];
+// A stadium drawn with depth: every row is a real line in space, raked back from the field and curved round the
+// corners, seen through one camera. Canvas, because each is about 10,000 fans.
+const DS = 4; // canvas pixels per frame unit (the frame is 360 x 188, like the game's)
+const CAM = { H: 102, D: 100, t: 0.11, f: 272.668, cy: -50.919 };
+const sT = Math.sin(CAM.t), cT = Math.cos(CAM.t);
+const pr = (X, Y, Z) => { const vy = Y - CAM.H, vz = Z + CAM.D; const yc = vy * cT + vz * sT, zc = -vy * sT + vz * cT; return [(180 + (CAM.f * X) / zc) * DS, (CAM.cy - (CAM.f * yc) / zc) * DS, zc]; };
+const HX = 67, ZC = 26.665, HZ = 33.665, R0 = 12, ZCUT = -12;
+function baseLine() {
+  const p = [];
+  for (let z = ZCUT; z < ZC + HZ - R0; z += 1) p.push({ x: -HX, z, nx: -1, nz: 0, part: 'L' });
+  for (let a = 0; a <= 1.0001; a += 1 / 28) { const g = Math.PI - (a * Math.PI) / 2; p.push({ x: -(HX - R0) + R0 * Math.cos(g), z: ZC + HZ - R0 + R0 * Math.sin(g), nx: Math.cos(g), nz: Math.sin(g), part: 'LC', a }); }
+  for (let x = -(HX - R0) + 1; x < HX - R0; x += 1) p.push({ x, z: ZC + HZ, nx: 0, nz: 1, part: 'F' });
+  for (let a = 0; a <= 1.0001; a += 1 / 28) { const g = Math.PI / 2 - (a * Math.PI) / 2; p.push({ x: HX - R0 + R0 * Math.cos(g), z: ZC + HZ - R0 + R0 * Math.sin(g), nx: Math.cos(g), nz: Math.sin(g), part: 'RC', a }); }
+  for (let z = ZC + HZ - R0 - 1; z >= ZCUT; z -= 1) p.push({ x: HX, z, nx: 1, nz: 0, part: 'R' });
+  let u = 0; p.forEach((q, i) => { if (i) u += Math.hypot(q.x - p[i - 1].x, q.z - p[i - 1].z); q.u = u; q.i = i; });
+  return p;
+}
+// The decks every building here shares unless it says otherwise: kept low, so the sky or the roof has room.
+const DECKS = [
+  { d0: 0, d1: 14, y0: 1.1, y1: 6.6, rows: 14, face: 1.1 },
+  { d0: 13, d1: 19, y0: 9, y1: 11.8, rows: 6, face: 1.6 },
+  { d0: 18, d1: 31, y0: 13.8, y1: 21.4, rows: 14, face: 1.8 },
+];
+function drawDepth(canvas, t, opt) {
+  const g = canvas.getContext('2d'); const [c1, c2] = t.colors; const R = rng(t.id + 'depth');
+  const Wp = 360 * DS, Hp = 188 * DS; canvas.width = Wp; canvas.height = Hp;
+  const B = baseLine(), N = B.length, tiers = opt.tiers || DECKS, top = tiers[tiers.length - 1];
+  const W3 = (b, d, y) => pr(b.x + b.nx * d, y, b.z + b.nz * d);
+  const light = (b) => (opt.indoor ? 0.9 : Math.max(0.62, Math.min(1, 0.84 + 0.16 * (b.nx * -0.55 + b.nz * 0.75))));
+  const shade = (hexc, k) => { const [r, gg, b] = hex(hexc); return `rgb(${Math.round(Math.min(255, r * k))},${Math.round(Math.min(255, gg * k))},${Math.round(Math.min(255, b * k))})`; };
+  const quad = (a, b, c, d, fill) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]); g.closePath(); g.fillStyle = fill; g.fill(); };
+  const line = (pts, stroke, w) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.strokeStyle = stroke; g.lineWidth = w * DS; g.stroke(); };
+  const poly = (pts, fill) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); g.fillStyle = fill; g.fill(); };
+  const open = opt.open || (() => false), aisle = (i) => i % 13 === 6;
+  const Rc = rng(t.id + 'crowd'), fill = opt.fill ?? 0.97, chair = opt.chair || mix(opt.seat, '#93a3b3', 0.3), secMood = {};
+  const turnout = (ti, b, i) => { const key = ti * 100 + Math.floor(i / 13); if (!(key in secMood)) secMood[key] = rng(`${t.id}:sec:${key}`)() - 0.5; const lean = (ti === 0 ? 0.16 : ti === 1 ? 0.08 : -0.12) + (b.part === 'F' ? 0.03 : -0.05); return Math.max(0.03, Math.min(0.985, fill + (lean + secMood[key] * 0.3) * (1 - fill) * 1.7)); };
+  // A roof over the whole building is a slab, cut where the near side is cut (ZR): beyond the cut the back wall
+  // runs up to its underside; in front of it the wall stops at the rim.
+  const SL = opt.slab, ZR = SL ? SL.z0 || 50 : 0, XR = HX + top.d1 + 3 + (SL ? 18 : 0), ZB = ZC + HZ + top.d1 + 3;
+  const wallTop = (b) => { if (SL) { const x = b.x + b.nx * (top.d1 + 1), z = b.z + b.nz * (top.d1 + 1); return z >= ZR ? Math.max(top.y1 + 2.4, SL.h(Math.max(-XR, Math.min(XR, x)), Math.min(ZB, z), XR, ZR, ZB) - SL.th) : top.y1 + 2.4; } return opt.rim ? opt.rim(b.u, b) : top.y1 + 2.4; };
+  const api = { g, B, N, W3, pr, quad, line, poly, shade, light, top, wallTop, DS, Wp, Hp, c1, c2, R, open, HX, ZC, HZ };
+  const skyFill = () => { const [s0, s1] = opt.sky || ['#4f8cc6', '#cfe2ee']; const sky = g.createLinearGradient(0, 0, 0, 70 * DS); sky.addColorStop(0, s0); sky.addColorStop(1, s1); return sky; };
+  // outside the bowl: the land around it, seen from the same camera (it looks down, so there is no sky in the frame)
+  g.fillStyle = opt.ground || skyFill(); g.fillRect(0, 0, Wp, Hp);
+  if (opt.back) opt.back(api);
+  { const hz = g.createLinearGradient(0, 0, 0, 40 * DS); hz.addColorStop(0, 'rgba(235,240,244,.34)'); hz.addColorStop(1, 'rgba(235,240,244,0)'); g.fillStyle = hz; g.fillRect(0, 0, Wp, 40 * DS); }
+  // the plaza round the outside of the building
+  for (let i = 0; i < N - 1; i++) { const a = B[i], b = B[i + 1]; quad(W3(a, top.d1 + 1, 0), W3(b, top.d1 + 1, 0), W3(b, top.d1 + 11, 0), W3(a, top.d1 + 11, 0), opt.plaza || '#b4b8b4'); }
+  // the ground inside the bowl, and the field on it
+  g.beginPath(); B.forEach((b, i) => { const p = W3(b, 0, 0); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }); g.lineTo(Wp, Hp); g.lineTo(0, Hp); g.closePath(); g.fillStyle = '#1d3a27'; g.fill();
+  const F = (x, z) => pr(x, 0, z);
+  for (let x = -50; x < 50; x += 5) poly([F(x, 0), F(x + 5, 0), F(x + 5, 53.33), F(x, 53.33)], (x / 5) % 2 ? '#2f7d3a' : '#368a41');
+  poly([F(-60, 0), F(-50, 0), F(-50, 53.33), F(-60, 53.33)], c1); poly([F(50, 0), F(60, 0), F(60, 53.33), F(50, 53.33)], c1);
+  for (let x = -50; x <= 50; x += 5) { g.globalAlpha = x % 10 ? 0.45 : 1; line([F(x, 0), F(x, 53.33)], 'rgba(255,255,255,.8)', 0.28); } g.globalAlpha = 1;
+  line([F(-60, 0), F(60, 0), F(60, 53.33), F(-60, 53.33), F(-60, 0)], 'rgba(255,255,255,.85)', 0.5);
+  const ring = []; for (let a = 0; a < 6.3; a += 0.2) ring.push(F(Math.cos(a) * 5.5, 26.665 + Math.sin(a) * 5.5)); poly(ring, lum(c2) < 0.1 ? c1 : c2); line([...ring, ring[0]], '#fff', 0.3);
+  if (opt.behind) opt.behind(api);
+  // the back wall under the rim
+  g.globalAlpha = opt.wallAlpha || 1;
+  for (let i = 0; i < N - 1; i++) { if (open(i)) continue; const a = B[i], b = B[i + 1]; quad(W3(a, top.d1 + 1, top.y1), W3(b, top.d1 + 1, top.y1), W3(b, top.d1 + 1, wallTop(b)), W3(a, top.d1 + 1, wallTop(a)), shade(opt.wall, light(a))); }
+  g.globalAlpha = 1;
+  if (opt.win) for (let i = 2; i < N - 3; i += 3) { if (open(i)) continue; const a = B[i], b = B[i + 2], y0 = top.y1 + 0.5, y1 = Math.min(wallTop(a), wallTop(b)) - 0.5; quad(W3(a, top.d1 + 0.9, y0), W3(b, top.d1 + 0.9, y0), W3(b, top.d1 + 0.9, y1), W3(a, top.d1 + 0.9, y1), opt.win); }
+  // the decks, far to near in each slice of the bowl: upper, club, lower
+  for (let ti = tiers.length - 1; ti >= 0; ti--) {
+    const T = tiers[ti]; const rowD = (r) => T.d0 + ((T.d1 - T.d0) * r) / T.rows, rowY = (r) => T.y0 + ((T.y1 - T.y0) * r) / T.rows;
+    const gone = (i) => ti > 0 && open(i); const face = T.face || 1;
+    // where a deck stops at an open end, its cut side shows
+    for (let i = 1; i < N - 1; i++) if (gone(i) !== gone(i - 1) && ti > 0) { const b = B[i]; poly([W3(b, T.d0, T.y0 - face), W3(b, T.d0, T.y0), W3(b, T.d1, T.y1), W3(b, T.d1 + 1, T.y1), W3(b, T.d1 + 1, 0), W3(b, T.d0, 0)], shade(opt.wall, 0.8)); }
+    for (let i = 0; i < N - 1; i++) { if (gone(i)) continue; const a = B[i], b = B[i + 1]; quad(W3(a, T.d0, T.y0), W3(b, T.d0, T.y0), W3(b, T.d1, T.y1), W3(a, T.d1, T.y1), shade(opt.seat, light(a) * (ti === tiers.length - 1 ? 1.08 : 1))); }
+    for (let r = T.rows - 1; r >= 0; r--) {
+      const d = rowD(r + 0.5), y = rowY(r + 0.5);
+      let run = []; const flush = () => { if (run.length > 1) line(run, 'rgba(0,0,0,.28)', 0.22); run = []; };
+      for (let i = 0; i < N; i++) { if (gone(i)) flush(); else run.push(W3(B[i], rowD(r), rowY(r))); } flush();
+      for (let i = 0; i < N - 1; i++) {
+        if (gone(i) || aisle(i)) continue;
+        const a = B[i], b = B[i + 1]; const ax = a.x + a.nx * d, az = a.z + a.nz * d, bx = b.x + b.nx * d, bz = b.z + b.nz * d; const len = Math.hypot(bx - ax, bz - az);
+        // back rows under the deck above sit in its shade
+        const under = ti < tiers.length - 1 && !open(i) ? Math.max(0, (d - (tiers[ti + 1].d0 - 5)) / 5) : 0; const k = light(a) * (1 - 0.45 * Math.min(1, under));
+        const n = Math.max(1, Math.round(len / 0.92));
+        const here = turnout(ti, a, i); for (let s = 0; s < n; s++) { const f = (s + 0.5) / n; const came = Rc() < here, pick = Rc(); const p = pr(ax + (bx - ax) * f, y + (came ? 0.55 : 0.3), az + (bz - az) * f); const rad = Math.max(0.5, ((CAM.f * (came ? 0.36 : 0.27)) / p[2]) * DS); if (!came) { g.fillStyle = shade(chair, k); g.fillRect(p[0] - rad, p[1] - rad * 0.7, rad * 2, rad * 1.4); continue; } const col = pick < 0.5 ? lift(c1) : pick < 0.66 ? lift(c2) : pick < 0.8 ? '#f1f1ee' : pick < 0.9 ? '#8b9399' : '#d6b28a'; g.fillStyle = shade(col, k); g.beginPath(); g.arc(p[0], p[1], rad, 0, 6.3); g.fill(); }
+      }
+    }
+    // the stairs between sections, and the tunnels into them
+    for (let i = 0; i < N - 1; i++) if (aisle(i) && !gone(i)) { const a = B[i], b = B[i + 1]; quad(W3(a, T.d0, T.y0), W3(b, T.d0, T.y0), W3(b, T.d1, T.y1), W3(a, T.d1, T.y1), shade('#9aa1a4', light(a) * 0.9)); if (T.rows > 8 && i % 26 === 6) { const r0 = Math.floor(T.rows * 0.42), r1 = r0 + 2; const a2 = B[Math.max(0, i - 1)], b2 = B[Math.min(N - 1, i + 2)]; quad(W3(a2, rowD(r0), rowY(r0)), W3(b2, rowD(r0), rowY(r0)), W3(b2, rowD(r1), rowY(r1) + 0.4), W3(a2, rowD(r1), rowY(r1) + 0.4), '#0b0e10'); } }
+    // the deck's front: a face with a ribbon board, and a rail; under it, the dark gap where the concourse runs
+    for (let i = 0; i < N - 1; i++) { if (gone(i)) continue; const a = B[i], b = B[i + 1], k = light(a); if (ti) { const U = tiers[ti - 1]; quad(W3(a, U.d1, U.y1), W3(b, U.d1, U.y1), W3(b, T.d0, T.y0 - face), W3(a, T.d0, T.y0 - face), 'rgba(8,11,13,.92)'); } quad(W3(a, T.d0, T.y0 - face), W3(b, T.d0, T.y0 - face), W3(b, T.d0, T.y0), W3(a, T.d0, T.y0), shade(ti ? opt.face || lift(c2) : mix(c1, '#000000', 0.45), k)); if (ti) quad(W3(a, T.d0, T.y0 - face * 0.62), W3(b, T.d0, T.y0 - face * 0.62), W3(b, T.d0, T.y0 - face * 0.3), W3(a, T.d0, T.y0 - face * 0.3), shade(i % 9 < 5 ? c1 : '#f4f4f0', k)); }
+    { let run = []; const flush = () => { if (run.length > 1) line(run, 'rgba(240,244,246,.75)', 0.2); run = []; }; for (let i = 0; i < N; i++) { if (gone(i)) flush(); else run.push(W3(B[i], T.d0, T.y0 + 0.35)); } flush(); }
+  }
+  // lights along the rim, or a roof over the back rows
+  if (!SL && !opt.roof) for (let i = 4; i < N - 4; i += 6) { if (open(i)) continue; const b = B[i]; const p = W3(b, top.d1 + 1, wallTop(b)); g.fillStyle = '#f7f7f2'; g.fillRect(p[0] - 1.4 * DS, p[1] - 0.5 * DS, 2.8 * DS, 0.7 * DS); }
+  if (opt.roof) { const Rf = opt.roof;
+    for (let i = 0; i < N - 1; i++) { if (open(i)) continue; const a = B[i], b = B[i + 1]; quad(W3(a, Rf.d0, Rf.y0), W3(b, Rf.d0, Rf.y0), W3(b, Rf.d1, Rf.y1), W3(a, Rf.d1, Rf.y1), shade(Rf.col, light(a) * (i % 4 ? 1 : 0.9))); }
+    let run = []; const flush = () => { if (run.length > 1) { line(run, Rf.edge || '#2c3338', 0.7); } run = []; }; for (let i = 0; i < N; i++) { if (open(i)) flush(); else run.push(W3(B[i], Rf.d0, Rf.y0)); } flush();
+    for (let i = 5; i < N - 2; i += 7) { if (open(i)) continue; const p = W3(B[i], Rf.d0 + 0.3, Rf.y0 - 0.2); g.fillStyle = '#fffbe6'; g.fillRect(p[0] - 1 * DS, p[1], 2 * DS, 0.6 * DS); }
+  }
+  if (SL) {
+    const nx = 48, nz = 10, X = (i) => -XR + (2 * XR * i) / nx, Z = (j) => ZR + ((ZB - ZR) * j) / nz, hT = (x, z) => SL.h(x, z, XR, ZR, ZB);
+    const N3 = SL.notch && SL.isOpen ? SL.notch : null, inNotch = (x, z) => N3 && x > N3.x0 && x < N3.x1 && z < N3.z1;
+    // the top of the roof, far to near
+    for (let j = nz - 1; j >= 0; j--) for (let i = 0; i < nx; i++) { const x0 = X(i), x1 = X(i + 1), z0 = Z(j), z1 = Z(j + 1); if (inNotch((x0 + x1) / 2, (z0 + z1) / 2)) continue; const tilt = (hT(x0, z0) - hT(x0, z1)) / (z1 - z0); quad(pr(x0, hT(x0, z0), z0), pr(x1, hT(x1, z0), z0), pr(x1, hT(x1, z1), z1), pr(x0, hT(x0, z1), z1), shade(SL.top, (0.92 + Math.max(-0.14, Math.min(0.12, tilt * 0.5))) * ((i >> 1) % 2 ? 1 : 0.955))); }
+    for (let i = 0; i <= nx; i += 4) { const pts = []; for (let j = 0; j <= nz; j++) if (!inNotch(X(i) + 0.01, Z(j) + 0.01) && !inNotch(X(i) - 0.01, Z(j) + 0.01)) pts.push(pr(X(i), hT(X(i), Z(j)) + 0.05, Z(j))); if (pts.length > 1) line(pts, SL.rib || 'rgba(0,0,0,.3)', 0.35); }
+    if (SL.notch && !SL.isOpen) line([pr(0, hT(0, ZR) + 0.1, ZR), pr(0, hT(0, SL.notch.z1) + 0.1, SL.notch.z1)], SL.edge || '#c7ced3', 0.7);
+    // an opening: its far side and its two flanks show the roof's depth
+    if (N3) { quad(pr(N3.x0, hT(N3.x0, N3.z1), N3.z1), pr(N3.x1, hT(N3.x1, N3.z1), N3.z1), pr(N3.x1, hT(N3.x1, N3.z1) - SL.th, N3.z1), pr(N3.x0, hT(N3.x0, N3.z1) - SL.th, N3.z1), shade(SL.cut, 0.8)); for (const x of [N3.x0, N3.x1]) quad(pr(x, hT(x, ZR), ZR), pr(x, hT(x, N3.z1), N3.z1), pr(x, hT(x, N3.z1) - SL.th, N3.z1), pr(x, hT(x, ZR) - SL.th, ZR), shade(SL.cut, 0.66)); line([pr(N3.x0, hT(N3.x0, ZR), ZR), pr(N3.x0, hT(N3.x0, N3.z1), N3.z1), pr(N3.x1, hT(N3.x1, N3.z1), N3.z1), pr(N3.x1, hT(N3.x1, ZR), ZR)], SL.edge || '#c7ced3', 0.6); }
+    // the cut: the roof sliced where the near side is sliced, its structure showing in the section
+    const runs = [[]]; for (let i = 0; i <= nx; i++) { if (N3 && X(i) > N3.x0 && X(i) < N3.x1) { if (runs[runs.length - 1].length) runs.push([]); continue; } runs[runs.length - 1].push(X(i)); }
+    if (N3) { runs[0].push(N3.x0); runs[runs.length - 1].unshift(N3.x1); }
+    for (const run of runs) { if (run.length < 2) continue; const topE = run.map((x) => pr(x, hT(x, ZR), ZR)), botE = run.map((x) => pr(x, hT(x, ZR) - SL.th, ZR)); poly([...topE, ...botE.slice().reverse()], SL.cut); const web = []; run.forEach((x, k) => web.push(k % 2 ? topE[k] : botE[k])); line(web, SL.web || 'rgba(40,46,52,.55)', 0.3); line(topE, '#14181b', 0.75); line(botE, '#14181b', 0.75); line([topE[0], botE[0]], '#14181b', 0.75); line([topE[topE.length - 1], botE[botE.length - 1]], '#14181b', 0.75); }
+    // the leaves of a roof that opens, parked either side and lifted
+    if (N3 && SL.leaves) for (const sgn of [-1, 1]) { const L = SL.leaves, xi = sgn * L.xi, xo = sgn * L.xo, yi = hT(xi, ZR) + L.yi, yo = hT(xo, ZR) + L.yo, zf = L.z1; quad(pr(xi, yi, ZR), pr(xo, yo, ZR), pr(xo, yo, zf), pr(xi, yi, zf), shade(L.col, 1)); quad(pr(xi, yi, ZR), pr(xi, yi, zf), pr(xi, yi - L.th, zf), pr(xi, yi - L.th, ZR), SL.edge || '#ff7a3c'); poly([pr(xi, yi, ZR), pr(xo, yo, ZR), pr(xo, yo - L.th, ZR), pr(xi, yi - L.th, ZR)], shade(SL.cut, 0.9)); line([pr(xi, yi, ZR), pr(xo, yo, ZR), pr(xo, yo - L.th, ZR), pr(xi, yi - L.th, ZR), pr(xi, yi, ZR)], '#14181b', 0.6); for (const z of [ZR + 1, zf - 1]) line([pr(xi, yi - L.th, z), pr(xi, hT(xi, z), z)], '#8d949a', 0.45); }
+  }
+  if (opt.front) opt.front(api);
+  // the benches, either side
+  for (const [z, cols] of [[53.33 + 3.6, [lift(c1), '#f4f4f0']], [-3.8, ['#e9e9e6', '#8b9399']]]) { poly([F(-17, z - 0.5), F(17, z - 0.5), F(17, z + 0.5), F(-17, z + 0.5)], '#cfd3d4'); for (let x = -16.5; x <= 16.5; x += 1.15) { const p = pr(x + (R() - 0.5) * 0.4, 0.9, z + (R() - 0.5)); g.fillStyle = cols[R() < 0.7 ? 0 : 1]; g.beginPath(); g.arc(p[0], p[1], ((CAM.f * 0.5) / p[2]) * DS, 0, 6.3); g.fill(); } }
+  // goal posts
+  for (const x of [-60, 60]) { const P3 = (y, z) => pr(x, y, z); line([P3(0, 26.665), P3(3.33, 26.665)], '#ffd43b', 0.45); line([P3(11.6, 23.58), P3(3.33, 23.58), P3(3.33, 29.75), P3(11.6, 29.75)], '#ffd43b', 0.45); }
+}
+const team = (id) => TEAMS.find((t) => t.id === id);
+const tri = (v) => { const p = v - Math.floor(v); return p < 0.5 ? p * 2 : 2 - p * 2; };
+const shape = (api, pts, fill) => { const { g, DS } = api; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x * DS, y * DS) : g.moveTo(x * DS, y * DS))); g.closePath(); g.fillStyle = fill; g.fill(); };
+// The land outside, in the same space as the building, each club's after its own city: lots, streets, blocks with
+// windows, water, woods.
+const far = (api, x0, x1, z0, z1, y = 0) => [api.pr(x0, y, z0), api.pr(x1, y, z0), api.pr(x1, y, z1), api.pr(x0, y, z1)];
+const clearOf = (x, z) => Math.abs(x) > 124 || z > 112; // outside the building and its plaza
+const CARS = ['#d9dcdf', '#b23b3b', '#3b5fa8', '#1f2327', '#c9c2a8', '#8a9096', '#e7e7e2'];
+const car = (api, x, z) => { const p = api.pr(x, 0.5, z); const r = Math.max(0.7, ((272 * 0.95) / p[2]) * api.DS); api.g.fillStyle = CARS[Math.floor(api.R() * CARS.length)]; api.g.fillRect(p[0] - r, p[1] - r * 0.55, r * 2, r * 1.1); };
+function lot(api, x0, x1, z0, z1, col = '#4b5056') { api.poly(far(api, x0, x1, z0, z1), col); for (let z = z0 + 3; z < z1 - 2; z += 6.5) { api.line([api.pr(x0 + 1, 0.05, z + 0.9), api.pr(x1 - 1, 0.05, z + 0.9)], 'rgba(255,255,255,.22)', 0.15); for (let x = x0 + 2; x < x1 - 2; x += 2.7) { if (api.R() < 0.2) continue; car(api, x, z); car(api, x, z + 1.8); } } }
+function street(api, pts, w, col = '#6f757a', traffic = 0.5) { const [[xa, za], [xb, zb]] = pts; const along = Math.abs(xb - xa) > Math.abs(zb - za); api.poly(along ? far(api, xa, xb, za - w / 2, za + w / 2) : far(api, xa - w / 2, xa + w / 2, za, zb), col); const len = along ? xb - xa : zb - za; for (let k = 3; k < len; k += 9) { const a = along ? [xa + k, za] : [xa, za + k]; api.line([api.pr(a[0], 0.05, a[1]), api.pr(a[0] + (along ? 4 : 0), 0.05, a[1] + (along ? 0 : 4))], 'rgba(255,255,255,.5)', 0.14); if (api.R() < traffic) car(api, a[0] + (along ? 0 : (api.R() < 0.5 ? -1 : 1) * w * 0.25), a[1] + (along ? (api.R() < 0.5 ? -1 : 1) * w * 0.25 : 0)); } }
+function tree(api, x, z, h, y0, kind) { const { pr, poly, g, DS } = api; if (kind === 'pine') { const w = h * 0.3; poly([pr(x - w, y0, z), pr(x + w, y0, z), pr(x, y0 + h, z)], ['#2b4a38', '#34573f', '#3c6248'][Math.floor(api.R() * 3)]); if (api.snowy) poly([pr(x - w * 0.45, y0 + h * 0.55, z), pr(x + w * 0.45, y0 + h * 0.55, z), pr(x, y0 + h, z)], '#e9eff2'); } else { const c = pr(x, y0 + h * 0.62, z); const r = ((272 * h * 0.46) / c[2]) * DS; g.fillStyle = ['#2f5a3a', '#3a6a45', '#467a4f', '#356241'][Math.floor(api.R() * 4)]; g.beginPath(); g.arc(c[0], c[1], r, 0, 6.3); g.fill(); g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.arc(c[0] - r * 0.25, c[1] - r * 0.3, r * 0.5, 0, 6.3); g.fill(); } }
+// Woods thick enough that no ground shows: a tree every few yards, the far ones first.
+function woods(api, x0, x1, z0, z1, kind, yOf = () => 0, every = 4.2) { const list = []; for (let z = z1; z >= z0; z -= every * 0.8) for (let x = x0; x < x1; x += every) { const xx = x + (api.R() - 0.5) * every, zz = z + (api.R() - 0.5) * every; if (!clearOf(xx, zz)) continue; list.push([xx, zz, 6 + api.R() * 6, yOf(zz)]); } list.sort((a, b) => b[1] - a[1]).forEach((t) => tree(api, t[0], t[1], t[2], t[3], kind)); }
+const lined = (api, x0, x1, z, kind = 'round') => { for (let x = x0; x < x1; x += 7) if (clearOf(x, z)) tree(api, x, z, 4.5 + api.R() * 2, 0, kind); };
+function box(api, x, z, w, d, h, col, y0 = 0) { const { pr, quad, shade } = api, x0 = x - w / 2, x1 = x + w / 2, z1 = z + d, T = y0 + h; const sx = x > 0 ? x0 : x1; quad(pr(sx, y0, z), pr(sx, y0, z1), pr(sx, T, z1), pr(sx, T, z), shade(col, 0.68)); quad(pr(x0, T, z), pr(x1, T, z), pr(x1, T, z1), pr(x0, T, z1), shade(col, 1.08)); quad(pr(x0, y0, z), pr(x1, y0, z), pr(x1, T, z), pr(x0, T, z), shade(col, 0.86)); }
+// A building with its floors and windows drawn, on the face toward us and the side we can see.
+function tower(api, x, z, w, d, h, col, glass = '#2c4254') { box(api, x, z, w, d, h, col); const { pr, quad, shade } = api; const x0 = x - w / 2 + 0.9, x1 = x + w / 2 - 0.9, cols = Math.max(2, Math.round((x1 - x0) / 2.7)), cw = (x1 - x0) / cols, sx = x > 0 ? x - w / 2 : x + w / 2;
+  quad(pr(x0, 0, z - 0.03), pr(x1, 0, z - 0.03), pr(x1, 2.6, z - 0.03), pr(x0, 2.6, z - 0.03), shade(col, 0.6));
+  for (let y = 3.4; y + 2.4 < h; y += 3.5) { if (pr(x, y, z)[1] < -12 * api.DS) break; for (let c = 0; c < cols; c++) { const xa = x0 + (c + 0.16) * cw; quad(pr(xa, y, z - 0.03), pr(xa + cw * 0.68, y, z - 0.03), pr(xa + cw * 0.68, y + 2.1, z - 0.03), pr(xa, y + 2.1, z - 0.03), api.R() < 0.16 ? '#cfe3ee' : api.R() < 0.2 ? '#f3dfa2' : glass); } quad(pr(sx, y, z + 1), pr(sx, y, z + d - 1), pr(sx, y + 2.1, z + d - 1), pr(sx, y + 2.1, z + 1), shade(glass, 0.75)); }
+  if (h > 14 && pr(x, h, z)[1] > -8 * api.DS) box(api, x + w * 0.12, z + d * 0.3, w * 0.3, d * 0.3, 2, shade(col, 0.8), h); }
+// City blocks on a grid of streets: `kind` sets how tall they stand.
+function city(api, { z0 = 166, z1 = 250, x0 = -430, x1 = 430, kind = 'mid', palette, ground = '#7a7f83', skip, glass }) { const R = api.R; api.poly(far(api, x0 - 20, x1 + 20, z0 - 8, z1 + 60), ground); const list = [];
+  for (let z = z0; z < z1; z += 40) { street(api, [[x0, z - 5], [x1, z - 5]], 6); lined(api, x0, x1, z - 9.5); for (let x = x0; x < x1; x += 46) { if (skip && skip(x, z)) continue; const split = R() < 0.4; for (const part of split ? [-1, 1] : [0]) { const w = split ? 17 + R() * 3 : 30 + R() * 8, d = 22 + R() * 8, h = kind === 'high' ? 22 + R() * R() * 120 : kind === 'low' ? 6 + R() * 10 : 12 + R() * 34; list.push([x + 23 + part * 10.5, z, w, d, h, palette[Math.floor(R() * palette.length)]]); } } }
+  for (let x = x0; x < x1; x += 46) street(api, [[x, z0 - 8], [x, z1 + 40]], 5, '#6f757a', 0.25);
+  list.sort((a, b) => b[1] - a[1] || Math.abs(b[0]) - Math.abs(a[0])).forEach((b) => tower(api, b[0], b[1], b[2], b[3], b[4], b[5], glass)); }
+const BRICK = ['#9a6b55', '#8a5a48', '#b08a6e', '#a39584', '#7d6a5c'], STEEL = ['#9aa5ad', '#b9c2c8', '#7f8b94', '#c9c4b6', '#8f989f'], PALE = ['#d9d4c6', '#c9c2b0', '#b8b3a6', '#e3ddd0', '#a9a69c'];
+
+const WORLD = {
+  // Denver: car parks round the ground, then the streets and blocks of the city just beyond.
+  DEN: (api) => { lot(api, -118, 118, 126, 158); for (const sgn of [-1, 1]) { lot(api, sgn > 0 ? 134 : -190, sgn > 0 ? 190 : -134, 18, 112); street(api, [[sgn * 127, -40], [sgn * 127, 160]], 6); } street(api, [[-430, 120], [430, 120]], 7, '#6f757a', 0.7); lined(api, -430, 430, 115.5); city(api, { z0: 168, kind: 'mid', palette: BRICK.concat(STEEL) }); for (const sgn of [-1, 1]) for (const z of [30, 74]) for (const x of [222, 268]) tower(api, sgn * x, z, 34, 30, 14 + api.R() * 20, BRICK[Math.floor(api.R() * 5)]); },
+  // Buffalo: out of town. Acres of car park, a road, low sheds, and woods packed tight behind.
+  BUF: (api) => { api.snowy = true; lot(api, -230, 230, 126, 186, '#5a6066'); for (const sgn of [-1, 1]) { lot(api, sgn > 0 ? 134 : -230, sgn > 0 ? 230 : -134, 4, 112, '#5a6066'); street(api, [[sgn * 127, -40], [sgn * 127, 190]], 6, '#7d848a', 0.3); } street(api, [[-430, 191], [430, 191]], 8, '#7d848a', 0.6); api.poly(far(api, -460, 460, 196, 330), '#c6d0d4'); woods(api, -420, 420, 198, 246, 'pine'); for (const [x, w] of [[-250, 44], [262, 38]]) { box(api, x, 150, w, 26, 7, '#8f6f5b'); box(api, x, 150, w, 26, 0.6, '#eef2f4', 7); } },
+  // Cincinnati: the river at the door, bridges over it, and the wooded hills of the far bank with a town at their foot.
+  CIN: (api) => { const hill = (z) => Math.max(0, (z - 214) * 0.42); for (let z = 300; z >= 190; z -= 6) api.quad(api.pr(-480, hill(z), z), api.pr(480, hill(z), z), api.pr(480, hill(z + 6), z + 6), api.pr(-480, hill(z + 6), z + 6), '#4f6b4a'); api.poly(far(api, -520, 520, 124, 190), '#6f9db3'); for (let z = 130; z < 188; z += 7) api.line([api.pr(-520, 0.1, z), api.pr(520, 0.1, z)], 'rgba(255,255,255,.13)', 0.3);
+      woods(api, -440, 440, 216, 262, 'round', hill, 3.8);
+      [[-190, 30, 9], [-146, 26, 13], [-102, 34, 8], [-20, 30, 11], [24, 24, 16], [150, 32, 9], [196, 28, 12], [240, 30, 8]].forEach(([x, w, h]) => tower(api, x, 196, w, 16, h, BRICK[Math.floor(api.R() * 5)]));
+      street(api, [[-430, 119], [430, 119]], 6, '#6f757a', 0.6); lot(api, 134, 190, 20, 112); lined(api, -430, 430, 123.2);
+      for (const [bx, col] of [[108, '#4f5a62'], [-232, '#a5562f']]) { api.poly(far(api, bx - 3, bx + 3, 118, 196, 7), '#7a8187'); for (const x of [bx - 3, bx + 3]) { const arch = []; for (let k = 0; k <= 16; k++) { const u = k / 16; arch.push(api.pr(x, 7 + 15 * Math.sin(Math.PI * u), 124 + 66 * u)); } api.line(arch, col, 0.6); for (let k = 2; k < 16; k += 2) { const u = k / 16; api.line([api.pr(x, 7, 124 + 66 * u), api.pr(x, 7 + 15 * Math.sin(Math.PI * u), 124 + 66 * u)], col, 0.3); } } for (const z of [140, 172]) box(api, bx, z, 5, 4, 7, '#8d8f8c'); }
+      box(api, -34, 150, 30, 9, 2.4, '#f1efe8'); box(api, -36, 151.5, 22, 6, 3, '#f7f5ee', 2.4); box(api, -36, 152.5, 14, 4, 2.4, '#f1efe8', 5.4); for (const x of [-30, -26]) box(api, x, 153.5, 1.6, 1.6, 7, '#2b2d31', 7.8); box(api, -52, 151, 4, 7, 5.5, api.c1); api.line([api.pr(-70, 0.1, 152), api.pr(-56, 0.1, 154.5), api.pr(-70, 0.1, 157)], 'rgba(255,255,255,.5)', 0.4); },
+  // Minneapolis: the middle of town, towers on every side, snow on the roofs.
+  MIN: (api) => { api.snowy = true; city(api, { z0: 126, kind: 'high', palette: STEEL.concat(PALE), ground: '#aab2b7', glass: '#31506a' }); for (const sgn of [-1, 1]) { street(api, [[sgn * 127, -40], [sgn * 127, 124]], 6); for (const z of [12, 52, 90]) for (const x of [150, 196, 242]) tower(api, sgn * x, z, 30, 28, 18 + api.R() * 60, STEEL.concat(PALE)[Math.floor(api.R() * 10)], '#31506a'); } },
+  // Atlanta: downtown again, warmer stone, trees on the streets.
+  ATL: (api) => { city(api, { z0: 126, kind: 'high', palette: PALE.concat(BRICK), ground: '#80857f' }); for (const sgn of [-1, 1]) { street(api, [[sgn * 127, -40], [sgn * 127, 124]], 6); for (const z of [12, 52, 90]) for (const x of [150, 196, 242]) tower(api, sgn * x, z, 30, 28, 14 + api.R() * 50, PALE.concat(BRICK)[Math.floor(api.R() * 10)]); woods(api, sgn > 0 ? 130 : -142, sgn > 0 ? 142 : -130, 0, 110, 'round', () => 0, 6); } },
+};
+
+const STUDIES = [
+  { id: 'DEN', note: 'Open air, in town. Car parks round the ground, then streets and city blocks with their windows drawn.', opt: { seat: '#16283a', wall: '#a39c8c', ground: '#7a7f83', back: WORLD.DEN, rim: (u) => 23.6 + 6.5 * tri(u / 15) * (0.45 + 0.55 * Math.abs(Math.sin(u / 26))) } },
+  { id: 'BUF', note: 'Open air with a roof over the back rows. Out of town: acres of car park in the snow, a road, and woods packed tight behind.', opt: { seat: '#172846', wall: '#bcd9e6', wallAlpha: 0.55, ground: '#dde4e8', plaza: '#c3c9cc', back: WORLD.BUF, rim: () => 27.2, roof: { d0: 22, d1: 34, y0: 26.4, y1: 28.4, col: '#f1f4f6' } } },
+  { id: 'CIN', note: 'A horseshoe on the river. Two bridges, a boat, and a town on the far bank.', opt: { seat: '#33383d', wall: '#e4e2da', face: '#f2f0e8', ground: '#667f58', back: WORLD.CIN, open: (i) => i < 74,
+      behind: (api) => { const { pr, line, c1 } = api; const X = -84, Y = 14.5, Z = 41, r = 13; const pt = (a, k = 1) => pr(X, Y + Math.sin(a) * r * k, Z + Math.cos(a) * r * k); for (const k of [1, 0.72]) { const ring = []; for (let a = 0; a <= 6.31; a += 0.15) ring.push(pt(a, k)); line(ring, c1, k === 1 ? 1.5 : 0.7); } for (let s = 0; s < 14; s++) line([pt((s / 14) * 6.283, 0.12), pt((s / 14) * 6.283)], c1, 0.6); for (const z of [Z - 2, Z + 2]) line([pr(X, 0, z - 6 * Math.sign(z - Z)), pr(X, Y, Z)], '#e4e2da', 1.1); },
+      front: (api) => { const { B, W3, quad, c1, top } = api; for (const x of [24, 33]) { const i = B.findIndex((b) => b.part === 'F' && b.x >= x); const a = B[i], b = B[i + 3]; const y0 = top.y1 + 1, y1 = y0 + 19; quad(W3(a, top.d1 + 3, y0), W3(b, top.d1 + 3, y0), W3(b, top.d1 + 3, y1), W3(a, top.d1 + 3, y1), '#ecebe4'); quad(W3(a, top.d1 + 3, y1 - 3.4), W3(b, top.d1 + 3, y1 - 3.4), W3(b, top.d1 + 3, y1), W3(a, top.d1 + 3, y1), c1); } } } },
+  { id: 'MIN', note: 'A fixed roof. It now runs off both sides of the picture. Downtown towers stand behind it.', opt: { indoor: 1, seat: '#2a1a3d', wall: '#8a6238', win: '#cfe6f2', ground: '#aab2b7', back: WORLD.MIN,
+      slab: { th: 3.4, top: '#dccfae', cut: '#f3ecd8', rib: 'rgba(122,90,52,.75)', web: 'rgba(122,90,52,.8)', h: (x, z, XR, ZR, ZB) => { const hx = 33 + 13 * Math.pow(Math.max(0, 1 - (x / XR) ** 2), 0.8); const t = (z - ZR) / (ZB - ZR); return 29.5 + (hx - 29.5) * Math.pow(Math.cos((t * Math.PI) / 2), 0.9); } } } },
+  { id: 'ATL', note: 'A roof that opens. The roof and its two lifted leaves now run off both sides of the picture.', opt: { indoor: 1, seat: '#231416', wall: '#2a2d31', win: '#f3d37a', ground: '#80857f', back: WORLD.ATL,
+      slab: { th: 3.6, top: '#33373c', cut: '#c9ccd0', edge: '#ff7a3c', isOpen: true, notch: { x0: -44, x1: 44, z1: 70 }, leaves: { xi: 48, xo: 118, yi: 13, yo: 3.4, th: 2.2, z1: 72, col: '#454a50' }, h: (x, z, XR, ZR, ZB) => 38.5 + 2.5 * (1 - (x / XR) ** 2) - 3 * ((z - ZR) / (ZB - ZR)) } } },
+];
+const host = document.getElementById('studies');
+host.innerHTML = STUDIES.map((s, n) => { const t = team(s.id); return `<figure class="${n ? '' : 'wide'}"><div class="frame"><canvas id="cv-${s.id}" role="img" aria-label="${t.city} ${t.nick}: ${t.idea}, drawn with depth"></canvas></div><figcaption><b>${t.idea}</b> <span>${t.city} ${t.nick}</span><br>${s.note}</figcaption></figure>`; }).join('');
+const FILL = { win: 0.97, even: 0.8, lose: 0.52 }; let crowd = 'win';
+const paint = () => { for (const s of STUDIES) drawDepth(document.getElementById(`cv-${s.id}`), team(s.id), { ...s.opt, fill: FILL[crowd] }); for (const b of document.querySelectorAll('[data-crowd]')) b.setAttribute('aria-pressed', String(b.dataset.crowd === crowd)); };
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-crowd]'); if (!b) return; crowd = b.dataset.crowd; paint(); });
+paint();
+</script>

@@ -8,3 +8,5 @@ dist/
 dist-single/
 .check/
 .claude/
+# A mockup kept beside its spec: a record of what was agreed, not code to format
+docs/superpowers/specs/*-prototype.html
