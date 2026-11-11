@@ -15,13 +15,14 @@ const time = args.includes('--time');
 
 const seg = (label: string, key: string, options: [string, string][]) =>
   `<span class="ctl"><span>${label}</span><span class="seg">${options.map(([v, text], i) => `<button data-set="${key}:${v}" aria-pressed="${i === 0}">${text}</button>`).join('')}</span></span>`;
-const page = (js: string) => `<title>Stadium Review</title>
+const page = (js: string) => `<title>Stadium Review: ${group}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root { color-scheme: dark; --bg: #0d1210; --raise: #1c2722; --ink: #e9efea; --muted: #93a198; --line: #29342e; --marker: #ffd43b; --marker-ink: #1f1900; }
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; padding-block: 24px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .wrap { max-width: 1180px; margin-inline: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  p { margin: 0; max-width: 66ch; color: var(--muted); }
   h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; }
   .bar { display: flex; flex-wrap: wrap; gap: 10px 18px; }
   .ctl { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; }
@@ -32,11 +33,13 @@ const page = (js: string) => `<title>Stadium Review</title>
   #root { display: grid; gap: 22px 18px; grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 900px) { #root { grid-template-columns: repeat(2, minmax(0, 1fr)); } #root figure:first-child:nth-last-child(odd) { grid-column: 1 / -1; } }
   figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+  figure.phone { max-width: 390px; }
   canvas { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); background: #000; }
   figcaption { font-size: 14px; color: var(--muted); }
 </style>
 <div class="wrap">
   <h1 id="title"></h1>
+  <p id="notes"></p>
   <div class="bar">
     ${seg('Crowd', 'turnout', [
       ['winning', 'Winning'],
@@ -58,7 +61,6 @@ const page = (js: string) => `<title>Stadium Review</title>
     ])}
   </div>
   <div id="root"></div>
-  <div id="notes"></div>
 </div>
 <script>${js}</script>`;
 

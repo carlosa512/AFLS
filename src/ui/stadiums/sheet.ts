@@ -15,9 +15,43 @@ import type { Look } from './types';
 declare const GROUP: string;
 const WIDTH = 1440;
 
-export const GROUPS: Record<string, { title: string; clubs: [string, number][] }> = {
-  agreed: { title: 'The five agreed', clubs: ['DEN', 'BUF', 'CIN', 'MIN', 'ATL'].map((a) => [a, 2026]) },
-  checks: { title: 'What has not been seen yet', clubs: [] },
+interface Spec {
+  abbrev: string;
+  season: number;
+  /** A look this tile keeps whatever the switches say, and what to say under it. */
+  over?: Partial<Look>;
+  note?: string;
+  /** Draw a sample play over it; `phone` shows it at a phone's width. */
+  play?: boolean;
+  phone?: boolean;
+}
+const club = (abbrev: string): Spec => ({ abbrev, season: 2026 });
+export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec[] }> = {
+  agreed: { title: 'The five agreed', tiles: ['DEN', 'BUF', 'CIN', 'MIN', 'ATL'].map(club) },
+  checks: {
+    title: 'Three things not seen yet',
+    intro:
+      'Drawn by the code the game will use, connected to nothing yet. A play on the smaller field at a phone’s width; night; and weather with no sky. The switches above still change the crowd.',
+    tiles: [
+      {
+        ...club('DEN'),
+        play: true,
+        phone: true,
+        note: 'A play at a phone’s width. The dashed outline is where the field sits today.',
+      },
+      { ...club('ATL'), play: true, phone: true, over: { night: true }, note: 'The same play under a roof, at night.' },
+      {
+        ...club('DEN'),
+        over: { night: true },
+        note: 'Night: the land and the stands darken; windows and ribbon boards stay lit.',
+      },
+      { ...club('BUF'), over: { night: true }, note: 'Night, out of town.' },
+      { ...club('DEN'), over: { precip: 'rain' }, note: 'Rain, with no sky to show it: only what falls.' },
+      { ...club('BUF'), over: { precip: 'snow' }, note: 'Snow: it falls, and it lies on the roof and the land.' },
+      { ...club('ATL'), over: { roof: 'open' }, note: 'The roof open.' },
+      { ...club('ATL'), over: { roof: 'closed' }, note: 'The roof shut: one seam where the leaves meet.' },
+    ],
+  },
 };
 
 const P = (X: number, Y: number, Z: number): Pt => {
@@ -79,14 +113,80 @@ function sketchFall(ctx: CanvasRenderingContext2D, look: Look, scale: number) {
   }
 }
 
-export interface Tile {
-  abbrev: string;
-  season: number;
+/** A sample play, drawn the way the game's own layer would: the drive's band, both lines, a pass and a banner. */
+function sketchPlay(ctx: CanvasRenderingContext2D, scale: number, abbrev: string, colors: [string, string]) {
+  const S = (X: number, Y: number, Z: number): Pt => {
+    const p = toFrame(X, Y, Z);
+    return [p.x * scale, p.y * scale];
+  };
+  const path = (pts: Pt[]) => {
+    ctx.beginPath();
+    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+  };
+  // where the field sits today (far sideline at 68 and 226 wide, near at 168 and 346)
+  ctx.setLineDash([3 * scale, 2.4 * scale]);
+  path(
+    [
+      [67, 68],
+      [293, 68],
+      [353, 168],
+      [7, 168],
+      [67, 68],
+    ].map(([x, y]) => [x * scale, y * scale] as Pt),
+  );
+  ctx.strokeStyle = 'rgba(255,255,255,.8)';
+  ctx.lineWidth = 1.3 * scale;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // the drive began at the 25; the ball is at the 30 with ten to go (the home side attacks to the left)
+  path([S(25, 0, 0), S(20, 0, 0), S(20, 0, 53.33), S(25, 0, 53.33)]);
+  ctx.fillStyle = 'rgba(255,255,255,.14)';
+  ctx.fill();
+  for (const [x, col] of [
+    [20, '#5aa9ff'],
+    [10, '#ffd43b'],
+  ] as [number, string][]) {
+    path([S(x, 0, 0), S(x, 0, 53.33)]);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.9 * scale;
+    ctx.stroke();
+  }
+  const arc: Pt[] = [];
+  for (let k = 0; k <= 24; k++) arc.push(S(20 - (22 * k) / 24, 12 * 4 * (k / 24) * (1 - k / 24), 26 + (14 * k) / 24));
+  path(arc);
+  ctx.strokeStyle = 'rgba(255,255,255,.9)';
+  ctx.lineWidth = 0.6 * scale;
+  ctx.stroke();
+  const ball = toFrame(-2, 1, 40);
+  ctx.fillStyle = '#7a3f1d';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 0.35 * scale;
+  ctx.beginPath();
+  ctx.ellipse(ball.x * scale, ball.y * scale, 2.6 * scale, 1.6 * scale, 0, 0, 6.3);
+  ctx.fill();
+  ctx.stroke();
+  // the banner, as the game draws one
+  const y = 150 * scale;
+  ctx.fillStyle = 'rgba(12,16,15,.9)';
+  ctx.fillRect(10 * scale, y, 340 * scale, 28 * scale);
+  ctx.fillStyle = colors[0];
+  ctx.fillRect(10 * scale, y, 46 * scale, 28 * scale);
+  ctx.fillStyle = '#fff';
+  ctx.font = `900 ${15 * scale}px 'Arial Narrow', Arial, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(abbrev, 17 * scale, y + 14 * scale);
+  ctx.fillText('TOUCHDOWN', 64 * scale, y + 10 * scale);
+  ctx.font = `400 ${8 * scale}px Arial, sans-serif`;
+  ctx.fillStyle = '#c9d2cc';
+  ctx.fillText('A 22-yard pass', 64 * scale, y + 22 * scale);
+}
+
+export interface Tile extends Spec {
   canvas: HTMLCanvasElement;
 }
 const state = { turnout: 'winning' as Turnout, night: false, precip: 'none' as Look['precip'], open: true };
 
-export function paintTile(t: Tile, over?: Partial<Look>): number {
+export function paintTile(t: Tile): number {
   const club = TEAM_SEEDS.find((c) => c.abbrev === t.abbrev)!;
   const colors = club.colors as [string, string];
   const b = buildingFor(t.abbrev, t.season, colors);
@@ -96,7 +196,7 @@ export function paintTile(t: Tile, over?: Partial<Look>): number {
     precip: state.precip,
     roof: kind === 'outdoors' ? 'none' : kind === 'dome' || !state.open ? 'closed' : 'open',
     fill: FILL[state.turnout],
-    ...over,
+    ...t.over,
   };
   const scale = WIDTH / FRAME.w;
   t.canvas.width = WIDTH;
@@ -107,6 +207,7 @@ export function paintTile(t: Tile, over?: Partial<Look>): number {
   paintStadium(pen, b, colors, look, t.abbrev);
   const ms = performance.now() - t0;
   sketchField(pen, colors, look.night);
+  if (t.play) sketchPlay(ctx, scale, t.abbrev, colors);
   sketchFall(ctx, look, scale);
   return ms;
 }
@@ -115,15 +216,17 @@ function mount() {
   const group = GROUPS[GROUP];
   const root = document.getElementById('root')!;
   document.getElementById('title')!.textContent = group.title;
-  const tiles: Tile[] = group.clubs.map(([abbrev, season]) => {
-    const club = TEAM_SEEDS.find((c) => c.abbrev === abbrev)!;
+  document.getElementById('notes')!.textContent = group.intro ?? '';
+  const tiles: Tile[] = group.tiles.map((spec) => {
+    const team = TEAM_SEEDS.find((c) => c.abbrev === spec.abbrev)!;
     const fig = document.createElement('figure');
+    if (spec.phone) fig.className = 'phone';
     const canvas = document.createElement('canvas');
     const cap = document.createElement('figcaption');
-    cap.textContent = `${club.city} ${club.name}`;
+    cap.textContent = spec.note ? `${team.city}. ${spec.note}` : `${team.city} ${team.name}`;
     fig.append(canvas, cap);
     root.append(fig);
-    return { abbrev, season, canvas };
+    return { ...spec, canvas };
   });
   const paint = () => tiles.forEach((t) => paintTile(t));
   document.addEventListener('click', (e) => {
