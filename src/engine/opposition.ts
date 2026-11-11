@@ -1,23 +1,11 @@
 /** A small briefing from current scouting reads and completed regular-season games. */
 import { keyMatchups, type Matchup } from './inbox';
+import { addGame, noSums, type UnitSums } from './slump';
 import type { League } from './types';
 import { say, type Line } from './voice';
 
-type Totals = {
-  games: number;
-  pass: number;
-  attempts: number;
-  dropbacks: number;
-  sacks: number;
-  rush: number;
-  carries: number;
-  allowedPass: number;
-  facedPass: number;
-  facedDropbacks: number;
-  madeSacks: number;
-  allowedRush: number;
-  facedRush: number;
-};
+/** A club's season in the sums every unit's number is read from (`slump.ts` reads a span of the same). */
+type Totals = UnitSums;
 export interface MatchupFact {
   teamId: number;
   /** What the unit has done, as a verb phrase a sentence can follow "It" with: "allows a sack on 5.1% of dropbacks". */
@@ -53,46 +41,11 @@ export interface MatchupFocus {
   lean: 'us' | 'them' | 'close' | null;
 }
 function totals(l: League): Map<number, Totals> {
-  const out = new Map(
-    l.teams.map((t) => [
-      t.id,
-      {
-        games: 0,
-        pass: 0,
-        attempts: 0,
-        dropbacks: 0,
-        sacks: 0,
-        rush: 0,
-        carries: 0,
-        allowedPass: 0,
-        facedPass: 0,
-        facedDropbacks: 0,
-        madeSacks: 0,
-        allowedRush: 0,
-        facedRush: 0,
-      },
-    ]),
-  );
+  const out = new Map(l.teams.map((t) => [t.id, noSums()]));
   for (const g of l.games) {
     if (g.season !== l.season || g.playoffRound || !g.result || g.week >= l.week) continue;
-    for (const home of [true, false]) {
-      const s = out.get(home ? g.homeId : g.awayId)!;
-      const us = home ? g.result.home : g.result.away;
-      const them = home ? g.result.away : g.result.home;
-      s.games++;
-      s.pass += us.passYds;
-      s.attempts += us.passAtt;
-      s.dropbacks += us.passAtt + us.sacked;
-      s.sacks += us.sacked;
-      s.rush += us.rushYds;
-      s.carries += us.rushAtt;
-      s.allowedPass += them.passYds;
-      s.facedPass += them.passAtt;
-      s.facedDropbacks += them.passAtt + them.sacked;
-      s.madeSacks += them.sacked;
-      s.allowedRush += them.rushYds;
-      s.facedRush += them.rushAtt;
-    }
+    addGame(out.get(g.homeId)!, g.result.home, g.result.away);
+    addGame(out.get(g.awayId)!, g.result.away, g.result.home);
   }
   return out;
 }
