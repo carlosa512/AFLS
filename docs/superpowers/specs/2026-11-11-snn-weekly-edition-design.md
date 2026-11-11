@@ -302,6 +302,8 @@ Reference pictures, at the inbox reading pane's real width (about 660px on a des
 
 - `2026-11-11-snn-weekly-edition-closed.png`: the edition as it opens
 - `2026-11-11-snn-weekly-edition-open.png`: the lead story opened in place
+- `2026-11-11-snn-weekly-edition-prototype.html`: both, and the Key matchups card, as a stand-alone page with the
+  agreed markup and styles
 
 Behaviour:
 
