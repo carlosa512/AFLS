@@ -22,6 +22,7 @@ export function canvasPen(ctx: CanvasRenderingContext2D, scale: number): Pen {
   const dots = new Map<string, number[]>();
   const boxes = new Map<string, number[]>();
   const flush = () => {
+    endRun();
     for (const [fill, list] of boxes) {
       ctx.fillStyle = fill;
       ctx.beginPath();
@@ -41,8 +42,18 @@ export function canvasPen(ctx: CanvasRenderingContext2D, scale: number): Pen {
     dots.clear();
   };
   const trace = (pts: Pt[]) => {
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p[0] * scale, p[1] * scale) : ctx.moveTo(p[0] * scale, p[1] * scale)));
+    for (let i = 0; i < pts.length; i++) {
+      if (i) ctx.lineTo(pts[i][0] * scale, pts[i][1] * scale);
+      else ctx.moveTo(pts[i][0] * scale, pts[i][1] * scale);
+    }
+  };
+  // Polygons that follow one another in the same colour (a stretch of a stand, a row of windows) share one path.
+  let run: string | null = null;
+  const endRun = () => {
+    if (run === null) return;
+    ctx.fillStyle = run;
+    ctx.fill();
+    run = null;
   };
   const keep = (map: Map<string, number[]>, fill: string) => {
     let list = map.get(fill);
@@ -51,23 +62,28 @@ export function canvasPen(ctx: CanvasRenderingContext2D, scale: number): Pen {
   };
   return {
     poly(pts, fill) {
-      flush();
+      if (run !== fill) {
+        flush();
+        ctx.beginPath();
+        run = fill;
+      }
       trace(pts);
       ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
     },
     line(pts, stroke, width) {
       flush();
+      ctx.beginPath();
       trace(pts);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = width * scale;
       ctx.stroke();
     },
     dot(x, y, r, fill) {
+      endRun();
       keep(dots, fill).push(x * scale, y * scale, r * scale);
     },
     box(x, y, w, h, fill) {
+      endRun();
       keep(boxes, fill).push(x * scale, y * scale, w * scale, h * scale);
     },
     flush,

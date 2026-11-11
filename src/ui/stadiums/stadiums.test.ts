@@ -3,7 +3,14 @@ import { at, DECKS, wallLine } from './bowl';
 import { toFrame } from './camera';
 import { lum } from './colour';
 import { crowdPalette, sectionFill, turnoutOf } from './crowd';
+import { STADIUMS } from '../../engine/data/stadiums';
+import { Rng } from '../../engine/rng';
+import { BUILDINGS, buildingFor, LATER, roofKindOf } from './buildings';
+import { FEATURES } from './features';
+import { SETTINGS } from './land';
+import { paintStadium } from './paint';
 import { recorder } from './pen';
+import type { Building, Look, Scene } from './types';
 
 describe('the camera', () => {
   it('puts the field where the owner approved it', () => {
@@ -76,5 +83,109 @@ describe('who turns up', () => {
   it('dresses a crowd you can see, whatever the club’s colours', () => {
     expect(crowdPalette(['#000000', '#101010']).every((c) => lum(c) > 0.2)).toBe(true);
     expect(crowdPalette(['#fb4f14', '#002244'])[0]).toBe('#fb4f14');
+  });
+});
+
+describe('the stands', () => {
+  const bowl: Building = {
+    id: 'TEST',
+    rim: { kind: 'flat', h: 23.8 },
+    seat: '#16283a',
+    wall: '#a39c8c',
+    ground: '#7a7f83',
+    features: [],
+    setting: { kind: 'none' },
+  };
+  const look = (fill: number): Look => ({ night: false, precip: 'none', roof: 'none', fill });
+  const seats = (fill: number) => {
+    const r = recorder();
+    paintStadium(r, bowl, ['#fb4f14', '#002244'], look(fill), 'TEST');
+    return r.shapes.filter((s) => s.kind === 'dot' || (s.kind === 'box' && s.fill !== '#f7f7f2'));
+  };
+  it('draws the same seats at every turnout, more of them taken as it rises', () => {
+    const thin = seats(0.52);
+    const full = seats(0.97);
+    expect(thin.length).toBe(full.length);
+    expect(thin.length).toBeGreaterThan(8000);
+    expect(thin.every((s, i) => s.kind === 'box' || full[i].kind === 'dot')).toBe(true);
+    expect(full.filter((s) => s.kind === 'dot').length).toBeGreaterThan(thin.filter((s) => s.kind === 'dot').length);
+  });
+  it('is the same picture every time for the same club', () => {
+    const a = recorder();
+    const b = recorder();
+    paintStadium(a, bowl, ['#fb4f14', '#002244'], look(0.8), 'TEST');
+    paintStadium(b, bowl, ['#fb4f14', '#002244'], look(0.8), 'TEST');
+    expect(a.shapes).toEqual(b.shapes);
+  });
+  it('draws a roof that opens open or shut as the game has it', () => {
+    const roofed: Building = {
+      ...bowl,
+      roof: {
+        kind: 'slab',
+        profile: { kind: 'flat', h: 38.5, crown: 2.5, fall: 3 },
+        th: 3.6,
+        skin: '#33373c',
+        section: '#c9ccd0',
+        opening: { x0: -44, x1: 44, z1: 70 },
+      },
+    };
+    const count = (roof: Look['roof']) => {
+      const r = recorder();
+      paintStadium(r, roofed, ['#a71930', '#000000'], { ...look(0.97), roof }, 'T');
+      return r.shapes.length;
+    };
+    expect(count('closed')).toBeGreaterThan(count('open')); // shut, the roof over the opening is drawn too
+    expect(count('none')).toBe(count('closed')); // a dome's weather names no roof: it is whole
+  });
+});
+
+describe('the land outside', () => {
+  const scene = () => {
+    const pen = recorder();
+    const s: Scene = {
+      pen,
+      rng: new Rng('land'),
+      look: { night: false, precip: 'none', roof: 'none', fill: 1 },
+      colors: ['#ffffff', '#000000'],
+      snowy: false,
+      tone: (h) => h,
+      lamp: (h) => h,
+    };
+    return { pen, s };
+  };
+  it('has a painter for every kind of setting and every feature a building can ask for', () => {
+    for (const kind of ['none', 'town', 'outOfTown', 'river', 'downtown'] as const)
+      expect(SETTINGS[kind]).toBeTypeOf('function');
+    for (const kind of ['stacks', 'wheel'] as const) expect(FEATURES[kind].paint).toBeTypeOf('function');
+  });
+  it('draws a town with windows on its buildings and no people', () => {
+    const { pen, s } = scene();
+    SETTINGS.town(s, { kind: 'town', height: 'mid', palette: ['#9a6b55'], lots: true });
+    expect(pen.shapes.filter((x) => x.kind === 'poly').length).toBeGreaterThan(1500); // floors of windows
+    expect(pen.shapes.some((x) => x.kind === 'dot')).toBe(false); // dots are people, and people are in the stadium
+  });
+});
+
+describe('the buildings', () => {
+  it('draws the five the owner agreed', () => {
+    expect(Object.keys(BUILDINGS).sort()).toEqual(expect.arrayContaining(['ATL', 'BUF', 'CIN', 'DEN', 'MIN']));
+  });
+  it('gives every listed building the roof the game says its club has', () => {
+    for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(roofKindOf(b), abbrev).toBe(STADIUMS[abbrev].roof);
+    for (const [abbrev, list] of Object.entries(LATER))
+      for (const { season, building } of list)
+        expect(roofKindOf(building), `${abbrev} ${season}`).toBe(
+          STADIUMS[abbrev].changes!.find((c) => c.season === season)!.roof,
+        );
+  });
+  it('gives a club the game does not know a plain bowl, with a crowd that shows against the seats', () => {
+    const b = buildingFor('XYZ', 2026, ['#000000', '#101010']);
+    expect(b.id).toBe('plain');
+    expect(lum(b.chair!)).toBeGreaterThan(lum(b.seat)); // an empty chair shows against the bank it sits on
+    expect(roofKindOf(b)).toBe('outdoors');
+  });
+  it('uses the building of the game’s season, not today’s', () => {
+    // Filled in when the later buildings exist (Task 16): until then a club with no later building keeps its one.
+    expect(buildingFor('DEN', 2040, ['#fb4f14', '#002244']).id).toBe('DEN');
   });
 });

@@ -1,0 +1,94 @@
+/** The kinds of land a building can stand in. Each follows the lie of the land round a real ground, nothing more. */
+import type { Scene, SettingUse } from '../types';
+import { box, bridge, city, lined, lot, P, street, tower, water, woods } from './kit';
+
+type Painter<K extends SettingUse['kind']> = (s: Scene, use: Extract<SettingUse, { kind: K }>) => void;
+const pickFrom = (s: Scene, list: string[]) => list[Math.floor(s.rng.next() * list.length)];
+
+/** In town: car parks round the ground, then the streets and blocks of the city just beyond. */
+const town: Painter<'town'> = (s, use) => {
+  if (use.lots) lot(s, -118, 118, 126, 158);
+  for (const sgn of [-1, 1]) {
+    if (use.lots) lot(s, sgn > 0 ? 134 : -190, sgn > 0 ? 190 : -134, 18, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 160], 6);
+  }
+  street(s, [-430, 120], [430, 120], 7, '#6f757a', 0.7);
+  lined(s, -430, 430, 115.5);
+  city(s, { z0: 168, height: use.height, palette: use.palette });
+  for (const sgn of [-1, 1])
+    for (const z of [30, 74])
+      for (const x of [222, 268]) tower(s, sgn * x, z, 34, 30, 14 + s.rng.next() * 20, pickFrom(s, use.palette));
+};
+
+/** Out of town: acres of car park, a road, low sheds, and woods packed tight behind. */
+const outOfTown: Painter<'outOfTown'> = (s, use) => {
+  const tar = s.snowy ? '#5a6066' : '#4b5056';
+  const road = s.snowy ? '#7d848a' : '#6f757a';
+  lot(s, -230, 230, 138, 186, tar); // nearer than 138 it is hidden behind the far stand
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -230, sgn > 0 ? 230 : -134, 4, 112, tar);
+    street(s, [sgn * 127, -40], [sgn * 127, 190], 6, road, 0.3);
+  }
+  street(s, [-430, 191], [430, 191], 8, road, 0.6);
+  s.pen.poly(
+    [P(-460, 0, 196), P(460, 0, 196), P(460, 0, 330), P(-460, 0, 330)],
+    s.tone(s.snowy ? '#c6d0d4' : '#4f6b4a'),
+  );
+  // the frame's top edge sees ground 236 yards out and about 260 either side: no trees are planted past that
+  woods(s, -270, 270, 198, 240, use.trees);
+  if (use.sheds)
+    for (const [x, w] of [
+      [-250, 44],
+      [262, 38],
+    ])
+      box(s, x, 150, w, 26, 7, '#8f6f5b');
+};
+
+/** On a river: the water at the door, bridges over it, a boat, and a town on the far bank. */
+const river: Painter<'river'> = (s, use) => {
+  s.pen.poly([P(-480, 0, 190), P(480, 0, 190), P(480, 0, 330), P(-480, 0, 330)], s.tone('#4f6b4a'));
+  water(s, 124, 190);
+  woods(s, -440, 440, 216, 262, 'round', () => 0, 3.8);
+  const bank: [number, number, number][] = [
+    [-190, 30, 9],
+    [-146, 26, 13],
+    [-102, 34, 8],
+    [-20, 30, 11],
+    [24, 24, 16],
+    [150, 32, 9],
+    [196, 28, 12],
+    [240, 30, 8],
+  ];
+  for (const [x, w, h] of bank)
+    tower(s, x, 196, w, 16, h, pickFrom(s, ['#9a6b55', '#8a5a48', '#b08a6e', '#a39584', '#7d6a5c']));
+  street(s, [-430, 119], [430, 119], 6, '#6f757a', 0.6);
+  lot(s, 134, 190, 20, 112);
+  lined(s, -430, 430, 123.2);
+  const spans: [number, string][] = [
+    [108, '#4f5a62'],
+    [-232, '#a5562f'],
+  ];
+  for (const [x, col] of spans.slice(0, use.bridges)) bridge(s, x, 124, 190, col);
+  if (use.boat) {
+    box(s, -34, 150, 30, 9, 2.4, '#f1efe8');
+    box(s, -36, 151.5, 22, 6, 3, '#f7f5ee', 2.4);
+    box(s, -36, 152.5, 14, 4, 2.4, '#f1efe8', 5.4);
+    for (const x of [-30, -26]) box(s, x, 153.5, 1.6, 1.6, 7, '#2b2d31', 7.8);
+    box(s, -52, 151, 4, 7, 5.5, s.colors[0]);
+    s.pen.line([P(-70, 0.1, 152), P(-56, 0.1, 154.5), P(-70, 0.1, 157)], 'rgba(255,255,255,.5)', 0.4);
+  }
+};
+
+/** The middle of town: towers on every side. */
+const downtown: Painter<'downtown'> = (s, use) => {
+  city(s, { z0: 126, height: 'high', palette: use.palette, ground: '#80857f', glass: use.glass });
+  for (const sgn of [-1, 1]) {
+    street(s, [sgn * 127, -40], [sgn * 127, 124], 6);
+    for (const z of [12, 52, 90])
+      for (const x of [150, 196, 242])
+        tower(s, sgn * x, z, 30, 28, 16 + s.rng.next() * 55, pickFrom(s, use.palette), use.glass);
+    if (use.streetTrees) woods(s, sgn > 0 ? 130 : -142, sgn > 0 ? 142 : -130, 0, 110, 'round', () => 0, 6);
+  }
+};
+
+export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = { none: () => {}, town, outOfTown, river, downtown };
