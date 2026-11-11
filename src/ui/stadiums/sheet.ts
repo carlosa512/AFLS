@@ -28,6 +28,7 @@ interface Spec {
 const club = (abbrev: string): Spec => ({ abbrev, season: 2026 });
 export const GROUPS: Record<string, { title: string; intro?: string; tiles: Spec[] }> = {
   agreed: { title: 'The five agreed', tiles: ['DEN', 'BUF', 'CIN', 'MIN', 'ATL'].map(club) },
+  'liberty-east': { title: 'Liberty East', tiles: ['BUF', 'MIA', 'NE', 'NYK'].map(club) },
   checks: {
     title: 'Three things not seen yet',
     intro:

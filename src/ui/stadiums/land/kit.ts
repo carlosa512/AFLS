@@ -76,9 +76,24 @@ export function street(
 const ROUND = ['#2f5a3a', '#3a6a45', '#467a4f', '#356241'];
 const PINE = ['#2b4a38', '#34573f', '#3c6248'];
 /** A tree: a pine as a cone, a broadleaf as a ball (drawn as a polygon: dots are people). */
-export function tree(s: Scene, x: number, z: number, h: number, y0: number, kind: 'pine' | 'round') {
+export function tree(s: Scene, x: number, z: number, h: number, y0: number, kind: 'pine' | 'round' | 'palm') {
   const fill = s.tone(pick(s, kind === 'pine' ? PINE : ROUND));
   if (!seen(x, y0 + h / 2, z, 8)) return;
+  if (kind === 'palm') {
+    const top = toFrame(x + 0.5, y0 + h * 1.5, z);
+    s.pen.line([P(x, y0, z), [top.x, top.y]], s.tone('#7a6243'), 0.3);
+    const r = (CAM.f * h * 0.5) / top.depth;
+    for (const a of [-2.8, -2.1, -1.2, -0.3, 0.4])
+      s.pen.poly(
+        [
+          [top.x, top.y],
+          [top.x + Math.cos(a) * r, top.y + Math.sin(a) * r * 0.5 + r * 0.25],
+          [top.x + Math.cos(a) * r * 0.55, top.y + Math.sin(a) * r * 0.7 - r * 0.1],
+        ],
+        fill,
+      );
+    return;
+  }
   if (kind === 'pine') {
     const w = h * 0.3;
     s.pen.poly([P(x - w, y0, z), P(x + w, y0, z), P(x, y0 + h, z)], fill);
@@ -102,7 +117,7 @@ export function woods(
   x1: number,
   z0: number,
   z1: number,
-  kind: 'pine' | 'round',
+  kind: 'pine' | 'round' | 'palm',
   yOf: (z: number) => number = () => 0,
   every = 4.2,
 ) {
@@ -117,7 +132,7 @@ export function woods(
   list.sort((a, b) => b[1] - a[1]).forEach((t) => tree(s, t[0], t[1], t[2], yOf(t[1]), kind));
 }
 /** Trees along a street. */
-export function lined(s: Scene, x0: number, x1: number, z: number, kind: 'pine' | 'round' = 'round') {
+export function lined(s: Scene, x0: number, x1: number, z: number, kind: 'pine' | 'round' | 'palm' = 'round') {
   for (let x = x0; x < x1; x += 7) {
     const h = 4.5 + s.rng.next() * 2;
     if (clearOf(x, z)) tree(s, x, z, h, 0, kind);
@@ -225,3 +240,50 @@ export function bridge(s: Scene, x: number, z0: number, z1: number, col: string)
 export const BRICK = ['#9a6b55', '#8a5a48', '#b08a6e', '#a39584', '#7d6a5c'];
 export const STEEL = ['#9aa5ad', '#b9c2c8', '#7f8b94', '#c9c4b6', '#8f989f'];
 export const PALE = ['#d9d4c6', '#c9c2b0', '#b8b3a6', '#e3ddd0', '#a9a69c'];
+
+const HOUSE = ['#e6dccb', '#d9c7b0', '#cfd6d9', '#e9e3d6', '#c9b79f'];
+const ROOFS = ['#8a4b3a', '#5d646a', '#7a5a44', '#9a6b55'];
+/** Streets of houses: a house every 11 yards along rows 22 yards apart, each a box under a roof. */
+export function houses(s: Scene, x0: number, x1: number, z0: number, z1: number, trees: 'pine' | 'round' | 'palm') {
+  for (let z = z1; z >= z0; z -= 22) {
+    street(s, [x0, z - 6], [x1, z - 6], 4, '#7b8084', 0.15);
+    for (let x = x0 + 5; x < x1; x += 11) {
+      const wall = pick(s, HOUSE);
+      const roof = pick(s, ROOFS);
+      const yard = s.rng.next() < 0.5;
+      if (!clearOf(x, z) || !seen(x, 2, z, 10)) continue;
+      box(s, x, z, 7, 6, 3, wall);
+      box(s, x, z - 0.3, 7.8, 6.6, 0.9, roof, 3);
+      if (yard) tree(s, x + 5, z + 2, trees === 'palm' ? 4 : 5, 0, trees);
+    }
+  }
+}
+/** A highway along X: two carriageways with a median, lane marks and steady traffic. */
+export function highway(s: Scene, z: number, col = '#5f656a') {
+  street(s, [-460, z - 4.5], [460, z - 4.5], 7.5, col, 0.9);
+  s.pen.poly(patch(-460, 460, z - 0.7, z + 0.7), s.tone('#8b9a7e'));
+  street(s, [-460, z + 4.5], [460, z + 4.5], 7.5, col, 0.9);
+}
+/** Marsh: reed beds cut by winding channels of water. */
+export function marsh(s: Scene, z0: number, z1: number) {
+  s.pen.poly(patch(-480, 480, z0, z1), s.tone(s.snowy ? '#cfd6d2' : '#7d8a5c'));
+  for (let k = 0; k < 7; k++) {
+    const zc = z0 + ((z1 - z0) * (k + 0.5)) / 7;
+    const phase = s.rng.next() * 6;
+    const w = 2 + s.rng.next() * 4;
+    const near: Pt[] = [];
+    const farSide: Pt[] = [];
+    for (let x = -460; x <= 460; x += 20) {
+      const z = zc + Math.sin(x / 55 + phase) * 6;
+      near.push(P(x, 0, z));
+      farSide.push(P(x, 0, z + w));
+    }
+    s.pen.poly([...near, ...farSide.reverse()], s.tone('#5f8794'));
+  }
+  for (let n = 0; n < 420; n++) {
+    const x = -300 + s.rng.next() * 600;
+    const z = z0 + s.rng.next() * (z1 - z0);
+    if (!clearOf(x, z) || !seen(x, 0, z, 2)) continue;
+    s.pen.line([P(x, 0, z), P(x + 0.3, 1.6, z)], s.tone(n % 3 ? '#a59f62' : '#6f7d4c'), 0.25);
+  }
+}

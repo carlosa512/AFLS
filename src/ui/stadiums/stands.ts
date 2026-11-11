@@ -41,7 +41,9 @@ export function bowlOf(b: Building, wall: Post[]): Bowl {
   return {
     wall,
     light: (p) => (slab ? 0.9 : Math.max(0.62, Math.min(1, 0.84 + 0.16 * (p.nx * -0.55 + p.nz * 0.75)))),
-    open: (i) => (b.openEnd === 'left' ? i < 74 : b.openEnd === 'right' ? i > wall.length - 75 : false),
+    open: (i) =>
+      (b.openEnd === 'left' ? i < 74 : b.openEnd === 'right' ? i > wall.length - 75 : false) ||
+      (!!b.openCorners && (wall[i].part === 'LC' || wall[i].part === 'RC')),
     rim: (p) => {
       if (slab) {
         const x = p.x + p.nx * (top.d1 + 1);
@@ -53,6 +55,8 @@ export function bowlOf(b: Building, wall: Post[]): Bowl {
       }
       if (b.rim.kind === 'peaks')
         return b.rim.h + b.rim.rise * tri(p.u / b.rim.every) * (0.45 + 0.55 * Math.abs(Math.sin(p.u / 26)));
+      if (b.rim.kind === 'battlements') return b.rim.h + (Math.floor(p.i / 3) % 2 ? b.rim.step : 0);
+      if (b.rim.kind === 'saddle') return b.rim.h + b.rim.rise * Math.min(1, Math.abs(p.x) / 60) ** 2;
       return b.rim.h;
     },
   };

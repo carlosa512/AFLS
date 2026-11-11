@@ -16,7 +16,13 @@ export interface Look {
 }
 
 /** The top of the back wall along the bowl, in yards up. */
-export type Rim = { kind: 'flat'; h: number } | { kind: 'peaks'; h: number; rise: number; every: number };
+export type Rim =
+  | { kind: 'flat'; h: number }
+  | { kind: 'peaks'; h: number; rise: number; every: number }
+  /** A castle's wall: every other stretch a step higher. */
+  | { kind: 'battlements'; h: number; step: number }
+  /** Low at midfield, rising to the ends, like a ship's rail. */
+  | { kind: 'saddle'; h: number; rise: number };
 
 /** An open-air roof over the back rows: from `d0` to `d1` yards behind the wall, rising from `y0` to `y1`. */
 export interface Canopy {
@@ -49,12 +55,24 @@ export interface Slab {
 export type SettingUse =
   | { kind: 'none' }
   | { kind: 'town'; height: 'low' | 'mid' | 'high'; palette: string[]; lots: boolean }
-  | { kind: 'outOfTown'; trees: 'pine' | 'round'; sheds: boolean }
+  | { kind: 'outOfTown'; trees: 'pine' | 'round'; sheds: boolean; shops?: boolean }
+  /** Streets of houses, with car parks by the ground and perhaps a canal. */
+  | { kind: 'suburb'; trees: 'palm' | 'round' | 'pine'; canal: boolean }
+  /** Marshland cut by channels, with a highway across it. */
+  | { kind: 'marsh'; highway: boolean }
   | { kind: 'river'; bridges: number; boat: boolean }
   | { kind: 'downtown'; palette: string[]; streetTrees: boolean; glass?: string };
 
 /** Things on a building the painter knows how to draw in space. */
-export type FeatureUse = { kind: 'stacks'; x: number[]; cap: string } | { kind: 'wheel' };
+export type FeatureUse =
+  | { kind: 'stacks'; x: number[]; cap: string }
+  | { kind: 'wheel' }
+  /** Shade blades standing round the rim like fins. */
+  | { kind: 'fins'; skin: string }
+  /** A ship's masts over the far side, with sails and a pennant each. */
+  | { kind: 'masts'; x: number[] }
+  /** Square towers on the far wall, with battlements and a banner. */
+  | { kind: 'towers'; x: number[] };
 
 export interface Building {
   id: string;
@@ -62,6 +80,8 @@ export interface Building {
   rim: Rim;
   /** A horseshoe: this end has only its lower deck. */
   openEnd?: 'left' | 'right';
+  /** The corners have only their lower deck, so the air moves through. */
+  openCorners?: boolean;
   seat: string;
   chair?: string;
   wall: string;

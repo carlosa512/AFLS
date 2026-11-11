@@ -1,6 +1,6 @@
 /** The kinds of land a building can stand in. Each follows the lie of the land round a real ground, nothing more. */
 import type { Scene, SettingUse } from '../types';
-import { box, bridge, city, lined, lot, P, street, tower, water, woods } from './kit';
+import { box, bridge, city, highway, houses, lined, lot, marsh, P, patch, street, tower, water, woods } from './kit';
 
 type Painter<K extends SettingUse['kind']> = (s: Scene, use: Extract<SettingUse, { kind: K }>) => void;
 const pickFrom = (s: Scene, list: string[]) => list[Math.floor(s.rng.next() * list.length)];
@@ -36,6 +36,12 @@ const outOfTown: Painter<'outOfTown'> = (s, use) => {
   );
   // the frame's top edge sees ground 236 yards out and about 260 either side: no trees are planted past that
   woods(s, -270, 270, 198, 240, use.trees);
+  if (use.shops) {
+    // a low shopping street beside the ground
+    street(s, [134, 122], [300, 122], 5, road, 0.4);
+    for (let x = 146; x < 300; x += 26)
+      tower(s, x, 128, 22, 14, 5 + s.rng.next() * 3, pickFrom(s, ['#b08a6e', '#c9c2b0', '#9a6b55']));
+  }
   if (use.sheds)
     for (const [x, w] of [
       [-250, 44],
@@ -91,4 +97,40 @@ const downtown: Painter<'downtown'> = (s, use) => {
   }
 };
 
-export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = { none: () => {}, town, outOfTown, river, downtown };
+/** A suburb: car parks by the ground, then streets of houses, perhaps beyond a canal. */
+const suburb: Painter<'suburb'> = (s, use) => {
+  lot(s, -200, 200, 138, 168);
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -220, sgn > 0 ? 220 : -134, 6, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 170], 6);
+  }
+  street(s, [-430, 172], [430, 172], 7, '#6f757a', 0.6);
+  lined(s, -300, 300, 177, use.trees);
+  if (use.canal) {
+    s.pen.poly(patch(-480, 480, 181, 192), s.tone('#5f97a8'));
+    lined(s, -300, 300, 194, use.trees);
+  }
+  houses(s, -300, 300, use.canal ? 200 : 186, 244, use.trees);
+  for (const sgn of [-1, 1]) lined(s, sgn > 0 ? 226 : -280, sgn > 0 ? 280 : -226, 60, use.trees);
+};
+
+/** Marshland: channels and reeds beyond the car parks, a highway through it. */
+const marshland: Painter<'marsh'> = (s, use) => {
+  marsh(s, 150, 330);
+  lot(s, -210, 210, 126, 150);
+  for (const sgn of [-1, 1]) {
+    lot(s, sgn > 0 ? 134 : -230, sgn > 0 ? 230 : -134, 4, 112);
+    street(s, [sgn * 127, -40], [sgn * 127, 150], 6);
+  }
+  if (use.highway) highway(s, 196);
+};
+
+export const SETTINGS: { [K in SettingUse['kind']]: Painter<K> } = {
+  none: () => {},
+  town,
+  outOfTown,
+  river,
+  downtown,
+  suburb,
+  marsh: marshland,
+};

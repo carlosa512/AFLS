@@ -154,9 +154,10 @@ describe('the land outside', () => {
     return { pen, s };
   };
   it('has a painter for every kind of setting and every feature a building can ask for', () => {
-    for (const kind of ['none', 'town', 'outOfTown', 'river', 'downtown'] as const)
+    for (const kind of ['none', 'town', 'outOfTown', 'river', 'downtown', 'suburb', 'marsh'] as const)
       expect(SETTINGS[kind]).toBeTypeOf('function');
-    for (const kind of ['stacks', 'wheel'] as const) expect(FEATURES[kind].paint).toBeTypeOf('function');
+    for (const kind of ['stacks', 'wheel', 'fins', 'masts', 'towers'] as const)
+      expect(FEATURES[kind].paint).toBeTypeOf('function');
   });
   it('draws a town with windows on its buildings and no people', () => {
     const { pen, s } = scene();
@@ -169,6 +170,7 @@ describe('the land outside', () => {
 describe('the buildings', () => {
   it('draws the five the owner agreed', () => {
     expect(Object.keys(BUILDINGS).sort()).toEqual(expect.arrayContaining(['ATL', 'BUF', 'CIN', 'DEN', 'MIN']));
+    expect(Object.keys(BUILDINGS)).toEqual(expect.arrayContaining(['MIA', 'NE', 'NYK'])); // Liberty East
   });
   it('gives every listed building the roof the game says its club has', () => {
     for (const [abbrev, b] of Object.entries(BUILDINGS)) expect(roofKindOf(b), abbrev).toBe(STADIUMS[abbrev].roof);

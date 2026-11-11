@@ -67,7 +67,13 @@ export function canvasPen(ctx: CanvasRenderingContext2D, scale: number): Pen {
         ctx.beginPath();
         run = fill;
       }
-      trace(pts);
+      // shapes sharing a path must all wind the same way, or one laid over another would cut a hole in it
+      let area = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const q = pts[(i + 1) % pts.length];
+        area += pts[i][0] * q[1] - q[0] * pts[i][1];
+      }
+      trace(area < 0 ? pts.slice().reverse() : pts);
       ctx.closePath();
     },
     line(pts, stroke, width) {

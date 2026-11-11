@@ -6,8 +6,9 @@ import type { RoofType } from '../../../engine/data/stadiums';
 import { lift, lum, mix } from '../colour';
 import type { Building } from '../types';
 import { AGREED } from './agreed';
+import { LIBERTY_EAST } from './libertyEast';
 
-export const BUILDINGS: Record<string, Building> = { ...AGREED };
+export const BUILDINGS: Record<string, Building> = { ...AGREED, ...LIBERTY_EAST };
 export const LATER: Record<string, { season: number; building: Building }[]> = {};
 
 export function plainBowl(colors: [string, string]): Building {
