@@ -342,6 +342,8 @@ export function railYard(s: Scene, z0: number, z1: number) {
 const BOXES = ['#b3472f', '#2f6a8a', '#c9a23a', '#4a6b4f', '#8b8f94'];
 /** A ship lying along X: a dark hull, a white house aft, and containers stacked on deck. */
 export function ship(s: Scene, x: number, z: number, len: number) {
+  // a hull hidden behind a roof would leave its cargo sitting on the roof's edge
+  if (!seen(x, 0, z, len)) return;
   box(s, x, z, len, 7, 3, '#2b3138');
   box(s, x + len * 0.38, z + 1, len * 0.14, 5, 5, '#e9e7e0', 3);
   for (let k = -0.42; k < 0.26; k += 0.115)

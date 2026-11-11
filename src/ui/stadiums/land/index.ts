@@ -190,7 +190,7 @@ const lake: Painter<'lake'> = (s, use) => {
       crane(s, x, 186);
     }
     ship(s, -132, 172, 50);
-    ship(s, 40, 190, 44);
+    ship(s, 40, 208, 44);
   } else {
     lined(s, -300, 300, 151);
     for (let n = 0; n < 46; n++) boat(s, -150 + (n % 12) * 9 + s.rng.next() * 3, 166 + Math.floor(n / 12) * 7);
