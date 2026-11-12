@@ -190,7 +190,8 @@ export interface OpeningFact {
   closing: boolean;
 }
 
-const lowerWord = (w: 'Down' | 'Split') => w.toLowerCase();
+/** A room's read in the letter's words: a Split room is "divided", as the position coaches and the Locker Room say it. */
+const lowerWord = (w: 'Down' | 'Split') => (w === 'Split' ? 'divided' : 'down');
 
 export const OPENING: readonly Line<OpeningFact>[] = [
   {
@@ -790,13 +791,13 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
     when: (f) => f.then === 'Down' && f.now === 'Split',
     reads: 3,
     text: (f) =>
-      `${cap(f.noun)} ${wasOf(f.noun)} down when we met. Now ${they(f.noun)} ${isOf(f.noun)} split, which is a different problem.`,
+      `${cap(f.noun)} ${wasOf(f.noun)} down when we met. Now ${they(f.noun)} ${isOf(f.noun)} divided, which is a different problem.`,
   },
   {
     when: (f) => f.then === 'Split' && f.now === 'Down',
     reads: 3,
     text: (f) =>
-      `${cap(f.noun)} ${wasOf(f.noun)} split when we met. Now ${they(f.noun)} ${isOf(f.noun)} down, which is worse.`,
+      `${cap(f.noun)} ${wasOf(f.noun)} divided when we met. Now ${they(f.noun)} ${isOf(f.noun)} down, which is worse.`,
   },
   {
     when: (f) => bad(f.then) && f.now === f.then,
@@ -827,7 +828,7 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
   },
   {
     when: (f) => f.now !== null,
-    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now!.toLowerCase()} now.`,
+    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now === 'Split' ? 'divided' : f.now!.toLowerCase()} now.`,
   },
 ];
 
