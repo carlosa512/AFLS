@@ -1583,6 +1583,8 @@ export interface AdviceRow {
   price: string;
   /** For a sale: the club to open talks with (it asked about him, or it's buying). */
   partnerId?: number;
+  /** For a draft option: the pick of ours he is an option at. */
+  pick?: { overall: number; round: number };
 }
 
 export interface CarouselRow {

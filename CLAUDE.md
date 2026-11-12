@@ -275,8 +275,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     a summary, not a roll call: players with the same mood for the same reason share one line, `MORALE_GROUP`, a count
     follows the verdict, `ROOM_SUMMARY`, and it is laid out as a short list with the read as a pill,
     `MailSection.layout: 'report'`, `ReportSection` in `ui/mail.tsx`, the layout the director's advice uses too; the
-    director's letters before and at free agency also name a prospect at each need who should be there when we pick,
-    by the public consensus, `draftTargets` in `directorAdvice.ts`),
+    director's letters before and at free agency also give three options at each of our first three picks, in the
+    order of our scouts' board (`boardOf`) among the players the consensus says should be there, `draftTargets` in
+    `directorAdvice.ts`),
     the director's daily waiver letter (`waiverMail.ts`), the head coach's weekly letter (`coachWeek.ts`: one letter a
     step or none, `coach:{season}:{clock}`, which replaces the separate player-talk, meeting-request, meeting-result
     and staff-notes letters; its rows are people, each with a face and its own answer; `staffNotes.ts` now gives it

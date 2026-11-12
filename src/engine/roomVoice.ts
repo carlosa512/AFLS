@@ -229,8 +229,8 @@ export const UNIT_NOTE: readonly Line<UnitFact>[] = [
   },
   { when: (f) => f.word === 'Split' && !!f.cause, reads: 2, text: (f) => `${U(f)} divided this week. ${feel(f)}` },
   { when: (f) => f.word === 'Split' && f.still, reads: 1, text: (f) => `${U(f)} divided, the same as last time.` },
-  { when: word('Split'), text: (f) => `${U(f)} divided, and I'm keeping an eye on it.` },
-  { when: word('Split'), text: (f) => `${U(f)} divided right now, and I'm watching it.` },
+  { when: word('Split'), text: (f) => `${U(f)} divided, and it has not settled yet.` },
+  { when: word('Split'), text: (f) => `${U(f)} divided right now, and I do not know yet which way it goes.` },
 
   // Down
   {

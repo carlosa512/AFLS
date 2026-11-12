@@ -439,7 +439,7 @@ const ADVICE_TITLES: Record<AdviceRow['kind'], string> = {
   buy: 'Trade for',
   sell: 'Trade away',
   sign: 'Sign',
-  draft: 'Or draft',
+  draft: 'Draft',
 };
 
 /**
@@ -453,16 +453,23 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
     <>
       {kinds.map((kind) => (
         <section key={kind} className="report-block">
-          <h4 className="report-title">{ADVICE_TITLES[kind]}</h4>
+          <h4 className="report-title">{kind === 'draft' ? `${league.season} draft` : ADVICE_TITLES[kind]}</h4>
           <ul className="report-rows">
             {rows
               .filter((r) => r.kind === kind)
-              .map((r) => {
+              .map((r, i, list) => {
                 const p = league.players[r.playerId];
                 const draft = adviceDraft(league, r);
                 const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
+                // A draft option opens its pick's group: "No. 12 · Round 1".
+                const opens = r.pick && r.pick.overall !== list[i - 1]?.pick?.overall;
                 return (
                   <li key={r.playerId} className="report-row">
+                    {opens && (
+                      <p className="report-pick">
+                        No. {r.pick!.overall} <span className="muted">· Round {r.pick!.round}</span>
+                      </p>
+                    )}
                     <div className="report-head">
                       <span className="report-who">
                         {p && <Face league={league} player={p} />}
@@ -500,11 +507,6 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
                             Free agency
                           </button>
                         )}
-                        {r.kind === 'draft' && (
-                          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
-                            Draft board
-                          </button>
-                        )}
                       </span>
                     </div>
                     <p className="report-note">{r.why}</p>
@@ -512,6 +514,13 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
                 );
               })}
           </ul>
+          {kind === 'draft' && (
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
+                Draft board
+              </button>
+            </div>
+          )}
         </section>
       ))}
     </>
@@ -3552,7 +3561,7 @@ function PeopleSection({
 /** A block's heading as the head coach would say it: the report is his read of his own team, not a form. */
 const REPORT_TITLE: Record<string, string> = {
   'The room': 'How I read the rooms',
-  Morale: 'Who I am watching',
+  Morale: 'The players',
   'Grew up': 'Who grew up',
   Friction: 'Who is not getting along',
   'Getting along': 'Who is getting along',
@@ -3581,10 +3590,12 @@ const REPORT_TONE: Record<string, string> = {
  * face, or several players in one sentence with each name a link. The read sits on the right as a pill.
  */
 function ReportSection({ league, section }: { league: League; section: MailSection }) {
+  // The players' block names its players first: the line about the rest follows them.
+  const after = section.title === 'Morale';
   return (
     <section className="report-block">
       <h4 className="report-title">{REPORT_TITLE[section.title] ?? section.title}</h4>
-      {section.lead && <p className="report-note">{section.lead}</p>}
+      {section.lead && !after && <p className="report-note">{section.lead}</p>}
       <ul className="report-rows">
         {section.rows.map((r, j) => {
           const p = r.playerId === undefined ? undefined : league.players[r.playerId];
@@ -3621,6 +3632,7 @@ function ReportSection({ league, section }: { league: League; section: MailSecti
           );
         })}
       </ul>
+      {section.lead && after && <p className="report-note report-after">{section.lead}</p>}
     </section>
   );
 }

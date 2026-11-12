@@ -509,48 +509,105 @@ export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
-    text: () => 'He is watching what the market pays, and it is on his mind.',
+    text: (f) => `${f.name} has seen what the market pays, and it is on his mind.`,
   },
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
     text: (f) => `${f.name} knows what players at his position are getting. He has not said it to me, but he will.`,
   },
-  { when: (f) => f.reason === 'Wants a new deal', reads: 2, text: () => 'The contract is what is bothering him.' },
+  {
+    when: (f) => f.reason === 'Wants a new deal',
+    reads: 2,
+    text: (f) => `The contract is what is bothering ${f.name}.`,
+  },
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
     text: (f) => `${f.name} thinks he is underpaid, but he plays like it does not bother him for now.`,
   },
-  { when: (f) => f.reason === 'The losing is wearing on him', reads: 2, text: () => 'The losing is bothering him.' },
+  {
+    when: (f) => f.reason === 'The losing is wearing on him',
+    reads: 2,
+    text: (f) => `The losing is bothering ${f.name}.`,
+  },
   {
     when: (f) => f.reason === 'The losing is wearing on him',
     reads: 2,
     text: (f) => `${f.name} did not come here to lose, and it shows.`,
   },
-  { when: (f) => f.reason === 'A feud in the room', reads: 2, text: () => 'The feud is bothering him.' },
+  {
+    when: (f) => f.reason === 'A feud in the room',
+    reads: 2,
+    text: (f) => `${f.name} is caught up in a feud, and it is bothering him.`,
+  },
   {
     when: (f) => f.reason === 'Still stung by the benching',
     reads: 2,
-    text: () => 'He has not got over losing the job, and he needs time.',
+    text: (f) => `${f.name} has not got over losing the job, and he needs time.`,
   },
   {
     when: (f) => f.reason === 'Noticed who got paid',
     reads: 2,
-    text: () => "He saw a teammate's new deal, and he noticed.",
+    text: (f) => `${f.name} saw a teammate's new deal, and he noticed.`,
   },
   {
     when: (f) => f.reason === 'Misses a friend who left',
     reads: 2,
-    text: () => 'He misses his friend, and it will pass.',
+    text: (f) => `${f.name} misses a friend who left, and it will pass.`,
   },
   {
     when: (f) => f.reason === 'Hard to please',
     reads: 2,
-    text: () => 'That is just how he is, and nothing is ever quite right for him.',
+    text: (f) => `Nothing is ever quite right for ${f.name}, and that is just how he is.`,
   },
-  { text: (f) => `${f.name} is down, and I'm keeping an eye on it.` },
-  { text: () => 'He is not himself, and I will find out why.' },
+  {
+    when: (f) => f.reason === "Doesn't trust your word",
+    reads: 2,
+    text: (f) => `${f.name} has stopped taking our word for things.`,
+  },
+  {
+    when: (f) => f.reason === 'The room is dragging him down',
+    reads: 2,
+    text: (f) => `${f.name} is fine on his own, but the players around him are pulling him down.`,
+  },
+  {
+    when: (f) => f.reason === "Didn't like your answer",
+    reads: 2,
+    text: (f) => `${f.name} did not like the answer he got from you, and he is still carrying it.`,
+  },
+  {
+    when: (f) => f.reason === 'Feels ignored',
+    reads: 2,
+    text: (f) => `${f.name} asked for something and heard nothing back, and he feels ignored.`,
+  },
+  {
+    when: (f) => f.reason === 'Gave in on his holdout',
+    reads: 2,
+    text: (f) => `${f.name} came back without the deal he wanted, and it still bothers him.`,
+  },
+  {
+    when: (f) => f.reason === "Doesn't know where he stands",
+    reads: 2,
+    text: (f) => `${f.name} does not know if the job is his, and it is wearing on him.`,
+  },
+  {
+    when: (f) => f.reason === "Didn't like the meeting",
+    reads: 2,
+    text: (f) => `${f.name} did not like what was said in the meeting, and he has been quiet since.`,
+  },
+  {
+    when: (f) => f.reason === 'Waiting on his new deal',
+    reads: 2,
+    text: (f) => `${f.name} is waiting on the new deal he was promised.`,
+  },
+  {
+    when: (f) => f.reason === 'Waiting on his snaps',
+    reads: 2,
+    text: (f) => `${f.name} is waiting on the snaps he was promised.`,
+  },
+  { text: (f) => `${f.name} is down, and he has not told me why.` },
+  { text: (f) => `${f.name} is not himself, and he has not said why.` },
 ];
 
 export interface MoraleLeadFact {
@@ -563,15 +620,13 @@ export const MORALE_LEAD: readonly Line<MoraleLeadFact>[] = [
   {
     when: (f) => f.more === 1,
     reads: 1,
-    text: () => 'These are the players I worry about. One more is down a little, and I am watching him.',
+    text: () => 'One more player is down a little.',
   },
   {
-    text: (f) =>
-      `These are the players I worry about. ${count(f.more)} more are down a little, and I am watching them.`,
+    text: (f) => `${count(f.more)} more players are down a little.`,
   },
   {
-    text: (f) =>
-      `These are the ones who worry me most, and ${count(f.more).toLowerCase()} others are down a bit without worrying me yet.`,
+    text: (f) => `${count(f.more)} others are down a bit, and none of it is serious yet.`,
   },
 ];
 
@@ -690,7 +745,47 @@ export const MORALE_GROUP: readonly Line<MoraleGroupFact>[] = [
     reads: 3,
     text: (f) => `${f.names} are hard to please, and that is just how they are.`,
   },
-  { text: (f) => `${f.names} are down, and I am keeping an eye on them.` },
+  {
+    when: (f) => f.reason === "Doesn't trust your word",
+    reads: 3,
+    text: (f) => `${f.names} have stopped taking our word for things.`,
+  },
+  {
+    when: (f) => f.reason === 'The room is dragging him down',
+    reads: 3,
+    text: (f) => `${f.names} are being pulled down by the players around them.`,
+  },
+  {
+    when: (f) => f.reason === "Didn't like your answer",
+    reads: 3,
+    text: (f) => `${f.names} did not like the answers they got from you.`,
+  },
+  {
+    when: (f) => f.reason === 'Feels ignored',
+    reads: 3,
+    text: (f) => `${f.names} asked for something and heard nothing back.`,
+  },
+  {
+    when: (f) => f.reason === "Doesn't know where he stands",
+    reads: 3,
+    text: (f) => `${f.names} do not know where they stand, and it is wearing on them.`,
+  },
+  {
+    when: (f) => f.reason === "Didn't like the meeting",
+    reads: 3,
+    text: (f) => `${f.names} did not like what was said in the meeting.`,
+  },
+  {
+    when: (f) => f.reason === 'Waiting on his new deal',
+    reads: 3,
+    text: (f) => `${f.names} are waiting on the new deals they were promised.`,
+  },
+  {
+    when: (f) => f.reason === 'Waiting on his snaps',
+    reads: 3,
+    text: (f) => `${f.names} are waiting on the snaps they were promised.`,
+  },
+  { text: (f) => `${f.names} are down, and none of them has told me why.` },
 ];
 
 export interface RoomSummaryFact {

@@ -6,11 +6,11 @@
 import { employed } from './employment';
 import { isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
-import { availableProspects, availableRanks } from './offseason/draft';
+import { availableProspects, availableRanks, boardOf, boardScore, positionDepth } from './offseason/draft';
 import { demand, freeAgents } from './offseason/negotiation';
 import { STARTERS } from './positions';
 import { teamPlayers } from './roster';
-import { viewCache } from './scouting';
+import { perceive, viewCache } from './scouting';
 import { computeRecords, conferenceSeeds, type TeamRecord } from './season/standings';
 import { spendable, tradeContext } from './trade/context';
 import { stanceOf, teamNeeds, type Need } from './trade/plans';
@@ -273,52 +273,49 @@ export function expiringTargets(league: League, max: number): AdviceRow[] {
   );
 }
 
-/** How far ahead of his consensus rank a prospect can go and still be called there for us, and how far past it is value. */
+/** How far ahead of his consensus rank a prospect can go and still be called there for us. */
 const REACH = 2;
-const SLIDE = 12;
+const PLACE = ['first', 'second', 'third', 'fourth'];
 
 /**
- * The draft's answer at our needs, if we sign nobody: for each need, the best prospect by the consensus who should
- * still be there at one of our first two picks. The consensus rank is public, so nothing here leans on a thin read.
+ * The draft, on our scouts' board (`boardOf`, the board our own pick would be made from): at each of our first picks,
+ * the players they like best of those who should still be there. Who is there is the consensus's guess (public);
+ * the order is ours, need included.
  */
-export function draftTargets(league: League, max: number): AdviceRow[] {
+export function draftTargets(league: League, picksMax = 3, each = 3): AdviceRow[] {
   if (!employed(league) || !league.draftClass?.length) return [];
+  const user = league.userTeamId;
   const picks = league.draftPicks
     .filter(
-      (p) =>
-        p.season === league.season &&
-        p.ownerId === league.userTeamId &&
-        p.playerId === undefined &&
-        p.overall !== undefined,
+      (p) => p.season === league.season && p.ownerId === user && p.playerId === undefined && p.overall !== undefined,
     )
     .sort((a, b) => a.overall! - b.overall!)
-    .slice(0, 2);
+    .slice(0, picksMax);
   if (!picks.length) return [];
   const ranks = availableRanks(league);
-  const pool = availableProspects(league);
+  const depth = positionDepth(league, user);
+  const needs = new Set(adviceNeeds(league).map((n) => n.position));
+  const pool = availableProspects(league).map((p) => ({ p, board: boardOf(league, user, p) }));
+  const taken = new Set<number>();
   const out: AdviceRow[] = [];
-  for (const need of adviceNeeds(league)) {
-    if (out.length >= max) break;
-    if (out.some((r) => r.position === need.position)) continue;
-    for (const pick of picks) {
-      const fit = pool
-        .filter((p) => p.position === need.position && !out.some((r) => r.playerId === p.id))
-        .map((p) => ({ p, rank: ranks.get(p.id) ?? Infinity }))
-        .filter((x) => x.rank >= pick.overall! - REACH && x.rank <= pick.overall! + SLIDE)
-        .sort((a, b) => a.rank - b.rank)[0];
-      if (!fit) continue;
+  for (const pick of picks) {
+    const there = pool
+      .filter((x) => !taken.has(x.p.id) && (ranks.get(x.p.id) ?? Infinity) >= pick.overall! - REACH)
+      .map((x) => ({ ...x, score: boardScore(depth, x.p, x.board, null, pick.round) }))
+      .sort((a, b) => b.score - a.score || a.p.id - b.p.id)
+      .slice(0, each);
+    there.forEach(({ p }, i) => {
+      taken.add(p.id);
       out.push(
         row(
-          fit.p,
+          p,
           'draft',
-          need.reason === 'hole'
-            ? `We are short at ${need.position}, and he should be there when we pick at No. ${pick.overall}.`
-            : `${need.position} is a need, and he should be there when we pick at No. ${pick.overall}.`,
-          `consensus No. ${fit.rank}`,
+          `He is ${PLACE[i]} on our board at No. ${pick.overall}${needs.has(p.position) ? `, and ${p.position} is a need` : ''}.`,
+          `consensus No. ${ranks.get(p.id)}`,
+          { pick: { overall: pick.overall!, round: pick.round } },
         ),
       );
-      break;
-    }
+    });
   }
   return out;
 }
@@ -396,10 +393,19 @@ export function adviceFor(league: League, room?: number): Advice | null {
         ? [...expiringTargets(league, 2), ...buyTargets(league, { rentals: false, max: 1, room })]
         : faTargets(league, 4, room);
     if (!named.length) return null;
-    // The draft's answer at the same needs, for a front office that would sooner not spend.
-    const draft = draftTargets(league, 3);
+    // The draft on our scouts' board, at each of our first picks.
+    const draft = draftTargets(league);
     const rows = [...named, ...draft];
-    const also = draft.length ? ' If we would sooner not spend, the draft has answers at our needs too.' : '';
+    // Said once, not under every name: early in the year our scouts have seen little of the class.
+    const thin = draft.filter(
+      (r) => perceive(league, league.userTeamId, league.players[r.playerId]).knowledge < MIN_KNOWLEDGE,
+    );
+    const also = !draft.length
+      ? ''
+      : ' For the draft, these are the players our scouts like best at each of our first picks.' +
+        (thin.length * 2 >= draft.length
+          ? ' We have seen little of this class so far, so the board is going to move.'
+          : '');
     const n = named.length;
     return moment === 'resign'
       ? {
