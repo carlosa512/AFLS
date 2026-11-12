@@ -44,9 +44,13 @@ function countYear(l: League, read: (p: Player) => Standing): Counts {
     txs(l, 'resign', 'resign').filter((t) => t.text.includes(' re-signed ')),
   );
   const released = players(l, txs(l, 'resign', 'release'));
-  const walked = freeAgents(l).filter((p) => lastLeft(p)?.season === l.season && lastLeft(p)?.how === 'walked');
+  // Reaching the market: a free agent who finished last season with a club and was not released in the window (a
+  // departure is only written to `Player.left` once he signs elsewhere).
+  const cut = new Set(released.map((p) => p.id));
+  const lastClub = (p: Player) => p.statTeams?.[l.season - 1]?.at(-1);
+  const walked = freeAgents(l).filter((p) => !cut.has(p.id) && lastClub(p) !== undefined);
   const keptBy = tally([...tagged, ...kept].filter(not('depth')).map((p) => p.teamId));
-  const lostBy = tally(walked.filter(not('depth')).map((p) => lastLeft(p)!.teamId));
+  const lostBy = tally(walked.filter(not('depth')).map(lastClub));
   return {
     'New head coaches': headCoachChanges(l).length,
     'New GMs': l.leadership.events.filter((e) => e.kind === 'gmHired' && e.date.season === l.season).length,
@@ -125,6 +129,7 @@ function countDraft(l: League, read: (p: Player) => Standing): Counts {
     'Taken 15+ ahead (round 1)': gap(15),
     'Taken 20+ ahead (round 1)': gap(20),
     'Clubs with 3+ picks in rounds 1–2': clubsWith(by, 3),
+    'Clubs with 4+ picks in rounds 1–2': clubsWith(by, 4),
     'Clubs with no pick in rounds 1–2': l.teams.filter((t) => !by.has(t.id)).length,
     'Trades with a star': trades(l, 'draft').filter((r) =>
       r.sides.some((s) => s.players.some((id) => l.players[id] && read(l.players[id]) === 'star')),
