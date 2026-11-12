@@ -552,7 +552,7 @@ describe('talks: a slumping leader asks where he stands', () => {
     }
   });
 
-  it('is answered at once at an AI club, and goes with the man when he is traded', () => {
+  it('is your club’s only, and goes with the man when he is traded', () => {
     const l = fresh();
     const other = (l.userTeamId + 3) % 32;
     const theirs = slumping(l, other);
@@ -560,8 +560,10 @@ describe('talks: a slumping leader asks where he stands', () => {
     const undo = inSlumpOnly([theirs.id, mine.id]);
     try {
       steps(l, 3);
-      expect(theirs.morale!.talk!.ask).toBeUndefined();
-      expect(theirs.morale!.talk!.answered).toMatchObject({ cause: 'form', reply: aiReply(l, other, 'form') });
+      // An AI club's man in the same spot is left as he always was: no ask, no answer, no mood moved.
+      expect(theirs.morale!.talk?.ask).toBeUndefined();
+      expect(theirs.morale!.talk?.answered).toBeUndefined();
+      expect(theirs.morale!.talk?.form).toBeUndefined();
       expect(mine.morale!.talk!.ask?.cause).toBe('form');
       setTeam(l, mine, other);
       steps(l, 1);

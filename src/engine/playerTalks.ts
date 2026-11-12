@@ -89,7 +89,9 @@ const lastPlayed = (league: League) =>
  * bottom quarter, and he has not asked this season. That he is already down is the talks' own gate. In season only.
  */
 export function formCase(league: League, p: Player, ctx: MoraleContext, through = lastPlayed(league)): boolean {
-  if (p.teamId === null || league.phase !== 'regular') return false;
+  // Your club only, like the losing (`losingReachesYou`): an AI club's men are answered as they always were, so the
+  // league's moods do not move (with it league-wide, `npm run morale` left its range on a small-sample line).
+  if (p.teamId === null || p.teamId !== yourClub(league) || league.phase !== 'regular') return false;
   if (p.morale?.talk?.form === league.season) return false;
   if (!league.teams[p.teamId].jobs?.held[p.id]) return false;
   if (p.position !== 'QB' && tierOf(league, p, weightOf(league, p, ctx)) !== 'leader') return false;
