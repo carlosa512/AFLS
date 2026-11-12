@@ -242,6 +242,11 @@ describe('a general manager on the ladder', () => {
     const fixes = about(columnClaims(l, 14, new Set([claims[0].key])), 'gm', t).filter((c) => c.dir === 'fix');
     expect(fixes.map((c) => c.of)).toEqual([claims[0].key]);
     expect(ruleBreaks(l, columnStory(l, fixes[0], at()))).toEqual([]);
+    // A fourth winning season is not news again: it was said when the run reached three.
+    const k = world('column-built');
+    past(k, t, 3, { w: 11, l: 6 });
+    plant(k, 1, 10, { winners: [t] });
+    expect(about(columnClaims(k, 10, new Set()), 'gm', t)).toEqual([]);
     // One winning season before this one is not a run of them.
     const m = world('column-built');
     past(m, t, 1, { w: 11, l: 6 });

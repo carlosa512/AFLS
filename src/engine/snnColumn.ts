@@ -493,7 +493,8 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
           },
           facts: { ...base.facts, why: 'run', run },
         });
-      else if (good && won.length >= LADDER.gmBuilt)
+      // Said in the season the run reaches three, not again in every winning year after it.
+      else if (good && won.length === LADDER.gmBuilt)
         add({
           ...credit,
           margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
