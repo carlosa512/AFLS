@@ -3454,9 +3454,11 @@ function PeopleSection({
 }
 
 /**
- * The head coach's weekly letter as a letter: each matter a paragraph that opens on the man (his face, his name), in
- * the coach's words and then the man's own, with his answers on one line under it. Men still waiting on an answer are
- * a short list under one sentence. No boxes: what needs you is marked by its answer line alone.
+ * The head coach's weekly letter as a letter: each matter a paragraph that opens on the person (his face, his name),
+ * in the coach's words and then his own, with his answers on one line under it. A matter with no one person (a
+ * meeting's result, the lineup, a room) is a paragraph alone, and its sentence names what it is about: nothing is
+ * labelled ("What I told them", "Where that leaves us"), since a row's kind is for the editor, not the reader. Players
+ * still waiting on an answer are a short list under one sentence. No boxes: what needs you is marked by its answer line.
  */
 function LetterSection({
   league,
@@ -3478,7 +3480,6 @@ function LetterSection({
         const coach = r.coachId === undefined ? undefined : league.coaches[r.coachId];
         const byCoach = !!coach && r.cells.length > 1;
         const name = byCoach ? r.cells[1] : r.cells[0];
-        const facts = (byCoach ? r.cells.slice(0, 1) : r.cells.slice(1)).filter(Boolean);
         const face = (p || coach) && (
           <span className="coach-letter-face">
             {p ? (
@@ -3521,11 +3522,13 @@ function LetterSection({
           );
         return (
           <div key={j} className="coach-letter-item">
-            <p className="coach-letter-p">
-              {face}
-              {who}
-              {r.lead ? <> {r.lead}</> : facts.length > 0 && <span className="small muted"> {facts.join(' · ')}</span>}
-            </p>
+            {(p || coach) && (
+              <p className="coach-letter-p">
+                {face}
+                {who}
+                {r.lead && <> {r.lead}</>}
+              </p>
+            )}
             {r.before && <p className="coach-letter-p coach-letter-before">{r.before}</p>}
             {r.note && <p className="coach-letter-p">{r.note}</p>}
             {controls}

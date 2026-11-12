@@ -255,16 +255,19 @@ function resultParts(league: League, r: MeetingRecord, said: string[], limit = I
 }
 
 /**
- * A meeting's result as rows of the weekly letter: each man named, the room with what he told it, then what we owe
- * them and its Negotiate rows. `said` is what the sender said this league year (`seasonSaid`), and grows as rows are written.
+ * A meeting's result as rows of the weekly letter: what he told the room and where that leaves us, as two paragraphs
+ * that name the room themselves (the letter draws no label over them), then each player named and the Negotiate rows
+ * for what we owe. A leader's words are the coach's report of them, so only the coach's own are quoted. `said` is what
+ * the sender said this league year (`seasonSaid`), and grows as rows are written.
  */
 export function resultRows(league: League, r: MeetingRecord, said: string[], men = Infinity): MailSection['rows'] {
   const { key, noun, mens, room, next, talks } = resultParts(league, r, said, men);
   const told = toldWords(league, r, key, said);
+  const words = r.approach === 'leader' ? told : `${room ? 'I told them' : `I told ${noun}`}, “${told}”`;
   return [
-    ...mens,
-    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}“${told}”` },
+    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}${words}` },
     { cells: [cap(noun), 'Where that leaves us'], note: next },
+    ...mens,
     ...talks,
   ];
 }

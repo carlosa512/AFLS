@@ -237,7 +237,11 @@ them, then "The rest needs nothing from you." and the notes, signed with the coa
 the week (a streak, the deadline, the bye, camp, the season's end, a meeting held, a room and the player feeding it)
 when it has one it has not said this year, and otherwise on its first item: no line only announces the letter. The
 subject is the top item in a few words and a count of the rest ("Tucker's job, and 2 more"). The coach says players,
-never "men".
+never "men". Nothing in it is labelled: a row's kind ("What I told them", "Where that leaves us", "The clock") is
+the editor's, kept in the row for the cut and the tests and never drawn. A person's paragraph opens on his face and
+name; a matter with no one person (a meeting's result, the lineup, a room) is a paragraph whose sentence names what it
+is about ("I told the quarterbacks, …"). A leader's words at a meeting are the coach's report, so only the coach's
+own are quoted.
 
 Every sentence is chosen by a condition on the cast sheet (`castSheet.ts`: one man, the coach writing, the moment), by
 the rule in `voice.ts`: the most specific line that fits, and none the sender has said this league year. A sentence of

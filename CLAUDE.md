@@ -322,7 +322,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`MailSection.layout: 'letter'`, `LetterSection` in `ui/mail.tsx`): what needs you first, each person introduced in
     a sentence, then "The rest needs nothing from you." and the notes; it opens on a fact of the week or on its first
     item (no line only announces the letter), says players and never "men", and its subject is the top item and a count
-    of the rest (`subjectFor`). After a Column blames one of your units, one note says how its senior player took it
+    of the rest (`subjectFor`). No row is labelled on the page: a row's second cell is its kind, for the cut and the
+    tests, and a paragraph about no one person names its subject in its own sentence. After a Column blames one of your units, one note says how its senior player took it
     (`coverageItem`, `COVERAGE`). A room is not told twice inside
     `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
     one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across

@@ -366,7 +366,8 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `I let ${f.speaker!.first} do the talking. He told them to keep it in-house and play for each other.`,
+    text: (f) =>
+      `I let ${f.speaker!.first} do the talking with ${f.noun}. He told them to keep it in-house and play for each other.`,
   },
   {
     when: (f) => f.approach === 'straight' && f.backing === 'snaps' && f.named.length === 1,
@@ -461,37 +462,37 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `I asked ${f.speaker!.last} to say it, and he has earned the right.`,
+    text: (f) => `I asked ${f.speaker!.last} to speak to ${f.noun}, and he has earned the right.`,
   },
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `${f.speaker!.last} spoke for me today, and he said it better than I would have.`,
+    text: (f) => `${f.speaker!.last} spoke to ${f.noun} for me, and he said it better than I would have.`,
   },
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) => `${f.speaker!.last} has been through this before. Hear how it goes from him.`,
+    text: (f) => `${f.speaker!.last} has been through this before, so I had ${f.noun} hear it from him.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `One of your own is doing the talking. Take it from him as you'd take it from me.`,
+    text: (f) => `One of their own did the talking with ${f.noun}, and they took it from him as they would from me.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `The room's leaders spoke today. They said what I'd have said.`,
+    text: (f) => `The leaders spoke to ${f.noun} today. They said what I'd have said.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `This one comes from inside the room. Listen to the ones you follow.`,
+    text: (f) => `What ${f.noun} heard came from the players they follow, not from me.`,
   },
   {
     when: (f) => f.approach === 'leader' && !f.speaker,
     reads: 2,
-    text: () => `I stepped back and let the leaders talk. It means more from them.`,
+    text: (f) => `I stepped back and let the leaders talk to ${f.noun}. It means more from them.`,
   },
   {
     when: (f) => f.approach === 'losing',

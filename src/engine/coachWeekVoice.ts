@@ -565,6 +565,9 @@ export const CLOSING: readonly Line<ClosingFact>[] = [
   closes('staff', 'recovered', (f) => `${f.coach} has his players back.`),
   closes('staff', 'relieved', (f) => `${f.coach} has been relieved, and that one is closed.`),
   closes('staff', 'left', (f) => `${f.coach} has left us.`),
+  // A row about a room or a coach has no name over it in the letter, so its sentence names it.
+  { when: (f) => f.kind === 'staff' && !!f.coach, reads: 1, text: (f) => `Nothing is left open with ${f.coach}.` },
+  { when: (f) => f.kind === 'room', reads: 1, text: (f) => `I have nothing more to report on ${roomOf(f)}.` },
   { text: () => `That one is closed.` },
   { text: () => `That one is behind us.` },
   { text: () => `We can stop worrying about that one.` },
