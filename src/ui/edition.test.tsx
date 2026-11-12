@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createLeague } from '../engine/generate';
 import { playWeek } from '../engine/league';
+import { activeRoster } from '../engine/roster';
+import { buildDay } from '../engine/snnDays';
 import { buildEdition, SNN } from '../engine/snnWeek';
 import type { Edition, InboxMessage, League } from '../engine/types';
 import { EditionCards, StoryBlock } from './edition';
@@ -185,5 +187,58 @@ describe('the weekly edition in the inbox', () => {
       />,
     );
     expect(last).not.toContain('class="ed-bracket"');
+  });
+});
+
+describe('a big-day edition in the inbox', () => {
+  let d: League;
+  let day: Edition;
+  beforeAll(() => {
+    d = createLeague({ seed: 'day-screen' });
+    d.phase = 'preseason';
+    for (const p of Object.values(d.players)) if (p.draft?.season === d.season) delete p.draft;
+    // A round one by hand: each club's youngest player, in club order.
+    d.teams.forEach((t, i) => {
+      const p = activeRoster(d, t.id).sort((a, b) => a.age - b.age)[0];
+      p.draft = { season: d.season, round: 1, pick: i + 1, teamId: t.id, rank: ((i * 7) % 32) + 1 };
+    });
+    day = buildDay(d, ['draft'])!;
+  });
+  const page = () =>
+    renderToStaticMarkup(
+      <EditionCards
+        league={d}
+        message={{ ...mail(day), id: `snn:${d.season}:d:draft`, phase: 'preseason', week: 0 }}
+      />,
+    );
+
+  it('draws no score strip and no race, and the day’s list where the race sits', () => {
+    const html = page();
+    expect(html).not.toContain('class="ed-ticker"');
+    expect(html).not.toContain('class="ed-race"');
+    expect(count(html, 'class="ed-list"')).toBe(1);
+    expect(html).toContain('Round one');
+    expect(count(html, '<tr')).toBe(1 + day.lists![0].rows.length);
+  });
+
+  it('links each row’s player and club, and shows no rating', () => {
+    const html = page();
+    const table = html.slice(html.indexOf('class="ed-list"'));
+    const row = day.lists![0].rows[0];
+    const p = d.players[row.playerId!];
+    // Names are links (the app's link is a button that reads as one), never plain text.
+    expect(table).toMatch(new RegExp(`<button[^>]*linklike[^>]*>(<[^>]+>|[^<])*${p.lastName}`));
+    expect(table).toContain(d.teams[row.teamId!].name);
+    expect(count(table, '<button')).toBeGreaterThanOrEqual(2 * day.lists![0].rows.length);
+    expect(html).not.toMatch(/\b(OVR|overall|potential)\b/i);
+  });
+
+  it('opens a story in place like a weekly one', () => {
+    const html = renderToStaticMarkup(
+      <EditionCards league={d} message={{ ...mail(day), id: `snn:${d.season}:d:draft` }} open={day.lead.key} />,
+    );
+    expect(html).toContain('class="ed-story"');
+    expect(html).toContain(day.lead.headline);
+    expect(html).not.toContain('class="ed-front"');
   });
 });

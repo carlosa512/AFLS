@@ -1861,7 +1861,7 @@ export type EditionDay = 'year' | 'market' | 'draft' | 'cuts' | 'kickoff';
 export interface EditionList {
   title: string;
   head: string[];
-  /** A row's first cell is the player or the club it names, when it names one. */
+  /** The page links the cell under "Player" to the row's player and the cell under "Club" or "To" to its club. */
   rows: { playerId?: number; teamId?: number; cells: string[] }[];
 }
 

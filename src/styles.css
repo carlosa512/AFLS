@@ -6169,6 +6169,28 @@ button.tip-pill {
   color: var(--ink);
   font-weight: 700;
 }
+.ed-list {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2px 0 14px;
+}
+.ed-list th {
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ed-list td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.ed-list tr.is-user td {
+  background: var(--row-user, rgba(255, 200, 0, 0.12));
+}
 .ed-next {
   display: grid;
   grid-template-columns: auto 1fr auto;

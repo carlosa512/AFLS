@@ -73,6 +73,16 @@ const drafted = (l: League): Player[] =>
     .filter((p) => p.draft?.season === l.season)
     .sort((a, b) => a.draft!.pick - b.draft!.pick);
 
+/**
+ * A pick that changed hands was a move up when nothing its seller got back picks earlier in this draft: the club that
+ * took No. 6 after giving up No. 5 moved down, and is the other half of someone else's story.
+ */
+const movedUp = (pick: number, got: string[]) =>
+  !got.some((g) => {
+    const m = /^No\. (\d+)$/.exec(g);
+    return !!m && Number(m[1]) < pick;
+  });
+
 /** Draft day: the first pick, a trade up, the first quarterback, the furthest fall, the widest reach, the biggest haul. */
 function draftCandidates(l: League): DayCandidate[] {
   const picks = drafted(l);
@@ -92,7 +102,7 @@ function draftCandidates(l: League): DayCandidate[] {
   if (first) out.push({ ...base(first, 'first'), tier: 1, stakes: 1 });
   for (const p of picks) {
     const d = p.draft!;
-    if (!d.deal || d.pick > DAY.upInside || p === first) continue;
+    if (!d.deal || d.pick > DAY.upInside || p === first || !movedUp(d.pick, d.deal.got)) continue;
     out.push({
       ...base(p, 'up'),
       tier: 2,

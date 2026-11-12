@@ -104,6 +104,14 @@ describe('Draft day', () => {
     expect(ups.map((c) => c.pick)).toEqual([4, 9]);
   });
 
+  it('does not call the other half of a swap a move up', () => {
+    const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    // This club took No. 6 after giving No. 5 away: it moved down.
+    pick(others[8], 0, 6, 6, { from: others[9], got: ['No. 5'] });
+    const ups = dayCandidates(l, 'draft', new Set()).filter((c) => c.angle === 'up');
+    expect(ups.map((c) => c.pick)).toEqual([4]);
+  });
+
   it('runs one story a club, three tiles at most, and never the reader’s club as a tile', () => {
     const e = buildDay(l, ['draft'])!;
     const clubs = [e.lead, ...e.tiles].map((s) => s.clubId);

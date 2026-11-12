@@ -5,7 +5,15 @@
  * one story is open at a time. Spec: docs/superpowers/specs/2026-11-11-snn-weekly-edition-design.md §4.
  */
 import { useMemo, useState, type CSSProperties } from 'react';
-import type { Edition, EditionScore, EditionStory, InboxAction, InboxMessage, League } from '../engine/types';
+import type {
+  Edition,
+  EditionList,
+  EditionScore,
+  EditionStory,
+  InboxAction,
+  InboxMessage,
+  League,
+} from '../engine/types';
 import { useNav } from './App';
 import { inkOn } from './color';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
@@ -37,7 +45,7 @@ export function EditionCards({
   );
   return (
     <div className="ed">
-      <ScoreStrip league={league} scores={e.scores} />
+      {e.scores.length > 0 && <ScoreStrip league={league} scores={e.scores} />}
       {open === e.lead.key ? (
         story(e.lead, true)
       ) : (
@@ -51,6 +59,9 @@ export function EditionCards({
         </div>
       )}
       {e.race && <RaceTable league={league} race={e.race} />}
+      {e.lists?.map((list) => (
+        <DayList key={list.title} league={league} list={list} />
+      ))}
       {e.bracket && <Bracket league={league} bracket={e.bracket} />}
       {e.next && <NextGame league={league} next={e.next} />}
     </div>
@@ -441,6 +452,44 @@ export function RaceTable({ league, race }: { league: League; race: NonNullable<
                 {r.last}
               </td>
               <td className="num">{r.next}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/**
+ * A big-day edition's list, where the race sits in season: round one's first ten, the biggest contracts, the notable
+ * cuts. The cell under "Player" links the row's player and the cell under "Club" or "To" its club; the rest is text.
+ */
+export function DayList({ league, list }: { league: League; list: EditionList }) {
+  const cell = (row: EditionList['rows'][number], text: string, i: number) => {
+    const head = list.head[i];
+    const p = row.playerId === undefined ? undefined : league.players[row.playerId];
+    if (head === 'Player' && p) return <PlayerLink league={league} player={p} pos />;
+    if ((head === 'Club' || head === 'To') && row.teamId !== undefined)
+      return <TeamLink team={club(league, row.teamId)} chip />;
+    return text;
+  };
+  return (
+    <section>
+      <h4 className="ed-section">{list.title}</h4>
+      <table className="ed-list">
+        <thead>
+          <tr>
+            {list.head.map((h) => (
+              <th key={h}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {list.rows.map((row, j) => (
+            <tr key={j} className={row.teamId === league.userTeamId ? 'is-user' : undefined}>
+              {row.cells.map((text, i) => (
+                <td key={i}>{cell(row, text, i)}</td>
+              ))}
             </tr>
           ))}
         </tbody>
