@@ -605,6 +605,21 @@ describe('Cut-down day and Kickoff', () => {
     for (const c of cs) expect(ruleBreaks(l, writeDayStory(l, c, at())), c.angle).toEqual([]);
   });
 
+  it('does not call a starter back from a lost season a new quarterback', () => {
+    const last = l.season - 1;
+    const qb = Object.keys(l.teams[qbClub].jobs!.held).map((id) => l.players[Number(id)])[0];
+    // He threw the team's passes the season before last.
+    qb.stats[last - 1] = { gp: 17, snaps: 1000, passAtt: 520 };
+    qb.statTeams = { ...(qb.statTeams ?? {}), [last - 1]: [qbClub] };
+    expect(dayCandidates(l, 'kickoff', new Set()).filter((c) => c.angle === 'newQb')).toEqual([]);
+  });
+
+  it('reads only this year’s cut-down clock: last year’s leaves camp at Draft day', () => {
+    l.phase = 'preseason';
+    l.personnel = { ...l.personnel!, enabled: true, clock: { season: l.season - 1, cutdown: true } };
+    expect(dayNow(l)).toEqual(['draft']);
+  });
+
   it('makes no prediction: no story says will, should, favorite or expect', () => {
     for (const s of stories(buildDay(l, ['cuts', 'kickoff'])!))
       expect(s.paragraphs.join(' ')).not.toMatch(/\b(will|should|favou?rites?|expect(ed|s)?)\b/i);

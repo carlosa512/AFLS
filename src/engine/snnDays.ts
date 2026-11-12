@@ -448,12 +448,12 @@ const startingQb = (l: League, teamId: number): Player | undefined => {
   const id = Object.entries(l.teams[teamId].jobs?.held ?? {}).find(([, j]) => j.pos === 'QB')?.[0];
   return id === undefined ? undefined : l.players[Number(id)];
 };
-/** Each team's passer last season: the most attempts among the players who finished it there. */
-function lastPassers(l: League): Map<number, number> {
+/** Each team's passer in a season (last season's unless given): the most attempts among the players who finished it there. */
+function lastPassers(l: League, season = l.season - 1): Map<number, number> {
   const best = new Map<number, { id: number; att: number }>();
   for (const p of Object.values(l.players)) {
-    const teamId = lastClub(l, p);
-    const att = statLine(p, l.season - 1)?.passAtt ?? 0;
+    const teamId = p.statTeams?.[season]?.at(-1);
+    const att = statLine(p, season)?.passAtt ?? 0;
     if (teamId !== undefined && att > (best.get(teamId)?.att ?? 0)) best.set(teamId, { id: p.id, att });
   }
   return new Map([...best].map(([teamId, x]) => [teamId, x.id]));
@@ -483,12 +483,14 @@ function kickoffCandidates(l: League): DayCandidate[] {
   const champion = l.history.find((h) => h.season === l.season - 1)?.championId;
   if (champion !== undefined) game(champion, 'champion', 2, 1);
   const passers = lastPassers(l);
+  // The season before: a starter back from a year lost to injury is not a new quarterback.
+  const before = lastPassers(l, l.season - 2);
   for (const t of l.teams) {
     const qb = startingQb(l, t.id);
     if (!qb) continue;
     if (qb.experience === 0) game(t.id, 'rookieQb', 2, 0.9, { playerId: qb.id });
     // A league with no last season has no passer to compare him with.
-    else if (passers.has(t.id) && passers.get(t.id) !== qb.id)
+    else if (passers.has(t.id) && passers.get(t.id) !== qb.id && before.get(t.id) !== qb.id)
       game(t.id, 'newQb', 3, lastPct(l, t.id), { playerId: qb.id, n: passers.get(t.id) });
   }
   for (const x of topChanges(l))
@@ -876,7 +878,9 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
 export function dayNow(l: League): Day[] {
   if (l.phase === 'freeAgency') return ['year'];
   if (l.phase === 'draft') return ['market'];
-  if (l.phase === 'preseason') return l.personnel?.clock?.cutdown ? ['cuts'] : ['draft'];
+  // The clock is last year's until something asks for this year's (`personnelClock`): only this year's cuts count.
+  const clock = l.personnel?.clock;
+  if (l.phase === 'preseason') return clock?.season === l.season && clock.cutdown ? ['cuts'] : ['draft'];
   // A league that has not played a season has no offseason to report: its first edition is Week 1's.
   const played = l.history.some((h) => h.season === l.season - 1);
   if (played && l.phase === 'regular' && l.week === 1 && !l.games.some((g) => g.season === l.season && g.result))
