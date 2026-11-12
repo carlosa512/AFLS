@@ -1651,7 +1651,10 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  /** The player the move is about, for a signing, a re-signing or a tag (v90; older entries have none). */
+  /**
+   * The player the move is about: a signing, a re-signing or a tag (v90), a release or a pick (v96). Older entries have
+   * none, and SNN's big-day editions skip an entry without one.
+   */
   playerId?: number;
   kind:
     | 'sign'

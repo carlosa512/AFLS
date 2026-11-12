@@ -290,6 +290,7 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
     `${team.abbrev} drafted ${player.position} ${player.firstName} ${player.lastName} (round ${pick.round}, No. ${pick.overall}${
       via !== undefined ? `, via ${league.teams[via].abbrev}` : ''
     })`,
+    player.id,
   );
   // GM habits: a first-round quarterback bought with a trade-up, a top-two-round pick taken over a settled room.
   const pos = player.position;
