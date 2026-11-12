@@ -97,6 +97,10 @@ describe('filing the edition, at the edges', () => {
     for (let w = 0; w < 7; w++) playWeek(l);
     deliverMail(l);
     expect(ids(l, 'snn:')).toEqual([`snn:${l.season}:w7`]);
+    // And one Column at most, though seven weeks of claims went unsaid.
+    const edition = l.inbox!.find((m) => m.id === `snn:${l.season}:w7`)!.edition!;
+    expect(edition.tiles.filter((s) => s.kind === 'column').length).toBeLessThanOrEqual(1);
+    expect(edition.tiles.length).toBeLessThanOrEqual(edition.lead.yours ? 4 : 3);
   }, 240_000);
 
   it('does not retell what an old save already filed this week', () => {

@@ -211,6 +211,51 @@ describe('the week’s candidates from a played league', () => {
     expect(e.bracket).toBeUndefined();
   });
 
+  it('gives the Column one tile, about a club no other story of the page is about', () => {
+    const e = buildEdition(l, 9)!;
+    const columns = e.tiles.filter((x) => x.kind === 'column');
+    expect(columns).toHaveLength(1);
+    const col = columns[0];
+    expect(col.kicker).toBe('Column');
+    expect(col.table!.rows.length).toBeGreaterThanOrEqual(2);
+    expect(col.covers).toEqual([col.key]);
+    expect(e.tiles.length).toBeLessThanOrEqual(e.lead.yours ? 4 : 3);
+    // It is the last tile, and its club has no other story.
+    expect(e.tiles.at(-1)).toBe(col);
+    const others = [e.lead, ...e.tiles.filter((x) => x !== col)].map((x) => x.clubId);
+    expect(others).not.toContain(col.clubId);
+    // Before any club has four games there is nothing to claim.
+    expect(buildEdition(l, 3)!.tiles.filter((x) => x.kind === 'column')).toEqual([]);
+  });
+
+  it('runs no Column the week after one, and never the same claim again', () => {
+    const first = buildEdition(l, 8)!.tiles.find((x) => x.kind === 'column')!;
+    expect(first).toBeDefined();
+    const filed = (week: number, story: typeof first) => ({
+      id: `snn:${l.season}:w${week}`,
+      season: l.season,
+      phase: 'regular' as const,
+      week,
+      from: 'SNN — Sports News Network',
+      category: 'league' as const,
+      subject: '',
+      body: '',
+      read: true,
+      actions: [],
+      covered: [story.key],
+      edition: { label: `Week ${week}`, scores: [], lead: story, tiles: [story] },
+    });
+    const was = l.inbox;
+    l.inbox = [...(l.inbox ?? []), filed(8, first)];
+    expect(buildEdition(l, 9)!.tiles.filter((x) => x.kind === 'column')).toEqual([]);
+    // Two weeks on it runs again, about something else.
+    l.inbox = [...(was ?? []), filed(7, first)];
+    const next = buildEdition(l, 9)!.tiles.find((x) => x.kind === 'column')!;
+    expect(next).toBeDefined();
+    expect(next.key).not.toBe(first.key);
+    l.inbox = was;
+  });
+
   it('calls a man a star only on public production, and out only for the season', () => {
     for (let week = 1; week <= 9; week++)
       for (const x of starOutCandidates(l, week)) {

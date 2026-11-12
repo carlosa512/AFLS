@@ -16,7 +16,8 @@ import { gameOfWeek } from './season/gameOfWeek';
 import { computeRecords, divisionStandings } from './season/standings';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
 import { employed } from './employment';
-import { writeStory } from './snnVoice';
+import { columnClaims, pickColumn, type Claim } from './snnColumn';
+import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
 import type { Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
@@ -545,6 +546,40 @@ function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
   };
 }
 
+/** This season's Columns that the inbox still holds, newest first: the week each ran, its claim and its club. */
+function columnsRan(l: League): { week: number; key: string; clubId: number }[] {
+  return (l.inbox ?? [])
+    .filter((m) => m.edition && m.season === l.season && m.phase === 'regular')
+    .flatMap((m) =>
+      m.edition!.tiles.filter((s) => s.kind === 'column').map((s) => ({ week: m.week, key: s.key, clubId: s.clubId })),
+    )
+    .sort((a, b) => b.week - a.week);
+}
+
+/** The week's Column, or none (`pickColumn`): never about a club the page's other stories already cover. */
+function weekColumn(
+  l: League,
+  week: number,
+  editionId: string,
+  user: number | null,
+  have: Set<string>,
+  cut: NonNullable<ReturnType<typeof cutEdition>>,
+): Claim | null {
+  const ran = columnsRan(l).filter((r) => r.week < week);
+  const taken = new Set([cut.lead, ...cut.tiles].map((x) => x.clubId));
+  if (cut.club && user !== null) taken.add(cut.club.clubId);
+  const yours = ran.filter((r) => r.clubId === user);
+  return pickColumn(columnClaims(l, week, have), {
+    taken,
+    userTeamId: user,
+    yoursTold: yours.length,
+    yoursLastWeek: yours.some((r) => r.week === week - 1),
+    editionId,
+    week,
+    ran,
+  });
+}
+
 /** The edition for a completed week, or null while a game of it is unplayed. */
 export function buildEdition(l: League, week: number): Edition | null {
   const all = gamesInWeek(l, week).filter((g) => g.season === l.season);
@@ -572,11 +607,19 @@ export function buildEdition(l: League, week: number): Edition | null {
   const yours = user === null ? {} : { yours: user, extra: cut.clubExtra };
   const lead = writeStory(l, cut.lead, at, cut.leadYours ? yours : {});
   const club = cut.club ? writeStory(l, cut.club, at, yours) : undefined;
+  const round = all[0].playoffRound;
+  // The Column, in the regular season: chosen before the tiles are written, so the one it replaces says nothing.
+  const column = round ? null : weekColumn(l, week, id, user, have, cut);
+  const kept =
+    column && cut.tiles.length >= TILES + (cut.leadYours ? 1 : 0)
+      ? // The lowest-ranked tile makes way, never the reader's own club's news.
+        cut.tiles.filter((x) => x !== [...cut.tiles].reverse().find((t) => user === null || t.clubId !== user))
+      : cut.tiles;
   // A tile about the reader's own club stands beside his club's story: it says its news and stops.
-  const tiles = cut.tiles.map((x) =>
+  const tiles = kept.map((x) =>
     writeStory(l, x, at, { quote: false, ...(user !== null && x.clubId === user ? { brief: true as const } : {}) }),
   );
-  const round = all[0].playoffRound;
+  if (column) tiles.push(columnStory(l, column, at));
   const scores: EditionScore[] = all.map((g) => ({
     gameId: g.id,
     homeId: g.homeId,

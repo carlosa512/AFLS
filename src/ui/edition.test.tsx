@@ -133,6 +133,36 @@ describe('the weekly edition in the inbox', () => {
       expect(count(meta, 'class="ed-tile-stat"')).toBeLessThanOrEqual(2);
   });
 
+  it('labels a Column and sets its evidence in a table when it is open', () => {
+    const column = {
+      ...edition.tiles[0],
+      key: 'column:2026:unit:3:run game:1-',
+      kind: 'column' as const,
+      kicker: 'Column',
+      headline: 'Houston’s problem is its run game',
+      score: undefined,
+      quote: undefined,
+      table: {
+        head: ['', 'Weeks 1–5', 'Since'],
+        rows: [
+          ['Yards a carry', '4.4', '2.9'],
+          ['Record', '3–2', '1–3'],
+        ],
+      },
+    };
+    const e: Edition = { ...edition, tiles: [...edition.tiles.slice(0, 2), column] };
+    const closed = renderToStaticMarkup(<EditionCards league={l} message={mail(e)} />);
+    expect(closed).toContain('Column');
+    expect(closed).not.toContain('class="ed-evidence"');
+    const open = renderToStaticMarkup(<EditionCards league={l} message={mail(e)} open={column.key} />);
+    expect(count(open, 'class="ed-evidence"')).toBe(1);
+    expect(open).toContain('Weeks 1–5');
+    expect(open).toMatch(/<td class="num is-claim">2\.9<\/td>/);
+    // A story with no table draws none.
+    const plain = renderToStaticMarkup(<EditionCards league={l} message={message} open={edition.lead.key} />);
+    expect(plain).not.toContain('class="ed-evidence"');
+  });
+
   it('draws the bracket in the playoffs and no race', () => {
     const playoff: Edition = {
       ...edition,

@@ -128,6 +128,30 @@ describe('a season of editions', () => {
     for (let i = 1; i < keys.length; i++) expect(keys[i]).toBeGreaterThanOrEqual(keys[i - 1]);
   });
 
+  it('runs one Column an edition at most, never two weeks running, and never the same claim twice', () => {
+    const weeks: number[] = [];
+    const keys: string[] = [];
+    let yours = 0;
+    for (const m of editions()) {
+      const columns = m.edition!.tiles.filter((s) => s.kind === 'column');
+      expect(columns.length).toBeLessThanOrEqual(1);
+      expect(m.edition!.lead.kind).not.toBe('column');
+      if (!columns.length) continue;
+      // In the regular season only.
+      expect(m.phase).toBe('regular');
+      weeks.push(m.week);
+      keys.push(columns[0].key);
+      if (columns[0].clubId === l.userTeamId) yours++;
+      expect(columns[0].table).toBeDefined();
+      expect(m.covered).toContain(columns[0].key);
+    }
+    expect(weeks.length).toBeGreaterThanOrEqual(5);
+    expect(weeks.length).toBeLessThanOrEqual(9);
+    for (let i = 1; i < weeks.length; i++) expect(weeks[i] - weeks[i - 1]).toBeGreaterThanOrEqual(2);
+    expect(dupes(keys)).toEqual([]);
+    expect(yours).toBeLessThanOrEqual(3);
+  });
+
   it('is SNN’s only mail in season', () => {
     const snn = (l.inbox ?? []).filter((m) => /SNN/.test(m.from) && (m.phase === 'regular' || m.phase === 'playoffs'));
     expect(snn.filter((m) => !m.edition).map((m) => m.id)).toEqual([]);

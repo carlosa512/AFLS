@@ -6058,6 +6058,38 @@ button.tip-pill {
 .ed-race .is-loss {
   color: var(--loss);
 }
+/* A Column's evidence: a few rows, the first value for comparison and the last the one the claim rests on. */
+.ed-evidence {
+  width: 100%;
+  max-width: 34rem;
+  border-collapse: collapse;
+  margin: 2px 0 14px;
+}
+.ed-evidence th {
+  text-align: right;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ed-evidence th:first-child {
+  text-align: left;
+}
+.ed-evidence td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.ed-evidence td.num {
+  text-align: right;
+  color: var(--muted);
+}
+.ed-evidence td.is-claim {
+  color: var(--ink);
+  font-weight: 700;
+}
 .ed-next {
   display: grid;
   grid-template-columns: auto 1fr auto;

@@ -330,6 +330,29 @@ export function StoryBlock({
           ))}
         </div>
       )}
+      {story.table && (
+        <table className="ed-evidence">
+          <thead>
+            <tr>
+              {story.table.head.map((h, i) => (
+                <th key={i}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {story.table.rows.map((row, i) => (
+              <tr key={i}>
+                {row.map((cell, j) => (
+                  // The last column is the one the claim rests on.
+                  <td key={j} className={j ? `num${j === row.length - 1 ? ' is-claim' : ''}` : undefined}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {story.paragraphs.map((p, i) => (
         <p className="ed-p" key={i}>
           <LinkedText league={league} text={p} about={about(story)} index={index} />
