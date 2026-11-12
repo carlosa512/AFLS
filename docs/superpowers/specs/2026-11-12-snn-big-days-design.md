@@ -138,7 +138,8 @@ last season's record:
 
 - **Star**: a season award or all-league honor last season, a top-five place in a major stat, or his club's passer
   with a winning record.
-- **Starter**: games started last season at or over the bar (read from box scores as `startsOf` does).
+- **Starter**: scrimmage snaps last season at or over the bar, from his stat line (last season's box scores may be
+  pruned by then; the stat line is kept).
 - **Young and drafted high**: a first- or second-round pick of the last three drafts.
 
 It returns words (star, starter, depth), never a number, and reads nothing a rival fan could not. The old "off the
@@ -185,7 +186,7 @@ offseason's record (new coaches and new quarterbacks are its own story types), s
 
 `npm run editions -- --offseasons n` plays n offseasons and reports, per edition and story type, how many
 candidates each offseason produces at a few settings of its bar (for example: players released on cut-down day who
-started 8, 12 or 16 games last season; falls of 10, 15 or 20 places below the consensus), and how often an edition
+played 300, 500 or 700 snaps last season; falls of 10, 15 or 20 places below the consensus), and how often an edition
 would have fewer than three stories. The owner sets every bar from that table at check-in 1. No bar is fixed before.
 
 From two offseasons already on file, as a first look: 6 to 8 tags, 145 to 181 signings and 8 to 11 trades in free
