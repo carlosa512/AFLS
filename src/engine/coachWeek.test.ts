@@ -97,8 +97,13 @@ describe('the head coach’s weekly letter', () => {
     expect(l.inbox!.some((m) => OLD.test(m.id))).toBe(false);
     const [m] = letters(l);
     expect(m.id).toBe(coachWeekId(l.season, l.moraleAt!));
-    expect(m.sections!.map((s) => s.title)).toEqual(['Who came to see me', 'The rooms', 'What I want to do']);
-    expect(m.sections!.every((s) => s.layout === 'people')).toBe(true);
+    // What needs you first, then what does not: he writes it as a letter, not a form.
+    expect(m.sections!.map((s) => s.title)).toEqual(['Who came to see me', 'What I want to do', 'The rooms']);
+    expect(m.sections!.every((s) => s.layout === 'letter')).toBe(true);
+    const ask = rowsOf(m).find((r) => r.talk?.playerId === p.id)!;
+    expect(ask.lead).toMatch(/^(came to see me|asked to see me|stopped by my office) about his contract\.$/);
+    // The rest is told with a word that it asks nothing.
+    expect(m.sections!.find((s) => s.title === 'The rooms')!.lead).toBe('The rest needs nothing from you.');
     expect(rowsOf(m).some((r) => r.talk?.playerId === p.id)).toBe(true);
     expect(rowsOf(m).some((r) => r.meeting)).toBe(true);
     expect(m.actions).toEqual([{ kind: 'locker' }]);
@@ -956,5 +961,49 @@ describe('the coverage note', () => {
     expect(notes(l)).toHaveLength(1);
     deliverMail(l);
     expect(letters(l)).toEqual([]);
+  });
+});
+
+describe('men still waiting on an answer', () => {
+  it('are one short section: who, and their answers, under one sentence', () => {
+    const l = inSeason();
+    const [a, b] = [asking(l, 'deal', 0), asking(l, 'deal', 1)];
+    deliverMail(l);
+    // Unanswered, a letter later.
+    nextLetter(l);
+    asking(l, 'snaps', 2);
+    deliverMail(l);
+    const m = letters(l).at(-1)!;
+    const waiting = m.sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(waiting).toBeDefined();
+    expect(waiting.lead).toBe('Two men are still waiting on you about their contracts.');
+    expect(waiting.rows.map((r) => r.playerId).sort()).toEqual([a.id, b.id].sort());
+    expect(waiting.rows.every((r) => r.compact && r.talk)).toBe(true);
+    // After the new ask, before the notes.
+    expect(m.sections!.map((s) => s.title).slice(0, 2)).toEqual(['Who came to see me', 'Still waiting on you']);
+  });
+
+  it('names one man, and says only that they wait when they ask about different things', () => {
+    const l = inSeason();
+    const a = asking(l, 'deal', 0);
+    deliverMail(l);
+    nextLetter(l);
+    asking(l, 'snaps', 2);
+    deliverMail(l);
+    const one = letters(l)
+      .at(-1)!
+      .sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(one.lead).toBe(`${a.lastName} is still waiting on you about his contract.`);
+    const m = inSeason();
+    asking(m, 'deal', 0);
+    asking(m, 'snaps', 1);
+    deliverMail(m);
+    nextLetter(m);
+    asking(m, 'deal', 2);
+    deliverMail(m);
+    const mixed = letters(m)
+      .at(-1)!
+      .sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(mixed.lead).toBe('Two men are still waiting on an answer from you.');
   });
 });

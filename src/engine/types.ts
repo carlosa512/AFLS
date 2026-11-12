@@ -1731,14 +1731,21 @@ export interface MailSection {
   title: string;
   lead?: string;
   columns?: string[];
-  /** 'people': a row a person, with his face (the weekly letter). */
-  layout?: 'people';
+  /**
+   * 'people': a row a person, with his face (the weekly letter as it was filed before v95). 'letter': the head coach
+   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you.
+   */
+  layout?: 'people' | 'letter';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
     cells: string[];
     /** A sentence under the row. */
     note?: string;
+    /** The coach's words leading into the man's own, after his name: "came to see me about his contract." */
+    lead?: string;
+    /** A man still waiting on an answer: his name and his answers, under the section's one sentence. */
+    compact?: true;
     /** A waiver claim the row offers (the waiver letter's wire). */
     claim?: { entryId: number };
     /** A practice squad man the row keeps or lets go (the futures letter): its button is drawn from the league as it is. */

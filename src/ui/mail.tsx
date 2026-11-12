@@ -675,6 +675,7 @@ function TalkCards({
   s,
   room,
   older,
+  to,
 }: {
   league: League;
   s: { clock: number; playerId: number };
@@ -682,8 +683,11 @@ function TalkCards({
   older?: boolean;
   /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
   room?: 'team';
+  /** In a letter: the man the answer is to. His answers sit on one line under his paragraph, not in a boxed card. */
+  to?: string;
 }) {
   const card = talkCard(league, s);
+  const Card = to === undefined ? BoxCard : StripCard;
   const answer = (reply: TalkReply, lead = false) =>
     store.mutate((l) =>
       room && (reply === 'reassure' || reply === 'firm')
@@ -712,7 +716,7 @@ function TalkCards({
       </Card>
     );
   return (
-    <Card title="Your answer">
+    <Card title={to === undefined ? 'Your answer' : `Your answer to ${to}`}>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         {card.canPromise && (
           <button className="btn btn-sm" onClick={() => answer('promise')}>
@@ -932,6 +936,16 @@ function NegotiateButton({
   );
 }
 
+/** A letter's answer line: a label and its buttons side by side, marked off from the prose (`TalkCards` with `to`). */
+function StripCard({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="letter-answer">
+      {title && <b>{title}</b>}
+      {children}
+    </div>
+  );
+}
+
 function Card({ title, children, className = '' }: { title?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div className={`mail-card ${className}`}>
@@ -940,6 +954,8 @@ function Card({ title, children, className = '' }: { title?: ReactNode; children
     </div>
   );
 }
+
+const BoxCard = Card;
 
 /** A player's name and picture, opening his card. */
 function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactNode; side?: ReactNode }) {
@@ -3164,6 +3180,7 @@ export function MailSections({
   sections,
   onNegotiate,
   letterId,
+  signed,
 }: {
   league: League;
   sections: MailSection[];
@@ -3171,6 +3188,8 @@ export function MailSections({
   letterId?: string;
   /** Open contract talks with a player (the contracts letter's Negotiate). */
   onNegotiate?: (playerId: number) => void;
+  /** Who signs a letter written as one (the head coach's first name). */
+  signed?: string;
 }) {
   // Once a letter: only the newest letter's losing row has buttons.
   const older = letterId !== undefined && newestLosingLetter(league) !== letterId;
@@ -3179,6 +3198,7 @@ export function MailSections({
       {sections.map((sec, i) => (
         <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} older={older} />
       ))}
+      {signed && sections.some((sec) => sec.layout === 'letter') && <p className="coach-letter-sign">{signed}</p>}
     </>
   );
 }
@@ -3197,6 +3217,8 @@ function SectionCard({
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
   if (section.layout === 'people')
     return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
+  if (section.layout === 'letter')
+    return <LetterSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3428,6 +3450,89 @@ function PeopleSection({
         })}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * The head coach's weekly letter as a letter: each matter a paragraph that opens on the man (his face, his name), in
+ * the coach's words and then the man's own, with his answers on one line under it. Men still waiting on an answer are
+ * a short list under one sentence. No boxes: what needs you is marked by its answer line alone.
+ */
+function LetterSection({
+  league,
+  section,
+  onNegotiate,
+  older,
+}: {
+  league: League;
+  section: MailSection;
+  onNegotiate?: (playerId: number) => void;
+  older?: boolean;
+}) {
+  return (
+    <section className="coach-letter">
+      <h4 className="visually-hidden">{section.title}</h4>
+      {section.lead && <p className="coach-letter-p">{section.lead}</p>}
+      {section.rows.map((r, j) => {
+        const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+        const coach = r.coachId === undefined ? undefined : league.coaches[r.coachId];
+        const byCoach = !!coach && r.cells.length > 1;
+        const name = byCoach ? r.cells[1] : r.cells[0];
+        const facts = (byCoach ? r.cells.slice(0, 1) : r.cells.slice(1)).filter(Boolean);
+        const face = (p || coach) && (
+          <span className="coach-letter-face">
+            {p ? (
+              <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={32} />
+            ) : (
+              <StaffAvatar person={coach!} size={32} />
+            )}
+          </span>
+        );
+        const who = p ? <PlayerLink league={league} player={p} pos /> : <strong>{name}</strong>;
+        const controls = (
+          <>
+            {r.talk && (
+              <TalkCards
+                league={league}
+                s={r.talk}
+                room={r.talkRoom?.unit}
+                older={!!r.talkRoom && older}
+                to={p?.lastName ?? name}
+              />
+            )}
+            {r.bench && <BenchCards league={league} s={r.bench} />}
+            {r.restore && <RestoreCards league={league} playerId={r.restore.playerId} />}
+            {r.meeting && (
+              <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
+            )}
+            {r.negotiate && onNegotiate && (
+              <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
+            )}
+          </>
+        );
+        // A man still waiting: who he is and his answers, on one line.
+        if (r.compact)
+          return (
+            <div key={j} className="coach-letter-wait">
+              {face}
+              <span className="coach-letter-who">{who}</span>
+              {controls}
+            </div>
+          );
+        return (
+          <div key={j} className="coach-letter-item">
+            <p className="coach-letter-p">
+              {face}
+              {who}
+              {r.lead ? <> {r.lead}</> : facts.length > 0 && <span className="small muted"> {facts.join(' · ')}</span>}
+            </p>
+            {r.before && <p className="coach-letter-p coach-letter-before">{r.before}</p>}
+            {r.note && <p className="coach-letter-p">{r.note}</p>}
+            {controls}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

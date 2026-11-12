@@ -60,6 +60,7 @@ import {
   type League,
   type MailSection,
   type Player,
+  type TalkCause,
   type Story,
 } from './types';
 import { around, sentencesOf, seasonSaid, say, toldKeys } from './voice';
@@ -75,7 +76,7 @@ export interface WeekItem {
   tier: Tier5;
   /** What `covered` records when the item is told. */
   key: string;
-  section: 'since' | 'asks' | 'rooms' | 'want' | 'staff';
+  section: 'since' | 'asks' | 'waiting' | 'rooms' | 'want' | 'staff';
   row: Row;
   storyId?: number;
   /** The step it came about: a tier 4 or 5 item that has waited `STALE` steps is dropped, not told stale. */
@@ -125,13 +126,38 @@ export const RESULT_MEN = 2;
 /** Steps a room's losing waits before it comes to you again (`playerTalks.ts` answers a man sooner as you did). */
 export { LOSING_GAP } from './playerTalks';
 
+/** In the order he writes them: what needs you, then what does not. */
 const SECTIONS: { section: WeekItem['section']; title: string }[] = [
-  { section: 'since', title: 'Since last week' },
   { section: 'asks', title: 'Who came to see me' },
-  { section: 'rooms', title: 'The rooms' },
+  { section: 'waiting', title: 'Still waiting on you' },
   { section: 'want', title: 'What I want to do' },
+  { section: 'since', title: 'Since last week' },
+  { section: 'rooms', title: 'The rooms' },
   { section: 'staff', title: 'From the staff room' },
 ];
+const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'];
+/** What men who are waiting asked about, as one thing and as several. */
+const WAITING_ON: Record<TalkCause, [string, string]> = {
+  deal: ['his contract', 'their contracts'],
+  snaps: ['his snaps', 'their snaps'],
+  losing: ['the losing', 'the losing'],
+  feud: ['the feud', 'the feud'],
+  benched: ['his job', 'their jobs'],
+  form: ['where he stands', 'where they stand'],
+};
+/** The one sentence over the men still waiting: who or how many, and about what when it is one thing. */
+function waitingLead(league: League, rows: Row[]): string {
+  const men = rows.flatMap((r) => (r.playerId === undefined ? [] : [league.players[r.playerId]])).filter(Boolean);
+  const causes = [...new Set(men.map((p) => p.morale?.talk?.ask?.cause).filter((c): c is TalkCause => !!c))];
+  if (men.length === 1 && causes.length === 1)
+    return `${men[0].lastName} is still waiting on you about ${WAITING_ON[causes[0]][0]}.`;
+  const count = COUNT[men.length] ?? String(men.length);
+  return causes.length === 1
+    ? `${count} men are still waiting on you about ${WAITING_ON[causes[0]][1]}.`
+    : `${count} men are still waiting on an answer from you.`;
+}
+/** A row with something to press. */
+const asksYou = (r: Row) => !!(r.talk || r.bench || r.meeting || r.negotiate || r.restore);
 
 /** What goes first when a letter is over `MAX_ROWS`: the notes, then the rest of tier 3, closings, then a result's rows from its men inward. */
 function dropOrder(i: WeekItem): number {
@@ -290,11 +316,12 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     items.push({
       tier: 1,
       key,
-      section: 'asks',
+      section: 'waiting',
       row: {
         playerId: p.id,
         cells: [nameOf(p), TALK_SUBJECT[ask.cause]],
         note,
+        compact: true,
         talk: { playerId: p.id, clock: ask.at },
         ...(ask.cause === 'losing' ? { talkRoom: { unit: 'team', clock: ask.at } } : {}),
       },
@@ -821,8 +848,14 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
 
   const sections: MailSection[] = SECTIONS.flatMap(({ section, title }) => {
     const rows = items.filter((i) => i.section === section).map((i) => i.row);
-    return rows.length ? [{ title, rows, layout: 'people' as const }] : [];
+    if (!rows.length) return [];
+    const lead = section === 'waiting' ? waitingLead(league, rows) : undefined;
+    return [{ title, rows, layout: 'letter' as const, ...(lead ? { lead } : {}) }];
   });
+  // After what needs you, the first part that asks nothing says so.
+  const rest = sections.findIndex((sec) => !sec.rows.some(asksYou));
+  if (rest > 0 && sections.slice(0, rest).some((sec) => sec.rows.some(asksYou)) && !sections[rest].lead)
+    sections[rest].lead = 'The rest needs nothing from you.';
   // Told: each story's beats so far belong to this outlet now, and the letter keeps a `told:` key for each story in it
   // (what the season's replay counts as the stories the coach told, a silent close aside).
   const storyIds = [...new Set(items.flatMap((i) => (i.storyId === undefined ? [] : [i.storyId])))];

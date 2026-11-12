@@ -573,7 +573,16 @@ export function MessageBody({
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.sections && <MailSections league={league} sections={m.sections} onNegotiate={negotiate} letterId={m.id} />}
+      {m.sections && (
+        <MailSections
+          league={league}
+          sections={m.sections}
+          onNegotiate={negotiate}
+          letterId={m.id}
+          // The head coach signs a letter written as one.
+          signed={m.id.startsWith('coach:') ? m.from.split(/[ ,]/)[0] : undefined}
+        />
+      )}
       {m.coachNote && !m.sections && (
         <aside
           className="coach-note"

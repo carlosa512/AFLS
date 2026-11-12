@@ -1124,10 +1124,11 @@ describe('the head coach’s weekly letter on screen', () => {
     const { l, p, m } = weekLetter();
     const html = show(l, m);
     const rows = m.sections!.flatMap((s) => s.rows);
-    expect(html.match(/class="coach-person"/g)).toHaveLength(rows.length);
+    // Written as a letter: a paragraph a matter, or one line for a man still waiting.
+    expect(html.match(/class="coach-letter-(item|wait)"/g)).toHaveLength(rows.length);
     const faced = rows.filter((r) => r.playerId !== undefined || r.coachId !== undefined);
     expect(faced.length).toBeGreaterThan(0);
-    expect(html.match(/class="coach-person-face"/g)).toHaveLength(faced.length);
+    expect(html.match(/class="coach-letter-face"/g)).toHaveLength(faced.length);
     // His name opens his card: a link, with his position.
     expect(html).toMatch(new RegExp(`class="linklike"><span>[^<]*${p.lastName}`));
   });
@@ -1193,7 +1194,7 @@ describe('the benching rows on screen', () => {
       expect(html).toContain(label);
     expect(html).toContain(`It&#x27;s ${q[1].lastName}&#x27;s job now`);
     expect(html).not.toContain('Reassure him');
-    expect(html).toMatch(/class="coach-person-face"/);
+    expect(html).toMatch(/class="coach-letter-face"/);
   });
 
   it('after your answer the row says what you told him, and the buttons are gone', () => {

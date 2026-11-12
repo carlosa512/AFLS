@@ -13,7 +13,7 @@ import { moraleContext } from './morale';
 import { manner } from './manner';
 import type { League, MailSection, TalkCause } from './types';
 import { unitOf as formUnit } from './slump';
-import { say, toldKeys } from './voice';
+import { say, stableHash, toldKeys } from './voice';
 
 export { manner };
 
@@ -46,12 +46,24 @@ export function talkRows(league: League, clock: number, said: string[]): MailSec
     rows.push({
       playerId: p.id,
       cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[ask.cause]],
+      lead: `${CAME[stableHash(key) % CAME.length]} about ${ABOUT[ask.cause]}.`,
       note: `“${words}”`,
       ...(bench ? { bench: { playerId: p.id, clock } } : { talk: { playerId: p.id, clock } }),
     });
   }
   return rows;
 }
+
+/** How the coach says a man came to him, and about what: his words leading into the man's own. */
+const CAME = ['came to see me', 'asked to see me', 'stopped by my office'];
+const ABOUT: Record<TalkCause, string> = {
+  snaps: 'his snaps',
+  deal: 'his contract',
+  losing: 'the losing',
+  feud: 'the feud in his room',
+  benched: 'his job',
+  form: 'where he stands',
+};
 
 export interface TalkCardView {
   /** Open: it needs your answer. Answered: what you said and his reply. Closed: no longer on file (he left, or a later talk). */

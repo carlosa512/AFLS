@@ -5422,6 +5422,85 @@ button.tip-pill {
   }
 }
 /* The head coach's weekly letter: a row a person, stacked top to bottom (face and name, what came before, his words, the controls). */
+/* The head coach's letter written as a letter: prose, each matter opening on the man, answers on one line. */
+.coach-letter {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 6px;
+}
+.coach-letter-item {
+  display: grid;
+  gap: 6px;
+  padding: 6px 0 10px;
+}
+.coach-letter-p {
+  margin: 0;
+  max-width: 66ch;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.coach-letter-before {
+  color: var(--muted);
+}
+.coach-letter-face {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.coach-letter-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.coach-letter-wait:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.coach-letter-wait .coach-letter-face {
+  margin-right: 0;
+}
+.coach-letter-who {
+  flex: 1;
+  min-width: 9rem;
+}
+.coach-letter-sign {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+/* What needs you: a label and its buttons side by side, marked off from the prose by the marker at its edge. */
+.letter-answer {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-left: 4px solid var(--marker);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--marker) 10%, var(--surface));
+}
+.letter-answer p {
+  margin: 0;
+}
+/* A man still waiting has only his answers: no label, no tint. */
+.coach-letter-wait .letter-answer {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.coach-letter-wait .letter-answer > b {
+  display: none;
+}
+/* The rarer controls (a job question, a meeting's choices) keep their cards, without the box. */
+.coach-letter .mail-card {
+  border: 0;
+  border-left: 4px solid var(--marker);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--marker) 10%, var(--surface));
+  padding: 8px 12px;
+  margin: 0;
+}
 .coach-person {
   display: grid;
   gap: 6px;
