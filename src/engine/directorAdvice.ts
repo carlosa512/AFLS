@@ -210,7 +210,7 @@ export function sellCandidates(league: League, lean: AdviceLean, max: number): A
     if (!ours.includes(p)) continue;
     const n = clubs.length;
     out.push(
-      row(p, 'sell', `${n === 1 ? 'A club has' : `${COUNT[n] ?? n} clubs have`} asked about him.`, price(p), {
+      row(p, 'sell', `${n === 1 ? 'A team has' : `${COUNT[n] ?? n} teams have`} asked about him.`, price(p), {
         partnerId: clubs[0],
       }),
     );

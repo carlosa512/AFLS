@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sourceLines } from '../../scripts/letters-source';
-import { LETTER_FILES, letterBreaks, wordBreaks } from './letterRules';
+import { screenFiles, screenLines } from '../../scripts/screen-source';
+import { LETTER_FILES, letterBreaks, WORD_FILES, wordBreaks } from './letterRules';
 
 describe('the house rules for letters', () => {
   it('catches what a rule can check', () => {
@@ -10,7 +11,7 @@ describe('the house rules for letters', () => {
       'announces what follows ("here is")',
       'announces a view ("as I see it")',
     ]);
-    expect(letterBreaks('You can feel it in the building.')).toContain('says "the building" for the club');
+    expect(letterBreaks('You can feel it in the building.')).toContain('says "the building" for the team');
     expect(letterBreaks('The guys heard you.')).toContain('says "guys" for players');
     expect(letterBreaks('He is fading; I would let him go.')).toContain('has a semicolon');
     expect(letterBreaks('My read: words will not do it.')).toContain('has a colon inside a sentence');
@@ -40,6 +41,32 @@ describe('the house rules for letters', () => {
         for (const why of wordBreaks(l.text)) breaks.push(`${file}:${l.line} ${why}: ${l.text}`);
     }
     expect(lines).toBeGreaterThan(1500);
+    expect(breaks).toEqual([]);
+  });
+
+  it('says team, game and loss, in American spelling', () => {
+    expect(wordBreaks('Clubs made 25 trades on the day.')).toEqual(['says "club" for a team']);
+    expect(wordBreaks('Your club')).toEqual(['says "club" for a team']);
+    expect(wordBreaks('Baltimore open the season at home to the Hammers.')).toEqual([
+      'says "at home to" for "at home against"',
+    ]);
+    expect(wordBreaks('That is four straight defeats.')).toEqual(['says "defeat" for a loss']);
+    expect(wordBreaks('He has the honours.')).toEqual(['has a British spelling']);
+    expect(wordBreaks('His hand is in a club cast.')).toEqual([]);
+    expect(wordBreaks('Teams made 25 trades on the day.')).toEqual([]);
+  });
+
+  // The same words on everything else a reader sees: SNN's weekly edition, the owners' words, the version history
+  // and every screen's own text.
+  it('holds SNN’s weekly words and every screen to the words no text uses', () => {
+    const breaks: string[] = [];
+    for (const file of WORD_FILES)
+      for (const phrases of [false, true])
+        for (const l of sourceLines(file, phrases))
+          for (const why of wordBreaks(l.text)) breaks.push(`${file}:${l.line} ${why}: ${l.text}`);
+    for (const file of screenFiles())
+      for (const l of screenLines(file, 4))
+        for (const why of wordBreaks(l.text)) breaks.push(`${file}:${l.line} ${why}: ${l.text}`);
     expect(breaks).toEqual([]);
   });
 });

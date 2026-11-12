@@ -527,7 +527,7 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'standard',
     reads: 1,
-    text: () => `We know what's expected at this club. Nothing about the week changes that.`,
+    text: () => `We know what's expected on this team. Nothing about the week changes that.`,
   },
   {
     when: (f) => f.approach === 'standard',
@@ -612,7 +612,7 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'backHim',
     reads: 1,
-    text: () => `He works harder than anyone at this club. Give him your attention.`,
+    text: () => `He works harder than anyone on this team. Give him your attention.`,
   },
   {
     when: (f) => f.style === 'terse',

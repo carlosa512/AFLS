@@ -427,7 +427,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                           <span className="inbox-subject">{label.subject}</span>
                         </span>
                         <span className="inbox-tags">
-                          {club && <span className="mail-tag mail-tag-club">Other club</span>}
+                          {club && <span className="mail-tag mail-tag-club">Other team</span>}
                           <span className={`mail-tag cat-${lead.category}`}>{tagOf(lead)}</span>
                           {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
                         </span>

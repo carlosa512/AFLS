@@ -1258,7 +1258,7 @@ function runStory(l: League, cand: Candidate, at: Wording): EditionStory {
     first.push(`They have outscored opponents ${pf}–${pa} in that run.`);
   } else {
     headline = `${l.teams[id].name} have lost ${w(n)} straight`;
-    first.push(`${C(id)} lost ${them}–${us} to ${C(opp)}, their ${nth(n)} defeat in a row.`);
+    first.push(`${C(id)} lost ${them}–${us} to ${C(opp)}, their ${nth(n)} loss in a row.`);
     first.push(`They have been outscored ${pa}–${pf} in that run.`);
   }
   const stand = standingLine(l, week, id, stableHash(`${at.editionId}:${cand.key}`), null);
@@ -1673,7 +1673,7 @@ const SPOKE: Record<string, { about: string; head: string; quote: string }> = {
     head: 'his benching',
     quote: 'I think I am a starter in this league, and I intend to show it.',
   },
-  traded: { about: 'being traded by', head: 'his trade', quote: 'I gave that club everything I had.' },
+  traded: { about: 'being traded by', head: 'his trade', quote: 'I gave that team everything I had.' },
   cut: { about: 'his release by', head: 'his release', quote: 'I never felt I got a real chance there.' },
   snubbed: {
     about: 'the contracts handed out by',
@@ -2110,7 +2110,7 @@ const COLUMN: Record<string, ColumnBank> = {
   },
   'coach2-': {
     claim: [
-      col((s) => `${C(s.id)} are ${s.rec}, and it is fair to ask whether ${s.name} is the man to turn it around.`),
+      col((s) => `${C(s.id)} are ${s.rec}, and it is fair to ask whether ${s.name} is the coach to turn it around.`),
       col((s) => `${C(s.id)} are ${s.rec} under ${s.name}, and it is fair to ask whether that is going to change.`),
     ],
     fact: [
@@ -2238,7 +2238,7 @@ const COLUMN: Record<string, ColumnBank> = {
     reason: [
       col(
         (s) =>
-          `It is much the same club that lost ${w(s.lastLosses)} times a year ago, and ${s.surname} is in his ${nth(s.seasons)} season with it, so the change is his.`,
+          `It is much the same team that lost ${w(s.lastLosses)} times a year ago, and ${s.surname} is in his ${nth(s.seasons)} season with it, so the change is his.`,
       ),
     ],
     stakes: [
@@ -2262,7 +2262,7 @@ const COLUMN: Record<string, ColumnBank> = {
     reason: [
       col(
         (s) =>
-          `${s.coachSurname} is in his first season, so the turn belongs as much to the man who chose him, and that is ${s.surname}.`,
+          `${s.coachSurname} is in his first season, so the turn belongs as much to the GM who chose him, and that is ${s.surname}.`,
       ),
     ],
     stakes: [
@@ -2310,7 +2310,7 @@ const COLUMN: Record<string, ColumnBank> = {
     reason: [
       col(
         (s) =>
-          `Clubs that go that far often fall back the next year, and ${c(s.id)} have not, which is the work of the man who builds the roster.`,
+          `Teams that go that far often fall back the next year, and ${c(s.id)} have not, which is the work of the GM who builds the roster.`,
       ),
     ],
     stakes: [
@@ -2358,7 +2358,7 @@ const COLUMN: Record<string, ColumnBank> = {
     reason: [
       col(
         (s) =>
-          `The record is still a losing one, but a club that had stopped winning has started again, and that is the first thing asked of ${s.surname}.`,
+          `The record is still a losing one, but a team that had stopped winning has started again, and that is the first thing asked of ${s.surname}.`,
       ),
     ],
     stakes: [
@@ -2474,7 +2474,7 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     lastWins: ctx.last?.w ?? 0,
     lastLosses: ctx.last?.l ?? 0,
     left: ctx.left && nx ? `${w(ctx.left)} ${plural(ctx.left, 'game')} left` : '',
-    next: nx ? `${nx.home ? 'at home to' : 'away to'} ${c(nx.oppId)}` : '',
+    next: nx ? `${nx.home ? 'at home against' : 'on the road against'} ${c(nx.oppId)}` : '',
     division: st.division,
     place: ctx.place,
     gap: ctx.gap,
@@ -2596,7 +2596,7 @@ function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
       ],
       second: [],
       headline: `${nick} relieve ${x.coach.side} coordinator ${lastWord(x.coach.name)}`,
-      kicker: 'Your club',
+      kicker: 'Your team',
       picture: { teamIds: [id] },
       numbers: [],
       links: [{ kind: 'team', teamId: id }],
@@ -2645,7 +2645,7 @@ function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
       break;
     case 'left':
       first = [
-        `${cap(pos)} ${M(p.id)}, who lost his starting job with ${C(id)} this season, is no longer with the club.`,
+        `${cap(pos)} ${M(p.id)}, who lost his starting job with ${C(id)} this season, is no longer with the team.`,
       ];
       headline = `${p.lastName} leaves the ${nick}`;
       break;
@@ -2679,7 +2679,7 @@ function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
     first: [first.join(' ')],
     second: [],
     headline,
-    kicker: 'Your club',
+    kicker: 'Your team',
     picture: { playerId: p.id },
     numbers: [],
     links: [

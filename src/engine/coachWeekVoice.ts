@@ -358,7 +358,7 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
   {
     when: (f) => f.man.dispute,
     reads: 3,
-    text: () => `He is in a dispute with the club right now.`,
+    text: () => `He is in a dispute with the team right now.`,
   },
   {
     when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,

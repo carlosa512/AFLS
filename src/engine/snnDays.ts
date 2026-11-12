@@ -213,7 +213,7 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
           p.draft!.rank !== undefined ? `No. ${p.draft!.rank}` : '',
         ],
       }));
-    if (rows.length) out.push({ title: 'Round one', head: ['Pick', 'Player', 'Club', 'Consensus'], rows });
+    if (rows.length) out.push({ title: 'Round one', head: ['Pick', 'Player', 'Team', 'Consensus'], rows });
   }
   return out;
 }

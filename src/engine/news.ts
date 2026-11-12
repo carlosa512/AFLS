@@ -112,7 +112,7 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
     const was = { ...old, l: old.l - losses };
     paragraphs.push(
       was.w > 0 && was.l === 0 && was.t === 0
-        ? `The ${possessive(oldClub.name)} ${record(was)} start has given way to ${smallCount(losses)} straight defeats, and the lead they carried into the week is gone.`
+        ? `The ${possessive(oldClub.name)} ${record(was)} start has given way to ${smallCount(losses)} straight losses, and the lead they carried into the week is gone.`
         : `The ${oldClub.name} have dropped ${smallCount(losses)} in a row, slipping from ${record(was)} to ${record(old)} and out of first place.`,
     );
   } else if (old.streak === 'L1' && former.streak.startsWith('W') && Number(former.streak.slice(1)) >= 3) {

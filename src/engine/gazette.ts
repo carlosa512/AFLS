@@ -378,7 +378,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
     if ((o <= 5 && d > stats.size - 5) || (d <= 5 && o > stats.size - 5))
       return {
         subject: `The ${name(t)}: ${o <= 5 ? 'top-five offense, bottom-five defense' : 'top-five defense, bottom-five offense'}`,
-        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense, and ${recordOf(league, t.id)}. Few clubs are this lopsided.`,
+        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense, and ${recordOf(league, t.id)}. Few teams are this lopsided.`,
       };
   }
   // 5. A turnaround from last season.

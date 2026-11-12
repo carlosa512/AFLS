@@ -212,7 +212,7 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
   },
   { when: quiet, motto: true, text: () => 'I have nothing to report from the room, and I like it that way.' },
   { when: quiet, motto: true, text: () => 'The room is in good shape, and nobody has called me about a problem.' },
-  { when: quiet, motto: true, text: () => 'The club is quiet, and the players are focused.' },
+  { when: quiet, motto: true, text: () => 'The team is quiet, and the players are focused.' },
   { text: () => 'I have no news about the room this time.' },
 ];
 
@@ -383,7 +383,7 @@ export const GETTING_ALONG: readonly Line<FriendFact>[] = [
     when: (f) => !!f.gone,
     reads: 1,
     text: (f) =>
-      `${f.a} lost his best friend on the club when ${f.b} was ${f.gone === 'cut' ? 'let go' : 'traded'}. He will be fine with a week.`,
+      `${f.a} lost his best friend on the team when ${f.b} was ${f.gone === 'cut' ? 'let go' : 'traded'}. He will be fine with a week.`,
   },
   { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} have gotten close, which is good for the room.` },
   { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} are inseparable these days.` },

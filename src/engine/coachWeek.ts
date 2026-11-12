@@ -416,7 +416,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       section: 'since',
       row: {
         ...(p ? { playerId: p.id } : {}),
-        cells: [p ? nameOf(p) : coach ? coachName(coach) : cap(nounOf(s) ?? 'the club'), 'Closed'],
+        cells: [p ? nameOf(p) : coach ? coachName(coach) : cap(nounOf(s) ?? 'the team'), 'Closed'],
         note,
       },
       storyId: s.id,
@@ -484,7 +484,7 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       section: 'since',
       row: {
         ...(p ? { playerId: p.id } : {}),
-        cells: [p ? nameOf(p) : cap(noun ?? 'the club'), 'The clock'],
+        cells: [p ? nameOf(p) : cap(noun ?? 'the team'), 'The clock'],
         note,
         // A deal coming due is the moment to sit down with him.
         ...(s.kind === 'deal' && p ? { negotiate: { playerId: p.id } } : {}),

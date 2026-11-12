@@ -279,8 +279,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     has filed this league year: `seasonSaid` and `around`, a line of two sentences counting as said when either was);
     `senders.ts` signs them. **Every letter is written to the house rules** in `docs/NEWS.md`'s "Words in a letter"
     (plain complete sentences, a letter starts with its news, players are players and never "men" or "the guys", the
-    club is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
-    colon or dash inside a sentence; a person speaking may answer in two words): `letterRules.ts` checks what a rule
+    team is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
+    colon or dash inside a sentence; a person speaking may answer in two words; and American football English in every
+    word a reader sees, screens included: a team and never a club, a game and never a fixture, a loss and never a
+    defeat, "at home against", American spelling): `letterRules.ts` checks what a rule
     can check (`letterBreaks`, `wordBreaks`) and `letterRules.test.ts` holds every line of `LETTER_FILES` to it, so a
     new file that words a letter goes in that list. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters

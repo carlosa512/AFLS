@@ -123,7 +123,7 @@ export function NewGame() {
             Take over a <em>franchise.</em>
           </h1>
           <p>
-            Run a football club as its general manager. Your scouts only see so much, your coaches call games their own
+            Run a football team as its general manager. Your scouts only see so much, your coaches call games their own
             way, and 31 rival front offices have plans of their own.
           </p>
           <p>

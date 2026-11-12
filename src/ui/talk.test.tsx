@@ -122,7 +122,7 @@ describe('a slumping leader’s letter', () => {
     const html = show(l, m);
     expect(html).toContain(p.lastName);
     expect(html).toMatch(/about where he stands\./);
-    expect(html).toContain(p.position === 'QB' ? 'He&#x27;s my quarterback' : 'He&#x27;s my man');
+    expect(html).toContain(p.position === 'QB' ? 'He&#x27;s my quarterback' : 'He&#x27;s my starter');
     expect(html).toContain('Play your way out of it');
     expect(html).not.toContain('Promise');
     expect(html).not.toContain('Reassure him');

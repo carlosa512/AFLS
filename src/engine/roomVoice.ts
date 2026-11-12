@@ -444,7 +444,7 @@ export const STANDING_WHY: readonly Line<WhyFact>[] = [
   },
   { when: has('captain'), reads: 1, text: () => 'He is a captain, and the room made that call.' },
   { when: has('quarterback'), reads: 1, text: () => 'He is the starting quarterback, and the offense follows him.' },
-  { when: has('honoured'), reads: 1, text: () => 'He has the honours, so his word carries.' },
+  { when: has('honoured'), reads: 1, text: () => 'He has the honors, so his word carries.' },
   { when: has('leads'), reads: 1, text: () => 'He is a natural leader, and people listen when he talks.' },
   { when: has('newcomer'), reads: 1, text: () => 'He is new here, but his word already carries.' },
   {

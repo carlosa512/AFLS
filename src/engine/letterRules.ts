@@ -53,8 +53,28 @@ const BANNED: readonly [RegExp, string][] = [
   ],
   [/\b(a|the|that|this|one) man's\b/i, 'says "man" for a player'],
   [/-year man\b/i, 'says "man" for a player'],
-  // The club is the club.
-  [/\b(the|this) building\b/i, 'says "the building" for the club'],
+  // The team is the team.
+  [/\b(the|this) building\b/i, 'says "the building" for the team'],
+  // American football English: a team, a game, a loss ("club cast" is the doctor's word for a kind of cast).
+  [/\bclub(s|'s|’s)?\b(?! cast)/i, 'says "club" for a team'],
+  [/\b(at home|away) to the\b/i, 'says "at home to" for "at home against"'],
+  [/\bfixtures?\b/i, 'says "fixture" for a game'],
+  [/\bdefeats?\b/i, 'says "defeat" for a loss'],
+  [/\b(colour|honour|favour|defence|programme|organis|recognis|practis|licence)\w*/i, 'has a British spelling'],
+];
+
+/**
+ * Files outside the letters whose words a reader also sees (SNN's weekly edition, the owners' words, screen labels):
+ * held to the words no text uses (`wordBreaks`), not to the letter's own rules.
+ */
+export const WORD_FILES: readonly string[] = [
+  'src/engine/snnVoice.ts',
+  'src/engine/snnWeek.ts',
+  'src/engine/snnStory.ts',
+  'src/engine/snnColumn.ts',
+  'src/engine/leadership.ts',
+  'src/engine/mentoring.ts',
+  'src/ui/changelog.ts',
 ];
 
 /** What a letter from your own people leaves out. A person speaking (`quotes`) may say these. */

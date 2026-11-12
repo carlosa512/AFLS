@@ -173,7 +173,7 @@ function Front({
   return (
     <section className="ed-front" style={colours(league, story.clubId)}>
       <div className="ed-front-text">
-        <div className="eyebrow">Lead story{story.yours ? ' · Your club' : ''}</div>
+        <div className="eyebrow">Lead story{story.yours ? ' · Your team' : ''}</div>
         <h3 className="ed-headline">{story.headline}</h3>
         <p className="ed-summary">
           <LinkedText league={league} text={story.summary} about={about(story)} index={index} />
@@ -217,7 +217,7 @@ function Tile({
     >
       <div className="ed-kicker">
         <TeamChip team={club(league, story.yours ? league.userTeamId : story.clubId)} />
-        {story.yours ? `Your club${resultFor(league, story)}` : story.kicker}
+        {story.yours ? `Your team${resultFor(league, story)}` : story.kicker}
       </div>
       <h4 className="ed-tile-head">{story.headline}</h4>
       <p className="ed-tile-text">
@@ -307,7 +307,7 @@ export function StoryBlock({
         <div>
           <div className="ed-hero-kicker">
             {lead ? 'Lead story · ' : ''}
-            {story.yours ? 'Your club · ' : ''}
+            {story.yours ? 'Your team · ' : ''}
             {story.kicker}
           </div>
           {s && first && second ? (
@@ -469,7 +469,7 @@ export function DayList({ league, list }: { league: League; list: EditionList })
     const head = list.head[i];
     const p = row.playerId === undefined ? undefined : league.players[row.playerId];
     if (head === 'Player' && p) return <PlayerLink league={league} player={p} pos />;
-    if ((head === 'Club' || head === 'To') && row.teamId !== undefined)
+    if ((head === 'Team' || head === 'To') && row.teamId !== undefined)
       return <TeamLink team={club(league, row.teamId)} chip />;
     return text;
   };

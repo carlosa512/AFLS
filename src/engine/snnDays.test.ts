@@ -161,7 +161,7 @@ describe('Draft day', () => {
   it('lists round one’s first ten', () => {
     const [list] = buildDay(l, ['draft'])!.lists!;
     expect(list.title).toBe('Round one');
-    expect(list.head).toEqual(['Pick', 'Player', 'Club', 'Consensus']);
+    expect(list.head).toEqual(['Pick', 'Player', 'Team', 'Consensus']);
     expect(list.rows.length).toBeLessThanOrEqual(10);
     expect(list.rows[0]).toMatchObject({ playerId: first.id, teamId: first.draft!.teamId });
     expect(list.rows.every((r) => l.players[r.playerId!].draft!.round === 1)).toBe(true);

@@ -269,7 +269,7 @@ every line for reading, breaks first.
 2. **A letter starts with its news.** No line announces the letter or the writer's view of it ("Here is where things
    stand", "as I see it"). When there is nothing to open on, the letter opens on its first item.
 3. **Players are players.** A name, a position, "the players", "the team", "veterans", "the younger players". Never
-   "men", "a man", "the guys", "the kids", "the vets". The club is "the club", never "the building". A position group
+   "men", "a man", "the guys", "the kids", "the vets". The team is "the team", never "the building". A position group
    may be called a room ("the receivers' room"): it is football's word and the Locker Room screen's.
 4. **Say the thing itself.** No figure of speech where a plain word does the job ("closed the book on it" is "it is
    closed", "what is eating him" is "what is bothering him", "in a good place" is "happy").
@@ -279,6 +279,11 @@ every line for reading, breaks first.
    by a hedge where the scouts are unsure, the doctor by time and risk, an agent by his client's case.
 8. **A person speaking is plain too.** A player, an agent or another club's GM may answer in two words and put a thing
    his own way (`quotes` in `LETTER_FILES`), and he still never says "men" or "the building".
+
+9. **American football English.** A team, never a club. A game, never a fixture or a match. A loss, never a defeat.
+   "At home against" and "on the road against", never "at home to" or "away to". American spelling (color, honors,
+   defense). This one holds for every word a reader sees: letters, SNN, the version history and every screen
+   (`WORD_FILES` and the screens' own text, in the same test).
 
 SNN's stories follow these and their own rules on top (above).
 

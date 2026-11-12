@@ -110,7 +110,7 @@ export const DISPUTE_LEAK: readonly Line<DisputeFact>[] = [
     when: (f) => f.loud,
     reads: 2,
     text: (f) =>
-      `${f.full} made sure everyone heard he wants to leave. Other clubs know now, and their offers will reflect it.`,
+      `${f.full} made sure everyone heard he wants to leave. Other teams know now, and their offers will reflect it.`,
   },
 ];
 

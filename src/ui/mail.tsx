@@ -740,7 +740,7 @@ function TalkCards({
           // Where he stands in a slump: back him, or tell him to play his way out. Not answering says nothing.
           <>
             <button className="btn btn-sm" onClick={() => answer('reassure')}>
-              {league.players[s.playerId]?.position === 'QB' ? "He's my quarterback" : "He's my man"}
+              {league.players[s.playerId]?.position === 'QB' ? "He's my quarterback" : "He's my starter"}
             </button>
             <button className="btn btn-sm" onClick={() => answer('firm')}>
               Play your way out of it

@@ -16,7 +16,7 @@ const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName}
 
 // Plain words, and no closing line that tries to land: the owner's read was that those turn cheesy fast.
 const SAID: Record<SpeakEvent, (p: Player, club: string) => string> = {
-  traded: (p, club) => `"I gave that club everything I had," ${p.lastName} said of the ${club}.`,
+  traded: (p, club) => `"I gave that team everything I had," ${p.lastName} said of the ${club}.`,
   cut: (p, club) => `"I never felt I got a real chance there," ${p.lastName} said after the ${club} let him go.`,
   benched: (p, club) =>
     `"I think I am a starter in this league," ${p.lastName} said of losing his job with the ${club}.`,
@@ -125,7 +125,7 @@ function freeAgentMail(league: League, have: Set<string>): Draft[] {
           from: `${p.lastName}'s agent`,
           category: 'contracts',
           subject: `${fullName(p)} would like to come home`,
-          body: `My client has never stopped thinking of your club as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
+          body: `My client has never stopped thinking of your team as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
           actions: [{ kind: 'player', playerId: p.id }],
         });
       }
@@ -160,7 +160,7 @@ export function recapAside(league: League, p: Player, game: { won: boolean; marg
   const user = league.userTeamId;
   if (p.teamId !== user && clubFeeling(league, p, user) === 'grudge') {
     const how = [...(p.left ?? [])].reverse().find((d) => d.teamId === user)?.how;
-    return how === 'traded' ? ', against the club that traded him away' : ', against the club that cut him';
+    return how === 'traded' ? ', against the team that traded him away' : ', against the team that cut him';
   }
   if (p.teamId === user && game.won && game.margin <= 8 && personalityRead(league, user, p)?.name === 'Clutch')
     return ', and he wanted the ball late';
@@ -203,7 +203,7 @@ function treeMail(league: League, have: Set<string>): Draft[] {
           league,
           born,
           `A ${root.lastName} tree`,
-          `With ${coachName(league, tree.disciples[1])} taking over a club, ${fullName(root)} now has two former assistants running teams of their own. Around the league they're calling it the ${root.lastName} tree.`,
+          `With ${coachName(league, tree.disciples[1])} taking over a team, ${fullName(root)} now has two former assistants running teams of their own. Around the league they're calling it the ${root.lastName} tree.`,
         ),
       );
     // Retired: the root of a live tree left the game this offseason.
@@ -220,7 +220,7 @@ function treeMail(league: League, have: Set<string>): Draft[] {
           league,
           retired,
           `${fullName(root)} retires`,
-          `${fullName(root)} has retired, and ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run clubs from his tree.`,
+          `${fullName(root)} has retired, and ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run teams from his tree.`,
         ),
       );
   }

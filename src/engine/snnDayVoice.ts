@@ -63,7 +63,9 @@ function openerLine(l: League, ref: Referrer, teamId: number): string {
   if (!g) return `${name} report for camp next.`;
   const home = g.homeId === teamId;
   const opp = l.teams[home ? g.awayId : g.homeId].name;
-  return home ? `${name} open the season at home to the ${opp}.` : `${name} open the season away to the ${opp}.`;
+  return home
+    ? `${name} open the season at home against the ${opp}.`
+    : `${name} open the season on the road against the ${opp}.`;
 }
 
 /** Where the consensus had him, as a sentence about a man already named. */
@@ -145,7 +147,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         c.rank === 1
           ? `${p.lastName} was first on the consensus board too.`
           : `The consensus had ${p.lastName} at No. ${c.rank}.`,
-        trades ? `Clubs made ${trades} trades on the day.` : '',
+        trades ? `Teams made ${trades} trades on the day.` : '',
       ]
         .filter(Boolean)
         .join(' '),
@@ -159,7 +161,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       second: [
         trades
           ? pick(l, at, slot('trades'), [
-              `Clubs made ${trades} trades on the day.`,
+              `Teams made ${trades} trades on the day.`,
               `There were ${trades} trades before the draft closed.`,
             ])
           : '',
@@ -300,9 +302,9 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   return assemble(c, ref, {
     kicker: 'Draft day',
     headline: `${Club} make ${count(n)} picks in the first two rounds`,
-    summary: `No club made more picks in the first two rounds. The first was ${tag(p)} at No. ${c.pick}.`,
+    summary: `No team made more picks in the first two rounds. The first was ${tag(p)} at No. ${c.pick}.`,
     first: [
-      `${the} made ${count(n)} picks in the first two rounds, more than any other club.`,
+      `${the} made ${count(n)} picks in the first two rounds, more than any other team.`,
       `The first was ${posWord(p)} ${man} at No. ${c.pick}.`,
     ],
     second: [rankLine(p.lastName, c), openerLine(l, ref, club)],
@@ -334,7 +336,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   const where = a.draft!.pick === 1 ? 'the first pick' : `the No. ${a.draft!.pick} pick`;
   const c = { pick: a.draft!.pick, rank: a.draft!.rank };
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your club',
+    kicker: 'Your team',
     yours: true,
     headline: head(
       `${Club} make ${count(n)} pick${n === 1 ? '' : 's'}, starting with ${tag(a)}`,

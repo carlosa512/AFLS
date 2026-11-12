@@ -358,7 +358,7 @@ export function ProtectionCell({ league, player }: { league: League; player: Pla
   return (
     <span className="row">
       {covered ? (
-        <span className="pill" title="Protected from other clubs this week">
+        <span className="pill" title="Protected from other teams this week">
           Protected · {pinned ? 'pinned' : 'auto'}
         </span>
       ) : pinned ? (
@@ -431,7 +431,7 @@ export function PoachAction({ league, player }: { league: League; player: Player
           <p>
             <PlayerLink league={league} player={player} /> joins your 53 from the <TeamLink team={league.teams[from]} />{' '}
             practice squad on a minimum deal, three weeks of it guaranteed. It's decided before this week's first
-            kickoff, and another club may offer more years.
+            kickoff, and another team may offer more years.
           </p>
           <label className="row">
             Years{' '}

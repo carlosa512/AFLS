@@ -185,7 +185,7 @@ function personnelOfferMail(league: League, have: Set<string>): Draft[] {
       from: 'League office',
       category: 'league',
       subject: 'Practice squads are available',
-      body: 'Clubs can now carry a practice squad of up to 16 players, with waivers, one-game call-ups and squad signings between clubs. You can turn them on for this career on the practice squad desk until training camp opens. Once on, they stay on.',
+      body: 'Teams can now carry a practice squad of up to 16 players, with waivers, one-game call-ups and squad signings between teams. You can turn them on for this career on the practice squad desk until training camp opens. Once on, they stay on.',
       actions: [{ kind: 'team', teamId: league.userTeamId }],
     },
   ];
@@ -452,7 +452,7 @@ function concussionNote(p: Player): string {
   const file = concussionFile(p);
   if (now.protocol?.shutdown) {
     const thisYear = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === now.season).length;
-    return `${fullName(p)} took another hit to the head, his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him, and he'll be back with the club after the offseason.`;
+    return `${fullName(p)} took another hit to the head, his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him, and he'll be back with the team after the offseason.`;
   }
   return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline. For now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
 }
@@ -2947,7 +2947,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       n('coaches') && `${n('coaches')} interim call${n('coaches') === 1 ? '' : 's'}`,
     ].filter(Boolean);
     const lead = [
-      n('out') && `${count(n('out'))} club${n('out') === 1 ? '' : 's'} parted with a GM.`,
+      n('out') && `${count(n('out'))} team${n('out') === 1 ? '' : 's'} parted with a GM.`,
       n('hired') && `${count(n('hired'))} new GM${n('hired') === 1 ? '' : 's'} took over.`,
       n('extended') && `${count(n('extended'))} signed on for more.`,
       n('hotSeat') && `${count(n('hotSeat'))} start${n('hotSeat') === 1 ? 's' : ''} the year under pressure.`,

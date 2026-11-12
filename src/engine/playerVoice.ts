@@ -132,7 +132,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
     when: (f) => f.cause === 'deal' && f.finalYear && f.veteran,
     reads: 1,
     text: () =>
-      "I've given this club a lot of years. I'm in the last one of my deal, and I'd like to know I'm in your plans.",
+      "I've given this team a lot of years. I'm in the last one of my deal, and I'd like to know I'm in your plans.",
   },
   {
     when: (f) => f.cause === 'deal' && f.finalYear,
@@ -592,7 +592,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     reads: 1,
     text: () => 'My agent keeps asking me where this stands, and I have nothing to tell him.',
   },
-  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to know the club's plans for my contract." },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to know the team's plans for my contract." },
   {
     when: (f) => f.cause === 'deal' && f.man.loud,
     reads: 2,
@@ -826,12 +826,12 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.homecoming,
     reads: 1,
-    text: () => 'We play a club I used to play for, and that has me thinking.',
+    text: () => 'We play a team I used to play for, and that has me thinking.',
   },
   {
     when: (f) => f.man.grudgeGame,
     reads: 1,
-    text: () => 'We face a club that let me go, and I have not forgotten it.',
+    text: () => 'We face a team that let me go, and I have not forgotten it.',
   },
   {
     when: (f) => f.man.feud !== null && f.cause !== 'feud',
@@ -862,9 +862,9 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.draftedHere,
     reads: 1,
-    text: () => "This is the club that drafted me. I'd rather work it out here.",
+    text: () => "This is the team that drafted me. I'd rather work it out here.",
   },
-  { when: (f) => f.man.dispute, reads: 1, text: () => 'This is part of a bigger problem between me and the club.' },
+  { when: (f) => f.man.dispute, reads: 1, text: () => 'This is part of a bigger problem between me and the team.' },
   {
     when: (f) => f.moment.streak?.kind === 'won' && f.cause !== 'losing' && f.cause !== 'feud',
     reads: 1,
