@@ -18,9 +18,23 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(96);
+    expect(SAVE_VERSION).toBe(97);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
+  });
+
+  it('a v96 save loads at 97 with a mail id filed once: the first of its copies stays', () => {
+    const l = createLeague({ seed: 'v97' });
+    deliverMail(l);
+    const [first] = l.inbox!;
+    const copies = [1, 2].map((n) => ({ ...first, body: `copy ${n}` }));
+    l.inbox = [first, ...copies, ...l.inbox!.slice(1)];
+    const ids = l.inbox.map((m) => m.id);
+    l.version = 96;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(97);
+    expect(up.inbox!.map((m) => m.id)).toEqual([...new Set(ids)]);
+    expect(up.inbox![0].body).toBe(first.body);
   });
 });
 

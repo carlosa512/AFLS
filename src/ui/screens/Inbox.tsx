@@ -66,6 +66,7 @@ const KIND_TAGS: Partial<Record<NonNullable<ReturnType<typeof mailSubject>>['kin
   advice: 'Advice',
   gazette: 'Numbers',
   owner: 'Owner',
+  interim: 'Head coach',
   carousel: 'Coaching',
   faWrap: 'Free agency',
   positionOffer: 'Training',

@@ -58,6 +58,31 @@ describe('locker room letters', () => {
     expect(mail(l, `speak:${l.season}:${quiet.id}:`)).toHaveLength(0);
   });
 
+  it('carries a player cut three times in a year once, about the last team to let him go', () => {
+    const { l } = world();
+    l.phase = 'resign';
+    const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    let loud: Player | undefined;
+    for (const p of ours) {
+      p.traits = { ...p.traits, controversy: 20 };
+      if (speaksOut(l, p, l.season, 'cut')) {
+        loud = p;
+        break;
+      }
+    }
+    expect(loud).toBeDefined();
+    // Three teams let him go before he reached us.
+    const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    for (const teamId of others.slice(0, 3)) noteDeparture(l, loud!, teamId, 'cut');
+    expect(speakFacts(l, new Set()).filter((f) => f.playerId === loud!.id)).toEqual([
+      { id: `speak:${l.season}:${loud!.id}:cut`, playerId: loud!.id, teamId: others[2], kind: 'cut' },
+    ]);
+    deliverMail(l);
+    const m = mail(l, `speak:${l.season}:${loud!.id}:cut`);
+    expect(m).toHaveLength(1);
+    expect(m[0].body).toContain(l.teams[others[2]].name);
+  });
+
   it('does not carry a speak-out an edition already told', () => {
     const { l } = world();
     const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);

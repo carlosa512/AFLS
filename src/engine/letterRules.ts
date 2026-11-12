@@ -105,6 +105,9 @@ const words = (s: string) => s.split(/\s+/).filter((w) => /[A-Za-z{]/.test(w)).l
  * What a piece of letter text breaks, in words; empty when it is clean. `quotes` is a person speaking (a player, an
  * agent, another club's GM): a one- or two-word answer is a sentence there, and so is his own way of putting things.
  */
+/** A letter is a person telling you what he knows: it never names a screen of the game (its buttons take you there). */
+const SCREEN = /\b[A-Z][a-z]+(?: [A-Z][a-z]+)* screen\b/;
+
 export function letterBreaks(text: string, opts: { quotes?: boolean } = {}): string[] {
   const out: string[] = [];
   for (const [pattern, why] of BANNED) if (pattern.test(text)) out.push(why);
@@ -112,6 +115,7 @@ export function letterBreaks(text: string, opts: { quotes?: boolean } = {}): str
   // A colon inside a sentence (a clock time and a label that ends a line aside).
   if (/[a-z}…]: +[a-z{“"]/.test(text) && /[.?!]["”’']?$/.test(text)) out.push('has a colon inside a sentence');
   if (/ [—–] /.test(text) && /[.?!]["”’']?$/.test(text)) out.push('has a dash inside a sentence');
+  if (SCREEN.test(text)) out.push('names a screen of the game');
   if (opts.quotes) return out;
   for (const [pattern, why] of WRITTEN) if (pattern.test(text)) out.push(why);
   // A sentence of one or two words is a fragment ("Good room.", "Pads on.").

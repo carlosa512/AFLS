@@ -106,6 +106,55 @@ function recordHire(l: League, t: Team, gm: GeneralManager) {
     });
 }
 
+/** An interim head coach gets the job or his appointment ends, and the league hears of it. */
+function settleInterimCoach(l: League, t: Team, hc: Coach, keep: boolean): void {
+  const id = hc.id;
+  const who = coachName(hc);
+  resolveInterimHeadCoach(l, hc, keep);
+  leadershipEvent(l, {
+    teamId: t.id,
+    coachId: id,
+    kind: keep ? 'coachPermanent' : 'coachDismissed',
+    report: `${t.abbrev} ${keep ? 'offered its interim head coach ' + who + ' a permanent contract.' : 'ended ' + who + '’s interim head-coaching appointment.'}`,
+  });
+}
+
+/** Your interim head coach while the owner waits on your call: the re-sign window only. */
+export function interimPending(l: League): Coach | null {
+  if (l.phase !== 'resign' || l.userTeamId === null || l.userTeamId === undefined) return null;
+  const call = l.teams[l.userTeamId]?.interimCall;
+  if (!call || call.season !== l.season) return null;
+  const c = l.coaches[call.coachId];
+  return c && c.interim && c.teamId === l.userTeamId && c.role === 'headCoach' ? c : null;
+}
+
+/** What the job would pay him: the two-year deal the owner signs him to. */
+export const INTERIM_YEARS = 2;
+
+/** Your answer to the owner: give your interim head coach the job, or end his appointment and fill the chair yourself. */
+export function decideInterim(l: League, keep: boolean): void {
+  const c = interimPending(l);
+  if (!c) throw new Error('No interim head coach is waiting on your call.');
+  const t = l.teams[l.userTeamId];
+  delete t.interimCall;
+  settleInterimCoach(l, t, c, keep);
+}
+
+/**
+ * The window closes with no answer (or the offseason is simmed): the owner decides as he would have. Every team is
+ * read, not only yours: a GM who took another job mid-window leaves his old team's question behind him.
+ */
+export function settleInterim(l: League): void {
+  for (const t of l.teams) {
+    const call = t.interimCall;
+    if (!call) continue;
+    delete t.interimCall;
+    const c = l.coaches[call.coachId];
+    if (call.season === l.season && c?.interim && c.teamId === t.id && c.role === 'headCoach')
+      settleInterimCoach(l, t, c, call.lean);
+  }
+}
+
 /** Offseason decisions are made together before staffing or searches: one draw from each owner's bag (`ownerBag.ts`). */
 export function leadershipNewYear(l: League): void {
   if (l.phase !== 'resign') throw new Error('Leadership reviews open in the re-sign window.');
@@ -122,16 +171,15 @@ export function leadershipNewYear(l: League): void {
         ?.filter((c) => c.season === l.season - 1 && c.role === 'headCoach' && c.teamId === t.id)
         .at(-1)?.record;
       const keep = rng.chance(service && pct(service.regular) >= 0.4 ? 0.75 : 0.3);
-      const id = hc.id;
-      resolveInterimHeadCoach(l, hc, keep);
-      confirmed = keep;
-      leadershipEvent(l, {
-        teamId: t.id,
-        coachId: id,
-        kind: keep ? 'coachPermanent' : 'coachDismissed',
-        report: `${t.abbrev} ${keep ? 'offered its interim head coach ' + coachName(hc) + ' a permanent contract.' : 'ended ' + coachName(hc) + '’s interim head-coaching appointment.'}`,
-      });
-      hc = head(l, t.id);
+      if (gm && gm.id === l.userGmId) {
+        // Your team: the owner asks before he offers the job (`decideInterim`), and holds his own view in reserve.
+        t.interimCall = { season: l.season, coachId: hc.id, lean: keep };
+        confirmed = true;
+      } else {
+        settleInterimCoach(l, t, hc, keep);
+        confirmed = keep;
+        hc = head(l, t.id);
+      }
     }
     // The owner settles an interim even while the club has no GM; the rest of the review needs one.
     if (!gm) continue;
@@ -170,6 +218,15 @@ export function leadershipNewYear(l: League): void {
     const coachGoes =
       drawn.coach && !!hc && !confirmed && canOwnerDismissHeadCoach(l, t.id) && leadershipCoachTenure(l, hc) >= 1;
     if (drawn.gm && !gmProtected) {
+      // An owner changing his GM does not wait on that GM's call about an interim: he settles the coach himself, so
+      // nothing is left pending for a GM who is gone (and no interim is promised a season he was never offered).
+      if (hc?.interim && t.interimCall?.season === l.season) {
+        const keep = t.interimCall.lean;
+        delete t.interimCall;
+        settleInterimCoach(l, t, hc, keep);
+        confirmed = keep;
+        hc = head(l, t.id);
+      }
       // The coach goes too when his own marble came out; otherwise a new GM usually inherits him.
       const keepCoach =
         hc &&

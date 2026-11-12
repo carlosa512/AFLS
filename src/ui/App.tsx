@@ -1,7 +1,8 @@
 import { GmAvatar } from './gm';
 import { lineupProblem } from '../engine/benching';
 import { employed } from '../engine/employment';
-import { pendingGmOffers, userExtensionOffer } from '../engine/leadership';
+import { interimPending, pendingGmOffers, userExtensionOffer } from '../engine/leadership';
+import { openContracts } from '../engine/contractMail';
 import { GeneralManagers } from './screens/GeneralManagers';
 import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
@@ -102,6 +103,26 @@ export function offseasonStep(league: League): Step | null {
           run: () => {},
           then: { view: 'office', tab: 'gms' },
         };
+      if (employed(league)) {
+        // Free agency does not open by accident: the owner's question and every expiring contract get an answer first.
+        // The owner's question is answered on his letter. With the letter deleted, the door does not block: the
+        // window closes and he decides himself.
+        const interim = interimPending(league);
+        const letter = interim ? `interim:${league.season}:${interim.id}` : '';
+        if (interim && (league.inbox ?? []).some((m) => m.id === letter && !m.deleted))
+          return {
+            label: 'Decide on your head coach',
+            run: () => {},
+            then: { view: 'inbox', messageId: letter },
+          };
+        const open = openContracts(league).length;
+        if (open)
+          return {
+            label: open === 1 ? 'Decide 1 contract' : `Decide ${open} contracts`,
+            run: () => {},
+            then: { view: 'office', tab: 'resign' },
+          };
+      }
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
     case 'freeAgency':
       return league.faDay < FA_DAYS

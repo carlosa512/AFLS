@@ -33,6 +33,12 @@ export function contractDecision(league: League, playerId: number): 'signed' | '
   return null;
 }
 
+/** Your expiring players with no decision yet (not signed, tagged, let walk or talks broken off), in the re-sign window. */
+export function openContracts(league: League): Player[] {
+  if (league.phase !== 'resign') return [];
+  return expiringPlayers(league, league.userTeamId).filter((p) => contractDecision(league, p.id) === null);
+}
+
 /**
  * Why Sign at ask can't go through right now, or null when it will: the checks `makeOffer` runs, read without touching
  * the league (talks broken off, the cap and roster, and whether his own ask still clears what he'd walk away for).

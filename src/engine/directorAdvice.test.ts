@@ -6,6 +6,7 @@ import {
   adviceLean,
   adviceNeeds,
   buyTargets,
+  draftTargets,
   expiringTargets,
   faTargets,
   pickRoundFor,
@@ -18,6 +19,8 @@ import { teamPlayers } from './roster';
 import { computeRecords } from './season/standings';
 import { emptyMarket } from './trade/execute';
 import { tradeContext } from './trade/context';
+import { beginOffseason } from './offseason';
+import { availableRanks, boardOf, boardScore, positionDepth } from './offseason/draft';
 import { demand } from './offseason/negotiation';
 import { marketValue, slotRate } from './trade/value';
 import type { League, Player } from './types';
@@ -227,6 +230,46 @@ describe('the director’s picks', () => {
       expect(r.price).toMatch(/^about \$[\d.]+M a year$/);
     }
   });
+  it('gives three options at each of our first three picks, in the order of our scouts’ board', () => {
+    const l = world();
+    l.phase = 'complete';
+    beginOffseason(l);
+    const rows = draftTargets(l);
+    const ours = l.draftPicks
+      .filter((p) => p.season === l.season && p.ownerId === l.userTeamId && p.overall !== undefined)
+      .sort((a, b) => a.overall! - b.overall!)
+      .slice(0, 3);
+    expect(rows).toHaveLength(ours.length * 3);
+    // No prospect is offered at two picks, and each is a prospect of this class.
+    expect(new Set(rows.map((r) => r.playerId)).size).toBe(rows.length);
+    const ranks = availableRanks(l);
+    const depth = positionDepth(l, l.userTeamId);
+    for (const pick of ours) {
+      const at = rows.filter((r) => r.pick?.overall === pick.overall);
+      expect(at).toHaveLength(3);
+      const scores = at.map((r) =>
+        boardScore(depth, l.players[r.playerId], boardOf(l, l.userTeamId, l.players[r.playerId]), null, pick.round),
+      );
+      // Best first on our own board, the board our own pick would be made from.
+      expect(scores).toEqual([...scores].sort((x, y) => y - x));
+      at.forEach((r, i) => {
+        expect(r.kind).toBe('draft');
+        expect(l.draftClass).toContain(r.playerId);
+        expect(r.pick).toEqual({ overall: pick.overall, round: pick.round });
+        expect(r.why).toContain(`${['first', 'second', 'third'][i]} on our board at No. ${pick.overall}`);
+        expect(r.price).toBe(`consensus No. ${ranks.get(r.playerId)}`);
+        // He should be there: the consensus has him no more than a couple of picks ahead of ours.
+        expect(ranks.get(r.playerId)!).toBeGreaterThanOrEqual(pick.overall! - 2);
+      });
+    }
+    // The letter before free agency carries them after its names, and says whose view they are.
+    const advice = adviceFor(l);
+    if (advice) {
+      expect(advice.rows.filter((r) => r.kind === 'draft')).toEqual(rows);
+      expect(advice.body).toContain('the players our scouts like best at each of our first picks');
+    }
+  });
+
   it('signs only free agents our cap can carry', () => {
     const l = world();
     l.phase = 'freeAgency';

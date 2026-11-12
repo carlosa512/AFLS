@@ -192,6 +192,20 @@ describe('sitting', () => {
     expect(week(l, team)).toEqual([]);
   });
 
+  it('is not a starter moved to another spot at his own position (LT to RT, MLB to WLB)', () => {
+    const { l, team } = setup('bench-spots');
+    const swap = (pos: 'OL' | 'LB' | 'CB' | 'WR' | 'S', a: number, b: number) => {
+      const chart = team.depthChart[pos];
+      [chart[a], chart[b]] = [chart[b], chart[a]];
+    };
+    swap('OL', 0, 4);
+    swap('LB', 0, 1);
+    swap('CB', 0, 1);
+    swap('WR', 0, 2);
+    swap('S', 0, 1);
+    for (let i = 0; i < EARN + 1; i++) expect(week(l, team)).toEqual([]);
+  });
+
   it('is a healthy holder left off the lineup, and a bye counts nothing', () => {
     const { l, team, q } = setup('bench-bye');
     team.depthChart.QB = [q[1].id, q[0].id, ...team.depthChart.QB.slice(2)];

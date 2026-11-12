@@ -5336,6 +5336,74 @@ button.tip-pill {
   margin: 0;
   padding: 0;
 }
+/* The locker room report: a short list a block, no table. */
+.report-block {
+  margin: 14px 0 0;
+}
+.report-title {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+}
+.report-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.report-row {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+}
+.report-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.report-note {
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+.report-head > .report-note {
+  margin: 0;
+}
+.report-after {
+  margin-top: 8px;
+}
+/* The pick a group of draft options belongs to. */
+.report-pick {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+/* Several players in one sentence: the read stays beside it, never under it. */
+.report-group {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.report-side .tag-pill {
+  white-space: nowrap;
+}
+.report-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .mail-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

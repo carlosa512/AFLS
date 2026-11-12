@@ -1212,6 +1212,11 @@ export interface Team {
   mentoringByYou?: true;
   /** The captains named at camp. */
   captains?: { season: number; offense: number; defense: number; specialTeams: number };
+  /**
+   * Your interim head coach, waiting on your call in the re-sign window (`leadership.ts`): the owner asks before he
+   * offers the job. `lean` is what the owner does if the window closes with no answer (hidden).
+   */
+  interimCall?: { season: number; coachId: number; lean: boolean };
   /** Expiring players you've decided to let walk this re-sign window (`setLettingWalk`). */
   lettingWalk?: { season: number; ids: number[] };
   /**
@@ -1566,7 +1571,8 @@ export interface GazetteTable {
 
 /** One of the director's recommendations, as it read when filed. */
 export interface AdviceRow {
-  kind: 'buy' | 'sell' | 'sign';
+  /** 'draft': a prospect at one of our needs who should be there when we pick. */
+  kind: 'buy' | 'sell' | 'sign' | 'draft';
   playerId: number;
   /** His club when filed; null for a free agent. */
   teamId: number | null;
@@ -1577,6 +1583,8 @@ export interface AdviceRow {
   price: string;
   /** For a sale: the club to open talks with (it asked about him, or it's buying). */
   partnerId?: number;
+  /** For a draft option: the pick of ours he is an option at. */
+  pick?: { overall: number; round: number };
 }
 
 export interface CarouselRow {
@@ -1736,15 +1744,18 @@ export interface MailSection {
   columns?: string[];
   /**
    * 'people': a row a person, with his face (the weekly letter as it was filed before v95). 'letter': the head coach
-   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you.
+   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you. 'report': the
+   * locker room report, a short list a block with no table (a room and its read, a player, or several in one line).
    */
-  layout?: 'people' | 'letter';
+  layout?: 'people' | 'letter' | 'report';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
     cells: string[];
     /** A sentence under the row. */
     note?: string;
+    /** The players a row's sentence names when it speaks for several at once (the locker room report's groups). */
+    cast?: number[];
     /** The coach's words leading into the man's own, after his name: "came to see me about his contract." */
     lead?: string;
     /** A man still waiting on an answer: his name and his answers, under the section's one sentence. */
@@ -1852,7 +1863,9 @@ export type EditionKind =
   /** One of your club's public storylines (`stories.ts`). */
   | 'storyline'
   /** A story of one of the calendar's big days (`snnDays.ts`): a pick, a signing, a release, a change at the top. */
-  | 'day';
+  | 'day'
+  /** The season's awards, told in the final's edition (`snnTitle.ts`). */
+  | 'award';
 
 /** The calendar's big days SNN gives an edition of their own (`snnDays.ts`). */
 export type EditionDay = 'year' | 'market' | 'draft' | 'cuts' | 'kickoff';
@@ -1862,7 +1875,7 @@ export interface EditionList {
   title: string;
   head: string[];
   /** The page links the cell under "Player" to the row's player and the cell under "Club" or "To" to its club. */
-  rows: { playerId?: number; teamId?: number; otherId?: number; cells: string[] }[];
+  rows: { playerId?: number; teamId?: number; otherId?: number; gameId?: number; cells: string[] }[];
 }
 
 /** A final as SNN's weekly edition keeps it. */

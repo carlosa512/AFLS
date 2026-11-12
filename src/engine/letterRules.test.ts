@@ -70,3 +70,13 @@ describe('the house rules for letters', () => {
     expect(breaks).toEqual([]);
   });
 });
+
+describe('a letter never names a screen of the game', () => {
+  it('flags a screen by name, and leaves a screen pass alone', () => {
+    expect(letterBreaks('He needs a new mentor, and you can pick one on the Locker Room screen.')).toContain(
+      'names a screen of the game',
+    );
+    expect(letterBreaks('The rest are on the Roster screen.')).toContain('names a screen of the game');
+    expect(letterBreaks('They scored on a screen pass in the fourth quarter.')).toEqual([]);
+  });
+});

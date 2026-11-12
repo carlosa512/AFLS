@@ -201,6 +201,19 @@ the Column read:
 
 Not yet: one thread a story with the head coach, the owner, players and agents.
 
+### The playoffs and the final
+
+In the playoffs a game story's headline says what the game decided: who goes on and to which round, who is out, and a
+low seed that beat one of the top two. A player's day still leads its own story short of the final. The final's edition
+(`snnTitle.ts`) tells the lead as a championship: the game as it was written, the game's most valuable player (SNN's
+reading of the box score, with his playoff totals when the game story already gave his line), the champions' regular
+season and who they beat to get there, and how many titles that makes when the record holds an earlier one. A tile
+tells the league's most valuable player and the other awards, and two lists stand where the race sits in season: the
+season's awards and the champions' road.
+
+**Only fresh news.** A storyline about your team (a benching, a return, a trade request that leaked) is told the week
+it happens or the week after (`STORY_FRESH`). One that no edition had room for is not told late.
+
 ## SNN on the big days
 
 Spec: `docs/superpowers/specs/2026-11-12-snn-big-days-design.md`. Five special editions a league year, on the weekly
@@ -318,6 +331,9 @@ every line for reading, breaks first.
    "At home against" and "on the road against", never "at home to" or "away to". American spelling (color, honors,
    defense). This one holds for every word a reader sees: letters, SNN, the version history and every screen
    (`WORD_FILES` and the screens' own text, in the same test).
+10. **A letter never names a screen of the game.** The writer tells you what he knows, as his own read ("These are
+    the players I worry about", "I count nine players who are down"). The letter's buttons take you where the rest
+    is. `letterRules.ts` flags a screen by name.
 
 SNN's stories follow these and their own rules on top (above).
 

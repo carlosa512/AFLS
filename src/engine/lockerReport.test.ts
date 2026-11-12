@@ -119,10 +119,24 @@ describe('the locker room report: morale', () => {
     at(l, 'regular', 3);
     for (const [i, p] of ours(l).entries()) p.morale = { level: i < 9 ? -2 - i * 0.1 : 0, jolts: [] };
     deliverMail(l);
-    const s = section(reports(l)[0], 'Morale')!;
-    expect(s.rows).toHaveLength(6);
-    expect(s.lead).toMatch(/Locker Room/);
+    const m = reports(l)[0];
+    const s = section(m, 'Morale')!;
+    // Six by name, whether each has a line of his own or several share one for the same reason.
+    const named = s.rows.flatMap((r) => r.cast ?? (r.playerId === undefined ? [] : [r.playerId]));
+    expect(named).toHaveLength(6);
+    expect(new Set(named).size).toBe(6);
+    // The rest are counted in his own words: a letter never sends you to a screen of the game.
+    expect(s.lead).toMatch(/down a (little|bit)/);
+    expect(s.lead).not.toMatch(/screen/i);
     expect(s.lead).not.toMatch(/\d/);
+    // Players down for the same reason are one line that names each of them in full, not a row each.
+    const group = s.rows.find((r) => (r.cast?.length ?? 0) > 1)!;
+    expect(group.playerId).toBeUndefined();
+    for (const id of group.cast!) expect(group.note).toContain(`${l.players[id].firstName} ${l.players[id].lastName}`);
+    expect(s.rows.length).toBeLessThan(6);
+    // The coach counts the room after his verdict, and the report is laid out as a list, not tables.
+    expect(m.body).toMatch(/I count \w+ players who are down/);
+    expect(m.sections!.every((x) => x.layout === 'report')).toBe(true);
   });
 
   it('names a man flying once, not every other report', () => {

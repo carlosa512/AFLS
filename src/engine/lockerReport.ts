@@ -28,12 +28,16 @@ import {
   FRICTION_LEAD,
   GETTING_ALONG,
   GREW_UP,
+  LEADERS_LINE,
   MENTOR_LOST,
   MENTOR_SUGGEST,
+  MORALE_GROUP,
   MORALE_LEAD,
   MORALE_NOTE,
+  ROOM_SUMMARY,
   VERDICT,
   type Checkin,
+  type MoraleNoteFact,
   type VerdictFact,
 } from './lockerVoice';
 import { headCoach, type Draft } from './senders';
@@ -47,6 +51,10 @@ import { DISPUTE_LABEL, disputeStanding } from './disputeVoice';
 import { yearParagraphFor } from './meetings/mail';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
+const NUMBER = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+/** "A, B and C": the names of a group as one phrase. */
+const nameList = (names: string[]) =>
+  names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 const ORDER: readonly Checkin[] = ['camp', 'cutdown', 'deadline', 'end'];
 
 const SUBJECT: Record<Checkin, string> = {
@@ -336,18 +344,40 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     }
   // The worst six by name: a letter is not the room's whole list (the Locker Room screen is).
   const listed = slipped.slice(0, 6);
+  // Players with the same mood for the same reason are one line (`MORALE_GROUP`); a player whose mood is costing him
+  // in his work, or who stands alone, keeps a line of his own.
+  const groups = new Map<string, { p: Player; word: string; fact: Omit<MoraleNoteFact, 'name'> }[]>();
   for (const { p, view } of [...listed, ...back, ...flying].filter((m) => !promised.has(m.p.id))) {
     const isBack = back.some((m) => m.p.id === p.id);
     const happy = !isBack && view.step >= 6;
     const reason = view.reasons.find((r) => (happy ? !DOWN_REASONS.has(r) : DOWN_REASONS.has(r))) ?? null;
+    const costing = !happy && !isBack && view.effect === 'costing';
+    const key = costing ? `solo:${p.id}` : isBack ? 'back' : happy ? 'happy' : `down:${reason ?? ''}`;
+    groups.set(key, [
+      ...(groups.get(key) ?? []),
+      { p, word: view.word, fact: { reason, happy, back: isBack, costing } },
+    ]);
+  }
+  for (const [key, g] of groups) {
+    if (g.length === 1) {
+      const { p, word, fact: f } = g[0];
+      morale.push({
+        playerId: p.id,
+        cells: [fullName(p), word],
+        note: say(MORALE_NOTE, { name: p.lastName, ...f }, at(`morale:${p.id}`)),
+      });
+      continue;
+    }
+    const kind = g[0].fact.back ? 'back' : g[0].fact.happy ? 'happy' : 'down';
     morale.push({
-      playerId: p.id,
-      cells: [fullName(p), view.word],
+      // The worst mood of the group is its word, as it is the first by the list's order.
+      cells: [`${NUMBER[g.length] ?? g.length} players`, g[0].word],
       note: say(
-        MORALE_NOTE,
-        { name: p.lastName, reason, happy, back: isBack, costing: !happy && !isBack && view.effect === 'costing' },
-        at(`morale:${p.id}`),
+        MORALE_GROUP,
+        { names: nameList(g.map((x) => fullName(x.p))), kind, reason: g[0].fact.reason },
+        at(`morale-group:${key}`),
       ),
+      cast: g.map((x) => x.p.id),
     });
   }
   // Every man down (or flying) now is on file for the next report to compare with, listed here or not.
@@ -536,6 +566,21 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     apart: roomTalk ? room.apart : null,
   };
   const verdict = say(VERDICT, fact, at('verdict'));
+  // How the room stands in a count, unless the verdict was that count already or called the rest of the room fine.
+  const summary = /players are (down|unhappy)|\bfine\b|\bquiet\b/.test(verdict)
+    ? ''
+    : roomTalk || down.length || back.length
+      ? say(ROOM_SUMMARY, { down: down.length, back: back.length }, at('summary'))
+      : '';
+  // Who the room follows, in his own line: camp's report lists them with the captains instead.
+  const leaders = roomTalk && checkin !== 'camp' ? room.leaders.map((id) => league.players[id]).filter(Boolean) : [];
+  const leadersLine = leaders.length
+    ? say(
+        LEADERS_LINE,
+        { names: nameList(leaders.slice(0, 3).map(fullName)), n: Math.min(3, leaders.length) },
+        at('leaders'),
+      )
+    : '';
   const asksMotto = VERDICT.find((l) => l.text(fact) === verdict)?.motto;
   const coach = teamCoaches(league, user).find((c) => c.role === 'headCoach');
   const motto = asksMotto && coach ? mottoOf(coach.id) : '';
@@ -550,10 +595,13 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       subject: SUBJECT[checkin],
       body:
         (motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict) +
+        (summary ? ` ${summary}` : '') +
+        (leadersLine ? ` ${leadersLine}` : '') +
         (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs are ${pairsLine}.` : '') +
         // The season's end looks back on the year's meetings (L2): how many, a promise kept and one broken.
         (checkin === 'end' && yearParagraphFor(league) ? `\n\n${yearParagraphFor(league)}` : ''),
-      ...(sections.length ? { sections } : {}),
+      // A short list a block, no tables (`ReportSection` in `ui/mail.tsx`).
+      ...(sections.length ? { sections: sections.map((x) => ({ ...x, layout: 'report' as const })) } : {}),
       covered,
       actions: [{ kind: 'locker' }],
     },

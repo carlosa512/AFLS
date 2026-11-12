@@ -238,7 +238,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     tendencies that follow the person; `service.ts` captures each game's staff and credits their actual
     results, preserving partial seasons and former jobs. `records.ts` reads those careers, with
     `league.history` as the fallback for legacy entries. `leadership.ts` runs the owners' reviews (offseason and week by
-    week), GM searches and succession; `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
+    week), GM searches and succession; your own interim head coach is not decided for you: the owner asks first
+    (`Team.interimCall`, `interimPending`, `decideInterim`, the `interim:{season}:{coachId}` letter with its two
+    answers), and a re-sign window that closes with no answer is settled as he would have (`settleInterim`, every team's
+    open question; an owner who changes his GM in the same review settles the coach himself first); `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
     GM and head coach from losing seasons (blame split by roster talent against results), drawn at each review
   - `gmHabits.ts` hidden ways an AI general manager does business (Signs a Bridge QB, Trades Firsts for Stars, Drafts Best
     Available, Gun-Shy on Big Deals…), drawn from a marble bag like quirks: a grip of 1–3, active from 2, never more than
@@ -269,7 +272,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     director analytical and hedged, the doctor measured, agents advocates, the league office neutral. `mailSubject` reads that key back, and
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
-    letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`),
+    letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`;
+    a summary, not a roll call: players with the same mood for the same reason share one line, `MORALE_GROUP`, a count
+    follows the verdict, `ROOM_SUMMARY`, and it is laid out as a short list with the read as a pill,
+    `MailSection.layout: 'report'`, `ReportSection` in `ui/mail.tsx`, the layout the director's advice uses too; the
+    director's letters before and at free agency also give three options at each of our first three picks, in the
+    order of our scouts' board (`boardOf`) among the players the consensus says should be there, `draftTargets` in
+    `directorAdvice.ts`),
     the director's daily waiver letter (`waiverMail.ts`), the head coach's weekly letter (`coachWeek.ts`: one letter a
     step or none, `coach:{season}:{clock}`, which replaces the separate player-talk, meeting-request, meeting-result
     and staff-notes letters; its rows are people, each with a face and its own answer; `staffNotes.ts` now gives it
@@ -283,7 +292,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     team is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
     colon or dash inside a sentence; a person speaking may answer in two words; and American football English in every
     word a reader sees, screens included: a team and never a club, a game and never a fixture, a loss and never a
-    defeat, "at home against", American spelling): `letterRules.ts` checks what a rule
+    defeat, "at home against", American spelling; and a letter never names a screen of the game, the writer gives
+    his own read): `letterRules.ts` checks what a rule
     can check (`letterBreaks`, `wordBreaks`) and `letterRules.test.ts` holds every line of `LETTER_FILES` to it, so a
     new file that words a letter goes in that list. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
@@ -316,7 +326,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     bars are `DAY`. `publicStanding.ts` says who is a name without reading a scout (`publicRecord`: last season's
     awards, All-League, top-five stats, a winning team's quarterback, snaps). `snnDayVoice.ts` writes each story to
     `storyRules.ts` and the house rules, no sentence twice a league year (`pick`). They replace the three offseason
-    digests (`legacyYear` keeps those for a league year already told the old way; `DAYS.on` for tests)
+    digests (`legacyYear` keeps those for a league year already told the old way; `DAYS.on` for tests).
+    In the playoffs a game story's headline says what the game decided (`PLAYOFF_HEAD` in `snnVoice.ts`: who goes on,
+    who is out, a low seed beating a top one). `snnTitle.ts` is the final's edition: the lead told as a championship
+    (the game's most valuable player, SNN's reading of the box score in `titleMvp`, never an award on his record; the
+    champions' regular season and who they beat; how many titles that makes), a tile for the league's most valuable
+    player and the other awards, and two lists (the season's awards, the champions' road). A storyline about your team
+    is told the week it happens or the week after and never late (`STORY_FRESH` in `snnWeek.ts`)
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
@@ -415,7 +431,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `benching.ts` who holds a starting job (storylines, the benching chain; spec `docs/superpowers/specs/2026-11-09-storylines-design.md`
     §8–10): the men in a chart's starting spots hold the jobs from cut-down day (`setJobs`; hurt or not, `Team.jobs.held`), a man earns one by
     `EARN` starts in a row and the longest-sitting holder gives his up, and a club's jobs clear at the new league year. Who started is read at kickoff from the chart and
-    availability (`benchKickoff`, `Team.kickoff`), never from snaps. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
+    availability (`benchKickoff`, `Team.kickoff`), never from snaps. Which starting spot a man is in never matters: LT to RT or MLB to WLB is no benching. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
     `Team.lineupSet`: the advance button stops at the door once a year, unless staff sort the chart). A healthy holder left off the lineup
     asks where he stands the same step (`benchWeek`, a `benched` ask, `JobQuestion` in `Team.jobs.questions`, `questionOf`) and, unanswered, is unsure
     each week he sits without ever being "ignored"; the other man who starts in his place asks too once the chart swaps back. Four answers to
@@ -626,6 +642,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - No attribute without an engine hook: anything in `OVR_WEIGHTS` must feed a contest at that
   position (unit-tested) and move outcomes in `npm run audit`.
 - `yardLine` is always yards from the *offense's own* goal line (0–100).
+- **Free agency does not open by accident:** in the re-sign window the advance button (`offseasonStep` in
+  `ui/App.tsx`) reads "Decide on your head coach" or "Decide N contracts" until the owner's question and every
+  expiring contract has an answer (`openContracts` in `contractMail.ts`: signed, tagged, let walk or talks broken
+  off). The Re-sign tab has "Let walk" on a row and "Let the other N walk".
 - **A player changes club through `setTeam`, and joins the league through `addPlayer`** (`roster.ts`), tests included:
   `teamPlayers` reads an index those keep. A club cleared by hand is caught and read again; a club set by hand isn't.
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and

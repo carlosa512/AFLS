@@ -20,7 +20,8 @@ import { columnClaims, pickColumn, type Claim } from './snnColumn';
 import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
 import { SNN_OUTLET } from './stories';
-import type { BeatKind, Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
+import { titleEdition } from './snnTitle';
+import type { BeatKind, Edition, EditionKind, EditionScore, EditionStory, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
@@ -563,6 +564,11 @@ function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
 const TELLS: BeatKind[] = ['sat', 'backIn', 'settled', 'left', 'leaked', 'disputeEnd'];
 const ENDINGS = ['traded', 'withdrawn', 'promise', 'signed', 'released'];
 const SETTLED = ['earned', 'chart', 'earnedBack', 'chartBack'];
+/**
+ * How many steps a public beat stays news: this week's and last week's. An edition reports what just happened: a
+ * benching from weeks or a season ago that no edition had room for is not told late as if it were today's.
+ */
+export const STORY_FRESH = 2;
 
 /**
  * The reader's club's public storylines as candidates (spec 2 §2): a man left off the lineup, a trade request that
@@ -582,6 +588,11 @@ export function storylineCandidates(l: League, week: number, have: Set<string>):
     const b = fresh.at(-1);
     const p = s.playerId === undefined ? undefined : l.players[s.playerId];
     if (!b || !p) continue;
+    // How a job question ended is told once a story: a second ending the same way would be the same sentence again.
+    const ended = (k: string) => k.startsWith(`storyline:${s.id}:`) && k.endsWith(':settled');
+    if (b.kind === 'settled' && [...have].some(ended)) continue;
+    // Old news is not news: only a beat of the last two steps is told.
+    if (b.at <= (l.moraleAt ?? 0) - STORY_FRESH) continue;
     // An ending nobody outside could read (an injury settling it, a holdout drifting back) is not a story.
     if (b.kind === 'settled' && !SETTLED.includes(b.how ?? '')) continue;
     if (b.kind === 'disputeEnd' && !ENDINGS.includes(b.how ?? '')) continue;
@@ -711,6 +722,21 @@ export function buildEdition(l: League, week: number): Edition | null {
     ...(club ? { club } : {}),
     tiles,
   };
+  if (round === 'FINAL') {
+    // The final's page: the lead told as a championship, the awards as a tile, and the season's lists.
+    // The final's own story, wherever the page put it: another story may have outranked it (a star lost for next
+    // season) or the reader's team may be in it and have its own slot.
+    const isFinal = (s: EditionStory) => s.key === `game:${all[0].id}`;
+    const told = [edition.lead, edition.club, ...edition.tiles].find((s) => s && isFinal(s));
+    const title = titleEdition(l, all[0], told, at.said);
+    if (title.story) {
+      if (isFinal(edition.lead)) edition.lead = title.story;
+      else if (edition.club && isFinal(edition.club)) edition.club = title.story;
+      else edition.tiles = edition.tiles.map((s) => (isFinal(s) ? title.story! : s));
+    }
+    edition.tiles = [...edition.tiles, ...title.tiles];
+    if (title.lists.length) edition.lists = title.lists;
+  }
   if (round) {
     // The round's results, and who meets next once the next round is drawn.
     const next = l.games.filter((g) => g.season === l.season && g.week === week + 1 && g.playoffRound && !g.result);
