@@ -4,6 +4,7 @@
  *   npm run editions [-- seed] [--weeks n]
  *   npm run editions -- --seasons n [seed]   the counts for SNN's Column and your club's coverage (`editionCounts.ts`)
  *   npm run editions -- --offseasons n [seed]   what each big-day edition would have to tell (`dayCounts.ts`)
+ *   npm run editions -- --days [seed]   a played offseason's big-day editions, to `.check/day-editions.md`
  *
  * Builds a league, plays the regular season and writes each week's edition to `.check/editions.md`: every story as its
  * kicker, headline, numbers, paragraphs and quote, marked LEAD, YOUR CLUB or TILE. At the top: every writing rule a
@@ -23,6 +24,13 @@ const weeksAt = args.indexOf('--weeks');
 const weeks = weeksAt >= 0 ? Number(args[weeksAt + 1]) : 18;
 // The first bare word is the seed (`--weeks`'s own number is not one).
 const seed = args.find((a, i) => !a.startsWith('--') && (weeksAt < 0 || i !== weeksAt + 1)) ?? 'editions';
+
+// `--days`: the big-day editions of a played offseason, in place of a season's weekly ones.
+if (args.includes('--days')) {
+  const { runDayEditions } = await import('./dayEditions');
+  runDayEditions(args.find((a) => !a.startsWith('--')) ?? 'days');
+  process.exit(0);
+}
 
 // `--offseasons n`: what each big-day edition would have to tell, for the owner to set its bars from.
 const offseasonsAt = args.indexOf('--offseasons');

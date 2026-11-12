@@ -1038,14 +1038,16 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     const d = l.coaches[c.coachId!];
     const m = l.coaches[c.n!];
     const home = game.where.startsWith('at home');
+    // Each team named once, before the wordings: one that is not chosen must not use up the first mention.
+    const [dTeam, mTeam] = [`the ${Club}`, ref.club(game.opp)];
     return assemble(c, ref, {
       kicker: 'Opening week',
       headline: head(`${coachName(m)} meets his old assistant in Week 1`, `${m.lastName} meets his old assistant`),
       summary: `${coachName(d)} of the ${Club} worked on his staff.`,
       first: [
         pick(l, at, slot('lede'), [
-          `${coachName(d)} of ${ref.club(club)} faces ${coachName(m)} of ${ref.club(game.opp)} in Week 1, the first time the two have met as head coaches.`,
-          `${coachName(d)} of ${ref.club(club)} and ${coachName(m)} of ${ref.club(game.opp)} meet as head coaches for the first time in Week 1.`,
+          `${coachName(d)} of ${dTeam} faces ${coachName(m)} of ${mTeam} in Week 1, the first time the two have met as head coaches.`,
+          `${coachName(d)} of ${dTeam} and ${coachName(m)} of ${mTeam} meet as head coaches for the first time in Week 1.`,
         ]),
         `${d.lastName} worked on ${possessive(m.lastName)} staff before he became a head coach.`,
       ],

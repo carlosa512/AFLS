@@ -138,9 +138,10 @@ the same with mail filed or never filed. `npm run editions [-- seed] [--weeks n]
 
 **What it replaced.** In season SNN no longer files a separate division headline, trade story, deadline-day story,
 weekly roundup of changes, rumor about a coach, player speaking out or coaching-tree meeting: each is a story of the
-edition, told once (`covered` keeps its key and the id of the mail it replaces). **What still files alone:** the
-offseason digests (the front-office carousel, the coaching carousel, off the market), a player speaking out and
-coaching-tree stories out of season, the Arena Gazette's column, and everything from the people who work for you.
+edition, told once (`covered` keeps its key and the id of the mail it replaces). **What still files alone:** a player speaking out and
+coaching-tree stories out of season, the Arena Gazette's column, and everything from the people who work for you. The
+three offseason digests (the front-office carousel, the coaching carousel, off the market) are now told by the
+big-day editions below.
 
 ### The Column
 
@@ -198,8 +199,41 @@ the Column read:
   to ask where he stands (`formCase` in `playerTalks.ts`, cause `form`): once a season, your club only, with two
   answers (back him, or tell him to play his way out of it). It never sours into a dispute. Under one a season.
 
-Not yet: SNN on the calendar's big days (cut-down day, draft day), and one thread a story with the head coach, the
-owner, players and agents.
+Not yet: one thread a story with the head coach, the owner, players and agents.
+
+## SNN on the big days
+
+Spec: `docs/superpowers/specs/2026-11-12-snn-big-days-design.md`. Five special editions a league year, on the weekly
+edition's page (a lead, Your team, up to three tiles, a list where the division race sits in season). `snnDays.ts` is
+the editor, `snnDayVoice.ts` the words, `publicStanding.ts` who counts as a name. Mail-side only, public record only,
+no draws, and the sim never reads it (`snnDays.season.test.ts` plays an offseason with the mail filed and never filed).
+
+| Edition | Files when | Tells | List |
+| --- | --- | --- | --- |
+| The new league year | free agency opens | changes at the top, tags, a star released, kept or reaching the market, who starts the year under pressure, a star traded | Changes at the top |
+| Free agency | the draft opens | the richest deal, stars who moved, the team that signed or lost the most starters, a star still unsigned, a star traded | The biggest contracts |
+| Draft day | camp opens | the first pick, trades up, the first quarterback, the furthest fall, the widest reach, the biggest haul | Round one |
+| Cut-down day | the cuts are in | a star, a veteran starter or a high pick released, a starter still holding out, a star who changed position, the undrafted who made a roster | Notable cuts |
+| Kickoff | week 1, before a game | the champion's opener, a rookie or a new quarterback, a new head coach's first game, the team with the most new starters, a first game against a mentor | Opening week |
+
+- **One mail a step.** An edition is named for the moment that just ended and files once (`snn:{season}:d:{day}`). A
+  simmed offseason files Kickoff alone, with cut-down day's stories on its page. A league that has not played a
+  season files none.
+- **Public standing.** A star is last season's award winner, an All-League pick, a top-five finisher in a counted
+  stat, or the quarterback of a winning team. A starter played `STANDING.snaps`. Nothing reads your scouts.
+- **The most worthwhile story first.** Candidates rank by tier, then by public worth (`stakes`), then a stable hash.
+  One story a team on a page. Your team has its own slot, composed whole (`yourDayStory`), and is never a tile.
+- **Both ends of a change.** A new head coach's story says where he comes from (his last team's record, when it won)
+  and what he takes over (a playoff team, or a run of losing seasons). The page keeps one tile for who starts the
+  year needing results: a head coach kept after `DAY.seatRun` losing seasons with his team, or a GM the owners'
+  review put on notice, told as reporting ("league sources say"). No story says "hot seat" or predicts anything.
+- **Trades.** Only a trade with a star in it is a story, with what went back. A move up on draft day is told inside
+  the top ten, or anywhere in round one at a heavy price (a future first-round pick, or three picks). The price is
+  the headline once a day.
+- **Kept a tile, never the lead:** a head coach's first game against the coach he worked under.
+- **The bars** live in `DAY` (`snnDays.ts`) and `STANDING` (`publicStanding.ts`), set from counts
+  (`npm run editions -- --offseasons n`). `npm run editions -- --days` writes a played offseason's five editions to
+  `.check/day-editions.md` for reading the words.
 
 ## The head coach's weekly letter and the story store
 

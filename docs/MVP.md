@@ -81,7 +81,8 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       storylines as tiles, a player asking where he stands when his unit is struggling, its offseason front-office
       digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted by the engine) and rookie
       impact reports join the inbox. Every letter is written to one set of house rules (plain complete sentences,
-      players are players, no line that announces the letter), held by a test over every line the letters can say. Still to come: SNN on the calendar's big days (cut-down day, draft day), one
+      players are players, no line that announces the letter), held by a test over every line the letters can say. SNN's five big-day editions (the new league year, free agency, draft day, cut-down day, Kickoff) tell
+      the offseason from the public record in place of the three digests. Still to come: one
       thread a story with the head coach, the owner, players and agents, a
       Stats screen tab for the advanced numbers and season arcs. The head coach's weekly letter now tells your club's storylines from a story
       store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories

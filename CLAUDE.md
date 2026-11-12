@@ -65,7 +65,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   conversation's bars): the figures the owner sets `FORM` (`slump.ts`) and `LADDER` (`snnColumn.ts`) from.
   `--offseasons n` plays offseasons and counts what each of SNN's big-day editions would have to tell at a few
   settings of each bar (`scripts/dayCounts.ts`, `.check/day-counts.md`): the figures for `DAY` (`snnDays.ts`) and
-  `STANDING` (`publicStanding.ts`).
+  `STANDING` (`publicStanding.ts`). `--days` plays a season and its offseason and writes SNN's five big-day editions
+  to `.check/day-editions.md` for reading the words (run it after changing `snnDays.ts` or `snnDayVoice.ts`).
 - `npm run letters [-- name]` — a preview, not a check: every line the letters in the inbox can say, read from the
   source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
   with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
@@ -304,7 +305,18 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     Column of three, three a season about your club); `columnStory` in `snnVoice.ts` writes it around a table of public
     numbers. `slump.ts` a unit's last four games against the league (`unitForm`, `FORM`, `inSlump`) and the one player a
     box score singles out (`unitMan`, `MAN`). `storylineCandidates` reads your club's public beats from the story store
-    (`SNN_OUTLET`) as tiles. An article causes nothing: what an edition printed lives in its `covered` keys
+    (`SNN_OUTLET`) as tiles. An article causes nothing: what an edition printed lives in its `covered` keys.
+    `snnDays.ts` the editor of SNN's five big-day editions (`docs/NEWS.md`, "SNN on the big days"; spec
+    `docs/superpowers/specs/2026-11-12-snn-big-days-design.md`): the new league year, free agency, draft day, cut-down
+    day and Kickoff, each filed once for the moment that just ended (`dayNow`, `dayMail`, called from `deliverMail`;
+    `snn:{season}:d:{day}`, `Edition.day`, `Edition.lists`), on the weekly edition's page. Candidates come from the
+    public record (transactions with their `playerId`, the draft, leadership events, `Team.jobs.held`, the trade
+    history), rank by tier then public worth, and are cut to a lead, your team's own slot and three tiles, one story a
+    team (`cutDay`; a tile kept for who starts the year under pressure and for a mentor game, which never leads). The
+    bars are `DAY`. `publicStanding.ts` says who is a name without reading a scout (`publicRecord`: last season's
+    awards, All-League, top-five stats, a winning team's quarterback, snaps). `snnDayVoice.ts` writes each story to
+    `storyRules.ts` and the house rules, no sentence twice a league year (`pick`). They replace the three offseason
+    digests (`legacyYear` keeps those for a league year already told the old way; `DAYS.on` for tests)
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
