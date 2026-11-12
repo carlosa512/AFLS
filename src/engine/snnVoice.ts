@@ -1806,6 +1806,9 @@ const UNIT_SAYS: Record<Unit, { noun: string; did: (v: string) => string; was: (
   },
 };
 
+/** The word a unit goes by in a sentence ("pass protection" for the offensive line). */
+export const unitNoun = (unit: Unit) => UNIT_SAYS[unit].noun;
+
 /** What a Column's line may read: the claim's facts in words, and where its club is in the season. */
 interface ColumnSheet {
   id: number;

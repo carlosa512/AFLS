@@ -40,6 +40,10 @@ import { meetingsOf } from './meetings/suggest';
 import { moraleContext, moraleClock, YEAR } from './morale';
 import { roomAsks } from './playerTalks';
 import { weightOf } from './standing';
+import { unitOf as formUnit, type Unit as FormUnit } from './slump';
+import { unitNoun } from './snnVoice';
+import { teamPlayers } from './roster';
+import { COVERAGE } from './coachWeekVoice';
 import { POSITION_NAMES, STARTERS } from './positions';
 import { perceive } from './scouting';
 import { TALK_SUBJECT } from './playerVoice';
@@ -631,9 +635,74 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
     });
   }
 
+  // ───── tier 5: the coverage has been on one of our units ─────
+  const coverage = coverageItem(league, told, said, ctx, clock);
+  if (coverage) {
+    remember(coverage.row.note);
+    items.push(coverage);
+  }
+
   const kept = fitItems(items, clock);
   const call = kept.some((i) => i.call);
   return { items: kept, quiet, ...(call && staff.coachNote ? { coachNote: staff.coachNote } : {}) };
+}
+
+/**
+ * The coverage note (spec 2 §3): when one of SNN's last two editions ran a Column calling one of our units a problem,
+ * the head coach says the unit's senior man has seen it, and how he has taken it. The man is the one the Column named,
+ * else the job-holder of that unit with the most standing. Once a man a season, one a letter, nothing to answer. This
+ * is mail reading mail (what the edition printed): nothing in the sim moves.
+ */
+function coverageItem(
+  league: League,
+  told: Set<string>,
+  said: string[],
+  ctx: ReturnType<typeof moraleContext>,
+  clock: number,
+): WeekItem | null {
+  const user = league.userTeamId;
+  const recent = (league.inbox ?? [])
+    .filter((m) => m.edition && m.season === league.season && m.phase === 'regular')
+    .slice(-2)
+    .reverse();
+  for (const m of recent)
+    for (const s of m.edition!.tiles) {
+      const unit = s.kind === 'column' && s.clubId === user ? /^column:\d+:unit:\d+:(.+):1-$/.exec(s.key)?.[1] : null;
+      if (!unit) continue;
+      const named = s.cast.map((id) => league.players[id]).find((p) => p?.teamId === user);
+      // The unit's men, its starters first where the jobs are on file (before cut-down day they are not).
+      const held = league.teams[user].jobs?.held ?? {};
+      const group = teamPlayers(league, user).filter((x) => formUnit(x.position) === unit);
+      const starters = group.filter((x) => held[x.id]);
+      const p =
+        named ??
+        (starters.length ? starters : group).sort(
+          (a, b) => weightOf(league, b, ctx) - weightOf(league, a, ctx) || a.id - b.id,
+        )[0];
+      const sheet = p ? manSheet(league, p, ctx) : null;
+      const key = p ? `coverage:${league.season}:${p.id}` : '';
+      if (!p || !sheet || told.has(key)) continue;
+      const note = say(
+        COVERAGE,
+        {
+          last: p.lastName,
+          noun: unitNoun(unit as FormUnit),
+          calm: sheet.calm,
+          loud: sheet.loud,
+          captain: sheet.captain,
+        },
+        { key, slot: 'coverage', ...around(league, said) },
+      );
+      if (!note) continue;
+      return {
+        tier: 5,
+        key,
+        section: 'since',
+        row: { playerId: p.id, cells: [nameOf(p), 'In the papers'], note },
+        born: clock,
+      };
+    }
+  return null;
 }
 
 /** Within this many points on our scouts' read the next man is close to the last starter (words only on the page). */

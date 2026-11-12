@@ -886,3 +886,40 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
     text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now!.toLowerCase()} now.`,
   },
 ];
+
+/** What the coverage note reads: the man, the unit SNN wrote about, and how he carries himself (words only). */
+export interface CoverageFact {
+  last: string;
+  noun: string;
+  calm: boolean;
+  loud: boolean;
+  captain: boolean;
+}
+/**
+ * The head coach on a man whose unit SNN has just called a problem: that he has seen it, and how he has taken it, from
+ * his character in words. A note with nothing to answer.
+ */
+export const COVERAGE: Line<CoverageFact>[] = [
+  {
+    when: (f) => f.captain,
+    reads: 2,
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. He has told the room to leave it outside the building, and ${f.last} is the one they listen to.`,
+  },
+  {
+    when: (f) => f.calm,
+    reads: 1,
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. It has not changed how ${f.last} works.`,
+  },
+  {
+    when: (f) => f.loud,
+    reads: 1,
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. ${f.last} has not kept quiet about it, and I would rather that than have him sulk.`,
+  },
+  {
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. ${f.last} has not brought it to me, and I have not raised it.`,
+  },
+];

@@ -876,3 +876,85 @@ describe('the head coach’s letters on a benching', () => {
     else expect(fact.close).toMatchObject({ ahead: gaps[0].ahead });
   });
 });
+
+describe('the coverage note', () => {
+  /** An edition on file whose one tile is a Column about `key`. */
+  const edition = (l: League, week: number, key: string, cast: number[] = [], clubId = l.userTeamId): InboxMessage => {
+    const story = {
+      key,
+      kind: 'column' as const,
+      angle: key.endsWith('+') ? '1+' : '1-',
+      tier: 3 as const,
+      clubId,
+      kicker: 'Column',
+      headline: '',
+      summary: '',
+      picture: {},
+      cast,
+      numbers: [],
+      paragraphs: [],
+      links: [],
+    };
+    return {
+      id: `snn:${l.season}:w${week}`,
+      season: l.season,
+      phase: 'regular',
+      week,
+      from: 'SNN — Sports News Network',
+      category: 'league',
+      subject: '',
+      body: '',
+      read: true,
+      actions: [],
+      covered: [key],
+      edition: { label: `Week ${week}`, scores: [], lead: story, tiles: [story] },
+    };
+  };
+  const blame = (l: League, unit: string) => `column:${l.season}:unit:${l.userTeamId}:${unit}:1-`;
+  const notes = (l: League) => weekItems(l, toldKeys(l), []).filter((i) => i.key.startsWith('coverage:'));
+
+  it('names the senior man of a unit SNN has just called a problem, once', () => {
+    const l = inSeason();
+    l.inbox!.push(edition(l, 5, blame(l, 'pass rush')));
+    const found = notes(l);
+    expect(found).toHaveLength(1);
+    const p = l.players[found[0].row.playerId!];
+    expect(p.teamId).toBe(l.userTeamId);
+    expect(p.position).toBe('EDGE');
+    expect(found[0].tier).toBe(5);
+    expect(found[0].row.note).toContain('pass rush');
+    expect(found[0].row.note).toContain(p.lastName);
+    expect(found[0].key).toBe(`coverage:${l.season}:${p.id}`);
+    // Told once a season for a man.
+    l.mailTold = { ...l.mailTold, [found[0].key]: l.season };
+    expect(notes(l)).toEqual([]);
+  });
+
+  it('is about the man the Column named, when it named one', () => {
+    const l = inSeason();
+    const qb = activeRoster(l, l.userTeamId).find((p) => p.position === 'QB')!;
+    l.inbox!.push(edition(l, 5, blame(l, 'passing game'), [qb.id]));
+    expect(notes(l).map((i) => i.row.playerId)).toEqual([qb.id]);
+  });
+
+  it('says nothing about old coverage, credit, or another club', () => {
+    const l = inSeason();
+    // Three editions ago.
+    l.inbox!.push(edition(l, 3, blame(l, 'run game')), edition(l, 4, 'x'), edition(l, 5, 'y'));
+    expect(notes(l)).toEqual([]);
+    const m = inSeason();
+    m.inbox!.push(edition(m, 5, `column:${m.season}:unit:${m.userTeamId}:run game:1+`));
+    m.inbox!.push(
+      edition(m, 4, `column:${m.season}:unit:${(m.userTeamId + 1) % 32}:run game:1-`, [], (m.userTeamId + 1) % 32),
+    );
+    expect(notes(m)).toEqual([]);
+  });
+
+  it('is one row however much was written, and never a letter by itself', () => {
+    const l = inSeason();
+    l.inbox!.push(edition(l, 4, blame(l, 'run game')), edition(l, 5, blame(l, 'coverage')));
+    expect(notes(l)).toHaveLength(1);
+    deliverMail(l);
+    expect(letters(l)).toEqual([]);
+  });
+});
