@@ -16,7 +16,8 @@
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
  *   --edition  only SNN's weekly editions: the newest three (`--edition 5` for five) are opened in the inbox and shot
- *              closed and with the lead story open, on desktop and phone.
+ *              closed and with the lead story open, on desktop and phone. With `--column`, only editions that carry
+ *              a Column, shot closed and with the Column open.
  *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`, `field-run`, `field-catch`, `kickoff`, `punt`, `pick-six`, `strip-sack`, `long-td`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
@@ -456,8 +457,12 @@ async function main() {
       const page = await newPage(desk, false);
       const phone = await newPage(PHONE, true);
       const count = Number(option('edition')) || 3;
+      // `--column`: only editions that carry a Column, shot closed and with the Column (the last tile) open.
+      const column = flag('column');
+      const holds = (m: { edition?: unknown }) =>
+        ((m.edition as { tiles?: { kind?: string }[] } | undefined)?.tiles ?? []).some((t) => t.kind === 'column');
       const editions = (save.inbox ?? [])
-        .filter((m) => !m.deleted && m.id.startsWith('snn:') && m.edition)
+        .filter((m) => !m.deleted && m.id.startsWith('snn:') && m.edition && (!column || holds(m)))
         .slice(-count);
       if (!editions.length) console.warn('No edition in the save: play a week of the season first.');
       for (const m of editions) {
@@ -475,6 +480,8 @@ async function main() {
           const shoot = async (name: string) => {
             if (suffix) return shootPage(p, viewport, file(`${name}${suffix}`));
             await p.setViewportSize({ width: viewport.width, height: 3200 });
+            // Opening a story scrolls to it: back to the top, so the bar that stays in view covers nothing.
+            await p.evaluate(() => window.scrollTo(0, 0));
             await settle(p);
             await p
               .locator('main article')
@@ -483,10 +490,13 @@ async function main() {
             await p.setViewportSize(viewport);
           };
           await shoot(`${slug}-closed`);
-          await p.locator('.ed-front .ed-more').first().click();
+          await p
+            .locator(column ? '.ed-tiles .ed-tile:last-child .ed-more' : '.ed-front .ed-more')
+            .first()
+            .click();
           await p.locator('.ed-story').first().waitFor({ state: 'visible', timeout: 10_000 });
           await settle(p);
-          await shoot(`${slug}-open`);
+          await shoot(`${slug}-${column ? 'column' : 'open'}`);
         }
       }
     } else if (onlyScreens) {

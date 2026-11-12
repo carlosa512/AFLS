@@ -101,6 +101,9 @@ export function ScoreStrip({ league, scores }: { league: League; scores: Edition
 const about = (story: EditionStory): Who[] => story.cast.map((id) => ({ kind: 'player' as const, id }));
 
 /** Who a story's picture is of: the man, or the clubs' chips when it is about a game or a club. */
+/** A coach's name (there is no card to link a coach to from a story). */
+const staffName = (x: { firstName: string; lastName: string }) => `${x.firstName} ${x.lastName}`;
+
 function Picture({ league, story, size }: { league: League; story: EditionStory; size: number }) {
   const p = story.picture.playerId === undefined ? undefined : league.players[story.picture.playerId];
   if (p) {
@@ -115,6 +118,15 @@ function Picture({ league, story, size }: { league: League; story: EditionStory;
       </div>
     );
   }
+  // A story about a head coach shows him, while he is still on file.
+  const coach = story.picture.coachId === undefined ? undefined : league.coaches[story.picture.coachId];
+  if (coach)
+    return (
+      <div className="ed-who">
+        <StaffAvatar person={coach} size={size} />
+        <span>{staffName(coach)}</span>
+      </div>
+    );
   const ids = story.picture.teamIds ?? [story.clubId];
   return (
     <div className="ed-who ed-who-clubs">

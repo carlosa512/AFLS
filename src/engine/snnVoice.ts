@@ -1926,7 +1926,9 @@ interface ColumnBank {
 /** A club in a headline: its city, or its nickname where two clubs share one. */
 const shared = (l: League, id: number) => l.teams.filter((x) => x.city === l.teams[id].city).length > 1;
 const whose = (l: League, id: number) =>
-  shared(l, id) ? `The ${l.teams[id].name}’ problem is their` : `${possessive(l.teams[id].city)} problem is its`;
+  shared(l, id)
+    ? `The ${possessive(l.teams[id].name)} problem is their`
+    : `${possessive(l.teams[id].city)} problem is its`;
 const whereOf = (l: League, id: number) => (shared(l, id) ? `with the ${l.teams[id].name}` : `in ${l.teams[id].city}`);
 
 /** Why a unit is a problem: what it was before the span decides whether the trouble is new. */
