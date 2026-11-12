@@ -121,6 +121,32 @@ describe('a season of editions', () => {
     }
   });
 
+  it('says in a playoff headline what the game decided, and tells the final as a championship', () => {
+    const playoffs = editions().filter((m) => /:p[A-Z]+$/.test(m.id));
+    // A player's day may lead its own story short of the final: every other game story's headline carries the stakes.
+    const heads = playoffs.flatMap((m) =>
+      storiesOf(m)
+        .filter((x) => x.kind === 'game' && x.angle !== 'day')
+        .map((x) => x.headline),
+    );
+    expect(heads.length).toBeGreaterThan(3);
+    for (const h of heads) expect(h).toMatch(/reach|eliminate|are out|champion|lose the final/);
+    const final = playoffs.at(-1)!.edition!;
+    expect(final.label).toBe('The final');
+    expect(final.lead.kicker).toBe('The championship');
+    expect(final.lead.headline).toMatch(/champion|lose the final/);
+    expect(final.lead.paragraphs.join(' ')).toContain('most valuable player');
+    expect(final.lead.paragraphs.at(-1)).toContain('in the regular season');
+    expect(final.tiles.filter((x) => x.kind === 'award').map((x) => x.kicker)).toEqual(['The awards']);
+    expect(final.lists!.map((x) => x.title)).toEqual(["The season's awards", "The champions' road"]);
+    const awards = l.awards.find((a) => a.season === l.season)!;
+    expect(final.lists![0].rows[0].playerId).toBe(awards.winners.mvp!.playerId);
+    // The road ends at the final, and every row is a game of the champion's.
+    const champion = l.history.at(-1)!.championId;
+    for (const r of final.lists![1].rows) expect([r.teamId, r.otherId]).toContain(champion);
+    expect(final.lists![1].rows.at(-1)!.cells[0]).toBe('The final');
+  });
+
   it('is filed under the week it is read in, to the end of the season', () => {
     const of = (week: number) => mailDate(editions().find((m) => m.week === week)!);
     expect(of(12)).toMatchObject({ phase: 'regular', week: 13 });

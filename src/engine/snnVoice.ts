@@ -13,6 +13,7 @@ import { teamCoaches } from './coaching';
 import { injuryLabel } from './injuries';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import { divisionStandings, computeRecords, type TeamRecord } from './season/standings';
+import { allSeeds } from './season/playoffs';
 import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
@@ -1037,6 +1038,74 @@ const OWN_HEAD: GL[] = [
 ];
 const PLAIN: GameFacts['angle'][] = ['result', 'rout', 'overtime'];
 
+/** Where a playoff win leads, short of the final. */
+const NEXT_ROUND: Record<string, string> = {
+  WC: 'the divisional round',
+  DIV: 'the conference final',
+  CONF: 'the final',
+};
+const SEED_WORD = ['', 'Top', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh'];
+/** A team's playoff seed in its conference, 1 to 7 (0 when it has none). */
+const seedOf = (s: GameSheet, id: number) => {
+  const at = allSeeds(s.l)
+    .map((conf) => conf.indexOf(id))
+    .find((i) => i >= 0);
+  return at === undefined ? 0 : at + 1;
+};
+const before = (s: GameSheet) => s.g.playoffRound !== 'FINAL';
+/** A playoff game's headline says what it decided: who goes on, who is out, who are champions. */
+const PLAYOFF_HEAD: GL[] = [
+  line((s) => `${nick(s, s.W)} beat ${town(s, s.L)} ${s.score} and reach ${NEXT_ROUND[s.g.playoffRound!]}`, before),
+  line((s) => `${nick(s, s.W)} eliminate ${town(s, s.L)}, ${s.score}`, before),
+  line(
+    (s) => `${nick(s, s.W)} rout ${town(s, s.L)} ${s.score} and reach ${NEXT_ROUND[s.g.playoffRound!]}`,
+    (s) => before(s) && s.f.angle === 'rout',
+    2,
+  ),
+  line(
+    (s) => `${nick(s, s.W)} beat ${town(s, s.L)} in overtime and reach ${NEXT_ROUND[s.g.playoffRound!]}`,
+    (s) => before(s) && s.f.angle === 'overtime',
+    2,
+  ),
+  // A low seed that beat one of the top two: the seeding is the story.
+  line(
+    (s) => `${SEED_WORD[seedOf(s, s.W)]}-seeded ${nick(s, s.W)} eliminate ${town(s, s.L)}, ${s.score}`,
+    (s) => before(s) && seedOf(s, s.W) >= 5 && seedOf(s, s.L) >= 1 && seedOf(s, s.L) <= 2,
+    3,
+  ),
+  line(
+    (s) => `${nick(s, s.W)} beat ${town(s, s.L)} ${s.score} to win the championship`,
+    (s) => !before(s),
+  ),
+  line(
+    (s) => `${nick(s, s.W)} are champions after a ${s.score} win over ${town(s, s.L)}`,
+    (s) => !before(s),
+  ),
+  line(
+    (s) => `${nick(s, s.W)} win the championship in overtime, ${s.score}`,
+    (s) => !before(s) && s.f.angle === 'overtime',
+    2,
+  ),
+];
+const OWN_PLAYOFF_HEAD: GL[] = [
+  line(
+    (s) => `${nick(s, s.focus)} beat ${town(s, s.L)} ${s.score} and reach ${NEXT_ROUND[s.g.playoffRound!]}`,
+    (s) => before(s) && s.focus === s.W,
+  ),
+  line(
+    (s) => `${nick(s, s.focus)} are out after a ${s.score} loss to ${town(s, s.W)}`,
+    (s) => before(s) && s.focus === s.L,
+  ),
+  line(
+    (s) => `${nick(s, s.focus)} are champions after a ${s.score} win over ${town(s, s.L)}`,
+    (s) => !before(s) && s.focus === s.W,
+  ),
+  line(
+    (s) => `${nick(s, s.focus)} lose the final ${s.score} to ${town(s, s.W)}`,
+    (s) => !before(s) && s.focus === s.L,
+  ),
+];
+
 /** What a playoff result means: who goes on, to what, and who is out. */
 function playoffLine(s: GameSheet): string {
   switch (s.g.playoffRound) {
@@ -1148,7 +1217,10 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
   unrepeatFixture(paragraphs, at);
   // As printed, so the next story and the next edition step around it.
   at.said.push(...paragraphs.flatMap((p) => sentencesOf(p)));
-  const headline = pickLine(l, own ? OWN_HEAD : HEAD[a], s, at, cand.key, 'head');
+  // In the playoffs the headline is what the result decided. A player's day still leads its own story, short of the final.
+  const stakes = !!s.g.playoffRound && (s.g.playoffRound === 'FINAL' || a !== 'day');
+  const bank = stakes ? (own ? OWN_PLAYOFF_HEAD : PLAYOFF_HEAD) : own ? OWN_HEAD : HEAD[a];
+  const headline = pickLine(l, bank, s, at, cand.key, 'head');
   const links: InboxAction[] = [{ kind: 'game', gameId: s.g.id }];
   const star = a === 'day' ? s.day?.p : a === 'qbLost' ? s.qb?.starter : undefined;
   if (star) links.push({ kind: 'player', playerId: star.id });

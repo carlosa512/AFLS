@@ -20,6 +20,7 @@ import { columnClaims, pickColumn, type Claim } from './snnColumn';
 import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
 import { SNN_OUTLET } from './stories';
+import { titleEdition } from './snnTitle';
 import type { BeatKind, Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
@@ -711,6 +712,13 @@ export function buildEdition(l: League, week: number): Edition | null {
     ...(club ? { club } : {}),
     tiles,
   };
+  if (round === 'FINAL') {
+    // The final's page: the lead told as a championship, the awards as a tile, and the season's lists.
+    const title = titleEdition(l, all[0], lead, at.said);
+    edition.lead = title.lead;
+    edition.tiles = [...edition.tiles, ...title.tiles];
+    if (title.lists.length) edition.lists = title.lists;
+  }
   if (round) {
     // The round's results, and who meets next once the next round is drawn.
     const next = l.games.filter((g) => g.season === l.season && g.week === week + 1 && g.playoffRound && !g.result);

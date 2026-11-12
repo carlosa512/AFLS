@@ -1857,7 +1857,9 @@ export type EditionKind =
   /** One of your club's public storylines (`stories.ts`). */
   | 'storyline'
   /** A story of one of the calendar's big days (`snnDays.ts`): a pick, a signing, a release, a change at the top. */
-  | 'day';
+  | 'day'
+  /** The season's awards, told in the final's edition (`snnTitle.ts`). */
+  | 'award';
 
 /** The calendar's big days SNN gives an edition of their own (`snnDays.ts`). */
 export type EditionDay = 'year' | 'market' | 'draft' | 'cuts' | 'kickoff';
