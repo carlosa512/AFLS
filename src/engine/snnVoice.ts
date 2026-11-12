@@ -1840,6 +1840,8 @@ interface ColumnSheet {
   games: number;
   won: number;
   lost: number;
+  /** The one man the unit's numbers point at, as a clause after its fact (", and … himself"), or ''. */
+  man: string;
   // A man.
   name: string;
   surname: string;
@@ -2006,8 +2008,8 @@ const COLUMN: Record<string, ColumnBank> = {
       ),
     ],
     fact: [
-      col((s) => `${c(s.id)} ${s.did} in their last ${w(s.games)} games.`),
-      col((s) => `Over their last ${w(s.games)} games ${c(s.id)} ${s.did}.`),
+      col((s) => `${c(s.id)} ${s.did} in their last ${w(s.games)} games${s.man}.`),
+      col((s) => `Over their last ${w(s.games)} games ${c(s.id)} ${s.did}${s.man}.`),
     ],
     reason: UNIT_REASON,
     stakes: BLAME_STAKES,
@@ -2050,6 +2052,12 @@ const COLUMN: Record<string, ColumnBank> = {
       ),
     ],
     fact: [
+      // With one man to name, the fact is his; the games won are in the band.
+      col(
+        (s) => `${c(s.id)} ${s.did} over their last ${w(s.games)} games${s.man}.`,
+        (s) => !!s.man,
+        2,
+      ),
       col((s) => `${c(s.id)} ${s.did} over their last ${w(s.games)} games and won ${w(s.won)} of them.`),
       col((s) => `Over their last ${w(s.games)} games ${c(s.id)} ${s.did}, and they won ${w(s.won)} of them.`),
     ],
@@ -2311,6 +2319,33 @@ const COLUMN: Record<string, ColumnBank> = {
   },
 };
 
+/**
+ * The one man a unit's numbers point at, as a clause joined to the unit's fact. Only when the box scores single him
+ * out (`unitMan`): a problem shared around the group names nobody.
+ */
+function manClause(l: League, claim: Claim): string {
+  const m = claim.man;
+  const p = m ? l.players[m.playerId] : undefined;
+  if (!m || !p) return '';
+  // One number a sentence: the unit's rate is the digit, so his count is in words.
+  const TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
+  const n = m.n < 10 ? w(m.n) : (TEENS[m.n - 10] ?? 'more than sixteen');
+  switch (m.what) {
+    case 'lineSacks':
+      return `, and ${POSITION[p.position] ?? 'lineman'} ${M(p.id)} was charged with ${n} of the sacks himself`;
+    case 'turnovers':
+      return `, and ${M(p.id)} has turned the ball over ${n} times in them`;
+    case 'passTds':
+      return `, and ${M(p.id)} has thrown ${n} touchdown passes in them`;
+    case 'carries':
+      return `, and ${M(p.id)} has carried most of the load`;
+    case 'rushSacks':
+      return `, and ${M(p.id)} has ${n} of the sacks himself`;
+    case 'picks':
+      return `, and ${M(p.id)} has ${n} interceptions in them`;
+  }
+}
+
 /** Which bank a claim is written from. */
 function columnBank(claim: Claim): string {
   const sign = claim.dir === 'blame' ? '-' : '+';
@@ -2372,6 +2407,7 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     change,
     wasWinning: ctx.before.w >= ctx.before.l,
     wasPoor: !Number.isNaN(before) && (f.low ? before > num1(f.league) : before < num1(f.league)),
+    man: manClause(l, claim),
     games: Number(f.games ?? 0),
     won: Number(f.won ?? 0),
     lost: Number(f.lost ?? 0),
@@ -2383,6 +2419,7 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     coach: String(f.coach ?? (hc ? `${hc.firstName} ${hc.lastName}` : '')),
     coachSurname: hc?.lastName ?? '',
   };
+  const named = claim.man && l.players[claim.man.playerId] ? claim.man : null;
   const bank = COLUMN[columnBank(claim)];
   const line = (slot: keyof Omit<ColumnBank, 'headline'>) => pickLine(l, bank[slot], sheet, at, claim.key, slot);
   const cand: Candidate = {
@@ -2399,9 +2436,18 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     second: [line('reason'), line('stakes')],
     headline: bank.headline(sheet, l),
     kicker: 'Column',
-    picture: claim.subject.kind === 'coach' ? { coachId: claim.subject.coachId, teamIds: [id] } : { teamIds: [id] },
+    picture:
+      claim.subject.kind === 'coach'
+        ? { coachId: claim.subject.coachId, teamIds: [id] }
+        : named
+          ? { playerId: named.playerId, teamIds: [id] }
+          : { teamIds: [id] },
     numbers: claim.numbers.slice(0, 3),
-    links: [{ kind: 'team', teamId: id }, claim.subject.kind === 'gm' ? { kind: 'gms' } : { kind: 'standings' }],
+    links: [
+      ...(named ? [{ kind: 'player' as const, playerId: named.playerId }] : []),
+      { kind: 'team', teamId: id },
+      claim.subject.kind === 'gm' ? { kind: 'gms' } : { kind: 'standings' },
+    ],
     summary: 1,
   });
   return { ...story, table: claim.table, covers: [claim.key] };

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { playWeek } from './league';
-import { FORM, inSlump, manForm, unitForm, unitOf, UNITS } from './slump';
+import { FORM, inSlump, MAN, manForm, unitForm, unitMan, unitOf, UNITS } from './slump';
 import type { League } from './types';
 
 let l: League;
@@ -113,5 +113,67 @@ describe('a man’s form', () => {
       if (slump) found++;
     }
     expect(found).toBeGreaterThan(0);
+  });
+});
+
+describe('the one man a unit’s numbers point at', () => {
+  /** A club's last four games, with one man's line written into each box score. */
+  const write = (league: League, teamId: number, playerId: number, line: Record<string, number>) => {
+    for (const g of played(league, teamId, 9).slice(-4)) {
+      g.result!.playerStats[playerId] = { ...(g.result!.playerStats[playerId] ?? {}), ...line };
+      g.result!.playerTeams[playerId] = teamId;
+    }
+  };
+  const fresh = () => {
+    const x = createLeague({ seed: 'slump-man' });
+    for (let week = 1; week <= 9; week++) playWeek(x);
+    return x;
+  };
+  let m: League;
+  let t: number;
+  const of = (pos: string, n = 0) => Object.values(m.players).filter((p) => p.teamId === t && p.position === pos)[n];
+  beforeAll(() => {
+    m = fresh();
+    t = m.teams[3].id;
+  }, 240_000);
+
+  it('names a lineman charged with a large share of the sacks, and nobody when they are spread around', () => {
+    for (const g of played(m, t, 9).slice(-4)) {
+      const side = g.homeId === t ? g.result!.home : g.result!.away;
+      side.sacked = 3;
+      for (const p of Object.values(m.players))
+        if (p.teamId === t && p.position === 'OL' && g.result!.playerStats[p.id])
+          g.result!.playerStats[p.id].sacksAllowed = 0;
+    }
+    const tackle = of('OL');
+    write(m, t, tackle.id, { snaps: 60, sacksAllowed: 2 });
+    expect(unitMan(m, t, 'offensive line', 9, 'blame')).toEqual({ playerId: tackle.id, what: 'lineSacks', n: 8 });
+    // Nobody is praised for a clean pocket.
+    expect(unitMan(m, t, 'offensive line', 9, 'credit')).toBeNull();
+    // One each from four linemen is the line's problem, not a man's.
+    write(m, t, tackle.id, { sacksAllowed: 1 });
+    for (const n of [1, 2, 3]) write(m, t, of('OL', n).id, { snaps: 60, sacksAllowed: 1 });
+    expect(unitMan(m, t, 'offensive line', 9, 'blame')).toBeNull();
+  });
+
+  it('names a quarterback who keeps turning it over, and a back who carries the load', () => {
+    const qb = of('QB');
+    write(m, t, qb.id, { snaps: 60, passAtt: 34, passInt: 2, fumblesLost: 0, passTd: 1 });
+    expect(unitMan(m, t, 'passing game', 9, 'blame')).toEqual({ playerId: qb.id, what: 'turnovers', n: 8 });
+    write(m, t, qb.id, { passInt: 1 });
+    expect(unitMan(m, t, 'passing game', 9, 'blame')).toBeNull();
+    const back = of('RB');
+    for (const g of played(m, t, 9).slice(-4)) (g.homeId === t ? g.result!.home : g.result!.away).rushAtt = 25;
+    for (const p of Object.values(m.players))
+      if (p.teamId === t && p.position === 'RB' && p.id !== back.id) write(m, t, p.id, { rushAtt: 2 });
+    write(m, t, back.id, { snaps: 50, rushAtt: 20, rushYds: 60 });
+    expect(unitMan(m, t, 'run game', 9, 'blame')?.playerId).toBe(back.id);
+    expect(unitMan(m, t, 'run game', 9, 'credit')?.what).toBe('carries');
+  });
+
+  it('never names a man for a run defense or a coverage that is struggling', () => {
+    expect(unitMan(m, t, 'run defense', 9, 'blame')).toBeNull();
+    expect(unitMan(m, t, 'coverage', 9, 'blame')).toBeNull();
+    expect(MAN.share).toBeGreaterThan(0.3);
   });
 });

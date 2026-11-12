@@ -8,7 +8,7 @@
  * so "no claim twice", "one rung at a time" and corrections are lookups in what the inbox has told (`toldKeys`).
  */
 import { teamCoaches } from './coaching';
-import { FORM, lowIsBetter, unitForm, UNITS, type Unit, type UnitForm } from './slump';
+import { FORM, lowIsBetter, unitForm, unitMan, UNITS, type ManWhat, type Unit, type UnitForm } from './slump';
 import { computeRecords, conferenceSeeds, divisionStandings, type TeamRecord } from './season/standings';
 import type { EditionStory, League } from './types';
 import { stableHash } from './voice';
@@ -85,6 +85,8 @@ export interface Claim {
   context: ClubContext;
   /** The week it holds after. */
   week: number;
+  /** The one man a unit's span points at, when the box scores single one out (`unitMan`). */
+  man?: { playerId: number; what: ManWhat; n: number } | null;
   /** The claim a correction takes back. */
   of?: string;
 }
@@ -271,6 +273,7 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
           ...base,
           key: `column:${season}:${subject}:1-`,
           dir: 'blame',
+          man: unitMan(l, t.id, unit, week, 'blame'),
           margin: (f.rank - (l.teams.length - FORM.quarter)) / FORM.quarter,
           ...unitEvidence(l, t.id, unit, f),
         });
@@ -279,6 +282,7 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
           ...base,
           key: `column:${season}:${subject}:1+`,
           dir: 'credit',
+          man: unitMan(l, t.id, unit, week, 'credit'),
           margin: (FORM.quarter + 1 - f.rank) / FORM.quarter,
           ...unitEvidence(l, t.id, unit, f),
         });

@@ -113,6 +113,26 @@ Context does two jobs:
 - **Frequency:** a target of eight to ten a season. The counting tool reports the real figure and the bars move to
   meet it.
 
+### What the counts settled (check-ins 1 and 2)
+
+Five seasons at the first-guess bars gave a Column every week, nearly all blame. The owner chose the editorial rule
+from a replay of alternatives over the same seasons, and it was then measured over eighteen:
+
+- **It never runs two weeks running**, blame and credit take turns, and a man's job (blame for a head coach or a GM)
+  comes up in one Column of three at most. That is eight Columns a season: about three "carrying them", two "a
+  problem", one or two about a man's job, one correction.
+- **On a rung they share, the general manager is asked about before his head coach.** Three losing seasons point at
+  the roster first. Before this no GM was named in eighteen seasons.
+- **What it says holds up.** Of the head coaches it was fair to ask about, 65% were out by the next kickoff against
+  23% of all head coaches; of those it was time for, five of six. None it gave credit was fired. Clubs with a unit
+  called a problem made the playoffs 23% of the time and clubs with a unit carrying them 69%, against 44%.
+  `npm run editions -- --seasons n` prints these under "What happened next".
+- **It names a man only when the box scores single him out** (`unitMan` in `slump.ts`, bars in `MAN`): a lineman
+  charged with a large share of the sacks, a passer with a pile of turnovers or of touchdown passes, a back carrying
+  most of the load, a rusher with most of the sacks, a defender with several interceptions. A struggling run defense
+  or coverage is never one man's, and a problem spread around the group names nobody.
+- **A turnaround under a first-year head coach is credited to the general manager who hired him.**
+
 ### Choosing the week's Column
 
 Every week the editor gathers each claim that is true, drops those already made, and keeps the strongest: the highest

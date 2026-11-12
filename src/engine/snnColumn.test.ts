@@ -8,7 +8,7 @@ import { createLeague } from './generate';
 import { playWeek } from './league';
 import { columnStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
-import { FORM } from './slump';
+import { FORM, unitMan } from './slump';
 import { clubContext, columnClaims, LADDER, pickColumn, type Claim } from './snnColumn';
 import type { Game, GameResult, League, TeamGameStats } from './types';
 
@@ -523,6 +523,28 @@ describe('the Column’s words', () => {
       l = createLeague({ seed: 'column-played' });
       for (let week = 1; week <= 9; week++) playWeek(l);
     }, 240_000);
+    it('carries the one man the box scores point at, and names him in full when there is one', () => {
+      const claims = columnClaims(l, 9, new Set()).filter((c) => c.subject.kind === 'unit' && c.dir !== 'fix');
+      for (const c of claims) {
+        const unit = c.subject.kind === 'unit' ? c.subject.unit : 'run game';
+        expect(c.man ?? null).toEqual(unitMan(l, c.teamId, unit, 9, c.dir === 'blame' ? 'blame' : 'credit'));
+      }
+      // Written by hand: a lineman charged with six of the sacks.
+      const blame = claims.find(
+        (c) => c.dir === 'blame' && c.subject.kind === 'unit' && c.subject.unit === 'offensive line',
+      )!;
+      const lineman = Object.values(l.players).find((p) => p.teamId === blame.teamId && p.position === 'OL')!;
+      const s = columnStory(l, { ...blame, man: { playerId: lineman.id, what: 'lineSacks', n: 6 } }, at());
+      expect(s.paragraphs[0]).toContain(`${lineman.firstName} ${lineman.lastName}`);
+      expect(s.paragraphs[0]).toContain('six of the sacks');
+      expect(s.cast).toEqual([lineman.id]);
+      expect(s.picture.playerId).toBe(lineman.id);
+      expect(ruleBreaks(l, s)).toEqual([]);
+      // With nobody to point at, the Column stays with the unit.
+      const plain = columnStory(l, { ...blame, man: null }, at());
+      expect(plain.cast).toEqual([]);
+    });
+
     it('writes every claim that holds to the rules, and no two alike', () => {
       const wording = at();
       const firsts: string[] = [];

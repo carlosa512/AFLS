@@ -265,3 +265,91 @@ export function inSlump(l: League, playerId: number, through: number): boolean {
   const m = manForm(l, playerId, through);
   return !!m && m.started === FORM.games && m.form.rank > l.teams.length - FORM.quarter;
 }
+
+/**
+ * When a unit's numbers point at one man. The bars are first guesses for the owner to set: a share of the unit's total
+ * that makes it his rather than the group's, and the least that share must amount to over the span.
+ */
+export const MAN = {
+  /** A lineman's share of his club's sacks allowed, a rusher's share of its sacks. */
+  share: 0.4,
+  /** …and at least this many of them. */
+  sacks: 4,
+  /** A passer's interceptions and fumbles lost over the span. */
+  turnovers: 6,
+  /** A passer's touchdown passes over the span, for credit. */
+  passTds: 9,
+  /** A back's share of his club's carries. */
+  carries: 0.6,
+  /** A defender's interceptions over the span, for credit. */
+  picks: 3,
+};
+
+export type ManWhat = 'lineSacks' | 'turnovers' | 'passTds' | 'carries' | 'rushSacks' | 'picks';
+
+/**
+ * The one man a unit's span points at, read from the box scores, or null when it is the group's doing (the usual
+ * case). A struggling run defense or coverage is never one man's: nothing in a box score says whose it was.
+ */
+export function unitMan(
+  l: League,
+  teamId: number,
+  unit: Unit,
+  through: number,
+  dir: 'blame' | 'credit',
+): { playerId: number; what: ManWhat; n: number } | null {
+  const span = gamesOf(l, teamId, through).slice(-FORM.games);
+  if (span.length < FORM.games) return null;
+  // Each man's totals over the span, for the games he played for this club.
+  const totals = new Map<number, Record<string, number>>();
+  let sacked = 0;
+  let carries = 0;
+  let made = 0;
+  for (const g of span) {
+    const r = g.result!;
+    const s = sideOf(g, teamId);
+    sacked += s.us.sacked;
+    carries += s.us.rushAtt;
+    made += s.them.sacked;
+    for (const [id, line] of Object.entries(r.playerStats)) {
+      if (r.playerTeams[Number(id)] !== teamId) continue;
+      const t = totals.get(Number(id)) ?? {};
+      for (const [k, v] of Object.entries(line)) t[k] = (t[k] ?? 0) + (v ?? 0);
+      totals.set(Number(id), t);
+    }
+  }
+  /** The man with the most of something, ties to the lower id. */
+  const most = (of: (t: Record<string, number>) => number) =>
+    [...totals].map(([id, t]) => ({ id, n: of(t) })).sort((a, b) => b.n - a.n || a.id - b.id)[0];
+  const pick = (what: ManWhat, top: { id: number; n: number } | undefined, ok: boolean) =>
+    top && ok ? { playerId: top.id, what, n: top.n } : null;
+
+  if (unit === 'offensive line' && dir === 'blame') {
+    const top = most((t) => t.sacksAllowed ?? 0);
+    return pick('lineSacks', top, !!top && top.n >= MAN.sacks && top.n >= MAN.share * sacked);
+  }
+  if (unit === 'pass rush' && dir === 'credit') {
+    const top = most((t) => t.sacks ?? 0);
+    return pick('rushSacks', top, !!top && top.n >= MAN.sacks && top.n >= MAN.share * made);
+  }
+  if (unit === 'passing game') {
+    // The passer is the man who threw most of the passes.
+    const passer = most((t) => t.passAtt ?? 0);
+    const line = passer ? totals.get(passer.id)! : {};
+    if (dir === 'blame') {
+      const n = (line.passInt ?? 0) + (line.fumblesLost ?? 0);
+      return pick('turnovers', passer && { id: passer.id, n }, n >= MAN.turnovers);
+    }
+    const n = line.passTd ?? 0;
+    return pick('passTds', passer && { id: passer.id, n }, n >= MAN.passTds);
+  }
+  if (unit === 'run game') {
+    const top = most((t) => t.rushAtt ?? 0);
+    return pick('carries', top, !!top && carries > 0 && top.n >= MAN.carries * carries);
+  }
+  if (unit === 'coverage' && dir === 'credit') {
+    const top = most((t) => t.defInt ?? 0);
+    return pick('picks', top, !!top && top.n >= MAN.picks);
+  }
+  return null;
+}
