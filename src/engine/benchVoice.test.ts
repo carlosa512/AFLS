@@ -231,7 +231,7 @@ describe('the benching chain’s words', () => {
         { beat: 'left', how: 'other', holder: 'Gibson', other: 'Reyes', man: null },
         { key: 'k', slot: 's' },
       ),
-    ).toBe("Reyes is gone, so it's Gibson's job again.");
+    ).toBe("Reyes has left, so it's Gibson's job again.");
   });
 
   it('sweep: every closing the engine can file reads a specific line, with and without a named other man', () => {

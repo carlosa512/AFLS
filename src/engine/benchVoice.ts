@@ -76,7 +76,7 @@ export const BENCH_ASK: readonly Line<BenchFact>[] = [
   {
     when: (f) => holder(f) && !!f.other && f.better,
     reads: 2,
-    text: (f) => `I understand ${across(f)} is the better man right now. I'd still like to hear where I stand.`,
+    text: (f) => `I understand ${across(f)} is the better player right now. I'd still like to hear where I stand.`,
   },
   // A word you gave him, broken: he says so first.
   {
@@ -192,17 +192,17 @@ export const BENCH_STILL: readonly Line<BenchFact>[] = [
   {
     when: (f) => holder(f) && f.weeksOpen === 'one',
     reads: 2,
-    text: (f) => `${f.man.last} has had this hanging over him for a week.`,
+    text: (f) => `${f.man.last} has gone a week without an answer.`,
   },
   {
     when: (f) => holder(f) && f.weeksOpen === 'two',
     reads: 2,
-    text: (f) => `${f.man.last} has had this hanging over him for two weeks.`,
+    text: (f) => `${f.man.last} has gone two weeks without an answer.`,
   },
   {
     when: (f) => holder(f) && (f.weeksOpen === 'three' || f.weeksOpen === 'many'),
     reads: 2,
-    text: (f) => `${f.man.last} has had this hanging over him for weeks.`,
+    text: (f) => `${f.man.last} has gone weeks without an answer.`,
   },
   {
     when: (f) => holder(f) && !!f.other && !told(f),
@@ -212,7 +212,7 @@ export const BENCH_STILL: readonly Line<BenchFact>[] = [
   {
     when: (f) => holder(f) && f.man.captain,
     reads: 1,
-    text: (f) => `${f.man.last} is a captain, and this is still hanging over him.`,
+    text: (f) => `${f.man.last} is a captain, and he still has no answer.`,
   },
   { when: holder, text: (f) => `${f.man.last} is still waiting to hear where he stands.` },
   {
@@ -278,7 +278,7 @@ export const BENCH_TOOK: readonly Line<TookFact>[] = [
   },
   { when: (f) => f.reply === 'yours', text: (f) => `${f.man.last} knows you told him the job is his.` },
   { when: (f) => f.reply === 'compete', text: (f) => `${f.man.last} knows he has to keep competing for it.` },
-  { when: (f) => f.reply === 'his', text: (f) => `${f.man.last} has heard it from you straight.` },
+  { when: (f) => f.reply === 'his', text: (f) => `${f.man.last} has heard it from you directly.` },
 ];
 
 /** His own words back to your answer, on the card. */
@@ -299,10 +299,10 @@ export const BENCH_REPLY: readonly Line<ReplyFact>[] = [
   },
   { when: (f) => f.reply === 'earn', text: () => "Then I'll earn it." },
   { when: (f) => f.reply === 'earn' && f.man.calm, reads: 1, text: () => "Fair enough. I'll go earn it back." },
-  { when: (f) => f.reply === 'earn' && f.man.loud, reads: 1, text: () => 'Earn it back. Fine. Watch me.' },
+  { when: (f) => f.reply === 'earn' && f.man.loud, reads: 1, text: () => 'Then I'll earn it back on the field.' },
   { when: (f) => f.reply === 'yours', text: () => "Understood. I won't let it go." },
   { when: (f) => f.reply === 'compete', text: () => "Fine. I'll keep working." },
-  { when: (f) => f.reply === 'his', text: () => 'Then that is that. I hear you.' },
+  { when: (f) => f.reply === 'his', text: () => 'All right. I hear you.' },
 ];
 
 /** A starter cleared and not back in his spot. `listed` is where the chart has him, as a word. */
@@ -362,13 +362,13 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
     undefined,
     (f) => `The season ended with ${poss(f.holder)} job unsettled, and the jobs are set again at camp.`,
   ),
-  closed('left', 'other', (f) => `${f.other} is gone, so it's ${poss(f.holder)} job again.`, named),
-  closed('left', 'holder', (f) => `${f.holder} is gone, so the job is ${poss(f.other!)} now.`, named),
-  closed('left', 'both', (f) => `${f.holder} and ${f.other} are both gone, so there is nothing left to settle.`, named),
+  closed('left', 'other', (f) => `${f.other} has left, so it's ${poss(f.holder)} job again.`, named),
+  closed('left', 'holder', (f) => `${f.holder} has left, so the job is ${poss(f.other!)} now.`, named),
+  closed('left', 'both', (f) => `${f.holder} and ${f.other} have both left, so there is nothing left to settle.`, named),
   closed(
     'left',
     'holder',
-    (f) => `${f.holder} is gone, so the benching is closed.`,
+    (f) => `${f.holder} has left, so the benching is closed.`,
     (f) => !f.other,
     1,
   ),
@@ -393,7 +393,7 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   closed(
     'settled',
     'his',
-    (f) => `You told ${f.holder} it is ${poss(f.other!)} job now. He took it like a pro, and he won't love it.`,
+    (f) => `You told ${f.holder} it is ${poss(f.other!)} job now. He took it professionally, though he is not happy about it.`,
     (f) => named(f) && !!f.man?.calm,
     3,
   ),
@@ -422,7 +422,7 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   closed(
     'settled',
     'chart',
-    (f) => `${f.other} has started three straight, so that is that, and ${f.holder} found out from the depth chart.`,
+    (f) => `${f.other} has started three straight, so the job is his, and ${f.holder} found out from the depth chart.`,
     named,
   ),
   closed('settled', 'chartBack', (f) => `${f.holder} has started three straight, so the job is his again.`),
@@ -455,25 +455,25 @@ export interface JobsFact {
 }
 
 export const JOBS_ROW: readonly Line<JobsFact>[] = [
-  { text: (f) => `Here is who starts as camp ends. ${f.lineup}` },
-  { text: (f) => `This is the lineup I have as camp ends. ${f.lineup}` },
+  { text: (f) => `Camp is ending, and these are the starters. ${f.lineup}` },
+  { text: (f) => `The lineup is set as camp ends. ${f.lineup}` },
   {
     when: (f) => !!f.close && !f.close.ahead,
     reads: 1,
     text: (f) =>
-      `Here is who starts as camp ends. ${f.lineup} At ${f.close!.pos}, our scouts have ${f.close!.second} right behind ${f.close!.first}.`,
+      `Camp is ending, and these are the starters. ${f.lineup} At ${f.close!.pos}, our scouts have ${f.close!.second} right behind ${f.close!.first}.`,
   },
   {
     when: (f) => !!f.close && !f.close.ahead,
     reads: 1,
     text: (f) =>
-      `This is the lineup I have as camp ends. ${f.lineup} At ${f.close!.pos}, ${f.close!.second} is close to ${f.close!.first} on our scouts' read.`,
+      `The lineup is set as camp ends. ${f.lineup} At ${f.close!.pos}, ${f.close!.second} is close to ${f.close!.first} on our scouts' read.`,
   },
   {
     when: (f) => !!f.close?.ahead,
     reads: 1,
     text: (f) =>
-      `Here is who starts as camp ends. ${f.lineup} At ${f.close!.pos}, our scouts read ${f.close!.second} slightly ahead of ${f.close!.first}.`,
+      `Camp is ending, and these are the starters. ${f.lineup} At ${f.close!.pos}, our scouts read ${f.close!.second} slightly ahead of ${f.close!.first}.`,
   },
 ];
 

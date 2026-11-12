@@ -122,7 +122,7 @@ describe('the head coach’s weekly letter', () => {
     expect(asks).toHaveLength(1);
     expect(asks[0].talkRoom).toEqual({ unit: 'team', clock: l.moraleAt });
     // The others of the room are named in a sentence of his own, outside the quote.
-    expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|Add)/);
+    expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|raised it|told me)/);
     expect(needsYou(l, m)).toBe(true);
     expect(answerRoomTalk(l, 'team', 'reassure')).toBe(3);
     expect(needsYou(l, m)).toBe(false);

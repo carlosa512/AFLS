@@ -61,7 +61,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'deal' && f.loud,
     reads: 1,
-    text: () => "I've earned a new deal, and everybody in this building knows it. I'm tired of waiting.",
+    text: () => "I've earned a new deal, and everybody here knows it. I'm tired of waiting.",
   },
   {
     when: (f) => f.cause === 'deal' && f.calm,
@@ -96,7 +96,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'feud' && f.loud,
     reads: 1,
-    text: () => "I can't keep sharing a room with him. Either it gets handled or I'll handle it.",
+    text: () => "I can't keep sharing a room with him. It needs to be dealt with.",
   },
   {
     when: (f) => f.cause === 'feud' && f.calm,
@@ -147,7 +147,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'deal' && f.young,
     reads: 1,
-    text: () => "I'm not asking for the moon. I want my contract to match what I'm doing on the field.",
+    text: () => "I'm not asking for much. I want my contract to match what I'm doing on the field.",
   },
   {
     when: (f) => f.cause === 'deal' && f.starter,
@@ -272,7 +272,7 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
     reads: 4,
     text: () => "That's not what I came up here to hear.",
   },
-  { when: (f) => !!f.losing && f.reply === 'firm', reads: 3, text: () => "Understood. We'll sort it out downstairs." },
+  { when: (f) => !!f.losing && f.reply === 'firm', reads: 3, text: () => "Understood. We'll sort it out among ourselves." },
   {
     when: (f) => f.reply === 'promise' && f.cause === 'snaps',
     reads: 2,
@@ -296,7 +296,7 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
   {
     when: (f) => f.reply === 'reassure' && f.loud,
     reads: 2,
-    text: () => 'I appreciate it. Words are nice, though.',
+    text: () => 'I appreciate it. I'd still like to see it happen.',
   },
   { when: (f) => f.reply === 'reassure', text: () => "Good to hear. I'll keep working." },
   { when: (f) => f.reply === 'reassure', text: () => 'Thanks. That means something.' },
@@ -384,7 +384,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
   {
     when: (f) => callback(f)?.reply === 'reassure',
     reads: 2,
-    text: (f) => `You asked me to hang in there ${f.man.lastAnswer!.when}. I'm still hanging.`,
+    text: (f) => `You asked me to wait ${f.man.lastAnswer!.when}. I'm still waiting.`,
   },
   {
     when: (f) => callback(f)?.reply === 'firm',
@@ -510,7 +510,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'snaps' && f.man.loud && f.man.role !== 'starter',
     reads: 2,
-    text: () => "I didn't come here to hold a clipboard. Put me on the field.",
+    text: () => "I'm ready to play, and I want you to put me on the field.",
   },
   {
     when: (f) => f.cause === 'snaps' && f.man.calm,
@@ -592,7 +592,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'deal' && f.man.loud,
     reads: 2,
-    text: () => 'Pay me. I have earned it and everybody in this building knows it.',
+    text: () => 'I want a new deal. I have earned it, and everybody here knows it.',
   },
   {
     when: (f) => f.cause === 'deal' && f.man.calm,
@@ -612,7 +612,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'deal' && youngOf(f),
     reads: 2,
-    text: () => "I'm not asking for the moon. I want my deal to match what I do.",
+    text: () => "I'm not asking for much. I want my deal to match what I do.",
   },
   {
     when: (f) => f.cause === 'deal' && f.moment.record === 'winning' && f.man.role !== 'depth',
@@ -628,7 +628,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'm tired of losing." },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I need to know we are headed somewhere.' },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I don't know how much more of this I can take." },
-  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'Losing wears on a man. It is wearing on me.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'The losing is wearing on me.' },
   {
     when: (f) => f.cause === 'losing',
     reads: 1,
@@ -638,7 +638,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'losing',
     reads: 1,
-    text: () => "I'm not asking for a miracle. I'm asking for a direction.",
+    text: () => "I'm not asking for a quick fix. I'm asking for a direction.",
   },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I keep asking myself what we are doing wrong.' },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'd like to know what the plan is." },
@@ -672,7 +672,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'losing' && f.man.loud,
     reads: 2,
-    text: () => 'This is not acceptable, and the whole room knows it. Fix it.',
+    text: () => 'This is not acceptable, and the whole locker room knows it.',
   },
   {
     when: (f) => f.cause === 'losing' && f.man.calm,
@@ -812,12 +812,12 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.underpaid,
     reads: 1,
-    text: () => "I look at what the market pays a man at my spot, and I'm below it.",
+    text: () => "I look at what the market pays a player at my spot, and I'm below it.",
   },
   {
     when: (f) => f.man.captain,
     reads: 1,
-    text: () => "As a captain, I'd rather say this to you straight than let it fester.",
+    text: () => "As a captain, I'd rather say this to you directly.",
   },
   {
     when: (f) => f.man.homecoming,
@@ -837,7 +837,7 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.mentor !== null,
     reads: 1,
-    text: (f) => `${f.man.mentor} has been showing me the ropes, so I'm not saying this lightly.`,
+    text: (f) => `${f.man.mentor} has been mentoring me, so I'm not saying this lightly.`,
   },
   {
     when: (f) => f.man.mentee !== null,

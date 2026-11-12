@@ -51,7 +51,8 @@
     "situations": "tsx scripts/situations.ts",
     "gm-letters": "tsx scripts/gm-letters.ts",
     "editions": "tsx scripts/editions.ts",
-    "copy": "tsx scripts/copy.ts"
+    "copy": "tsx scripts/copy.ts",
+    "letters": "tsx scripts/letters.ts"
   },
   "dependencies": {
     "react": "19.3.1",

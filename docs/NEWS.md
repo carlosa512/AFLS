@@ -255,6 +255,29 @@ marked public (a starter benched, a request leaked, a coordinator relieved) is w
 could read later, as another outlet over the same store, without telling a beat twice. That is the seam the "full
 news and media outlets" item in `docs/MVP.md` builds on; no public outlet reads it yet.
 
+## Words in a letter
+
+Every letter in the inbox is written to these, whoever signs it. `letterRules.ts` checks what a rule can check
+(`letterRules.test.ts` reads every line in the files that word letters, `LETTER_FILES`), and `npm run letters` lists
+every line for reading, breaks first.
+
+1. **Plain, complete sentences.** No fragment standing as a sentence ("Good room.", "Pads on.", "Not trouble yet.").
+2. **A letter starts with its news.** No line announces the letter or the writer's view of it ("Here is where things
+   stand", "as I see it"). When there is nothing to open on, the letter opens on its first item.
+3. **Players are players.** A name, a position, "the players", "the team", "veterans", "the younger players". Never
+   "men", "a man", "the guys", "the kids", "the vets". The club is "the club", never "the building". A position group
+   may be called a room ("the receivers' room"): it is football's word and the Locker Room screen's.
+4. **Say the thing itself.** No figure of speech where a plain word does the job ("closed the book on it" is "it is
+   closed", "what is eating him" is "what is bothering him", "in a good place" is "happy").
+5. **Stop on a fact.** No moral and no line written to sound good ("It usually does.", "That's a football team.").
+6. **No semicolon, and no colon or dash inside a sentence.**
+7. **A sender is known by what they notice**, not by slang: the head coach by the people, the director by value and
+   by a hedge where the scouts are unsure, the doctor by time and risk, an agent by his client's case.
+8. **A person speaking is plain too.** A player, an agent or another club's GM may answer in two words and put a thing
+   his own way (`quotes` in `LETTER_FILES`), and he still never says "men" or "the building".
+
+SNN's stories follow these and their own rules on top (above).
+
 ## Attention and history
 
 `needsYou` means a present management task. Opponent briefings, ordinary injury notices and deadline

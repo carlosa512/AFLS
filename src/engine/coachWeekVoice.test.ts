@@ -155,8 +155,8 @@ describe('the head coach’s weekly lines', () => {
     expect(say(RESULT_MAN, { ...f, outcome: 'bristles' }, at)).toMatch(/deal/);
     expect(say(RESULT_MAN, { ...f, outcome: 'none' }, at)).toMatch(/deal/);
     const better = { ...f, man: man({ mood: 'Good', reason: null }), nowDown: false } as const;
-    expect(say(RESULT_MAN, better, at)).toMatch(/better place|fine now/);
-    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come round|all right/);
+    expect(say(RESULT_MAN, better, at)).toMatch(/happier|fine now/);
+    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come around|all right/);
   });
 
   it('every bank reads clean for every fact it can be given', () => {
@@ -270,14 +270,14 @@ describe('the head coach’s weekly lines', () => {
   });
 
   it('no line claims what its facts do not say', () => {
-    // A man who reads Poor now is never in a better place, whatever he heard.
+    // A man who reads Poor now is never happier, whatever he heard.
     for (const outcome of ['lands', 'bristles', 'none'] as const)
       for (const named of [true, false])
         for (const topic of ['deal', 'none'] as const) {
           const f = { man: man({ mood: 'Poor', reason: 'Wants a new deal' }), outcome, named, nowDown: true, topic };
-          for (const l of every(RESULT_MAN, f)) expect(l).not.toMatch(/better place|fine now|all right|come round/);
+          for (const l of every(RESULT_MAN, f)) expect(l).not.toMatch(/happier|fine now|all right|come around/);
           const g = { ...f, man: man({ mood: 'Good' }), nowDown: false };
-          for (const l of every(RESULT_MAN, g)) expect(l).not.toMatch(/down now|eating him/);
+          for (const l of every(RESULT_MAN, g)) expect(l).not.toMatch(/down now|bothering him/);
         }
     // A broken promise is never "still waiting".
     const broken = man({ broken: true, kept: true, lastAnswer: { reply: 'promise', when: 'at camp' } });
