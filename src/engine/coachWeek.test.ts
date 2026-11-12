@@ -976,7 +976,7 @@ describe('men still waiting on an answer', () => {
     const m = letters(l).at(-1)!;
     const waiting = m.sections!.find((s) => s.title === 'Still waiting on you')!;
     expect(waiting).toBeDefined();
-    expect(waiting.lead).toBe('Two men are still waiting on you about their contracts.');
+    expect(waiting.lead).toBe('Two players are still waiting on you about their contracts.');
     expect(waiting.rows.map((r) => r.playerId).sort()).toEqual([a.id, b.id].sort());
     expect(waiting.rows.every((r) => r.compact && r.talk)).toBe(true);
     // After the new ask, before the notes.
@@ -1004,6 +1004,6 @@ describe('men still waiting on an answer', () => {
     const mixed = letters(m)
       .at(-1)!
       .sections!.find((s) => s.title === 'Still waiting on you')!;
-    expect(mixed.lead).toBe('Two men are still waiting on an answer from you.');
+    expect(mixed.lead).toBe('Two players are still waiting on an answer from you.');
   });
 });

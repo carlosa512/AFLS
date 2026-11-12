@@ -295,9 +295,24 @@ describe('the head coach’s weekly lines', () => {
       closing: false,
     });
     for (const l of bye) expect(l).not.toMatch(/talk to|used it|few things|needs you|rest/);
-    // Counts: "one thing" needs one, "needs you" needs an ask.
-    const two = every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false });
-    for (const l of two) expect(l).not.toMatch(/One thing|Short one|needs you/);
+    // The opening states a fact of the week in plain words: nothing that only announces the letter, and players are players.
+    const weeks: MomentSheet['week'][] = ['camp', 'deadline', 'push', 'bye', 'regular', 'playoffs', 'offseason'];
+    for (const week of weeks)
+      for (const streak of [null, { kind: 'lost', games: 'three' }, { kind: 'won', games: 'four' }] as const)
+        for (const result of [true, false])
+          for (const l of every(OPENING, {
+            moment: moment({ week, streak, rival: true, seasonOver: week === 'offseason' }),
+            coach,
+            items: 2,
+            asks: 1,
+            link: { noun: 'the D-line', man: 'Stokes', word: 'Down' },
+            top: { kind: 'deal', man: 'Stokes' },
+            result,
+            closing: true,
+          }))
+            expect(l).not.toMatch(/\b(here is|as I see it|my people|my desk|men|man)\b/i);
+    // A week with nothing to open on has no opening: no line only announces the letter.
+    expect(every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false })).toEqual([]);
     // A story with nobody to name says nothing about him.
     for (const l of every(CLOSING, { kind: 'deal', beat: 'kept' }))
       expect(l).toMatch(/^(That one|We can stop|That is)/);

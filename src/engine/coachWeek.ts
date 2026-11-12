@@ -136,7 +136,7 @@ const SECTIONS: { section: WeekItem['section']; title: string }[] = [
   { section: 'staff', title: 'From the staff room' },
 ];
 const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'];
-/** What men who are waiting asked about, as one thing and as several. */
+/** What players who are waiting asked about, as one thing and as several. */
 const WAITING_ON: Record<TalkCause, [string, string]> = {
   deal: ['his contract', 'their contracts'],
   snaps: ['his snaps', 'their snaps'],
@@ -145,7 +145,7 @@ const WAITING_ON: Record<TalkCause, [string, string]> = {
   benched: ['his job', 'their jobs'],
   form: ['where he stands', 'where they stand'],
 };
-/** The one sentence over the men still waiting: who or how many, and about what when it is one thing. */
+/** The one sentence over the players still waiting: who or how many, and about what when it is one thing. */
 function waitingLead(league: League, rows: Row[]): string {
   const men = rows.flatMap((r) => (r.playerId === undefined ? [] : [league.players[r.playerId]])).filter(Boolean);
   const causes = [...new Set(men.map((p) => p.morale?.talk?.ask?.cause).filter((c): c is TalkCause => !!c))];
@@ -153,8 +153,8 @@ function waitingLead(league: League, rows: Row[]): string {
     return `${men[0].lastName} is still waiting on you about ${WAITING_ON[causes[0]][0]}.`;
   const count = COUNT[men.length] ?? String(men.length);
   return causes.length === 1
-    ? `${count} men are still waiting on you about ${WAITING_ON[causes[0]][1]}.`
-    : `${count} men are still waiting on an answer from you.`;
+    ? `${count} players are still waiting on you about ${WAITING_ON[causes[0]][1]}.`
+    : `${count} players are still waiting on an answer from you.`;
 }
 /** A row with something to press. */
 const asksYou = (r: Row) => !!(r.talk || r.bench || r.meeting || r.negotiate || r.restore);
@@ -847,7 +847,10 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
     result: items.some((i) => i.result),
     closing: items.some((i) => i.closing),
   };
-  const body = say(OPENING, fact, { key: id, slot: 'opening', ...around(league, said) });
+  // The letter opens on a fact of the week when there is one it has not said this year, and otherwise on its first
+  // item: a line that only announces the letter is left out.
+  const opener = say(OPENING, fact, { key: id, slot: 'opening', ...around(league, said) });
+  const body = opener && !around(league, said).skip(opener) ? opener : '';
 
   const sections: MailSection[] = SECTIONS.flatMap(({ section, title }) => {
     const rows = items.filter((i) => i.section === section).map((i) => i.row);

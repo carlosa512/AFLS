@@ -202,14 +202,13 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => !!f.link,
     reads: 4,
-    text: (f) =>
-      `${f.link!.man} is part of why ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. I'd start there.`,
+    text: (f) => `${f.link!.man} is part of why ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}.`,
   },
   {
     when: (f) => !!f.link && f.moment.streak?.kind === 'lost',
     reads: 5,
     text: (f) =>
-      `We have lost ${f.moment.streak!.games} straight, and ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. Part of the room's trouble is ${f.link!.man}.`,
+      `We have lost ${f.moment.streak!.games} straight, and ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. Part of that is ${f.link!.man}.`,
   },
   {
     when: (f) => f.moment.week === 'deadline' && f.top?.kind === 'deal' && !!f.top.man,
@@ -219,7 +218,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.week === 'deadline' && f.asks > 0,
     reads: 2,
-    text: () => `Deadline week. Some of this needs an answer from you.`,
+    text: () => `It's deadline week, and some of this needs an answer from you.`,
   },
   {
     when: (f) => f.moment.week === 'deadline',
@@ -227,59 +226,34 @@ export const OPENING: readonly Line<OpeningFact>[] = [
     text: () => `It's deadline week.`,
   },
   {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `The season's over. Before we turn the page, here is where my people are.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `That is the season. Here is what I am carrying out of it.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `Nobody is playing now. This is where my people are.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `We are done for the year. A few of my people are still on my mind.`,
-  },
-  {
     when: (f) => f.moment.seasonOver && f.asks > 0,
-    reads: 1,
-    text: () => `The games are behind us. Here is who still needs an answer.`,
+    reads: 3,
+    text: () => `The season is over, and some players still need an answer from you.`,
+  },
+  {
+    when: (f) => f.moment.seasonOver,
+    reads: 2,
+    text: () => `The season is over, and a few things are still open.`,
+  },
+  {
+    when: (f) => f.moment.seasonOver,
+    reads: 2,
+    text: () => `Our season is done. This is what is still open with the players.`,
   },
   {
     when: (f) => f.result && f.moment.streak?.kind === 'lost',
     reads: 3,
-    text: (f) => `We have lost ${f.moment.streak!.games} straight. I held the meeting, and here is how it went.`,
+    text: (f) => `We have lost ${f.moment.streak!.games} straight, and I held the meeting.`,
   },
   {
     when: (f) => f.result,
     reads: 2,
-    text: () => `The meeting is behind us. Here is how it went.`,
+    text: () => `I held the meeting, and this is how the players took it.`,
   },
   {
     when: (f) => f.result,
     reads: 2,
-    text: () => `I held the meeting. Here is how it went.`,
-  },
-  {
-    when: (f) => f.result,
-    reads: 2,
-    text: () => `The team has heard me out. This is how they took it.`,
-  },
-  {
-    when: (f) => f.result,
-    reads: 2,
-    text: () => `We said our piece. Now to see what it did.`,
-  },
-  {
-    when: (f) => f.result && f.moment.streak?.kind === 'lost',
-    reads: 3,
-    text: (f) => `${cap(f.moment.streak!.games)} defeats running, and I have spoken to them. Here is how it landed.`,
+    text: () => `The meeting is done. This is how it went.`,
   },
   {
     when: (f) => f.moment.streak?.kind === 'lost',
@@ -289,12 +263,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.streak?.kind === 'lost',
     reads: 2,
-    text: (f) => `That makes ${f.moment.streak!.games} losses in a row, and the building feels it.`,
-  },
-  {
-    when: (f) => f.moment.streak?.kind === 'lost',
-    reads: 2,
-    text: (f) => `${cap(f.moment.streak!.games)} defeats running. I won't pretend that isn't weighing on people.`,
+    text: (f) => `That is ${f.moment.streak!.games} losses in a row.`,
   },
   {
     when: (f) => f.moment.streak?.kind === 'won',
@@ -304,61 +273,23 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.streak?.kind === 'won',
     reads: 2,
-    text: (f) => `That is ${f.moment.streak!.games} wins in a row. Good, and still not a reason to relax.`,
-  },
-  {
-    when: (f) => f.moment.streak?.kind === 'won',
-    reads: 2,
-    text: (f) => `${cap(f.moment.streak!.games)} wins running. Wins help. They do not fix everything.`,
-  },
-  {
-    when: (f) => f.closing && f.items <= 2,
-    reads: 2,
-    text: () => `Something has closed.`,
-  },
-  {
-    when: (f) => f.moment.week === 'push',
-    reads: 2,
-    text: () => `The push is on. Here is where my rooms are.`,
+    text: (f) => `That is ${f.moment.streak!.games} wins in a row.`,
   },
   {
     when: (f) => f.moment.week === 'camp',
     reads: 2,
-    text: () => `Camp. Here is where things stand.`,
+    text: () => `Camp is under way.`,
   },
   {
     when: (f) => f.moment.week === 'bye',
     reads: 2,
-    text: () => `It's the bye. Here is where things stand.`,
+    text: () => `It's the bye week.`,
   },
   {
     when: (f) => f.moment.rival,
     reads: 1,
     text: () => `We play a division rival next.`,
   },
-  { when: (f) => f.items + f.asks === 1, reads: 1, text: () => `One thing from me this week.` },
-  { when: (f) => f.items + f.asks === 1, reads: 1, text: () => `Short one this week.` },
-  { text: () => `Here is where things stand with my people.` },
-  { text: () => `Here is a short list of what I am keeping in view.` },
-  { text: () => `Here is what I am watching right now.` },
-  { text: () => `This is what has crossed my desk.` },
-  { text: () => `A look at the people around me.` },
-  { text: () => `Here is what I have for you this time.` },
-  {
-    when: (f) => !f.moment.seasonOver && f.moment.week !== 'offseason' && f.moment.week !== 'camp',
-    text: () => `There are things you should know before the next game.`,
-  },
-  { text: () => `This is what the week has left me with.` },
-  { text: () => `Here is the state of the locker room as I see it.` },
-  { text: () => `Small things add up in a locker room, so here they are.` },
-  { text: () => `A note from my desk.` },
-  { when: (f) => f.items + f.asks >= 2, text: () => `A few things from me this week.` },
-  { when: (f) => f.asks > 0 && f.items > 0, text: () => `Some of this needs you, and some is for your information.` },
-  {
-    when: (f) => f.closing && f.items + f.asks >= 2,
-    text: () => `One thing is settled, and that frees me for the rest.`,
-  },
-  { when: (f) => f.closing, text: () => `We got something off the list.` },
 ];
 
 // ───────── the others of a room who said the same ─────────
@@ -908,22 +839,21 @@ export const COVERAGE: Line<CoverageFact>[] = [
     when: (f) => f.captain,
     reads: 2,
     text: (f) =>
-      `${f.last} has seen what is being written about the ${f.noun}. He has told the room to leave it outside the building, and ${f.last} is the one they listen to.`,
+      `${f.last} has seen what is being written about the ${f.noun}. He has told the others to ignore it, and they listen to him.`,
   },
   {
     when: (f) => f.calm,
     reads: 1,
-    text: (f) =>
-      `${f.last} has seen what is being written about the ${f.noun}. It has not changed how ${f.last} works.`,
+    text: (f) => `${f.last} has seen what is being written about the ${f.noun}. It has not changed how he works.`,
   },
   {
     when: (f) => f.loud,
     reads: 1,
     text: (f) =>
-      `${f.last} has seen what is being written about the ${f.noun}. ${f.last} has not kept quiet about it, and I would rather that than have him sulk.`,
+      `${f.last} has seen what is being written about the ${f.noun}. He has not kept quiet about it, and I would rather that than have him say nothing.`,
   },
   {
     text: (f) =>
-      `${f.last} has seen what is being written about the ${f.noun}. ${f.last} has not brought it to me, and I have not raised it.`,
+      `${f.last} has seen what is being written about the ${f.noun}. He has not brought it to me, and I have not raised it.`,
   },
 ];

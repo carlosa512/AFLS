@@ -395,8 +395,9 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                       : 'Nothing matches. Switch to All to see every message.'}
                 </p>
               )}
-              {groupByDate(shown).map((g) => (
-                <div key={g.label}>
+              {groupByDate(shown).map((g, n) => (
+                // A date can head two groups (what needs you sorts first), so the label alone is no key.
+                <div key={`${n}:${g.label}`}>
                   <div className="inbox-group eyebrow">{g.label}</div>
                   {g.threads.map((t) => {
                     const label = threadLabel(t);
