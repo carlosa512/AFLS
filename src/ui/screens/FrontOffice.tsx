@@ -5,7 +5,7 @@ import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
 import { FA_DAYS, letRestWalk, lettingWalk, setLettingWalk } from '../../engine/offseason';
-import { openContracts } from '../../engine/contractMail';
+import { openContracts, openOptions } from '../../engine/contractMail';
 import {
   applyFranchiseTag,
   exerciseFifthYearOption,
@@ -96,6 +96,8 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
       (p) => p.contract?.fifthYearOption === 'eligible' && lastSeason(p.contract) === league.season,
     ),
   );
+  // Undecided in the window: the advance button waits on these, and one button declines the rest.
+  const openOpts = openOptions(league);
   // Worth a call: starters and promising young players, not the bottom of the depth chart.
   const extensions = teamPlayers(league, teamId)
     .filter(
@@ -245,6 +247,20 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
           <p className="muted small" style={{ marginTop: 0 }}>
             First-rounders after three seasons.
           </p>
+          {openOpts.length > 1 && (
+            <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                className="btn btn-sm"
+                onClick={() =>
+                  store.mutate((l) => {
+                    for (const p of openOptions(l)) exerciseFifthYearOption(l, p, false);
+                  })
+                }
+              >
+                Decline all {openOpts.length}
+              </button>
+            </div>
+          )}
           <div className="table-scroll">
             <table>
               <thead>

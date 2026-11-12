@@ -1,10 +1,11 @@
 /**
  * Free agency does not open by accident: in the re-sign window the advance button waits on the owner's question about
- * an interim head coach and on every expiring contract, and one button on the Re-sign tab answers for the rest.
+ * an interim head coach, on every expiring contract and on every fifth-year option, and one button on the Re-sign
+ * tab answers for the rest.
  */
 import { describe, expect, it } from 'vitest';
 import { installInterimHeadCoach } from '../engine/coaching';
-import { openContracts } from '../engine/contractMail';
+import { openContracts, openOptions } from '../engine/contractMail';
 import { createLeague } from '../engine/generate';
 import { deliverMail } from '../engine/inbox';
 import {
@@ -15,6 +16,8 @@ import {
   acceptGmOffer,
 } from '../engine/leadership';
 import { beginOffseason, letRestWalk, setLettingWalk } from '../engine/offseason';
+import { exerciseFifthYearOption } from '../engine/offseason/ai';
+import { teamPlayers } from '../engine/roster';
 import type { League } from '../engine/types';
 import { offseasonStep } from './App';
 
@@ -28,7 +31,47 @@ function resignWindow(l: League): League {
   return l;
 }
 
+/** Every fifth-year option answered, so a test about the contracts or the coach reaches the open door. */
+const declineOptions = (l: League) => {
+  for (const p of openOptions(l)) exerciseFifthYearOption(l, p, false);
+};
+
 describe('opening free agency', () => {
+  it('waits on an undecided fifth-year option, after the contracts', () => {
+    const l = resignWindow(createLeague({ seed: 'fa-door-option' }));
+    declineOptions(l);
+    // Two first-rounders going into the last year of their rookie deals, neither option decided.
+    const [a, b] = teamPlayers(l, l.userTeamId).filter(
+      (p) => p.contract && p.contract.kind !== 'tag' && p.contract.years.at(-1)!.season === l.season,
+    );
+    for (const p of [a, b]) p.contract!.fifthYearOption = 'eligible';
+    expect(
+      openOptions(l)
+        .map((p) => p.id)
+        .sort(),
+    ).toEqual([a.id, b.id].sort());
+    // The contracts come first.
+    expect(offseasonStep(l)!.label).toMatch(/^Decide \d+ contracts?$/);
+    letRestWalk(
+      l,
+      openContracts(l).map((p) => p.id),
+    );
+    const step = offseasonStep(l)!;
+    expect(step.label).toBe('Decide 2 fifth-year options');
+    expect(step.then).toEqual({ view: 'office', tab: 'resign' });
+    step.run(l);
+    expect(l.phase).toBe('resign');
+    exerciseFifthYearOption(l, a, true);
+    expect(a.contract!.fifthYearOption).toBe('exercised');
+    expect(offseasonStep(l)!.label).toBe('Decide 1 fifth-year option');
+    exerciseFifthYearOption(l, b, false);
+    expect(b.contract!.fifthYearOption).toBe('declined');
+    const go = offseasonStep(l)!;
+    expect(go.label).toBe('Open free agency');
+    go.run(l);
+    expect(l.phase).toBe('freeAgency');
+  });
+
   it('waits until every expiring contract has an answer', () => {
     const l = resignWindow(createLeague({ seed: 'fa-door' }));
     const open = openContracts(l);
@@ -48,6 +91,7 @@ describe('opening free agency', () => {
       openContracts(l).map((p) => p.id),
     );
     expect(openContracts(l)).toEqual([]);
+    declineOptions(l);
     const go = offseasonStep(l)!;
     expect(go.label).toBe('Open free agency');
     go.run(l);
@@ -82,6 +126,7 @@ describe('opening free agency', () => {
       l,
       openContracts(l).map((p) => p.id),
     );
+    declineOptions(l);
     const go = offseasonStep(l)!;
     expect(go.label).toBe('Open free agency');
     go.run(l);
