@@ -286,7 +286,7 @@ export const MENTOR_LOST: readonly Line<LostFact>[] = [
   {
     when: (f) => !f.now && f.byYou,
     reads: 1,
-    text: (f) => `${f.name} needs a new mentor, and you can pick one on the Locker Room screen.`,
+    text: (f) => `${f.name} needs a new mentor, and I would like you to pick one.`,
   },
   { when: (f) => !f.now, text: (f) => `${f.name} lost ${f.mentor}, and we will find him someone in the room.` },
 ];
@@ -563,15 +563,15 @@ export const MORALE_LEAD: readonly Line<MoraleLeadFact>[] = [
   {
     when: (f) => f.more === 1,
     reads: 1,
-    text: () => 'I worry about these players. One more is down too, and he is on the Locker Room screen.',
+    text: () => 'These are the players I worry about. One more is down a little, and I am watching him.',
   },
   {
     text: (f) =>
-      `I worry about these players. ${count(f.more)} more are down too, and they are all on the Locker Room screen.`,
+      `These are the players I worry about. ${count(f.more)} more are down a little, and I am watching them.`,
   },
   {
     text: (f) =>
-      `These are the worst of it, and ${count(f.more).toLowerCase()} others are down a bit, as the Locker Room screen shows.`,
+      `These are the ones who worry me most, and ${count(f.more).toLowerCase()} others are down a bit without worrying me yet.`,
   },
 ];
 
@@ -705,22 +705,25 @@ export const ROOM_SUMMARY: readonly Line<RoomSummaryFact>[] = [
     when: (f) => f.down > 0 && f.back > 0,
     reads: 2,
     text: (f) =>
-      `${f.down === 1 ? 'One player is' : `${count(f.down)} players are`} down, and ${
-        f.back === 1 ? 'one has come back to himself' : `${count(f.back).toLowerCase()} have come back to themselves`
-      } since my last report.`,
+      `I count ${f.down === 1 ? 'one player who is' : `${count(f.down).toLowerCase()} players who are`} down, and ${
+        f.back === 1
+          ? 'one who has come back to himself'
+          : `${count(f.back).toLowerCase()} who have come back to themselves`
+      } since I last wrote.`,
   },
   {
     when: (f) => f.down > 0,
     reads: 1,
-    text: (f) => `${f.down === 1 ? 'One player is' : `${count(f.down)} players are`} down right now.`,
+    text: (f) =>
+      `I count ${f.down === 1 ? 'one player who is' : `${count(f.down).toLowerCase()} players who are`} down right now.`,
   },
   {
     when: (f) => f.back > 0,
     reads: 1,
     text: (f) =>
       f.back === 1
-        ? 'One player who was down is back to himself.'
-        : `${count(f.back)} players who were down are back to themselves.`,
+        ? 'One player who was down when I last wrote is back to himself.'
+        : `${count(f.back)} players who were down when I last wrote are back to themselves.`,
   },
 ];
 

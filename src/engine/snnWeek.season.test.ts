@@ -145,6 +145,9 @@ describe('a season of editions', () => {
     const champion = l.history.at(-1)!.championId;
     for (const r of final.lists![1].rows) expect([r.teamId, r.otherId]).toContain(champion);
     expect(final.lists![1].rows.at(-1)!.cells[0]).toBe('The final');
+    // Every game of the road opens its box score, and every award names its player.
+    for (const r of final.lists![1].rows) expect(l.games.find((g) => g.id === r.gameId)?.result).toBeDefined();
+    for (const r of final.lists![0].rows) expect(l.players[r.playerId!]).toBeDefined();
   });
 
   it('is filed under the week it is read in, to the end of the season', () => {

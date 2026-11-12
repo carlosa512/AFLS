@@ -260,6 +260,7 @@ function titleLists(l: League, g: Game): EditionList[] {
   const road = roadOf(l, winnerOf(g)).map((x) => ({
     teamId: x.homeId,
     otherId: x.awayId,
+    gameId: x.id,
     cells: [
       ROUND[x.playoffRound!] ?? '',
       `${l.teams[x.awayId].name} at ${l.teams[x.homeId].name}`,

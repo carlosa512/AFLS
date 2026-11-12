@@ -250,6 +250,31 @@ describe('a big-day edition in the inbox', () => {
     expect(table).not.toContain('>text<');
   });
 
+  it('shows a player’s face on his row, and a played game’s box score link', () => {
+    const p = activeRoster(d, d.teams[0].id)[0];
+    const [g] = d.games.filter((x) => x.season === d.season && x.week === 1);
+    const lists = [
+      {
+        title: "The season's awards",
+        head: ['Award', 'Player', 'Team'],
+        rows: [{ playerId: p.id, teamId: p.teamId!, cells: ['Most Valuable Player', 'x', 'y'] }],
+      },
+      {
+        title: "The champions' road",
+        head: ['Round', 'Game', 'Score'],
+        rows: [{ teamId: g.homeId, otherId: g.awayId, gameId: g.id, cells: ['The final', 'x', '27–24'] }],
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <EditionCards league={d} message={{ ...mail({ ...day, lists }), id: `snn:${d.season}:pFINAL` }} />,
+    );
+    const [awards, road] = html.split('The champions').map((x) => x);
+    // The avatar is drawn inside the player's link.
+    expect(awards).toMatch(/player-link/);
+    expect(road).toContain('27–24');
+    expect(road).toMatch(/<button[^>]*>Box score<\/button>/);
+  });
+
   it('opens a story in place like a weekly one', () => {
     const html = renderToStaticMarkup(
       <EditionCards league={d} message={{ ...mail(day), id: `snn:${d.season}:d:draft` }} open={day.lead.key} />,

@@ -6,6 +6,7 @@
 import { employed } from './employment';
 import { isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
+import { availableProspects, availableRanks } from './offseason/draft';
 import { demand, freeAgents } from './offseason/negotiation';
 import { STARTERS } from './positions';
 import { teamPlayers } from './roster';
@@ -272,6 +273,56 @@ export function expiringTargets(league: League, max: number): AdviceRow[] {
   );
 }
 
+/** How far ahead of his consensus rank a prospect can go and still be called there for us, and how far past it is value. */
+const REACH = 2;
+const SLIDE = 12;
+
+/**
+ * The draft's answer at our needs, if we sign nobody: for each need, the best prospect by the consensus who should
+ * still be there at one of our first two picks. The consensus rank is public, so nothing here leans on a thin read.
+ */
+export function draftTargets(league: League, max: number): AdviceRow[] {
+  if (!employed(league) || !league.draftClass?.length) return [];
+  const picks = league.draftPicks
+    .filter(
+      (p) =>
+        p.season === league.season &&
+        p.ownerId === league.userTeamId &&
+        p.playerId === undefined &&
+        p.overall !== undefined,
+    )
+    .sort((a, b) => a.overall! - b.overall!)
+    .slice(0, 2);
+  if (!picks.length) return [];
+  const ranks = availableRanks(league);
+  const pool = availableProspects(league);
+  const out: AdviceRow[] = [];
+  for (const need of adviceNeeds(league)) {
+    if (out.length >= max) break;
+    if (out.some((r) => r.position === need.position)) continue;
+    for (const pick of picks) {
+      const fit = pool
+        .filter((p) => p.position === need.position && !out.some((r) => r.playerId === p.id))
+        .map((p) => ({ p, rank: ranks.get(p.id) ?? Infinity }))
+        .filter((x) => x.rank >= pick.overall! - REACH && x.rank <= pick.overall! + SLIDE)
+        .sort((a, b) => a.rank - b.rank)[0];
+      if (!fit) continue;
+      out.push(
+        row(
+          fit.p,
+          'draft',
+          need.reason === 'hole'
+            ? `We are short at ${need.position}, and he should be there when we pick at No. ${pick.overall}.`
+            : `${need.position} is a need, and he should be there when we pick at No. ${pick.overall}.`,
+          `consensus No. ${fit.rank}`,
+        ),
+      );
+      break;
+    }
+  }
+  return out;
+}
+
 /** The best free agents at our needs whose asking price fits our room. */
 export function faTargets(league: League, max: number, room?: number): AdviceRow[] {
   if (!employed(league)) return [];
@@ -340,24 +391,28 @@ export function adviceFor(league: League, room?: number): Advice | null {
   const moment = adviceMoment(league);
   if (!moment || !employed(league)) return null;
   if (moment === 'resign' || moment === 'fa') {
-    const rows =
+    const named =
       moment === 'resign'
         ? [...expiringTargets(league, 2), ...buyTargets(league, { rentals: false, max: 1, room })]
         : faTargets(league, 4, room);
-    if (!rows.length) return null;
-    const n = rows.length;
+    if (!named.length) return null;
+    // The draft's answer at the same needs, for a front office that would sooner not spend.
+    const draft = draftTargets(league, 3);
+    const rows = [...named, ...draft];
+    const also = draft.length ? ' If we would sooner not spend, the draft has answers at our needs too.' : '';
+    const n = named.length;
     return moment === 'resign'
       ? {
           moment,
           rows,
           subject: "Before free agency: who's available",
-          body: 'Free agency opens after the re-sign window. These are the names I would watch.',
+          body: `Free agency opens after the re-sign window. These are the names I would watch.${also}`,
         }
       : {
           moment,
           rows,
           subject: `Free agency: ${n === 1 ? 'one fit' : `${COUNT[n].toLowerCase()} fits`}`,
-          body: 'Free agency is open. These fit our needs and our cap.',
+          body: `Free agency is open. These fit our needs and our cap.${also}`,
         };
   }
   const race = raceFor(league);

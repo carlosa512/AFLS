@@ -125,7 +125,9 @@ describe('the locker room report: morale', () => {
     const named = s.rows.flatMap((r) => r.cast ?? (r.playerId === undefined ? [] : [r.playerId]));
     expect(named).toHaveLength(6);
     expect(new Set(named).size).toBe(6);
-    expect(s.lead).toMatch(/Locker Room/);
+    // The rest are counted in his own words: a letter never sends you to a screen of the game.
+    expect(s.lead).toMatch(/down a (little|bit)/);
+    expect(s.lead).not.toMatch(/screen/i);
     expect(s.lead).not.toMatch(/\d/);
     // Players down for the same reason are one line that names each of them in full, not a row each.
     const group = s.rows.find((r) => (r.cast?.length ?? 0) > 1)!;
@@ -133,7 +135,7 @@ describe('the locker room report: morale', () => {
     for (const id of group.cast!) expect(group.note).toContain(`${l.players[id].firstName} ${l.players[id].lastName}`);
     expect(s.rows.length).toBeLessThan(6);
     // The coach counts the room after his verdict, and the report is laid out as a list, not tables.
-    expect(m.body).toMatch(/players are down/);
+    expect(m.body).toMatch(/I count \w+ players who are down/);
     expect(m.sections!.every((x) => x.layout === 'report')).toBe(true);
   });
 

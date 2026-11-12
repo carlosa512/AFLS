@@ -5379,6 +5379,11 @@ button.tip-pill {
 .report-head > .report-note {
   margin: 0;
 }
+/* Several players in one sentence: the read stays beside it, never under it. */
+.report-group {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
 .report-side .tag-pill {
   white-space: nowrap;
 }

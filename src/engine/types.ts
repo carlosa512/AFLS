@@ -1571,7 +1571,8 @@ export interface GazetteTable {
 
 /** One of the director's recommendations, as it read when filed. */
 export interface AdviceRow {
-  kind: 'buy' | 'sell' | 'sign';
+  /** 'draft': a prospect at one of our needs who should be there when we pick. */
+  kind: 'buy' | 'sell' | 'sign' | 'draft';
   playerId: number;
   /** His club when filed; null for a free agent. */
   teamId: number | null;
@@ -1872,7 +1873,7 @@ export interface EditionList {
   title: string;
   head: string[];
   /** The page links the cell under "Player" to the row's player and the cell under "Club" or "To" to its club. */
-  rows: { playerId?: number; teamId?: number; otherId?: number; cells: string[] }[];
+  rows: { playerId?: number; teamId?: number; otherId?: number; gameId?: number; cells: string[] }[];
 }
 
 /** A final as SNN's weekly edition keeps it. */

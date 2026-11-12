@@ -331,6 +331,9 @@ every line for reading, breaks first.
    "At home against" and "on the road against", never "at home to" or "away to". American spelling (color, honors,
    defense). This one holds for every word a reader sees: letters, SNN, the version history and every screen
    (`WORD_FILES` and the screens' own text, in the same test).
+10. **A letter never names a screen of the game.** The writer tells you what he knows, as his own read ("These are
+    the players I worry about", "I count nine players who are down"). The letter's buttons take you where the rest
+    is. `letterRules.ts` flags a screen by name.
 
 SNN's stories follow these and their own rules on top (above).
 

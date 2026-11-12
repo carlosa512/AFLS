@@ -6,6 +6,7 @@ import {
   adviceLean,
   adviceNeeds,
   buyTargets,
+  draftTargets,
   expiringTargets,
   faTargets,
   pickRoundFor,
@@ -18,6 +19,8 @@ import { teamPlayers } from './roster';
 import { computeRecords } from './season/standings';
 import { emptyMarket } from './trade/execute';
 import { tradeContext } from './trade/context';
+import { beginOffseason } from './offseason';
+import { availableRanks } from './offseason/draft';
 import { demand } from './offseason/negotiation';
 import { marketValue, slotRate } from './trade/value';
 import type { League, Player } from './types';
@@ -227,6 +230,37 @@ describe('the director’s picks', () => {
       expect(r.price).toMatch(/^about \$[\d.]+M a year$/);
     }
   });
+  it('names a prospect at each need who should be there when we pick, by the public consensus', () => {
+    const l = world();
+    l.phase = 'complete';
+    beginOffseason(l);
+    const rows = draftTargets(l, 3);
+    expect(rows.length).toBeGreaterThan(0);
+    const needs = adviceNeeds(l).map((n) => n.position);
+    const ours = l.draftPicks
+      .filter((p) => p.season === l.season && p.ownerId === l.userTeamId && p.overall !== undefined)
+      .map((p) => p.overall!);
+    const ranks = availableRanks(l);
+    // One a position, each a need, each a prospect of this class, and none our scouts' private read.
+    expect(new Set(rows.map((r) => r.position)).size).toBe(rows.length);
+    for (const r of rows) {
+      expect(r.kind).toBe('draft');
+      expect(needs).toContain(r.position);
+      expect(l.draftClass).toContain(r.playerId);
+      expect(r.price).toBe(`consensus No. ${ranks.get(r.playerId)}`);
+      const at = Number(/No\. (\d+)\.$/.exec(r.why)![1]);
+      expect(ours).toContain(at);
+      // He should be there: the consensus has him no more than a couple of picks ahead of ours.
+      expect(ranks.get(r.playerId)!).toBeGreaterThanOrEqual(at - 2);
+    }
+    // The letter before free agency carries them after its names, and says so.
+    const advice = adviceFor(l);
+    if (advice) {
+      expect(advice.rows.filter((r) => r.kind === 'draft')).toEqual(rows);
+      expect(advice.body).toContain('the draft has answers at our needs too');
+    }
+  });
+
   it('signs only free agents our cap can carry', () => {
     const l = world();
     l.phase = 'freeAgency';

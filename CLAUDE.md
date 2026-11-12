@@ -274,7 +274,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     letters: the head coach's locker room report at four check-ins (`lockerReport.ts`, its words in `lockerVoice.ts`;
     a summary, not a roll call: players with the same mood for the same reason share one line, `MORALE_GROUP`, a count
     follows the verdict, `ROOM_SUMMARY`, and it is laid out as a short list with the read as a pill,
-    `MailSection.layout: 'report'`, `ReportSection` in `ui/mail.tsx`, the layout the director's advice uses too),
+    `MailSection.layout: 'report'`, `ReportSection` in `ui/mail.tsx`, the layout the director's advice uses too; the
+    director's letters before and at free agency also name a prospect at each need who should be there when we pick,
+    by the public consensus, `draftTargets` in `directorAdvice.ts`),
     the director's daily waiver letter (`waiverMail.ts`), the head coach's weekly letter (`coachWeek.ts`: one letter a
     step or none, `coach:{season}:{clock}`, which replaces the separate player-talk, meeting-request, meeting-result
     and staff-notes letters; its rows are people, each with a face and its own answer; `staffNotes.ts` now gives it
@@ -288,7 +290,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     team is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
     colon or dash inside a sentence; a person speaking may answer in two words; and American football English in every
     word a reader sees, screens included: a team and never a club, a game and never a fixture, a loss and never a
-    defeat, "at home against", American spelling): `letterRules.ts` checks what a rule
+    defeat, "at home against", American spelling; and a letter never names a screen of the game, the writer gives
+    his own read): `letterRules.ts` checks what a rule
     can check (`letterBreaks`, `wordBreaks`) and `letterRules.test.ts` holds every line of `LETTER_FILES` to it, so a
     new file that words a letter goes in that list. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters

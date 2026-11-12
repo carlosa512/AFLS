@@ -465,10 +465,22 @@ export function RaceTable({ league, race }: { league: League; race: NonNullable<
  * cuts. The cell under "Player" links the row's player and the cell under "Club" or "To" its club; the rest is text.
  */
 export function DayList({ league, list }: { league: League; list: EditionList }) {
+  const nav = useNav();
   const cell = (row: EditionList['rows'][number], text: string, i: number) => {
     const head = list.head[i];
     const p = row.playerId === undefined ? undefined : league.players[row.playerId];
-    if (head === 'Player' && p) return <PlayerLink league={league} player={p} pos />;
+    // His face with his number on it: a list of names reads faster with one.
+    if (head === 'Player' && p) return <PlayerLink league={league} player={p} pos avatar={32} />;
+    // A game that was played opens its box score.
+    if (head === 'Score' && row.gameId !== undefined)
+      return (
+        <span className="ed-game">
+          {text}
+          <button type="button" className="linklike small" onClick={() => nav.openGame(row.gameId!)}>
+            Box score
+          </button>
+        </span>
+      );
     if ((head === 'Team' || head === 'To') && row.teamId !== undefined)
       return <TeamLink team={club(league, row.teamId)} chip />;
     // A game is its two teams, the visitors first.

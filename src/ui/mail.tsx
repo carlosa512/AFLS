@@ -435,7 +435,12 @@ function GazetteCards({ league, tables }: { league: League; tables: GazetteTable
   );
 }
 
-const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'Trade for', sell: 'Trade away', sign: 'Sign' };
+const ADVICE_TITLES: Record<AdviceRow['kind'], string> = {
+  buy: 'Trade for',
+  sell: 'Trade away',
+  sign: 'Sign',
+  draft: 'Or draft',
+};
 
 /**
  * The director's picks, a short list a kind: who (his face, his team), the ballpark as a pill, the button that starts
@@ -443,7 +448,7 @@ const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'Trade for', sel
  */
 function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
   const nav = useNav();
-  const kinds = (['buy', 'sell', 'sign'] as const).filter((k) => rows.some((r) => r.kind === k));
+  const kinds = (['buy', 'sell', 'sign', 'draft'] as const).filter((k) => rows.some((r) => r.kind === k));
   return (
     <>
       {kinds.map((kind) => (
@@ -460,11 +465,17 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
                   <li key={r.playerId} className="report-row">
                     <div className="report-head">
                       <span className="report-who">
-                        {p && <Face league={league} player={p} size={28} />}
+                        {p && <Face league={league} player={p} />}
                         <span>
                           {p ? <PlayerLink league={league} player={p} pos /> : `${r.position} ${r.name}`}
                           <span className="small muted" style={{ display: 'block' }}>
-                            {r.teamId === null ? 'Free agent' : <TeamLink team={league.teams[r.teamId]} />}
+                            {r.kind === 'draft' ? (
+                              'Draft prospect'
+                            ) : r.teamId === null ? (
+                              'Free agent'
+                            ) : (
+                              <TeamLink team={league.teams[r.teamId]} />
+                            )}
                           </span>
                         </span>
                       </span>
@@ -487,6 +498,11 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
                             onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
                           >
                             Free agency
+                          </button>
+                        )}
+                        {r.kind === 'draft' && (
+                          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
+                            Draft board
                           </button>
                         )}
                       </span>
@@ -3533,6 +3549,15 @@ function PeopleSection({
  * labelled ("What I told them", "Where that leaves us"), since a row's kind is for the editor, not the reader. Players
  * still waiting on an answer are a short list under one sentence. No boxes: what needs you is marked by its answer line.
  */
+/** A block's heading as the head coach would say it: the report is his read of his own team, not a form. */
+const REPORT_TITLE: Record<string, string> = {
+  'The room': 'How I read the rooms',
+  Morale: 'Who I am watching',
+  'Grew up': 'Who grew up',
+  Friction: 'Who is not getting along',
+  'Getting along': 'Who is getting along',
+};
+
 /** A read in the locker room report, as a pill: trouble reads as trouble at a glance. */
 const REPORT_TONE: Record<string, string> = {
   Abysmal: 'tag-bad',
@@ -3558,7 +3583,7 @@ const REPORT_TONE: Record<string, string> = {
 function ReportSection({ league, section }: { league: League; section: MailSection }) {
   return (
     <section className="report-block">
-      <h4 className="report-title">{section.title}</h4>
+      <h4 className="report-title">{REPORT_TITLE[section.title] ?? section.title}</h4>
       {section.lead && <p className="report-note">{section.lead}</p>}
       <ul className="report-rows">
         {section.rows.map((r, j) => {
@@ -3571,7 +3596,7 @@ function ReportSection({ league, section }: { league: League; section: MailSecti
           return (
             <li key={j} className="report-row">
               {group ? (
-                <div className="report-head">
+                <div className="report-head report-group">
                   <p className="report-note">
                     <LinkedText league={league} text={r.note ?? ''} about={about} />
                   </p>
@@ -3581,7 +3606,7 @@ function ReportSection({ league, section }: { league: League; section: MailSecti
                 <>
                   <div className="report-head">
                     <span className="report-who">
-                      {p && <Face league={league} player={p} size={28} />}
+                      {p && <Face league={league} player={p} />}
                       <span>
                         {p ? <PlayerLink league={league} player={p} pos /> : <strong>{r.cells[0]}</strong>}
                         {facts && <span className="small muted"> {facts}</span>}
