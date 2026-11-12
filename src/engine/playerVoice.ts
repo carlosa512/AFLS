@@ -929,7 +929,8 @@ export function askWords(f: AskFact, at: { key: string; recent: string[] }): str
   };
   if (f.man.asks !== 'first' || f.man.kept || f.man.broken) slot(ASK_HISTORY, 'history');
   slot(ASK_CORE, 'core', false);
-  slot(ASK_COLOR, 'color');
+  // Where he stands is the whole of a form ask: what he wants from his deal or his career is not part of it.
+  if (f.cause !== 'form') slot(ASK_COLOR, 'color');
   slot(ASK_CLOSE, 'close');
   at.recent.push(...out);
   return out.join(' ');
