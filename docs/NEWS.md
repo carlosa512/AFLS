@@ -201,6 +201,19 @@ the Column read:
 
 Not yet: one thread a story with the head coach, the owner, players and agents.
 
+### The playoffs and the final
+
+In the playoffs a game story's headline says what the game decided: who goes on and to which round, who is out, and a
+low seed that beat one of the top two. A player's day still leads its own story short of the final. The final's edition
+(`snnTitle.ts`) tells the lead as a championship: the game as it was written, the game's most valuable player (SNN's
+reading of the box score, with his playoff totals when the game story already gave his line), the champions' regular
+season and who they beat to get there, and how many titles that makes when the record holds an earlier one. A tile
+tells the league's most valuable player and the other awards, and two lists stand where the race sits in season: the
+season's awards and the champions' road.
+
+**Only fresh news.** A storyline about your team (a benching, a return, a trade request that leaked) is told the week
+it happens or the week after (`STORY_FRESH`). One that no edition had room for is not told late.
+
 ## SNN on the big days
 
 Spec: `docs/superpowers/specs/2026-11-12-snn-big-days-design.md`. Five special editions a league year, on the weekly

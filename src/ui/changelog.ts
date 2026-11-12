@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.40',
+    date: '2026-11-12',
+    title: 'A proper final, and fewer mistakes',
+    text: 'SNN tells the final as a championship, with its MVP and the season’s awards. The owner asks before making your interim coach permanent, and free agency waits until every contract has an answer.',
+  },
+  {
     version: '0.4.39',
     date: '2026-11-12',
     title: 'SNN covers the offseason’s big days',
