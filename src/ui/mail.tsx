@@ -732,6 +732,16 @@ function TalkCards({
               That's on the coach and you
             </button>
           </>
+        ) : card.cause === 'form' ? (
+          // Where he stands in a slump: back him, or tell him to play his way out. Not answering says nothing.
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              {league.players[s.playerId]?.position === 'QB' ? "He's my quarterback" : "He's my man"}
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              Play your way out of it
+            </button>
+          </>
         ) : (
           <>
             <button className="btn btn-sm" onClick={() => answer('reassure')}>

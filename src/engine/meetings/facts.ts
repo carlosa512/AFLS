@@ -123,6 +123,8 @@ const ANSWERS: Record<TalkCause, Exclude<Backing, 'words'>> = {
   feud: 'feud',
   losing: 'move',
   benched: 'snaps',
+  // No meeting is called about a man's form: the nearest backing is a move.
+  form: 'move',
 };
 
 export function suggestFact(league: League, teamId: number, s: MeetingSuggestion, ctx?: MoraleContext): SuggestFact {

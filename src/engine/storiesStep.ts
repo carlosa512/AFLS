@@ -104,7 +104,7 @@ function departures(league: League, user: number, clock: number): void {
 function quiet(league: League, user: number, clock: number): void {
   const named = new Set((league.teams[user].meetings?.open ?? []).flatMap((c) => c.named));
   for (const s of [...(league.stories?.open ?? [])]) {
-    if (s.teamId !== user || s.playerId === undefined || !['deal', 'snaps', 'feud'].includes(s.kind)) continue;
+    if (s.teamId !== user || s.playerId === undefined || !['deal', 'snaps', 'feud', 'form'].includes(s.kind)) continue;
     const p = league.players[s.playerId];
     const last = s.beats[s.beats.length - 1];
     if (!onClub(p, user) || !last || clock - last.at < QUIET || s.due !== undefined) continue;

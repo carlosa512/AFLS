@@ -174,6 +174,25 @@ describe('news built by hand, for the kinds a season may not make', () => {
     });
   });
 
+  it('does not print a fixture line another story of the page has already printed', () => {
+    const cand: Candidate = {
+      ...base,
+      key: 'leaderOut:y',
+      kind: 'leaderOut',
+      angle: 'coordinatorOut',
+      clubId: club().id,
+      leader: { teamId: club().id, role: 'coordinator', out: 'Sam Rivers', side: 'offensive' },
+    };
+    const first = writeStory(l, cand, at());
+    const fixture = first.paragraphs.at(-1)!.split('. ').at(-1)!;
+    expect(fixture).toMatch(/next\.$|then /);
+    // The same page, a second story that would close on the same fixture.
+    const again = writeStory(l, { ...cand, key: 'leaderOut:z' }, { editionId: 'snn:test', said: [fixture] });
+    expect(again.paragraphs.join(' ')).not.toContain(fixture);
+    expect(again.paragraphs).toHaveLength(2);
+    expect(ruleBreaks(l, again)).toEqual([]);
+  });
+
   it('quotes a player who speaks out, and still ends on a fact', () => {
     const p = man();
     const s = story({

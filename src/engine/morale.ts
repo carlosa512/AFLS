@@ -308,6 +308,8 @@ export const CAUSE_FACTOR: Record<TalkCause, 'role' | 'contract' | 'team' | 'roo
   feud: 'room',
   // Sat healthy, he wants his place back: the role he was playing.
   benched: 'role',
+  // In a slump, he asks where he stands: his place again.
+  form: 'role',
 };
 
 /**

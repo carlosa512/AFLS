@@ -7,6 +7,7 @@ import {
   answerTalk,
   BOILING,
   canPromise,
+  FORM_TALK,
   losingReachesYou,
   roomAsks,
   talksAt,
@@ -429,5 +430,144 @@ describe('talks: the losing inside the gap', () => {
     steps(l, 3);
     expect(p.morale!.talk?.ask).toBeUndefined();
     expect(p.morale!.talk?.answered).toMatchObject({ reply: aiReply(l, other, 'losing'), cause: 'losing' });
+  });
+});
+
+describe('talks: a slumping leader asks where he stands', () => {
+  /** A starting quarterback who is down for no reason a club could answer, on a club whose passing game is in a slump. */
+  function slumping(l: League, teamId: number, level = -4): Player {
+    const p = activeRoster(l, teamId).find((x) => x.position === 'QB')!;
+    p.ties = [];
+    delete p.shifts;
+    p.traits = { ...p.traits, temperament: 11, poise: 11 };
+    p.personality = { ...p.personality, patience: 0.5, loyalty: 0.5 };
+    p.morale = { level, jolts: [{ kind: 'friendGone', size: -8, at: l.moraleAt! }] };
+    const team = l.teams[teamId];
+    team.jobs = {
+      ...(team.jobs ?? {}),
+      held: { ...(team.jobs?.held ?? {}), [p.id]: { pos: 'QB', since: l.moraleAt! } },
+    };
+    return p;
+  }
+  const inSlumpOnly = (ids: number[]) => {
+    const was = FORM_TALK.slump;
+    FORM_TALK.slump = (_l, id) => ids.includes(id);
+    return () => {
+      FORM_TALK.slump = was;
+    };
+  };
+
+  it('files a form ask for a starting quarterback who is down and in a slump, and for nobody short of that', () => {
+    const l = fresh();
+    const p = slumping(l, l.userTeamId);
+    const undo = inSlumpOnly([p.id]);
+    try {
+      steps(l, 2);
+      expect(p.morale!.talk?.ask).toBeUndefined();
+      steps(l, 1);
+      expect(p.morale!.talk?.ask).toEqual({ cause: 'form', at: l.moraleAt });
+      // Not down: nothing to ask.
+      const m = fresh();
+      const happy = slumping(m, m.userTeamId, 4);
+      FORM_TALK.slump = (_l, id) => id === happy.id;
+      steps(m, 4);
+      expect(happy.morale!.talk?.ask).toBeUndefined();
+      // No starting job: a backup's unit is not his to answer for.
+      const n = fresh();
+      const backup = slumping(n, n.userTeamId);
+      delete n.teams[n.userTeamId].jobs!.held[backup.id];
+      FORM_TALK.slump = (_l, id) => id === backup.id;
+      steps(n, 4);
+      expect(backup.morale!.talk?.ask).toBeUndefined();
+      // No slump: nothing public to ask about.
+      const o = fresh();
+      const fine = slumping(o, o.userTeamId);
+      FORM_TALK.slump = () => false;
+      steps(o, 4);
+      expect(fine.morale!.talk?.ask).toBeUndefined();
+    } finally {
+      undo();
+    }
+  });
+
+  it('has two answers and no promise, and neither sours him', () => {
+    const l = fresh();
+    const p = slumping(l, l.userTeamId);
+    const undo = inSlumpOnly([p.id]);
+    try {
+      steps(l, 3);
+      expect(canPromise('form')).toBe(false);
+      expect(answerTalk(l, p.id, 'promise')).toBe(false);
+      const before = p.morale!.jolts!.length;
+      expect(answerTalk(l, p.id, 'reassure')).toBe(true);
+      expect(p.morale!.jolts!.length).toBe(before + 1);
+      expect(p.morale!.jolts!.at(-1)).toMatchObject({ kind: 'reassured' });
+      expect(p.morale!.jolts!.at(-1)!.size).toBeGreaterThan(0);
+      expect(p.morale!.talk!.sour).toBeUndefined();
+      expect(p.morale!.talk!.form).toBe(l.season);
+      expect(p.morale!.talk!.ask).toBeUndefined();
+    } finally {
+      undo();
+    }
+  });
+
+  it('takes "play your way out of it" by his poise: a steady man lifts, a fragile one drops', () => {
+    const run = (poise: number) => {
+      const l = fresh();
+      const p = slumping(l, l.userTeamId);
+      p.traits = { ...p.traits, poise };
+      const undo = inSlumpOnly([p.id]);
+      try {
+        steps(l, 3);
+        answerTalk(l, p.id, 'firm');
+      } finally {
+        undo();
+      }
+      expect(p.morale!.talk!.sour).toBeUndefined();
+      return p.morale!.jolts!.filter((j) => j.kind === 'firm').reduce((a, j) => a + j.size, 0);
+    };
+    expect(run(18)).toBeGreaterThan(0);
+    expect(run(4)).toBeLessThan(0);
+    expect(run(18)).toBeLessThanOrEqual(0.5);
+    expect(run(4)).toBeGreaterThanOrEqual(-1);
+  });
+
+  it('asks once a season, and an unanswered ask lapses without souring', () => {
+    const l = fresh();
+    const p = slumping(l, l.userTeamId);
+    const undo = inSlumpOnly([p.id]);
+    try {
+      steps(l, 3);
+      const asked = l.moraleAt!;
+      steps(l, waitFor(l, p));
+      expect(p.morale!.talk!.ask).toBeUndefined();
+      expect(p.morale!.talk!.answered).toMatchObject({ reply: 'ignored', ask: asked, cause: 'form' });
+      expect(p.morale!.talk!.sour).toBeUndefined();
+      // Still down and still in the slump weeks later: he does not ask again this season.
+      p.morale!.level = -4;
+      steps(l, 14);
+      expect(p.morale!.talk?.ask).toBeUndefined();
+    } finally {
+      undo();
+    }
+  });
+
+  it('is answered at once at an AI club, and goes with the man when he is traded', () => {
+    const l = fresh();
+    const other = (l.userTeamId + 3) % 32;
+    const theirs = slumping(l, other);
+    const mine = slumping(l, l.userTeamId);
+    const undo = inSlumpOnly([theirs.id, mine.id]);
+    try {
+      steps(l, 3);
+      expect(theirs.morale!.talk!.ask).toBeUndefined();
+      expect(theirs.morale!.talk!.answered).toMatchObject({ cause: 'form', reply: aiReply(l, other, 'form') });
+      expect(mine.morale!.talk!.ask?.cause).toBe('form');
+      setTeam(l, mine, other);
+      steps(l, 1);
+      expect(mine.morale!.talk?.ask).toBeUndefined();
+    } finally {
+      undo();
+    }
   });
 });

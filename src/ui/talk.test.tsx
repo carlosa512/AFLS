@@ -115,3 +115,22 @@ describe('the losing across letters', () => {
     expect(fresh).toContain('I need you to lead the room');
   });
 });
+
+describe('a slumping leader’s letter', () => {
+  it('offers two answers, his quarterback or his man, and no promise', () => {
+    const { l, p, m } = letter('form');
+    const html = show(l, m);
+    expect(html).toContain(p.lastName);
+    expect(html).toContain('About where I stand');
+    expect(html).toContain(p.position === 'QB' ? 'He&#x27;s my quarterback' : 'He&#x27;s my man');
+    expect(html).toContain('Play your way out of it');
+    expect(html).not.toContain('Promise');
+    expect(html).not.toContain('Reassure him');
+    // Answered, the row says what you told him.
+    answerTalk(l, p.id, 'firm');
+    expect(show(l, m)).toContain('play his way out of it');
+    const again = letter('form');
+    answerTalk(again.l, again.p.id, 'reassure');
+    expect(show(again.l, again.m)).toMatch(/he&#x27;s your (man|quarterback)/);
+  });
+});

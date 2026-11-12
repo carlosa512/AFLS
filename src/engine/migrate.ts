@@ -386,6 +386,9 @@ export function migrateLeague(league: League): League | null {
   // Also where a letter is filed when that is not its own date (`InboxMessage.filed`): stamped on mail as it
   // arrives, so letters an old save holds stay under the week they were dated.
   if (league.version < 94) league.version = 94;
+  // v95: a talk about a man's form (`TalkCause` 'form', `Talk.form`) and a Column's evidence table and brief stories
+  // (`EditionStory.table`, `.brief`): new values and optional fields, so nothing on an older save is rewritten.
+  if (league.version < 95) league.version = 95;
   return league;
 }
 

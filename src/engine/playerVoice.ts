@@ -31,6 +31,7 @@ export const TALK_SUBJECT: Record<TalkCause, string> = {
   losing: 'About the losing',
   feud: 'About the room',
   benched: 'About my job',
+  form: 'About where I stand',
 };
 
 // Every line that fits his ask is equally likely (one specificity, fallback aside): what the staff can see about him
@@ -218,9 +219,27 @@ export interface AnswerFact {
   losing?: boolean;
   /** You asked him to lead the room through it. */
   lead?: boolean;
+  /** The ask was about where he stands in a slump. */
+  form?: boolean;
 }
 
 export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
+  {
+    when: (f) => !!f.form && f.reply === 'reassure',
+    reads: 5,
+    text: () => "That's all I needed to hear. I'll go and earn it.",
+  },
+  {
+    when: (f) => !!f.form && f.reply === 'reassure',
+    reads: 5,
+    text: () => "Thank you. I'll make it right on the field.",
+  },
+  { when: (f) => !!f.form && f.reply === 'firm', reads: 5, text: () => "All right. I'll let my play answer it." },
+  {
+    when: (f) => !!f.form && f.reply === 'firm' && f.calm,
+    reads: 6,
+    text: () => "Fair enough. I'd say the same in your chair.",
+  },
   { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "I can do that. They'll hear it from me first." },
   { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "All right. I'll get the room pulling the same way." },
   {
@@ -317,6 +336,8 @@ export interface AskFact {
   cause: TalkCause;
   /** A benched ask reads the job question it is about (`benchFact`). */
   bench?: BenchFact;
+  /** A form ask: SNN has printed a Column about his unit this season, so he may say he has read it. */
+  papers?: boolean;
 }
 
 const veteranOf = (f: AskFact) => /veteran/.test(f.man.years);
@@ -408,6 +429,27 @@ function cap(s: string): string {
 
 /** The grievance itself. Plain lines read only the cause; the rest also read what the sheet knows about him. */
 export const ASK_CORE: readonly Line<AskFact>[] = [
+  // form: a leader in a slump asks where he stands. He mentions what is being written only when it was.
+  {
+    when: (f) => f.cause === 'form' && !!f.papers,
+    reads: 2,
+    text: () => "I've read what they're writing about us. I'd rather hear from you where I stand.",
+  },
+  {
+    when: (f) => f.cause === 'form' && !!f.papers,
+    reads: 2,
+    text: () => "I know what's being said out there. I want to hear where I stand from you, not from them.",
+  },
+  {
+    when: (f) => f.cause === 'form',
+    reads: 1,
+    text: () => "It hasn't been good enough for a month and I've been out there for all of it. Tell me where I stand.",
+  },
+  {
+    when: (f) => f.cause === 'form',
+    reads: 1,
+    text: () => "We haven't played well and I'm not going to pretend otherwise. I want to know where I stand with you.",
+  },
   // benched: his words come from the job question (`BENCH_ASK`); with no question to read, the plain line.
   ...BENCH_ASK.map(
     (l): Line<AskFact> => ({

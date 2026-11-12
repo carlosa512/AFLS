@@ -1145,6 +1145,7 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
   const cast = [...new Set(raw.flatMap(menIn))];
   const ref = referrer(l, { playerIds: cast });
   const paragraphs = raw.map((p) => resolve(p, ref));
+  unrepeatFixture(paragraphs, at);
   // As printed, so the next story and the next edition step around it.
   at.said.push(...paragraphs.flatMap((p) => sentencesOf(p)));
   const headline = pickLine(l, own ? OWN_HEAD : HEAD[a], s, at, cand.key, 'head');
@@ -1354,6 +1355,14 @@ function starOutStory(l: League, cand: Candidate, at: Wording): EditionStory {
   const raw = prose(first, [stand, next]);
   const ref = referrer(l, { playerIds: [p.id] });
   const paragraphs = raw.map((x) => resolve(x, ref));
+  // A club's next game is one sentence whoever's story it closes ("Houston host Denver next."), and two stories of
+  // one page can both name the club. The second does not print it again; its paragraph keeps the rest.
+  if (paragraphs.length > 1) {
+    const last = sentencesOf(paragraphs.at(-1)!);
+    const fixture = (x: string) => / next\.$| have a bye and then /.test(x);
+    const fresh = last.filter((x) => !(fixture(x) && at.said.includes(x)));
+    if (fresh.length && fresh.length < last.length) paragraphs[paragraphs.length - 1] = fresh.join(' ');
+  }
   at.said.push(...paragraphs.flatMap((x) => sentencesOf(x)));
   return {
     key: cand.key,
@@ -1437,6 +1446,19 @@ function deadlineLine(l: League, at: Wording, cand: Candidate, week: number): st
 // ───────── the week's other news ─────────
 
 /** A story that is not a game's: its sentences resolved in order, noted as said, and the fields every story has. */
+/**
+ * A club's next game is one sentence whoever's story it closes ("Houston host Denver next."), and two stories of one
+ * page can both name the club (a game's other side, and a story of its own). The second does not print it again: its
+ * last paragraph keeps the rest, and is left alone when the fixture is all it holds.
+ */
+function unrepeatFixture(paragraphs: string[], at: Wording): void {
+  if (paragraphs.length < 2) return;
+  const last = sentencesOf(paragraphs.at(-1)!);
+  const fixture = (x: string) => / next\.$| have a bye and then /.test(x);
+  const fresh = last.filter((x) => !(fixture(x) && at.said.includes(x)));
+  if (fresh.length && fresh.length < last.length) paragraphs[paragraphs.length - 1] = fresh.join(' ');
+}
+
 function compose(
   l: League,
   cand: Candidate,
@@ -1450,6 +1472,7 @@ function compose(
   const cast = [...new Set(raw.flatMap(menIn))];
   const ref = referrer(l, { playerIds: cast });
   const paragraphs = raw.map((x) => resolve(x, ref));
+  unrepeatFixture(paragraphs, at);
   at.said.push(...paragraphs.flatMap((x) => sentencesOf(x)));
   return {
     key: cand.key,

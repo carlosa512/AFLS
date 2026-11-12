@@ -41,6 +41,9 @@ interface Row {
   askYours: Set<number>;
   slumpLeague: Set<number>;
   askLeague: Set<number>;
+  /** Form talks that really happened (`Talk.form`), at your club and in the league. */
+  formYours: number;
+  formLeague: number;
 }
 
 /** A Column that ran, and what became of its subject: the check that it was saying something. */
@@ -97,6 +100,8 @@ export function runCounts(seed: string, seasons: number): void {
       askYours: new Set(),
       slumpLeague: new Set(),
       askLeague: new Set(),
+      formYours: 0,
+      formLeague: 0,
     };
     // What the Column has said: the inbox's own record, plus the picks made here until the edition carries them.
     const said = new Set<string>();
@@ -111,6 +116,11 @@ export function runCounts(seed: string, seasons: number): void {
       // The regular season is over: how each Column's club finished, and whether its man saw the season out.
       if (!closed && l.phase !== 'regular') {
         closed = true;
+        for (const p of Object.values(l.players)) {
+          if (p.morale?.talk?.form !== row.season) continue;
+          row.formLeague++;
+          if (p.teamId === l.userTeamId) row.formYours++;
+        }
         const final = computeRecords(l);
         for (const t of told.filter((x) => x.season === row.season)) {
           const r = final.get(t.teamId)!;
@@ -251,14 +261,26 @@ export function runCounts(seed: string, seasons: number): void {
         '…and down: would ask',
         'League: men in a slump',
         'League: would ask',
+        'Your club: asked',
+        'League: asked',
       ],
-      (r) => [r.season, r.slumpYours.size, r.askYours.size, r.slumpLeague.size, r.askLeague.size],
+      (r) => [
+        r.season,
+        r.slumpYours.size,
+        r.askYours.size,
+        r.slumpLeague.size,
+        r.askLeague.size,
+        r.formYours,
+        r.formLeague,
+      ],
       [
         'Mean',
         mean((r) => r.slumpYours.size),
         mean((r) => r.askYours.size),
         mean((r) => r.slumpLeague.size),
         mean((r) => r.askLeague.size),
+        mean((r) => r.formYours),
+        mean((r) => r.formLeague),
       ],
     ),
     `## What happened next`,

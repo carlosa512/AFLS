@@ -170,7 +170,7 @@ describe('filing the edition, at the edges', () => {
 
   it('upgrades a save from before editions without touching its mail', () => {
     const l = createLeague({ seed: 'snn-migrate' });
-    expect(SAVE_VERSION).toBe(94);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(94);
     const old = JSON.parse(JSON.stringify(l)) as League;
     old.version = 93;
     old.inbox = [
@@ -188,7 +188,7 @@ describe('filing the edition, at the edges', () => {
       },
     ];
     const up = migrateLeague(old)!;
-    expect(up.version).toBe(94);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(old.inbox);
     expect(mailSubject(up.inbox![0])).toMatchObject({ kind: 'news' });
   });

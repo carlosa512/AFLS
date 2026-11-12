@@ -428,7 +428,8 @@ export interface Dispute {
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 /** `benched`: a job-holder sat healthy asks where he stands (`benching.ts`). */
-export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched';
+/** `form`: a leader who has started every game of his unit's slump asks where he stands (`formCase`, `slump.ts`). */
+export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched' | 'form';
 /** What a meeting is about: a grievance, nothing in particular, or a room's doubt in its coordinator (L4). */
 export type MeetingTopic = TalkCause | 'none' | 'coordinator';
 // ───────── team meetings (L2, `meetings/`) ─────────
@@ -568,6 +569,8 @@ export interface Talk {
   ask?: { cause: TalkCause; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
+  /** The season he last asked where he stands in a slump (`formCase`): once a man a season. */
+  form?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
   answered?: {
     reply: TalkReply | 'ignored';
@@ -1762,7 +1765,7 @@ export interface MailSection {
 }
 
 /** Storylines (`stories.ts`): what happened to one subject of your club, beat by beat. Record-keeping only: the sim never reads it. */
-export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff';
+export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff' | 'form';
 export type OutletId = 'coach' | 'snn';
 export type BeatKind =
   | 'asked'

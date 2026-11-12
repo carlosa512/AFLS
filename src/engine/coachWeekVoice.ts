@@ -55,6 +55,7 @@ const THING: Record<TalkCause, string> = {
   losing: 'the losing',
   feud: 'the feud',
   benched: 'his job',
+  form: 'where he stands',
 };
 /** The grievance behind his top mood reason, when it is one of the four he can ask about. */
 const causeOf = (man: ManSheet): TalkCause | null => (man.reason ? (CAUSE_OF[man.reason] ?? null) : null);
@@ -78,7 +79,7 @@ export interface StoryFact {
   coach?: string;
 }
 
-const MAN_KINDS: readonly StoryKind[] = ['deal', 'snaps', 'benched', 'losing'];
+const MAN_KINDS: readonly StoryKind[] = ['deal', 'snaps', 'benched', 'losing', 'form'];
 const isMan = (f: StoryFact) => MAN_KINDS.includes(f.kind) && !!f.man;
 const on = (kind: StoryKind, beat: BeatKind, text: (f: StoryFact) => string): Line<StoryFact> => ({
   when: (f) => f.kind === kind && f.beat === beat && (kind === 'room' || kind === 'staff' || !!f.man),
@@ -111,6 +112,8 @@ export const HEADLINE: readonly Line<StoryFact>[] = [
   on('benched', 'asked', (f) => `Am I benched? ${last(f)} wants to know`),
   on('benched', 'cleared', (f) => `${last(f)} is cleared`),
   on('benched', 'settled', (f) => `${poss(last(f))} job is settled`),
+  on('form', 'asked', (f) => `${last(f)} wants to know where he stands`),
+  on('form', 'answered', (f) => `${last(f)} on where he stands: your answer`),
   on('losing', 'asked', (f) => `${last(f)} on the losing`),
   on('losing', 'answered', (f) => `${last(f)} on the losing: your answer`),
   on('losing', 'lifted', (f) => `${last(f)} is past the losing`),
@@ -509,6 +512,7 @@ const ABOUT: Partial<Record<StoryKind, string>> = {
   benched: 'the benching',
   losing: 'the losing',
   feud: 'the feud',
+  form: 'his form',
 };
 const aboutOf = (f: LinkFact) => ABOUT[f.kind] ?? 'his grievance';
 
