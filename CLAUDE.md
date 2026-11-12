@@ -283,13 +283,21 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     sentence, no sentence twice a season, one plain quote at most), `storyRules.ts` checks them (`ruleBreaks`) and
     `refer.ts` names a man or a club a second time. `season/gameOfWeek.ts` picks next week's game for the page and the
     strip. Mail-side only: public facts, no draws, nothing in the sim reads it (`snnWeek.season.test.ts` plays a season
-    with mail filed and never filed). The page is `ui/edition.tsx` (`EditionCards`: tiles start closed and open in place)
+    with mail filed and never filed). The page is `ui/edition.tsx` (`EditionCards`: tiles start closed and open in place).
+    `snnColumn.ts` the edition's one opinion piece (spec `docs/superpowers/specs/2026-11-11-snn-column-and-storylines-design.md`):
+    claims about a unit, a head coach or a GM up an evidence ladder (`LADDER`, `columnClaims`), blame, credit and a claim
+    taken back, and which one runs (`pickColumn`: never two weeks running, blame and credit in turn, a man's job in one
+    Column of three, three a season about your club); `columnStory` in `snnVoice.ts` writes it around a table of public
+    numbers. `slump.ts` a unit's last four games against the league (`unitForm`, `FORM`, `inSlump`) and the one player a
+    box score singles out (`unitMan`, `MAN`). `storylineCandidates` reads your club's public beats from the story store
+    (`SNN_OUTLET`) as tiles. An article causes nothing: what an edition printed lives in its `covered` keys
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
     (`STORIES.on` turns it off in tests to prove play is untouched). Each story keeps how many beats each outlet has
     told (`told`, `markTold`, `untold`) and an outlet is a reader of the store (`Outlet`, `COACH` sees your own club's
-    beats; a public outlet, after alpha, only the beats marked `pub`), so two outlets never repeat each other.
+    beats; `SNN_OUTLET` only your club's beats marked `pub`, and keeps what it printed in its edition's `covered` keys
+    rather than in `told`), so two outlets never repeat each other.
     `storiesStep.ts` the step after morale and the meetings: beats for what is read rather than done (a room turning
     Down or Split and holding, a feud, the staff's standing), the links between a man's story and his room's, the men
     who left, and `tellable` (a turn must have stood a week); it may read `standing.ts`, `morale.ts`, `belief.ts` and
@@ -301,7 +309,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
     tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter, and a
     meeting's result or a story closing rides in the next letter, filing one alone only after `RESULT_WAIT` steps), and
-    words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
+    words them through `coachWeekVoice.ts` around everything said this league year. It reads as a letter
+    (`MailSection.layout: 'letter'`, `LetterSection` in `ui/mail.tsx`): what needs you first, each person introduced in
+    a sentence, then "The rest needs nothing from you." and the notes; it opens on a fact of the week or on its first
+    item (no line only announces the letter), says players and never "men", and its subject is the top item and a count
+    of the rest (`subjectFor`). After a Column blames one of your units, one note says how its senior player took it
+    (`coverageItem`, `COVERAGE`). A room is not told twice inside
     `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
     one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across
     rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
@@ -391,7 +404,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; the losing reaches your desk only from a leader, a voice or a captain, or from anyone once
     the club has lost `BOILING` straight (`losingReachesYou`, your club only), and it has its own three answers (two
-    reassure, one of them `lead`, one firm); `promiseMail.ts` is the head coach's season's-end reminder of open promises;
+    reassure, one of them `lead`, one firm); a quarterback or a leader who holds his job while his unit is in a slump may
+    ask where he stands (`formCase`, cause `form`: once a season, your club only, two answers, never sours);
+    `promiseMail.ts` is the head coach's season's-end reminder of open promises;
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins, holdouts (G4a) and trade requests (G4b): who
     escalates (`escalation`: a soured talk, four Very poor steps; a deal from the re-sign window to camp, snaps, the losing

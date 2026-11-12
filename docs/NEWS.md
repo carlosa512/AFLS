@@ -142,8 +142,64 @@ edition, told once (`covered` keeps its key and the id of the mail it replaces).
 offseason digests (the front-office carousel, the coaching carousel, off the market), a player speaking out and
 coaching-tree stories out of season, the Arena Gazette's column, and everything from the people who work for you.
 
-Not yet: one labelled Column an edition with an evidence ladder, your club's public storylines and players reacting
-to coverage (spec 2), and one thread a story with the head coach, the owner and players (spec 3).
+### The Column
+
+Spec: `docs/superpowers/specs/2026-11-11-snn-column-and-storylines-design.md`. An edition may carry one labelled
+opinion piece (`snnColumn.ts` finds the claims and picks one, `columnStory` in `snnVoice.ts` writes it): a claim about
+a unit, a head coach or a GM, the table of public numbers it rests on, and an argument of two or three sentences. It
+takes the place of the lowest tile that is not your club's.
+
+**The evidence ladder.** A claim sits on a rung, and a rung needs its evidence.
+
+| Rung | A unit | A head coach | A GM |
+| --- | --- | --- | --- |
+| 1 | In the league's bottom or top quarter over its last four games (`FORM` in `slump.ts`) | | |
+| 2 "fair to ask" | | .300 or worse through six games | Two losing seasons finished and a third going the same way |
+| 3 "it's time" | | The same after week 11 | Three losing seasons finished and a fourth going the same way |
+
+Credit runs up the same ladder: a unit in the top quarter, a coach whose club won six or fewer and is at .750 through
+eight games, a GM for a deep playoff run in a good season, for a club in its third winning season, or for a first-year
+coach's turnaround (his hire). A first-year coach is never above rung 1 and an interim is never named. A claim that
+stops being true is taken back once, in a Column of its own (`:fix`). A Column names a player only when the box
+scores single him out (`unitMan`, `MAN`: the sacks one lineman gave up, a passer's turnovers).
+
+**How often.** Never two weeks running (`LADDER.rest`). Blame and credit take turns. A man's job is the subject of one
+Column in three at most (`LADDER.jobIn`), and a GM is asked about before his coach when both sit on a rung. Your club
+gets three a season at most (`LADDER.yoursASeason`), and a club out of the race one unit Column. That comes to about
+eight Columns a season. Over 18 played seasons 65% of the coaches SNN called "fair to ask" about were out by the next
+kickoff, against 23% of the rest.
+
+**Its writing rules** (`storyRules.ts`, on top of the edition's): a table of two to four rows, one number a sentence,
+one short sentence a paragraph at most, an argument that follows from the table. What an edition printed is kept in
+its `covered` keys (`column:{season}:{subject}:{rung}{+|-}`), so SNN never argues the same thing twice.
+
+`npm run editions -- --seasons n` plays seasons and counts how often the Column and your club's coverage fire, by
+rung, with what happened next to the men it named (`scripts/editionCounts.ts`). `FORM` and `LADDER` are set from those
+counts.
+
+### Your club's storylines in the edition
+
+SNN reads the story store as a second outlet (`SNN_OUTLET` in `stories.ts`) and sees only your club's public beats: a
+starter left off the lineup (a quarterback's benching ranks a tier higher), his return or the job changing hands, a
+trade request once it has leaked and how it ended (traded, withdrawn, signed, released), and a coordinator you
+relieved. Each is a tile about your club, told once (`storyline:{storyId}:{clock}:{beat}`), regular season only. An
+ending nobody outside could read (a job settled by an injury, a holdout drifting back) is not a story.
+
+### What coverage does
+
+**An article causes nothing.** No mood, no rating and no draw moves because SNN printed something, and the sim never
+reads mail (`simReadsNoMail.test.ts`, `snnWeek.season.test.ts`). Two things at your club read the same public facts
+the Column read:
+
+- **The note.** After a Column blames one of your units, the head coach's next letter may carry one line on how the
+  unit's senior player has taken it (`coverageItem` in `coachWeek.ts`, `COVERAGE` in `coachWeekVoice.ts`), in words
+  from his character. It asks nothing and never files a letter alone.
+- **The conversation.** A quarterback or a leader who holds his job while his unit is in the bottom quarter may come
+  to ask where he stands (`formCase` in `playerTalks.ts`, cause `form`): once a season, your club only, with two
+  answers (back him, or tell him to play his way out of it). It never sours into a dispute. Under one a season.
+
+Not yet: SNN on the calendar's big days (cut-down day, draft day), and one thread a story with the head coach, the
+owner, players and agents.
 
 ## The head coach's weekly letter and the story store
 
@@ -173,8 +229,15 @@ lineup is a row of its own, with "Put him back". The benching's lines are in `be
 no sentence twice in a league year, a before-line left out when it has nothing new.
 The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none, and what it gathered waits for the next with its own clock, so nothing is lost (your club's ask is ignored after three steps, and a meeting request waits a step longer). A story has one telling a league year per subject: a deal that went quiet (eight steps with nothing pending) closes without a closing row, and re-opens with its history if he raises it again, so the coach can say it is the second time; staff stories close with the season.
 A room is told about once in three steps (`NOTE_GAP`): a turn, its chemistry and its coach's belief count together,
-and what waits is told when the gap has passed. The subject says what the top items are; the opening ties the week
-together (a streak, the deadline, the bye, a meeting's result, a room and the man feeding it).
+and what waits is told when the gap has passed.
+
+**It reads as a letter** (`MailSection.layout: 'letter'`, `LetterSection` in `ui/mail.tsx`): what needs your answer
+first, each person introduced in a sentence ("came to see me about his contract"), his words, your answers under
+them, then "The rest needs nothing from you." and the notes, signed with the coach's first name. It opens on a fact of
+the week (a streak, the deadline, the bye, camp, the season's end, a meeting held, a room and the player feeding it)
+when it has one it has not said this year, and otherwise on its first item: no line only announces the letter. The
+subject is the top item in a few words and a count of the rest ("Tucker's job, and 2 more"). The coach says players,
+never "men".
 
 Every sentence is chosen by a condition on the cast sheet (`castSheet.ts`: one man, the coach writing, the moment), by
 the rule in `voice.ts`: the most specific line that fits, and none the sender has said this league year. A sentence of

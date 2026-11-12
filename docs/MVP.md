@@ -76,10 +76,13 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       multiply the engine's penalty rolls (`officials.ts`, `docs/OFFICIALS.md`).
 - [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN's weekly edition (one mail a week in
       season laid out as a front page: every score, a lead story, your club, the league's other stories, the race and
-      the game of the week, written to tested rules), its offseason front-office digest, the Arena Gazette's numbers
-      column (EPA, success rate and explosives, counted by the engine) and rookie impact reports join the inbox. Still
-      to come: an opinion column and your club's public storylines with players reacting to coverage, one thread a
-      story with the head coach, the owner and players, a Stats screen tab for the advanced numbers and season arcs. The head coach's weekly letter now tells your club's storylines from a story
+      the game of the week, written to tested rules), its Column (one opinion piece on a unit, a coach or a GM,
+      argued from a table of public numbers up an evidence ladder, about eight a season), your club's public
+      storylines as tiles, a player asking where he stands when his unit is struggling, its offseason front-office
+      digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted by the engine) and rookie
+      impact reports join the inbox. Still to come: SNN on the calendar's big days (cut-down day, draft day), one
+      thread a story with the head coach, the owner, players and agents, one plain voice across every letter, a
+      Stats screen tab for the advanced numbers and season arcs. The head coach's weekly letter now tells your club's storylines from a story
       store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories
       and season arcs have somewhere to start. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars
