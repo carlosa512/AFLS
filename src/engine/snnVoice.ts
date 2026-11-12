@@ -1851,6 +1851,9 @@ interface ColumnSheet {
   seasons: number;
   /** Losing seasons finished under a GM. */
   lostSeasons: number;
+  /** Winning seasons finished under a GM, and how far the club went last season ("reached their conference final"). */
+  wonSeasons: number;
+  ran: string;
   coach: string;
   coachSurname: string;
 }
@@ -2246,6 +2249,54 @@ const COLUMN: Record<string, ColumnBank> = {
     ],
     headline: (s, l) => `${s.surname} got it right ${whereOf(l, s.id)}`,
   },
+  'gmBuilt+': {
+    claim: [
+      col(
+        (s) =>
+          `${C(s.id)} are ${s.rec} after ${w(s.wonSeasons)} winning seasons in a row, and general manager ${s.name} deserves the credit for building it.`,
+      ),
+    ],
+    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of those seasons.`)],
+    reason: [
+      col(
+        (s) =>
+          `One good season can be a hot quarterback or a kind schedule, but ${w(s.wonSeasons + 1)} in a row are a roster, and the roster is ${possessive(s.surname)} work.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
+    ],
+    headline: (s, l) => `${s.surname} built this ${whereOf(l, s.id)}`,
+  },
+  'gmRun+': {
+    claim: [
+      col(
+        (s) =>
+          `${C(s.id)} ${s.ran} last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for keeping it together.`,
+      ),
+    ],
+    fact: [col((s) => `${s.surname} was in charge of the roster for both of those seasons.`)],
+    reason: [
+      col(
+        (s) =>
+          `Clubs that go that far often fall back the next year, and ${c(s.id)} have not, which is the work of the man who builds the roster.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
+    ],
+    headline: (s, l) => `${s.surname} has kept it together ${whereOf(l, s.id)}`,
+  },
   // Corrections: what an earlier Column said no longer holds.
   'fixunit-': {
     claim: [
@@ -2354,6 +2405,9 @@ function columnBank(claim: Claim): string {
     const was = claim.of?.endsWith('+') ? '+' : '-';
     return claim.subject.kind === 'unit' ? `fixunit${was}` : `fixman${was}`;
   }
+  // A general manager is credited for one of three things, each with its own argument.
+  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'built') return 'gmBuilt+';
+  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'run') return 'gmRun+';
   return claim.subject.kind === 'unit' ? `unit${sign}` : `${claim.subject.kind}${claim.rung}${sign}`;
 }
 
@@ -2417,6 +2471,9 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     streak: Number(f.streak ?? 0),
     seasons,
     lostSeasons: Number(claim.numbers.find((n) => n.label.startsWith('Losing seasons'))?.value ?? 0),
+    wonSeasons: Number(f.seasons ?? 0),
+    ran:
+      f.run === 'title' ? 'won the title' : f.run === 'final' ? 'reached the final' : 'reached their conference final',
     coach: String(f.coach ?? (hc ? `${hc.firstName} ${hc.lastName}` : '')),
     coachSurname: hc?.lastName ?? '',
   };
@@ -2455,6 +2512,42 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
 }
 
 // ───────── your club's storylines ─────────
+
+/**
+ * How much a man had played before the news, said the way the count calls for: every game, all but a few, about half,
+ * hardly any. Two wordings each, chosen by a stable hash, so two storylines in a season do not read alike.
+ */
+function startsLine(
+  l: League,
+  cand: Candidate,
+  playerId: number,
+  starts: number,
+  played: number,
+  verb: 'had' | 'has',
+): string[] {
+  if (starts <= 0 || played <= 0) return [];
+  const who = M(playerId);
+  const city = possessive(l.teams[cand.clubId].city);
+  const missed = played - starts;
+  const forms =
+    missed === 0
+      ? [`${who} ${verb} started every game this season.`, `${who} ${verb} not missed a start this season.`]
+      : missed <= 2
+        ? [
+            `${who} ${verb} started all but ${w(missed)} of ${city} games this season.`,
+            `${who} ${verb} started ${w(starts)} of ${city} ${w(played)} games.`,
+          ]
+        : starts * 2 <= played
+          ? [
+              `${who} ${verb} started ${w(starts)} ${plural(starts, 'game')} this season.`,
+              `${who} ${verb} made ${w(starts)} ${plural(starts, 'start')} in ${city} ${w(played)} games.`,
+            ]
+          : [
+              `${who} ${verb} started ${w(starts)} of ${city} ${w(played)} games.`,
+              `${who} ${verb} ${w(starts)} starts this season.`,
+            ];
+  return [forms[stableHash(cand.key) % forms.length]];
+}
 
 /**
  * One of the reader's club's public storylines as a brief: who was left out of the lineup and for whom, a trade request
@@ -2500,9 +2593,7 @@ function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
         o
           ? `${C(id)} benched ${pos} ${M(p.id)}${vs} and started ${M(o.id)} in his place.`
           : `${C(id)} left ${pos} ${M(p.id)} out of the starting lineup${vs}.`,
-        ...(starts > 0
-          ? [`${M(p.id)} had started ${w(starts)} of ${possessive(l.teams[id].city)} ${w(played)} games.`]
-          : []),
+        ...startsLine(l, cand, p.id, starts, played, 'had'),
       ];
       headline = `${nick} bench ${p.lastName}`;
       break;
@@ -2535,9 +2626,7 @@ function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
     case 'leaked':
       first = [
         `${cap(pos)} ${M(p.id)} has asked ${C(id)} for a trade, according to reports.`,
-        ...(starts > 0
-          ? [`${M(p.id)} has started ${w(starts)} of ${possessive(l.teams[id].city)} ${w(played)} games this season.`]
-          : []),
+        ...startsLine(l, cand, p.id, starts, played, 'has'),
       ];
       headline = `${p.lastName} asks the ${nick} for a trade`;
       break;

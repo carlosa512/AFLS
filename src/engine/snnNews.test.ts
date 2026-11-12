@@ -354,6 +354,9 @@ describe('your club’s public storylines', () => {
     const opened = check(write(), 2);
     expect(opened.map((s) => s.paragraphs[0]).join(' ')).toContain(`${qb.firstName} ${qb.lastName}`);
     expect(opened.find((s) => s.angle === 'leaked')!.paragraphs[0]).toContain('according to reports');
+    // How much he had played is said more than one way: a man who started them all is not "16 of 16".
+    const everyGame = opened.map((s) => s.paragraphs[0]).filter((p) => /\b(\d+|\w+) of [^.]*\b\1 games\b/.test(p));
+    expect(everyGame).toEqual([]);
     // Closings.
     wipe();
     beat(l, on(qb.id), 'sat', at0, { pub: true, other: other.id });

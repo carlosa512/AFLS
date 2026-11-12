@@ -38,6 +38,10 @@ export const LADDER = {
   yoursASeason: 3,
   /** Straight wins (or losses) that reverse a claim about a man. */
   fixWins: 4,
+  /** A good season under way: this winning percentage through `turnGames`. */
+  goodPct: 0.6,
+  /** Winning seasons already finished under a GM before he is credited with building it (this one makes three). */
+  gmBuilt: 2,
   /** Editions between two Columns: it never runs two weeks running (the owner's rule G). */
   rest: 1,
   /** A man's job (blame for a head coach or a GM) comes up in one Column of this many at most. */
@@ -199,16 +203,34 @@ const headOf = (l: League, teamId: number) => teamCoaches(l, teamId).find((c) =>
 const fullName = (x: { firstName: string; lastName: string }) => `${x.firstName} ${x.lastName}`;
 
 /** Losing seasons in a row under this GM at this club, counting back from last season. */
-function losingSeasons(l: League, gmId: number, teamId: number): { season: number; w: number; l: number }[] {
+function runOfSeasons(
+  l: League,
+  gmId: number,
+  teamId: number,
+  counts: (r: { w: number; l: number }) => boolean,
+): { season: number; w: number; l: number }[] {
   const gm = l.gms[gmId];
   const out: { season: number; w: number; l: number }[] = [];
   for (let season = l.season - 1; ; season--) {
     const mine = gm?.career.find((c) => c.season === season && c.teamId === teamId);
     const rec = mine?.record?.regular ?? (mine ? l.history.find((h) => h.season === season)?.records[teamId] : null);
-    if (!rec || rec.w >= rec.l) break;
+    if (!rec || !counts(rec)) break;
     out.push({ season, w: rec.w, l: rec.l });
   }
   return out;
+}
+const losingSeasons = (l: League, gmId: number, teamId: number) => runOfSeasons(l, gmId, teamId, (r) => r.w < r.l);
+/** Winning seasons in a row under this GM at this club, counting back from last season. */
+const winningSeasons = (l: League, gmId: number, teamId: number) => runOfSeasons(l, gmId, teamId, (r) => r.w > r.l);
+
+/** How far a club went last season, when it went deep: the conference final, the final, or the title. */
+function deepRun(l: League, teamId: number): 'conference final' | 'final' | 'title' | null {
+  const last = l.history.find((h) => h.season === l.season - 1);
+  if (!last) return null;
+  if (last.championId === teamId) return 'title';
+  const round = last.playoffs?.[teamId]?.round;
+  if (last.runnerUpId === teamId || round === 'FINAL') return 'final';
+  return round === 'CONF' ? 'conference final' : null;
 }
 
 /** A club's season in a table, against the league: what a Column about its head coach rests on. */
@@ -438,16 +460,66 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
       // A turnaround under a head coach in his first season is the general manager's hire.
       const hired =
         !!hc && !hc.interim && !settled && gm.career.some((c) => c.season === season - 1 && c.teamId === t.id);
-      if (turned && hired)
+      // Credit for a GM, one Column a season, for the strongest of three reasons: he followed a deep playoff run
+      // with another good year, he has built a run of winning seasons, or his new head coach has turned the club.
+      const good = games >= LADDER.turnGames && pct >= LADDER.goodPct - 1e-9;
+      const here = gm.career.some((c) => c.season === season - 1 && c.teamId === t.id);
+      const won = winningSeasons(l, gm.id, t.id);
+      const run = here ? deepRun(l, t.id) : null;
+      const credit = {
+        ...base,
+        key: `column:${season}:${subject}:2+`,
+        rung: 2 as const,
+        dir: 'credit' as const,
+      };
+      if (good && run && before)
         add({
-          ...base,
-          key: `column:${season}:${subject}:2+`,
-          rung: 2,
-          dir: 'credit',
+          ...credit,
+          margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
+          numbers: [
+            { value: recText(me), label: 'Record' },
+            { value: recText(before), label: `${season - 1} record` },
+          ],
+          table: {
+            head: ['', String(season - 1), String(season)],
+            rows: [
+              ['Record', recText(before), recText(me)],
+              [
+                'Finish',
+                run === 'title' ? 'Won the title' : run === 'final' ? 'Lost the final' : 'Conference final',
+                '—',
+              ],
+            ],
+          },
+          facts: { ...base.facts, why: 'run', run },
+        });
+      else if (good && won.length >= LADDER.gmBuilt)
+        add({
+          ...credit,
+          margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
+          numbers: [
+            { value: recText(me), label: 'Record' },
+            { value: String(won.length), label: 'Winning seasons before this one' },
+          ],
+          table: {
+            head: ['Season', 'Record', 'Pct'],
+            rows: [
+              ...won
+                .slice(0, 3)
+                .reverse()
+                .map((s) => [String(s.season), recText(s), pctOf(s).toFixed(3).replace(/^0/, '')]),
+              [String(season), recText(me), pct.toFixed(3).replace(/^0/, '')],
+            ],
+          },
+          facts: { ...base.facts, why: 'built', seasons: won.length },
+        });
+      else if (turned && hired)
+        add({
+          ...credit,
           margin: (pct - LADDER.turnPct) / (1 - LADDER.turnPct),
           numbers,
           table: turnTable,
-          facts: { ...base.facts, coach: hc ? fullName(hc) : '' },
+          facts: { ...base.facts, why: 'hire', coach: hc ? fullName(hc) : '' },
         });
       const blamed = told(fair) || told(`column:${season}:${subject}:3-`);
       if (blamed && streak.won && streak.n >= LADDER.fixWins)
@@ -463,6 +535,22 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
             { value: String(streak.n), label: 'Straight wins' },
           ],
           table: years,
+        });
+      // And credit taken back, as a head coach's is.
+      const praised = `column:${season}:${subject}:2+`;
+      if (told(praised) && !streak.won && streak.n >= LADDER.fixWins)
+        add({
+          ...base,
+          key: `column:${season}:${subject}:fix`,
+          rung: 2,
+          dir: 'fix',
+          margin: 1,
+          of: praised,
+          numbers: [
+            { value: recText(me), label: 'Record' },
+            { value: String(streak.n), label: 'Straight losses' },
+          ],
+          table: seasonEvidence(l, t.id, me, records),
         });
     }
   }

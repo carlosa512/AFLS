@@ -132,6 +132,11 @@ from a replay of alternatives over the same seasons, and it was then measured ov
   most of the load, a rusher with most of the sacks, a defender with several interceptions. A struggling run defense
   or coverage is never one man's, and a problem spread around the group names nobody.
 - **A turnaround under a first-year head coach is credited to the general manager who hired him.**
+- **A general manager is also credited** (check-in 3) for a third winning season in a row under him ("he built
+  this") and for following a deep playoff run (the conference final or further) with another good season ("he has
+  kept it together"). One credit Column a season for a GM, for the strongest of the three reasons, and it is taken
+  back like a coach's if the club then loses four straight. A blame rule for a GM who has changed his head coach and
+  is still losing was discussed and left out.
 
 ### Choosing the week's Column
 

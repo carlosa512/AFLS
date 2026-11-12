@@ -202,6 +202,75 @@ describe('a general manager on the ladder', () => {
     const had = `column:${m.season}:gm:${gm3.id}:2-`;
     expect(about(columnClaims(m, 12, new Set([had])), 'gm', t).map((c) => c.rung)).toEqual([3]);
   });
+  /** `seasons` finished seasons under the club's GM, each with this record and playoff finish. */
+  const past = (
+    l: League,
+    t: number,
+    seasons: number,
+    rec: { w: number; l: number },
+    round?: 'WC' | 'DIV' | 'CONF' | 'FINAL',
+  ) => {
+    const gm = l.gms[l.teams[t].gmId!];
+    gm.career = [];
+    for (let back = 1; back <= seasons; back++) {
+      gm.career.push({ season: l.season - back, teamId: t });
+      l.history.push({
+        season: l.season - back,
+        championId: -1,
+        runnerUpId: -1,
+        records: Object.fromEntries(l.teams.map((x) => [x.id, x.id === t ? { ...rec, t: 0 } : { w: 8, l: 9, t: 0 }])),
+        ...(round && back === 1 ? { playoffs: { [t]: { w: 2, l: 1, round } } } : {}),
+      });
+    }
+    return gm;
+  };
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+
+  it('gets the credit for three winning seasons in a row', () => {
+    const l = world('column-built');
+    const t = other(l);
+    const gm = past(l, t, 2, { w: 11, l: 6 });
+    plant(l, 1, 10, { winners: [t] });
+    const claims = about(columnClaims(l, 10, new Set()), 'gm', t);
+    expect(claims.map((c) => [c.rung, c.dir, c.facts.why])).toEqual([[2, 'credit', 'built']]);
+    expect(claims[0].key).toBe(`column:${l.season}:gm:${gm.id}:2+`);
+    const s = columnStory(l, claims[0], at());
+    expect(s.paragraphs.join(' ')).toContain('winning seasons');
+    expect(ruleBreaks(l, s), s.paragraphs.join(' / ')).toEqual([]);
+    // Four straight losses after it, and the Column takes some of it back.
+    plant(l, 11, 14, { losers: [t] });
+    const fixes = about(columnClaims(l, 14, new Set([claims[0].key])), 'gm', t).filter((c) => c.dir === 'fix');
+    expect(fixes.map((c) => c.of)).toEqual([claims[0].key]);
+    expect(ruleBreaks(l, columnStory(l, fixes[0], at()))).toEqual([]);
+    // One winning season before this one is not a run of them.
+    const m = world('column-built');
+    past(m, t, 1, { w: 11, l: 6 });
+    plant(m, 1, 10, { winners: [t] });
+    expect(about(columnClaims(m, 10, new Set()), 'gm', t)).toEqual([]);
+    // And not while this season is going badly.
+    const n = world('column-built');
+    past(n, t, 2, { w: 11, l: 6 });
+    plant(n, 1, 10, { losers: [t] });
+    expect(about(columnClaims(n, 10, new Set()), 'gm', t).filter((c) => c.dir === 'credit')).toEqual([]);
+  });
+
+  it('gets the credit for following a deep playoff run with another good season', () => {
+    const l = world('column-run');
+    const t = other(l);
+    past(l, t, 1, { w: 12, l: 5 }, 'CONF');
+    plant(l, 1, 10, { winners: [t] });
+    const claims = about(columnClaims(l, 10, new Set()), 'gm', t);
+    expect(claims.map((c) => [c.dir, c.facts.why])).toEqual([['credit', 'run']]);
+    const s = columnStory(l, claims[0], at());
+    expect(s.paragraphs[0]).toContain('conference final');
+    expect(ruleBreaks(l, s), s.paragraphs.join(' / ')).toEqual([]);
+    // A first-round exit is not a deep run.
+    const m = world('column-run');
+    past(m, t, 1, { w: 12, l: 5 }, 'WC');
+    plant(m, 1, 10, { winners: [t] });
+    expect(about(columnClaims(m, 10, new Set()), 'gm', t)).toEqual([]);
+  });
+
   it('is left alone after one losing season', () => {
     const l = world();
     const t = other(l);
