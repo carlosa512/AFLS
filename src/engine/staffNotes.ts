@@ -33,42 +33,43 @@ const HABIT: readonly Line<HabitFact>[] = [
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} has ${f.player} on it in practice: he ${QUIRKS[f.habit].clause}. He's taking to the work; it should stick.`,
+      `${f.coach} has ${f.player} working on it in practice, because he ${QUIRKS[f.habit].clause}. He's taking to the work, and it should stick.`,
   },
   {
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} is fixing ${f.player}'s "${QUIRKS[f.habit].label}": he ${QUIRKS[f.habit].clause}. Good student. We'll see it soon.`,
+      `${f.coach} is fixing ${f.player}'s "${QUIRKS[f.habit].label}", because he ${QUIRKS[f.habit].clause}. He learns quickly, and we'll see it soon.`,
   },
   {
     when: (f) => !f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} is working with ${f.player} on it: he ${QUIRKS[f.habit].clause}. Old habit. It'll take time.`,
+      `${f.coach} is working with ${f.player} on an old habit, because he ${QUIRKS[f.habit].clause}. It'll take time.`,
   },
   {
     when: (f) => !f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} has a project in ${f.player}: he ${QUIRKS[f.habit].clause}. Don't expect it gone by Sunday.`,
+      `${f.coach} has a long job with ${f.player}, because he ${QUIRKS[f.habit].clause}. It won't be gone by Sunday.`,
   },
   {
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.coach} is on ${f.player}'s habit every day: he ${QUIRKS[f.habit].clause}. He is taking to the work.`,
+      `${f.coach} works on ${f.player}'s habit every day, because he ${QUIRKS[f.habit].clause}. He is taking to the work.`,
   },
   {
     when: (f) => f.receptive,
     reads: 1,
     text: (f) =>
-      `${f.player} is putting the work in with ${f.coach}: he ${QUIRKS[f.habit].clause}. That is a good sign.`,
+      `${f.player} is putting the work in with ${f.coach}, because he ${QUIRKS[f.habit].clause}. That is a good sign.`,
   },
   {
     when: (f) => !f.receptive,
     reads: 1,
-    text: (f) => `${f.coach} keeps at ${f.player}: he ${QUIRKS[f.habit].clause}. It is not sinking in yet.`,
+    text: (f) =>
+      `${f.coach} keeps working with ${f.player}, because he ${QUIRKS[f.habit].clause}. It has not changed yet.`,
   },
   {
     when: (f) => !f.receptive,

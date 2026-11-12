@@ -1,4 +1,4 @@
-import { canReadMail } from '../../engine/inbox';
+import { canReadMail, mailDate } from '../../engine/inbox';
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
   archiveMail,
@@ -119,8 +119,11 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
   }
 }
 
-const dateLabel = (m: InboxMessage) =>
-  `${m.season} · ${m.phase === 'regular' || m.phase === 'playoffs' ? weekLabel(m.week) : PHASE_LABELS[m.phase]}`;
+/** Where a letter is filed: the week it was read in (`mailDate`), not always the week it is about. */
+const dateLabel = (m: InboxMessage) => {
+  const d = mailDate(m);
+  return `${d.season} · ${d.phase === 'regular' || d.phase === 'playoffs' ? weekLabel(d.week) : PHASE_LABELS[d.phase]}`;
+};
 
 /** Outlets and offices get a fixed badge: initials of "SNN league desk" would read "SD". */
 const OUTLET_BADGES: Record<string, string> = {
@@ -392,8 +395,9 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                       : 'Nothing matches. Switch to All to see every message.'}
                 </p>
               )}
-              {groupByDate(shown).map((g) => (
-                <div key={g.label}>
+              {groupByDate(shown).map((g, n) => (
+                // A date can head two groups (what needs you sorts first), so the label alone is no key.
+                <div key={`${n}:${g.label}`}>
                   <div className="inbox-group eyebrow">{g.label}</div>
                   {g.threads.map((t) => {
                     const label = threadLabel(t);
@@ -423,7 +427,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                           <span className="inbox-subject">{label.subject}</span>
                         </span>
                         <span className="inbox-tags">
-                          {club && <span className="mail-tag mail-tag-club">Other club</span>}
+                          {club && <span className="mail-tag mail-tag-club">Other team</span>}
                           <span className={`mail-tag cat-${lead.category}`}>{tagOf(lead)}</span>
                           {t.messages.some((m) => needs.has(m.id)) && <span className="needs-pill">Needs you</span>}
                         </span>
@@ -561,15 +565,25 @@ export function MessageBody({
   const actions = m.actions.filter((a) => !skip.includes(a.kind));
   return (
     <>
-      {m.body
+      {/* An edition's stories are its body: the mail's own text is only there for search. */}
+      {(m.edition ? '' : m.body)
         .split(/\n\s*\n/)
-        .filter((paragraph) => paragraph !== m.coachNote?.text)
+        .filter((paragraph) => paragraph && paragraph !== m.coachNote?.text)
         .map((paragraph, i) => (
           <p className="inbox-body" key={i}>
             <LinkedText league={league} text={paragraph} about={aboutOf(league, m)} index={index} />
           </p>
         ))}
-      {m.sections && <MailSections league={league} sections={m.sections} onNegotiate={negotiate} letterId={m.id} />}
+      {m.sections && (
+        <MailSections
+          league={league}
+          sections={m.sections}
+          onNegotiate={negotiate}
+          letterId={m.id}
+          // The head coach signs a letter written as one.
+          signed={m.id.startsWith('coach:') ? m.from.split(/[ ,]/)[0] : undefined}
+        />
+      )}
       {m.coachNote && !m.sections && (
         <aside
           className="coach-note"

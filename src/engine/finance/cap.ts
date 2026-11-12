@@ -238,7 +238,7 @@ export function releasePlayer(league: League, player: Player, designatePostJune1
   for (const pos of POSITIONS) team.depthChart[pos] = team.depthChart[pos].filter((id) => id !== player.id);
   if (team.taggedId === player.id) team.taggedId = null;
   player.tagCount = 0; // a later tag elsewhere is not a consecutive one
-  logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`);
+  logTransaction(league, 'release', [team.id], `${team.abbrev} released ${nameOf(player)}`, player.id);
   noteRelease(league, team, player, preview.thisYear + preview.nextYear);
   setTeam(league, player, null);
   player.contract = null;

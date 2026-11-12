@@ -428,7 +428,8 @@ export interface Dispute {
 
 /** What an unhappy player asks his club about (`playerTalks.ts`). */
 /** `benched`: a job-holder sat healthy asks where he stands (`benching.ts`). */
-export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched';
+/** `form`: a leader who has started every game of his unit's slump asks where he stands (`formCase`, `slump.ts`). */
+export type TalkCause = 'snaps' | 'deal' | 'losing' | 'feud' | 'benched' | 'form';
 /** What a meeting is about: a grievance, nothing in particular, or a room's doubt in its coordinator (L4). */
 export type MeetingTopic = TalkCause | 'none' | 'coordinator';
 // ───────── team meetings (L2, `meetings/`) ─────────
@@ -568,6 +569,8 @@ export interface Talk {
   ask?: { cause: TalkCause; at: number };
   /** The clock his mood first read Poor or worse in the current run (cleared when it lifts). */
   downSince?: number;
+  /** The season he last asked where he stands in a slump (`formCase`): once a man a season. */
+  form?: number;
   /** The last answer, when, and the ask it answered: the eight-step quiet after it, and what the letter shows. */
   answered?: {
     reply: TalkReply | 'ignored';
@@ -1648,7 +1651,10 @@ export interface Transaction {
   phase: Phase;
   week: number;
   teamIds: number[];
-  /** The player the move is about, for a signing, a re-signing or a tag (v90; older entries have none). */
+  /**
+   * The player the move is about: a signing, a re-signing or a tag (v90), a release, a pick or a position change (v96). Older entries have
+   * none, and SNN's big-day editions skip an entry without one.
+   */
   playerId?: number;
   kind:
     | 'sign'
@@ -1728,14 +1734,21 @@ export interface MailSection {
   title: string;
   lead?: string;
   columns?: string[];
-  /** 'people': a row a person, with his face (the weekly letter). */
-  layout?: 'people';
+  /**
+   * 'people': a row a person, with his face (the weekly letter as it was filed before v95). 'letter': the head coach
+   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you.
+   */
+  layout?: 'people' | 'letter';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
     cells: string[];
     /** A sentence under the row. */
     note?: string;
+    /** The coach's words leading into the man's own, after his name: "came to see me about his contract." */
+    lead?: string;
+    /** A man still waiting on an answer: his name and his answers, under the section's one sentence. */
+    compact?: true;
     /** A waiver claim the row offers (the waiver letter's wire). */
     claim?: { entryId: number };
     /** A practice squad man the row keeps or lets go (the futures letter): its button is drawn from the league as it is. */
@@ -1762,8 +1775,8 @@ export interface MailSection {
 }
 
 /** Storylines (`stories.ts`): what happened to one subject of your club, beat by beat. Record-keeping only: the sim never reads it. */
-export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff';
-export type OutletId = 'coach';
+export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff' | 'form';
+export type OutletId = 'coach' | 'snn';
 export type BeatKind =
   | 'asked'
   | 'quiet'
@@ -1822,6 +1835,99 @@ export interface Story {
   told?: Partial<Record<OutletId, number>>;
 }
 
+/** What an edition story is: a game, or one of the week's other public events (`snnWeek.ts`). */
+export type EditionKind =
+  | 'game'
+  | 'division'
+  | 'trade'
+  | 'rumor'
+  | 'starOut'
+  | 'leaderOut'
+  | 'run'
+  | 'speak'
+  | 'room'
+  | 'mentor'
+  /** SNN's opinion piece: a claim and its evidence (`snnColumn.ts`). */
+  | 'column'
+  /** One of your club's public storylines (`stories.ts`). */
+  | 'storyline'
+  /** A story of one of the calendar's big days (`snnDays.ts`): a pick, a signing, a release, a change at the top. */
+  | 'day';
+
+/** The calendar's big days SNN gives an edition of their own (`snnDays.ts`). */
+export type EditionDay = 'year' | 'market' | 'draft' | 'cuts' | 'kickoff';
+
+/** A big-day edition's list box, where the division race sits in season: the day's rows at a glance. */
+export interface EditionList {
+  title: string;
+  head: string[];
+  /** The page links the cell under "Player" to the row's player and the cell under "Club" or "To" to its club. */
+  rows: { playerId?: number; teamId?: number; otherId?: number; cells: string[] }[];
+}
+
+/** A final as SNN's weekly edition keeps it. */
+export interface EditionScore {
+  gameId: number;
+  homeId: number;
+  awayId: number;
+  home: number;
+  away: number;
+  overtime?: true;
+}
+
+/** One story of SNN's weekly edition, as it read when filed: later games, trades and pruning cannot rewrite it. */
+export interface EditionStory {
+  /** What it is about, for the edition's `covered`: 'game:{gameId}', 'run:{teamId}:{season}:{startWeek}'… */
+  key: string;
+  kind: EditionKind;
+  /** The one thing it says: a game's angle (`snnStory.ts`), a trade's, 'streak', 'faded', 'bye'… */
+  angle: string;
+  tier: 1 | 2 | 3 | 4 | 5;
+  /** The club the angle is about. */
+  clubId: number;
+  /** It is about the reader's club. */
+  yours?: true;
+  kicker: string;
+  headline: string;
+  /** The closed tile's one or two sentences. */
+  summary: string;
+  picture: { playerId?: number; coachId?: number; gameId?: number; teamIds?: number[] };
+  score?: EditionScore;
+  /** The men it names, in the order it names them: for linking a name in a paragraph, and for the rules. */
+  cast: number[];
+  /** At most three. */
+  numbers: { value: string; label: string }[];
+  /** Two to four. */
+  paragraphs: string[];
+  /** A second story about the reader's club: one paragraph, its news alone. */
+  brief?: true;
+  /** A Column's evidence: a few rows of two values each, the second the one the claim rests on. */
+  table?: { head: string[]; rows: string[][] };
+  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
+  links: InboxAction[];
+  /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */
+  covers?: string[];
+}
+
+/** SNN's weekly edition (`snnWeek.ts`): a front page whose tiles open into stories. */
+export interface Edition {
+  /** 'Week 9', 'Wild Card'… */
+  label: string;
+  scores: EditionScore[];
+  lead: EditionStory;
+  /** The reader's club, while he runs one and its game is not the lead. */
+  club?: EditionStory;
+  tiles: EditionStory[];
+  race?: { division: string; rows: { teamId: number; w: number; l: number; t: number; last: string; next: string }[] };
+  /** In the playoffs, in place of the race and the game of the week. */
+  bracket?: { results: EditionScore[]; next: { homeId: number; awayId: number }[] };
+  /** The game of the week, with each club's record as text. */
+  next?: { gameId: number; homeId: number; awayId: number; home: string; away: string };
+  /** One of the calendar's big days, not a week: no scores, and `lists` in place of the race (v96). */
+  day?: EditionDay;
+  lists?: EditionList[];
+}
+
 export interface InboxMessage {
   /** Internal correspondence belongs to the club, even after its GM changes jobs. */
   organizationId?: number;
@@ -1839,6 +1945,11 @@ export interface InboxMessage {
   phase: Phase;
   /** The week it's dated (0 in the offseason). */
   week: number;
+  /**
+   * Where the inbox files it, when that is not its own date: a game's mail arrives once the desk has moved on to the
+   * next week, and is read there. Screens read `mailDate`; `week` stays what the letter is about.
+   */
+  filed?: { phase: Phase; week: number };
   from: string;
   /** Another club's front office wrote it (offers, deals): the inbox draws it in that club's colours. */
   fromTeamId?: number;
@@ -1848,6 +1959,8 @@ export interface InboxMessage {
   subject: string;
   body: string;
   leagueReport?: LeagueNewsReport;
+  /** SNN's weekly edition (`snnWeek.ts`), as filed. */
+  edition?: Edition;
   /** The head coach's rundown for a new GM, as filed: unit ranks on our scouts' read (1 = the league's best), key players, prospects. */
   rundown?: { offenseRank: number; defenseRank: number; offense: number[]; defense: number[]; prospects: number[] };
   /** The director's market report: per trade (in `marketTrades` order), his note on what it means for us and whether SNN ran it, as filed. */

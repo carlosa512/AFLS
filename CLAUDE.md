@@ -58,6 +58,19 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run copy [-- min]` — a preview, not a check: every sentence the screens can show (text of 45 characters or
   more unless given), by file and line, in `.check/copy.txt`, for reading screen text on its own against
   `docs/UI.md`'s "Words on a screen". Run it after adding or changing text in `src/ui/`.
+- `npm run editions [-- seed] [--weeks n]` — a preview, not a check: plays a season and writes every SNN weekly edition
+  to `.check/editions.md` (rule breaks at the top, then each week's stories as printed) for reading the words. Run it
+  after changing `snnWeek.ts`, `snnStory.ts`, `snnVoice.ts` or `storyRules.ts`; `npm run screens -- --edition` shoots one. `--seasons n` plays
+  seasons and counts instead how often SNN's Column and your club's coverage would fire (by rung, about your club, the
+  conversation's bars): the figures the owner sets `FORM` (`slump.ts`) and `LADDER` (`snnColumn.ts`) from.
+  `--offseasons n` plays offseasons and counts what each of SNN's big-day editions would have to tell at a few
+  settings of each bar (`scripts/dayCounts.ts`, `.check/day-counts.md`): the figures for `DAY` (`snnDays.ts`) and
+  `STANDING` (`publicStanding.ts`). `--days` plays a season and its offseason and writes SNN's five big-day editions
+  to `.check/day-editions.md` for reading the words (run it after changing `snnDays.ts` or `snnDayVoice.ts`).
+- `npm run letters [-- name]` — a preview, not a check: every line the letters in the inbox can say, read from the
+  source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
+  with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
+  changing a letter's words and read the lines you touched; `letterRules.test.ts` fails on a break.
 - `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
   enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
   for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
@@ -245,11 +258,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `inbox.ts` the user's mail (awards, injuries, expiring deals, retirements, scouting, opposition reports and recaps,
     trades, the playoff race, the owner's letter, staff deals, coaches hired away, the coaching carousel, free agency):
     `deliverMail` runs after every `store.mutate` and files what's new, each message keyed by what it's
-    about so nothing doubles up. The sim never sends mail itself. A recap tells one thing that decided
+    about so nothing doubles up. A letter keeps the week it is about (`week`) and is filed under the week it is
+    read in (`filed`, read by screens through `mailDate`): a game's mail lands with the next week's build-up. The sim never sends mail itself. A recap tells one thing that decided
     the game, read off the box score (`gameStory`: comeback, lead let go, turnovers, control, a result
     against the yardage, a late shutdown, a close one; a routine game gets the yards); the opposition
     report is a briefing on our scouts' read, qualified when they barely know the team, and never
-    promises a tactic the engine doesn't run. Each sender keeps a voice: the head coach direct, the
+    promises a tactic the engine doesn't run; its Key matchups card (`opposition.ts`, `MatchupsCard` in `ui/mail.tsx`)
+    names units in full with ours first, says "the stats this season", never lets a stat contradict the scouts
+    (a unit is performing above or below expectations) and has no semicolon or colon inside a sentence. Each sender keeps a voice: the head coach direct, the
     director analytical and hedged, the doctor measured, agents advocates, the league office neutral. `mailSubject` reads that key back, and
     `needsYou` works out from the league as it is now whether a message still asks something (nothing
     stored); the cards a message opens with (`ui/mail.tsx`) are looked up the same way. Digests replace one-off
@@ -262,14 +278,52 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
     through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of a sentence the sender
     has filed this league year: `seasonSaid` and `around`, a line of two sentences counting as said when either was);
-    `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
+    `senders.ts` signs them. **Every letter is written to the house rules** in `docs/NEWS.md`'s "Words in a letter"
+    (plain complete sentences, a letter starts with its news, players are players and never "men" or "the guys", the
+    team is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
+    colon or dash inside a sentence; a person speaking may answer in two words; and American football English in every
+    word a reader sees, screens included: a team and never a club, a game and never a fixture, a loss and never a
+    defeat, "at home against", American spelling): `letterRules.ts` checks what a rule
+    can check (`letterBreaks`, `wordBreaks`) and `letterRules.test.ts` holds every line of `LETTER_FILES` to it, so a
+    new file that words a letter goes in that list. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
+  - `snnWeek.ts` the editor of SNN's weekly edition (`docs/NEWS.md`, spec
+    `docs/superpowers/specs/2026-11-11-snn-weekly-edition-design.md`): SNN's one mail a completed week and playoff round in
+    season (`editionMail`, called from `deliverMail`; `InboxMessage.edition`). It gathers the week's candidates from the
+    public record (games, runs, a star out, a division lead, trades and rumors by `tradeNews.ts`'s rules, a coach or GM
+    out, a player speaking out), ranks them in five tiers, cuts them to the page (a lead, Your club, up to three tiles;
+    one story a club) and words each through `snnVoice.ts`. `snnStory.ts` reads a game's angle from its box score and the
+    standings before it (`CUT`: every cutoff set from NFL counts, `scripts/research-edition.py`). `snnVoice.ts` writes a
+    story as two paragraphs of prose to the writing rules (one angle, it stops on a fact, no semicolons, two numbers a
+    sentence, no sentence twice a season, one plain quote at most), `storyRules.ts` checks them (`ruleBreaks`) and
+    `refer.ts` names a man or a club a second time. `season/gameOfWeek.ts` picks next week's game for the page and the
+    strip. Mail-side only: public facts, no draws, nothing in the sim reads it (`snnWeek.season.test.ts` plays a season
+    with mail filed and never filed). The page is `ui/edition.tsx` (`EditionCards`: tiles start closed and open in place).
+    `snnColumn.ts` the edition's one opinion piece (spec `docs/superpowers/specs/2026-11-11-snn-column-and-storylines-design.md`):
+    claims about a unit, a head coach or a GM up an evidence ladder (`LADDER`, `columnClaims`), blame, credit and a claim
+    taken back, and which one runs (`pickColumn`: never two weeks running, blame and credit in turn, a man's job in one
+    Column of three, three a season about your club); `columnStory` in `snnVoice.ts` writes it around a table of public
+    numbers. `slump.ts` a unit's last four games against the league (`unitForm`, `FORM`, `inSlump`) and the one player a
+    box score singles out (`unitMan`, `MAN`). `storylineCandidates` reads your club's public beats from the story store
+    (`SNN_OUTLET`) as tiles. An article causes nothing: what an edition printed lives in its `covered` keys.
+    `snnDays.ts` the editor of SNN's five big-day editions (`docs/NEWS.md`, "SNN on the big days"; spec
+    `docs/superpowers/specs/2026-11-12-snn-big-days-design.md`): the new league year, free agency, draft day, cut-down
+    day and Kickoff, each filed once for the moment that just ended (`dayNow`, `dayMail`, called from `deliverMail`;
+    `snn:{season}:d:{day}`, `Edition.day`, `Edition.lists`), on the weekly edition's page. Candidates come from the
+    public record (transactions with their `playerId`, the draft, leadership events, `Team.jobs.held`, the trade
+    history), rank by tier then public worth, and are cut to a lead, your team's own slot and three tiles, one story a
+    team (`cutDay`; a tile kept for who starts the year under pressure and for a mentor game, which never leads). The
+    bars are `DAY`. `publicStanding.ts` says who is a name without reading a scout (`publicRecord`: last season's
+    awards, All-League, top-five stats, a winning team's quarterback, snaps). `snnDayVoice.ts` writes each story to
+    `storyRules.ts` and the house rules, no sentence twice a league year (`pick`). They replace the three offseason
+    digests (`legacyYear` keeps those for a league year already told the old way; `DAYS.on` for tests)
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing
     (`STORIES.on` turns it off in tests to prove play is untouched). Each story keeps how many beats each outlet has
     told (`told`, `markTold`, `untold`) and an outlet is a reader of the store (`Outlet`, `COACH` sees your own club's
-    beats; a public outlet, after alpha, only the beats marked `pub`), so two outlets never repeat each other.
+    beats; `SNN_OUTLET` only your club's beats marked `pub`, and keeps what it printed in its edition's `covered` keys
+    rather than in `told`), so two outlets never repeat each other.
     `storiesStep.ts` the step after morale and the meetings: beats for what is read rather than done (a room turning
     Down or Split and holding, a feud, the staff's standing), the links between a man's story and his room's, the men
     who left, and `tellable` (a turn must have stood a week); it may read `standing.ts`, `morale.ts`, `belief.ts` and
@@ -281,7 +335,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     three and the notes of four and five fresher than `STALE` steps, then cuts the letter to `MAX_ROWS` rows from the lowest
     tier up (what needs your answer always stays; a result names `RESULT_MEN` men; notes alone never file a letter, and a
     meeting's result or a story closing rides in the next letter, filing one alone only after `RESULT_WAIT` steps), and
-    words them through `coachWeekVoice.ts` around everything said this league year. A room is not told twice inside
+    words them through `coachWeekVoice.ts` around everything said this league year. It reads as a letter
+    (`MailSection.layout: 'letter'`, `LetterSection` in `ui/mail.tsx`): what needs you first, each person introduced in
+    a sentence, then "The rest needs nothing from you." and the notes; it opens on a fact of the week or on its first
+    item (no line only announces the letter), says players and never "men", and its subject is the top item and a count
+    of the rest (`subjectFor`). No row is labelled on the page: a row's second cell is its kind, for the cut and the
+    tests, and a paragraph about no one person names its subject in its own sentence. After a Column blames one of your units, one note says how its senior player took it
+    (`coverageItem`, `COVERAGE`). A room is not told twice inside
     `NOTE_GAP` steps (a turn, its chemistry and its coach's belief count together). The losing is the club's, not a man's or a room's:
     one story (`{ kind: 'room', unit: 'team' }`), one row for the man asking with the most standing (the others named, across
     rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
@@ -371,7 +431,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     AI's (`aiReply`, by its GM's tendencies), promises kept or broken by what happens and remembered (`promisesScore`),
     run at the end of each morale step; the losing reaches your desk only from a leader, a voice or a captain, or from anyone once
     the club has lost `BOILING` straight (`losingReachesYou`, your club only), and it has its own three answers (two
-    reassure, one of them `lead`, one firm); `promiseMail.ts` is the head coach's season's-end reminder of open promises;
+    reassure, one of them `lead`, one firm); a quarterback or a leader who holds his job while his unit is in a slump may
+    ask where he stands (`formCase`, cause `form`: once a season, your club only, two answers, never sours);
+    `promiseMail.ts` is the head coach's season's-end reminder of open promises;
     `talkMail.ts` files your letters (a step's letters as one message, `talkCard`
     reads what a letter shows), his words in `playerVoice.ts` · `disputes.ts` hold-ins, holdouts (G4a) and trade requests (G4b): who
     escalates (`escalation`: a soured talk, four Very poor steps; a deal from the re-sign window to camp, snaps, the losing

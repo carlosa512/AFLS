@@ -381,6 +381,18 @@ export function migrateLeague(league: League): League | null {
     toV93(league);
     league.version = 93;
   }
+  // v94: SNN's weekly edition (`InboxMessage.edition`). Optional, filed with the next completed week: nothing to
+  // rewrite, and the separate SNN mails an old save holds still open as they were.
+  // Also where a letter is filed when that is not its own date (`InboxMessage.filed`): stamped on mail as it
+  // arrives, so letters an old save holds stay under the week they were dated.
+  if (league.version < 94) league.version = 94;
+  // v95: a talk about a man's form (`TalkCause` 'form', `Talk.form`) and a Column's evidence table and brief stories
+  // (`EditionStory.table`, `.brief`): new values and optional fields, so nothing on an older save is rewritten.
+  if (league.version < 95) league.version = 95;
+  // v96: SNN's big-day editions (`Edition.day`, `.lists`) and the player a release or a pick is about
+  // (`Transaction.playerId`): optional fields, written from here on. An older save's entries have no player, and the
+  // editions skip them.
+  if (league.version < 96) league.version = 96;
   return league;
 }
 

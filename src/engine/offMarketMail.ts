@@ -5,6 +5,7 @@
  * or tag names its player from save v90); our own club's re-signings are the front office's to tell. Filed once.
  */
 import { freeAgents } from './offseason/negotiation';
+import { dayOnFile } from './snnDays';
 import { seenOvr } from './scouting';
 import type { Draft } from './senders';
 import type { League, MailSection, Player } from './types';
@@ -16,6 +17,8 @@ export function offMarketMail(league: League, have: Set<string>): Draft[] {
   if (league.phase !== 'freeAgency') return [];
   const id = `offMarket:${league.season}`;
   if (have.has(id)) return [];
+  // SNN's new-league-year edition tells who was kept and who reached the market now (`snnDays.ts`).
+  if (dayOnFile(league, 'year', have)) return [];
   const user = league.userTeamId;
   // A re-signing says "re-signed" (an early extension says "extended": he was never coming to market); a tag is a tag.
   const kept = new Map<number, Player>();
@@ -54,10 +57,12 @@ export function offMarketMail(league: League, have: Set<string>): Draft[] {
       week: 0,
       from: 'SNN league desk',
       category: 'league',
-      subject: `Off the market: ${counts} before free agency`,
+      subject: `Off the market: ${counts}`,
       body:
-        "Before free agency opened, these players' clubs kept them." +
-        (still.length ? ` Still heading to market: ${still.map((p) => `${p.position} ${name(p)}`).join(', ')}.` : ''),
+        "Before free agency opened, these players' teams kept them." +
+        (still.length
+          ? ` ${still.map((p) => `${p.position} ${name(p)}`).join(', ')} ${still.length === 1 ? 'is' : 'are'} still heading to market.`
+          : ''),
       sections: [{ title: 'Kept before free agency', columns: ['Player', 'Pos', 'Club', 'Deal'], rows }],
       actions: [...still.map((p) => ({ kind: 'player' as const, playerId: p.id })), { kind: 'fa' as const }],
     },

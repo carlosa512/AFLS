@@ -23,7 +23,7 @@ const man = (last: string, o: Partial<ManFact> = {}): ManFact => ({
   id: 1,
   first: 'Preston',
   last,
-  years: 'a third-year man',
+  years: 'a third-year player',
   starting: true,
   rookieDeal: true,
   finalYear: true,
@@ -56,9 +56,9 @@ describe('meetings: the coach’s words', () => {
     expect(say(READ_LEAD, f, at)).toBe(
       'Preston Mitchell is unhappy about his deal, and the D-line is hearing about it.',
     );
-    expect(say(READ_WHY, f, at)).toMatch(/third-year man starting for us on a rookie wage/);
-    expect(say(READ_ROOM, f, at)).toMatch(/with his deal running out it won't sort itself out/);
-    expect(say(ASK, f, at)).toMatch(/the only thing that reaches him on the money/);
+    expect(say(READ_WHY, f, at)).toMatch(/third-year player starting for us on a rookie wage/);
+    expect(say(READ_ROOM, f, at)).toMatch(/with his deal running out it won't settle by itself/);
+    expect(say(ASK, f, at)).toMatch(/the only thing that will reach him on the money/);
   });
 
   it('has a line for every case, and none uses an engine word or a digit', () => {
@@ -137,7 +137,7 @@ describe('meetings: the coach’s words', () => {
       kept: { noun: 'the line', month: 'October', promise: "we'd open Mitchell's talks", named: 'he' },
       broken: { when: 'the deadline', promise: 'we were buying' },
     });
-    expect(year).toMatch(/^We got the guys together four times this year\./);
+    expect(year).toMatch(/^We held a team meeting four times this year\./);
     expect(year.match(/\bthe one\b/gi)).toBeNull();
     clean(year);
     // A promise from your own address is yours, not the coach's.

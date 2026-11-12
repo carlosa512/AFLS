@@ -500,7 +500,7 @@ describe('the opposition report', () => {
     x.heightIn = 77;
     cb.heightIn = 69;
     expect(heightMismatch(l, opp)).toBe(
-      `Their X receiver ${x.firstName} ${x.lastName} has 8 inches on ${cb.firstName} ${cb.lastName}: a contested ball between them is his to win.`,
+      `Their X receiver ${x.firstName} ${x.lastName} has 8 inches on ${cb.firstName} ${cb.lastName}, so a contested ball between them is his to win.`,
     );
   });
 });

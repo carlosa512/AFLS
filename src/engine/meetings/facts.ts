@@ -42,10 +42,10 @@ export const SCOPE_NOUN: Record<MeetingScope, string> = {
 
 const ORDINAL = ['', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
 
-/** "a rookie", "a third-year man", "an eight-year veteran", "a long-time veteran". */
+/** "a rookie", "a third-year player", "an eight-year veteran", "a long-time veteran". */
 export function yearsPhrase(experience: number): string {
   if (experience <= 0) return 'a rookie';
-  if (experience <= 3) return `a ${ORDINAL[experience]}-year man`;
+  if (experience <= 3) return `a ${ORDINAL[experience]}-year player`;
   const words = ['', '', '', '', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
   return experience < words.length
     ? `${experience === 8 || experience === 11 ? 'an' : 'a'} ${words[experience]}-year veteran`
@@ -123,6 +123,8 @@ const ANSWERS: Record<TalkCause, Exclude<Backing, 'words'>> = {
   feud: 'feud',
   losing: 'move',
   benched: 'snaps',
+  // No meeting is called about a man's form: the nearest backing is a move.
+  form: 'move',
 };
 
 export function suggestFact(league: League, teamId: number, s: MeetingSuggestion, ctx?: MoraleContext): SuggestFact {

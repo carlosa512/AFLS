@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DAYS } from './snnDays';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { simToEndOfSeason } from './league';
@@ -20,7 +21,14 @@ beforeAll(() => {
 const fresh = (): League => JSON.parse(opened);
 const rowsOf = (l: League) => offMarketMail(l, new Set())[0]?.sections?.[0].rows ?? [];
 
+// The digest SNN's new-league-year edition replaced: still filed for a league year already told the old way.
 describe('off the market', () => {
+  beforeAll(() => {
+    DAYS.on = false;
+  });
+  afterAll(() => {
+    DAYS.on = true;
+  });
   it('files once when free agency opens, listing other clubs’ re-signings and tags', () => {
     const l = fresh();
     deliverMail(l);
@@ -28,7 +36,7 @@ describe('off the market', () => {
     const mail = (l.inbox ?? []).filter((m) => m.id.startsWith('offMarket:'));
     expect(mail).toHaveLength(1);
     expect(mail[0].from).toBe('SNN league desk');
-    expect(mail[0].subject).toMatch(/^Off the market: \d+ re-signed(, \d+ tagged)? before free agency$/);
+    expect(mail[0].subject).toMatch(/^Off the market: \d+ re-signed(, \d+ tagged)?$/);
     for (const r of mail[0].sections![0].rows.filter((x) => x.playerId !== undefined)) {
       const p = l.players[r.playerId!];
       expect(p.teamId).not.toBe(l.userTeamId);

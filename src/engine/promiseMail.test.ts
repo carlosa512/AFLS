@@ -33,7 +33,7 @@ describe("the head coach's promises reminder", () => {
     expect(deal.note).toBe('A new deal by the end of the re-sign window.');
     expect(deal.negotiate).toEqual({ playerId: a.id });
     const snaps = rows.find((r) => r.playerId === b.id)!;
-    expect(snaps.note).toBe('More snaps: two games left, carried into next season.');
+    expect(snaps.note).toBe('More snaps, with two games left, carried into next season.');
     expect(snaps.negotiate).toBeUndefined();
     expect(rows.some((r) => r.playerId === other.id)).toBe(false);
   });

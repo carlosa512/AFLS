@@ -97,16 +97,16 @@ function reviewTrial(a: CoachAdvice, p: Player, season: number, games: number): 
   }
   if (verdict === 'promising')
     return {
-      text: 'The early return is encouraging; we should consider keeping the change for another week.',
+      text: 'The early return is encouraging, and we should consider keeping the change for another week.',
       promising: true,
     };
   if (verdict === 'poor')
     return {
-      text: `The early return has been poor; we should consider moving back to ${a.aheadName} while we review the position.`,
+      text: `The early return has been poor, and we should consider moving back to ${a.aheadName} while we review the position.`,
       promising: false,
     };
   return {
-    text: 'There is not enough clear evidence yet to settle the position; we should review the trial again after more opportunities.',
+    text: 'There is not enough clear evidence yet to settle the position, so we should review the trial again after more opportunities.',
     promising: false,
   };
 }
@@ -242,7 +242,7 @@ export function updateCoachAdvice(league: League, team: Team, staff: readonly Co
       a.review = { week: league.week, promising: review.promising, adopted: a.applied };
       a.resolved = `${a.playerName} has appeared in ${games} more games since the recommendation${production}. ${review.text}`;
     } else if (league.week - a.week >= 4)
-      a.resolved = `${a.playerName} has not yet earned two more game appearances; the staff will review the position again when circumstances change.`;
+      a.resolved = `${a.playerName} has not yet earned two more game appearances, so the staff will review the position again when circumstances change.`;
   }
   const pick = assessCoachAdvice(league, team, staff, available);
   if (pick && !(team.coachAdvice ?? []).some((a) => !a.resolved && a.season === league.season)) {

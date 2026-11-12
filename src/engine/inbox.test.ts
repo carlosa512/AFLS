@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DAYS } from './snnDays';
 import {
   acceptGmOffer,
   beginGmSearch,
@@ -155,7 +156,7 @@ describe('inbox', () => {
       medical: ['injury', 'cleared', 'covering', 'shortHanded'],
       awards: ['award'],
       trades: ['trade', 'deadline', 'market', 'marketRecap', 'advice'],
-      league: ['race', 'news', 'leadership', 'gazette', 'locker', 'rumor'],
+      league: ['race', 'news', 'leadership', 'gazette', 'locker', 'rumor', 'edition'],
       staff: [
         'leadership',
         'gmOffer',
@@ -350,9 +351,14 @@ describe('inbox', () => {
 
   it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
     const changes = headCoachChanges(league);
-    expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(changes.length > 0);
-    for (const m of league.inbox!.filter((m) => m.id === `league:${league.season}:carousel`))
-      expect(m.from).toBe('SNN league desk');
+    // SNN's new-league-year edition tells the changes now, in place of the coaching carousel's own digest.
+    expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(false);
+    const year = league.inbox!.find((m) => m.id === `snn:${league.season}:d:year`);
+    if (changes.some((x) => x.replaced)) {
+      const rows = year!.edition!.lists!.find((x) => x.title === 'Changes at the top')!.rows;
+      for (const x of changes.filter((c) => c.replaced).slice(0, rows.length))
+        expect(rows.some((r) => r.teamId === x.teamId)).toBe(true);
+    }
     for (const x of changes) {
       expect(x.coach.role).toBe('headCoach');
       expect(x.coach.teamId).toBe(x.teamId);
@@ -418,7 +424,7 @@ describe('inbox', () => {
     expect(report.body).toMatch(
       /at No\. \d+( \((the consensus had him at No\. \d+|right where the consensus had him)\))?\./,
     );
-    expect(report.body).toMatch(/ Our scouts like [A-Z]+ .+ most of all: an? .+\.$/);
+    expect(report.body).toMatch(/ Our scouts like [A-Z]+ .+ most of all\. An? .+\.$/);
     expect(report.body).not.toMatch(/undefined|NaN/);
     expect(mailSubject(report)).toEqual({ kind: 'draftClass', season: league.season });
   });
@@ -902,9 +908,9 @@ describe('the story of a game', () => {
   it('tells control, a result against the yardage, a defense that shut the door, and a close one', () => {
     expect(
       gameStory(game([10, 7, 10, 7], [0, 3, 0, 3], { totalYds: 420, top: 38 * 60 }, { totalYds: 190 }), true).takeaway,
-    ).toBe('We controlled it from start to finish: 420 yards to 190 and 38:00 of possession.');
+    ).toBe('We controlled it from start to finish, with 420 yards to 190 and 38:00 of possession.');
     expect(gameStory(game([0, 3, 0, 3], [10, 7, 10, 7], { totalYds: 190 }, { totalYds: 420 }), true).takeaway).toBe(
-      'They controlled it from start to finish: 420 yards to 190.',
+      'They controlled it from start to finish, with 420 yards to 190.',
     );
     // Won while outgained: the red zone explains it when it can.
     expect(
@@ -937,11 +943,11 @@ describe('the story of a game', () => {
     ).toBe('We outgained them 390 yards to 280 but came away with only 1 touchdown from 6 trips inside the 20.');
     // Up 14 at the half and nothing allowed after it.
     expect(gameStory(game([14, 7, 3, 3], [7, 7, 0, 0]), true).takeaway).toBe(
-      'The defense shut the door after halftime: nothing allowed after the break.',
+      'The defense shut them down after halftime, with nothing allowed after the break.',
     );
     // A one-score game into the fourth, settled by three.
     expect(gameStory(game([7, 7, 3, 7], [7, 7, 7, 0]), true).takeaway).toBe(
-      'A one-score game all through the fourth quarter.',
+      'It was a one-score game all through the fourth quarter.',
     );
     expect(gameStory(game([7, 7, 3, 7, 3], [7, 7, 7, 3, 0], {}, {}, true), true).takeaway).toBe(
       'Neither side could put it away in regulation.',
@@ -1825,6 +1831,12 @@ describe("the young players' review", () => {
 });
 
 describe('GM notes on the front-office mail', () => {
+  beforeAll(() => {
+    DAYS.on = false;
+  });
+  afterAll(() => {
+    DAYS.on = true;
+  });
   const hire = (l: ReturnType<typeof createLeague>, n: number, id: number, phase: 'resign' | 'regular') => {
     const others = l.teams.filter((t) => t.id !== l.userTeamId && t.gmId !== null);
     l.leadership.events = others.slice(0, n).map((t, i) => ({
@@ -1845,13 +1857,14 @@ describe('GM notes on the front-office mail', () => {
     expect(m.gmNotes!.map((n) => n.gmId)).toEqual(gms.slice(0, 3).map((g) => g.id));
     for (const [i, n] of m.gmNotes!.entries()) {
       expect(n.line).toBe(reputation(l, gms[i]));
-      expect(n.line).toMatch(/^(He|She|They)('s| is)|^Hard to pin down\.$/);
+      expect(n.line).toMatch(/^(He|She|They) |^Hard to pin down\.$/);
     }
     expect(m.carousel![0].line).toContain(`new GM, ${reputation(l, gms[0], 'fragment')}`);
   });
   it('gives a lone hire story one note', () => {
     const l = createLeague({ seed: 'gm-notes-lone' });
-    const [gm] = hire(l, 1, 1, 'regular');
+    // Out of season: another club's in-season change is a story of the weekly edition, not a mail of its own.
+    const [gm] = hire(l, 1, 1, 'resign');
     const [m] = leadershipMail(l, new Set());
     expect(m.gmNotes).toEqual([{ gmId: gm.id, line: reputation(l, gm) }]);
   });

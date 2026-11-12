@@ -86,7 +86,7 @@ describe('the public news desk', () => {
     expect(m.leagueReport!.stats).toHaveLength(4);
     expect(m.body).toMatch(/^The .* took over first place .* with a 24–10 win over/);
     expect(m.body.split('\n\n')).toHaveLength(2);
-    expect(m.body).toContain('6–0 start has given way to four straight defeats');
+    expect(m.body).toContain('6–0 start has given way to four straight losses');
     const snapshot = copy(m.leagueReport);
     l.inbox = [{ ...m, read: false }];
     l.games = [];
@@ -258,7 +258,7 @@ describe('year-over-year and division context', () => {
     for (let w = 1; w <= 10; w++) l.games.push(game(l, 2, 6, w, w <= 4 ? 24 : 10, w <= 4 ? 10 : 24));
     const [m] = leagueNews(l, new Set());
     expect(m.body).toContain(`${l.teams[2].name} sit third at 4–6, 2 games behind`);
-    expect(m.body).toContain('four straight defeats');
+    expect(m.body).toContain('four straight losses');
   });
 });
 

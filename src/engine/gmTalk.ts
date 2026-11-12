@@ -137,7 +137,7 @@ export const OPENERS: readonly Line<TalkFacts>[] = [
   { text: () => "Got something I'd like you to look at." },
   { text: () => 'Been going through my roster and this came up.' },
   { text: () => "Have a minute? This one's worth a look." },
-  { text: () => "I've been working through my list and your club came up." },
+  { text: () => "I've been working through my list and your team came up." },
   { text: () => 'Straight to it.' },
 
   // Each feeling keeps at least six lines that fit every kind of letter (an enquiry or a price ask has no terms to point at).

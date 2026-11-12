@@ -46,7 +46,7 @@ export function signAtAskProblem(league: League, p: Player): string | null {
   const problem = offerProblem(league, p, user, ask);
   if (problem) return problem;
   if (offerValue(league, p, user, ask, d) < d.walkAway)
-    return "He won't sign at his opening ask with us right now: negotiate.";
+    return "He won't sign at his opening ask with us right now, so negotiate.";
   return null;
 }
 
@@ -69,28 +69,32 @@ const NOTE: readonly Line<NoteFact>[] = [
   {
     when: (f) => f.call === 'tag',
     reads: 2,
-    text: () => 'Top-of-market money for a top-of-market player. Tag him if talks stall.',
+    text: () => 'He is asking for top-of-market money, and he is a top-of-market player. Tag him if talks stall.',
   },
   {
     when: (f) => f.call === 'tag',
     reads: 2,
-    text: () => "Worth the tag if his agent won't move. A year at the tag beats losing him for nothing.",
+    text: () => "He is worth the tag if his agent won't move. A year at the tag beats losing him for nothing.",
   },
   {
     when: (f) => f.reason === 'starter',
     reads: 1,
     text: () => "He starts for us, and I don't see anyone in the room ready to take the job.",
   },
-  { when: (f) => f.reason === 'starter', reads: 1, text: () => 'A starter at a fair ask. Easy call.' },
   {
-    when: (f) => f.reason === 'young',
+    when: (f) => f.reason === 'starter',
     reads: 1,
-    text: () => 'Young enough that the ceiling is the point. I would pay for where he is going.',
+    text: () => 'He is a starter at a fair ask, so this is an easy call.',
   },
   {
     when: (f) => f.reason === 'young',
     reads: 1,
-    text: () => 'Not there yet, but our scouts like where he is headed. Keep him.',
+    text: () => 'He is young enough that his ceiling is the point. I would pay for where he is going.',
+  },
+  {
+    when: (f) => f.reason === 'young',
+    reads: 1,
+    text: () => 'He is not there yet, but our scouts like where he is headed, so I would keep him.',
   },
   {
     when: (f) => f.reason === 'depth',
@@ -127,11 +131,11 @@ const NOTE: readonly Line<NoteFact>[] = [
 const OPENER: readonly Line<{ n: number }>[] = [
   {
     text: (f) =>
-      `${NUMBER[f.n] ?? f.n} deal${f.n === 1 ? ' is' : 's are'} up. My calls below; the money is each agent's opening ask.`,
+      `${NUMBER[f.n] ?? f.n} deal${f.n === 1 ? ' is' : 's are'} up. My calls are below, and the money is each agent's opening ask.`,
   },
   {
     text: (f) =>
-      `${NUMBER[f.n] ?? f.n} of our deal${f.n === 1 ? '' : 's'} ran out. Here is where I land on each, with what his agent is asking.`,
+      `${NUMBER[f.n] ?? f.n} of our deal${f.n === 1 ? '' : 's'} ran out. My call on each is below, with what his agent is asking.`,
   },
 ];
 

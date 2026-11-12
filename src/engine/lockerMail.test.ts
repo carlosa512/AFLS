@@ -3,7 +3,7 @@ import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { mentoringWeek } from './mentoring';
 import { noteDeparture, speaksOut } from './relationships';
-import { recapAside } from './lockerMail';
+import { recapAside, speakFacts } from './lockerMail';
 import type { League, Player } from './types';
 import { setTeam } from './roster';
 
@@ -36,14 +36,58 @@ describe('locker room letters', () => {
     const quiet = ours.find((p) => p !== loud)!;
     quiet.traits = { ...quiet.traits, controversy: 5 };
     noteDeparture(l, quiet, l.userTeamId, 'cut');
+    // In season it is a story of SNN's weekly edition (`snnWeek.ts`), from these facts, and no mail of its own.
+    const id = `speak:${l.season}:${loud!.id}:traded`;
+    const facts = speakFacts(l, new Set());
+    expect(facts.filter((f) => f.playerId === loud!.id)).toEqual([
+      { id, playerId: loud!.id, teamId: l.userTeamId, kind: 'traded' },
+    ]);
+    expect(facts.some((f) => f.playerId === quiet.id)).toBe(false);
+    expect(speakFacts(l, new Set([id])).some((f) => f.id === id)).toBe(false);
+    deliverMail(l);
+    expect(mail(l, id)).toHaveLength(0);
+    // Out of season SNN still carries it by itself, once.
+    l.phase = 'resign';
     deliverMail(l);
     deliverMail(l);
-    const m = mail(l, `speak:${l.season}:${loud!.id}:traded`);
+    const m = mail(l, id);
     expect(m).toHaveLength(1);
     expect(m[0].from).toBe('SNN league desk');
     expect(m[0].body).toContain(loud!.lastName);
     expect(m[0].body).not.toMatch(BANNED);
     expect(mail(l, `speak:${l.season}:${quiet.id}:`)).toHaveLength(0);
+  });
+
+  it('does not carry a speak-out an edition already told', () => {
+    const { l } = world();
+    const ours = Object.values(l.players).filter((p) => p.teamId === l.userTeamId);
+    const loud = ours.find((p) => {
+      p.traits = { ...p.traits, controversy: 20 };
+      return speaksOut(l, p, l.season, 'traded');
+    })!;
+    noteDeparture(l, loud, l.userTeamId, 'traded');
+    setTeam(l, loud, (l.userTeamId + 1) % 32);
+    const id = `speak:${l.season}:${loud.id}:traded`;
+    // An edition that told it keeps its key in `covered`, not in a mail id of its own.
+    l.inbox = [
+      ...(l.inbox ?? []),
+      {
+        id: `snn:${l.season}:w4`,
+        season: l.season,
+        phase: 'regular',
+        week: 4,
+        from: 'SNN — Sports News Network',
+        category: 'league',
+        subject: 'Week 4',
+        body: '',
+        read: true,
+        actions: [],
+        covered: [id],
+      },
+    ];
+    l.phase = 'resign';
+    deliverMail(l);
+    expect(mail(l, id)).toHaveLength(0);
   });
 
   it('an agent says his man would like to come home, in free agency', () => {
@@ -69,7 +113,7 @@ describe('locker room letters', () => {
     const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
     expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe('');
     theirs.left = [{ teamId: l.userTeamId, season: l.season, how: 'cut' }];
-    expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe(', against the club that cut him');
+    expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe(', against the team that cut him');
     const ours = Object.values(l.players).find((p) => p.teamId === l.userTeamId)!;
     ours.traits = { ...ours.traits, poise: 20 };
     ours.personality = { greed: 0.5, loyalty: 0.5, winning: 0.5, patience: 0.55 };

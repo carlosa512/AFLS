@@ -12,7 +12,8 @@ import { manSheet, momentSheet } from './castSheet';
 import { moraleContext } from './morale';
 import { manner } from './manner';
 import type { League, MailSection, TalkCause } from './types';
-import { say } from './voice';
+import { unitOf as formUnit } from './slump';
+import { say, stableHash, toldKeys } from './voice';
 
 export { manner };
 
@@ -35,16 +36,34 @@ export function talkRows(league: League, clock: number, said: string[]): MailSec
     // A benched ask is about his job question, and his row answers it (`benchCard`), not through the talks.
     const bench = ask.cause === 'benched' ? benchFact(league, p, ctx) : null;
     if (ask.cause === 'benched' && !bench) continue;
-    const words = askWords({ man, moment, cause: ask.cause, ...(bench ? { bench } : {}) }, { key, recent });
+    // A form ask may mention the coverage only when SNN did print a Column about his unit (mail reading mail).
+    const unit = ask.cause === 'form' ? formUnit(p.position) : null;
+    const papers = !!unit && toldKeys(league).has(`column:${league.season}:unit:${p.teamId}:${unit}:1-`);
+    const words = askWords(
+      { man, moment, cause: ask.cause, ...(bench ? { bench } : {}), ...(papers ? { papers } : {}) },
+      { key, recent },
+    );
     rows.push({
       playerId: p.id,
       cells: [`${p.firstName} ${p.lastName}`, TALK_SUBJECT[ask.cause]],
+      lead: `${CAME[stableHash(key) % CAME.length]} about ${ABOUT[ask.cause]}.`,
       note: `“${words}”`,
       ...(bench ? { bench: { playerId: p.id, clock } } : { talk: { playerId: p.id, clock } }),
     });
   }
   return rows;
 }
+
+/** How the coach says a man came to him, and about what: his words leading into the man's own. */
+const CAME = ['came to see me', 'asked to see me', 'stopped by my office'];
+const ABOUT: Record<TalkCause, string> = {
+  snaps: 'his snaps',
+  deal: 'his contract',
+  losing: 'the losing',
+  feud: 'the feud in his room',
+  benched: 'his job',
+  form: 'where he stands',
+};
 
 export interface TalkCardView {
   /** Open: it needs your answer. Answered: what you said and his reply. Closed: no longer on file (he left, or a later talk). */
@@ -66,6 +85,7 @@ const SAID: Record<string, string> = {
   'losing:reassure': "You told him we'll turn this around.",
   'losing:lead': 'You asked him to lead the room through it.',
   'losing:firm': "You told him that's on the coach and the players.",
+  'form:firm': 'You told him to play his way out of it.',
 };
 
 /** What a player's letter shows now, read off the league: your players only. */
@@ -80,11 +100,29 @@ export function talkCard(league: League, s: { clock: number; playerId: number })
   // A promise still open says what it was for; once it's settled the letter just says you made one.
   const cause = t.promise?.kind;
   const losing = a.cause === 'losing' ? SAID[`losing:${a.lead ? 'lead' : a.reply}`] : undefined;
+  // Where he stands: "he's my quarterback", or "play your way out of it".
+  const form =
+    a.cause !== 'form'
+      ? undefined
+      : a.reply === 'reassure'
+        ? `You told him he's your ${p.position === 'QB' ? 'quarterback' : 'man'}.`
+        : SAID[`form:${a.reply}`];
   const said =
-    a.reply !== 'promise' ? (losing ?? SAID[a.reply]) : cause ? SAID[`promise:${cause}`] : 'You made him a promise.';
+    a.reply !== 'promise'
+      ? (losing ?? form ?? SAID[a.reply])
+      : cause
+        ? SAID[`promise:${cause}`]
+        : 'You made him a promise.';
   const line = say(
     TALK_ANSWER,
-    { cause: cause ?? 'losing', reply: a.reply, losing: a.cause === 'losing', lead: !!a.lead, ...manner(p) },
+    {
+      cause: cause ?? 'losing',
+      reply: a.reply,
+      losing: a.cause === 'losing',
+      lead: !!a.lead,
+      form: a.cause === 'form',
+      ...manner(p),
+    },
     { key: `talk:${Math.floor(s.clock / 32)}:${s.clock}:${p.id}`, slot: 'answer' },
   );
   return { state: 'answered', cause, said, line };

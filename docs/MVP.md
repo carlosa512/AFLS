@@ -74,10 +74,17 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 - [x] **Referees** · **Already in** (hooks into #2): seventeen officiating crews with hidden tendencies that
       multiply the engine's penalty rolls (`officials.ts`, `docs/OFFICIALS.md`).
-- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN division headlines, trade stories and the
-      offseason front-office digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted
-      by the engine) and rookie impact reports join the inbox; a Stats screen tab for the advanced numbers and
-      narrative arcs remain future work. The head coach's weekly letter now tells your club's storylines from a story
+- [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN's weekly edition (one mail a week in
+      season laid out as a front page: every score, a lead story, your club, the league's other stories, the race and
+      the game of the week, written to tested rules), its Column (one opinion piece on a unit, a coach or a GM,
+      argued from a table of public numbers up an evidence ladder, about eight a season), your club's public
+      storylines as tiles, a player asking where he stands when his unit is struggling, its offseason front-office
+      digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted by the engine) and rookie
+      impact reports join the inbox. Every letter is written to one set of house rules (plain complete sentences,
+      players are players, no line that announces the letter), held by a test over every line the letters can say. SNN's five big-day editions (the new league year, free agency, draft day, cut-down day, Kickoff) tell
+      the offseason from the public record in place of the three digests. Still to come: one
+      thread a story with the head coach, the owner, players and agents, a
+      Stats screen tab for the advanced numbers and season arcs. The head coach's weekly letter now tells your club's storylines from a story
       store (`stories.ts`) whose outlet seam lets a public outlet read the beats a league would know, so SNN stories
       and season arcs have somewhere to start. See `docs/NEWS.md`.
 - [x] **Staff avatars and the women staff flag** · **Already in** (hooks into #11): drawn staff avatars

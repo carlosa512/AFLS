@@ -129,7 +129,7 @@ describe('draft-day offers in words', () => {
       'draft',
     );
     const words = offerWords(l, o);
-    expect(words.subject).toBe(`The ${team.name} want to move up to No. ${mine.overall}`);
+    expect(words.subject).toBe(`${team.name} want to move up to No. ${mine.overall}`);
     expect(words.body).toContain(`No. ${theirs[0].overall}`);
     expect(words.body).toContain('now');
   });
@@ -138,14 +138,14 @@ describe('draft-day offers in words', () => {
     const l = draftDay();
     const { mine, team, theirs } = picksFor(l);
     const o = pickOffer(l, team.id, [theirs[0].id], [mine.id], 'shop');
-    expect(offerWords(l, o).subject).toBe(`The ${team.name} answer your call about No. ${mine.overall}`);
+    expect(offerWords(l, o).subject).toBe(`${team.name} answer on No. ${mine.overall}`);
   });
 
   it("reads an ask as that team's price for its pick", () => {
     const l = draftDay();
     const { mine, team, theirs } = picksFor(l);
     const o = pickOffer(l, team.id, [theirs[0].id], [mine.id], 'ask');
-    expect(offerWords(l, o).subject).toBe(`The ${team.name}' price for No. ${theirs[0].overall}`);
+    expect(offerWords(l, o).subject).toBe(`${team.name}: the price for No. ${theirs[0].overall}`);
   });
 
   it('files no mail for draft offers or asks: they end with the pick', () => {

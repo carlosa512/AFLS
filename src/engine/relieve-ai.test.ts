@@ -8,6 +8,7 @@ import { aiKeepChance, judgeCommitments } from './meetings/commitments';
 import { meetingsOf } from './meetings/suggest';
 import { aiCover, aiRelieve, aiRelieveNow, onTheTable, RELIEVE } from './relieve';
 import { Rng } from './rng';
+import { newsCandidates } from './snnWeek';
 import type { Commitment, League } from './types';
 
 /** Six weeks in: enough games for a record to mean something. */
@@ -110,7 +111,7 @@ describe('AI clubs relieve coordinators', () => {
     expect(ev(a)).toEqual(ev(b));
   }, 120_000);
 
-  it("SNN's roundup carries it", () => {
+  it("SNN's edition carries it", () => {
     const l = fresh();
     const t = AI(l);
     sink(l, t);
@@ -123,8 +124,11 @@ describe('AI clubs relieve coordinators', () => {
     }
     const e = l.leadership.events.find((x) => x.kind === 'coachRelieved')!;
     expect(e).toBeDefined();
-    const mail = leadershipMail(l, new Set());
-    expect(mail.some((m) => m.body.includes(e.report) || m.subject.includes(e.report))).toBe(true);
+    // No mail of its own: it is a story of the week's edition.
+    expect(leadershipMail(l, new Set())).toHaveLength(0);
+    const told = newsCandidates(l, e.date.week, new Set()).filter((c) => c.kind === 'leaderOut');
+    expect(told.map((c) => [c.clubId, c.angle])).toEqual([[t, 'coordinatorOut']]);
+    expect(told[0].covers).toEqual([`leadership:${l.season}:${e.id}`]);
   });
 
   it('an AI notice kept by its GM is kept by relieving him', () => {

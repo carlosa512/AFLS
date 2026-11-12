@@ -255,16 +255,19 @@ function resultParts(league: League, r: MeetingRecord, said: string[], limit = I
 }
 
 /**
- * A meeting's result as rows of the weekly letter: each man named, the room with what he told it, then what we owe
- * them and its Negotiate rows. `said` is what the sender said this league year (`seasonSaid`), and grows as rows are written.
+ * A meeting's result as rows of the weekly letter: what he told the room and where that leaves us, as two paragraphs
+ * that name the room themselves (the letter draws no label over them), then each player named and the Negotiate rows
+ * for what we owe. A leader's words are the coach's report of them, so only the coach's own are quoted. `said` is what
+ * the sender said this league year (`seasonSaid`), and grows as rows are written.
  */
 export function resultRows(league: League, r: MeetingRecord, said: string[], men = Infinity): MailSection['rows'] {
   const { key, noun, mens, room, next, talks } = resultParts(league, r, said, men);
   const told = toldWords(league, r, key, said);
+  const words = r.approach === 'leader' ? told : `${room ? 'I told them' : `I told ${noun}`}, “${told}”`;
   return [
-    ...mens,
-    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}“${told}”` },
+    { cells: [cap(noun), 'What I told them'], note: `${room ? `${room} ` : ''}${words}` },
     { cells: [cap(noun), 'Where that leaves us'], note: next },
+    ...mens,
     ...talks,
   ];
 }
@@ -320,7 +323,8 @@ function heldLetters(league: League, have: Set<string>): Draft[] {
 /** The meetings' own letters for your club. */
 export function meetingMail(league: League, have: Set<string>): Draft[] {
   if (!employed(league)) return [];
-  const out = [...heldLetters(league, have), ...rumorMail(league, have)];
+  // SNN's rumor on a coach losing his room is a story of the weekly edition now (`snnRumor`, read by `snnWeek.ts`).
+  const out = [...heldLetters(league, have)];
   for (const d of out) have.add(d.id);
   return out;
 }
@@ -470,12 +474,12 @@ export function meetingsView(league: League): MeetingsView | null {
         const left = c.closes - clock;
         const when =
           c.closes === deadlineClock(league.season)
-            ? 'by the deadline'
+            ? 'at the deadline'
             : left <= 1
               ? 'this week'
-              : `${WEEKS[left] ?? 'a few weeks'} left`;
+              : `in ${WEEKS[left] ?? 'a few weeks'}`;
         return {
-          text: `We told them ${promisePhrase(c.backing, men(league, c.named))}: ${when}.`,
+          text: `We told them ${promisePhrase(c.backing, men(league, c.named))}, and it comes due ${when}.`,
           named: [...c.named],
         };
       });
@@ -628,27 +632,16 @@ export const yearParagraphFor = (league: League): string => {
 
 // ───────── SNN: a rumor for a coach clearly losing his room ─────────
 
-/** SNN's item on it: rare by design (a word worn thin and a losing run), once a coach a season. */
-function rumorMail(league: League, have: Set<string>): Draft[] {
-  const r = snnRumor(league, have);
-  if (!r) return [];
-  return [
-    {
-      ...base(league),
-      id: r.key,
-      from: 'SNN league desk',
-      category: 'league',
-      subject: 'Around the league: a room slipping away',
-      body: r.text,
-      actions: [{ kind: 'gms' }],
-    },
-  ];
-}
-
 const RUN = ['', '', '', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-/** One club this week whose head coach's word has worn thin while it loses, not yet rumored this season. */
-export function snnRumor(league: League, told: Set<string>): { key: string; text: string } | null {
+/**
+ * One club this week whose head coach's word has worn thin while it loses, not yet rumored this season: rare by design,
+ * once a coach a season. SNN's weekly edition tells it.
+ */
+export function snnRumor(
+  league: League,
+  told: Set<string>,
+): { key: string; text: string; teamId: number; coachId: number } | null {
   if (league.phase !== 'regular') return null;
   const records = computeRecords(league);
   for (const team of league.teams) {
@@ -663,6 +656,8 @@ export function snnRumor(league: League, told: Set<string>): { key: string; text
     if (told.has(key)) continue;
     return {
       key,
+      teamId: team.id,
+      coachId: hc.id,
       text: say(
         SNN_RUMOR,
         {

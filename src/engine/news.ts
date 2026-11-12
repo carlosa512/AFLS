@@ -112,7 +112,7 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
     const was = { ...old, l: old.l - losses };
     paragraphs.push(
       was.w > 0 && was.l === 0 && was.t === 0
-        ? `The ${possessive(oldClub.name)} ${record(was)} start has given way to ${smallCount(losses)} straight defeats, and the lead they carried into the week is gone.`
+        ? `The ${possessive(oldClub.name)} ${record(was)} start has given way to ${smallCount(losses)} straight losses, and the lead they carried into the week is gone.`
         : `The ${oldClub.name} have dropped ${smallCount(losses)} in a row, slipping from ${record(was)} to ${record(old)} and out of first place.`,
     );
   } else if (old.streak === 'L1' && former.streak.startsWith('W') && Number(former.streak.slice(1)) >= 3) {
@@ -145,7 +145,7 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
     const opponent = l.teams[next.homeId === club.id ? next.awayId : next.homeId];
     const nextLine =
       opponent.division === club.division
-        ? `Another division game awaits the ${club.name}: ${next.homeId === club.id ? 'a home meeting with' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`
+        ? `Another division game awaits the ${club.name}, ${next.homeId === club.id ? 'a home meeting with' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`
         : `Next for the ${club.name} is ${next.homeId === club.id ? 'a home game against' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`;
     closing += `${closing ? ' ' : ''}${nextLine}`;
   }
@@ -153,13 +153,41 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
   return paragraphs.join('\n\n');
 }
 
-/** One chosen headline for the latest completed week; never backfill a skipped weekly feed. */
+/**
+ * First place changing hands in the reader's division in a week (week 10 on, as the headline has always required): who
+ * leads now, who led, and the table before and after. The facts `leagueNews` reports and SNN's edition tells.
+ */
+export function divisionLeadChange(
+  l: League,
+  week: number,
+): { leaderId: number; formerId: number; division: number; before: TeamRecord[]; after: TeamRecord[] } | null {
+  if (week < 10 || week > 18 || !l.teams[l.userTeamId]) return null;
+  const division = l.teams[l.userTeamId].division;
+  const before = divisionStandings(through(l, week - 1))[division].teams;
+  const after = divisionStandings(through(l, week))[division].teams;
+  if (after[0].teamId === before[0].teamId) return null;
+  return { leaderId: after[0].teamId, formerId: before[0].teamId, division, before, after };
+}
+
+/**
+ * Deadline day's trade story: it files at its own moment on the calendar, beside the weekly edition (`snnWeek.ts`)
+ * that carries the rest of the week's news.
+ */
+export function deadlineDayNews(l: League, have: Set<string>): Draft[] {
+  if (l.phase !== 'regular' || !isDeadlineDay(l)) return [];
+  if ([...have].some((id) => id.startsWith(tradeNewsSlot(l, l.week)))) return [];
+  return keyTradeNews(l, l.week);
+}
+
+/**
+ * One chosen headline for the latest completed week; never backfill a skipped weekly feed. `deliverMail` no longer
+ * files the weekly headline (the edition tells the week): this stays as the statement of what is reportable, which
+ * `news.test.ts` holds and the edition's candidates are drawn by.
+ */
 export function leagueNews(l: League, have: Set<string>): Draft[] {
   if (!['regular', 'playoffs', 'complete'].includes(l.phase)) return [];
-  if (isDeadlineDay(l) && ![...have].some((id) => id.startsWith(tradeNewsSlot(l, l.week)))) {
-    const deadline = keyTradeNews(l, l.week);
-    if (deadline.length) return deadline;
-  }
+  const deadline = deadlineDayNews(l, have);
+  if (deadline.length) return deadline;
   const completed = games(l).filter((g) => g.result);
   const week = Math.max(0, ...completed.map((g) => g.week));
   if (!week || games(l).some((g) => g.week === week && !g.result)) return [];

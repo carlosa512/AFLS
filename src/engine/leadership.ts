@@ -273,14 +273,14 @@ export function gmOfferTerms(l: League, offer: GmJobOffer): GmJobTerms {
   const expectation = offer.extension
     ? offer.through === l.season
       ? 'Show clear progress this season, or the owner makes a change.'
-      : 'Keep the club moving forward. The owner likes the direction.'
+      : 'Keep the team moving forward. The owner likes the direction.'
     : appeal < 0.4
       ? trigger > 1.2
         ? 'Show clear progress this season. Ownership expects the rebuild to move quickly.'
         : 'Build a competitive roster and show progress over your first two seasons.'
       : appeal >= 0.55
         ? 'Compete for the playoffs immediately and sustain a winning roster.'
-        : 'Improve the record and put this club in the playoff race.';
+        : 'Improve the record and put this team in the playoff race.';
   const staffing = l.teams[offer.teamId].ownerMandates
     .filter((m) => m.through >= l.season && l.coaches[m.coachId]?.teamId === offer.teamId)
     .map(
@@ -417,7 +417,7 @@ export function acceptGmOffer(l: League, teamId: number): void {
   else {
     if (user.teamId !== null) throw new Error('You already have a permanent job.');
     if (offer.replacesGmId !== undefined) {
-      if (sitting?.id !== offer.replacesGmId) throw new Error('This club has changed its hiring plans.');
+      if (sitting?.id !== offer.replacesGmId) throw new Error('This team has changed its hiring plans.');
       dismissGm(l, l.teams[teamId], 'The owner has chosen a different GM.');
     } else if (sitting?.appointments.at(-1)?.interim) endGmAppointment(l, sitting.id, 'expired');
     appointGm(l, teamId, user.id, { through: offer.through });

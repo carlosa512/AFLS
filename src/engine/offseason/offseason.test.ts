@@ -105,6 +105,10 @@ describe('offseason calendar', () => {
     }
     expect(league.draftClass).toEqual([]);
     expect(league.draftPicks.some((p) => p.season === league.season + 3)).toBe(true);
+    // Every pick's entry in the log names the player taken (SNN's Draft day edition reads it).
+    const picks = league.transactions.filter((t) => t.season === league.season && t.kind === 'draft');
+    expect(picks.length).toBeGreaterThan(200);
+    for (const t of picks) expect(league.players[t.playerId!]?.draft?.season).toBe(league.season);
   });
 
   it('opens the season with the room AI front offices planned to keep for it', () => {

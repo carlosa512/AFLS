@@ -1424,14 +1424,14 @@ describe('fix round 2', () => {
     moodWeek(a.l);
     const x = closingOf(a.l, a.q[0].id);
     expect(x.beat).toMatchObject({ how: 'holder' });
-    expect(x.text).toBe(`${a.q[0].lastName} is gone, so the job is ${a.q[1].lastName}'s now.`);
+    expect(x.text).toBe(`${a.q[0].lastName} has left, so the job is ${a.q[1].lastName}'s now.`);
     const b = sitHolder('fix2-both');
     setTeam(b.l, b.q[0], null);
     setTeam(b.l, b.q[1], null);
     moodWeek(b.l);
     const y = closingOf(b.l, b.q[0].id);
     expect(y.beat).toMatchObject({ how: 'both' });
-    expect(y.text).toContain('both gone');
+    expect(y.text).toContain('both left');
     expect(y.text).not.toMatch(/job/);
   });
 

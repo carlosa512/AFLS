@@ -97,8 +97,13 @@ describe('the head coach’s weekly letter', () => {
     expect(l.inbox!.some((m) => OLD.test(m.id))).toBe(false);
     const [m] = letters(l);
     expect(m.id).toBe(coachWeekId(l.season, l.moraleAt!));
-    expect(m.sections!.map((s) => s.title)).toEqual(['Who came to see me', 'The rooms', 'What I want to do']);
-    expect(m.sections!.every((s) => s.layout === 'people')).toBe(true);
+    // What needs you first, then what does not: he writes it as a letter, not a form.
+    expect(m.sections!.map((s) => s.title)).toEqual(['Who came to see me', 'What I want to do', 'The rooms']);
+    expect(m.sections!.every((s) => s.layout === 'letter')).toBe(true);
+    const ask = rowsOf(m).find((r) => r.talk?.playerId === p.id)!;
+    expect(ask.lead).toMatch(/^(came to see me|asked to see me|stopped by my office) about his contract\.$/);
+    // The rest is told with a word that it asks nothing.
+    expect(m.sections!.find((s) => s.title === 'The rooms')!.lead).toBe('The rest needs nothing from you.');
     expect(rowsOf(m).some((r) => r.talk?.playerId === p.id)).toBe(true);
     expect(rowsOf(m).some((r) => r.meeting)).toBe(true);
     expect(m.actions).toEqual([{ kind: 'locker' }]);
@@ -117,7 +122,7 @@ describe('the head coach’s weekly letter', () => {
     expect(asks).toHaveLength(1);
     expect(asks[0].talkRoom).toEqual({ unit: 'team', clock: l.moraleAt });
     // The others of the room are named in a sentence of his own, outside the quote.
-    expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|Add)/);
+    expect(asks[0].note).toMatch(/”.* (said the same|came to me|feel|asked me|raised it|told me)/);
     expect(needsYou(l, m)).toBe(true);
     expect(answerRoomTalk(l, 'team', 'reassure')).toBe(3);
     expect(needsYou(l, m)).toBe(false);
@@ -874,5 +879,131 @@ describe('the head coach’s letters on a benching', () => {
     }).sort((x, y) => x.diff - y.diff);
     if (!gaps.length) expect(fact.close).toBeUndefined();
     else expect(fact.close).toMatchObject({ ahead: gaps[0].ahead });
+  });
+});
+
+describe('the coverage note', () => {
+  /** An edition on file whose one tile is a Column about `key`. */
+  const edition = (l: League, week: number, key: string, cast: number[] = [], clubId = l.userTeamId): InboxMessage => {
+    const story = {
+      key,
+      kind: 'column' as const,
+      angle: key.endsWith('+') ? '1+' : '1-',
+      tier: 3 as const,
+      clubId,
+      kicker: 'Column',
+      headline: '',
+      summary: '',
+      picture: {},
+      cast,
+      numbers: [],
+      paragraphs: [],
+      links: [],
+    };
+    return {
+      id: `snn:${l.season}:w${week}`,
+      season: l.season,
+      phase: 'regular',
+      week,
+      from: 'SNN — Sports News Network',
+      category: 'league',
+      subject: '',
+      body: '',
+      read: true,
+      actions: [],
+      covered: [key],
+      edition: { label: `Week ${week}`, scores: [], lead: story, tiles: [story] },
+    };
+  };
+  const blame = (l: League, unit: string) => `column:${l.season}:unit:${l.userTeamId}:${unit}:1-`;
+  const notes = (l: League) => weekItems(l, toldKeys(l), []).filter((i) => i.key.startsWith('coverage:'));
+
+  it('names the senior man of a unit SNN has just called a problem, once', () => {
+    const l = inSeason();
+    l.inbox!.push(edition(l, 5, blame(l, 'pass rush')));
+    const found = notes(l);
+    expect(found).toHaveLength(1);
+    const p = l.players[found[0].row.playerId!];
+    expect(p.teamId).toBe(l.userTeamId);
+    expect(p.position).toBe('EDGE');
+    expect(found[0].tier).toBe(5);
+    expect(found[0].row.note).toContain('pass rush');
+    expect(found[0].row.note).toContain(p.lastName);
+    expect(found[0].key).toBe(`coverage:${l.season}:${p.id}`);
+    // Told once a season for a man.
+    l.mailTold = { ...l.mailTold, [found[0].key]: l.season };
+    expect(notes(l)).toEqual([]);
+  });
+
+  it('is about the man the Column named, when it named one', () => {
+    const l = inSeason();
+    const qb = activeRoster(l, l.userTeamId).find((p) => p.position === 'QB')!;
+    l.inbox!.push(edition(l, 5, blame(l, 'passing game'), [qb.id]));
+    expect(notes(l).map((i) => i.row.playerId)).toEqual([qb.id]);
+  });
+
+  it('says nothing about old coverage, credit, or another club', () => {
+    const l = inSeason();
+    // Three editions ago.
+    l.inbox!.push(edition(l, 3, blame(l, 'run game')), edition(l, 4, 'x'), edition(l, 5, 'y'));
+    expect(notes(l)).toEqual([]);
+    const m = inSeason();
+    m.inbox!.push(edition(m, 5, `column:${m.season}:unit:${m.userTeamId}:run game:1+`));
+    m.inbox!.push(
+      edition(m, 4, `column:${m.season}:unit:${(m.userTeamId + 1) % 32}:run game:1-`, [], (m.userTeamId + 1) % 32),
+    );
+    expect(notes(m)).toEqual([]);
+  });
+
+  it('is one row however much was written, and never a letter by itself', () => {
+    const l = inSeason();
+    l.inbox!.push(edition(l, 4, blame(l, 'run game')), edition(l, 5, blame(l, 'coverage')));
+    expect(notes(l)).toHaveLength(1);
+    deliverMail(l);
+    expect(letters(l)).toEqual([]);
+  });
+});
+
+describe('men still waiting on an answer', () => {
+  it('are one short section: who, and their answers, under one sentence', () => {
+    const l = inSeason();
+    const [a, b] = [asking(l, 'deal', 0), asking(l, 'deal', 1)];
+    deliverMail(l);
+    // Unanswered, a letter later.
+    nextLetter(l);
+    asking(l, 'snaps', 2);
+    deliverMail(l);
+    const m = letters(l).at(-1)!;
+    const waiting = m.sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(waiting).toBeDefined();
+    expect(waiting.lead).toBe('Two players are still waiting on you about their contracts.');
+    expect(waiting.rows.map((r) => r.playerId).sort()).toEqual([a.id, b.id].sort());
+    expect(waiting.rows.every((r) => r.compact && r.talk)).toBe(true);
+    // After the new ask, before the notes.
+    expect(m.sections!.map((s) => s.title).slice(0, 2)).toEqual(['Who came to see me', 'Still waiting on you']);
+  });
+
+  it('names one man, and says only that they wait when they ask about different things', () => {
+    const l = inSeason();
+    const a = asking(l, 'deal', 0);
+    deliverMail(l);
+    nextLetter(l);
+    asking(l, 'snaps', 2);
+    deliverMail(l);
+    const one = letters(l)
+      .at(-1)!
+      .sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(one.lead).toBe(`${a.lastName} is still waiting on you about his contract.`);
+    const m = inSeason();
+    asking(m, 'deal', 0);
+    asking(m, 'snaps', 1);
+    deliverMail(m);
+    nextLetter(m);
+    asking(m, 'deal', 2);
+    deliverMail(m);
+    const mixed = letters(m)
+      .at(-1)!
+      .sections!.find((s) => s.title === 'Still waiting on you')!;
+    expect(mixed.lead).toBe('Two players are still waiting on an answer from you.');
   });
 });

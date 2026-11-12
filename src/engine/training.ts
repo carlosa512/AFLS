@@ -319,6 +319,7 @@ export function changePosition(league: League, p: Player, to: Position): void {
     'position',
     [team.id],
     `${team.abbrev} moved ${from} ${p.firstName} ${p.lastName} to ${to}${why ? `: ${reasonWords(why, to)}` : ''}`,
+    p.id,
   );
 }
 

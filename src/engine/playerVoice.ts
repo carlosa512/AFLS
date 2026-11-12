@@ -31,6 +31,7 @@ export const TALK_SUBJECT: Record<TalkCause, string> = {
   losing: 'About the losing',
   feud: 'About the room',
   benched: 'About my job',
+  form: 'About where I stand',
 };
 
 // Every line that fits his ask is equally likely (one specificity, fallback aside): what the staff can see about him
@@ -60,7 +61,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'deal' && f.loud,
     reads: 1,
-    text: () => "I've earned a new deal, and everybody in this building knows it. I'm tired of waiting.",
+    text: () => "I've earned a new deal, and everybody here knows it. I'm tired of waiting.",
   },
   {
     when: (f) => f.cause === 'deal' && f.calm,
@@ -95,7 +96,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'feud' && f.loud,
     reads: 1,
-    text: () => "I can't keep sharing a room with him. Either it gets handled or I'll handle it.",
+    text: () => "I can't keep sharing a room with him. It needs to be dealt with.",
   },
   {
     when: (f) => f.cause === 'feud' && f.calm,
@@ -131,7 +132,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
     when: (f) => f.cause === 'deal' && f.finalYear && f.veteran,
     reads: 1,
     text: () =>
-      "I've given this club a lot of years. I'm in the last one of my deal, and I'd like to know I'm in your plans.",
+      "I've given this team a lot of years. I'm in the last one of my deal, and I'd like to know I'm in your plans.",
   },
   {
     when: (f) => f.cause === 'deal' && f.finalYear,
@@ -146,7 +147,7 @@ export const TALK_LETTER: readonly Line<LetterFact>[] = [
   {
     when: (f) => f.cause === 'deal' && f.young,
     reads: 1,
-    text: () => "I'm not asking for the moon. I want my contract to match what I'm doing on the field.",
+    text: () => "I'm not asking for much. I want my contract to match what I'm doing on the field.",
   },
   {
     when: (f) => f.cause === 'deal' && f.starter,
@@ -218,9 +219,27 @@ export interface AnswerFact {
   losing?: boolean;
   /** You asked him to lead the room through it. */
   lead?: boolean;
+  /** The ask was about where he stands in a slump. */
+  form?: boolean;
 }
 
 export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
+  {
+    when: (f) => !!f.form && f.reply === 'reassure',
+    reads: 5,
+    text: () => "That's all I needed to hear. I'll go and earn it.",
+  },
+  {
+    when: (f) => !!f.form && f.reply === 'reassure',
+    reads: 5,
+    text: () => "Thank you. I'll make it right on the field.",
+  },
+  { when: (f) => !!f.form && f.reply === 'firm', reads: 5, text: () => "All right. I'll let my play answer it." },
+  {
+    when: (f) => !!f.form && f.reply === 'firm' && f.calm,
+    reads: 6,
+    text: () => "Fair enough. I'd say the same in your chair.",
+  },
   { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "I can do that. They'll hear it from me first." },
   { when: (f) => !!f.losing && !!f.lead, reads: 3, text: () => "All right. I'll get the room pulling the same way." },
   {
@@ -253,7 +272,11 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
     reads: 4,
     text: () => "That's not what I came up here to hear.",
   },
-  { when: (f) => !!f.losing && f.reply === 'firm', reads: 3, text: () => "Understood. We'll sort it out downstairs." },
+  {
+    when: (f) => !!f.losing && f.reply === 'firm',
+    reads: 3,
+    text: () => "Understood. We'll sort it out among ourselves.",
+  },
   {
     when: (f) => f.reply === 'promise' && f.cause === 'snaps',
     reads: 2,
@@ -277,7 +300,7 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
   {
     when: (f) => f.reply === 'reassure' && f.loud,
     reads: 2,
-    text: () => 'I appreciate it. Words are nice, though.',
+    text: () => "I appreciate it. I'd still like to see it happen.",
   },
   { when: (f) => f.reply === 'reassure', text: () => "Good to hear. I'll keep working." },
   { when: (f) => f.reply === 'reassure', text: () => 'Thanks. That means something.' },
@@ -317,6 +340,8 @@ export interface AskFact {
   cause: TalkCause;
   /** A benched ask reads the job question it is about (`benchFact`). */
   bench?: BenchFact;
+  /** A form ask: SNN has printed a Column about his unit this season, so he may say he has read it. */
+  papers?: boolean;
 }
 
 const veteranOf = (f: AskFact) => /veteran/.test(f.man.years);
@@ -363,7 +388,7 @@ export const ASK_HISTORY: readonly Line<AskFact>[] = [
   {
     when: (f) => callback(f)?.reply === 'reassure',
     reads: 2,
-    text: (f) => `You asked me to hang in there ${f.man.lastAnswer!.when}. I'm still hanging.`,
+    text: (f) => `You asked me to wait ${f.man.lastAnswer!.when}. I'm still waiting.`,
   },
   {
     when: (f) => callback(f)?.reply === 'firm',
@@ -408,6 +433,27 @@ function cap(s: string): string {
 
 /** The grievance itself. Plain lines read only the cause; the rest also read what the sheet knows about him. */
 export const ASK_CORE: readonly Line<AskFact>[] = [
+  // form: a leader in a slump asks where he stands. He mentions what is being written only when it was.
+  {
+    when: (f) => f.cause === 'form' && !!f.papers,
+    reads: 2,
+    text: () => "I've read what they're writing about us. I'd rather hear from you where I stand.",
+  },
+  {
+    when: (f) => f.cause === 'form' && !!f.papers,
+    reads: 2,
+    text: () => "I know what's being said out there. I want to hear where I stand from you, not from them.",
+  },
+  {
+    when: (f) => f.cause === 'form',
+    reads: 1,
+    text: () => "It hasn't been good enough for a month and I've been out there for all of it. Tell me where I stand.",
+  },
+  {
+    when: (f) => f.cause === 'form',
+    reads: 1,
+    text: () => "We haven't played well and I'm not going to pretend otherwise. I want to know where I stand with you.",
+  },
   // benched: his words come from the job question (`BENCH_ASK`); with no question to read, the plain line.
   ...BENCH_ASK.map(
     (l): Line<AskFact> => ({
@@ -468,7 +514,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'snaps' && f.man.loud && f.man.role !== 'starter',
     reads: 2,
-    text: () => "I didn't come here to hold a clipboard. Put me on the field.",
+    text: () => "I'm ready to play, and I want you to put me on the field.",
   },
   {
     when: (f) => f.cause === 'snaps' && f.man.calm,
@@ -546,11 +592,11 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
     reads: 1,
     text: () => 'My agent keeps asking me where this stands, and I have nothing to tell him.',
   },
-  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to know the club's plans for my contract." },
+  { when: (f) => f.cause === 'deal', reads: 1, text: () => "I'd like to know the team's plans for my contract." },
   {
     when: (f) => f.cause === 'deal' && f.man.loud,
     reads: 2,
-    text: () => 'Pay me. I have earned it and everybody in this building knows it.',
+    text: () => 'I want a new deal. I have earned it, and everybody here knows it.',
   },
   {
     when: (f) => f.cause === 'deal' && f.man.calm,
@@ -570,7 +616,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'deal' && youngOf(f),
     reads: 2,
-    text: () => "I'm not asking for the moon. I want my deal to match what I do.",
+    text: () => "I'm not asking for much. I want my deal to match what I do.",
   },
   {
     when: (f) => f.cause === 'deal' && f.moment.record === 'winning' && f.man.role !== 'depth',
@@ -586,7 +632,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'm tired of losing." },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I need to know we are headed somewhere.' },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I don't know how much more of this I can take." },
-  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'Losing wears on a man. It is wearing on me.' },
+  { when: (f) => f.cause === 'losing', reads: 1, text: () => 'The losing is wearing on me.' },
   {
     when: (f) => f.cause === 'losing',
     reads: 1,
@@ -596,7 +642,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'losing',
     reads: 1,
-    text: () => "I'm not asking for a miracle. I'm asking for a direction.",
+    text: () => "I'm not asking for a quick fix. I'm asking for a direction.",
   },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => 'I keep asking myself what we are doing wrong.' },
   { when: (f) => f.cause === 'losing', reads: 1, text: () => "I'd like to know what the plan is." },
@@ -630,7 +676,7 @@ export const ASK_CORE: readonly Line<AskFact>[] = [
   {
     when: (f) => f.cause === 'losing' && f.man.loud,
     reads: 2,
-    text: () => 'This is not acceptable, and the whole room knows it. Fix it.',
+    text: () => 'This is not acceptable, and the whole locker room knows it.',
   },
   {
     when: (f) => f.cause === 'losing' && f.man.calm,
@@ -770,22 +816,22 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.underpaid,
     reads: 1,
-    text: () => "I look at what the market pays a man at my spot, and I'm below it.",
+    text: () => "I look at what the market pays a player at my spot, and I'm below it.",
   },
   {
     when: (f) => f.man.captain,
     reads: 1,
-    text: () => "As a captain, I'd rather say this to you straight than let it fester.",
+    text: () => "As a captain, I'd rather say this to you directly.",
   },
   {
     when: (f) => f.man.homecoming,
     reads: 1,
-    text: () => 'We play a club I used to play for, and that has me thinking.',
+    text: () => 'We play a team I used to play for, and that has me thinking.',
   },
   {
     when: (f) => f.man.grudgeGame,
     reads: 1,
-    text: () => 'We face a club that let me go, and I have not forgotten it.',
+    text: () => 'We face a team that let me go, and I have not forgotten it.',
   },
   {
     when: (f) => f.man.feud !== null && f.cause !== 'feud',
@@ -795,7 +841,7 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.mentor !== null,
     reads: 1,
-    text: (f) => `${f.man.mentor} has been showing me the ropes, so I'm not saying this lightly.`,
+    text: (f) => `${f.man.mentor} has been mentoring me, so I'm not saying this lightly.`,
   },
   {
     when: (f) => f.man.mentee !== null,
@@ -816,9 +862,9 @@ export const ASK_COLOR: readonly Line<AskFact>[] = [
   {
     when: (f) => f.man.draftedHere,
     reads: 1,
-    text: () => "This is the club that drafted me. I'd rather work it out here.",
+    text: () => "This is the team that drafted me. I'd rather work it out here.",
   },
-  { when: (f) => f.man.dispute, reads: 1, text: () => 'This is part of a bigger problem between me and the club.' },
+  { when: (f) => f.man.dispute, reads: 1, text: () => 'This is part of a bigger problem between me and the team.' },
   {
     when: (f) => f.moment.streak?.kind === 'won' && f.cause !== 'losing' && f.cause !== 'feud',
     reads: 1,
@@ -887,7 +933,8 @@ export function askWords(f: AskFact, at: { key: string; recent: string[] }): str
   };
   if (f.man.asks !== 'first' || f.man.kept || f.man.broken) slot(ASK_HISTORY, 'history');
   slot(ASK_CORE, 'core', false);
-  slot(ASK_COLOR, 'color');
+  // Where he stands is the whole of a form ask: what he wants from his deal or his career is not part of it.
+  if (f.cause !== 'form') slot(ASK_COLOR, 'color');
   slot(ASK_CLOSE, 'close');
   at.recent.push(...out);
   return out.join(' ');

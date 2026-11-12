@@ -230,18 +230,18 @@ describe('the room in words: read by eye', () => {
   it("says a following isn't all good only when our read shows a man who stirs", () => {
     for (const k of ['a', 'b', 'c'])
       expect(say(STANDING_NOTE, standing({ stirs: true, warn: false }), { key: k, slot: 's' })).not.toMatch(
-        /Not all of it/,
+        /not all of it/,
       );
-    expect(say(STANDING_NOTE, standing({ stirs: true, warn: true }), { key: 'k', slot: 's' })).toMatch(/Not all of it/);
+    expect(say(STANDING_NOTE, standing({ stirs: true, warn: true }), { key: 'k', slot: 's' })).toMatch(/not all of it/);
   });
 
-  it('a unit that cooled from Tight is not "back on an even keel"', () => {
+  it('a unit that cooled from Tight is not "settled again"', () => {
     for (const k of ['a', 'b', 'c'])
       expect(say(UNIT_NOTE, unit({ word: 'Settled', turned: true, was: 'Tight' }), { key: k, slot: 'u' })).not.toMatch(
-        /even keel|back/i,
+        /settled again/i,
       );
     expect(say(UNIT_NOTE, unit({ word: 'Settled', turned: true, was: 'Split' }), { key: 'k', slot: 'u' })).toMatch(
-      /back|even keel/i,
+      /settled again/i,
     );
   });
 
@@ -297,7 +297,7 @@ describe('the room in words: after review', () => {
       key: 'k',
       slot: 'u',
     });
-    expect(s).toMatch(/linebackers haven't blinked/);
+    expect(s).toMatch(/linebackers haven't wavered/);
     expect(coachCount(10, 10, 'the receivers')).toBe('all of the receivers');
     expect(coachCount(10, 10, 'the line')).toBe('the whole line');
   });
@@ -369,7 +369,7 @@ describe('what stands out about a room', () => {
     );
   });
   it('otherwise nothing to flag', () => {
-    expect(standsOut({ members: 9, mood: 4, reasons: [] }, team)).toBe('Nothing to flag.');
+    expect(standsOut({ members: 9, mood: 4, reasons: [] }, team)).toBe('There is nothing to flag.');
   });
 });
 
@@ -475,13 +475,13 @@ describe('chemistry in the coach’s words (L3)', () => {
 
   it('reads the spec’s examples', () => {
     expect(say(CHEM_NOTE, chem({ word: 'Clicking', years: 3 }), at)).toBe(
-      "The line's clicking. Three years together shows.",
+      "The line's clicking, and three years together shows.",
     );
     expect(
       say(CHEM_NOTE, chem({ unit: 'the D-line', word: 'Out of sync', spark: { last: 'Mitchell', sour: true } }), at),
-    ).toBe("Mitchell's sour, and he's a spark. The D-line's feeling it.");
+    ).toBe("Mitchell's sour, and he's a spark, so the D-line is affected.");
     expect(say(CHEM_NOTE, chem({ unit: 'the secondary', word: 'Still learning each other', newStarters: 2 }), at)).toBe(
-      'The secondary is still learning each other. Two new starters back there.',
+      'The secondary is still learning each other, with two new starters back there.',
     );
     expect(say(CHEM_REASON, chem({ word: 'Clicking', years: 3 }), at)).toBe('three years together');
     expect(say(CHEM_REASON, chem({ anchor: 'Okafor' }), at)).toBe("Okafor's holding them together");

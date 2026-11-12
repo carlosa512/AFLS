@@ -1,26 +1,18 @@
 /** A small briefing from current scouting reads and completed regular-season games. */
 import { keyMatchups, type Matchup } from './inbox';
+import { addGame, noSums, type UnitSums } from './slump';
 import type { League } from './types';
+import { say, type Line } from './voice';
 
-type Totals = {
-  games: number;
-  pass: number;
-  attempts: number;
-  dropbacks: number;
-  sacks: number;
-  rush: number;
-  carries: number;
-  allowedPass: number;
-  facedPass: number;
-  facedDropbacks: number;
-  madeSacks: number;
-  allowedRush: number;
-  facedRush: number;
-};
+/** A club's season in the sums every unit's number is read from (`slump.ts` reads a span of the same). */
+type Totals = UnitSums;
 export interface MatchupFact {
   teamId: number;
+  /** What the unit has done, as a verb phrase a sentence can follow "It" with: "allows a sack on 5.1% of dropbacks". */
   label: string;
   value: string;
+  /** What its league rank is a rank in: "at preventing sacks", "in sacks". */
+  place: string;
   rank: number | null;
   games: number;
 }
@@ -34,55 +26,26 @@ export interface MatchupFocus {
   basis: 'film' | 'results' | null;
   /** A wide gap on film. */
   clear: boolean;
-  /** "Our line vs their front". */
+  /** Our unit first, whichever side of the ball it plays: "Our pass rush vs their offensive line". */
   heading: string;
-  /** "Edge: us", "Edge: them" or "Even". */
+  /** Whose matchup it is. "split": our scouts grade one side ahead and the stats this season favour the other. */
+  tag: 'us' | 'them' | 'even' | 'split';
+  /** "Edge: us", "Edge: them", "Even" or "Split". */
   label: string;
-  /** One sentence on the read, in the head coach's words. */
+  /** What our scouts grade, then what the stats this season show, in the head coach's words. */
   why: string;
-  facts: MatchupFact[];
+  /** Our unit's number this season and theirs; null until every club has played enough to rank. */
+  ours: MatchupFact | null;
+  theirs: MatchupFact | null;
+  /** Whom the stats this season favour (four places or more apart), or that it is close; null without both ranks. */
+  lean: 'us' | 'them' | 'close' | null;
 }
 function totals(l: League): Map<number, Totals> {
-  const out = new Map(
-    l.teams.map((t) => [
-      t.id,
-      {
-        games: 0,
-        pass: 0,
-        attempts: 0,
-        dropbacks: 0,
-        sacks: 0,
-        rush: 0,
-        carries: 0,
-        allowedPass: 0,
-        facedPass: 0,
-        facedDropbacks: 0,
-        madeSacks: 0,
-        allowedRush: 0,
-        facedRush: 0,
-      },
-    ]),
-  );
+  const out = new Map(l.teams.map((t) => [t.id, noSums()]));
   for (const g of l.games) {
     if (g.season !== l.season || g.playoffRound || !g.result || g.week >= l.week) continue;
-    for (const home of [true, false]) {
-      const s = out.get(home ? g.homeId : g.awayId)!;
-      const us = home ? g.result.home : g.result.away;
-      const them = home ? g.result.away : g.result.home;
-      s.games++;
-      s.pass += us.passYds;
-      s.attempts += us.passAtt;
-      s.dropbacks += us.passAtt + us.sacked;
-      s.sacks += us.sacked;
-      s.rush += us.rushYds;
-      s.carries += us.rushAtt;
-      s.allowedPass += them.passYds;
-      s.facedPass += them.passAtt;
-      s.facedDropbacks += them.passAtt + them.sacked;
-      s.madeSacks += them.sacked;
-      s.allowedRush += them.rushYds;
-      s.facedRush += them.rushAtt;
-    }
+    addGame(out.get(g.homeId)!, g.result.home, g.result.away);
+    addGame(out.get(g.awayId)!, g.result.away, g.result.home);
   }
   return out;
 }
@@ -114,35 +77,138 @@ function evidence(all: Map<number, Totals>, teamId: number, title: string, offen
   const rank = qualified
     ? 1 + [...all.values()].filter((x) => (low ? measure(x) < value : measure(x) > value)).length
     : null;
-  const label =
+  const amount =
     title === 'Trenches'
-      ? offense
-        ? 'Sacks allowed'
-        : 'Sacks made'
-      : title === 'Run game'
-        ? offense
-          ? 'Rushing'
-          : 'Rushing allowed'
-        : offense
-          ? 'Passing'
-          : 'Passing allowed';
-  return {
-    teamId,
-    label,
-    value:
-      title === 'Trenches'
-        ? `${(value * 100).toFixed(1)}% of dropbacks`
-        : `${value.toFixed(1)} yards per ${title === 'Run game' ? 'carry' : 'attempt'}`,
-    rank,
-    games: s.games,
-  };
+      ? `${(value * 100).toFixed(1)}% of dropbacks`
+      : `${value.toFixed(1)} yards ${title === 'Run game' ? 'a carry' : 'an attempt'}`;
+  const [verb, place] = PHRASES[title][offense ? 0 : 1];
+  return { teamId, label: `${verb} ${amount}`, value: amount, place, rank, games: s.games };
 }
-/** A contest's two units as a coach names them: the offense's, then the defense's. */
-const UNITS: Record<string, [string, string]> = {
-  Trenches: ['line', 'front'],
-  'Run game': ['run game', 'linebackers'],
-  'Pass game': ['passing game', 'secondary'],
+/** How a contest's two numbers read, the offense's then the defense's: the verb before the amount, and what a rank is in. */
+const PHRASES: Record<string, [[string, string], [string, string]]> = {
+  Trenches: [
+    ['allows a sack on', 'at preventing sacks'],
+    ['gets a sack on', 'in sacks'],
+  ],
+  'Run game': [
+    ['gains', 'in yards a carry'],
+    ['allows', 'at stopping the run'],
+  ],
+  'Pass game': [
+    ['gains', 'in yards an attempt'],
+    ['allows', 'at defending the pass'],
+  ],
 };
+/**
+ * A contest's two units in full, the offense's then the defense's, so nobody has to work out which side of the ball
+ * "line" or "front" is on.
+ */
+const UNITS: Record<string, [string, string]> = {
+  Trenches: ['offensive line', 'pass rush'],
+  'Run game': ['run game', 'run defense'],
+  'Pass game': ['passing game', 'coverage'],
+};
+
+/** What a line of the card may read: the two units, how far apart our scouts have them, and each one's number. */
+export interface MatchupWords {
+  /** Our unit and theirs, in full. */
+  ours: string;
+  theirs: string;
+  /** "ahead of", or "well ahead of" for a wide gap on film. */
+  ahead: string;
+  mine?: { label: string; place: string; rank: number };
+  them?: { label: string; place: string; rank: number };
+}
+const at = (f: MatchupWords['mine']) => `${ordinal(f!.rank)} ${f!.place}`;
+/** A fact's phrase after "We" or "They": "gets a sack on…" becomes "get a sack on…". */
+const plural = (label: string) => label.replace(/^(\w+)s /, '$1 ');
+// The first sentence names the two units. After it they are "we" and "they": a card full of "our" and "their" drags.
+const ranks = (c: MatchupWords) => `We are ${at(c.mine)} and they are ${at(c.them)}.`;
+const theirRanks = (c: MatchupWords) => `They are ${at(c.them)} and we are ${at(c.mine)}.`;
+const forUs = (c: MatchupWords) => `Our scouts grade our ${c.ours} ${c.ahead} their ${c.theirs}`;
+const forThem = (c: MatchupWords) => `Our scouts grade their ${c.theirs} ${c.ahead} our ${c.ours}`;
+const level = (c: MatchupWords) => `Our scouts see nothing between our ${c.ours} and their ${c.theirs}.`;
+
+/**
+ * The card's sentences by case, two or more ways each. Our scouts grade the players and the stats measure what they
+ * have done, so the stats never make the scouts wrong: they agree, or a unit is performing above or below expectations.
+ * Always "the stats this season"; no colon, no semicolon.
+ */
+export const MATCHUP_LINES: Record<string, ((c: MatchupWords) => string)[]> = {
+  usAgree: [
+    (c) => `${forUs(c)}, and the stats this season agree. ${ranks(c)}`,
+    (c) => `${forUs(c)}. The stats this season back that up. ${ranks(c)}`,
+  ],
+  usTheyAbove: [
+    (c) =>
+      `${forUs(c)}. They are performing above expectations this season. They ${plural(c.them!.label)}, ${ordinal(c.them!.rank)} in the league, and we are ${at(c.mine)}.`,
+    (c) =>
+      `${forUs(c)}. They have performed above expectations this season. They ${plural(c.them!.label)}, which ranks ${ordinal(c.them!.rank)}, and we are ${at(c.mine)}.`,
+  ],
+  usWeBelow: [
+    (c) =>
+      `${forUs(c)}. We are performing below expectations this season, ranked ${at(c.mine)}. They are ${at(c.them)}.`,
+    (c) =>
+      `${forUs(c)}. We have performed below expectations this season and sit ${at(c.mine)}. They are ${at(c.them)}.`,
+  ],
+  usClose: [
+    (c) => `${forUs(c)}. The stats this season have it close. ${ranks(c)}`,
+    (c) => `${forUs(c)}. The stats this season show little between them. ${ranks(c)}`,
+  ],
+  us: [(c) => `${forUs(c)}.`],
+  themAgree: [
+    (c) => `${forThem(c)}, and the stats this season agree. ${theirRanks(c)}`,
+    (c) => `${forThem(c)}. The stats this season back that up. ${theirRanks(c)}`,
+  ],
+  themWeAbove: [
+    (c) =>
+      `${forThem(c)}. We are performing above expectations this season. We ${plural(c.mine!.label)}, ${ordinal(c.mine!.rank)} in the league, and they are ${at(c.them)}.`,
+    (c) =>
+      `${forThem(c)}. We have performed above expectations this season. We ${plural(c.mine!.label)}, which ranks ${ordinal(c.mine!.rank)}, and they are ${at(c.them)}.`,
+  ],
+  themTheyBelow: [
+    (c) =>
+      `${forThem(c)}. They are performing below expectations this season, ranked ${at(c.them)}. We are ${at(c.mine)}.`,
+    (c) =>
+      `${forThem(c)}. They have performed below expectations this season and sit ${at(c.them)}. We are ${at(c.mine)}.`,
+  ],
+  themClose: [
+    (c) => `${forThem(c)}. The stats this season have it close. ${theirRanks(c)}`,
+    (c) => `${forThem(c)}. The stats this season show little between them. ${theirRanks(c)}`,
+  ],
+  them: [(c) => `${forThem(c)}.`],
+  levelUs: [
+    (c) => `${level(c)} The stats this season favor us. ${ranks(c)}`,
+    (c) => `${level(c)} The stats this season lean toward us. ${ranks(c)}`,
+  ],
+  levelThem: [
+    (c) => `${level(c)} The stats this season favor them. ${theirRanks(c)}`,
+    (c) => `${level(c)} The stats this season lean toward them. ${theirRanks(c)}`,
+  ],
+  level: [(c) => level(c)],
+};
+
+/** Which bank fits: the film's side, then where the stats this season stand against it. */
+function matchupCase(
+  film: 'ours' | 'theirs' | null,
+  lean: MatchupFocus['lean'],
+  mine: number | undefined,
+  theirs: number | undefined,
+  clubs: number,
+): keyof typeof MATCHUP_LINES {
+  const top = (r?: number) => r !== undefined && r <= Math.ceil(clubs / 3);
+  const bottom = (r?: number) => r !== undefined && r > Math.floor((2 * clubs) / 3);
+  if (!film) return lean === 'us' ? 'levelUs' : lean === 'them' ? 'levelThem' : 'level';
+  if (!lean) return film === 'ours' ? 'us' : 'them';
+  if (film === 'ours') {
+    if (lean === 'us') return 'usAgree';
+    if (lean === 'them') return top(theirs) ? 'usTheyAbove' : 'usWeBelow';
+    return bottom(mine) ? 'usWeBelow' : top(theirs) ? 'usTheyAbove' : 'usClose';
+  }
+  if (lean === 'them') return 'themAgree';
+  if (lean === 'us') return top(mine) ? 'themWeAbove' : 'themTheyBelow';
+  return bottom(theirs) ? 'themTheyBelow' : top(mine) ? 'themWeAbove' : 'themClose';
+}
 export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th')}`;
 export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
@@ -179,38 +245,59 @@ export function focusMatchups(l: League, opponent: number): MatchupFocus[] {
     const defenseId = side === 'attack' ? opponent : l.userTeamId;
     const off = evidence(all, offenseId, matchup.title, true);
     const def = evidence(all, defenseId, matchup.title, false);
-    const facts = off && def ? [off, def] : [];
+    const [mineFact, theirFact] = off && def ? (side === 'attack' ? [off, def] : [def, off]) : [null, null];
     const statGap = off?.rank && def?.rank ? (def.rank - off.rank) * (side === 'attack' ? 1 : -1) : 0;
+    const lean: MatchupFocus['lean'] =
+      off?.rank && def?.rank ? (statGap >= 4 ? 'us' : statGap <= -4 ? 'them' : 'close') : null;
     const film = gap >= 0.08 ? 'ours' : gap <= -0.08 ? 'theirs' : null;
-    const advantage = film ?? (Math.abs(statGap) >= 4 ? (statGap > 0 ? 'ours' : 'theirs') : null);
+    const advantage = film ?? (lean === 'us' ? 'ours' : lean === 'them' ? 'theirs' : null);
     const clear = Math.abs(gap) >= 0.4;
     const basis = film ? 'film' : advantage ? 'results' : null;
-    const label = advantage === 'ours' ? 'Edge: us' : advantage === 'theirs' ? 'Edge: them' : 'Even';
-    // Each unit by the name a coach would use, ours first whichever side of the ball it plays.
+    // The film gives the edge. When the stats this season point the other way the card says so: it is split.
+    const tag: MatchupFocus['tag'] =
+      film && ((film === 'ours' && lean === 'them') || (film === 'theirs' && lean === 'us'))
+        ? 'split'
+        : advantage === 'ours'
+          ? 'us'
+          : advantage === 'theirs'
+            ? 'them'
+            : 'even';
+    const label = { us: 'Edge: us', them: 'Edge: them', even: 'Even', split: 'Split' }[tag];
+    // Our unit first, whichever side of the ball it plays, and each unit named in full.
     const [offUnit, defUnit] = UNITS[matchup.title] ?? ['offense', 'defense'];
     const [mine, theirs] = side === 'attack' ? [offUnit, defUnit] : [defUnit, offUnit];
-    const heading = side === 'attack' ? `Our ${offUnit} vs their ${defUnit}` : `Their ${offUnit} vs our ${defUnit}`;
-    // One sentence on what our film says, then a word when the season's numbers disagree with it.
-    const read =
-      film === 'ours'
-        ? clear
-          ? `Our ${mine} should win this one against their ${theirs}.`
-          : `A slight edge for our ${mine} over their ${theirs}.`
-        : film === 'theirs'
-          ? clear
-            ? `Their ${theirs} is a real problem for our ${mine}.`
-            : `Their ${theirs} has a slight edge on our ${mine}.`
-          : advantage
-            ? `Even on film, but the numbers lean ${advantage === 'ours' ? 'our' : 'their'} way.`
-            : `Nothing between our ${mine} and their ${theirs} on film.`;
-    const caution =
-      film && statGap * gap < 0 && Math.abs(statGap) >= 4
-        ? ' The numbers so far say otherwise.'
-        : clear && off?.rank && def?.rank && Math.abs(statGap) <= 4
-          ? ' The numbers have it closer.'
-          : '';
-    const why = `${read}${caution}`;
+    const heading = `Our ${mine} vs their ${theirs}`;
+    const words: MatchupWords = {
+      ours: mine,
+      theirs,
+      ahead: clear ? 'well ahead of' : 'ahead of',
+      ...(mineFact?.rank && theirFact?.rank
+        ? {
+            mine: { label: mineFact.label, place: mineFact.place, rank: mineFact.rank },
+            them: { label: theirFact.label, place: theirFact.place, rank: theirFact.rank },
+          }
+        : {}),
+    };
+    const which = matchupCase(film, lean, words.mine?.rank, words.them?.rank, l.teams.length);
+    const bank: Line<MatchupWords>[] = MATCHUP_LINES[which].map((text) => ({ text }));
+    // The same report always reads the same, and a wording changes from week to week and opponent to opponent.
+    const why = say(bank, words, { key: `matchup:${l.season}:${l.week}:${opponent}`, slot: heading });
 
-    return { side, matchup, offenseId, defenseId, advantage, basis, clear, heading, label, why, facts };
+    return {
+      side,
+      matchup,
+      offenseId,
+      defenseId,
+      advantage,
+      basis,
+      clear,
+      heading,
+      tag,
+      label,
+      why,
+      ours: mineFact,
+      theirs: theirFact,
+      lean,
+    };
   });
 }

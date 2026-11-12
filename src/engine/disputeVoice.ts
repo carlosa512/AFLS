@@ -52,7 +52,7 @@ export const DISPUTE_START: readonly Line<DisputeFact>[] = [
     when: (f) => f.kind === 'holdIn',
     reads: 1,
     text: (f) =>
-      `${f.full} is in the building, but he won't practice until his deal is sorted. He'll sit in meetings and nothing more until the games count.`,
+      `${f.full} has reported, but he won't practice until his deal is sorted. He'll sit in meetings and nothing more until the games count.`,
   },
   {
     when: (f) => f.kind === 'holdIn',
@@ -64,7 +64,7 @@ export const DISPUTE_START: readonly Line<DisputeFact>[] = [
     when: (f) => f.kind === 'holdIn' && f.veteran && f.starter,
     reads: 3,
     text: (f) =>
-      `${f.full} is holding in. He's been around long enough to know how this works: he shows up, he doesn't practice, and he waits on a new deal.`,
+      `${f.full} is holding in. He's been around long enough to know how this works. He shows up, he doesn't practice, and he waits on a new deal.`,
   },
   {
     when: (f) => f.kind === 'trade' && f.cause === 'snaps',
@@ -76,7 +76,7 @@ export const DISPUTE_START: readonly Line<DisputeFact>[] = [
     when: (f) => f.kind === 'trade' && f.cause === 'losing',
     reads: 2,
     text: (f) =>
-      `${f.full} wants out. He's tired of losing and wants to play somewhere that's winning. He told me, not the press, so far.`,
+      `${f.full} wants to leave. He's tired of losing and wants to play somewhere that's winning. He told me, not the press, so far.`,
   },
   {
     when: (f) => f.kind === 'trade' && f.cause === 'feud',
@@ -94,7 +94,7 @@ export const DISPUTE_START: readonly Line<DisputeFact>[] = [
     when: (f) => f.kind === 'trade' && f.loud,
     reads: 3,
     text: (f) =>
-      `${f.full} wants a trade. He told me first, but he's not one to keep things quiet, so I wouldn't count on this staying in the building.`,
+      `${f.full} wants a trade. He told me first, but he's not one to keep things quiet, so I wouldn't count on this staying private.`,
   },
   { when: (f) => f.kind === 'trade', text: (f) => `${f.full} has asked to be traded. For now only we know.` },
 ];
@@ -104,13 +104,13 @@ export const leakSubject = (name: string) => `Word is out on ${name}`;
 export const DISPUTE_LEAK: readonly Line<DisputeFact>[] = [
   {
     text: (f) =>
-      `It's out: the league knows ${f.full} wants a trade. Expect calls, and expect them to come in low; they know we're dealing with a man who wants to leave.`,
+      `The league now knows ${f.full} wants a trade. Expect calls, and expect them to come in low, because they know he wants to leave.`,
   },
   {
     when: (f) => f.loud,
     reads: 2,
     text: (f) =>
-      `${f.full} made sure everyone heard he wants out. Other clubs know now, and their offers will reflect it.`,
+      `${f.full} made sure everyone heard he wants to leave. Other teams know now, and their offers will reflect it.`,
   },
 ];
 
@@ -144,13 +144,13 @@ export const DISPUTE_END: readonly Line<DisputeFact>[] = [
   {
     when: (f) => f.how === 'signed',
     reads: 1,
-    text: (f) => `${f.full} is back at work. With his new deal done, there's nothing hanging over him.`,
+    text: (f) => `${f.full} is back at work. With his new deal done, nothing is left open with him.`,
   },
   {
     when: (f) => f.how === 'promise',
     reads: 1,
     text: (f) =>
-      `${f.full} took your word on a new deal and he's back at work. He'll be watching for it, and so will the room.`,
+      `${f.full} took your word on a new deal and he's back at work. He'll be watching for it, and so will the locker room.`,
   },
   {
     when: (f) => f.how === 'gaveIn',
@@ -167,13 +167,13 @@ export const DISPUTE_END: readonly Line<DisputeFact>[] = [
   {
     when: (f) => f.kind === 'trade' && f.how === 'withdrawn',
     reads: 2,
-    text: (f) => `${f.full} has taken back his trade request. He's in a better place than he was, and he's ours again.`,
+    text: (f) => `${f.full} has taken back his trade request. He is happier than he was, and he is staying.`,
   },
   {
     when: (f) => f.kind === 'trade' && f.how === 'promise',
     reads: 2,
     text: (f) =>
-      `${f.full} took your word and dropped his request. He'll be watching to see it kept, and so will the room.`,
+      `${f.full} took your word and dropped his request. He'll be watching to see it kept, and so will the locker room.`,
   },
   {
     when: (f) => f.how === 'newYear',
@@ -204,13 +204,13 @@ export function disputeStanding(d: Dispute): string {
   const where =
     d.kind === 'trade'
       ? d.public === undefined
-        ? 'Wants a trade; only we know.'
+        ? 'Wants a trade, and only we know.'
         : 'Wants a trade, and the league knows.'
       : d.kind === 'holdOut'
         ? d.out
           ? 'Not reporting.'
           : 'Staying away from the spring program.'
-        : 'In the building, not practicing.';
+        : 'Reported, but not practicing.';
   const cost = d.lost ? ` It has cost him $${(d.lost / 1000).toFixed(1)}M.` : '';
   const answer = d.answered ? ` ${DISPUTE_SAID[d.answered.choice]}` : ' He waits on your answer.';
   return `${where}${cost}${answer}`;
@@ -218,7 +218,7 @@ export function disputeStanding(d: Dispute): string {
 
 /** What anyone can see of a dispute: he isn't practicing, or isn't there (G4b: a request once it's public). */
 export const DISPUTE_PUBLIC: Record<DisputeKind, string> = {
-  holdOut: "Holding out for a new deal: he hasn't reported.",
-  holdIn: "Holding in for a new deal: he reported, but he isn't practicing.",
+  holdOut: "Holding out for a new deal. He hasn't reported.",
+  holdIn: "Holding in for a new deal. He reported, but he isn't practicing.",
   trade: 'He has asked for a trade.',
 };

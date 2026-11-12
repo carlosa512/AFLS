@@ -22,7 +22,8 @@ import { teamPlayers } from './roster';
 import { tierOf, weightOf } from './standing';
 import { PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { closeStory, talkBeat } from './stories';
-import { temperamentOf, TRAIT_MEAN } from './traits';
+import { inSlump } from './slump';
+import { poiseOf, temperamentOf, TRAIT_MEAN } from './traits';
 import type { League, Player, Talk, TalkCause, TalkReply } from './types';
 
 const YEAR = 32;
@@ -68,6 +69,34 @@ export const CAUSE_OF: Record<string, TalkCause> = {
  * has its own promise ("back in next week", `answerBench`).
  */
 export const canPromise = (cause: TalkCause) => cause === 'snaps' || cause === 'deal';
+
+/**
+ * The slump a form talk is about, read from the box scores (`slump.ts`): the same public facts SNN's Column reads, so
+ * the two arrive together without either reading the other. Swappable, so a test can put one man in a slump.
+ */
+export const FORM_TALK: { slump: (league: League, playerId: number, through: number) => boolean } = { slump: inSlump };
+
+/** The last regular-season week played this league year, or 0. */
+const lastPlayed = (league: League) =>
+  Math.max(
+    0,
+    ...league.games.filter((g) => g.season === league.season && !g.playoffRound && g.result).map((g) => g.week),
+  );
+
+/**
+ * The extreme case a man comes to you about his form (spec 2 §3): he holds a starting job and he matters (the
+ * quarterback, or a leader of the room), he has started every game of a span in which his unit was in the league's
+ * bottom quarter, and he has not asked this season. That he is already down is the talks' own gate. In season only.
+ */
+export function formCase(league: League, p: Player, ctx: MoraleContext, through = lastPlayed(league)): boolean {
+  // Your club only, like the losing (`losingReachesYou`): an AI club's men are answered as they always were, so the
+  // league's moods do not move (with it league-wide, `npm run morale` left its range on a small-sample line).
+  if (p.teamId === null || p.teamId !== yourClub(league) || league.phase !== 'regular') return false;
+  if (p.morale?.talk?.form === league.season) return false;
+  if (!league.teams[p.teamId].jobs?.held[p.id]) return false;
+  if (p.position !== 'QB' && tierOf(league, p, weightOf(league, p, ctx)) !== 'leader') return false;
+  return FORM_TALK.slump(league, p.id, through);
+}
 
 /** Players talk in season, in the re-sign window and at camp; not on every free-agency day or at the draft. */
 export function talksAt(league: League, week: number): boolean {
@@ -175,6 +204,22 @@ function applyReply(
 ) {
   const t = talkOf(p);
   const week = clock - league.season * YEAR;
+  if (cause === 'form') {
+    // Where he stands, in a slump: backed, he lifts a little; told to play his way out of it, a steady man takes it
+    // as trust and a fragile one drops. Nothing is promised and nothing sours: a form talk never becomes a dispute.
+    if (reply === 'reassure') {
+      addJolt(p, 'reassured', 0.5 ** (t.reassured ?? 0), clock);
+      t.reassured = (t.reassured ?? 0) + 1;
+    } else if (reply === 'firm') {
+      const firm = Math.max(-1, Math.min(0.5, ((poiseOf(p) - TRAIT_MEAN) / 3.5) * 0.5));
+      if (Math.abs(firm) >= 0.01) addJolt(p, 'firm', firm, clock);
+    } else if (reply === 'ignored') addJolt(p, 'ignored', -1, clock);
+    t.form = league.season;
+    t.answered = { reply, at: clock, ask: t.ask?.at ?? clock, cause };
+    talkBeat(league, p, cause, 'answered', clock, { how: reply });
+    delete t.ask;
+    return;
+  }
   if (reply === 'promise') {
     // Each broken promise he remembers takes a quarter off what your word is worth to him.
     const lift = 2 * Math.max(0, 1 - 0.25 * (t.broken ?? 0));
@@ -257,6 +302,7 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
   const yours = yourClub(league);
   const candidates = new Map<number, { p: Player; level: number; cause: TalkCause }[]>();
   const asking = talksAt(league, week);
+  let through: number | undefined;
   for (const p of Object.values(league.players)) {
     const m = p.morale;
     if (!m) continue;
@@ -291,7 +337,10 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
       continue;
     // A man of an open job question talks about it there.
     if (league.teams[p.teamId].jobs?.questions?.some((q) => q.holder === p.id || q.other === p.id)) continue;
-    const cause = talkCause(league, p, moraleFactors(league, p, ctx), clock);
+    const own = talkCause(league, p, moraleFactors(league, p, ctx), clock);
+    // With nothing of his own a club could answer (or only the losing), a leader in a slump asks where he stands.
+    const cause =
+      (own === null || own === 'losing') && formCase(league, p, ctx, (through ??= lastPlayed(league))) ? 'form' : own;
     if (!cause || cause === 'benched') continue;
     const list = candidates.get(p.teamId) ?? [];
     list.push({ p, level, cause });
@@ -314,6 +363,7 @@ export function talkStep(league: League, ctx: MoraleContext, clock: number, week
     for (const { p, cause } of list.slice(0, Math.max(0, PER_CLUB - filed))) {
       if (teamId === yours) {
         talkOf(p).ask = { cause, at: clock };
+        if (cause === 'form') talkOf(p).form = league.season;
         talkBeat(league, p, cause, 'asked', clock);
       } else applyReply(league, p, aiReply(league, teamId, cause), clock, ctx, cause);
     }

@@ -130,6 +130,7 @@ import type {
 import { setTradeStatus, stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
+import { EditionCards } from './edition';
 import { Dialog, PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
 import { staffCall } from '../engine/staffCall';
 import { StaffAvatar } from './staffAvatar';
@@ -170,6 +171,19 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
   const notes = message.gmNotes?.filter((n) => league.gms[n.gmId]);
+  // SNN's weekly edition draws itself (`edition.tsx`): this file only hands it over.
+  if (message.edition)
+    return (
+      <>
+        <EditionCards league={league} message={message} />
+        {/* A big-day edition carries what is known of the new GMs under its page. */}
+        {notes?.map((n) => (
+          <Card key={n.gmId}>
+            <GmWho league={league} gm={league.gms[n.gmId]} line={n.line} />
+          </Card>
+        ))}
+      </>
+    );
   return (
     <>
       {notes?.map((n) => (
@@ -672,6 +686,7 @@ function TalkCards({
   s,
   room,
   older,
+  to,
 }: {
   league: League;
   s: { clock: number; playerId: number };
@@ -679,8 +694,11 @@ function TalkCards({
   older?: boolean;
   /** The row speaks for a room's losing: the answer goes to every man of it with an open ask. */
   room?: 'team';
+  /** In a letter: the man the answer is to. His answers sit on one line under his paragraph, not in a boxed card. */
+  to?: string;
 }) {
   const card = talkCard(league, s);
+  const Card = to === undefined ? BoxCard : StripCard;
   const answer = (reply: TalkReply, lead = false) =>
     store.mutate((l) =>
       room && (reply === 'reassure' || reply === 'firm')
@@ -709,7 +727,7 @@ function TalkCards({
       </Card>
     );
   return (
-    <Card title="Your answer">
+    <Card title={to === undefined ? 'Your answer' : `Your answer to ${to}`}>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         {card.canPromise && (
           <button className="btn btn-sm" onClick={() => answer('promise')}>
@@ -727,6 +745,16 @@ function TalkCards({
             </button>
             <button className="btn btn-sm" onClick={() => answer('firm')}>
               That's on the coach and you
+            </button>
+          </>
+        ) : card.cause === 'form' ? (
+          // Where he stands in a slump: back him, or tell him to play his way out. Not answering says nothing.
+          <>
+            <button className="btn btn-sm" onClick={() => answer('reassure')}>
+              {league.players[s.playerId]?.position === 'QB' ? "He's my quarterback" : "He's my starter"}
+            </button>
+            <button className="btn btn-sm" onClick={() => answer('firm')}>
+              Play your way out of it
             </button>
           </>
         ) : (
@@ -919,6 +947,16 @@ function NegotiateButton({
   );
 }
 
+/** A letter's answer line: a label and its buttons side by side, marked off from the prose (`TalkCards` with `to`). */
+function StripCard({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="letter-answer">
+      {title && <b>{title}</b>}
+      {children}
+    </div>
+  );
+}
+
 function Card({ title, children, className = '' }: { title?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div className={`mail-card ${className}`}>
@@ -927,6 +965,8 @@ function Card({ title, children, className = '' }: { title?: ReactNode; children
     </div>
   );
 }
+
+const BoxCard = Card;
 
 /** A player's name and picture, opening his card. */
 function Who({ league, p, sub, side }: { league: League; p: Player; sub?: ReactNode; side?: ReactNode }) {
@@ -1191,27 +1231,26 @@ function PlayoffPath({ league, game }: { league: League; game: Game }) {
 }
 
 /** One or two useful contests: who has the edge, the coach's sentence on it, and each side's number with its league rank. */
-function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
+export function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   const focuses = focusMatchups(league, opp.id);
+  const tone = { us: ' tag-good', them: ' tag-bad', split: ' tag-split', even: '' } as const;
   return (
     <Card title="Key matchups">
       {focuses.map((f) => (
         <section className="mail-focus" key={`${f.side}:${f.matchup.title}`}>
           <div className="mail-matchup-head">
             <b>{f.heading}</b>
-            <span
-              className={`tag-pill ${f.advantage === 'ours' ? 'tag-good' : f.advantage === 'theirs' ? 'tag-bad' : ''}`}
-            >
-              {f.label}
-            </span>
+            <span className={`tag-pill${tone[f.tag]}`}>{f.label}</span>
           </div>
           <p className="mail-focus-why">{f.why}</p>
-          {f.facts.length > 0 && (
-            <div className="mail-focus-bars">
-              {f.facts.map((fact) => (
-                <RankBar key={fact.teamId} league={league} fact={fact} mine={fact.teamId === league.userTeamId} />
-              ))}
-            </div>
+          {f.ours && f.theirs && (
+            <DuelBar
+              ours={f.ours}
+              theirs={f.theirs}
+              lean={f.lean}
+              names={f.heading.replace(/^Our /, '').split(' vs their ')}
+              clubs={league.teams.length}
+            />
           )}
         </section>
       ))}
@@ -1219,28 +1258,51 @@ function MatchupsCard({ league, opp }: { league: League; opp: Team }) {
   );
 }
 
-/** One side's number in a contest: the club, the stat, and a bar for where it ranks in the league (longer is better). */
-function RankBar({ league, fact, mine }: { league: League; fact: MatchupFact; mine: boolean }) {
-  const clubs = league.teams.length;
-  const share = fact.rank ? (clubs + 1 - fact.rank) / clubs : 0;
-  const tone = !fact.rank ? '' : fact.rank <= clubs / 3 ? ' is-good' : fact.rank > (2 * clubs) / 3 ? ' is-bad' : '';
+/**
+ * One matchup's two numbers on one bar: our unit grows left from the middle, theirs grows right, and the longer side has
+ * had the better season (a bar's length is its league rank). Green when the stats this season favour us, red when they
+ * favour them, grey when they are within four places.
+ */
+function DuelBar({
+  ours,
+  theirs,
+  lean,
+  names,
+  clubs,
+}: {
+  ours: MatchupFact;
+  theirs: MatchupFact;
+  lean: 'us' | 'them' | 'close' | null;
+  names: string[];
+  clubs: number;
+}) {
+  const side = (fact: MatchupFact, mine: boolean) => {
+    const share = fact.rank ? (clubs + 1 - fact.rank) / clubs : 0;
+    const tone = mine ? (lean === 'us' ? ' is-good' : '') : lean === 'them' ? ' is-bad' : '';
+    return (
+      <div className={`duel-side ${mine ? 'is-ours' : 'is-theirs'}`}>
+        <div className="duel-cap">
+          <b>
+            {mine ? 'Our' : 'Their'} {names[mine ? 0 : 1]}
+          </b>
+        </div>
+        {fact.rank && (
+          <div className="duel-row">
+            <span className="duel-rank num">{ordinal(fact.rank)}</span>
+            <span className="duel-track" aria-hidden="true">
+              <span className={`duel-fill${tone}`} style={{ width: `${Math.round(share * 100)}%` }} />
+            </span>
+          </div>
+        )}
+        <div className="duel-stat muted">{fact.label}</div>
+      </div>
+    );
+  };
   return (
-    <div className={`rank-bar${mine ? ' is-mine' : ''}`}>
-      <span className="rank-bar-who">
-        <b>{league.teams[fact.teamId].name}</b>
-        <span className="muted">
-          {' '}
-          {fact.label.toLowerCase()} {fact.value}
-        </span>
-      </span>
-      {fact.rank && (
-        <>
-          <span className="rank-bar-track" aria-hidden="true">
-            <span className={`rank-bar-fill${tone}`} style={{ width: `${Math.round(share * 100)}%` }} />
-          </span>
-          <span className="rank-bar-rank">{ordinal(fact.rank)}</span>
-        </>
-      )}
+    <div className="duel">
+      {side(ours, true)}
+      <span className="duel-mid" aria-hidden="true" />
+      {side(theirs, false)}
     </div>
   );
 }
@@ -3129,6 +3191,7 @@ export function MailSections({
   sections,
   onNegotiate,
   letterId,
+  signed,
 }: {
   league: League;
   sections: MailSection[];
@@ -3136,6 +3199,8 @@ export function MailSections({
   letterId?: string;
   /** Open contract talks with a player (the contracts letter's Negotiate). */
   onNegotiate?: (playerId: number) => void;
+  /** Who signs a letter written as one (the head coach's first name). */
+  signed?: string;
 }) {
   // Once a letter: only the newest letter's losing row has buttons.
   const older = letterId !== undefined && newestLosingLetter(league) !== letterId;
@@ -3144,6 +3209,7 @@ export function MailSections({
       {sections.map((sec, i) => (
         <SectionCard key={i} league={league} section={sec} onNegotiate={onNegotiate} older={older} />
       ))}
+      {signed && sections.some((sec) => sec.layout === 'letter') && <p className="coach-letter-sign">{signed}</p>}
     </>
   );
 }
@@ -3162,6 +3228,8 @@ function SectionCard({
   const [sort, onSort] = useSort<string>({ key: 'none', desc: false });
   if (section.layout === 'people')
     return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
+  if (section.layout === 'letter')
+    return <LetterSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3393,6 +3461,92 @@ function PeopleSection({
         })}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * The head coach's weekly letter as a letter: each matter a paragraph that opens on the person (his face, his name),
+ * in the coach's words and then his own, with his answers on one line under it. A matter with no one person (a
+ * meeting's result, the lineup, a room) is a paragraph alone, and its sentence names what it is about: nothing is
+ * labelled ("What I told them", "Where that leaves us"), since a row's kind is for the editor, not the reader. Players
+ * still waiting on an answer are a short list under one sentence. No boxes: what needs you is marked by its answer line.
+ */
+function LetterSection({
+  league,
+  section,
+  onNegotiate,
+  older,
+}: {
+  league: League;
+  section: MailSection;
+  onNegotiate?: (playerId: number) => void;
+  older?: boolean;
+}) {
+  return (
+    <section className="coach-letter">
+      <h4 className="visually-hidden">{section.title}</h4>
+      {section.lead && <p className="coach-letter-p">{section.lead}</p>}
+      {section.rows.map((r, j) => {
+        const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+        const coach = r.coachId === undefined ? undefined : league.coaches[r.coachId];
+        const byCoach = !!coach && r.cells.length > 1;
+        const name = byCoach ? r.cells[1] : r.cells[0];
+        const face = (p || coach) && (
+          <span className="coach-letter-face">
+            {p ? (
+              <PlayerAvatar player={p} team={p.teamId !== null ? league.teams[p.teamId] : null} size={32} />
+            ) : (
+              <StaffAvatar person={coach!} size={32} />
+            )}
+          </span>
+        );
+        const who = p ? <PlayerLink league={league} player={p} pos /> : <strong>{name}</strong>;
+        const controls = (
+          <>
+            {r.talk && (
+              <TalkCards
+                league={league}
+                s={r.talk}
+                room={r.talkRoom?.unit}
+                older={!!r.talkRoom && older}
+                to={p?.lastName ?? name}
+              />
+            )}
+            {r.bench && <BenchCards league={league} s={r.bench} />}
+            {r.restore && <RestoreCards league={league} playerId={r.restore.playerId} />}
+            {r.meeting && (
+              <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
+            )}
+            {r.negotiate && onNegotiate && (
+              <NegotiateButton league={league} playerId={r.negotiate.playerId} onNegotiate={onNegotiate} />
+            )}
+          </>
+        );
+        // A man still waiting: who he is and his answers, on one line.
+        if (r.compact)
+          return (
+            <div key={j} className="coach-letter-wait">
+              {face}
+              <span className="coach-letter-who">{who}</span>
+              {controls}
+            </div>
+          );
+        return (
+          <div key={j} className="coach-letter-item">
+            {(p || coach) && (
+              <p className="coach-letter-p">
+                {face}
+                {who}
+                {r.lead && <> {r.lead}</>}
+              </p>
+            )}
+            {r.before && <p className="coach-letter-p coach-letter-before">{r.before}</p>}
+            {r.note && <p className="coach-letter-p">{r.note}</p>}
+            {controls}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

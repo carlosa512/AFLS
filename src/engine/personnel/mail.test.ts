@@ -38,7 +38,7 @@ describe('personnel mail', () => {
     twice();
     expect(mail('waivers:')).toHaveLength(1);
     expect(rows()).toHaveLength(1);
-    expect(rows()[0].cells.at(-1)).toMatch(/Ours off waivers/);
+    expect(rows()[0].cells.at(-1)).toMatch(/We claimed him off waivers/);
     expect(mailSubject(mail('waivers:')[0])?.kind).toBe('waivers');
   });
 
@@ -64,7 +64,7 @@ describe('personnel mail', () => {
       .join(' ');
     expect(rows()).toHaveLength(2);
     expect(said).toMatch(/Claimed by/);
-    expect(said).toMatch(/Cleared/);
+    expect(said).toMatch(/cleared waivers/);
   });
 
   it("a squad player's third call-up used, once", () => {

@@ -1,7 +1,7 @@
 {
   "name": "afls",
   "private": true,
-  "version": "0.4.33",
+  "version": "0.4.39",
   "description": "AFLS — a deep American football management simulation",
   "type": "module",
   "scripts": {
@@ -50,7 +50,9 @@
     "dropback": "tsx scripts/dropback.ts",
     "situations": "tsx scripts/situations.ts",
     "gm-letters": "tsx scripts/gm-letters.ts",
-    "copy": "tsx scripts/copy.ts"
+    "editions": "tsx scripts/editions.ts",
+    "copy": "tsx scripts/copy.ts",
+    "letters": "tsx scripts/letters.ts"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -45,7 +45,7 @@ export function PracticeSquad({ league }: { league: League }) {
           disabled={!!blocked}
           title={
             blocked ??
-            'Adds practice squads of up to 16 players a club, waivers, one-game call-ups and squad signings between clubs. Once on, they stay on for this career.'
+            'Adds practice squads of up to 16 players a team, waivers, one-game call-ups and squad signings between teams. Once on, they stay on for this career.'
           }
           onClick={() => store.mutate(turnOnPersonnel)}
         >
@@ -347,7 +347,7 @@ export function PracticeSquad({ league }: { league: League }) {
           }
         >
           <p>
-            {offers.length} {offers.length === 1 ? 'offer' : 'offers'} ready to send. Players can choose another club.
+            {offers.length} {offers.length === 1 ? 'offer' : 'offers'} ready to send. Players can choose another team.
           </p>
           {!!invites.length && (
             <p className="small">

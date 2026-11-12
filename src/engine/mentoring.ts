@@ -264,7 +264,7 @@ export function setMentor(league: League, youngId: number, mentorId: number | nu
   if (!y || !canBeMentored(y)) throw new Error('Only a player 21 to 24 can have a mentor.');
   if (m) {
     if (m.id === y.id || !canMentor(m)) throw new Error('A mentor needs to be 27, or five years in the league.');
-    if (m.teamId !== y.teamId) throw new Error('A mentor has to be on the same club.');
+    if (m.teamId !== y.teamId) throw new Error('A mentor has to be on the same team.');
     const load = Object.values(league.players).filter((p) => p.mentor === m.id && p.id !== y.id).length;
     if (load >= MAX_MENTEES) throw new Error('He already has two players to look after.');
   }

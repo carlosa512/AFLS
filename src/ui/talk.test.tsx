@@ -115,3 +115,49 @@ describe('the losing across letters', () => {
     expect(fresh).toContain('I need you to lead the room');
   });
 });
+
+describe('a slumping leader’s letter', () => {
+  it('offers two answers, his quarterback or his man, and no promise', () => {
+    const { l, p, m } = letter('form');
+    const html = show(l, m);
+    expect(html).toContain(p.lastName);
+    expect(html).toMatch(/about where he stands\./);
+    expect(html).toContain(p.position === 'QB' ? 'He&#x27;s my quarterback' : 'He&#x27;s my starter');
+    expect(html).toContain('Play your way out of it');
+    expect(html).not.toContain('Promise');
+    expect(html).not.toContain('Reassure him');
+    // Answered, the row says what you told him.
+    answerTalk(l, p.id, 'firm');
+    expect(show(l, m)).toContain('play his way out of it');
+    const again = letter('form');
+    answerTalk(again.l, again.p.id, 'reassure');
+    expect(show(again.l, again.m)).toMatch(/he&#x27;s your (man|quarterback)/);
+  });
+});
+
+describe('the head coach’s letter, written as a letter', () => {
+  it('leads into a man’s words in the coach’s own, with his answers on one line under them', () => {
+    const { l, p, m } = letter('snaps');
+    const html = show(l, m);
+    expect(html).toContain('class="coach-letter"');
+    expect(html).toMatch(/(came to see me|asked to see me|stopped by my office) about his snaps\./);
+    expect(html).toContain(`Your answer to ${p.lastName}`);
+    // No boxed card titled "Your answer" for each man.
+    expect(html).not.toContain('<h4>Your answer</h4>');
+    expect(html).toContain('Promise more snaps');
+  });
+
+  it('still draws a letter filed before this the way it was filed', () => {
+    const { l, m } = letter('snaps');
+    const old = { ...m, sections: m.sections!.map((s) => ({ ...s, layout: 'people' as const })) };
+    const html = show(l, old);
+    expect(html).not.toContain('class="coach-letter"');
+    expect(html).toContain('<h4>Your answer</h4>');
+  });
+
+  it('is signed by the coach', () => {
+    const { l, m } = letter('snaps');
+    const html = render(<MailSections league={l} sections={m.sections!} letterId={m.id} signed="James" />);
+    expect(html).toMatch(/class="coach-letter-sign"[^>]*>James</);
+  });
+});

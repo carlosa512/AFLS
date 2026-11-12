@@ -107,7 +107,8 @@ export function endDispute(league: League, p: Player, how: DisputeHow, clock: nu
   const d = m.dispute!;
   const start = league.season * YEAR;
   m.disputeEnd = { kind: d.kind, since: d.since, how, at: clock };
-  beat(league, disputeOn(p, d), 'disputeEnd', clock, { how });
+  // A request that had leaked ends in public too.
+  beat(league, disputeOn(p, d), 'disputeEnd', clock, d.public !== undefined ? { how, pub: true } : { how });
   delete m.dispute;
   const missedCamp = d.since <= start + CAMP && clock >= start + REGULAR;
   if (missedCamp && how !== 'released' && how !== 'newYear')

@@ -14,18 +14,65 @@ import type { League, Player } from './types';
 
 const fullName = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`;
 
+// Plain words, and no closing line that tries to land: the owner's read was that those turn cheesy fast.
 const SAID: Record<SpeakEvent, (p: Player, club: string) => string> = {
-  traded: (p, club) =>
-    `"I gave that place everything," ${p.lastName} said of the ${club}. "They'll see what they let go."`,
-  cut: (p, club) => `"They never gave me a real chance," ${p.lastName} said after the ${club} let him go.`,
+  traded: (p, club) => `"I gave that team everything I had," ${p.lastName} said of the ${club}.`,
+  cut: (p, club) => `"I never felt I got a real chance there," ${p.lastName} said after the ${club} let him go.`,
   benched: (p, club) =>
-    `"I'm a starter in this league," ${p.lastName} said of losing his job with the ${club}. "I'll prove it."`,
+    `"I think I am a starter in this league," ${p.lastName} said of losing his job with the ${club}.`,
   snubbed: (p, club) =>
-    `"You see who they pay," ${p.lastName} said of the ${club}'s latest deal. "That tells you everything."`,
+    `"You look at who gets paid and you draw your own conclusions," ${p.lastName} said of the ${club}'s latest deal.`,
 };
+
+/** The men who speak out now and have not been reported: the facts `speakMail` files and SNN's edition tells. */
+export function speakFacts(
+  league: League,
+  have: Set<string>,
+): { id: string; playerId: number; teamId: number; kind: SpeakEvent }[] {
+  const user = league.userTeamId;
+  const out: { id: string; playerId: number; teamId: number; kind: SpeakEvent }[] = [];
+  for (const p of Object.values(league.players)) {
+    if (p.retired) continue;
+    const ours = p.teamId === user || p.left?.some((d) => d.teamId === user && league.season - d.season <= 3);
+    if (!ours) continue;
+    for (const e of speakEvents(league, p)) {
+      const id = `speak:${league.season}:${p.id}:${e.kind}`;
+      if (have.has(id) || !speaksOut(league, p, league.season, e.kind)) continue;
+      out.push({ id, playerId: p.id, teamId: e.teamId, kind: e.kind });
+    }
+  }
+  return out;
+}
+
+/** Head coaches meeting the man they worked under, in a game of `week` not yet played and not yet reported. */
+export function mentorFacts(
+  league: League,
+  week: number,
+  have: Set<string>,
+): { id: string; mentorId: number; discipleId: number; homeId: number; awayId: number }[] {
+  const headOf = (teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
+  const out: { id: string; mentorId: number; discipleId: number; homeId: number; awayId: number }[] = [];
+  for (const g of league.games) {
+    if (g.week !== week || g.result || g.season !== league.season) continue;
+    const [a, b] = [headOf(g.homeId), headOf(g.awayId)];
+    if (!a || !b) continue;
+    const pair = linksOf(league, b.id).some((k) => k.mentorId === a.id && k.as === 'headCoach')
+      ? [a, b]
+      : linksOf(league, a.id).some((k) => k.mentorId === b.id && k.as === 'headCoach')
+        ? [b, a]
+        : null;
+    if (!pair) continue;
+    const id = `tree:meet:${pair[0].id}:${pair[1].id}`;
+    if (!have.has(id))
+      out.push({ id, mentorId: pair[0].id, discipleId: pair[1].id, homeId: g.homeId, awayId: g.awayId });
+  }
+  return out;
+}
 
 /** SNN on a player speaking out: ours, or one who left us in the last three seasons. Neutral reporting, his words. */
 function speakMail(league: League, have: Set<string>): Draft[] {
+  // In season SNN's weekly edition tells it (`snnWeek.ts`).
+  if (league.phase === 'regular' || league.phase === 'playoffs') return [];
   const user = league.userTeamId;
   const out: Draft[] = [];
   for (const p of Object.values(league.players)) {
@@ -44,7 +91,7 @@ function speakMail(league: League, have: Set<string>): Draft[] {
         from: 'SNN league desk',
         category: 'league',
         subject: `${fullName(p)} speaks out`,
-        body: `${fullName(p)} didn't keep it to himself. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
+        body: `${fullName(p)} spoke out publicly. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
         actions: [{ kind: 'player', playerId: p.id }],
       });
     }
@@ -78,7 +125,7 @@ function freeAgentMail(league: League, have: Set<string>): Draft[] {
           from: `${p.lastName}'s agent`,
           category: 'contracts',
           subject: `${fullName(p)} would like to come home`,
-          body: `My client has never stopped thinking of your club as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
+          body: `My client has never stopped thinking of your team as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
           actions: [{ kind: 'player', playerId: p.id }],
         });
       }
@@ -113,7 +160,7 @@ export function recapAside(league: League, p: Player, game: { won: boolean; marg
   const user = league.userTeamId;
   if (p.teamId !== user && clubFeeling(league, p, user) === 'grudge') {
     const how = [...(p.left ?? [])].reverse().find((d) => d.teamId === user)?.how;
-    return how === 'traded' ? ', against the club that traded him away' : ', against the club that cut him';
+    return how === 'traded' ? ', against the team that traded him away' : ', against the team that cut him';
   }
   if (p.teamId === user && game.won && game.margin <= 8 && personalityRead(league, user, p)?.name === 'Clutch')
     return ', and he wanted the ball late';
@@ -156,7 +203,7 @@ function treeMail(league: League, have: Set<string>): Draft[] {
           league,
           born,
           `A ${root.lastName} tree`,
-          `With ${coachName(league, tree.disciples[1])} taking over a club, ${fullName(root)} now has two former assistants running teams of their own. Around the league they're calling it the ${root.lastName} tree.`,
+          `With ${coachName(league, tree.disciples[1])} taking over a team, ${fullName(root)} now has two former assistants running teams of their own. Around the league they're calling it the ${root.lastName} tree.`,
         ),
       );
     // Retired: the root of a live tree left the game this offseason.
@@ -173,36 +220,12 @@ function treeMail(league: League, have: Set<string>): Draft[] {
           league,
           retired,
           `${fullName(root)} retires`,
-          `${fullName(root)} has retired. His tree carries on: ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run clubs.`,
+          `${fullName(root)} has retired, and ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run teams from his tree.`,
         ),
       );
   }
   // The week before: a mentor and his disciple face each other as head coaches for the first time.
-  if (league.phase === 'regular') {
-    const headOf = (teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
-    for (const g of league.games) {
-      if (g.week !== league.week || g.result || g.season !== league.season) continue;
-      const [a, b] = [headOf(g.homeId), headOf(g.awayId)];
-      if (!a || !b) continue;
-      const pair = linksOf(league, b.id).some((k) => k.mentorId === a.id && k.as === 'headCoach')
-        ? [a, b]
-        : linksOf(league, a.id).some((k) => k.mentorId === b.id && k.as === 'headCoach')
-          ? [b, a]
-          : null;
-      if (!pair) continue;
-      const [mentor, disciple] = pair;
-      const id = `tree:meet:${mentor.id}:${disciple.id}`;
-      if (have.has(id)) continue;
-      out.push(
-        snn(
-          league,
-          id,
-          `${mentor.lastName} meets his old assistant`,
-          `${fullName(mentor)} faces ${fullName(disciple)}, who worked under him for years, for the first time as rival head coaches this week.`,
-        ),
-      );
-    }
-  }
+  // A coach facing his mentor is a story of that week's edition in season (`mentorFacts`, `snnWeek.ts`).
   return out;
 }
 

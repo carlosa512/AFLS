@@ -53,7 +53,7 @@ describe('backing the staff in the coach’s words (L4)', () => {
         fact({ unit: 'the receivers', read: 'believes' }),
         fact({ unit: 'the backs', read: 'doubts' }),
       ]),
-    ).toBe('The line and the receivers believe in him; the backs have doubts.');
+    ).toBe('The line and the receivers believe in him, and the backs have doubts.');
     expect(beliefStaffLine([fact({ read: 'steady' })])).toBe('');
   });
 

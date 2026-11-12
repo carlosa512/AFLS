@@ -13,6 +13,42 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.39',
+    date: '2026-11-12',
+    title: 'SNN covers the offseason’s big days',
+    text: 'SNN now files an edition for the new league year, free agency, draft day, cut-down day and Kickoff, with the biggest stories first and a story of its own for your team.',
+  },
+  {
+    version: '0.4.38',
+    date: '2026-11-12',
+    title: 'Letters in plain words',
+    text: 'Your coaches, director and staff now write in plain, complete sentences. Players are players, and no letter opens by announcing itself.',
+  },
+  {
+    version: '0.4.37',
+    date: '2026-11-12',
+    title: 'SNN’s Column and the coach’s letter',
+    text: 'Some weeks SNN argues a case about a unit, a coach or a GM from the numbers. Your head coach’s weekly mail now reads as a letter, and inbox subjects are shorter.',
+  },
+  {
+    version: '0.4.36',
+    date: '2026-11-11',
+    title: 'Mail is filed the week you read it',
+    text: 'A game’s recap, injuries and news now sit under the week you are in when they arrive, with that week’s opposition report, instead of under the week just played.',
+  },
+  {
+    version: '0.4.35',
+    date: '2026-11-11',
+    title: 'SNN’s weekly edition',
+    text: 'One SNN mail a week in season, laid out as a front page: every score, the week’s lead story, your team, the rest of the league, your division’s race and the game of the week.',
+  },
+  {
+    version: '0.4.34',
+    date: '2026-11-11',
+    title: 'Key matchups you can read',
+    text: 'The opposition report names each unit in full, puts yours first and says what your scouts grade and what the stats this season show. One bar a matchup shows who has had the better year.',
+  },
+  {
     version: '0.4.33',
     date: '2026-11-11',
     title: 'The final shows on highlights too',
@@ -33,8 +69,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.4.30',
     date: '2026-11-11',
-    title: 'A stadium for every club',
-    text: 'Each club plays in its own building, set in its own city: open bowls, domes and roofs that open. The crowd turns out for a winner, thins for a loser and dresses alike under the lights.',
+    title: 'A stadium for every team',
+    text: 'Each team plays in its own building, set in its own city: open bowls, domes and roofs that open. The crowd turns out for a winner, thins for a loser and dresses alike under the lights.',
   },
   {
     version: '0.4.29',
@@ -94,13 +130,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.20',
     date: '2026-11-09',
     title: 'Sit him this week',
-    text: "A cleared concussion now gets a Sit him this week button in the doctor's letter, and rival clubs make the same call. Quarterbacks on third and medium also hold the ball for the sticks a bit more.",
+    text: "A cleared concussion now gets a Sit him this week button in the doctor's letter, and rival teams make the same call. Quarterbacks on third and medium also hold the ball for the sticks a bit more.",
   },
   {
     version: '0.4.19',
     date: '2026-11-09',
-    title: 'No cutting the man you just paid',
-    text: 'Clubs short on cap room now weigh next year too, so they stop cutting players whose dead money hurts more than keeping them. A man signed this league year is the last to go.',
+    title: 'No cutting the player you just paid',
+    text: 'Teams short on cap room now weigh next year too, so they stop cutting players whose dead money hurts more than keeping them. A player signed this league year is the last to go.',
   },
   {
     version: '0.4.18',
@@ -136,7 +172,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.13',
     date: '2026-11-08',
     title: 'Front offices that plan',
-    text: 'Rival clubs now plan their cap: they re-sign their best players first, save money for next year, and no young star sits unsigned at kickoff. SNN lists who was kept off the market.',
+    text: 'Rival teams now plan their cap: they re-sign their best players first, save money for next year, and no young star sits unsigned at kickoff. SNN lists who was kept off the market.',
   },
   {
     version: '0.4.12',
@@ -202,7 +238,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.4.2',
     date: '2026-11-04',
     title: 'A new job starts with a clean desk',
-    text: 'Take over a new club and your inbox no longer fills with letters about meetings held before you arrived. A few All-22 oddities with fumbles, sacks and sideline slides are fixed too.',
+    text: 'Take over a new team and your inbox no longer fills with letters about meetings held before you arrived. A few All-22 oddities with fumbles, sacks and sideline slides are fixed too.',
   },
   {
     version: '0.4.1',
@@ -286,7 +322,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.3.1',
     date: '2026-11-02',
     title: 'Nobody teleports',
-    text: 'In the All-22, nobody moves faster than his own legs. Tacklers take angles or run the carrier down, and a man who misses keeps going instead of freezing.',
+    text: 'In the All-22, nobody moves faster than his own legs. Tacklers take angles or run the carrier down, and a tackler who misses keeps going instead of freezing.',
   },
   {
     version: '0.3.0',
@@ -304,7 +340,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.45',
     date: '2026-11-02',
     title: 'Hold-ins and holdouts',
-    text: 'An unhappy player whose talks go badly can now hold in, or a proud veteran can hold out. Your head coach asks how to answer, and rival clubs work through theirs.',
+    text: 'An unhappy player whose talks go badly can now hold in, or a proud veteran can hold out. Your head coach asks how to answer, and rival teams work through theirs.',
   },
   {
     version: '0.2.44',
@@ -316,7 +352,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.43',
     date: '2026-11-02',
     title: 'Fumbles you can see',
-    text: 'A fumble now looks like one: the ball pops loose, bounces, and both sides scramble for it. The man who fumbled stays down, and a defense that recovers can return it.',
+    text: 'A fumble now looks like one: the ball pops loose, bounces, and both sides scramble for it. The player who fumbled stays down, and a defense that recovers can return it.',
   },
   {
     version: '0.2.42',
@@ -333,8 +369,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.40',
     date: '2026-11-02',
-    title: 'Colour rush',
-    text: 'Clubs now dress up for big games with a colour rush uniform, and each wears a classic one at home once or twice a season. Numbers are outlined so they read at a glance.',
+    title: 'Color rush',
+    text: 'Teams now dress up for big games with a color rush uniform, and each wears a classic one at home once or twice a season. Numbers are outlined so they read at a glance.',
   },
   {
     version: '0.2.39',
@@ -346,13 +382,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.38',
     date: '2026-11-02',
     title: 'Helmets on',
-    text: "Every player now wears his club's helmet, in the club's own design. Quarterbacks can wear a padded sleeve and a wristband, and you can pick any player's helmet from his card.",
+    text: "Every player now wears his team's helmet, in the team's own design. Quarterbacks can wear a padded sleeve and a wristband, and you can pick any player's helmet from his card.",
   },
   {
     version: '0.2.37',
     date: '2026-11-02',
     title: 'Fewer sulkers',
-    text: 'Players are happier with deals near their worth, and only a man paid well under market complains. Free agency days also run about three times faster.',
+    text: 'Players are happier with deals near their worth, and only a player paid well under market complains. Free agency days also run about three times faster.',
   },
   {
     version: '0.2.36',
@@ -424,7 +460,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.25',
     date: '2026-10-30',
     title: 'Coaches with character',
-    text: 'Coaches now have ambition, loyalty, adaptability and discipline. Some chase a head coach job at once, and clubs want assistants of winning coaches, so coaching trees grow.',
+    text: 'Coaches now have ambition, loyalty, adaptability and discipline. Some chase a head coach job at once, and teams want assistants of winning coaches, so coaching trees grow.',
   },
   {
     version: '0.2.24',
@@ -436,7 +472,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.23',
     date: '2026-10-29',
     title: 'Letters close between jobs',
-    text: "A player's letter to you now closes when you leave the club, instead of showing buttons that answer nothing.",
+    text: "A player's letter to you now closes when you leave the team, instead of showing buttons that answer nothing.",
   },
   {
     version: '0.2.22',
@@ -466,7 +502,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.18',
     date: '2026-10-28',
     title: 'Coaching trees',
-    text: "Coaches now come from somewhere: three seasons on a head coach's staff puts a man in his tree. Hot trees get the interviews, and new head coaches bring their own people.",
+    text: "Coaches now come from somewhere: three seasons on a head coach's staff puts a coach in his tree. Hot trees get the interviews, and new head coaches bring their own people.",
   },
   {
     version: '0.2.17',
@@ -574,13 +610,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.2.0',
     date: '2026-10-26',
     title: 'Practice squads',
-    text: 'Every club now carries a practice squad of up to 16. Call players up, sign them to the 53, or lose them to rival clubs, though your two best are protected each week.',
+    text: 'Every team now carries a practice squad of up to 16. Call players up, sign them to the 53, or lose them to rival teams, though your two best are protected each week.',
   },
   {
     version: '0.1.20',
     date: '2026-10-26',
     title: 'The Arena Gazette does the numbers',
-    text: 'The Gazette now writes a numbers column every three weeks, plus a playoff preview and a season wrap. They cover EPA, success rate and explosive plays, and where your club stands.',
+    text: 'The Gazette now writes a numbers column every three weeks, plus a playoff preview and a season wrap. They cover EPA, success rate and explosive plays, and where your team stands.',
   },
   {
     version: '0.1.19',
@@ -598,7 +634,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.1.17',
     date: '2026-10-26',
     title: 'Interim coaches, tidied up',
-    text: 'A club without a GM still settles its interim head coach, so no team goes a season without a coordinator. A late coaching change is also no longer lost in the roundup.',
+    text: 'A team without a GM still settles its interim head coach, so no team goes a season without a coordinator. A late coaching change is also no longer lost in the roundup.',
   },
   {
     version: '0.1.16',
@@ -622,7 +658,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.1.13',
     date: '2026-10-26',
     title: 'A new front page and this history',
-    text: "The start page has a new pitch, and every club shows its coaching, scouting and medical grades. You now inherit the club's own staff, and the version tag opens this history.",
+    text: "The start page has a new pitch, and every team shows its coaching, scouting and medical grades. You now inherit the team's own staff, and the version tag opens this history.",
   },
   {
     version: '0.1.12',
@@ -652,7 +688,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.1.8',
     date: '2026-10-22',
     title: 'Team strength through your scouts',
-    text: "Roster and Home now show team strength as your scouts read it, so a club you've barely watched shows a range instead of a hard number.",
+    text: "Roster and Home now show team strength as your scouts read it, so a team you've barely watched shows a range instead of a hard number.",
   },
   {
     version: '0.1.7',
@@ -664,7 +700,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.1.6',
     date: '2026-10-22',
     title: 'A settled opening league',
-    text: 'New leagues now open with staggered contracts like a real league: rookies on rookie deals, real cap hits, and one kicker and one punter per club.',
+    text: 'New leagues now open with staggered contracts like a real league: rookies on rookie deals, real cap hits, and one kicker and one punter per team.',
   },
   {
     version: '0.1.5',
@@ -676,7 +712,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: '0.1.4',
     date: '2026-10-21',
     title: 'Covering injuries',
-    text: 'When injuries leave a position short, coaches cover it from the roster first with a Play at move. Rival clubs may then sign help, but your staff never signs or cuts for you.',
+    text: 'When injuries leave a position short, coaches cover it from the roster first with a Play at move. Rival teams may then sign help, but your staff never signs or cuts for you.',
   },
   {
     version: '0.1.3',

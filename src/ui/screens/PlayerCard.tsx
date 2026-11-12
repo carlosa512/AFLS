@@ -358,8 +358,8 @@ function IdentityEditor({
 const COLOR_LABEL: Record<GearColor, string> = {
   black: 'Black',
   white: 'White',
-  primary: 'Team colour',
-  secondary: 'Second colour',
+  primary: 'Team color',
+  secondary: 'Second color',
 };
 const SIDE_LABEL: Record<GearSide, string> = { both: 'Both arms', left: 'Left arm', right: 'Right arm' };
 const SLEEVE_LABEL: Record<SleeveLength, string> = {
@@ -562,7 +562,7 @@ export function GearEditor({
           <GearSelect
             label="Strap"
             value={gear.shoulderBrace.strap}
-            options={{ primary: 'Team colour', secondary: 'Second colour' }}
+            options={{ primary: 'Team color', secondary: 'Second color' }}
             onChange={(strap) => set({ shoulderBrace: { ...gear.shoulderBrace!, strap } })}
           />
         )}

@@ -211,9 +211,9 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
         <>
           <p
             className="small"
-            title="He goes on waivers with his existing contract. These figures show the cost if he clears. A successful claim transfers unpaid salary and guarantees to the new club."
+            title="He goes on waivers with his existing contract. These figures show the cost if he clears. A successful claim transfers unpaid salary and guarantees to the new team."
           >
-            If another club claims him · {waiverDecision(league).toLowerCase()}
+            If another team claims him · {waiverDecision(league).toLowerCase()}
           </p>
           <div className="facts">
             <Num label={`Dead money ${league.season} if claimed`} value={preview.waiver.assigned.thisYear} />
@@ -226,7 +226,7 @@ export function ReleaseDialog({ league, player, onClose }: { league: League; pla
       {league.personnel?.enabled && !player.injury && (
         <label
           className="check-row"
-          title="Other clubs can claim him or win his signature. This reserves no rights or roster spot."
+          title="Other teams can claim him or win his signature. This reserves no rights or roster spot."
         >
           <input type="checkbox" checked={invite} onChange={(e) => setInvite(e.target.checked)} />
           <span>Invite him back on a practice squad deal if available.</span>

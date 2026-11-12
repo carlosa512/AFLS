@@ -57,7 +57,7 @@ describe('backing the staff on screen (L4)', () => {
     const oc = runnerOf(l, l.userTeamId, 'OL')!;
     oc.belief = { OL: 0.5, QB: -0.3 };
     const html = coaches(l);
-    expect(html).toContain('The line believes in him; the quarterbacks have doubts.');
+    expect(html).toContain('The line believes in him, and the quarterbacks have doubts.');
     // In season a coordinator is relieved, not dismissed: one button for it.
     expect(html).not.toMatch(new RegExp(`aria-label="Dismiss[^"]*${oc.firstName} ${oc.lastName}"`));
     expect(html).toMatch(new RegExp(`aria-label="Relieve him[^"]*${oc.firstName} ${oc.lastName}"`));

@@ -15,7 +15,7 @@ function promiseNote(p: Player): string {
   const pr = p.morale!.talk!.promise!;
   if (pr.kind === 'deal') return 'A new deal by the end of the re-sign window.';
   const left = Math.max(1, pr.left ?? 1);
-  return `More snaps: ${COUNT[left] ?? left} game${left === 1 ? '' : 's'} left, carried into next season.`;
+  return `More snaps, with ${COUNT[left] ?? left} game${left === 1 ? '' : 's'} left, carried into next season.`;
 }
 
 const open = (league: League) =>

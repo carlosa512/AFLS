@@ -429,7 +429,8 @@ function settleGone(league: League, team: Team, clock: number): void {
       delete jobs.runs?.[q.other];
     }
     const gone: LeftHow = here(q.holder) ? 'other' : q.other !== undefined && !here(q.other) ? 'both' : 'holder';
-    closeStory(league, storyOn(team, q), 'left', clock, gone);
+    // Public when the benched man himself has gone: a transaction anyone can read.
+    closeStory(league, storyOn(team, q), 'left', clock, gone, gone === 'other' ? undefined : true);
     closeQuestion(league, team, q);
   }
 }
@@ -537,7 +538,8 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       const p = league.players[owed.to];
       if (k.ids.includes(owed.to)) {
         if (q.promise) addJolt(p, 'kept', BENCH_SIZE.kept, clock);
-        closeStory(league, storyOn(team, q), 'backIn', clock);
+        // The lineup is public: he started.
+        closeStory(league, storyOn(team, q), 'backIn', clock, undefined, true);
         closeQuestion(league, team, q);
         continue;
       }
@@ -598,7 +600,7 @@ export function benchWeek(league: League, ctx: MoraleContext, clock: number): vo
       }
       // Who won it: the other man took the job, or the holder started his way back to it.
       const won: SettledHow = otherWon ? (q.answered ? 'earned' : 'chart') : q.answered ? 'earnedBack' : 'chartBack';
-      closeStory(league, storyOn(team, q), 'settled', clock, won);
+      closeStory(league, storyOn(team, q), 'settled', clock, won, true);
       closeQuestion(league, team, q);
     }
 

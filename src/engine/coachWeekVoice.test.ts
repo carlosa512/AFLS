@@ -155,8 +155,8 @@ describe('the head coach’s weekly lines', () => {
     expect(say(RESULT_MAN, { ...f, outcome: 'bristles' }, at)).toMatch(/deal/);
     expect(say(RESULT_MAN, { ...f, outcome: 'none' }, at)).toMatch(/deal/);
     const better = { ...f, man: man({ mood: 'Good', reason: null }), nowDown: false } as const;
-    expect(say(RESULT_MAN, better, at)).toMatch(/better place|fine now/);
-    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come round|all right/);
+    expect(say(RESULT_MAN, better, at)).toMatch(/happier|fine now/);
+    expect(say(RESULT_MAN, { ...better, outcome: 'bristles' }, at)).toMatch(/come around|all right/);
   });
 
   it('every bank reads clean for every fact it can be given', () => {
@@ -270,14 +270,14 @@ describe('the head coach’s weekly lines', () => {
   });
 
   it('no line claims what its facts do not say', () => {
-    // A man who reads Poor now is never in a better place, whatever he heard.
+    // A man who reads Poor now is never happier, whatever he heard.
     for (const outcome of ['lands', 'bristles', 'none'] as const)
       for (const named of [true, false])
         for (const topic of ['deal', 'none'] as const) {
           const f = { man: man({ mood: 'Poor', reason: 'Wants a new deal' }), outcome, named, nowDown: true, topic };
-          for (const l of every(RESULT_MAN, f)) expect(l).not.toMatch(/better place|fine now|all right|come round/);
+          for (const l of every(RESULT_MAN, f)) expect(l).not.toMatch(/happier|fine now|all right|come around/);
           const g = { ...f, man: man({ mood: 'Good' }), nowDown: false };
-          for (const l of every(RESULT_MAN, g)) expect(l).not.toMatch(/down now|eating him/);
+          for (const l of every(RESULT_MAN, g)) expect(l).not.toMatch(/down now|bothering him/);
         }
     // A broken promise is never "still waiting".
     const broken = man({ broken: true, kept: true, lastAnswer: { reply: 'promise', when: 'at camp' } });
@@ -295,9 +295,24 @@ describe('the head coach’s weekly lines', () => {
       closing: false,
     });
     for (const l of bye) expect(l).not.toMatch(/talk to|used it|few things|needs you|rest/);
-    // Counts: "one thing" needs one, "needs you" needs an ask.
-    const two = every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false });
-    for (const l of two) expect(l).not.toMatch(/One thing|Short one|needs you/);
+    // The opening states a fact of the week in plain words: nothing that only announces the letter, and players are players.
+    const weeks: MomentSheet['week'][] = ['camp', 'deadline', 'push', 'bye', 'regular', 'playoffs', 'offseason'];
+    for (const week of weeks)
+      for (const streak of [null, { kind: 'lost', games: 'three' }, { kind: 'won', games: 'four' }] as const)
+        for (const result of [true, false])
+          for (const l of every(OPENING, {
+            moment: moment({ week, streak, rival: true, seasonOver: week === 'offseason' }),
+            coach,
+            items: 2,
+            asks: 1,
+            link: { noun: 'the D-line', man: 'Stokes', word: 'Down' },
+            top: { kind: 'deal', man: 'Stokes' },
+            result,
+            closing: true,
+          }))
+            expect(l).not.toMatch(/\b(here is|as I see it|my people|my desk|men|man)\b/i);
+    // A week with nothing to open on has no opening: no line only announces the letter.
+    expect(every(OPENING, { moment: moment(), coach, items: 2, asks: 0, result: false, closing: false })).toEqual([]);
     // A story with nobody to name says nothing about him.
     for (const l of every(CLOSING, { kind: 'deal', beat: 'kept' }))
       expect(l).toMatch(/^(That one|We can stop|That is)/);

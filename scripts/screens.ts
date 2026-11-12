@@ -11,10 +11,13 @@
  *
  *   --team  the club whose Roster (and, when you have a job, Cap) screen is shown; default: yours.
  *   --dark  the dark theme instead of the light one.
- *   --screens  only these, desktop and phone each: a comma list of `roster`, `locker` (the Locker Room) and `card`
- *              (your roster's first player's card).
+ *   --screens  only these, desktop and phone each: a comma list of `roster`, `locker` (the Locker Room), `card`
+ *              (your roster's first player's card) and `inbox` (the message list).
  *   --mail  only letters: a comma list of message-id prefixes (`locker:,waivers:`); for each, the newest message
  *           whose id starts with it is opened in the inbox and shot on desktop and phone.
+ *   --edition  only SNN's weekly editions: the newest three (`--edition 5` for five) are opened in the inbox and shot
+ *              closed and with the lead story open, on desktop and phone. With `--column`, only editions that carry
+ *              a Column, shot closed and with the Column open.
  *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`, `field-run`, `field-catch`, `kickoff`, `punt`, `pick-six`, `strip-sack`, `long-td`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
@@ -306,7 +309,7 @@ async function main() {
   const save = JSON.parse(raw) as {
     userTeamId: number;
     teams: { id: number; abbrev: string }[];
-    inbox?: { id: string; deleted?: boolean; organizationId?: number }[];
+    inbox?: { id: string; deleted?: boolean; organizationId?: number; edition?: unknown }[];
   };
   const shownTeam = teamAbbrev
     ? save.teams.find((t) => t.abbrev.toLowerCase() === teamAbbrev.toLowerCase())
@@ -448,6 +451,54 @@ async function main() {
         await goTo(phone, hash, 'main article');
         await shootPage(phone, PHONE, file(`mail-${slug}-phone`));
       }
+    } else if (flag('edition')) {
+      // `--wide`: a large monitor, where the reading pane is half as wide again.
+      const desk = flag('wide') ? { width: 2160, height: 1200 } : DESKTOP;
+      const page = await newPage(desk, false);
+      const phone = await newPage(PHONE, true);
+      const count = Number(option('edition')) || 3;
+      // `--column`: only editions that carry a Column, shot closed and with the Column (the last tile) open.
+      const column = flag('column');
+      const holds = (m: { edition?: unknown }) =>
+        ((m.edition as { tiles?: { kind?: string }[] } | undefined)?.tiles ?? []).some((t) => t.kind === 'column');
+      const editions = (save.inbox ?? [])
+        .filter((m) => !m.deleted && m.id.startsWith('snn:') && m.edition && (!column || holds(m)))
+        .slice(-count);
+      if (!editions.length) console.warn('No edition in the save: play a week of the season first.');
+      for (const m of editions) {
+        const slug = m.id.replace(/[^a-z0-9]+/gi, '-');
+        const hash = `#/inbox/${encodeURIComponent(m.id)}`;
+        for (const [p, viewport, suffix] of [
+          [page, desk, ''],
+          [phone, PHONE, '-phone'],
+        ] as const) {
+          // The inbox opens a message as it mounts: go Home first, or it stays on the last one.
+          await goTo(p, '#/', 'main');
+          await goTo(p, hash, 'main article .ed');
+          // The letter alone on desktop (the list beside it runs to thousands of pixels), in a window tall enough
+          // that nothing scrolls under the top bar.
+          const shoot = async (name: string) => {
+            if (suffix) return shootPage(p, viewport, file(`${name}${suffix}`));
+            await p.setViewportSize({ width: viewport.width, height: 3200 });
+            // Opening a story scrolls to it: back to the top, so the bar that stays in view covers nothing.
+            await p.evaluate(() => window.scrollTo(0, 0));
+            await settle(p);
+            await p
+              .locator('main article')
+              .first()
+              .screenshot({ path: file(name) });
+            await p.setViewportSize(viewport);
+          };
+          await shoot(`${slug}-closed`);
+          await p
+            .locator(column ? '.ed-tiles .ed-tile:last-child .ed-more' : '.ed-front .ed-more')
+            .first()
+            .click();
+          await p.locator('.ed-story').first().waitFor({ state: 'visible', timeout: 10_000 });
+          await settle(p);
+          await shoot(`${slug}-${column ? 'column' : 'open'}`);
+        }
+      }
     } else if (onlyScreens) {
       const page = await newPage(DESKTOP, false);
       const phone = await newPage(PHONE, true);
@@ -467,7 +518,10 @@ async function main() {
           } else if (name === 'locker') {
             await goTo(p, '#/locker', 'main h1');
             await shootPage(p, viewport, file(`locker${suffix}`));
-          } else console.warn(`No screen called "${name}" (roster, locker, card)`);
+          } else if (name === 'inbox') {
+            await goTo(p, '#/inbox', 'main');
+            await shootPage(p, viewport, file(`inbox${suffix}`));
+          } else console.warn(`No screen called "${name}" (roster, locker, card, inbox)`);
         }
     } else {
       const page = await newPage(DESKTOP, false);

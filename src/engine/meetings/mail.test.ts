@@ -11,7 +11,7 @@ import type { Commitment, InboxMessage, League, MeetingRecord } from '../types';
 import { noteCommitment } from './commitments';
 import { answerMeeting, requestAddress, requestMeeting, setMeetingsByCoach } from './index';
 import { stepClock } from './suggest';
-import { meetingCard, meetingNeedsYou, requestRow, resultRows, yearParagraphFor } from './mail';
+import { meetingCard, meetingNeedsYou, requestRow, resultRows, snnRumor, yearParagraphFor } from './mail';
 import { manSheet } from '../castSheet';
 import { moraleContext } from '../morale';
 import { teamPlayers } from '../roster';
@@ -154,7 +154,7 @@ describe('meetings: the letters', () => {
     expect(letters[0].from).toMatch(/captain/i);
   });
 
-  it('SNN runs a rumor on a coach losing his room, once a season', () => {
+  it('SNN has a rumor on a coach losing his room, once a season, for its weekly edition to tell', () => {
     const l = fresh();
     const other = l.teams.find((t) => t.id !== l.userTeamId)!;
     const coach = teamCoaches(l, other.id).find((c) => c.role === 'headCoach')!;
@@ -176,12 +176,15 @@ describe('meetings: the letters', () => {
         homeScore: g.homeId === other.id ? 3 : 30,
         awayScore: g.homeId === other.id ? 30 : 3,
       } as never;
+    const rumor = snnRumor(l, new Set())!;
+    expect(rumor).toMatchObject({ teamId: other.id, coachId: coach.id });
+    expect(rumor.text).toMatch(new RegExp(`Word out of ${other.city}`));
+    expect(rumor.text).not.toMatch(/\d/);
+    // Told once a season: with its key among what SNN has told, it is not offered again.
+    expect(snnRumor(l, new Set([rumor.key]))?.key).not.toBe(rumor.key);
+    // It is a story of the weekly edition now (`snnWeek.ts`), never a mail of its own.
     deliverMail(l);
-    deliverMail(l);
-    const rumors = ids(l, 'rumor:');
-    expect(rumors).toHaveLength(1);
-    expect(rumors[0].body).toMatch(new RegExp(`Word out of ${other.city}`));
-    expect(rumors[0].body).not.toMatch(/\d/);
+    expect(ids(l, 'rumor:')).toHaveLength(0);
   });
 
   it("the season's-end report tells the year's meetings", () => {
@@ -193,7 +196,7 @@ describe('meetings: the letters', () => {
     const team = l.teams[l.userTeamId];
     const report = ids(l, `locker:${l.season - 1}:end`).at(-1);
     expect(team.meetings?.lastYear?.held).toBeGreaterThan(0);
-    expect(report?.body ?? '').toMatch(/We got the guys together/);
+    expect(report?.body ?? '').toMatch(/We held a team meeting/);
   });
 });
 

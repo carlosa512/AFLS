@@ -55,6 +55,7 @@ const THING: Record<TalkCause, string> = {
   losing: 'the losing',
   feud: 'the feud',
   benched: 'his job',
+  form: 'where he stands',
 };
 /** The grievance behind his top mood reason, when it is one of the four he can ask about. */
 const causeOf = (man: ManSheet): TalkCause | null => (man.reason ? (CAUSE_OF[man.reason] ?? null) : null);
@@ -78,7 +79,7 @@ export interface StoryFact {
   coach?: string;
 }
 
-const MAN_KINDS: readonly StoryKind[] = ['deal', 'snaps', 'benched', 'losing'];
+const MAN_KINDS: readonly StoryKind[] = ['deal', 'snaps', 'benched', 'losing', 'form'];
 const isMan = (f: StoryFact) => MAN_KINDS.includes(f.kind) && !!f.man;
 const on = (kind: StoryKind, beat: BeatKind, text: (f: StoryFact) => string): Line<StoryFact> => ({
   when: (f) => f.kind === kind && f.beat === beat && (kind === 'room' || kind === 'staff' || !!f.man),
@@ -108,9 +109,11 @@ export const HEADLINE: readonly Line<StoryFact>[] = [
   on('benched', 'satAgain', (f) => `${last(f)} sits again`),
   on('benched', 'backIn', (f) => `${last(f)} is back in`),
   on('benched', 'swapped', (f) => `${poss(last(f))} job`),
-  on('benched', 'asked', (f) => `Am I benched? ${last(f)} wants to know`),
+  on('benched', 'asked', (f) => `${poss(last(f))} job`),
   on('benched', 'cleared', (f) => `${last(f)} is cleared`),
   on('benched', 'settled', (f) => `${poss(last(f))} job is settled`),
+  on('form', 'asked', (f) => `Where ${last(f)} stands`),
+  on('form', 'answered', (f) => `Where ${last(f)} stands: your answer`),
   on('losing', 'asked', (f) => `${last(f)} on the losing`),
   on('losing', 'answered', (f) => `${last(f)} on the losing: your answer`),
   on('losing', 'lifted', (f) => `${last(f)} is past the losing`),
@@ -128,15 +131,15 @@ export const HEADLINE: readonly Line<StoryFact>[] = [
   {
     when: (f) => isMan(f) && f.beat === 'dispute' && f.how === 'trade',
     reads: 3,
-    text: (f) => `${last(f)} wants out`,
+    text: (f) => `${last(f)} wants a trade`,
   },
-  { when: (f) => isMan(f) && f.beat === 'leaked', reads: 2, text: (f) => `${poss(last(f))} request is out` },
+  { when: (f) => isMan(f) && f.beat === 'leaked', reads: 2, text: (f) => `${poss(last(f))} request is public` },
   { when: (f) => isMan(f) && f.beat === 'disputeEnd', reads: 2, text: (f) => `${poss(last(f))} dispute is over` },
-  { when: (f) => isMan(f) && f.beat === 'left', reads: 2, text: (f) => `${last(f)} is gone` },
+  { when: (f) => isMan(f) && f.beat === 'left', reads: 2, text: (f) => `${last(f)} has left` },
   on('feud', 'started', (f) => `${last(f)} and ${f.mate ?? 'a teammate'}`),
   on('feud', 'asked', (f) => `${last(f)} and ${f.mate ?? 'a teammate'}: the feud`),
   on('feud', 'ended', (f) => `${last(f)} and ${f.mate ?? 'a teammate'}: over`),
-  on('feud', 'left', (f) => `${last(f)} and ${f.mate ?? 'a teammate'}: one is gone`),
+  on('feud', 'left', (f) => `${last(f)} and ${f.mate ?? 'a teammate'}: one has left`),
   on('room', 'turned', (f) => cap(room(f))),
   on('room', 'eased', (f) => `${cap(room(f))}: easing`),
   on('room', 'recovered', (f) => `${cap(room(f))} ${isOf(room(f))} back`),
@@ -145,19 +148,19 @@ export const HEADLINE: readonly Line<StoryFact>[] = [
   on('room', 'passed', (f) => `${cap(room(f))}: not now`),
   on('room', 'commitment', (f) => `${cap(room(f))}: what we told them`),
   on('room', 'kept', (f) => `${cap(room(f))}: we kept our word`),
-  on('room', 'broken', (f) => `${cap(room(f))}: our word broke`),
+  on('room', 'broken', (f) => `${cap(room(f))}: we broke our word`),
   on('room', 'ended', (f) => `${cap(room(f))}: quiet now`),
   { when: (f) => f.kind === 'staff' && f.beat === 'worn', reads: 3, text: () => 'My word with the players' },
   {
     when: (f) => f.kind === 'staff' && f.beat === 'doubt' && f.how === 'lost',
     reads: 3,
-    text: (f) => `${coachOf(f)} has lost the room`,
+    text: (f) => `${coachOf(f)} has lost his players`,
   },
-  on('staff', 'doubt', (f) => `${coachOf(f)}: the room doubts him`),
+  on('staff', 'doubt', (f) => `Doubts about ${coachOf(f)}`),
   on('staff', 'warned', (f) => `${coachOf(f)}: a warning`),
   on('staff', 'notice', (f) => `${coachOf(f)}: on notice`),
   on('staff', 'stood', (f) => `${coachOf(f)}: we stood behind him`),
-  on('staff', 'recovered', (f) => `${coachOf(f)} has the room back`),
+  on('staff', 'recovered', (f) => `${coachOf(f)} has his players back`),
   on('staff', 'relieved', (f) => `${coachOf(f)} relieved`),
   on('staff', 'left', (f) => `${coachOf(f)} has left`),
   // The plainest thing that names the subject, for a beat no line above knows.
@@ -187,7 +190,8 @@ export interface OpeningFact {
   closing: boolean;
 }
 
-const lowerWord = (w: 'Down' | 'Split') => w.toLowerCase();
+/** A room's read in the letter's words: a Split room is "divided", as the position coaches and the Locker Room say it. */
+const lowerWord = (w: 'Down' | 'Split') => (w === 'Split' ? 'divided' : 'down');
 
 export const OPENING: readonly Line<OpeningFact>[] = [
   {
@@ -199,14 +203,13 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => !!f.link,
     reads: 4,
-    text: (f) =>
-      `${f.link!.man} is part of why ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. I'd start there.`,
+    text: (f) => `${f.link!.man} is part of why ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}.`,
   },
   {
     when: (f) => !!f.link && f.moment.streak?.kind === 'lost',
     reads: 5,
     text: (f) =>
-      `We have lost ${f.moment.streak!.games} straight, and ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. Part of the room's trouble is ${f.link!.man}.`,
+      `We have lost ${f.moment.streak!.games} straight, and ${f.link!.noun} ${isOf(f.link!.noun)} ${lowerWord(f.link!.word)}. Part of that is ${f.link!.man}.`,
   },
   {
     when: (f) => f.moment.week === 'deadline' && f.top?.kind === 'deal' && !!f.top.man,
@@ -216,7 +219,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.week === 'deadline' && f.asks > 0,
     reads: 2,
-    text: () => `Deadline week. Some of this needs an answer from you.`,
+    text: () => `It's deadline week, and some of this needs an answer from you.`,
   },
   {
     when: (f) => f.moment.week === 'deadline',
@@ -224,59 +227,34 @@ export const OPENING: readonly Line<OpeningFact>[] = [
     text: () => `It's deadline week.`,
   },
   {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `The season's over. Before we turn the page, here is where my people are.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `That is the season. Here is what I am carrying out of it.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `Nobody is playing now. This is where my people are.`,
-  },
-  {
-    when: (f) => f.moment.seasonOver,
-    reads: 2,
-    text: () => `We are done for the year. A few of my people are still on my mind.`,
-  },
-  {
     when: (f) => f.moment.seasonOver && f.asks > 0,
-    reads: 1,
-    text: () => `The games are behind us. Here is who still needs an answer.`,
+    reads: 3,
+    text: () => `The season is over, and some players still need an answer from you.`,
+  },
+  {
+    when: (f) => f.moment.seasonOver,
+    reads: 2,
+    text: () => `The season is over, and a few things are still open.`,
+  },
+  {
+    when: (f) => f.moment.seasonOver,
+    reads: 2,
+    text: () => `Our season is done, and some things are still open with the players.`,
   },
   {
     when: (f) => f.result && f.moment.streak?.kind === 'lost',
     reads: 3,
-    text: (f) => `We have lost ${f.moment.streak!.games} straight. I held the meeting, and here is how it went.`,
+    text: (f) => `We have lost ${f.moment.streak!.games} straight, and I held the meeting.`,
   },
   {
     when: (f) => f.result,
     reads: 2,
-    text: () => `The meeting is behind us. Here is how it went.`,
+    text: () => `I held the meeting this week.`,
   },
   {
     when: (f) => f.result,
     reads: 2,
-    text: () => `I held the meeting. Here is how it went.`,
-  },
-  {
-    when: (f) => f.result,
-    reads: 2,
-    text: () => `The team has heard me out. This is how they took it.`,
-  },
-  {
-    when: (f) => f.result,
-    reads: 2,
-    text: () => `We said our piece. Now to see what it did.`,
-  },
-  {
-    when: (f) => f.result && f.moment.streak?.kind === 'lost',
-    reads: 3,
-    text: (f) => `${cap(f.moment.streak!.games)} defeats running, and I have spoken to them. Here is how it landed.`,
+    text: () => `The meeting has been held.`,
   },
   {
     when: (f) => f.moment.streak?.kind === 'lost',
@@ -286,12 +264,7 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.streak?.kind === 'lost',
     reads: 2,
-    text: (f) => `That makes ${f.moment.streak!.games} losses in a row, and the building feels it.`,
-  },
-  {
-    when: (f) => f.moment.streak?.kind === 'lost',
-    reads: 2,
-    text: (f) => `${cap(f.moment.streak!.games)} defeats running. I won't pretend that isn't weighing on people.`,
+    text: (f) => `That is ${f.moment.streak!.games} losses in a row.`,
   },
   {
     when: (f) => f.moment.streak?.kind === 'won',
@@ -301,61 +274,23 @@ export const OPENING: readonly Line<OpeningFact>[] = [
   {
     when: (f) => f.moment.streak?.kind === 'won',
     reads: 2,
-    text: (f) => `That is ${f.moment.streak!.games} wins in a row. Good, and still not a reason to relax.`,
-  },
-  {
-    when: (f) => f.moment.streak?.kind === 'won',
-    reads: 2,
-    text: (f) => `${cap(f.moment.streak!.games)} wins running. Wins help. They do not fix everything.`,
-  },
-  {
-    when: (f) => f.closing && f.items <= 2,
-    reads: 2,
-    text: () => `Something has closed.`,
-  },
-  {
-    when: (f) => f.moment.week === 'push',
-    reads: 2,
-    text: () => `The push is on. Here is where my rooms are.`,
+    text: (f) => `That is ${f.moment.streak!.games} wins in a row.`,
   },
   {
     when: (f) => f.moment.week === 'camp',
     reads: 2,
-    text: () => `Camp. Here is where things stand.`,
+    text: () => `Camp is under way.`,
   },
   {
     when: (f) => f.moment.week === 'bye',
     reads: 2,
-    text: () => `It's the bye. Here is where things stand.`,
+    text: () => `It's the bye week.`,
   },
   {
     when: (f) => f.moment.rival,
     reads: 1,
     text: () => `We play a division rival next.`,
   },
-  { when: (f) => f.items + f.asks === 1, reads: 1, text: () => `One thing from me this week.` },
-  { when: (f) => f.items + f.asks === 1, reads: 1, text: () => `Short one this week.` },
-  { text: () => `Here is where things stand with my people.` },
-  { text: () => `Here is a short list of what I am keeping in view.` },
-  { text: () => `Here is what I am watching right now.` },
-  { text: () => `This is what has crossed my desk.` },
-  { text: () => `A look at the people around me.` },
-  { text: () => `Here is what I have for you this time.` },
-  {
-    when: (f) => !f.moment.seasonOver && f.moment.week !== 'offseason' && f.moment.week !== 'camp',
-    text: () => `There are things you should know before the next game.`,
-  },
-  { text: () => `This is what the week has left me with.` },
-  { text: () => `Here is the state of the locker room as I see it.` },
-  { text: () => `Small things add up in a locker room, so here they are.` },
-  { text: () => `A note from my desk.` },
-  { when: (f) => f.items + f.asks >= 2, text: () => `A few things from me this week.` },
-  { when: (f) => f.asks > 0 && f.items > 0, text: () => `Some of this needs you, and some is for your information.` },
-  {
-    when: (f) => f.closing && f.items + f.asks >= 2,
-    text: () => `One thing is settled, and that frees me for the rest.`,
-  },
-  { when: (f) => f.closing, text: () => `We got something off the list.` },
 ];
 
 // ───────── the others of a room who said the same ─────────
@@ -375,14 +310,14 @@ export const SAME: readonly Line<SameFact>[] = [
   {
     when: (f) => f.names.length > 0,
     reads: 1,
-    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'is' : 'are'} in the same place.`,
+    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'feels' : 'feel'} the same way.`,
   },
   {
     when: (f) => f.names.length > 0,
     reads: 1,
-    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'feels' : 'feel'} it too.`,
+    text: (f) => `${nameList(f.names)} ${f.names.length === 1 ? 'has' : 'have'} raised it as well.`,
   },
-  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `Add ${nameList(f.names)} to that.` },
+  { when: (f) => f.names.length > 0, reads: 1, text: (f) => `${nameList(f.names)} told me the same.` },
   { when: (f) => f.names.length > 0, reads: 1, text: (f) => `${nameList(f.names)} asked me the same thing.` },
   { text: () => '' },
 ];
@@ -408,7 +343,7 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
   {
     when: (f) => f.man.broken,
     reads: 3,
-    text: () => `The last promise to him did not hold. He remembers.`,
+    text: () => `The last promise we made him was not kept.`,
   },
   {
     when: (f) => f.man.broken,
@@ -423,7 +358,7 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
   {
     when: (f) => f.man.dispute,
     reads: 3,
-    text: () => `He is in a dispute with the club right now.`,
+    text: () => `He is in a dispute with the team right now.`,
   },
   {
     when: (f) => talkAnswer(f.man)?.reply === 'promise' && !f.man.kept && !f.man.broken,
@@ -449,7 +384,7 @@ export const BEFORE: readonly Line<BeforeFact>[] = [
   {
     when: (f) => talkAnswer(f.man)?.reply === 'reassure',
     reads: 3,
-    text: (f) => `${cap(whenOf(f.man.lastAnswer!.when))} you told him to hang in there, and here he is again.`,
+    text: (f) => `${cap(whenOf(f.man.lastAnswer!.when))} you asked him to wait, and he has come back to me.`,
   },
   {
     when: (f) => talkAnswer(f.man)?.reply === 'firm',
@@ -509,6 +444,7 @@ const ABOUT: Partial<Record<StoryKind, string>> = {
   benched: 'the benching',
   losing: 'the losing',
   feud: 'the feud',
+  form: 'his form',
 };
 const aboutOf = (f: LinkFact) => ABOUT[f.kind] ?? 'his grievance';
 
@@ -533,7 +469,7 @@ export const LINK: readonly Line<LinkFact>[] = [
   {
     when: (f) => f.share === 'part' && f.man.tier === 'voice',
     reads: 3,
-    text: (f) => `${f.man.last} is a voice in ${f.noun}, and ${aboutOf(f)} is wearing on the room through him.`,
+    text: (f) => `${f.man.last} is a voice in ${f.noun}, and ${aboutOf(f)} is spreading to the others through him.`,
   },
   {
     when: (f) => f.share === 'part' && f.man.sound === 'stirs',
@@ -543,7 +479,7 @@ export const LINK: readonly Line<LinkFact>[] = [
   {
     when: (f) => f.share === 'part',
     reads: 2,
-    text: (f) => `Part of it is ${f.man.last}. ${cap(aboutOf(f))} is feeding the room.`,
+    text: (f) => `Part of it is ${f.man.last}, and the cause is ${aboutOf(f)}.`,
   },
   {
     when: (f) => f.share === 'part',
@@ -551,7 +487,7 @@ export const LINK: readonly Line<LinkFact>[] = [
     text: (f) =>
       `${f.man.last} is not all of it, but ${aboutOf(f)} is part of why ${f.noun} ${isOf(f.noun)} ${lowerWord(f.word)}.`,
   },
-  { text: (f) => `${f.man.last} is feeding ${f.noun}.` },
+  { text: (f) => `${f.man.last} is part of the trouble in ${f.noun}.` },
 ];
 
 // ───────── a clock: halfway and due ─────────
@@ -583,7 +519,7 @@ export const CLOCK: readonly Line<ClockFact>[] = [
   clockOn('room', 'due', (f) => `${cap(f.noun ?? 'the room')} ${isOf(f.noun ?? 'the room')} owed an answer soon.`),
   { when: (f) => f.at === 'half', reads: 1, text: () => `We are halfway on a promise.` },
   { when: (f) => f.at === 'due', reads: 1, text: () => `A promise comes due soon.` },
-  { text: () => `A promise is running down.` },
+  { text: () => `Time is running short on a promise.` },
 ];
 
 // ───────── a story closing ─────────
@@ -610,25 +546,28 @@ export const CLOSING: readonly Line<ClosingFact>[] = [
   closes('deal', 'kept', (f) => `We kept our word on ${poss(who(f))} deal.`),
   closes('deal', 'broken', (f) => `We missed on ${poss(who(f))} deal.`),
   closes('deal', 'settled', (f) => `${who(f)} is signed, so that one is closed.`),
-  closes('deal', 'left', (f) => `${who(f)} is gone, so his deal is closed.`),
+  closes('deal', 'left', (f) => `${who(f)} has left, so his deal is closed.`),
   closes('snaps', 'kept', (f) => `${who(f)} got the snaps we promised.`),
   closes('snaps', 'broken', (f) => `${who(f)} did not get the snaps we promised.`),
-  closes('snaps', 'left', (f) => `${who(f)} is gone, and so is the snaps question.`),
+  closes('snaps', 'left', (f) => `${who(f)} has left, so the question of his snaps is closed.`),
   // A benching closes in its own bank (`BENCH_CLOSE`), which knows both men and how it ended.
   closes('losing', 'lifted', (f) => `${who(f)} is past the losing.`),
-  closes('losing', 'left', (f) => `${who(f)} is gone, so the losing is no longer his to carry here.`),
+  closes('losing', 'left', (f) => `${who(f)} has left, so his complaint about the losing is closed.`),
   closes('feud', 'ended', (f) => `The feud between ${who(f)} and ${f.mate ?? 'his teammate'} is over.`),
-  closes('feud', 'left', (f) => `One of ${who(f)} and ${f.mate ?? 'his teammate'} is gone, and so is the feud.`),
+  closes('feud', 'left', (f) => `One of ${who(f)} and ${f.mate ?? 'his teammate'} has left, so the feud is over.`),
   closes('room', 'recovered', (f) => `${cap(roomOf(f))} ${isOf(roomOf(f))} out of trouble.`),
   closes('room', 'recovered', (f) => `${cap(roomOf(f))} ${isOf(roomOf(f))} steady again, and that one is closed.`),
   closes('room', 'ended', (f) => `Nothing is left open on ${roomOf(f)}.`),
-  closes('room', 'ended', (f) => `I have closed the book on ${roomOf(f)} for now.`),
+  closes('room', 'ended', (f) => `I have nothing open with ${roomOf(f)} for now.`),
   closes('room', 'ended', (f) => `There is nothing more to settle with ${roomOf(f)}.`),
   closes('room', 'ended', (f) => `${cap(roomOf(f))} ${isOf(roomOf(f))} quiet, and I mean to keep it that way.`),
   closes('room', 'recovered', (f) => `${cap(roomOf(f))} ${isOf(roomOf(f))} through the worst of it.`),
-  closes('staff', 'recovered', (f) => `${f.coach} has the room back.`),
-  closes('staff', 'relieved', (f) => `${f.coach} is out, and that one is closed.`),
+  closes('staff', 'recovered', (f) => `${f.coach} has his players back.`),
+  closes('staff', 'relieved', (f) => `${f.coach} has been relieved, and that one is closed.`),
   closes('staff', 'left', (f) => `${f.coach} has left us.`),
+  // A row about a room or a coach has no name over it in the letter, so its sentence names it.
+  { when: (f) => f.kind === 'staff' && !!f.coach, reads: 1, text: (f) => `Nothing is left open with ${f.coach}.` },
+  { when: (f) => f.kind === 'room', reads: 1, text: (f) => `I have nothing more to report on ${roomOf(f)}.` },
   { text: () => `That one is closed.` },
   { text: () => `That one is behind us.` },
   { text: () => `We can stop worrying about that one.` },
@@ -659,7 +598,7 @@ export const STILL_WAITING: readonly Line<StillFact>[] = [
   },
   { text: (f) => `${f.man.last} is still waiting on your answer.` },
   { text: (f) => `${f.man.last} asked earlier and has heard nothing from you.` },
-  { text: (f) => `Nothing from you to ${f.man.last} yet.` },
+  { text: (f) => `${f.man.last} has not had an answer from you yet.` },
 ];
 
 // ───────── after Go ahead ─────────
@@ -673,34 +612,42 @@ export interface SetFact {
 
 const TIMING: Record<Timing, string> = {
   afterGame: 'after the game',
-  monday: 'Monday, in film',
-  wednesday: 'Wednesday, before practice',
+  monday: 'Monday in the film room',
+  wednesday: 'Wednesday before practice',
 };
 
 export const SET_FOR: readonly Line<SetFact>[] = [
-  { when: (f) => f.timing === 'afterGame', reads: 1, text: () => `Set for after the game. I'll tell you how it went.` },
+  {
+    when: (f) => f.timing === 'afterGame',
+    reads: 1,
+    text: () => `The meeting is set for after the game, and I will tell you how it went.`,
+  },
   {
     when: (f) => f.timing === 'afterGame',
     reads: 1,
     text: (f) => `I will talk to ${f.noun} after the game. You will hear how it went.`,
   },
-  { when: (f) => f.timing === 'monday', reads: 1, text: () => `Set for Monday, in film. I'll tell you how it went.` },
   {
     when: (f) => f.timing === 'monday',
     reads: 1,
-    text: (f) => `${cap(f.noun)}, Monday, in the film room. You will hear how it went.`,
+    text: () => `The meeting is set for Monday in the film room, and I will tell you how it went.`,
+  },
+  {
+    when: (f) => f.timing === 'monday',
+    reads: 1,
+    text: (f) => `I will meet ${f.noun} on Monday in the film room. You will hear how it went.`,
   },
   {
     when: (f) => f.timing === 'wednesday',
     reads: 1,
-    text: () => `Set for Wednesday, before practice. I'll tell you how it went.`,
+    text: () => `The meeting is set for Wednesday before practice, and I will tell you how it went.`,
   },
   {
     when: (f) => f.timing === 'wednesday',
     reads: 1,
-    text: (f) => `${cap(f.noun)}, Wednesday, before practice. You will hear how it went.`,
+    text: (f) => `I will meet ${f.noun} on Wednesday before practice. You will hear how it went.`,
   },
-  { text: (f) => `Set for ${TIMING[f.timing]}. I'll tell you how it went.` },
+  { text: (f) => `The meeting is set for ${TIMING[f.timing]}, and I will tell you how it went.` },
 ];
 
 // ───────── the result, a week on ─────────
@@ -726,7 +673,7 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
   {
     when: (f) => f.outcome === 'lands' && f.nowDown && hasThing(f),
     reads: 4,
-    text: (f) => `${f.man.last} heard it, but he is down now. It is ${thing(f)}, and a speech does not fix that.`,
+    text: (f) => `${f.man.last} heard it, but he is down now over ${thing(f)}, which a meeting does not change.`,
   },
   {
     when: (f) => f.outcome === 'lands' && f.nowDown && hasThing(f),
@@ -746,17 +693,17 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
   {
     when: (f) => f.outcome === 'lands' && f.named && f.topic === 'deal' && !f.nowDown,
     reads: 4,
-    text: (f) => `${f.man.last} heard what we are doing about his deal, and he is in a better place for it.`,
+    text: (f) => `${f.man.last} heard what we are doing about his deal, and he is happier for it.`,
   },
   {
     when: (f) => f.outcome === 'lands' && f.named && !f.nowDown,
     reads: 3,
-    text: (f) => `${f.man.last} heard what we are going to do, and he is in a better place.`,
+    text: (f) => `${f.man.last} heard what we are going to do, and he is happier.`,
   },
   {
     when: (f) => f.outcome === 'lands' && !f.nowDown,
     reads: 2,
-    text: (f) => `${f.man.last} heard it, and he is in a better place.`,
+    text: (f) => `${f.man.last} heard it, and he is happier now.`,
   },
   {
     when: (f) => f.outcome === 'lands' && !f.nowDown,
@@ -771,7 +718,7 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
   {
     when: (f) => f.outcome === 'bristles' && f.nowDown && hasThing(f),
     reads: 4,
-    text: (f) => `${f.man.last} bristled, and ${thing(f)} is what is eating him now.`,
+    text: (f) => `${f.man.last} bristled, and ${thing(f)} is what is bothering him now.`,
   },
   {
     when: (f) => f.outcome === 'bristles' && f.nowDown,
@@ -781,7 +728,7 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
   {
     when: (f) => f.outcome === 'bristles' && !f.nowDown,
     reads: 2,
-    text: (f) => `${f.man.last} bristled at the time, but he has come round.`,
+    text: (f) => `${f.man.last} bristled at the time, but he has come around since.`,
   },
   {
     when: (f) => f.outcome === 'bristles' && !f.nowDown,
@@ -808,7 +755,7 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
     reads: 1,
     text: (f) => `${f.man.last} took it without a word. He is all right.`,
   },
-  { text: (f) => `Nothing more on ${f.man.last}.` },
+  { text: (f) => `There is nothing more to report on ${f.man.last}.` },
 ];
 
 export interface ResultRoomFact {
@@ -847,18 +794,18 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
     when: (f) => f.then === 'Down' && f.now === 'Split',
     reads: 3,
     text: (f) =>
-      `${cap(f.noun)} ${wasOf(f.noun)} down when we met. Now ${they(f.noun)} ${isOf(f.noun)} split, which is a different problem.`,
+      `${cap(f.noun)} ${wasOf(f.noun)} down when we met. Now ${they(f.noun)} ${isOf(f.noun)} divided, which is a different problem.`,
   },
   {
     when: (f) => f.then === 'Split' && f.now === 'Down',
     reads: 3,
     text: (f) =>
-      `${cap(f.noun)} ${wasOf(f.noun)} split when we met. Now ${they(f.noun)} ${isOf(f.noun)} down, which is worse.`,
+      `${cap(f.noun)} ${wasOf(f.noun)} divided when we met. Now ${they(f.noun)} ${isOf(f.noun)} down, which is worse.`,
   },
   {
     when: (f) => bad(f.then) && f.now === f.then,
     reads: 3,
-    text: (f) => `Nothing moved. ${cap(f.noun)} ${isOf(f.noun)} still ${lowerWord(f.then!)}.`,
+    text: (f) => `Nothing has changed, and ${f.noun} ${isOf(f.noun)} still ${lowerWord(f.then!)}.`,
   },
   {
     when: (f) => bad(f.then) && f.now === f.then,
@@ -874,15 +821,52 @@ export const RESULT_ROOM: readonly Line<ResultRoomFact>[] = [
   {
     when: (f) => f.now === 'Tight' || f.now === 'Settled',
     reads: 1,
-    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now === 'Tight' ? 'tight' : 'settled'}. Nothing to add.`,
+    text: (f) =>
+      `${cap(f.noun)} ${isOf(f.noun)} ${f.now === 'Tight' ? 'tight' : 'settled'}, and I have nothing to add.`,
   },
   {
     when: (f) => f.now === 'Restless',
     reads: 1,
-    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} restless. Not trouble yet.`,
+    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} restless, which is not trouble yet.`,
   },
   {
     when: (f) => f.now !== null,
-    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now!.toLowerCase()} now.`,
+    text: (f) => `${cap(f.noun)} ${isOf(f.noun)} ${f.now === 'Split' ? 'divided' : f.now!.toLowerCase()} now.`,
+  },
+];
+
+/** What the coverage note reads: the man, the unit SNN wrote about, and how he carries himself (words only). */
+export interface CoverageFact {
+  last: string;
+  noun: string;
+  calm: boolean;
+  loud: boolean;
+  captain: boolean;
+}
+/**
+ * The head coach on a man whose unit SNN has just called a problem: that he has seen it, and how he has taken it, from
+ * his character in words. A note with nothing to answer.
+ */
+export const COVERAGE: Line<CoverageFact>[] = [
+  {
+    when: (f) => f.captain,
+    reads: 2,
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. He has told the others to ignore it, and they listen to him.`,
+  },
+  {
+    when: (f) => f.calm,
+    reads: 1,
+    text: (f) => `${f.last} has seen what is being written about the ${f.noun}. It has not changed how he works.`,
+  },
+  {
+    when: (f) => f.loud,
+    reads: 1,
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. He has not kept quiet about it, and I would rather that than have him say nothing.`,
+  },
+  {
+    text: (f) =>
+      `${f.last} has seen what is being written about the ${f.noun}. He has not brought it to me, and I have not raised it.`,
   },
 ];
