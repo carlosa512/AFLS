@@ -240,7 +240,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `league.history` as the fallback for legacy entries. `leadership.ts` runs the owners' reviews (offseason and week by
     week), GM searches and succession; your own interim head coach is not decided for you: the owner asks first
     (`Team.interimCall`, `interimPending`, `decideInterim`, the `interim:{season}:{coachId}` letter with its two
-    answers), and a re-sign window that closes with no answer is settled as he would have (`settleInterim`); `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
+    answers), and a re-sign window that closes with no answer is settled as he would have (`settleInterim`, every team's
+    open question; an owner who changes his GM in the same review settles the coach himself first); `ownerBag.ts` is each owner's marble bag: calm marbles for patience, heat on the
     GM and head coach from losing seasons (blame split by roster talent against results), drawn at each review
   - `gmHabits.ts` hidden ways an AI general manager does business (Signs a Bridge QB, Trades Firsts for Stars, Drafts Best
     Available, Gun-Shy on Big Deals…), drawn from a marble bag like quirks: a grip of 1–3, active from 2, never more than
@@ -430,8 +431,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `MOOD_TILT` in `development.ts`; the game-day edge in `buildLineup`'s knocks) · `benching.ts` who holds a starting job (storylines, the benching chain; spec `docs/superpowers/specs/2026-11-09-storylines-design.md`
     §8–10): the men in a chart's starting spots hold the jobs from cut-down day (`setJobs`; hurt or not, `Team.jobs.held`), a man earns one by
     `EARN` starts in a row and the longest-sitting holder gives his up, and a club's jobs clear at the new league year. Who started is read at kickoff from the chart and
-    availability (`benchKickoff`, `Team.kickoff`), never from snaps. How many start at a position is the number of spots the team's schemes name there
-    (`startCounts`: two tight ends in 12 personnel), as the depth chart shows them, and which spot a starter is in never matters: LT to RT or MLB to WLB is no benching. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
+    availability (`benchKickoff`, `Team.kickoff`), never from snaps. Which starting spot a man is in never matters: LT to RT or MLB to WLB is no benching. Your lineup is yours to set in camp (`lineupProblem`, `confirmLineup`,
     `Team.lineupSet`: the advance button stops at the door once a year, unless staff sort the chart). A healthy holder left off the lineup
     asks where he stands the same step (`benchWeek`, a `benched` ask, `JobQuestion` in `Team.jobs.questions`, `questionOf`) and, unanswered, is unsure
     each week he sits without ever being "ignored"; the other man who starts in his place asks too once the chart swaps back. Four answers to

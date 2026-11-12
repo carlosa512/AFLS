@@ -472,8 +472,6 @@ describe('camp signings', () => {
 describe('the re-sign call', () => {
   // Pin re-taken: the benching chain changes moods league-wide (0.4.24), so a season's games and everything after them reshuffle;
   // again when nobody asks after his club's last game and a losing meeting backs only a move or words (0.4.25).
-  // And again when a starting job is read from the spots a team's schemes name (0.4.40): in two-tight-end and
-  // four-receiver offenses a different man holds a job, so moods and the season's games reshuffle once more.
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

@@ -140,10 +140,19 @@ export function decideInterim(l: League, keep: boolean): void {
   settleInterimCoach(l, t, c, keep);
 }
 
-/** The window closes with no answer (or the offseason is simmed): the owner decides as he would have. */
+/**
+ * The window closes with no answer (or the offseason is simmed): the owner decides as he would have. Every team is
+ * read, not only yours: a GM who took another job mid-window leaves his old team's question behind him.
+ */
 export function settleInterim(l: League): void {
-  const c = interimPending(l);
-  if (c) decideInterim(l, l.teams[l.userTeamId].interimCall!.lean);
+  for (const t of l.teams) {
+    const call = t.interimCall;
+    if (!call) continue;
+    delete t.interimCall;
+    const c = l.coaches[call.coachId];
+    if (call.season === l.season && c?.interim && c.teamId === t.id && c.role === 'headCoach')
+      settleInterimCoach(l, t, c, call.lean);
+  }
 }
 
 /** Offseason decisions are made together before staffing or searches: one draw from each owner's bag (`ownerBag.ts`). */
@@ -209,6 +218,15 @@ export function leadershipNewYear(l: League): void {
     const coachGoes =
       drawn.coach && !!hc && !confirmed && canOwnerDismissHeadCoach(l, t.id) && leadershipCoachTenure(l, hc) >= 1;
     if (drawn.gm && !gmProtected) {
+      // An owner changing his GM does not wait on that GM's call about an interim: he settles the coach himself, so
+      // nothing is left pending for a GM who is gone (and no interim is promised a season he was never offered).
+      if (hc?.interim && t.interimCall?.season === l.season) {
+        const keep = t.interimCall.lean;
+        delete t.interimCall;
+        settleInterimCoach(l, t, hc, keep);
+        confirmed = keep;
+        hc = head(l, t.id);
+      }
       // The coach goes too when his own marble came out; otherwise a new GM usually inherits him.
       const keepCoach =
         hc &&

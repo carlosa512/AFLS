@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { installInterimHeadCoach } from '../engine/coaching';
 import { openContracts } from '../engine/contractMail';
 import { createLeague } from '../engine/generate';
+import { deliverMail } from '../engine/inbox';
 import {
   decideInterim,
   declineGmOffers,
@@ -58,10 +59,33 @@ describe('opening free agency', () => {
     l.teams[l.userTeamId].staffBudgetMult = 3;
     const interim = installInterimHeadCoach(l, l.userTeamId)!;
     resignWindow(l);
+    // The owner's letter is on file, as it is after any step in the app: the door sends you to it.
+    deliverMail(l);
     const step = offseasonStep(l)!;
     expect(step.label).toBe('Decide on your head coach');
     expect(step.then).toEqual({ view: 'inbox', messageId: `interim:${l.season}:${interim.id}` });
     decideInterim(l, true);
     expect(offseasonStep(l)!.label).toMatch(/^Decide \d+ contracts?$/);
+  });
+
+  it('does not block on the head coach when the owner’s letter was deleted: the window closes and he decides', () => {
+    const l = createLeague({ seed: 'fa-door-deleted' });
+    l.teams[l.userTeamId].staffBudgetMult = 3;
+    const interim = installInterimHeadCoach(l, l.userTeamId)!;
+    resignWindow(l);
+    deliverMail(l);
+    const letter = l.inbox!.find((m) => m.id === `interim:${l.season}:${interim.id}`)!;
+    expect(offseasonStep(l)!.label).toBe('Decide on your head coach');
+    letter.deleted = true;
+    expect(offseasonStep(l)!.label).toMatch(/^Decide \d+ contracts?$/);
+    letRestWalk(
+      l,
+      openContracts(l).map((p) => p.id),
+    );
+    const go = offseasonStep(l)!;
+    expect(go.label).toBe('Open free agency');
+    go.run(l);
+    expect(l.phase).toBe('freeAgency');
+    expect(interim.interim).toBeUndefined();
   });
 });

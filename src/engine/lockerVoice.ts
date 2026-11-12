@@ -785,6 +785,11 @@ export const MORALE_GROUP: readonly Line<MoraleGroupFact>[] = [
     reads: 3,
     text: (f) => `${f.names} are waiting on the snaps they were promised.`,
   },
+  {
+    when: (f) => f.reason === 'Gave in on his holdout',
+    reads: 3,
+    text: (f) => `${f.names} came back without the deals they wanted, and it still bothers them.`,
+  },
   { text: (f) => `${f.names} are down, and none of them has told me why.` },
 ];
 

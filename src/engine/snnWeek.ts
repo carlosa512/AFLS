@@ -21,7 +21,7 @@ import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
 import { SNN_OUTLET } from './stories';
 import { titleEdition } from './snnTitle';
-import type { BeatKind, Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
+import type { BeatKind, Edition, EditionKind, EditionScore, EditionStory, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
@@ -724,8 +724,16 @@ export function buildEdition(l: League, week: number): Edition | null {
   };
   if (round === 'FINAL') {
     // The final's page: the lead told as a championship, the awards as a tile, and the season's lists.
-    const title = titleEdition(l, all[0], lead, at.said);
-    edition.lead = title.lead;
+    // The final's own story, wherever the page put it: another story may have outranked it (a star lost for next
+    // season) or the reader's team may be in it and have its own slot.
+    const isFinal = (s: EditionStory) => s.key === `game:${all[0].id}`;
+    const told = [edition.lead, edition.club, ...edition.tiles].find((s) => s && isFinal(s));
+    const title = titleEdition(l, all[0], told, at.said);
+    if (title.story) {
+      if (isFinal(edition.lead)) edition.lead = title.story;
+      else if (edition.club && isFinal(edition.club)) edition.club = title.story;
+      else edition.tiles = edition.tiles.map((s) => (isFinal(s) ? title.story! : s));
+    }
     edition.tiles = [...edition.tiles, ...title.tiles];
     if (title.lists.length) edition.lists = title.lists;
   }

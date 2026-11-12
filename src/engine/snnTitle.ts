@@ -271,13 +271,20 @@ function titleLists(l: League, g: Game): EditionList[] {
   return out;
 }
 
-/** What the final's edition adds to its page: the lead retold, a tile for the awards, and the two lists. */
+/**
+ * What the final's edition adds to its page: the final's own story retold as a championship (when the page tells
+ * it), a tile for the awards, and the two lists.
+ */
 export function titleEdition(
   l: League,
   g: Game,
-  lead: EditionStory,
+  story: EditionStory | undefined,
   said: string[],
-): { lead: EditionStory; tiles: EditionStory[]; lists: EditionList[] } {
+): { story?: EditionStory; tiles: EditionStory[]; lists: EditionList[] } {
   const tile = mvpTile(l, said);
-  return { lead: championLead(l, g, lead, said), tiles: tile ? [tile] : [], lists: titleLists(l, g) };
+  return {
+    ...(story ? { story: championLead(l, g, story, said) } : {}),
+    tiles: tile ? [tile] : [],
+    lists: titleLists(l, g),
+  };
 }
