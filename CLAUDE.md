@@ -63,6 +63,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   after changing `snnWeek.ts`, `snnStory.ts`, `snnVoice.ts` or `storyRules.ts`; `npm run screens -- --edition` shoots one. `--seasons n` plays
   seasons and counts instead how often SNN's Column and your club's coverage would fire (by rung, about your club, the
   conversation's bars): the figures the owner sets `FORM` (`slump.ts`) and `LADDER` (`snnColumn.ts`) from.
+  `--offseasons n` plays offseasons and counts what each of SNN's big-day editions would have to tell at a few
+  settings of each bar (`scripts/dayCounts.ts`, `.check/day-counts.md`): the figures for `DAY` (`snnDays.ts`) and
+  `STANDING` (`publicStanding.ts`).
 - `npm run letters [-- name]` — a preview, not a check: every line the letters in the inbox can say, read from the
   source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
   with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
