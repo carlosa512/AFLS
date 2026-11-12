@@ -7,7 +7,12 @@
  * the more worthwhile story comes first (`stakes`: the earlier pick, the bigger contract, the bigger name). Mail-side
  * only: public facts, no draws, nothing in the sim reads it. What an edition printed lives in its `covered` keys.
  */
+import { coachName } from './coaching';
 import { employed } from './employment';
+import { reputation } from './gmVoice';
+import { headCoachChanges } from './inbox';
+import { freeAgents } from './offseason/negotiation';
+import { publicRecord, type PublicRecord } from './publicStanding';
 import type { Draft } from './senders';
 import { writeDayStory, yourDayStory } from './snnDayVoice';
 import { short, SNN, SUBJECT } from './snnWeek';
@@ -15,6 +20,13 @@ import type { Edition, EditionDay, EditionList, League, Player } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 export type Day = EditionDay;
+
+/**
+ * Off, no big-day edition files and the digests it replaced file as they did (the front-office carousel, the coaching
+ * carousel, "off the market"): how their tests still reach them. A league year that was already being told the old
+ * way when the editions arrived finishes that way too (`legacyYear`).
+ */
+export const DAYS = { on: true };
 
 /** The bars, each the owner's call from the counts (`npm run editions -- --offseasons n`). */
 export const DAY = {
@@ -28,6 +40,8 @@ export const DAY = {
   offered: 3,
   /** The club with the most picks in the first two rounds is a story at this many. */
   haulPicks: 4,
+  /** The team that let the most of last season's starters reach the market is a story at this many. */
+  yearLost: 5,
   /** Rows in a list box. */
   listRows: 10,
 };
@@ -141,10 +155,151 @@ function draftCandidates(l: League): DayCandidate[] {
   return out;
 }
 
+const lastRecord = (l: League, teamId: number) => l.history.find((h) => h.season === l.season - 1)?.records[teamId];
+/** Last season's winning percentage, for ranking one team's news over another's; even when there was no last season. */
+const lastPct = (l: League, teamId: number) => {
+  const r = lastRecord(l, teamId);
+  return r ? (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t) : 0.5;
+};
+
+/** A team with a new head coach or general manager this league year: who came in, and who left when that is known. */
+export interface TopChange {
+  teamId: number;
+  job: 'coach' | 'gm';
+  inName: string;
+  outName: string;
+  coachId?: number;
+  gmId?: number;
+}
+
+/**
+ * The changes at the top going into this league year, from the public record: the head coaches who did not finish
+ * last season in their chairs (`headCoachChanges`) and the GMs hired since it ended (leadership events). A league with
+ * no last season on record has no "before", so it reports none.
+ */
+export function topChanges(l: League): TopChange[] {
+  const out: TopChange[] = [];
+  for (const x of headCoachChanges(l)) {
+    if (!x.replaced) continue;
+    out.push({
+      teamId: x.teamId,
+      job: 'coach',
+      inName: coachName(x.coach),
+      outName: coachName(x.replaced),
+      coachId: x.coach.id,
+    });
+  }
+  const events = l.leadership.events.filter((e) => e.date.season === l.season && e.date.phase !== 'regular');
+  const gmName = (id: number | undefined) => {
+    const g = id === undefined ? undefined : l.gms[id];
+    return g ? `${g.firstName} ${g.lastName}` : '';
+  };
+  for (const t of l.teams) {
+    const hired = events.filter((e) => e.teamId === t.id && e.kind === 'gmHired').at(-1);
+    if (!hired || hired.gmId === undefined || !l.gms[hired.gmId]) continue;
+    // Your own appointment is yours to know, not SNN's to tell you.
+    if (hired.gmId === l.userGmId) continue;
+    const left = events
+      .filter((e) => e.teamId === t.id && (e.kind === 'gmDismissed' || e.kind === 'gmRetired') && e.id < hired.id)
+      .at(-1);
+    out.push({ teamId: t.id, job: 'gm', inName: gmName(hired.gmId), outName: gmName(left?.gmId), gmId: hired.gmId });
+  }
+  return out;
+}
+
+/**
+ * A change at the top no edition has told yet. It belongs to the new league year's edition (tier 1); one that comes
+ * later, or that edition had no room for, is still news in the next one (tier 3).
+ */
+function leaderCandidates(l: League, day: Day): DayCandidate[] {
+  return topChanges(l).map((x) => ({
+    key: `lead:${l.season}:${x.teamId}:${x.job}`,
+    day,
+    angle: x.job,
+    tier: day === 'year' ? (1 as const) : (3 as const),
+    clubId: x.teamId,
+    teams: [x.teamId],
+    stakes: lastPct(l, x.teamId),
+    ...(x.coachId !== undefined ? { coachId: x.coachId } : {}),
+    ...(x.gmId !== undefined ? { gmId: x.gmId } : {}),
+    text: x.outName,
+  }));
+}
+
+const windowMoves = (l: League, kind: 'tag' | 'resign' | 'release') =>
+  l.transactions
+    .filter((t) => t.season === l.season && t.phase === 'resign' && t.kind === kind && t.playerId !== undefined)
+    .filter((t) => kind !== 'resign' || t.text.includes(' re-signed '))
+    .flatMap((t) => (l.players[t.playerId!] ? [{ p: l.players[t.playerId!], teamId: t.teamIds[0] }] : []));
+/** The team he finished last season with. */
+const lastClub = (l: League, p: Player) => p.statTeams?.[l.season - 1]?.at(-1);
+/** Free agents who finished last season with a team that did not release them: their contracts ran out. */
+function reachedMarket(l: League): { p: Player; teamId: number }[] {
+  const cut = new Set(windowMoves(l, 'release').map((x) => x.p.id));
+  return freeAgents(l).flatMap((p) => {
+    const teamId = lastClub(l, p);
+    return teamId === undefined || cut.has(p.id) ? [] : [{ p, teamId }];
+  });
+}
+const dealOf = (p: Player) =>
+  p.contract ? { deal: { years: p.contract.length, total: p.contract.apy * p.contract.length } } : {};
+
+/** The new league year: stars tagged, released, kept and reaching the market, and the team that lost the most starters. */
+function yearCandidates(l: League, rec: PublicRecord): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  const player = (x: { p: Player; teamId: number }, angle: string, tier: 1 | 2) => ({
+    key: `player:${x.p.id}:${l.season}`,
+    day: 'year' as const,
+    angle,
+    tier,
+    clubId: x.teamId,
+    teams: [x.teamId],
+    stakes: rec.worth(x.p),
+    playerId: x.p.id,
+  });
+  const stars = (xs: { p: Player; teamId: number }[]) => xs.filter((x) => rec.standing(x.p) === 'star');
+  for (const x of stars(windowMoves(l, 'tag'))) out.push(player(x, 'tag', 1));
+  for (const x of stars(windowMoves(l, 'release'))) out.push(player(x, 'released', 1));
+  for (const x of stars(windowMoves(l, 'resign'))) out.push({ ...player(x, 'kept', 2), ...dealOf(x.p) });
+  const walked = reachedMarket(l);
+  for (const x of stars(walked)) out.push(player(x, 'market', 2));
+  // The one team that let the most of last season's starters reach the market.
+  const by = new Map<number, Player[]>();
+  for (const x of walked) if (rec.standing(x.p) !== 'depth') by.set(x.teamId, [...(by.get(x.teamId) ?? []), x.p]);
+  const most = [...by].sort((a, b) => b[1].length - a[1].length || a[0] - b[0]);
+  if (most[0] && most[0][1].length >= DAY.yearLost && most[0][1].length > (most[1]?.[1].length ?? 0)) {
+    const [teamId, lost] = most[0];
+    const best = [...lost].sort((a, b) => rec.worth(b) - rec.worth(a) || a.id - b.id)[0];
+    out.push({
+      key: `window:${l.season}:${teamId}`,
+      day: 'year',
+      angle: 'lost',
+      tier: 3,
+      clubId: teamId,
+      teams: [teamId],
+      stakes: lost.length / 20,
+      n: lost.length,
+      playerId: best.id,
+    });
+  }
+  return out;
+}
+
+/** The digests of old that the new league year's edition replaces. One on file means that year was told the old way. */
+const yearDigests = (l: League) => [`league:${l.season}:carousel`, `offMarket:${l.season}`];
+export const legacyYear = (l: League, have: Set<string>): boolean =>
+  !DAYS.on ||
+  (!have.has(dayId(l, 'year')) &&
+    (yearDigests(l).some((id) => have.has(id)) ||
+      [...have].some((id) => id.startsWith(`leadership-phase:${l.season}:`))));
+
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
-  const all = day === 'draft' ? draftCandidates(l) : [];
-  return all.filter((c) => !have.has(c.key) && !(c.covers ?? []).some((id) => have.has(id)));
+  const rec = publicRecord(l);
+  const all = day === 'draft' ? draftCandidates(l) : day === 'year' ? yearCandidates(l, rec) : [];
+  // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
+  const top = legacyYear(l, have) ? [] : leaderCandidates(l, day);
+  return [...all, ...top].filter((c) => !have.has(c.key) && !(c.covers ?? []).some((id) => have.has(id)));
 }
 
 /** Top tier first, then the more worthwhile story, then a hash of the edition and the story: the same league, the same order. */
@@ -215,6 +370,15 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
       }));
     if (rows.length) out.push({ title: 'Round one', head: ['Pick', 'Player', 'Team', 'Consensus'], rows });
   }
+  if (days.includes('year')) {
+    const rows = topChanges(l)
+      .slice(0, DAY.listRows)
+      .map((x) => ({
+        teamId: x.teamId,
+        cells: [l.teams[x.teamId].name, x.job === 'coach' ? 'Head coach' : 'General manager', x.outName, x.inName],
+      }));
+    if (rows.length) out.push({ title: 'Changes at the top', head: ['Team', 'Job', 'Out', 'In'], rows });
+  }
   return out;
 }
 
@@ -271,11 +435,15 @@ export function buildDay(l: League, days: Day[]): Edition | null {
  * around them; `covered` names what it told, under its own keys and the ids of the mails it replaces.
  */
 export function dayMail(l: League): Draft[] {
+  if (!DAYS.on) return [];
   const days = dayNow(l);
   const day = days.at(-1);
   if (!day) return [];
   const id = dayId(l, day);
-  if (toldKeys(l).has(id)) return [];
+  const have = toldKeys(l);
+  if (have.has(id)) return [];
+  // A save that was already told this year's window the old way (a digest on file) gets no second telling.
+  if (day === 'year' && legacyYear(l, have)) return [];
   const edition = buildDay(l, days);
   if (!edition) return [];
   const stories = [edition.lead, ...(edition.club ? [edition.club] : []), ...edition.tiles];
@@ -294,10 +462,33 @@ export function dayMail(l: League): Draft[] {
       covered: [
         ...new Set([
           ...days.slice(0, -1).map((d) => dayId(l, d)),
+          // The new league year's edition stands in for the digests of old, whichever of their news it printed.
+          ...(day === 'year' ? yearDigests(l) : []),
           ...stories.flatMap((s) => [s.key, ...(s.covers ?? [])]),
         ]),
       ],
+      // What is known of the new GMs rides under the page, as it did under the front-office digest.
+      ...(days.includes('year') ? newGmNotes(l) : {}),
       actions: [],
     },
   ];
+}
+
+/** How many new GMs the edition says a word about under its page. */
+const GM_NOTES = 3;
+/** A line on each new general manager's record, for the first few: the note the front-office digest carried. */
+function newGmNotes(l: League): { gmNotes?: { gmId: number; line: string }[] } {
+  const notes = topChanges(l)
+    .filter((x) => x.job === 'gm' && x.gmId !== undefined && x.teamId !== (employed(l) ? l.userTeamId : -1))
+    .slice(0, GM_NOTES)
+    .map((x) => ({ gmId: x.gmId!, line: reputation(l, l.gms[x.gmId!]) }));
+  return notes.length ? { gmNotes: notes } : {};
+}
+
+/** A day's edition is on file, or is being filed now: the mails it replaces step aside. */
+export function dayOnFile(l: League, day: Day, have: Set<string>): boolean {
+  if (!DAYS.on) return false;
+  if (have.has(dayId(l, day))) return true;
+  const days = dayNow(l);
+  return days.includes(day) && !(day === 'year' && legacyYear(l, have)) && buildDay(l, days) !== null;
 }

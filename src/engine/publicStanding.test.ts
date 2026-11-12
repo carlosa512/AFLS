@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { releasePlayer } from './finance/cap';
 import { createLeague } from './generate';
-import { draftedHigh, publicStanding, STANDING, standingReader } from './publicStanding';
+import { draftedHigh, publicRecord, publicStanding, STANDING, standingReader } from './publicStanding';
 import { activeRoster } from './roster';
 
 describe('public standing', () => {
@@ -25,6 +25,29 @@ describe('public standing', () => {
     expect(read(c)).toBe('starter');
     c.stats[last] = { gp: 12, snaps: STANDING.snaps - 1 };
     expect(standingReader(l, last)(c)).toBe('depth');
+  });
+
+  it('says why he is a star and ranks the bigger name first', () => {
+    const l = createLeague({ seed: 'standing-why' });
+    const last = l.season - 1;
+    for (const p of Object.values(l.players)) p.stats = {};
+    const [mvp, all2, leader, starter] = activeRoster(l, 0).filter((p) => p.position !== 'QB');
+    l.awards = [
+      {
+        season: last,
+        winners: { mvp: { playerId: mvp.id, teamId: 0 } },
+        allLeague: [[], [{ playerId: all2.id, teamId: 0 }]],
+      },
+    ];
+    leader.stats[last] = { gp: 17, snaps: 800, sacks: 99 };
+    starter.stats[last] = { gp: 17, snaps: 1000 };
+    const r = publicRecord(l, last);
+    expect(r.why(mvp)).toEqual({ kind: 'award' });
+    expect(r.why(all2)).toEqual({ kind: 'allLeague' });
+    expect(r.why(leader)).toEqual({ kind: 'top', stat: 'sacks' });
+    expect(r.why(starter)).toBeNull();
+    const order = [starter, leader, all2, mvp].sort((a, b) => r.worth(b) - r.worth(a));
+    expect(order).toEqual([mvp, all2, leader, starter]);
   });
 
   it('calls a winning club’s passer a star, and a losing club’s only a starter', () => {

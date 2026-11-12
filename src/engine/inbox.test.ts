@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DAYS } from './snnDays';
 import {
   acceptGmOffer,
   beginGmSearch,
@@ -350,9 +351,14 @@ describe('inbox', () => {
 
   it('reports the coaching carousel, and a coach hired away until his chair is filled', () => {
     const changes = headCoachChanges(league);
-    expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(changes.length > 0);
-    for (const m of league.inbox!.filter((m) => m.id === `league:${league.season}:carousel`))
-      expect(m.from).toBe('SNN league desk');
+    // SNN's new-league-year edition tells the changes now, in place of the coaching carousel's own digest.
+    expect(league.inbox!.some((m) => m.id === `league:${league.season}:carousel`)).toBe(false);
+    const year = league.inbox!.find((m) => m.id === `snn:${league.season}:d:year`);
+    if (changes.some((x) => x.replaced)) {
+      const rows = year!.edition!.lists!.find((x) => x.title === 'Changes at the top')!.rows;
+      for (const x of changes.filter((c) => c.replaced).slice(0, rows.length))
+        expect(rows.some((r) => r.teamId === x.teamId)).toBe(true);
+    }
     for (const x of changes) {
       expect(x.coach.role).toBe('headCoach');
       expect(x.coach.teamId).toBe(x.teamId);
@@ -1825,6 +1831,12 @@ describe("the young players' review", () => {
 });
 
 describe('GM notes on the front-office mail', () => {
+  beforeAll(() => {
+    DAYS.on = false;
+  });
+  afterAll(() => {
+    DAYS.on = true;
+  });
   const hire = (l: ReturnType<typeof createLeague>, n: number, id: number, phase: 'resign' | 'regular') => {
     const others = l.teams.filter((t) => t.id !== l.userTeamId && t.gmId !== null);
     l.leadership.events = others.slice(0, n).map((t, i) => ({

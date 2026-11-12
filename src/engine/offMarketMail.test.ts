@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DAYS } from './snnDays';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { simToEndOfSeason } from './league';
@@ -20,7 +21,14 @@ beforeAll(() => {
 const fresh = (): League => JSON.parse(opened);
 const rowsOf = (l: League) => offMarketMail(l, new Set())[0]?.sections?.[0].rows ?? [];
 
+// The digest SNN's new-league-year edition replaced: still filed for a league year already told the old way.
 describe('off the market', () => {
+  beforeAll(() => {
+    DAYS.on = false;
+  });
+  afterAll(() => {
+    DAYS.on = true;
+  });
   it('files once when free agency opens, listing other clubs’ re-signings and tags', () => {
     const l = fresh();
     deliverMail(l);

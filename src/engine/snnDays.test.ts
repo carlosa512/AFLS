@@ -4,11 +4,14 @@
  * draft is played here (`snnDays.season.test.ts` plays an offseason).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
+import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
-import { activeRoster } from './roster';
+import { deliverMail } from './inbox';
+import { activeRoster, setTeam } from './roster';
 import { buildDay, cutDay, DAY, dayCandidates, dayMail, dayNow, rankDay, type DayCandidate } from './snnDays';
+import { writeDayStory } from './snnDayVoice';
 import { ruleBreaks } from './storyRules';
-import type { EditionStory, InboxMessage, League, Player } from './types';
+import type { Coach, EditionStory, GeneralManager, InboxMessage, League, Player } from './types';
 
 const stories = (e: { lead: EditionStory; club?: EditionStory; tiles: EditionStory[] }) => [
   e.lead,
@@ -182,5 +185,159 @@ describe('Draft day', () => {
     l.phase = 'regular';
     l.week = 5;
     expect(dayNow(l)).toEqual([]);
+  });
+});
+
+describe('The new league year', () => {
+  let l: League;
+  let club: number;
+  let gmClub: number;
+  let hired: Coach;
+  let fired: Coach;
+  let newGm: GeneralManager;
+  let oldGm: GeneralManager;
+  let tagged: Player;
+  let kept: Player;
+  let walked: Player;
+  let mine: Player;
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+  const log = (kind: 'tag' | 'resign', p: Player, text: string) =>
+    l.transactions.push({
+      season: l.season,
+      phase: 'resign',
+      week: 0,
+      teamIds: [p.teamId!],
+      kind,
+      text,
+      playerId: p.id,
+    });
+  beforeEach(() => {
+    l = createLeague({ seed: 'new-year' });
+    l.phase = 'freeAgency';
+    l.faDay = 1;
+    const last = l.season - 1;
+    const u = l.userTeamId;
+    const others = l.teams.map((t) => t.id).filter((id) => id !== u);
+    [club, gmClub] = others;
+    // Every head coach finished last season where he is, except one team's.
+    const hc = (teamId: number) => teamCoaches(l, teamId).find((c) => c.role === 'headCoach')!;
+    for (const c of Object.values(l.coaches)) c.career = (c.career ?? []).filter((x) => x.season !== last);
+    for (const t of l.teams)
+      if (t.id !== club) hc(t.id).career!.push({ season: last, teamId: t.id, role: 'headCoach' });
+    hired = hc(club);
+    fired = teamCoaches(l, others[2]).find((c) => c.role !== 'headCoach')!;
+    fired.career!.push({ season: last, teamId: club, role: 'headCoach' });
+    l.history = [
+      { season: last, championId: others[5], runnerUpId: others[6], records: { [club]: { w: 4, l: 13, t: 0 } } },
+    ];
+    // A GM replaced at another team.
+    newGm = l.gms[l.teams[gmClub].gmId!];
+    oldGm = l.gms[l.teams[others[3]].gmId!];
+    const event = (kind: 'gmDismissed' | 'gmHired', gmId: number) =>
+      l.leadership.events.push({
+        id: l.leadership.nextEventId++,
+        date: { season: l.season, phase: 'resign', week: 0 },
+        teamId: gmClub,
+        kind,
+        gmId,
+        report: 'x',
+      });
+    event('gmDismissed', oldGm.id);
+    event('gmHired', newGm.id);
+    // Three stars by last season's honors: one tagged, one re-signed, one let go to the market; and one of ours tagged.
+    for (const p of Object.values(l.players)) p.stats = {};
+    const star = (teamId: number) => activeRoster(l, teamId).filter((p) => p.position !== 'QB')[0];
+    [tagged, kept, walked, mine] = [star(others[7]), star(others[8]), star(others[9]), star(u)];
+    l.awards = [
+      {
+        season: last,
+        winners: { mvp: { playerId: tagged.id, teamId: tagged.teamId } },
+        allLeague: [[kept, walked, mine].map((p) => ({ playerId: p.id, teamId: p.teamId })), []],
+      },
+    ];
+    log('tag', tagged, 'tagged');
+    log('resign', kept, `${l.teams[kept.teamId!].abbrev} re-signed ${kept.lastName}`);
+    log('tag', mine, 'tagged');
+    walked.statTeams = { [last]: [walked.teamId!] };
+    walked.contract = null;
+    setTeam(l, walked, null);
+  });
+
+  it('is the moment free agency opens', () => {
+    expect(dayNow(l)).toEqual(['year']);
+    expect(dayMail(l)[0].id).toBe(`snn:${l.season}:d:year`);
+  });
+
+  it('tells a change at the top with who left and who came in', () => {
+    const cs = dayCandidates(l, 'year', new Set());
+    const c = cs.find((x) => x.angle === 'coach')!;
+    expect(c).toMatchObject({ tier: 1, clubId: club, coachId: hired.id });
+    const s = writeDayStory(l, c, at());
+    expect(s.paragraphs.join(' ')).toMatch(new RegExp(`${hired.lastName}[\\s\\S]*${fired.lastName}`));
+    expect(ruleBreaks(l, s)).toEqual([]);
+    const g = cs.find((x) => x.angle === 'gm')!;
+    expect(g).toMatchObject({ tier: 1, clubId: gmClub, gmId: newGm.id });
+    const gs = writeDayStory(l, g, at());
+    expect(gs.paragraphs.join(' ')).toMatch(new RegExp(`${newGm.lastName}[\\s\\S]*${oldGm.lastName}`));
+    expect(ruleBreaks(l, gs)).toEqual([]);
+  });
+
+  it('tells a star tagged at tier 1, a star kept and a star reaching the market at tier 2', () => {
+    const cs = dayCandidates(l, 'year', new Set());
+    expect(cs.find((x) => x.angle === 'tag')).toMatchObject({ tier: 1, playerId: tagged.id });
+    expect(cs.find((x) => x.angle === 'kept')).toMatchObject({ tier: 2, playerId: kept.id });
+    expect(cs.find((x) => x.angle === 'market')).toMatchObject({ tier: 2, playerId: walked.id });
+    // A player who is no star is no story.
+    expect(cs.filter((x) => x.angle === 'tag' && x.clubId !== l.userTeamId)).toHaveLength(1);
+    for (const c of cs) expect(ruleBreaks(l, writeDayStory(l, c, at())), c.angle).toEqual([]);
+  });
+
+  it('puts the bigger name first inside a tier: the award winner leads', () => {
+    const e = buildDay(l, ['year'])!;
+    expect(e.lead.cast[0]).toBe(tagged.id);
+    expect(e.label).toBe('The new league year');
+  });
+
+  it('lists the changes at the top, and gives the reader’s team its window', () => {
+    const e = buildDay(l, ['year'])!;
+    const list = e.lists!.find((x) => x.title === 'Changes at the top')!;
+    expect(list.head).toEqual(['Team', 'Job', 'Out', 'In']);
+    expect(list.rows.map((r) => r.teamId).sort()).toEqual([club, gmClub].sort());
+    expect(e.club!.yours).toBe(true);
+    expect(e.club!.paragraphs.join(' ')).toContain(mine.lastName);
+    expect(ruleBreaks(l, e.club!)).toEqual([]);
+  });
+
+  it('covers the three digests, and none files beside it', () => {
+    deliverMail(l);
+    const ids = l.inbox!.map((x) => x.id);
+    expect(ids).toContain(`snn:${l.season}:d:year`);
+    const m = l.inbox!.find((x) => x.id === `snn:${l.season}:d:year`)!;
+    expect(m.covered).toEqual(expect.arrayContaining([`league:${l.season}:carousel`, `offMarket:${l.season}`]));
+    // The note on a new GM that the front-office digest carried rides with the edition.
+    expect(m.gmNotes!.map((n) => n.gmId)).toEqual([newGm.id]);
+    expect(ids.some((id) => id === `league:${l.season}:carousel`)).toBe(false);
+    expect(ids.some((id) => id.startsWith('offMarket:') || id.startsWith('leadership-phase:'))).toBe(false);
+    // Filed once.
+    deliverMail(l);
+    expect(l.inbox!.filter((x) => x.id.startsWith(`snn:${l.season}:d:`))).toHaveLength(1);
+  });
+
+  it('does not file when one of its digests is already on file for the season (a save from before)', () => {
+    l.inbox = [{ id: `offMarket:${l.season}`, season: l.season } as InboxMessage];
+    expect(dayMail(l)).toEqual([]);
+  });
+
+  it('carries a change it never told into the next edition', () => {
+    l.phase = 'draft';
+    expect(dayCandidates(l, 'market', new Set()).some((c) => c.angle === 'coach' && c.clubId === club)).toBe(true);
+    const told = new Set([`lead:${l.season}:${club}:coach`]);
+    expect(dayCandidates(l, 'market', told).some((c) => c.angle === 'coach')).toBe(false);
+  });
+
+  it('builds in a league with no last season', () => {
+    l.awards = [];
+    l.history = [];
+    expect(() => dayMail(l)).not.toThrow();
   });
 });

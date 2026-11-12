@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DAYS } from './snnDays';
 import { createLeague, SAVE_VERSION } from './generate';
 import { appointGm, endGmAppointment } from './gm';
 import {
@@ -517,7 +518,7 @@ describe('your contract offer', () => {
     const l = expiring();
     leadershipNewYear(l);
     expect(gmOfferTerms(l, userExtensionOffer(l)!).expectation).toBe(
-      'Keep the club moving forward. The owner likes the direction.',
+      'Keep the team moving forward. The owner likes the direction.',
     );
     const w = expiring();
     w.teams[w.userTeamId].leadershipReview = {
@@ -552,7 +553,14 @@ describe('your contract offer', () => {
   });
 });
 
+// The digests SNN's big-day editions replaced: still filed for a league year already told the old way.
 describe('the offseason carousel digest', () => {
+  beforeAll(() => {
+    DAYS.on = false;
+  });
+  afterAll(() => {
+    DAYS.on = true;
+  });
   const event = (
     l: League,
     id: number,

@@ -26,7 +26,7 @@ const SIM = [
 
 /** Mail-side modules of SNN's big days: the editor and its words. Only mail, scripts and screens may import them. */
 const DAYS = /from '\.\.?\/(?:engine\/)?(snnDays|snnDayVoice)'/;
-const MAIL_SIDE = new Set(['inbox.ts', 'snnDays.ts', 'snnDayVoice.ts']);
+const MAIL_SIDE = new Set(['inbox.ts', 'offMarketMail.ts', 'snnDays.ts', 'snnDayVoice.ts']);
 const engineFiles = (dir: URL, prefix = ''): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory()

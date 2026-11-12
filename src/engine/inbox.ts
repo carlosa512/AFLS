@@ -54,7 +54,7 @@ import {
   type Chair,
 } from './coaching';
 import { rookieImpactMail, matchupStakes } from './news';
-import { dayMail } from './snnDays';
+import { dayMail, dayOnFile, legacyYear } from './snnDays';
 import { editionMail } from './snnWeek';
 import { capSpace } from './finance/cap';
 import {
@@ -2243,6 +2243,8 @@ export function headCoachChanges(league: League, season = league.season): HeadCo
 function carouselMail(league: League, have: Set<string>): Draft[] {
   const id = `league:${league.season}:carousel`;
   if (have.has(id)) return [];
+  // SNN's new-league-year edition tells the changes at the top now (`snnDays.ts`).
+  if (dayOnFile(league, 'year', have)) return [];
   const changes = headCoachChanges(league);
   if (!changes.length) return [];
   const team = league.teams[league.userTeamId];
@@ -2888,6 +2890,9 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
     // Another club's in-season change is a story of that week's edition (`newsCandidates` in `snnWeek.ts`).
     if (!inside && !personal && e.date.phase === 'regular') continue;
     if (!inside && !personal && OFFSEASON_PHASES.includes(e.date.phase)) {
+      // Another team's offseason change is a story of SNN's big-day editions now (`topChanges` in `snnDays.ts`):
+      // only a league year already being told the old way (a digest on file) keeps its digests.
+      if (e.date.season !== league.season || !legacyYear(league, have)) continue;
       const key = `${e.date.season}:${e.date.phase}`;
       steps.set(key, [...(steps.get(key) ?? []), e]);
       continue;

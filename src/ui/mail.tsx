@@ -172,7 +172,18 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
   const notes = message.gmNotes?.filter((n) => league.gms[n.gmId]);
   // SNN's weekly edition draws itself (`edition.tsx`): this file only hands it over.
-  if (message.edition) return <EditionCards league={league} message={message} />;
+  if (message.edition)
+    return (
+      <>
+        <EditionCards league={league} message={message} />
+        {/* A big-day edition carries what is known of the new GMs under its page. */}
+        {notes?.map((n) => (
+          <Card key={n.gmId}>
+            <GmWho league={league} gm={league.gms[n.gmId]} line={n.line} />
+          </Card>
+        ))}
+      </>
+    );
   return (
     <>
       {notes?.map((n) => (
