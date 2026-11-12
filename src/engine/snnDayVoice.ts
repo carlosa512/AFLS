@@ -529,10 +529,137 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   });
 }
 
+const dealChips = (d: { years: number; total: number } | undefined): EditionStory['numbers'] =>
+  d
+    ? [
+        { value: String(d.years), label: d.years === 1 ? 'Year' : 'Years' },
+        { value: `$${Math.round(d.total / 1000)}M`, label: 'Total' },
+      ]
+    : [];
+
+/** A free agency story: a star who moved, the richest deal, a team's haul or its losses, a return, who is still out there. */
+function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
+  const p = l.players[c.playerId!];
+  const club = c.clubId;
+  const ref = referrer(l, { playerIds: [p.id] });
+  const Club = l.teams[club].name;
+  const slot = (s: string) => `${c.key}:${s}`;
+  const why = whyLine(p.lastName, publicRecord(l).why(p));
+  const old = c.otherId !== undefined ? l.teams[c.otherId].name : '';
+  const deal = c.deal ? `The deal is for ${dealWords(c.deal)}.` : '';
+  const base = { picture: { playerId: p.id }, links: links(p, club) };
+
+  if (c.angle === 'moved') {
+    const the = cap(ref.club(club));
+    const man = ref.man(p.id);
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'Free agency',
+      headline: head(`${Club} sign ${tag(p)}`, `${Club} sign ${p.lastName}`),
+      summary: [old ? `${p.lastName} played for the ${old} last season.` : '', deal].filter(Boolean).join(' '),
+      first: [
+        pick(l, at, slot('lede'), [
+          old
+            ? `${the} signed ${posWord(p)} ${man}, who played for the ${old} last season.`
+            : `${the} signed ${posWord(p)} ${man}.`,
+          old ? `${the} took ${posWord(p)} ${man} from the ${old} in free agency.` : false,
+        ]),
+        deal,
+      ],
+      second: [why, openerLine(l, ref, club)],
+      numbers: dealChips(c.deal),
+    });
+  }
+
+  if (c.angle === 'richest') {
+    const the = cap(ref.club(club));
+    const man = ref.man(p.id);
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'The richest deal',
+      headline: head(`${full(p)} signs the richest deal of free agency`, `${p.lastName} signs the richest deal`),
+      summary: [`He signed with the ${Club}.`, deal].filter(Boolean).join(' '),
+      first: [
+        pick(l, at, slot('lede'), [
+          `${the} gave ${posWord(p)} ${man} the richest contract of free agency.`,
+          `No free agent signed for more than ${posWord(p)} ${man}, who joined ${ref.club(club)}.`,
+        ]),
+        deal,
+      ],
+      second: [
+        old && c.otherId !== club ? `${p.lastName} played for the ${old} last season.` : '',
+        openerLine(l, ref, club),
+      ],
+      numbers: dealChips(c.deal),
+    });
+  }
+
+  if (c.angle === 'haul' || c.angle === 'lostMarket') {
+    const n = c.n ?? 0;
+    const the = cap(ref.club(club));
+    const man = ref.man(p.id);
+    const haul = c.angle === 'haul';
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'Free agency',
+      headline: haul
+        ? `${Club} sign ${count(n)} of last season's starters`
+        : `${Club} lose ${count(n)} starters in free agency`,
+      summary: haul
+        ? `No team signed more players who started elsewhere last season. The best known is ${tag(p)}.`
+        : `No team lost more of last season's starters. ${cap(posWord(p))} ${full(p)} was one of them.`,
+      first: haul
+        ? [
+            `${the} signed ${count(n)} players who started for other teams last season, more than anyone else.`,
+            `The best known is ${posWord(p)} ${man}.`,
+          ]
+        : [
+            `${the} lost ${count(n)} of last season's starters to other teams in free agency, more than anyone else.`,
+            old ? `${cap(posWord(p))} ${man} signed with the ${old}.` : `${cap(posWord(p))} ${man} was one of them.`,
+          ],
+      second: [why, openerLine(l, ref, club)],
+      numbers: [{ value: String(n), label: haul ? 'Starters signed' : 'Starters lost' }],
+    });
+  }
+
+  if (c.angle === 'home') {
+    const the = ref.club(club);
+    const man = ref.man(p.id);
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'A return',
+      headline: head(`${full(p)} returns to the ${Club}`, `${p.lastName} returns to the ${Club}`),
+      summary: `${p.lastName} has played for the ${Club} before.`,
+      first: [`${cap(posWord(p))} ${man} has signed with ${the}, a team he has played for before.`, deal],
+      second: [why, openerLine(l, ref, club)],
+      numbers: dealChips(c.deal),
+    });
+  }
+
+  // 'unsigned': the best player nobody has signed.
+  const man = ref.man(p.id);
+  return assemble(c, ref, {
+    ...base,
+    kicker: 'Still unsigned',
+    headline: head(`${tag(p)} is still unsigned`, `${p.lastName} is still unsigned`),
+    summary: `${p.lastName} played for the ${Club} last season and has not signed anywhere.`,
+    first: [
+      pick(l, at, slot('lede'), [
+        `${cap(posWord(p))} ${man} has not signed with anyone after the first week of free agency.`,
+        `${cap(posWord(p))} ${man} is still a free agent a week after the market opened.`,
+      ]),
+      why,
+    ],
+    second: [`He played for ${ref.club(club)} last season.`, `${p.lastName} is ${p.age}.`],
+    numbers: [{ value: String(p.age), label: 'Age' }],
+  });
+}
+
 /** One story of a big day, from its candidate. */
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
   if (c.day === 'year') return yearStory(l, c, at);
+  if (c.day === 'market') return marketStory(l, c, at);
   return draftStory(l, c, at);
 }
 
@@ -655,7 +782,69 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   });
 }
 
+/** The reader's team in free agency's first week: who it signed and who left for another team, in public terms. */
+function yourMarket(l: League, at: Wording): EditionStory | null {
+  const u = l.userTeamId;
+  const last = (p: Player) => p.statTeams?.[l.season - 1]?.at(-1);
+  const signed = l.transactions
+    .filter((t) => t.season === l.season && t.phase === 'freeAgency' && t.kind === 'sign' && t.playerId !== undefined)
+    .flatMap((t) => (l.players[t.playerId!]?.contract ? [l.players[t.playerId!]] : []))
+    .filter((p) => p.teamId !== null);
+  const total = (p: Player) => p.contract!.apy * p.contract!.length;
+  const came = signed.filter((p) => p.teamId === u && last(p) !== u).sort((a, b) => total(b) - total(a) || a.id - b.id);
+  const record = publicRecord(l);
+  const went = signed
+    .filter((p) => p.teamId !== u && last(p) === u)
+    .sort((a, b) => record.worth(b) - record.worth(a) || a.id - b.id);
+  // The bigger contract leads: losing a starter to a rich deal elsewhere outweighs a small signing.
+  const byDeal = [...went].sort((a, b) => total(b) - total(a) || a.id - b.id);
+  const lost = byDeal[0] && (!came[0] || total(byDeal[0]) > total(came[0]));
+  const top = lost ? byDeal[0] : came[0];
+  if (!top) return null;
+  const ref = referrer(l, { playerIds: [...came, ...went].map((p) => p.id) });
+  const Club = l.teams[u].name;
+  const key = `market:${l.season}:yours`;
+  const the = cap(ref.club(u));
+  const deal = { years: top.contract!.length, total: total(top) };
+  const lede = !lost
+    ? `${the} signed ${posWord(top)} ${ref.man(top.id)} in free agency.`
+    : `${the} lost ${posWord(top)} ${ref.man(top.id)} to the ${l.teams[top.teamId!].name} in free agency.`;
+  const other = lost ? came[0] : byDeal[0];
+  const more = [
+    other && lost ? `${cap(ref.city(u))} signed ${posWord(other)} ${ref.man(other.id)}.` : '',
+    other && !lost ? `${cap(posWord(other))} ${ref.man(other.id)} left for the ${l.teams[other.teamId!].name}.` : '',
+    came.length > 1 ? `${cap(count(came.length))} players signed in all.` : '',
+  ].filter(Boolean);
+  return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
+    kicker: 'Your team',
+    yours: true,
+    headline: !lost
+      ? head(`${Club} sign ${tag(top)}`, `${Club} sign ${top.lastName}`)
+      : head(`${Club} lose ${tag(top)} in free agency`, `${Club} lose ${top.lastName}`),
+    summary: [
+      came.length ? `${cap(count(came.length))} signed.` : '',
+      went.length ? `${cap(count(went.length))} left for other teams.` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+    first: [pick(l, at, `${key}:lede`, [lede]), `The deal is for ${dealWords(deal)}.`],
+    second: [...more, openerLine(l, ref, u)],
+    numbers: [
+      ...(came.length ? [{ value: String(came.length), label: 'Signed' }] : []),
+      ...(went.length ? [{ value: String(went.length), label: 'Left' }] : []),
+    ],
+    picture: { playerId: top.id },
+    links: [{ kind: 'team', teamId: u }],
+  });
+}
+
 /** The reader's club on a big day, in public terms; nothing when it did nothing that day. */
 export function yourDayStory(l: League, day: Day, at: Wording): EditionStory | null {
-  return day === 'draft' ? yourDraft(l, at) : day === 'year' ? yourYear(l, at) : null;
+  return day === 'draft'
+    ? yourDraft(l, at)
+    : day === 'year'
+      ? yourYear(l, at)
+      : day === 'market'
+        ? yourMarket(l, at)
+        : null;
 }

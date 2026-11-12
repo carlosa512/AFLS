@@ -42,6 +42,8 @@ export const DAY = {
   haulPicks: 4,
   /** The team that let the most of last season's starters reach the market is a story at this many. */
   yearLost: 5,
+  /** The team that signed the most starters in free agency, or lost the most, is a story at this many. */
+  marketStarters: 4,
   /** Rows in a list box. */
   listRows: 10,
 };
@@ -248,7 +250,8 @@ const dealOf = (p: Player) =>
 function yearCandidates(l: League, rec: PublicRecord): DayCandidate[] {
   const out: DayCandidate[] = [];
   const player = (x: { p: Player; teamId: number }, angle: string, tier: 1 | 2) => ({
-    key: `player:${x.p.id}:${l.season}`,
+    // One key a move: the same player can be news again when he signs somewhere.
+    key: `player:${x.p.id}:${l.season}:${angle}`,
     day: 'year' as const,
     angle,
     tier,
@@ -285,6 +288,89 @@ function yearCandidates(l: League, rec: PublicRecord): DayCandidate[] {
   return out;
 }
 
+/** A signing of free agency's first week: who, where he went, and where he finished last season (when anywhere). */
+interface Signing {
+  p: Player;
+  to: number;
+  from: number | undefined;
+}
+export function signings(l: League): Signing[] {
+  return l.transactions
+    .filter((t) => t.season === l.season && t.phase === 'freeAgency' && t.kind === 'sign' && t.playerId !== undefined)
+    .flatMap((t) => {
+      const p = l.players[t.playerId!];
+      // Still where he signed, on that deal: a player who has moved on since is another day's story.
+      return p && p.contract && p.teamId === t.teamIds[0] ? [{ p, to: p.teamId, from: lastClub(l, p) }] : [];
+    });
+}
+const totalOf = (p: Player) => (p.contract ? p.contract.apy * p.contract.length : 0);
+
+/** Free agency: a star who changed teams, the richest deal, the biggest haul and the biggest loss, who is still out there. */
+function marketCandidates(l: League, rec: PublicRecord): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  const signed = signings(l);
+  const moved = signed.filter((x) => x.from !== undefined && x.from !== x.to);
+  const base = (x: Signing, angle: string) => ({
+    key: `player:${x.p.id}:${l.season}:${angle}`,
+    day: 'market' as const,
+    angle,
+    clubId: x.to,
+    teams: x.from === undefined ? [x.to] : [x.to, x.from],
+    playerId: x.p.id,
+    ...(x.from !== undefined ? { otherId: x.from } : {}),
+    ...dealOf(x.p),
+  });
+  // The richest contract of the week leads, as the first pick leads Draft day: it is the day's biggest fact.
+  const richest = [...signed].sort((a, b) => totalOf(b.p) - totalOf(a.p) || a.p.id - b.p.id)[0];
+  if (richest) out.push({ ...base(richest, 'richest'), tier: 1, stakes: 2 });
+  const stars = moved.filter((x) => rec.standing(x.p) === 'star' && x !== richest);
+  for (const x of stars) out.push({ ...base(x, 'moved'), tier: 1, stakes: rec.worth(x.p) });
+  // The one team that signed the most of last season's starters, and the one that lost the most.
+  const starters = moved.filter((x) => rec.standing(x.p) !== 'depth');
+  const most = (side: 'to' | 'from', angle: string) => {
+    const by = new Map<number, Signing[]>();
+    for (const x of starters) by.set(x[side]!, [...(by.get(x[side]!) ?? []), x]);
+    const ranked = [...by].sort((a, b) => b[1].length - a[1].length || a[0] - b[0]);
+    if (!ranked[0] || ranked[0][1].length < DAY.marketStarters || ranked[0][1].length === ranked[1]?.[1].length) return;
+    const [teamId, xs] = ranked[0];
+    const best = [...xs].sort((a, b) => rec.worth(b.p) - rec.worth(a.p) || a.p.id - b.p.id)[0];
+    out.push({
+      key: `market:${l.season}:${angle}:${teamId}`,
+      day: 'market',
+      angle,
+      tier: 3,
+      clubId: teamId,
+      teams: [teamId],
+      stakes: xs.length / 20,
+      n: xs.length,
+      playerId: best.p.id,
+      otherId: side === 'to' ? best.from : best.to,
+    });
+  };
+  most('to', 'haul');
+  most('from', 'lostMarket');
+  // A signing by a team he has played for before, further back than last season.
+  for (const x of moved)
+    if ((x.p.left ?? []).slice(0, -1).some((d) => d.teamId === x.to))
+      out.push({ ...base(x, 'home'), tier: 4, stakes: rec.worth(x.p) });
+  // The best player nobody has signed.
+  const open = freeAgents(l)
+    .filter((p) => rec.standing(p) !== 'depth' && lastClub(l, p) !== undefined)
+    .sort((a, b) => rec.worth(b) - rec.worth(a) || a.id - b.id)[0];
+  if (open)
+    out.push({
+      key: `player:${open.id}:${l.season}:unsigned`,
+      day: 'market',
+      angle: 'unsigned',
+      tier: 4,
+      clubId: lastClub(l, open)!,
+      teams: [lastClub(l, open)!],
+      stakes: rec.worth(open),
+      playerId: open.id,
+    });
+  return out;
+}
+
 /** The digests of old that the new league year's edition replaces. One on file means that year was told the old way. */
 const yearDigests = (l: League) => [`league:${l.season}:carousel`, `offMarket:${l.season}`];
 export const legacyYear = (l: League, have: Set<string>): boolean =>
@@ -296,7 +382,14 @@ export const legacyYear = (l: League, have: Set<string>): boolean =>
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
   const rec = publicRecord(l);
-  const all = day === 'draft' ? draftCandidates(l) : day === 'year' ? yearCandidates(l, rec) : [];
+  const all =
+    day === 'draft'
+      ? draftCandidates(l)
+      : day === 'year'
+        ? yearCandidates(l, rec)
+        : day === 'market'
+          ? marketCandidates(l, rec)
+          : [];
   // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
   const top = legacyYear(l, have) ? [] : leaderCandidates(l, day);
   return [...all, ...top].filter((c) => !have.has(c.key) && !(c.covers ?? []).some((id) => have.has(id)));
@@ -378,6 +471,22 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
         cells: [l.teams[x.teamId].name, x.job === 'coach' ? 'Head coach' : 'General manager', x.outName, x.inName],
       }));
     if (rows.length) out.push({ title: 'Changes at the top', head: ['Team', 'Job', 'Out', 'In'], rows });
+  }
+  if (days.includes('market')) {
+    const rows = signings(l)
+      .sort((a, b) => totalOf(b.p) - totalOf(a.p) || a.p.id - b.p.id)
+      .slice(0, DAY.listRows)
+      .map((x) => ({
+        playerId: x.p.id,
+        teamId: x.to,
+        cells: [
+          nameOf(x.p),
+          x.from !== undefined && x.from !== x.to ? l.teams[x.from].name : '',
+          l.teams[x.to].name,
+          `${x.p.contract!.length} yr, $${Math.round(totalOf(x.p) / 1000)}M`,
+        ],
+      }));
+    if (rows.length) out.push({ title: 'The biggest contracts', head: ['Player', 'From', 'To', 'Deal'], rows });
   }
   return out;
 }

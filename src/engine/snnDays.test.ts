@@ -341,3 +341,110 @@ describe('The new league year', () => {
     expect(() => dayMail(l)).not.toThrow();
   });
 });
+
+describe('Free agency', () => {
+  let l: League;
+  let star: Player;
+  let rich: Player;
+  let oldClub: number;
+  let buyer: number;
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+  /** A player who finished last season with one team and signed with another in free agency's first week. */
+  const sign = (p: Player, to: number, years: number, apy: number) => {
+    const from = p.teamId!;
+    p.statTeams = { [l.season - 1]: [from] };
+    p.left = [{ teamId: from, season: l.season, how: 'walked' }];
+    setTeam(l, p, to);
+    p.contract = { ...p.contract!, length: years, apy };
+    l.transactions.push({
+      season: l.season,
+      phase: 'freeAgency',
+      week: 0,
+      teamIds: [to],
+      kind: 'sign',
+      text: 'signed',
+      playerId: p.id,
+    });
+    return from;
+  };
+  beforeEach(() => {
+    l = createLeague({ seed: 'market-day' });
+    l.phase = 'draft';
+    for (const p of Object.values(l.players)) p.stats = {};
+    l.awards = [];
+    const u = l.userTeamId;
+    const others = l.teams.map((t) => t.id).filter((id) => id !== u);
+    const any = (teamId: number, n = 0) => activeRoster(l, teamId).filter((p) => p.position !== 'QB')[n];
+    star = any(others[0]);
+    rich = any(others[1]);
+    l.awards = [
+      { season: l.season - 1, winners: { mvp: { playerId: star.id, teamId: star.teamId } }, allLeague: [[], []] },
+    ];
+    buyer = others[2];
+    oldClub = sign(star, buyer, 3, 20000);
+    sign(rich, others[3], 4, 24000);
+    // Four more starters to one team: the haul.
+    for (let n = 0; n < 4; n++) {
+      const p = any(others[4 + n], 1);
+      p.stats[l.season - 1] = { gp: 17, snaps: 900 };
+      sign(p, others[9], 2, 3000);
+    }
+  });
+
+  it('is the moment the draft opens, and tells a star who changed teams', () => {
+    expect(dayNow(l)).toEqual(['market']);
+    const cs = dayCandidates(l, 'market', new Set());
+    expect(cs.find((c) => c.angle === 'moved')).toMatchObject({
+      tier: 1,
+      playerId: star.id,
+      clubId: buyer,
+      otherId: oldClub,
+    });
+  });
+
+  it('leads with the richest deal, in years and total dollars, then the stars who moved', () => {
+    const e = buildDay(l, ['market'])!;
+    expect(e.lead.cast[0]).toBe(rich.id);
+    expect(e.tiles[0].cast[0]).toBe(star.id);
+    const c = dayCandidates(l, 'market', new Set()).find((x) => x.angle === 'richest')!;
+    expect(c).toMatchObject({ tier: 1, playerId: rich.id, deal: { years: 4, total: 96000 } });
+    const s = writeDayStory(l, c, at());
+    expect(s.paragraphs.join(' ')).toMatch(/four years and \$96 million/);
+    expect(ruleBreaks(l, s)).toEqual([]);
+  });
+
+  it('tells only the team that signed the most starters, at the bar', () => {
+    const hauls = dayCandidates(l, 'market', new Set()).filter((c) => c.angle === 'haul');
+    expect(hauls).toHaveLength(1);
+    expect(hauls[0]).toMatchObject({ tier: 3, n: 4 });
+    expect(DAY.marketStarters).toBe(4);
+  });
+
+  it('lists the biggest contracts, largest first, each with where he came from', () => {
+    const list = buildDay(l, ['market'])!.lists!.find((x) => x.title === 'The biggest contracts')!;
+    expect(list.head).toEqual(['Player', 'From', 'To', 'Deal']);
+    expect(list.rows[0]).toMatchObject({ playerId: rich.id });
+    expect(list.rows[1]).toMatchObject({ playerId: star.id, teamId: buyer });
+    expect(list.rows[1].cells[1]).toBe(l.teams[oldClub].name);
+  });
+
+  it('keeps every story to the writing rules', () => {
+    for (const c of dayCandidates(l, 'market', new Set()))
+      expect(ruleBreaks(l, writeDayStory(l, c, at())), c.angle).toEqual([]);
+  });
+
+  it('gives the reader’s team its signings, and no slot when it made none and lost nobody', () => {
+    expect(buildDay(l, ['market'])!.club).toBeUndefined();
+    const mine = activeRoster(l, l.teams.find((t) => t.id !== l.userTeamId && t.id !== buyer)!.id)[5];
+    sign(mine, l.userTeamId, 2, 5000);
+    const club = buildDay(l, ['market'])!.club!;
+    expect(club.yours).toBe(true);
+    expect(club.paragraphs.join(' ')).toContain(mine.lastName);
+    expect(ruleBreaks(l, club)).toEqual([]);
+  });
+
+  it('does not tell a signing twice', () => {
+    const told = new Set([`player:${star.id}:${l.season}:moved`]);
+    expect(dayCandidates(l, 'market', told).some((c) => c.playerId === star.id && c.angle === 'moved')).toBe(false);
+  });
+});
