@@ -629,3 +629,97 @@ export const PROMISES_LEAD: readonly Line<{ n: number }>[] = [
         : `We still owe players ${f.n} promises going into the offseason, and they have not forgotten them.`,
   },
 ];
+
+// ───────── the report as a summary ─────────
+
+export interface MoraleGroupFact {
+  /** The players' full names as one phrase: "Terrence Bell, Andre Sanders and Eric Glover". */
+  names: string;
+  kind: 'down' | 'back' | 'happy';
+  /** What weighs on them, as the morale screen words it, or null. */
+  reason: string | null;
+}
+
+/** Several players with the same mood for the same reason are one line of the report, not a row each. */
+export const MORALE_GROUP: readonly Line<MoraleGroupFact>[] = [
+  { when: (f) => f.kind === 'back', reads: 2, text: (f) => `${f.names} are back to themselves.` },
+  {
+    when: (f) => f.kind === 'back',
+    reads: 2,
+    text: (f) => `${f.names} have settled down, and whatever it was is behind them.`,
+  },
+  { when: (f) => f.kind === 'happy', reads: 2, text: (f) => `${f.names} could not be happier.` },
+  { when: (f) => f.kind === 'happy', reads: 2, text: (f) => `${f.names} are very happy right now.` },
+  {
+    when: (f) => f.reason === 'Still stung by the benching',
+    reads: 3,
+    text: (f) => `${f.names} have not got over losing their jobs, and they need time.`,
+  },
+  {
+    when: (f) => f.reason === 'Wants more snaps',
+    reads: 3,
+    text: (f) => `${f.names} think they should be on the field more.`,
+  },
+  {
+    when: (f) => f.reason === 'Wants a new deal',
+    reads: 3,
+    text: (f) => `${f.names} have their contracts on their minds.`,
+  },
+  {
+    when: (f) => f.reason === 'The losing is wearing on him',
+    reads: 3,
+    text: (f) => `The losing is bothering ${f.names}.`,
+  },
+  {
+    when: (f) => f.reason === 'A feud in the room',
+    reads: 3,
+    text: (f) => `${f.names} are bothered by a feud in the room.`,
+  },
+  {
+    when: (f) => f.reason === 'Noticed who got paid',
+    reads: 3,
+    text: (f) => `${f.names} saw a teammate's new deal, and they noticed.`,
+  },
+  {
+    when: (f) => f.reason === 'Misses a friend who left',
+    reads: 3,
+    text: (f) => `${f.names} miss a friend who left, and it will pass.`,
+  },
+  {
+    when: (f) => f.reason === 'Hard to please',
+    reads: 3,
+    text: (f) => `${f.names} are hard to please, and that is just how they are.`,
+  },
+  { text: (f) => `${f.names} are down, and I am keeping an eye on them.` },
+];
+
+export interface RoomSummaryFact {
+  /** Players down now, and players who were down at the last report and are themselves again. */
+  down: number;
+  back: number;
+}
+
+/** The count the head coach gives after his verdict, so the letter says how the room stands before it lists anyone. */
+export const ROOM_SUMMARY: readonly Line<RoomSummaryFact>[] = [
+  {
+    when: (f) => f.down > 0 && f.back > 0,
+    reads: 2,
+    text: (f) =>
+      `${f.down === 1 ? 'One player is' : `${count(f.down)} players are`} down, and ${
+        f.back === 1 ? 'one has come back to himself' : `${count(f.back).toLowerCase()} have come back to themselves`
+      } since my last report.`,
+  },
+  {
+    when: (f) => f.down > 0,
+    reads: 1,
+    text: (f) => `${f.down === 1 ? 'One player is' : `${count(f.down)} players are`} down right now.`,
+  },
+  {
+    when: (f) => f.back > 0,
+    reads: 1,
+    text: (f) =>
+      f.back === 1
+        ? 'One player who was down is back to himself.'
+        : `${count(f.back)} players who were down are back to themselves.`,
+  },
+];

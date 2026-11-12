@@ -708,7 +708,7 @@ export const RESULT_MAN: readonly Line<ResultFact>[] = [
   {
     when: (f) => f.outcome === 'lands' && !f.nowDown,
     reads: 2,
-    text: (f) => `${f.man.last} took it well. He is fine now.`,
+    text: (f) => `${f.man.last} took it well, and he is fine now.`,
   },
   {
     when: (f) => f.outcome === 'bristles' && f.nowDown && hasThing(f),

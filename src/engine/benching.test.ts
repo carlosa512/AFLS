@@ -21,7 +21,8 @@ import {
   questionOf,
   setJobs,
 } from './benching';
-import { releaseCoach, hireCoach, teamCoaches } from './coaching';
+import { releaseCoach, hireCoach, teamCoaches, teamScheme } from './coaching';
+import { spotsFor } from './schemes';
 import { createLeague } from './generate';
 import { deliverMail } from './inbox';
 import { talkCard } from './talkMail';
@@ -37,7 +38,6 @@ import { releasePlayer } from './finance/cap';
 import { playWeek, startLiveGame } from './league';
 import { ensureWaivers, setWaiverClaim } from './personnel/waivers';
 import { initialService } from './personnel/service';
-import { STARTERS } from './positions';
 import { addJolt, heardWeight, moraleAdvance, moraleClock, moraleContext } from './morale';
 import { advanceOffseason, beginOffseason } from './offseason';
 import { answerRoomTalk, answerTalk } from './playerTalks';
@@ -190,6 +190,43 @@ describe('sitting', () => {
     delete q[0].injury;
     q[0].morale = { level: 0, reported: true } as unknown as Player['morale'];
     expect(week(l, team)).toEqual([]);
+  });
+
+  it('is not a starter moved to another spot at his own position (LT to RT, MLB to WLB)', () => {
+    const { l, team } = setup('bench-spots');
+    const swap = (pos: 'OL' | 'LB' | 'CB' | 'WR' | 'S', a: number, b: number) => {
+      const chart = team.depthChart[pos];
+      [chart[a], chart[b]] = [chart[b], chart[a]];
+    };
+    swap('OL', 0, 4);
+    swap('LB', 0, 1);
+    swap('CB', 0, 1);
+    swap('WR', 0, 2);
+    swap('S', 0, 1);
+    for (let i = 0; i < EARN + 1; i++) expect(week(l, team)).toEqual([]);
+  });
+
+  it('counts the starting spots the scheme names: two tight ends and two receivers in 12 personnel', () => {
+    const l = createLeague({ seed: 'bench-12' });
+    const team = l.teams[l.userTeamId];
+    const oc = teamCoaches(l, team.id).find((c) => c.role === 'offCoord')!;
+    oc.scheme = { ...oc.scheme, offense: 'power' };
+    expect(spotsFor(teamScheme(l, team.id), 'TE')).toHaveLength(2);
+    setJobs(l);
+    const [te1, te2] = team.depthChart.TE;
+    const wr3 = team.depthChart.WR[2];
+    // The second tight end holds a job, the third receiver does not: as the depth chart shows them.
+    expect(holdsJob(team, te2)).toBe(true);
+    expect(holdsJob(team, wr3)).toBe(false);
+    // The two tight ends trade spots: nobody sat.
+    team.depthChart.TE = [te2, te1, ...team.depthChart.TE.slice(2)];
+    expect(week(l, team)).toEqual([]);
+    // The second tight end dropped behind a third: that is a benching.
+    const te3 = team.depthChart.TE[2];
+    if (te3 !== undefined) {
+      team.depthChart.TE = [te2, te3, te1, ...team.depthChart.TE.slice(3)];
+      expect(week(l, team).map((s) => s.holder.id)).toEqual([te1]);
+    }
   });
 
   it('is a healthy holder left off the lineup, and a bye counts nothing', () => {
@@ -1355,7 +1392,8 @@ describe('fix round 1', () => {
       Object.fromEntries(
         (Object.keys(team.depthChart) as (keyof typeof team.depthChart)[]).map((pos) => [
           pos,
-          team.depthChart[pos].slice(0, STARTERS[pos]),
+          // The starting spots are the ones this team's schemes name (two receivers in 12 personnel).
+          team.depthChart[pos].slice(0, spotsFor(teamScheme(l, team.id), pos).length),
         ]),
       );
     // A better receiver than any of ours comes off another club's roster; our last receiver is the man we cut for him.

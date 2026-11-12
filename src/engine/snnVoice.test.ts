@@ -36,6 +36,8 @@ beforeAll(() => {
         body: storiesOf(e)
           .flatMap((s) => [...s.paragraphs, ...(s.quote ? [s.quote.text] : [])])
           .join(' '),
+        // What it told, as the filed mail keeps it: a storyline printed this week is not next week's news again.
+        covered: storiesOf(e).flatMap((s) => [s.key, ...(s.covers ?? [])]),
         read: false,
         actions: [],
       },

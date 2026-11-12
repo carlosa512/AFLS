@@ -9,7 +9,7 @@ import { createLeague } from './generate';
 import { playWeek } from './league';
 import { divisionLeadChange } from './news';
 import { computeRecords, divisionStandings } from './season/standings';
-import { newsCandidates, rankCandidates, storylineCandidates, type Candidate } from './snnWeek';
+import { newsCandidates, rankCandidates, STORY_FRESH, storylineCandidates, type Candidate } from './snnWeek';
 import { beat, closeStory, COACH, markTold, SNN_OUTLET, untold } from './stories';
 import { joined, layoffSpan, writeStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
@@ -337,6 +337,19 @@ describe('your club’s public storylines', () => {
     wipe();
     beat(l, on(mine('WR').id), 'sat', clock(), { pub: true });
     expect(told()[0].tier).toBe(4);
+  });
+
+  it('tells only fresh news: a benching from weeks ago that no edition printed is not told late', () => {
+    wipe();
+    l.moraleAt = clock();
+    const [qb, other] = [mine('QB'), mine('QB', 1)];
+    // Last week's is still news. One from a month ago, or from last season, is not.
+    beat(l, on(qb.id), 'sat', clock() - (STORY_FRESH - 1), { pub: true, other: other.id });
+    expect(told().map((c) => c.angle)).toEqual(['sat']);
+    wipe();
+    beat(l, on(qb.id), 'sat', clock() - STORY_FRESH, { pub: true, other: other.id });
+    beat(l, on(mine('WR').id), 'sat', clock() - 30, { pub: true });
+    expect(told()).toEqual([]);
   });
 
   it('tells nothing private, and nothing to a reader between jobs', () => {

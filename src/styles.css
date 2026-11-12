@@ -5336,6 +5336,48 @@ button.tip-pill {
   margin: 0;
   padding: 0;
 }
+/* The locker room report: a short list a block, no table. */
+.report-block {
+  margin: 14px 0 0;
+}
+.report-title {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+}
+.report-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.report-row {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.report-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.report-note {
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+.report-head > .report-note {
+  margin: 0;
+}
 .mail-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

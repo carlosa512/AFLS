@@ -3287,6 +3287,7 @@ function SectionCard({
     return <PeopleSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
   if (section.layout === 'letter')
     return <LetterSection league={league} section={section} onNegotiate={onNegotiate} older={older} />;
+  if (section.layout === 'report') return <ReportSection league={league} section={section} />;
   const cols = section.columns ?? [];
   const rows =
     sort.key === 'none'
@@ -3528,6 +3529,73 @@ function PeopleSection({
  * labelled ("What I told them", "Where that leaves us"), since a row's kind is for the editor, not the reader. Players
  * still waiting on an answer are a short list under one sentence. No boxes: what needs you is marked by its answer line.
  */
+/** A read in the locker room report, as a pill: trouble reads as trouble at a glance. */
+const REPORT_TONE: Record<string, string> = {
+  Abysmal: 'tag-bad',
+  'Very poor': 'tag-bad',
+  Poor: 'tag-warn',
+  Divided: 'tag-warn',
+  Doubts: 'tag-warn',
+  'Lost them': 'tag-bad',
+  'Out of sync': 'tag-warn',
+  'Promise broken': 'tag-bad',
+  Good: 'tag-good',
+  'Very good': 'tag-good',
+  Superb: 'tag-good',
+  Clicking: 'tag-good',
+  'Believe in him': 'tag-good',
+  'Promise kept': 'tag-good',
+};
+
+/**
+ * A block of the locker room report: a short list with no table. A row is a room and its read, one player with his
+ * face, or several players in one sentence with each name a link. The read sits on the right as a pill.
+ */
+function ReportSection({ league, section }: { league: League; section: MailSection }) {
+  return (
+    <section className="report-block">
+      <h4 className="report-title">{section.title}</h4>
+      {section.lead && <p className="report-note">{section.lead}</p>}
+      <ul className="report-rows">
+        {section.rows.map((r, j) => {
+          const p = r.playerId === undefined ? undefined : league.players[r.playerId];
+          const group = !p && !!r.cast?.length;
+          const side = r.cells.length > 1 ? r.cells.at(-1)! : '';
+          const facts = r.cells.slice(1, -1).join(' · ');
+          const about = (r.cast ?? []).map((id) => ({ kind: 'player' as const, id }));
+          const pill = side && <span className={`tag-pill ${REPORT_TONE[side] ?? ''}`}>{side}</span>;
+          return (
+            <li key={j} className="report-row">
+              {group ? (
+                <div className="report-head">
+                  <p className="report-note">
+                    <LinkedText league={league} text={r.note ?? ''} about={about} />
+                  </p>
+                  {pill}
+                </div>
+              ) : (
+                <>
+                  <div className="report-head">
+                    <span className="report-who">
+                      {p && <Face league={league} player={p} size={28} />}
+                      <span>
+                        {p ? <PlayerLink league={league} player={p} pos /> : <strong>{r.cells[0]}</strong>}
+                        {facts && <span className="small muted"> {facts}</span>}
+                      </span>
+                    </span>
+                    {pill}
+                  </div>
+                  {r.note && <p className="report-note">{r.note}</p>}
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function LetterSection({
   league,
   section,

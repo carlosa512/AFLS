@@ -418,7 +418,8 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   unbeatenFalls: [
     line((s) => `${C(s.L)} lost for the first time this season, ${s.final} to ${C(s.W)}.`),
     line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended their unbeaten start at ${w(s.lBefore.w)} games.`),
-    line((s) => `${C(s.L)} had won all ${w(s.lBefore.w)} of their games. ${C(s.W)} beat them ${s.final}.`),
+    // One sentence: its first half alone is true of every week of the run, and would be said twice.
+    line((s) => `${C(s.L)} had won all ${w(s.lBefore.w)} of their games before ${C(s.W)} beat them ${s.final}.`),
   ],
   winlessWins: [
     line((s) => `${C(s.W)} won for the first time this season, ${s.final} over ${C(s.L)}.`),
@@ -441,7 +442,7 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
       1,
     ),
     line(
-      (s) => `${C(s.L)} had won ${w(streakLen(s))} in a row. ${C(s.W)} beat them ${s.final}.`,
+      (s) => `${C(s.L)} had won ${w(streakLen(s))} in a row before ${C(s.W)} beat them ${s.final}.`,
       (s) => s.f.streak!.length > 0,
       1,
     ),

@@ -1741,15 +1741,18 @@ export interface MailSection {
   columns?: string[];
   /**
    * 'people': a row a person, with his face (the weekly letter as it was filed before v95). 'letter': the head coach
-   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you.
+   * writes it as a letter, each matter a paragraph, with answers on one line under what needs you. 'report': the
+   * locker room report, a short list a block with no table (a room and its read, a player, or several in one line).
    */
-  layout?: 'people' | 'letter';
+  layout?: 'people' | 'letter' | 'report';
   rows: {
     playerId?: number;
     /** In column order, plain text; the first is the player's name when there is one. */
     cells: string[];
     /** A sentence under the row. */
     note?: string;
+    /** The players a row's sentence names when it speaks for several at once (the locker room report's groups). */
+    cast?: number[];
     /** The coach's words leading into the man's own, after his name: "came to see me about his contract." */
     lead?: string;
     /** A man still waiting on an answer: his name and his answers, under the section's one sentence. */

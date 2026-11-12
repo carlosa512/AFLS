@@ -564,6 +564,11 @@ function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
 const TELLS: BeatKind[] = ['sat', 'backIn', 'settled', 'left', 'leaked', 'disputeEnd'];
 const ENDINGS = ['traded', 'withdrawn', 'promise', 'signed', 'released'];
 const SETTLED = ['earned', 'chart', 'earnedBack', 'chartBack'];
+/**
+ * How many steps a public beat stays news: this week's and last week's. An edition reports what just happened: a
+ * benching from weeks or a season ago that no edition had room for is not told late as if it were today's.
+ */
+export const STORY_FRESH = 2;
 
 /**
  * The reader's club's public storylines as candidates (spec 2 §2): a man left off the lineup, a trade request that
@@ -583,6 +588,11 @@ export function storylineCandidates(l: League, week: number, have: Set<string>):
     const b = fresh.at(-1);
     const p = s.playerId === undefined ? undefined : l.players[s.playerId];
     if (!b || !p) continue;
+    // How a job question ended is told once a story: a second ending the same way would be the same sentence again.
+    const ended = (k: string) => k.startsWith(`storyline:${s.id}:`) && k.endsWith(':settled');
+    if (b.kind === 'settled' && [...have].some(ended)) continue;
+    // Old news is not news: only a beat of the last two steps is told.
+    if (b.at <= (l.moraleAt ?? 0) - STORY_FRESH) continue;
     // An ending nobody outside could read (an injury settling it, a holdout drifting back) is not a story.
     if (b.kind === 'settled' && !SETTLED.includes(b.how ?? '')) continue;
     if (b.kind === 'disputeEnd' && !ENDINGS.includes(b.how ?? '')) continue;

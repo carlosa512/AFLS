@@ -31,7 +31,8 @@ import { beat, closeStory, COACH, markTold, openStory } from './stories';
 import { LETTER_GAP, PER_CLUB, talkOf, yourClub } from './talkBasics';
 import { say } from './voice';
 import { temperamentOf, TRAIT_MEAN } from './traits';
-import { STARTERS } from './positions';
+import { teamScheme } from './coaching';
+import { spotsFor } from './schemes';
 import type { Game, JobQuestion, League, Player, Position, Story, TalkReply, Team } from './types';
 
 /** Tests turn it off to prove play is untouched. */
@@ -72,11 +73,24 @@ export function couldPlay(league: League, p: Player): boolean {
 
 export const holdsJob = (team: Team, playerId: number): boolean => !!team.jobs?.held[playerId];
 
+/**
+ * How many men start at a position: the spots the team's schemes name there (LT to RT, MLB and WLB, two tight ends in
+ * 12 personnel), as the depth chart shows them. Which of those spots a man is in never matters: a starter moved from
+ * one spot to another at his position has started.
+ */
+function startCounts(league: League, team: Team): Record<Position, number> {
+  const scheme = teamScheme(league, team.id);
+  const out = {} as Record<Position, number>;
+  for (const pos of Object.keys(team.depthChart) as Position[]) out[pos] = spotsFor(scheme, pos).length;
+  return out;
+}
+
 /** The men in a club's starting spots, with the position each is charted at (a man lined up elsewhere counts there). */
 function startingSpots(league: League, team: Team): { id: number; pos: Position }[] {
   const out: { id: number; pos: Position }[] = [];
+  const n = startCounts(league, team);
   for (const pos of Object.keys(team.depthChart) as Position[]) {
-    for (const id of team.depthChart[pos].slice(0, STARTERS[pos])) {
+    for (const id of team.depthChart[pos].slice(0, n[pos])) {
       const p = league.players[id];
       if (p && p.teamId === team.id && !p.retired) out.push({ id, pos });
     }
@@ -118,9 +132,10 @@ export function benchKickoff(league: League, game?: Game): void {
     if (!team.jobs) setTeamJobs(league, team);
     const ids: number[] = [];
     const at: Record<number, Position> = {};
+    const n = startCounts(league, team);
     for (const pos of Object.keys(team.depthChart) as Position[]) {
       // `starters` skips the hurt and files a man where he lines up, `playingAt` included.
-      for (const p of startersAt(league, team, pos)) {
+      for (const p of startersAt(league, team, pos, n[pos])) {
         ids.push(p.id);
         at[p.id] = pos;
       }
@@ -151,12 +166,12 @@ export function benchKickoff(league: League, game?: Game): void {
 }
 
 /** The men `starters` would send out at a position (a short room is filled from the chart's next men). */
-function startersAt(league: League, team: Team, pos: Position): Player[] {
+function startersAt(league: League, team: Team, pos: Position, n: number): Player[] {
   const out: Player[] = [];
   for (const id of team.depthChart[pos]) {
+    if (out.length >= n) break;
     const p = league.players[id];
     if (p && p.teamId === team.id && couldPlay(league, p)) out.push(p);
-    if (out.length === STARTERS[pos]) break;
   }
   return out;
 }
@@ -215,7 +230,7 @@ export function countStarts(league: League, team: Team, clock: number): { holder
     const holders = Object.keys(held)
       .map(Number)
       .filter((h) => held[h].pos === pos);
-    if (holders.length > STARTERS[pos]) {
+    if (holders.length > startCounts(league, team)[pos]) {
       const gone = holders
         .filter((h) => h !== id && !started.has(h) && !out.has(h))
         .sort((a, b) => held[a].since - held[b].since)[0];
@@ -685,8 +700,9 @@ export function confirmLineup(league: League): void {
 /** The men who would start this week: the chart's starting spots, skipping anyone who could not play. */
 function startingIds(league: League, team: Team): Set<number> {
   const starting = new Set<number>();
+  const n = startCounts(league, team);
   for (const pos of Object.keys(team.depthChart) as Position[])
-    for (const p of startersAt(league, team, pos)) starting.add(p.id);
+    for (const p of startersAt(league, team, pos, n[pos])) starting.add(p.id);
   return starting;
 }
 
@@ -758,7 +774,8 @@ export function putBack(league: League, playerId: number): void {
   const mine = rank.get(p.id) ?? Infinity;
   const list = team.depthChart[p.position].filter((id) => id !== p.id);
   const at = list.findIndex((id) => rank.has(id) && rank.get(id)! > mine);
-  placeAt(league, p.id, p.position, Math.min(at < 0 ? list.length : at, STARTERS[p.position] - 1));
+  const spots = startCounts(league, league.teams[p.teamId!])[p.position];
+  placeAt(league, p.id, p.position, Math.min(at < 0 ? list.length : at, Math.max(0, spots - 1)));
 }
 
 /** The reminder's "Leave it": he is not told about again until he has been out again. */
