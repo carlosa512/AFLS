@@ -353,6 +353,8 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const slot = (s: string) => `${c.key}:${s}`;
   const last = lastRecord(l, club);
   const out = c.text ?? '';
+  // Named once here: a wording that is not chosen must not use up the first mention.
+  const the = ref.club(club);
   const record = last ? `${cap(ref.city(club))} went ${rec(last)} last season.` : '';
   if (c.angle === 'coach') {
     const coach = l.coaches[c.coachId!];
@@ -371,8 +373,8 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         .join(' '),
       first: [
         pick(l, at, slot('lede'), [
-          `${name} is the new head coach of ${ref.club(club)}.`,
-          `${cap(ref.club(club))} have hired ${name} as head coach.`,
+          `${name} is the new head coach of ${the}.`,
+          `${cap(the)} have hired ${name} as head coach.`,
         ]),
         from,
       ],
@@ -392,8 +394,8 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       .join(' '),
     first: [
       pick(l, at, slot('lede'), [
-        `${name} is the new general manager of ${ref.club(club)}.`,
-        `${cap(ref.club(club))} have named ${name} their general manager.`,
+        `${name} is the new general manager of ${the}.`,
+        `${cap(the)} have named ${name} their general manager.`,
       ]),
       out ? `${gm.lastName} replaces ${out}.` : '',
     ],
@@ -488,6 +490,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
 
   if (c.angle === 'market') {
     const man = ref.man(p.id);
+    const old = ref.club(club);
     return assemble(c, ref, {
       ...base,
       kicker: 'On the market',
@@ -495,8 +498,8 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       summary: `The ${Club} let his contract run out. Any team can sign him.`,
       first: [
         pick(l, at, slot('lede'), [
-          `${cap(posWord(p))} ${man} is a free agent after ${ref.club(club)} let his contract run out.`,
-          `${cap(posWord(p))} ${man} has reached free agency, and ${ref.club(club)} did not re-sign or tag him.`,
+          `${cap(posWord(p))} ${man} is a free agent after ${old} let his contract run out.`,
+          `${cap(posWord(p))} ${man} has reached free agency, and ${old} did not re-sign or tag him.`,
         ]),
         why,
       ],
@@ -551,13 +554,14 @@ function yourYear(l: League, at: Wording): EditionStory | null {
         p.teamId === null && !p.retired && p.statTeams?.[l.season - 1]?.at(-1) === u && !l.draftClass.includes(p.id),
     ),
   ).filter((p) => record.standing(p) !== 'depth');
-  const top = tagged[0] ?? kept[0] ?? walked[0];
+  // The biggest name of the three groups leads, whichever group he is in.
+  const top = best([tagged[0], kept[0], walked[0]].filter((p): p is Player => !!p))[0];
   if (!top) return null;
   const ref = referrer(l, { playerIds: [...tagged, ...kept, ...walked].map((p) => p.id) });
   const Club = l.teams[u].name;
   const key = `year:${l.season}:yours`;
   const the = cap(ref.club(u));
-  const did = tagged[0] ? 'used the franchise tag on' : kept[0] ? 're-signed' : 'let';
+  const did = top === tagged[0] ? 'used the franchise tag on' : top === kept[0] ? 're-signed' : 'let';
   const lede =
     did === 'let'
       ? `${the} let ${posWord(top)} ${ref.man(top.id)} reach free agency.`
@@ -568,6 +572,9 @@ function yourYear(l: League, at: Wording): EditionStory | null {
       : '',
     walked.length && did !== 'let'
       ? `${cap(count(walked.length))} of last season's starters ${walked.length === 1 ? 'is' : 'are'} on the market, ${posWord(walked[0])} ${ref.man(walked[0].id)} among them.`
+      : '',
+    tagged.length && did !== 'used the franchise tag on'
+      ? `${cap(posWord(tagged[0]))} ${ref.man(tagged[0].id)} was given the franchise tag.`
       : '',
   ].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {

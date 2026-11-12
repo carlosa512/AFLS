@@ -1857,7 +1857,7 @@ describe('GM notes on the front-office mail', () => {
     expect(m.gmNotes!.map((n) => n.gmId)).toEqual(gms.slice(0, 3).map((g) => g.id));
     for (const [i, n] of m.gmNotes!.entries()) {
       expect(n.line).toBe(reputation(l, gms[i]));
-      expect(n.line).toMatch(/^(He|She|They)('s| is)|^Hard to pin down\.$/);
+      expect(n.line).toMatch(/^(He|She|They) |^Hard to pin down\.$/);
     }
     expect(m.carousel![0].line).toContain(`new GM, ${reputation(l, gms[0], 'fragment')}`);
   });

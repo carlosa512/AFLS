@@ -31,7 +31,7 @@ describe('gmVoice', () => {
     team.gm = { ...team.gm, archetype: 'Hard-Liner', stubbornness: 0.9, winNow: 0.5, loyalty: 0.5, capAggression: 0.5 };
     const s = reputation(l, gm);
     expect(s).toMatch(/hard bargain|an inch/);
-    expect(s.startsWith("He's ")).toBe(true);
+    expect(s.startsWith('He ')).toBe(true);
     expect(s.endsWith('.')).toBe(true);
     team.gm = { ...team.gm, archetype: 'Balanced', stubbornness: 0.5, winNow: 0.5, loyalty: 0.5, capAggression: 0.5 };
     expect(reputation(l, gm)).toBe('Hard to pin down.');
@@ -39,7 +39,7 @@ describe('gmVoice', () => {
     team.gm = { ...team.gm, archetype: 'Balanced', stubbornness: 0.95, winNow: 0.5, loyalty: 0.5, capAggression: 0.5 };
     expect(reputation(l, gm, 'fragment')).not.toContain(';');
     team.gm = { ...team.gm, stubbornness: 0.95, winNow: 0.05, loyalty: 0.5, capAggression: 0.5 };
-    expect(reputation(l, gm)).toMatch(/^He's .+, and .+\.$/);
+    expect(reputation(l, gm)).toMatch(/^He .+, and .+\.$/);
     expect(reputation(l, gm, 'fragment')).toContain('; ');
   });
 
@@ -182,7 +182,7 @@ describe('gmVoice', () => {
     team.gm = { ...team.gm, archetype: 'Balanced', ...dial };
     const none = /\b(he|his|him)\b/i;
     const rep = reputation(l, gm);
-    expect(rep).toMatch(/^She's /);
+    expect(rep).toMatch(/^She /);
     expect(rep).not.toMatch(none);
     expect(reputation(l, gm, 'fragment')).not.toMatch(none);
     const seasons = [l.season, l.season - 1, l.season - 12];

@@ -123,7 +123,9 @@ export function reputation(league: League, gm: GeneralManager, form: 'sentence' 
     });
   if (!said.length) return form === 'sentence' ? 'Hard to pin down.' : 'hard to pin down';
   if (form === 'fragment') return said.join('; ');
-  return said.length === 1 ? `${p.He}'s ${said[0]}.` : `${p.He}'s ${said[0]}, and ${said[1]}.`;
+  // Some phrases are what a GM is ("always on the phone") and some what he does ("drives a hard bargain").
+  const clause = (s: string) => (/^(always|hard to|easy to)\b/.test(s) ? `is ${s}` : s);
+  return said.length === 1 ? `${p.He} ${clause(said[0])}.` : `${p.He} ${clause(said[0])}, and ${clause(said[1])}.`;
 }
 
 // ---- what the league has noticed ----
