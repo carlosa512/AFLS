@@ -33,7 +33,10 @@ const scores = (league: League) =>
     .map((g) => `${g.week}:${g.homeId}-${g.awayId}:${g.result!.homeScore}-${g.result!.awayScore}`)
     .sort();
 
-beforeAll(() => {
+/** A breath for the runner between steps: a worker that plays seasons without one cannot report in, and the run fails on the timeout. */
+const tick = () => new Promise((done) => setTimeout(done, 0));
+
+beforeAll(async () => {
   l = createLeague({ seed: SEED });
   quiet = createLeague({ seed: SEED });
   deliverMail(l);
@@ -41,8 +44,12 @@ beforeAll(() => {
   for (let step = 0; step < 30 && (l.phase === 'regular' || l.phase === 'playoffs'); step++) {
     playWeek(l);
     deliverMail(l);
+    await tick();
   }
-  for (let step = 0; step < 30 && (quiet.phase === 'regular' || quiet.phase === 'playoffs'); step++) playWeek(quiet);
+  for (let step = 0; step < 30 && (quiet.phase === 'regular' || quiet.phase === 'playoffs'); step++) {
+    playWeek(quiet);
+    await tick();
+  }
 }, 900_000);
 
 describe('a season of editions', () => {

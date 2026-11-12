@@ -43,15 +43,22 @@ const rosters = (league: League) =>
   );
 const snnCount = (league: League) => (league.inbox ?? []).filter((m) => m.id.startsWith('snn:')).length;
 
-beforeAll(() => {
+/** A breath for the runner between steps: a worker that plays seasons without one cannot report in, and the run fails on the timeout. */
+const tick = () => new Promise((done) => setTimeout(done, 0));
+
+beforeAll(async () => {
   l = createLeague({ seed: SEED });
   quiet = createLeague({ seed: SEED });
   deliverMail(l);
   for (let step = 0; step < 30 && (l.phase === 'regular' || l.phase === 'playoffs'); step++) {
     playWeek(l);
     deliverMail(l);
+    await tick();
   }
-  for (let step = 0; step < 30 && (quiet.phase === 'regular' || quiet.phase === 'playoffs'); step++) playWeek(quiet);
+  for (let step = 0; step < 30 && (quiet.phase === 'regular' || quiet.phase === 'playoffs'); step++) {
+    playWeek(quiet);
+    await tick();
+  }
   // The same league at the season's end, to sim its offseason in one go.
   simmed = JSON.parse(JSON.stringify(l));
   const step = (go: () => void) => {
@@ -62,11 +69,15 @@ beforeAll(() => {
   };
   step(() => beginOffseason(l));
   beginOffseason(quiet);
+  await tick();
   for (let n = 0; n < 20 && (l.phase as string) !== 'regular'; n++) {
     step(() => advanceOffseason(l, { autoUser: true }));
+    await tick();
     advanceOffseason(quiet, { autoUser: true });
+    await tick();
   }
   beginOffseason(simmed);
+  await tick();
   simOffseason(simmed);
   deliverMail(simmed);
 }, 900_000);
