@@ -8,6 +8,9 @@
  */
 import { coachName } from './coaching';
 import { gamesInWeek } from './league';
+import { activeRoster } from './roster';
+import { kickoffLabel } from './season/kickoff';
+import { statLine } from './stats';
 import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
 import { cap, possessive, referrer, type Referrer } from './refer';
@@ -655,9 +658,185 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   });
 }
 
+/** A cut-down day story: a player released as rosters went to 53, or the rookies nobody drafted who made one. */
+function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
+  const p = l.players[c.playerId!];
+  const club = c.clubId;
+  const ref = referrer(l, { playerIds: [p.id] });
+  const Club = l.teams[club].name;
+  const slot = (s: string) => `${c.key}:${s}`;
+  const the = cap(ref.club(club));
+  const man = ref.man(p.id);
+  const base = { picture: { playerId: p.id }, links: links(p, club) };
+  if (c.angle === 'undrafted') {
+    const n = c.n ?? 1;
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'Made the 53',
+      headline: n === 1 ? `One undrafted rookie makes a roster` : `${cap(count(n))} undrafted rookies make a roster`,
+      summary: `${cap(posWord(p))} ${full(p)} of the ${Club} is one of them.`,
+      first: [
+        n === 1
+          ? `One rookie nobody drafted made a roster as teams cut to 53 players.`
+          : `${cap(count(n))} rookies nobody drafted made a roster as teams cut to 53 players.`,
+        `${cap(posWord(p))} ${man} is one of them, with ${ref.club(club)}.`,
+      ],
+      second: [openerLine(l, ref, club)],
+      numbers: [{ value: String(n), label: 'Undrafted rookies on a 53' }],
+    });
+  }
+  const line = statLine(p, l.season - 1);
+  const fact =
+    c.angle === 'cutStar'
+      ? whyLine(p.lastName, publicRecord(l).why(p))
+      : c.angle === 'cutPick' && p.draft
+        ? `${p.lastName} was a ${ORDINAL[p.draft.round]}-round pick in ${p.draft.season}.`
+        : line?.gp
+          ? `${p.lastName} played in ${line.gp} games last season.`
+          : '';
+  return assemble(c, ref, {
+    ...base,
+    kicker: 'Released',
+    headline: head(`${Club} release ${tag(p)}`, `${Club} release ${p.lastName}`),
+    summary: [fact, `He is a free agent.`].filter(Boolean).join(' '),
+    first: [
+      pick(l, at, slot('lede'), [
+        `${the} released ${posWord(p)} ${man} as they cut to 53 players.`,
+        `${the} let ${posWord(p)} ${man} go on cut-down day.`,
+      ]),
+      fact,
+    ],
+    second: [
+      pick(l, at, slot('means'), [
+        `He is a free agent and can sign with any team.`,
+        `Any team can sign him now.`,
+        `He is free to sign with another team.`,
+      ]),
+      `${p.lastName} is ${p.age}.`,
+    ],
+    numbers: [
+      { value: String(p.age), label: 'Age' },
+      ...(line?.gp ? [{ value: String(line.gp), label: 'Games last season' }] : []),
+    ],
+  });
+}
+
+/** Where a team opens: "at home against the Hammers", and when the game kicks off. */
+function openerFacts(l: League, teamId: number): { where: string; opp: number; when: string } | null {
+  const g = gamesInWeek(l, 1).find((x) => x.season === l.season && (x.homeId === teamId || x.awayId === teamId));
+  if (!g) return null;
+  const home = g.homeId === teamId;
+  const opp = home ? g.awayId : g.homeId;
+  return {
+    where: `${home ? 'at home against' : 'on the road against'} the ${l.teams[opp].name}`,
+    opp,
+    when: g.kickoff ? kickoffLabel(g.kickoff) : '',
+  };
+}
+const wentLine = (l: League, name: string, teamId: number) => {
+  const r = lastRecord(l, teamId);
+  return r ? `${name} went ${rec(r)} last season.` : '';
+};
+
+/** A Kickoff story: who opens against whom, and what is new about the team going in. No prediction. */
+function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
+  const club = c.clubId;
+  const p = c.playerId === undefined ? undefined : l.players[c.playerId];
+  const ref = referrer(l, { playerIds: p ? [p.id] : [] });
+  const Club = l.teams[club].name;
+  const slot = (s: string) => `${c.key}:${s}`;
+  const game = openerFacts(l, club)!;
+  const Opp = l.teams[game.opp].name;
+  const the = cap(ref.club(club));
+  const last = lastRecord(l, club);
+  const close = [wentLine(l, cap(ref.city(club)), club), wentLine(l, `The ${Opp}`, game.opp)].filter(Boolean);
+  const numbers: EditionStory['numbers'] = last ? [{ value: rec(last), label: 'Last season' }] : [];
+  const picture = p ? { playerId: p.id } : { teamIds: [club, game.opp] };
+  const links: InboxAction[] = [
+    { kind: 'team', teamId: club },
+    { kind: 'team', teamId: game.opp },
+  ];
+
+  if (c.angle === 'champion')
+    return assemble(c, ref, {
+      kicker: 'Kickoff',
+      headline: head(`${Club} open their title defense against the ${Opp}`, `${Club} open their title defense`),
+      summary: `The champions open ${game.where}.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${the} open the defense of their title ${game.where}.`,
+          `${the}, last season's champions, open ${game.where}.`,
+        ]),
+        game.when ? `The game kicks off ${game.when}.` : '',
+      ],
+      second: close.length ? close : [`${the} are the champions.`],
+      numbers,
+      picture,
+      links,
+    });
+
+  if (c.angle === 'newCoach') {
+    const coach = l.coaches[c.coachId!];
+    const name = coachName(coach);
+    return assemble(c, ref, {
+      kicker: 'New in charge',
+      headline: head(
+        `${name} coaches his first game for the ${Club}`,
+        `${coach.lastName} coaches his first ${Club} game`,
+      ),
+      summary: `The ${Club} open ${game.where}.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${name} coaches ${ref.club(club)} for the first time ${game.where}.`,
+          `${the} open ${game.where}, the first game for head coach ${name}.`,
+        ]),
+        game.when ? `The game kicks off ${game.when}.` : '',
+      ],
+      second: close.length ? close : [`${the} open ${game.where}.`],
+      numbers,
+      picture: { coachId: coach.id, teamIds: [club] },
+      links,
+    });
+  }
+
+  // A new quarterback, a rookie or not.
+  const qb = p!;
+  const man = ref.man(qb.id);
+  const rookie = c.angle === 'rookieQb';
+  const old = !rookie && c.n !== undefined ? l.players[c.n] : undefined;
+  return assemble(c, ref, {
+    kicker: rookie ? 'A rookie starts' : 'A new quarterback',
+    headline: rookie
+      ? head(`Rookie ${full(qb)} starts at quarterback for the ${Club}`, `Rookie ${qb.lastName} starts for the ${Club}`)
+      : head(`${Club} start ${full(qb)} at quarterback`, `${Club} start ${qb.lastName} at quarterback`),
+    summary: `The ${Club} open ${game.where}.`,
+    first: [
+      pick(l, at, slot('lede'), [
+        rookie
+          ? `${the} have named rookie ${man} their starting quarterback.`
+          : `${the} open the season with ${man} at quarterback.`,
+        rookie
+          ? `Rookie ${man} starts at quarterback for ${ref.club(club)}.`
+          : `${man} is the new starting quarterback of ${ref.club(club)}.`,
+      ]),
+      rookie && qb.draft
+        ? `He was the No. ${qb.draft.pick} pick in the draft.`
+        : old
+          ? `${full(old)} threw most of the team's passes last season.`
+          : '',
+    ],
+    second: [`${cap(ref.city(club))} open ${game.where}.`, ...close.slice(0, 1)],
+    numbers,
+    picture,
+    links: [{ kind: 'player', playerId: qb.id }, ...links.slice(0, 1)],
+  });
+}
+
 /** One story of a big day, from its candidate. */
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
+  if (c.day === 'cuts') return cutsStory(l, c, at);
+  if (c.day === 'kickoff') return kickoffStory(l, c, at);
   if (c.day === 'year') return yearStory(l, c, at);
   if (c.day === 'market') return marketStory(l, c, at);
   return draftStory(l, c, at);
@@ -838,6 +1017,80 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
   });
 }
 
+/** The reader's team on cut-down day: its most notable release and the rookies who made the roster. */
+function yourCuts(l: League, at: Wording): EditionStory | null {
+  const u = l.userTeamId;
+  const record = publicRecord(l);
+  const cut = l.transactions
+    .filter((t) => t.season === l.season && t.phase === 'preseason' && t.kind === 'release' && t.teamIds[0] === u)
+    .flatMap((t) => (t.playerId !== undefined && l.players[t.playerId] ? [l.players[t.playerId]] : []))
+    .sort((a, b) => record.worth(b) - record.worth(a) || a.id - b.id);
+  const top = cut[0];
+  if (!top) return null;
+  const rookies = activeRoster(l, u).filter((p) => p.experience === 0);
+  const ref = referrer(l, { playerIds: [top.id] });
+  const Club = l.teams[u].name;
+  const key = `cuts:${l.season}:yours`;
+  const the = cap(ref.club(u));
+  const gp = statLine(top, l.season - 1)?.gp ?? 0;
+  return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
+    kicker: 'Your team',
+    yours: true,
+    headline: head(`${Club} release ${tag(top)}`, `${Club} release ${top.lastName}`),
+    summary: [
+      `${cap(count(cut.length))} released.`,
+      rookies.length ? `${cap(count(rookies.length))} rookie${rookies.length === 1 ? '' : 's'} on the 53.` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+    first: [
+      pick(l, at, `${key}:lede`, [`${the} released ${posWord(top)} ${ref.man(top.id)} as they cut to 53 players.`]),
+      gp ? `${top.lastName} played in ${gp} games last season.` : '',
+    ],
+    second: [
+      rookies.length ? `${cap(count(rookies.length))} rookie${rookies.length === 1 ? '' : 's'} made the roster.` : '',
+      openerLine(l, ref, u),
+    ],
+    numbers: [
+      { value: String(cut.length), label: 'Released' },
+      ...(rookies.length ? [{ value: String(rookies.length), label: 'Rookies on the 53' }] : []),
+    ],
+    picture: { playerId: top.id },
+    links: [{ kind: 'team', teamId: u }],
+  });
+}
+
+/** The reader's team at Kickoff: who it opens against, and both teams' records last season. */
+function yourKickoff(l: League, at: Wording): EditionStory | null {
+  const u = l.userTeamId;
+  const game = openerFacts(l, u);
+  if (!game) return null;
+  const ref = referrer(l, { playerIds: [] });
+  const Club = l.teams[u].name;
+  const Opp = l.teams[game.opp].name;
+  const key = `kick:${l.season}:yours`;
+  const the = cap(ref.club(u));
+  const last = lastRecord(l, u);
+  const close = [wentLine(l, cap(ref.city(u)), u), wentLine(l, `The ${Opp}`, game.opp)].filter(Boolean);
+  return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
+    kicker: 'Your team',
+    yours: true,
+    headline: head(`${Club} open ${game.where}`, `${Club} open against the ${Opp}`),
+    summary: game.when ? `The game kicks off ${game.when}.` : `The ${Club} open ${game.where}.`,
+    first: [
+      pick(l, at, `${key}:lede`, [`${the} open the season ${game.where}.`]),
+      game.when ? `The game kicks off ${game.when}.` : '',
+    ],
+    second: close.length ? close : [`${the} open ${game.where}.`],
+    numbers: last ? [{ value: rec(last), label: 'Last season' }] : [],
+    picture: { teamIds: [u, game.opp] },
+    links: [
+      { kind: 'team', teamId: u },
+      { kind: 'team', teamId: game.opp },
+    ],
+  });
+}
+
 /** The reader's club on a big day, in public terms; nothing when it did nothing that day. */
 export function yourDayStory(l: League, day: Day, at: Wording): EditionStory | null {
   return day === 'draft'
@@ -846,5 +1099,7 @@ export function yourDayStory(l: League, day: Day, at: Wording): EditionStory | n
       ? yourYear(l, at)
       : day === 'market'
         ? yourMarket(l, at)
-        : null;
+        : day === 'cuts'
+          ? yourCuts(l, at)
+          : yourKickoff(l, at);
 }

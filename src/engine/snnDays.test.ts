@@ -448,3 +448,149 @@ describe('Free agency', () => {
     expect(dayCandidates(l, 'market', told).some((c) => c.playerId === star.id && c.angle === 'moved')).toBe(false);
   });
 });
+
+describe('Cut-down day and Kickoff', () => {
+  let l: League;
+  let cutStar: Player;
+  let cutVet: Player;
+  let cutPick: Player;
+  let champion: number;
+  let coachClub: number;
+  let qbClub: number;
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+  const stories = (e: { lead: EditionStory; club?: EditionStory; tiles: EditionStory[] }) => [
+    e.lead,
+    ...(e.club ? [e.club] : []),
+    ...e.tiles,
+  ];
+  const release = (p: Player, withPlayer = true) => {
+    const from = p.teamId!;
+    p.statTeams = { ...(p.statTeams ?? {}), [l.season - 1]: [from] };
+    p.contract = null;
+    setTeam(l, p, null);
+    l.transactions.push({
+      season: l.season,
+      phase: 'preseason',
+      week: 0,
+      teamIds: [from],
+      kind: 'release',
+      text: 'released',
+      ...(withPlayer ? { playerId: p.id } : {}),
+    });
+    return from;
+  };
+  beforeEach(() => {
+    l = createLeague({ seed: 'kickoff-day' });
+    const last = l.season - 1;
+    const u = l.userTeamId;
+    const others = l.teams.map((t) => t.id).filter((id) => id !== u);
+    for (const p of Object.values(l.players)) p.stats = {};
+    const any = (teamId: number, n = 0) => activeRoster(l, teamId).filter((p) => p.position !== 'QB')[n];
+    [cutStar, cutVet, cutPick] = [any(others[0]), any(others[1]), any(others[2])];
+    l.awards = [
+      { season: last, winners: { mvp: { playerId: cutStar.id, teamId: cutStar.teamId } }, allLeague: [[], []] },
+    ];
+    cutVet.stats[last] = { gp: 16, snaps: DAY.cutSnaps + 10 };
+    cutPick.draft = { season: l.season - 1, round: 1, pick: 12, teamId: cutPick.teamId! };
+    release(cutStar);
+    release(cutVet);
+    release(cutPick);
+    // Last season: a champion, and one team whose head coach is new.
+    champion = others[5];
+    coachClub = others[6];
+    qbClub = others[7];
+    const hc = (teamId: number) => teamCoaches(l, teamId).find((c) => c.role === 'headCoach')!;
+    for (const c of Object.values(l.coaches)) c.career = (c.career ?? []).filter((x) => x.season !== last);
+    for (const t of l.teams)
+      if (t.id !== coachClub) hc(t.id).career!.push({ season: last, teamId: t.id, role: 'headCoach' });
+    teamCoaches(l, others[8])
+      .find((c) => c.role !== 'headCoach')!
+      .career!.push({ season: last, teamId: coachClub, role: 'headCoach' });
+    l.history = [
+      {
+        season: last,
+        championId: champion,
+        runnerUpId: others[9],
+        records: Object.fromEntries(l.teams.map((t) => [t.id, { w: 9, l: 8, t: 0 }])),
+      },
+    ];
+    // Every team's quarterback holds his job and threw its passes last season, except one team's.
+    for (const t of l.teams) {
+      const [qb, backup] = activeRoster(l, t.id).filter((p) => p.position === 'QB');
+      t.jobs = { held: { [qb.id]: { pos: 'QB', since: 0 } } };
+      const passer = t.id === qbClub && backup ? backup : qb;
+      passer.stats[last] = { gp: 17, snaps: 1000, passAtt: 500 };
+      passer.statTeams = { [last]: [t.id] };
+    }
+    l.phase = 'regular';
+    l.week = 1;
+  });
+
+  it('is at Cut-down day once the cuts are in, with practice squads on', () => {
+    l.phase = 'preseason';
+    l.personnel = { ...l.personnel!, enabled: true, clock: { season: l.season, cutdown: true } };
+    expect(dayNow(l)).toEqual(['cuts']);
+    const [m] = dayMail(l);
+    expect(m.id).toBe(`snn:${l.season}:d:cuts`);
+    expect(m.edition!.label).toBe('Cut-down day');
+    expect(m.edition!.lists!.map((x) => x.title)).toEqual(['Notable cuts']);
+  });
+
+  it('files one mail for Cut-down day and Kickoff when they land together, and Kickoff alone after', () => {
+    expect(dayNow(l)).toEqual(['cuts', 'kickoff']);
+    const [m] = dayMail(l);
+    expect(m.id).toBe(`snn:${l.season}:d:kickoff`);
+    expect(m.edition!.label).toBe('Kickoff');
+    expect(m.edition!.lists!.map((x) => x.title)).toEqual(['Opening week', 'Notable cuts']);
+    expect(m.covered).toContain(`snn:${l.season}:d:cuts`);
+    expect(m.week).toBe(1);
+    l.inbox = [{ ...m, read: false } as InboxMessage];
+    expect(dayMail(l)).toEqual([]);
+    // With Cut-down day's own page on file, Kickoff is Kickoff alone.
+    l.inbox = [{ id: `snn:${l.season}:d:cuts`, season: l.season } as InboxMessage];
+    expect(dayNow(l)).toEqual(['kickoff']);
+    expect(dayMail(l)[0].edition!.lists!.map((x) => x.title)).toEqual(['Opening week']);
+  });
+
+  it('files nothing once a week 1 game is played', () => {
+    l.games.find((g) => g.season === l.season && g.week === 1)!.result = {} as never;
+    expect(dayNow(l)).toEqual([]);
+  });
+
+  it('tells a star released at tier 1, a starter at tier 2 and a high pick at tier 3', () => {
+    const cs = dayCandidates(l, 'cuts', new Set());
+    expect(cs.find((c) => c.playerId === cutStar.id)).toMatchObject({ angle: 'cutStar', tier: 1 });
+    expect(cs.find((c) => c.playerId === cutVet.id)).toMatchObject({ angle: 'cutVet', tier: 2 });
+    expect(cs.find((c) => c.playerId === cutPick.id)).toMatchObject({ angle: 'cutPick', tier: 3 });
+    for (const c of cs) expect(ruleBreaks(l, writeDayStory(l, c, at())), c.angle).toEqual([]);
+  });
+
+  it('skips a release logged without a player (a save from before)', () => {
+    const p = activeRoster(l, l.teams.find((t) => t.id !== l.userTeamId)!.id)[3];
+    p.stats[l.season - 1] = { gp: 17, snaps: 1200 };
+    release(p, false);
+    expect(dayCandidates(l, 'cuts', new Set()).some((c) => c.playerId === p.id)).toBe(false);
+  });
+
+  it('tells the champion’s opener, a new head coach’s first game and a new starting quarterback', () => {
+    const cs = dayCandidates(l, 'kickoff', new Set());
+    expect(cs.find((c) => c.angle === 'champion')).toMatchObject({ tier: 2, clubId: champion });
+    expect(cs.find((c) => c.angle === 'newCoach')).toMatchObject({ tier: 3, clubId: coachClub });
+    expect(cs.filter((c) => c.angle === 'newQb').map((c) => c.clubId)).toEqual([qbClub]);
+    for (const c of cs) expect(ruleBreaks(l, writeDayStory(l, c, at())), c.angle).toEqual([]);
+  });
+
+  it('makes no prediction: no story says will, should, favorite or expect', () => {
+    for (const s of stories(buildDay(l, ['cuts', 'kickoff'])!))
+      expect(s.paragraphs.join(' ')).not.toMatch(/\b(will|should|favou?rites?|expect(ed|s)?)\b/i);
+  });
+
+  it('gives the reader’s team its opener, and lists every opening game', () => {
+    const e = buildDay(l, ['kickoff'])!;
+    expect(e.club!.yours).toBe(true);
+    expect(ruleBreaks(l, e.club!)).toEqual([]);
+    const games = l.games.filter((g) => g.season === l.season && g.week === 1);
+    expect(e.lists![0].rows).toHaveLength(games.length);
+    expect(e.lists![0].head).toEqual(['Game', 'Kickoff']);
+  });
+});

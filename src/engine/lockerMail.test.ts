@@ -113,7 +113,7 @@ describe('locker room letters', () => {
     const theirs = Object.values(l.players).find((p) => p.teamId !== null && p.teamId !== l.userTeamId)!;
     expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe('');
     theirs.left = [{ teamId: l.userTeamId, season: l.season, how: 'cut' }];
-    expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe(', against the club that cut him');
+    expect(recapAside(l, theirs, { won: false, margin: 3 })).toBe(', against the team that cut him');
     const ours = Object.values(l.players).find((p) => p.teamId === l.userTeamId)!;
     ours.traits = { ...ours.traits, poise: 20 };
     ours.personality = { greed: 0.5, loyalty: 0.5, winning: 0.5, patience: 0.55 };
