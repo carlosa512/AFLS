@@ -268,12 +268,7 @@ export function expiringTargets(league: League, max: number): AdviceRow[] {
     score: x.need.urgency * Math.min(x.gain, 4),
   }));
   return bestPerPosition(scored, max).map(({ p }) =>
-    row(
-      p,
-      'sign',
-      `Free agency opens soon, and he'd start for us at ${p.position}.`,
-      `about ${perYear(marketApy(market, p))}`,
-    ),
+    row(p, 'sign', `He would start for us at ${p.position}.`, `about ${perYear(marketApy(market, p))}`),
   );
 }
 

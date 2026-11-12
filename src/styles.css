@@ -5363,7 +5363,8 @@ button.tip-pill {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px 12px;
+  flex-wrap: wrap;
 }
 .report-who {
   display: inline-flex;
@@ -5377,6 +5378,16 @@ button.tip-pill {
 }
 .report-head > .report-note {
   margin: 0;
+}
+.report-side .tag-pill {
+  white-space: nowrap;
+}
+.report-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .mail-row {
   display: grid;

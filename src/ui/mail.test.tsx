@@ -806,8 +806,8 @@ describe('the director’s advice card', () => {
     expect(html).toContain(theirs.lastName);
     expect(html).toContain('A starter at our weakest spot.');
     expect(html).toContain('likely a 4th');
-    expect(html).toContain('To add');
-    expect(html).toContain('To move');
+    expect(html).toContain('Trade for');
+    expect(html).toContain('Trade away');
     expect(html.match(/Open talks/g)).toHaveLength(2);
   });
   it('drops the button, not the row, once a player has moved on', () => {

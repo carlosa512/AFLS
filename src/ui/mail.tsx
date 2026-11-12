@@ -435,64 +435,68 @@ function GazetteCards({ league, tables }: { league: League; tables: GazetteTable
   );
 }
 
-const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'To add', sell: 'To move', sign: 'To sign' };
+const ADVICE_TITLES: Record<AdviceRow['kind'], string> = { buy: 'Trade for', sell: 'Trade away', sign: 'Sign' };
 
-/** The director's picks: who, why, his ballpark, and the button that starts the move. */
+/**
+ * The director's picks, a short list a kind: who (his face, his team), the ballpark as a pill, the button that starts
+ * the move, and his one sentence beneath. No table: nothing scrolls sideways on a phone.
+ */
 function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
   const nav = useNav();
   const kinds = (['buy', 'sell', 'sign'] as const).filter((k) => rows.some((r) => r.kind === k));
   return (
     <>
       {kinds.map((kind) => (
-        <Card key={kind} title={ADVICE_TITLES[kind]}>
-          <div className="table-scroll">
-            <table className="mail-table">
-              <tbody>
-                {rows
-                  .filter((r) => r.kind === kind)
-                  .map((r) => {
-                    const p = league.players[r.playerId];
-                    const draft = adviceDraft(league, r);
-                    const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
-                    return (
-                      <tr key={r.playerId}>
-                        <td>
-                          <span className="small muted">{r.position} </span>
-                          {p ? <PlayerLink league={league} player={p} pos={false} /> : r.name}
-                          <div className="small muted">
+        <section key={kind} className="report-block">
+          <h4 className="report-title">{ADVICE_TITLES[kind]}</h4>
+          <ul className="report-rows">
+            {rows
+              .filter((r) => r.kind === kind)
+              .map((r) => {
+                const p = league.players[r.playerId];
+                const draft = adviceDraft(league, r);
+                const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
+                return (
+                  <li key={r.playerId} className="report-row">
+                    <div className="report-head">
+                      <span className="report-who">
+                        {p && <Face league={league} player={p} size={28} />}
+                        <span>
+                          {p ? <PlayerLink league={league} player={p} pos /> : `${r.position} ${r.name}`}
+                          <span className="small muted" style={{ display: 'block' }}>
                             {r.teamId === null ? 'Free agent' : <TeamLink team={league.teams[r.teamId]} />}
-                          </div>
-                        </td>
-                        <td>{r.why}</td>
-                        <td className="num">{r.price}</td>
-                        <td>
-                          {draft && (
-                            <button
-                              className="btn btn-sm"
-                              onClick={() => {
-                                tradeDesk.put(draft);
-                                nav.go({ view: 'office', tab: 'trades', sub: 'table' });
-                              }}
-                            >
-                              Open talks
-                            </button>
-                          )}
-                          {free && (
-                            <button
-                              className="btn btn-sm"
-                              onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
-                            >
-                              Free agency
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                          </span>
+                        </span>
+                      </span>
+                      <span className="report-side">
+                        <span className="tag-pill">{r.price}</span>
+                        {draft && (
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => {
+                              tradeDesk.put(draft);
+                              nav.go({ view: 'office', tab: 'trades', sub: 'table' });
+                            }}
+                          >
+                            Open talks
+                          </button>
+                        )}
+                        {free && (
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
+                          >
+                            Free agency
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <p className="report-note">{r.why}</p>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
       ))}
     </>
   );
