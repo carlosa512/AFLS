@@ -28,6 +28,7 @@ import {
   FRICTION_LEAD,
   GETTING_ALONG,
   GREW_UP,
+  LEADERS_LINE,
   MENTOR_LOST,
   MENTOR_SUGGEST,
   MORALE_GROUP,
@@ -571,6 +572,15 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
     : roomTalk || down.length || back.length
       ? say(ROOM_SUMMARY, { down: down.length, back: back.length }, at('summary'))
       : '';
+  // Who the room follows, in his own line: camp's report lists them with the captains instead.
+  const leaders = roomTalk && checkin !== 'camp' ? room.leaders.map((id) => league.players[id]).filter(Boolean) : [];
+  const leadersLine = leaders.length
+    ? say(
+        LEADERS_LINE,
+        { names: nameList(leaders.slice(0, 3).map(fullName)), n: Math.min(3, leaders.length) },
+        at('leaders'),
+      )
+    : '';
   const asksMotto = VERDICT.find((l) => l.text(fact) === verdict)?.motto;
   const coach = teamCoaches(league, user).find((c) => c.role === 'headCoach');
   const motto = asksMotto && coach ? mottoOf(coach.id) : '';
@@ -586,6 +596,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       body:
         (motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict) +
         (summary ? ` ${summary}` : '') +
+        (leadersLine ? ` ${leadersLine}` : '') +
         (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs are ${pairsLine}.` : '') +
         // The season's end looks back on the year's meetings (L2): how many, a promise kept and one broken.
         (checkin === 'end' && yearParagraphFor(league) ? `\n\n${yearParagraphFor(league)}` : ''),

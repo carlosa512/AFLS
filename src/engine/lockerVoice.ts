@@ -723,3 +723,18 @@ export const ROOM_SUMMARY: readonly Line<RoomSummaryFact>[] = [
         : `${count(f.back)} players who were down are back to themselves.`,
   },
 ];
+
+export interface LeadersFact {
+  /** The leaders' full names as one phrase, and how many they are. */
+  names: string;
+  n: number;
+}
+
+/** Who the room follows right now, in the head coach's own line (camp's report lists them with the captains). */
+export const LEADERS_LINE: readonly Line<LeadersFact>[] = [
+  { when: (f) => f.n === 1, reads: 2, text: (f) => `${f.names} is the player the room follows.` },
+  { when: (f) => f.n === 1, reads: 2, text: (f) => `The room takes its lead from ${f.names}.` },
+  { when: (f) => f.n > 1, reads: 2, text: (f) => `${f.names} are the players the room follows.` },
+  { when: (f) => f.n > 1, reads: 2, text: (f) => `The room takes its lead from ${f.names}.` },
+  { when: (f) => f.n > 1, reads: 2, text: (f) => `When something needs saying in there, ${f.names} say it.` },
+];
