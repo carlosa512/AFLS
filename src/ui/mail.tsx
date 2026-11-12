@@ -153,6 +153,7 @@ import {
   verdictTone,
 } from './training';
 import { store } from './store';
+import { decideInterim } from '../engine/leadership';
 import { answerBench, benchCard, dismissReminder, putBack, restoreCard } from '../engine/benching';
 import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
 import { newestLosingLetter } from '../engine/coachWeek';
@@ -289,6 +290,8 @@ function KindCards({ league, message }: { league: League; message: InboxMessage 
       return <MarketRecapCards league={league} s={s} />;
     case 'positionOffer':
       return <PositionOfferCards league={league} s={s} live={needsYou(league, message)} />;
+    case 'interim':
+      return <InterimCards league={league} s={s} live={needsYou(league, message)} />;
     case 'positionMoved':
       return <PositionMovedCards league={league} s={s} />;
     default:
@@ -2763,6 +2766,60 @@ function Option({
 }
 
 /** Ways to fill the chair a coach left: our own men one rung below it, and the best of the market. */
+/**
+ * The owner's question about your interim head coach: his two answers while it waits, then how it ended, read from
+ * the league as it is (he holds the job, or he does not).
+ */
+function InterimCards({
+  league,
+  s,
+  live,
+}: {
+  league: League;
+  s: Extract<MailSubject, { kind: 'interim' }>;
+  live: boolean;
+}) {
+  const nav = useNav();
+  const c = league.coaches[s.coachId];
+  if (!c) return null;
+  const ours = c.teamId === league.userTeamId && c.role === 'headCoach' && !c.interim;
+  const who = (
+    <span className="staff-who">
+      <StaffAvatar person={c} size={28} />
+      <span style={{ minWidth: 0 }}>
+        <button className="linklike" style={{ fontWeight: 700 }} onClick={() => nav.openStaff('coach', c.id)}>
+          {coachName(c)}
+        </button>
+        <span className="muted small" style={{ display: 'block' }}>
+          {live ? 'Interim head coach' : ours ? 'Head coach' : 'Was interim head coach'} · age {c.age}
+        </span>
+      </span>
+    </span>
+  );
+  if (!live)
+    return (
+      <Card>
+        <div className="mail-person">
+          {who}
+          <span className={`tag-pill ${ours ? 'tag-good' : ''}`}>{ours ? 'He has the job' : 'Appointment ended'}</span>
+        </div>
+      </Card>
+    );
+  return (
+    <Card>
+      <div className="mail-person">{who}</div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm btn-primary" onClick={() => store.mutate((l) => decideInterim(l, true))}>
+          Give him the job
+        </button>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => decideInterim(l, false))}>
+          End his appointment
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function PoachedCards({
   league,
   s,

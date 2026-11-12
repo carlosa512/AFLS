@@ -13,7 +13,7 @@ import { lettersSentences, recentBodies, saidKey, say, toldKeys, type Line } fro
 import { settleYear } from './development';
 import { sizeEdge } from './size';
 import { employed, managesTeam } from './employment';
-import { gmOfferTerms, userExtensionOffer } from './leadership';
+import { gmOfferTerms, interimPending, INTERIM_YEARS, userExtensionOffer } from './leadership';
 import { adviceFor, adviceMoment } from './directorAdvice';
 import { editionAt, gazetteFor } from './gazette';
 import { recordAdvicePublications } from './coachDecisions';
@@ -37,6 +37,7 @@ import {
   type AwardWinner,
 } from './awards';
 import {
+  coachAskTo,
   CHAIRS,
   chairHolder,
   coachBudget,
@@ -769,6 +770,8 @@ export type MailSubject =
   | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
   | { kind: 'flex'; season: number; gameId: number }
   | { kind: 'owner'; season: number }
+  // The owner asks about your interim head coach before he offers him the job: it needs you until you answer.
+  | { kind: 'interim'; season: number; coachId: number }
   | { kind: 'rundown'; season: number }
   | { kind: 'staffDeals'; season: number; people: StaffRef[] }
   | { kind: 'poached'; season: number; coachId: number; chair: Chair }
@@ -844,6 +847,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'snn') return { kind: 'edition', season, week: m.week };
   if (category === 'offMarket') return { kind: 'offMarket', season };
   if (category === 'coach') return { kind: 'coachWeek', season, clock: Number(a) };
+  if (category === 'interim') return { kind: 'interim', season, coachId: Number(a) };
   if (category === 'gm-offer') return { kind: 'gmOffer', season, teamId: Number(a) };
   const player = m.actions.find((x) => x.kind === 'player');
   const playerId = player?.kind === 'player' ? player.playerId : -1;
@@ -1010,6 +1014,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
       );
     case 'owner':
       return !!userExtensionOffer(league);
+    case 'interim':
+      return interimPending(league)?.id === s.coachId;
     case 'matchup':
     case 'injury':
     case 'deadline':
@@ -2015,6 +2021,32 @@ function ownerVoice(league: League, team: Team) {
   return { marketLine, leeway, patience, promises };
 }
 
+/** The owner asks about your interim head coach before he offers him the job (`decideInterim` in `leadership.ts`). */
+function interimMail(league: League, have: Set<string>): Draft[] {
+  const c = interimPending(league);
+  if (!c) return [];
+  const id = `interim:${league.season}:${c.id}`;
+  if (have.has(id)) return [];
+  const r = c.career
+    ?.filter((x) => x.season === league.season - 1 && x.role === 'headCoach' && x.teamId === c.teamId)
+    .at(-1)?.record?.regular;
+  const went = r ? `We went ${r.w}–${r.l}${r.t ? `–${r.t}` : ''} with him in charge. ` : '';
+  const pay = millions(coachAskTo(league, c, INTERIM_YEARS, c.teamId!));
+  return [
+    {
+      id,
+      season: league.season,
+      phase: 'resign',
+      week: 0,
+      from: 'The owner',
+      category: 'staff',
+      subject: `Do we keep ${coachName(c)} as head coach?`,
+      body: `${coachName(c)} finished the season as our interim head coach. ${went}I want your call before I offer him anything. If we keep him, he signs for two years at ${pay} a year. If we do not, his appointment ends and the job is yours to fill.`,
+      actions: [{ kind: 'coaches' }],
+    },
+  ];
+}
+
 function ownerMail(league: League, have: Set<string>): Draft[] {
   const { season } = league;
   const id = `owner:${season}:${league.userTeamId}`;
@@ -2841,6 +2873,22 @@ function carouselRow(league: League, e: LeadershipEvent): CarouselRow {
   }
 }
 
+/** Your owner on your own interim head coach, when he decided it himself (a simmed window): his words, not the wire's. */
+function ownWords(league: League, e: LeadershipEvent, settled: boolean): { subject: string; body: string } | null {
+  const c = e.coachId === undefined ? undefined : league.coaches[e.coachId];
+  if (!settled || !c) return null;
+  const name = coachName(c);
+  return e.kind === 'coachPermanent'
+    ? {
+        subject: `${name} is our head coach`,
+        body: `I have given ${name} the head coach's job. He signed for two years.`,
+      }
+    : {
+        subject: `${name} will not be our head coach`,
+        body: `I have ended ${name}'s appointment as interim head coach. The job is yours to fill.`,
+      };
+}
+
 export function leadershipMail(league: League, have: Set<string>): Draft[] {
   const out: Draft[] = [];
   // Other clubs' in-season changes are stories of the week's edition now. An older save's weekly roundup names the
@@ -2887,6 +2935,9 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       ['warning', 'coachChange', 'gmExtended'].includes(e.kind)
     )
       continue;
+    // Your own interim's fate was your answer to the owner's letter: that letter shows how it ended.
+    const settled = inside && (e.kind === 'coachPermanent' || e.kind === 'coachDismissed') && !e.privateText;
+    if (settled && have.has(`interim:${e.date.season}:${e.coachId}`)) continue;
     // Another club's in-season change is a story of that week's edition (`newsCandidates` in `snnWeek.ts`).
     if (!inside && !personal && e.date.phase === 'regular') continue;
     if (!inside && !personal && OFFSEASON_PHASES.includes(e.date.phase)) {
@@ -2908,8 +2959,11 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       subject:
         inside && e.kind === 'coachInterim' && e.privateText?.includes(' go.')
           ? e.privateText.slice(0, e.privateText.indexOf(' go.') + 3)
-          : e.report,
-      body: (inside || (personal && e.kind === 'gmDismissed')) && e.privateText ? e.privateText : e.report,
+          : (ownWords(league, e, settled)?.subject ?? e.report),
+      body:
+        (inside || (personal && e.kind === 'gmDismissed')) && e.privateText
+          ? e.privateText
+          : (ownWords(league, e, settled)?.body ?? e.report),
       actions: [{ kind: 'gms' }],
     });
   }
@@ -3052,6 +3106,7 @@ export function deliverMail(league: League): void {
     if (league.phase === 'resign')
       fresh.push(
         ...ownerMail(league, have),
+        ...interimMail(league, have),
         ...staffDealsMail(league, have),
         ...newYearMail(league, have),
         ...contractMail(league, have),

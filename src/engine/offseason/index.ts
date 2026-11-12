@@ -28,6 +28,7 @@ import {
   advanceGmHiringRound,
   enforceCoachChanges,
   leadershipNewYear,
+  settleInterim,
   pendingGmOffers,
   userExtensionOffer,
 } from '../leadership';
@@ -104,6 +105,11 @@ export function setLettingWalk(league: League, playerId: number, on: boolean): v
   const ids = list.filter((id) => id !== playerId);
   if (on) ids.push(playerId);
   team.lettingWalk = { season: league.season, ids };
+}
+
+/** Every expiring player with no decision yet goes on the let-walk list: one answer for the rest of the list. */
+export function letRestWalk(league: League, playerIds: number[]): void {
+  for (const id of playerIds) setLettingWalk(league, id, true);
 }
 
 export const lettingWalk = (league: League, playerId: number): boolean => {
@@ -352,6 +358,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       while (league.leadership.search && league.leadership.search.round < 3) {
         advanceGmHiringRound(league, { autoUser: !!opts.autoUser });
       }
+      // An interim head coach you never answered for: the owner decides, as he does at every other team.
+      settleInterim(league);
       enforceCoachChanges(league, auto);
       for (const team of ai) aiResignWindow(league, team, rng);
       if (!auto) {

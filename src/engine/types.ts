@@ -1212,6 +1212,11 @@ export interface Team {
   mentoringByYou?: true;
   /** The captains named at camp. */
   captains?: { season: number; offense: number; defense: number; specialTeams: number };
+  /**
+   * Your interim head coach, waiting on your call in the re-sign window (`leadership.ts`): the owner asks before he
+   * offers the job. `lean` is what the owner does if the window closes with no answer (hidden).
+   */
+  interimCall?: { season: number; coachId: number; lean: boolean };
   /** Expiring players you've decided to let walk this re-sign window (`setLettingWalk`). */
   lettingWalk?: { season: number; ids: number[] };
   /**

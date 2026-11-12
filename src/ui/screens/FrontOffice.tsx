@@ -4,7 +4,8 @@ import { GeneralManagers } from './GeneralManagers';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
-import { FA_DAYS, lettingWalk, setLettingWalk } from '../../engine/offseason';
+import { FA_DAYS, letRestWalk, lettingWalk, setLettingWalk } from '../../engine/offseason';
+import { openContracts } from '../../engine/contractMail';
 import {
   applyFranchiseTag,
   exerciseFifthYearOption,
@@ -110,6 +111,8 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
     .slice(0, 15);
   const extensionRows = by(extSort)(extensions);
   const tagged = team.taggedId ? league.players[team.taggedId] : null;
+  // No decision yet: the advance button waits on these, and one button answers for the rest.
+  const open = openContracts(league);
 
   return (
     <>
@@ -126,6 +129,23 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
               ' One franchise tag left.'
             )}
           </p>
+          {open.length > 1 && (
+            <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                className="btn btn-sm"
+                onClick={() =>
+                  store.mutate((l) =>
+                    letRestWalk(
+                      l,
+                      openContracts(l).map((p) => p.id),
+                    ),
+                  )
+                }
+              >
+                Let the other {open.length} walk
+              </button>
+            </div>
+          )}
           {expiring.length === 0 ? (
             <p className="muted">No expiring contracts this year.</p>
           ) : (
@@ -190,6 +210,12 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                             <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                               <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
                                 Negotiate
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => store.mutate((l) => setLettingWalk(l, p.id, true))}
+                              >
+                                Let walk
                               </button>
                               <button
                                 className="btn btn-sm"

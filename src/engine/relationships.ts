@@ -386,9 +386,14 @@ export function speaksOut(league: League, p: Player, season: number, kind: Speak
 /** What happened to him this season that he might speak out about: read off what's saved, nothing stored for it. */
 export function speakEvents(league: League, p: Player): { kind: SpeakEvent; teamId: number }[] {
   const out: { kind: SpeakEvent; teamId: number }[] = [];
-  for (const d of p.left ?? [])
-    if (d.season === league.season && d.how !== 'walked')
-      out.push({ kind: d.how === 'cut' ? 'cut' : 'traded', teamId: d.teamId });
+  for (const d of p.left ?? []) {
+    if (d.season !== league.season || d.how === 'walked') continue;
+    // One event a kind, the latest: a player cut three times in a year has one thing to say, about the last team.
+    const kind: SpeakEvent = d.how === 'cut' ? 'cut' : 'traded';
+    const at = out.findIndex((e) => e.kind === kind);
+    if (at >= 0) out[at] = { kind, teamId: d.teamId };
+    else out.push({ kind, teamId: d.teamId });
+  }
   if (p.teamId !== null && league.phase === 'resign' && benched(league, p))
     out.push({ kind: 'benched', teamId: p.teamId });
   for (const t of p.ties ?? [])

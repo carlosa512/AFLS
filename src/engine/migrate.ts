@@ -393,6 +393,13 @@ export function migrateLeague(league: League): League | null {
   // (`Transaction.playerId`): optional fields, written from here on. An older save's entries have no player, and the
   // editions skip them.
   if (league.version < 96) league.version = 96;
+  // v97: `Team.interimCall` (the owner asks you about your interim head coach); and a mail id is filed once (a player
+  // cut three times in a year spoke out three times under one id: the first stays).
+  if (league.version < 97) {
+    const seen = new Set<string>();
+    league.inbox = (league.inbox ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
+    league.version = 97;
+  }
   return league;
 }
 
