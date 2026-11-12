@@ -2060,13 +2060,28 @@ const UNIT_REASON: CL[] = [
   ),
   col((s) => `The rest of the league ${s.around} in the weeks ${c(s.id)} played those games.`),
 ];
-const OWNERS_CALL: CL[] = [
+/** The last sentence of an "it is time" Column: what is left of the season. It never says whose decision it is. */
+const TIME_STAKES: CL[] = [
   col(
-    (s) => `The decision is the owner's to make, and with ${ahead(s)}, he has seen enough of this season to make it.`,
+    (s) => `${c(s.id)} have ${ahead(s)}, with only next season left to play for.`,
+    (s) => !!s.left && s.race === 'out',
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, too few to save this season.`,
     (s) => !!s.left,
     1,
   ),
-  col((s) => `The decision is the owner's to make, and ${c(s.id)} finished ${s.rec}.`),
+  col((s) => `${c(s.id)} finished ${s.rec}.`),
+];
+/** The last sentence of a Column crediting a man in charge: what his team is playing for. */
+const CREDIT_MAN_STAKES: CL[] = [
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, with a place in the playoffs to play for.`,
+    (s) => !!s.left,
+    1,
+  ),
+  col((s) => `${c(s.id)} take a ${s.rec} record into the playoffs.`),
 ];
 
 const COLUMN: Record<string, ColumnBank> = {
@@ -2243,49 +2258,50 @@ const COLUMN: Record<string, ColumnBank> = {
           `This column has already asked whether ${s.surname} could turn it around, and a ${s.spanRec} record over the last four games is the answer.`,
       ),
     ],
-    stakes: OWNERS_CALL,
+    stakes: TIME_STAKES,
     headline: (s, l) => `It is time for a change ${whereOf(l, s.id)}`,
   },
   'gm2-': {
     claim: [
       col(
         (s) =>
-          `${C(s.id)} are ${s.rec} after ${w(s.lostSeasons)} losing seasons in a row, and it is fair to ask about general manager ${s.name}.`,
+          `After ${w(s.lostSeasons)} losing seasons in a row ${c(s.id)} are ${s.rec}, which makes it fair to ask about general manager ${s.name}.`,
       ),
     ],
     fact: [col((s) => `${s.surname} has been in charge of the roster for every one of them.`)],
     reason: [
       col(
         (s) =>
-          `One bad season can be put down to coaching, but ${w(s.lostSeasons + 1)} in a row point at the roster, and the roster is ${possessive(s.surname)} work.`,
+          `One bad season can be put down to coaching, but ${w(s.lostSeasons + 1)} in a row point at the roster, which is ${possessive(s.surname)} work.`,
       ),
     ],
     stakes: [
       col(
-        (s) =>
-          `${c(s.id)} have ${ahead(s)}, and none of them will change what the last ${w(s.lostSeasons)} seasons say.`,
+        (s) => `${c(s.id)} have ${ahead(s)}, too late to change what the last ${w(s.lostSeasons)} seasons say.`,
         (s) => !!s.left,
         1,
       ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and what happens next is the owner's to decide.`),
+      col(
+        (s) => `${c(s.id)} finished ${s.rec}, a ${nth(s.lostSeasons + 1)} losing season in a row under ${s.surname}.`,
+      ),
     ],
     headline: (s, l) => `The losing ${whereOf(l, s.id)} points at ${s.surname}`,
   },
   'gm3-': {
-    claim: [col((s) => `${C(s.id)} are ${s.rec}, and it is time for a change in the front office.`)],
+    claim: [col((s) => `${C(s.id)} are ${s.rec}. It is time for a change in the front office.`)],
     fact: [
       col(
         (s) =>
-          `${s.name} has had ${w(s.lostSeasons)} full seasons as general manager, and ${c(s.id)} had a losing record in every one.`,
+          `${c(s.id)} had a losing record in each of ${possessive(s.name)} ${w(s.lostSeasons)} full seasons as general manager.`,
       ),
     ],
     reason: [
       col(
         (s) =>
-          `This column has already asked about ${s.surname}, and a ${s.rec} record in a ${nth(s.lostSeasons + 1)} season is the answer.`,
+          `A ${s.rec} record in a ${nth(s.lostSeasons + 1)} season answers the question this column asked about ${s.surname}.`,
       ),
     ],
-    stakes: OWNERS_CALL,
+    stakes: TIME_STAKES,
     headline: (s, l) => `It is time for a change in the front office ${whereOf(l, s.id)}`,
   },
   'coach2+': {
@@ -2314,86 +2330,58 @@ const COLUMN: Record<string, ColumnBank> = {
           `It is much the same team that lost ${w(s.lastLosses)} times a year ago, and ${s.surname} is in his ${nth(s.seasons)} season with it, so the change is his.`,
       ),
     ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
+    stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} deserves the credit ${whereOf(l, s.id)}`,
   },
   'gm2+': {
     claim: [
       col(
         (s) =>
-          `${C(s.id)} won ${w(s.lastWins)} games last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for it.`,
+          `General manager ${s.name} deserves the credit for ${c(s.id)} going from ${w(s.lastWins)} wins last season to ${s.rec} now.`,
       ),
     ],
     fact: [col((s) => `${s.surname} hired ${s.coach} as head coach before this season.`)],
     reason: [
       col(
         (s) =>
-          `${s.coachSurname} is in his first season, so the turn belongs as much to the GM who chose him, and that is ${s.surname}.`,
+          `${s.coachSurname} is in his first season, so the turn belongs as much to ${s.surname}, the GM who chose him.`,
       ),
     ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
+    stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} got it right ${whereOf(l, s.id)}`,
   },
   'gmBuilt+': {
     claim: [
       col(
         (s) =>
-          `${C(s.id)} are ${s.rec} after ${w(s.wonSeasons)} winning seasons in a row, and general manager ${s.name} deserves the credit for building it.`,
+          `General manager ${s.name} built the team that has ${c(s.id)} at ${s.rec} after ${w(s.wonSeasons)} winning seasons in a row.`,
       ),
     ],
     fact: [col((s) => `${s.surname} has been in charge of the roster for every one of those seasons.`)],
     reason: [
       col(
         (s) =>
-          `One good season can be a hot quarterback or a kind schedule, but ${w(s.wonSeasons + 1)} in a row are a roster, and the roster is ${possessive(s.surname)} work.`,
+          `One good season can be a hot quarterback or a kind schedule, but ${w(s.wonSeasons + 1)} in a row take a roster, which is ${possessive(s.surname)} work.`,
       ),
     ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
+    stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} built this ${whereOf(l, s.id)}`,
   },
   'gmRun+': {
     claim: [
       col(
         (s) =>
-          `${C(s.id)} ${s.ran} last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for keeping it together.`,
+          `${C(s.id)} ${s.ran} last season and are ${s.rec} now. General manager ${s.name} deserves the credit for keeping it together.`,
       ),
     ],
     fact: [col((s) => `${s.surname} was in charge of the roster for both of those seasons.`)],
     reason: [
       col(
         (s) =>
-          `Teams that go that far often fall back the next year, and ${c(s.id)} have not, which is the work of the GM who builds the roster.`,
+          `Teams that go that far often fall back the next year. ${C(s.id)} have not, which is the work of the GM who builds the roster.`,
       ),
     ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
+    stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} has kept it together ${whereOf(l, s.id)}`,
   },
   // Corrections: what an earlier Column said no longer holds.
