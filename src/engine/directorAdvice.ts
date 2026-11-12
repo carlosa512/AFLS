@@ -349,7 +349,7 @@ export function adviceFor(league: League, room?: number): Advice | null {
       ? {
           moment,
           rows,
-          subject: "Before free agency: who's about to be available",
+          subject: "Before free agency: who's available",
           body: 'Free agency opens after the re-sign window. These are the names I would watch.',
         }
       : {

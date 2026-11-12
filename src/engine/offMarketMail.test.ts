@@ -28,7 +28,7 @@ describe('off the market', () => {
     const mail = (l.inbox ?? []).filter((m) => m.id.startsWith('offMarket:'));
     expect(mail).toHaveLength(1);
     expect(mail[0].from).toBe('SNN league desk');
-    expect(mail[0].subject).toMatch(/^Off the market: \d+ re-signed(, \d+ tagged)? before free agency$/);
+    expect(mail[0].subject).toMatch(/^Off the market: \d+ re-signed(, \d+ tagged)?$/);
     for (const r of mail[0].sections![0].rows.filter((x) => x.playerId !== undefined)) {
       const p = l.players[r.playerId!];
       expect(p.teamId).not.toBe(l.userTeamId);

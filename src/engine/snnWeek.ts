@@ -731,6 +731,8 @@ export function buildEdition(l: League, week: number): Edition | null {
   return edition;
 }
 
+/** The longest a subject line runs. */
+const SUBJECT = 60;
 /** A headline cut at a word, for the mail's subject. */
 const short = (text: string, max = 48) => {
   if (text.length <= max) return text;
@@ -762,11 +764,8 @@ export function editionMail(l: League): Draft[] {
       week,
       from: SNN,
       category: 'league',
-      subject: [
-        edition.label,
-        short(edition.lead.headline),
-        ...(edition.club ? [short(edition.club.headline)] : []),
-      ].join(' · '),
+      // The week and its lead story: the rest is on the page.
+      subject: `${edition.label} · ${short(edition.lead.headline, SUBJECT - edition.label.length - 3)}`,
       body: stories.flatMap((s) => [...s.paragraphs, ...(s.quote ? [s.quote.text] : [])]).join('\n\n'),
       edition,
       covered: [...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? [])]))],

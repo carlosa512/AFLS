@@ -773,21 +773,24 @@ export function weekItems(league: League, told: Set<string>, said: string[]): We
   return gather(league, told, said, new Set()).items;
 }
 
-const lowerFirst = (s: string) => (s.startsWith('The ') ? `t${s.slice(1)}` : s);
 const AGAIN = ['again', 'still', 'once more', 'one more time'];
 
-/** The subject: the top item's headline, and the second's when there are two; never one already used this year. */
+const MORE = ['', 'one', 'two', 'three', 'four', 'five', 'six'];
+/**
+ * The subject: the top item's headline, and how many more matters the letter holds ("Rhodes's deal, and two more").
+ * One thing a subject, never two headlines joined; never one already used this year.
+ */
 function subjectFor(league: League, heads: string[]): string {
   const used = new Set(
     (league.inbox ?? []).filter((m) => m.id.startsWith('coach:') && m.season === league.season).map((m) => m.subject),
   );
   const unique = [...new Set(heads)];
   if (!unique.length) unique.push('This week');
-  const pair = (a: string, b: string) => `${a}, and ${lowerFirst(b)}`;
+  const more = unique.length - 1;
   const cands = [
-    ...(unique.length > 1 ? [pair(unique[0], unique[1])] : []),
+    ...(more > 0 ? [`${unique[0]}, and ${MORE[more] ?? more} more`] : []),
     ...unique,
-    ...unique.slice(2).map((h) => pair(unique[0], h)),
+    ...unique.slice(1).map((h, n) => `${h}, and ${MORE[n + 1] ?? n + 1} more`),
   ];
   const free = cands.find((c) => !used.has(c));
   if (free) return free;

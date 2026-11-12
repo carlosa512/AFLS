@@ -433,7 +433,7 @@ function injuryMail(league: League, have: Set<string>): Draft[] {
       week: now.week,
       ...doctor(league),
       category: 'medical',
-      subject: `${fullName(p)}: ${what}${short.has(slotOf(league, p)) ? `; short at ${slotOf(league, p)}` : ''}`,
+      subject: `${fullName(p)}: ${what}${short.has(slotOf(league, p)) ? `, short at ${slotOf(league, p)}` : ''}`,
       body: `${now.protocol ? concussionNote(p) : `${fullName(p)} ${how}. Our early read is that he'll be ${estimateText(now, weeksLeft(league))}.`} ${medicalImpact(league, p)}`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
     });
@@ -1174,7 +1174,7 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
       week: league.week,
       ...headCoach(league),
       category: 'matchup',
-      subject: stakes?.subject ?? `Opposition report: ${teamName(opp)}`,
+      subject: stakes?.subject ?? `Opposition report: ${opp.name}`,
       body: `${opener} ${stakes?.body ?? ''}${read}${mismatch ? `\n\n${mismatch}` : ''}`,
       actions: [{ kind: 'team', teamId: opp.id }],
     },
@@ -1241,47 +1241,47 @@ function offerCore(league: League, offer: TradeOffer): { subject: string; core: 
   switch (offer.reason) {
     case 'draft':
       return {
-        subject: `The ${team.name} want to move up to ${slot(yours)}`,
+        subject: `${team.name} want to move up to ${slot(yours)}`,
         core: `${capital(packageWords(league, his, NO_PROJ))} for ${slot(yours)}, now.`,
       };
     case 'ask':
       return {
-        subject: `The ${team.name}' price for ${slot(his)}`,
+        subject: `${team.name}: the price for ${slot(his)}`,
         core: `For ${slot(his)} we'd want ${packageWords(league, yours, NO_PROJ)}.`,
       };
     case 'enquiry':
       return {
-        subject: `The ${team.name} ask about ${name(yourMan!)}`,
+        subject: `${team.name} ask about ${name(yourMan!)}`,
         core: `Is ${name(yourMan!)} available? We'd be interested if you're willing to listen.`,
       };
     case 'pitch':
       return {
-        subject: `The ${team.name} are listening on ${name(hisMan!)}`,
+        subject: `${team.name} will listen on ${name(hisMan!)}`,
         core: `We're listening on ${name(hisMan!)}. Would ${packageWords(league, yours, NO_PROJ)} get it done?`,
       };
     case 'dump':
       return {
-        subject: `The ${team.name} want to move ${name(hisMan!)}'s deal`,
+        subject: `${team.name} want to move ${name(hisMan!)}`,
         core: `Take on ${name(hisMan!)}'s contract and ${packageWords(league, { ...his, players: [] }, NO_PROJ)} is yours.`,
       };
     case 'counter':
       return {
-        subject: `The ${team.name} come back with a counter`,
+        subject: `${team.name} counter`,
         core: `We've looked at your counter. ${packageWords(league, his, NO_PROJ)} for ${packageWords(league, yours, NO_PROJ)}, and we have a deal.`,
       };
     case 'shop':
       if (!yourMan)
         return {
-          subject: `The ${team.name} answer your call about ${slot(yours)}`,
+          subject: `${team.name} answer on ${slot(yours)}`,
           core: `You're shopping ${slot(yours)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
         };
       return {
-        subject: `The ${team.name} answer your call about ${name(yourMan!)}`,
+        subject: `${team.name} answer on ${name(yourMan!)}`,
         core: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
       };
     default:
       return {
-        subject: `The ${team.name} make an offer for ${name(yourMan!)}`,
+        subject: `${team.name} bid for ${name(yourMan!)}`,
         core: `We'd like to bring ${name(yourMan!)} to ${team.city}. ${capital(packageWords(league, his, NO_PROJ))}, if you're open to it.`,
       };
   }
@@ -1516,8 +1516,8 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
       ...doctor(league),
       category: 'medical',
       subject: unannounced
-        ? `${fullName(p)}: concussed, and ${since ? 'out of the protocol' : 'cleared to play'}`
-        : `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? '; the 53 is full' : ''}`,
+        ? `${fullName(p)}: concussed, ${since ? 'out of the protocol' : 'and cleared'}`
+        : `${fullName(p)} is cleared to play${waitsForSpot(league, p) ? ', the 53 is full' : ''}`,
       body: unannounced
         ? `${fullName(p)} was concussed in the game and went into the concussion protocol. His symptoms were gone by this week's test, so ${since ? `he's out of the protocol, but he has since been hurt in practice (${since}); I've written about that separately.${concussionFile(p)}` : `he's cleared for full practice and can play this week.${concussionFile(p)}${ir}${concussionWindow(league, p) > 0 ? ' A second concussion is likelier in his first couple of weeks back.' : ''}${sitAdvice(league, p)}`}`
         : was.type === 'concussion'
@@ -2955,7 +2955,7 @@ export function leadershipMail(league: League, have: Set<string>): Draft[] {
       week: e.date.week,
       from: 'SNN league desk',
       category: 'league',
-      subject: `Front-office carousel: ${parts.slice(0, 3).join(', ')}`,
+      subject: `Front-office carousel: ${parts.slice(0, 2).join(', ')}`,
       body: lead.join(' '),
       carousel: rows,
       ...gmNotesFor(

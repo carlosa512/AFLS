@@ -339,7 +339,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
   // 1. A runaway leader.
   if (spread > 0 && gap >= 0.25 * spread)
     return {
-      subject: `The ${name(team(first.id))} lead the league in ${m.phrase} by a distance`,
+      subject: `The ${name(team(first.id))} lead in ${m.phrase}`,
       lead: `The ${name(team(first.id))} lead the league at ${fmt(m.unit, first.v)}, ${fmt(m.unit, gap)} clear of the ${name(team(second.id))}. Nobody else is close.`,
       covers: true,
     };
@@ -514,7 +514,7 @@ function previewStory(league: League, stats: Map<number, TeamAdvanced>, seeds: n
   if (!widest) return { subject: 'Playoff preview: the field by the numbers', lead: 'The field is set.' };
   const [a, b] = widest.map((id) => league.teams[id]);
   return {
-    subject: `Playoff preview: the ${name(a)} and the ${name(b)}, the widest gap of the first round`,
+    subject: `Playoff preview: the ${name(a)} against the ${name(b)}`,
     lead: `On EPA per play, offense minus defense, the ${name(a)} and the ${name(b)} are the furthest apart of any first-round pairing: ${epa(net(a.id))} against ${epa(net(b.id))}.${ours ? ` The ${name(league.teams[league.userTeamId])} come in ${ordinal(fullRank(stats, TEAM.offEpa, league.userTeamId))} on offense.` : ''}`,
   };
 }

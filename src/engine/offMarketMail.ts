@@ -54,7 +54,7 @@ export function offMarketMail(league: League, have: Set<string>): Draft[] {
       week: 0,
       from: 'SNN league desk',
       category: 'league',
-      subject: `Off the market: ${counts} before free agency`,
+      subject: `Off the market: ${counts}`,
       body:
         "Before free agency opened, these players' clubs kept them." +
         (still.length ? ` Still heading to market: ${still.map((p) => `${p.position} ${name(p)}`).join(', ')}.` : ''),

@@ -152,6 +152,15 @@ describe('a season of editions', () => {
     expect(yours).toBeLessThanOrEqual(3);
   });
 
+  it('keeps every subject line of the season short and plain', () => {
+    for (const m of l.inbox ?? []) {
+      expect(m.subject.length, m.subject).toBeLessThanOrEqual(60);
+      expect(m.subject, m.subject).not.toContain(';');
+    }
+    // An edition's subject is its week and its lead story, and nothing more.
+    for (const m of editions()) expect(m.subject.split(' · '), m.subject).toHaveLength(2);
+  });
+
   it('is SNN’s only mail in season', () => {
     const snn = (l.inbox ?? []).filter((m) => /SNN/.test(m.from) && (m.phase === 'regular' || m.phase === 'playoffs'));
     expect(snn.filter((m) => !m.edition).map((m) => m.id)).toEqual([]);

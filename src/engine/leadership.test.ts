@@ -585,7 +585,8 @@ describe('the offseason carousel digest', () => {
     expect(mail).toHaveLength(1);
     expect(mail[0].id).toBe(`leadership-phase:${l.season}:resign:1-5`);
     expect(mail[0].from).toBe('SNN league desk');
-    expect(mail[0].subject).toBe('Front-office carousel: 2 GMs out, 1 hired, 1 on the hot seat');
+    // The two biggest counts: the rest are in the table.
+    expect(mail[0].subject).toBe('Front-office carousel: 2 GMs out, 1 hired');
     expect(mail[0].carousel!.map((r) => r.group)).toEqual(['out', 'out', 'hired', 'extended', 'hotSeat']);
     expect(mail[0].carousel!.find((r) => r.group === 'hotSeat')!.line).toBe('prove-it season');
     expect(mailSubject({ ...mail[0], read: false })).toEqual({ kind: 'frontOffice', season: l.season });
