@@ -389,6 +389,10 @@ export function migrateLeague(league: League): League | null {
   // v95: a talk about a man's form (`TalkCause` 'form', `Talk.form`) and a Column's evidence table and brief stories
   // (`EditionStory.table`, `.brief`): new values and optional fields, so nothing on an older save is rewritten.
   if (league.version < 95) league.version = 95;
+  // v96: SNN's big-day editions (`Edition.day`, `.lists`) and the player a release or a pick is about
+  // (`Transaction.playerId`): optional fields, written from here on. An older save's entries have no player, and the
+  // editions skip them.
+  if (league.version < 96) league.version = 96;
   return league;
 }
 

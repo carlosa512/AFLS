@@ -1850,7 +1850,20 @@ export type EditionKind =
   /** SNN's opinion piece: a claim and its evidence (`snnColumn.ts`). */
   | 'column'
   /** One of your club's public storylines (`stories.ts`). */
-  | 'storyline';
+  | 'storyline'
+  /** A story of one of the calendar's big days (`snnDays.ts`): a pick, a signing, a release, a change at the top. */
+  | 'day';
+
+/** The calendar's big days SNN gives an edition of their own (`snnDays.ts`). */
+export type EditionDay = 'year' | 'market' | 'draft' | 'cuts' | 'kickoff';
+
+/** A big-day edition's list box, where the division race sits in season: the day's rows at a glance. */
+export interface EditionList {
+  title: string;
+  head: string[];
+  /** A row's first cell is the player or the club it names, when it names one. */
+  rows: { playerId?: number; teamId?: number; cells: string[] }[];
+}
 
 /** A final as SNN's weekly edition keeps it. */
 export interface EditionScore {
@@ -1910,6 +1923,9 @@ export interface Edition {
   bracket?: { results: EditionScore[]; next: { homeId: number; awayId: number }[] };
   /** The game of the week, with each club's record as text. */
   next?: { gameId: number; homeId: number; awayId: number; home: string; away: string };
+  /** One of the calendar's big days, not a week: no scores, and `lists` in place of the race (v96). */
+  day?: EditionDay;
+  lists?: EditionList[];
 }
 
 export interface InboxMessage {

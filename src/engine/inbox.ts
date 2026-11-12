@@ -54,6 +54,7 @@ import {
   type Chair,
 } from './coaching';
 import { rookieImpactMail, matchupStakes } from './news';
+import { dayMail } from './snnDays';
 import { editionMail } from './snnWeek';
 import { capSpace } from './finance/cap';
 import {
@@ -838,7 +839,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
   if (category === 'leadership-phase') return { kind: 'frontOffice', season };
   if (category === 'advice') return { kind: 'advice', season, moment: a };
   if (category === 'gazette') return { kind: 'gazette', season };
-  // SNN's weekly edition: `snn:{season}:w{week}`, or `snn:{season}:p{round}` in the playoffs.
+  // SNN's weekly edition: `snn:{season}:w{week}`, or `snn:{season}:p{round}` in the playoffs; a big day's is
+  // `snn:{season}:d:{day}`.
   if (category === 'snn') return { kind: 'edition', season, week: m.week };
   if (category === 'offMarket') return { kind: 'offMarket', season };
   if (category === 'coach') return { kind: 'coachWeek', season, clock: Number(a) };
@@ -3094,6 +3096,8 @@ export function deliverMail(league: League): void {
   fresh.push(
     // SNN in season: the weekly edition. Deadline day's deals ride in the edition of the week just played.
     ...editionMail(league),
+    // SNN on the calendar's big days (the new league year, free agency, the draft, cut-down day, kickoff).
+    ...dayMail(league),
     ...gazetteMail(league, have),
     ...(employed(league) ? rookieImpactMail(league, draftClassOf(league, league.season), director(league)) : []),
     ...leadershipMail(league, have),

@@ -732,9 +732,9 @@ export function buildEdition(l: League, week: number): Edition | null {
 }
 
 /** The longest a subject line runs. */
-const SUBJECT = 60;
+export const SUBJECT = 60;
 /** A headline cut at a word, for the mail's subject. */
-const short = (text: string, max = 48) => {
+export const short = (text: string, max = 48) => {
   if (text.length <= max) return text;
   const cut = text.slice(0, max + 1);
   return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 12)).replace(/[,.]$/, '')}…`;
