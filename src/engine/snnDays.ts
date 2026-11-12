@@ -20,10 +20,12 @@ export type Day = EditionDay;
 export const DAY = {
   /** A trade up is a story when it lands at this pick or earlier. */
   upInside: 10,
-  /** The wait: places below the consensus, in the first two rounds. Only the furthest fall is told. */
+  /** The wait: places below the consensus, in the first two rounds. A page tells one, the furthest it can. */
   wait: 15,
-  /** Ahead of the board: places above the consensus, in the first round. Only the widest gap is told. */
+  /** Ahead of the board: places above the consensus, in the first round. A page tells one, the widest it can. */
   ahead: 15,
+  /** How many of each the editor offers the page, so the one it tells need not be a club that already has a story. */
+  offered: 3,
   /** The club with the most picks in the first two rounds is a story at this many. */
   haulPicks: 4,
   /** Rows in a list box. */
@@ -65,6 +67,7 @@ export interface DayCandidate {
   /** What a club got for a pick, as the draft record words it ("No. 9", "2028 round 1"). */
   got?: string[];
   deal?: { years: number; total: number };
+  /** A public line the story carries (a leadership report), or 'most' when it is the biggest of its kind that day. */
   text?: string;
 }
 
@@ -118,10 +121,16 @@ function draftCandidates(l: League): DayCandidate[] {
     out.push({ ...base(qbs[0], 'qb'), tier: 2, stakes: 1 / qbs[0].draft!.pick, n: qbs.length });
   const ranked = picks.filter((p) => p.draft!.rank !== undefined);
   const fall = (p: Player) => p.draft!.pick - p.draft!.rank!;
-  const wait = ranked.filter((p) => p.draft!.round <= 2).sort((a, b) => fall(b) - fall(a) || a.id - b.id)[0];
-  if (wait && fall(wait) >= DAY.wait) out.push({ ...base(wait, 'wait'), tier: 3, stakes: fall(wait) / 100 });
-  const ahead = ranked.filter((p) => p.draft!.round === 1).sort((a, b) => fall(a) - fall(b) || a.id - b.id)[0];
-  if (ahead && -fall(ahead) >= DAY.ahead) out.push({ ...base(ahead, 'ahead'), tier: 3, stakes: -fall(ahead) / 100 });
+  const waits = ranked
+    .filter((p) => p.draft!.round <= 2 && fall(p) >= DAY.wait)
+    .sort((a, b) => fall(b) - fall(a) || a.id - b.id);
+  for (const [i, p] of waits.slice(0, DAY.offered).entries())
+    out.push({ ...base(p, 'wait'), tier: 3, stakes: fall(p) / 100, ...(i === 0 ? { text: 'most' } : {}) });
+  const reaches = ranked
+    .filter((p) => p.draft!.round === 1 && -fall(p) >= DAY.ahead)
+    .sort((a, b) => fall(a) - fall(b) || a.id - b.id);
+  for (const [i, p] of reaches.slice(0, DAY.offered).entries())
+    out.push({ ...base(p, 'ahead'), tier: 3, stakes: -fall(p) / 100, ...(i === 0 ? { text: 'most' } : {}) });
   // The club with the most picks in the first two rounds, alone at the top.
   const early = picks.filter((p) => p.draft!.round <= 2);
   const by = new Map<number, Player[]>();
@@ -149,8 +158,9 @@ export function rankDay(cs: DayCandidate[], editionId: string): DayCandidate[] {
   );
 }
 
-/** How many stories of one angle a page runs among its lead and tiles. */
+/** How many stories of one angle a page runs among its lead and tiles: two, and one of an angle told as "the most". */
 const SAME_ANGLE = 2;
+const ONCE = new Set(['wait', 'ahead']);
 const TILES = 3;
 
 /**
@@ -172,7 +182,9 @@ export function cutDay(
     for (const c of ranked) {
       if (tiles.length >= TILES) break;
       if (c === lead || c.clubId === userTeamId || used.has(c.clubId)) continue;
-      if (varied && (told.get(c.angle) ?? 0) >= SAME_ANGLE) continue;
+      const n = told.get(c.angle) ?? 0;
+      // "The furthest fall" is said once a page, whatever else is empty.
+      if (ONCE.has(c.angle) ? n >= 1 : varied && n >= SAME_ANGLE) continue;
       used.add(c.clubId);
       told.set(c.angle, (told.get(c.angle) ?? 0) + 1);
       tiles.push(c);

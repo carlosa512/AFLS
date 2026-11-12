@@ -246,10 +246,13 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         `${the} took him.`,
       ],
       second: [
-        pick(l, at, slot('why'), [
-          `No player in the first two rounds went further below his ranking.`,
-          `It was the longest wait of any player ranked in the first two rounds.`,
-        ]),
+        // Only the furthest fall of the day is called that.
+        c.text === 'most'
+          ? pick(l, at, slot('why'), [
+              `No player in the first two rounds went further below his ranking.`,
+              `It was the longest wait of any player ranked in the first two rounds.`,
+            ])
+          : `${p.lastName} went ${(c.pick ?? 0) - (c.rank ?? 0)} places after his ranking.`,
         openerLine(l, ref, club),
       ],
       numbers: pickChips(c),
@@ -264,7 +267,10 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     return assemble(c, ref, {
       kicker: 'Ahead of the board',
       headline: head(`${Club} take ${tag(p)} at No. ${c.pick}`, `${Club} take ${p.lastName} at No. ${c.pick}`),
-      summary: `The consensus had ${p.lastName} at No. ${c.rank}, the widest gap in the first round.`,
+      summary:
+        c.text === 'most'
+          ? `The consensus had ${p.lastName} at No. ${c.rank}, the widest gap in the first round.`
+          : `The consensus had ${p.lastName} at No. ${c.rank}.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} took ${posWord(p)} ${man} at No. ${c.pick}.`,
@@ -273,10 +279,12 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         rankLine(p.lastName, c),
       ],
       second: [
-        pick(l, at, slot('why'), [
-          `It was the widest gap between a pick and his ranking in the first round.`,
-          `No first-round pick went further ahead of his ranking.`,
-        ]),
+        c.text === 'most'
+          ? pick(l, at, slot('why'), [
+              `It was the widest gap between a pick and his ranking in the first round.`,
+              `No first-round pick went further ahead of his ranking.`,
+            ])
+          : `${p.lastName} went ${(c.rank ?? 0) - (c.pick ?? 0)} places ahead of his ranking.`,
         openerLine(l, ref, club),
       ],
       numbers: pickChips(c),

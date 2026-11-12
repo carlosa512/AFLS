@@ -76,10 +76,17 @@ describe('Draft day', () => {
     expect(buildDay(l, ['draft'])!.lead.cast[0]).toBe(first.id);
   });
 
-  it('holds the wait and the reach to their bars, and tells only the biggest of each', () => {
-    const cs = dayCandidates(l, 'draft', new Set());
-    expect(cs.filter((c) => c.angle === 'wait')).toHaveLength(1);
-    expect(cs.filter((c) => c.angle === 'ahead')).toHaveLength(1);
+  it('holds the wait and the reach to their bars, and a page tells one of each at most', () => {
+    const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    pick(others[10], 0, 60, 30);
+    pick(others[11], 0, 25, 50);
+    const cs = rankDay(dayCandidates(l, 'draft', new Set()), 'x');
+    // The furthest fall and the widest gap come first of their kind.
+    expect(cs.filter((c) => c.angle === 'wait').map((c) => c.pick)).toEqual([60, 40]);
+    expect(cs.filter((c) => c.angle === 'ahead').map((c) => c.pick)).toEqual([20, 25]);
+    const page = buildDay(l, ['draft'])!;
+    for (const angle of ['wait', 'ahead'])
+      expect([page.lead, ...page.tiles].filter((s) => s.angle === angle).length).toBeLessThanOrEqual(1);
     // Under the bar, neither is a story.
     for (const p of Object.values(l.players))
       if (p.draft?.season === l.season) p.draft.rank = p.draft.pick + (DAY.ahead - 1);
