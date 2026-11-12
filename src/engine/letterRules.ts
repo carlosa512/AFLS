@@ -13,12 +13,15 @@ export const LETTER_FILES: readonly { file: string; quotes?: true }[] = [
   { file: 'src/engine/talkMail.ts' },
   { file: 'src/engine/benchVoice.ts', quotes: true },
   { file: 'src/engine/meetings/voice.ts' },
+  { file: 'src/engine/meetings/facts.ts' },
+  { file: 'src/engine/castSheet.ts' },
+  { file: 'src/engine/roomFacts.ts' },
   { file: 'src/engine/meetings/mail.ts' },
   { file: 'src/engine/roomVoice.ts' },
   { file: 'src/engine/lockerVoice.ts' },
   { file: 'src/engine/lockerReport.ts' },
   { file: 'src/engine/lockerMail.ts' },
-  { file: 'src/engine/disputeVoice.ts', quotes: true },
+  { file: 'src/engine/disputeVoice.ts' },
   { file: 'src/engine/disputeMail.ts' },
   { file: 'src/engine/promiseMail.ts' },
   { file: 'src/engine/staffNotes.ts' },
@@ -47,6 +50,7 @@ const BANNED: readonly [RegExp, string][] = [
     'says "man" for a player',
   ],
   [/\b(a|the|that|this|one) man's\b/i, 'says "man" for a player'],
+  [/-year man\b/i, 'says "man" for a player'],
   // The club is the club.
   [/\b(the|this) building\b/i, 'says "the building" for the club'],
 ];
@@ -63,6 +67,10 @@ const WRITTEN: readonly [RegExp, string][] = [
   [/\bvets?\b/i, 'says "vets" for veterans'],
   [/\bkids\b/i, 'says "kids" for young players'],
 ];
+
+/** The words no text in a letter file uses: for the short parts a sentence is built from. */
+export const wordBreaks = (text: string): string[] =>
+  BANNED.flatMap(([pattern, why]) => (pattern.test(text) ? [why] : []));
 
 const sentences = (text: string) =>
   text
@@ -81,10 +89,13 @@ export function letterBreaks(text: string, opts: { quotes?: boolean } = {}): str
   if (text.includes(';')) out.push('has a semicolon');
   // A colon inside a sentence (a clock time and a label that ends a line aside).
   if (/[a-z}…]: +[a-z{“"]/.test(text) && /[.?!]["”’']?$/.test(text)) out.push('has a colon inside a sentence');
-  if (/ [—–] /.test(text)) out.push('has a dash inside a sentence');
+  if (/ [—–] /.test(text) && /[.?!]["”’']?$/.test(text)) out.push('has a dash inside a sentence');
   if (opts.quotes) return out;
   for (const [pattern, why] of WRITTEN) if (pattern.test(text)) out.push(why);
   // A sentence of one or two words is a fragment ("Good room.", "Pads on.").
-  if (/[.?!]["”’']?$/.test(text)) for (const s of sentences(text)) if (words(s) < 3) out.push(`is clipped ("${s}")`);
+  if (/[.?!]["”’']?$/.test(text))
+    for (const s of sentences(text))
+      // A sentence that is only filled-in parts is whatever fills it.
+      if (words(s) < 3 && /[A-Za-z]/.test(s.replace(/\{…\}/g, ''))) out.push(`is clipped ("${s}")`);
   return out;
 }

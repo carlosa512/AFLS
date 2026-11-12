@@ -145,7 +145,7 @@ function divisionArticle(l: League, week: number, before: TeamRecord[], after: T
     const opponent = l.teams[next.homeId === club.id ? next.awayId : next.homeId];
     const nextLine =
       opponent.division === club.division
-        ? `Another division game awaits the ${club.name}: ${next.homeId === club.id ? 'a home meeting with' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`
+        ? `Another division game awaits the ${club.name}, ${next.homeId === club.id ? 'a home meeting with' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`
         : `Next for the ${club.name} is ${next.homeId === club.id ? 'a home game against' : 'a trip to face'} the ${opponent.name} in Week ${next.week}.`;
     closing += `${closing ? ' ' : ''}${nextLine}`;
   }

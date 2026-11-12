@@ -61,9 +61,9 @@ export function gameStory(r: GameResult, home: boolean): { swing: string; takeaw
       ? `We moved the ball better than they did, but ${small(give)} turnovers cost us possessions and left too little room for error.`
       : `We lost the turnover battle ${give}–${take}, and that is where the game went.`;
   else if (margin >= 21 && won && ledThroughout(usQ, themQ) && yds >= 0)
-    takeaway = `We controlled it from start to finish: ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and ${clock(ours.top)} of possession` : ''}.`;
+    takeaway = `We controlled it from start to finish, with ${ours.totalYds} yards to ${theirs.totalYds}${ours.top >= 33 * 60 ? ` and ${clock(ours.top)} of possession` : ''}.`;
   else if (margin >= 21 && lost && ledThroughout(themQ, usQ) && yds <= 0)
-    takeaway = `They controlled it from start to finish: ${theirs.totalYds} yards to ${ours.totalYds}.`;
+    takeaway = `They controlled it from start to finish, with ${theirs.totalYds} yards to ${ours.totalYds}.`;
   else if (won && outgained) {
     const why =
       ours.redZoneAtt >= 2 && ours.redZoneTd / ours.redZoneAtt >= 0.6
@@ -75,9 +75,9 @@ export function gameStory(r: GameResult, home: boolean): { swing: string; takeaw
   } else if (lost && outgaining)
     takeaway = `We outgained them ${ours.totalYds} yards to ${theirs.totalYds} but ${ours.redZoneAtt >= 3 && ours.redZoneTd / ours.redZoneAtt <= 0.34 ? `came away with only ${redZone(ours)}` : 'could not turn the yards into points'}.`;
   else if (!lost && themHalf >= 14 && them2 <= 3)
-    takeaway = `The defense shut the door after halftime: ${them2 === 0 ? 'nothing' : `${small(them2)} points`} allowed after the break.`;
+    takeaway = `The defense shut them down after halftime, with ${them2 === 0 ? 'nothing' : `${small(them2)} points`} allowed after the break.`;
   else if (margin <= 3 && !r.overtime && Math.abs(sum(usQ, 0, 3) - sum(themQ, 0, 3)) <= 8)
-    takeaway = 'A one-score game all through the fourth quarter.';
+    takeaway = 'It was a one-score game all through the fourth quarter.';
   else if (r.overtime) takeaway = 'Neither side could put it away in regulation.';
   else takeaway = yards;
   return { swing, takeaway };

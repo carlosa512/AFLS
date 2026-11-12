@@ -58,10 +58,10 @@ function outcome(league: League, r: WaiverResult): string {
   const club = r.toTeamId === null ? null : league.teams[r.toTeamId];
   if (r.fromTeamId === league.userTeamId)
     return club
-      ? `Claimed by the ${club.name}; his contract went with him.`
-      : 'Cleared waivers: a free agent now, and his release stays on our cap.';
+      ? `Claimed by the ${club.name}, and his contract went with him.`
+      : 'He cleared waivers and is a free agent now, and his release stays on our cap.';
   if (r.toTeamId === league.userTeamId)
-    return `Ours off waivers from the ${league.teams[r.fromTeamId].name}, on his deal.`;
+    return `We claimed him off waivers from the ${league.teams[r.fromTeamId].name}, on his deal.`;
   return `Our claim didn't win. ${r.userReason ?? ''}`.trim();
 }
 
@@ -94,32 +94,37 @@ const WIRE_NOTE: readonly Line<WireFact>[] = [
   {
     when: (f) => f.behind <= 0,
     reads: 2,
-    text: (f) => `Nobody behind our starting ${plural(f.pos)}. He'd be the first man up the day someone goes down.`,
+    text: (f) =>
+      `We have nobody behind our starting ${plural(f.pos)}, and he'd be the first one in when a starter goes down.`,
   },
   {
     when: (f) => f.raw && f.age <= 24 && f.starter,
     reads: 3,
-    text: (f) => `${capital(behindWords(f))} behind the starters. Raw, but our scouts see a starter in him by ${f.by}.`,
+    text: (f) =>
+      `We have ${behindWords(f)} behind the starters. He is raw, but our scouts see a starter in him by ${f.by}.`,
   },
   {
     when: (f) => f.raw && f.age <= 24,
     reads: 2,
-    text: (f) => `${capital(behindWords(f))} behind the starters. Raw, but he should be pushing for snaps by ${f.by}.`,
+    text: (f) =>
+      `We have ${behindWords(f)} behind the starters. He is raw, but he should be pushing for snaps by ${f.by}.`,
   },
   {
     when: (f) => f.raw && f.age <= 24,
     reads: 2,
-    text: (f) => `${capital(behindWords(f))} behind the starters. He's a year or two away, and that's the point.`,
+    text: (f) =>
+      `We have ${behindWords(f)} behind the starters. He's a year or two away, which is why I'd claim him now.`,
   },
   {
     when: (f) => !f.raw,
     reads: 1,
-    text: (f) => `We're light at ${f.pos}, and he could play for us now. There's more in him than that, too.`,
+    text: (f) =>
+      `We're light at ${f.pos}, and he could play for us now. Our scouts think there is more to come from him as well.`,
   },
   {
     when: (f) => f.raw,
     reads: 1,
-    text: (f) => `A project, but we're short of ${plural(f.pos)} and the ceiling is real.`,
+    text: (f) => `He is a project, but we're short of ${plural(f.pos)} and he has a real ceiling.`,
   },
   { text: (f) => `We're thin at ${f.pos}, and our scouts like what's still to come from him.` },
 ];
@@ -128,7 +133,7 @@ const OPENER: readonly Line<{ settled: number; wire: number }>[] = [
   {
     when: (f) => f.settled > 0 && f.wire > 0,
     reads: 2,
-    text: () => "Where the wire left our guys, and a few on it I'd put a claim in for.",
+    text: () => "This is where the wire left our players, with a few on it I'd put a claim in for.",
   },
   {
     when: (f) => f.settled > 0 && f.wire > 0,
@@ -145,8 +150,12 @@ const OPENER: readonly Line<{ settled: number; wire: number }>[] = [
     reads: 1,
     text: () => 'Some depth worth a look on the wire. Our place in line is next to each.',
   },
-  { when: (f) => f.settled > 1, reads: 1, text: () => 'The wire settled. Here is where everyone landed.' },
-  { text: () => 'The wire settled. Here is how it went.' },
+  {
+    when: (f) => f.settled > 1,
+    reads: 1,
+    text: () => 'The wire has settled, and everyone below has landed somewhere.',
+  },
+  { text: () => 'The wire has settled.' },
 ];
 
 /** The day's waiver letter, or nothing when there's nothing new. */

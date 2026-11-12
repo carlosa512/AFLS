@@ -431,7 +431,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
   if (mentoring.length)
     sections.push({
       title: 'Mentoring',
-      ...(pairsLine ? { lead: `The other pairs: ${pairsLine}.` } : {}),
+      ...(pairsLine ? { lead: `The other pairs are ${pairsLine}.` } : {}),
       columns: ['Player', 'Mentor', "How it's going"],
       rows: mentoring,
     });
@@ -550,7 +550,7 @@ export function lockerReportMail(league: League, have: Set<string>): Draft[] {
       subject: SUBJECT[checkin],
       body:
         (motto && !verdict.includes(motto) ? `${verdict} ${motto}` : verdict) +
-        (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs: ${pairsLine}.` : '') +
+        (!mentoring.length && pairsLine ? `\n\nThe mentoring pairs are ${pairsLine}.` : '') +
         // The season's end looks back on the year's meetings (L2): how many, a promise kept and one broken.
         (checkin === 'end' && yearParagraphFor(league) ? `\n\n${yearParagraphFor(league)}` : ''),
       ...(sections.length ? { sections } : {}),

@@ -69,54 +69,55 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
   {
     when: (f) => f.split?.length === 1 && !f.down?.length && calm(f),
     reads: 4,
-    text: (f) => `One room on my list: ${first(f.split)}. Everyone else is in a good place.`,
+    text: (f) => `One room on my list is ${first(f.split)}, and everyone else is happy.`,
   },
   {
     when: (f) => f.split?.length === 1 && !f.down?.length && calm(f),
     reads: 4,
-    text: (f) => `${unitIs(first(f.split))} divided. Everyone else is fine.`,
+    text: (f) => `${unitIs(first(f.split))} divided, and everyone else is fine.`,
   },
   {
     when: (f) => f.down?.length === 1 && !f.split?.length && calm(f),
     reads: 4,
-    text: (f) => `${unitIs(first(f.down))} down. Everyone else is holding up.`,
+    text: (f) => `${unitIs(first(f.down))} down, and everyone else is doing well.`,
   },
   {
     when: (f) => troubled(f) === 1 && !!f.standing && f.newFeuds === 0,
     reads: 5,
     text: (f) =>
-      `${unitIs(first([...(f.split ?? []), ...(f.down ?? [])]))} ${f.split?.length ? 'divided' : 'down'}, and ${f.standing} still aren't talking. Two things I'm watching.`,
+      `${unitIs(first([...(f.split ?? []), ...(f.down ?? [])]))} ${f.split?.length ? 'divided' : 'down'}, and ${f.standing} still aren't talking, so I'm watching two things.`,
   },
   {
     when: (f) => troubled(f) >= 2,
     reads: 4,
-    text: (f) => `${cap(inWords(troubled(f)))} rooms on my list: ${listOf([...(f.split ?? []), ...(f.down ?? [])])}.`,
+    text: (f) =>
+      `${cap(inWords(troubled(f)))} rooms are on my list, and they are ${listOf([...(f.split ?? []), ...(f.down ?? [])])}.`,
   },
   {
     when: (f) => troubled(f) >= 2,
     reads: 4,
-    text: (f) => `${cap(listOf([...(f.split ?? []), ...(f.down ?? [])]))}: that's where my attention is.`,
+    text: (f) => `My attention is on ${listOf([...(f.split ?? []), ...(f.down ?? [])])}.`,
   },
   {
     when: (f) => f.apart === 'young down' && !f.split?.length,
     reads: 2,
-    text: () => "The vets are fine. It's the young guys who are down.",
+    text: () => 'The veterans are fine, and it is the younger players who are down.',
   },
   {
     when: (f) => f.apart === 'vets down' && !f.split?.length,
     reads: 2,
-    text: () => "The young guys are fine. It's the vets who are down.",
+    text: () => 'The younger players are fine, and it is the veterans who are down.',
   },
   {
     when: (f) => quiet(f) && !!f.tight,
     reads: 2,
-    text: (f) => `Good room. ${unitIs(f.tight ?? 'the room')} as close a group as I've seen.`,
+    text: (f) => `The room is good, and ${unitIs(f.tight ?? 'the room')} as close a group as I've seen.`,
   },
   {
     when: (f) => !!f.standing && f.newFeuds === 0,
     reads: 3,
     text: (f) =>
-      `${f.standing} still aren't talking. Not on the field yet. If it gets there, you'll hear it from me before you hear it from SNN.`,
+      `${f.standing} still aren't talking, but it has not reached the field. If it does, you will hear it from me before you hear it from SNN.`,
   },
   {
     when: (f) => !!f.standing && f.newFeuds === 0,
@@ -126,63 +127,71 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
   {
     when: (f) => !!f.standing && f.newFeuds === 0 && !f.split?.length && !f.down?.length,
     reads: 3,
-    text: (f) => `Same as last time with ${f.standing}: cold, but professional. The rest of the room is fine.`,
+    text: (f) => `${f.standing} are the same as last time, cold but professional, and the rest of the room is fine.`,
   },
   {
     when: (f) => f.newFeuds > 0 && f.friends > 0,
     reads: 2,
-    text: () => "Mixed bag. Some new friendships, some guys who can't stand each other. That's a football team.",
+    text: () => "Some players have made new friendships, and some can't stand each other.",
   },
   {
     when: (f) => f.newFeuds > 0 && f.lost > 0 && !!f.lostName,
     reads: 3,
     text: (f) =>
-      `Mostly good. ${f.newFeuds === 1 ? 'One thing' : 'A couple of things'} on the line to watch, and ${f.lostName} needs a new voice.`,
-  },
-  {
-    when: (f) => f.lost > 1,
-    reads: 2,
-    text: (f) => `The cuts took some teachers with them. ${count(f.lost)} young guys have new mentors to get used to.`,
+      `Most of the room is good, ${f.newFeuds === 1 ? 'one thing is' : 'a couple of things are'} worth watching, and ${f.lostName} needs a new voice.`,
   },
   {
     when: (f) => f.lost > 1,
     reads: 2,
     text: (f) =>
-      `${count(f.lost)} of our young guys lost the vet bringing them along. That's the part of cut-down nobody sees.`,
+      `The cuts took some mentors with them, and ${count(f.lost).toLowerCase()} younger players have new ones to get used to.`,
+  },
+  {
+    when: (f) => f.lost > 1,
+    reads: 2,
+    text: (f) => `${count(f.lost)} of our younger players lost the veteran who was bringing them along.`,
   },
   {
     when: (f) => f.checkin === 'end' && f.grew > 0,
     reads: 2,
-    text: () => 'Good year in the room. Some young guys grew up on us.',
+    text: () => 'It was a good year in the room, and some of the younger players matured.',
   },
   {
     when: (f) => f.checkin === 'end' && f.grew > 0,
     reads: 2,
-    text: () => "The best thing that happened this year didn't show up in the box score. A few of our kids grew up.",
+    text: () => 'A few of our younger players matured this year, and it does not show up in the box score.',
   },
-  { when: (f) => f.unhappy >= 3, reads: 1, text: () => "A few guys are down. I'm on it." },
+  { when: (f) => f.unhappy >= 3, reads: 1, text: () => "A few players are down, and I'm working on it." },
   {
     when: (f) => f.unhappy >= 3,
     reads: 1,
-    text: () => "Some unhappy faces in there. Nothing I can't handle, but you should know who.",
+    text: () => 'Some players are unhappy, and I can handle it, but you should know who.',
   },
-  { when: (f) => f.newFeuds > 0, reads: 1, text: () => "Room's fine, but there's friction to keep an eye on." },
-  { when: (f) => f.newFeuds > 0, reads: 1, text: () => "One spot of friction in the room. It's being handled." },
-  { when: (f) => f.struggling > 0, reads: 1, text: () => 'Most of the young guys are listening. Not all of them.' },
+  { when: (f) => f.newFeuds > 0, reads: 1, text: () => 'The room is fine, but there is friction to watch.' },
+  {
+    when: (f) => f.newFeuds > 0,
+    reads: 1,
+    text: () => 'There is one spot of friction in the room, and it is being handled.',
+  },
   {
     when: (f) => f.struggling > 0,
     reads: 1,
-    text: () => "The mentoring is working for most of them. A couple of pairings aren't, and I'd change them.",
+    text: () => 'Most of the younger players are listening, but not all of them.',
+  },
+  {
+    when: (f) => f.struggling > 0,
+    reads: 1,
+    text: () => 'The mentoring is working for most of them, but a couple of pairings are not, and I would change them.',
   },
   {
     when: (f) => f.friends > 0,
     reads: 1,
-    text: () => "The room's coming together. You see it in the cafeteria before you see it on Sundays.",
+    text: () => 'The room is coming together, and you see it in the cafeteria before you see it on Sundays.',
   },
   {
     when: (f) => f.lost === 1 && !!f.lostName,
     reads: 1,
-    text: (f) => `Good room. ${f.lostName} needs a new voice, that's all.`,
+    text: (f) => `The room is good, and ${f.lostName} only needs a new voice.`,
   },
   {
     when: (f) => f.checkin === 'camp',
@@ -190,16 +199,21 @@ export const VERDICT: readonly (Line<VerdictFact> & { motto?: true })[] = [
     motto: true,
     text: () => 'Camp is open and the room has picked its leaders.',
   },
-  { when: (f) => f.checkin === 'camp', reads: 1, motto: true, text: () => 'Pads on. The room knows who it follows.' },
+  {
+    when: (f) => f.checkin === 'camp',
+    reads: 1,
+    motto: true,
+    text: () => 'The pads are on, and the room knows who it follows.',
+  },
   {
     when: (f) => quiet(f) && f.checkin !== 'end',
     motto: true,
-    text: (f) => `Quiet room. The kind I like heading into ${month(f.checkin)}.`,
+    text: (f) => `The room is quiet, and I like that heading into ${month(f.checkin)}.`,
   },
-  { when: quiet, motto: true, text: () => "Nothing to report from the room, and that's how I like it." },
-  { when: quiet, motto: true, text: () => "Room's in good shape. Nobody's making my phone ring." },
-  { when: quiet, motto: true, text: () => 'Quiet in the building. The guys are locked in.' },
-  { text: () => 'Here is where the room stands.' },
+  { when: quiet, motto: true, text: () => 'I have nothing to report from the room, and I like it that way.' },
+  { when: quiet, motto: true, text: () => 'The room is in good shape, and nobody has called me about a problem.' },
+  { when: quiet, motto: true, text: () => 'The club is quiet, and the players are focused.' },
+  { text: () => 'I have no news about the room this time.' },
 ];
 
 // ───────── captains and leaders ─────────
@@ -218,32 +232,33 @@ export const CAPTAIN_WHY: readonly Line<CaptainFact>[] = [
   {
     when: (f) => f.tone === 'warn',
     reads: 2,
-    text: () => "The guys follow him. I'd rather they followed someone else, but that's the room's call.",
+    text: () => "The players follow him. I would rather they followed someone else, but it is the room's call.",
   },
   {
     when: (f) => f.experience <= 2,
     reads: 2,
-    text: (f) => `${yearOf(f.experience)} year, I know, but the room already goes to him.`,
+    text: (f) => `He is in his ${yearOf(f.experience).toLowerCase()} year, I know, but the room already goes to him.`,
   },
   {
     when: (f) => f.experience >= 8,
     reads: 2,
-    text: (f) => `${yearOf(f.experience)} year in the league. When he talks, the room goes quiet.`,
+    text: (f) =>
+      `He is in his ${yearOf(f.experience).toLowerCase()} year in the league, and the room goes quiet when he talks.`,
   },
-  { when: (f) => f.kicker, reads: 2, text: () => "He's out there on every kick. The core guys trust him." },
-  { when: (f) => f.qb, reads: 1, text: () => 'The ball is in his hands every snap. The huddle is his.' },
+  { when: (f) => f.kicker, reads: 2, text: () => 'He is out there on every kick, and the core players trust him.' },
+  { when: (f) => f.qb, reads: 1, text: () => 'The ball is in his hands every snap, and he leads the huddle.' },
   {
     when: (f) => f.role === 'specialTeams',
     reads: 1,
-    text: () => 'Core special-teamer. Does the dirty work and the guys see it.',
+    text: () => 'He is a core special-teamer, does the dirty work, and the players see it.',
   },
   {
     when: (f) => f.experience >= 5,
     reads: 1,
-    text: () => "He's seen enough football to know what matters. The young guys watch him.",
+    text: () => 'He has seen enough football to know what matters, and the younger players watch him.',
   },
-  { when: (f) => !!f.read, reads: 1, text: (f) => `Our read on him is "${f.read}". The vote says the same.` },
-  { text: () => "The guys voted. He's the one they listen to." },
+  { when: (f) => !!f.read, reads: 1, text: (f) => `Our read on him is "${f.read}", and the vote says the same.` },
+  { text: () => 'The players voted, and he is the one they listen to.' },
 ];
 
 // ───────── mentoring ─────────
@@ -261,19 +276,19 @@ export const MENTOR_LOST: readonly Line<LostFact>[] = [
     when: (f) => !!f.now,
     reads: 1,
     text: (f) =>
-      `With ${f.mentor} gone, ${f.name} lost the guy bringing him along. We've put him with ${f.now} for now.`,
+      `With ${f.mentor} gone, ${f.name} lost the player bringing him along, so we have put him with ${f.now} for now.`,
   },
   {
     when: (f) => !!f.now,
     reads: 1,
-    text: (f) => `${f.mentor} leaving hit ${f.name} harder than people think. ${f.now} has him now.`,
+    text: (f) => `${f.mentor} leaving hit ${f.name} harder than people think. ${f.now} is mentoring him now.`,
   },
   {
     when: (f) => !f.now && f.byYou,
     reads: 1,
-    text: (f) => `${f.name} needs a new mentor. Your call: pick one on the Locker Room screen.`,
+    text: (f) => `${f.name} needs a new mentor, and you can pick one on the Locker Room screen.`,
   },
-  { when: (f) => !f.now, text: (f) => `${f.name} lost ${f.mentor}. We'll find him someone in the room.` },
+  { when: (f) => !f.now, text: (f) => `${f.name} lost ${f.mentor}, and we will find him someone in the room.` },
 ];
 
 export interface SuggestFact {
@@ -289,35 +304,36 @@ export const MENTOR_SUGGEST: readonly Line<SuggestFact>[] = [
     when: (f) => !f.better && f.status === 'picking up his bad habits',
     reads: 2,
     text: (f) =>
-      `${f.mentor} is rubbing off on ${f.name} the wrong way. I don't have a better fit in the room right now.`,
+      `${f.mentor} is having the wrong effect on ${f.name}, and I do not have a better fit in the room right now.`,
   },
   {
     when: (f) => !f.better && f.status === 'picking up his bad habits',
     reads: 2,
     text: (f) =>
-      `${f.name} is taking the wrong lessons from ${f.mentor}. If we add a vet at his spot, I'd make the switch.`,
+      `${f.name} is taking the wrong lessons from ${f.mentor}. If we add a veteran at his position, I would make the switch.`,
   },
   {
     when: (f) => !f.better && f.status === 'not taking',
     reads: 2,
-    text: (f) => `${f.name} and ${f.mentor} haven't clicked. Nobody else in the room is a better fit yet.`,
+    text: (f) =>
+      `${f.name} and ${f.mentor} have not worked well together, and nobody else in the room is a better fit yet.`,
   },
   {
     when: (f) => !!f.better && f.status === 'picking up his bad habits',
     reads: 1,
     text: (f) =>
-      `${f.name} is picking up the wrong things from ${f.mentor}. I'd move him to ${f.better} before it sticks.`,
+      `${f.name} is picking up the wrong things from ${f.mentor}. I would move him to ${f.better} before it becomes a habit.`,
   },
   {
     when: (f) => !!f.better && f.status === 'not taking',
     reads: 1,
     text: (f) =>
-      `${f.name} isn't hearing ${f.mentor}. Wrong voice for him. ${f.better} has the patience; I'd pair them.`,
+      `${f.name} isn't listening to ${f.mentor}, who is the wrong voice for him. ${f.better} has the patience, so I would pair them.`,
   },
   {
     when: (f) => !!f.better && f.status === 'not taking',
     reads: 1,
-    text: (f) => `It's not clicking between ${f.name} and ${f.mentor}. ${f.better} would be my pick.`,
+    text: (f) => `${f.name} and ${f.mentor} are not working well together, and ${f.better} would be my pick.`,
   },
 ];
 
@@ -325,10 +341,11 @@ export const MENTOR_SUGGEST: readonly Line<SuggestFact>[] = [
 
 export const FRICTION_LEAD: readonly Line<{ n: number }>[] = [
   {
-    text: () => "It's handled. If it ever gets onto the field, you'll hear it from me before you hear it from SNN.",
+    text: () =>
+      'We have it handled, and if it ever gets onto the field, you will hear it from me before you hear it from SNN.',
   },
   { text: () => "We'll handle it in-house. It hasn't touched practice." },
-  { text: () => "I've talked to both sides. Nothing on the field yet." },
+  { text: () => 'I have talked to both sides, and nothing has reached the field yet.' },
 ];
 
 export interface FeudFact {
@@ -337,11 +354,15 @@ export interface FeudFact {
 
 export const FRICTION: readonly Line<FeudFact>[] = [
   { when: (f) => f.why === 'benched', reads: 1, text: () => 'It started when the job changed hands.' },
-  { when: (f) => f.why === 'benched', reads: 1, text: () => 'Started with the depth chart. It usually does.' },
+  { when: (f) => f.why === 'benched', reads: 1, text: () => 'It started with the depth chart.' },
   { when: (f) => f.why === 'snubbed', reads: 1, text: () => 'It started with the new contract.' },
-  { when: (f) => f.why === 'snubbed', reads: 1, text: () => 'Money. One got paid and the other noticed.' },
-  { text: () => "Nobody's said what started it. It's in the room, so you should know." },
-  { text: () => "Couldn't tell you how it started. They just don't get along." },
+  {
+    when: (f) => f.why === 'snubbed',
+    reads: 1,
+    text: () => 'It started with money, because one got paid and the other noticed.',
+  },
+  { text: () => 'Nobody has said what started it, but it is in the room, so you should know.' },
+  { text: () => "I can't tell you how it started. They just don't get along." },
 ];
 
 export interface FriendFact {
@@ -356,16 +377,16 @@ export const GETTING_ALONG: readonly Line<FriendFact>[] = [
     when: (f) => !!f.gone,
     reads: 1,
     text: (f) =>
-      `${f.a} took ${f.b}'s ${f.gone === 'cut' ? 'release' : 'trade'} hard. They were close. Give him a week.`,
+      `${f.a} took ${f.b}'s ${f.gone === 'cut' ? 'release' : 'trade'} hard because they were close, and he needs a week.`,
   },
   {
     when: (f) => !!f.gone,
     reads: 1,
     text: (f) =>
-      `${f.a} lost his best friend in the building when ${f.b} was ${f.gone === 'cut' ? 'let go' : 'traded'}. He'll be fine; give him a week.`,
+      `${f.a} lost his best friend on the club when ${f.b} was ${f.gone === 'cut' ? 'let go' : 'traded'}. He will be fine with a week.`,
   },
-  { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} have gotten close. Good for the room.` },
-  { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} are inseparable these days. That kind of thing travels.` },
+  { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} have gotten close, which is good for the room.` },
+  { when: (f) => !f.gone, text: (f) => `${f.a} and ${f.b} are inseparable these days.` },
 ];
 
 // ───────── grew up ─────────
@@ -384,22 +405,23 @@ export const GREW_UP: readonly Line<GrewFact>[] = [
     when: (f) => !!f.mentor,
     reads: 1,
     text: (f) =>
-      `${f.name} has been picking up ${f.mentor}'s habits in the film room and the weight room. More work than a year ago, and it shows.`,
+      `${f.name} has been picking up ${f.mentor}'s habits in the film room and the weight room. He works more than he did a year ago, and it shows.`,
   },
   {
     when: (f) => !!f.mentor,
     reads: 1,
-    text: (f) => `${f.mentor} got through to ${f.name}. He's first in the building now.`,
+    text: (f) => `${f.name} has learned from ${f.mentor}, and he is the first to arrive now.`,
   },
   {
     when: (f) => !!f.was,
     reads: 1,
-    text: (f) => `A year ago our read on ${f.name} was "${f.was}". Not any more. "${f.is}" is closer to it now.`,
+    text: (f) => `A year ago our read on ${f.name} was "${f.was}", and now "${f.is}" is closer to it.`,
   },
   {
     when: (f) => !!f.was,
     reads: 1,
-    text: (f) => `A year ago I'd have told you ${f.name} was "${f.was}". He's grown up. "${f.is}" fits him now.`,
+    text: (f) =>
+      `A year ago I would have told you ${f.name} was "${f.was}", but he has grown up and "${f.is}" fits him now.`,
   },
 ];
 
@@ -422,105 +444,113 @@ export const MORALE_NOTE: readonly Line<MoraleNoteFact>[] = [
   {
     when: (f) => !!f.costing && f.reason === 'You broke your word',
     reads: 3,
-    text: (f) => `${f.name} took you at your word, and he's stopped working like it. It shows in practice.`,
+    text: (f) => `${f.name} took you at your word and has stopped working like it, and it shows in practice.`,
   },
   {
     when: (f) => !!f.costing && f.reason === 'Wants more snaps',
     reads: 3,
-    text: (f) => `${f.name} is sulking about snaps, and it's showing in practice.`,
+    text: (f) => `${f.name} is sulking about snaps, and it is showing in practice.`,
   },
   {
     when: (f) => !!f.costing && f.reason === 'Wants a new deal',
     reads: 3,
-    text: (f) => `${f.name} has the contract on his mind, and it's in his work. He's a step slow in practice.`,
+    text: (f) => `${f.name} has the contract on his mind, and it is in his work, so he is a step slow in practice.`,
   },
   {
     when: (f) => !!f.costing && f.reason === 'The losing is wearing on him',
     reads: 3,
-    text: (f) => `The losing has got into ${f.name}. You can see it on the practice field.`,
+    text: (f) => `The losing is affecting ${f.name}, and you can see it on the practice field.`,
   },
   {
     when: (f) => !!f.costing && f.reason === 'A feud in the room',
     reads: 3,
-    text: (f) => `${f.name}'s feud is costing him. His mind isn't on the work.`,
+    text: (f) => `${f.name}'s feud is costing him, and his mind is not on the work.`,
   },
   {
     when: (f) => !!f.costing,
     reads: 2.5,
-    text: (f) => `${f.name} is down, and it's costing him in practice and on game day.`,
+    text: (f) => `${f.name} is down, and it is costing him in practice and on game day.`,
   },
-  { when: (f) => !!f.costing, reads: 2.5, text: (f) => `Whatever's eating ${f.name}, it's in his work now.` },
+  { when: (f) => !!f.costing, reads: 2.5, text: (f) => `Whatever is bothering ${f.name}, it is in his work now.` },
   {
     when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
-    text: (f) => `You told ${f.name} he'd get it. He's still waiting.`,
+    text: (f) => `You told ${f.name} he would get it, and he is still waiting.`,
   },
   {
     when: (f) => !f.costing && f.reason === 'You broke your word',
     reads: 3,
-    text: (f) => `${f.name} took you at your word. That's gone now, and the room saw it.`,
+    text: (f) => `${f.name} took you at your word, but that is gone now, and the room saw it.`,
   },
   {
     when: (f) => f.reason === 'You kept your word',
     reads: 3,
-    text: (f) => `You kept your word to ${f.name}. The room noticed.`,
+    text: (f) => `You kept your word to ${f.name}, and the room noticed.`,
   },
   {
     when: (f) => f.reason === 'You kept your word',
     reads: 3,
-    text: (f) => `${f.name} got what you promised him. He won't forget it.`,
+    text: (f) => `${f.name} got what you promised him, and he will not forget it.`,
   },
-  { when: (f) => !!f.back, reads: 3, text: () => "He's come around. Whatever it was, it's behind him." },
-  { when: (f) => !!f.back, reads: 3, text: (f) => `${f.name} is back to himself. Good.` },
-  { when: (f) => f.happy, reads: 1, text: () => "Couldn't be happier." },
-  { when: (f) => f.happy, reads: 1, text: (f) => `${f.name} is flying. I'd take a room full of him.` },
+  { when: (f) => !!f.back, reads: 3, text: () => 'He has settled down, and whatever it was is behind him.' },
+  { when: (f) => !!f.back, reads: 3, text: (f) => `${f.name} is back to himself.` },
+  { when: (f) => f.happy, reads: 1, text: () => 'He could not be happier.' },
+  { when: (f) => f.happy, reads: 1, text: (f) => `${f.name} is very happy right now.` },
   {
     when: (f) => f.reason === 'Wants more snaps',
     reads: 2,
-    text: (f) => `${f.name} is sulking about snaps. I'd talk to him before it spreads.`,
+    text: (f) => `${f.name} is sulking about snaps, so I would talk to him before it spreads.`,
   },
   {
     when: (f) => f.reason === 'Wants more snaps',
     reads: 2,
-    text: (f) => `${f.name} thinks he should be on the field more. He's got a case.`,
+    text: (f) => `${f.name} thinks he should be on the field more, and he has a case.`,
   },
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
-    text: () => "He's watching what the market pays. It's on his mind.",
+    text: () => 'He is watching what the market pays, and it is on his mind.',
   },
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
-    text: (f) => `${f.name} knows what guys at his spot are getting. He hasn't said it to me, but he will.`,
+    text: (f) => `${f.name} knows what players at his position are getting. He has not said it to me, but he will.`,
   },
-  { when: (f) => f.reason === 'Wants a new deal', reads: 2, text: () => "It's the contract. It usually is." },
+  { when: (f) => f.reason === 'Wants a new deal', reads: 2, text: () => 'The contract is what is bothering him.' },
   {
     when: (f) => f.reason === 'Wants a new deal',
     reads: 2,
-    text: (f) => `${f.name} thinks he's underpaid. He plays like it doesn't bother him, for now.`,
+    text: (f) => `${f.name} thinks he is underpaid, but he plays like it does not bother him for now.`,
   },
-  { when: (f) => f.reason === 'The losing is wearing on him', reads: 2, text: () => 'The losing is getting to him.' },
+  { when: (f) => f.reason === 'The losing is wearing on him', reads: 2, text: () => 'The losing is bothering him.' },
   {
     when: (f) => f.reason === 'The losing is wearing on him',
     reads: 2,
-    text: (f) => `${f.name} didn't come here to lose. It shows.`,
+    text: (f) => `${f.name} did not come here to lose, and it shows.`,
   },
-  { when: (f) => f.reason === 'A feud in the room', reads: 2, text: () => 'The feud is wearing on him.' },
+  { when: (f) => f.reason === 'A feud in the room', reads: 2, text: () => 'The feud is bothering him.' },
   {
     when: (f) => f.reason === 'Still stung by the benching',
     reads: 2,
-    text: () => "He hasn't got over losing the job. Give it time.",
+    text: () => 'He has not got over losing the job, and he needs time.',
   },
   {
     when: (f) => f.reason === 'Noticed who got paid',
     reads: 2,
-    text: () => 'He saw the new deal down the hall. He noticed.',
+    text: () => "He saw a teammate's new deal, and he noticed.",
   },
-  { when: (f) => f.reason === 'Misses a friend who left', reads: 2, text: () => 'He misses his buddy. It will pass.' },
-  { when: (f) => f.reason === 'Hard to please', reads: 2, text: () => "That's just him. Nothing's ever quite right." },
-  { text: (f) => `${f.name} is down. I'm keeping an eye on it.` },
-  { text: () => "He's not himself. I'll find out why." },
+  {
+    when: (f) => f.reason === 'Misses a friend who left',
+    reads: 2,
+    text: () => 'He misses his friend, and it will pass.',
+  },
+  {
+    when: (f) => f.reason === 'Hard to please',
+    reads: 2,
+    text: () => 'That is just how he is, and nothing is ever quite right for him.',
+  },
+  { text: (f) => `${f.name} is down, and I'm keeping an eye on it.` },
+  { text: () => 'He is not himself, and I will find out why.' },
 ];
 
 export interface MoraleLeadFact {
@@ -533,12 +563,16 @@ export const MORALE_LEAD: readonly Line<MoraleLeadFact>[] = [
   {
     when: (f) => f.more === 1,
     reads: 1,
-    text: () => 'These are the ones I worry about. One more is down too; the Locker Room has him.',
+    text: () => 'I worry about these players. One more is down too, and he is on the Locker Room screen.',
   },
   {
-    text: (f) => `These are the ones I worry about. ${count(f.more)} more are down too; the Locker Room has them all.`,
+    text: (f) =>
+      `I worry about these players. ${count(f.more)} more are down too, and they are all on the Locker Room screen.`,
   },
-  { text: (f) => `The worst of it. ${count(f.more)} others are down a bit; it's all on the Locker Room screen.` },
+  {
+    text: (f) =>
+      `These are the worst of it, and ${count(f.more).toLowerCase()} others are down a bit, as the Locker Room screen shows.`,
+  },
 ];
 
 // ───────── players who want a word (G3) ─────────
@@ -558,9 +592,9 @@ const ABOUT: Record<RelayFact['cause'], string> = {
 
 /** The head coach bringing one player's ask to you: who, what about, then the player's own words. */
 export const TALK_RELAY: readonly Line<RelayFact>[] = [
-  { text: (f) => `${f.name} came to see me about ${ABOUT[f.cause]}. His words, not mine:` },
-  { text: (f) => `${f.name} stopped by my office about ${ABOUT[f.cause]}. Here's what he told me:` },
-  { text: (f) => `${f.name} wants a word with you about ${ABOUT[f.cause]}. In his words:` },
+  { text: (f) => `${f.name} came to see me about ${ABOUT[f.cause]}, and his own words are below.` },
+  { text: (f) => `${f.name} stopped by my office about ${ABOUT[f.cause]}, and what he said is below.` },
+  { text: (f) => `${f.name} wants a word with you about ${ABOUT[f.cause]}, and he says it himself below.` },
 ];
 
 const TALLY = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
@@ -569,7 +603,7 @@ const TALLY = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight
 export const TALK_GROUP_COACH: readonly Line<{ n: number }>[] = [
   {
     text: (f) =>
-      `${TALLY[f.n] ?? 'A few'} guys came to see me this week. Here's what they said, in their words. They're waiting on you.`,
+      `${TALLY[f.n] ?? 'A few'} players came to see me this week and are waiting on you. Their own words are below.`,
   },
   {
     text: (f) =>
@@ -585,13 +619,13 @@ export const PROMISES_LEAD: readonly Line<{ n: number }>[] = [
   {
     text: (f) =>
       f.n === 1
-        ? "Season's done. Before the new year starts, here's the one promise we made a player that's still open."
-        : `Season's done. Before the new year starts, here are the ${f.n} promises we made players that are still open.`,
+        ? 'The season is over, and one promise we made a player is still open before the new year starts.'
+        : `The season is over, and ${f.n} promises we made players are still open before the new year starts.`,
   },
   {
     text: (f) =>
       f.n === 1
-        ? "One thing to carry into the offseason: a promise we still owe. He hasn't forgotten it."
-        : `${f.n} things to carry into the offseason: promises we still owe. They haven't forgotten them.`,
+        ? 'We still owe a player a promise going into the offseason, and he has not forgotten it.'
+        : `We still owe players ${f.n} promises going into the offseason, and they have not forgotten them.`,
   },
 ];

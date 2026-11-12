@@ -1431,7 +1431,7 @@ describe('fix round 2', () => {
     moodWeek(b.l);
     const y = closingOf(b.l, b.q[0].id);
     expect(y.beat).toMatchObject({ how: 'both' });
-    expect(y.text).toContain('both gone');
+    expect(y.text).toContain('both left');
     expect(y.text).not.toMatch(/job/);
   });
 

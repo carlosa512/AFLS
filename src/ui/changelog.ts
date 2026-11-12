@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.38',
+    date: '2026-11-12',
+    title: 'Letters in plain words',
+    text: 'Your coaches, director and staff now write in plain, complete sentences. Players are players, and no letter opens by announcing itself.',
+  },
+  {
     version: '0.4.37',
     date: '2026-11-12',
     title: 'SNN’s Column and the coach’s letter',

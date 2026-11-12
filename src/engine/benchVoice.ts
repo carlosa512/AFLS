@@ -299,7 +299,7 @@ export const BENCH_REPLY: readonly Line<ReplyFact>[] = [
   },
   { when: (f) => f.reply === 'earn', text: () => "Then I'll earn it." },
   { when: (f) => f.reply === 'earn' && f.man.calm, reads: 1, text: () => "Fair enough. I'll go earn it back." },
-  { when: (f) => f.reply === 'earn' && f.man.loud, reads: 1, text: () => 'Then I'll earn it back on the field.' },
+  { when: (f) => f.reply === 'earn' && f.man.loud, reads: 1, text: () => "Then I'll earn it back on the field." },
   { when: (f) => f.reply === 'yours', text: () => "Understood. I won't let it go." },
   { when: (f) => f.reply === 'compete', text: () => "Fine. I'll keep working." },
   { when: (f) => f.reply === 'his', text: () => 'All right. I hear you.' },
@@ -364,7 +364,12 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   ),
   closed('left', 'other', (f) => `${f.other} has left, so it's ${poss(f.holder)} job again.`, named),
   closed('left', 'holder', (f) => `${f.holder} has left, so the job is ${poss(f.other!)} now.`, named),
-  closed('left', 'both', (f) => `${f.holder} and ${f.other} have both left, so there is nothing left to settle.`, named),
+  closed(
+    'left',
+    'both',
+    (f) => `${f.holder} and ${f.other} have both left, so there is nothing left to settle.`,
+    named,
+  ),
   closed(
     'left',
     'holder',
@@ -393,7 +398,8 @@ export const BENCH_CLOSE: readonly Line<BenchCloseFact>[] = [
   closed(
     'settled',
     'his',
-    (f) => `You told ${f.holder} it is ${poss(f.other!)} job now. He took it professionally, though he is not happy about it.`,
+    (f) =>
+      `You told ${f.holder} it is ${poss(f.other!)} job now. He took it professionally, though he is not happy about it.`,
     (f) => named(f) && !!f.man?.calm,
     3,
   ),

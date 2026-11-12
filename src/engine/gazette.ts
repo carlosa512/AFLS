@@ -302,8 +302,8 @@ interface Story {
 type Ends = { top: string; v: string; bottom: string; w: string; phrase: string };
 /** A team table in a sentence: who leads it and who is last. A column rotates through them, so no two read alike. */
 const TEAM_LINES: readonly ((e: Ends) => string)[] = [
-  (e) => `The ${e.top} are the league's best in ${e.phrase} at ${e.v}; the ${e.bottom} are last at ${e.w}.`,
-  (e) => `In ${e.phrase}, the ${e.top} lead at ${e.v} and the ${e.bottom} bring up the rear at ${e.w}.`,
+  (e) => `The ${e.top} are the league's best in ${e.phrase} at ${e.v}, and the ${e.bottom} are last at ${e.w}.`,
+  (e) => `In ${e.phrase}, the ${e.top} lead at ${e.v} and the ${e.bottom} trail everyone at ${e.w}.`,
   (e) => `Nobody beats the ${e.top} in ${e.phrase} (${e.v}). The ${e.bottom} sit at the other end, at ${e.w}.`,
 ];
 type Leader = { who: string; club: string; v: string };
@@ -316,12 +316,12 @@ const PLAYER_LINES: Record<PlayerMeasure, readonly ((l: Leader) => string)[]> = 
   ],
   rusher: [
     (l) =>
-      `${l.who} of the ${l.club} leads the running backs: ${l.v} of his carries have kept the offense on schedule.`,
+      `${l.who} of the ${l.club} leads the running backs, with ${l.v} of his carries keeping the offense on schedule.`,
     (l) => `Among running backs, ${l.who} of the ${l.club} has the best success rate, at ${l.v}.`,
   ],
   rush: [
     (l) => `${l.who} of the ${l.club} leads the pass rushers, with pressure on ${l.v} of his rushes.`,
-    (l) => `No pass rusher wins more often than ${l.who} of the ${l.club}: pressure on ${l.v} of his rushes.`,
+    (l) => `No pass rusher wins more often than ${l.who} of the ${l.club}, who gets pressure on ${l.v} of his rushes.`,
   ],
 };
 
@@ -352,7 +352,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
         const avg = [...stats.values()].reduce((a, t) => a + mm.value(t), 0) / stats.size;
         return {
           subject: `The ${name(team(league.userTeamId))}: ${ordinal(r)} in ${mm.phrase}`,
-          lead: `The ${name(team(league.userTeamId))} rank ${ordinal(r)} in the league in ${mm.phrase}, at ${fmt(mm.unit, v)}; the league average is ${fmt(mm.unit, avg)}.`,
+          lead: `The ${name(team(league.userTeamId))} rank ${ordinal(r)} in the league in ${mm.phrase}, at ${fmt(mm.unit, v)}, and the league average is ${fmt(mm.unit, avg)}.`,
         };
       }
     }
@@ -378,7 +378,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
     if ((o <= 5 && d > stats.size - 5) || (d <= 5 && o > stats.size - 5))
       return {
         subject: `The ${name(t)}: ${o <= 5 ? 'top-five offense, bottom-five defense' : 'top-five defense, bottom-five offense'}`,
-        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense, and ${recordOf(league, t.id)}: few clubs are this lopsided.`,
+        lead: `The ${name(t)} are ${ordinal(o)} in EPA per play on offense and ${ordinal(d)} on defense, and ${recordOf(league, t.id)}. Few clubs are this lopsided.`,
       };
   }
   // 5. A turnaround from last season.
@@ -394,7 +394,7 @@ function story(league: League, stats: Map<number, TeamAdvanced>, measures: TeamM
       if ((was.w <= 6 && p >= 0.75) || (was.w >= 10 && p <= 0.375))
         return {
           subject: `The ${name(t)}, ${is.w}–${is.l}${is.t ? `–${is.t}` : ''} after a ${was.w}–${was.l} season`,
-          lead: `The ${name(t)} are ${is.w}–${is.l}${is.t ? `–${is.t}` : ''}, after going ${was.w}–${was.l} last season. By the numbers: ${ordinal(fullRank(stats, TEAM.offEpa, t.id))} in EPA per play on offense, ${ordinal(fullRank(stats, TEAM.defEpa, t.id))} on defense.`,
+          lead: `The ${name(t)} are ${is.w}–${is.l}${is.t ? `–${is.t}` : ''}, after going ${was.w}–${was.l} last season. They rank ${ordinal(fullRank(stats, TEAM.offEpa, t.id))} in EPA per play on offense and ${ordinal(fullRank(stats, TEAM.defEpa, t.id))} on defense.`,
         };
     }
   }
@@ -515,7 +515,7 @@ function previewStory(league: League, stats: Map<number, TeamAdvanced>, seeds: n
   const [a, b] = widest.map((id) => league.teams[id]);
   return {
     subject: `Playoff preview: the ${name(a)} against the ${name(b)}`,
-    lead: `On EPA per play, offense minus defense, the ${name(a)} and the ${name(b)} are the furthest apart of any first-round pairing: ${epa(net(a.id))} against ${epa(net(b.id))}.${ours ? ` The ${name(league.teams[league.userTeamId])} come in ${ordinal(fullRank(stats, TEAM.offEpa, league.userTeamId))} on offense.` : ''}`,
+    lead: `On EPA per play, offense minus defense, the ${name(a)} and the ${name(b)} are the furthest apart of any first-round pairing, at ${epa(net(a.id))} against ${epa(net(b.id))}.${ours ? ` The ${name(league.teams[league.userTeamId])} come in ${ordinal(fullRank(stats, TEAM.offEpa, league.userTeamId))} on offense.` : ''}`,
   };
 }
 

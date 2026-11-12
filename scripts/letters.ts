@@ -10,7 +10,7 @@
  * keeps the files whose path holds it (`npm run letters -- locker`).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { LETTER_FILES, letterBreaks } from '../src/engine/letterRules';
+import { LETTER_FILES, letterBreaks, wordBreaks } from '../src/engine/letterRules';
 import { sourceLines } from './letters-source';
 
 const only = process.argv[2];
@@ -26,6 +26,11 @@ for (const { file, quotes } of LETTER_FILES) {
   for (const l of lines) {
     out.push(`${l.line}  ${l.text}`);
     const why = letterBreaks(l.text, { quotes });
+    if (why.length) breaks.push(`${file}:${l.line}  ${l.text}\n    ${why.join(', ')}`);
+  }
+  // The short parts a sentence is built from are held to the banned words only.
+  for (const l of sourceLines(file, true)) {
+    const why = wordBreaks(l.text);
     if (why.length) breaks.push(`${file}:${l.line}  ${l.text}\n    ${why.join(', ')}`);
   }
 }

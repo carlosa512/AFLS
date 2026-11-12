@@ -272,7 +272,7 @@ describe('the director’s mail', () => {
     expect(a.lean).toBe('buy'); // nobody has played: every club is level
     expect(a.rows).toEqual([]);
     expect(a.subject).toBe('Deadline week: we hold');
-    expect(a.body).toContain('Nothing worth chasing; we hold.');
+    expect(a.body).toContain('Nothing is worth chasing, so we hold.');
     expect(a.body).not.toMatch(/time to add|I'd sell|we can spare/);
   });
   it('opens with where we stand and says when the deadline is', () => {

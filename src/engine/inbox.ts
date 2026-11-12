@@ -377,7 +377,7 @@ function awardMail(league: League, have: Set<string>): Draft[] {
         18,
         playerId,
         list(won),
-        `The votes are in for ${season}: ${fullName(p)} has been named ${list(won)}. A season to remember, and it reflects well on the whole organization.`,
+        `The votes are in for ${season}, and ${fullName(p)} has been named ${list(won)}. It reflects well on the whole organization.`,
       );
     }
   }
@@ -400,7 +400,7 @@ function medicalImpact(league: League, p: Player): string {
   let decision: string;
   if (n < NEED[pos]) {
     const cover = chooseCover(league, team, pos, NEED);
-    decision = ` We need ${small(NEED[pos])} for normal cover. ${cover ? `${fullName(cover)} can cover at ${pos} with "Play at…", or we can look at free agents.` : 'There is no suitable cover elsewhere on the roster; take a look at free agents before the next game.'}`;
+    decision = ` We need ${small(NEED[pos])} for normal cover. ${cover ? `${fullName(cover)} can cover at ${pos} with "Play at…", or we can look at free agents.` : 'There is no suitable cover elsewhere on the roster, so take a look at free agents before the next game.'}`;
   } else decision = ' We still have enough cover for the usual roles at that position.';
   const reserve =
     p.injury!.estimate[0] >= IR_MIN_WEEKS && !irProblem(league, p)
@@ -451,9 +451,9 @@ function concussionNote(p: Player): string {
   const file = concussionFile(p);
   if (now.protocol?.shutdown) {
     const thisYear = (p.injuries ?? []).filter((r) => r.type === 'concussion' && r.season === now.season).length;
-    return `${fullName(p)} took another hit to the head: his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him; he'll be back in the building after the offseason.`;
+    return `${fullName(p)} took another hit to the head, his ${nth(n)} concussion${thisYear >= 3 ? `, and his ${nth(thisYear)} this season` : ''}. He has told us he's shutting himself down for the rest of the year to think about his future. We support him, and he'll be back with the club after the offseason.`;
   }
-  return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline: for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
+  return `${fullName(p)} was concussed ${now.where === 'game' ? 'in the game' : 'in practice'} and is in the concussion protocol. He clears it when his symptoms do, one test a week, so there's no set timeline. For now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.${file}`;
 }
 
 /** The doctor's read of the clubs' table (`sitOdds`, his file and role, not the stakes) at which he says to sit him. */
@@ -490,7 +490,7 @@ function setbackMail(league: League, have: Set<string>): Draft[] {
       ...doctor(league),
       category: 'medical',
       subject: `${fullName(p)}: a setback in the protocol`,
-      body: `${fullName(p)}'s symptoms came back at this week's test, so he's a step back in the concussion protocol. We'll test him again next week; for now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.`,
+      body: `${fullName(p)}'s symptoms came back at this week's test, so he's a step back in the concussion protocol. We'll test him again next week. For now he's ${outlookText(now).replace('in the concussion protocol, ', '')}.`,
       actions: [{ kind: 'player', playerId: p.id }, { kind: 'medical' }],
     });
   }
@@ -520,7 +520,7 @@ function newYearMail(league: League, have: Set<string>): Draft[] {
       body:
         concussionRetireChance(p, season) > 0
           ? `After ${plural(p.experience, 'season')} in the league and ${concussionCount(p)} concussions, I've decided my health has to come first. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`
-          : `After ${plural(p.experience, 'season')} in the league${careerWords(league, p)}, I've decided it's time to hang up my cleats. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
+          : `After ${plural(p.experience, 'season')} in the league${careerWords(league, p)}, I've decided it's time to retire. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
       actions: [{ kind: 'player', playerId: p.id }],
     });
   }
@@ -574,7 +574,7 @@ function combineMail(league: League, have: Set<string>): Draft[] {
       ...director(league),
       category: 'scouting',
       subject: `The ${season} combine is done`,
-      body: `${plural(league.draftClass.length, 'prospect')} worked out for the ${season} draft, and the numbers are on the big board. We have ${plural(league.scoutPoints, 'scouting visit')} to spend this year: send them to the players you're serious about before draft day.`,
+      body: `${plural(league.draftClass.length, 'prospect')} worked out for the ${season} draft, and the numbers are on the big board. We have ${plural(league.scoutPoints, 'scouting visit')} to spend this year. Send them to the players you're serious about before draft day.`,
       actions: [{ kind: 'draft' }],
     },
   ];
@@ -587,8 +587,8 @@ function draftDayMail(league: League, have: Set<string>): Draft[] {
     .filter((p) => p.season === league.season && p.ownerId === league.userTeamId && p.playerId === undefined)
     .sort((a, b) => (a.overall ?? 999) - (b.overall ?? 999))[0];
   const body = pick
-    ? `Draft day. Our first pick is round ${pick.round}, No. ${pick.overall}. The big board is ready, and I'll make the call for you if you'd rather leave it to the scouts.`
-    : `Draft day. We don't hold a pick in this draft, but the big board is there if you want to see where the class goes.`;
+    ? `It's draft day. Our first pick is round ${pick.round}, No. ${pick.overall}. The big board is ready, and I'll make the call for you if you'd rather leave it to the scouts.`
+    : `It's draft day. We don't hold a pick in this draft, but the big board is there if you want to see where the class goes.`;
   return [
     {
       id,
@@ -629,13 +629,13 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
   const value = !steals.length
     ? ''
     : steals.length === 1
-      ? ` ${steals[0].position} ${fullName(steals[0])} came well after where the consensus had him: the value pick of our class.`
+      ? ` ${steals[0].position} ${fullName(steals[0])} came well after where the consensus had him, which makes him the value pick of our class.`
       : ` ${count(steals.length)} of them came well after where the consensus had them.`;
   const board = !reaches.length
     ? ''
     : reaches.length === 1
-      ? ` We took ${reaches[0].position} ${fullName(reaches[0])} well ahead of the consensus: our board had him higher than the room did.`
-      : ` ${count(reaches.length)} of them went well ahead of the consensus: our board, not the room's.`;
+      ? ` We took ${reaches[0].position} ${fullName(reaches[0])} well ahead of the consensus, because our board had him higher than most.`
+      : ` ${count(reaches.length)} of them went well ahead of the consensus, on our board's grades.`;
   // The one our own scouts rate highest for where he could end up (our own players: exact today, the ceiling still a judgment).
   const favorite =
     picks.length > 1
@@ -643,8 +643,8 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
           (a, b) => perceive(league, league.userTeamId, b).potMid - perceive(league, league.userTeamId, a).potMid,
         )[0]
       : first;
-  const verdict = lowerFirst(scoutReportParts(league, league.userTeamId, favorite).verdict);
-  const liked = ` Our scouts like ${favorite.position} ${fullName(favorite)} most of all: ${verdict}`;
+  const verdict = scoutReportParts(league, league.userTeamId, favorite).verdict;
+  const liked = ` Our scouts like ${favorite.position} ${fullName(favorite)} most of all. ${verdict}`;
   return [
     {
       id,
@@ -659,7 +659,6 @@ function draftClassMail(league: League, have: Set<string>): Draft[] {
     },
   ];
 }
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** A position group's starters as our scouts read them: where the unit ranks in the league, and its best player. */
 export interface UnitRead {
@@ -1135,7 +1134,7 @@ export function heightMismatch(league: League, opp: Team): string | null {
   if (!best) return null;
   const { wr, cb, spot } = best as { wr: Player; cb: Player; spot: string };
   const inches = wr.heightIn - cb.heightIn;
-  return `Their ${spot} receiver ${fullName(wr)} has ${inches} inch${inches === 1 ? '' : 'es'} on ${fullName(cb)}: a contested ball between them is his to win.`;
+  return `Their ${spot} receiver ${fullName(wr)} has ${inches} inch${inches === 1 ? '' : 'es'} on ${fullName(cb)}, so a contested ball between them is his to win.`;
 }
 
 /**
@@ -1161,8 +1160,8 @@ function matchupMail(league: League, have: Set<string>): Draft[] {
   // One read, said plainly; a thin file only adds that we haven't seen much of them.
   const read =
     (strong.score - weak.score < EVEN_UNITS
-      ? 'No unit stands out on our read; this one comes down to execution.'
-      : `Their ${weak.g.phrase} ${weak.g.plural ? 'are' : 'is'} the soft spot and their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the threat: ${CATCH[strong.g.title]}.`) +
+      ? 'No unit stands out on our read, so this one comes down to execution.'
+      : `Their ${weak.g.phrase} ${weak.g.plural ? 'are' : 'is'} the soft spot and their ${strong.g.phrase} ${strong.g.plural ? 'are' : 'is'} the threat, and ${CATCH[strong.g.title]}.`) +
     (known ? '' : " We haven't seen much of them yet.");
   const stakes = matchupStakes(league, opp.id);
   const mismatch = heightMismatch(league, opp);
@@ -1273,11 +1272,11 @@ function offerCore(league: League, offer: TradeOffer): { subject: string; core: 
       if (!yourMan)
         return {
           subject: `${team.name} answer on ${slot(yours)}`,
-          core: `You're shopping ${slot(yours)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
+          core: `You're shopping ${slot(yours)}. Our best offer is ${packageWords(league, his, NO_PROJ)}.`,
         };
       return {
         subject: `${team.name} answer on ${name(yourMan!)}`,
-        core: `You're shopping ${name(yourMan!)}. Our best: ${packageWords(league, his, NO_PROJ)}.`,
+        core: `You're shopping ${name(yourMan!)}. Our best offer is ${packageWords(league, his, NO_PROJ)}.`,
       };
     default:
       return {
@@ -1504,10 +1503,10 @@ function clearedMail(league: League, have: Set<string>): Draft[] {
     const ir = !p.ir
       ? " He's back in his spot on the depth chart."
       : !delegates(league, team)
-        ? " He's still on injured reserve: activate him when you want him back."
+        ? " He's still on injured reserve, so activate him when you want him back."
         : waitsForSpot(league, p)
-          ? " He's waiting on injured reserve: the 53 is full, so make room and the staff will bring him back."
-          : " He's still on injured reserve: the staff will bring him back once his four weeks are up, if there's a spot on the 53.";
+          ? " He's waiting on injured reserve because the 53 is full, so make room and the staff will bring him back."
+          : " He's still on injured reserve, and the staff will bring him back once his four weeks are up, if there's a spot on the 53.";
     out.push({
       id: `cleared:${key}`,
       season: league.season,
@@ -1695,7 +1694,7 @@ function marketRecapMail(league: League, have: Set<string>): Draft[] {
     t.teamIds.some((id) => id !== league.userTeamId && league.teams[id].division === division),
   ).length;
   const ours = all.filter((t) => t.teamIds.includes(league.userTeamId)).length;
-  const stood = ours ? ` We made ${ours === 1 ? 'one of them' : `${small(ours)} of them`}.` : ' We stood pat.';
+  const stood = ours ? ` We made ${ours === 1 ? 'one of them' : `${small(ours)} of them`}.` : ' We made none of them.';
   return [
     {
       id,
@@ -1962,7 +1961,7 @@ function rundownMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'staff',
       subject: 'Where the roster stands',
-      body: `Here's the roster as our scouts read it: the offense ranks ${ordinal(offenseRank)} in the league and the defense ${ordinal(defenseRank)}.${verdict ? ` ${verdict}` : ''} The players each side runs through, and the young ones worth watching, are below.`,
+      body: `On our scouts' read, the offense ranks ${ordinal(offenseRank)} in the league and the defense ${ordinal(defenseRank)}.${verdict ? ` ${verdict}` : ''} The players each side runs through, and the young ones worth watching, are below.`,
       rundown: { offenseRank, defenseRank, offense, defense, prospects },
       actions: [{ kind: 'team', teamId: team.id }],
     },
@@ -1985,12 +1984,12 @@ function ownerVoice(league: League, team: Team) {
   const leeway = {
     playoffs: `We made the playoffs last year, and I want a title. ${over}, make the case and I'll listen.`,
     winNow: `After a ${rec} season, I want to win now. ${over}, make the case.`,
-    newCoach: `Not after a ${rec} season: stay inside the coaching budget, unless it's for the right head coach.`,
+    newCoach: `Not after a ${rec} season. Stay inside the coaching budget, unless it's for the right head coach.`,
     bigMarket: `${over}, I'll find it.`,
     stretch: `For the right head coach or coordinator I'll stretch a little past the coaching budget, but only a little.`,
     lastYear: 'We went past the coaching budget last year. This year I want it kept.',
     tight: "This market can't carry a dollar more than the budgets below.",
-    losing: `Not after a ${rec} season: stay inside the coaching budget.`,
+    losing: `Not after a ${rec} season. Stay inside the coaching budget.`,
     emptyChair: "I won't leave a side of the ball without a coordinator, but that's as far as I'll go.",
     assistant: '',
   }[stance.reason];
@@ -2042,7 +2041,7 @@ function ownerMail(league: League, have: Set<string>): Draft[] {
     ? ''
     : offer.through === season
       ? `Your deal is up. One more year, through ${offer.through}, and we'll talk again. `
-      : `Your deal is up. I'd like you back through ${offer.through}; let me know. `;
+      : `Your deal is up. I'd like you back through ${offer.through}, so let me know. `;
   return [
     {
       id,
@@ -2173,7 +2172,7 @@ function poachedMail(league: League, have: Set<string>): Draft[] {
       ...headCoach(league),
       category: 'staff',
       subject: `${coachName(c)} leaves for the ${hirer.name}`,
-      body: `The ${teamName(hirer)} have hired ${coachName(c)}, our ${was}, as their ${now}. It's a promotion, not a lateral move, so we couldn't block it.${offStaff(league, now)} That leaves our ${was} chair open: ${fill} before free agency ends.`,
+      body: `The ${teamName(hirer)} have hired ${coachName(c)}, our ${was}, as their ${now}. It's a promotion, not a lateral move, so we couldn't block it.${offStaff(league, now)} That leaves our ${was} chair open, and we need to ${fill} before free agency ends.`,
       actions: [{ kind: 'coaches' }],
     });
   }
@@ -2421,7 +2420,7 @@ function positionOfferMail(league: League, have: Set<string>): Draft[] {
       subject: `Move ${fullName(p)} to ${posWord(read.to)}?`,
       body:
         `We'd like to teach ${fullName(p)}, our ${p.age}-year-old ${posWord(from)}, to play ${posWord(read.to)}. ${reason}` +
-        `We think it's worth it: ${role}, and that leaves ${read.left} at ${from}. ` +
+        `We think it's worth it because ${role}, and that leaves ${read.left} at ${from}. ` +
         // The estimate counts the spring program while the draft is on: started later, he learns at camp only.
         `He should be ready by ${readyBy(season, read.camps)}${phase === 'draft' ? ' if we start before the draft closes' : ''}. ` +
         `Until then he keeps playing ${from}. Say "Not now" below and we won't raise it again until ${season + 2}.`,
@@ -2464,10 +2463,14 @@ const MOVES_OPENER: readonly Line<{ n: number; name: string; from: Position; to:
     reads: 2,
     text: (f) => `${capital(small(f.n))} moves at cut-down, all ${f.from} to ${f.to}.`,
   },
-  { when: (f) => f.n > 1, reads: 1, text: (f) => `${capital(small(f.n))} moves at cut-down. Who, and why.` },
+  {
+    when: (f) => f.n > 1,
+    reads: 1,
+    text: (f) => `We made ${small(f.n)} moves at cut-down, and the reasons are below.`,
+  },
   { when: (f) => f.n > 1, reads: 1, text: (f) => `We made ${small(f.n)} position changes on cut-down day.` },
   { text: (f) => `${f.name} made the switch on cut-down day.` },
-  { text: (f) => `One move at cut-down: ${f.name}, ${f.from} to ${f.to}.` },
+  { text: (f) => `We made one move at cut-down, ${f.name} from ${f.from} to ${f.to}.` },
 ];
 
 /** Where a mover stands on the chart at his new spot: a starter, or his place in line. */
@@ -2668,7 +2671,7 @@ function ceilingReviewMail(league: League, have: Set<string>): Draft[] {
       : held.length
         ? " The rest of this year's class is about who we thought."
         : behind.some((r) => r.year === 0)
-          ? " It's early for the rookies: their ceilings have two more seasons to settle."
+          ? " It's early for the rookies, and their ceilings have two more seasons to settle."
           : '';
   const cameIn = (p: Player) => (p.draft ? `${p.draft.season} R${p.draft.round}, No. ${p.draft.pick}` : 'Undrafted');
   const sections = (['ahead', 'held', 'behind'] as const)

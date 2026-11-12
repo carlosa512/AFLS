@@ -48,7 +48,7 @@ function defensiveHighlight(game: Game, report: CoachGameReport): { text: string
     e.outcome === 'touchdownAllowed'
       ? ', giving them a late lead'
       : `${e.outcome === 'fourthDownStop' ? ', forcing a turnover on downs' : ', securing a takeaway'}${won && e.marginBefore > 0 ? ' that helped protect our late lead' : ' and giving us the ball back late'}`;
-  return { text: `${call} on ${down}-and-${e.distance} ${when}; ${play}${consequence}.`, priority: pick.priority };
+  return { text: `${call} on ${down}-and-${e.distance} ${when}, and ${play}${consequence}.`, priority: pick.priority };
 }
 
 /** Routine shots stay in the play log. A recap needs a large gain in a live game, or a late scoring-drive role. */
@@ -272,7 +272,7 @@ export function coachAdviceObservation(league: League):
             ? a.revisit!.text
             : a.resolved
               ? `${a.coachName}'s earlier recommendation: ${a.resolved}`
-              : `${a.coachName} recommends trying ${a.playerName} ahead of ${a.aheadName} at ${a.position}; he ${a.reason}.${a.applied ? ' He is in that slot for now; we can review the trial after a couple of games.' : league.teams[league.userTeamId].autoDepth ? ' That preference will be considered in delegated selection.' : ' The depth-chart decision remains yours.'}`,
+              : `${a.coachName} recommends trying ${a.playerName} ahead of ${a.aheadName} at ${a.position}, because he ${a.reason}.${a.applied ? ' He is in that slot for now, and we can review the trial after a couple of games.' : league.teams[league.userTeamId].autoDepth ? ' That preference will be considered in delegated selection.' : ' The depth-chart decision remains yours.'}`,
       };
     }
   return undefined;
@@ -292,7 +292,7 @@ export function teachingNoteFor(
       playerId: n.playerId,
       habit: n.habit,
       receptive: n.receptive,
-      text: `${n.coachName} has focused coaching attention on ${n.playerName}'s ${QUIRKS[n.habit].label} habit; ${n.receptive ? 'his preparation gives that work a better chance to stick.' : 'the staff expects progress to take time.'}`,
+      text: `${n.coachName} has focused coaching attention on ${n.playerName}'s ${QUIRKS[n.habit].label} habit, and ${n.receptive ? 'his preparation gives that work a better chance to stick.' : 'the staff expects progress to take time.'}`,
     };
   }
   return undefined;
@@ -306,7 +306,7 @@ export function positionTeachingNote(league: League, p: Player, to: Position): s
   if (!target) return '';
   const name = `${target.firstName} ${target.lastName}`;
   if (from && from.id !== target.id && coachPlayerFit(from, p) - coachPlayerFit(target, p) >= 0.015)
-    return `${from.firstName} ${from.lastName}'s teaching approach suits him better than the destination room's; that is a tradeoff against the football case for moving him. `;
+    return `${from.firstName} ${from.lastName}'s teaching approach suits him better than the destination room's, which is a tradeoff against the football case for moving him. `;
   if (p.age <= 25 && activeCoachQuirks(target).includes('patientTeacher'))
     return `${name}'s patient teaching approach should help him learn the new position. `;
   return '';

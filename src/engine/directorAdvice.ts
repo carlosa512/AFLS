@@ -150,12 +150,12 @@ export function buyTargets(league: League, opts: { rentals: boolean; max: number
       p,
       'buy',
       left <= 1
-        ? `Rental: his deal ends this season, and he'd start for us at ${p.position}.`
+        ? `He is a rental. His deal ends this season, and he'd start for us at ${p.position}.`
         : need.reason === 'hole'
-          ? `We're short at ${p.position}; he'd start, signed through ${lastSeason(p.contract!)}.`
+          ? `We're short at ${p.position}, and he'd start, signed through ${lastSeason(p.contract!)}.`
           : rank === 0
-            ? `A starter at our weakest spot (${p.position}), signed through ${lastSeason(p.contract!)}.`
-            : `An upgrade at ${p.position}, signed through ${lastSeason(p.contract!)}.`,
+            ? `He would start at our weakest spot (${p.position}), signed through ${lastSeason(p.contract!)}.`
+            : `He is an upgrade at ${p.position}, signed through ${lastSeason(p.contract!)}.`,
       pickRoundFor(league, marketValue(ctx, us, p)),
     ),
   );
@@ -225,16 +225,22 @@ export function sellCandidates(league: League, lean: AdviceLean, max: number): A
     const at = room.indexOf(p);
     if (lean === 'sell' && p.age >= 29 && yearsLeft(p.contract!, league.season) <= 1 && at < STARTERS[p.position])
       out.push(
-        row(p, 'sell', `${p.age} and out of contract after the season: worth more to a contender now.`, price(p), {
-          partnerId: to.id,
-        }),
+        row(
+          p,
+          'sell',
+          `He is ${p.age} and out of contract after the season, so he is worth more to a contender now.`,
+          price(p),
+          {
+            partnerId: to.id,
+          },
+        ),
       );
     if (lean === 'targeted' && at === STARTERS[p.position] && room.length > STARTERS[p.position] + 1)
       out.push(
         row(
           p,
           'sell',
-          `Depth we can spare at ${p.position}: he's behind our starters and would start elsewhere.`,
+          `We can spare him at ${p.position}, where he's behind our starters and would start elsewhere.`,
           price(p),
           {
             partnerId: to.id,
@@ -265,7 +271,7 @@ export function expiringTargets(league: League, max: number): AdviceRow[] {
     row(
       p,
       'sign',
-      `Free agency opens soon: he'd start for us at ${p.position}.`,
+      `Free agency opens soon, and he'd start for us at ${p.position}.`,
       `about ${perYear(marketApy(market, p))}`,
     ),
   );
@@ -286,7 +292,7 @@ export function faTargets(league: League, max: number, room?: number): AdviceRow
     row(
       p,
       'sign',
-      need.reason === 'hole' ? `We're short at ${p.position}; he'd start.` : `He'd start for us at ${p.position}.`,
+      need.reason === 'hole' ? `We're short at ${p.position}, and he'd start.` : `He'd start for us at ${p.position}.`,
       `asking about ${perYear(ask(p))}`,
     ),
   );
@@ -323,8 +329,8 @@ function standing(race: ReturnType<typeof raceFor>, lean: AdviceLean, rows: Advi
     : race.gamesBack === 0
       ? `At ${rec} we're level with the last playoff spot`
       : `At ${rec} we're ${games(race.gamesBack)} out of the last playoff spot`;
-  if (!rows.length) return `${where}. Nothing worth chasing; we hold.`;
-  if (lean === 'buy') return `${where}: time to add.`;
+  if (!rows.length) return `${where}. Nothing is worth chasing, so we hold.`;
+  if (lean === 'buy') return `${where}. It is time to add.`;
   if (lean === 'sell') return `${where}. I'd sell.`;
   const buys = rows.some((x) => x.kind === 'buy'),
     sells = rows.some((x) => x.kind === 'sell');

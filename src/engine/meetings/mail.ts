@@ -471,12 +471,12 @@ export function meetingsView(league: League): MeetingsView | null {
         const left = c.closes - clock;
         const when =
           c.closes === deadlineClock(league.season)
-            ? 'by the deadline'
+            ? 'at the deadline'
             : left <= 1
               ? 'this week'
-              : `${WEEKS[left] ?? 'a few weeks'} left`;
+              : `in ${WEEKS[left] ?? 'a few weeks'}`;
         return {
-          text: `We told them ${promisePhrase(c.backing, men(league, c.named))}: ${when}.`,
+          text: `We told them ${promisePhrase(c.backing, men(league, c.named))}, and it comes due ${when}.`,
           named: [...c.named],
         };
       });

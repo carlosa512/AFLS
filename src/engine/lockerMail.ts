@@ -91,7 +91,7 @@ function speakMail(league: League, have: Set<string>): Draft[] {
         from: 'SNN league desk',
         category: 'league',
         subject: `${fullName(p)} speaks out`,
-        body: `${fullName(p)} didn't keep it to himself. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
+        body: `${fullName(p)} spoke out publicly. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
         actions: [{ kind: 'player', playerId: p.id }],
       });
     }
@@ -220,7 +220,7 @@ function treeMail(league: League, have: Set<string>): Draft[] {
           league,
           retired,
           `${fullName(root)} retires`,
-          `${fullName(root)} has retired. His tree carries on: ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run clubs.`,
+          `${fullName(root)} has retired, and ${tree.activeHeadCoaches.map((id) => coachName(league, id)).join(', ')} still run clubs from his tree.`,
         ),
       );
   }

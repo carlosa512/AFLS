@@ -126,7 +126,8 @@ export const READ_WHY: readonly Line<SuggestFact>[] = [
   {
     when: (f) => !!f.driver?.starting && !!f.driver.rookieDeal && f.topic === 'deal',
     reads: 3,
-    text: (f) => `He's ${f.driver!.years} starting for us on a rookie wage, and when he talks the younger players listen.`,
+    text: (f) =>
+      `He's ${f.driver!.years} starting for us on a rookie wage, and when he talks the younger players listen.`,
   },
   {
     when: (f) => !!f.driver?.starting,
@@ -180,7 +181,8 @@ export const ASKED: readonly Line<Pick<SuggestFact, 'style' | 'noun'>>[] = [
 export const MOMENT_LEAD: Record<Moment, string> = {
   camp: 'Camp opens this week, and I want to set the tone with the whole team before we start.',
   newCoach: 'This is my first week with this group, and I want them to hear from me before anything else.',
-  deadline: "It's deadline week and we're still in it. I want the team to hear where we stand before the trade calls start.",
+  deadline:
+    "It's deadline week and we're still in it. I want the team to hear where we stand before the trade calls start.",
   push: "We've got something to play for now. I want the team together before the last stretch.",
   final: 'There is one game left, and I want a word with the team the night before.',
   end: "The season's over. I want a word with the team before they scatter.",
@@ -364,8 +366,7 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'leader' && !!f.speaker,
     reads: 2,
-    text: (f) =>
-      `I let ${f.speaker!.first} do the talking. He told them to keep it in-house and play for each other.`,
+    text: (f) => `I let ${f.speaker!.first} do the talking. He told them to keep it in-house and play for each other.`,
   },
   {
     when: (f) => f.approach === 'straight' && f.backing === 'snaps' && f.named.length === 1,
@@ -380,8 +381,7 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'losing' && f.backing === 'move',
     reads: 2,
-    text: () =>
-      `We're better than our record, and the front office is working on it. Help is coming.`,
+    text: () => `We're better than our record, and the front office is working on it. Help is coming.`,
   },
   {
     when: (f) => f.approach === 'losing',
@@ -411,8 +411,7 @@ export const TOLD: readonly Line<ToldFact>[] = [
   {
     when: (f) => f.approach === 'straight',
     reads: 1,
-    text: () =>
-      `I'll say it plainly. Some of you are unhappy, and I know it. Say it to me, not to each other.`,
+    text: () => `I'll say it plainly. Some of you are unhappy, and I know it. Say it to me, not to each other.`,
   },
   {
     when: (f) => f.approach === 'straight',
@@ -696,12 +695,14 @@ export const DUE: readonly Line<DueFact>[] = [
   {
     when: (f) => f.backing === 'talks' && f.named.length === 1,
     reads: 2,
-    text: (f) => `${What(f)} comes due ${f.when}. It was talks with ${f.named[0].last}'s agent, and nothing has opened yet.`,
+    text: (f) =>
+      `${What(f)} comes due ${f.when}. It was talks with ${f.named[0].last}'s agent, and nothing has opened yet.`,
   },
   {
     when: (f) => f.backing === 'talks',
     reads: 1,
-    text: (f) => `${What(f)} comes due ${f.when}. It was talks with ${list(f.named)}'s agents, and nothing has opened yet.`,
+    text: (f) =>
+      `${What(f)} comes due ${f.when}. It was talks with ${list(f.named)}'s agents, and nothing has opened yet.`,
   },
   {
     when: (f) => f.backing === 'snaps' && f.named.length === 1,
@@ -811,7 +812,7 @@ export function yearParagraph(f: YearFact): string {
   if (f.kept)
     out.push(
       f.kept.you
-        ? `When you talked to the team in ${f.kept.month}, you told them ${f.kept.promise}, and we did. They noticed.`
+        ? `When you talked to the team in ${f.kept.month}, you told them ${f.kept.promise}, and we did, which the players noticed.`
         : `Talking to ${f.kept.noun} in ${f.kept.month} worked. I told them ${f.kept.promise}, we did, and ${f.kept.named ? `${f.kept.named} still listens to me for it` : 'they still listen to me for it'}.`,
     );
   const first = out.join(' ');

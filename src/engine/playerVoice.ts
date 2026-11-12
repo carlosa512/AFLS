@@ -272,7 +272,11 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
     reads: 4,
     text: () => "That's not what I came up here to hear.",
   },
-  { when: (f) => !!f.losing && f.reply === 'firm', reads: 3, text: () => "Understood. We'll sort it out among ourselves." },
+  {
+    when: (f) => !!f.losing && f.reply === 'firm',
+    reads: 3,
+    text: () => "Understood. We'll sort it out among ourselves.",
+  },
   {
     when: (f) => f.reply === 'promise' && f.cause === 'snaps',
     reads: 2,
@@ -296,7 +300,7 @@ export const TALK_ANSWER: readonly Line<AnswerFact>[] = [
   {
     when: (f) => f.reply === 'reassure' && f.loud,
     reads: 2,
-    text: () => 'I appreciate it. I'd still like to see it happen.',
+    text: () => "I appreciate it. I'd still like to see it happen.",
   },
   { when: (f) => f.reply === 'reassure', text: () => "Good to hear. I'll keep working." },
   { when: (f) => f.reply === 'reassure', text: () => 'Thanks. That means something.' },

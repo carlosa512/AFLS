@@ -63,6 +63,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   after changing `snnWeek.ts`, `snnStory.ts`, `snnVoice.ts` or `storyRules.ts`; `npm run screens -- --edition` shoots one. `--seasons n` plays
   seasons and counts instead how often SNN's Column and your club's coverage would fire (by rung, about your club, the
   conversation's bars): the figures the owner sets `FORM` (`slump.ts`) and `LADDER` (`snnColumn.ts`) from.
+- `npm run letters [-- name]` — a preview, not a check: every line the letters in the inbox can say, read from the
+  source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
+  with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
+  changing a letter's words and read the lines you touched; `letterRules.test.ts` fails on a break.
 - `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
   enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
   for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
@@ -270,7 +274,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     are `InboxMessage.sections` and what it told is `covered` (old one-off ids among them). Every sentence goes
     through `voice.ts` (`say`: the most specific line that fits, a stable tie-break, no repeat of a sentence the sender
     has filed this league year: `seasonSaid` and `around`, a line of two sentences counting as said when either was);
-    `senders.ts` signs them. `npm run mail-preview` builds saves at each moment and
+    `senders.ts` signs them. **Every letter is written to the house rules** in `docs/NEWS.md`'s "Words in a letter"
+    (plain complete sentences, a letter starts with its news, players are players and never "men" or "the guys", the
+    club is never "the building", the thing itself and no figure of speech, it stops on a fact, no semicolon and no
+    colon or dash inside a sentence; a person speaking may answer in two words): `letterRules.ts` checks what a rule
+    can check (`letterBreaks`, `wordBreaks`) and `letterRules.test.ts` holds every line of `LETTER_FILES` to it, so a
+    new file that words a letter goes in that list. `npm run mail-preview` builds saves at each moment and
     `npm run screens -- --mail <prefixes>` shoots the letters
   - `snnWeek.ts` the editor of SNN's weekly edition (`docs/NEWS.md`, spec
     `docs/superpowers/specs/2026-11-11-snn-weekly-edition-design.md`): SNN's one mail a completed week and playoff round in

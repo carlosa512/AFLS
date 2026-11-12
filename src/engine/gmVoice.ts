@@ -139,19 +139,19 @@ export const NOTICED: readonly Line<HabitFact>[] = [
     'bridgeQb',
     'once',
     (f) => `Brought in a veteran to hold the quarterback job while ${f.p.his} young one learns.`,
-    () => 'Signed an older quarterback to keep the seat warm for the kid.',
+    () => 'Signed an older quarterback to hold the job for the young one.',
   ),
   ...L(
     'bridgeQb',
     'habit',
-    (f) => `${f.p.He} likes a veteran at quarterback while the young one learns. Every year, it seems.`,
-    (f) => `There is always an older quarterback in the room with ${f.p.him}, keeping the seat warm.`,
+    (f) => `${f.p.He} likes a veteran at quarterback while the young one learns, and it seems to happen every year.`,
+    (f) => `There is always an older quarterback on the roster with ${f.p.him}, keeping the seat warm.`,
   ),
   ...L(
     'bridgeQb',
     'faded',
     (f) => `${f.p.He} used to lean on veteran quarterbacks. The young ones get the ball now.`,
-    (f) => `${f.p.He} once kept an old hand at quarterback every year. Not anymore.`,
+    (f) => `${f.p.He} once kept an older quarterback every year, and no longer does.`,
   ),
   ...L(
     'tradeUpQb',
@@ -186,7 +186,7 @@ export const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'extendEarly',
     'faded',
-    (f) => `${f.p.He} used to get ahead of the market on ${f.p.his} own players. Not lately.`,
+    (f) => `${f.p.He} used to get ahead of the market on ${f.p.his} own players, but not lately.`,
     (f) => `${f.p.He} used to sign ${f.p.his} starters early. These days ${f.p.he} waits and sees.`,
   ),
   ...L(
@@ -222,14 +222,14 @@ export const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'hisGuys',
     'faded',
-    (f) => `${f.p.He} went back for ${f.p.his} own draftees once. Not anymore.`,
+    (f) => `${f.p.He} went back for ${f.p.his} own draftees once, and no longer does.`,
     (f) => `${f.p.He} used to bring ${f.p.his} draftees home. ${f.p.He} lets them go now.`,
   ),
   ...L(
     'firstsForStars',
     'once',
     (f) => `Sent two firsts for one player ${A(f)}.`,
-    (f) => `Paid two first-round picks for one man ${A(f)}.`,
+    (f) => `Paid two first-round picks for one player ${A(f)}.`,
   ),
   ...L(
     'firstsForStars',
@@ -277,19 +277,19 @@ export const NOTICED: readonly Line<HabitFact>[] = [
     'bpa',
     'faded',
     (f) => `${f.p.He} used to draft the board. ${f.p.He}'s drafting needs now.`,
-    (f) => `${f.p.He} took the best man left, once. Now ${f.p.he} fills holes.`,
+    (f) => `${f.p.He} once took the best player left. Now ${f.p.he} fills holes.`,
   ),
   ...L(
     'tagsFirst',
     'once',
-    (f) => `Tagged ${f.p.his} man before ${f.p.he} talked money.`,
+    (f) => `Tagged ${f.p.his} player before ${f.p.he} talked money.`,
     () => 'Put the tag on a player before sitting down to talk a contract.',
   ),
   ...L(
     'tagsFirst',
     'habit',
     (f) => `The tag comes first with ${f.p.him}, the deal after.`,
-    (f) => `${f.p.He} tags ${f.p.his} man first and talks money second.`,
+    (f) => `${f.p.He} tags ${f.p.his} player first and talks money second.`,
   ),
   ...L(
     'tagsFirst',
@@ -312,7 +312,7 @@ export const NOTICED: readonly Line<HabitFact>[] = [
   ...L(
     'youngQb',
     'faded',
-    (f) => `${f.p.He} used to ride ${f.p.his} young quarterback through anything. Less patient now.`,
+    (f) => `${f.p.He} used to ride ${f.p.his} young quarterback through anything, and is less patient now.`,
     (f) => `${f.p.He} once gave ${f.p.his} young quarterback all the time ${f.p.he} wanted. That has run short.`,
   ),
   ...L(
@@ -351,12 +351,12 @@ const pat = (habit: string, ...texts: ((f: PatternFact) => string)[]) => texts.m
 export const PATTERN = [
   ...pat(
     'firstsForStars',
-    (f) => `${N(f)} has been here before: two firsts for one man, ${f.ago} as well.`,
-    (f) => `${N(f)} paid this way ${f.ago}, too. Two firsts, one player.`,
+    (f) => `${N(f)} has paid two firsts for one player before, ${f.ago}.`,
+    (f) => `${N(f)} also gave up two firsts for one player ${f.ago}.`,
   ),
   ...pat(
     'swaps',
-    (f) => `${N(f)} has made a habit of this: another straight player swap, ${f.p.his} second in ${f.span}.`,
+    (f) => `${N(f)} has made a habit of straight player swaps, and this is ${f.p.his} second in ${f.span}.`,
     (f) => `${N(f)} likes these. Another player-for-player swap, and the last was ${f.ago}.`,
   ),
   ...pat(
@@ -412,7 +412,7 @@ export const TIPS: readonly Line<TipFact>[] = [
   {
     when: (f) => f.rookieStarter && f.has.has('sellsEarly'),
     reads: 1,
-    text: (f) => `${f.p.He} sells a year early by habit; this may not be about the player.`,
+    text: (f) => `${f.p.He} sells a year early by habit, so this may not be about the player.`,
   },
 ];
 

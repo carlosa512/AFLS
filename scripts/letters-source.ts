@@ -29,12 +29,17 @@ const inType = (node: ts.Node) => {
 const templateText = (node: ts.TemplateExpression) =>
   node.head.text + node.templateSpans.map((s) => `{…}${s.literal.text}`).join('');
 
-export function sourceLines(file: string): SourceLine[] {
+/**
+ * A file's prose, or with `phrases` every piece of text of two words or more that is not prose (the short parts a
+ * sentence is built from: "a third-year player", "after the game").
+ */
+export function sourceLines(file: string, phrases = false): SourceLine[] {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   const out: SourceLine[] = [];
   const keep = (node: ts.Node, raw: string) => {
     const text = raw.replace(/\s+/g, ' ').trim();
-    if (!prose(text) || inType(node)) return;
+    if (inType(node)) return;
+    if (phrases ? prose(text) || !/[A-Za-z’']+ [A-Za-z’']+/.test(text) : !prose(text)) return;
     out.push({ file, line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1, text });
   };
   const visit = (node: ts.Node) => {

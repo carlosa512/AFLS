@@ -196,7 +196,7 @@ describe('meetings: the letters', () => {
     const team = l.teams[l.userTeamId];
     const report = ids(l, `locker:${l.season - 1}:end`).at(-1);
     expect(team.meetings?.lastYear?.held).toBeGreaterThan(0);
-    expect(report?.body ?? '').toMatch(/We got the guys together/);
+    expect(report?.body ?? '').toMatch(/We held a team meeting/);
   });
 });
 
