@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  awardFinal,
+  FINAL_MVP_SHORT,
+  pickFinalMvp,
   periodQbTerm,
   positionScore,
   qbBonus,
@@ -20,7 +23,11 @@ import { createLeague, SAVE_VERSION } from './generate';
 import { playWeek, simToEndOfRegularSeason } from './league';
 import { migrateLeague } from './migrate';
 import { advanceOffseason, beginOffseason } from './offseason';
-import { ATTRIBUTES, type GameResult, type League } from './types';
+import { ATTRIBUTES, type Game, type GameResult, type League } from './types';
+import { honouredSince } from './standing';
+import { starLean } from './officials';
+import { publicRecord } from './publicStanding';
+import { activeRoster, setTeam } from './roster';
 import { minimumShare, RATES } from './qualify';
 import { passerRating } from './stats';
 
@@ -99,6 +106,67 @@ describe('comeback player', () => {
   });
 });
 
+describe('the final’s most valuable player', () => {
+  const setup = () => {
+    const l = createLeague({ seed: 'final-mvp' });
+    const [home, away] = [l.teams[0].id, l.teams[1].id];
+    const pick = (teamId: number, pos: string) => activeRoster(l, teamId).find((p) => p.position === pos)!;
+    const [qb, edge, loser] = [pick(home, 'QB'), pick(home, 'EDGE'), pick(away, 'QB')];
+    const g = {
+      id: 9001,
+      season: l.season,
+      week: 22,
+      homeId: home,
+      awayId: away,
+      playoffRound: 'FINAL',
+      result: {
+        homeScore: 27,
+        awayScore: 24,
+        playerTeams: { [qb.id]: home, [edge.id]: home, [loser.id]: away },
+        playerStats: {
+          [qb.id]: { passYds: 240, passTd: 2 },
+          [edge.id]: { sacks: 1, tackles: 4 },
+          // The bigger day, on the losing side.
+          [loser.id]: { passYds: 410, passTd: 4 },
+        },
+      },
+    } as unknown as Game;
+    l.awards.push({ season: l.season, winners: {}, allLeague: [[], []] });
+    return { l, g, qb, edge, home };
+  };
+
+  it('is the winning side’s best line of the game, by the team he played it for', () => {
+    const { l, g, qb, edge, home } = setup();
+    expect(pickFinalMvp(l, g)?.player.id).toBe(qb.id);
+    g.result!.playerStats[edge.id] = { sacks: 4, forcedFum: 2, tackles: 9 };
+    expect(pickFinalMvp(l, g)?.player.id).toBe(edge.id);
+    // Traded since: the game's own record still says who he played for.
+    setTeam(l, edge, l.teams[5].id);
+    expect(pickFinalMvp(l, g)).toMatchObject({ teamId: home, player: { id: edge.id } });
+    g.result!.playerStats = {};
+    expect(pickFinalMvp(l, g)).toBeNull();
+  });
+
+  it('goes on his record once, and nothing in the sim reads it', () => {
+    const { l, g, qb, edge, home } = setup();
+    awardFinal(l, g);
+    expect(seasonAwards(l, l.season)!.finalMvp).toEqual({ playerId: qb.id, teamId: home });
+    expect(playerHonors(l, qb.id)).toEqual([{ season: l.season, label: FINAL_MVP_SHORT }]);
+    // A second call (a save upgraded twice) changes nothing, even if the box score would now read differently.
+    g.result!.playerStats[edge.id] = { sacks: 5 };
+    awardFinal(l, g);
+    expect(seasonAwards(l, l.season)!.finalMvp!.playerId).toBe(qb.id);
+    // The locker room's stature, the officials' star protection and SNN's public standing never see it.
+    expect(honouredSince(l, l.season).has(qb.id)).toBe(false);
+    expect(starLean(l, qb.id)).toBe(1);
+    expect(publicRecord(l, l.season).why(qb)).toBeNull();
+    // Beside the league's award on his card, in order of prestige.
+    l.awards[0].winners.opoy = { playerId: qb.id, teamId: home };
+    l.awards[0].winners.mvp = { playerId: qb.id, teamId: home };
+    expect(honorBadges(playerHonors(l, qb.id)).map((b) => b.label)).toEqual(['MVP', FINAL_MVP_SHORT, 'OPOY']);
+  });
+});
+
 describe('save migration to v7', () => {
   it('works out past seasons from the stats a save already has', async () => {
     const league = createLeague({ seed: 'awards-migrate' });
@@ -110,6 +178,10 @@ describe('save migration to v7', () => {
       playWeek(league);
       await tick();
     }
+    // The final names its most valuable player, from the champions, as the season ends.
+    const named = seasonAwards(league, league.season)!.finalMvp!;
+    expect(named.teamId).toBe(league.history.at(-1)!.championId);
+    expect(playerHonors(league, named.playerId).map((h) => h.label)).toContain(FINAL_MVP_SHORT);
     beginOffseason(league);
     for (let guard = 0; guard < 256 && (league.phase as League['phase']) !== 'regular'; guard++) {
       advanceOffseason(league, { autoUser: true });
@@ -132,6 +204,8 @@ describe('save migration to v7', () => {
     expect(seasonAwards(up, league.season)).toEqual(seasonAwards(league, league.season));
     // An older one keeps its winners' stat lines; only clubs may be unknown.
     expect(seasonAwards(up, first)!.winners.mvp).toBeDefined();
+    // Last season's final is still in the box scores, so its most valuable player is named again as he was.
+    expect(seasonAwards(up, first)!.finalMvp).toEqual(named);
     expect(migrateLeague(copy(up))).toEqual(up);
   });
 

@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.41',
+    date: '2026-11-12',
+    title: 'The final’s MVP goes on his record',
+    text: 'The final’s most valuable player is now an honor on his card and in the awards. Free agency also waits until every fifth-year option is exercised or declined.',
+  },
+  {
     version: '0.4.40',
     date: '2026-11-12',
     title: 'A proper final, and fewer mistakes',

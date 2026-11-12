@@ -59,7 +59,17 @@ export interface SeasonAwards {
   winners: Partial<Record<AwardKey, AwardWinner>>;
   /** First and second All-League teams, each in `ALL_LEAGUE_SLOTS` order. */
   allLeague: [AwardWinner[], AwardWinner[]];
+  /**
+   * The final's most valuable player, named when the final is played (`awardFinal`). It is kept apart from `winners`
+   * on purpose: the locker room's stature (`honouredSince`), the officials' star protection (`starLean`) and SNN's
+   * public standing read `winners`, so one game's honor shows on his record and moves nothing in the sim.
+   */
+  finalMvp?: AwardWinner;
 }
+
+/** The final's most valuable player, as his record and the awards table name it. */
+export const FINAL_MVP_NAME = 'Most Valuable Player of the Final';
+export const FINAL_MVP_SHORT = 'Final MVP';
 
 const OFFENSE: ReadonlySet<Position> = new Set(['QB', 'RB', 'WR', 'TE']);
 const DEFENSE: ReadonlySet<Position> = new Set(['DT', 'EDGE', 'LB', 'CB', 'S']);
@@ -426,6 +436,48 @@ export function seasonAwards(league: League, season: number): SeasonAwards | und
   return league.awards.find((a) => a.season === season);
 }
 
+// ───────── the final's most valuable player ─────────
+
+/** What a line was worth in one game: the yardstick for the final's most valuable player. */
+const gameWorth = (s: StatLine) =>
+  v(s, 'passYds') / 25 +
+  v(s, 'passTd') * 4 -
+  v(s, 'passInt') * 2 +
+  (v(s, 'rushYds') + v(s, 'recYds')) / 10 +
+  (v(s, 'rushTd') + v(s, 'recTd')) * 6 +
+  v(s, 'sacks') * 4 +
+  v(s, 'defInt') * 5 +
+  v(s, 'forcedFum') * 3 +
+  v(s, 'defTd') * 6 +
+  v(s, 'tackles') * 0.5 +
+  v(s, 'passDef');
+
+/**
+ * The final's most valuable player: the winning team's best line of the game, read off the box score alone (who he
+ * played for is the game's own record, so it reads the same seasons later). Pure and drawn from nothing; null when
+ * the game isn't played or nobody on the winning side has a line.
+ */
+export function pickFinalMvp(league: League, g: Game): { player: Player; line: StatLine; teamId: number } | null {
+  const r = g.result;
+  if (!r) return null;
+  const teamId = r.homeScore >= r.awayScore ? g.homeId : g.awayId;
+  const best = Object.entries(r.playerStats)
+    .flatMap(([id, line]) => {
+      const player = league.players[Number(id)];
+      return player && (r.playerTeams[Number(id)] ?? player.teamId) === teamId ? [{ player, line }] : [];
+    })
+    .sort((a, b) => gameWorth(b.line) - gameWorth(a.line) || a.player.id - b.player.id)[0];
+  return best && gameWorth(best.line) > 0 ? { ...best, teamId } : null;
+}
+
+/** Names the final's most valuable player on the season's awards (once; a season with no awards voted has none). */
+export function awardFinal(league: League, final: Game): void {
+  const awards = seasonAwards(league, final.season);
+  if (!awards || awards.finalMvp) return;
+  const mvp = pickFinalMvp(league, final);
+  if (mvp) awards.finalMvp = { playerId: mvp.player.id, teamId: mvp.teamId };
+}
+
 // ───────── players of the week and month ─────────
 
 export type MonthKey = 'sep' | 'oct' | 'nov' | 'dec';
@@ -568,7 +620,9 @@ export interface HonorBadge {
 /** The same honor won more than once becomes one badge ("2× MVP"), in order of prestige. */
 export function honorBadges(honors: PlayerHonor[]): HonorBadge[] {
   const order = [
-    ...AWARD_KEYS.map((k) => AWARD_SHORT[k]),
+    AWARD_SHORT.mvp,
+    FINAL_MVP_SHORT,
+    ...AWARD_KEYS.filter((k) => k !== 'mvp').map((k) => AWARD_SHORT[k]),
     'All-League 1st team',
     'All-League 2nd team',
     'Player of the Month',
@@ -587,6 +641,7 @@ export function playerHonors(league: League, playerId: number): PlayerHonor[] {
   for (const a of [...league.awards].reverse()) {
     for (const k of AWARD_KEYS)
       if (a.winners[k]?.playerId === playerId) out.push({ season: a.season, label: AWARD_SHORT[k] });
+    if (a.finalMvp?.playerId === playerId) out.push({ season: a.season, label: FINAL_MVP_SHORT });
     a.allLeague.forEach((squad, i) => {
       if (squad.some((w) => w.playerId === playerId))
         out.push({ season: a.season, label: i === 0 ? 'All-League 1st team' : 'All-League 2nd team' });

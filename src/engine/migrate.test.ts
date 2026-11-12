@@ -18,7 +18,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(97);
+    expect(SAVE_VERSION).toBe(98);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -32,7 +32,7 @@ describe('save v65 and v66', () => {
     const ids = l.inbox.map((m) => m.id);
     l.version = 96;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(97);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox!.map((m) => m.id)).toEqual([...new Set(ids)]);
     expect(up.inbox![0].body).toBe(first.body);
   });

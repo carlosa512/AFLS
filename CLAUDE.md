@@ -329,7 +329,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     digests (`legacyYear` keeps those for a league year already told the old way; `DAYS.on` for tests).
     In the playoffs a game story's headline says what the game decided (`PLAYOFF_HEAD` in `snnVoice.ts`: who goes on,
     who is out, a low seed beating a top one). `snnTitle.ts` is the final's edition: the lead told as a championship
-    (the game's most valuable player, SNN's reading of the box score in `titleMvp`, never an award on his record; the
+    (the game's most valuable player, the honor named as the final is recorded: `SeasonAwards.finalMvp`, `awardFinal` in `awards.ts`, on his record and kept out of `winners` so nothing in the sim reads it; the
     champions' regular season and who they beat; how many titles that makes), a tile for the league's most valuable
     player and the other awards, and two lists (the season's awards, the champions' road). A storyline about your team
     is told the week it happens or the week after and never late (`STORY_FRESH` in `snnWeek.ts`)
@@ -645,7 +645,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - **Free agency does not open by accident:** in the re-sign window the advance button (`offseasonStep` in
   `ui/App.tsx`) reads "Decide on your head coach" or "Decide N contracts" until the owner's question and every
   expiring contract has an answer (`openContracts` in `contractMail.ts`: signed, tagged, let walk or talks broken
-  off). The Re-sign tab has "Let walk" on a row and "Let the other N walk".
+  off), then "Decide N fifth-year options" until each is exercised or declined (`openOptions`). The Re-sign tab has
+  "Let walk" on a row and "Let the other N walk", and "Decline all N" over the options.
 - **A player changes club through `setTeam`, and joins the league through `addPlayer`** (`roster.ts`), tests included:
   `teamPlayers` reads an index those keep. A club cleared by hand is caught and read again; a club set by hand isn't.
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and

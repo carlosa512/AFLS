@@ -27,6 +27,7 @@ import { userCoachGameObservation, positionTeachingNote } from './coachReports';
 import {
   AWARD_KEYS,
   AWARD_NAMES,
+  FINAL_MVP_NAME,
   HONOR_SLOTS,
   honorBadges,
   MONTHS,
@@ -316,13 +317,21 @@ function awardMail(league: League, have: Set<string>): Draft[] {
   const team = league.teams[league.userTeamId];
   const mine = (w: AwardWinner | null | undefined): w is AwardWinner =>
     !!w && w.teamId === league.userTeamId && !!league.players[w.playerId];
-  const send = (id: string, season: number, week: number, playerId: number, honor: string, body: string) => {
+  const send = (
+    id: string,
+    season: number,
+    week: number,
+    playerId: number,
+    honor: string,
+    body: string,
+    phase: 'regular' | 'playoffs' = 'regular',
+  ) => {
     if (have.has(id)) return;
     const p = league.players[playerId];
     out.push({
       id,
       season,
-      phase: 'regular',
+      phase,
       week,
       from: 'League office',
       category: 'awards',
@@ -380,6 +389,19 @@ function awardMail(league: League, have: Set<string>): Draft[] {
         playerId,
         list(won),
         `The votes are in for ${season}, and ${fullName(p)} has been named ${list(won)}. It reflects well on the whole organization.`,
+      );
+    }
+    // The final's own honor is named the night of the game, after the season's votes.
+    if (mine(voted.finalMvp)) {
+      const final = league.games.find((g) => g.season === season && g.playoffRound === 'FINAL');
+      send(
+        `awards:${season}:final:${voted.finalMvp.playerId}`,
+        season,
+        final?.week ?? 22,
+        voted.finalMvp.playerId,
+        FINAL_MVP_NAME,
+        `${fullName(league.players[voted.finalMvp.playerId])} has been named ${FINAL_MVP_NAME} for ${season}. The honor goes on his record with the championship.`,
+        'playoffs',
       );
     }
   }
