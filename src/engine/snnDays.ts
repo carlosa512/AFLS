@@ -526,9 +526,14 @@ const TILES = 3;
 export function cutDay(
   ranked: DayCandidate[],
   userTeamId: number | null,
+  leadDay?: Day,
 ): { lead: DayCandidate; tiles: DayCandidate[] } | null {
-  const lead = ranked.find((c) => c.clubId !== userTeamId);
+  // A page that holds two days (cut-down day inside Kickoff's) leads with the day it is named for, when it has a story.
+  const lead =
+    ranked.find((c) => c.clubId !== userTeamId && c.day === leadDay) ?? ranked.find((c) => c.clubId !== userTeamId);
   if (!lead) return null;
+  const days = new Set(ranked.map((c) => c.day));
+  const perDay = new Map<Day, number>();
   const used = new Set<number>([lead.clubId]);
   const told = new Map<string, number>([[lead.angle, 1]]);
   const tiles: DayCandidate[] = [];
@@ -541,6 +546,9 @@ export function cutDay(
       const n = told.get(c.angle) ?? 0;
       // "The furthest fall" is said once a page, whatever else is empty.
       if (ONCE.has(c.angle) ? n >= 1 : varied && n >= SAME_ANGLE) continue;
+      // On a page of two days neither takes every tile while the other has a story to tell.
+      if (varied && days.size > 1 && (perDay.get(c.day) ?? 0) >= TILES - 1) continue;
+      perDay.set(c.day, (perDay.get(c.day) ?? 0) + 1);
       used.add(c.clubId);
       told.set(c.angle, (told.get(c.angle) ?? 0) + 1);
       tiles.push(c);
@@ -671,6 +679,7 @@ export function buildDay(l: League, days: Day[]): Edition | null {
       id,
     ),
     user,
+    day,
   );
   if (!cut) return null;
   const at = { editionId: id, said: [...seasonSaid(l, SNN, 'snn:')] };

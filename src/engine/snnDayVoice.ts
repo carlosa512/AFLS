@@ -9,13 +9,12 @@
 import { coachName } from './coaching';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
-import { kickoffLabel } from './season/kickoff';
 import { statLine } from './stats';
 import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import type { Day, DayCandidate } from './snnDays';
-import type { CoachRole, EditionStory, InboxAction, League, Player, StatKey } from './types';
+import type { CoachRole, EditionStory, InboxAction, Kickoff, League, Player, StatKey } from './types';
 import { around, sentencesOf, stableHash } from './voice';
 
 interface Wording {
@@ -61,16 +60,25 @@ function gotWords(got: string[]): string {
   return `${count(got.length)} picks, the first of them ${say(got[0])}`;
 }
 
-/** The club's first game of the season, as the fact a story stops on; its camp when the schedule is not out. */
-function openerLine(l: League, ref: Referrer, teamId: number): string {
+/**
+ * The fact a story stops on: the team's first game of the season, told one of a few ways so the same team's stories
+ * across the offseason's editions do not end on the same sentence; its camp when the schedule is not out.
+ */
+function openerLine(l: League, at: Wording, ref: Referrer, teamId: number): string {
   const g = gamesInWeek(l, 1).find((x) => x.season === l.season && (x.homeId === teamId || x.awayId === teamId));
   const name = cap(ref.club(teamId));
-  if (!g) return `${name} report for camp next.`;
+  if (!g) return pick(l, at, `opener:${teamId}`, [`${name} report for camp next.`]);
   const home = g.homeId === teamId;
   const opp = l.teams[home ? g.awayId : g.homeId].name;
-  return home
-    ? `${name} open the season at home against the ${opp}.`
-    : `${name} open the season on the road against the ${opp}.`;
+  const r = l.history.find((h) => h.season === l.season - 1)?.records[teamId];
+  const where = home ? 'at home' : 'on the road';
+  return pick(l, at, `opener:${teamId}`, [
+    `${name} open the season ${where} against the ${opp}.`,
+    `${name} play their first game against the ${opp}, ${where}.`,
+    `The ${opp} are the first opponent for ${ref.city(teamId)}.`,
+    r ? `${name} went ${r.w}–${r.l}${r.t ? `–${r.t}` : ''} last season.` : false,
+    `${name} start ${where}, against the ${opp}.`,
+  ]);
 }
 
 /** Where the consensus had him, as a sentence about a man already named. */
@@ -172,7 +180,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           : '',
         later
           ? `${cap(ref.club(club))} also took ${tag(later)} at No. ${later.draft!.pick}.`
-          : openerLine(l, ref, club),
+          : openerLine(l, at, ref, club),
       ],
       numbers: [...pickChips(c), ...(trades ? [{ value: String(trades), label: 'Trades on the day' }] : [])],
       picture: { playerId: p.id },
@@ -198,7 +206,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       ],
       second: [
         from && c.got?.length ? `The ${from} received ${gotWords(c.got)} in return.` : '',
-        openerLine(l, ref, club),
+        openerLine(l, at, ref, club),
       ],
       numbers: pickChips(c),
       picture: { playerId: p.id },
@@ -231,7 +239,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           ? `${cap(count(n))} quarterbacks went in the first round.`
           : `He was the only quarterback taken in the first round.`,
       ],
-      second: [rankLine(p.lastName, c), openerLine(l, ref, club)],
+      second: [rankLine(p.lastName, c), openerLine(l, at, ref, club)],
       numbers: [...pickChips(c), ...(n > 1 ? [{ value: String(n), label: 'Quarterbacks in round one' }] : [])],
       picture: { playerId: p.id },
       links: links(p, club),
@@ -260,7 +268,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
               `It was the longest wait of any player ranked in the first two rounds.`,
             ])
           : `${p.lastName} went ${(c.pick ?? 0) - (c.rank ?? 0)} places after his ranking.`,
-        openerLine(l, ref, club),
+        openerLine(l, at, ref, club),
       ],
       numbers: pickChips(c),
       picture: { playerId: p.id },
@@ -292,7 +300,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
               `No first-round pick went further ahead of his ranking.`,
             ])
           : `${p.lastName} went ${(c.rank ?? 0) - (c.pick ?? 0)} places ahead of his ranking.`,
-        openerLine(l, ref, club),
+        openerLine(l, at, ref, club),
       ],
       numbers: pickChips(c),
       picture: { playerId: p.id },
@@ -312,7 +320,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       `${the} made ${count(n)} picks in the first two rounds, more than any other team.`,
       `The first was ${posWord(p)} ${man} at No. ${c.pick}.`,
     ],
-    second: [rankLine(p.lastName, c), openerLine(l, ref, club)],
+    second: [rankLine(p.lastName, c), openerLine(l, at, ref, club)],
     numbers: [{ value: String(n), label: 'Picks in rounds 1–2' }, ...pickChips(c)].slice(0, 3),
     picture: { playerId: p.id },
     links: links(p, club),
@@ -381,7 +389,7 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         ]),
         from,
       ],
-      second: [out ? `He replaces ${out}.` : '', record, openerLine(l, ref, club)],
+      second: [out ? `He replaces ${out}.` : '', record, openerLine(l, at, ref, club)],
       numbers: last ? [{ value: rec(last), label: 'Last season' }] : [],
       picture: { coachId: coach.id, teamIds: [club] },
       links: [{ kind: 'team', teamId: club }],
@@ -402,7 +410,7 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       ]),
       out ? `${gm.lastName} replaces ${out}.` : '',
     ],
-    second: [record, openerLine(l, ref, club)],
+    second: [record, openerLine(l, at, ref, club)],
     numbers: last ? [{ value: rec(last), label: 'Last season' }] : [],
     picture: { teamIds: [club] },
     links: [{ kind: 'team', teamId: club }, { kind: 'gms' }],
@@ -439,7 +447,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           `The tag keeps ${p.lastName} off the market for one more season.`,
           `${p.lastName} would have been a free agent without it.`,
         ]),
-        openerLine(l, ref, club),
+        openerLine(l, at, ref, club),
       ],
     });
   }
@@ -481,7 +489,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         ]),
         c.deal ? `The deal is for ${dealWords(c.deal)}.` : '',
       ],
-      second: [why, openerLine(l, ref, club)],
+      second: [why, openerLine(l, at, ref, club)],
       numbers: c.deal
         ? [
             { value: String(c.deal.years), label: c.deal.years === 1 ? 'Year' : 'Years' },
@@ -527,7 +535,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       `${the} let ${count(n)} of last season's starters reach free agency, more than any other team.`,
       `The best known is ${posWord(p)} ${man}.`,
     ],
-    second: [why, openerLine(l, ref, club)],
+    second: [why, openerLine(l, at, ref, club)],
     numbers: [{ value: String(n), label: 'Starters on the market' }],
   });
 }
@@ -569,7 +577,7 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         ]),
         deal,
       ],
-      second: [why, openerLine(l, ref, club)],
+      second: [why, openerLine(l, at, ref, club)],
       numbers: dealChips(c.deal),
     });
   }
@@ -591,7 +599,7 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       ],
       second: [
         old && c.otherId !== club ? `${p.lastName} played for the ${old} last season.` : '',
-        openerLine(l, ref, club),
+        openerLine(l, at, ref, club),
       ],
       numbers: dealChips(c.deal),
     });
@@ -620,7 +628,7 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
             `${the} lost ${count(n)} of last season's starters to other teams in free agency, more than anyone else.`,
             old ? `${cap(posWord(p))} ${man} signed with the ${old}.` : `${cap(posWord(p))} ${man} was one of them.`,
           ],
-      second: [why, openerLine(l, ref, club)],
+      second: [why, openerLine(l, at, ref, club)],
       numbers: [{ value: String(n), label: haul ? 'Starters signed' : 'Starters lost' }],
     });
   }
@@ -634,7 +642,7 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       headline: head(`${full(p)} returns to the ${Club}`, `${p.lastName} returns to the ${Club}`),
       summary: `${p.lastName} has played for the ${Club} before.`,
       first: [`${cap(posWord(p))} ${man} has signed with ${the}, a team he has played for before.`, deal],
-      second: [why, openerLine(l, ref, club)],
+      second: [why, openerLine(l, at, ref, club)],
       numbers: dealChips(c.deal),
     });
   }
@@ -681,7 +689,7 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           : `${cap(count(n))} rookies nobody drafted made a roster as teams cut to 53 players.`,
         `${cap(posWord(p))} ${man} is one of them, with ${ref.club(club)}.`,
       ],
-      second: [openerLine(l, ref, club)],
+      second: [openerLine(l, at, ref, club)],
       numbers: [{ value: String(n), label: 'Undrafted rookies on a 53' }],
     });
   }
@@ -721,6 +729,14 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   });
 }
 
+const DAY_NAME: Record<Kickoff['day'], string> = { thu: 'Thursday', sat: 'Saturday', sun: 'Sunday', mon: 'Monday' };
+/** "on Thursday at 8:15 PM Eastern": a kickoff as a sentence says it. */
+function whenWords(k: Kickoff): string {
+  const h = Math.floor(k.et / 60);
+  const m = String(k.et % 60).padStart(2, '0');
+  return `on ${DAY_NAME[k.day]} at ${((h + 11) % 12) + 1}:${m} ${h < 12 ? 'AM' : 'PM'} Eastern`;
+}
+
 /** Where a team opens: "at home against the Hammers", and when the game kicks off. */
 function openerFacts(l: League, teamId: number): { where: string; opp: number; when: string } | null {
   const g = gamesInWeek(l, 1).find((x) => x.season === l.season && (x.homeId === teamId || x.awayId === teamId));
@@ -730,7 +746,7 @@ function openerFacts(l: League, teamId: number): { where: string; opp: number; w
   return {
     where: `${home ? 'at home against' : 'on the road against'} the ${l.teams[opp].name}`,
     opp,
-    when: g.kickoff ? kickoffLabel(g.kickoff) : '',
+    when: g.kickoff ? whenWords(g.kickoff) : '',
   };
 }
 const wentLine = (l: League, name: string, teamId: number) => {
@@ -898,7 +914,7 @@ function yourYear(l: League, at: Wording): EditionStory | null {
       .filter(Boolean)
       .join(' '),
     first: [pick(l, at, `${key}:lede`, [lede]), whyLine(top.lastName, record.why(top))],
-    second: [...others, openerLine(l, ref, u)],
+    second: [...others, openerLine(l, at, ref, u)],
     numbers: [
       ...(tagged.length ? [{ value: String(tagged.length), label: 'Tagged' }] : []),
       ...(kept.length ? [{ value: String(kept.length), label: 'Re-signed' }] : []),
@@ -945,7 +961,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
       ]),
       rankLine(a.lastName, c),
     ],
-    second: b ? [`${cap(posWord(b))} ${ref.man(b.id)} followed at No. ${b.draft!.pick}.`] : [openerLine(l, ref, u)],
+    second: b ? [`${cap(posWord(b))} ${ref.man(b.id)} followed at No. ${b.draft!.pick}.`] : [openerLine(l, at, ref, u)],
     numbers: [
       { value: String(n), label: n === 1 ? 'Pick' : 'Picks' },
       { value: `No. ${a.draft!.pick}`, label: 'First pick' },
@@ -1007,7 +1023,7 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
       .filter(Boolean)
       .join(' '),
     first: [pick(l, at, `${key}:lede`, [lede]), `The deal is for ${dealWords(deal)}.`],
-    second: [...more, openerLine(l, ref, u)],
+    second: [...more, openerLine(l, at, ref, u)],
     numbers: [
       ...(came.length ? [{ value: String(came.length), label: 'Signed' }] : []),
       ...(went.length ? [{ value: String(went.length), label: 'Left' }] : []),
@@ -1049,7 +1065,7 @@ function yourCuts(l: League, at: Wording): EditionStory | null {
     ],
     second: [
       rookies.length ? `${cap(count(rookies.length))} rookie${rookies.length === 1 ? '' : 's'} made the roster.` : '',
-      openerLine(l, ref, u),
+      openerLine(l, at, ref, u),
     ],
     numbers: [
       { value: String(cut.length), label: 'Released' },

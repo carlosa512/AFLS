@@ -552,6 +552,14 @@ describe('Cut-down day and Kickoff', () => {
     expect(dayMail(l)[0].edition!.lists!.map((x) => x.title)).toEqual(['Opening week']);
   });
 
+  it('leads a combined page with the preview, and shares the tiles between the two days', () => {
+    const e = buildDay(l, ['cuts', 'kickoff'])!;
+    expect(e.lead.angle).toBe('champion');
+    const cuts = e.tiles.filter((s) => s.angle.startsWith('cut') || s.angle === 'undrafted');
+    expect(cuts.length).toBeGreaterThanOrEqual(1);
+    expect(cuts.length).toBeLessThan(e.tiles.length);
+  });
+
   it('files nothing once a week 1 game is played', () => {
     l.games.find((g) => g.season === l.season && g.week === 1)!.result = {} as never;
     expect(dayNow(l)).toEqual([]);
