@@ -376,6 +376,26 @@ describe('how often the Column runs, and about what (the owner’s rule G)', () 
     expect(pickColumn([blame, credit], at(9, ran))!.key).toBe(credit.key);
   });
 
+  it('asks about the general manager before his head coach: three losing seasons point at him', () => {
+    const gm = claim('column:2026:gm:5:2-', { subject: { kind: 'gm', teamId: 6, gmId: 5 }, rung: 2, teamId: 6 });
+    const elsewhere = claim('column:2026:coach:78:2-', {
+      subject: { kind: 'coach', teamId: 7, coachId: 78 },
+      rung: 2,
+      teamId: 7,
+      margin: 0.9,
+    });
+    expect(pickColumn([job, gm], at(9, []))!.key).toBe(gm.key);
+    expect(pickColumn([elsewhere, gm, job], at(9, []))!.key).toBe(gm.key);
+    // Not past a higher rung, and not past a correction.
+    const time = claim('column:2026:coach:78:3-', {
+      subject: { kind: 'coach', teamId: 7, coachId: 78 },
+      rung: 3,
+      teamId: 7,
+    });
+    expect(pickColumn([gm, time], at(9, []))!.key).toBe(time.key);
+    expect(pickColumn([gm, fix], at(9, []))!.key).toBe(fix.key);
+  });
+
   it('asks about a man’s job in one Column in three at most', () => {
     // The last two Columns hold one about a job: not again yet.
     const soon = [

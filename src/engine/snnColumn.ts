@@ -24,7 +24,10 @@ export const LADDER = {
   coachGames: 6,
   /** "It's time" only after this week is played: when an owner can act in season. */
   timeAfterWeek: 11,
-  /** Losing seasons under a GM before it is fair to ask, and before it is time. */
+  /**
+   * Losing seasons already finished under a GM before it is fair to ask (with this one going the same way, that is
+   * three in a row), and before it is time.
+   */
   gmFair: 2,
   gmTime: 3,
   /** A turnaround: this many wins or fewer last season, this percentage or better through this many games. */
@@ -505,10 +508,14 @@ export function pickColumn(
     return !yours || (opt.yoursTold < LADDER.yoursASeason && !opt.yoursLastWeek);
   });
   const fixed = (c: Claim) => (c.dir === 'fix' ? 1 : 0);
+  // Losing seasons one after another point at the man who built the roster before the man who coaches it: on a rung
+  // they share, the general manager is asked about first (the owner's call; a coach always outranked him otherwise).
+  const builder = (c: Claim) => (c.subject.kind === 'gm' && c.dir === 'blame' ? 1 : 0);
   open.sort(
     (a, b) =>
       fixed(b) - fixed(a) ||
       (fixed(a) ? 0 : b.rung - a.rung) ||
+      (fixed(a) ? 0 : builder(b) - builder(a)) ||
       stakes(b) - stakes(a) ||
       b.margin - a.margin ||
       stableHash(`${opt.editionId}:${a.key}`) - stableHash(`${opt.editionId}:${b.key}`),
