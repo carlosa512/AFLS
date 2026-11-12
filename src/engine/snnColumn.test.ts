@@ -2,9 +2,12 @@
  * The Column's ladder as claims that hold: what SNN may say about a unit, a head coach or a general manager, from the
  * public record alone. Leagues are built by hand (results planted week by week), so each rung is asked for exactly.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
+import { playWeek } from './league';
+import { columnStory } from './snnVoice';
+import { ruleBreaks } from './storyRules';
 import { FORM } from './slump';
 import { clubContext, columnClaims, LADDER, pickColumn, type Claim } from './snnColumn';
 import type { Game, GameResult, League, TeamGameStats } from './types';
@@ -421,4 +424,117 @@ describe('how often the Column runs, and about what (the owner’s rule G)', () 
 it('keeps its bars where the owner can set them', () => {
   expect(FORM.games).toBeGreaterThan(0);
   expect(LADDER.coachPct).toBeLessThan(0.5);
+});
+
+describe('the Column’s words', () => {
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+  const FOG = /\b(rating|overall|morale|mood|potential|trait|ceiling)\b/i;
+  const sacked = { sacked: 7, passAtt: 30 };
+  const lineBlame = (l: League, t: number, week: number) =>
+    columnClaims(l, week, new Set()).find(
+      (c) => c.teamId === t && c.subject.kind === 'unit' && c.subject.unit === 'offensive line' && c.dir === 'blame',
+    )!;
+
+  it('writes the same problem differently for a contender and for a club that is out', () => {
+    const top = world('column-words');
+    const t = other(top);
+    // Winning all year, the line still gives up sacks: a contender's one weakness.
+    plant(top, 1, 12, { winners: [t], side: { [t]: sacked } });
+    const out = world('column-words');
+    plant(out, 1, 12, { losers: [t], side: { [t]: sacked } });
+    // Blame needs lost games in the span: the contender drops its last three.
+    plant(top, 10, 12, { losers: [t], side: { [t]: sacked } });
+    const a = columnStory(top, lineBlame(top, t, 12), at());
+    const b = columnStory(out, lineBlame(out, t, 12), at());
+    expect(a.paragraphs[0]).not.toBe(b.paragraphs[0]);
+    expect(a.paragraphs.join(' ')).toMatch(/race|playoff/);
+    expect(b.paragraphs.join(' ')).not.toMatch(/playoff|seed|race/);
+    for (const s of [a, b]) {
+      expect(s.kind).toBe('column');
+      expect(s.kicker).toBe('Column');
+      expect(s.covers).toEqual([s.key]);
+      expect(ruleBreaks(top, s)).toEqual([]);
+    }
+  });
+
+  it('says how small the sample is early, and how many games are left late', () => {
+    const early = world('column-early');
+    const t = other(early);
+    plant(early, 1, 6, { losers: [t], side: { [t]: sacked } });
+    const first = columnStory(early, lineBlame(early, t, 6), at());
+    expect(first.paragraphs[1]).toMatch(/small sample|early/);
+    const late = world('column-early');
+    plant(late, 1, 15, { losers: [t], side: { [t]: sacked } });
+    const last = columnStory(late, lineBlame(late, t, 15), at());
+    expect(last.paragraphs[1]).not.toMatch(/small sample|early/);
+    expect(last.paragraphs.join(' ')).toMatch(/next season|games left/);
+  });
+
+  it('writes every rung to the rules, with nothing private in it', () => {
+    const l = world('column-rungs');
+    const [a, b, c] = [other(l, 0), other(l, 1), other(l, 2)];
+    l.history.push({
+      season: l.season - 1,
+      championId: -1,
+      runnerUpId: -1,
+      records: Object.fromEntries(l.teams.map((x) => [x.id, { w: x.id === c ? 4 : 5, l: x.id === c ? 13 : 12, t: 0 }])),
+    });
+    l.history.push({
+      season: l.season - 2,
+      championId: -1,
+      runnerUpId: -1,
+      records: Object.fromEntries(l.teams.map((x) => [x.id, { w: 5, l: 12, t: 0 }])),
+    });
+    plant(l, 1, 12, { losers: [a, b], winners: [c], side: { [a]: sacked } });
+    const hc = secondYear(l, a);
+    secondYear(l, c);
+    const gm = l.gms[l.teams[b].gmId!];
+    gm.career = [1, 2].map((back) => ({ season: l.season - back, teamId: b }));
+    const have = new Set([
+      `column:${l.season}:coach:${hc.id}:2-`,
+      `column:${l.season}:unit:${c}:run game:1-`,
+      `column:${l.season}:coach:${head(l, c).id}:2-`,
+    ]);
+    const claims = [...columnClaims(l, 12, new Set()), ...columnClaims(l, 12, have)];
+    const kinds = new Set<string>();
+    for (const claim of claims) {
+      const s = columnStory(l, claim, at());
+      kinds.add(`${claim.subject.kind} ${claim.dir} ${claim.rung}`);
+      expect(ruleBreaks(l, s), `${claim.key}: ${s.paragraphs.join(' / ')}`).toEqual([]);
+      expect(s.paragraphs.join(' ')).not.toMatch(FOG);
+      expect(s.table!.rows.length).toBeGreaterThanOrEqual(2);
+      expect(s.headline.length).toBeLessThanOrEqual(70);
+    }
+    for (const k of [
+      'unit blame 1',
+      'unit credit 1',
+      'coach blame 2',
+      'coach blame 3',
+      'coach credit 2',
+      'gm blame 2',
+      'coach fix 2',
+    ])
+      expect([...kinds], k).toContain(k);
+  });
+
+  describe('over a played league', () => {
+    let l: League;
+    beforeAll(() => {
+      l = createLeague({ seed: 'column-played' });
+      for (let week = 1; week <= 9; week++) playWeek(l);
+    }, 240_000);
+    it('writes every claim that holds to the rules, and no two alike', () => {
+      const wording = at();
+      const firsts: string[] = [];
+      for (let week = 5; week <= 9; week++)
+        for (const claim of columnClaims(l, week, new Set())) {
+          const s = columnStory(l, claim, wording);
+          expect(ruleBreaks(l, s), `${claim.key}: ${s.paragraphs.join(' / ')}`).toEqual([]);
+          expect(s.paragraphs).toHaveLength(2);
+          firsts.push(s.paragraphs.join(' '));
+        }
+      expect(firsts.length).toBeGreaterThan(20);
+      expect(new Set(firsts).size).toBe(firsts.length);
+    });
+  });
 });

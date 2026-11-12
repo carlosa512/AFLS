@@ -13,6 +13,8 @@ import { teamCoaches } from './coaching';
 import { injuryLabel } from './injuries';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import { divisionStandings, computeRecords, type TeamRecord } from './season/standings';
+import type { Unit } from './slump';
+import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import type { Candidate } from './snnWeek';
@@ -1762,4 +1764,643 @@ function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): Edit
   if (cand.kind === 'starOut') return starOutStory(l, cand, at);
   if (cand.angle === 'bye') return byeStory(l, cand, at);
   return gameStory(l, cand, at, opt);
+}
+
+// ───────── the Column ─────────
+
+/**
+ * How a unit's number reads in a sentence: what it has done over the span ("have allowed a sack on 9.4% of their
+ * dropbacks"), the same in the past for the weeks before it, and the word the Column calls the unit by.
+ */
+const UNIT_SAYS: Record<Unit, { noun: string; did: (v: string) => string; was: (v: string) => string }> = {
+  'offensive line': {
+    noun: 'pass protection',
+    did: (v) => `have allowed a sack on ${v} of their dropbacks`,
+    was: (v) => `allowed a sack on ${v} of their dropbacks`,
+  },
+  'pass rush': {
+    noun: 'pass rush',
+    did: (v) => `have sacked the quarterback on ${v} of his dropbacks`,
+    was: (v) => `sacked the quarterback on ${v} of his dropbacks`,
+  },
+  'run game': {
+    noun: 'run game',
+    did: (v) => `have averaged ${v} yards a carry`,
+    was: (v) => `averaged ${v} yards a carry`,
+  },
+  'run defense': {
+    noun: 'run defense',
+    did: (v) => `have allowed ${v} yards a carry`,
+    was: (v) => `allowed ${v} yards a carry`,
+  },
+  'passing game': {
+    noun: 'passing game',
+    did: (v) => `have averaged ${v} yards a pass`,
+    was: (v) => `averaged ${v} yards a pass`,
+  },
+  coverage: {
+    noun: 'coverage',
+    did: (v) => `have allowed ${v} yards a pass`,
+    was: (v) => `allowed ${v} yards a pass`,
+  },
+};
+
+/** What a Column's line may read: the claim's facts in words, and where its club is in the season. */
+interface ColumnSheet {
+  id: number;
+  rec: string;
+  race: ClubContext['race'];
+  stage: ClubContext['stage'];
+  /** A losing record last season, a winning one, or no last season to go by. */
+  lastYear: 'losing' | 'winning' | 'none';
+  lastRec: string;
+  lastWins: number;
+  lastLosses: number;
+  /** "five games left", or '' when the regular season is over. */
+  left: string;
+  /** "at home to {c:4}" or "away to {c:4}", or '' with no game to come. */
+  next: string;
+  division: string;
+  place: number;
+  gap: number;
+  played: number;
+  wins: number;
+  spanRec: string;
+  // A unit.
+  noun: string;
+  did: string;
+  was: string;
+  around: string;
+  /** Against the weeks before the span: it got worse, got better, was much the same, or there were too few to say. */
+  change: 'worse' | 'better' | 'same' | 'none';
+  /** The club was not losing before the span. */
+  wasWinning: boolean;
+  /** Before the span the unit was already worse than the league has been since. */
+  wasPoor: boolean;
+  games: number;
+  won: number;
+  lost: number;
+  // A man.
+  name: string;
+  surname: string;
+  streak: number;
+  /** His seasons in the job at this club, this one included. */
+  seasons: number;
+  /** Losing seasons finished under a GM. */
+  lostSeasons: number;
+  coach: string;
+  coachSurname: string;
+}
+type CL = Line<ColumnSheet>;
+const col = (text: (s: ColumnSheet) => string, when?: (s: ColumnSheet) => boolean, reads = when ? 1 : 0): CL => ({
+  text,
+  when,
+  reads,
+});
+/** The games still to play and the next of them, as one clause: "five games left, the next of them at home to Denver". */
+const ahead = (s: ColumnSheet) => `${s.left}, the next of them ${s.next}`;
+/** Four games are most of what a club has played: only then is the sample the thing to say. */
+const early = (s: ColumnSheet) => s.played <= 6 && !!s.left;
+const over = (s: ColumnSheet) => !s.left;
+
+/** The last sentence of a Column that finds fault: what is at stake, by the race and the stage of the season. */
+const BLAME_STAKES: CL[] = [
+  col((s) => `Four games is a small sample, and ${c(s.id)} have ${ahead(s)}, to change it.`, early, 3),
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, and the ${s.noun} has to hold up in them if they are to stay in the race.`,
+    (s) => s.race === 'in' && !!s.left,
+    2,
+  ),
+  col(
+    (s) =>
+      `${c(s.id)} have ${s.left} to get into the playoffs, the next of them ${s.next}, and the ${s.noun} has to be better in them.`,
+    (s) => s.race === 'edge' && !!s.left,
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} are playing for next season now, and with ${ahead(s)}, this is the first thing to fix for it.`,
+    (s) => s.race === 'out' && !!s.left,
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} finished ${s.rec}, and the ${s.noun} goes into the playoffs as the thing to fix.`,
+    (s) => over(s) && s.race === 'in',
+    3,
+  ),
+  col((s) => `${c(s.id)} finished ${s.rec}, and fixing the ${s.noun} is where next season starts.`, over, 2),
+];
+/** The last sentence of a Column that gives credit. */
+const CREDIT_STAKES: CL[] = [
+  col((s) => `Four games is a small sample, and ${c(s.id)} have ${ahead(s)}, to show it is real.`, early, 3),
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, and this is what they will lean on in them to stay in the race.`,
+    (s) => s.race === 'in' && !!s.left,
+    2,
+  ),
+  col(
+    (s) =>
+      `${c(s.id)} have ${s.left} to get into the playoffs, the next of them ${s.next}, and this is the unit that gives them a chance.`,
+    (s) => s.race === 'edge' && !!s.left,
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, and it is something to build on for next season.`,
+    (s) => s.race === 'out' && !!s.left,
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`,
+    (s) => over(s) && s.race === 'in',
+    3,
+  ),
+  col((s) => `${c(s.id)} finished ${s.rec}, and it is something to build on for next season.`, over, 2),
+];
+
+interface ColumnBank {
+  claim: CL[];
+  fact: CL[];
+  reason: CL[];
+  stakes: CL[];
+  headline: (s: ColumnSheet, l: League) => string;
+}
+/** A club in a headline: its city, or its nickname where two clubs share one. */
+const shared = (l: League, id: number) => l.teams.filter((x) => x.city === l.teams[id].city).length > 1;
+const whose = (l: League, id: number) =>
+  shared(l, id) ? `The ${l.teams[id].name}’ problem is their` : `${possessive(l.teams[id].city)} problem is its`;
+const whereOf = (l: League, id: number) => (shared(l, id) ? `with the ${l.teams[id].name}` : `in ${l.teams[id].city}`);
+
+/** Why a unit is a problem: what it was before the span decides whether the trouble is new. */
+const UNIT_REASON: CL[] = [
+  col(
+    (s) => `Before this run ${c(s.id)} ${s.was}, so the trouble is new and it arrived with the losing.`,
+    (s) => s.change === 'worse' && !s.wasPoor && s.wasWinning,
+    4,
+  ),
+  col(
+    (s) => `Before this run ${c(s.id)} ${s.was}, so this is a change and not what they have been all season.`,
+    (s) => s.change === 'worse' && !s.wasPoor,
+    3,
+  ),
+  col(
+    (s) => `Before this run ${c(s.id)} ${s.was}, so a weakness has become something worse.`,
+    (s) => s.change === 'worse',
+    2,
+  ),
+  col(
+    (s) => `Before this run ${c(s.id)} ${s.was}, so it is not new and it has been there all season.`,
+    (s) => s.change === 'better' || s.change === 'same',
+    2,
+  ),
+  col((s) => `The rest of the league ${s.around} in the weeks ${c(s.id)} played those games.`),
+];
+const OWNERS_CALL: CL[] = [
+  col(
+    (s) => `The decision is the owner's to make, and with ${ahead(s)}, he has seen enough of this season to make it.`,
+    (s) => !!s.left,
+    1,
+  ),
+  col((s) => `The decision is the owner's to make, and ${c(s.id)} finished ${s.rec}.`),
+];
+
+const COLUMN: Record<string, ColumnBank> = {
+  'unit-': {
+    claim: [
+      // In the first weeks a record says little about the race: the claim is about the start.
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and the ${s.noun} is the first place to look for why.`,
+        (s) => s.stage === 'early' && s.wins <= s.played / 2,
+        3,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and the ${s.noun} is the one part of the start that should worry them.`,
+        (s) => s.stage === 'early',
+        3,
+      ),
+      col(
+        (s) =>
+          `${C(s.id)} are ${s.rec} and in the race, and the ${s.noun} is the part of this team that could cost them.`,
+        (s) => s.race === 'in',
+        2,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and if the race gets away from them the ${s.noun} will be the reason.`,
+        (s) => s.race === 'in',
+        2,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec} and on the edge of the race, and the ${s.noun} is what is keeping them there.`,
+        (s) => s.race === 'edge',
+        2,
+      ),
+      col(
+        (s) => `${C(s.id)} have lost ${w(s.lost)} of their last ${w(s.games)} games, and the ${s.noun} is why.`,
+        (s) => s.race === 'out',
+        2,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and the ${s.noun} is the first thing that has to change.`,
+        (s) => s.race === 'out',
+        2,
+      ),
+    ],
+    fact: [
+      col((s) => `${c(s.id)} ${s.did} in their last ${w(s.games)} games.`),
+      col((s) => `Over their last ${w(s.games)} games ${c(s.id)} ${s.did}.`),
+    ],
+    reason: UNIT_REASON,
+    stakes: BLAME_STAKES,
+    headline: (s, l) => `${whose(l, s.id)} ${s.noun}`,
+  },
+  'unit+': {
+    claim: [
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and the ${s.noun} is the biggest reason for the start they have made.`,
+        (s) => s.stage === 'early' && s.wins > s.played / 2 && s.lastYear !== 'losing',
+        3,
+      ),
+      col(
+        (s) =>
+          `${C(s.id)} had a losing record last season and are ${s.rec} now, and the ${s.noun} is the biggest reason.`,
+        (s) => s.lastYear === 'losing' && s.wins > s.played / 2,
+        3,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec}, and the ${s.noun} is the best reason to think it will last.`,
+        (s) => s.race === 'in' && s.wins > s.played / 2,
+        3,
+      ),
+      col(
+        (s) => `${C(s.id)} are ${s.rec} and in the race, and the ${s.noun} is the reason they are.`,
+        (s) => s.race === 'in',
+        2,
+      ),
+      col(
+        (s) =>
+          `${C(s.id)} are ${s.rec} and still in touch with the race, and the ${s.noun} is what has kept them there.`,
+        (s) => s.race === 'edge',
+        2,
+      ),
+      col(
+        (s) =>
+          `${C(s.id)} are ${s.rec} and out of the race, but the ${s.noun} is one part of the team that is working.`,
+        (s) => s.race === 'out',
+        2,
+      ),
+    ],
+    fact: [
+      col((s) => `${c(s.id)} ${s.did} over their last ${w(s.games)} games and won ${w(s.won)} of them.`),
+      col((s) => `Over their last ${w(s.games)} games ${c(s.id)} ${s.did}, and they won ${w(s.won)} of them.`),
+    ],
+    reason: [
+      col(
+        (s) => `Before this run ${c(s.id)} ${s.was}, so this is a unit that has got better as the season has gone on.`,
+        (s) => s.change === 'better',
+        2,
+      ),
+      col(
+        (s) => `Before this run ${c(s.id)} ${s.was}, so it is no hot streak and it has been there all season.`,
+        (s) => s.change === 'worse' || s.change === 'same',
+        2,
+      ),
+      col((s) => `The rest of the league ${s.around} in the weeks ${c(s.id)} played those games.`),
+    ],
+    stakes: CREDIT_STAKES,
+    headline: (s, l) =>
+      `The ${s.noun} is carrying ${shared(l, s.id) ? `the ${l.teams[s.id].name}` : l.teams[s.id].city}`,
+  },
+  'coach2-': {
+    claim: [
+      col((s) => `${C(s.id)} are ${s.rec}, and it is fair to ask whether ${s.name} is the man to turn it around.`),
+      col((s) => `${C(s.id)} are ${s.rec} under ${s.name}, and it is fair to ask whether that is going to change.`),
+    ],
+    fact: [
+      col(
+        (s) => `${c(s.id)} have lost ${w(s.streak)} games in a row under ${s.surname}.`,
+        (s) => s.streak >= 3,
+        2,
+      ),
+      col((s) => `${c(s.id)} have won ${w(s.wins)} of their ${w(s.played)} games this season under ${s.surname}.`),
+    ],
+    reason: [
+      col(
+        (s) =>
+          `${c(s.id)} were ${s.lastRec} last season as well, so this is not one bad year, and ${s.surname} has been in charge for both.`,
+        (s) => s.lastYear === 'losing',
+        2,
+      ),
+      col(
+        (s) =>
+          `${c(s.id)} were ${s.lastRec} a year ago with ${s.surname} in charge, which is why this season is so hard to explain.`,
+        (s) => s.lastYear === 'winning',
+        2,
+      ),
+      col(
+        (s) =>
+          `${s.surname} is in his ${nth(s.seasons)} season with ${c(s.id)}, so this is his team and not one he has just inherited.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `The owner has ${ahead(s)}, to watch before any decision is his to make.`,
+        (s) => !!s.left && s.stage !== 'runIn',
+        2,
+      ),
+      col(
+        (s) => `There are ${ahead(s)}, and they are ${possessive(s.surname)} chance to answer the question.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and what happens next is the owner's to decide.`),
+    ],
+    headline: (s, l) => `It is fair to ask about ${s.surname} ${whereOf(l, s.id)}`,
+  },
+  'coach3-': {
+    claim: [col((s) => `${C(s.id)} are ${s.rec}, and it is time for a change at head coach.`)],
+    fact: [
+      col(
+        (s) => `${possessive(s.name)} team has lost ${w(s.streak)} games in a row.`,
+        (s) => s.streak >= 2,
+        2,
+      ),
+      col((s) => `${possessive(s.name)} team has won ${w(s.wins)} of its ${w(s.played)} games this season.`),
+    ],
+    reason: [
+      col(
+        (s) =>
+          `This column has already asked whether ${s.surname} could turn it around, and a ${s.spanRec} record over the last four games is the answer.`,
+      ),
+    ],
+    stakes: OWNERS_CALL,
+    headline: (s, l) => `It is time for a change ${whereOf(l, s.id)}`,
+  },
+  'gm2-': {
+    claim: [
+      col(
+        (s) =>
+          `${C(s.id)} are ${s.rec} after ${w(s.lostSeasons)} losing seasons in a row, and it is fair to ask about general manager ${s.name}.`,
+      ),
+    ],
+    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of them.`)],
+    reason: [
+      col(
+        (s) =>
+          `One bad season can be put down to coaching, but ${w(s.lostSeasons + 1)} in a row point at the roster, and the roster is ${possessive(s.surname)} work.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) =>
+          `${c(s.id)} have ${ahead(s)}, and none of them will change what the last ${w(s.lostSeasons)} seasons say.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and what happens next is the owner's to decide.`),
+    ],
+    headline: (s, l) => `The losing ${whereOf(l, s.id)} points at ${s.surname}`,
+  },
+  'gm3-': {
+    claim: [col((s) => `${C(s.id)} are ${s.rec}, and it is time for a change in the front office.`)],
+    fact: [
+      col(
+        (s) =>
+          `${s.name} has had ${w(s.lostSeasons)} full seasons as general manager, and ${c(s.id)} had a losing record in every one.`,
+      ),
+    ],
+    reason: [
+      col(
+        (s) =>
+          `This column has already asked about ${s.surname}, and a ${s.rec} record in a ${nth(s.lostSeasons + 1)} season is the answer.`,
+      ),
+    ],
+    stakes: OWNERS_CALL,
+    headline: (s, l) => `It is time for a change in the front office ${whereOf(l, s.id)}`,
+  },
+  'coach2+': {
+    claim: [
+      col(
+        (s) =>
+          `${C(s.id)} won ${w(s.lastWins)} games last season and are ${s.rec} now, and ${s.name} deserves the credit.`,
+      ),
+    ],
+    fact: [
+      col(
+        (s) => `${c(s.id)} lead the ${s.division} by ${games(s.gap)}.`,
+        (s) => s.place === 1 && s.gap > 0,
+        2,
+      ),
+      col(
+        (s) => `${c(s.id)} share the lead in the ${s.division} after ${w(s.played)} games.`,
+        (s) => s.place === 1,
+        1,
+      ),
+      col((s) => `${c(s.id)} are ${nth(s.place)} in the ${s.division} and in the playoff race.`),
+    ],
+    reason: [
+      col(
+        (s) =>
+          `It is much the same club that lost ${w(s.lastLosses)} times a year ago, and ${s.surname} is in his ${nth(s.seasons)} season with it, so the change is his.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
+    ],
+    headline: (s, l) => `${s.surname} deserves the credit ${whereOf(l, s.id)}`,
+  },
+  'gm2+': {
+    claim: [
+      col(
+        (s) =>
+          `${C(s.id)} won ${w(s.lastWins)} games last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for it.`,
+      ),
+    ],
+    fact: [col((s) => `${s.surname} hired ${s.coach} as head coach before this season.`)],
+    reason: [
+      col(
+        (s) =>
+          `${s.coachSurname} is in his first season, so the turn belongs as much to the man who chose him, and that is ${s.surname}.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
+    ],
+    headline: (s, l) => `${s.surname} got it right ${whereOf(l, s.id)}`,
+  },
+  // Corrections: what an earlier Column said no longer holds.
+  'fixunit-': {
+    claim: [
+      col((s) => `This column called the ${s.noun} the problem for ${C(s.id)}, and the games since say otherwise.`),
+    ],
+    fact: [col((s) => `${c(s.id)} ${s.did} in their last ${w(s.games)} games and won ${w(s.won)} of them.`)],
+    reason: [
+      col(
+        (s) =>
+          `What was written was true of those weeks, but ${c(s.id)} have fixed it since, and that should be said as plainly as the criticism was.`,
+      ),
+    ],
+    stakes: CREDIT_STAKES,
+    headline: (s, l) => `A correction on the ${s.noun} ${whereOf(l, s.id)}`,
+  },
+  'fixunit+': {
+    claim: [col((s) => `This column said the ${s.noun} was carrying ${C(s.id)}, and the games since say otherwise.`)],
+    fact: [col((s) => `${c(s.id)} ${s.did} in their last ${w(s.games)} games and lost ${w(s.lost)} of them.`)],
+    reason: [
+      col((s) => `What was written was true of those weeks, but it has not lasted, and ${c(s.id)} are ${s.rec} now.`),
+    ],
+    stakes: BLAME_STAKES,
+    headline: (s, l) => `A correction on the ${s.noun} ${whereOf(l, s.id)}`,
+  },
+  'fixman-': {
+    claim: [
+      col(
+        (s) =>
+          `This column asked about ${possessive(s.name)} future with ${C(s.id)}, and ${w(s.streak)} wins in a row are an answer of a kind.`,
+      ),
+    ],
+    fact: [col((s) => `${c(s.id)} are ${s.rec} after them.`)],
+    reason: [
+      col(
+        (s) =>
+          `The record is still a losing one, but a club that had stopped winning has started again, and that is the first thing asked of ${s.surname}.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, and the question can wait for them.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and the question can wait for next season.`),
+    ],
+    headline: (s, l) => `A correction on ${s.surname} ${whereOf(l, s.id)}`,
+  },
+  'fixman+': {
+    claim: [
+      col(
+        (s) =>
+          `This column gave ${s.name} the credit for the season ${C(s.id)} were having, and ${w(s.streak)} losses in a row have taken some of it back.`,
+      ),
+    ],
+    fact: [col((s) => `${c(s.id)} are ${s.rec} after them.`)],
+    reason: [
+      col(
+        (s) =>
+          `The turnaround was real, but it has stalled, and ${s.surname} now has to show it was more than a good start.`,
+      ),
+    ],
+    stakes: [
+      col(
+        (s) => `${c(s.id)} have ${ahead(s)}, to do it.`,
+        (s) => !!s.left,
+        1,
+      ),
+      col((s) => `${c(s.id)} finished ${s.rec}, and next season will say which it was.`),
+    ],
+    headline: (s, l) => `A correction on ${s.surname} ${whereOf(l, s.id)}`,
+  },
+};
+
+/** Which bank a claim is written from. */
+function columnBank(claim: Claim): string {
+  const sign = claim.dir === 'blame' ? '-' : '+';
+  if (claim.dir === 'fix') {
+    const was = claim.of?.endsWith('+') ? '+' : '-';
+    return claim.subject.kind === 'unit' ? `fixunit${was}` : `fixman${was}`;
+  }
+  return claim.subject.kind === 'unit' ? `unit${sign}` : `${claim.subject.kind}${claim.rung}${sign}`;
+}
+
+/**
+ * SNN's Column: a claim and its evidence, in a columnist's voice. Two paragraphs: the claim and its strongest fact, then
+ * the argument (why, and what is at stake where the club is in its season). The numbers sit in the band and the table;
+ * a sentence carries one at most, and each leans on the one before it rather than standing beside it.
+ */
+export function columnStory(l: League, claim: Claim, at: Wording): EditionStory {
+  const id = claim.teamId;
+  const ctx = claim.context;
+  const f = claim.facts;
+  const unit = claim.subject.kind === 'unit' ? UNIT_SAYS[claim.subject.unit] : null;
+  const num1 = (x: string | number | undefined) => parseFloat(String(x ?? ''));
+  const [now, before] = [num1(f.value), num1(f.before)];
+  const worse = f.low ? now > before : now < before;
+  const change: ColumnSheet['change'] =
+    !unit || !f.before || Number.isNaN(before)
+      ? 'none'
+      : Math.abs(now - before) <= Math.abs(before) * 0.1
+        ? 'same'
+        : worse
+          ? 'worse'
+          : 'better';
+  const nx = nextOf(l, id, claim.week);
+  const hc = teamCoaches(l, id).find((x) => x.role === 'headCoach');
+  const man = claim.subject.kind === 'coach' ? l.coaches[claim.subject.coachId] : undefined;
+  const seasons =
+    1 + (man?.career ?? []).filter((x) => x.role === 'headCoach' && x.teamId === id && x.season < l.season).length;
+  const st = standingOf(l, claim.week, id);
+  const sheet: ColumnSheet = {
+    id,
+    rec: rec(ctx),
+    race: ctx.race,
+    stage: ctx.stage,
+    lastYear: !ctx.last ? 'none' : ctx.last.w < ctx.last.l ? 'losing' : 'winning',
+    lastRec: ctx.last ? `${ctx.last.w}–${ctx.last.l}` : '',
+    lastWins: ctx.last?.w ?? 0,
+    lastLosses: ctx.last?.l ?? 0,
+    left: ctx.left && nx ? `${w(ctx.left)} ${plural(ctx.left, 'game')} left` : '',
+    next: nx ? `${nx.home ? 'at home to' : 'away to'} ${c(nx.oppId)}` : '',
+    division: st.division,
+    place: ctx.place,
+    gap: ctx.gap,
+    played: ctx.w + ctx.l + ctx.t,
+    wins: ctx.w,
+    spanRec: `${ctx.span.w}–${ctx.span.l}`,
+    noun: unit?.noun ?? '',
+    did: unit ? unit.did(String(f.value)) : '',
+    was: unit && f.before ? unit.was(String(f.before)) : '',
+    around: unit ? unit.was(String(f.league)) : '',
+    change,
+    wasWinning: ctx.before.w >= ctx.before.l,
+    wasPoor: !Number.isNaN(before) && (f.low ? before > num1(f.league) : before < num1(f.league)),
+    games: Number(f.games ?? 0),
+    won: Number(f.won ?? 0),
+    lost: Number(f.lost ?? 0),
+    name: String(f.name ?? ''),
+    surname: String(f.surname ?? ''),
+    streak: Number(f.streak ?? 0),
+    seasons,
+    lostSeasons: Number(claim.numbers.find((n) => n.label.startsWith('Losing seasons'))?.value ?? 0),
+    coach: String(f.coach ?? (hc ? `${hc.firstName} ${hc.lastName}` : '')),
+    coachSurname: hc?.lastName ?? '',
+  };
+  const bank = COLUMN[columnBank(claim)];
+  const line = (slot: keyof Omit<ColumnBank, 'headline'>) => pickLine(l, bank[slot], sheet, at, claim.key, slot);
+  const cand: Candidate = {
+    key: claim.key,
+    kind: 'column',
+    angle: claim.dir === 'fix' ? 'fix' : `${claim.rung}${claim.dir === 'blame' ? '-' : '+'}`,
+    tier: 3,
+    clubId: id,
+    teams: [id],
+    stakes: 0,
+  };
+  const story = compose(l, cand, at, {
+    first: [line('claim'), line('fact')],
+    second: [line('reason'), line('stakes')],
+    headline: bank.headline(sheet, l),
+    kicker: 'Column',
+    picture: claim.subject.kind === 'coach' ? { coachId: claim.subject.coachId, teamIds: [id] } : { teamIds: [id] },
+    numbers: claim.numbers.slice(0, 3),
+    links: [{ kind: 'team', teamId: id }, claim.subject.kind === 'gm' ? { kind: 'gms' } : { kind: 'standings' }],
+    summary: 1,
+  });
+  return { ...story, table: claim.table, covers: [claim.key] };
 }

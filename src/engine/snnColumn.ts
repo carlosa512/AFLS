@@ -83,6 +83,8 @@ export interface Claim {
   /** What a line may read: names, values and weeks, already in words and digits. */
   facts: Record<string, string | number>;
   context: ClubContext;
+  /** The week it holds after. */
+  week: number;
   /** The claim a correction takes back. */
   of?: string;
 }
@@ -241,8 +243,8 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
     if (!contexts.has(teamId)) contexts.set(teamId, clubContext(l, teamId, week));
     return contexts.get(teamId)!;
   };
-  const add = (c: Omit<Claim, 'context'>) => {
-    if (!have.has(c.key)) out.push({ ...c, context: ctx(c.teamId) });
+  const add = (c: Omit<Claim, 'context' | 'week'>) => {
+    if (!have.has(c.key)) out.push({ ...c, context: ctx(c.teamId), week });
   };
   const told = (key: string) => have.has(key);
   const ever = (subject: string, tail: string) =>

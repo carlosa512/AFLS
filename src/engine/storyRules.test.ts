@@ -138,3 +138,50 @@ describe('a brief', () => {
     expect(ruleBreaks(league, { ...one, brief: true })).toEqual([]);
   });
 });
+
+describe('a Column', () => {
+  const column = (second: string, table?: EditionStory['table']): EditionStory => ({
+    ...good,
+    kind: 'column',
+    kicker: 'Column',
+    headline: 'Minnesota’s problem is its pass protection',
+    cast: [],
+    score: undefined,
+    quote: undefined,
+    summary: 'The Voyageurs have lost four in a row, and the pass protection is why.',
+    paragraphs: ['The Voyageurs have lost four in a row, and the pass protection is why.', second],
+    ...(table ? { table } : {}),
+  });
+  const table = {
+    head: ['', 'Weeks 1–8', 'Since'],
+    rows: [
+      ['Dropbacks ending in a sack', '4.1%', '12.5%'],
+      ['Record', '3–5', '0–4'],
+      ['League average since', '—', '6.4%'],
+    ],
+  };
+  const argued =
+    'Before this run Minnesota allowed a sack on 4.1% of their dropbacks, so the trouble is new and it arrived with the losing. Minnesota have five games left, the next of them at home to Seattle, and the pass protection has to be better in them.';
+
+  it('keeps the rules when its argument is one thought and its numbers are in a table', () => {
+    expect(ruleBreaks(league, column(argued, table))).toEqual([]);
+  });
+  it('must carry its evidence in a table of two to four rows', () => {
+    expect(ruleBreaks(league, column(argued)).join(' ')).toContain('evidence table');
+    expect(ruleBreaks(league, column(argued, { ...table, rows: table.rows.slice(0, 1) })).join(' ')).toContain(
+      'evidence table',
+    );
+  });
+  it('may not be a row of short sentences', () => {
+    const choppy =
+      'The quarterback is not the cause. His numbers fell when the hits started. Minnesota changed two starters. The Voyageurs play at home next.';
+    const breaks = ruleBreaks(league, column(choppy, table)).join(' | ');
+    expect(breaks).toContain('under eight words');
+    expect(breaks).toContain('two or three sentences');
+  });
+  it('keeps one number to a sentence', () => {
+    const crowded =
+      'Before Week 8 Minnesota allowed a sack on 4.1% of their dropbacks, so the trouble is new and it arrived with the losing. Minnesota have five games left, the next of them at home to Seattle, and the pass protection has to be better.';
+    expect(ruleBreaks(league, column(crowded, table)).join(' ')).toContain('more than one number');
+  });
+});

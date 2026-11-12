@@ -9,6 +9,8 @@ import { sentencesOf } from './voice';
 const HEADLINE = 70;
 /** Digits a sentence may carry before the rest belong in the number chips. */
 const NUMBERS = 2;
+/** A sentence under this many words is a short one: a Column gets one a paragraph, or it reads as a list. */
+const SHORT = 8;
 
 /** How many numbers a sentence holds: a record (7–1), a time (17:34) and an ordinal (31st) are one each. */
 function numbersIn(sentence: string, score?: EditionStory['score']): number {
@@ -42,6 +44,22 @@ export function ruleBreaks(l: League, s: EditionStory): string[] {
     ...l.teams.flatMap((t) => [t.name, t.city]),
   ];
   if (!/\d/.test(last) && !names.some((n) => last.includes(n))) out.push(`ends on no fact: "${short(last)}"`);
+
+  // A Column is an argument: its numbers sit in a table and its sentences lean on each other.
+  if (s.kind === 'column') {
+    if (!s.table || s.table.rows.length < 2 || s.table.rows.length > 4)
+      out.push('a Column carries an evidence table of two to four rows');
+    for (const p of s.paragraphs) {
+      const sents = sentencesOf(p);
+      if (sents.filter((x) => x.trim().split(/\s+/).length < SHORT).length > 1)
+        out.push(`more than one sentence under eight words in a paragraph: "${short(p)}"`);
+      for (const x of sents)
+        if (numbersIn(x) > 1) out.push(`more than one number in a Column's sentence: "${short(x)}"`);
+    }
+    const argument = sentencesOf(s.paragraphs[1] ?? '').length;
+    if (argument < 2 || argument > 3)
+      out.push(`${argument} sentences in the argument: a Column has two or three sentences there`);
+  }
 
   // A man's first mention is his full name.
   const body = s.paragraphs.join(' ');

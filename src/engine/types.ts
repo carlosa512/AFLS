@@ -1833,7 +1833,11 @@ export type EditionKind =
   | 'run'
   | 'speak'
   | 'room'
-  | 'mentor';
+  | 'mentor'
+  /** SNN's opinion piece: a claim and its evidence (`snnColumn.ts`). */
+  | 'column'
+  /** One of your club's public storylines (`stories.ts`). */
+  | 'storyline';
 
 /** A final as SNN's weekly edition keeps it. */
 export interface EditionScore {
@@ -1871,6 +1875,8 @@ export interface EditionStory {
   paragraphs: string[];
   /** A second story about the reader's club: one paragraph, its news alone. */
   brief?: true;
+  /** A Column's evidence: a few rows of two values each, the second the one the claim rests on. */
+  table?: { head: string[]; rows: string[][] };
   quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
   links: InboxAction[];
   /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */
