@@ -7,11 +7,13 @@
  * the more worthwhile story comes first (`stakes`: the earlier pick, the bigger contract, the bigger name). Mail-side
  * only: public facts, no draws, nothing in the sim reads it. What an edition printed lives in its `covered` keys.
  */
-import { coachName } from './coaching';
+import { coachName, teamCoaches } from './coaching';
+import { disputeOf } from './disputeRead';
 import { employed } from './employment';
 import { gamesInWeek } from './league';
 import { reputation } from './gmVoice';
 import { headCoachChanges } from './inbox';
+import { mentorFacts } from './lockerMail';
 import { freeAgents } from './offseason/negotiation';
 import { draftedHigh, publicRecord, type PublicRecord } from './publicStanding';
 import { activeRoster } from './roster';
@@ -20,7 +22,7 @@ import { statLine } from './stats';
 import type { Draft } from './senders';
 import { writeDayStory, yourDayStory } from './snnDayVoice';
 import { short, SNN, SUBJECT } from './snnWeek';
-import type { Edition, EditionDay, EditionList, League, Player } from './types';
+import type { Edition, EditionDay, EditionList, League, Phase, Player } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 export type Day = EditionDay;
@@ -48,6 +50,10 @@ export const DAY = {
   yearLost: 5,
   /** The team that signed the most starters in free agency, or lost the most, is a story at this many. */
   marketStarters: 4,
+  /** A head coach kept after this many losing seasons in a row with his team starts the year as a story. */
+  seatRun: 2,
+  /** The team with the most new starters at Kickoff is a story at this many of its 24 jobs. */
+  turnover: 8,
   /** A veteran released on cut-down day is a story at this many snaps last season. */
   cutSnaps: 700,
   /** Rows in a list box. */
@@ -91,6 +97,8 @@ export interface DayCandidate {
   deal?: { years: number; total: number };
   /** A public line the story carries (a leadership report), or 'most' when it is the biggest of its kind that day. */
   text?: string;
+  /** What went the other way in a trade: the picks by year and round, and the players. */
+  back?: { picks: { season: number; round: number }[]; players: number[] };
 }
 
 const drafted = (l: League): Player[] =>
@@ -107,6 +115,9 @@ const movedUp = (pick: number, got: string[]) =>
     const m = /^No\. (\d+)$/.exec(g);
     return !!m && Number(m[1]) < pick;
   });
+
+/** A heavy price to move up: a future first-round pick, or three picks or more. */
+const heavyPrice = (got: string[]) => got.length >= 3 || got.some((g) => /^\d{4} round 1$/.test(g));
 
 /** Draft day: the first pick, a trade up, the first quarterback, the furthest fall, the widest reach, the biggest haul. */
 function draftCandidates(l: League): DayCandidate[] {
@@ -125,13 +136,22 @@ function draftCandidates(l: League): DayCandidate[] {
   });
   const first = picks.find((p) => p.draft!.pick === 1);
   if (first) out.push({ ...base(first, 'first'), tier: 1, stakes: 1 });
-  for (const p of picks) {
+  // The price is the headline once a day, for the earliest pick bought that way.
+  let priced = false;
+  for (const p of [...picks].sort((a, b) => a.draft!.pick - b.draft!.pick)) {
     const d = p.draft!;
-    if (!d.deal || d.pick > DAY.upInside || p === first || !movedUp(d.pick, d.deal.got)) continue;
+    if (!d.deal || p === first || !movedUp(d.pick, d.deal.got)) continue;
+    // Inside the top ten, or anywhere in round one when a team paid heavily to get there.
+    const heavy = heavyPrice(d.deal.got);
+    if (d.pick > DAY.upInside && !(d.round === 1 && heavy)) continue;
+    const headline = heavy && !priced;
+    priced ||= heavy;
     out.push({
       ...base(p, 'up'),
       tier: 2,
-      stakes: 1 / d.pick,
+      // The higher pick is the bigger story: the price only breaks a near tie.
+      stakes: 1 / d.pick + (heavy ? 0.1 : 0),
+      ...(headline ? { text: 'heavy' } : {}),
       otherId: d.deal.from,
       teams: [d.teamId, d.deal.from],
       got: [...d.deal.got],
@@ -476,6 +496,207 @@ function kickoffCandidates(l: League): DayCandidate[] {
   return out;
 }
 
+/** The phase whose trades a day's edition tells. */
+const TRADE_PHASE: Partial<Record<Day, Phase>> = {
+  year: 'resign',
+  market: 'freeAgency',
+  draft: 'draft',
+  cuts: 'preseason',
+};
+
+/** A trade with a star in it: who got him, who sent him, and what went back. Other trades are not a story. */
+function tradeCandidates(l: League, day: Day, rec: PublicRecord): DayCandidate[] {
+  const phase = TRADE_PHASE[day];
+  if (!phase) return [];
+  const out: DayCandidate[] = [];
+  for (const r of l.market?.history ?? []) {
+    if (r.season !== l.season || r.phase !== phase) continue;
+    const star = r.sides
+      .flatMap((s) => s.players)
+      .flatMap((id) => (l.players[id] && rec.standing(l.players[id]) === 'star' ? [l.players[id]] : []))
+      .sort((a, b) => rec.worth(b) - rec.worth(a) || a.id - b.id)[0];
+    if (!star) continue;
+    const seller = r.sides.find((s) => s.players.includes(star.id))!;
+    const buyer = r.sides.find((s) => s !== seller)!;
+    out.push({
+      key: `player:${star.id}:${l.season}:traded:${phase}`,
+      day,
+      angle: 'trade',
+      tier: 1,
+      clubId: buyer.teamId,
+      teams: [buyer.teamId, seller.teamId],
+      stakes: rec.worth(star),
+      playerId: star.id,
+      otherId: seller.teamId,
+      n: buyer.picks.length,
+      back: {
+        picks: buyer.picks.flatMap((id) => {
+          const pick = l.draftPicks.find((x) => x.id === id);
+          return pick ? [{ season: pick.season, round: pick.round }] : [];
+        }),
+        players: buyer.players.filter((id) => l.players[id]),
+      },
+    });
+  }
+  return out;
+}
+
+/** How many losing seasons in a row a head coach has had with his team, counting back from last season. */
+export function losingRun(l: League, coachId: number, teamId: number): number {
+  const c = l.coaches[coachId];
+  let n = 0;
+  for (let season = l.season - 1; ; season--) {
+    const r = l.history.find((h) => h.season === season)?.records[teamId];
+    const his = (c?.career ?? []).some((x) => x.season === season && x.teamId === teamId && x.role === 'headCoach');
+    if (!r || !his || r.w >= r.l) return n;
+    n++;
+  }
+}
+
+/**
+ * Who starts the league year needing results, from the public record: a GM the owners' reviews put on notice (the
+ * report SNN was given), and a head coach kept after `DAY.seatRun` losing seasons in a row with his team.
+ */
+function pressureCandidates(l: League): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  const seen = new Set<number>();
+  for (const e of l.leadership.events) {
+    // A warning that names a coach is a new GM told to keep him: no pressure on anyone.
+    if (e.date.season !== l.season || e.kind !== 'warning' || e.coachId !== undefined) continue;
+    if (e.gmId === undefined || !l.gms[e.gmId] || e.gmId === l.userGmId || seen.has(e.teamId)) continue;
+    if (l.teams[e.teamId].gmId !== undefined && l.teams[e.teamId].gmId !== e.gmId) continue;
+    seen.add(e.teamId);
+    out.push({
+      key: `lead:${l.season}:${e.teamId}:pressure`,
+      day: 'year',
+      angle: 'pressure',
+      tier: 3,
+      clubId: e.teamId,
+      teams: [e.teamId],
+      stakes: 1 - lastPct(l, e.teamId),
+      gmId: e.gmId,
+    });
+  }
+  for (const t of l.teams) {
+    const hc = teamCoaches(l, t.id).find((c) => c.role === 'headCoach');
+    const n = hc ? losingRun(l, hc.id, t.id) : 0;
+    if (!hc || n < DAY.seatRun || seen.has(t.id)) continue;
+    out.push({
+      key: `lead:${l.season}:${t.id}:seat`,
+      day: 'year',
+      angle: 'seat',
+      tier: 3,
+      clubId: t.id,
+      teams: [t.id],
+      stakes: 1 - lastPct(l, t.id) + n / 10,
+      coachId: hc.id,
+      n,
+    });
+  }
+  return out;
+}
+
+/** Cut-down day's other news: a starter still holding out, and a star who changed position in camp. */
+function campCandidates(l: League, rec: PublicRecord): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  for (const p of Object.values(l.players)) {
+    const d = disputeOf(p);
+    if (p.teamId === null || d?.kind !== 'holdOut' || !d.out || rec.standing(p) === 'depth') continue;
+    out.push({
+      key: `player:${p.id}:${l.season}:holdout`,
+      day: 'cuts',
+      angle: 'holdout',
+      tier: 2,
+      clubId: p.teamId,
+      teams: [p.teamId],
+      stakes: rec.worth(p),
+      playerId: p.id,
+    });
+  }
+  for (const t of l.transactions) {
+    if (t.season !== l.season || t.kind !== 'position' || t.playerId === undefined) continue;
+    const p = l.players[t.playerId];
+    const from = / moved (\w+) /.exec(t.text)?.[1];
+    if (!p || !from || rec.standing(p) !== 'star' || p.teamId !== t.teamIds[0]) continue;
+    out.push({
+      key: `player:${p.id}:${l.season}:position`,
+      day: 'cuts',
+      angle: 'position',
+      tier: 2,
+      clubId: p.teamId,
+      teams: [p.teamId],
+      stakes: rec.worth(p),
+      playerId: p.id,
+      text: from,
+    });
+  }
+  return out;
+}
+
+const OFFENSE = new Set(['QB', 'RB', 'WR', 'TE', 'OL']);
+const DEFENSE = new Set(['DT', 'EDGE', 'LB', 'CB', 'S']);
+/** Kickoff's other news: the team with the most new starters (and its new staff), and a coach's first game against his mentor. */
+function openingCandidates(l: League, have: Set<string>): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  const fresh = l.teams
+    .map((t) => {
+      const held = Object.keys(t.jobs?.held ?? {}).flatMap((id) =>
+        l.players[Number(id)] ? [l.players[Number(id)]] : [],
+      );
+      // New to the team: a rookie, or a player who finished last season with another one.
+      const news = held.filter((p) => {
+        const from = lastClub(l, p);
+        return p.experience === 0 || (from !== undefined && from !== t.id);
+      });
+      return { teamId: t.id, news };
+    })
+    // Level on new starters, the team that did worse last season is the one that turned over.
+    .sort(
+      (a, b) => b.news.length - a.news.length || lastPct(l, a.teamId) - lastPct(l, b.teamId) || a.teamId - b.teamId,
+    );
+  const top = fresh[0];
+  if (top && top.news.length >= DAY.turnover && opener(l, top.teamId)) {
+    const last = l.season - 1;
+    const staff = teamCoaches(l, top.teamId)
+      .filter((c) => ['headCoach', 'offCoord', 'defCoord'].includes(c.role))
+      .filter((c) => !(c.career ?? []).some((x) => x.season === last && x.teamId === top.teamId && x.role === c.role))
+      .map((c) => c.role);
+    out.push({
+      key: `kick:${l.season}:turnover:${top.teamId}`,
+      day: 'kickoff',
+      angle: 'turnover',
+      tier: 3,
+      clubId: top.teamId,
+      teams: [top.teamId],
+      stakes: 0.99,
+      otherId:
+        opener(l, top.teamId)!.homeId === top.teamId ? opener(l, top.teamId)!.awayId : opener(l, top.teamId)!.homeId,
+      n: top.news.length,
+      // How the new starters split, and the new staff, for the words.
+      got: [
+        `off:${top.news.filter((p) => OFFENSE.has(p.position)).length}`,
+        `def:${top.news.filter((p) => DEFENSE.has(p.position)).length}`,
+        ...staff,
+      ],
+    });
+  }
+  // A head coach's first game against the coach he learned under: the weekly edition's own story, told here for Week 1.
+  for (const m of mentorFacts(l, 1, have))
+    out.push({
+      key: m.id,
+      day: 'kickoff',
+      angle: 'mentor',
+      tier: 4,
+      clubId: l.coaches[m.discipleId]?.teamId ?? m.homeId,
+      teams: [m.homeId, m.awayId],
+      stakes: lastPct(l, m.homeId) + lastPct(l, m.awayId),
+      coachId: m.discipleId,
+      n: m.mentorId,
+      otherId: l.coaches[m.mentorId]?.teamId ?? m.awayId,
+    });
+  return out;
+}
+
 /** The digests of old that the new league year's edition replaces. One on file means that year was told the old way. */
 const yearDigests = (l: League) => [`league:${l.season}:carousel`, `offMarket:${l.season}`];
 export const legacyYear = (l: League, have: Set<string>): boolean =>
@@ -487,16 +708,18 @@ export const legacyYear = (l: League, have: Set<string>): boolean =>
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
   const rec = publicRecord(l);
-  const all =
-    day === 'draft'
+  const all = [
+    ...(day === 'draft'
       ? draftCandidates(l)
       : day === 'year'
-        ? yearCandidates(l, rec)
+        ? [...yearCandidates(l, rec), ...pressureCandidates(l)]
         : day === 'market'
           ? marketCandidates(l, rec)
           : day === 'cuts'
-            ? cutsCandidates(l, rec)
-            : kickoffCandidates(l);
+            ? [...cutsCandidates(l, rec), ...campCandidates(l, rec)]
+            : [...kickoffCandidates(l), ...openingCandidates(l, have)]),
+    ...tradeCandidates(l, day, rec),
+  ];
   // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
   // By Kickoff a new head coach is told as his first game, so a change no edition found room for rests there.
   const top = legacyYear(l, have) || day === 'kickoff' ? [] : leaderCandidates(l, day);
@@ -516,7 +739,14 @@ export function rankDay(cs: DayCandidate[], editionId: string): DayCandidate[] {
 
 /** How many stories of one angle a page runs among its lead and tiles: two, and one of an angle told as "the most". */
 const SAME_ANGLE = 2;
-const ONCE = new Set(['wait', 'ahead']);
+const ONCE = new Set(['wait', 'ahead', 'seat', 'pressure', 'mentor']);
+/**
+ * Kinds of story a page keeps one tile for when the day has one, whatever ranks above it: who starts the league year
+ * needing results (the other end of "New in charge"), and a head coach's first game against his mentor.
+ */
+const RESERVED = [new Set(['seat', 'pressure']), new Set(['mentor'])];
+/** Stories that fill a tile and never lead a page. */
+const NO_LEAD = new Set(['mentor']);
 const TILES = 3;
 
 /**
@@ -529,14 +759,24 @@ export function cutDay(
   leadDay?: Day,
 ): { lead: DayCandidate; tiles: DayCandidate[] } | null {
   // A page that holds two days (cut-down day inside Kickoff's) leads with the day it is named for, when it has a story.
-  const lead =
-    ranked.find((c) => c.clubId !== userTeamId && c.day === leadDay) ?? ranked.find((c) => c.clubId !== userTeamId);
+  const leads = ranked.filter((c) => c.clubId !== userTeamId && !NO_LEAD.has(c.angle));
+  const lead = leads.find((c) => c.day === leadDay) ?? leads[0];
   if (!lead) return null;
   const days = new Set(ranked.map((c) => c.day));
   const perDay = new Map<Day, number>();
   const used = new Set<number>([lead.clubId]);
   const told = new Map<string, number>([[lead.angle, 1]]);
   const tiles: DayCandidate[] = [];
+  const take = (c: DayCandidate) => {
+    perDay.set(c.day, (perDay.get(c.day) ?? 0) + 1);
+    used.add(c.clubId);
+    told.set(c.angle, (told.get(c.angle) ?? 0) + 1);
+    tiles.push(c);
+  };
+  for (const kinds of RESERVED) {
+    const c = ranked.find((x) => kinds.has(x.angle) && x !== lead && x.clubId !== userTeamId && !used.has(x.clubId));
+    if (c && tiles.length < TILES - 1) take(c);
+  }
   // Variety first (an angle twice at most); then a slot still empty takes the next story whatever its angle, since a
   // third trade up is better than a blank tile.
   for (const varied of [true, false])
@@ -548,10 +788,7 @@ export function cutDay(
       if (ONCE.has(c.angle) ? n >= 1 : varied && n >= SAME_ANGLE) continue;
       // On a page of two days neither takes every tile while the other has a story to tell.
       if (varied && days.size > 1 && (perDay.get(c.day) ?? 0) >= TILES - 1) continue;
-      perDay.set(c.day, (perDay.get(c.day) ?? 0) + 1);
-      used.add(c.clubId);
-      told.set(c.angle, (told.get(c.angle) ?? 0) + 1);
-      tiles.push(c);
+      take(c);
     }
   // In the order the day ranked them.
   tiles.sort((a, b) => ranked.indexOf(a) - ranked.indexOf(b));
@@ -610,6 +847,7 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
       .sort((a, b) => kickoffOrder(a.kickoff) - kickoffOrder(b.kickoff) || a.id - b.id)
       .map((g) => ({
         teamId: g.homeId,
+        otherId: g.awayId,
         cells: [`${l.teams[g.awayId].name} at ${l.teams[g.homeId].name}`, g.kickoff ? kickoffLabel(g.kickoff) : ''],
       }));
     if (rows.length) out.push({ title: 'Opening week', head: ['Game', 'Kickoff'], rows });
@@ -639,7 +877,9 @@ export function dayNow(l: League): Day[] {
   if (l.phase === 'freeAgency') return ['year'];
   if (l.phase === 'draft') return ['market'];
   if (l.phase === 'preseason') return l.personnel?.clock?.cutdown ? ['cuts'] : ['draft'];
-  if (l.phase === 'regular' && l.week === 1 && !l.games.some((g) => g.season === l.season && g.result))
+  // A league that has not played a season has no offseason to report: its first edition is Week 1's.
+  const played = l.history.some((h) => h.season === l.season - 1);
+  if (played && l.phase === 'regular' && l.week === 1 && !l.games.some((g) => g.season === l.season && g.result))
     return toldKeys(l).has(dayId(l, 'cuts')) ? ['kickoff'] : ['cuts', 'kickoff'];
   return [];
 }

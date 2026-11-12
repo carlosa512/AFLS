@@ -6,7 +6,8 @@
  * picked around what SNN has already said (`at.said`). The second paragraph ends on the next fact on the calendar,
  * where a weekly story ends on the next fixture.
  */
-import { coachName } from './coaching';
+import { coachName, teamCoaches } from './coaching';
+import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
 import { statLine } from './stats';
@@ -14,7 +15,7 @@ import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import type { Day, DayCandidate } from './snnDays';
-import type { CoachRole, EditionStory, InboxAction, Kickoff, League, Player, StatKey } from './types';
+import type { CoachRole, EditionStory, InboxAction, Kickoff, League, Player, Position, StatKey } from './types';
 import { around, sentencesOf, stableHash } from './voice';
 
 interface Wording {
@@ -27,7 +28,8 @@ const COUNT = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eig
 const count = (n: number) => COUNT[n] ?? String(n);
 const ORDINAL = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'];
 /** "linebacker", "offensive lineman": the position as a word before a name. */
-const posWord = (p: Player) => (p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase());
+const posName = (pos: Position) => (pos === 'OL' ? 'offensive lineman' : POSITION_NAMES[pos].toLowerCase());
+const posWord = (p: Player) => posName(p.position);
 const full = (p: Player) => `${p.firstName} ${p.lastName}`;
 const tag = (p: Player) => `${p.position} ${full(p)}`;
 
@@ -192,9 +194,15 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     const the = cap(ref.club(club));
     const man = ref.man(p.id);
     const from = c.otherId !== undefined ? l.teams[c.otherId].name : '';
+    // A heavy price is the headline once a day: a future first-round pick, or how many picks it took.
+    const future = (c.got ?? []).some((g) => /^\d{4} round 1$/.test(g));
+    const price = future ? 'a future first-round pick' : `${count(c.got?.length ?? 0)} picks`;
     return assemble(c, ref, {
       kicker: 'Trade up',
-      headline: head(`${Club} move up to No. ${c.pick} for ${tag(p)}`, `${Club} move up for ${p.lastName}`),
+      headline:
+        c.text === 'heavy'
+          ? head(`${Club} trade ${price} to move up for ${p.lastName}`, `${Club} move up for ${p.lastName}`)
+          : head(`${Club} move up to No. ${c.pick} for ${tag(p)}`, `${Club} move up for ${p.lastName}`),
       summary:
         from && c.got?.length ? `The ${from} got ${gotWords(c.got)} for the pick.` : `${Club} traded up for the pick.`,
       first: [
@@ -344,6 +352,16 @@ function whyLine(last: string, why: StarWhy | null): string {
 }
 const rec = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
 const lastRecord = (l: League, teamId: number) => l.history.find((h) => h.season === l.season - 1)?.records[teamId];
+/** A team's record last season as a sentence, one of a few ways so two editions about it do not share one. */
+function wentLine(l: League, at: Wording, name: string, teamId: number): string {
+  const r = lastRecord(l, teamId);
+  if (!r) return '';
+  return pick(l, at, `went:${teamId}`, [
+    `${name} went ${rec(r)} last season.`,
+    `${name} finished last season ${rec(r)}.`,
+    `${name} were ${rec(r)} last season.`,
+  ]);
+}
 /** "four years and $96 million": the years in words, so the sentence carries one number. */
 const dealWords = (d: { years: number; total: number }) =>
   `${count(d.years)} year${d.years === 1 ? '' : 's'} and $${Math.round(d.total / 1000)} million`;
@@ -356,6 +374,139 @@ const ROLE: Record<CoachRole, string> = {
   strengthCoach: 'strength coach',
 };
 
+const recordOf = (l: League, teamId: number, season: number) =>
+  l.history.find((h) => h.season === season)?.records[teamId];
+const madePlayoffs = (l: League, teamId: number) =>
+  !!l.history.find((h) => h.season === l.season - 1)?.playoffs?.[teamId];
+/** How many losing seasons in a row a team has had, counting back from last season. */
+function teamLosingRun(l: League, teamId: number): number {
+  let n = 0;
+  for (let season = l.season - 1; ; season--) {
+    const r = recordOf(l, teamId, season);
+    if (!r || r.w >= r.l) return n;
+    n++;
+  }
+}
+
+/**
+ * Who starts the league year needing results: a head coach kept after a run of losing seasons, or a general manager
+ * the owners' review put on notice, told as reporting ("league sources say") since the review itself is private.
+ */
+function pressureStory(l: League, c: DayCandidate, at: Wording): EditionStory {
+  const club = c.clubId;
+  const ref = referrer(l, { playerIds: [] });
+  const Club = l.teams[club].name;
+  const slot = (s: string) => `${c.key}:${s}`;
+  const last = lastRecord(l, club);
+  const the = ref.club(club);
+  const record = wentLine(l, at, cap(ref.city(club)), club);
+  const numbers: EditionStory['numbers'] = last ? [{ value: rec(last), label: 'Last season' }] : [];
+  if (c.angle === 'seat') {
+    const coach = l.coaches[c.coachId!];
+    const name = coachName(coach);
+    const n = c.n ?? 2;
+    const years = (coach.career ?? []).filter(
+      (x) => x.teamId === club && x.role === 'headCoach' && x.season < l.season,
+    );
+    return assemble(c, ref, {
+      kicker: 'Under pressure',
+      headline: head(`${Club} keep ${name} after ${count(n)} losing seasons`, `${Club} keep ${coach.lastName}`),
+      summary: last ? `The ${Club} went ${rec(last)} last season.` : `${coach.lastName} is back as head coach.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${name} is back as head coach of ${the} after ${count(n)} losing seasons in a row.`,
+          `${cap(the)} have kept head coach ${name} after ${count(n)} losing seasons in a row.`,
+        ]),
+        record,
+      ],
+      second: [
+        `This is ${possessive(coach.lastName)} ${ORDINAL[years.length + 1] ?? `${years.length + 1}th`} season in the job.`,
+        openerLine(l, at, ref, club),
+      ],
+      numbers: [...numbers, { value: String(n), label: 'Losing seasons in a row' }],
+      picture: { coachId: coach.id, teamIds: [club] },
+      links: [{ kind: 'team', teamId: club }],
+    });
+  }
+  const gm = l.gms[c.gmId!];
+  const name = `${gm.firstName} ${gm.lastName}`;
+  const since = gm.appointments.at(-1)?.start.season;
+  const hc = teamCoaches(l, club).find((x) => x.role === 'headCoach');
+  return assemble(c, ref, {
+    kicker: 'Under pressure',
+    headline: head(`${Club} want progress from GM ${name}`, `${Club} want progress from ${gm.lastName}`),
+    summary: last ? `The ${Club} went ${rec(last)} last season.` : `${gm.lastName} is the general manager.`,
+    first: [
+      pick(l, at, slot('lede'), [
+        `League sources say ${the} want a better season from general manager ${name}.`,
+        `General manager ${name} has been told ${the} must improve this season, league sources say.`,
+      ]),
+      record,
+    ],
+    second: [
+      since !== undefined && since < l.season ? `${gm.lastName} has been general manager since ${since}.` : '',
+      hc ? `${coachName(hc)} is the head coach.` : '',
+      openerLine(l, at, ref, club),
+    ],
+    numbers,
+    picture: { teamIds: [club] },
+    links: [{ kind: 'team', teamId: club }, { kind: 'gms' }],
+  });
+}
+
+/** What went back in a trade: the players by name, the picks by year and round, two numbers at most. */
+function backWords(l: League, ref: Referrer, back: NonNullable<DayCandidate['back']>, picksSent: number): string {
+  const pickWord = (x: { season: number; round: number }) =>
+    `a ${x.season} ${ORDINAL[x.round] ?? `round-${x.round}`}-round pick`;
+  const picks = [...back.picks].sort((a, b) => a.round - b.round || a.season - b.season);
+  const players = back.players.map((id) => l.players[id]);
+  if (!players.length) {
+    if (!picks.length) return picksSent ? `${count(picksSent)} draft pick${picksSent === 1 ? '' : 's'}` : '';
+    if (picks.length === 1) return pickWord(picks[0]);
+    if (picks.length === 2) return `${pickWord(picks[0])} and ${pickWord(picks[1])}`;
+    return `${count(picks.length)} picks, the highest of them ${pickWord(picks[0])}`;
+  }
+  const others = players.length - 1;
+  const parts = [
+    `${posWord(players[0])} ${ref.man(players[0].id)}`,
+    others ? `${count(others)} other player${others === 1 ? '' : 's'}` : '',
+    picks.length === 1 ? pickWord(picks[0]) : picks.length ? `${count(picks.length)} picks` : '',
+  ].filter(Boolean);
+  return parts.length === 3 ? `${parts[0]}, ${parts[1]} and ${parts[2]}` : parts.join(' and ');
+}
+
+/** A star traded: who got him, why he is a name, and what went back. */
+function tradeStory(l: League, c: DayCandidate, at: Wording): EditionStory {
+  const p = l.players[c.playerId!];
+  const club = c.clubId;
+  const ref = referrer(l, { playerIds: [p.id, ...(c.back?.players ?? [])] });
+  const Club = l.teams[club].name;
+  const From = l.teams[c.otherId!].name;
+  const slot = (s: string) => `${c.key}:${s}`;
+  const the = cap(ref.club(club));
+  const man = ref.man(p.id);
+  const back = c.back ? backWords(l, ref, c.back, c.n ?? 0) : '';
+  return assemble(c, ref, {
+    kicker: 'Trade',
+    headline: head(`${Club} trade for ${tag(p)}`, `${Club} trade for ${p.lastName}`),
+    summary: back ? `The ${From} get ${back}.` : `He comes from the ${From}.`,
+    first: [
+      pick(l, at, slot('lede'), [
+        `${the} have traded for ${posWord(p)} ${man}.`,
+        `${the} acquired ${posWord(p)} ${man} in a trade.`,
+      ]),
+      whyLine(p.lastName, publicRecord(l).why(p)),
+    ],
+    second: [
+      back ? `The ${From} received ${back} in return.` : `${p.lastName} comes from the ${From}.`,
+      openerLine(l, at, ref, club),
+    ],
+    numbers: [{ value: String(p.age), label: 'Age' }],
+    picture: { playerId: p.id },
+    links: links(p, club),
+  });
+}
+
 /** A change at the top: the new head coach or general manager, the one he replaces, and the record he inherits. */
 function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const club = c.clubId;
@@ -366,7 +517,7 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const out = c.text ?? '';
   // Named once here: a wording that is not chosen must not use up the first mention.
   const the = ref.club(club);
-  const record = last ? `${cap(ref.city(club))} went ${rec(last)} last season.` : '';
+  const record = wentLine(l, at, cap(ref.city(club)), club);
   if (c.angle === 'coach') {
     const coach = l.coaches[c.coachId!];
     const name = coachName(coach);
@@ -376,6 +527,16 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       : before.teamId === club
         ? `He was already on the ${possessive(Club)} staff.`
         : `He was ${ROLE[before.role]} with the ${l.teams[before.teamId].name} in ${before.season}.`;
+    // What he comes from, when it was a winning team, and what he walks into.
+    const then = before && before.teamId !== club ? recordOf(l, before.teamId, before.season) : undefined;
+    const pedigree =
+      then && then.w > then.l ? `The ${l.teams[before!.teamId].name} went ${rec(then)} that season.` : '';
+    const run = teamLosingRun(l, club);
+    const expects = madePlayoffs(l, club)
+      ? `${coach.lastName} takes over a team that reached the playoffs last season.`
+      : run >= 2
+        ? `The ${Club} have had ${count(run)} losing seasons in a row.`
+        : '';
     return assemble(c, ref, {
       kicker: 'New in charge',
       headline: head(`${Club} hire ${name} as head coach`, `${Club} hire ${coach.lastName}`),
@@ -388,8 +549,9 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           `${cap(the)} have hired ${name} as head coach.`,
         ]),
         from,
+        pedigree,
       ],
-      second: [out ? `He replaces ${out}.` : '', record, openerLine(l, at, ref, club)],
+      second: [out ? `He replaces ${out}.` : '', record, expects, openerLine(l, at, ref, club)],
       numbers: last ? [{ value: rec(last), label: 'Last season' }] : [],
       picture: { coachId: coach.id, teamIds: [club] },
       links: [{ kind: 'team', teamId: club }],
@@ -693,6 +855,52 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       numbers: [{ value: String(n), label: 'Undrafted rookies on a 53' }],
     });
   }
+  if (c.angle === 'holdout') {
+    const left = p.contract ? yearsLeft(p.contract, l.season) : 0;
+    const games = statLine(p, l.season - 1)?.gp ?? 0;
+    const why =
+      whyLine(p.lastName, publicRecord(l).why(p)) ||
+      (games ? `${p.lastName} played in ${games} games for the team last season.` : '');
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'Holdout',
+      headline: head(`${tag(p)} has not reported to the ${Club}`, `${p.lastName} has not reported to the ${Club}`),
+      summary: `The ${Club} cut to 53 players without him.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${cap(posWord(p))} ${man} has not reported to ${ref.club(club)}.`,
+          `${the} cut to 53 players without ${posWord(p)} ${man}, who has not reported to the team.`,
+        ]),
+        why,
+      ],
+      second: [
+        left ? `${p.lastName} has ${count(left)} year${left === 1 ? '' : 's'} left on his contract.` : '',
+        openerLine(l, at, ref, club),
+      ],
+      numbers: left
+        ? [{ value: String(left), label: left === 1 ? 'Year left on his deal' : 'Years left on his deal' }]
+        : [],
+    });
+  }
+  if (c.angle === 'position') {
+    const from = posName(c.text as Position);
+    const to = posWord(p);
+    return assemble(c, ref, {
+      ...base,
+      kicker: 'New position',
+      headline: head(`${Club} move ${full(p)} from ${from} to ${to}`, `${Club} move ${p.lastName} to ${to}`),
+      summary: `He played ${from} last season.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${the} have moved ${man} from ${from} to ${to}.`,
+          `${man} has moved from ${from} to ${to} for ${ref.club(club)}.`,
+        ]),
+        whyLine(p.lastName, publicRecord(l).why(p)),
+      ],
+      second: [openerLine(l, at, ref, club)],
+      numbers: [{ value: String(p.age), label: 'Age' }],
+    });
+  }
   const line = statLine(p, l.season - 1);
   const fact =
     c.angle === 'cutStar'
@@ -749,11 +957,6 @@ function openerFacts(l: League, teamId: number): { where: string; opp: number; w
     when: g.kickoff ? whenWords(g.kickoff) : '',
   };
 }
-const wentLine = (l: League, name: string, teamId: number) => {
-  const r = lastRecord(l, teamId);
-  return r ? `${name} went ${rec(r)} last season.` : '';
-};
-
 /** A Kickoff story: who opens against whom, and what is new about the team going in. No prediction. */
 function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const club = c.clubId;
@@ -765,7 +968,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const Opp = l.teams[game.opp].name;
   const the = cap(ref.club(club));
   const last = lastRecord(l, club);
-  const close = [wentLine(l, cap(ref.city(club)), club), wentLine(l, `The ${Opp}`, game.opp)].filter(Boolean);
+  const close = [wentLine(l, at, cap(ref.city(club)), club), wentLine(l, at, `The ${Opp}`, game.opp)].filter(Boolean);
   const numbers: EditionStory['numbers'] = last ? [{ value: rec(last), label: 'Last season' }] : [];
   const picture = p ? { playerId: p.id } : { teamIds: [club, game.opp] };
   const links: InboxAction[] = [
@@ -791,9 +994,81 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       links,
     });
 
+  if (c.angle === 'turnover') {
+    const n = c.n ?? 0;
+    const num = (k: string) => Number(c.got?.find((g) => g.startsWith(`${k}:`))?.split(':')[1] ?? 0);
+    const [off, def] = [num('off'), num('def')];
+    const roles = (c.got ?? []).filter((g) => !g.includes(':'));
+    const hc = teamCoaches(l, club).find((x) => x.role === 'headCoach');
+    const newHc = hc && roles.includes('headCoach') ? hc : undefined;
+    const coords = roles.filter((r) => r !== 'headCoach').map((r) => ROLE[r as CoachRole]);
+    const coordWords = coords.length === 2 ? 'two new coordinators' : coords.length ? `a new ${coords[0]}` : '';
+    const City = cap(ref.city(club));
+    const staff = newHc
+      ? `${coachName(newHc)} is in his first season as head coach${coordWords ? `, with ${coordWords}` : ''}.`
+      : coordWords
+        ? `The team also has ${coordWords}.`
+        : '';
+    const split =
+      off && def
+        ? `${cap(count(off))} of them start on offense and ${count(def)} on defense.`
+        : off || def
+          ? `${cap(count(off || def))} of them start on ${off ? 'offense' : 'defense'}.`
+          : '';
+    return assemble(c, ref, {
+      kicker: 'New starters',
+      headline: head(`${Club} open the season with ${count(n)} new starters`, `${Club} have ${count(n)} new starters`),
+      summary: `No team has more. The ${Club} open ${game.where}.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${the} open the season with ${count(n)} starters who were not with the team last season.`,
+          `${cap(count(n))} of the starters for ${ref.club(club)} were not with the team last season.`,
+        ]),
+        `No team in the league has more.`,
+        split,
+      ],
+      second: [staff, `${City} open ${game.where}.`, ...close.slice(0, 1)],
+      numbers: [{ value: String(n), label: 'New starters' }, ...numbers],
+      picture: newHc ? { coachId: newHc.id, teamIds: [club] } : picture,
+      links,
+    });
+  }
+
+  if (c.angle === 'mentor') {
+    const d = l.coaches[c.coachId!];
+    const m = l.coaches[c.n!];
+    const home = game.where.startsWith('at home');
+    return assemble(c, ref, {
+      kicker: 'Opening week',
+      headline: head(`${coachName(m)} meets his old assistant in Week 1`, `${m.lastName} meets his old assistant`),
+      summary: `${coachName(d)} of the ${Club} worked on his staff.`,
+      first: [
+        pick(l, at, slot('lede'), [
+          `${coachName(d)} of ${ref.club(club)} faces ${coachName(m)} of ${ref.club(game.opp)} in Week 1, the first time the two have met as head coaches.`,
+          `${coachName(d)} of ${ref.club(club)} and ${coachName(m)} of ${ref.club(game.opp)} meet as head coaches for the first time in Week 1.`,
+        ]),
+        `${d.lastName} worked on ${possessive(m.lastName)} staff before he became a head coach.`,
+      ],
+      second: [
+        `${cap(ref.city(club))} are ${home ? 'at home' : 'on the road'}${game.when ? ` ${game.when}` : ''}.`,
+        ...close,
+      ],
+      numbers,
+      picture: { teamIds: home ? [game.opp, club] : [club, game.opp] },
+      links,
+    });
+  }
+
   if (c.angle === 'newCoach') {
     const coach = l.coaches[c.coachId!];
     const name = coachName(coach);
+    const run = teamLosingRun(l, club);
+    // What he walks into, worded apart from the new league year's story about him.
+    const expects = madePlayoffs(l, club)
+      ? `${coach.lastName} inherits a team that made the playoffs.`
+      : run >= 2
+        ? `${cap(ref.city(club))} have not had a winning season in ${count(run)} years.`
+        : '';
     return assemble(c, ref, {
       kicker: 'New in charge',
       headline: head(
@@ -808,7 +1083,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         ]),
         game.when ? `The game kicks off ${game.when}.` : '',
       ],
-      second: close.length ? close : [`${the} open ${game.where}.`],
+      second: [expects, ...(close.length ? close : [`${the} open ${game.where}.`])],
       numbers,
       picture: { coachId: coach.id, teamIds: [club] },
       links,
@@ -851,6 +1126,8 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
 /** One story of a big day, from its candidate. */
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
+  if (c.angle === 'trade') return tradeStory(l, c, at);
+  if (c.angle === 'pressure' || c.angle === 'seat') return pressureStory(l, c, at);
   if (c.day === 'cuts') return cutsStory(l, c, at);
   if (c.day === 'kickoff') return kickoffStory(l, c, at);
   if (c.day === 'year') return yearStory(l, c, at);
@@ -1087,7 +1364,7 @@ function yourKickoff(l: League, at: Wording): EditionStory | null {
   const key = `kick:${l.season}:yours`;
   const the = cap(ref.club(u));
   const last = lastRecord(l, u);
-  const close = [wentLine(l, cap(ref.city(u)), u), wentLine(l, `The ${Opp}`, game.opp)].filter(Boolean);
+  const close = [wentLine(l, at, cap(ref.city(u)), u), wentLine(l, at, `The ${Opp}`, game.opp)].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
     kicker: 'Your team',
     yours: true,

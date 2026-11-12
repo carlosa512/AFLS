@@ -114,6 +114,23 @@ describe('Draft day', () => {
     expect(ups.map((c) => c.pick)).toEqual([4, 9]);
   });
 
+  it('tells a move up outside the top ten only at a heavy price, and headlines the price once', () => {
+    const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    const heavy = pick(others[6], 0, 14, 14, { from: others[8], got: ['No. 22', 'No. 54', `${l.season + 1} round 2`] });
+    const light = pick(others[7], 0, 16, 16, { from: others[9], got: ['No. 19', 'No. 120'] });
+    const ups = dayCandidates(l, 'draft', new Set()).filter((c) => c.angle === 'up');
+    expect(ups.map((c) => c.pick)).toEqual([4, 14]);
+    expect(ups.some((c) => c.playerId === light.id)).toBe(false);
+    // The earliest pick bought at a heavy price carries the price in its headline. The next one is told plainly.
+    expect(ups.map((c) => c.text)).toEqual(['heavy', undefined]);
+    const [top, next] = ups.map((c) => writeDayStory(l, c, { editionId: 'snn:test', said: [] }));
+    expect(top.headline).toContain('trade a future first-round pick to move up');
+    expect(next.headline).toContain('move up to No. 14');
+    expect(next.paragraphs[1]).toContain('received three picks');
+    expect(heavy.draft!.pick).toBe(14);
+    for (const s of [top, next]) expect(ruleBreaks(l, s)).toEqual([]);
+  });
+
   it('does not call the other half of a swap a move up', () => {
     const others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
     // This club took No. 6 after giving No. 5 away: it moved down.
@@ -600,5 +617,212 @@ describe('Cut-down day and Kickoff', () => {
     const games = l.games.filter((g) => g.season === l.season && g.week === 1);
     expect(e.lists![0].rows).toHaveLength(games.length);
     expect(e.lists![0].head).toEqual(['Game', 'Kickoff']);
+  });
+});
+
+describe('The other stories a big day tells', () => {
+  let l: League;
+  let others: number[];
+  let last: number;
+  let star: Player;
+  const at = () => ({ editionId: 'snn:test', said: [] as string[] });
+  const hc = (teamId: number) => teamCoaches(l, teamId).find((c) => c.role === 'headCoach')!;
+  const records = (over: Record<number, { w: number; l: number; t: number }> = {}) => ({
+    ...Object.fromEntries(l.teams.map((t) => [t.id, { w: 9, l: 8, t: 0 }])),
+    ...over,
+  });
+  beforeEach(() => {
+    l = createLeague({ seed: 'other-stories' });
+    last = l.season - 1;
+    others = l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+    for (const p of Object.values(l.players)) p.stats = {};
+    // Every head coach has had his team for two seasons, and one of them lost in both.
+    for (const c of Object.values(l.coaches)) c.career = [];
+    for (const t of l.teams)
+      hc(t.id).career!.push(
+        { season: last - 1, teamId: t.id, role: 'headCoach' },
+        { season: last, teamId: t.id, role: 'headCoach' },
+      );
+    l.history = [
+      {
+        season: last - 1,
+        championId: others[5],
+        runnerUpId: others[6],
+        records: records({ [others[0]]: { w: 5, l: 12, t: 0 } }),
+      },
+      {
+        season: last,
+        championId: others[5],
+        runnerUpId: others[6],
+        records: records({ [others[0]]: { w: 4, l: 13, t: 0 } }),
+      },
+    ];
+    star = activeRoster(l, others[1]).filter((p) => p.position !== 'QB')[0];
+    l.awards = [{ season: last, winners: { mvp: { playerId: star.id, teamId: star.teamId } }, allLeague: [[], []] }];
+  });
+
+  it('tells a head coach kept after two losing seasons, and a GM the owners put on notice', () => {
+    l.phase = 'freeAgency';
+    const warn = (teamId: number, coachId?: number) =>
+      l.leadership.events.push({
+        id: l.leadership.nextEventId++,
+        date: { season: l.season, phase: 'resign', week: 0 },
+        teamId,
+        kind: 'warning',
+        gmId: l.teams[teamId].gmId!,
+        ...(coachId !== undefined ? { coachId } : {}),
+        report: 'x',
+      });
+    warn(others[2]);
+    // A new GM told to keep the coach is no pressure on anyone.
+    warn(others[3], hc(others[3]).id);
+    const cs = dayCandidates(l, 'year', new Set());
+    expect(cs.filter((c) => c.angle === 'seat')).toMatchObject([
+      { clubId: others[0], n: 2, tier: 3, coachId: hc(others[0]).id },
+    ]);
+    expect(cs.filter((c) => c.angle === 'pressure').map((c) => c.clubId)).toEqual([others[2]]);
+    const seat = writeDayStory(l, cs.find((c) => c.angle === 'seat')!, at());
+    expect(seat.headline).toContain('two losing seasons');
+    expect(seat.paragraphs[1]).toContain('third season in the job');
+    for (const c of cs.filter((x) => x.angle === 'seat' || x.angle === 'pressure')) {
+      const s = writeDayStory(l, c, at());
+      expect(ruleBreaks(l, s), c.angle).toEqual([]);
+      // What the record shows, never a hidden state.
+      expect(s.paragraphs.join(' ')).not.toMatch(/hot seat|expect/i);
+    }
+  });
+
+  it('says where a new head coach comes from and what he takes over', () => {
+    l.phase = 'freeAgency';
+    const club = others[0];
+    hc(club).career = [{ season: last, teamId: others[7], role: 'offCoord' }];
+    teamCoaches(l, others[4]).find((c) => c.role !== 'headCoach')!.career = [
+      { season: last, teamId: club, role: 'headCoach' },
+    ];
+    l.history[1].records[others[7]] = { w: 13, l: 4, t: 0 };
+    const cs = dayCandidates(l, 'year', new Set());
+    const s = writeDayStory(l, cs.find((x) => x.angle === 'coach' && x.clubId === club)!, at());
+    expect(s.paragraphs[0]).toContain('went 13–4 that season');
+    expect(s.paragraphs[1]).toContain('two losing seasons in a row');
+    expect(ruleBreaks(l, s)).toEqual([]);
+    // A new coach has no losing run of his own to answer for.
+    expect(cs.some((x) => x.angle === 'seat' && x.clubId === club)).toBe(false);
+  });
+
+  it('tells a trade only when a star is in it, with what went back', () => {
+    l.phase = 'draft';
+    const seller = star.teamId!;
+    const buyer = others[8];
+    const sent = l.draftPicks.find((p) => p.season === l.season + 1 && p.round === 1)!;
+    const depth = activeRoster(l, others[9]).filter((p) => p.position !== 'QB')[5];
+    const side = (teamId: number, players: number[], picks: number[]) => ({ teamId, players, picks });
+    l.market = {
+      ...l.market!,
+      history: [
+        {
+          season: l.season,
+          phase: 'freeAgency',
+          week: 0,
+          kind: 'star',
+          sides: [side(seller, [star.id], []), side(buyer, [], [sent.id])],
+        },
+        {
+          season: l.season,
+          phase: 'freeAgency',
+          week: 0,
+          kind: 'swap',
+          sides: [side(others[9], [depth.id], []), side(others[10], [], [])],
+        },
+      ],
+    } as League['market'];
+    setTeam(l, star, buyer);
+    const cs = dayCandidates(l, 'market', new Set()).filter((c) => c.angle === 'trade');
+    expect(cs).toMatchObject([{ tier: 1, clubId: buyer, otherId: seller, playerId: star.id }]);
+    const s = writeDayStory(l, cs[0], at());
+    expect(s.paragraphs[1]).toContain(`received a ${l.season + 1} first-round pick in return`);
+    expect(ruleBreaks(l, s)).toEqual([]);
+    // The same trade is not the next day's news.
+    expect(dayCandidates(l, 'draft', new Set()).filter((c) => c.angle === 'trade')).toEqual([]);
+  });
+
+  it('tells a starter still holding out and a star who changed position, on cut-down day', () => {
+    const holder = activeRoster(l, others[2]).filter((p) => p.position !== 'QB')[0];
+    holder.stats[last] = { gp: 17, snaps: 900 };
+    holder.morale = {
+      ...holder.morale!,
+      dispute: { kind: 'holdOut', cause: 'deal', since: 0, club: holder.teamId!, out: true },
+    } as Player['morale'];
+    const from = star.position === 'CB' ? 'S' : 'CB';
+    const moved = (p: Player) =>
+      l.transactions.push({
+        season: l.season,
+        phase: 'preseason',
+        week: 0,
+        teamIds: [p.teamId!],
+        kind: 'position',
+        text: `${l.teams[p.teamId!].abbrev} moved ${from} ${p.firstName} ${p.lastName} to ${p.position}`,
+        playerId: p.id,
+      });
+    moved(star);
+    // A player with no public standing changes position without a story.
+    moved(activeRoster(l, others[4]).filter((p) => p.position !== 'QB')[6]);
+    const cs = dayCandidates(l, 'cuts', new Set());
+    expect(cs.filter((c) => c.angle === 'holdout')).toMatchObject([{ tier: 2, playerId: holder.id }]);
+    expect(cs.filter((c) => c.angle === 'position')).toMatchObject([{ tier: 2, playerId: star.id, text: from }]);
+    for (const c of cs.filter((x) => x.angle === 'holdout' || x.angle === 'position')) {
+      const s = writeDayStory(l, c, at());
+      expect(ruleBreaks(l, s), c.angle).toEqual([]);
+      expect(s.paragraphs.join(' ')).not.toMatch(/\b(will|should|expect(ed|s)?)\b/i);
+    }
+  });
+
+  it('tells the team with the most new starters, with its new staff, only at the bar', () => {
+    const club = others[3];
+    const starters = activeRoster(l, club)
+      .filter((p) => !['QB', 'K', 'P'].includes(p.position))
+      .slice(0, DAY.turnover);
+    for (const t of l.teams) t.jobs = { held: {} };
+    for (const p of starters) {
+      p.experience = 3;
+      p.statTeams = { [last]: [others[4]] };
+    }
+    const hold = (ps: Player[]) =>
+      (l.teams[club].jobs = { held: Object.fromEntries(ps.map((p) => [p.id, { pos: p.position, since: 0 }])) });
+    hold(starters);
+    const c = dayCandidates(l, 'kickoff', new Set()).find((x) => x.angle === 'turnover')!;
+    expect(c).toMatchObject({ tier: 3, clubId: club, n: DAY.turnover });
+    const s = writeDayStory(l, c, at());
+    expect(s.headline).toContain('new starters');
+    // No coordinator of this league has a last season on record, so the story says the staff is new too.
+    expect(s.paragraphs[1]).toMatch(/new (offensive|defensive) coordinator|two new coordinators/);
+    expect(ruleBreaks(l, s)).toEqual([]);
+    hold(starters.slice(1));
+    expect(dayCandidates(l, 'kickoff', new Set()).some((x) => x.angle === 'turnover')).toBe(false);
+  });
+
+  it('writes a first game against a mentor as a tile, never the lead', () => {
+    const g = l.games.find(
+      (x) => x.season === l.season && x.week === 1 && x.homeId !== l.userTeamId && x.awayId !== l.userTeamId,
+    )!;
+    const c: DayCandidate = {
+      key: 'tree:meet:1:2',
+      day: 'kickoff',
+      angle: 'mentor',
+      tier: 4,
+      clubId: g.homeId,
+      teams: [g.homeId, g.awayId],
+      stakes: 1,
+      coachId: hc(g.homeId).id,
+      n: hc(g.awayId).id,
+      otherId: g.awayId,
+    };
+    const s = writeDayStory(l, c, at());
+    expect(s.paragraphs[0]).toContain('first time');
+    expect(ruleBreaks(l, s)).toEqual([]);
+    expect(cutDay([c], l.userTeamId)).toBeNull();
+    const other = l.teams.map((t) => t.id).find((id) => ![g.homeId, g.awayId, l.userTeamId].includes(id))!;
+    const page = cutDay([c, { ...c, key: 'x', angle: 'champion', tier: 4, clubId: other }], l.userTeamId)!;
+    expect(page.lead.angle).toBe('champion');
+    expect(page.tiles.map((x) => x.angle)).toEqual(['mentor']);
   });
 });

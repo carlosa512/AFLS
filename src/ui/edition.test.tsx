@@ -233,6 +233,23 @@ describe('a big-day edition in the inbox', () => {
     expect(html).not.toMatch(/\b(OVR|overall|potential)\b/i);
   });
 
+  it('draws a game as its two teams, each a link, the visitors first', () => {
+    const [g, other] = d.games.filter((x) => x.season === d.season && x.week === 1);
+    const list = {
+      title: 'Opening week',
+      head: ['Game', 'Kickoff'],
+      rows: [g, other].map((x) => ({ teamId: x.homeId, otherId: x.awayId, cells: ['text', 'Sun 1:00 PM ET'] })),
+    };
+    const html = renderToStaticMarkup(
+      <EditionCards league={d} message={{ ...mail({ ...day, lists: [list] }), id: `snn:${d.season}:d:kickoff` }} />,
+    );
+    const table = html.slice(html.indexOf('class="ed-list"'));
+    expect(count(table, 'class="ed-game"')).toBe(2);
+    expect(count(table, '<button')).toBe(4);
+    expect(table.indexOf(d.teams[g.awayId].name)).toBeLessThan(table.indexOf(d.teams[g.homeId].name));
+    expect(table).not.toContain('>text<');
+  });
+
   it('opens a story in place like a weekly one', () => {
     const html = renderToStaticMarkup(
       <EditionCards league={d} message={{ ...mail(day), id: `snn:${d.season}:d:draft` }} open={day.lead.key} />,

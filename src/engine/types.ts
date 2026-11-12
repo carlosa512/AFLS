@@ -1652,7 +1652,7 @@ export interface Transaction {
   week: number;
   teamIds: number[];
   /**
-   * The player the move is about: a signing, a re-signing or a tag (v90), a release or a pick (v96). Older entries have
+   * The player the move is about: a signing, a re-signing or a tag (v90), a release, a pick or a position change (v96). Older entries have
    * none, and SNN's big-day editions skip an entry without one.
    */
   playerId?: number;
@@ -1862,7 +1862,7 @@ export interface EditionList {
   title: string;
   head: string[];
   /** The page links the cell under "Player" to the row's player and the cell under "Club" or "To" to its club. */
-  rows: { playerId?: number; teamId?: number; cells: string[] }[];
+  rows: { playerId?: number; teamId?: number; otherId?: number; cells: string[] }[];
 }
 
 /** A final as SNN's weekly edition keeps it. */

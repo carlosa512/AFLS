@@ -471,6 +471,14 @@ export function DayList({ league, list }: { league: League; list: EditionList })
     if (head === 'Player' && p) return <PlayerLink league={league} player={p} pos />;
     if ((head === 'Team' || head === 'To') && row.teamId !== undefined)
       return <TeamLink team={club(league, row.teamId)} chip />;
+    // A game is its two teams, the visitors first.
+    if (head === 'Game' && row.teamId !== undefined && row.otherId !== undefined)
+      return (
+        <span className="ed-game">
+          <TeamLink team={club(league, row.otherId)} chip /> <span className="muted">at</span>{' '}
+          <TeamLink team={club(league, row.teamId)} chip />
+        </span>
+      );
     return text;
   };
   return (
@@ -486,7 +494,14 @@ export function DayList({ league, list }: { league: League; list: EditionList })
         </thead>
         <tbody>
           {list.rows.map((row, j) => (
-            <tr key={j} className={row.teamId === league.userTeamId ? 'is-user' : undefined}>
+            <tr
+              key={j}
+              className={
+                row.teamId === league.userTeamId || (row.otherId !== undefined && row.otherId === league.userTeamId)
+                  ? 'is-user'
+                  : undefined
+              }
+            >
               {row.cells.map((text, i) => (
                 <td key={i}>{cell(row, text, i)}</td>
               ))}
