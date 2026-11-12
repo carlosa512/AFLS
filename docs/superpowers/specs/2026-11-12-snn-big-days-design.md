@@ -56,8 +56,9 @@ inside them (how big a contract, how far a fall) are fixed at check-in 1.
 counts and the biggest name. Your own firing or hiring stays the owner's letter.
 **Absorbs** the front-office carousel, the coaching carousel and "off the market".
 
-One consequence: a firing at the season's end is told here, a step after it happens and with the replacement named.
-Today's front-office digest tells it the step it happens, without the replacement.
+A firing at the season's end is told here, a step after it happens and with the replacement named, so the change is
+official going into the new year (the owner's call at the spec review). Today's front-office digest tells it the
+step it happens, without the replacement.
 
 ### Free agency (`market`)
 
