@@ -13,7 +13,7 @@ import { teamCoaches } from './coaching';
 import { injuryLabel } from './injuries';
 import { cap, possessive, referrer, type Referrer } from './refer';
 import { divisionStandings, computeRecords, type TeamRecord } from './season/standings';
-import type { Unit } from './slump';
+import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
@@ -1760,6 +1760,7 @@ function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): Edit
   if (cand.kind === 'speak') return speakStory(l, cand, at);
   if (cand.kind === 'room') return roomStory(l, cand, at);
   if (cand.kind === 'mentor') return mentorStory(l, cand, at);
+  if (cand.kind === 'storyline') return storylineStory(l, cand, at);
   if (cand.kind === 'run') return runStory(l, cand, at);
   if (cand.kind === 'starOut') return starOutStory(l, cand, at);
   if (cand.angle === 'bye') return byeStory(l, cand, at);
@@ -2451,4 +2452,125 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     summary: 1,
   });
   return { ...story, table: claim.table, covers: [claim.key] };
+}
+
+// ───────── your club's storylines ─────────
+
+/**
+ * One of the reader's club's public storylines as a brief: who was left out of the lineup and for whom, a trade request
+ * "according to reports", and how each ended. Only what the league could see: the lineup, the box scores and the
+ * transaction. Nothing of what was said between the man and his club.
+ */
+function storylineStory(l: League, cand: Candidate, at: Wording): EditionStory {
+  const x = cand.storyline!;
+  const id = cand.clubId;
+  const week = Math.max(
+    1,
+    ...l.games.filter((g) => g.season === l.season && g.result && !g.playoffRound).map((g) => g.week),
+  );
+  const st = standingOf(l, week, id);
+  const nick = nickOf(l, id);
+  if (x.beat === 'relieved' && x.coach) {
+    return compose(l, cand, at, {
+      first: [
+        `${C(id)} relieved ${x.coach.side} coordinator ${x.coach.name} of his duties. ${c(id)} are ${rec(st.row)}.`,
+      ],
+      second: [],
+      headline: `${nick} relieve ${x.coach.side} coordinator ${lastWord(x.coach.name)}`,
+      kicker: 'Your club',
+      picture: { teamIds: [id] },
+      numbers: [],
+      links: [{ kind: 'team', teamId: id }],
+      summary: 2,
+    });
+  }
+  const p = l.players[x.playerId!];
+  const o = x.other === undefined ? undefined : l.players[x.other];
+  const pos = POSITION[p.position] ?? 'player';
+  const game = x.now ? resultOf(l, id, week) : null;
+  const vs = game ? ` against ${C(game.oppId)}` : '';
+  const starts = startsOf(l, p.id, week);
+  const played = st.row.w + st.row.l + st.row.t;
+  const weeks = `${w(Math.max(1, x.since))} ${plural(Math.max(1, x.since), 'week')}`;
+  let first: string[];
+  let headline: string;
+  switch (x.beat) {
+    case 'sat':
+      first = [
+        o
+          ? `${C(id)} benched ${pos} ${M(p.id)}${vs} and started ${M(o.id)} in his place.`
+          : `${C(id)} left ${pos} ${M(p.id)} out of the starting lineup${vs}.`,
+        ...(starts > 0
+          ? [`${M(p.id)} had started ${w(starts)} of ${possessive(l.teams[id].city)} ${w(played)} games.`]
+          : []),
+      ];
+      headline = `${nick} bench ${p.lastName}`;
+      break;
+    case 'backIn':
+      first = [
+        `${cap(pos)} ${M(p.id)} was back in the starting lineup for ${C(id)}${vs}, ${weeks} after losing his place.`,
+      ];
+      headline = `${p.lastName} is back in the ${nick} lineup`;
+      break;
+    case 'settled':
+      if ((x.how === 'earned' || x.how === 'chart') && o) {
+        first = [
+          `${M(o.id)} has kept the starting job at ${pos} for ${C(id)}, and ${M(p.id)} has not started since he was benched.`,
+        ];
+        headline = `${o.lastName} keeps the ${nick} job`;
+      } else {
+        first = [
+          `${cap(pos)} ${M(p.id)} has his starting job back with ${C(id)}.`,
+          ...(o ? [`${M(o.id)} started in his place for ${weeks}.`] : []),
+        ];
+        headline = `${p.lastName} wins his job back`;
+      }
+      break;
+    case 'left':
+      first = [
+        `${cap(pos)} ${M(p.id)}, who lost his starting job with ${C(id)} this season, is no longer with the club.`,
+      ];
+      headline = `${p.lastName} leaves the ${nick}`;
+      break;
+    case 'leaked':
+      first = [
+        `${cap(pos)} ${M(p.id)} has asked ${C(id)} for a trade, according to reports.`,
+        ...(starts > 0
+          ? [`${M(p.id)} has started ${w(starts)} of ${possessive(l.teams[id].city)} ${w(played)} games this season.`]
+          : []),
+      ];
+      headline = `${p.lastName} asks the ${nick} for a trade`;
+      break;
+    default:
+      // A leaked request, ended.
+      if (x.how === 'traded') {
+        first = [`${C(id)} have traded ${pos} ${M(p.id)}, who had asked to leave.`];
+        headline = `${nick} trade ${p.lastName}`;
+      } else if (x.how === 'released') {
+        first = [`${C(id)} have released ${pos} ${M(p.id)}, who had asked for a trade.`];
+        headline = `${nick} release ${p.lastName}`;
+      } else if (x.how === 'signed') {
+        first = [`${cap(pos)} ${M(p.id)} has a new contract with ${C(id)}, which ends his trade request.`];
+        headline = `${p.lastName} signs a new deal with the ${nick}`;
+      } else {
+        first = [
+          `${cap(pos)} ${M(p.id)} has withdrawn his trade request and stays with ${C(id)}, according to reports.`,
+        ];
+        headline = `${p.lastName} withdraws his trade request`;
+      }
+  }
+  // A brief is one paragraph: its sentences run together.
+  return compose(l, cand, at, {
+    first: [first.join(' ')],
+    second: [],
+    headline,
+    kicker: 'Your club',
+    picture: { playerId: p.id },
+    numbers: [],
+    links: [
+      { kind: 'player', playerId: p.id },
+      { kind: 'team', teamId: id },
+    ],
+    summary: 2,
+  });
 }

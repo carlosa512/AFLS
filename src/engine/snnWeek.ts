@@ -19,7 +19,8 @@ import { employed } from './employment';
 import { columnClaims, pickColumn, type Claim } from './snnColumn';
 import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
-import type { Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
+import { SNN_OUTLET } from './stories';
+import type { BeatKind, Edition, EditionKind, EditionScore, Game, League, StatLine } from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
@@ -49,6 +50,18 @@ export interface Candidate {
   speak?: { playerId: number; teamId: number; kind: SpeakEvent };
   room?: { teamId: number; coachId: number; text: string };
   mentor?: { mentorId: number; discipleId: number; homeId: number; awayId: number };
+  /** One of the reader's club's public storylines: the beat it tells, and the story's men. */
+  storyline?: {
+    beat: BeatKind;
+    how?: string;
+    playerId?: number;
+    other?: number;
+    /** Steps since the story's first public beat (weeks, in season). */
+    since: number;
+    /** The beat is this step's: its game is this week's. */
+    now: boolean;
+    coach?: { name: string; side: string };
+  };
 }
 
 /** A game's tier by its angle (spec §2). */
@@ -546,6 +559,67 @@ function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
   };
 }
 
+/** Public beats an edition prints, and the ways a public dispute can end that are worth a line. */
+const TELLS: BeatKind[] = ['sat', 'backIn', 'settled', 'left', 'leaked', 'disputeEnd'];
+const ENDINGS = ['traded', 'withdrawn', 'promise', 'signed', 'released'];
+const SETTLED = ['earned', 'chart', 'earnedBack', 'chartBack'];
+
+/**
+ * The reader's club's public storylines as candidates (spec 2 §2): a man left off the lineup, a trade request that
+ * leaked, and how each ended, from the story store's public beats (`SNN_OUTLET`); and a coordinator he relieved. One
+ * candidate a story, for its latest public beat not yet printed; what an edition printed is kept in its `covered`
+ * keys, so nothing is written to the store from here.
+ */
+export function storylineCandidates(l: League, week: number, have: Set<string>): Candidate[] {
+  if (!employed(l)) return [];
+  const user = l.userTeamId;
+  const out: Candidate[] = [];
+  const base = { kind: 'storyline' as const, clubId: user, teams: [user], stakes: 0 };
+  for (const s of [...(l.stories?.open ?? []), ...(l.stories?.closed ?? [])]) {
+    const pub = s.beats.filter((b) => SNN_OUTLET.sees(l, s, b) && TELLS.includes(b.kind));
+    const keyOf = (b: (typeof pub)[number]) => `storyline:${s.id}:${b.at}:${b.kind}`;
+    const fresh = pub.filter((b) => !have.has(keyOf(b)));
+    const b = fresh.at(-1);
+    const p = s.playerId === undefined ? undefined : l.players[s.playerId];
+    if (!b || !p) continue;
+    // An ending nobody outside could read (an injury settling it, a holdout drifting back) is not a story.
+    if (b.kind === 'settled' && !SETTLED.includes(b.how ?? '')) continue;
+    if (b.kind === 'disputeEnd' && !ENDINGS.includes(b.how ?? '')) continue;
+    out.push({
+      ...base,
+      key: keyOf(b),
+      covers: fresh.map(keyOf),
+      angle: b.kind,
+      // A quarterback losing his job is the biggest thing a club can do in season short of firing its coach.
+      tier: p.position === 'QB' && b.kind === 'sat' ? 2 : 4,
+      storyline: {
+        beat: b.kind,
+        ...(b.how !== undefined ? { how: b.how } : {}),
+        playerId: p.id,
+        ...(s.other !== undefined ? { other: s.other } : {}),
+        since: b.at - (pub[0]?.at ?? b.at),
+        now: b.at === l.moraleAt,
+      },
+    });
+  }
+  for (const e of l.leadership.events) {
+    if (e.teamId !== user || e.kind !== 'coachRelieved' || e.date.season !== l.season || e.date.week > week + 1)
+      continue;
+    const key = `storyline:relieved:${e.id}`;
+    const c = e.coachId === undefined ? undefined : (l.coaches[e.coachId] ?? l.retiredCoaches?.[e.coachId]);
+    if (have.has(key) || !c) continue;
+    const side = c.role === 'offCoord' ? 'offensive' : c.role === 'defCoord' ? 'defensive' : 'special teams';
+    out.push({
+      ...base,
+      key,
+      angle: 'relieved',
+      tier: 4,
+      storyline: { beat: 'relieved', since: 0, now: false, coach: { name: `${c.firstName} ${c.lastName}`, side } },
+    });
+  }
+  return out;
+}
+
 /** This season's Columns that the inbox still holds, newest first: the week each ran, its claim and its club. */
 function columnsRan(l: League): { week: number; key: string; clubId: number }[] {
   return (l.inbox ?? [])
@@ -596,6 +670,8 @@ export function buildEdition(l: League, week: number): Edition | null {
       ...runCandidates(l, week),
       ...starOutCandidates(l, week),
       ...newsCandidates(l, week, have),
+      // Not in the playoffs: there is no race or page for them there, and the season's questions are closed.
+      ...(week <= 18 ? storylineCandidates(l, week, have) : []),
       ...(bye ? [bye] : []),
     ].filter((c) => !told(c)),
     id,

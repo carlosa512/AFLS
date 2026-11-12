@@ -1763,7 +1763,7 @@ export interface MailSection {
 
 /** Storylines (`stories.ts`): what happened to one subject of your club, beat by beat. Record-keeping only: the sim never reads it. */
 export type StoryKind = 'deal' | 'snaps' | 'benched' | 'losing' | 'feud' | 'room' | 'staff';
-export type OutletId = 'coach';
+export type OutletId = 'coach' | 'snn';
 export type BeatKind =
   | 'asked'
   | 'quiet'

@@ -9,7 +9,8 @@ import { createLeague } from './generate';
 import { playWeek } from './league';
 import { divisionLeadChange } from './news';
 import { computeRecords, divisionStandings } from './season/standings';
-import { newsCandidates, rankCandidates, type Candidate } from './snnWeek';
+import { newsCandidates, rankCandidates, storylineCandidates, type Candidate } from './snnWeek';
+import { beat, closeStory, COACH, markTold, SNN_OUTLET, untold } from './stories';
 import { joined, layoffSpan, writeStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
 import { reportableTrades } from './tradeNews';
@@ -272,5 +273,99 @@ describe('two facts joined into one sentence', () => {
     ]);
     // Left as two sentences, it still opens one.
     expect(joined('{c:3} ran and threw.', 'For {c:4}, {M:9} had three sacks.')[1]).toMatch(/^For /);
+  });
+});
+
+describe('your club’s public storylines', () => {
+  const FOG = /\b(rating|overall|morale|mood|potential|trait|ceiling|unhappy|promise)\b/i;
+  const clock = () => l.moraleAt ?? l.season * 32 + 20;
+  const mine = (pos: string, n = 0) =>
+    Object.values(l.players).filter((p) => p.teamId === l.userTeamId && p.position === pos)[n];
+  const on = (playerId: number) => ({ kind: 'benched' as const, teamId: l.userTeamId, playerId });
+  const told = (have: string[] = []) => storylineCandidates(l, 16, new Set(have));
+  const wipe = () => (l.stories = { next: 1, open: [], closed: [] });
+
+  it('lets the public outlet see only the beats the league could know', () => {
+    wipe();
+    const qb = mine('QB');
+    const s = beat(l, on(qb.id), 'sat', clock(), { pub: true, other: mine('QB', 1).id })!;
+    beat(l, on(qb.id), 'asked', clock());
+    expect(untold(l, s, SNN_OUTLET).map((b) => b.kind)).toEqual(['sat']);
+    expect(untold(l, s, COACH).map((b) => b.kind)).toEqual(['sat', 'asked']);
+    // A story of talks alone gives it nothing.
+    const deal = beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: mine('WR').id }, 'asked', clock())!;
+    expect(untold(l, deal, SNN_OUTLET)).toEqual([]);
+    // What the coach has told is his own count.
+    markTold(s, COACH);
+    expect(untold(l, s, SNN_OUTLET).map((b) => b.kind)).toEqual(['sat']);
+  });
+
+  it('makes a quarterback’s benching a story once, and his return another', () => {
+    wipe();
+    const [qb, other] = [mine('QB'), mine('QB', 1)];
+    beat(l, on(qb.id), 'sat', clock(), { pub: true, other: other.id });
+    beat(l, on(qb.id), 'asked', clock());
+    const first = told();
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ kind: 'storyline', angle: 'sat', tier: 2, clubId: l.userTeamId });
+    // Told: not again.
+    expect(told([first[0].key])).toEqual([]);
+    closeStory(l, on(qb.id), 'backIn', clock() + 2, undefined, true);
+    const second = told([first[0].key]);
+    expect(second.map((c) => c.angle)).toEqual(['backIn']);
+    expect(second[0].key).not.toBe(first[0].key);
+    // A man who is not the quarterback ranks with the week's other stories.
+    wipe();
+    beat(l, on(mine('WR').id), 'sat', clock(), { pub: true });
+    expect(told()[0].tier).toBe(4);
+  });
+
+  it('tells nothing private, and nothing to a reader between jobs', () => {
+    wipe();
+    beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: mine('WR').id }, 'asked', clock());
+    beat(l, { kind: 'snaps', teamId: l.userTeamId, playerId: mine('RB').id }, 'dispute', clock(), { how: 'trade' });
+    expect(told()).toEqual([]);
+    beat(l, on(mine('QB').id), 'sat', clock(), { pub: true });
+    const gm = l.gms[l.userGmId];
+    const was = gm.teamId;
+    gm.teamId = null;
+    expect(told()).toEqual([]);
+    gm.teamId = was;
+  });
+
+  it('writes each as a brief to the rules', () => {
+    wipe();
+    const [qb, other, wr, rb] = [mine('QB'), mine('QB', 1), mine('WR'), mine('RB')];
+    const at0 = clock();
+    const write = () => told().map((c) => writeStory(l, c, at(), { brief: true }));
+    const check = (stories: ReturnType<typeof write>, n: number) => {
+      expect(stories).toHaveLength(n);
+      for (const s of stories) {
+        expect(s.kind).toBe('storyline');
+        expect(s.paragraphs).toHaveLength(1);
+        expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+        expect(s.paragraphs.join(' ')).not.toMatch(FOG);
+        expect(s.headline.length).toBeLessThanOrEqual(70);
+      }
+      return stories;
+    };
+    beat(l, on(qb.id), 'sat', at0, { pub: true, other: other.id });
+    beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id }, 'leaked', at0, { pub: true });
+    const opened = check(write(), 2);
+    expect(opened.map((s) => s.paragraphs[0]).join(' ')).toContain(`${qb.firstName} ${qb.lastName}`);
+    expect(opened.find((s) => s.angle === 'leaked')!.paragraphs[0]).toContain('according to reports');
+    // Closings.
+    wipe();
+    beat(l, on(qb.id), 'sat', at0, { pub: true, other: other.id });
+    closeStory(l, on(qb.id), 'settled', at0 + 3, 'chart', true);
+    beat(l, on(rb.id), 'sat', at0, { pub: true });
+    closeStory(l, on(rb.id), 'backIn', at0 + 2, undefined, true);
+    beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id }, 'leaked', at0, { pub: true });
+    beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id }, 'disputeEnd', at0 + 4, {
+      how: 'withdrawn',
+      pub: true,
+    });
+    check(write(), 3);
+    wipe();
   });
 });

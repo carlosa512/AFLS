@@ -20,6 +20,11 @@ export interface Outlet {
   sees: (league: League, s: Story, b: Beat) => boolean;
 }
 export const COACH: Outlet = { id: 'coach', sees: (league, s) => s.teamId === league.userTeamId };
+/**
+ * SNN: your club's beats the league could know (a man left off the lineup, a request that leaked, a man back in). It
+ * keeps no count in `told`: an edition remembers what it printed in its own `covered` keys (`storylineCandidates`).
+ */
+export const SNN_OUTLET: Outlet = { id: 'snn', sees: (league, s, b) => s.teamId === league.userTeamId && !!b.pub };
 
 const same = (s: Story, on: StoryOn) =>
   s.kind === on.kind &&
@@ -144,10 +149,17 @@ export function beat(
   return s;
 }
 
-export function closeStory(league: League, on: StoryOn, kind: BeatKind, at: number, how?: string): Story | null {
+export function closeStory(
+  league: League,
+  on: StoryOn,
+  kind: BeatKind,
+  at: number,
+  how?: string,
+  pub?: true,
+): Story | null {
   const s = openStory(league, on);
   if (!s || !league.stories) return null;
-  push(s, kind, at, how);
+  push(s, kind, at, how, pub);
   s.closed = at;
   delete s.due;
   league.stories.open.splice(league.stories.open.indexOf(s), 1);

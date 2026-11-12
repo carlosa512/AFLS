@@ -245,19 +245,30 @@ export function manForm(
   if (!p || p.teamId === null || !unit) return null;
   const form = unitForm(l, p.teamId, unit, through);
   if (!form) return null;
-  let started = 0;
-  for (const g of gamesOf(l, p.teamId, through).slice(-FORM.games)) {
-    const r = g.result!;
-    const own = r.playerStats[playerId]?.snaps ?? 0;
-    if (!own || r.playerTeams[playerId] !== p.teamId) continue;
-    let most = 0;
-    for (const [id, line] of Object.entries(r.playerStats)) {
-      if (r.playerTeams[Number(id)] !== p.teamId || l.players[Number(id)]?.position !== p.position) continue;
-      most = Math.max(most, line.snaps ?? 0);
-    }
-    if (own >= STARTED * most) started++;
-  }
+  const started = gamesOf(l, p.teamId, through)
+    .slice(-FORM.games)
+    .filter((g) => startedIn(l, g, p)).length;
   return { unit, form, started };
+}
+
+/** Whether he started a game, read from its box score: most of the snaps his position's busiest man played. */
+function startedIn(l: League, g: Game, p: { id: number; teamId: number | null; position: Position }): boolean {
+  const r = g.result!;
+  const own = r.playerStats[p.id]?.snaps ?? 0;
+  if (!own || r.playerTeams[p.id] !== p.teamId) return false;
+  let most = 0;
+  for (const [id, line] of Object.entries(r.playerStats)) {
+    if (r.playerTeams[Number(id)] !== p.teamId || l.players[Number(id)]?.position !== p.position) continue;
+    most = Math.max(most, line.snaps ?? 0);
+  }
+  return own >= STARTED * most;
+}
+
+/** The games he has started for his club this season, through a week. */
+export function startsOf(l: League, playerId: number, through: number): number {
+  const p = l.players[playerId];
+  if (!p || p.teamId === null) return 0;
+  return gamesOf(l, p.teamId, through).filter((g) => startedIn(l, g, p)).length;
 }
 
 /** He started every game of a span in which his unit was in the league's bottom quarter. */
