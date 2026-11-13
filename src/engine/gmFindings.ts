@@ -85,7 +85,14 @@ export type Finding = Base &
         nowTeamId: number;
         honors: Honor[];
       }
-    | { family: 'coaches'; coachIds: number[]; hiredFirst: boolean }
+    | {
+        family: 'coaches';
+        coachIds: number[];
+        /** One coach all the way through, begun the year the GM came. */
+        hiredFirst: boolean;
+        /** A head coach in his first season here, hired by a GM who was here before him, and winning. */
+        newCoach?: true;
+      }
   );
 
 /** How much a family says, most first: what a piece leads with when a GM has more than one finding. */
@@ -101,7 +108,7 @@ const QB_YEARS = 3;
 const LATE_ROUND = 4;
 /** A contract is blamed while the signing is this many league years old or fewer. */
 const CONTRACT_YEARS = 2;
-/** The current season's leading passer counts once the team has played this many games. */
+/** The current season counts (its leading passer, a new coach's record) once the team has played this many games. */
 const PASSER_GAMES = 6;
 
 /** His finished seasons at this team, oldest first. */
@@ -337,17 +344,42 @@ function headCoaches(r: Read): Finding[] {
     .filter((x) => x.seasons.length)
     .sort((a, b) => Math.min(...a.seasons) - Math.min(...b.seasons) || a.c.id - b.c.id);
   const coachIds = under.map((x) => x.c.id);
+  const out: Finding[] = [];
   if (under.length >= 3)
-    return [
-      { family: 'coaches', side: 'blame', latest: Math.min(...under.at(-1)!.seasons), coachIds, hiredFirst: false },
-    ];
+    out.push({
+      family: 'coaches',
+      side: 'blame',
+      latest: Math.min(...under.at(-1)!.seasons),
+      coachIds,
+      hiredFirst: false,
+    });
   // One coach all the way through, and his hire: the coach began here the year the GM did, and the league has a
   // season on record before that (a league's first coaches were there when the save began, hired by nobody).
   const began = under.length === 1 ? Math.min(...here(under[0].c).map((s) => s.season)) : null;
   const known = l.history.some((h) => h.season < r.first);
   if (began === r.first && known && r.T.size >= 3)
-    return [{ family: 'coaches', side: 'credit', latest: r.first, coachIds, hiredFirst: true }];
-  return [];
+    out.push({ family: 'coaches', side: 'credit', latest: r.first, coachIds, hiredFirst: true });
+  // A coach in his first season here under a GM who was here before him is that GM's hire: credit once he is winning.
+  const now = Object.values(l.coaches).find((c) => c.teamId === teamId && c.role === 'headCoach' && !c.interim);
+  const me = computeRecords(l).get(teamId);
+  if (
+    now &&
+    r.T.has(l.season) &&
+    !here(now).some((s) => s.season < l.season) &&
+    me &&
+    me.w + me.l + me.t >= PASSER_GAMES &&
+    me.w > me.l &&
+    !out.some((f) => f.side === 'credit')
+  )
+    out.push({
+      family: 'coaches',
+      side: 'credit',
+      latest: l.season,
+      coachIds: [now.id],
+      hiredFirst: false,
+      newCoach: true,
+    });
+  return out;
 }
 
 /** Everything the record shows about this GM at this team, both sides, unranked. Empty until he has finished a season. */

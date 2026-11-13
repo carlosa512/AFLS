@@ -3,6 +3,7 @@
  * facts a paragraph will read, and a near miss.
  */
 import { describe, expect, it } from 'vitest';
+import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { FINDING_ORDER, gmFindings, gmSeasons, rankFindings, type Finding, type FindingFamily } from './gmFindings';
 import { setTeam, teamPlayers } from './roster';
@@ -426,6 +427,35 @@ describe('head coaches', () => {
     // A coach who was here before him is not his hire either.
     l.history.push({ season: first - 1, championId: 0, runnerUpId: 1, records: {}, playoffs: {} } as never);
     c.career!.unshift({ season: first - 1, teamId: T, role: 'headCoach' });
+    expect(find(gmFindings(l, gm.id, T), 'coaches')).toBeUndefined();
+  });
+});
+
+describe('a new head coach who is winning', () => {
+  it('is credit for the GM who was here before him', () => {
+    const { l, gm } = scene('find-new-coach', [LOSING]);
+    const hc = teamCoaches(l, T).find((c) => c.role === 'headCoach')!;
+    delete hc.interim;
+    // Six games in, four of them won.
+    const mine = l.games.filter((g) => g.season === l.season && !g.playoffRound && (g.homeId === T || g.awayId === T));
+    mine.slice(0, 6).forEach((g, i) => {
+      const won = i < 4;
+      const home = g.homeId === T;
+      g.result = { homeScore: won === home ? 24 : 13, awayScore: won === home ? 13 : 24 } as never;
+    });
+    expect(find(gmFindings(l, gm.id, T), 'coaches')).toEqual({
+      family: 'coaches',
+      side: 'credit',
+      latest: l.season,
+      coachIds: [hc.id],
+      hiredFirst: false,
+      newCoach: true,
+    });
+    // A coach who was here last season is not a new hire, and neither is an interim.
+    hc.career = [{ season: l.season - 1, teamId: T, role: 'headCoach' }];
+    expect(find(gmFindings(l, gm.id, T), 'coaches')).toBeUndefined();
+    hc.career = [];
+    hc.interim = true;
     expect(find(gmFindings(l, gm.id, T), 'coaches')).toBeUndefined();
   });
 });

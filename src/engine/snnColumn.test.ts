@@ -9,7 +9,8 @@ import { playWeek } from './league';
 import { columnStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
 import { FORM, unitMan } from './slump';
-import { clubContext, columnClaims, LADDER, pickColumn, type Claim } from './snnColumn';
+import { teamPlayers } from './roster';
+import { clubContext, columnClaims, gmLeadKey, LADDER, pickColumn, type Claim } from './snnColumn';
 import type { Game, GameResult, League, TeamGameStats } from './types';
 
 const stats = (over: Partial<TeamGameStats> = {}): TeamGameStats =>
@@ -75,6 +76,43 @@ const secondYear = (l: League, teamId: number) => {
 };
 const about = (claims: Claim[], kind: string, teamId: number) =>
   claims.filter((c) => c.subject.kind === kind && c.teamId === teamId);
+
+/** A team's GM with nothing on his public record: no picks a generated league gave the team, no moves, nobody gone. */
+function wipe(l: League, t: number) {
+  for (const p of Object.values(l.players)) {
+    if (p.draft?.teamId === t) delete p.draft;
+    if (p.left) p.left = p.left.filter((d) => d.teamId !== t);
+  }
+  delete l.gms[l.teams[t].gmId!].deals;
+  l.teams[t].jobs = { held: {} };
+}
+const quarterbacks = (l: League, t: number) => teamPlayers(l, t).filter((p) => p.position === 'QB');
+/**
+ * Something to blame him for: first-round picks spent on quarterbacks in his last two seasons. `starting` makes it all
+ * he has (two first-round picks who both start are no finding against him).
+ */
+function blameRecord(l: League, t: number, starting = false) {
+  wipe(l, t);
+  quarterbacks(l, t)
+    .slice(0, 2)
+    .forEach((p, i) => {
+      p.draft = { season: l.season - 2 + i, round: 1, pick: 2 + i, teamId: t };
+      if (starting) l.teams[t].jobs!.held[p.id] = { pos: 'QB', since: 0 };
+    });
+}
+/** Something to credit him with: two of last season's picks on the All-League team here. */
+function creditRecord(l: League, t: number) {
+  wipe(l, t);
+  const picks = teamPlayers(l, t)
+    .filter((p) => p.position !== 'QB')
+    .slice(0, 2);
+  picks.forEach((p, i) => (p.draft = { season: l.season - 1, round: 2 + i, pick: 40 + 30 * i, teamId: t }));
+  l.awards.push({
+    season: l.season - 1,
+    winners: {},
+    allLeague: [picks.map((p) => ({ playerId: p.id, teamId: t })), []],
+  });
+}
 
 describe('where a club is in its season', () => {
   it('reads the race, the stage and the games left from the table', () => {
@@ -160,17 +198,32 @@ describe('a head coach on the ladder', () => {
     const claims = about(columnClaims(l, 9, new Set()), 'coach', t);
     expect(claims.map((c) => [c.rung, c.dir])).toEqual([[2, 'credit']]);
     expect(claims[0].context.last).toEqual({ w: 4, l: 13 });
-    // A first-year coach's turnaround is his general manager's hire.
+    // A first-year coach's turnaround is his general manager's hire, said once the run-in has come.
     head(l, t).career = [];
     const gm = l.gms[l.teams[t].gmId!];
     gm.career = [{ season: l.season - 1, teamId: t }];
+    wipe(l, t);
     const again = columnClaims(l, 9, new Set());
     expect(about(again, 'coach', t)).toEqual([]);
-    expect(about(again, 'gm', t).map((c) => [c.rung, c.dir])).toEqual([[2, 'credit']]);
+    expect(about(again, 'gm', t)).toEqual([]);
+    plant(l, 10, 14, { winners: [t] });
+    const late = about(columnClaims(l, 14, new Set()), 'gm', t);
+    expect(late.map((c) => [c.rung, c.dir, c.facts.why])).toEqual([[2, 'credit', 'hire']]);
+    // The hire is the finding the piece is built on.
+    expect(late[0].findings).toMatchObject([{ family: 'coaches', newCoach: true }]);
   });
 });
 
 describe('a general manager on the ladder', () => {
+  /** An editor with nothing run and no team taken. */
+  const NOTHING_RAN = {
+    taken: new Set<number>(),
+    userTeamId: null,
+    yoursTold: 0,
+    yoursLastWeek: false,
+    editionId: 'snn:test',
+    ran: [],
+  };
   const losing = (l: League, t: number, seasons: number) => {
     const gm = l.gms[l.teams[t].gmId!];
     gm.career = [];
@@ -187,20 +240,99 @@ describe('a general manager on the ladder', () => {
     }
     return gm;
   };
-  it('is fair to ask about after two losing seasons under him, and time after three', () => {
+  it('is blamed only after week 11 and only once his team is out of the race', () => {
+    const l = world();
+    const t = other(l);
+    losing(l, t, 2);
+    blameRecord(l, t);
+    plant(l, 1, 8, { losers: [t] });
+    // Winless through eight, and out of it already: still too early to judge a general manager.
+    expect(clubContext(l, t, 8).race).toBe('out');
+    expect(about(columnClaims(l, 8, new Set()), 'gm', t)).toEqual([]);
+    plant(l, 9, 11, { losers: [t] });
+    expect(about(columnClaims(l, 11, new Set()), 'gm', t)).toEqual([]);
+    plant(l, 12, 12, { losers: [t] });
+    const claims = about(columnClaims(l, 12, new Set()), 'gm', t);
+    expect(claims.map((c) => [c.rung, c.dir])).toEqual([[2, 'blame']]);
+    expect(claims[0].findings!.map((f) => f.family)).toEqual(['qbPicks', 'firsts']);
+    expect(LADDER.gmBlameAfter).toBe(11);
+  });
+
+  it('runs one blame piece a GM a season, and "it is time" a season after he was asked about', () => {
     const l = world();
     const t = other(l);
     const gm = losing(l, t, 2);
-    plant(l, 1, 12, { losers: [t] });
-    const fair = `column:${l.season}:gm:${gm.id}:2-`;
-    expect(about(columnClaims(l, 12, new Set()), 'gm', t).map((c) => c.rung)).toEqual([2]);
-    // Two seasons are not three, whatever was written.
-    expect(about(columnClaims(l, 12, new Set([fair])), 'gm', t)).toEqual([]);
+    blameRecord(l, t);
+    plant(l, 1, 14, { losers: [t] });
+    const fairNow = `column:${l.season}:gm:${gm.id}:2-`;
+    expect(about(columnClaims(l, 14, new Set()), 'gm', t).map((c) => c.rung)).toEqual([2]);
+    // Asked about this season already (as an older save did in week 8): nothing more this year.
+    expect(about(columnClaims(l, 14, new Set([fairNow])), 'gm', t)).toEqual([]);
+    expect(about(columnClaims(l, 14, new Set([`column:${l.season}:gm:${gm.id}:3-`])), 'gm', t)).toEqual([]);
+    // Three losing seasons and never asked about: it is still "fair to ask" first.
     const m = world('column-three');
     const gm3 = losing(m, t, 3);
+    blameRecord(m, t);
     plant(m, 1, 12, { losers: [t] });
-    const had = `column:${m.season}:gm:${gm3.id}:2-`;
-    expect(about(columnClaims(m, 12, new Set([had])), 'gm', t).map((c) => c.rung)).toEqual([3]);
+    expect(about(columnClaims(m, 12, new Set()), 'gm', t).map((c) => c.rung)).toEqual([2]);
+    // Asked about last season: now it is time.
+    const fairLast = `column:${m.season - 1}:gm:${gm3.id}:2-`;
+    expect(about(columnClaims(m, 12, new Set([fairLast])), 'gm', t).map((c) => c.rung)).toEqual([3]);
+    // Two losing seasons are not three, whatever was written last year.
+    const lastYear = `column:${l.season - 1}:gm:${gm.id}:2-`;
+    expect(about(columnClaims(l, 14, new Set([lastYear])), 'gm', t).map((c) => c.rung)).toEqual([2]);
+  });
+
+  it('makes no claim about a GM with nothing on record, unless asked for the bare ones', () => {
+    const l = world();
+    const t = other(l);
+    losing(l, t, 2);
+    wipe(l, t);
+    plant(l, 1, 12, { losers: [t] });
+    expect(about(columnClaims(l, 12, new Set()), 'gm', t)).toEqual([]);
+    const bare = about(columnClaims(l, 12, new Set(), { bare: true }), 'gm', t);
+    expect(bare.map((c) => [c.rung, c.findings])).toEqual([[2, []]]);
+    // The editor never runs a claim with nothing to build a piece on.
+    const pick = pickColumn(bare, { ...NOTHING_RAN, week: 12 });
+    expect(pick).toBeNull();
+  });
+
+  it('does not lead twice with the same family unless it has a new fact', () => {
+    const l = world();
+    const t = other(l);
+    const gm = losing(l, t, 2);
+    blameRecord(l, t);
+    plant(l, 1, 12, { losers: [t] });
+    const led = gmLeadKey(l.season - 1, gm.id, t, 'qbPicks');
+    // Last season's piece led with the quarterbacks, and neither pick is newer than that: the other finding leads.
+    const families = (have: string[]) =>
+      about(columnClaims(l, 12, new Set(have)), 'gm', t).map((c) => c.findings!.map((f) => f.family));
+    expect(families([led])).toEqual([['firsts', 'qbPicks']]);
+    // Told two seasons ago, or about another general manager's team: it leads as it would.
+    expect(families([gmLeadKey(l.season - 1, gm.id, t + 1, 'qbPicks')])).toEqual([['qbPicks', 'firsts']]);
+    // With the quarterbacks all he has, and nothing new about them, there is no piece.
+    blameRecord(l, t, true);
+    expect(families([])).toEqual([['qbPicks']]);
+    expect(families([led])).toEqual([]);
+    // A quarterback picked this year is a new fact.
+    quarterbacks(l, t)[1].draft!.season = l.season;
+    expect(families([led])).toEqual([['qbPicks']]);
+  });
+
+  it('leads with another family when a GM piece this season already led with this one', () => {
+    const l = world();
+    const t = other(l);
+    losing(l, t, 2);
+    blameRecord(l, t);
+    plant(l, 1, 12, { losers: [t] });
+    // Another general manager, another team, this season.
+    const elsewhere = gmLeadKey(l.season, 999, 30, 'qbPicks');
+    const families = () =>
+      about(columnClaims(l, 12, new Set([elsewhere])), 'gm', t).map((c) => c.findings!.map((f) => f.family));
+    expect(families()).toEqual([['firsts', 'qbPicks']]);
+    // With the quarterbacks all he has, they still lead.
+    blameRecord(l, t, true);
+    expect(families()).toEqual([['qbPicks']]);
   });
   /** `seasons` finished seasons under the club's GM, each with this record and playoff finish. */
   const past = (
@@ -230,41 +362,46 @@ describe('a general manager on the ladder', () => {
     const l = world('column-built');
     const t = other(l);
     const gm = past(l, t, 2, { w: 11, l: 6 });
-    plant(l, 1, 10, { winners: [t] });
-    const claims = about(columnClaims(l, 10, new Set()), 'gm', t);
+    creditRecord(l, t);
+    plant(l, 1, 14, { winners: [t] });
+    const claims = about(columnClaims(l, 14, new Set()), 'gm', t);
     expect(claims.map((c) => [c.rung, c.dir, c.facts.why])).toEqual([[2, 'credit', 'built']]);
     expect(claims[0].key).toBe(`column:${l.season}:gm:${gm.id}:2+`);
     const s = columnStory(l, claims[0], at());
     expect(s.paragraphs.join(' ')).toContain('winning seasons');
     expect(ruleBreaks(l, s), s.paragraphs.join(' / ')).toEqual([]);
     // Four straight losses after it, and the Column takes some of it back.
-    plant(l, 11, 14, { losers: [t] });
-    const fixes = about(columnClaims(l, 14, new Set([claims[0].key])), 'gm', t).filter((c) => c.dir === 'fix');
+    plant(l, 15, 18, { losers: [t] });
+    const fixes = about(columnClaims(l, 18, new Set([claims[0].key])), 'gm', t).filter((c) => c.dir === 'fix');
     expect(fixes.map((c) => c.of)).toEqual([claims[0].key]);
     expect(ruleBreaks(l, columnStory(l, fixes[0], at()))).toEqual([]);
     // A fourth winning season is not news again: it was said when the run reached three.
     const k = world('column-built');
     past(k, t, 3, { w: 11, l: 6 });
-    plant(k, 1, 10, { winners: [t] });
-    expect(about(columnClaims(k, 10, new Set()), 'gm', t)).toEqual([]);
+    creditRecord(k, t);
+    plant(k, 1, 14, { winners: [t] });
+    expect(about(columnClaims(k, 14, new Set()), 'gm', t)).toEqual([]);
     // One winning season before this one is not a run of them.
     const m = world('column-built');
     past(m, t, 1, { w: 11, l: 6 });
-    plant(m, 1, 10, { winners: [t] });
-    expect(about(columnClaims(m, 10, new Set()), 'gm', t)).toEqual([]);
+    creditRecord(m, t);
+    plant(m, 1, 14, { winners: [t] });
+    expect(about(columnClaims(m, 14, new Set()), 'gm', t)).toEqual([]);
     // And not while this season is going badly.
     const n = world('column-built');
     past(n, t, 2, { w: 11, l: 6 });
-    plant(n, 1, 10, { losers: [t] });
-    expect(about(columnClaims(n, 10, new Set()), 'gm', t).filter((c) => c.dir === 'credit')).toEqual([]);
+    creditRecord(n, t);
+    plant(n, 1, 14, { losers: [t] });
+    expect(about(columnClaims(n, 14, new Set()), 'gm', t).filter((c) => c.dir === 'credit')).toEqual([]);
   });
 
   it('gets the credit for following a deep playoff run with another good season', () => {
     const l = world('column-run');
     const t = other(l);
     past(l, t, 1, { w: 12, l: 5 }, 'CONF');
-    plant(l, 1, 10, { winners: [t] });
-    const claims = about(columnClaims(l, 10, new Set()), 'gm', t);
+    creditRecord(l, t);
+    plant(l, 1, 14, { winners: [t] });
+    const claims = about(columnClaims(l, 14, new Set()), 'gm', t);
     expect(claims.map((c) => [c.dir, c.facts.why])).toEqual([['credit', 'run']]);
     const s = columnStory(l, claims[0], at());
     expect(s.paragraphs[0]).toContain('conference final');
@@ -272,8 +409,26 @@ describe('a general manager on the ladder', () => {
     // A first-round exit is not a deep run.
     const m = world('column-run');
     past(m, t, 1, { w: 12, l: 5 }, 'WC');
-    plant(m, 1, 10, { winners: [t] });
-    expect(about(columnClaims(m, 10, new Set()), 'gm', t)).toEqual([]);
+    creditRecord(m, t);
+    plant(m, 1, 14, { winners: [t] });
+    expect(about(columnClaims(m, 14, new Set()), 'gm', t)).toEqual([]);
+  });
+
+  it('is credited only after week 13 and only while his team is in the race', () => {
+    const l = world('column-late');
+    const t = other(l);
+    past(l, t, 2, { w: 11, l: 6 });
+    creditRecord(l, t);
+    // The head coach was here last season: a coach in his first year would be a finding of its own.
+    secondYear(l, t);
+    plant(l, 1, 13, { winners: [t] });
+    expect(clubContext(l, t, 13).race).toBe('in');
+    expect(about(columnClaims(l, 13, new Set()), 'gm', t)).toEqual([]);
+    plant(l, 14, 14, { winners: [t] });
+    const claims = about(columnClaims(l, 14, new Set()), 'gm', t);
+    expect(claims.map((c) => c.dir)).toEqual(['credit']);
+    expect(claims[0].findings!.map((f) => f.family)).toEqual(['class']);
+    expect(LADDER.gmCreditAfter).toBe(13);
   });
 
   it('is left alone after one losing season', () => {

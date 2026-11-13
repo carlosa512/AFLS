@@ -8,6 +8,7 @@
  * so "no claim twice", "one rung at a time" and corrections are lookups in what the inbox has told (`toldKeys`).
  */
 import { teamCoaches } from './coaching';
+import { gmFindings, rankFindings, type Finding, type FindingFamily } from './gmFindings';
 import { FORM, lowIsBetter, unitForm, unitMan, UNITS, type ManWhat, type Unit, type UnitForm } from './slump';
 import { computeRecords, conferenceSeeds, divisionStandings, type TeamRecord } from './season/standings';
 import type { EditionStory, League } from './types';
@@ -30,6 +31,12 @@ export const LADDER = {
    */
   gmFair: 2,
   gmTime: 3,
+  /**
+   * A general manager is judged late, when the season's verdict on his team is in: blamed only after this week is
+   * played and once the team is out of the race, credited only after the later one and while it is in the race.
+   */
+  gmBlameAfter: 11,
+  gmCreditAfter: 13,
   /** A turnaround: this many wins or fewer last season, this percentage or better through this many games. */
   turnWins: 6,
   turnPct: 0.75,
@@ -93,7 +100,16 @@ export interface Claim {
   man?: { playerId: number; what: ManWhat; n: number } | null;
   /** The claim a correction takes back. */
   of?: string;
+  /**
+   * A general manager's claim: what the record shows on its side, the one to lead with first (`gmFindings.ts`). Empty
+   * only on a bare claim, which the counts ask for and the editor never runs.
+   */
+  findings?: Finding[];
 }
+
+/** What an edition keeps (in `covered`) of the family a GM piece led with, so the next one leads with another. */
+export const gmLeadKey = (season: number, gmId: number, teamId: number, family: FindingFamily) =>
+  `gmlead:${season}:${gmId}:${teamId}:${family}`;
 
 const pctOf = (r: { w: number; l: number; t?: number }) => {
   const games = r.w + r.l + (r.t ?? 0);
@@ -258,7 +274,7 @@ const streakOf = (r: TeamRecord) => ({ won: r.streak[0] === 'W', n: Number(r.str
  * Every claim that holds once `week` is played and has not been made. `have` is what the inbox has told (`toldKeys`):
  * this league year's keys and last year's.
  */
-export function columnClaims(l: League, week: number, have: Set<string>): Claim[] {
+export function columnClaims(l: League, week: number, have: Set<string>, opt: { bare?: boolean } = {}): Claim[] {
   const out: Claim[] = [];
   const season = l.season;
   const records = computeRecords(asOf(l, week));
@@ -273,6 +289,29 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
   const told = (key: string) => have.has(key);
   const ever = (subject: string, tail: string) =>
     told(`column:${season}:${subject}:${tail}`) || told(`column:${season - 1}:${subject}:${tail}`);
+  // The families GM pieces have led with this season, whoever they were about: the next piece leads with another.
+  const ledThisSeason = new Set(
+    [...have].filter((k) => k.startsWith(`gmlead:${season}:`)).map((k) => k.split(':').at(-1) as FindingFamily),
+  );
+  /**
+   * A general manager's claim, with what his record shows on its side. Without a finding that may lead there is no
+   * claim (`opt.bare` keeps it, empty, for the counts). A family leads last when another GM's piece led with it this
+   * season, and not at all when this GM's last piece led with it and it has no newer fact.
+   */
+  const addGm = (c: Omit<Claim, 'context' | 'week' | 'findings'>, gmId: number) => {
+    if (have.has(c.key)) return;
+    const ranked = rankFindings(gmFindings(l, gmId, c.teamId), c.dir === 'blame' ? 'blame' : 'credit', c.key);
+    const stale = (f: Finding) =>
+      [season, season - 1].some((s) => f.latest <= s && told(gmLeadKey(s, gmId, c.teamId, f.family)));
+    const fresh = ranked.filter((f) => !stale(f));
+    const findings = [
+      ...fresh.filter((f) => !ledThisSeason.has(f.family)),
+      ...fresh.filter((f) => ledThisSeason.has(f.family)),
+      ...ranked.filter(stale),
+    ];
+    if (fresh.length) add({ ...c, findings });
+    else if (opt.bare) add({ ...c, findings: [] });
+  };
 
   for (const t of l.teams) {
     const me = records.get(t.id)!;
@@ -437,32 +476,33 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
         { value: String(lost.length), label: 'Losing seasons before this one' },
       ];
       const fair = `column:${season}:${subject}:2-`;
-      if (struggling && lost.length >= LADDER.gmFair)
-        add({
-          ...base,
-          key: fair,
-          rung: 2,
-          dir: 'blame',
-          margin: (LADDER.coachPct - pct) / LADDER.coachPct,
-          numbers: seasonsLost,
-          table: years,
-        });
-      if (struggling && lost.length >= LADDER.gmTime && week > LADDER.timeAfterWeek && ever(subject, '2-'))
-        add({
-          ...base,
-          key: `column:${season}:${subject}:3-`,
-          rung: 3,
-          dir: 'blame',
-          margin: (LADDER.coachPct - pct) / LADDER.coachPct,
-          numbers: seasonsLost,
-          table: years,
-        });
+      const time = `column:${season}:${subject}:3-`;
+      // Judged late and once a season: "fair to ask" the first year he qualifies, "it is time" a season after SNN
+      // asked, when the losing has gone on a season longer.
+      const verdictIn = week > LADDER.gmBlameAfter && ctx(t.id).race === 'out';
+      const askedLast = told(`column:${season - 1}:${subject}:2-`) || told(`column:${season - 1}:${subject}:3-`);
+      if (struggling && verdictIn && !told(fair) && !told(time) && lost.length >= LADDER.gmFair) {
+        const isTime = lost.length >= LADDER.gmTime && askedLast;
+        addGm(
+          {
+            ...base,
+            key: isTime ? time : fair,
+            rung: isTime ? 3 : 2,
+            dir: 'blame',
+            margin: (LADDER.coachPct - pct) / LADDER.coachPct,
+            numbers: seasonsLost,
+            table: years,
+          },
+          gm.id,
+        );
+      }
       // A turnaround under a head coach in his first season is the general manager's hire.
       const hired =
         !!hc && !hc.interim && !settled && gm.career.some((c) => c.season === season - 1 && c.teamId === t.id);
       // Credit for a GM, one Column a season, for the strongest of three reasons: he followed a deep playoff run
       // with another good year, he has built a run of winning seasons, or his new head coach has turned the club.
-      const good = games >= LADDER.turnGames && pct >= LADDER.goodPct - 1e-9;
+      const earned = week > LADDER.gmCreditAfter && ctx(t.id).race === 'in';
+      const good = earned && games >= LADDER.turnGames && pct >= LADDER.goodPct - 1e-9;
       const here = gm.career.some((c) => c.season === season - 1 && c.teamId === t.id);
       const won = winningSeasons(l, gm.id, t.id);
       const run = here ? deepRun(l, t.id) : null;
@@ -473,55 +513,64 @@ export function columnClaims(l: League, week: number, have: Set<string>): Claim[
         dir: 'credit' as const,
       };
       if (good && run && before)
-        add({
-          ...credit,
-          margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
-          numbers: [
-            { value: recText(me), label: 'Record' },
-            { value: recText(before), label: `${season - 1} record` },
-          ],
-          table: {
-            head: ['', String(season - 1), String(season)],
-            rows: [
-              ['Record', recText(before), recText(me)],
-              [
-                'Finish',
-                run === 'title' ? 'Won the title' : run === 'final' ? 'Lost the final' : 'Conference final',
-                '—',
-              ],
+        addGm(
+          {
+            ...credit,
+            margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
+            numbers: [
+              { value: recText(me), label: 'Record' },
+              { value: recText(before), label: `${season - 1} record` },
             ],
+            table: {
+              head: ['', String(season - 1), String(season)],
+              rows: [
+                ['Record', recText(before), recText(me)],
+                [
+                  'Finish',
+                  run === 'title' ? 'Won the title' : run === 'final' ? 'Lost the final' : 'Conference final',
+                  '—',
+                ],
+              ],
+            },
+            facts: { ...base.facts, why: 'run', run },
           },
-          facts: { ...base.facts, why: 'run', run },
-        });
+          gm.id,
+        );
       // Said in the season the run reaches three, not again in every winning year after it.
       else if (good && won.length === LADDER.gmBuilt)
-        add({
-          ...credit,
-          margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
-          numbers: [
-            { value: recText(me), label: 'Record' },
-            { value: String(won.length), label: 'Winning seasons before this one' },
-          ],
-          table: {
-            head: ['Season', 'Record', 'Pct'],
-            rows: [
-              ...won
-                .slice(0, 3)
-                .reverse()
-                .map((s) => [String(s.season), recText(s), pctOf(s).toFixed(3).replace(/^0/, '')]),
-              [String(season), recText(me), pct.toFixed(3).replace(/^0/, '')],
+        addGm(
+          {
+            ...credit,
+            margin: (pct - LADDER.goodPct) / (1 - LADDER.goodPct),
+            numbers: [
+              { value: recText(me), label: 'Record' },
+              { value: String(won.length), label: 'Winning seasons before this one' },
             ],
+            table: {
+              head: ['Season', 'Record', 'Pct'],
+              rows: [
+                ...won
+                  .slice(0, 3)
+                  .reverse()
+                  .map((s) => [String(s.season), recText(s), pctOf(s).toFixed(3).replace(/^0/, '')]),
+                [String(season), recText(me), pct.toFixed(3).replace(/^0/, '')],
+              ],
+            },
+            facts: { ...base.facts, why: 'built', seasons: won.length },
           },
-          facts: { ...base.facts, why: 'built', seasons: won.length },
-        });
-      else if (turned && hired)
-        add({
-          ...credit,
-          margin: (pct - LADDER.turnPct) / (1 - LADDER.turnPct),
-          numbers,
-          table: turnTable,
-          facts: { ...base.facts, why: 'hire', coach: hc ? fullName(hc) : '' },
-        });
+          gm.id,
+        );
+      else if (earned && turned && hired)
+        addGm(
+          {
+            ...credit,
+            margin: (pct - LADDER.turnPct) / (1 - LADDER.turnPct),
+            numbers,
+            table: turnTable,
+            facts: { ...base.facts, why: 'hire', coach: hc ? fullName(hc) : '' },
+          },
+          gm.id,
+        );
       const blamed = told(fair) || told(`column:${season}:${subject}:3-`);
       if (blamed && streak.won && streak.n >= LADDER.fixWins)
         add({
@@ -596,6 +645,8 @@ export function pickColumn(
   const lastDir = opt.ran.map((r) => dirOf(r.key)).find((d) => d !== 'fix');
   const jobLately = opt.ran.slice(0, LADDER.jobIn - 1).some((r) => jobKey(r.key));
   const open = claims.filter((c) => {
+    // A GM's claim with nothing on record to build a piece on is for the counts only.
+    if (c.findings && !c.findings.length) return false;
     if (opt.taken.has(c.teamId)) return false;
     if (c.dir !== 'fix' && c.dir === lastDir) return false;
     if (isJob(c) && jobLately) return false;
