@@ -249,6 +249,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     `habitLog` (`logMove`). `habitsForce` pins one on for tests and the check. `gmHabitsYear.ts` the new-year step inside
     `beginOffseason` (`habitsNewYear`: the draw and fades; `startHabits` and `noteRelease` handle starting habits and blow-ups). `gmVoice.ts` the words that tell them
     (news and your director's notes; never a label on a GM)
+  - `gmMoves.ts` a GM's notable moves kept on his record as they happen (`GeneralManager.deals`: a trade with a
+    first-round pick in it, with each pick's year and round; a signing from outside worth `MOVES.signShare` of the cap),
+    because the league forgets both within two seasons and SNN's Column tells a GM's work across several. `noteTrade`
+    from `executeTrade`, `noteSigning` from `signPlayer`, read through `movesAt`. Record-keeping only: nothing in the sim
+    reads it (`MOVES.on` for the test that proves it)
   - `gmMemory.ts` what an AI GM remembers of dealings with your GM (spec `docs/superpowers/specs/2026-11-07-gm-memory-voice-design.md`):
     a short list of moments on `GeneralManager.withYou` (trades, offers taken, final no's, being led on; `noteMoment`), a
     trade judged a season on from how the men played (`judgeTrade`, run by `memoryNewYear`), and his standing with you
@@ -311,9 +316,18 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     with mail filed and never filed). The page is `ui/edition.tsx` (`EditionCards`: tiles start closed and open in place).
     `snnColumn.ts` the edition's one opinion piece (spec `docs/superpowers/specs/2026-11-11-snn-column-and-storylines-design.md`):
     claims about a unit, a head coach or a GM up an evidence ladder (`LADDER`, `columnClaims`), blame, credit and a claim
-    taken back, and which one runs (`pickColumn`: never two weeks running, blame and credit in turn, a man's job in one
-    Column of three, three a season about your club); `columnStory` in `snnVoice.ts` writes it around a table of public
-    numbers. `slump.ts` a unit's last four games against the league (`unitForm`, `FORM`, `inSlump`) and the one player a
+    taken back, and which one runs (`pickColumn`: never two weeks running, blame and credit in turn, a head coach's job
+    in one Column of three, three a season about your club); `columnStory` in `snnVoice.ts` writes it around a table of
+    public numbers. A general manager's Column is its own thing (spec
+    `docs/superpowers/specs/2026-11-13-gm-column-voice-design.md`, `docs/NEWS.md` "The Column on a general manager"):
+    judged late (blame after `LADDER.gmBlameAfter` and out of the race, credit after `gmCreditAfter` and in it, one blame
+    piece a season, week `gmVerdictWeek` kept for a GM verdict), only on a finding (`gmFindings.ts`: nine families read
+    from his picks, his moves, box-score lines, job-holders, honors and careers, for his seasons at this team; no
+    finding, no claim), and written whole by `snnGmVoice.ts` (`gmPiece`: a lead shape on the strongest finding, the
+    record with a second finding, a close for its rung; `SHAPES`, `CLOSES`; no shape or close twice a league year, kept
+    as `gmshape:`/`gmlead:` keys in the edition's `covered`; every time word chosen by a condition) to its own rules in
+    `storyRules.ts` (two to four paragraphs, two numbers a sentence, a last sentence that may be a judgment and names the
+    man or the team). `npm run editions -- --seasons n` reports general managers on their own. `slump.ts` a unit's last four games against the league (`unitForm`, `FORM`, `inSlump`) and the one player a
     box score singles out (`unitMan`, `MAN`). `storylineCandidates` reads your club's public beats from the story store
     (`SNN_OUTLET`) as tiles. An article causes nothing: what an edition printed lives in its `covered` keys.
     `snnDays.ts` the editor of SNN's five big-day editions (`docs/NEWS.md`, "SNN on the big days"; spec

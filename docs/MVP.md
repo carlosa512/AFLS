@@ -77,7 +77,8 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 - [ ] **Full news and media outlets** · **Partial** (hooks into #13): SNN's weekly edition (one mail a week in
       season laid out as a front page: every score, a lead story, your club, the league's other stories, the race and
       the game of the week, written to tested rules), its Column (one opinion piece on a unit, a coach or a GM,
-      argued from a table of public numbers up an evidence ladder, about eight a season), your club's public
+      argued from a table of public numbers up an evidence ladder, about eight a season; a general manager's is a piece
+      written late in the season from what he did: his picks, trades, signings, quarterbacks and coaches), your club's public
       storylines as tiles, a player asking where he stands when his unit is struggling, its offseason front-office
       digest, the Arena Gazette's numbers column (EPA, success rate and explosives, counted by the engine) and rookie
       impact reports join the inbox. Every letter is written to one set of house rules (plain complete sentences,
