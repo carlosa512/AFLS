@@ -983,7 +983,8 @@ export function dayMail(l: League): Draft[] {
       ],
       // What is known of the new GMs rides under the page, as it did under the front-office digest.
       ...(days.includes('year') ? newGmNotes(l) : {}),
-      actions: [],
+      // The new league year's edition is read as free agency opens: the way there is under it (while it is open).
+      actions: day === 'year' ? [{ kind: 'fa' }] : [],
     },
   ];
 }

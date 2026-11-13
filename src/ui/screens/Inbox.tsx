@@ -1,4 +1,5 @@
 import { canReadMail, mailDate } from '../../engine/inbox';
+import { employed } from '../../engine/employment';
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
   archiveMail,
@@ -95,7 +96,7 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
     case 'resign':
       return 'Expiring contracts';
     case 'fa':
-      return a.pos ? `Free agents at ${a.pos}` : 'Free agency';
+      return a.pos ? `Free agents at ${a.pos}` : m.edition ? 'Go to free agency' : 'Free agency';
     case 'coaches':
       return 'Coaches';
     case 'gms':
@@ -572,7 +573,10 @@ export function MessageBody({
 }) {
   const fromInbox = useContext(NegotiateContext);
   const negotiate = onNegotiate ?? fromInbox;
-  const actions = m.actions.filter((a) => !skip.includes(a.kind));
+  // SNN's new-year edition points to free agency only while it is open, and only for a GM with a team to sign for.
+  const shut = (a: InboxAction) =>
+    !!m.edition && a.kind === 'fa' && (league.phase !== 'freeAgency' || !employed(league));
+  const actions = m.actions.filter((a) => !skip.includes(a.kind) && !shut(a));
   return (
     <>
       {/* An edition's stories are its body: the mail's own text is only there for search. */}
