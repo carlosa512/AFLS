@@ -74,4 +74,32 @@ describe("the coach's card", () => {
     expect(html).not.toMatch(/role="tab"/);
     expect(html).toContain('<span class="eyebrow">Overview</span>');
   });
+
+  it('shows the job he holds now on Bio after a promotion during the season', () => {
+    const l = createLeague({ seed: 'coach-card' });
+    const now = teamCoaches(l, l.userTeamId).find((c) => c.role === 'defCoord')!;
+    const rec = (w: number, lo: number) =>
+      ({ regular: { w, l: lo, t: 0 } }) as unknown as NonNullable<NonNullable<typeof now.career>[number]['record']>;
+    const c = {
+      ...now,
+      career: [
+        {
+          season: l.season,
+          teamId: l.userTeamId,
+          role: 'positionCoach' as const,
+          room: 'DL' as const,
+          record: rec(3, 4),
+        },
+        { season: l.season, teamId: l.userTeamId, role: 'defCoord' as const, record: rec(4, 6) },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <NavContext.Provider value={nav}>
+        <CoachCard league={l} coach={c} onClose={() => {}} />
+      </NavContext.Provider>,
+    );
+    const bio = html.slice(html.indexOf('season-row'));
+    expect(bio).toContain('4–6');
+    expect(bio).not.toContain('3–4');
+  });
 });

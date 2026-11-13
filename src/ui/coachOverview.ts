@@ -15,9 +15,20 @@ export function coachOverview(league: League, c: Coach): string[] {
   const job = (s: Stint) => coachTitle({ role: s.role, room: s.room }).toLowerCase();
   const years = (s: Stint) => (s.from === s.to ? `in ${s.from}` : `from ${s.from} to ${s.to}`);
   const current = stints.at(-1);
-  const holdsIt = current && c.teamId === current.teamId && league.coaches[c.id];
+  const active = c.teamId !== null && !!league.coaches[c.id];
+  // A row is written only once he coaches a game in a job: between seasons his new job (a promotion, or a move to
+  // another team) has none yet, so his last row is an old job.
+  const newJob =
+    active && (!current || current.teamId !== c.teamId || current.role !== c.role || current.room !== c.room);
+  const holdsIt = active && !newJob;
 
-  if (holdsIt) {
+  if (newJob) {
+    out.push(`${c.lastName} is in his first season as ${coachTitle(c).toLowerCase()} of ${teamName(c.teamId!)}.`);
+    if (current)
+      out.push(
+        `Before that he was ${job(current)} ${current.teamId === c.teamId ? 'there' : `of ${teamName(current.teamId)}`} ${years(current)}.`,
+      );
+  } else if (holdsIt && current) {
     const before = stints.at(-2);
     // Promoted on the same team: his job dates from the promotion, not from the year he joined.
     const promoted = before?.teamId === current.teamId;
@@ -34,8 +45,6 @@ export function coachOverview(league: League, c: Coach): string[] {
       );
   } else if (current) {
     out.push(`${c.lastName} was ${job(current)} of ${teamName(current.teamId)} ${years(current)}.`);
-  } else if (c.teamId !== null && league.coaches[c.id]) {
-    out.push(`${c.lastName} is in his first season as ${coachTitle(c).toLowerCase()} of ${teamName(c.teamId)}.`);
   }
 
   const head = coachRecord(league, c, ['headCoach']);

@@ -523,7 +523,12 @@ function RoleGuide({ roles }: { roles: CoachRole[] }) {
  * path, on Career). `current` keeps only the latest season and leaves the job off: on Bio his title is in the header.
  */
 function SeasonRows({ league, c, current = false }: { league: League; c: Coach; current?: boolean }) {
-  const seasons = coachRecord(league, c).seasons;
+  // Newest first, and within a season split by a promotion the later job first (`coachRecord` keeps career order
+  // inside a season, old job first), so Bio's one row is the job he holds now.
+  const seasons = coachRecord(league, c)
+    .seasons.map((s, i) => ({ s, i }))
+    .sort((a, b) => b.s.season - a.s.season || b.i - a.i)
+    .map(({ s }) => s);
   return (
     <ul className="plain-list season-rows">
       {(current ? seasons.slice(0, 1) : seasons).map((s) => {

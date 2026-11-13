@@ -127,4 +127,27 @@ describe('a coach in a few plain sentences', () => {
     expect(text).toContain('since 2028');
     expect(text).toMatch(/Before that he was [a-z ]+ there from 2026 to 2027\./);
   });
+
+  it('names his new job between seasons, before he has coached a game in it', () => {
+    // Promoted in the offseason: a coordinator last season, head coach now, no games yet in the new job.
+    const promoted = base({
+      teamId: 4,
+      role: 'headCoach',
+      since: 2026,
+      career: [{ season: 2026, teamId: 4, role: 'offCoord', record: svc(11, 6) }],
+    });
+    const a = coachOverview(league, promoted).join(' ');
+    expect(a).toContain(`is in his first season as head coach of the ${full(league, 4)}`);
+    expect(a).toContain('Before that he was offensive coordinator there in 2026.');
+    // Hired away in the offseason: last season's job was another team's.
+    const moved = base({
+      teamId: 3,
+      role: 'headCoach',
+      since: 2027,
+      career: [{ season: 2026, teamId: 7, role: 'offCoord', record: svc(11, 6) }],
+    });
+    const b = coachOverview(league, moved).join(' ');
+    expect(b).toContain(`is in his first season as head coach of the ${full(league, 3)}`);
+    expect(b).toContain(`Before that he was offensive coordinator of the ${full(league, 7)} in 2026.`);
+  });
 });
