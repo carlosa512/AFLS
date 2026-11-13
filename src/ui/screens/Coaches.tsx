@@ -518,29 +518,6 @@ function RoleGuide({ roles }: { roles: CoachRole[] }) {
   );
 }
 
-/**
- * A coach's record in one line: results earned while he held each role, with the
- * head-coaching seasons counted on their own (that's the record people quote). The seasons are on his card.
- */
-function CoachRecord({ league, c }: { league: League; c: Coach }) {
-  const all = coachRecord(league, c);
-  if (!all.seasons.length) return null;
-  const head = coachRecord(league, c, ['headCoach']);
-  const main = head.seasons.length ? head : all;
-  const yrs = new Set(main.seasons.map((s) => s.season)).size;
-  const extras = [
-    main.playoffTrips ? `${main.playoffTrips} playoff trip${main.playoffTrips > 1 ? 's' : ''}` : '',
-    main.titles ? `${main.titles} title${main.titles > 1 ? 's' : ''}` : '',
-  ].filter(Boolean);
-  return (
-    <span className="small muted">
-      {head.seasons.length ? 'As head coach' : 'His teams'}: {formatRecord(main.regular)} ({yrs} season
-      {yrs > 1 ? 's' : ''}){main.playoffs.w + main.playoffs.l ? `, ${main.playoffs.w}–${main.playoffs.l} playoffs` : ''}
-      {extras.length ? ` · ${extras.join(', ')}` : ''}
-    </span>
-  );
-}
-
 /** His seasons as rows to glance at, newest first: the year, the team, the record large, how it ended and the job. */
 function SeasonRows({ league, c }: { league: League; c: Coach }) {
   return (
@@ -562,43 +539,6 @@ function SeasonRows({ league, c }: { league: League; c: Coach }) {
         );
       })}
     </ul>
-  );
-}
-
-/** Each season and role, newest first, including a partial season before a departure or promotion. */
-function CareerTable({ league, c }: { league: League; c: Coach }) {
-  return (
-    <div className="table-scroll">
-      <table className="small">
-        <thead>
-          <tr>
-            <th className="num">Season</th>
-            <th>Team</th>
-            <th>Job</th>
-            <th className="num">Record</th>
-            <th>Playoffs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {coachRecord(league, c).seasons.map((s) => (
-            <tr key={`${s.season}:${s.teamId}:${s.role}:${s.room ?? ''}`}>
-              <td className="num">{s.season}</td>
-              <td>{league.teams[s.teamId].abbrev}</td>
-              <td>
-                {c.interimAppointments?.some((a) => a.season === s.season && a.teamId === s.teamId) &&
-                s.role === 'headCoach'
-                  ? 'Interim head coach'
-                  : coachTitle(s)}
-              </td>
-              <td className="num">{formatRecord(s.regular)}</td>
-              <td className={s.champion ? 'tone-good' : 'muted'}>
-                {s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish || '–'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 
@@ -705,7 +645,7 @@ export function CoachCard({
   coach: Coach;
   onClose: () => void;
   /** The tab it opens on: Bio, unless a caller needs his record or career first. */
-  startTab?: 'bio' | 'record' | 'career';
+  startTab?: 'bio' | 'career';
 }) {
   const nav = useNav();
   const team = c.teamId !== null ? league.teams[c.teamId] : null;
@@ -714,7 +654,6 @@ export function CoachCard({
   const retired = !league.coaches[c.id];
   // A former player: his playing career, a tap away from his coaching one.
   const player = c.playerId !== undefined ? league.players[c.playerId] : undefined;
-  const [career, setCareer] = useState<'coach' | 'player'>('coach');
   const [tab, setTab] = useState(startTab);
   const hc =
     c.teamId !== null ? chairHolder(teamCoaches(league, c.teamId), { role: 'headCoach' }) : yourHeadCoach(league);
@@ -774,9 +713,9 @@ export function CoachCard({
         )}
       </div>
       <div className="seg coach-tabs" role="tablist" aria-label="About him">
-        {(['bio', 'record', 'career'] as const).map((t) => (
+        {(['bio', 'career'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t === 'bio' ? 'Bio' : t === 'record' ? 'Record' : 'Career'}
+            {t === 'bio' ? 'Bio' : 'Career'}
           </button>
         ))}
       </div>
@@ -787,6 +726,7 @@ export function CoachCard({
             <span className="eyebrow">Overview</span>
             <p>{coachOverview(league, c).join(' ')}</p>
           </div>
+          {coached && <SeasonRows league={league} c={c} />}
           <CoachTags c={c} />
           <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
           <VisionLine league={league} c={c} />
@@ -816,20 +756,9 @@ export function CoachCard({
           )}
         </>
       )}
-      {tab === 'record' &&
-        (coached ? (
-          <>
-            <CoachRecord league={league} c={c} />
-            <SeasonRows league={league} c={c} />
-          </>
-        ) : (
-          <p className="muted small" style={{ margin: 0 }}>
-            No games on a staff yet.
-          </p>
-        ))}
       {tab === 'career' && (
         <>
-          {career === 'coach' && !!c.interimAppointments?.length && (
+          {!!c.interimAppointments?.length && (
             <ul className="coach-takeovers">
               {[...c.interimAppointments].reverse().map((a) => (
                 <li key={`${a.season}:${a.teamId}:${a.week}`}>
@@ -840,17 +769,8 @@ export function CoachCard({
             </ul>
           )}
           {player && (
-            <div className="seg seg-sm" role="group" aria-label="Which career">
-              <button aria-pressed={career === 'coach'} onClick={() => setCareer('coach')}>
-                As a coach
-              </button>
-              <button aria-pressed={career === 'player'} onClick={() => setCareer('player')}>
-                As a player
-              </button>
-            </div>
-          )}
-          {career === 'player' && player ? (
-            <>
+            <div className="stack" style={{ gap: 6 }}>
+              <span className="eyebrow">As a player</span>
               {Object.keys(player.stats).length ? (
                 <StatsTable league={league} player={player} />
               ) : (
@@ -859,23 +779,16 @@ export function CoachCard({
                 </p>
               )}
               <div>
-                <button
-                  className="btn btn-sm"
+                <MoreLink
                   onClick={() => {
                     onClose();
                     nav.openPlayer(player.id);
                   }}
                 >
-                  Open his player card
-                </button>
+                  His player card
+                </MoreLink>
               </div>
-            </>
-          ) : coached ? (
-            <CareerTable league={league} c={c} />
-          ) : (
-            <p className="muted small" style={{ margin: 0 }}>
-              No games on a staff yet.
-            </p>
+            </div>
           )}
           <CoachTree league={league} coach={c} />
           {c.quirkOrigin && (

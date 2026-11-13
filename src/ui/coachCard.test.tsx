@@ -15,7 +15,7 @@ const nav = {
 } as unknown as Nav;
 
 describe("the coach's card", () => {
-  it('opens on Bio, with Record and Career a tap away, and an overview in place of the old box', () => {
+  it('opens on Bio with his seasons under the overview, and Career a tap away', () => {
     const l = createLeague({ seed: 'coach-card' });
     playWeek(l);
     const hc = teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
@@ -25,9 +25,11 @@ describe("the coach's card", () => {
       </NavContext.Provider>,
     );
     expect(html).toMatch(/aria-selected="true"[^>]*>Bio</);
-    expect(html).toMatch(/>Record</);
-    expect(html).toMatch(/>Career</);
+    expect(html).toMatch(/role="tab"[^>]*>Career</);
+    expect(html).not.toMatch(/role="tab"[^>]*>Record</);
     expect(html).toContain('<span class="eyebrow">Overview</span>');
+    // His seasons sit under the overview, on Bio: no second tab repeating them.
+    expect(html.indexOf('season-row')).toBeGreaterThan(html.indexOf('Overview'));
     expect(html).not.toContain('Around the league</span>');
     expect(html).not.toContain('Habits over time');
   });
