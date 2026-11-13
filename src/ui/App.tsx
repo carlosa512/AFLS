@@ -46,6 +46,7 @@ import { Schedule } from './screens/Schedule';
 import { Standings } from './screens/Standings';
 import { Stats } from './screens/Stats';
 import { hashToRoute, isHistoryEntry, routeToHash, type HistoryEntry, type Route } from './routes';
+import { SCREEN_NAMES } from './screenNames';
 import { TabBoundary } from './boundary';
 import { MAX_COMPARE, NavContext, type Nav, type StaffKind } from './nav';
 import { store, useLeague } from './store';
@@ -58,16 +59,16 @@ export { useNav, MAX_COMPARE } from './nav';
 export type { StaffKind } from './nav';
 
 const TABS: { view: Route['view']; label: string }[] = [
-  { view: 'home', label: 'Home' },
-  { view: 'roster', label: 'Roster' },
-  { view: 'cap', label: 'Cap' },
-  { view: 'locker', label: 'Locker Room' },
-  { view: 'inbox', label: 'Inbox' },
-  { view: 'office', label: 'Front office' },
-  { view: 'schedule', label: 'Schedule' },
-  { view: 'standings', label: 'Standings' },
-  { view: 'stats', label: 'Stats' },
-  { view: 'playoffs', label: 'Playoffs' },
+  { view: 'home', label: SCREEN_NAMES.home },
+  { view: 'roster', label: SCREEN_NAMES.roster },
+  { view: 'cap', label: SCREEN_NAMES.cap },
+  { view: 'locker', label: SCREEN_NAMES.locker },
+  { view: 'inbox', label: SCREEN_NAMES.inbox },
+  { view: 'office', label: SCREEN_NAMES.office },
+  { view: 'schedule', label: SCREEN_NAMES.schedule },
+  { view: 'standings', label: SCREEN_NAMES.standings },
+  { view: 'stats', label: SCREEN_NAMES.stats },
+  { view: 'playoffs', label: SCREEN_NAMES.playoffs },
 ];
 
 interface SimAction {
@@ -459,7 +460,8 @@ export function App() {
       <main className="wrap">
         {/* A screen that breaks while drawing says so and leaves the bar above it working: uncaught, one bad row
             blanks the whole app. Keyed by the screen, so moving to another starts clean. */}
-        <TabBoundary key={route.view} name={TABS.find((t) => t.view === route.view)?.label ?? 'This screen'}>
+        <h1 className="visually-hidden">{SCREEN_NAMES[route.view]}</h1>
+        <TabBoundary key={route.view} name={SCREEN_NAMES[route.view]}>
           {route.view === 'home' && (hasJob ? <Home league={league} /> : <SpectatorHome league={league} />)}
           {route.view === 'roster' &&
             (hasJob ? (

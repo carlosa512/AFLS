@@ -315,6 +315,7 @@ export function PlayerLink({
   pos = false,
   bold = false,
   className,
+  sub,
 }: {
   league: League;
   player: Player;
@@ -324,11 +325,13 @@ export function PlayerLink({
   pos?: boolean;
   bold?: boolean;
   className?: string;
+  /** A muted second line under his name (his team, a stat line), outside the link: a list's cell reads in two lines. */
+  sub?: ReactNode;
 }) {
   const nav = useNav();
   const team = player.teamId !== null ? league.teams[player.teamId] : null;
   const classes = ['linklike', avatar ? 'player-link' : '', className ?? ''].filter(Boolean).join(' ');
-  return (
+  const link = (
     <button
       type="button"
       className={classes}
@@ -343,6 +346,13 @@ export function PlayerLink({
       {/* in a list (with his picture), a rookie's "R" on the line of his name; never in a sentence */}
       {avatar && isRookie(player) ? <RookieMark /> : null}
     </button>
+  );
+  if (sub === undefined || sub === null || sub === '') return link;
+  return (
+    <span className="player-cell" style={avatar ? ({ '--sub-indent': `${avatar + 8}px` } as CSSProperties) : undefined}>
+      {link}
+      <span className="player-sub">{sub}</span>
+    </span>
   );
 }
 
@@ -474,6 +484,20 @@ export function MoreLink({ to, onClick, children }: { to?: Route; onClick?: () =
       {children}
       <Icon name="chevron-right" />
     </button>
+  );
+}
+
+/**
+ * The top of a screen with views (Front office, Stats): its route tabs on the left and the view's context line or
+ * view-wide control on the right (docs/UI.md, "The top of a screen"). `tabs` is the caller's own tablist element, so
+ * its roles, label and ref stay with it. The screen's name is the app shell's hidden h1, never a visible title here.
+ */
+export function PageHeader({ tabs, aside }: { tabs?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="row page-bar">
+      {tabs}
+      {aside !== undefined && aside !== null && aside !== false && <div className="page-bar-aside">{aside}</div>}
+    </div>
   );
 }
 

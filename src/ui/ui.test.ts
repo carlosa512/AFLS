@@ -8,7 +8,7 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { NUMBER_MIN_PX, sortRows } from './components';
 import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
-import { hashToRoute, routeToHash, type Route } from './routes';
+import { hashToRoute, routeToHash, SCREEN_NAMES, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
@@ -45,6 +45,27 @@ describe('routes', () => {
       { view: 'live' },
     ];
     for (const r of routes) expect(hashToRoute(routeToHash(r))).toEqual(r);
+  });
+
+  it('names every screen', () => {
+    const views: Route['view'][] = [
+      'home',
+      'roster',
+      'cap',
+      'inbox',
+      'office',
+      'schedule',
+      'locker',
+      'standings',
+      'stats',
+      'playoffs',
+      'compare',
+      'game',
+      'watch',
+      'live',
+    ];
+    for (const v of views) expect(SCREEN_NAMES[v], v).toMatch(/\S/);
+    expect(SCREEN_NAMES.locker).toBe('Locker Room');
   });
 
   it('send a game opened from a link back to the schedule', () => {
@@ -471,6 +492,16 @@ describe('screen contract', () => {
         bad.push(`${sel}: uppercase outside the shared label rules`);
     }
     expect(bad).toEqual([]);
+  });
+
+  it('starts a screen one way', () => {
+    // The app shell writes the one hidden h1; New Game keeps its own heading. A screen with views opens with
+    // PageHeader's bar, never a hand-built one (docs/UI.md, "The top of a screen").
+    const h1 = allUi().filter((f) => /<h1\b/.test(src(f)));
+    expect(h1.sort()).toEqual([join('src/ui', 'App.tsx'), join('src/ui/screens', 'NewGame.tsx')]);
+    expect(src(join('src/ui', 'App.tsx'))).toMatch(/<h1 className="visually-hidden">/);
+    const bars = allUi().filter((f) => !f.endsWith('components.tsx') && /office-bar|page-bar/.test(src(f)));
+    expect(bars).toEqual([]);
   });
 
   it('renders player names only through PlayerLink', () => {

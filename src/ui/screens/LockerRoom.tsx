@@ -137,8 +137,6 @@ export function LockerRoom({ league }: { league: League }) {
 
   return (
     <div className="screen">
-      <h1>Locker Room</h1>
-      <p className="muted">The way our coaches see it.</p>
       <Section id="locker-morale" title="Morale">
         {roomStep === undefined ? (
           <p className="muted">Nobody on the roster yet.</p>

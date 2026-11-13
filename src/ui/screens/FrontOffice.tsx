@@ -33,6 +33,7 @@ import {
   useSort,
   type SortState,
   MoreLink,
+  PageHeader,
 } from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
@@ -577,25 +578,29 @@ export function FrontOffice({
   const showCoachNotice = active !== 'coaches' && !!coaching && (coaching.due.length > 0 || coaching.empty.length > 0);
   return (
     <>
-      <div className="row office-bar" style={{ justifyContent: 'space-between' }}>
-        <div ref={bar} className="seg office-tabs" role="tablist" aria-label="Front office">
-          {TABS.map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={active === key}
-              aria-pressed={active === key}
-              onClick={() => nav.go({ view: 'office', tab: key })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="muted small">
-          {league.season} · {PHASE_LABELS[league.phase]}
-          {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
-        </span>
-      </div>
+      <PageHeader
+        tabs={
+          <div ref={bar} className="seg office-tabs" role="tablist" aria-label="Front office">
+            {TABS.map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={active === key}
+                aria-pressed={active === key}
+                onClick={() => nav.go({ view: 'office', tab: key })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+        aside={
+          <span>
+            {league.season} · {PHASE_LABELS[league.phase]}
+            {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
+          </span>
+        }
+      />
       {(showStaffNotice || showCoachNotice) && (
         <div className="notice staff-notices">
           {showStaffNotice && (

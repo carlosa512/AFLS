@@ -23,6 +23,7 @@ import { NegotiationDialog } from '../negotiation';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
 import { Icon } from '../icons';
+import { MoreLink } from '../components';
 
 type Show = 'all' | 'unread' | 'needs' | 'archived';
 
@@ -613,11 +614,17 @@ export function MessageBody({
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
         <div className="row">
-          {actions.map((a, i) => (
-            <button key={i} className={`btn btn-sm${i === 0 ? ' btn-primary' : ''}`} onClick={() => act(a)}>
-              {actionLabel(league, m, a)}
-            </button>
-          ))}
+          {actions.map((a, i) =>
+            i === 0 ? (
+              <button key={i} className="btn btn-sm btn-primary" onClick={() => act(a)}>
+                {actionLabel(league, m, a)}
+              </button>
+            ) : (
+              <MoreLink key={i} onClick={() => act(a)}>
+                {actionLabel(league, m, a)}
+              </MoreLink>
+            ),
+          )}
         </div>
       )}
     </>
@@ -729,11 +736,17 @@ export function Folded({
       </div>
       {shared.length > 0 && (
         <div className="row">
-          {shared.map((a, i) => (
-            <button key={i} className={`btn btn-sm${i === 0 ? ' btn-primary' : ''}`} onClick={() => act(a)}>
-              {actionLabel(league, lead, a)}
-            </button>
-          ))}
+          {shared.map((a, i) =>
+            i === 0 ? (
+              <button key={i} className="btn btn-sm btn-primary" onClick={() => act(a)}>
+                {actionLabel(league, lead, a)}
+              </button>
+            ) : (
+              <MoreLink key={i} onClick={() => act(a)}>
+                {actionLabel(league, lead, a)}
+              </MoreLink>
+            ),
+          )}
         </div>
       )}
     </>

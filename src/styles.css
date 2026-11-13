@@ -2813,6 +2813,20 @@ main.wrap:has(.game-stage) {
   gap: 8px;
   text-decoration: none;
 }
+/* A name with a second line (PlayerLink's sub): the line sits under the name, past his picture, and never wraps
+   under it. */
+.player-cell {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.player-sub {
+  padding-left: var(--sub-indent, 0);
+  margin-top: -6px;
+  color: var(--muted);
+  font-size: var(--step--1);
+  line-height: 1.3;
+}
 .player-link > span,
 .staff-link > span {
   text-decoration: underline;
@@ -3879,8 +3893,16 @@ details.more > summary {
 
 /* ───────── scouting staff ───────── */
 /* Five front-office tabs don't fit a phone side by side: tighten them, and scroll inside the bar as a last resort. */
-.office-bar {
+.page-bar {
   min-width: 0;
+  justify-content: space-between;
+}
+.page-bar-aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: var(--step--1);
 }
 .office-tabs {
   min-width: 0;
