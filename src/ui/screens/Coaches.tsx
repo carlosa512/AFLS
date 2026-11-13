@@ -588,17 +588,11 @@ function standingWords(league: League, standing: TreeStanding): string {
 }
 
 /** Who a coach learned under, and his own tree if he has one. Nothing for a coach with no links. */
-function CoachTree({ league, coach: c }: { league: League; coach: Coach }) {
-  const nav = useNav();
+/** What the tree section has to say about him: his mentor, his own tree, the head coach he played for. */
+function treeFacts(league: League, c: Coach) {
   const mentor = mainMentor(league, c.id);
   const own = treeOf(league, c.id);
   const within = treeFor(league, c.id);
-  const findCoach = (id: number) => league.coaches[id] ?? league.retiredCoaches[id];
-  const link = (x: Coach) => (
-    <button className="linklike" onClick={() => nav.openStaff('coach', x.id)}>
-      {coachName(x)}
-    </button>
-  );
   // A former player coaching for the head coach he played for.
   const hc = c.teamId === null ? undefined : teamCoaches(league, c.teamId).find((x) => x.role === 'headCoach');
   const played = c.playerId === undefined ? undefined : league.players[c.playerId];
@@ -609,7 +603,19 @@ function CoachTree({ league, coach: c }: { league: League; coach: Coach }) {
     Object.entries(played.statTeams ?? {}).some(([s, teams]) =>
       (hc.career ?? []).some((r) => r.role === 'headCoach' && r.season === Number(s) && teams.includes(r.teamId)),
     );
-  if (!mentor && !own && !playedFor) return null;
+  return { mentor, own, within, hc, playedFor, any: !!(mentor || own || playedFor) };
+}
+
+function CoachTree({ league, coach: c }: { league: League; coach: Coach }) {
+  const nav = useNav();
+  const { mentor, own, within, hc, playedFor, any } = treeFacts(league, c);
+  const findCoach = (id: number) => league.coaches[id] ?? league.retiredCoaches[id];
+  const link = (x: Coach) => (
+    <button className="linklike" onClick={() => nav.openStaff('coach', x.id)}>
+      {coachName(x)}
+    </button>
+  );
+  if (!any) return null;
   const root = within && within.rootId !== mentor?.id ? findCoach(within.rootId) : undefined;
   return (
     <Section id="coach-tree" title="Coaching tree">
@@ -654,7 +660,16 @@ export function CoachCard({
   const retired = !league.coaches[c.id];
   // A former player: his playing career, a tap away from his coaching one.
   const player = c.playerId !== undefined ? league.players[c.playerId] : undefined;
-  const [tab, setTab] = useState(startTab);
+  // Career shows only what applies to him; with nothing there, the card is Bio alone and needs no tabs.
+  const hasCareer =
+    !!c.interimAppointments?.length ||
+    !!player ||
+    treeFacts(league, c).any ||
+    !!c.quirkOrigin ||
+    !!c.lastJob ||
+    !!c.quirkLog?.length;
+  const [picked, setTab] = useState(startTab);
+  const tab = hasCareer ? picked : 'bio';
   const hc =
     c.teamId !== null ? chairHolder(teamCoaches(league, c.teamId), { role: 'headCoach' }) : yourHeadCoach(league);
   return (
@@ -712,13 +727,15 @@ export function CoachCard({
           </span>
         )}
       </div>
-      <div className="seg coach-tabs" role="tablist" aria-label="About him">
-        {(['bio', 'career'] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t === 'bio' ? 'Bio' : 'Career'}
-          </button>
-        ))}
-      </div>
+      {hasCareer && (
+        <div className="seg coach-tabs" role="tablist" aria-label="About him">
+          {(['bio', 'career'] as const).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)}>
+              {t === 'bio' ? 'Bio' : 'Career'}
+            </button>
+          ))}
+        </div>
+      )}
       {tab === 'bio' && (
         <>
           {team && <OwnerMandates league={league} teamId={team.id} coachId={c.id} />}
