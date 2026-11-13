@@ -270,6 +270,18 @@ describe('a hype piece', () => {
     expect(hire.paragraphs.at(-1)).toContain(`have gone from four wins last season to ${rec}`);
   });
 
+  it('names a player given in the trade as part of its price', () => {
+    const s = indianapolis('gm-credit-price');
+    const wr = named(teamPlayers(s.l, s.was).find((p) => p.position === 'WR')!, 'Bryan', 'Oliver');
+    const [first] = s.gm.deals! as Trade[];
+    s.gm.deals = [{ ...first, gave: { players: [wr.id], picks: [{ season: s.Y1 + 2, round: 1 }] } }];
+    for (const id of ['c:starTrade:1', 'c:starTrade:2']) {
+      pin(s, [id, 'c+:starTrade']);
+      const text = columnStory(s.l, s.claim()!, at()).paragraphs.join(' ');
+      expect(text, id).toContain('wide receiver Bryan Oliver and a first-round pick');
+    }
+  });
+
   it('no GM claim is written from the old banks', () => {
     for (const key of ['gm2-', 'gm3-', 'gm2+', 'gmBuilt+', 'gmRun+']) expect(COLUMN[key], key).toBeUndefined();
   });

@@ -60,14 +60,25 @@ const coachName = (l: League, id: number) => {
   return x ? `${x.firstName} ${x.lastName}` : '';
 };
 
-/** "a first-round pick and two second-round picks". */
-function picksWords(picks: MoveSide['picks']): string {
+/** "a", "a and b", "a, b and c". */
+const listOf = (parts: string[]) =>
+  parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? '');
+/** Picks by round, the earliest first: "a first-round pick", "two second-round picks". */
+function pickParts(picks: MoveSide['picks']): string[] {
   const by = new Map<number, number>();
   for (const p of picks) by.set(p.round, (by.get(p.round) ?? 0) + 1);
-  const parts = [...by]
+  return [...by]
     .sort((a, b) => a[0] - b[0])
     .map(([round, n]) => (n === 1 ? `a ${nth(round)}-round pick` : `${w(n)} ${nth(round)}-round picks`));
-  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? '');
+}
+/**
+ * What one side gave in a trade: any players by name, then the picks ("wide receiver Bryan Oliver and a first-round
+ * pick"). A price that leaves a player out understates it.
+ */
+function priceWords(l: League, side: MoveSide): string {
+  const men = side.players.filter((id) => l.players[id]);
+  const players = men.length > 2 ? [`${w(men.length)} players`] : men.map((id) => `${posOf(l, id)} ${M(id)}`);
+  return listOf([...players, ...pickParts(side.picks)]);
 }
 const firstsIn = (picks: MoveSide['picks']) => picks.filter((p) => p.round === 1).length;
 const firstsWords = (n: number) => (n === 1 ? 'a first-round pick' : `${w(n)} first-round picks`);
@@ -295,7 +306,7 @@ const BLAME_LEADS: Shape[] = [
     side: 'blame',
     role: 'lead',
     text: of<'starTrade', string[]>((s, f) => [
-      `${G} sent ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${nowClause(s, f.playerId, f.here)}.`,
+      `${G} sent ${c(f.move.otherId)} ${priceWords(s.l, f.move.gave)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${nowClause(s, f.playerId, f.here)}.`,
     ]),
     headline: of<'starTrade', string>(
       (s, f) =>
@@ -315,7 +326,7 @@ const BLAME_LEADS: Shape[] = [
           ? `${M(f.playerId)} has since left for ${c(p.teamId)}`
           : `${M(f.playerId)} is no longer with the team`;
       return [
-        `${C(s.teamId)} gave up ${picksWords(f.move.gave.picks)} to get ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. It was ${Gs} trade, and ${since}.`,
+        `${C(s.teamId)} gave up ${priceWords(s.l, f.move.gave)} to get ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. It was ${Gs} trade, and ${since}.`,
       ];
     }),
     headline: of<'starTrade', string>(
@@ -496,7 +507,7 @@ const BLAME_TURNS: Shape[] = [
     side: 'blame',
     role: 'turn',
     text: of<'starTrade', string[]>((s, f) => [
-      `${G} also paid ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)}, who ${nowClause(s, f.playerId, f.here)}.`,
+      `${G} also paid ${c(f.move.otherId)} ${priceWords(s.l, f.move.gave)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)}, who ${nowClause(s, f.playerId, f.here)}.`,
     ]),
   },
   {
@@ -596,7 +607,7 @@ const CREDIT_LEADS: Shape[] = [
       const title = f.title === h.season ? `, and ${c(s.teamId)} won the title` : '';
       const later =
         f.title !== null && f.title !== h.season ? ` ${C(s.teamId)} won the title ${when(s, f.title)}.` : '';
-      const first = `${G} sent ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${honorClause(h)} ${time}${title}.${later}`;
+      const first = `${G} sent ${c(f.move.otherId)} ${priceWords(s.l, f.move.gave)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${honorClause(h)} ${time}${title}.${later}`;
       const a = f.again;
       if (!a) return [first];
       const then = a.season === s.season && offseason(a) ? 'This spring' : cap(tradeWhen(a));
@@ -604,7 +615,7 @@ const CREDIT_LEADS: Shape[] = [
       const got = a.got.players[0];
       return [
         first,
-        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} ${s.p.he} paid ${whom} ${picksWords(a.gave.picks)} for ${posOf(s.l, got)} ${M(got)}.`,
+        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} ${s.p.he} paid ${whom} ${priceWords(s.l, a.gave)} for ${posOf(s.l, got)} ${M(got)}.`,
       ];
     }),
     headline: of<'starTrade', string>((s, f) => {
@@ -623,7 +634,7 @@ const CREDIT_LEADS: Shape[] = [
       const h = firstHonor(f.honors);
       const title = f.title === h.season ? `, and ${c(s.teamId)} won the title` : '';
       return [
-        `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}${title}. ${C(s.teamId)} got him from ${c(f.move.otherId)} ${tradeWhen(f.move)} for ${picksWords(f.move.gave.picks)}, in a trade ${G} made.`,
+        `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}${title}. ${C(s.teamId)} got him from ${c(f.move.otherId)} ${tradeWhen(f.move)} for ${priceWords(s.l, f.move.gave)}, in a trade ${G} made.`,
       ];
     }),
     headline: of<'starTrade', string>(
@@ -861,7 +872,7 @@ const CREDIT_TURNS: Shape[] = [
     text: of<'starTrade', string[]>((s, f) => {
       const h = firstHonor(f.honors);
       return [
-        `${G} also paid ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)}, who ${honorClause(h)} ${when(s, h.season)}.`,
+        `${G} also paid ${c(f.move.otherId)} ${priceWords(s.l, f.move.gave)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)}, who ${honorClause(h)} ${when(s, h.season)}.`,
       ];
     }),
   },
