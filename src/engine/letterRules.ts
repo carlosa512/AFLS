@@ -72,6 +72,7 @@ export const WORD_FILES: readonly string[] = [
   'src/engine/snnWeek.ts',
   'src/engine/snnStory.ts',
   'src/engine/snnColumn.ts',
+  'src/engine/snnGmVoice.ts',
   'src/engine/leadership.ts',
   'src/engine/mentoring.ts',
   'src/ui/changelog.ts',

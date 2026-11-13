@@ -185,3 +185,70 @@ describe('a Column', () => {
     expect(ruleBreaks(league, column(crowded, table)).join(' ')).toContain('more than one number');
   });
 });
+
+describe('a Column about a general manager', () => {
+  const world = { ...league, gms: { 7: { id: 7, firstName: 'George', lastName: 'Sutton' } } } as unknown as League;
+  const table = {
+    head: ['Season', 'Record', 'Pct'],
+    rows: [
+      ['2026', '2–15', '.118'],
+      ['2027', '3–14', '.176'],
+      ['2028', '2–6', '.250'],
+    ],
+  };
+  const paragraphs = [
+    'George Sutton used the first pick of the 2027 draft on quarterback Jamison Reed. A year later he used the second pick on another quarterback, Jordan Patterson, who has not played a snap.',
+    "The Voyageurs won five games in Sutton's first two seasons combined and are 2–6 in his third. The money has gone the same way. A lineman got $43 million over two years in 2027 and plays for Seattle now.",
+    'A general manager gets one try at a quarterback before the questions start. He has had three. It is fair to ask whether Sutton gets another season to find one.',
+  ];
+  const piece = (over: Partial<EditionStory> = {}): EditionStory => ({
+    ...good,
+    key: 'column:2028:gm:7:2-',
+    kind: 'column',
+    kicker: 'Column',
+    headline: 'Sutton has drafted two quarterbacks and Minnesota are 2–6',
+    cast: [1, 2],
+    score: undefined,
+    quote: undefined,
+    summary: paragraphs[0],
+    paragraphs,
+    table,
+    ...over,
+  });
+
+  it('is a piece of two to four paragraphs that may carry two numbers a sentence and close on a judgment', () => {
+    expect(ruleBreaks(world, piece())).toEqual([]);
+  });
+  it('is held to those rules only as a GM piece: the same words about a coach break a Column’s', () => {
+    const breaks = ruleBreaks(world, piece({ key: 'column:2028:coach:7:2-' })).join(' | ');
+    expect(breaks).toContain("more than one number in a Column's sentence");
+    expect(breaks).toContain('ends on no fact');
+    // A correction about a general manager is still an ordinary Column.
+    expect(ruleBreaks(world, piece({ key: 'column:2028:gm:7:fix' })).join(' | ')).toContain('more than one number');
+  });
+  it('must end on a sentence that names the man or the team', () => {
+    const anon = [
+      ...paragraphs.slice(0, 2),
+      'He has had three tries. It is fair to ask who gets to make the next one.',
+    ];
+    expect(ruleBreaks(world, piece({ paragraphs: anon })).join(' ')).toContain('naming neither the man nor the team');
+    const team = [
+      ...paragraphs.slice(0, 2),
+      'He has had three tries. It is time for Minnesota to let someone else try.',
+    ];
+    expect(ruleBreaks(world, piece({ paragraphs: team }))).toEqual([]);
+  });
+  it('still has no semicolon, no row of short sentences, no third number and no missing table', () => {
+    const semi = [paragraphs[0], paragraphs[1].replace('combined and are', 'combined; they are'), paragraphs[2]];
+    expect(ruleBreaks(world, piece({ paragraphs: semi })).join(' ')).toContain('semicolon');
+    const choppy = [
+      paragraphs[0],
+      paragraphs[1],
+      'He has had three. That is two too many. It is fair to ask about Sutton.',
+    ];
+    expect(ruleBreaks(world, piece({ paragraphs: choppy })).join(' ')).toContain('under eight words');
+    const crowded = [paragraphs[0], 'The Voyageurs went 2–15 and 3–14 and are 2–6 under Sutton.', paragraphs[2]];
+    expect(ruleBreaks(world, piece({ paragraphs: crowded })).join(' ')).toContain('more than 2 numbers');
+    expect(ruleBreaks(world, piece({ table: undefined })).join(' ')).toContain('evidence table');
+  });
+});

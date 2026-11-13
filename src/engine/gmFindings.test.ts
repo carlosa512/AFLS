@@ -232,10 +232,10 @@ describe('a draft class and a late find', () => {
     const cls = find(found, 'class')!;
     expect(cls).toMatchObject({ side: 'credit', latest: first + 1 });
     expect(cls.picks.map((p) => p.playerId)).toEqual([a.id, b.id, c.id]);
-    expect(cls.picks[1].honors).toEqual([{ season: first, what: 'Defensive Rookie of the Year' }]);
+    expect(cls.picks[1].honors).toEqual([{ season: first, what: 'Defensive Rookie of the Year', teamId: T }]);
     expect(find(found, 'lateFind')).toMatchObject({
       side: 'credit',
-      pick: { playerId: c.id, round: 5, honors: [{ season: first + 1, what: 'first-team All-League' }] },
+      pick: { playerId: c.id, round: 5, honors: [{ season: first + 1, what: 'first-team All-League', teamId: T }] },
     });
   });
 
@@ -281,7 +281,7 @@ describe('the trade for a star', () => {
       move,
       playerId: star.id,
       here: true,
-      honors: [{ season: first, what: 'Most Valuable Player' }],
+      honors: [{ season: first, what: 'Most Valuable Player', teamId: T }],
       title: first,
     });
   });
@@ -358,7 +358,7 @@ describe('the one who left', () => {
       how: 'traded',
       season: first + 1,
       nowTeamId: OTHER,
-      honors: [{ season: first + 2, what: 'Defensive Player of the Year' }],
+      honors: [{ season: first + 2, what: 'Defensive Player of the Year', teamId: OTHER }],
     });
   });
 

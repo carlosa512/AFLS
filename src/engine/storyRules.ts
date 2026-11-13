@@ -11,6 +11,11 @@ const HEADLINE = 70;
 const NUMBERS = 2;
 /** A sentence under this many words is a short one: a Column gets one a paragraph, or it reads as a list. */
 const SHORT = 8;
+/**
+ * A Column about a general manager (blame or credit, never a correction): written whole from what he did
+ * (`snnGmVoice.ts`), so it runs to two to four paragraphs and may close on a judgment.
+ */
+const GM_PIECE = /^column:\d+:gm:(\d+):[23][+-]$/;
 
 /** How many numbers a sentence holds: a record (7–1), a time (17:34) and an ordinal (31st) are one each. */
 function numbersIn(sentence: string, score?: EditionStory['score']): number {
@@ -37,13 +42,21 @@ export function ruleBreaks(l: League, s: EditionStory): string[] {
   if (s.numbers.length > 3) out.push(`${s.numbers.length} number chips: at most three`);
   if (s.headline.length > HEADLINE) out.push(`headline over ${HEADLINE} characters: "${short(s.headline)}"`);
 
+  // A general manager's Column is a piece with rules of its own (below).
+  const gmId = s.kind === 'column' ? GM_PIECE.exec(s.key)?.[1] : undefined;
+  const gm = gmId === undefined ? undefined : l.gms[Number(gmId)];
   // A story stops on a fact: its last sentence carries a number, a man of the story or a club.
   const last = sentencesOf(s.paragraphs.at(-1)).at(-1) ?? '';
   const names = [
     ...s.cast.flatMap((id) => (l.players[id] ? [l.players[id].lastName] : [])),
     ...l.teams.flatMap((t) => [t.name, t.city]),
   ];
-  if (!/\d/.test(last) && !names.some((n) => last.includes(n))) out.push(`ends on no fact: "${short(last)}"`);
+  if (gm) {
+    // It may close on a judgment, and the judgment names the man or the team.
+    const team = l.teams[s.clubId];
+    if (![gm.lastName, team.name, team.city].some((n) => last.includes(n)))
+      out.push(`a GM piece ends on a sentence naming neither the man nor the team: "${short(last)}"`);
+  } else if (!/\d/.test(last) && !names.some((n) => last.includes(n))) out.push(`ends on no fact: "${short(last)}"`);
 
   // A Column is an argument: its numbers sit in a table and its sentences lean on each other.
   if (s.kind === 'column') {
@@ -53,11 +66,13 @@ export function ruleBreaks(l: League, s: EditionStory): string[] {
       const sents = sentencesOf(p);
       if (sents.filter((x) => x.trim().split(/\s+/).length < SHORT).length > 1)
         out.push(`more than one sentence under eight words in a paragraph: "${short(p)}"`);
-      for (const x of sents)
-        if (numbersIn(x) > 1) out.push(`more than one number in a Column's sentence: "${short(x)}"`);
+      // A GM piece tells picks, prices and years: it keeps to the edition's two numbers a sentence.
+      if (!gm)
+        for (const x of sents)
+          if (numbersIn(x) > 1) out.push(`more than one number in a Column's sentence: "${short(x)}"`);
     }
     const argument = sentencesOf(s.paragraphs[1] ?? '').length;
-    if (argument < 2 || argument > 3)
+    if (!gm && (argument < 2 || argument > 3))
       out.push(`${argument} sentences in the argument: a Column has two or three sentences there`);
   }
 

@@ -26,6 +26,8 @@ export type FindingFamily =
 export interface Honor {
   season: number;
   what: string;
+  /** The team he won it with: a sentence names that team, which is not always the one he plays for now. */
+  teamId: number;
 }
 
 /** A draft pick of his, and what has become of the player. */
@@ -143,11 +145,17 @@ function honorsOf(l: League, playerId: number, from: number, where: (teamId: num
     if (a.season < from) continue;
     for (const k of AWARD_KEYS) {
       const w = a.winners[k];
-      if (w?.playerId === playerId && where(w.teamId)) out.push({ season: a.season, what: AWARD_NAMES[k] });
+      if (w?.playerId === playerId && w.teamId !== null && where(w.teamId))
+        out.push({ season: a.season, what: AWARD_NAMES[k], teamId: w.teamId });
     }
     a.allLeague.forEach((squad, i) => {
-      if (squad.some((w) => w.playerId === playerId && where(w.teamId)))
-        out.push({ season: a.season, what: i === 0 ? 'first-team All-League' : 'second-team All-League' });
+      const w = squad.find((x) => x.playerId === playerId && x.teamId !== null && where(x.teamId));
+      if (w)
+        out.push({
+          season: a.season,
+          what: i === 0 ? 'first-team All-League' : 'second-team All-League',
+          teamId: w.teamId!,
+        });
     });
   }
   return out;

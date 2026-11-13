@@ -18,9 +18,10 @@ import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
+import { gmPiece } from './snnGmVoice';
 import type { Candidate } from './snnWeek';
 import type { EditionScore, EditionStory, Game, GameResult, InboxAction, League, Player, StatLine } from './types';
-import { around, say, sentencesOf, stableHash, type Line } from './voice';
+import { around, say, sentencesOf, stableHash, toldKeys, type Line } from './voice';
 
 // ───────── names as tokens ─────────
 
@@ -1539,9 +1540,14 @@ function compose(
   parts: { first: string[]; second: string[]; headline: string; kicker: string } & Pick<
     EditionStory,
     'picture' | 'numbers' | 'links'
-  > & { quote?: EditionStory['quote']; summary?: number },
+  > & {
+      quote?: EditionStory['quote'];
+      summary?: number;
+      /** A piece written whole (a GM's Column): its paragraphs as given, in place of the two built from sentences. */
+      paragraphs?: string[];
+    },
 ): EditionStory {
-  const raw = prose(parts.first, parts.second);
+  const raw = parts.paragraphs ?? prose(parts.first, parts.second);
   const cast = [...new Set(raw.flatMap(menIn))];
   const ref = referrer(l, { playerIds: cast });
   const paragraphs = raw.map((x) => resolve(x, ref));
@@ -2261,49 +2267,6 @@ const COLUMN: Record<string, ColumnBank> = {
     stakes: TIME_STAKES,
     headline: (s, l) => `It is time for a change ${whereOf(l, s.id)}`,
   },
-  'gm2-': {
-    claim: [
-      col(
-        (s) =>
-          `After ${w(s.lostSeasons)} losing seasons in a row ${c(s.id)} are ${s.rec}, which makes it fair to ask about general manager ${s.name}.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of them.`)],
-    reason: [
-      col(
-        (s) =>
-          `One bad season can be put down to coaching, but ${w(s.lostSeasons + 1)} in a row point at the roster, which is ${possessive(s.surname)} work.`,
-      ),
-    ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, too late to change what the last ${w(s.lostSeasons)} seasons say.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col(
-        (s) => `${c(s.id)} finished ${s.rec}, a ${nth(s.lostSeasons + 1)} losing season in a row under ${s.surname}.`,
-      ),
-    ],
-    headline: (s, l) => `The losing ${whereOf(l, s.id)} points at ${s.surname}`,
-  },
-  'gm3-': {
-    claim: [col((s) => `${C(s.id)} are ${s.rec}. It is time for a change in the front office.`)],
-    fact: [
-      col(
-        (s) =>
-          `${c(s.id)} had a losing record in each of ${possessive(s.name)} ${w(s.lostSeasons)} full seasons as general manager.`,
-      ),
-    ],
-    reason: [
-      col(
-        (s) =>
-          `A ${s.rec} record in a ${nth(s.lostSeasons + 1)} season answers the question this column asked about ${s.surname}.`,
-      ),
-    ],
-    stakes: TIME_STAKES,
-    headline: (s, l) => `It is time for a change in the front office ${whereOf(l, s.id)}`,
-  },
   'coach2+': {
     claim: [
       col(
@@ -2565,6 +2528,10 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     coachSurname: hc?.lastName ?? '',
   };
   const named = claim.man && l.players[claim.man.playerId] ? claim.man : null;
+  // A general manager's hit piece is written whole, from what he did (`snnGmVoice.ts`).
+  const whole = claim.subject.kind === 'gm' && claim.dir === 'blame';
+  const piece = whole ? gmPiece(l, claim, toldKeys(l)) : null;
+  if (whole && !piece) throw new Error(`No piece for ${claim.key}: a GM's claim needs a finding`);
   const bank = COLUMN[columnBank(claim)];
   const line = (slot: keyof Omit<ColumnBank, 'headline'>) => pickLine(l, bank[slot], sheet, at, claim.key, slot);
   const cand: Candidate = {
@@ -2577,9 +2544,10 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     stakes: 0,
   };
   const story = compose(l, cand, at, {
-    first: [line('claim'), line('fact')],
-    second: [line('reason'), line('stakes')],
-    headline: bank.headline(sheet, l),
+    first: piece ? [] : [line('claim'), line('fact')],
+    second: piece ? [] : [line('reason'), line('stakes')],
+    ...(piece ? { paragraphs: piece.paragraphs } : {}),
+    headline: piece ? piece.headline : bank.headline(sheet, l),
     kicker: 'Column',
     picture:
       claim.subject.kind === 'coach'
@@ -2595,7 +2563,7 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     ],
     summary: 1,
   });
-  return { ...story, table: claim.table, covers: [claim.key] };
+  return { ...story, table: claim.table, covers: piece ? piece.covers : [claim.key] };
 }
 
 // ───────── your club's storylines ─────────
