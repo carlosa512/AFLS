@@ -1,5 +1,6 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
 import { aiGm, draftedBy, logMove, type HabitId } from '../gmHabits';
+import { noteTrade } from '../gmMoves';
 import { injuryRisk } from '../injuries';
 import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
@@ -175,5 +176,7 @@ export function executeTrade(
   };
   const market = (league.market ??= emptyMarket());
   market.history = [...market.history.filter((r) => r.season > league.season - HISTORY_YEARS), record];
+  // On both GMs' records while the picks can still be read (`gmMoves.ts`).
+  noteTrade(league, record);
   return record;
 }
