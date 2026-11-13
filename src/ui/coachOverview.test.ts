@@ -72,6 +72,49 @@ describe('a coach in a few plain sentences', () => {
     const hc = structuredClone(base({ teamId: null, career: [], role: 'headCoach' }));
     for (const t of traits) setTrait(hc, t, 10);
     setTrait(hc, 'ambition', 18);
-    expect(coachOverview(league, hc).join(' ')).toContain('a head coach who is always looking for a bigger job');
+    // Out of work: a bigger job than his last. At a small team: always looking. At a big market: has it, wants more.
+    expect(coachOverview(league, hc).join(' ')).toContain('a head coach who wants a bigger job than his last one');
+    const small = league.teams.find((t) => t.staffBudgetMult < 1.08)!;
+    const big = league.teams.find((t) => t.staffBudgetMult >= 1.08)!;
+    expect(coachOverview(league, { ...hc, teamId: small.id }).join(' ')).toContain(
+      'a head coach who is always looking for a bigger job',
+    );
+    expect(coachOverview(league, { ...hc, teamId: big.id }).join(' ')).toContain(
+      'a head coach who already has one of the league’s biggest jobs and still wants more',
+    );
+    const asst = structuredClone(base({ teamId: null, career: [], role: 'offCoord' }));
+    for (const t of traits) setTrait(asst, t, 10);
+    setTrait(asst, 'ambition', 18);
+    expect(coachOverview(league, asst).join(' ')).toMatch(/a coach who wants to run his own team\./);
+  });
+
+  it('tells a promotion during a season as until his promotion', () => {
+    const c = base({
+      teamId: 4,
+      role: 'defCoord',
+      since: 2026,
+      career: [
+        { season: 2026, teamId: 4, role: 'positionCoach', room: 'DL', record: svc(9, 8) },
+        { season: 2027, teamId: 4, role: 'positionCoach', room: 'DL', record: svc(3, 4) },
+        { season: 2027, teamId: 4, role: 'defCoord', record: svc(4, 6) },
+      ],
+    } as Partial<Coach>);
+    expect(coachOverview(league, c).join(' ')).toContain('there from 2026 until his promotion in 2027.');
+  });
+
+  it('dates a promotion on the same team from the promotion, and says there', () => {
+    const c = base({
+      teamId: 4,
+      role: 'defCoord',
+      since: 2026,
+      career: [
+        { season: 2026, teamId: 4, role: 'positionCoach', room: 'DL', record: svc(9, 8) },
+        { season: 2027, teamId: 4, role: 'positionCoach', room: 'DL', record: svc(7, 10) },
+        { season: 2028, teamId: 4, role: 'defCoord', record: svc(10, 7) },
+      ],
+    } as Partial<Coach>);
+    const text = coachOverview(league, c).join(' ');
+    expect(text).toContain('since 2028');
+    expect(text).toMatch(/Before that he was [a-z ]+ there from 2026 to 2027\./);
   });
 });

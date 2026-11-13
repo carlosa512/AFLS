@@ -18,10 +18,20 @@ export function coachOverview(league: League, c: Coach): string[] {
   const holdsIt = current && c.teamId === current.teamId && league.coaches[c.id];
 
   if (holdsIt) {
-    const since = c.since ?? current.from;
-    out.push(`${c.lastName} has been ${job(current)} of ${teamName(current.teamId)} since ${since}.`);
     const before = stints.at(-2);
-    if (before) out.push(`Before that he was ${job(before)} of ${teamName(before.teamId)} ${years(before)}.`);
+    // Promoted on the same team: his job dates from the promotion, not from the year he joined.
+    const promoted = before?.teamId === current.teamId;
+    const since = promoted ? current.from : (c.since ?? current.from);
+    out.push(`${c.lastName} has been ${job(current)} of ${teamName(current.teamId)} since ${since}.`);
+    if (before)
+      out.push(
+        `Before that he was ${job(before)} ${promoted ? 'there' : `of ${teamName(before.teamId)}`} ${
+          // Promoted during a season: the old job ran until that year's promotion.
+          promoted && before.to === current.from && before.from < before.to
+            ? `from ${before.from} until his promotion in ${before.to}`
+            : years(before)
+        }.`,
+      );
   } else if (current) {
     out.push(`${c.lastName} was ${job(current)} of ${teamName(current.teamId)} ${years(current)}.`);
   } else if (c.teamId !== null && league.coaches[c.id]) {
@@ -40,11 +50,7 @@ export function coachOverview(league: League, c: Coach): string[] {
 
   const { name, lines } = coachCharacter(c);
   const article = /^[AEIOU]/.test(name) ? 'an' : 'a';
-  // A head coach already runs his own team: his climbing is toward a bigger job.
-  const meaning =
-    name === 'Climber' && c.role === 'headCoach'
-      ? 'a head coach who is always looking for a bigger job'
-      : MEANING[name];
+  const meaning = name === 'Climber' && c.role === 'headCoach' ? climbingHeadCoach(league, c) : MEANING[name];
   if (meaning) out.push(`Around the league he is known as ${article} ${name.toLowerCase()}, ${meaning}.`);
   else {
     // A label with no meaning written here yet: the label, then his reputation's own line.
@@ -75,7 +81,7 @@ function stintsOf(seasons: CoachCareerSeason[]): Stint[] {
 
 /** What each reputation means, said plainly after its label so a reader never has to guess what "a climber" is. */
 const MEANING: Record<string, string> = {
-  Climber: 'a coach who wants to run his own team, and soon',
+  Climber: 'a coach who wants to run his own team',
   Lifer: 'a coach who is happy where he is and does not chase the next job',
   'Loyal Lieutenant': 'a coach who follows his old boss when he calls and stays where he is wanted',
   'Hired Gun': 'a coach who goes wherever the best job is',
@@ -85,6 +91,17 @@ const MEANING: Record<string, string> = {
   'Player’s Coach': 'a coach his players love, though his teams draw more flags',
   'Steady Hand': 'with nothing extreme about him',
 };
+
+/**
+ * A head coach already runs his own team, so his climbing is toward a bigger job, and a big market (the game's own
+ * line for one: `staffBudgetMult` 1.08 or more, as the owner's leeway reads it) is already one of the biggest.
+ */
+function climbingHeadCoach(league: League, c: Coach): string {
+  if (c.teamId === null) return 'a head coach who wants a bigger job than his last one';
+  return league.teams[c.teamId].staffBudgetMult >= 1.08
+    ? 'a head coach who already has one of the league’s biggest jobs and still wants more'
+    : 'a head coach who is always looking for a bigger job';
+}
 
 const NUMBERS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 const count = (n: number, noun: string) => `${NUMBERS[n] ?? n} ${noun}${n === 1 ? '' : 's'}`;
