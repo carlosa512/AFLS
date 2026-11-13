@@ -518,11 +518,15 @@ function RoleGuide({ roles }: { roles: CoachRole[] }) {
   );
 }
 
-/** His seasons as rows to glance at, newest first: the year, the team, the record large, how it ended and the job. */
-function SeasonRows({ league, c }: { league: League; c: Coach }) {
+/**
+ * His seasons as rows to glance at, newest first: the year, the team, the record large, how it ended and the job (his
+ * path, on Career). `current` keeps only the latest season and leaves the job off: on Bio his title is in the header.
+ */
+function SeasonRows({ league, c, current = false }: { league: League; c: Coach; current?: boolean }) {
+  const seasons = coachRecord(league, c).seasons;
   return (
     <ul className="plain-list season-rows">
-      {coachRecord(league, c).seasons.map((s) => {
+      {(current ? seasons.slice(0, 1) : seasons).map((s) => {
         const ended = s.playoffs ? `${s.finish} (${s.playoffs.w}–${s.playoffs.l})` : s.finish;
         const interim =
           s.role === 'headCoach' && c.interimAppointments?.some((a) => a.season === s.season && a.teamId === s.teamId);
@@ -534,7 +538,9 @@ function SeasonRows({ league, c }: { league: League; c: Coach }) {
             <span className="season-end">
               {ended && ended !== '–' && <span className={`tag-pill${s.champion ? ' tag-good' : ''}`}>{ended}</span>}
             </span>
-            <span className="season-job muted small">{interim ? 'Interim head coach' : coachTitle(s)}</span>
+            {!current && (
+              <span className="season-job muted small">{interim ? 'Interim head coach' : coachTitle(s)}</span>
+            )}
           </li>
         );
       })}
@@ -662,6 +668,7 @@ export function CoachCard({
   const player = c.playerId !== undefined ? league.players[c.playerId] : undefined;
   // Career shows only what applies to him; with nothing there, the card is Bio alone and needs no tabs.
   const hasCareer =
+    coached ||
     !!c.interimAppointments?.length ||
     !!player ||
     treeFacts(league, c).any ||
@@ -743,7 +750,7 @@ export function CoachCard({
             <span className="eyebrow">Overview</span>
             <p>{coachOverview(league, c).join(' ')}</p>
           </div>
-          {coached && <SeasonRows league={league} c={c} />}
+          {coached && <SeasonRows league={league} c={c} current />}
           <CoachTags c={c} />
           <SchemeRow league={league} c={c} preview={c.teamId === null && !retired} />
           <VisionLine league={league} c={c} />
@@ -775,6 +782,7 @@ export function CoachCard({
       )}
       {tab === 'career' && (
         <>
+          {coached && <SeasonRows league={league} c={c} />}
           {!!c.interimAppointments?.length && (
             <ul className="coach-takeovers">
               {[...c.interimAppointments].reverse().map((a) => (

@@ -15,14 +15,18 @@ const nav = {
 } as unknown as Nav;
 
 describe("the coach's card", () => {
-  it('opens on Bio with his seasons under the overview, and Career a tap away', () => {
+  it('opens on Bio with this season under the overview, and his whole path on Career', () => {
     const l = createLeague({ seed: 'coach-card' });
     playWeek(l);
-    // Something for Career to show, so the card has its tabs.
-    const hc = {
-      ...teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!,
-      lastJob: 'Offensive coordinator, HOU',
-    };
+    // A coach with a path: a coordinator elsewhere last season, head coach here now.
+    const now = teamCoaches(l, l.userTeamId).find((c) => c.role === 'headCoach')!;
+    const before = {
+      season: l.season - 1,
+      teamId: (l.userTeamId + 1) % 32,
+      role: 'offCoord' as const,
+      record: { regular: { w: 10, l: 7, t: 0 } },
+    } as unknown as NonNullable<typeof now.career>[number];
+    const hc = { ...now, career: [before, ...(now.career ?? [])] };
     const html = renderToStaticMarkup(
       <NavContext.Provider value={nav}>
         <CoachCard league={l} coach={hc} onClose={() => {}} />
@@ -32,8 +36,10 @@ describe("the coach's card", () => {
     expect(html).toMatch(/role="tab"[^>]*>Career</);
     expect(html).not.toMatch(/role="tab"[^>]*>Record</);
     expect(html).toContain('<span class="eyebrow">Overview</span>');
-    // His seasons sit under the overview, on Bio: no second tab repeating them.
+    // Bio has this season alone under the overview, with no job (his title is in the header).
+    expect(html.match(/class="season-row"/g)?.length).toBe(1);
     expect(html.indexOf('season-row')).toBeGreaterThan(html.indexOf('Overview'));
+    expect(html).not.toContain('season-job');
     expect(html).not.toContain('Around the league</span>');
     expect(html).not.toContain('Habits over time');
     const career = renderToStaticMarkup(
@@ -43,6 +49,9 @@ describe("the coach's card", () => {
     );
     // The chair's job description is the engine's, not something a reader needs on his card.
     expect(career).not.toContain('Has a hand in');
+    // Career has his whole path, a season a row with the job he held.
+    expect(career.match(/class="season-row"/g)?.length).toBe(2);
+    expect(career).toContain('Offensive coordinator');
   });
 
   it('shows no Career tab when he has nothing there to show', () => {
