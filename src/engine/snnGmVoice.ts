@@ -205,13 +205,14 @@ const BLAME_LEADS: Shape[] = [
       const [a, b] = f.picks;
       const later = b.season - a.season === 1 ? 'A year later' : `In ${b.season}`;
       const unplayed = neverPlayed(s.l, b.playerId) ? ', who has not played a snap' : '';
+      const bench = f.picks.some((p) => p.starts) ? '' : ' Neither is the starter.';
       const third = !f.signed
         ? ''
         : f.signed.before
           ? ` Before either pick he had signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`
           : ` He has also signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`;
       return [
-        `${G} used ${pickWords(a.pick)} of the ${a.season} draft on quarterback ${M(a.playerId)}. ${later} he used ${pickWords(b.pick)} on another quarterback, ${M(b.playerId)}${unplayed}.${third}`,
+        `${G} used ${pickWords(a.pick)} of the ${a.season} draft on quarterback ${M(a.playerId)}. ${later} he used ${pickWords(b.pick)} on another quarterback, ${M(b.playerId)}${unplayed}.${bench}${third}`,
       ];
     }),
     headline: of<'qbPicks', string>(
@@ -229,8 +230,13 @@ const BLAME_LEADS: Shape[] = [
       const after = gap === 0 ? 'in the same draft as' : `${gap === 1 ? 'a year' : `${w(gap)} years`} after`;
       const many =
         f.picks.length > 2 ? `all ${w(f.picks.length)} of the team's first-round quarterbacks` : 'both picks';
+      const bench = f.picks.some((p) => p.starts)
+        ? ''
+        : f.picks.length > 2
+          ? ', and none of them is the starter'
+          : ', and neither is the starter';
       return [
-        `Quarterback ${M(b.playerId)} was ${pickWords(b.pick)} of the ${b.season} draft. ${C(s.teamId)} took him ${after} using ${pickWords(a.pick)} on ${M(a.playerId)}, who is also a quarterback. ${G} made ${many}.`,
+        `Quarterback ${M(b.playerId)} was ${pickWords(b.pick)} of the ${b.season} draft. ${C(s.teamId)} took him ${after} using ${pickWords(a.pick)} on ${M(a.playerId)}, who is also a quarterback. ${G} made ${many}${bench}.`,
       ];
     }),
     headline: of<'qbPicks', string>((s) => `${cap(s.town)} drafted a quarterback, then another, and are ${s.rec}`),

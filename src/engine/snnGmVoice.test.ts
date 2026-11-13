@@ -110,6 +110,8 @@ function jacksonville(seed = 'gm-voice') {
   const { l, t, gm, Y1 } = s;
   const [a, b] = qbsOf(l, t);
   named(a, 'Reid', 'Andrews').draft = { season: Y1, round: 1, pick: 1, teamId: t };
+  // Andrews is the starter, as he was in the league the piece was first written from.
+  l.teams[t].jobs!.held[a.id] = { pos: 'QB', since: 0 };
   named(b, 'Victor', 'Salami').draft = { season: l.season, round: 1, pick: 2, teamId: t };
   const gb = elsewhere(l, t);
   const third = named(qbsOf(l, gb)[0], 'Zach', 'Griffith');
@@ -122,7 +124,7 @@ describe('a hit piece', () => {
   it('is written from its findings: the reference piece', () => {
     const { l, t, gm, claim, Y1 } = jacksonville();
     const c = claim()!;
-    expect(c.findings!.map((f) => f.family)).toEqual(['qbPicks', 'contract', 'firsts']);
+    expect(c.findings!.map((f) => f.family)).toEqual(['qbPicks', 'contract']);
     const piece = gmPiece(l, c, only(l, ['b:qbPicks:1', 'b:record:combined', 'b:contract:turn', 'b2:qbPicks']))!;
     // Twelve weeks with a bye in them.
     const rec = `${c.context.w}–${c.context.l}`;
@@ -173,6 +175,16 @@ describe('a hit piece', () => {
     expect(text).not.toContain('Before either pick');
     expect(text).toContain('He has also signed a third');
     expect(Y1 && t).toBeTruthy();
+  });
+
+  it('says so when neither quarterback he drafted is the starter', () => {
+    const { l, t, a, claim } = jacksonville('gm-voice-bench');
+    const lead = (id: string) => gmPiece(l, claim()!, only(l, [id, 'b:record:combined', 'b2:qbPicks']))!.paragraphs[0];
+    expect(lead('b:qbPicks:1')).not.toContain('Neither');
+    expect(lead('b:qbPicks:2')).toContain('George Sutton made both picks.');
+    delete l.teams[t].jobs!.held[a.id];
+    expect(lead('b:qbPicks:1')).toContain('who has not played a snap. Neither is the starter. Before either pick');
+    expect(lead('b:qbPicks:2')).toContain('George Sutton made both picks, and neither is the starter.');
   });
 
   it('never uses a shape or a close twice in a league year', () => {

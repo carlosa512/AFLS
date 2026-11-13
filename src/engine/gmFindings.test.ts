@@ -345,6 +345,39 @@ describe('the big contract', () => {
     expect(find(gmFindings(l, gm.id, T), 'contract')).toMatchObject({ side: 'blame' });
   });
 
+  it('is not blamed when he was traded for a first-round pick, and neither is letting that player go', () => {
+    const { l, gm, first } = scene('find-sold');
+    const p = at(l, 'CB', 0);
+    setTeam(l, p, OTHER);
+    p.left = [{ teamId: T, season: first + 2, how: 'traded' }];
+    honor(l, p, first + 2, OTHER, 'allLeague');
+    gm.deals = [sign(l, first + 1, p, 4, 105_600)];
+    const found = () => gmFindings(l, gm.id, T).filter((f) => f.family === 'contract' || f.family === 'left');
+    expect(
+      found()
+        .map((f) => f.family)
+        .sort(),
+    ).toEqual(['contract', 'left']);
+    // The same departure, with a first-round pick coming back for him.
+    gm.deals.push(
+      trade(l, first + 2, {
+        gave: { players: [p.id], picks: [] },
+        got: { players: [], picks: [{ season: first + 4, round: 1 }] },
+      }),
+    );
+    expect(found()).toEqual([]);
+    // A fifth-round pick coming back changes nothing.
+    gm.deals[1] = trade(l, first + 2, {
+      gave: { players: [p.id], picks: [] },
+      got: { players: [], picks: [{ season: first + 4, round: 5 }] },
+    });
+    expect(
+      found()
+        .map((f) => f.family)
+        .sort(),
+    ).toEqual(['contract', 'left']);
+  });
+
   it('is not blamed for a deal three seasons old', () => {
     const { l, gm, first } = scene('find-contract-old');
     const p = at(l, 'OL', 0);

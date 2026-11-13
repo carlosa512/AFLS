@@ -166,6 +166,11 @@ const honorsHere = (r: Read, playerId: number, from = r.first) =>
 const newest = (xs: number[]) => Math.max(...xs);
 const isHere = (r: Read, p: Player) => p.teamId === r.teamId;
 const startsHere = (r: Read, p: Player) => isHere(r, p) && r.held[p.id] !== undefined;
+/** He was traded away for a first-round pick: letting him go, or the contract he left on, is no finding against the GM. */
+const soldForAFirst = (r: Read, playerId: number) =>
+  r.moves.some(
+    (m) => m.kind === 'trade' && m.gave.players.includes(playerId) && m.got.picks.some((p) => p.round === FIRST),
+  );
 /** On another team now: not retired and not unsigned, so a sentence can say where he plays. */
 const elsewhere = (r: Read, p: Player) => !p.retired && p.teamId !== null && p.teamId !== r.teamId;
 
@@ -306,7 +311,11 @@ function contracts(r: Read): Finding[] {
   const gone = deals
     // Gone with the deal still running: a contract that ran its length is no finding against the man who wrote it.
     .filter(
-      (d) => elsewhere(r, d.p) && l.season - d.move.season <= CONTRACT_YEARS && d.move.season + d.move.years > l.season,
+      (d) =>
+        elsewhere(r, d.p) &&
+        !soldForAFirst(r, d.p.id) &&
+        l.season - d.move.season <= CONTRACT_YEARS &&
+        d.move.season + d.move.years > l.season,
     )
     .sort((a, b) => b.move.total - a.move.total)[0];
   const hit = deals
@@ -318,7 +327,7 @@ function contracts(r: Read): Finding[] {
 function whoLeft(r: Read): Finding[] {
   const { l, teamId } = r;
   const best = r.players
-    .filter((p) => elsewhere(r, p))
+    .filter((p) => elsewhere(r, p) && !soldForAFirst(r, p.id))
     .flatMap((p) =>
       (p.left ?? [])
         .filter((d) => d.teamId === teamId && r.T.has(d.season))
