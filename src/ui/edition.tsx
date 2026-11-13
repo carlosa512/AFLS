@@ -299,13 +299,19 @@ export function StoryBlock({
   const coach = story.quote?.coachId === undefined ? undefined : league.coaches[story.quote.coachId];
   const speaker = story.quote?.playerId === undefined ? undefined : league.players[story.quote.playerId];
   const links = story.links.filter((a) => label(league, a));
+  // A picture of only the clubs the score already shows says nothing twice: the band keeps the score alone.
+  const pictured =
+    (story.picture.playerId !== undefined && league.players[story.picture.playerId]) ||
+    (story.picture.coachId !== undefined && league.coaches[story.picture.coachId]);
+  const chipsTwice =
+    !!s && !pictured && (story.picture.teamIds ?? [story.clubId]).every((id) => id === s.homeId || id === s.awayId);
   return (
     <article className="ed-story">
       <div
         className="ed-hero"
         style={{ ...colours(league, story.clubId), color: ink, '--ed-ink': ink } as CSSProperties}
       >
-        <div>
+        <div className="ed-hero-text">
           <div className="ed-hero-kicker">
             {lead ? 'Lead story · ' : ''}
             {story.yours ? 'Your team · ' : ''}
@@ -341,7 +347,7 @@ export function StoryBlock({
             </>
           )}
         </div>
-        <Picture league={league} story={story} size={104} />
+        {!chipsTwice && <Picture league={league} story={story} size={104} />}
       </div>
       {s && <h3 className="ed-headline">{story.headline}</h3>}
       {s && story.numbers.length > 0 && (

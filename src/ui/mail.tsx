@@ -365,7 +365,8 @@ function TradeNewsCards({ league, report }: { league: League; report: NonNullabl
  */
 export function adviceDraft(league: League, row: AdviceRow): DeskDraft | null {
   const p = league.players[row.playerId];
-  if (!p || p.retired || row.kind === 'sign' || p.teamId !== row.teamId || tradeWindow(league)) return null;
+  if (!p || p.retired || row.kind === 'sign' || row.kind === 'asked' || p.teamId !== row.teamId || tradeWindow(league))
+    return null;
   const none = { players: [], picks: [] };
   if (row.kind === 'buy') return { partnerId: row.teamId!, mine: none, theirs: { players: [p.id], picks: [] } };
   if (row.partnerId === undefined) return null;
@@ -450,6 +451,7 @@ const ADVICE_TITLES: Record<AdviceRow['kind'], string> = {
   buy: 'Trade for',
   sell: 'Trade away',
   sign: 'Sign',
+  asked: 'Asked about us',
   draft: 'Draft',
 };
 
@@ -459,7 +461,7 @@ const ADVICE_TITLES: Record<AdviceRow['kind'], string> = {
  */
 function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
   const nav = useNav();
-  const kinds = (['buy', 'sell', 'sign', 'draft'] as const).filter((k) => rows.some((r) => r.kind === k));
+  const kinds = (['buy', 'sell', 'sign', 'asked', 'draft'] as const).filter((k) => rows.some((r) => r.kind === k));
   return (
     <>
       {kinds.map((kind) => (
@@ -471,7 +473,7 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
               .map((r, i, list) => {
                 const p = league.players[r.playerId];
                 const draft = adviceDraft(league, r);
-                const free = r.kind === 'sign' && p && p.teamId === null && !p.retired;
+                const free = (r.kind === 'sign' || r.kind === 'asked') && p && p.teamId === null && !p.retired;
                 // A draft option opens its pick's group: "No. 12 · Round 1".
                 const opens = r.pick && r.pick.overall !== list[i - 1]?.pick?.overall;
                 return (

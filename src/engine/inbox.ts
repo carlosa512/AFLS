@@ -963,6 +963,7 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'speak':
     case 'feud':
     case 'friend':
+    // Free agents' letters before they became rows of the director's free-agency letter: kept for saves that have them.
     case 'home':
     case 'rapport':
       return { kind: 'locker', season };
@@ -3088,6 +3089,15 @@ function filedUnder(league: League, m: Draft): InboxMessage['filed'] {
   if (next <= 18 || league.games.some((g) => g.season === league.season && g.week === next))
     return { phase: next > 18 ? 'playoffs' : 'regular', week: next };
   return league.phase === 'complete' ? { phase: 'complete', week: league.week } : undefined;
+}
+
+/** SNN's editions on file (weekly and big-day), for a screen to compare before and after a step. */
+export const editionIds = (league: League): Set<string> =>
+  new Set((league.inbox ?? []).filter((m) => m.edition).map((m) => m.id));
+
+/** The newest SNN edition filed since `before`, if any: the screen after the step opens on it, so it gets read first. */
+export function newEdition(league: League, before: ReadonlySet<string>): string | undefined {
+  return [...(league.inbox ?? [])].reverse().find((m) => m.edition && !m.deleted && !before.has(m.id))?.id;
 }
 
 /** The date a screen files a letter under and shows on it. */

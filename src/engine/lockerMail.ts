@@ -1,14 +1,14 @@
 /**
  * Letters around the locker room that aren't the head coach's report (`lockerReport.ts` tells mentors, feuds,
- * friendships, captains and who grew up): SNN on a player who speaks out and on the coaching trees, agents of free
- * agents who'd like to come home, and a recap's aside on its player of the game. Read off the league as it stands,
- * keyed by what they're about so nothing doubles up, and never asking anything of you.
+ * friendships, captains and who grew up): SNN on a player who speaks out and on the coaching trees, and a recap's
+ * aside on its player of the game. Read off the league as it stands, keyed by what they're about so nothing doubles
+ * up, and never asking anything of you. Free agents who'd like to join us are rows of the director's free-agency
+ * letter (`askedAboutUs` in `directorAdvice.ts`), not a letter each.
  */
 import { teamCoaches } from './coaching';
-import { headCoach, type Draft } from './senders';
+import type { Draft } from './senders';
 import { personalityRead } from './personality';
-import { clubFeeling, rapport, speakEvents, speaksOut, type SpeakEvent } from './relationships';
-import { perceive } from './scouting';
+import { clubFeeling, speakEvents, speaksOut, type SpeakEvent } from './relationships';
 import { linksOf, treeBornSeason, treeOf } from './trees';
 import type { League, Player } from './types';
 
@@ -94,59 +94,6 @@ function speakMail(league: League, have: Set<string>): Draft[] {
         body: `${fullName(p)} spoke out publicly. ${SAID[e.kind](p, `${club.city} ${club.name}`)}`,
         actions: [{ kind: 'player', playerId: p.id }],
       });
-    }
-  }
-  return out;
-}
-
-/** Free agency: agents of men who'd like to come home, and men who did well under one of our coaches (two of each). */
-function freeAgentMail(league: League, have: Set<string>): Draft[] {
-  if (league.phase !== 'freeAgency') return [];
-  const user = league.userTeamId;
-  const pool = Object.values(league.players)
-    .filter((p) => p.teamId === null && !p.retired && p.contract === null && p.experience > 0)
-    .map((p) => ({ p, ovr: perceive(league, user, p).ovr }))
-    .sort((a, b) => b.ovr - a.ovr)
-    .map((x) => x.p);
-  const coaches = teamCoaches(league, user);
-  const out: Draft[] = [];
-  let home = 0;
-  let pull = 0;
-  for (const p of pool) {
-    if (home < 2 && clubFeeling(league, p, user) === 'home') {
-      const id = `home:${league.season}:${p.id}`;
-      if (!have.has(id)) {
-        home++;
-        out.push({
-          id,
-          season: league.season,
-          phase: league.phase,
-          week: 0,
-          from: `${p.lastName}'s agent`,
-          category: 'contracts',
-          subject: `${fullName(p)} would like to come home`,
-          body: `My client has never stopped thinking of your team as home. If there's a fair deal there, ${p.firstName} would rather sign it with you than anyone.`,
-          actions: [{ kind: 'player', playerId: p.id }],
-        });
-      }
-    }
-    const coach = pull < 2 ? coaches.find((c) => rapport(league, p, c) === 'good') : undefined;
-    if (coach) {
-      const id = `rapport:${league.season}:${p.id}`;
-      if (!have.has(id)) {
-        pull++;
-        out.push({
-          id,
-          season: league.season,
-          phase: league.phase,
-          week: 0,
-          ...headCoach(league),
-          category: 'contracts',
-          subject: `${fullName(p)} asked about us`,
-          body: `${fullName(p)} asked about joining us. He played well for ${fullName(coach)} and would like to again.`,
-          actions: [{ kind: 'player', playerId: p.id }],
-        });
-      }
     }
   }
   return out;
@@ -250,8 +197,8 @@ export function headCoachesOffStaff(league: League, teamId: number): number {
 
 /**
  * Everything new from the locker room that isn't the head coach's report (`lockerReport.ts`): SNN on a player speaking
- * out and on the coaching trees, and free agents' agents. For `deliverMail`.
+ * out and on the coaching trees. For `deliverMail`.
  */
 export function lockerMail(league: League, have: Set<string>): Draft[] {
-  return [...speakMail(league, have), ...freeAgentMail(league, have), ...treeMail(league, have)];
+  return [...speakMail(league, have), ...treeMail(league, have)];
 }

@@ -33,7 +33,9 @@ reporting explains the league. Delivery still happens after `store.mutate`; the 
 - SNN tells the league's trade stories. The director of scouting doesn't retell them: four times a year he
   recommends two to four moves for us (`directorAdvice.ts`): three weeks before the deadline (week 6), in deadline
   week, when the league year opens (other clubs' players whose deals have run out, and a trade target) and on free
-  agency's first day (the free agents our cap can carry). In season he leans from the playoff race: holding a seed or
+  agency's first day (the free agents our cap can carry, and under "Asked about us" up to two who think of us as
+  home and two who played well for one of our coaches: `askedAboutUs`, rows of this one letter rather than a letter
+  each; a fit who asked gets the sentence on his own row). In season he leans from the playoff race: holding a seed or
   within a game, add; two or three games out, one in and one out; further, sell (players clubs asked about first,
   then veteran starters on expiring deals). Each pick is read through our scouts (knowledge 0.35 or more), comes from
   what is public (a club the market shows selling, a shopping rumor; never a private trade block), and carries one

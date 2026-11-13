@@ -253,7 +253,12 @@ export function LiveGame({ league }: { league: League }) {
                 }}
                 verdict={card?.kind === 'final' && employed(league) ? verdict : undefined}
                 onContinue={
-                  card?.kind === 'final' ? () => nav.go({ view: 'home' }) : card?.kind === 'half' ? resume : undefined
+                  card?.kind === 'final'
+                    ? // The week's SNN edition first, when it filed one, so it is read before anything else.
+                      () => nav.go(s.edition ? { view: 'inbox', messageId: s.edition } : { view: 'home' })
+                    : card?.kind === 'half'
+                      ? resume
+                      : undefined
                 }
                 onSim={card?.kind === 'half' ? simToFinal : undefined}
                 onBoxScore={card?.kind === 'final' ? () => nav.openGame(game.id) : undefined}

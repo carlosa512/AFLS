@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.44',
+    date: '2026-11-13',
+    title: 'SNN first, and a quieter free agency',
+    text: 'After each week or big offseason day, the inbox opens on SNN’s new edition. Free agents who asked about you are listed in the director’s one letter, and stories fit a phone.',
+  },
+  {
     version: '0.4.43',
     date: '2026-11-13',
     title: 'A cleaner look on every screen',

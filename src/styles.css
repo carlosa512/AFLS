@@ -6085,8 +6085,8 @@ button.tip-pill {
   min-width: 0;
 }
 .ed-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   border-radius: var(--radius);
@@ -6097,6 +6097,15 @@ button.tip-pill {
     var(--c1) 55%,
     color-mix(in srgb, var(--c1) 72%, var(--c2)) 100%
   );
+}
+/* The words take the room and the picture sits beside them while the score line fits. On a phone (or a narrow
+   reading pane) the picture drops under the score rather than covering it: the score line never shrinks. */
+.ed-hero-text {
+  flex: 1 1 0;
+  min-width: min-content;
+}
+.ed-hero > .ed-who {
+  flex: none;
 }
 .ed-hero-kicker {
   font-size: 0.72rem;

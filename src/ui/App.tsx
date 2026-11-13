@@ -17,7 +17,7 @@ import {
   offseasonBlockers,
   simOffseason,
 } from '../engine/offseason';
-import { unreadCount } from '../engine/inbox';
+import { editionIds, newEdition, unreadCount } from '../engine/inbox';
 import { computeRecords } from '../engine/season/standings';
 import { isDeadlineDay } from '../engine/trade';
 import type { League } from '../engine/types';
@@ -279,19 +279,24 @@ export function App() {
   const step = offseasonStep(league);
   const unread = unreadCount(league);
 
-  // Run long sims after a paint so the button can show its busy state.
-  const run = (fn: (l: League) => void) => {
+  // Run long sims after a paint so the button can show its busy state. A step that filed an SNN edition (a week played,
+  // one of the offseason's big days) opens the inbox on it, so it is read before anything else; else `then`, if any.
+  const run = (fn: (l: League) => void, then?: Route) => {
     setBusy(true);
     setTimeout(() => {
+      const before = editionIds(store.get() ?? league);
       store.mutate(fn);
       setBusy(false);
+      const now = store.get();
+      const edition = now && newEdition(now, before);
+      if (edition) navigate({ view: 'inbox', messageId: edition });
+      else if (then) navigate(then);
     }, 16);
   };
 
   const primary = () => {
     if (step) {
-      run(step.run);
-      if (step.then) navigate(step.then);
+      run(step.run, step.then);
       return;
     }
     // Your game plays out live; the rest of the week is simulated when it ends.
@@ -444,8 +449,7 @@ export function App() {
                   setConfirmSim(false);
                   // Finish a game in progress first; the sim then plays everything else.
                   live.finish(false);
-                  run(secondary.fn);
-                  if (secondary.then) navigate(secondary.then);
+                  run(secondary.fn, secondary.then);
                 }}
               >
                 {secondary.ok}
