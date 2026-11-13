@@ -93,14 +93,23 @@ const MEANING: Record<string, string> = {
 };
 
 /**
- * A head coach already runs his own team, so his climbing is toward a bigger job, and a big market (the game's own
- * line for one: `staffBudgetMult` 1.08 or more, as the owner's leeway reads it) is already one of the biggest.
+ * A head coach already runs his own team, so his climbing is toward a bigger job, and one of the biggest jobs
+ * (`bigJob`) is already as big as they come.
  */
 function climbingHeadCoach(league: League, c: Coach): string {
   if (c.teamId === null) return 'a head coach who wants a bigger job than his last one';
-  return league.teams[c.teamId].staffBudgetMult >= 1.08
+  return bigJob(league, c.teamId)
     ? 'a head coach who already has one of the league’s biggest jobs and still wants more'
     : 'a head coach who is always looking for a bigger job';
+}
+
+/**
+ * One of the league's biggest jobs: a big market, or a team with two titles or more in this league's history, so a
+ * small market that keeps winning becomes one as the save goes on. Both are public.
+ */
+function bigJob(league: League, teamId: number): boolean {
+  const titles = league.history.filter((h) => h.championId === teamId).length;
+  return league.teams[teamId].staffBudgetMult >= 1.08 || titles >= 2;
 }
 
 const NUMBERS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];

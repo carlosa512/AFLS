@@ -82,6 +82,16 @@ describe('a coach in a few plain sentences', () => {
     expect(coachOverview(league, { ...hc, teamId: big.id }).join(' ')).toContain(
       'a head coach who already has one of the league’s biggest jobs and still wants more',
     );
+    // Titles make a big job too, as the save goes on: two championships and a small market reads like a big one.
+    const storied = structuredClone(league);
+    const champ = storied.teams.find((t) => t.staffBudgetMult < 1.08)!;
+    storied.history = [
+      ...storied.history,
+      { season: 2020, championId: champ.id } as (typeof storied.history)[number],
+      { season: 2021, championId: champ.id } as (typeof storied.history)[number],
+    ];
+    expect(coachOverview(storied, { ...hc, teamId: champ.id }).join(' ')).toContain('one of the league’s biggest jobs');
+    expect(coachOverview(league, { ...hc, teamId: champ.id }).join(' ')).toContain('always looking for a bigger job');
     const asst = structuredClone(base({ teamId: null, career: [], role: 'offCoord' }));
     for (const t of traits) setTrait(asst, t, 10);
     setTrait(asst, 'ambition', 18);
