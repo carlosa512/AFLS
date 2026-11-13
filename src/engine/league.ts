@@ -14,7 +14,7 @@ import { coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
  * Season orchestration: playing weeks, moving into the playoffs, crowning a
  * champion, and rolling the league into the next season.
  */
-import { awardSeason, awardWeek } from './awards';
+import { awardFinal, awardSeason, awardWeek } from './awards';
 import { leadershipWeek } from './leadership';
 import { withLeagueAi } from './employment';
 import { simulateGame, startGame, type LiveGame } from './match/gameSim';
@@ -245,6 +245,7 @@ function playWeekControlled(league: League): Game[] {
 function finishSeason(league: League) {
   const final = playoffGames(league, 'FINAL')[0];
   const championId = winnerOf(final)!;
+  awardFinal(league, final);
   const records = computeRecords(league);
   league.history.push({
     season: league.season,

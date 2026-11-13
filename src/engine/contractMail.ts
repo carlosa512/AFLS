@@ -40,6 +40,17 @@ export function openContracts(league: League): Player[] {
 }
 
 /**
+ * Your first-rounders whose fifth-year option is still undecided in the re-sign window. An option left open lapses
+ * when free agency opens, so the advance button waits on these too.
+ */
+export function openOptions(league: League): Player[] {
+  if (league.phase !== 'resign') return [];
+  return teamPlayers(league, league.userTeamId).filter(
+    (p) => p.contract?.fifthYearOption === 'eligible' && p.contract.years.at(-1)!.season === league.season,
+  );
+}
+
+/**
  * Why Sign at ask can't go through right now, or null when it will: the checks `makeOffer` runs, read without touching
  * the league (talks broken off, the cap and roster, and whether his own ask still clears what he'd walk away for).
  */

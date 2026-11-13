@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.42',
+    date: '2026-11-13',
+    title: 'SNN judges general managers',
+    text: 'Late in the season SNN’s Column takes on a GM by name, from what he did: the quarterbacks he drafted, the star he traded for, the contract that didn’t last. Hit pieces and hype pieces.',
+  },
+  {
+    version: '0.4.41',
+    date: '2026-11-12',
+    title: 'The final’s MVP goes on his record',
+    text: 'The final’s most valuable player is now an honor on his card and in the awards. Free agency also waits until every fifth-year option is exercised or declined.',
+  },
+  {
     version: '0.4.40',
     date: '2026-11-12',
     title: 'A proper final, and fewer mistakes',

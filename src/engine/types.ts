@@ -1464,7 +1464,39 @@ export interface GeneralManager {
   habitMarbles?: Record<string, number>;
   /** Moments with your GM (gmMemory.ts); absent until one happens. */
   withYou?: YouMoment[];
+  /** His notable trades and signings, oldest first (`gmMoves.ts`); absent until one happens. */
+  deals?: GmMove[];
 }
+
+export interface MoveSide {
+  players: number[];
+  /** Each pick as it was when traded: the rounds outlive `League.draftPicks`. */
+  picks: { season: number; round: number }[];
+}
+
+/** A notable move on a GM's public record (`gmMoves.ts`): record-keeping, read only by SNN. */
+export type GmMove =
+  | {
+      kind: 'trade';
+      season: number;
+      phase: Phase;
+      week: number;
+      teamId: number;
+      otherId: number;
+      gave: MoveSide;
+      got: MoveSide;
+    }
+  | {
+      kind: 'sign';
+      season: number;
+      phase: Phase;
+      week: number;
+      teamId: number;
+      playerId: number;
+      years: number;
+      /** $K over the whole deal. */
+      total: number;
+    };
 
 export type YouMomentKind = 'trade' | 'tookOffer' | 'ledOn' | 'finalNo';
 export type TradeVerdictLater = 'heWon' | 'both' | 'youWon' | 'brokeDown' | 'even';

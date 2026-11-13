@@ -18,9 +18,10 @@ import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
+import { gmPiece } from './snnGmVoice';
 import type { Candidate } from './snnWeek';
 import type { EditionScore, EditionStory, Game, GameResult, InboxAction, League, Player, StatLine } from './types';
-import { around, say, sentencesOf, stableHash, type Line } from './voice';
+import { around, say, sentencesOf, stableHash, toldKeys, type Line } from './voice';
 
 // ───────── names as tokens ─────────
 
@@ -1539,9 +1540,14 @@ function compose(
   parts: { first: string[]; second: string[]; headline: string; kicker: string } & Pick<
     EditionStory,
     'picture' | 'numbers' | 'links'
-  > & { quote?: EditionStory['quote']; summary?: number },
+  > & {
+      quote?: EditionStory['quote'];
+      summary?: number;
+      /** A piece written whole (a GM's Column): its paragraphs as given, in place of the two built from sentences. */
+      paragraphs?: string[];
+    },
 ): EditionStory {
-  const raw = prose(parts.first, parts.second);
+  const raw = parts.paragraphs ?? prose(parts.first, parts.second);
   const cast = [...new Set(raw.flatMap(menIn))];
   const ref = referrer(l, { playerIds: cast });
   const paragraphs = raw.map((x) => resolve(x, ref));
@@ -2060,16 +2066,31 @@ const UNIT_REASON: CL[] = [
   ),
   col((s) => `The rest of the league ${s.around} in the weeks ${c(s.id)} played those games.`),
 ];
-const OWNERS_CALL: CL[] = [
+/** The last sentence of an "it is time" Column: what is left of the season. It never says whose decision it is. */
+const TIME_STAKES: CL[] = [
   col(
-    (s) => `The decision is the owner's to make, and with ${ahead(s)}, he has seen enough of this season to make it.`,
+    (s) => `${c(s.id)} have ${ahead(s)}, with only next season left to play for.`,
+    (s) => !!s.left && s.race === 'out',
+    2,
+  ),
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, too few to save this season.`,
     (s) => !!s.left,
     1,
   ),
-  col((s) => `The decision is the owner's to make, and ${c(s.id)} finished ${s.rec}.`),
+  col((s) => `${c(s.id)} finished ${s.rec}.`),
+];
+/** The last sentence of a Column crediting a man in charge: what his team is playing for. */
+const CREDIT_MAN_STAKES: CL[] = [
+  col(
+    (s) => `${c(s.id)} have ${ahead(s)}, with a place in the playoffs to play for.`,
+    (s) => !!s.left,
+    1,
+  ),
+  col((s) => `${c(s.id)} take a ${s.rec} record into the playoffs.`),
 ];
 
-const COLUMN: Record<string, ColumnBank> = {
+export const COLUMN: Record<string, ColumnBank> = {
   'unit-': {
     claim: [
       // In the first weeks a record says little about the race: the claim is about the start.
@@ -2243,50 +2264,8 @@ const COLUMN: Record<string, ColumnBank> = {
           `This column has already asked whether ${s.surname} could turn it around, and a ${s.spanRec} record over the last four games is the answer.`,
       ),
     ],
-    stakes: OWNERS_CALL,
+    stakes: TIME_STAKES,
     headline: (s, l) => `It is time for a change ${whereOf(l, s.id)}`,
-  },
-  'gm2-': {
-    claim: [
-      col(
-        (s) =>
-          `${C(s.id)} are ${s.rec} after ${w(s.lostSeasons)} losing seasons in a row, and it is fair to ask about general manager ${s.name}.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of them.`)],
-    reason: [
-      col(
-        (s) =>
-          `One bad season can be put down to coaching, but ${w(s.lostSeasons + 1)} in a row point at the roster, and the roster is ${possessive(s.surname)} work.`,
-      ),
-    ],
-    stakes: [
-      col(
-        (s) =>
-          `${c(s.id)} have ${ahead(s)}, and none of them will change what the last ${w(s.lostSeasons)} seasons say.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and what happens next is the owner's to decide.`),
-    ],
-    headline: (s, l) => `The losing ${whereOf(l, s.id)} points at ${s.surname}`,
-  },
-  'gm3-': {
-    claim: [col((s) => `${C(s.id)} are ${s.rec}, and it is time for a change in the front office.`)],
-    fact: [
-      col(
-        (s) =>
-          `${s.name} has had ${w(s.lostSeasons)} full seasons as general manager, and ${c(s.id)} had a losing record in every one.`,
-      ),
-    ],
-    reason: [
-      col(
-        (s) =>
-          `This column has already asked about ${s.surname}, and a ${s.rec} record in a ${nth(s.lostSeasons + 1)} season is the answer.`,
-      ),
-    ],
-    stakes: OWNERS_CALL,
-    headline: (s, l) => `It is time for a change in the front office ${whereOf(l, s.id)}`,
   },
   'coach2+': {
     claim: [
@@ -2314,87 +2293,8 @@ const COLUMN: Record<string, ColumnBank> = {
           `It is much the same team that lost ${w(s.lastLosses)} times a year ago, and ${s.surname} is in his ${nth(s.seasons)} season with it, so the change is his.`,
       ),
     ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
+    stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} deserves the credit ${whereOf(l, s.id)}`,
-  },
-  'gm2+': {
-    claim: [
-      col(
-        (s) =>
-          `${C(s.id)} won ${w(s.lastWins)} games last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for it.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} hired ${s.coach} as head coach before this season.`)],
-    reason: [
-      col(
-        (s) =>
-          `${s.coachSurname} is in his first season, so the turn belongs as much to the GM who chose him, and that is ${s.surname}.`,
-      ),
-    ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
-    headline: (s, l) => `${s.surname} got it right ${whereOf(l, s.id)}`,
-  },
-  'gmBuilt+': {
-    claim: [
-      col(
-        (s) =>
-          `${C(s.id)} are ${s.rec} after ${w(s.wonSeasons)} winning seasons in a row, and general manager ${s.name} deserves the credit for building it.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of those seasons.`)],
-    reason: [
-      col(
-        (s) =>
-          `One good season can be a hot quarterback or a kind schedule, but ${w(s.wonSeasons + 1)} in a row are a roster, and the roster is ${possessive(s.surname)} work.`,
-      ),
-    ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
-    headline: (s, l) => `${s.surname} built this ${whereOf(l, s.id)}`,
-  },
-  'gmRun+': {
-    claim: [
-      col(
-        (s) =>
-          `${C(s.id)} ${s.ran} last season and are ${s.rec} now, and general manager ${s.name} deserves the credit for keeping it together.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} was in charge of the roster for both of those seasons.`)],
-    reason: [
-      col(
-        (s) =>
-          `Teams that go that far often fall back the next year, and ${c(s.id)} have not, which is the work of the GM who builds the roster.`,
-      ),
-    ],
-    stakes: [
-      col(
-        (s) => `${c(s.id)} have ${ahead(s)}, and they are playing for a place in the playoffs in them.`,
-        (s) => !!s.left,
-        1,
-      ),
-      col((s) => `${c(s.id)} finished ${s.rec}, and they take it into the playoffs with them.`),
-    ],
-    headline: (s, l) => `${s.surname} has kept it together ${whereOf(l, s.id)}`,
   },
   // Corrections: what an earlier Column said no longer holds.
   'fixunit-': {
@@ -2505,8 +2405,6 @@ function columnBank(claim: Claim): string {
     return claim.subject.kind === 'unit' ? `fixunit${was}` : `fixman${was}`;
   }
   // A general manager is credited for one of three things, each with its own argument.
-  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'built') return 'gmBuilt+';
-  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'run') return 'gmRun+';
   return claim.subject.kind === 'unit' ? `unit${sign}` : `${claim.subject.kind}${claim.rung}${sign}`;
 }
 
@@ -2577,6 +2475,10 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     coachSurname: hc?.lastName ?? '',
   };
   const named = claim.man && l.players[claim.man.playerId] ? claim.man : null;
+  // A piece about a general manager, blame or credit, is written whole from what he did (`snnGmVoice.ts`).
+  const whole = claim.subject.kind === 'gm' && claim.dir !== 'fix';
+  const piece = whole ? gmPiece(l, claim, toldKeys(l)) : null;
+  if (whole && !piece) throw new Error(`No piece for ${claim.key}: a GM's claim needs a finding`);
   const bank = COLUMN[columnBank(claim)];
   const line = (slot: keyof Omit<ColumnBank, 'headline'>) => pickLine(l, bank[slot], sheet, at, claim.key, slot);
   const cand: Candidate = {
@@ -2589,9 +2491,10 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     stakes: 0,
   };
   const story = compose(l, cand, at, {
-    first: [line('claim'), line('fact')],
-    second: [line('reason'), line('stakes')],
-    headline: bank.headline(sheet, l),
+    first: piece ? [] : [line('claim'), line('fact')],
+    second: piece ? [] : [line('reason'), line('stakes')],
+    ...(piece ? { paragraphs: piece.paragraphs } : {}),
+    headline: piece ? piece.headline : bank.headline(sheet, l),
     kicker: 'Column',
     picture:
       claim.subject.kind === 'coach'
@@ -2607,7 +2510,7 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     ],
     summary: 1,
   });
-  return { ...story, table: claim.table, covers: [claim.key] };
+  return { ...story, table: claim.table, covers: piece ? piece.covers : [claim.key] };
 }
 
 // ───────── your club's storylines ─────────

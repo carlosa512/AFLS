@@ -4,6 +4,7 @@ import {
   ALL_LEAGUE_SLOTS,
   AWARD_KEYS,
   AWARD_NAMES,
+  FINAL_MVP_NAME,
   HONOR_SLOTS,
   lineStats,
   MONTHS,
@@ -224,11 +225,14 @@ export function WinnerCell({
   winner: w,
   season,
   weeks,
+  line: own,
 }: {
   league: League;
   winner: AwardWinner | null | undefined;
   season: number;
   weeks?: [number, number];
+  /** One game's honor (the final's): his line in that game, null once its box score is gone. */
+  line?: StatLine | null;
 }) {
   if (!w) return <span className="muted">—</span>;
   const p = league.players[w.playerId];
@@ -236,7 +240,10 @@ export function WinnerCell({
   const line = p.position === 'OL' && w.teamId !== null ? lineStats(league, season, w.teamId) : null;
   const numbers = line
     ? `line: ${line.ypc.toFixed(1)} yds/carry · ${line.sacked} sacks allowed`
-    : honorLine(p, weeks ? periodLine(league, season, weeks, p.id) : p.stats[season]);
+    : honorLine(
+        p,
+        own !== undefined ? (own ?? undefined) : weeks ? periodLine(league, season, weeks, p.id) : p.stats[season],
+      );
   return (
     <span className="stack" style={{ gap: 2 }}>
       <PlayerLink league={league} player={p} avatar={32} short />
@@ -350,6 +357,24 @@ function Awards({ league }: { league: League }) {
                     </td>
                   </tr>
                 ))}
+                {awards.finalMvp && (
+                  <tr className={userRow(awards.finalMvp)}>
+                    <th scope="row" style={{ whiteSpace: 'normal' }}>
+                      {FINAL_MVP_NAME}
+                    </th>
+                    <td style={{ whiteSpace: 'normal' }}>
+                      <WinnerCell
+                        league={league}
+                        winner={awards.finalMvp}
+                        season={season}
+                        line={
+                          league.games.find((g) => g.season === season && g.playoffRound === 'FINAL')?.result
+                            ?.playerStats[awards.finalMvp.playerId] ?? null
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </Panel>

@@ -18,7 +18,7 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(97);
+    expect(SAVE_VERSION).toBe(99);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -32,7 +32,7 @@ describe('save v65 and v66', () => {
     const ids = l.inbox.map((m) => m.id);
     l.version = 96;
     const up = migrateLeague(l)!;
-    expect(up.version).toBe(97);
+    expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox!.map((m) => m.id)).toEqual([...new Set(ids)]);
     expect(up.inbox![0].body).toBe(first.body);
   });
@@ -454,5 +454,25 @@ describe('save v93', () => {
     const up = migrateLeague(o)!;
     expect(up.teams.some((t) => t.jobs)).toBe(false);
     expect(up.teams[up.userTeamId].lineupSet).toBeUndefined();
+  });
+});
+
+describe('save v99', () => {
+  it('a v98 save loads at 99 with the trades its picks still describe on the GMs who made them', () => {
+    const l = createLeague({ seed: 'v99' });
+    while (l.week <= 10) playWeek(l);
+    const live = Object.values(l.gms).flatMap((g) => (g.deals ?? []).map((m) => ({ gm: g.id, ...m })));
+    expect(live.length).toBeGreaterThan(0);
+    const old = JSON.parse(JSON.stringify(l)) as typeof l;
+    for (const g of Object.values(old.gms)) delete g.deals;
+    old.version = 98;
+    const up = migrateLeague(old)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    const filled = Object.values(up.gms).flatMap((g) => (g.deals ?? []).map((m) => ({ gm: g.id, ...m })));
+    // Trades only (a signing's terms were never kept in a readable form), each as the live league recorded it.
+    expect(filled.every((m) => m.kind === 'trade')).toBe(true);
+    expect(filled).toEqual(live.filter((m) => m.kind === 'trade'));
+    // Loading it again changes nothing.
+    expect(migrateLeague(JSON.parse(JSON.stringify(up)))).toEqual(up);
   });
 });

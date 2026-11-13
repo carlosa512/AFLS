@@ -155,8 +155,8 @@ takes the place of the lowest tile that is not your club's.
 | Rung | A unit | A head coach | A GM |
 | --- | --- | --- | --- |
 | 1 | In the league's bottom or top quarter over its last four games (`FORM` in `slump.ts`) | | |
-| 2 "fair to ask" | | .300 or worse through six games | Two losing seasons finished and a third going the same way |
-| 3 "it's time" | | The same after week 11 | Three losing seasons finished and a fourth going the same way |
+| 2 "fair to ask" | | .300 or worse through six games | Two losing seasons finished and a third going the same way, said late (below) |
+| 3 "it's time" | | The same after week 11 | Three losing seasons finished, a fourth going the same way, and SNN asked about him the season before |
 
 Credit runs up the same ladder: a unit in the top quarter, a coach whose club won six or fewer and is at .750 through
 eight games, a GM for a deep playoff run in a good season, for a club in its third winning season, or for a first-year
@@ -164,10 +164,10 @@ coach's turnaround (his hire). A first-year coach is never above rung 1 and an i
 stops being true is taken back once, in a Column of its own (`:fix`). A Column names a player only when the box
 scores single him out (`unitMan`, `MAN`: the sacks one lineman gave up, a passer's turnovers).
 
-**How often.** Never two weeks running (`LADDER.rest`). Blame and credit take turns. A man's job is the subject of one
-Column in three at most (`LADDER.jobIn`), and a GM is asked about before his coach when both sit on a rung. Your club
-gets three a season at most (`LADDER.yoursASeason`), and a club out of the race one unit Column. That comes to about
-eight Columns a season. Over 18 played seasons 65% of the coaches SNN called "fair to ask" about were out by the next
+**How often.** Never two weeks running (`LADDER.rest`). Blame and credit take turns. A head coach's job is the subject
+of one Column in three at most (`LADDER.jobIn`); a GM has his own turn outside that limit, and is asked about before
+his coach when both sit on a rung. Your club gets three a season at most (`LADDER.yoursASeason`), and a club out of the
+race one unit Column. That comes to about eight Columns a season. Over 18 played seasons 65% of the coaches SNN called "fair to ask" about were out by the next
 kickoff, against 23% of the rest.
 
 **Its writing rules** (`storyRules.ts`, on top of the edition's): a table of two to four rows, one number a sentence,
@@ -177,6 +177,56 @@ its `covered` keys (`column:{season}:{subject}:{rung}{+|-}`), so SNN never argue
 `npm run editions -- --seasons n` plays seasons and counts how often the Column and your club's coverage fire, by
 rung, with what happened next to the men it named (`scripts/editionCounts.ts`). `FORM` and `LADDER` are set from those
 counts.
+
+### The Column on a general manager
+
+Spec: `docs/superpowers/specs/2026-11-13-gm-column-voice-design.md`. A GM's Column is a piece written whole from what
+he did, not four sentences argued from the record, and it comes late.
+
+**When.** A GM is blamed only from the week 12 edition (`LADDER.gmBlameAfter`) and only once his team is out of the
+race, and credited only from week 14 (`LADDER.gmCreditAfter`) and only while it is in the race. One blame piece a GM a
+season: "fair to ask" the first year he qualifies, "it is time" a season after SNN asked. The season's last edition
+(`LADDER.gmVerdictWeek`) is kept for a GM verdict when one is open: it runs there whatever the turn, blame before
+credit, and week 17 runs no Column so that week 18 may. Over 12 counted seasons that came to 17 GM pieces,
+four of them blame.
+
+**What it is built on** (`gmFindings.ts`). A finding is one thing the public record shows about his work at this team
+in his seasons there, blame, credit or neither by how it turned out:
+
+| Family | Blame | Credit |
+| --- | --- | --- |
+| Quarterback picks | Two first-round picks spent on quarterbacks | |
+| Quarterbacks | A different leading passer in three seasons, two of them losing | The same, with every finished season a winning one |
+| First-round picks | Fewer than half start | All start |
+| A draft class, a late find | | Two picks honored here and still here; a pick from round four or later the same |
+| The trade for a star | A first-round pick or more for one player who won nothing here and is gone or does not start, a season on | The player has an award or an All-League team here and is still here |
+| The big contract | He is on another team inside two seasons with the deal still running | He starts here and has been honored |
+| The one who left | A player gone under him who has been honored elsewhere since | |
+| Head coaches | Three in his seasons | One he hired when he came; or a first-year coach who is winning after a losing season |
+
+A player traded away for a first-round pick is no mark against him, and a contract that ran its length is not blamed.
+**No finding, no piece:** a GM with nothing on record is not written about, and the editor picks another Column.
+
+**The moves it remembers** (`gmMoves.ts`, `GeneralManager.deals`, save 99). The league forgets a trade's price and a
+signing's terms within two seasons, so they are kept on the GM as they happen: every trade with a first-round pick in
+it (the rounds of the picks on each side) and every signing from outside worth 8% of the cap or more (`MOVES`).
+Record-keeping only: nothing in the sim reads it, and a test plays to the deadline with it on and off.
+
+**The piece** (`snnGmVoice.ts`). A lead on the strongest finding, told with its names, picks, prices and years. Then
+the record said once, with a second finding from another family about other players. Then a close for its rung. A
+family has two lead shapes or more that open on different subjects, a rung has several closes, and what a piece used is
+kept in its edition's `covered` keys (`gmlead:…`, `gmshape:…`): no shape or close twice in a league year, a family that
+led one GM's piece leads the next GM's last, and a GM's second piece does not lead with the family his first did unless
+it has a newer fact. Every time word ("a year later", "this spring", "that year", "last season") is chosen by a
+condition on the facts.
+
+**Its rules** (`storyRules.ts`), in place of the Column's: two to four paragraphs, two numbers a sentence, one sentence
+under eight words a paragraph, a last sentence that may be a judgment and names the man or the team, and a figure of
+speech only in the close. The table of his seasons stays beside it. A correction about a GM is still an ordinary
+Column.
+
+`npm run editions -- --seasons n` reports general managers on their own: what qualified, what ran and when, what the
+late window squeezed out, what had nothing on record, and which families the record held.
 
 ### Your club's storylines in the edition
 
@@ -205,11 +255,12 @@ Not yet: one thread a story with the head coach, the owner, players and agents.
 
 In the playoffs a game story's headline says what the game decided: who goes on and to which round, who is out, and a
 low seed that beat one of the top two. A player's day still leads its own story short of the final. The final's edition
-(`snnTitle.ts`) tells the lead as a championship: the game as it was written, the game's most valuable player (SNN's
-reading of the box score, with his playoff totals when the game story already gave his line), the champions' regular
+(`snnTitle.ts`) tells the lead as a championship: the game as it was written, the game's most valuable player (the honor
+named as the final is recorded, `SeasonAwards.finalMvp`: the winning side's best line of the game, on his record with
+his other honors and never read by the sim; told with his playoff totals when the game story already gave his line), the champions' regular
 season and who they beat to get there, and how many titles that makes when the record holds an earlier one. A tile
 tells the league's most valuable player and the other awards, and two lists stand where the race sits in season: the
-season's awards and the champions' road.
+season's awards (the final's most valuable player its last row) and the champions' road.
 
 **Only fresh news.** A storyline about your team (a benching, a return, a trade request that leaked) is told the week
 it happens or the week after (`STORY_FRESH`). One that no edition had room for is not told late.

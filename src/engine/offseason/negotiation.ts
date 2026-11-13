@@ -13,6 +13,7 @@ import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare,
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
 import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
 import { rookieContract } from '../generate';
+import { noteSigning } from '../gmMoves';
 import { numberOnArrival } from '../jerseys';
 import { clamp, Rng } from '../rng';
 import { activeRoster, setTeam, syncDepthChart, teamRatings } from '../roster';
@@ -408,6 +409,8 @@ export function signPlayer(
   const team = league.teams[teamId];
   if (!own) numberOnArrival(league, player);
   syncDepthChart(league, team);
+  // A big signing from outside goes on the GM's record (`gmMoves.ts`).
+  if (!own && kind !== 'tag') noteSigning(league, player, teamId, offer.years, offer.apy * offer.years);
   const money = `${offer.years} yr, $${((offer.apy * offer.years) / 1000).toFixed(1)}M`;
   const verb = extension ? 'extended' : own ? 're-signed' : 'signed';
   logTransaction(

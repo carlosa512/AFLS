@@ -3,9 +3,10 @@
  * told as a championship (the game's most valuable player, the road there, how many titles that makes), a tile for
  * the league's most valuable player, and two lists (the season's awards, the champions' road). Mail-side only: every
  * fact is a box score, a standing or an award already voted. Nothing is drawn and nothing is stored but the page.
- * The most valuable player of the final is SNN's reading of the box score (`titleMvp`), not an award on his record.
+ * The most valuable player of the final is the honor on his record (`SeasonAwards.finalMvp`, named as the final is
+ * recorded); a final played before that honor existed is read off its box score the same way.
  */
-import { AWARD_KEYS, AWARD_NAMES, seasonAwards } from './awards';
+import { AWARD_KEYS, AWARD_NAMES, FINAL_MVP_NAME, pickFinalMvp, seasonAwards } from './awards';
 import { POSITION_NAMES } from './positions';
 import { computeRecords } from './season/standings';
 import { statLine } from './stats';
@@ -30,29 +31,16 @@ const ROUND: Record<string, string> = {
   FINAL: 'The final',
 };
 
-/** What a line was worth in one game: the yardstick for the final's most valuable player, on the winning side. */
-const worth = (s: StatLine) =>
-  (s.passYds ?? 0) / 25 +
-  (s.passTd ?? 0) * 4 -
-  (s.passInt ?? 0) * 2 +
-  ((s.rushYds ?? 0) + (s.recYds ?? 0)) / 10 +
-  ((s.rushTd ?? 0) + (s.recTd ?? 0)) * 6 +
-  (s.sacks ?? 0) * 4 +
-  (s.defInt ?? 0) * 5 +
-  (s.forcedFum ?? 0) * 3 +
-  (s.defTd ?? 0) * 6 +
-  (s.tackles ?? 0) * 0.5 +
-  (s.passDef ?? 0);
-
 const winnerOf = (g: Game) => (g.result!.homeScore >= g.result!.awayScore ? g.homeId : g.awayId);
 
-/** The final's most valuable player: the winning team's best line of the game. */
+/** The final's most valuable player and his line in it: the honor as named, else the box score's reading. */
 export function titleMvp(l: League, g: Game): { p: Player; s: StatLine } | null {
-  const W = winnerOf(g);
-  const best = Object.entries(g.result?.playerStats ?? {})
-    .flatMap(([id, s]) => (l.players[Number(id)]?.teamId === W ? [{ p: l.players[Number(id)], s }] : []))
-    .sort((a, b) => worth(b.s) - worth(a.s) || a.p.id - b.p.id)[0];
-  return best && worth(best.s) > 0 ? best : null;
+  const named = seasonAwards(l, g.season)?.finalMvp;
+  const p = named ? l.players[named.playerId] : undefined;
+  const s = p ? g.result?.playerStats[p.id] : undefined;
+  if (p && s) return { p, s };
+  const read = pickFinalMvp(l, g);
+  return read ? { p: read.player, s: read.line } : null;
 }
 
 /** "threw for 281 yards and four touchdowns": a line as the clause after "He". */
@@ -114,7 +102,7 @@ function championLead(l: League, g: Game, lead: EditionStory, said: string[]): E
         ? `He ${lineWords(all.s)} in ${count(all.games)} playoff games.`
         : `He ${lineWords(mvp.s)}.`;
     paragraphs.push(
-      `${cap(posName(mvp.p))} ${named ? mvp.p.lastName : full(mvp.p)} was the final's most valuable player. ${second}`,
+      `${cap(posName(mvp.p))} ${named ? mvp.p.lastName : full(mvp.p)} was named the final's most valuable player. ${second}`,
     );
   }
   const reg = computeRecords(l).get(W);
@@ -256,6 +244,14 @@ function titleLists(l: League, g: Game): EditionList[] {
         ]
       : [];
   });
+  const final = awards?.finalMvp;
+  const fp = final ? l.players[final.playerId] : undefined;
+  if (fp && final && final.teamId !== null)
+    rows.push({
+      playerId: fp.id,
+      teamId: final.teamId,
+      cells: [FINAL_MVP_NAME, `${fp.position} ${full(fp)}`, l.teams[final.teamId].name],
+    });
   if (rows.length) out.push({ title: "The season's awards", head: ['Award', 'Player', 'Team'], rows });
   const road = roadOf(l, winnerOf(g)).map((x) => ({
     teamId: x.homeId,

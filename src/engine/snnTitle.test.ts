@@ -21,6 +21,7 @@ describe('the final’s most valuable player', () => {
       result: {
         homeScore: 27,
         awayScore: 24,
+        playerTeams: { [winnerQb.id]: home, [winnerEdge.id]: home, [loserQb.id]: away },
         playerStats: {
           [winnerQb.id]: { passYds: 240, passTd: 2 },
           [winnerEdge.id]: { sacks: 1, tackles: 4 },
@@ -32,6 +33,15 @@ describe('the final’s most valuable player', () => {
     expect(titleMvp(l, g)?.p.id).toBe(winnerQb.id);
     g.result!.playerStats[winnerEdge.id] = { sacks: 4, forcedFum: 2, tackles: 9 };
     expect(titleMvp(l, g)?.p.id).toBe(winnerEdge.id);
+    // Once the honor is on the record, the page tells the man who was named.
+    l.awards.push({
+      season: l.season,
+      winners: {},
+      allLeague: [[], []],
+      finalMvp: { playerId: winnerQb.id, teamId: home },
+    });
+    expect(titleMvp(l, g)?.p.id).toBe(winnerQb.id);
+    l.awards.length = 0;
     g.result!.playerStats = {};
     expect(titleMvp(l, g)).toBeNull();
   });

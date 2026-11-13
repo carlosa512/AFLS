@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { deliverMail, mailDate, needsYou } from './inbox';
 import { playWeek } from './league';
+import { LADDER } from './snnColumn';
 import { ruleBreaks } from './storyRules';
 import type { EditionStory, InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
@@ -186,6 +187,17 @@ describe('a season of editions', () => {
     for (let i = 1; i < weeks.length; i++) expect(weeks[i] - weeks[i - 1]).toBeGreaterThanOrEqual(2);
     expect(dupes(keys)).toEqual([]);
     expect(yours).toBeLessThanOrEqual(3);
+  });
+
+  it('judges a general manager late, and uses no shape of his piece twice', () => {
+    const shapes: string[] = [];
+    for (const m of editions()) {
+      const column = m.edition!.tiles.find((s) => s.kind === 'column');
+      const about = column && /^column:\d+:gm:\d+:[23]([+-])$/.exec(column.key);
+      if (about) expect(m.week).toBeGreaterThan(about[1] === '-' ? LADDER.gmBlameAfter : LADDER.gmCreditAfter);
+      shapes.push(...(m.covered ?? []).filter((k) => k.startsWith('gmshape:')));
+    }
+    expect(dupes(shapes)).toEqual([]);
   });
 
   it('keeps every subject line of the season short and plain', () => {

@@ -6,7 +6,9 @@
  * - the Column the editor would run each week, by rung and direction, how many were about your club, and corrections;
  * - your club's public story beats (what SNN could report about it), by kind;
  * - your men who matter (the starting quarterback, a leader of the room) in a four-game slump, and how many of those
- *   were also down: the three bars of the conversation.
+ *   were also down: the three bars of the conversation;
+ * - general managers: the claims that qualified in the late window by rung, how many ran, how many the editor's
+ *   rotation squeezed out, how many had nothing on record to build a piece on, and which findings the record held.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { teamCoaches } from '../src/engine/coaching';
@@ -17,7 +19,7 @@ import { playWeek } from '../src/engine/league';
 import { moraleContext } from '../src/engine/morale';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { FORM, inSlump } from '../src/engine/slump';
-import { columnClaims, LADDER, pickColumn, type Claim } from '../src/engine/snnColumn';
+import { columnClaims, gmLeadKey, LADDER, pickColumn, type Claim } from '../src/engine/snnColumn';
 import { computeRecords } from '../src/engine/season/standings';
 import { tierOf, weightOf } from '../src/engine/standing';
 import type { League, Player } from '../src/engine/types';
@@ -44,6 +46,18 @@ interface Row {
   /** Form talks that really happened (`Talk.form`), at your club and in the league. */
   formYours: number;
   formLeague: number;
+  /** Every GM claim that qualified this season, by its key. */
+  gm: Map<string, GmClaim>;
+}
+
+/** A GM claim over a season: when it first held, what the record had for it, and whether the editor ran it. */
+interface GmClaim {
+  label: string;
+  teamId: number;
+  first: number;
+  /** The families found on its side in any week it held; empty when the record had nothing. */
+  families: Set<string>;
+  ran?: { week: number; lead: string };
 }
 
 /** A Column that ran, and what became of its subject: the check that it was saying something. */
@@ -102,6 +116,7 @@ export function runCounts(seed: string, seasons: number): void {
       askLeague: new Set(),
       formYours: 0,
       formLeague: 0,
+      gm: new Map(),
     };
     // What the Column has said: the inbox's own record, plus the picks made here until the edition carries them.
     const said = new Set<string>();
@@ -139,6 +154,13 @@ export function runCounts(seed: string, seasons: number): void {
       const user = employed(l) ? l.userTeamId : null;
       const have = new Set([...toldKeys(l), ...said]);
       const claims = columnClaims(l, week, have);
+      // General managers: everything that qualified, the ones with nothing on record included.
+      for (const c of columnClaims(l, week, have, { bare: true })) {
+        if (c.subject.kind !== 'gm' || c.dir === 'fix') continue;
+        const seen = row.gm.get(c.key) ?? { label: label(c), teamId: c.teamId, first: week, families: new Set() };
+        for (const f of c.findings ?? []) seen.families.add(f.family);
+        row.gm.set(c.key, seen);
+      }
       if (claims.length) {
         row.weeksWithClaims++;
         row.supply += claims.length;
@@ -166,6 +188,13 @@ export function runCounts(seed: string, seasons: number): void {
           before: { w: pick.context.w, l: pick.context.l },
         });
         said.add(pick.key);
+        // A GM piece: what it led with, so the next one this season leads with something else (as an edition keeps it).
+        if (pick.subject.kind === 'gm' && pick.findings?.length) {
+          const lead = pick.findings[0].family;
+          said.add(gmLeadKey(row.season, pick.subject.gmId, pick.teamId, lead));
+          const seen = row.gm.get(pick.key);
+          if (seen) seen.ran = { week, lead };
+        }
         row.columns++;
         row.byKind[label(pick)] = (row.byKind[label(pick)] ?? 0) + 1;
         if (pick.dir === 'fix') row.fixes++;
@@ -285,6 +314,8 @@ export function runCounts(seed: string, seasons: number): void {
     ),
     `## What happened next`,
     whatNext(told, sitting),
+    `## General managers`,
+    gmSection(l, rows),
   ].join('\n\n');
   mkdirSync('.check', { recursive: true });
   writeFileSync('.check/editions.md', `${out}\n`);
@@ -294,6 +325,66 @@ export function runCounts(seed: string, seasons: number): void {
 }
 
 const share = (n: number, of: number) => (of ? `${n} of ${of} (${Math.round((100 * n) / of)}%)` : 'none');
+
+/** The late window for general managers: what qualified, what ran, what was squeezed out, what the record held. */
+function gmSection(l: League, rows: Row[]): string {
+  const labels = ['gm 2−', 'gm 3−', 'gm 2+'];
+  const all = rows.flatMap((r) => [...r.gm.values()].map((c) => ({ season: r.season, ...c })));
+  const state = (c: GmClaim) => (c.ran ? 'ran' : c.families.size ? 'squeezed' : 'bare');
+  const count = (xs: typeof all, lab: string, st?: string) =>
+    xs.filter((c) => c.label === lab && (!st || state(c) === st)).length;
+  const line = (season: number | string, xs: typeof all) =>
+    `| ${season} | ${labels.map((lab) => `${count(xs, lab)} / ${count(xs, lab, 'ran')}`).join(' | ')} | ${xs.filter((c) => state(c) === 'squeezed').length} | ${xs.filter((c) => state(c) === 'bare').length} |`;
+  const families = (xs: typeof all, pickLead: boolean) => {
+    const n = new Map<string, number>();
+    for (const c of xs)
+      for (const f of pickLead ? (c.ran ? [c.ran.lead] : []) : c.families) n.set(f, (n.get(f) ?? 0) + 1);
+    return (
+      [...n]
+        .sort((a, b) => b[1] - a[1])
+        .map(([f, k]) => `${f} ${k}`)
+        .join(', ') || 'none'
+    );
+  };
+  const blame = all.filter((c) => c.label !== 'gm 2+');
+  const credit = all.filter((c) => c.label === 'gm 2+');
+  const name = (c: (typeof all)[number]) => `${l.teams[c.teamId].abbrev} ${c.season} (${c.label})`;
+  return [
+    `Blame after Week ${LADDER.gmBlameAfter} and out of the race; credit after Week ${LADDER.gmCreditAfter} and in it. A league's first two seasons can hold no blame claim: a GM needs ${LADDER.gmFair} finished losing seasons.`,
+    `| Season | ${labels.map((x) => `${x}: qualified / ran`).join(' | ')} | Squeezed out | Nothing on record |`,
+    `| --- | ${labels.map(() => '---').join(' | ')} | --- | --- |`,
+    ...rows.map((r) =>
+      line(
+        r.season,
+        all.filter((c) => c.season === r.season),
+      ),
+    ),
+    line('All', all),
+    `**Ran, by week:** ${
+      all
+        .filter((c) => c.ran)
+        .map((c) => `${name(c)} wk ${c.ran!.week}, led with ${c.ran!.lead}`)
+        .join('; ') || 'none'
+    }.`,
+    `**Squeezed out** (qualified with something on record, never ran): ${
+      all
+        .filter((c) => state(c) === 'squeezed')
+        .map((c) => `${name(c)} from wk ${c.first}`)
+        .join('; ') || 'none'
+    }.`,
+    `**Nothing on record:** ${
+      all
+        .filter((c) => state(c) === 'bare')
+        .map(name)
+        .join('; ') || 'none'
+    }.`,
+    `**Families found, blame claims (${blame.length}):** ${families(blame, false)}.`,
+    `**Families found, credit claims (${credit.length}):** ${families(credit, false)}.`,
+    `**Led with, pieces that ran:** blame: ${families(blame, true)}. Credit: ${families(credit, true)}.`,
+  ]
+    .join('\n\n')
+    .replace(/\n\n\|/g, '\n|');
+}
 
 /** What became of the men and clubs the Column wrote about, against everyone. */
 export function whatNext(told: Told[], sitting: Sitting[]): string {

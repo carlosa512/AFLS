@@ -2,7 +2,7 @@ import { GmAvatar } from './gm';
 import { lineupProblem } from '../engine/benching';
 import { employed } from '../engine/employment';
 import { interimPending, pendingGmOffers, userExtensionOffer } from '../engine/leadership';
-import { openContracts } from '../engine/contractMail';
+import { openContracts, openOptions } from '../engine/contractMail';
 import { GeneralManagers } from './screens/GeneralManagers';
 import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
@@ -104,7 +104,8 @@ export function offseasonStep(league: League): Step | null {
           then: { view: 'office', tab: 'gms' },
         };
       if (employed(league)) {
-        // Free agency does not open by accident: the owner's question and every expiring contract get an answer first.
+        // Free agency does not open by accident: the owner's question, every expiring contract and every fifth-year
+        // option get an answer first (an option left open would lapse as the window closes).
         // The owner's question is answered on his letter. With the letter deleted, the door does not block: the
         // window closes and he decides himself.
         const interim = interimPending(league);
@@ -119,6 +120,13 @@ export function offseasonStep(league: League): Step | null {
         if (open)
           return {
             label: open === 1 ? 'Decide 1 contract' : `Decide ${open} contracts`,
+            run: () => {},
+            then: { view: 'office', tab: 'resign' },
+          };
+        const options = openOptions(league).length;
+        if (options)
+          return {
+            label: options === 1 ? 'Decide 1 fifth-year option' : `Decide ${options} fifth-year options`,
             run: () => {},
             then: { view: 'office', tab: 'resign' },
           };

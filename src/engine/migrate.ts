@@ -9,7 +9,8 @@ import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
  * Save upgrades. Each step takes a league saved by an older build and reshapes it in place,
  * so careers survive engine changes instead of being thrown away.
  */
-import { awardSeason } from './awards';
+import { awardFinal, awardSeason } from './awards';
+import { backfillMoves } from './gmMoves';
 import { addSpecialTeamsCoordinators, generateCoachingWorld } from './coaching';
 import { DIVISIONS, LEGACY_COLORS, LEGACY_FIRST_TEAM, TEAM_SEEDS } from './data/teams';
 import { UNIFORMS } from './data/uniforms';
@@ -399,6 +400,18 @@ export function migrateLeague(league: League): League | null {
     const seen = new Set<string>();
     league.inbox = (league.inbox ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
     league.version = 97;
+  }
+  // v98: the final's most valuable player is an honor on the season's awards (`SeasonAwards.finalMvp`). A final whose
+  // box score the save still keeps is read the way it would have been named that night; older ones have none.
+  if (league.version < 98) {
+    for (const g of league.games) if (g.playoffRound === 'FINAL' && g.result) awardFinal(league, g);
+    league.version = 98;
+  }
+  // v99: a GM's notable moves (`GeneralManager.deals`, `gmMoves.ts`), kept from here on as trades and signings
+  // happen. An older save gets the trades its history still holds whose picks can still be read, and no signings.
+  if (league.version < 99) {
+    backfillMoves(league);
+    league.version = 99;
   }
   return league;
 }
