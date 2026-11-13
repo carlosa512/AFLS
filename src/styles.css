@@ -7275,3 +7275,50 @@ button.tip-pill {
 .voice-tag {
   margin-left: 4px;
 }
+
+/* The coach's card (Coaches.tsx): Bio, Record and Career under the header, and a season a row to glance at. */
+.coach-tabs {
+  align-self: start;
+}
+.coach-overview p {
+  margin: 4px 0 0;
+}
+.season-rows {
+  display: grid;
+}
+.season-row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 9rem) 4.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.season-row:last-child {
+  border-bottom: 0;
+}
+.season-year {
+  color: var(--muted);
+  font-weight: 700;
+}
+.season-rec {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  line-height: 1;
+}
+.season-job {
+  text-align: right;
+}
+.season-end .tag-pill {
+  margin-left: 0;
+}
+@media (max-width: 560px) {
+  .season-row {
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+  }
+  .season-end,
+  .season-job {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+}
