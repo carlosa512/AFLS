@@ -797,9 +797,6 @@ export function CoachCard({
               {COACH_QUIRKS[c.quirkOrigin.id].label}.
             </p>
           )}
-          <p className="muted small" style={{ margin: 0 }}>
-            {ROLE_LINE[c.role]}
-          </p>
           {c.lastJob && (
             <p className="muted small" style={{ margin: 0 }}>
               Last job: {c.lastJob}

@@ -32,5 +32,12 @@ describe("the coach's card", () => {
     expect(html.indexOf('season-row')).toBeGreaterThan(html.indexOf('Overview'));
     expect(html).not.toContain('Around the league</span>');
     expect(html).not.toContain('Habits over time');
+    const career = renderToStaticMarkup(
+      <NavContext.Provider value={nav}>
+        <CoachCard league={l} coach={hc} onClose={() => {}} startTab="career" />
+      </NavContext.Provider>,
+    );
+    // The chair's job description is the engine's, not something a reader needs on his card.
+    expect(career).not.toContain('Has a hand in');
   });
 });
