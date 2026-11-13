@@ -17,8 +17,8 @@ shapes. What a piece used (its lead family, its shapes, its close) is remembered
 `docs/superpowers/specs/2026-11-11-snn-column-and-storylines-design.md` (the Column) and
 `docs/superpowers/specs/2026-11-11-snn-weekly-edition-design.md` (the page, the writing rules).
 
-**Execution:** to be confirmed by the owner with this plan. The three earlier news plans ran native, with one review
-of the whole branch at the end.
+**Execution:** Native (the owner's choice), as for the three earlier news plans. One review of the whole branch comes
+at the very end.
 
 ## Global Constraints
 
@@ -40,6 +40,11 @@ of the whole branch at the end.
 - Every sentence is chosen by a condition on facts. A time word ("a year later", "this spring", "before either pick",
   "that year", "last season's") is chosen by a condition, never assumed.
 - No GM shape or close twice in a league year. No sentence twice in a season (`seasonSaid`, as today).
+- **Pieces cycle their subjects** (the owner's note on the plan). Two GM pieces in a league year do not lead with the
+  same family while the second GM has another finding to lead with. Within a family, the lead shapes open on
+  different subjects (the GM, the player, the team, the year), so two pieces never start the same way.
+- **A close finishes its thought** (the owner's note): "whether Sutton gets another season to find one", never
+  "whether Sutton gets another".
 - `npm run format` before each commit. Locally: `npm run typecheck` and the test files touched. No `npm run check`.
 - `League` stays plain JSON. `SAVE_VERSION` 98 → 99 with a step in `migrate.ts`.
 - Version `0.4.41` → `0.4.42` with a `src/ui/changelog.ts` entry (title 40 characters at most, text 200 at most).
@@ -300,6 +305,9 @@ export function columnClaims(l: League, week: number, have: Set<string>, opt?: {
 - The gate: a GM claim is added only with one or more findings of its side. The repeat-lead rule: a finding may not
   lead when `have` holds `gmLeadKey(s, …, family)` for `s` of this season or last and `finding.latest <= s`; it moves
   behind the others. With no finding left to lead, the claim is not added.
+- Cycling: a finding whose family already led a GM piece this season (any `gmlead:${season}:…:${family}` key in
+  `have`, whoever the GM) moves behind this GM's findings of families that have not. It may still lead when it is all
+  he has.
 - `opt.bare`: GM claims are added with `findings: []` when the gate would drop them (for the counts only).
   `pickColumn` never picks a GM claim whose `findings` is empty.
 
@@ -322,6 +330,12 @@ it('runs one blame piece a GM a season, and "it is time" a season after he was a
   expect(about(columnClaims(l, 14, new Set([fairNow])), 'gm', t)).toEqual([]);   // also the older save told in week 8
   expect(about(columnClaims(l3, 12, new Set()), 'gm', t).map((c) => c.rung)).toEqual([2]);       // three losing, never asked
   expect(about(columnClaims(l3, 12, new Set([fairLast])), 'gm', t).map((c) => c.rung)).toEqual([3]);
+});
+it('leads with another family when a GM piece this season already led with this one', () => {
+  const other = gmLeadKey(l.season, 999, 30, 'qbPicks'); // another GM, another team, this season
+  expect(about(columnClaims(two, 12, new Set([other])), 'gm', t)[0].findings!.map((f) => f.family)).toEqual(['firsts', 'qbPicks']);
+  // with qbPicks all he has, it still leads
+  expect(about(columnClaims(l, 12, new Set([other])), 'gm', t)[0].findings![0].family).toBe('qbPicks');
 });
 it('makes no claim about a GM with nothing on record, unless asked for the bare ones', () => {
   expect(about(columnClaims(bareLeague, 12, new Set()), 'gm', t)).toEqual([]);
@@ -435,7 +449,7 @@ check-in:
 > same way. Ezekiel Fowler got $43 million over two years in 2027 and plays for Green Bay now.
 >
 > A general manager gets one try at a quarterback before the questions start. He has had three. It is fair to ask
-> whether Sutton gets another.
+> whether Sutton gets another season to find one.
 
   Headline: "Sutton has drafted two quarterbacks and Jacksonville are 2–6". The close differs from the trial's so that
   its last sentence names the man, as the rules ask. "A year later", "who has not played a snap" and "Before either
@@ -467,6 +481,10 @@ it('has two lead shapes or more for every blame family, and three closes or more
   for (const family of FINDING_ORDER.blame)
     expect(SHAPES.filter((s) => s.side === 'blame' && s.role === 'lead' && s.family === family).length).toBeGreaterThanOrEqual(2);
   for (const on of ['2-', '3-'] as const) expect(CLOSES.filter((c) => c.on === on && !c.family).length).toBeGreaterThanOrEqual(3);
+});
+it('a family's lead shapes do not all open the same way', () => {
+  // for each blame family: the first three words of each lead shape's first paragraph, on that family's scene
+  expect(new Set(openings).size).toBe(openings.length);
 });
 it('every blame shape, on a scene that finds its family, keeps the GM piece rules', () => {
   // for each blame lead shape: build its family's scene, columnStory(l, claim, at) with that shape forced
