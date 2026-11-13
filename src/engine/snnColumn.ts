@@ -51,7 +51,7 @@ export const LADDER = {
   gmBuilt: 2,
   /** Editions between two Columns: it never runs two weeks running (the owner's rule G). */
   rest: 1,
-  /** A man's job (blame for a head coach or a GM) comes up in one Column of this many at most. */
+  /** A head coach's job (blame) comes up in one Column of this many at most. A general manager has his own turn. */
   jobIn: 3,
 };
 
@@ -617,12 +617,15 @@ function stakes(c: Claim): number {
 
 /** A Column that has run this season, read back from its key. */
 const dirOf = (key: string): Claim['dir'] => (key.endsWith(':fix') ? 'fix' : key.endsWith('+') ? 'credit' : 'blame');
-const jobKey = (key: string) => /^column:\d+:(coach|gm):/.test(key) && key.endsWith('-');
-const isJob = (c: Claim) => c.subject.kind !== 'unit' && c.dir === 'blame';
+// The one-in-three limit is the head coaches': a general manager has his own turn (the owner's call, from counts:
+// judged only in the last seven weeks and sharing the limit, 1 GM blame piece of 12 that qualified ever ran).
+const jobKey = (key: string) => /^column:\d+:coach:/.test(key) && key.endsWith('-');
+const isJob = (c: Claim) => c.subject.kind === 'coach' && c.dir === 'blame';
 
 /**
  * The week's Column, or none. How often it runs and about what is the owner's rule (set from five seasons of counts):
- * never two weeks running, blame and credit in turn, and a man's job in one Column of three at most. Among what that
+ * never two weeks running, blame and credit in turn, and a head coach's job in one Column of three at most (a general
+ * manager's is outside that limit). Among what that
  * leaves: a correction first, then the highest rung, then what is at stake, then the margin, then a stable hash. A club
  * the page already covers is passed over, and the reader's club is held to its limits.
  *

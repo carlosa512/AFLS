@@ -648,6 +648,26 @@ describe('how often the Column runs, and about what (the owner’s rule G)', () 
     ];
     expect(pickColumn([job], at(9, praised))!.key).toBe(job.key);
   });
+
+  it('gives a general manager his own turn: the one-in-three limit is the head coaches’', () => {
+    const gm = claim('column:2026:gm:5:2-', { subject: { kind: 'gm', teamId: 8, gmId: 5 }, rung: 2, teamId: 8 });
+    // A coach's job was the subject two Columns ago: a coach waits, a general manager does not.
+    const soon = [
+      { week: 12, key: UNIT_CREDIT },
+      { week: 10, key: COACH_BLAME },
+    ];
+    expect(pickColumn([job, blame], at(14, soon))!.key).toBe(blame.key);
+    expect(pickColumn([job, gm, blame], at(14, soon))!.key).toBe(gm.key);
+    // And a piece about a general manager does not use up the coaches' turn.
+    const afterGm = [
+      { week: 14, key: UNIT_CREDIT },
+      { week: 12, key: 'column:2026:gm:9:2-' },
+    ];
+    expect(pickColumn([job, blame], at(16, afterGm))!.key).toBe(job.key);
+    // Blame and credit still take turns, and it still never runs two weeks running.
+    expect(pickColumn([gm], at(14, [{ week: 12, key: UNIT_BLAME }]))).toBeNull();
+    expect(pickColumn([gm], at(14, [{ week: 13, key: UNIT_CREDIT }]))).toBeNull();
+  });
 });
 
 it('keeps its bars where the owner can set them', () => {
