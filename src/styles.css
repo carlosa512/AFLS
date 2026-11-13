@@ -6928,10 +6928,23 @@ button.tip-pill {
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
+/* The room, who needs a word and who's flying: stacked on a phone, the room beside the other two from 900px, three
+   columns side by side from 1100px, so a desktop isn't half empty. */
 @media (min-width: 900px) {
   .morale-board {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
+  }
+  .morale-board > :first-child {
+    grid-row: span 2;
+  }
+}
+@media (min-width: 1100px) {
+  .morale-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .morale-board > :first-child {
+    grid-row: auto;
   }
 }
 .morale-card {
@@ -6980,7 +6993,7 @@ button.tip-pill {
 }
 .mood-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 12rem) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr);
   align-items: center;
   gap: 4px 10px;
   padding: 6px 0;
@@ -7113,6 +7126,38 @@ button.tip-pill {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
   gap: 12px;
+  /* Each card as tall as what it says: a quiet room is never a blank box beside a long one. */
+  align-items: start;
+}
+/* The full cards stack in two columns, each card where the column has room (top to bottom, then the next column), so
+   a short card never leaves a hole beside a long one. Rooms in trouble come first, at the top. */
+.room-cards-big {
+  display: block;
+  columns: 2 380px;
+  column-gap: 12px;
+}
+.room-cards-big > .room-card {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+.room-cards-quiet {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+/* The captains, one line above the room cards (wrapping on a phone). */
+.captains-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 18px;
+  margin-bottom: 12px;
+}
+.rooms-actions {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+.rooms-actions .room-ask {
+  display: inline-flex;
 }
 .room-card h4 {
   margin: 6px 0 2px;
