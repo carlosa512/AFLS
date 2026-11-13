@@ -28,6 +28,7 @@
   /* Painted on the field in All-22: the yard numbers and the end zones' names. */
   --font-field: 'Graduate', 'Rockwell', 'Roboto Slab', Georgia, serif;
 
+  --step--2: 0.6875rem;
   --step--1: 0.8125rem;
   --step-0: 0.9375rem;
   --step-1: 1.125rem;
@@ -143,10 +144,28 @@ h3 {
 .muted {
   color: var(--muted);
 }
-.eyebrow {
+/* The label, written once (docs/UI.md, "Labels and text sizes"): above a value or a group, and the small one for
+   table headers, pills and the tags in a row. A label's own rule keeps only what isn't its size, case or colour. */
+.eyebrow,
+.coach-group-title,
+.room-card h4 {
   font-size: var(--step--1);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.eyebrow-sm,
+th,
+.group-row td,
+.unit-bar .label,
+.strip-tag,
+.tag-pill,
+.risk-word,
+.report-title {
+  font-size: var(--step--2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--muted);
   font-weight: 700;
 }
@@ -386,7 +405,7 @@ main.wrap {
   min-height: 30px;
   min-width: 30px;
   padding: 2px 6px;
-  font-size: 0.75rem;
+  font-size: var(--step--1);
 }
 .linklike {
   background: none;
@@ -480,13 +499,13 @@ main.wrap {
   color: #fff;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.8rem;
+  font-size: var(--step--1);
   letter-spacing: 0.02em;
   box-shadow: inset 0 -4px 0 var(--c2);
   flex: none;
 }
 .chip-lg {
-  font-size: 1.15rem;
+  font-size: var(--step-1);
 }
 .team-inline {
   display: inline-flex;
@@ -508,11 +527,6 @@ table {
 }
 th {
   text-align: left;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  font-weight: 700;
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
@@ -549,7 +563,7 @@ th.num .th-sort {
 .th-arrow {
   display: inline-block;
   min-width: 0.8em;
-  font-size: 0.6rem;
+  font-size: var(--step--2);
 }
 tbody tr:last-child td {
   border-bottom: 0;
@@ -575,11 +589,6 @@ tr.is-user .sticky-col {
 }
 .group-row td {
   background: var(--surface-2);
-  font-weight: 700;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
   padding-block: 5px;
 }
 /* A dragged player held over another position group: where he'd be lined up out of position. */
@@ -835,11 +844,6 @@ tr.is-user .sticky-col {
 }
 .unit-bar .label {
   text-align: center;
-  color: var(--muted);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 0.7rem;
 }
 .bar {
   height: 8px;
@@ -959,10 +963,6 @@ button.strip-card:hover {
 .strip-tag {
   min-height: 13px;
   font-family: var(--font-data);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .strip-tag.hot {
   color: var(--tie);
@@ -987,7 +987,7 @@ button.strip-line:hover .ab {
   text-decoration: underline;
 }
 .strip-line .chip {
-  font-size: 0.7rem;
+  font-size: var(--step--2);
 }
 .strip-line .ab {
   flex: 1;
@@ -1278,7 +1278,7 @@ button.strip-line:hover .ab {
   white-space: nowrap;
 }
 .board-row .chip {
-  font-size: 0.65rem;
+  font-size: var(--step--2);
 }
 .board-row.is-user {
   background: color-mix(in srgb, var(--marker) 16%, transparent);
@@ -1355,7 +1355,7 @@ button.strip-line:hover .ab {
 .team-option .nm small {
   display: block;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--step--1);
 }
 /* Coach · Scout · Med: the staff a new manager inherits, graded as the staff screens grade them. */
 .team-option .staff-grades {
@@ -1365,7 +1365,7 @@ button.strip-line:hover .ab {
   gap: 2px 10px;
   margin-top: -6px;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--step--1);
 }
 .team-option .staff-grades .grade {
   min-width: 1.6em;
@@ -1458,7 +1458,7 @@ button.strip-line:hover .ab {
   width: 34px;
   height: 34px;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: var(--step-1);
 }
 
 /* ───────── play by play ───────── */
@@ -2930,12 +2930,7 @@ tr.dragging .grip {
   margin-left: 6px;
   padding: 0 5px;
   border-radius: 4px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   background: var(--surface-2);
-  color: var(--muted);
   vertical-align: 1px;
 }
 tr.void-year td {
@@ -3186,7 +3181,7 @@ tr.void-year td {
   }
   .stepper li {
     padding: 6px 4px;
-    font-size: 0.68rem;
+    font-size: var(--step--2);
     text-align: center;
   }
   .stepper li::before {
@@ -3351,12 +3346,12 @@ tr.void-year td {
 }
 .attr-delta {
   font-family: var(--font-data);
-  font-size: 0.72rem;
+  font-size: var(--step--2);
   font-weight: 700;
 }
 /* This season's direction, next to the yearly change: an arrow, no number. */
 .attr-trend {
-  font-size: 0.8rem;
+  font-size: var(--step--1);
   font-weight: 700;
   line-height: 1;
 }
@@ -3399,7 +3394,7 @@ details.more > summary {
 }
 .seg-sm button {
   padding: 3px 9px;
-  font-size: 0.75rem;
+  font-size: var(--step--1);
 }
 .known {
   display: inline-flex;
@@ -3778,7 +3773,7 @@ details.more > summary {
   .picker-blocked {
     grid-column: auto;
     max-width: 8em;
-    font-size: 0.72rem;
+    font-size: var(--step--2);
   }
 }
 /* The Market: every front office as a card, a group per stance. */
@@ -3850,11 +3845,6 @@ details.more > summary {
   background: linear-gradient(90deg, color-mix(in srgb, var(--field) 55%, transparent), transparent);
 }
 .risk-word {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
 }
 .risk-safe {
   color: color-mix(in srgb, var(--win) 75%, var(--ink));
@@ -4258,11 +4248,6 @@ details.more > summary {
 .coach-group-title {
   margin: 0 0 8px;
   font-family: var(--font-body);
-  font-size: var(--step--1);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .coach-groups {
   gap: 20px;
@@ -4271,10 +4256,6 @@ details.more > summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 /* "Youth development" has to fit one line in half a phone-width card. */
-.coach-card .eyebrow {
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-}
 .coach-rates {
   display: inline-flex;
   flex-wrap: wrap;
@@ -4480,7 +4461,7 @@ details.more > summary {
   width: 34px;
   height: 34px;
   cursor: pointer;
-  font-size: 1.05rem;
+  font-size: var(--step-0);
 }
 .edit-x[aria-pressed='true'] {
   background: rgba(0, 0, 0, 0.5);
@@ -4966,7 +4947,7 @@ button.tip-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: var(--step--2);
   font-weight: 700;
   color: #fff;
   background: color-mix(in srgb, var(--cat) 60%, #0d1210);
@@ -4982,14 +4963,14 @@ button.tip-pill {
 .mail-av-lg {
   width: 44px;
   height: 44px;
-  font-size: 0.85rem;
+  font-size: var(--step--1);
 }
 .mail-tag,
 .needs-pill {
   display: inline-block;
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: var(--step--2);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -5227,7 +5208,7 @@ button.tip-pill {
   color: var(--loss);
 }
 .mail-form-game .num {
-  font-size: 0.72rem;
+  font-size: var(--step--2);
 }
 .mail-bracket {
   display: grid;
@@ -5373,12 +5354,7 @@ button.tip-pill {
 }
 .report-title {
   margin: 0 0 4px;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
   font-family: inherit;
-  font-weight: 700;
 }
 .report-rows {
   list-style: none;
@@ -5535,7 +5511,7 @@ button.tip-pill {
 .coach-letter-p {
   margin: 0;
   max-width: 66ch;
-  font-size: 1rem;
+  font-size: var(--step-0);
   line-height: 1.6;
 }
 .coach-letter-before {
@@ -7118,10 +7094,6 @@ button.tip-pill {
 }
 .room-card h4 {
   margin: 6px 0 2px;
-  font-size: var(--step--1);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
 }
 .room-card .plain-list li {
   padding: 3px 0;

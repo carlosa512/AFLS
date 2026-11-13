@@ -433,6 +433,46 @@ describe('screen contract', () => {
     expect(Number(/min-height:\s*(\d+)px/.exec(rule)?.[1] ?? 0)).toBeGreaterThanOrEqual(32);
   });
 
+  it('sizes app text from the scale, and writes the label once', () => {
+    // Exempt by selector, each for a reason. Everything else sizes text with --step-* and writes an uppercase label
+    // only through the two shared label rules (`.eyebrow`, `.eyebrow-sm`). docs/UI.md, "Labels and text sizes".
+    const EXEMPT = [
+      '.ed-', // SNN's newspaper keeps its own type
+      '.vb-', // the game viewer and broadcast, from here down: a look of their own
+      '.vc-',
+      '.tl-',
+      '.rail-',
+      '.pg-',
+      '.mc-',
+      '.mb-',
+      '.mp-',
+      '.bug-',
+      '.endzone',
+      '.cmp-',
+      '.lead-',
+      '.line-row',
+      '.game-injuries',
+      '.td-',
+      '.chart', // SVG chart text, sized in px
+      '.dev-chart',
+      '.dev-tip',
+      '.rookie-mark', // sized to the heading it sits in
+      '.sheet-head .rookie-mark',
+    ];
+    const css = readFileSync('src/styles.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const bad: string[] = [];
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim().replace(/\s+/g, ' ');
+      const parts = sel.split(',').map((x) => x.trim());
+      if (parts.every((x) => EXEMPT.some((e) => x.startsWith(e)))) continue;
+      for (const v of m[2].matchAll(/font-size:\s*([^;]+);/g))
+        if (/^[\d.]+(rem|em|px)$/.test(v[1].trim()) && v[1].trim() !== '16px') bad.push(`${sel}: ${v[1].trim()}`);
+      if (/text-transform:\s*uppercase/.test(m[2]) && parts[0] !== '.eyebrow' && parts[0] !== '.eyebrow-sm')
+        bad.push(`${sel}: uppercase outside the shared label rules`);
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('renders player names only through PlayerLink', () => {
     // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.
     const allowed = ['src/ui/screens/PlayerCard.tsx', 'src/ui/negotiation.tsx', 'src/ui/screens/GameViewer.tsx'];
