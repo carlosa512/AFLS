@@ -23,7 +23,17 @@ import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { TabBoundary } from '../boundary';
 import { useNav } from '../App';
-import { Panel, PositionFilter, PlayerLink, SortTh, sortRows, TeamChip, useSort, type SortState } from '../components';
+import {
+  Panel,
+  PositionFilter,
+  PlayerLink,
+  SortTh,
+  sortRows,
+  TeamChip,
+  useSort,
+  type SortState,
+  MoreLink,
+} from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -602,9 +612,7 @@ export function FrontOffice({
                   />
                 )}
               </span>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
-                Review scouts
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'staff' }}>Review scouts</MoreLink>
             </div>
           )}
           {showCoachNotice && (
@@ -616,9 +624,7 @@ export function FrontOffice({
                   about={coaching!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))}
                 />
               </span>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
-                Review coaches
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'coaches' }}>Review coaches</MoreLink>
             </div>
           )}
         </div>

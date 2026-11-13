@@ -403,6 +403,31 @@ main.wrap {
   text-decoration-color: currentColor;
 }
 
+/* A link to another screen (MoreLink): words and a chevron, as tall as a small button to tap. */
+.more-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 2px;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-size: var(--step--1);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.more-link:hover {
+  text-decoration-color: currentColor;
+}
+.more-link .icon {
+  color: var(--muted);
+}
+
 /* ───────── panels ───────── */
 .panel {
   background: var(--surface);

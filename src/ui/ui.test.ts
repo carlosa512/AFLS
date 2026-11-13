@@ -418,6 +418,21 @@ describe('screen contract', () => {
     expect(bad).toEqual([]);
   });
 
+  it('goes to another screen through MoreLink', () => {
+    // A bordered button does something here; going somewhere else is a MoreLink (docs/UI.md, "Links to another
+    // screen"). The yellow primary may go somewhere: it is the one main thing to do in its panel.
+    const go = String.raw`onClick=\{\(\) => nav\.(?:go|openGame|watchGame)\([^)]*\)\}`;
+    const btn = String.raw`className="btn(?![^"]*btn-primary)[^"]*"`;
+    const either = new RegExp(String.raw`<button\b(?=[^>]*${btn})(?=[^>]*${go})[^>]*>`, 'g');
+    const bad: string[] = [];
+    for (const f of allUi())
+      for (const m of src(f).matchAll(either))
+        bad.push(`${f}:${src(f).slice(0, m.index).split('\n').length} (use MoreLink)`);
+    expect(bad).toEqual([]);
+    const rule = /\.more-link \{([^}]*)\}/.exec(readFileSync('src/styles.css', 'utf8'))?.[1] ?? '';
+    expect(Number(/min-height:\s*(\d+)px/.exec(rule)?.[1] ?? 0)).toBeGreaterThanOrEqual(32);
+  });
+
   it('renders player names only through PlayerLink', () => {
     // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.
     const allowed = ['src/ui/screens/PlayerCard.tsx', 'src/ui/negotiation.tsx', 'src/ui/screens/GameViewer.tsx'];

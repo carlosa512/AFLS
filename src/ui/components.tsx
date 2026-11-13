@@ -36,6 +36,7 @@ const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulder
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
 import { NUMBER_FONTS, uniformFor } from './uniform';
 import { Icon } from './icons';
+import type { Route } from './routes';
 export { HOT_KICKOFF_F, wearsWhite } from './uniform';
 
 /**
@@ -457,6 +458,22 @@ export function FieldStrip({
       {toGain !== undefined && toGain < 100 && <span className="togain" style={{ left: x(toGain) }} />}
       <span className="ball" style={{ left: x(yardLine) }} />
     </div>
+  );
+}
+
+/**
+ * A link to another screen, or to more of the same list ("See all 7"): words and a chevron, no border. A bordered
+ * button does something here instead, and the yellow primary is a panel's one main thing to do (docs/UI.md, "Links
+ * to another screen"). A button like `PlayerLink`, so it moves through `nav` and its history; never disabled: when
+ * the place isn't open, don't show it.
+ */
+export function MoreLink({ to, onClick, children }: { to?: Route; onClick?: () => void; children: ReactNode }) {
+  const nav = useNav();
+  return (
+    <button type="button" className="more-link" onClick={() => (to ? nav.go(to) : onClick?.())}>
+      {children}
+      <Icon name="chevron-right" />
+    </button>
   );
 }
 
