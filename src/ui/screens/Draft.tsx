@@ -46,6 +46,7 @@ import {
   viewOf,
 } from '../scouting';
 import { store } from '../store';
+import { Icon } from '../icons';
 
 type BoardSort = 'rank' | 'mine' | 'pos' | 'school' | 'drill' | 'grade' | 'ceiling' | 'gap' | 'known';
 
@@ -173,9 +174,9 @@ export function Draft({ league }: { league: League }) {
                 grade to his ceiling. The solid part is where your scouts think he lands and the faded part is the best
                 case. <b>Safe</b> and <b>Boom-or-bust</b> mark the two ends. The number before his name is his{' '}
                 <b>consensus</b> rank, roughly where the league will take him. The pill shows how far your staff's board
-                is from it (▲ when your staff likes him more). A dozen spots or more makes him a <b>Sleeper</b> or a{' '}
-                <b>Fade</b>. <b>Notes</b> are his makeup and his habits on film once your scouts know him. "?" means not
-                yet, and dashed tags are early word.
+                is from it (<Icon name="caret-up" label="up" /> when your staff likes him more). A dozen spots or more
+                makes him a <b>Sleeper</b> or a <b>Fade</b>. <b>Notes</b> are his makeup and his habits on film once
+                your scouts know him. "?" means not yet, and dashed tags are early word.
               </p>
             </details>
             <div className="table-scroll">
@@ -707,13 +708,21 @@ function RiskBar({ risk }: { risk: Risk }) {
 /** Where your staff's board parts from the league's: always a pill, coloured past a round's worth of spots. */
 function GapPill({ gap }: { gap: Gap }) {
   const n = Math.abs(gap.diff);
-  const arrow = gap.diff > 0 ? `▲${n}` : gap.diff < 0 ? `▼${n}` : '=';
+  const arrow =
+    gap.diff === 0 ? (
+      '='
+    ) : (
+      <>
+        <Icon name={gap.diff > 0 ? 'caret-up' : 'caret-down'} label={gap.diff > 0 ? 'up' : 'down'} />
+        {n}
+      </>
+    );
   return (
     <span
       className={`tag-pill gap-pill${gap.tag === 'sleeper' ? ' tag-good' : gap.tag === 'fade' ? ' tag-warn' : ''}`}
       title={`Your staff: #${gap.ours}. League consensus: #${gap.consensus}.`}
     >
-      {gap.tag === 'sleeper' ? `Sleeper ${arrow}` : gap.tag === 'fade' ? `Fade ${arrow}` : arrow}
+      {gap.tag === 'sleeper' ? <>Sleeper {arrow}</> : gap.tag === 'fade' ? <>Fade {arrow}</> : arrow}
     </span>
   );
 }

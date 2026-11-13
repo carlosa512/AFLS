@@ -327,6 +327,14 @@ what" table, `src/styles.css` (the `.card-section > summary::after` and `.steppe
   - Headings: delete Leaders' `<h2>` (`Stats.tsx:133`), Awards' `<h2>` and its row (`:336`), and Records' `<h2>`
     (`:433`). The Player stats panel's title becomes the table's label alone ("Passing"). The Team stats panel loses
     its title, keeping its action and its "Regular season." line. "Officiating crews" stays.
+- [ ] **Step 5b (owner, Task 0 checkpoint): a player's name and team read clean.** On the Stats tabs (Leaders,
+      Records, Awards' winners and Player stats), the team tag no longer wraps under the name at random (today a long
+      name pushes "DET" under the rank). Each player cell is a fixed two-line block: the avatar, then the name, with the
+      team (and position, where the table has no Pos column) on a muted second line, left-aligned under the name. Give
+      `PlayerLink` a `sub?: ReactNode` prop that does this, like `TeamLink`'s `sub` (outside the link), and use it in
+      those cells instead of the trailing `<small>`. Test in `statsHeader.test.tsx`: after one `playWeek`, a Leaders
+      row's team tag sits inside the player cell's second-line element (`player-sub`), not as a loose `<small>`.
+      Shoot `#/stats/leaders` and `#/stats/records` on a phone too.
 - [ ] **Step 6: Run** `npx vitest run src/ui` and `npm run typecheck`. Expected: all pass. A test asserting a deleted
       heading is updated.
 - [ ] **Step 7: Copy check, format, commit** ("Screens: one way to start a screen"), **and push.**
@@ -366,6 +374,10 @@ what" table, `src/styles.css` (the `.card-section > summary::after` and `.steppe
     `<div className="captains-row">`, then `<div className="room-cards">` with the big cards, then
     `<div className="room-cards room-cards-quiet">` with the quiet ones. Leave out the quiet element when it is empty.
   - No sentence changes.
+- [ ] **Step 3b (owner, Task 0 checkpoint): no empty gap in a mood row.** In Needs a word and Flying, the reason
+      chips sit right after the name block, not in a column pushed far right that leaves blank space beside the
+      name. The name block and chips flow left to right and wrap together. The "It's costing him…" line sits under
+      them. Check it in the 1440px and the 1000px shots.
 - [ ] **Step 4: CSS.**
   - `.morale-board`: one column, `minmax(0,1fr) minmax(0,1fr)` from 900px (The room, then Needs a word with Flying
     under it), and three equal columns from 1100px (The room | Needs a word | Flying with Promises).

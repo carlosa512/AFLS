@@ -50,6 +50,7 @@ import { personalityRead, personalityTone } from '../engine/personality';
 import { clubFeeling } from '../engine/relationships';
 import { band, heightFt, resultsSeason } from './format';
 import { store } from './store';
+import { Icon } from './icons';
 
 /** The user's view of a player: what every screen should show. */
 export const viewOf = (league: League, p: Player): PlayerView =>
@@ -533,7 +534,7 @@ function AttrRow({
       <span className="attr-val">
         {delta ? (
           <span className={`attr-delta ${delta > 0 ? 'tone-good' : 'tone-bad'}`}>
-            <span aria-hidden="true">{delta > 0 ? '▲' : '▼'}</span>
+            <Icon name={delta > 0 ? 'caret-up' : 'caret-down'} />
             {Math.abs(delta)}
             <span className="visually-hidden">{delta > 0 ? ' up' : ' down'} since last season</span>
           </span>
@@ -543,7 +544,7 @@ function AttrRow({
             className={`attr-trend ${trend > 0 ? 'tone-good' : 'tone-bad'}`}
             title={trend > 0 ? 'Trending up this season' : 'Trending down this season'}
           >
-            <span aria-hidden="true">{trend > 0 ? '↗' : '↘'}</span>
+            <Icon name={trend > 0 ? 'trend-up' : 'trend-down'} />
             <span className="visually-hidden">{trend > 0 ? 'trending up' : 'trending down'} this season</span>
           </span>
         ) : null}
@@ -858,7 +859,11 @@ export function CombinePanel({ player: p }: { player: Player }) {
                         <span className="muted">Did not do</span>
                       ) : (
                         <span className={verdict === 'good' ? 'tone-good' : verdict === 'bad' ? 'tone-bad' : undefined}>
-                          {verdict && <span aria-hidden="true">{verdict === 'good' ? '▲ ' : '▼ '}</span>}
+                          {verdict && (
+                            <>
+                              <Icon name={verdict === 'good' ? 'caret-up' : 'caret-down'} />{' '}
+                            </>
+                          )}
                           {d.fmt(v)}
                           {verdict && (
                             <span className="visually-hidden">

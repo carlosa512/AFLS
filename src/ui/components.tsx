@@ -35,6 +35,7 @@ export const DECALS_MIN_PX = 56;
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
 import { NUMBER_FONTS, uniformFor } from './uniform';
+import { Icon } from './icons';
 export { HOT_KICKOFF_F, wearsWhite } from './uniform';
 
 /**
@@ -559,7 +560,7 @@ export function Dialog({
         <div className="dialog-head">
           <h2>{title}</h2>
           <button className="close-x dialog-x" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <div className="dialog-body">{children}</div>
@@ -637,7 +638,7 @@ export function Sheet({
           {head}
           {actions}
           <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <div className="sheet-body">{children}</div>
@@ -833,8 +834,8 @@ export function GradesTable({
                         {t.city} {t.name}
                         {id === league.userTeamId && <span className="tag-pill">You</span>}
                       </span>
-                      <span className="muted" aria-hidden="true">
-                        {open === id ? '▴' : '▾'}
+                      <span className="muted">
+                        <Icon name={open === id ? 'chevron-up' : 'chevron-down'} />
                       </span>
                     </button>
                   </td>
@@ -904,6 +905,7 @@ export function Section({
     >
       <summary>
         <h3>{title}</h3>
+        <Icon name="chevron-down" className="fold-mark" />
       </summary>
       <div className="stack">{children}</div>
     </details>
@@ -960,7 +962,12 @@ export function SortSeg<K extends string>({
         return (
           <button key={o.k} type="button" aria-pressed={active} onClick={() => onSort(o.k, o.desc ?? true)}>
             {o.label}
-            {active ? (sort.desc ? ' ▼' : ' ▲') : ''}
+            {active && (
+              <>
+                {' '}
+                <Icon name={sort.desc ? 'caret-down' : 'caret-up'} />
+              </>
+            )}
           </button>
         );
       })}
@@ -990,7 +997,7 @@ export function SortTh<K extends string>({
       <button className="th-sort" onClick={() => onSort(k, desc)}>
         {label}
         <span className="th-arrow" aria-hidden="true">
-          {active ? (sort.desc ? '▼' : '▲') : ''}
+          {active && <Icon name={sort.desc ? 'caret-down' : 'caret-up'} />}
         </span>
       </button>
     </th>

@@ -151,6 +151,13 @@ h3 {
   font-weight: 700;
 }
 
+/* The game's icons (ui/icons.tsx): sized by the text around them, sitting on its baseline. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.125em;
+  flex: none;
+}
+
 /* ───────── shell ───────── */
 .wrap {
   max-width: 1180px;
@@ -3138,9 +3145,9 @@ tr.void-year td {
   color: var(--ink);
   background: var(--surface-2);
 }
-.stepper li.done::before {
-  content: '✓ ';
+.stepper li.done .step-done {
   color: var(--win);
+  margin-right: 0.25em;
 }
 .stepper li.current {
   color: var(--marker-ink);
@@ -4668,15 +4675,14 @@ tr.stat-total td {
 .card-section > summary::-webkit-details-marker {
   display: none;
 }
-.card-section > summary::after {
-  content: '▾';
+.card-section > summary .fold-mark {
   color: var(--muted);
 }
-.card-section:not([open]) > summary::after {
+.card-section:not([open]) > summary .fold-mark {
   transform: rotate(-90deg);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .card-section > summary::after {
+  .card-section > summary .fold-mark {
     transition: transform 0.15s;
   }
 }

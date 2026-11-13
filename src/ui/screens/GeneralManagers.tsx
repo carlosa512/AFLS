@@ -7,6 +7,7 @@ import type { Coach, GeneralManager, League } from '../../engine/types';
 import { Panel, Section, Sheet, SortTh, sortRows, TeamLink, useSort } from '../components';
 import { GmAvatar, gmDate, GmLink, gmName, gmStatus, gmStyleNotes } from '../gm';
 import { CoachLink, OwnerMandates } from './Coaches';
+import { Icon } from '../icons';
 
 export function gmHeadCoaches(league: League, gm: GeneralManager): { coach: Coach; seasons: number[] }[] {
   const people = [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)];
@@ -133,7 +134,7 @@ export function GmCard({ league, gm, onClose }: { league: League; gm: GeneralMan
             aria-pressed={editingName}
             title="Edit your GM name"
           >
-            ✎
+            <Icon name="edit" />
           </button>
         ) : undefined
       }

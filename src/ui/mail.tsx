@@ -82,6 +82,7 @@ import {
   type MailSubject,
   type Signing,
 } from '../engine/inbox';
+import { Icon } from './icons';
 import {
   activateFromIr,
   activateProblem,
@@ -1896,7 +1897,7 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
       {r.plays && r.plays.length > 0 && (
         <div className="row">
           <button className="btn btn-sm" onClick={() => nav.watchGame(g.id)}>
-            ▶ Watch replay
+            <Icon name="play" /> Watch replay
           </button>
         </div>
       )}

@@ -50,6 +50,7 @@ import { TabBoundary } from './boundary';
 import { MAX_COMPARE, NavContext, type Nav, type StaffKind } from './nav';
 import { store, useLeague } from './store';
 import { VersionTag } from './versionHistory';
+import { Icon } from './icons';
 
 export type { Route };
 
@@ -510,7 +511,7 @@ export function App() {
             Compare {compareIds.length} player{compareIds.length > 1 ? 's' : ''}
           </button>
           <button className="btn btn-sm btn-ghost" onClick={() => setCompareIds([])} aria-label="Clear the comparison">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
       )}

@@ -51,6 +51,7 @@ import { store } from '../store';
 import { tradeDesk, type Picked } from '../tradeDesk';
 import { Fact, Facts, OfficeHero, Pill } from '../office';
 import { reputation } from '../../engine/gmVoice';
+import { Icon } from '../icons';
 
 const empty = (): Picked => ({ players: [], picks: [] });
 const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -204,7 +205,13 @@ export function AssetPicker({
                         aria-pressed={added}
                         onClick={() => onChange({ ...picked, players: toggle(picked.players, p.id) })}
                       >
-                        {added ? 'Added ✓' : 'Add'}
+                        {added ? (
+                          <>
+                            Added <Icon name="check" />
+                          </>
+                        ) : (
+                          'Add'
+                        )}
                       </button>
                     )}
                   </li>

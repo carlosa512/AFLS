@@ -84,6 +84,7 @@ import {
   relieveProblem,
   type Cover,
 } from '../../engine/coaching';
+import { Icon } from '../icons';
 import { SIDE_ROOMS } from '../../engine/belief';
 import { relieveCoordinator } from '../../engine/relieve';
 import { beliefFact } from '../../engine/roomFacts';
@@ -1390,8 +1391,8 @@ function RoomRow({
             <b className={agingVerdict(effect.aging).tone}>{agingVerdict(effect.aging).word}</b>
           </span>
         </span>
-        <span className="room-chev" aria-hidden="true">
-          {expanded ? '▴' : '▾'}
+        <span className="room-chev">
+          <Icon name={expanded ? 'chevron-up' : 'chevron-down'} />
         </span>
       </button>
       {expanded && (
@@ -2366,8 +2367,8 @@ function AroundTheLeague({ league, grades }: { league: League; grades: ReturnTyp
                             {id === teamId && <span className="tag-pill">You</span>}
                             <OwnerNotes league={league} teamId={id} />
                           </span>
-                          <span className="muted" aria-hidden="true">
-                            {open === id ? '▴' : '▾'}
+                          <span className="muted">
+                            <Icon name={open === id ? 'chevron-up' : 'chevron-down'} />
                           </span>
                         </button>
                       </td>

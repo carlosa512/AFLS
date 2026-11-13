@@ -16,6 +16,7 @@ const NIGHTS = { thu: 'Thursday night', sat: 'Saturday night', sun: 'Sunday nigh
 import { useNav } from './App';
 import { TeamChip } from './components';
 import { recordText, weekLabel } from './format';
+import { Icon } from './icons';
 
 type Records = ReturnType<typeof computeRecords>;
 
@@ -108,10 +109,10 @@ export function ScoreStrip({ league }: { league: League }) {
         </div>
         <div className="strip-tools">
           <button className="btn btn-sm strip-arrow" aria-label="Scroll games left" onClick={() => scroll(-1)}>
-            ‹
+            <Icon name="chevron-left" />
           </button>
           <button className="btn btn-sm strip-arrow" aria-label="Scroll games right" onClick={() => scroll(1)}>
-            ›
+            <Icon name="chevron-right" />
           </button>
           <button className="linklike small" onClick={() => nav.go({ view: 'schedule' })}>
             Full schedule

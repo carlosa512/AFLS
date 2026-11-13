@@ -22,6 +22,7 @@ import {
   starsOf,
   viewOf,
 } from '../scouting';
+import { Icon } from '../icons';
 
 /** Side by side, with the same fog as everywhere else: you compare what your scouts believe. */
 export function Compare({ league }: { league: League }) {
@@ -198,8 +199,9 @@ export function Compare({ league }: { league: League }) {
                       <span className="num">
                         {d.fmt(v)}
                         {verdict && (
-                          <span className={verdict === 'good' ? 'tone-good' : 'tone-bad'} aria-hidden="true">
-                            {verdict === 'good' ? ' ▲' : ' ▼'}
+                          <span className={verdict === 'good' ? 'tone-good' : 'tone-bad'}>
+                            {' '}
+                            <Icon name={verdict === 'good' ? 'caret-up' : 'caret-down'} />
                           </span>
                         )}
                       </span>

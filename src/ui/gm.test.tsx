@@ -25,7 +25,7 @@ describe('GM cards and directory', () => {
     const l = world();
     const own = renderCard(l, l.gms[l.userGmId]);
     expect(own).toContain('Edit your GM name');
-    expect(own).toContain('✎'); // the same pencil as a player card, not a button inside the card
+    expect(own).toContain('<path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4"'); // the same pencil as a player card, not a button inside the card
     expect(own).not.toContain('>Edit your GM name</button>');
     const other = renderCard(l, l.gms[l.teams[1].gmId!]);
     expect(other).not.toContain('Edit your GM name');

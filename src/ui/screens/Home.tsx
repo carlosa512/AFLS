@@ -38,6 +38,7 @@ import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
 import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
+import { Icon } from '../icons';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -202,7 +203,7 @@ function LastGame({ league }: { league: League }) {
             Box score
           </button>
           <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
-            ▶ Watch replay
+            <Icon name="play" /> Watch replay
           </button>
         </span>
       }
@@ -557,6 +558,7 @@ function OffseasonHome({ league }: { league: League }) {
             className={i < idx ? 'done' : i === idx ? 'current' : undefined}
             aria-current={i === idx ? 'step' : undefined}
           >
+            {i < idx && <Icon name="check" className="step-done" />}
             {label}
           </li>
         ))}

@@ -86,6 +86,7 @@ import {
   teamCoaches,
   teamScheme,
 } from '../../engine/coaching';
+import { Icon } from '../icons';
 import { spotsFor } from '../../engine/schemes';
 import {
   AttributeList,
@@ -983,7 +984,7 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           aria-pressed={editing}
           title="Edit name, number and gear"
         >
-          ✎
+          <Icon name="edit" />
         </button>
       }
     >
@@ -1148,7 +1149,13 @@ export function PlayerCard({ league, player: p, onClose }: { league: League; pla
           disabled={!comparing && nav.compareIds.length >= MAX_COMPARE}
           onClick={() => nav.toggleCompare(p.id)}
         >
-          {comparing ? 'In comparison ✓' : 'Compare'}
+          {comparing ? (
+            <>
+              In comparison <Icon name="check" />
+            </>
+          ) : (
+            'Compare'
+          )}
         </button>
         {!view.exact && (
           <>

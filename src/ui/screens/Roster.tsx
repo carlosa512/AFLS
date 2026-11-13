@@ -692,7 +692,7 @@ function RosterRow({
               className="grip"
               data-grip={p.id}
               aria-label={`Reorder ${p.firstName} ${p.lastName}, ${spot}. Drag, or use the up and down arrow keys.`}
-              title="Drag to reorder (or use ↑/↓)"
+              title="Drag to reorder, or use the arrow keys"
               onPointerDown={onGrip}
               onKeyDown={onKey}
             >

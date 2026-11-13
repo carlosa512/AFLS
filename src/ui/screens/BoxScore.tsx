@@ -8,6 +8,7 @@ import { FieldStrip, Panel, PlayerLink, TeamChip, WeatherNote } from '../compone
 import { PlayText, usePlayNames, type PlayNames } from './GameViewer';
 import { GameOfficials } from './Officials';
 import { gameClock, weekLabel } from '../format';
+import { Icon } from '../icons';
 
 type Row = [Player, StatLine];
 
@@ -295,11 +296,11 @@ export function BoxScore({ league, gameId, onBack }: { league: League; gameId: n
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
-          ← Back
+          <Icon name="back" /> Back
         </button>
         {(r.plays ?? []).some((p) => !p.scoring) && (
           <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
-            ▶ Watch replay
+            <Icon name="play" /> Watch replay
           </button>
         )}
       </div>

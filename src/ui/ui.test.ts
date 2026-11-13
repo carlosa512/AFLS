@@ -378,6 +378,46 @@ describe('screen contract', () => {
     expect(small).toEqual([]);
   });
 
+  // Every non-test source file under src/ui, at any depth, components.tsx included.
+  const allUi = (dir = 'src/ui'): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? allUi(join(dir, e.name))
+        : /\.tsx?$/.test(e.name) && !/\.test\./.test(e.name)
+          ? [join(dir, e.name)]
+          : [],
+    );
+
+  it('draws icons only through Icon', () => {
+    // Characters every font (and iOS's emoji) draws its own way. An arrow inside text ("EDGE → DT") is punctuation.
+    const glyph = /[▲▼▴▾▸▶◀❚✕✎✓‹›←↑↓↗↘]/;
+    const allowed: [file: string, text: string, why: string][] = [
+      [join('src/ui', 'mail.tsx'), '/^(.*?)\\s*([▲▼])(\\d+)$/', "reads the engine's change marks"],
+      [join('src/ui', 'mail.tsx'), "=== '▲'", "reads the engine's change marks"],
+    ];
+    const hits: string[] = [];
+    for (const f of allUi().filter((f) => !f.endsWith('icons.tsx')))
+      src(f)
+        .split('\n')
+        .forEach((line, i) => {
+          const t = line.trim();
+          if (/^(\/\/|\*|\/\*)/.test(t) || !glyph.test(line)) return;
+          if (allowed.some(([af, text]) => af === f && line.includes(text))) return;
+          hits.push(`${f}:${i + 1}`);
+        });
+    for (const m of readFileSync('src/styles.css', 'utf8').matchAll(/content:\s*'([^']*)'/g))
+      if (glyph.test(m[1])) hits.push(`src/styles.css: content '${m[1]}'`);
+    expect(hits).toEqual([]);
+  });
+
+  it('names every button that holds only an icon', () => {
+    const bad: string[] = [];
+    for (const f of allUi())
+      for (const m of src(f).matchAll(/<button\b([^>]*)>\s*<Icon\b[^>]*\/>\s*<\/button>/g))
+        if (!/aria-label=/.test(m[1])) bad.push(`${f}: ${m[0].slice(0, 80)}`);
+    expect(bad).toEqual([]);
+  });
+
   it('renders player names only through PlayerLink', () => {
     // The card's own header, the "signed" toast and the play-by-play (it links by index) are not links by design.
     const allowed = ['src/ui/screens/PlayerCard.tsx', 'src/ui/negotiation.tsx', 'src/ui/screens/GameViewer.tsx'];
