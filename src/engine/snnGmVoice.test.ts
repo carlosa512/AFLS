@@ -187,6 +187,48 @@ describe('a hit piece', () => {
     expect(lead('b:qbPicks:2')).toContain('George Sutton made both picks, and neither is the starter.');
   });
 
+  it('says "she" and "her" for a general manager who is a woman', () => {
+    const { l, gm, claim } = jacksonville('gm-voice-she');
+    named(gm as unknown as Player, 'Felicia', 'Byrd');
+    gm.woman = true;
+    const piece = gmPiece(l, claim()!, only(l, ['b:qbPicks:1', 'b:record:combined', 'b:contract:turn', 'b2:qbPicks']))!;
+    const text = piece.paragraphs.join(' ');
+    expect(text).toContain('A year later she used the second pick');
+    expect(text).toContain('Before either pick she had signed a third');
+    expect(text).toContain("in Byrd's first two seasons combined");
+    expect(text).toMatch(/in her third\./);
+    expect(text).toContain('She has had three.');
+    // The quarterback is still "who has not played a snap", and nothing about her says "he".
+    expect(text).not.toMatch(/\b(he|his|him)\b/i);
+    // The closes and the records that speak of the general manager, one by one.
+    for (const ids of [
+      ['b:qbPicks:1', 'b:record:each', 'b2:3'],
+      ['b:qbPicks:1', 'b:record:run', 'b2:starTrade'],
+    ]) {
+      const other = gmPiece(l, claim()!, only(l, ids))!.paragraphs.slice(1).join(' ');
+      expect(other, ids.join()).not.toMatch(/\b(he|his|him)\b/i);
+    }
+  });
+
+  it('prefers the other shape and another close when this general manager’s piece used them last year', () => {
+    const { l, t, gm, b, claim } = jacksonville('gm-voice-again');
+    // A new first-round quarterback this year lets the family lead again; last year's piece used shape 1 and the
+    // quarterback close.
+    b.draft!.season = l.season;
+    const last = [
+      gmLeadKey(l.season - 1, gm.id, t, 'qbPicks'),
+      gmShapeKey(l.season - 1, 'b:qbPicks:1'),
+      gmShapeKey(l.season - 1, 'b2:qbPicks'),
+    ];
+    for (let n = 0; n < 6; n++) {
+      // Whatever the claim's key hashes to, it is never last year's lead shape or close.
+      const c = { ...claim(last)!, key: `${claim(last)!.key}#${n}` };
+      const piece = gmPiece(l, c, new Set(last))!;
+      expect(piece.covers).toContain(gmShapeKey(l.season, 'b:qbPicks:2'));
+      expect(piece.covers).not.toContain(gmShapeKey(l.season, 'b2:qbPicks'));
+    }
+  });
+
   it('never uses a shape or a close twice in a league year', () => {
     const { l, claim } = jacksonville('gm-voice-twice');
     const c = claim()!;

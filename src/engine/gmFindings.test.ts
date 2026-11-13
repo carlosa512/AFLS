@@ -496,6 +496,10 @@ describe('a new head coach who is winning', () => {
       hiredFirst: false,
       newCoach: true,
     });
+    // Winning after a winning season is no turnaround to credit the hire with.
+    gm.career[0].record!.regular = { w: 12, l: 5, t: 0 };
+    expect(find(gmFindings(l, gm.id, T), 'coaches')).toBeUndefined();
+    gm.career[0].record!.regular = { ...LOSING, t: 0 };
     // A coach who was here last season is not a new hire, and neither is an interim.
     hc.career = [{ season: l.season - 1, teamId: T, role: 'headCoach' }];
     expect(find(gmFindings(l, gm.id, T), 'coaches')).toBeUndefined();

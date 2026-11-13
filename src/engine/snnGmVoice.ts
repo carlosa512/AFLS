@@ -17,6 +17,7 @@
 import type { Finding, FindingFamily, Honor, PickFact } from './gmFindings';
 import { gmSeasons } from './gmFindings';
 import { POSITION_NAMES } from './positions';
+import { pron } from './pronouns';
 import { possessive } from './refer';
 import { gmLeadKey, type Claim } from './snnColumn';
 import type { GmMove, League, MoveSide } from './types';
@@ -99,6 +100,8 @@ export interface GmSheet {
   lostRun: number;
   /** Wins over his finished seasons here. */
   wins: number;
+  /** His pronouns, or hers: a general manager can be a woman (`pronouns.ts`). */
+  p: ReturnType<typeof pron>;
   /** Winning seasons in a row behind him, counting back from last season. */
   winRun: number;
   /** Last season's record here. */
@@ -134,6 +137,7 @@ function sheetOf(l: League, claim: Claim, gmId: number): GmSheet {
     lostRun,
     wins: past.reduce((n, s) => n + s.w, 0),
     winRun,
+    p: pron(gm),
     ...(past.length ? { last: { w: past.at(-1)!.w, l: past.at(-1)!.l } } : {}),
     ...(typeof claim.facts.run === 'string' ? { run: claim.facts.run } : {}),
   };
@@ -223,10 +227,10 @@ const BLAME_LEADS: Shape[] = [
       const third = !f.signed
         ? ''
         : f.signed.before
-          ? ` Before either pick he had signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`
-          : ` He has also signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`;
+          ? ` Before either pick ${s.p.he} had signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`
+          : ` ${s.p.He} has also signed a third, ${M(f.signed.playerId)}, to a ${w(f.signed.years)}-year contract.`;
       return [
-        `${G} used ${pickWords(a.pick)} of the ${a.season} draft on quarterback ${M(a.playerId)}. ${later} he used ${pickWords(b.pick)} on another quarterback, ${M(b.playerId)}${unplayed}.${bench}${third}`,
+        `${G} used ${pickWords(a.pick)} of the ${a.season} draft on quarterback ${M(a.playerId)}. ${later} ${s.p.he} used ${pickWords(b.pick)} on another quarterback, ${M(b.playerId)}${unplayed}.${bench}${third}`,
       ];
     }),
     headline: of<'qbPicks', string>(
@@ -434,7 +438,9 @@ const BLAME_LEADS: Shape[] = [
     text: of<'coaches', string[]>((s, f) => [
       `${coachName(s.l, f.coachIds.at(-1)!)} is the ${nth(f.coachIds.length)} head coach ${C(s.teamId)} have had in ${w(s.past.length + 1)} seasons. ${G} has been the general manager for all of them.`,
     ]),
-    headline: of<'coaches', string>((s, f) => `${s.surname} is on his ${nth(f.coachIds.length)} head coach ${s.where}`),
+    headline: of<'coaches', string>(
+      (s, f) => `${s.surname} is on ${s.p.his} ${nth(f.coachIds.length)} head coach ${s.where}`,
+    ),
   },
   {
     id: 'b:coaches:2',
@@ -543,7 +549,7 @@ const BLAME_RECORDS: Shape[] = [
     role: 'record',
     when: (s) => allLosing(s) && s.past.length >= 2 && s.past.length <= 4,
     text: (s) => [
-      `The ${N(s.teamId)} won ${w(s.wins)} ${plural(s.wins, 'game')} in ${Gs} first ${w(s.past.length)} seasons combined and are ${s.rec} in his ${nth(s.past.length + 1)}.`,
+      `The ${N(s.teamId)} won ${w(s.wins)} ${plural(s.wins, 'game')} in ${Gs} first ${w(s.past.length)} seasons combined and are ${s.rec} in ${s.p.his} ${nth(s.past.length + 1)}.`,
     ],
   },
   {
@@ -558,7 +564,7 @@ const BLAME_RECORDS: Shape[] = [
     role: 'record',
     when: allLosing,
     text: (s) => [
-      `${G} is in his ${nth(s.past.length + 1)} season with ${C(s.teamId)}, who are ${s.rec} and had a losing record in each of the others.`,
+      `${G} is in ${s.p.his} ${nth(s.past.length + 1)} season with ${C(s.teamId)}, who are ${s.rec} and had a losing record in each of the others.`,
     ],
   },
 ];
@@ -598,7 +604,7 @@ const CREDIT_LEADS: Shape[] = [
       const got = a.got.players[0];
       return [
         first,
-        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} he paid ${whom} ${picksWords(a.gave.picks)} for ${posOf(s.l, got)} ${M(got)}.`,
+        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} ${s.p.he} paid ${whom} ${picksWords(a.gave.picks)} for ${posOf(s.l, got)} ${M(got)}.`,
       ];
     }),
     headline: of<'starTrade', string>((s, f) => {
@@ -822,7 +828,7 @@ const CREDIT_LEADS: Shape[] = [
     record: true,
     when: of<'coaches', boolean>((_, f) => f.hiredFirst),
     text: of<'coaches', string[]>((s, f) => [
-      `In ${s.past[0].season} ${G} hired ${coachName(s.l, f.coachIds[0])} as head coach, in his first year with ${C(s.teamId)}. ${coachLast(s.l, f.coachIds[0])} is still the head coach, and ${c(s.teamId)} are ${s.rec}.`,
+      `In ${s.past[0].season} ${G} hired ${coachName(s.l, f.coachIds[0])} as head coach, in ${s.p.his} first year with ${C(s.teamId)}. ${coachLast(s.l, f.coachIds[0])} is still the head coach, and ${c(s.teamId)} are ${s.rec}.`,
     ]),
     headline: of<'coaches', string>(
       (s, f) =>
@@ -1011,7 +1017,7 @@ export const CLOSES: readonly Close[] = [
     id: 'b2:3',
     on: '2-',
     text: (s) =>
-      `The roster that is ${s.rec} is the one ${G} built. It is fair to ask whether ${c(s.teamId)} should let him build the next one.`,
+      `The roster that is ${s.rec} is the one ${G} built. It is fair to ask whether ${c(s.teamId)} should let ${s.p.him} build the next one.`,
   },
   {
     id: 'b2:4',
@@ -1030,8 +1036,8 @@ export const CLOSES: readonly Close[] = [
     on: '2-',
     family: 'qbPicks',
     text: of<'qbPicks', string>(
-      (_, f) =>
-        `A general manager gets one try at a quarterback before the questions start. He has had ${w(tries(f))}. It is fair to ask whether ${G} gets another season to find one.`,
+      (s, f) =>
+        `A general manager gets one try at a quarterback before the questions start. ${s.p.He} has had ${w(tries(f))}. It is fair to ask whether ${G} gets another season to find one.`,
     ),
   },
   {
@@ -1040,7 +1046,7 @@ export const CLOSES: readonly Close[] = [
     family: 'starTrade',
     text: of<'starTrade', string>((s, f) => {
       const n = firstsIn(f.move.gave.picks);
-      return `A first-round pick is how a losing team gets better. ${G} spent ${n === 1 ? 'one' : w(n)} on ${M(f.playerId)}, and the team is ${s.rec}. It is fair to ask whether ${c(s.teamId)} should trust him with the next one.`;
+      return `A first-round pick is how a losing team gets better. ${G} spent ${n === 1 ? 'one' : w(n)} on ${M(f.playerId)}, and the team is ${s.rec}. It is fair to ask whether ${c(s.teamId)} should trust ${s.p.him} with the next one.`;
     }),
   },
   {
@@ -1088,7 +1094,7 @@ export const CLOSES: readonly Close[] = [
     id: 'c+:1',
     on: '+',
     text: (s) =>
-      `Good teams are built in the offseason, when nobody is watching. ${G} has had ${w(s.past.length + 1)} of them with ${c(s.teamId)}, and the standings show how he used them.`,
+      `Good teams are built in the offseason, when nobody is watching. ${G} has had ${w(s.past.length + 1)} of them with ${c(s.teamId)}, and the standings show how ${s.p.he} used them.`,
   },
   {
     id: 'c+:2',
@@ -1152,11 +1158,16 @@ export const CLOSES: readonly Close[] = [
     on: '+',
     also: 'coaches',
     leadToo: true,
+    record: true,
     text: (s, lead, also) => {
       const f = also as Of<'coaches'>;
       // The lead has given his full name when the piece opened on the hire.
       const name = lead === also ? coachLast(s.l, f.coachIds[0]) : coachName(s.l, f.coachIds[0]);
-      return `A general manager makes no bigger decision than his head coach. ${G} chose ${name}, and ${c(s.teamId)} are ${s.rec}.`;
+      const turned = f.newCoach && s.last && s.last.w < s.last.l;
+      const now = turned
+        ? `have gone from ${w(s.last!.w)} ${plural(s.last!.w, 'win')} last season to ${s.rec}`
+        : `are ${s.rec}`;
+      return `A general manager makes no bigger decision than the head coach. ${G} chose ${name}, and ${c(s.teamId)} ${now}.`;
     },
   },
 ];
@@ -1233,7 +1244,14 @@ export function gmPiece(l: League, claim: Claim, have: Set<string>): GmPiece | n
   const fresh = leads.find((x) => x.shapes.some((sh) => !used(sh.id)));
   const lead = fresh ?? leads[0];
   if (!lead) return null;
-  const leadShape = lead.shapes.find((sh) => !used(sh.id)) ?? lead.shapes[0];
+  // Not the shape or the close his last piece used a year ago, while there is another: a family may lead again when it
+  // has a new fact, and it should not read as last year's piece did.
+  const lastYear = (id: string) => have.has(gmShapeKey(s.season - 1, id));
+  const ledLast = have.has(gmLeadKey(s.season - 1, gmId, claim.teamId, lead.f.family));
+  const leadShape =
+    lead.shapes.find((sh) => !used(sh.id) && !(ledLast && lastYear(sh.id))) ??
+    lead.shapes.find((sh) => !used(sh.id)) ??
+    lead.shapes[0];
 
   // The close first: one built on a second finding takes that finding, and one that gives the record replaces it.
   const on = s.dir === 'credit' ? '+' : s.rung === 3 ? '3-' : '2-';
@@ -1241,10 +1259,12 @@ export function gmPiece(l: League, claim: Claim, have: Set<string>): GmPiece | n
   const closes = order(
     CLOSES.filter((x) => x.on === on && (!x.family || x.family === lead.f.family) && (!x.also || alsoOf(x))),
   );
+  const plain = (x: Close) => !x.family && !x.also;
   const close =
     closes.find((x) => x.also && !used(x.id)) ??
-    closes.find((x) => x.family && !used(x.id)) ??
-    closes.find((x) => !x.family && !x.also && !used(x.id)) ??
+    closes.find((x) => x.family && !used(x.id) && !lastYear(x.id)) ??
+    closes.find((x) => plain(x) && !used(x.id) && !lastYear(x.id)) ??
+    closes.find((x) => !x.also && !used(x.id)) ??
     closes[0];
   if (!close) return null;
   const also = close.also ? alsoOf(close) : undefined;
@@ -1267,11 +1287,15 @@ export function gmPiece(l: League, claim: Claim, have: Set<string>): GmPiece | n
   );
   const closing = close.text(s, lead.f, also);
   // The record alone opens the close: a paragraph of one sentence reads as a caption.
+  // A second point with nothing beside it joins the lead: a paragraph of one sentence reads as a caption.
+  const lone = !!turn && !record && !tail.length;
   const body = !second
     ? [first, closing]
-    : turn || tail.length
-      ? [first, second, closing]
-      : [first, `${second} ${closing}`];
+    : lone
+      ? [`${first} ${second}`, closing]
+      : turn || tail.length
+        ? [first, second, closing]
+        : [first, `${second} ${closing}`];
   const made = leadShape.headline?.(s, lead.f) ?? '';
   const fallback =
     s.dir === 'credit'

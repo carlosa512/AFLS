@@ -389,6 +389,8 @@ function headCoaches(r: Read): Finding[] {
     me &&
     me.w + me.l + me.t >= PASSER_GAMES &&
     me.w > me.l &&
+    // After a losing season: winning again under a new coach when the team was already winning is no turnaround.
+    r.past.at(-1)!.w < r.past.at(-1)!.l &&
     !out.some((f) => f.side === 'credit')
   )
     out.push({

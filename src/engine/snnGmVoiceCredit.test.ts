@@ -240,6 +240,36 @@ describe('a hype piece', () => {
     expect(ruleBreaks(s.l, story), story.paragraphs.join(' / ')).toEqual([]);
   });
 
+  it('folds a second point that stands alone into the lead, and says the record once', () => {
+    // One trade, no second one, and a second finding: the trade's close carries the record.
+    const s = indianapolis('gm-credit-fold');
+    s.gm.deals = [s.gm.deals![0]];
+    const [a, b] = [pos(s.l, s.t, 'CB'), pos(s.l, s.t, 'DT')];
+    a.draft = { season: s.Y2, round: 1, pick: 14, teamId: s.t };
+    b.draft = { season: s.Y1, round: 1, pick: 27, teamId: s.t };
+    starts(s, a);
+    starts(s, b);
+    pin(s, ['c:starTrade:1', 'c:firsts:turn', 'c+:starTrade']);
+    const story = columnStory(s.l, s.claim()!, at());
+    expect(story.paragraphs).toHaveLength(2);
+    expect(story.paragraphs[0]).toMatch(
+      /won the title\. Sharp has made two first-round picks for Indianapolis, and both start\.$/,
+    );
+    // The hire's close gives the record, so the paragraph does not say it twice.
+    const h = scene('gm-credit-once', 'DEN', [{ w: 4, l: 13 }]);
+    h.hc.career = [{ season: h.l.season, teamId: h.t, role: 'headCoach' }];
+    const [x, y] = [pos(h.l, h.t, 'CB'), pos(h.l, h.t, 'DT')];
+    x.draft = { season: h.Y1, round: 1, pick: 14, teamId: h.t };
+    y.draft = { season: h.l.season, round: 1, pick: 3, teamId: h.t };
+    starts(h, x);
+    starts(h, y);
+    pin(h, ['c:firsts:1', 'c+:coaches']);
+    const hire = columnStory(h.l, h.claim()!, at());
+    const rec = `${h.claim()!.context.w}–${h.claim()!.context.l}`;
+    expect(hire.paragraphs.join(' ').split(rec).length - 1).toBe(1);
+    expect(hire.paragraphs.at(-1)).toContain(`have gone from four wins last season to ${rec}`);
+  });
+
   it('no GM claim is written from the old banks', () => {
     for (const key of ['gm2-', 'gm3-', 'gm2+', 'gmBuilt+', 'gmRun+']) expect(COLUMN[key], key).toBeUndefined();
   });
@@ -319,6 +349,14 @@ const SCENES: Partial<Record<FindingFamily, ((s: Scene) => void)[]>> = {
   ],
 };
 
+/** The seasons behind the GM in a shape's scene: two winning ones, or one losing one for the new coach's turnaround. */
+const WINNING: Past[] = [
+  { w: 10, l: 7 },
+  { w: 11, l: 6 },
+];
+const pastOf = (family: FindingFamily, n: number): Past[] =>
+  family === 'coaches' && n === 1 ? [{ w: 4, l: 13 }] : WINNING;
+
 describe('the hype pieces’ shapes', () => {
   const leads = (family: FindingFamily) =>
     SHAPES.filter((x) => x.side === 'credit' && x.role === 'lead' && x.family === family);
@@ -346,15 +384,7 @@ describe('the hype pieces’ shapes', () => {
       const written = new Map<string, string>();
       for (const [n, build] of SCENES[family]!.entries())
         for (const shape of leads(family)) {
-          const s = scene(
-            `gm-credit-${family}-${n}`,
-            'SEA',
-            [
-              { w: 10, l: 7 },
-              { w: 11, l: 6 },
-            ],
-            ['Patrick', 'Williams'],
-          );
+          const s = scene(`gm-credit-${family}-${n}`, 'SEA', pastOf(family, n), ['Patrick', 'Williams']);
           build(s);
           const c = s.claim()!;
           expect(c.findings![0].family, shape.id).toBe(family);
