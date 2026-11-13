@@ -395,6 +395,25 @@ what" table, `src/styles.css` (the `.card-section > summary::after` and `.steppe
 - [ ] **Step 7: Checkpoint.** `#/locker` into `5-locker` against `0-baseline`: desktop, phone and dark. Also one run
       with `--width 1000` (the two-column morale layout). Wait.
 
+### Task 5c (owner, Task 2 checkpoint): the coach's card
+
+The card that opens when you tap a coach (`CoachCard`, `Coaches.tsx:686`), only. "Who coaches your players" and the
+hiring market get a later pass.
+
+- Three tabs under the header: **Bio**, **Record**, **Career** (a `seg`, local state, Bio first).
+- **Bio:** an **Overview** paragraph replaces "Around the league", in two to four plain sentences a person would say:
+  where he came from and when (his last job before this one), what he is known for (today's reputation line), and how
+  his teams play (today's "Wants…" line). Its words go in a pure function that reads only what screens already read
+  for a coach (career, reputation, scheme), and follow `docs/UI.md`'s words rules. His habit pills stay, one row. The
+  development numbers, age, salary and "with … since" stay in the header strip.
+- **Record:** one compact row per season: the year, the team's chip, the record large, small pills for division
+  champions and the playoff result, and the job, newest first.
+- **Career:** today's career table and coaching tree, unchanged.
+- "Habits over time" and the long "Has a hand in…" lines leave the first view: inside Career, folded.
+- Test: the overview function on a coach with two jobs names both teams and years in order, with no semicolon or
+  colon in a sentence. The card renders the three tabs with Bio open.
+- Checkpoint: the card for your head coach, a coordinator and a coach on the market, desktop and phone.
+
 ### Task 6: Docs, version and the whole-branch review
 
 **Files:** modify `docs/UI.md`, `CLAUDE.md`, `package.json` and `src/ui/changelog.ts`.
