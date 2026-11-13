@@ -198,11 +198,11 @@ in his seasons there, blame, credit or neither by how it turned out:
 | Quarterback picks | Two first-round picks spent on quarterbacks | |
 | Quarterbacks | A different leading passer in three seasons, two of them losing | The same, with every finished season a winning one |
 | First-round picks | Fewer than half start | All start |
-| A draft class, a late find | | Two picks honored here; a pick from round four or later honored here |
-| The trade for a star | A first-round pick or more for one player who won nothing here and is gone or does not start, a season on | The player has an award or an All-League team here |
+| A draft class, a late find | | Two picks honored here and still here; a pick from round four or later the same |
+| The trade for a star | A first-round pick or more for one player who won nothing here and is gone or does not start, a season on | The player has an award or an All-League team here and is still here |
 | The big contract | He is on another team inside two seasons with the deal still running | He starts here and has been honored |
 | The one who left | A player gone under him who has been honored elsewhere since | |
-| Head coaches | Three in his seasons | One he hired when he came; or a first-year coach who is winning |
+| Head coaches | Three in his seasons | One he hired when he came; or a first-year coach who is winning after a losing season |
 
 A player traded away for a first-round pick is no mark against him, and a contract that ran its length is not blamed.
 **No finding, no piece:** a GM with nothing on record is not written about, and the editor picks another Column.

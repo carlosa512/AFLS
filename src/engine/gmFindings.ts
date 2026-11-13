@@ -243,7 +243,8 @@ function firstRounders(picks: PickFact[]): Finding[] {
 }
 
 function honoredPicks(picks: PickFact[]): Finding[] {
-  const honored = picks.filter((p) => p.honors.length).sort((a, b) => a.round - b.round || a.pick - b.pick);
+  // Still here: a team is not winning with a pick who has left.
+  const honored = picks.filter((p) => p.honors.length && p.here).sort((a, b) => a.round - b.round || a.pick - b.pick);
   const out: Finding[] = [];
   const latest = (xs: PickFact[]) => newest(xs.flatMap((p) => p.honors.map((h) => h.season)));
   if (honored.length >= 2) out.push({ family: 'class', side: 'credit', latest: latest(honored), picks: honored });
@@ -285,7 +286,10 @@ function starTrades(r: Read): Finding[] {
       ...(again ? { again } : {}),
     };
   };
-  const paid = deals.filter((d) => d.honors.length).sort((a, b) => b.honors.length - a.honors.length)[0];
+  // Honored here and still here: a trade is not said to have paid for a team the player has left.
+  const paid = deals
+    .filter((d) => d.honors.length && isHere(r, d.p))
+    .sort((a, b) => b.honors.length - a.honors.length)[0];
   // A full season on, nothing won here, and he is gone or not a starter.
   const firsts = (m: Trade) => m.gave.picks.filter((p) => p.round === FIRST).length;
   const bust = deals

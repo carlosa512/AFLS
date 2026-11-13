@@ -300,6 +300,26 @@ describe('the trade for a star', () => {
     expect(find(gmFindings(l, gm.id, T), 'starTrade')).toBeUndefined();
   });
 
+  it('is no credit once the player has gone, and neither is an honored pick who has left', () => {
+    const { l, gm, first } = scene('find-gone-credit', [WINNING, WINNING]);
+    const star = at(l, 'DT', 0);
+    gm.deals = [trade(l, first, { got: { players: [star.id], picks: [] } })];
+    honor(l, star, first + 1, T, 'allLeague');
+    const [a, b] = [drafted(at(l, 'OL', 0), first, 2, 40), drafted(at(l, 'S', 0), first, 5, 150)];
+    honor(l, a, first, T, 'allLeague');
+    honor(l, b, first + 1, T, 'allLeague');
+    const credit = () =>
+      gmFindings(l, gm.id, T)
+        .filter((f) => f.side === 'credit')
+        .map((f) => f.family)
+        .sort();
+    expect(credit()).toEqual(['class', 'lateFind', 'starTrade']);
+    // The star is traded on, and the late pick signs elsewhere: what is left is one honored pick, which is no class.
+    setTeam(l, star, OTHER);
+    setTeam(l, b, OTHER);
+    expect(credit()).toEqual([]);
+  });
+
   it('names a later star trade beside the one that paid', () => {
     const { l, gm, first } = scene('find-star-again', [WINNING, WINNING]);
     const [star, second] = [at(l, 'QB', 0), at(l, 'OL', 0)];
