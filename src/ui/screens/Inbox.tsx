@@ -1,4 +1,5 @@
 import { canReadMail, mailDate } from '../../engine/inbox';
+import { employed } from '../../engine/employment';
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
   archiveMail,
@@ -95,7 +96,7 @@ function actionLabel(league: League, m: InboxMessage, a: InboxAction): string {
     case 'resign':
       return 'Expiring contracts';
     case 'fa':
-      return a.pos ? `Free agents at ${a.pos}` : 'Free agency';
+      return a.pos ? `Free agents at ${a.pos}` : m.edition ? 'Go to free agency' : 'Free agency';
     case 'coaches':
       return 'Coaches';
     case 'gms':
@@ -224,6 +225,11 @@ function groupByDate(list: MailThread[]): { label: string; threads: MailThread[]
 
 const ids = (t: MailThread) => t.messages.map((m) => m.id);
 
+const isEdition = (t: MailThread) => t.messages.some((m) => m.edition);
+/** SNN's edition opens its week (or offseason step): the first thing under the date to read. */
+const editionsFirst = (list: MailThread[]): MailThread[] =>
+  groupByDate(list).flatMap((g) => [...g.threads.filter(isEdition), ...g.threads.filter((t) => !isEdition(t))]);
+
 /**
  * Mail from the league office, agents and your own staff, newest first: a list to sort through and a message to
  * act on (`messageId`, when sent to one). A day's letters of one kind (contracts, injuries…) fold into one message;
@@ -245,12 +251,14 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
   const needs = new Set(inbox.filter((m) => needsYou(league, m)).map((m) => m.id));
   const pool = show === 'archived' ? archived : inbox;
   const q = query.trim().toLowerCase();
-  const shown = threads(
-    pool.filter(
-      (m) =>
-        (type === 'all' || m.category === type) &&
-        (show === 'all' || show === 'archived' || (show === 'unread' ? !m.read : needs.has(m.id))) &&
-        (!q || mailText(m).toLowerCase().includes(q)),
+  const shown = editionsFirst(
+    threads(
+      pool.filter(
+        (m) =>
+          (type === 'all' || m.category === type) &&
+          (show === 'all' || show === 'archived' || (show === 'unread' ? !m.read : needs.has(m.id))) &&
+          (!q || mailText(m).toLowerCase().includes(q)),
+      ),
     ),
   );
   // The open thread stays open whatever the filters do to it (reading it takes it out of Unread).
@@ -565,7 +573,10 @@ export function MessageBody({
 }) {
   const fromInbox = useContext(NegotiateContext);
   const negotiate = onNegotiate ?? fromInbox;
-  const actions = m.actions.filter((a) => !skip.includes(a.kind));
+  // SNN's new-year edition points to free agency only while it is open, and only for a GM with a team to sign for.
+  const shut = (a: InboxAction) =>
+    !!m.edition && a.kind === 'fa' && (league.phase !== 'freeAgency' || !employed(league));
+  const actions = m.actions.filter((a) => !skip.includes(a.kind) && !shut(a));
   return (
     <>
       {/* An edition's stories are its body: the mail's own text is only there for search. */}

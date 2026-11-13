@@ -280,9 +280,10 @@ describe('The new league year', () => {
     setTeam(l, walked, null);
   });
 
-  it('is the moment free agency opens', () => {
+  it('is the moment free agency opens, with the way there under it', () => {
     expect(dayNow(l)).toEqual(['year']);
     expect(dayMail(l)[0].id).toBe(`snn:${l.season}:d:year`);
+    expect(dayMail(l)[0].actions).toEqual([{ kind: 'fa' }]);
   });
 
   it('tells a change at the top with who left and who came in', () => {

@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { playWeek, recordResult, startLiveGame } from '../engine/league';
+import { editionIds, newEdition } from '../engine/inbox';
 import type { LiveGame } from '../engine/match/gameSim';
 import type { Game, League, PlayLogEntry } from '../engine/types';
 import { outAt, type GameOut } from './pregame';
@@ -25,6 +26,8 @@ export interface LiveSession {
   out: GameOut;
   /** The result is recorded and the rest of the week has been played. */
   finished: boolean;
+  /** The SNN edition the week filed as it finished: the final whistle's Continue opens it. */
+  edition?: string;
   /** The play on screen was skipped by the highlight level: show where it ended, don't animate it. */
   still: boolean;
 }
@@ -137,11 +140,15 @@ export const live = {
     s.playing = false;
     s.kicked = true;
     s.finished = true;
+    const now = store.get();
+    const before = now ? editionIds(now) : new Set<string>();
     store.mutate((l) => {
       const game = l.games.find((g) => g.id === s.gameId);
       if (game) recordResult(l, game, s.sim.result());
       if (thenPlayWeek) playWeek(l);
     });
+    const after = store.get();
+    s.edition = after ? newEdition(after, before) : undefined;
     emit();
   },
 

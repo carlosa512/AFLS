@@ -115,7 +115,7 @@ describe('locker room letters', () => {
     expect(mail(l, id)).toHaveLength(0);
   });
 
-  it('an agent says his man would like to come home, in free agency', () => {
+  it("files no letter of its own for a free agent who'd like to come home: he is a row of the director's", () => {
     const { l } = world();
     l.phase = 'freeAgency';
     const p = Object.values(l.players).find((x) => x.teamId === l.userTeamId && x.contract)!;
@@ -124,13 +124,8 @@ describe('locker room letters', () => {
     p.left = [{ teamId: l.userTeamId, season: l.season, how: 'walked' }];
     p.stats[l.season - 1] = { gp: 17, snaps: 1000 };
     deliverMail(l);
-    const m = mail(l, `home:${l.season}:${p.id}`);
-    // Home needs a starter's season there; a fresh league may not judge one, so the letter is optional here,
-    // but when it comes it's an agent's and it's clean.
-    for (const x of m) {
-      expect(x.from).toMatch(/agent/i);
-      expect(x.body).not.toMatch(BANNED);
-    }
+    expect(mail(l, `home:`)).toEqual([]);
+    expect(mail(l, `rapport:`)).toEqual([]);
   });
 
   it('a recap names a revenge game and a clutch one only when the box score backs it', () => {

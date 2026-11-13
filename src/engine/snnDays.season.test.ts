@@ -91,7 +91,8 @@ describe('an offseason of big-day editions', () => {
     expect(days).toEqual(expect.arrayContaining(['year', 'market', 'draft', 'kickoff']));
     expect(Math.max(...perStep)).toBeLessThanOrEqual(1);
     for (const m of editions()) {
-      expect(m.actions).toEqual([]);
+      // The new league year's edition is read as free agency opens: it carries the way there, the rest nothing.
+      expect(m.actions).toEqual(m.id.endsWith(':d:year') ? [{ kind: 'fa' }] : []);
       expect(m.subject.length, m.subject).toBeLessThanOrEqual(60);
       expect(m.edition!.scores).toEqual([]);
       expect(m.edition!.tiles.length).toBeLessThanOrEqual(3);

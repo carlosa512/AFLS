@@ -3,6 +3,7 @@
  * read through our scouts. In season the lean comes from the playoff race; in the offseason, the players about to
  * reach free agency and the free agents our cap can carry. Pure functions over the league: no randomness.
  */
+import { teamCoaches } from './coaching';
 import { employed } from './employment';
 import { isExpired, lastSeason, yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy } from './finance/market';
@@ -10,6 +11,7 @@ import { availableProspects, availableRanks, boardOf, boardScore, positionDepth 
 import { demand, freeAgents } from './offseason/negotiation';
 import { STARTERS } from './positions';
 import { teamPlayers } from './roster';
+import { clubFeeling, rapport } from './relationships';
 import { perceive, viewCache } from './scouting';
 import { computeRecords, conferenceSeeds, type TeamRecord } from './season/standings';
 import { spendable, tradeContext } from './trade/context';
@@ -63,6 +65,11 @@ const MIN_GAIN = 0.5;
 const SELLING: readonly Stance[] = ['rebuild', 'retool'];
 const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 const nameOf = (p: Player) => `${p.firstName} ${p.lastName}`;
+/** The letter's line on the free agents who asked about joining us, after the fits ("other" when there are fits). */
+const askedLine = (n: number, fits: boolean) =>
+  !n
+    ? ''
+    : ` ${n === 1 ? `One ${fits ? 'other ' : ''}player has` : `${COUNT[n]} ${fits ? 'other ' : ''}players have`} asked about joining us.`;
 const perYear = (k: number) => `$${(k / 1000).toFixed(1)}M a year`;
 
 type Read = ReturnType<typeof viewCache>;
@@ -341,6 +348,59 @@ export function faTargets(league: League, max: number, room?: number): AdviceRow
   );
 }
 
+/** At most this many of each kind of free agent who asked about us: home, and a coach's former player. */
+const ASKED_EACH = 2;
+
+/**
+ * Free agents who have let us know they want to join us, in the director's free-agency letter rather than a letter
+ * each: players who still think of us as home (their agents called) and players who did well under one of our
+ * coaches (they asked). The best on our read first, two of each. One sentence a player, keyed by his id.
+ */
+export function askedAboutUs(league: League): Map<number, string> {
+  const out = new Map<number, string>();
+  if (!employed(league)) return out;
+  const user = league.userTeamId;
+  const coaches = teamCoaches(league, user);
+  const pool = freeAgents(league)
+    .filter((p) => p.contract === null && p.experience > 0)
+    .map((p) => ({ p, ovr: perceive(league, user, p).ovr }))
+    .sort((a, b) => b.ovr - a.ovr || a.p.id - b.p.id)
+    .map((x) => x.p);
+  let home = 0;
+  let pull = 0;
+  for (const p of pool) {
+    if (home < ASKED_EACH && clubFeeling(league, p, user) === 'home') {
+      home++;
+      out.set(p.id, 'His agent says he still thinks of us as home and would rather sign here than anywhere.');
+      continue;
+    }
+    const coach = pull < ASKED_EACH ? coaches.find((c) => rapport(league, p, c) === 'good') : undefined;
+    if (coach) {
+      pull++;
+      out.set(p.id, `He played well for ${coach.firstName} ${coach.lastName} and has asked about joining us.`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The free agents who asked about us as the letter's rows: a fit we already name keeps his row and gets the sentence
+ * added to it, the rest get a row of their own.
+ */
+function askedRows(league: League, named: AdviceRow[]): AdviceRow[] {
+  const asked = askedAboutUs(league);
+  for (const r of named) {
+    const why = asked.get(r.playerId);
+    if (!why) continue;
+    r.why = `${r.why} ${why}`;
+    asked.delete(r.playerId);
+  }
+  return [...asked].map(([id, why]) => {
+    const p = league.players[id];
+    return row(p, 'asked', why, `asking about ${perYear(demand(league, p, league.userTeamId).askApy)}`);
+  });
+}
+
 export type AdviceMoment = 'w6' | 'w9' | 'resign' | 'fa';
 
 /** The moment the league is at, if it's one the director writes at. Never a moment already gone by. */
@@ -392,10 +452,11 @@ export function adviceFor(league: League, room?: number): Advice | null {
       moment === 'resign'
         ? [...expiringTargets(league, 2), ...buyTargets(league, { rentals: false, max: 1, room })]
         : faTargets(league, 4, room);
-    if (!named.length) return null;
+    const asked = moment === 'fa' ? askedRows(league, named) : [];
+    if (!named.length && !asked.length) return null;
     // The draft on our scouts' board, at each of our first picks.
     const draft = draftTargets(league);
-    const rows = [...named, ...draft];
+    const rows = [...named, ...asked, ...draft];
     // Said once, not under every name: early in the year our scouts have seen little of the class.
     const thin = draft.filter(
       (r) => perceive(league, league.userTeamId, league.players[r.playerId]).knowledge < MIN_KNOWLEDGE,
@@ -417,8 +478,10 @@ export function adviceFor(league: League, room?: number): Advice | null {
       : {
           moment,
           rows,
-          subject: `Free agency: ${n === 1 ? 'one fit' : `${COUNT[n].toLowerCase()} fits`}`,
-          body: `Free agency is open. These fit our needs and our cap.${also}`,
+          subject: n
+            ? `Free agency: ${n === 1 ? 'one fit' : `${COUNT[n].toLowerCase()} fits`}`
+            : `Free agency: ${COUNT[asked.length].toLowerCase()} asked about us`,
+          body: `Free agency is open. ${n ? 'These fit our needs and our cap.' : 'Nobody fits our needs and our cap.'}${askedLine(asked.length, n > 0)}${also}`,
         };
   }
   const race = raceFor(league);

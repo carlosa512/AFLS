@@ -1603,8 +1603,11 @@ export interface GazetteTable {
 
 /** One of the director's recommendations, as it read when filed. */
 export interface AdviceRow {
-  /** 'draft': a prospect at one of our needs who should be there when we pick. */
-  kind: 'buy' | 'sell' | 'sign' | 'draft';
+  /**
+   * 'draft': a prospect at one of our needs who should be there when we pick. 'asked': a free agent who let us know he
+   * wants to join us (he thinks of us as home, or played well for one of our coaches).
+   */
+  kind: 'buy' | 'sell' | 'sign' | 'asked' | 'draft';
   playerId: number;
   /** His club when filed; null for a free agent. */
   teamId: number | null;
