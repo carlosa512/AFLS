@@ -21,14 +21,19 @@
  *   --film  only All-22 recordings: a comma list of play kinds (`fumble`, `sack`, `pressure`, `deep`, `screen`, `int`, `kneel`, `long`, `move`, `return`, `field-run`, `field-catch`, `kickoff`, `punt`, `pick-six`, `strip-sack`, `long-td`,
  *           `throwaway`); for each, the first such play in the save's kept games is opened in *Watch replay* in
  *           All-22 and recorded as `<kind>-desktop.webm` and `<kind>-phone.webm`.
+ *   --routes  only these addresses, desktop and phone each: a comma list of hashes (`'#/,#/locker,#/office/fa'`),
+ *             each shot full page as `<slug>.png` and `<slug>-phone.png` (`#/office/fa` gives `office-fa`).
+ *   --before  a folder of earlier shots: every file name found in both folders is also written side by side, before
+ *             on the left and after on the right, to `<out>/compare/`, for reviewing a change.
+ *   --width   the desktop shots' width in pixels (default 1440), to see a layout between breakpoints.
  *
  * Playwright and Chromium are not project dependencies: they come from the machine (a global install,
  * found through NODE_PATH, or a local one). The server and the browser are closed when the run ends.
  */
 import { createRequire } from 'node:module';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { renameSync } from 'node:fs';
 import { createServer } from 'vite';
 import { actorsIn } from '../src/engine/playActors';
@@ -111,7 +116,12 @@ if (!savePath || !outOption) {
 }
 const outDir = resolve(outOption);
 
-const DESKTOP = { width: 1440, height: 900 };
+const DESKTOP = { width: Number(option('width') ?? 1440), height: 900 };
+const routes = option('routes')
+  ?.split(',')
+  .map((x) => x.trim())
+  .filter(Boolean);
+const beforeDir = option('before');
 const PHONE = { width: 390, height: 844 };
 /** A page or card taller than this is cut off (a very long one would make a PNG too large to send). */
 const MAX_CARD_HEIGHT = 8000;
@@ -301,6 +311,37 @@ const FILM: Record<string, (e: PlayLogEntry, next?: PlayLogEntry) => number> = {
 const UNDOWNED: ReadonlySet<string> = new Set(['return', 'kickoff', 'punt']);
 /** Long enough for the line-up, the moments at the line, the play and its hold. */
 const CLIP_MS = Number(process.env.FILM_MS ?? 12_000);
+
+// ───────── before and after ─────────
+
+/** Each shot that has a namesake in `before`, the two side by side with a caption over each, into `<out>/compare/`. */
+async function sideBySide(browser: Browser, before: string, shots: string[]) {
+  const dir = join(outDir, 'compare');
+  mkdirSync(dir, { recursive: true });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const uri = (path: string) => `data:image/png;base64,${readFileSync(path).toString('base64')}`;
+  for (const after of shots) {
+    const old = join(before, basename(after));
+    if (!existsSync(old)) continue;
+    const cell = (label: string, path: string) =>
+      `<figure><figcaption>${label}</figcaption><img src="${uri(path)}"></figure>`;
+    await page.evaluate(
+      (html: string) => {
+        document.body.innerHTML = html;
+      },
+      `<style>body{margin:0;display:flex;gap:16px;padding:12px;background:#888;font:700 20px system-ui;align-items:flex-start}
+        figure{margin:0;flex:1;min-width:0}figcaption{color:#fff;padding:4px 0 8px}img{width:100%;display:block}</style>` +
+        cell('Before', old) +
+        cell('After', after),
+    );
+    await page.evaluate(() => Promise.all([...document.images].map((i) => i.decode())));
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.setViewportSize({ width: 1600, height: Math.min(height, MAX_CARD_HEIGHT) });
+    await page.screenshot({ path: join(dir, basename(after)) });
+  }
+  await context.close();
+}
 
 // ───────── run ─────────
 
@@ -499,6 +540,24 @@ async function main() {
           await shoot(`${slug}-${column ? 'column' : 'open'}`);
         }
       }
+    } else if (routes) {
+      const page = await newPage(DESKTOP, false);
+      const phone = await newPage(PHONE, true);
+      for (const hash of routes) {
+        const slug = hash.replace(/^#\/?/, '').replace(/\//g, '-') || 'home';
+        for (const [p, viewport, suffix] of [
+          [page, DESKTOP, ''],
+          [phone, PHONE, '-phone'],
+        ] as const) {
+          await goTo(p, hash, 'main');
+          // Named by the address alone, so a later run of a few of the same addresses lines up with this one.
+          const path = join(outDir, `${slug}${suffix}.png`);
+          written.push(path);
+          await shootPage(p, viewport, path);
+        }
+      }
+      for (const p of [page, phone])
+        if ((await p.locator('vite-error-overlay').count()) > 0) problems.push('Vite error overlay on a screen');
     } else if (onlyScreens) {
       const page = await newPage(DESKTOP, false);
       const phone = await newPage(PHONE, true);
@@ -579,6 +638,7 @@ async function main() {
         if ((await p.locator('vite-error-overlay').count()) > 0) problems.push('Vite error overlay on a screen');
       }
     }
+    if (beforeDir) await sideBySide(browser, resolve(beforeDir), [...written]);
   } finally {
     await browser.close().catch(() => {});
     await server.close().catch(() => {});
