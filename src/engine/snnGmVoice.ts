@@ -99,6 +99,12 @@ export interface GmSheet {
   lostRun: number;
   /** Wins over his finished seasons here. */
   wins: number;
+  /** Winning seasons in a row behind him, counting back from last season. */
+  winRun: number;
+  /** Last season's record here. */
+  last?: { w: number; l: number };
+  /** How far the team went last season, when he is credited for following a deep run (`claim.facts.run`). */
+  run?: string;
 }
 
 function sheetOf(l: League, claim: Claim, gmId: number): GmSheet {
@@ -108,6 +114,8 @@ function sheetOf(l: League, claim: Claim, gmId: number): GmSheet {
   const shared = l.teams.filter((t) => t.city === team.city).length > 1;
   let lostRun = 0;
   for (let i = past.length - 1; i >= 0 && past[i].w < past[i].l; i--) lostRun++;
+  let winRun = 0;
+  for (let i = past.length - 1; i >= 0 && past[i].w > past[i].l; i--) winRun++;
   const ctx = claim.context;
   return {
     l,
@@ -125,6 +133,9 @@ function sheetOf(l: League, claim: Claim, gmId: number): GmSheet {
     where: shared ? `with the ${team.name}` : `in ${team.city}`,
     lostRun,
     wins: past.reduce((n, s) => n + s.w, 0),
+    winRun,
+    ...(past.length ? { last: { w: past.at(-1)!.w, l: past.at(-1)!.l } } : {}),
+    ...(typeof claim.facts.run === 'string' ? { run: claim.facts.run } : {}),
   };
 }
 
@@ -190,8 +201,11 @@ export interface Shape {
   /** A lead is a paragraph or two, a turn a sentence or two inside the second paragraph, the record one sentence. */
   role: 'lead' | 'turn' | 'record';
   when?: (s: GmSheet, f: Finding) => boolean;
+  /** A lead may return a second paragraph: it opens the piece's second, ahead of the record and the turn. */
   text: (s: GmSheet, f: Finding) => string[];
   headline?: (s: GmSheet, f: Finding) => string;
+  /** It gives the team's record itself: the piece adds no record sentence. */
+  record?: true;
 }
 
 const BLAME_LEADS: Shape[] = [
@@ -549,7 +563,414 @@ const BLAME_RECORDS: Shape[] = [
   },
 ];
 
-export const SHAPES: readonly Shape[] = [...BLAME_LEADS, ...BLAME_TURNS, ...BLAME_RECORDS];
+// ───────── credit ─────────
+
+/** The honor to tell of a man he brought in or drafted: an award before an All-League team, then the first he won. */
+const firstHonor = (honors: Honor[]) =>
+  [...honors].sort((a, b) => Number(isTeam(a)) - Number(isTeam(b)) || a.season - b.season)[0];
+/** When a pick's honor came, against his draft year: a rookie award says so itself. */
+const sinceDraft = (s: GmSheet, drafted: number, h: Honor) =>
+  h.what.includes('Rookie') ? '' : h.season === drafted ? ' as a rookie' : ` ${when(s, h.season)}`;
+const offseason = (m: Extract<GmMove, { kind: 'trade' }>) => (OFFSEASON_PHASES as readonly string[]).includes(m.phase);
+const bothOrAll = (n: number) => (n === 2 ? 'both' : `all ${w(n)}`);
+const coachLast = (l: League, id: number) => (l.coaches[id] ?? l.retiredCoaches[id])?.lastName ?? '';
+/** The newest of his first-round picks, and the highest. */
+const newestPick = (picks: PickFact[]) => [...picks].sort((a, b) => b.season - a.season || a.pick - b.pick)[0];
+const highestPick = (picks: PickFact[]) => [...picks].sort((a, b) => a.pick - b.pick)[0];
+
+const CREDIT_LEADS: Shape[] = [
+  {
+    id: 'c:starTrade:1',
+    family: 'starTrade',
+    side: 'credit',
+    role: 'lead',
+    text: of<'starTrade', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      const time = h.season === f.move.season ? 'that year' : when(s, h.season);
+      const title = f.title === h.season ? `, and ${c(s.teamId)} won the title` : '';
+      const later =
+        f.title !== null && f.title !== h.season ? ` ${C(s.teamId)} won the title ${when(s, f.title)}.` : '';
+      const first = `${G} sent ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${honorClause(h)} ${time}${title}.${later}`;
+      const a = f.again;
+      if (!a) return [first];
+      const then = a.season === s.season && offseason(a) ? 'This spring' : cap(tradeWhen(a));
+      const whom = a.otherId === f.move.otherId ? 'the same team' : c(a.otherId);
+      const got = a.got.players[0];
+      return [
+        first,
+        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} he paid ${whom} ${picksWords(a.gave.picks)} for ${posOf(s.l, got)} ${M(got)}.`,
+      ];
+    }),
+    headline: of<'starTrade', string>((s, f) => {
+      const last = s.l.players[f.playerId].lastName;
+      return f.title !== null
+        ? `${s.surname} paid for ${last} and ${s.town} got a title`
+        : `The trade for ${last} has paid off ${s.where}`;
+    }),
+  },
+  {
+    id: 'c:starTrade:2',
+    family: 'starTrade',
+    side: 'credit',
+    role: 'lead',
+    text: of<'starTrade', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      const title = f.title === h.season ? `, and ${c(s.teamId)} won the title` : '';
+      return [
+        `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}${title}. ${C(s.teamId)} got him from ${c(f.move.otherId)} ${tradeWhen(f.move)} for ${picksWords(f.move.gave.picks)}, in a trade ${G} made.`,
+      ];
+    }),
+    headline: of<'starTrade', string>(
+      (s, f) =>
+        `${s.l.players[f.playerId].lastName} has been worth ${firstsWords(firstsIn(f.move.gave.picks))} to ${s.town}`,
+    ),
+  },
+  {
+    id: 'c:class:1',
+    family: 'class',
+    side: 'credit',
+    role: 'lead',
+    text: of<'class', string[]>((s, f) => {
+      const [a, b, third] = f.picks;
+      const [ha, hb] = [firstHonor(a.honors), firstHonor(b.honors)];
+      const same = b.season === a.season;
+      const where = same ? 'of the same draft' : b.season - a.season === 1 ? 'a year later' : `in ${b.season}`;
+      const extra = (() => {
+        if (!third) return '';
+        const h = firstHonor(third.honors);
+        const together = third.season === a.season;
+        // "A year later" leans on the draft year the paragraph opened with.
+        const time =
+          together && h.season === a.season + 1 && !h.what.includes('Rookie')
+            ? ' a year later'
+            : sinceDraft(s, third.season, h);
+        return ` ${M(third.playerId)}, a ${nth(third.round)}-round pick${together ? '' : ` in ${third.season}`}, ${honorClause(h)}${time}.`;
+      })();
+      return [
+        `${c(s.teamId)} took ${posOf(s.l, a.playerId)} ${M(a.playerId)} in the ${nth(a.round)} round in ${a.season}. He ${honorClause(ha)}${sinceDraft(s, a.season, ha)}. ${M(b.playerId)} went in the ${nth(b.round)} round ${where} and ${honorClause(hb)}${sinceDraft(s, b.season, hb)}.${extra}`,
+        `${G} made ${f.picks.length === 2 ? 'both picks' : 'all three picks'}.`,
+      ];
+    }),
+    headline: of<'class', string>((s) => `${cap(s.town)} keep winning with ${possessive(s.surname)} draft picks`),
+  },
+  {
+    id: 'c:class:2',
+    family: 'class',
+    side: 'credit',
+    role: 'lead',
+    text: of<'class', string[]>((s, f) => {
+      const [a, b] = f.picks;
+      const [ha, hb] = [firstHonor(a.honors), firstHonor(b.honors)];
+      const where = b.season === a.season ? 'of the same draft' : `in ${b.season}`;
+      return [
+        `${G} has drafted ${w(f.picks.length)} players who have won league honors with ${C(s.teamId)}. ${cap(posOf(s.l, a.playerId))} ${M(a.playerId)}, a ${nth(a.round)}-round pick in ${a.season}, ${honorClause(ha)}${sinceDraft(s, a.season, ha)}. ${M(b.playerId)}, taken in the ${nth(b.round)} round ${where}, ${honorClause(hb)}${sinceDraft(s, b.season, hb)}.`,
+      ];
+    }),
+    headline: of<'class', string>(
+      (s, f) => `${cap(w(f.picks.length))} of ${possessive(s.surname)} draft picks have won league honors ${s.where}`,
+    ),
+  },
+  {
+    id: 'c:lateFind:1',
+    family: 'lateFind',
+    side: 'credit',
+    role: 'lead',
+    text: of<'lateFind', string[]>((s, f) => {
+      const h = firstHonor(f.pick.honors);
+      return [
+        `${cap(posOf(s.l, f.pick.playerId))} ${M(f.pick.playerId)} was the ${ordinal(f.pick.pick)} player taken in the ${f.pick.season} draft. He ${honorClause(h)}${sinceDraft(s, f.pick.season, h)}. ${G} found him in the ${nth(f.pick.round)} round.`,
+      ];
+    }),
+    headline: of<'lateFind', string>(
+      (s, f) => `${s.surname} found ${s.l.players[f.pick.playerId].lastName} in the ${nth(f.pick.round)} round`,
+    ),
+  },
+  {
+    id: 'c:lateFind:2',
+    family: 'lateFind',
+    side: 'credit',
+    role: 'lead',
+    text: of<'lateFind', string[]>((s, f) => {
+      const h = firstHonor(f.pick.honors);
+      return [
+        `${G} took ${posOf(s.l, f.pick.playerId)} ${M(f.pick.playerId)} in the ${nth(f.pick.round)} round of the ${f.pick.season} draft, after ${f.pick.pick - 1} other players had gone. ${M(f.pick.playerId)} ${honorClause(h)}${sinceDraft(s, f.pick.season, h)}.`,
+      ];
+    }),
+    headline: of<'lateFind', string>(
+      (s, f) =>
+        `${s.l.players[f.pick.playerId].lastName}, a ${nth(f.pick.round)}-round pick, ${honorClause(firstHonor(f.pick.honors))}`,
+    ),
+  },
+  {
+    id: 'c:qbs:1',
+    family: 'qbs',
+    side: 'credit',
+    role: 'lead',
+    text: of<'qbs', string[]>((s, f) => [
+      `${cap(w(passersOf(f).length))} different quarterbacks have led ${C(s.teamId)} in passing in ${Gs} ${w(f.passers.length)} seasons. The team had a winning record in every one of those it has finished.`,
+    ]),
+    headline: of<'qbs', string>((s) => `${cap(s.town)} keep winning whoever plays quarterback`),
+  },
+  {
+    id: 'c:qbs:2',
+    family: 'qbs',
+    side: 'credit',
+    role: 'lead',
+    when: of<'qbs', boolean>((_, f) => passersOf(f).at(-1) === f.passers.at(-1)!.playerId),
+    text: of<'qbs', string[]>((s, f) => {
+      const d = passersOf(f);
+      return [
+        `${M(d.at(-1)!)} is the ${nth(d.length)} quarterback to lead ${C(s.teamId)} in passing in ${w(f.passers.length)} seasons under ${G}. None of the changes has stopped the winning.`,
+      ];
+    }),
+    headline: of<'qbs', string>((s) => `${s.surname} keeps changing quarterbacks and ${s.town} keep winning`),
+  },
+  {
+    id: 'c:contract:1',
+    family: 'contract',
+    side: 'credit',
+    role: 'lead',
+    text: of<'contract', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      const time = h.season === f.move.season ? 'that season' : when(s, h.season);
+      return [
+        `${G} gave ${posOf(s.l, f.move.playerId)} ${M(f.move.playerId)} ${money(f.move.total)} over ${w(f.move.years)} ${plural(f.move.years, 'year')} in ${f.move.season}. ${M(f.move.playerId)} ${honorClause(h)} ${time} and starts for ${C(s.teamId)}.`,
+      ];
+    }),
+    headline: of<'contract', string>(
+      (s, f) => `${s.l.players[f.move.playerId].lastName} has been worth ${money(f.move.total)} to ${s.town}`,
+    ),
+  },
+  {
+    id: 'c:contract:2',
+    family: 'contract',
+    side: 'credit',
+    role: 'lead',
+    text: of<'contract', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      return [
+        `${cap(posOf(s.l, f.move.playerId))} ${M(f.move.playerId)} ${honorClause(h)} ${when(s, h.season)}. He came to ${C(s.teamId)} in ${f.move.season} on a ${w(f.move.years)}-year contract worth ${money(f.move.total)}, which ${G} gave him.`,
+      ];
+    }),
+    headline: of<'contract', string>(
+      (s, f) => `${possessive(s.surname)} ${money(f.move.total)} signing has paid off ${s.where}`,
+    ),
+  },
+  {
+    id: 'c:firsts:1',
+    family: 'firsts',
+    side: 'credit',
+    role: 'lead',
+    text: of<'firsts', string[]>((s, f) => {
+      const x = newestPick(f.picks);
+      return [
+        `${G} has made ${w(f.picks.length)} first-round picks for ${C(s.teamId)}, and ${bothOrAll(f.picks.length)} start. The latest, ${posOf(s.l, x.playerId)} ${M(x.playerId)}, was ${pickWords(x.pick)} ${x.season === s.season ? 'this year' : `in ${x.season}`}.`,
+      ];
+    }),
+    headline: of<'firsts', string>(
+      (s, f) => `${cap(bothOrAll(f.picks.length))} of ${possessive(s.surname)} first-round picks start for ${s.town}`,
+    ),
+  },
+  {
+    id: 'c:firsts:2',
+    family: 'firsts',
+    side: 'credit',
+    role: 'lead',
+    text: of<'firsts', string[]>((s, f) => {
+      const x = highestPick(f.picks);
+      const rest = f.picks.length - 1;
+      const others = rest === 1 ? 'does the other first-round pick' : `do the other ${w(rest)} first-round picks`;
+      return [
+        `${cap(posOf(s.l, x.playerId))} ${M(x.playerId)} was ${pickWords(x.pick)} of the ${x.season} draft and starts for ${C(s.teamId)}. So ${others} ${G} has made.`,
+      ];
+    }),
+    headline: of<'firsts', string>((s) => `${s.surname} has not missed in the first round ${s.where}`),
+  },
+  {
+    id: 'c:coaches:1',
+    family: 'coaches',
+    side: 'credit',
+    role: 'lead',
+    record: true,
+    when: of<'coaches', boolean>((s, f) => !!f.newCoach && !!s.last),
+    text: of<'coaches', string[]>((s, f) => [
+      `${G} hired ${coachName(s.l, f.coachIds[0])} as head coach before this season. ${C(s.teamId)} won ${w(s.last!.w)} ${plural(s.last!.w, 'game')} last season and are ${s.rec} under ${coachLast(s.l, f.coachIds[0])}.`,
+    ]),
+    headline: of<'coaches', string>(
+      (s, f) => `${s.surname} hired ${coachLast(s.l, f.coachIds[0])} and ${s.town} are ${s.rec}`,
+    ),
+  },
+  {
+    id: 'c:coaches:2',
+    family: 'coaches',
+    side: 'credit',
+    role: 'lead',
+    record: true,
+    when: of<'coaches', boolean>((s, f) => !!f.newCoach && !!s.last),
+    text: of<'coaches', string[]>((s, f) => [
+      `${coachName(s.l, f.coachIds[0])} is in his first season as head coach of ${C(s.teamId)}, who are ${s.rec}. ${G} hired him after a ${s.last!.w}–${s.last!.l} season.`,
+    ]),
+    headline: of<'coaches', string>(
+      (s, f) => `${coachLast(s.l, f.coachIds[0])} is ${s.rec} in his first season ${s.where}`,
+    ),
+  },
+  {
+    id: 'c:coaches:3',
+    family: 'coaches',
+    side: 'credit',
+    role: 'lead',
+    record: true,
+    when: of<'coaches', boolean>((_, f) => f.hiredFirst),
+    text: of<'coaches', string[]>((s, f) => [
+      `In ${s.past[0].season} ${G} hired ${coachName(s.l, f.coachIds[0])} as head coach, in his first year with ${C(s.teamId)}. ${coachLast(s.l, f.coachIds[0])} is still the head coach, and ${c(s.teamId)} are ${s.rec}.`,
+    ]),
+    headline: of<'coaches', string>(
+      (s, f) =>
+        `${s.surname} and ${coachLast(s.l, f.coachIds[0])} are in their ${nth(s.past.length + 1)} season together ${s.where}`,
+    ),
+  },
+  {
+    id: 'c:coaches:4',
+    family: 'coaches',
+    side: 'credit',
+    role: 'lead',
+    record: true,
+    when: of<'coaches', boolean>((_, f) => f.hiredFirst),
+    text: of<'coaches', string[]>((s, f) => [
+      `${coachName(s.l, f.coachIds[0])} has been head coach of ${C(s.teamId)} for ${w(s.past.length + 1)} seasons, all of them under ${G}, who hired him. The team is ${s.rec} this season.`,
+    ]),
+    headline: of<'coaches', string>(
+      (s, f) =>
+        `${coachLast(s.l, f.coachIds[0])} was ${possessive(s.surname)} first hire ${s.where}, and is still winning`,
+    ),
+  },
+];
+
+const CREDIT_TURNS: Shape[] = [
+  {
+    id: 'c:starTrade:turn',
+    family: 'starTrade',
+    side: 'credit',
+    role: 'turn',
+    text: of<'starTrade', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      return [
+        `${G} also paid ${c(f.move.otherId)} ${picksWords(f.move.gave.picks)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)}, who ${honorClause(h)} ${when(s, h.season)}.`,
+      ];
+    }),
+  },
+  {
+    id: 'c:class:turn',
+    family: 'class',
+    side: 'credit',
+    role: 'turn',
+    text: of<'class', string[]>((s, f) => [
+      `${M(f.picks[0].playerId)} and ${M(f.picks[1].playerId)}, both drafted by ${G}, have won league honors with ${c(s.teamId)}.`,
+    ]),
+  },
+  {
+    id: 'c:lateFind:turn',
+    family: 'lateFind',
+    side: 'credit',
+    role: 'turn',
+    text: of<'lateFind', string[]>((s, f) => {
+      const h = firstHonor(f.pick.honors);
+      return [
+        `${M(f.pick.playerId)}, a ${nth(f.pick.round)}-round pick in ${f.pick.season}, ${honorClause(h)}${sinceDraft(s, f.pick.season, h)}.`,
+      ];
+    }),
+  },
+  {
+    id: 'c:qbs:turn',
+    family: 'qbs',
+    side: 'credit',
+    role: 'turn',
+    text: of<'qbs', string[]>((s, f) => [
+      `${cap(w(passersOf(f).length))} different quarterbacks have led ${c(s.teamId)} in passing in that time, and the winning has not stopped.`,
+    ]),
+  },
+  {
+    id: 'c:contract:turn',
+    family: 'contract',
+    side: 'credit',
+    role: 'turn',
+    text: of<'contract', string[]>((s, f) => {
+      const h = firstHonor(f.honors);
+      return [
+        `${M(f.move.playerId)} signed for ${money(f.move.total)} in ${f.move.season} and ${honorClause(h)} ${when(s, h.season)}.`,
+      ];
+    }),
+  },
+  {
+    id: 'c:firsts:turn',
+    family: 'firsts',
+    side: 'credit',
+    role: 'turn',
+    text: of<'firsts', string[]>((s, f) => [
+      `${G} has made ${w(f.picks.length)} first-round picks for ${c(s.teamId)}, and ${bothOrAll(f.picks.length)} start.`,
+    ]),
+  },
+  {
+    id: 'c:coaches:turn',
+    family: 'coaches',
+    side: 'credit',
+    role: 'turn',
+    text: of<'coaches', string[]>((s, f) => [
+      f.newCoach
+        ? `${G} hired ${coachName(s.l, f.coachIds[0])} as head coach before this season.`
+        : `${coachName(s.l, f.coachIds[0])} has been the head coach for all of it, and ${G} hired him.`,
+    ]),
+  },
+];
+
+/** The record in a credit piece: what he is credited for decides which one, so each claim has one way to say it. */
+const CREDIT_RECORDS: Shape[] = [
+  {
+    id: 'c:record:run',
+    side: 'credit',
+    role: 'record',
+    when: (s) => s.why === 'run',
+    text: (s) => {
+      const ran =
+        s.run === 'title'
+          ? 'won the title'
+          : s.run === 'final'
+            ? 'reached the final'
+            : 'reached their conference final';
+      return [`The ${N(s.teamId)} ${ran} last season and are ${s.rec} now.`];
+    },
+  },
+  {
+    id: 'c:record:built',
+    side: 'credit',
+    role: 'record',
+    when: (s) => s.why === 'built',
+    text: (s) => [`${C(s.teamId)} are ${s.rec} after ${w(s.winRun)} winning seasons in a row under ${G}.`],
+  },
+  {
+    id: 'c:record:turn',
+    side: 'credit',
+    role: 'record',
+    when: (s) => s.why === 'hire' && !!s.last,
+    text: (s) => [`${C(s.teamId)} won ${w(s.last!.w)} ${plural(s.last!.w, 'game')} last season and are ${s.rec} now.`],
+  },
+  {
+    id: 'c:record:now',
+    side: 'credit',
+    role: 'record',
+    when: (s) => !['run', 'built', 'hire'].includes(s.why ?? '') || (s.why === 'hire' && !s.last),
+    text: (s) => [`${C(s.teamId)} are ${s.rec} in ${Gs} ${nth(s.past.length + 1)} season.`],
+  },
+];
+
+export const SHAPES: readonly Shape[] = [
+  ...BLAME_LEADS,
+  ...BLAME_TURNS,
+  ...BLAME_RECORDS,
+  ...CREDIT_LEADS,
+  ...CREDIT_TURNS,
+  ...CREDIT_RECORDS,
+];
 
 // ───────── closes ─────────
 
@@ -559,7 +980,15 @@ export interface Close {
   on: '2-' | '3-' | '+';
   /** Tied to the lead's family: it picks up what the lead said. */
   family?: FindingFamily;
-  text: (s: GmSheet, f: Finding) => string;
+  /**
+   * It is built on a second finding of this family, which must be on the record (and, unless `leadToo`, must not be
+   * the lead itself): the piece then tells that finding here and not as its turn.
+   */
+  also?: FindingFamily;
+  leadToo?: true;
+  /** It gives the team's record itself: the piece adds no record sentence. */
+  record?: true;
+  text: (s: GmSheet, lead: Finding, also?: Finding) => string;
 }
 
 /** How many tries at a quarterback the finding counts: his first-round picks and a long contract. */
@@ -655,6 +1084,81 @@ export const CLOSES: readonly Close[] = [
       return `${G} spent ${firstsWords(n)} on ${M(f.playerId)}, and the team is ${s.rec}. It is time for ${c(s.teamId)} to let someone else make the next trade.`;
     }),
   },
+  {
+    id: 'c+:1',
+    on: '+',
+    text: (s) =>
+      `Good teams are built in the offseason, when nobody is watching. ${G} has had ${w(s.past.length + 1)} of them with ${c(s.teamId)}, and the standings show how he used them.`,
+  },
+  {
+    id: 'c+:2',
+    on: '+',
+    text: (s) =>
+      `The head coach and the quarterback get the credit when a team wins. Some of it belongs to ${G}, who found the players for ${c(s.teamId)}.`,
+  },
+  {
+    id: 'c+:3',
+    on: '+',
+    text: (s) => `None of this is luck. These were ${Gs} decisions, and ${c(s.teamId)} are ${s.rec} because of them.`,
+  },
+  {
+    id: 'c+:4',
+    on: '+',
+    text: (s) =>
+      `Every team in the league is looking for the same players. ${G} keeps finding them first, and ${c(s.teamId)} are ${s.rec} for it.`,
+  },
+  {
+    id: 'c+:starTrade',
+    on: '+',
+    family: 'starTrade',
+    record: true,
+    text: of<'starTrade', string>((s, f) => {
+      const deals = [f.move, ...(f.again ? [f.again] : [])];
+      const firsts = deals.reduce((n, d) => n + firstsIn(d.gave.picks), 0);
+      const mvp = f.honors.some((h) => h.what === 'Most Valuable Player' && h.season === s.season - 1);
+      const passer = mvp && s.l.players[f.playerId].position === 'QB';
+      const open =
+        deals.length === 2
+          ? `That is ${w(firsts)} first-round picks for two players.`
+          : firsts === 1
+            ? 'A first-round pick is a high price for one player.'
+            : `${cap(w(firsts))} first-round picks is a high price for one player.`;
+      return `${open} The ${N(s.teamId)} are ${s.rec}${passer ? " with last season's most valuable player at quarterback" : ''}, and nobody ${s.where} is asking for the ${firsts === 1 ? 'pick' : 'picks'} back.`;
+    }),
+  },
+  {
+    id: 'c+:class',
+    on: '+',
+    family: 'class',
+    text: (s) =>
+      `Draft picks are the cheapest way to build a team and the hardest to get right. ${G} keeps getting them right, and ${c(s.teamId)} are ${s.rec} because of it.`,
+  },
+  {
+    id: 'c+:qbs',
+    on: '+',
+    also: 'qbs',
+    text: (s, _lead, also) => {
+      const f = also as Of<'qbs'>;
+      const d = passersOf(f).length;
+      const each =
+        d === f.passers.length
+          ? `have started a different one in each of ${Gs} ${w(d)} seasons`
+          : `have started ${w(d)} of them in ${Gs} ${w(f.passers.length)} seasons`;
+      return `Plenty of teams win for a year on a quarterback. ${c(s.teamId)} ${each} and kept winning, which says the roster is doing it.`;
+    },
+  },
+  {
+    id: 'c+:coaches',
+    on: '+',
+    also: 'coaches',
+    leadToo: true,
+    text: (s, lead, also) => {
+      const f = also as Of<'coaches'>;
+      // The lead has given his full name when the piece opened on the hire.
+      const name = lead === also ? coachLast(s.l, f.coachIds[0]) : coachName(s.l, f.coachIds[0]);
+      return `A general manager makes no bigger decision than his head coach. ${G} chose ${name}, and ${c(s.teamId)} are ${s.rec}.`;
+    },
+  },
 ];
 
 // ───────── the piece ─────────
@@ -731,35 +1235,54 @@ export function gmPiece(l: League, claim: Claim, have: Set<string>): GmPiece | n
   if (!lead) return null;
   const leadShape = lead.shapes.find((sh) => !used(sh.id)) ?? lead.shapes[0];
 
+  // The close first: one built on a second finding takes that finding, and one that gives the record replaces it.
+  const on = s.dir === 'credit' ? '+' : s.rung === 3 ? '3-' : '2-';
+  const alsoOf = (x: Close) => findings.find((f) => f.family === x.also && (x.leadToo || f !== lead.f));
+  const closes = order(
+    CLOSES.filter((x) => x.on === on && (!x.family || x.family === lead.f.family) && (!x.also || alsoOf(x))),
+  );
+  const close =
+    closes.find((x) => x.also && !used(x.id)) ??
+    closes.find((x) => x.family && !used(x.id)) ??
+    closes.find((x) => !x.family && !x.also && !used(x.id)) ??
+    closes[0];
+  if (!close) return null;
+  const also = close.also ? alsoOf(close) : undefined;
+
   // The record, then a second finding from another family about other players, only in a shape not used this year.
   const told = new Set(playersOf(lead.f));
-  const records = shapesFor(null, 'record');
+  const records = leadShape.record || close.record ? [] : shapesFor(null, 'record');
   const record = records.find((sh) => !used(sh.id)) ?? records[0];
   const turn = findings
-    .filter((f) => f.family !== lead.f.family && !playersOf(f).some((id) => told.has(id)))
+    .filter((f) => f.family !== lead.f.family && f !== also && !playersOf(f).some((id) => told.has(id)))
     .flatMap((f) =>
       shapesFor(f, 'turn')
         .filter((sh) => !used(sh.id))
         .map((sh) => ({ f, sh })),
     )[0];
 
-  const on = s.dir === 'credit' ? '+' : s.rung === 3 ? '3-' : '2-';
-  const closes = order(CLOSES.filter((x) => x.on === on && (!x.family || x.family === lead.f.family)));
-  const close =
-    closes.find((x) => x.family && !used(x.id)) ?? closes.find((x) => !x.family && !used(x.id)) ?? closes[0];
-  if (!close) return null;
-
-  const leadText = leadShape.text(s, lead.f);
-  const second = [...(record ? record.text(s, lead.f) : []), ...(turn ? turn.sh.text(s, turn.f) : [])].join(' ');
-  const closing = close.text(s, lead.f);
-  // With no second finding the record opens the close: a paragraph of one sentence reads as a caption.
-  const body =
-    turn || !second ? [...leadText, ...(second ? [second] : []), closing] : [...leadText, `${second} ${closing}`];
+  const [first, ...tail] = leadShape.text(s, lead.f);
+  const second = [...tail, ...(record ? record.text(s, lead.f) : []), ...(turn ? turn.sh.text(s, turn.f) : [])].join(
+    ' ',
+  );
+  const closing = close.text(s, lead.f, also);
+  // The record alone opens the close: a paragraph of one sentence reads as a caption.
+  const body = !second
+    ? [first, closing]
+    : turn || tail.length
+      ? [first, second, closing]
+      : [first, `${second} ${closing}`];
   const made = leadShape.headline?.(s, lead.f) ?? '';
   const fallback =
-    s.rung === 3
-      ? `It is time for a change in the front office ${s.where}`
-      : `The losing ${s.where} points at ${s.surname}`;
+    s.dir === 'credit'
+      ? s.why === 'run'
+        ? `${s.surname} has kept it together ${s.where}`
+        : s.why === 'hire'
+          ? `${s.surname} got it right ${s.where}`
+          : `${s.surname} built this ${s.where}`
+      : s.rung === 3
+        ? `It is time for a change in the front office ${s.where}`
+        : `The losing ${s.where} points at ${s.surname}`;
   return {
     headline: made && made.length <= HEADLINE ? made : fallback,
     paragraphs: nameGm(body.slice(0, 4), s),

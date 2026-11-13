@@ -404,7 +404,8 @@ describe('a general manager on the ladder', () => {
     const claims = about(columnClaims(l, 14, new Set()), 'gm', t);
     expect(claims.map((c) => [c.dir, c.facts.why])).toEqual([['credit', 'run']]);
     const s = columnStory(l, claims[0], at());
-    expect(s.paragraphs[0]).toContain('conference final');
+    // The piece is built on what he did; the run it follows is its record sentence.
+    expect(s.paragraphs.join(' ')).toContain('reached their conference final last season');
     expect(ruleBreaks(l, s), s.paragraphs.join(' / ')).toEqual([]);
     // A first-round exit is not a deep run.
     const m = world('column-run');

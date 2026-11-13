@@ -2090,7 +2090,7 @@ const CREDIT_MAN_STAKES: CL[] = [
   col((s) => `${c(s.id)} take a ${s.rec} record into the playoffs.`),
 ];
 
-const COLUMN: Record<string, ColumnBank> = {
+export const COLUMN: Record<string, ColumnBank> = {
   'unit-': {
     claim: [
       // In the first weeks a record says little about the race: the claim is about the start.
@@ -2296,57 +2296,6 @@ const COLUMN: Record<string, ColumnBank> = {
     stakes: CREDIT_MAN_STAKES,
     headline: (s, l) => `${s.surname} deserves the credit ${whereOf(l, s.id)}`,
   },
-  'gm2+': {
-    claim: [
-      col(
-        (s) =>
-          `General manager ${s.name} deserves the credit for ${c(s.id)} going from ${w(s.lastWins)} wins last season to ${s.rec} now.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} hired ${s.coach} as head coach before this season.`)],
-    reason: [
-      col(
-        (s) =>
-          `${s.coachSurname} is in his first season, so the turn belongs as much to ${s.surname}, the GM who chose him.`,
-      ),
-    ],
-    stakes: CREDIT_MAN_STAKES,
-    headline: (s, l) => `${s.surname} got it right ${whereOf(l, s.id)}`,
-  },
-  'gmBuilt+': {
-    claim: [
-      col(
-        (s) =>
-          `General manager ${s.name} built the team that has ${c(s.id)} at ${s.rec} after ${w(s.wonSeasons)} winning seasons in a row.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} has been in charge of the roster for every one of those seasons.`)],
-    reason: [
-      col(
-        (s) =>
-          `One good season can be a hot quarterback or a kind schedule, but ${w(s.wonSeasons + 1)} in a row take a roster, which is ${possessive(s.surname)} work.`,
-      ),
-    ],
-    stakes: CREDIT_MAN_STAKES,
-    headline: (s, l) => `${s.surname} built this ${whereOf(l, s.id)}`,
-  },
-  'gmRun+': {
-    claim: [
-      col(
-        (s) =>
-          `${C(s.id)} ${s.ran} last season and are ${s.rec} now. General manager ${s.name} deserves the credit for keeping it together.`,
-      ),
-    ],
-    fact: [col((s) => `${s.surname} was in charge of the roster for both of those seasons.`)],
-    reason: [
-      col(
-        (s) =>
-          `Teams that go that far often fall back the next year. ${C(s.id)} have not, which is the work of the GM who builds the roster.`,
-      ),
-    ],
-    stakes: CREDIT_MAN_STAKES,
-    headline: (s, l) => `${s.surname} has kept it together ${whereOf(l, s.id)}`,
-  },
   // Corrections: what an earlier Column said no longer holds.
   'fixunit-': {
     claim: [
@@ -2456,8 +2405,6 @@ function columnBank(claim: Claim): string {
     return claim.subject.kind === 'unit' ? `fixunit${was}` : `fixman${was}`;
   }
   // A general manager is credited for one of three things, each with its own argument.
-  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'built') return 'gmBuilt+';
-  if (claim.subject.kind === 'gm' && claim.dir === 'credit' && claim.facts.why === 'run') return 'gmRun+';
   return claim.subject.kind === 'unit' ? `unit${sign}` : `${claim.subject.kind}${claim.rung}${sign}`;
 }
 
@@ -2528,8 +2475,8 @@ export function columnStory(l: League, claim: Claim, at: Wording): EditionStory 
     coachSurname: hc?.lastName ?? '',
   };
   const named = claim.man && l.players[claim.man.playerId] ? claim.man : null;
-  // A general manager's hit piece is written whole, from what he did (`snnGmVoice.ts`).
-  const whole = claim.subject.kind === 'gm' && claim.dir === 'blame';
+  // A piece about a general manager, blame or credit, is written whole from what he did (`snnGmVoice.ts`).
+  const whole = claim.subject.kind === 'gm' && claim.dir !== 'fix';
   const piece = whole ? gmPiece(l, claim, toldKeys(l)) : null;
   if (whole && !piece) throw new Error(`No piece for ${claim.key}: a GM's claim needs a finding`);
   const bank = COLUMN[columnBank(claim)];
