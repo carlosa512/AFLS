@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../engine/generate';
 import type { Coach, CoachSeason, League } from '../engine/types';
+import { setTrait } from '../engine/coachTraits';
 import { coachOverview } from './coachOverview';
 
 const league = createLeague({ seed: 'overview' });
@@ -47,5 +48,26 @@ describe('a coach in a few plain sentences', () => {
     const lines = coachOverview(league, base({ teamId: null, career: [] }));
     expect(lines.join(' ')).toMatch(/Around the league he is (known as|seen as)/);
     expect(lines.join(' ')).not.toMatch(/[;:]/);
+  });
+
+  it('says what his label means, in the same sentence, for every label', () => {
+    const roles = ['headCoach', 'offCoord'] as const;
+    const traits = ['ambition', 'loyalty', 'adaptability', 'discipline'] as const;
+    const seen = new Set<string>();
+    for (const role of roles)
+      for (const k of traits)
+        for (const v of [3, 18]) {
+          const c = structuredClone(base({ teamId: null, career: [], role }));
+          for (const t of traits) setTrait(c, t, 10);
+          setTrait(c, k, v);
+          const text = coachOverview(league, c).join(' ');
+          const m = /Around the league he is known as an? ([^,.]+), ([^.]+)\./.exec(text);
+          expect(m, `${role} ${k} ${v}: ${text}`).not.toBeNull();
+          seen.add(m![1]);
+        }
+    const steady = structuredClone(base({ teamId: null, career: [] }));
+    for (const t of traits) setTrait(steady, t, 10);
+    expect(coachOverview(league, steady).join(' ')).toMatch(/known as a steady hand, /);
+    expect(seen.has('climber')).toBe(true);
   });
 });
