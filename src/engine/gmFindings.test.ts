@@ -124,6 +124,24 @@ describe('quarterback picks', () => {
     expect(find(gmFindings(l, gm.id, T), 'qbPicks')!.signed).toBeUndefined();
   });
 
+  it('does not call a signing made after the draft "before" the pick of the same year', () => {
+    const { l, gm, first } = scene('find-qbsign-phase');
+    drafted(at(l, 'QB', 0), first + 1, 1, 1);
+    drafted(at(l, 'QB', 1), first + 2, 1, 2);
+    const third = at(l, 'QB', 0, OTHER);
+    const deal = sign(l, first + 1, third, 5, 17_700);
+    // Free agency comes before the draft of its league year; camp and the season come after it.
+    for (const [phase, before] of [
+      ['resign', true],
+      ['freeAgency', true],
+      ['preseason', false],
+      ['regular', false],
+    ] as const) {
+      gm.deals = [{ ...deal, phase }];
+      expect(find(gmFindings(l, gm.id, T), 'qbPicks')!.signed!.before, phase).toBe(before);
+    }
+  });
+
   it('are not found for one quarterback, a second-round one, or picks made before he came', () => {
     const { l, gm, first } = scene('find-qbmiss');
     drafted(at(l, 'QB', 0), first + 1, 1, 1);

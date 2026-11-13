@@ -282,6 +282,32 @@ describe('a hype piece', () => {
     }
   });
 
+  it('tells the second trade before it counts two players, whichever way the piece opens', () => {
+    const s = indianapolis('gm-credit-again');
+    pin(s, ['c:starTrade:2', 'c+:starTrade']);
+    const story = columnStory(s.l, s.claim()!, at());
+    const body = story.paragraphs.join(' ');
+    expect(body).toContain('for two players');
+    expect(body).toContain('Sharp made another trade like it.');
+    expect(body.indexOf('Cody Locklear')).toBeGreaterThan(-1);
+    expect(body.indexOf('Cody Locklear')).toBeLessThan(body.indexOf('for two players'));
+    expect(ruleBreaks(s.l, story), story.paragraphs.join(' / ')).toEqual([]);
+  });
+
+  it('says "this spring" only for a trade made before camp', () => {
+    const s = indianapolis('gm-credit-season-word');
+    const [first, second] = s.gm.deals! as Trade[];
+    for (const [phase, word] of [
+      ['resign', 'This spring he paid'],
+      ['draft', 'This spring he paid'],
+      ['preseason', 'This summer he paid'],
+    ] as const) {
+      s.gm.deals = [first, { ...second, phase }];
+      pin(s, ['c:starTrade:1', 'c+:starTrade']);
+      expect(columnStory(s.l, s.claim()!, at()).paragraphs.join(' '), phase).toContain(word);
+    }
+  });
+
   it('no GM claim is written from the old banks', () => {
     for (const key of ['gm2-', 'gm3-', 'gm2+', 'gmBuilt+', 'gmRun+']) expect(COLUMN[key], key).toBeUndefined();
   });

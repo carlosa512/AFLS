@@ -201,7 +201,15 @@ function qbPicks(r: Read, picks: PickFact[]): Finding[] {
     (m): m is Signing => m.kind === 'sign' && m.years >= QB_YEARS && r.l.players[m.playerId]?.position === 'QB',
   );
   const signed = deal
-    ? { playerId: deal.playerId, season: deal.season, years: deal.years, before: deal.season <= qbs[0].season }
+    ? {
+        playerId: deal.playerId,
+        season: deal.season,
+        years: deal.years,
+        // Free agency comes before the draft of its league year; camp and the season come after it.
+        before:
+          deal.season < qbs[0].season ||
+          (deal.season === qbs[0].season && (deal.phase === 'resign' || deal.phase === 'freeAgency')),
+      }
     : undefined;
   return [
     {

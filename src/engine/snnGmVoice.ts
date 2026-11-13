@@ -409,14 +409,19 @@ const BLAME_LEADS: Shape[] = [
       const list =
         d.length === 3 && f.passers.length === 3
           ? `${M(d[0])} was followed by ${M(d[1])}, and ${M(d[1])} by ${M(d[2])}.`
-          : `The latest is ${M(d.at(-1)!)}.`;
+          : // Whoever leads now: a passer who came back is the latest again, though he was not the last to arrive.
+            `The latest is ${M(f.passers.at(-1)!.playerId)}.`;
       return [
         `${cap(w(d.length))} different quarterbacks have led ${C(s.teamId)} in passing in ${Gs} ${w(f.passers.length)} seasons. ${list}`,
       ];
     }),
-    headline: of<'qbs', string>(
-      (s, f) => `${cap(s.town)} are on their ${nth(passersOf(f).length)} quarterback under ${s.surname}`,
-    ),
+    headline: of<'qbs', string>((s, f) => {
+      const d = passersOf(f);
+      // "On their third" only when the third is the one playing: with one of them back, it is a count.
+      return d.at(-1) === f.passers.at(-1)!.playerId
+        ? `${cap(s.town)} are on their ${nth(d.length)} quarterback under ${s.surname}`
+        : `${cap(s.town)} have had ${w(d.length)} quarterbacks in ${w(f.passers.length)} seasons`;
+    }),
   },
   {
     id: 'b:qbs:2',
@@ -588,7 +593,20 @@ const firstHonor = (honors: Honor[]) =>
 /** When a pick's honor came, against his draft year: a rookie award says so itself. */
 const sinceDraft = (s: GmSheet, drafted: number, h: Honor) =>
   h.what.includes('Rookie') ? '' : h.season === drafted ? ' as a rookie' : ` ${when(s, h.season)}`;
-const offseason = (m: Extract<GmMove, { kind: 'trade' }>) => (OFFSEASON_PHASES as readonly string[]).includes(m.phase);
+/** When this league year's trade was made, said as a season of the year: camp is summer, the weeks before it spring. */
+const thisYear = (m: Extract<GmMove, { kind: 'trade' }>) =>
+  m.phase === 'preseason'
+    ? 'This summer'
+    : (OFFSEASON_PHASES as readonly string[]).includes(m.phase)
+      ? 'This spring'
+      : null;
+/** The sentence telling a second trade of the same kind: when, to whom, the price and the player. */
+function againSentence(s: GmSheet, first: Extract<GmMove, { kind: 'trade' }>, a: Extract<GmMove, { kind: 'trade' }>) {
+  const then = (a.season === s.season && thisYear(a)) || cap(tradeWhen(a));
+  const whom = a.otherId === first.otherId ? 'the same team' : c(a.otherId);
+  const got = a.got.players[0];
+  return `${then} ${s.p.he} paid ${whom} ${priceWords(s.l, a.gave)} for ${posOf(s.l, got)} ${M(got)}.`;
+}
 const bothOrAll = (n: number) => (n === 2 ? 'both' : `all ${w(n)}`);
 const coachLast = (l: League, id: number) => (l.coaches[id] ?? l.retiredCoaches[id])?.lastName ?? '';
 /** The newest of his first-round picks, and the highest. */
@@ -610,12 +628,9 @@ const CREDIT_LEADS: Shape[] = [
       const first = `${G} sent ${c(f.move.otherId)} ${priceWords(s.l, f.move.gave)} for ${posOf(s.l, f.playerId)} ${M(f.playerId)} ${tradeWhen(f.move)}. ${M(f.playerId)} ${honorClause(h)} ${time}${title}.${later}`;
       const a = f.again;
       if (!a) return [first];
-      const then = a.season === s.season && offseason(a) ? 'This spring' : cap(tradeWhen(a));
-      const whom = a.otherId === f.move.otherId ? 'the same team' : c(a.otherId);
-      const got = a.got.players[0];
       return [
         first,
-        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${then} ${s.p.he} paid ${whom} ${priceWords(s.l, a.gave)} for ${posOf(s.l, got)} ${M(got)}.`,
+        `Trades like that usually look expensive by the second year. ${G} made another one instead. ${againSentence(s, f.move, a)}`,
       ];
     }),
     headline: of<'starTrade', string>((s, f) => {
@@ -633,9 +648,9 @@ const CREDIT_LEADS: Shape[] = [
     text: of<'starTrade', string[]>((s, f) => {
       const h = firstHonor(f.honors);
       const title = f.title === h.season ? `, and ${c(s.teamId)} won the title` : '';
-      return [
-        `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}${title}. ${C(s.teamId)} got him from ${c(f.move.otherId)} ${tradeWhen(f.move)} for ${priceWords(s.l, f.move.gave)}, in a trade ${G} made.`,
-      ];
+      const first = `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}${title}. ${C(s.teamId)} got him from ${c(f.move.otherId)} ${tradeWhen(f.move)} for ${priceWords(s.l, f.move.gave)}, in a trade ${G} made.`;
+      // The close counts both trades: the piece has to have told the second one.
+      return f.again ? [first, `${G} made another trade like it. ${againSentence(s, f.move, f.again)}`] : [first];
     }),
     headline: of<'starTrade', string>(
       (s, f) =>

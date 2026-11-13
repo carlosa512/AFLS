@@ -326,6 +326,35 @@ describe('getting the facts right', () => {
     );
   });
 
+  it('names the passer who leads now as the latest, when an earlier one has come back', () => {
+    const s = scene('gm-voice-qb-back');
+    // A third losing season behind him, and the passers over four seasons: X, Y, Z, then Y again.
+    s.gm.career.unshift({ season: s.l.season - 3, teamId: s.t });
+    s.l.history.push({
+      season: s.l.season - 3,
+      championId: -1,
+      runnerUpId: -1,
+      records: Object.fromEntries(
+        s.l.teams.map((x) => [x.id, { w: x.id === s.t ? 4 : 9, l: x.id === s.t ? 13 : 8, t: 0 }]),
+      ),
+    });
+    const [x, y, z] = [
+      named(teamPlayers(s.l, s.t)[0], 'Xavier', 'Xander'),
+      named(teamPlayers(s.l, s.t)[1], 'Yusuf', 'Young'),
+      named(teamPlayers(s.l, s.t)[2], 'Zane', 'Zeller'),
+    ];
+    [x, y, z, y].forEach((p, i) => {
+      const season = s.l.season - 3 + i;
+      p.stats[season] = { passAtt: 380 };
+      p.statTeams = { ...(p.statTeams ?? {}), [season]: [s.t] };
+    });
+    const story = text(s, ['b:qbs:1', 'b:record:run', 'b2:1']);
+    expect(story.paragraphs[0]).toContain('The latest is Yusuf Young.');
+    expect(story.paragraphs[0]).not.toContain('Zeller');
+    // Three quarterbacks, four seasons: he is not "on his third".
+    expect(story.headline).toBe('Jacksonville have had three quarterbacks in four seasons');
+  });
+
   it('counts head coaches over his seasons on record, not since he was hired', () => {
     const s = scene('gm-voice-coaches');
     SCENES.coaches!(s);
