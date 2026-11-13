@@ -314,7 +314,7 @@ describe('the big contract', () => {
   it('is blame when he is on another team inside two seasons, and credit when he starts here with an honor', () => {
     const { l, gm, first } = scene('find-contract');
     const p = at(l, 'OL', 0);
-    const move = sign(l, first + 1, p);
+    const move = sign(l, first + 1, p, 3);
     gm.deals = [move];
     expect(find(gmFindings(l, gm.id, T), 'contract')).toBeUndefined();
     setTeam(l, p, OTHER);
@@ -331,6 +331,18 @@ describe('the big contract', () => {
     starts(l, p);
     honor(l, p, first + 2, T, 'allLeague');
     expect(find(gmFindings(l, gm.id, T), 'contract')).toMatchObject({ side: 'credit', here: true, latest: first + 2 });
+  });
+
+  it('is not blamed for a deal that ran its length', () => {
+    const { l, gm } = scene('find-contract-ran');
+    const p = at(l, 'OL', 0);
+    // One year, signed for last season: he left when it ended, as a one-year deal does.
+    gm.deals = [sign(l, l.season - 1, p, 1)];
+    setTeam(l, p, OTHER);
+    expect(find(gmFindings(l, gm.id, T), 'contract')).toBeUndefined();
+    // Two years, signed for last season: he is gone with a year of it left.
+    gm.deals = [sign(l, l.season - 1, p, 2)];
+    expect(find(gmFindings(l, gm.id, T), 'contract')).toMatchObject({ side: 'blame' });
   });
 
   it('is not blamed for a deal three seasons old', () => {
@@ -377,7 +389,7 @@ describe('the one who left', () => {
     setTeam(l, a, OTHER);
     a.left = [{ teamId: T, season: first + 1, how: 'cut' }];
     honor(l, a, first + 2, OTHER, 'dpoy');
-    gm.deals = [sign(l, first + 1, b)];
+    gm.deals = [sign(l, first + 1, b, 3)];
     setTeam(l, b, OTHER);
     const both = () => gmFindings(l, gm.id, T).filter((f) => f.family === 'left' || f.family === 'contract');
     expect(both()).toHaveLength(2);

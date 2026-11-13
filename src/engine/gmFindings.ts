@@ -304,7 +304,10 @@ function contracts(r: Read): Finding[] {
     honors: d.honors,
   });
   const gone = deals
-    .filter((d) => elsewhere(r, d.p) && l.season - d.move.season <= CONTRACT_YEARS)
+    // Gone with the deal still running: a contract that ran its length is no finding against the man who wrote it.
+    .filter(
+      (d) => elsewhere(r, d.p) && l.season - d.move.season <= CONTRACT_YEARS && d.move.season + d.move.years > l.season,
+    )
     .sort((a, b) => b.move.total - a.move.total)[0];
   const hit = deals
     .filter((d) => startsHere(r, d.p) && d.honors.length)

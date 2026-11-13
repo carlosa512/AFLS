@@ -217,6 +217,72 @@ describe('a hit piece', () => {
   });
 });
 
+describe('getting the facts right', () => {
+  /** A player traded away last season who has won an award since, where he plays now. */
+  const departed = (s: ReturnType<typeof scene>, honorSeason: number) => {
+    const p = named(teamPlayers(s.l, s.t).find((x) => x.position === 'EDGE')!, 'Jaylon', 'Stephens');
+    const now = elsewhere(s.l, s.t);
+    setTeam(s.l, p, now);
+    p.left = [{ teamId: s.t, season: s.Y1, how: 'traded' }];
+    s.l.awards.push({ season: honorSeason, winners: { dpoy: { playerId: p.id, teamId: now } }, allLeague: [[], []] });
+    return p;
+  };
+  const text = (s: ReturnType<typeof scene>, ids: string[]) => {
+    s.l.mailTold = Object.fromEntries([...only(s.l, ids)].map((k) => [k, s.l.season]));
+    return columnStory(s.l, s.claim()!, at());
+  };
+
+  it('never tells the lead’s own player again as its second point', () => {
+    const s = scene('gm-voice-same');
+    const p = departed(s, s.Y1);
+    // He had signed a big contract here before he was traded: one story, not two.
+    s.gm.deals = [sign(s.Y2, s.t, p, 4, 67_000)];
+    const one = columnStory(s.l, s.claim()!, at());
+    expect(s.claim()!.findings!.map((f) => f.family)).toEqual(['left', 'contract']);
+    expect(one.covers!.some((k) => k.endsWith(':turn'))).toBe(false);
+    // The same contract given to someone else is a second point.
+    const other = teamPlayers(s.l, elsewhere(s.l, s.t)).find((x) => x.position === 'OL')!;
+    s.gm.deals = [sign(s.Y1, s.t, other, 4, 67_000)];
+    const two = columnStory(s.l, s.claim()!, at());
+    expect(two.covers).toContain(gmShapeKey(s.l.season, 'b:contract:turn'));
+  });
+
+  it('says "this season", "last season" or the year for when an honor was won', () => {
+    const lead = ['b:left:2', 'b:record:run', 'b2:1'];
+    const a = scene('gm-voice-when');
+    departed(a, a.l.season);
+    expect(text(a, lead).paragraphs[0]).toContain('was the defensive player of the year this season with Green Bay');
+    const b = scene('gm-voice-when');
+    departed(b, b.Y1);
+    expect(text(b, lead).paragraphs[0]).toContain('was the defensive player of the year last season with Green Bay');
+    const c = scene('gm-voice-when');
+    const p = departed(c, c.Y2);
+    // Honored the season before he left counts for nothing here: move the departure back so the honor follows it.
+    p.left = [{ teamId: c.t, season: c.Y2, how: 'traded' }];
+    expect(text(c, lead).paragraphs[0]).toContain(`was the defensive player of the year in ${c.Y2} with Green Bay`);
+  });
+
+  it('headlines the player who left by what he did since, in one way of naming teams', () => {
+    const s = scene('gm-voice-left-head');
+    departed(s, s.Y1);
+    const story = text(s, ['b:left:1', 'b:record:run', 'b2:1']);
+    expect(story.headline).toBe('Stephens left Jacksonville and was the defensive player of the year');
+    expect(story.paragraphs[0]).toBe(
+      `Edge rusher Jaylon Stephens was the defensive player of the year last season, with Green Bay. The Tarpons traded him in ${s.Y1}, a decision George Sutton made.`,
+    );
+  });
+
+  it('counts head coaches over his seasons on record, not since he was hired', () => {
+    const s = scene('gm-voice-coaches');
+    SCENES.coaches!(s);
+    const story = text(s, ['b:coaches:2', 'b:record:run', 'b2:1']);
+    expect(story.paragraphs[0]).toContain(
+      'have changed head coaches twice in three seasons under general manager George Sutton',
+    );
+    expect(story.paragraphs[0]).not.toContain('became general manager');
+  });
+});
+
 /** A scene that finds one blame family and nothing else. */
 const SCENES: Record<FindingFamily, ((s: ReturnType<typeof scene>) => void) | null> = {
   qbPicks: ({ l, t, Y1, Y2 }) => {

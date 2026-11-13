@@ -130,8 +130,9 @@ function sheetOf(l: League, claim: Claim, gmId: number): GmSheet {
 
 // ───────── facts into words ─────────
 
-/** "last season", or "in 2027": never "last season" for anything older. */
-const when = (s: GmSheet, season: number) => (season === s.season - 1 ? 'last season' : `in ${season}`);
+/** "this season", "last season", or "in 2027": never "last season" for anything older. */
+const when = (s: GmSheet, season: number) =>
+  season === s.season ? 'this season' : season === s.season - 1 ? 'last season' : `in ${season}`;
 /** A trade's moment against the season it belongs to. */
 const tradeWhen = (m: Extract<GmMove, { kind: 'trade' }>) =>
   (OFFSEASON_PHASES as readonly string[]).includes(m.phase)
@@ -245,11 +246,9 @@ const BLAME_LEADS: Shape[] = [
         `${cap(posOf(s.l, f.playerId))} ${M(f.playerId)} ${honorClause(h)} ${when(s, h.season)}, with ${c(h.teamId)}. ${C(s.teamId)} ${LEFT_HIM[f.how]} in ${f.season}, a decision ${G} made.`,
       ];
     }),
-    headline: of<'left', string>((s, f) => {
-      const h = bestHonor(f.honors);
-      const there = s.l.teams[h.teamId];
-      return `${s.l.players[f.playerId].lastName} is winning honors with ${there.name === s.town ? there.city : `the ${there.name}`}, not ${s.town}`;
-    }),
+    headline: of<'left', string>(
+      (s, f) => `${s.l.players[f.playerId].lastName} left ${s.town} and ${honorClause(bestHonor(f.honors))}`,
+    ),
   },
   {
     id: 'b:left:2',
@@ -377,7 +376,7 @@ const BLAME_LEADS: Shape[] = [
           ? `${M(d[0])} was followed by ${M(d[1])}, and ${M(d[1])} by ${M(d[2])}.`
           : `The latest is ${M(d.at(-1)!)}.`;
       return [
-        `${C(s.teamId)} have had ${w(d.length)} leading passers in ${Gs} ${w(f.passers.length)} seasons. ${list}`,
+        `${cap(w(d.length))} different quarterbacks have led ${C(s.teamId)} in passing in ${Gs} ${w(f.passers.length)} seasons. ${list}`,
       ];
     }),
     headline: of<'qbs', string>(
@@ -432,7 +431,9 @@ const BLAME_LEADS: Shape[] = [
               .map((id) => coachName(s.l, id))
               .join(', ')} and ${coachName(s.l, f.coachIds[2])} have each had the job.`
           : `${coachName(s.l, f.coachIds.at(-1)!)} has the job now.`;
-      return [`${C(s.teamId)} have changed head coaches ${times} since ${G} became general manager. ${names}`];
+      return [
+        `${C(s.teamId)} have changed head coaches ${times} in ${w(s.past.length + 1)} seasons under general manager ${G}. ${names}`,
+      ];
     }),
     headline: of<'coaches', string>(
       (s, f) => `${cap(s.town)} have had ${w(f.coachIds.length)} head coaches and one general manager`,
@@ -578,6 +579,18 @@ export const CLOSES: readonly Close[] = [
       `The roster that is ${s.rec} is the one ${G} built. It is fair to ask whether ${c(s.teamId)} should let him build the next one.`,
   },
   {
+    id: 'b2:4',
+    on: '2-',
+    text: (s) =>
+      `General managers are judged over seasons, not weeks. ${G} has had ${w(s.past.length + 1)} of them, and it is fair to ask what ${c(s.teamId)} would get from another.`,
+  },
+  {
+    id: 'b2:5',
+    on: '2-',
+    text: (s) =>
+      `Every losing team is told that it takes time. ${G} has had ${w(s.past.length + 1)} seasons, and it is fair to ask what they have bought ${c(s.teamId)}.`,
+  },
+  {
     id: 'b2:qbPicks',
     on: '2-',
     family: 'qbPicks',
@@ -613,6 +626,12 @@ export const CLOSES: readonly Close[] = [
     text: (s) => `None of this is new, which is the problem. It is time for a change in the front office ${s.where}.`,
   },
   {
+    id: 'b3:4',
+    on: '3-',
+    text: (s) =>
+      `A year ago the question was whether ${G} should stay. ${c(s.teamId)} have their answer at ${s.rec}, and it is time to act on it.`,
+  },
+  {
     id: 'b3:qbPicks',
     on: '3-',
     family: 'qbPicks',
@@ -645,8 +664,26 @@ export interface GmPiece {
   covers: string[];
 }
 
-/** A turn that would retell the lead's own players is no second finding. */
-const RETELLS: Partial<Record<FindingFamily, FindingFamily[]>> = { qbPicks: ['firsts'], firsts: ['qbPicks'] };
+/** The players a finding is about. A second finding about any of the lead's players is the same story told twice. */
+function playersOf(f: Finding): number[] {
+  switch (f.family) {
+    case 'qbPicks':
+      return [...f.picks.map((p) => p.playerId), ...(f.signed ? [f.signed.playerId] : [])];
+    case 'firsts':
+    case 'class':
+      return f.picks.map((p) => p.playerId);
+    case 'lateFind':
+      return [f.pick.playerId];
+    case 'starTrade':
+    case 'left':
+      return [f.playerId];
+    case 'contract':
+      return [f.move.playerId];
+    default:
+      // Who led the team in passing, and who coached it, are counts: they retell nobody.
+      return [];
+  }
+}
 const HEADLINE = 70;
 
 /** His name where the tokens stand: in full the first time the piece names him, his surname after. */
@@ -688,11 +725,12 @@ export function gmPiece(l: League, claim: Claim, have: Set<string>): GmPiece | n
   if (!lead) return null;
   const leadShape = lead.shapes.find((sh) => !used(sh.id)) ?? lead.shapes[0];
 
-  // The record, then a second finding from another family, only in a shape not used this year.
+  // The record, then a second finding from another family about other players, only in a shape not used this year.
+  const told = new Set(playersOf(lead.f));
   const records = shapesFor(null, 'record');
   const record = records.find((sh) => !used(sh.id)) ?? records[0];
   const turn = findings
-    .filter((f) => f.family !== lead.f.family && !RETELLS[lead.f.family]?.includes(f.family))
+    .filter((f) => f.family !== lead.f.family && !playersOf(f).some((id) => told.has(id)))
     .flatMap((f) =>
       shapesFor(f, 'turn')
         .filter((sh) => !used(sh.id))
