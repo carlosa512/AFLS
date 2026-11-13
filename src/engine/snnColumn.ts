@@ -37,6 +37,12 @@ export const LADDER = {
    */
   gmBlameAfter: 11,
   gmCreditAfter: 13,
+  /**
+   * The edition kept for a verdict on a general manager when one is open: it runs there whatever the turn, ahead of
+   * everything else, and the edition before it is held back so this one is free (the owner's call, from counts: with
+   * four Column slots in the late window, 3 GM blame pieces ran in 12 seasons).
+   */
+  gmVerdictWeek: 18,
   /** A turnaround: this many wins or fewer last season, this percentage or better through this many games. */
   turnWins: 6,
   turnPct: 0.75,
@@ -647,14 +653,30 @@ export function pickColumn(
   // A correction takes no turn: the Column before it still decides whose turn it is.
   const lastDir = opt.ran.map((r) => dirOf(r.key)).find((d) => d !== 'fix');
   const jobLately = opt.ran.slice(0, LADDER.jobIn - 1).some((r) => jobKey(r.key));
-  const open = claims.filter((c) => {
+  /** What every claim must pass, whoever's turn it is. */
+  const allowed = (c: Claim) => {
     // A GM's claim with nothing on record to build a piece on is for the counts only.
     if (c.findings && !c.findings.length) return false;
     if (opt.taken.has(c.teamId)) return false;
-    if (c.dir !== 'fix' && c.dir === lastDir) return false;
-    if (isJob(c) && jobLately) return false;
     const yours = opt.userTeamId !== null && c.teamId === opt.userTeamId;
     return !yours || (opt.yoursTold < LADDER.yoursASeason && !opt.yoursLastWeek);
+  };
+  // The season's last edition is the general managers': a verdict on one runs there when one is open, blame before
+  // credit, and the edition before it runs no Column so that this one may.
+  const verdicts = claims.filter((c) => c.subject.kind === 'gm' && c.dir !== 'fix' && allowed(c));
+  if (verdicts.length && opt.week === LADDER.gmVerdictWeek - 1) return null;
+  if (verdicts.length && opt.week === LADDER.gmVerdictWeek)
+    return verdicts.sort(
+      (a, b) =>
+        b.rung - a.rung ||
+        Number(b.dir === 'blame') - Number(a.dir === 'blame') ||
+        b.margin - a.margin ||
+        stableHash(`${opt.editionId}:${a.key}`) - stableHash(`${opt.editionId}:${b.key}`),
+    )[0];
+  const open = claims.filter((c) => {
+    if (!allowed(c)) return false;
+    if (c.dir !== 'fix' && c.dir === lastDir) return false;
+    return !(isJob(c) && jobLately);
   });
   const fixed = (c: Claim) => (c.dir === 'fix' ? 1 : 0);
   // Losing seasons one after another point at the man who built the roster before the man who coaches it: on a rung

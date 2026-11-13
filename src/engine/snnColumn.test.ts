@@ -668,6 +668,37 @@ describe('how often the Column runs, and about what (the owner’s rule G)', () 
     expect(pickColumn([gm], at(14, [{ week: 12, key: UNIT_BLAME }]))).toBeNull();
     expect(pickColumn([gm], at(14, [{ week: 13, key: UNIT_CREDIT }]))).toBeNull();
   });
+
+  it('keeps the season’s last edition for a verdict on a general manager', () => {
+    const gm = claim('column:2026:gm:5:2-', { subject: { kind: 'gm', teamId: 8, gmId: 5 }, rung: 2, teamId: 8 });
+    const praise = claim('column:2026:gm:6:2+', {
+      subject: { kind: 'gm', teamId: 9, gmId: 6 },
+      rung: 2,
+      dir: 'credit',
+      teamId: 9,
+    });
+    const time = claim('column:2026:coach:78:3-', {
+      subject: { kind: 'coach', teamId: 7, coachId: 78 },
+      rung: 3,
+      teamId: 7,
+    });
+    expect(LADDER.gmVerdictWeek).toBe(18);
+    // Week 18: it runs although the last Column was blame too, and ahead of a coach's "it is time" and a correction.
+    const blamed = [{ week: 16, key: UNIT_BLAME }];
+    expect(pickColumn([gm], at(18, blamed))!.key).toBe(gm.key);
+    expect(pickColumn([time, fix, credit, gm], at(18, blamed))!.key).toBe(gm.key);
+    // Blame before credit when both general managers are open.
+    expect(pickColumn([praise, gm], at(18, blamed))!.key).toBe(gm.key);
+    expect(pickColumn([praise, credit], at(18, [{ week: 16, key: UNIT_CREDIT }]))!.key).toBe(praise.key);
+    // Week 17 is held back while a verdict is waiting, so that week 18 is free for it.
+    expect(pickColumn([blame, credit, gm], at(17, [{ week: 15, key: UNIT_CREDIT }]))).toBeNull();
+    expect(pickColumn([blame, credit], at(17, [{ week: 15, key: UNIT_CREDIT }]))!.key).toBe(blame.key);
+    // It is still never two weeks running, a team the page covers is still passed over, and with no general manager
+    // to judge the last edition is an ordinary one.
+    expect(pickColumn([gm], at(18, [{ week: 17, key: UNIT_CREDIT }]))).toBeNull();
+    expect(pickColumn([gm, credit], { ...at(18, blamed), taken: new Set([8]) })!.key).toBe(credit.key);
+    expect(pickColumn([blame, credit], at(18, blamed))!.key).toBe(credit.key);
+  });
 });
 
 it('keeps its bars where the owner can set them', () => {
