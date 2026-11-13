@@ -69,5 +69,9 @@ describe('a coach in a few plain sentences', () => {
     for (const t of traits) setTrait(steady, t, 10);
     expect(coachOverview(league, steady).join(' ')).toMatch(/known as a steady hand, /);
     expect(seen.has('climber')).toBe(true);
+    const hc = structuredClone(base({ teamId: null, career: [], role: 'headCoach' }));
+    for (const t of traits) setTrait(hc, t, 10);
+    setTrait(hc, 'ambition', 18);
+    expect(coachOverview(league, hc).join(' ')).toContain('a head coach who is always looking for a bigger job');
   });
 });

@@ -40,7 +40,11 @@ export function coachOverview(league: League, c: Coach): string[] {
 
   const { name, lines } = coachCharacter(c);
   const article = /^[AEIOU]/.test(name) ? 'an' : 'a';
-  const meaning = MEANING[name];
+  // A head coach already runs his own team: his climbing is toward a bigger job.
+  const meaning =
+    name === 'Climber' && c.role === 'headCoach'
+      ? 'a head coach who is always looking for a bigger job'
+      : MEANING[name];
   if (meaning) out.push(`Around the league he is known as ${article} ${name.toLowerCase()}, ${meaning}.`);
   else {
     // A label with no meaning written here yet: the label, then his reputation's own line.
