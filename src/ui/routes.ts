@@ -7,6 +7,7 @@ import type { StatsTab } from './screens/Stats';
 import { TRADE_TABS, type TradeTab } from './screens/Trades';
 import type { Position } from '../engine/types';
 import { POSITIONS } from '../engine/types';
+export { SCREEN_NAMES } from './screenNames';
 
 export type Route =
   | { view: 'home' }

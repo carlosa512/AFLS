@@ -260,6 +260,8 @@ describe('the picker', () => {
     const { l, rival } = setup();
     const kicker = teamPlayers(l, rival.id).find((p) => p.position === 'K')!;
     const html = render(l, rival.id, { chip: 'K' }, { players: [kicker.id], picks: [] });
-    expect(rowOf(html, kicker.lastName)).toContain('Added ✓');
+    expect(rowOf(html, kicker.lastName)).toMatch(
+      /Added <svg[^>]*class="icon"[^>]*><polyline points="4 12.5 9.5 18 20 6"/,
+    );
   });
 });

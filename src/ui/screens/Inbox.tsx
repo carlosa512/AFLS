@@ -22,6 +22,8 @@ import { MailCards, MailSections } from '../mail';
 import { NegotiationDialog } from '../negotiation';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
+import { Icon } from '../icons';
+import { MoreLink } from '../components';
 
 type Show = 'all' | 'unread' | 'needs' | 'archived';
 
@@ -339,7 +341,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                     Archive read
                   </button>
                   <button className="btn btn-sm" disabled={!unread} onClick={() => store.mutate(markAllRead)}>
-                    ✓ Mark all read
+                    <Icon name="check" /> Mark all read
                   </button>
                 </span>
               </div>
@@ -445,7 +447,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
               <>
                 <div className="inbox-nav">
                   <button className="btn btn-sm btn-ghost inbox-back" onClick={() => setOpenKey(null)}>
-                    ‹ Inbox
+                    <Icon name="chevron-left" /> Inbox
                   </button>
                   <span className="row inbox-file" style={{ gap: 4 }}>
                     {open.messages[0].archived ? (
@@ -472,7 +474,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                         onClick={() => read(shown[at - 1])}
                         aria-label="Newer message"
                       >
-                        ▲
+                        <Icon name="chevron-up" />
                       </button>
                       <button
                         className="btn btn-sm btn-ghost"
@@ -480,7 +482,7 @@ export function Inbox({ league, messageId }: { league: League; messageId?: strin
                         onClick={() => read(shown[at + 1])}
                         aria-label="Older message"
                       >
-                        ▼
+                        <Icon name="chevron-down" />
                       </button>
                     </span>
                   )}
@@ -612,11 +614,17 @@ export function MessageBody({
       <MailCards league={league} message={m} />
       {actions.length > 0 && (
         <div className="row">
-          {actions.map((a, i) => (
-            <button key={i} className={`btn btn-sm${i === 0 ? ' btn-primary' : ''}`} onClick={() => act(a)}>
-              {actionLabel(league, m, a)}
-            </button>
-          ))}
+          {actions.map((a, i) =>
+            i === 0 ? (
+              <button key={i} className="btn btn-sm btn-primary" onClick={() => act(a)}>
+                {actionLabel(league, m, a)}
+              </button>
+            ) : (
+              <MoreLink key={i} onClick={() => act(a)}>
+                {actionLabel(league, m, a)}
+              </MoreLink>
+            ),
+          )}
         </div>
       )}
     </>
@@ -702,7 +710,7 @@ export function Folded({
             <div key={m.id} id={`mail-${m.id}`} className={`fold-item${isOpen ? ' is-open' : ''}`}>
               <div className="fold-row">
                 <button className="fold-toggle" aria-expanded={isOpen} onClick={() => toggle(m.id)}>
-                  <span aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
+                  <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
                   <span className="fold-title">
                     {p && <span className="pos">{p.position}</span>} {talk ? m.subject : memberTitle(m)}
                   </span>
@@ -728,11 +736,17 @@ export function Folded({
       </div>
       {shared.length > 0 && (
         <div className="row">
-          {shared.map((a, i) => (
-            <button key={i} className={`btn btn-sm${i === 0 ? ' btn-primary' : ''}`} onClick={() => act(a)}>
-              {actionLabel(league, lead, a)}
-            </button>
-          ))}
+          {shared.map((a, i) =>
+            i === 0 ? (
+              <button key={i} className="btn btn-sm btn-primary" onClick={() => act(a)}>
+                {actionLabel(league, lead, a)}
+              </button>
+            ) : (
+              <MoreLink key={i} onClick={() => act(a)}>
+                {actionLabel(league, lead, a)}
+              </MoreLink>
+            ),
+          )}
         </div>
       )}
     </>

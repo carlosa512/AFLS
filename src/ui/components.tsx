@@ -35,6 +35,8 @@ export const DECALS_MIN_PX = 56;
 const PLATE_EM = 0.52; // width of a capital per unit of font size: Big Shoulders Display 800, measured, spacing included
 export const SKIN = '#3E4A59'; // neutral mannequin: no faces or skin tones to generate
 import { NUMBER_FONTS, uniformFor } from './uniform';
+import { Icon } from './icons';
+import type { Route } from './routes';
 export { HOT_KICKOFF_F, wearsWhite } from './uniform';
 
 /**
@@ -313,6 +315,7 @@ export function PlayerLink({
   pos = false,
   bold = false,
   className,
+  sub,
 }: {
   league: League;
   player: Player;
@@ -322,11 +325,13 @@ export function PlayerLink({
   pos?: boolean;
   bold?: boolean;
   className?: string;
+  /** A muted second line under his name (his team, a stat line), outside the link: a list's cell reads in two lines. */
+  sub?: ReactNode;
 }) {
   const nav = useNav();
   const team = player.teamId !== null ? league.teams[player.teamId] : null;
   const classes = ['linklike', avatar ? 'player-link' : '', className ?? ''].filter(Boolean).join(' ');
-  return (
+  const link = (
     <button
       type="button"
       className={classes}
@@ -341,6 +346,13 @@ export function PlayerLink({
       {/* in a list (with his picture), a rookie's "R" on the line of his name; never in a sentence */}
       {avatar && isRookie(player) ? <RookieMark /> : null}
     </button>
+  );
+  if (sub === undefined || sub === null || sub === '') return link;
+  return (
+    <span className="player-cell" style={avatar ? ({ '--sub-indent': `${avatar + 8}px` } as CSSProperties) : undefined}>
+      {link}
+      <span className="player-sub">{sub}</span>
+    </span>
   );
 }
 
@@ -459,6 +471,36 @@ export function FieldStrip({
   );
 }
 
+/**
+ * A link to another screen, or to more of the same list ("See all 7"): words and a chevron, no border. A bordered
+ * button does something here instead, and the yellow primary is a panel's one main thing to do (docs/UI.md, "Links
+ * to another screen"). A button like `PlayerLink`, so it moves through `nav` and its history; never disabled: when
+ * the place isn't open, don't show it.
+ */
+export function MoreLink({ to, onClick, children }: { to?: Route; onClick?: () => void; children: ReactNode }) {
+  const nav = useNav();
+  return (
+    <button type="button" className="more-link" onClick={() => (to ? nav.go(to) : onClick?.())}>
+      {children}
+      <Icon name="chevron-right" />
+    </button>
+  );
+}
+
+/**
+ * The top of a screen with views (Front office, Stats): its route tabs on the left and the view's context line or
+ * view-wide control on the right (docs/UI.md, "The top of a screen"). `tabs` is the caller's own tablist element, so
+ * its roles, label and ref stay with it. The screen's name is the app shell's hidden h1, never a visible title here.
+ */
+export function PageHeader({ tabs, aside }: { tabs?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="row page-bar">
+      {tabs}
+      {aside !== undefined && aside !== null && aside !== false && <div className="page-bar-aside">{aside}</div>}
+    </div>
+  );
+}
+
 export function Panel({
   title,
   action,
@@ -559,7 +601,7 @@ export function Dialog({
         <div className="dialog-head">
           <h2>{title}</h2>
           <button className="close-x dialog-x" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <div className="dialog-body">{children}</div>
@@ -637,7 +679,7 @@ export function Sheet({
           {head}
           {actions}
           <button ref={closeRef} className="close-x" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
         <div className="sheet-body">{children}</div>
@@ -833,8 +875,8 @@ export function GradesTable({
                         {t.city} {t.name}
                         {id === league.userTeamId && <span className="tag-pill">You</span>}
                       </span>
-                      <span className="muted" aria-hidden="true">
-                        {open === id ? '▴' : '▾'}
+                      <span className="muted">
+                        <Icon name={open === id ? 'chevron-up' : 'chevron-down'} />
                       </span>
                     </button>
                   </td>
@@ -904,6 +946,7 @@ export function Section({
     >
       <summary>
         <h3>{title}</h3>
+        <Icon name="chevron-down" className="fold-mark" />
       </summary>
       <div className="stack">{children}</div>
     </details>
@@ -960,7 +1003,12 @@ export function SortSeg<K extends string>({
         return (
           <button key={o.k} type="button" aria-pressed={active} onClick={() => onSort(o.k, o.desc ?? true)}>
             {o.label}
-            {active ? (sort.desc ? ' ▼' : ' ▲') : ''}
+            {active && (
+              <>
+                {' '}
+                <Icon name={sort.desc ? 'caret-down' : 'caret-up'} />
+              </>
+            )}
           </button>
         );
       })}
@@ -990,7 +1038,7 @@ export function SortTh<K extends string>({
       <button className="th-sort" onClick={() => onSort(k, desc)}>
         {label}
         <span className="th-arrow" aria-hidden="true">
-          {active ? (sort.desc ? '▼' : '▲') : ''}
+          {active && <Icon name={sort.desc ? 'caret-down' : 'caret-up'} />}
         </span>
       </button>
     </th>

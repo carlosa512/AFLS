@@ -23,7 +23,18 @@ import type { League, Player, Position } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { TabBoundary } from '../boundary';
 import { useNav } from '../App';
-import { Panel, PositionFilter, PlayerLink, SortTh, sortRows, TeamChip, useSort, type SortState } from '../components';
+import {
+  Panel,
+  PositionFilter,
+  PlayerLink,
+  SortTh,
+  sortRows,
+  TeamChip,
+  useSort,
+  type SortState,
+  MoreLink,
+  PageHeader,
+} from '../components';
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
@@ -567,25 +578,29 @@ export function FrontOffice({
   const showCoachNotice = active !== 'coaches' && !!coaching && (coaching.due.length > 0 || coaching.empty.length > 0);
   return (
     <>
-      <div className="row office-bar" style={{ justifyContent: 'space-between' }}>
-        <div ref={bar} className="seg office-tabs" role="tablist" aria-label="Front office">
-          {TABS.map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={active === key}
-              aria-pressed={active === key}
-              onClick={() => nav.go({ view: 'office', tab: key })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="muted small">
-          {league.season} · {PHASE_LABELS[league.phase]}
-          {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
-        </span>
-      </div>
+      <PageHeader
+        tabs={
+          <div ref={bar} className="seg office-tabs" role="tablist" aria-label="Front office">
+            {TABS.map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={active === key}
+                aria-pressed={active === key}
+                onClick={() => nav.go({ view: 'office', tab: key })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+        aside={
+          <span>
+            {league.season} · {PHASE_LABELS[league.phase]}
+            {league.phase === 'freeAgency' ? `, day ${league.faDay} of ${FA_DAYS}` : ''}
+          </span>
+        }
+      />
       {(showStaffNotice || showCoachNotice) && (
         <div className="notice staff-notices">
           {showStaffNotice && (
@@ -602,9 +617,7 @@ export function FrontOffice({
                   />
                 )}
               </span>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'staff' })}>
-                Review scouts
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'staff' }}>Review scouts</MoreLink>
             </div>
           )}
           {showCoachNotice && (
@@ -616,9 +629,7 @@ export function FrontOffice({
                   about={coaching!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))}
                 />
               </span>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
-                Review coaches
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'coaches' }}>Review coaches</MoreLink>
             </div>
           )}
         </div>

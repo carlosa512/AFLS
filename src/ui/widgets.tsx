@@ -13,7 +13,7 @@ import { computeRecords, conferenceSeeds, divisionStandings } from '../engine/se
 import { leaders, LEADER_CATEGORIES, teamSeasonStats, type TeamSeasonLine } from '../engine/stats';
 import type { Game, InboxMessage, League, Player, Team } from '../engine/types';
 import { useNav } from './App';
-import { Panel, PlayerLink, TeamLink } from './components';
+import { Panel, PlayerLink, TeamLink, MoreLink } from './components';
 import { money, ordinal, PHASE_LABELS, recordText, weekLabel } from './format';
 import { hurtList, wornDown } from './injuries';
 import { TEAM_COLS, teamRank } from './screens/TeamStats';
@@ -63,9 +63,7 @@ function More({ rest, label, link, go }: { rest: number; label: string; link: st
       <span className="muted">
         +{rest} {label}
       </span>
-      <button className="linklike" onClick={go}>
-        {link}
-      </button>
+      <MoreLink onClick={go}>{link}</MoreLink>
     </div>
   );
 }
@@ -98,15 +96,7 @@ export function YourInjuries({ league }: { league: League }) {
     ['Worn down', worn.length],
   ];
   return (
-    <Panel
-      className="widget"
-      title="Your injuries"
-      action={
-        <button className="btn btn-sm btn-ghost" onClick={medical}>
-          Medical
-        </button>
-      }
-    >
+    <Panel className="widget" title="Your injuries" action={<MoreLink onClick={medical}>Medical</MoreLink>}>
       <div className="facts">
         {facts.map(([label, n]) => (
           <span className="fact" key={label}>
@@ -148,11 +138,7 @@ export function TheirInjuries({ league, opp, game }: { league: League; opp: Team
     <div className="widget-sub">
       <div className="widget-sub-head">
         <span className="eyebrow">{opp.name} injury report</span>
-        {report && (
-          <button className="linklike small" onClick={() => nav.go({ view: 'inbox', messageId: report.id })}>
-            Opposition report
-          </button>
-        )}
+        {report && <MoreLink to={{ view: 'inbox', messageId: report.id }}>Opposition report</MoreLink>}
       </div>
       {hurt.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>
@@ -208,15 +194,7 @@ export function WaitingForYou({ league }: { league: League }) {
   const inbox = () => nav.go({ view: 'inbox' });
   const rest = rows.length - SHOW;
   return (
-    <Panel
-      className="widget"
-      title="Waiting for you"
-      action={
-        <button className="btn btn-sm btn-ghost" onClick={inbox}>
-          Inbox
-        </button>
-      }
-    >
+    <Panel className="widget" title="Waiting for you" action={<MoreLink onClick={inbox}>Inbox</MoreLink>}>
       {rows.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>
           You're all caught up.
@@ -476,7 +454,6 @@ function Board({ label, rows, you }: { label: string; rows: ReactNode[]; you: Re
 
 /** The league's top three in six categories, and where our best stands in each. */
 export function LeagueLeaders({ league }: { league: League }) {
-  const nav = useNav();
   const user = league.userTeamId;
   const team = league.teams[user];
   const boards = HOME_LEADERS.map((key) => LEADER_CATEGORIES.find((c) => c.key === key)!).map((cat) => {
@@ -490,11 +467,7 @@ export function LeagueLeaders({ league }: { league: League }) {
     <Panel
       className="widget"
       title="League leaders"
-      action={
-        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'leaders' })}>
-          All leaders
-        </button>
-      }
+      action={<MoreLink to={{ view: 'stats', tab: 'leaders' }}>All leaders</MoreLink>}
     >
       {!any ? (
         <p className="muted small" style={{ margin: 0 }}>
@@ -540,7 +513,6 @@ export function LeagueLeaders({ league }: { league: League }) {
 
 /** The league's top three teams in six categories, and our rank in each. */
 export function TeamStatsWidget({ league }: { league: League }) {
-  const nav = useNav();
   const user = league.userTeamId;
   const stats = teamSeasonStats(league);
   const played = [...stats.values()].some((l) => l.games > 0);
@@ -548,11 +520,7 @@ export function TeamStatsWidget({ league }: { league: League }) {
     <Panel
       className="widget"
       title="Team stats"
-      action={
-        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'teams' })}>
-          All team stats
-        </button>
-      }
+      action={<MoreLink to={{ view: 'stats', tab: 'teams' }}>All team stats</MoreLink>}
     >
       {!played ? (
         <p className="muted small" style={{ margin: 0 }}>

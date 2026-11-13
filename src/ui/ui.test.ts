@@ -8,7 +8,7 @@ import { computeRecords, divisionStandings } from '../engine/season/standings';
 import { teamSeasonStats } from '../engine/stats';
 import { NUMBER_MIN_PX, sortRows } from './components';
 import { linkedSegments, moveSegments, nameIndex, type MoveIndex } from './moves';
-import { hashToRoute, routeToHash, type Route } from './routes';
+import { hashToRoute, routeToHash, SCREEN_NAMES, type Route } from './routes';
 import { backupFileName, parseBackup } from './saves';
 import { byeTeams, resultsWeek, stripGames } from './strip';
 import { hurtList, wornDown } from './injuries';
@@ -45,6 +45,27 @@ describe('routes', () => {
       { view: 'live' },
     ];
     for (const r of routes) expect(hashToRoute(routeToHash(r))).toEqual(r);
+  });
+
+  it('names every screen', () => {
+    const views: Route['view'][] = [
+      'home',
+      'roster',
+      'cap',
+      'inbox',
+      'office',
+      'schedule',
+      'locker',
+      'standings',
+      'stats',
+      'playoffs',
+      'compare',
+      'game',
+      'watch',
+      'live',
+    ];
+    for (const v of views) expect(SCREEN_NAMES[v], v).toMatch(/\S/);
+    expect(SCREEN_NAMES.locker).toBe('Locker Room');
   });
 
   it('send a game opened from a link back to the schedule', () => {
@@ -376,6 +397,111 @@ describe('screen contract', () => {
       for (const m of src(f).matchAll(/<PlayerLink\b[^>]*?\bavatar=\{(\d+)\}|<PlayerAvatar\b[^>]*?\bsize=\{(\d+)\}/g))
         if (Number(m[1] ?? m[2]) < NUMBER_MIN_PX) small.push(`${f}: ${m[0].slice(0, 60)}`);
     expect(small).toEqual([]);
+  });
+
+  // Every non-test source file under src/ui, at any depth, components.tsx included.
+  const allUi = (dir = 'src/ui'): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? allUi(join(dir, e.name))
+        : /\.tsx?$/.test(e.name) && !/\.test\./.test(e.name)
+          ? [join(dir, e.name)]
+          : [],
+    );
+
+  it('draws icons only through Icon', () => {
+    // Characters every font (and iOS's emoji) draws its own way. An arrow inside text ("EDGE → DT") is punctuation.
+    const glyph = /[▲▼▴▾▸▶◀❚✕✎✓‹›←↑↓↗↘]/;
+    const allowed: [file: string, text: string, why: string][] = [
+      [join('src/ui', 'mail.tsx'), '/^(.*?)\\s*([▲▼])(\\d+)$/', "reads the engine's change marks"],
+      [join('src/ui', 'mail.tsx'), "=== '▲'", "reads the engine's change marks"],
+    ];
+    const hits: string[] = [];
+    for (const f of allUi().filter((f) => !f.endsWith('icons.tsx')))
+      src(f)
+        .split('\n')
+        .forEach((line, i) => {
+          const t = line.trim();
+          if (/^(\/\/|\*|\/\*)/.test(t) || !glyph.test(line)) return;
+          if (allowed.some(([af, text]) => af === f && line.includes(text))) return;
+          hits.push(`${f}:${i + 1}`);
+        });
+    for (const m of readFileSync('src/styles.css', 'utf8').matchAll(/content:\s*'([^']*)'/g))
+      if (glyph.test(m[1])) hits.push(`src/styles.css: content '${m[1]}'`);
+    expect(hits).toEqual([]);
+  });
+
+  it('names every button that holds only an icon', () => {
+    const bad: string[] = [];
+    for (const f of allUi())
+      for (const m of src(f).matchAll(/<button\b([^>]*)>\s*<Icon\b[^>]*\/>\s*<\/button>/g))
+        if (!/aria-label=/.test(m[1])) bad.push(`${f}: ${m[0].slice(0, 80)}`);
+    expect(bad).toEqual([]);
+  });
+
+  it('goes to another screen through MoreLink', () => {
+    // A bordered button does something here; going somewhere else is a MoreLink (docs/UI.md, "Links to another
+    // screen"). The yellow primary may go somewhere: it is the one main thing to do in its panel.
+    const go = String.raw`onClick=\{\(\) => nav\.(?:go|openGame|watchGame)\([^)]*\)\}`;
+    const btn = String.raw`className="btn(?![^"]*btn-primary)[^"]*"`;
+    const either = new RegExp(String.raw`<button\b(?=[^>]*${btn})(?=[^>]*${go})[^>]*>`, 'g');
+    const bad: string[] = [];
+    for (const f of allUi())
+      for (const m of src(f).matchAll(either))
+        bad.push(`${f}:${src(f).slice(0, m.index).split('\n').length} (use MoreLink)`);
+    expect(bad).toEqual([]);
+    const rule = /\.more-link \{([^}]*)\}/.exec(readFileSync('src/styles.css', 'utf8'))?.[1] ?? '';
+    expect(Number(/min-height:\s*(\d+)px/.exec(rule)?.[1] ?? 0)).toBeGreaterThanOrEqual(32);
+  });
+
+  it('sizes app text from the scale, and writes the label once', () => {
+    // Exempt by selector, each for a reason. Everything else sizes text with --step-* and writes an uppercase label
+    // only through the two shared label rules (`.eyebrow`, `.eyebrow-sm`). docs/UI.md, "Labels and text sizes".
+    const EXEMPT = [
+      '.ed-', // SNN's newspaper keeps its own type
+      '.vb-', // the game viewer and broadcast, from here down: a look of their own
+      '.vc-',
+      '.tl-',
+      '.rail-',
+      '.pg-',
+      '.mc-',
+      '.mb-',
+      '.mp-',
+      '.bug-',
+      '.endzone',
+      '.cmp-',
+      '.lead-',
+      '.line-row',
+      '.game-injuries',
+      '.td-',
+      '.chart', // SVG chart text, sized in px
+      '.dev-chart',
+      '.dev-tip',
+      '.rookie-mark', // sized to the heading it sits in
+      '.sheet-head .rookie-mark',
+    ];
+    const css = readFileSync('src/styles.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const bad: string[] = [];
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim().replace(/\s+/g, ' ');
+      const parts = sel.split(',').map((x) => x.trim());
+      if (parts.every((x) => EXEMPT.some((e) => x.startsWith(e)))) continue;
+      for (const v of m[2].matchAll(/font-size:\s*([^;]+);/g))
+        if (/^[\d.]+(rem|em|px)$/.test(v[1].trim()) && v[1].trim() !== '16px') bad.push(`${sel}: ${v[1].trim()}`);
+      if (/text-transform:\s*uppercase/.test(m[2]) && parts[0] !== '.eyebrow' && parts[0] !== '.eyebrow-sm')
+        bad.push(`${sel}: uppercase outside the shared label rules`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('starts a screen one way', () => {
+    // The app shell writes the one hidden h1; New Game keeps its own heading. A screen with views opens with
+    // PageHeader's bar, never a hand-built one (docs/UI.md, "The top of a screen").
+    const h1 = allUi().filter((f) => /<h1\b/.test(src(f)));
+    expect(h1.sort()).toEqual([join('src/ui', 'App.tsx'), join('src/ui/screens', 'NewGame.tsx')]);
+    expect(src(join('src/ui', 'App.tsx'))).toMatch(/<h1 className="visually-hidden">/);
+    const bars = allUi().filter((f) => !f.endsWith('components.tsx') && /office-bar|page-bar/.test(src(f)));
+    expect(bars).toEqual([]);
   });
 
   it('renders player names only through PlayerLink', () => {

@@ -63,8 +63,8 @@ describe('the Locker Room’s Morale section', () => {
     roster.forEach((p) => (p.morale = { level: 2, jolts: [] }));
     roster[0].morale = { level: -7, jolts: [] };
     const html = render(<LockerRoom league={league} />);
-    expect(html).toContain('<h3>Morale</h3>');
-    expect(html.indexOf('<h3>Morale</h3>')).toBeLessThan(html.indexOf('<h3>Captains</h3>'));
+    expect(html).toContain('<h2>Morale</h2>');
+    expect(html.indexOf('<h2>Morale</h2>')).toBeLessThan(html.indexOf('<span class="eyebrow">Captains</span>'));
     expect(html).toContain('mood-room-word');
     expect(html).toContain('Abysmal');
     expect(html).toContain(roster[0].lastName);
@@ -132,7 +132,7 @@ describe('the Locker Room’s promises (G3)', () => {
 describe('the Locker Room: who runs the room', () => {
   it('shows who the room follows and a card per room, in the mood words', () => {
     const html = render(<LockerRoom league={league} />);
-    expect(html).toContain('<h3>Captains</h3>');
+    expect(html).toContain('<span class="eyebrow">Captains</span>');
     expect(html).toContain('The rooms');
     for (const label of ['Offensive line', 'Secondary']) expect(html).toContain(label);
     // Each room holds its own people: who it follows, its mentoring, its friendships and feuds. No separate lists.

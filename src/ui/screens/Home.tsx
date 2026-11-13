@@ -25,7 +25,7 @@ import type { Game, League, Team } from '../../engine/types';
 import { forecast } from '../../engine/weather';
 import { useNav } from '../App';
 import { attentionText, coachAttention } from '../coaching';
-import { Panel, PlayerLink, TeamChip, TeamLink, WeatherNote } from '../components';
+import { Panel, PlayerLink, TeamChip, TeamLink, WeatherNote, MoreLink } from '../components';
 import { isOffseasonPhase, money, pct, PHASE_LABELS, recordText, weekLabel } from '../format';
 import { live } from '../live';
 import { WinnerCell } from './Stats';
@@ -38,6 +38,7 @@ import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
 import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
+import { Icon } from '../icons';
 
 function lastUserGame(league: League): Game | undefined {
   return league.games
@@ -161,7 +162,7 @@ function NextGame({ league }: { league: League }) {
       <TheirInjuries league={league} opp={opp} game={game} />
       {league.personnel?.enabled && !game.result && (
         <p>
-          <button className="btn btn-sm" onClick={() => nav.go({ view: 'roster', teamId: user.id })}>
+          <button className="btn btn-sm btn-primary" onClick={() => nav.go({ view: 'roster', teamId: user.id })}>
             Prepare game-day roster
           </button>
         </p>
@@ -198,11 +199,9 @@ function LastGame({ league }: { league: League }) {
       }
       action={
         <span className="row" style={{ gap: 8 }}>
-          <button className="btn btn-sm" onClick={() => nav.openGame(game.id)}>
-            Box score
-          </button>
+          <MoreLink onClick={() => nav.openGame(game.id)}>Box score</MoreLink>
           <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(game.id)}>
-            ▶ Watch replay
+            <Icon name="play" /> Watch replay
           </button>
         </span>
       }
@@ -237,18 +236,10 @@ function LastGame({ league }: { league: League }) {
 }
 
 function DivisionMini({ league }: { league: League }) {
-  const nav = useNav();
   const user = league.teams[league.userTeamId];
   const div = divisionStandings(league).find((d) => d.index === user.division)!;
   return (
-    <Panel
-      title={div.division.name}
-      action={
-        <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'standings' })}>
-          All standings
-        </button>
-      }
-    >
+    <Panel title={div.division.name} action={<MoreLink to={{ view: 'standings' }}>All standings</MoreLink>}>
       <div className="table-scroll">
         <table>
           <thead>
@@ -284,7 +275,6 @@ function DivisionMini({ league }: { league: League }) {
 
 /** The persistent user's record, including current service and former teams. */
 function GmRecord({ league }: { league: League }) {
-  const nav = useNav();
   const rec = gmRecord(league);
   if (!rec.seasons.length) return null;
   const n = new Set(rec.seasons.map((s) => s.season)).size;
@@ -295,14 +285,7 @@ function GmRecord({ league }: { league: League }) {
     rec.titles ? `${rec.titles} title${rec.titles > 1 ? 's' : ''}` : '',
   ].filter(Boolean);
   return (
-    <Panel
-      title="Your record as GM"
-      action={
-        <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'gms' })}>
-          GM careers
-        </button>
-      }
-    >
+    <Panel title="Your record as GM" action={<MoreLink to={{ view: 'office', tab: 'gms' }}>GM careers</MoreLink>}>
       <p>
         <GmLink league={league} gm={league.gms[league.userGmId]} avatar />
       </p>
@@ -362,7 +345,6 @@ function ChampionBanner({ league }: { league: League }) {
 
 /** The season's awards, announced once the regular season ends (and kept up through the playoffs). */
 function AwardsNotice({ league }: { league: League }) {
-  const nav = useNav();
   const awards = league.phase === 'regular' ? undefined : seasonAwards(league, league.season);
   if (!awards) return null;
   const winners = (['mvp', 'opoy', 'dpoy'] as const)
@@ -382,16 +364,13 @@ function AwardsNotice({ league }: { league: League }) {
         ))}
         .
       </span>
-      <button className="btn btn-sm" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
-        All awards
-      </button>
+      <MoreLink to={{ view: 'stats', tab: 'awards' }}>All awards</MoreLink>
     </div>
   );
 }
 
 /** The latest week's players of the week (and of the month, when one just ended). */
 function PlayersOfTheWeek({ league }: { league: League }) {
-  const nav = useNav();
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const honors = weeklyAwards(league, league.season);
   const week = Math.max(0, ...Object.keys(honors?.weeks ?? {}).map(Number));
@@ -431,9 +410,7 @@ function PlayersOfTheWeek({ league }: { league: League }) {
               </button>
             </span>
           )}
-          <button className="btn btn-sm btn-ghost" onClick={() => nav.go({ view: 'stats', tab: 'awards' })}>
-            All awards
-          </button>
+          <MoreLink to={{ view: 'stats', tab: 'awards' }}>All awards</MoreLink>
         </span>
       }
     >
@@ -557,6 +534,7 @@ function OffseasonHome({ league }: { league: League }) {
             className={i < idx ? 'done' : i === idx ? 'current' : undefined}
             aria-current={i === idx ? 'step' : undefined}
           >
+            {i < idx && <Icon name="check" className="step-done" />}
             {label}
           </li>
         ))}
@@ -611,9 +589,7 @@ function OffseasonHome({ league }: { league: League }) {
                   about={attention!.leaving.map((c): Who => ({ kind: 'coach', id: c.id }))}
                 />
               </span>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
-                Review coaches
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'coaches' }}>Review coaches</MoreLink>
             </div>
           )}
           <WaitingForYou league={league} />
@@ -642,17 +618,9 @@ function OffseasonHome({ league }: { league: League }) {
 }
 
 function WaiverNotice({ league }: { league: League }) {
-  const nav = useNav();
   if (!league.personnel?.enabled || !waiversPending(league)) return null;
   return (
-    <Panel
-      title="Personnel notice"
-      action={
-        <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'waivers' })}>
-          Waiver wire
-        </button>
-      }
-    >
+    <Panel title="Personnel notice" action={<MoreLink to={{ view: 'office', tab: 'waivers' }}>Waiver wire</MoreLink>}>
       <p>
         {league.personnel.waivers!.pending.length} players awaiting waivers. {waiverDecision(league)}.
       </p>

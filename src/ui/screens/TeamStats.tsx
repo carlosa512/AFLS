@@ -3,11 +3,10 @@
  * turnovers, third downs and sacks, sortable. The box scores are kept for the last two seasons, so
  * those are the seasons this table can show.
  */
-import { useState } from 'react';
 import { teamSeasonStats, type TeamSeasonLine } from '../../engine/stats';
 import type { League } from '../../engine/types';
 import { Panel, SortTh, sortRows, TeamLink, useSort } from '../components';
-import { recordText, resultsSeason } from '../format';
+import { recordText } from '../format';
 
 export interface TeamStatCol {
   key: string;
@@ -75,10 +74,8 @@ export function teamRank(stats: Map<number, TeamSeasonLine>, col: TeamStatCol, t
 export const teamStatSeasons = (league: League) =>
   [...new Set(league.games.filter((g) => g.result && !g.playoffRound).map((g) => g.season))].sort((a, b) => b - a);
 
-export function TeamStats({ league }: { league: League }) {
-  const seasons = teamStatSeasons(league);
-  const [picked, setPicked] = useState(() => resultsSeason(league));
-  const season = seasons.includes(picked) ? picked : seasons[0];
+/** One season's team stats; its picker sits in the Stats screen's bar. */
+export function TeamStats({ league, season }: { league: League; season: number | undefined }) {
   const [sort, onSort] = useSort<string>({ key: 'diff', desc: true });
   if (season === undefined) {
     return (
@@ -105,20 +102,7 @@ export function TeamStats({ league }: { league: League }) {
           : TEAM_COLS.find((c) => c.key === key)!.value(l),
   );
   return (
-    <Panel
-      title={`${season} team stats`}
-      action={
-        seasons.length > 1 && (
-          <select aria-label="Season" value={season} onChange={(e) => setPicked(Number(e.target.value))}>
-            {seasons.map((s) => (
-              <option key={s} value={s}>
-                {s} season
-              </option>
-            ))}
-          </select>
-        )
-      }
-    >
+    <Panel>
       <p className="muted small" style={{ marginTop: 0 }}>
         Regular season.
       </p>

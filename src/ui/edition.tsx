@@ -19,6 +19,7 @@ import { inkOn } from './color';
 import { PlayerAvatar, PlayerLink, TeamChip, TeamLink } from './components';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from './moves';
 import { StaffAvatar } from './staffAvatar';
+import { Icon } from './icons';
 
 const club = (league: League, id: number) => league.teams[id];
 /** A club's colours as the two custom properties the edition's bands and borders read. */
@@ -179,7 +180,7 @@ function Front({
           <LinkedText league={league} text={story.summary} about={about(story)} index={index} />
         </p>
         <button type="button" className="ed-more" onClick={() => onOpen(story.key)}>
-          Read the story ▾
+          Read the story <Icon name="chevron-down" />
         </button>
       </div>
       <div className="ed-front-pic" style={{ color: ink, '--ed-ink': ink } as CSSProperties}>
@@ -234,7 +235,7 @@ function Tile({
         </div>
       )}
       <button type="button" className="ed-more" onClick={() => onOpen(story.key)}>
-        Read ▾
+        Read <Icon name="chevron-down" />
       </button>
     </section>
   );
@@ -414,7 +415,7 @@ export function StoryBlock({
         </div>
         {onClose && (
           <button type="button" className="ed-more" onClick={onClose}>
-            Close ▴
+            Close <Icon name="chevron-up" />
           </button>
         )}
       </div>

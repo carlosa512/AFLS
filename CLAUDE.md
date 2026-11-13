@@ -604,7 +604,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `src/ui/` — React screens. State is one mutable `League` in `ui/store.ts`; call
   `store.mutate(fn)` to change it (triggers re-render + IndexedDB autosave). **Every screen follows
   `docs/UI.md`**: names through `PlayerLink`/`TeamLink`, one `TeamPicker`, tables sorted with `SortTh`, your row
-  `tr.is-user`, tabs as routes, and the fog-of-war list of what a screen may show. The "screen contract" tests
+  `tr.is-user`, tabs as routes, and the fog-of-war list of what a screen may show; the screen's name as the shell's
+  hidden `h1` and `PageHeader` for a screen with views, icons through `Icon` (`ui/icons.tsx`), a link to another
+  screen through `MoreLink`, and text sizes and the all-caps label from the scale in `styles.css`. `npm run
+  review-saves` and `npm run screens -- --routes … --before <dir>` shoot screens before and after a change. The "screen contract" tests
   in `ui/ui.test.ts` enforce it. **Screen text follows its "Words on a screen" section:** no paragraph under a
   heading that describes the panel, explains a control (make it look tappable instead) or tells how the sim works
   inside; a rule of the game goes

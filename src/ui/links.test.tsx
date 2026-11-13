@@ -94,7 +94,7 @@ describe('SortSeg', () => {
         onSort={() => {}}
       />,
     );
-    expect(html).toMatch(/aria-pressed="true"[^>]*>OVR[^<]*▼/);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>OVR <svg[^>]*class="icon"[^>]*>\s*<polygon points="4 7 20 7 12 18"/);
     expect(html).toMatch(/aria-pressed="false"[^>]*>Position/);
   });
 });

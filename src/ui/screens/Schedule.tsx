@@ -12,6 +12,7 @@ import { Panel, TeamLink, WeatherNote } from '../components';
 import { kickoffOrder } from '../../engine/season/kickoff';
 import { kickoffText, recordText, weekLabel } from '../format';
 import { ScoreLine } from './Home';
+import { Icon } from '../icons';
 
 function MySchedule({ league }: { league: League }) {
   const nav = useNav();
@@ -122,7 +123,7 @@ function WeekView({ league }: { league: League }) {
           onClick={() => setWeek(week - 1)}
           aria-label="Previous week"
         >
-          ◀
+          <Icon name="chevron-left" />
         </button>
         <select aria-label="Week" id="week-select" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
           {Array.from({ length: maxWeek }, (_, i) => i + 1).map((w) => (
@@ -137,7 +138,7 @@ function WeekView({ league }: { league: League }) {
           onClick={() => setWeek(week + 1)}
           aria-label="Next week"
         >
-          ▶
+          <Icon name="chevron-right" />
         </button>
       </div>
       {played.length > 0 && (

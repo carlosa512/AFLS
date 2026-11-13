@@ -19,7 +19,7 @@ import { activeRoster, teamPlayers } from '../../engine/roster';
 import { disputeView } from '../../engine/disputes';
 import { DisputeTag } from '../disputeTag';
 import type { League, Player } from '../../engine/types';
-import { PlayerLink, Section } from '../components';
+import { Panel, PlayerLink } from '../components';
 import { PersonalityPill } from '../scouting';
 import { store } from '../store';
 import {
@@ -135,11 +135,133 @@ export function LockerRoom({ league }: { league: League }) {
   const meetings = meetingsView(league);
   const roomMeeting = (scope: MeetingScope) => meetings?.rooms.find((r) => r.scope === scope);
 
+  const { big, quiet } = splitRooms(cards);
+  const captainsRow = (
+    <div className="captains-row">
+      <span className="eyebrow">Captains</span>
+      {captains ? (
+        (
+          [
+            ['Offense', captains.offense],
+            ['Defense', captains.defense],
+            ['Special teams', captains.specialTeams],
+          ] as const
+        ).map(([role, id]) => (
+          <span key={role} className="captain">
+            <span className="muted small">{role}</span> <PlayerLink league={league} player={league.players[id]} pos />{' '}
+            <PersonalityPill league={league} player={league.players[id]} />
+          </span>
+        ))
+      ) : (
+        <span className="muted">Captains are named when camp opens.</span>
+      )}
+    </div>
+  );
+  const roomCard = (c: (typeof cards)[number]) => (
+    <div key={c.unit} className={`room-card${c.trouble ? ' is-trouble' : ''}`}>
+      <div className="room-card-head">
+        {c.view && <MoodFace step={c.view.mood} size={32} />}
+        <div>
+          <div className="room-card-name">{c.label}</div>
+          {c.view && (
+            <div className="room-card-mood">
+              {MORALE_WORDS[c.view.mood]}
+              {c.view.word === 'Split' && <span className="tag-pill room-divided">Divided</span>}
+            </div>
+          )}
+        </div>
+      </div>
+      {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
+      {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
+      {c.unit !== 'ST' && <BeliefLine league={league} unit={c.unit} ctx={ctx} />}
+      {meetings && ROOMS.includes(c.unit as CoachRoom) && (
+        <RoomAsk league={league} view={roomMeeting(c.unit as CoachRoom)} label="Ask the coach to meet with them" />
+      )}
+      {c.follows.length > 0 && (
+        <div>
+          <h4>Who they follow</h4>
+          <ul className="plain-list">
+            {c.follows.map((p) => (
+              <li key={p.id}>
+                <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
+                <VoiceTag p={p} />
+                <div className="muted small">{whyLine(league, p)}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {c.deal.length > 0 && (
+        <div>
+          <h4>Wants a new deal</h4>
+          <ul className="plain-list">
+            {c.deal.map((p) => (
+              <li key={p.id} className="room-deal">
+                <span className="mood-word">
+                  <MoodCell league={league} player={p} /> <PlayerLink league={league} player={p} pos />
+                </span>
+                <TalkContractButton league={league} player={p} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {c.young.length > 0 && (
+        <details className="room-fold">
+          <summary>
+            Mentoring · {c.young.length} young {c.young.length === 1 ? 'player' : 'players'}
+            {c.struggling > 0 && <span className="muted"> · {c.struggling} not going well</span>}
+          </summary>
+          <ul className="plain-list room-mentoring">
+            {c.young.map((y) => {
+              const options = roster.filter(
+                (m) => m.id !== y.id && canMentor(m) && (m.id === y.mentor || load(m.id) < MAX_MENTEES),
+              );
+              return (
+                <li key={y.id}>
+                  <span className="mood-word">
+                    <MoodCell league={league} player={y} /> <PlayerLink league={league} player={y} pos />
+                  </span>{' '}
+                  <select
+                    aria-label={`Mentor for ${y.lastName}`}
+                    value={y.mentor ?? ''}
+                    onChange={(e) =>
+                      store.mutate((l) => setMentor(l, y.id, e.target.value === '' ? null : Number(e.target.value)))
+                    }
+                  >
+                    <option value="">No mentor</option>
+                    {options.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.position} {m.lastName}
+                      </option>
+                    ))}
+                  </select>{' '}
+                  {y.mentor !== undefined && <span className="muted small">{mentorStatus(league, y)}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+      {c.ties.length > 0 && (
+        <div>
+          <h4>In the room</h4>
+          <ul className="plain-list">
+            {c.ties.map(({ a, b, kind }) => (
+              <li key={`${a.id}:${b.id}`}>
+                <PlayerLink league={league} player={a} /> and <PlayerLink league={league} player={b} />
+                {kind === 'feud' ? ' don’t see eye to eye' : ' are close'}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="screen">
-      <h1>Locker Room</h1>
-      <p className="muted">The way our coaches see it.</p>
-      <Section id="locker-morale" title="Morale">
+      <Panel title="Morale">
         {roomStep === undefined ? (
           <p className="muted">Nobody on the roster yet.</p>
         ) : (
@@ -221,6 +343,8 @@ export function LockerRoom({ league }: { league: League }) {
                   ))}
                 </ul>
               )}
+            </div>
+            <div className="morale-card">
               <h4>Flying</h4>
               {happiest.length === 0 ? (
                 <p className="muted">Nobody is flying right now.</p>
@@ -290,9 +414,9 @@ export function LockerRoom({ league }: { league: League }) {
             </div>
           </div>
         )}
-      </Section>
+      </Panel>
       {disputes.length > 0 && (
-        <Section id="locker-disputes" title="Disputes">
+        <Panel title="Disputes">
           <ul className="plain-list">
             {disputes.map(({ p, v }) => (
               <li key={p.id}>
@@ -301,38 +425,31 @@ export function LockerRoom({ league }: { league: League }) {
               </li>
             ))}
           </ul>
-        </Section>
+        </Panel>
       )}
-      <Section id="locker-leaders" title="Captains">
-        {captains ? (
-          <ul className="plain-list">
-            {(
-              [
-                ['Offense', captains.offense],
-                ['Defense', captains.defense],
-                ['Special teams', captains.specialTeams],
-              ] as const
-            ).map(([role, id]) => (
-              <li key={role}>
-                <span className="eyebrow">{role} captain</span>{' '}
-                <PlayerLink league={league} player={league.players[id]} pos />{' '}
-                <PersonalityPill league={league} player={league.players[id]} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Captains are named when camp opens.</p>
-        )}
-      </Section>
-      <Section id="locker-rooms" title="The rooms">
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={byCoaches}
-            onChange={(e) => store.mutate((l) => setMentoringByYou(l, !e.target.checked))}
-          />{' '}
-          Let the coaches handle the mentoring
-        </label>
+      <Panel
+        title="The rooms"
+        action={
+          <span className="row rooms-actions">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={byCoaches}
+                onChange={(e) => store.mutate((l) => setMentoringByYou(l, !e.target.checked))}
+              />{' '}
+              Let the coaches handle the mentoring
+            </label>
+            {meetings && (
+              <RoomAsk
+                league={league}
+                view={roomMeeting('team')}
+                label="Ask the coach to talk to the team"
+                note={meetings.blocked}
+              />
+            )}
+          </span>
+        }
+      >
         {meetings?.pending && (
           <div className="meeting-banner">
             <b>
@@ -357,124 +474,10 @@ export function LockerRoom({ league }: { league: League }) {
             </div>
           </div>
         )}
-        {meetings && (
-          <RoomAsk
-            league={league}
-            view={roomMeeting('team')}
-            label="Ask the coach to talk to the team"
-            note={meetings.blocked}
-          />
-        )}
-        <div className="room-cards">
-          {cards.map((c) => (
-            <div key={c.unit} className={`room-card${c.trouble ? ' is-trouble' : ''}`}>
-              <div className="room-card-head">
-                {c.view && <MoodFace step={c.view.mood} size={32} />}
-                <div>
-                  <div className="room-card-name">{c.label}</div>
-                  {c.view && (
-                    <div className="room-card-mood">
-                      {MORALE_WORDS[c.view.mood]}
-                      {c.view.word === 'Split' && <span className="tag-pill room-divided">Divided</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {c.view && <p className="room-card-line">{standsOut(c.view, room.team)}</p>}
-              {c.unit !== 'ST' && <ChemLine league={league} unit={c.unit} ctx={ctx} />}
-              {c.unit !== 'ST' && <BeliefLine league={league} unit={c.unit} ctx={ctx} />}
-              {meetings && ROOMS.includes(c.unit as CoachRoom) && (
-                <RoomAsk
-                  league={league}
-                  view={roomMeeting(c.unit as CoachRoom)}
-                  label="Ask the coach to meet with them"
-                />
-              )}
-              {c.follows.length > 0 && (
-                <div>
-                  <h4>Who they follow</h4>
-                  <ul className="plain-list">
-                    {c.follows.map((p) => (
-                      <li key={p.id}>
-                        <PlayerLink league={league} player={p} pos /> <PersonalityPill league={league} player={p} />
-                        <VoiceTag p={p} />
-                        <div className="muted small">{whyLine(league, p)}</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {c.deal.length > 0 && (
-                <div>
-                  <h4>Wants a new deal</h4>
-                  <ul className="plain-list">
-                    {c.deal.map((p) => (
-                      <li key={p.id} className="room-deal">
-                        <span className="mood-word">
-                          <MoodCell league={league} player={p} /> <PlayerLink league={league} player={p} pos />
-                        </span>
-                        <TalkContractButton league={league} player={p} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {c.young.length > 0 && (
-                <details className="room-fold">
-                  <summary>
-                    Mentoring · {c.young.length} young {c.young.length === 1 ? 'player' : 'players'}
-                    {c.struggling > 0 && <span className="muted"> · {c.struggling} not going well</span>}
-                  </summary>
-                  <ul className="plain-list room-mentoring">
-                    {c.young.map((y) => {
-                      const options = roster.filter(
-                        (m) => m.id !== y.id && canMentor(m) && (m.id === y.mentor || load(m.id) < MAX_MENTEES),
-                      );
-                      return (
-                        <li key={y.id}>
-                          <span className="mood-word">
-                            <MoodCell league={league} player={y} /> <PlayerLink league={league} player={y} pos />
-                          </span>{' '}
-                          <select
-                            aria-label={`Mentor for ${y.lastName}`}
-                            value={y.mentor ?? ''}
-                            onChange={(e) =>
-                              store.mutate((l) =>
-                                setMentor(l, y.id, e.target.value === '' ? null : Number(e.target.value)),
-                              )
-                            }
-                          >
-                            <option value="">No mentor</option>
-                            {options.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.position} {m.lastName}
-                              </option>
-                            ))}
-                          </select>{' '}
-                          {y.mentor !== undefined && <span className="muted small">{mentorStatus(league, y)}</span>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </details>
-              )}
-              {c.ties.length > 0 && (
-                <div>
-                  <h4>In the room</h4>
-                  <ul className="plain-list">
-                    {c.ties.map(({ a, b, kind }) => (
-                      <li key={`${a.id}:${b.id}`}>
-                        <PlayerLink league={league} player={a} /> and <PlayerLink league={league} player={b} />
-                        {kind === 'feud' ? ' don’t see eye to eye' : ' are close'}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </Section>
+        {captainsRow}
+        <div className="room-cards room-cards-big">{big.map(roomCard)}</div>
+        {quiet.length > 0 && <div className="room-cards room-cards-quiet">{quiet.map(roomCard)}</div>}
+      </Panel>
     </div>
   );
 }
@@ -563,6 +566,17 @@ function VoiceTag({ p }: { p: Player }) {
 }
 
 /** Worst first: the rooms that need you on top. */
+/**
+ * The rooms with something to show (in trouble, who they follow, who wants a deal, friendships and feuds) get a full
+ * card; the quiet ones sit small after them. Each group keeps the order it came in.
+ */
+export function splitRooms<C extends { trouble: boolean; follows: unknown[]; deal: unknown[]; ties: unknown[] }>(
+  cards: C[],
+): { big: C[]; quiet: C[] } {
+  const isQuiet = (c: C) => !c.trouble && !c.follows.length && !c.deal.length && !c.ties.length;
+  return { big: cards.filter((c) => !isQuiet(c)), quiet: cards.filter(isQuiet) };
+}
+
 const READ_ORDER: Record<UnitWord, number> = { Split: 0, Down: 1, Restless: 2, Settled: 3, Tight: 4 };
 
 /** Why the room goes to him, in one line: the biggest parts of where he stands. */

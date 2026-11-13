@@ -14,8 +14,9 @@ import { isNight } from '../engine/weather';
 
 const NIGHTS = { thu: 'Thursday night', sat: 'Saturday night', sun: 'Sunday night', mon: 'Monday night' } as const;
 import { useNav } from './App';
-import { TeamChip } from './components';
+import { TeamChip, MoreLink } from './components';
 import { recordText, weekLabel } from './format';
+import { Icon } from './icons';
 
 type Records = ReturnType<typeof computeRecords>;
 
@@ -70,7 +71,6 @@ export function byeTeams(league: League, week: number): Team[] {
 }
 
 export function ScoreStrip({ league }: { league: League }) {
-  const nav = useNav();
   const strip = useRef<HTMLDivElement>(null);
   const live = inSeason(league) && gamesInWeek(league).length > 0;
   const last = resultsWeek(league);
@@ -108,14 +108,12 @@ export function ScoreStrip({ league }: { league: League }) {
         </div>
         <div className="strip-tools">
           <button className="btn btn-sm strip-arrow" aria-label="Scroll games left" onClick={() => scroll(-1)}>
-            ‹
+            <Icon name="chevron-left" />
           </button>
           <button className="btn btn-sm strip-arrow" aria-label="Scroll games right" onClick={() => scroll(1)}>
-            ›
+            <Icon name="chevron-right" />
           </button>
-          <button className="linklike small" onClick={() => nav.go({ view: 'schedule' })}>
-            Full schedule
-          </button>
+          <MoreLink to={{ view: 'schedule' }}>Full schedule</MoreLink>
         </div>
       </div>
       <div className="strip" ref={strip}>

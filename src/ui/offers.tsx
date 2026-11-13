@@ -39,7 +39,17 @@ import type { League, Player, Stance, Team, TradeOffer, TradeRecord, TradeSide, 
 import { POSITIONS } from '../engine/types';
 import { LinkedText, nameIndex } from './moves';
 import { useNav } from './App';
-import { Panel, PlayerAvatar, PlayerLink, SortSeg, sortRows, TeamChip, TeamLink, useSort } from './components';
+import {
+  Panel,
+  PlayerAvatar,
+  PlayerLink,
+  SortSeg,
+  sortRows,
+  TeamChip,
+  TeamLink,
+  useSort,
+  MoreLink,
+} from './components';
 import { GmLink } from './gm';
 import { money, playerName } from './format';
 import { CardRow, OfficeCard, Pill, type PillTone } from './office';
@@ -402,9 +412,7 @@ export function OfferCard({
         </p>
       )}
       {reply && (
-        <button
-          type="button"
-          className="btn btn-sm"
+        <MoreLink
           onClick={() =>
             nav.go({
               view: 'inbox',
@@ -413,8 +421,8 @@ export function OfferCard({
             })
           }
         >
-          See their offer →
-        </button>
+          See their offer
+        </MoreLink>
       )}
       {league.market?.exam?.offerId === offer.id && <ExamPanel league={league} />}
       {open && league.market?.exam?.offerId !== offer.id && (

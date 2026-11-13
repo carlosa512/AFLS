@@ -20,6 +20,7 @@ import { buildPlayNames, type PlayNames } from '../gameRead';
 import { downParts, Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
 import { GamePanel, PlayersPanel, StageTabs } from './GamePanels';
+import { Icon } from '../icons';
 
 // ───────── viewer screen ─────────
 /** Plays whose result waits until it's been seen (from scrimmage, and at the posts); a kickoff, a punt, a flag or a
@@ -376,7 +377,7 @@ export function GameViewer({
     <>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
-          ← Back
+          <Icon name="back" /> Back
         </button>
         <span className="row" style={{ gap: 10 }}>
           {game.result.field && <ViewSwitch value={viewPick} onChange={setViewPick} />}
@@ -465,13 +466,13 @@ export function GameViewer({
             transport={
               <>
                 <button className="vc-btn" onClick={() => step(-1)} disabled={index === 0} aria-label="Previous play">
-                  ◀◀
+                  <Icon name="rewind" />
                 </button>
                 <button className="vc-btn vc-play" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-                  {playing ? '❚❚' : '▶'}
+                  <Icon name={playing ? 'pause' : 'play'} />
                 </button>
                 <button className="vc-btn" onClick={() => step(1)} disabled={atEnd} aria-label="Next play">
-                  ▶▶
+                  <Icon name="forward" />
                 </button>
               </>
             }

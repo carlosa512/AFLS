@@ -82,6 +82,7 @@ import {
   type MailSubject,
   type Signing,
 } from '../engine/inbox';
+import { Icon } from './icons';
 import {
   activateFromIr,
   activateProblem,
@@ -131,7 +132,17 @@ import { setTradeStatus, stanceOf, tradeWindow } from '../engine/trade';
 import { activeLearning, conversionRead, familiarity, passMove, startMove } from '../engine/training';
 import { useNav, type StaffKind } from './App';
 import { EditionCards } from './edition';
-import { Dialog, PlayerAvatar, PlayerLink, TeamChip, TeamLink, sortRows, SortTh, useSort } from './components';
+import {
+  Dialog,
+  PlayerAvatar,
+  PlayerLink,
+  TeamChip,
+  TeamLink,
+  sortRows,
+  SortTh,
+  useSort,
+  MoreLink,
+} from './components';
 import { staffCall } from '../engine/staffCall';
 import { StaffAvatar } from './staffAvatar';
 import { band, money, ordinal, recordText, weekLabel } from './format';
@@ -499,14 +510,7 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
                             Open talks
                           </button>
                         )}
-                        {free && (
-                          <button
-                            className="btn btn-sm"
-                            onClick={() => nav.go({ view: 'office', tab: 'fa', pos: r.position })}
-                          >
-                            Free agency
-                          </button>
-                        )}
+                        {free && <MoreLink to={{ view: 'office', tab: 'fa', pos: r.position }}>Free agency</MoreLink>}
                       </span>
                     </div>
                     <p className="report-note">{r.why}</p>
@@ -516,9 +520,7 @@ function AdviceCards({ league, rows }: { league: League; rows: AdviceRow[] }) {
           </ul>
           {kind === 'draft' && (
             <div className="row" style={{ marginTop: 8 }}>
-              <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
-                Draft board
-              </button>
+              <MoreLink to={{ view: 'office', tab: 'draft' }}>Draft board</MoreLink>
             </div>
           )}
         </section>
@@ -1113,9 +1115,7 @@ function ResultLine({ league, g }: { league: League; g: Game }) {
       <span className="muted small">
         {r.home ? 'vs' : 'at'} <TeamLink team={r.opp} />
       </span>
-      <button className="btn btn-sm" onClick={() => nav.openGame(g.id)}>
-        Box score
-      </button>
+      <MoreLink onClick={() => nav.openGame(g.id)}>Box score</MoreLink>
     </div>
   );
 }
@@ -1404,9 +1404,7 @@ function TheirInjuries({ league, opp }: { league: League; opp: Team }) {
       {hurt.length > SHOW && (
         <div className="mail-more">
           <span className="muted">+{hurt.length - SHOW} more</span>
-          <button className="linklike" onClick={() => nav.openTeam(opp.id)}>
-            See all {hurt.length}
-          </button>
+          <MoreLink onClick={() => nav.openTeam(opp.id)}>See all {hurt.length}</MoreLink>
         </div>
       )}
     </Card>
@@ -1895,8 +1893,8 @@ function RecapCards({ league, s }: { league: League; s: Extract<MailSubject, { k
       </Card>
       {r.plays && r.plays.length > 0 && (
         <div className="row">
-          <button className="btn btn-sm" onClick={() => nav.watchGame(g.id)}>
-            ▶ Watch replay
+          <button className="btn btn-sm btn-primary" onClick={() => nav.watchGame(g.id)}>
+            <Icon name="play" /> Watch replay
           </button>
         </div>
       )}
@@ -2277,7 +2275,6 @@ function DeadlineDayTrades({ league, season }: { league: League; season: number 
 }
 
 function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { kind: 'race' }> }) {
-  const nav = useNav();
   const user = league.userTeamId;
   const team = league.teams[user];
   const records = computeRecords(league, s.season);
@@ -2327,12 +2324,8 @@ function RaceCards({ league, s }: { league: League; s: Extract<MailSubject, { ki
       </Card>
       {s.level === 'out' && (
         <div className="row">
-          <button className="btn btn-sm" onClick={() => nav.go({ view: 'office', tab: 'draft' })}>
-            Draft order
-          </button>
-          <button className="btn btn-sm" onClick={() => nav.go({ view: 'cap', teamId: user })}>
-            Contracts for next year
-          </button>
+          <MoreLink to={{ view: 'office', tab: 'draft' }}>Draft order</MoreLink>
+          <MoreLink to={{ view: 'cap', teamId: user }}>Contracts for next year</MoreLink>
         </div>
       )}
     </>
@@ -2922,9 +2915,7 @@ function PoachedCards({
           ))}
           <div className="mail-more">
             <span className="muted">The best your budget covers come first.</span>
-            <button className="linklike" onClick={() => nav.go({ view: 'office', tab: 'coaches' })}>
-              See all {market.length} on the Coaches screen
-            </button>
+            <MoreLink to={{ view: 'office', tab: 'coaches' }}>See all {market.length} on the Coaches screen</MoreLink>
           </div>
         </Card>
       )}

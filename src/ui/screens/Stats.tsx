@@ -25,10 +25,10 @@ import {
 import type { League, Player, StatLine } from '../../engine/types';
 import { POSITIONS } from '../../engine/types';
 import { useNav } from '../App';
-import { Panel, PlayerLink, SortTh, sortRows, useSort } from '../components';
+import { PageHeader, Panel, PlayerLink, SortTh, sortRows, useSort } from '../components';
 import { resultsSeason } from '../format';
 import { Officials } from './Officials';
-import { TeamStats } from './TeamStats';
+import { TeamStats, teamStatSeasons } from './TeamStats';
 
 export type StatsTab = 'leaders' | 'players' | 'teams' | 'records' | 'awards' | 'officials';
 
@@ -48,27 +48,56 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
   const [picked, setPicked] = useState<StatScope>(() => resultsSeason(league));
   // Fall back to the latest season with stats (week 1 of a new season has none yet).
   const scope: StatScope = picked === 'career' || seasons.includes(picked) ? picked : (seasons[0] ?? picked);
+  // The Awards and Team stats tabs' seasons live here too, so the bar at the top can show their pickers.
+  const awardYears = awardSeasons(league);
+  const [awardPick, setAwardPick] = useState<number | undefined>(awardYears[0]);
+  const awardSeason = awardPick !== undefined && awardYears.includes(awardPick) ? awardPick : awardYears[0];
+  const teamYears = teamStatSeasons(league);
+  const [teamPick, setTeamPick] = useState(() => resultsSeason(league));
+  const teamSeason = teamYears.includes(teamPick) ? teamPick : teamYears[0];
+  const aside =
+    seasons.length === 0 ? null : tab === 'leaders' || tab === 'players' ? (
+      <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />
+    ) : tab === 'awards' && awardYears.length > 0 ? (
+      <select aria-label="Awards season" value={awardSeason} onChange={(e) => setAwardPick(Number(e.target.value))}>
+        {awardYears.map((y) => (
+          <option key={y} value={y}>
+            {y} season
+          </option>
+        ))}
+      </select>
+    ) : tab === 'teams' && teamYears.length > 1 ? (
+      <select aria-label="Season" value={teamSeason} onChange={(e) => setTeamPick(Number(e.target.value))}>
+        {teamYears.map((y) => (
+          <option key={y} value={y}>
+            {y} season
+          </option>
+        ))}
+      </select>
+    ) : tab === 'records' ? (
+      'Single season'
+    ) : null;
 
   return (
     <>
-      <div className="row office-bar" style={{ justifyContent: 'space-between' }}>
-        <div className="seg office-tabs" role="tablist" aria-label="Stats">
-          {TABS.map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              aria-pressed={tab === key}
-              onClick={() => nav.go({ view: 'stats', tab: key })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {(tab === 'leaders' || tab === 'players') && seasons.length > 0 && (
-          <ScopeSelect seasons={seasons} value={scope} onChange={setPicked} />
-        )}
-      </div>
+      <PageHeader
+        aside={aside}
+        tabs={
+          <div className="seg office-tabs" role="tablist" aria-label="Stats">
+            {TABS.map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                aria-pressed={tab === key}
+                onClick={() => nav.go({ view: 'stats', tab: key })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      />
       {seasons.length === 0 ? (
         <Panel title="Stats">
           <p className="muted" style={{ margin: 0 }}>
@@ -78,11 +107,11 @@ export function Stats({ league, tab = 'leaders' }: { league: League; tab?: Stats
       ) : tab === 'players' ? (
         <PlayerStats league={league} scope={scope} />
       ) : tab === 'teams' ? (
-        <TeamStats league={league} />
+        <TeamStats league={league} season={teamSeason} />
       ) : tab === 'records' ? (
         <Records league={league} />
       ) : tab === 'awards' ? (
-        <Awards league={league} />
+        <Awards league={league} season={awardSeason} />
       ) : tab === 'officials' ? (
         <Officials league={league} />
       ) : (
@@ -117,8 +146,6 @@ function ScopeSelect({
   );
 }
 
-const scopeLabel = (scope: StatScope) => (scope === 'career' ? 'Career' : String(scope));
-
 /** Where a player is now: stats aren't split by team, so this is his current club. */
 function teamTag(league: League, p: Player): string {
   if (p.teamId !== null) return league.teams[p.teamId].abbrev;
@@ -130,7 +157,6 @@ function teamTag(league: League, p: Player): string {
 export function Leaders({ league, scope }: { league: League; scope: StatScope }) {
   return (
     <>
-      <h2>{scope === 'career' ? 'Career leaders' : `${scope} league leaders`}</h2>
       <div className="grid-3">
         {LEADER_CATEGORIES.map((cat) => {
           const rows = leaders(league, cat, 5, scope);
@@ -145,8 +171,13 @@ export function Leaders({ league, scope }: { league: League; scope: StatScope })
                         {i + 1}
                       </td>
                       <td style={{ whiteSpace: 'normal' }}>
-                        <PlayerLink league={league} player={r.player} avatar={32} short />
-                        <small className="muted"> {teamTag(league, r.player)}</small>
+                        <PlayerLink
+                          league={league}
+                          player={r.player}
+                          avatar={32}
+                          short
+                          sub={teamTag(league, r.player)}
+                        />
                       </td>
                       <td className="num" style={{ fontWeight: 700 }}>
                         {cat.format ? cat.format(r.value) : r.value.toLocaleString()}
@@ -246,11 +277,13 @@ export function WinnerCell({
       );
   return (
     <span className="stack" style={{ gap: 2 }}>
-      <PlayerLink league={league} player={p} avatar={32} short />
-      <small className="muted">
-        {p.position} · {clubThen(league, w)}
-        {numbers && ` · ${numbers}`}
-      </small>
+      <PlayerLink
+        league={league}
+        player={p}
+        avatar={32}
+        short
+        sub={`${p.position} · ${clubThen(league, w)}${numbers ? ` · ${numbers}` : ''}`}
+      />
     </span>
   );
 }
@@ -302,12 +335,15 @@ export function HonorTable({
   );
 }
 
-function Awards({ league }: { league: League }) {
-  const seasons = [
-    ...new Set([...league.awards.map((a) => a.season), ...league.weeklyAwards.map((w) => w.season)]),
-  ].sort((a, b) => b - a);
-  const [picked, setPicked] = useState<number | undefined>(seasons[0]);
-  if (seasons.length === 0) {
+/** Seasons with an award or a player of the week, newest first. */
+function awardSeasons(league: League): number[] {
+  return [...new Set([...league.awards.map((a) => a.season), ...league.weeklyAwards.map((w) => w.season)])].sort(
+    (a, b) => b - a,
+  );
+}
+
+function Awards({ league, season }: { league: League; season: number | undefined }) {
+  if (season === undefined) {
     return (
       <Panel title="Awards">
         <p className="muted" style={{ margin: 0 }}>
@@ -316,7 +352,6 @@ function Awards({ league }: { league: League }) {
       </Panel>
     );
   }
-  const season = picked !== undefined && seasons.includes(picked) ? picked : seasons[0];
   const awards = seasonAwards(league, season);
   const weekly = weeklyAwards(league, season);
   const months = MONTHS.filter((m) => weekly?.months[m.key]).map((m) => ({
@@ -332,16 +367,6 @@ function Awards({ league }: { league: League }) {
     w && league.players[w.playerId].teamId === league.userTeamId ? 'is-user' : '';
   return (
     <>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>{season} awards</h2>
-        <select aria-label="Awards season" value={season} onChange={(e) => setPicked(Number(e.target.value))}>
-          {seasons.map((s) => (
-            <option key={s} value={s}>
-              {s} season
-            </option>
-          ))}
-        </select>
-      </div>
       {awards ? (
         <div className="grid-2">
           <Panel title={<h3>Season awards</h3>}>
@@ -430,10 +455,6 @@ function Awards({ league }: { league: League }) {
 function Records({ league }: { league: League }) {
   return (
     <>
-      <h2>Single-season records</h2>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Career totals are under Leaders.
-      </p>
       <div className="grid-3">
         {LEADER_CATEGORIES.map((cat) => {
           const rows = seasonRecords(league, cat, 10);
@@ -720,7 +741,7 @@ function PlayerStats({ league, scope }: { league: League; scope: StatScope }) {
 
   return (
     <Panel
-      title={`${scopeLabel(scope)} ${table.label.toLowerCase()}`}
+      title={table.label}
       action={
         <span className="row" style={{ gap: 8 }}>
           <select aria-label="Stat category" value={tableKey} onChange={(e) => pickTable(e.target.value)}>

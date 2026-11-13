@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ROUND_NAMES } from '../../engine/season/playoffs';
 import type { League } from '../../engine/types';
 import { useNav } from '../App';
-import { TeamChip } from '../components';
+import { TeamChip, MoreLink } from '../components';
 import { gameClock, weekLabel } from '../format';
 import { live, useLive } from '../live';
 import { stopsAt } from '../highlights';
@@ -32,6 +32,7 @@ import { holdAfter, TopDownField } from './TopDownField';
 import { Scorebug } from './Scorebug';
 import { GameTimeline } from './GameTimeline';
 import { GamePanel, PlayersPanel, StageTabs } from './GamePanels';
+import { Icon } from '../icons';
 
 const SPEEDS = [1, 2, 4, 8];
 /** Pause between plays at 1×, so each snap can be read. */
@@ -62,9 +63,7 @@ export function LiveGame({ league }: { league: League }) {
           Press Play Week to watch your next game live.
         </p>
         <div>
-          <button className="btn" onClick={() => nav.go({ view: 'home' })}>
-            Back to Home
-          </button>
+          <MoreLink to={{ view: 'home' }}>Home</MoreLink>
         </div>
       </section>
     );
@@ -283,7 +282,7 @@ export function LiveGame({ league }: { league: League }) {
               transport={
                 s.finished ? null : (
                   <button className="vc-btn vc-play" onClick={togglePlay} aria-label={s.playing ? 'Pause' : 'Play'}>
-                    {s.playing ? '❚❚' : '▶'}
+                    <Icon name={s.playing ? 'pause' : 'play'} />
                   </button>
                 )
               }
