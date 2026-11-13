@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.43',
+    date: '2026-11-13',
+    title: 'A cleaner look on every screen',
+    text: 'Icons, labels and links now look the same everywhere, and the Locker Room fills a big screen. A coach’s card opens on a plain overview, with his whole path on Career.',
+  },
+  {
     version: '0.4.42',
     date: '2026-11-13',
     title: 'SNN judges general managers',

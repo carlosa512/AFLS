@@ -20,6 +20,43 @@ A player's or a team's name always opens his card or the team's page, and looks 
 - **Not links, on purpose:** the player card's own header, the "signed" toast, a name inside a checkbox label
   (a link there steals the click), and a page's own heading (it doesn't link to itself).
 
+## The top of a screen
+
+- **No visible page title.** The top bar's highlighted tab names the screen, and panel titles name panels. The app
+  shell writes each screen's name once, as a hidden `h1` for screen readers (`SCREEN_NAMES` in `ui/screenNames.ts`).
+  New Game keeps its own heading.
+- **A screen with views opens with `PageHeader`** (`components.tsx`): its route tabs on the left, the view's context
+  line or view-wide control (a season picker, "2026 · Regular season") on the right. Front office and Stats use it. A
+  screen with no tabs starts with its first panel.
+- A panel title never repeats the tab or the season the bar already shows.
+
+## Labels and text sizes
+
+- **Sizes come from the scale only:** `--step--2` (11px, table headers, pills, tags in a row) up to `--step-4`. A
+  hand-written size in app screens fails the screen contract. The SNN newspaper, the game viewer and SVG chart text
+  keep their own type, on purpose.
+- **One label style, two sizes.** `.eyebrow` (`--step--1`) is the label above a value or a group, and `.eyebrow-sm`
+  (`--step--2`) is the small one. `th`, `.tag-pill` and the other small labels share their rule in `styles.css`. A new
+  all-caps label joins one of the two rules instead of writing its own.
+
+## Icons
+
+- **Every icon is `Icon`** (`ui/icons.tsx`): one set drawn on a 24 grid, sized by the text around it, in its colour.
+  Never a character like ▶ ▲ ✕ ✎ ✓, which each font (and iOS's emoji) draws its own way. An arrow inside text ("EDGE
+  → DT") is punctuation and stays text.
+- A button holding only an icon carries an `aria-label`.
+- A new shape is drawn in `icons.tsx`, in the same stroke and grid.
+
+## Links to another screen
+
+- **Going somewhere else is a `MoreLink`** (`components.tsx`): words and a chevron, no border ("All standings ›",
+  "See all 5 ›").
+- **A bordered button does something here:** changes the league, opens a dialog or a fold, edits.
+- **The yellow primary is the one main thing to do where it sits** ("Watch replay", "Answer offers"), and it may go
+  somewhere. In a letter's row of links, the first is the primary and the rest are `MoreLink`s.
+- A name in a sentence stays `PlayerLink` or `TeamLink`. `PlayerLink`'s `sub` puts a second line under a name in a list
+  (his team, a stat line), so it never wraps under his picture.
+
 ## One team dropdown
 
 `TeamPicker` is the only team dropdown. `allowLeague` puts "League" first, and `exclude` leaves clubs out (the
@@ -120,7 +157,6 @@ Never as a standing paragraph under the heading, shown on every visit.
 
 ## Not consistent yet
 
-- Heading levels vary between screens.
 - New Game shows no record for each club (a new league has no history).
 - League history sorts by season and your record, not by champion; the coaches' grades table has no Grade sort
   (it follows Rank).
