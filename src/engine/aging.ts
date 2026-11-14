@@ -10,7 +10,9 @@
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_INFO } from './attributes';
 import { clamp } from './rng';
+import { overall } from './positions';
 import { bodyShift } from './traits';
+import { ATTRIBUTES } from './types';
 import type { Attribute, Player, Position, Traits } from './types';
 
 export interface AgingCurve {
@@ -82,6 +84,35 @@ export function retireChance(p: Player, ovr: number): number {
   const over = p.age - (AGING[p.position].peakEnd + bodyShift(p.traits));
   if (p.teamId === null) return over >= 2 || ovr < 8 ? 0.6 : 0.2;
   if (over >= 8) return 1;
-  const hazard = over >= 2 ? 0.06 * (over - 1) : 0;
+  // The body: a chance that climbs a year at a time from just before his prime ends, and more the further he has fallen
+  // from his own best (a cliff, `cliffs.ts`, is how most careers end).
+  const fall = Math.max(0, bestOvr(p) - ovr - RETIRE_BODY.slack);
+  const hazard = clamp(
+    RETIRE_BODY.perYear * Math.max(0, over - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
+    0,
+    RETIRE_BODY.cap,
+  );
   return ovr < 8 && over >= 2 ? Math.max(hazard, 0.5) : hazard;
+}
+
+/**
+ * Retirement under contract (spec 2026-11-14-league-age-design.md §5):
+ * - `from`: years past his prime's end (his body clock's) that the yearly chance starts to climb
+ * - `perYear`: what each year past that adds
+ * - `fall`: what each overall point under his own best adds, past `slack`
+ * - `cap`: the most a year's chance can be (until eight years past, when he goes)
+ * Starting values; tuned to the NFL's "gone" rates (`npm run careers`).
+ */
+export const RETIRE_BODY = { from: -1, perYear: 0.04, fall: 0.12, slack: 1, cap: 0.95 };
+
+/** His best overall at the position he plays now: today's, or any start of a league year on record. */
+export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {
+  let best = overall(p.ratings, p.position);
+  for (const row of Object.values(p.ratingHistory ?? {})) {
+    const ratings = Object.fromEntries(ATTRIBUTES.map((a, i) => [a, row[i]])) as Player['ratings'];
+    const then = overall(ratings, p.position);
+    // A snapshot from before an attribute existed reads it as missing: skip it rather than poison the best.
+    if (Number.isFinite(then)) best = Math.max(best, then);
+  }
+  return best;
 }

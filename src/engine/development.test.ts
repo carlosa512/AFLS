@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AGING, ageShift, declineOnset, retireChance } from './aging';
+import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
 import { developPlayer, playedShare } from './development';
 import { ageFactor, preferredYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
@@ -25,6 +25,7 @@ import {
 } from './scouting';
 import { effectiveTraits, generateTraits, poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type { League, Player, Position, Traits } from './types';
+import { ATTRIBUTES } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -292,14 +293,34 @@ describe('retirement and the one aging table', () => {
     const at = (pos: Position, age: number, durability = TRAIT_MEAN, teamId: number | null = 0) => {
       const p = rookie(pos, age, 1, { durability });
       p.teamId = teamId;
-      return retireChance(p, 13);
+      return retireChance(p, playerOvr(p));
     };
+    for (const pos of Object.keys(AGING) as Position[]) {
+      expect(at(pos, 26)).toBe(0);
+      for (let age = 28; age < 40; age++) expect(at(pos, age + 1)).toBeGreaterThanOrEqual(at(pos, age));
+    }
     expect(at('RB', 36)).toBe(1);
-    expect(at('K', 35)).toBe(0);
     expect(at('K', 37)).toBeLessThan(at('RB', 33));
     expect(at('QB', 36)).toBeLessThan(at('WR', 36));
     expect(at('WR', 33, 20)).toBeLessThan(at('WR', 33, 1));
-    for (let age = 28; age < 40; age++) expect(at('OL', age + 1)).toBeGreaterThanOrEqual(at('OL', age));
+  });
+
+  it('a player well under his own best is likelier to retire', () => {
+    const p = rookie('OL', 31, 2);
+    p.teamId = 0;
+    p.ratingHistory = { 2030: ATTRIBUTES.map((a) => p.ratings[a] + 3) };
+    const fallen = retireChance(p, playerOvr(p));
+    delete p.ratingHistory;
+    expect(fallen).toBeGreaterThan(retireChance(p, playerOvr(p)));
+  });
+
+  it('bestOvr falls back to today with no history, and reads a mover at his position now', () => {
+    const p = rookie('DT', 27, 3);
+    delete p.ratingHistory;
+    expect(bestOvr(p)).toBe(playerOvr(p));
+    p.ratingHistory = { 2030: ATTRIBUTES.map((a) => p.ratings[a]) };
+    p.position = 'OL';
+    expect(bestOvr(p)).toBe(playerOvr(p));
   });
 
   it('feeds contracts and trades from the same curve', () => {
