@@ -12,7 +12,7 @@
 import { isOutlier, sizeZ } from './size';
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
-import { repsSoFar, unsettledSpread } from './development';
+import { growsUntil, repsSoFar, unsettledSpread } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
@@ -506,7 +506,7 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
   const read = characterRead(league, teamId, p);
   if (!read) return { known: false, hedged: false, notes: [] };
   const notes: CharacterNote[] = [];
-  const young = p.age < 26;
+  const young = p.age < growsUntil(p.position);
   const we = read.workEthic;
   if (we >= 16)
     notes.push(
@@ -819,7 +819,7 @@ function bodyWords(pos: Position): { legs: string; skills: string; plural: boole
  * in `season`: snaps would speed his development (and sitting slows it).
  */
 export function needsReps(league: League, teamId: number, p: Player, season: number): boolean {
-  if (p.teamId !== teamId || p.age > 25) return false;
+  if (p.teamId !== teamId || p.age >= growsUntil(p.position)) return false;
   // Already in the starting lineup: the reps are coming.
   // (Wherever he's lined up: a youngster starting out of position is getting his snaps.)
   const at = slotOf(league, p);
@@ -1283,7 +1283,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const pos = p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase();
   const now = tierOf(league, p.position, view.ovr);
   const ceiling = tierOf(league, p.position, view.potHiRead);
-  const young = p.age < 26;
+  const young = p.age < growsUntil(p.position);
   // Growth that won't change his standing still matters to a contract: say so when there is some.
   const growing = young && ceiling >= now && view.potHiRead - view.ovr >= 1.5;
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;

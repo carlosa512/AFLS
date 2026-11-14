@@ -200,6 +200,16 @@ export const DEV_RULES: DevRules = {
   aging: {},
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
+/** The age growth toward the ceiling stops at a position, under today's rules (front offices and screens read it). */
+export const growsUntil = (pos: Position): number => timingAt(DEV_RULES, pos).growthEnds;
+/**
+ * The share of the gap to his ceiling a young player closes in a typical year at a position: the middle of the pace,
+ * before his makeup, reps and coaches move it (`rollYear`; capped as a year is).
+ */
+export const typicalGrowth = (pos: Position): number => {
+  const [lo, hi] = timingAt(DEV_RULES, pos).pace;
+  return Math.min(0.8, ((lo + hi) / 2) * GROWTH_NORM);
+};
 /** A position's aging curve under `rules`: today's `AGING` unless the rules keep their own. */
 const curveOf = (rules: Readonly<DevRules>, pos: Position): AgingCurve => rules.aging[pos] ?? AGING[pos];
 /** When growth ends and how fast it comes at a position, under `rules`. */

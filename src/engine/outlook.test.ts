@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lastSeason } from './finance/contract';
 import { createLeague } from './generate';
 import { aiFifthYearOptions, needGain, upgradeBar } from './offseason/ai';
+import { DEV_RULES, growsUntil, timingAt, typicalGrowth } from './development';
 import { futureWeight, outlookOf } from './outlook';
 import { playerOvr, STARTERS } from './positions';
 import { teamPlayers } from './roster';
@@ -97,5 +98,20 @@ describe('front offices invest on outlook', () => {
   it('exercises it when he starts, or when the club can carry him anyway', () => {
     expect(optionCase(-2, true)).toBe('exercised');
     expect(optionCase(2, false)).toBe('exercised');
+  });
+});
+
+describe('a front office expects growth as the engine gives it', () => {
+  it('reads when growth ends and how fast it comes from the position', () => {
+    expect(growsUntil('WR')).toBe(timingAt(DEV_RULES, 'WR').growthEnds);
+    expect(growsUntil('EDGE')).toBe(26);
+    expect(typicalGrowth('EDGE')).toBeCloseTo(0.36, 2); // the old pace: a quarter to a half of the gap a year
+    expect(typicalGrowth('WR')).toBeGreaterThan(typicalGrowth('EDGE'));
+  });
+
+  it('expects no growth past it: a receiver at his last growth age grows, one a year older ages', () => {
+    const last = growsUntil('WR') - 1;
+    expect(outlookOf('WR', last, 12, 2)).toBeGreaterThan(outlookOf('WR', last + 1, 12, 2));
+    expect(outlookOf('WR', last + 1, 12, 2)).toBeCloseTo(outlookOf('WR', last + 1, 12, 0), 5);
   });
 });

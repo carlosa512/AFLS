@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
 import { cliffChance, CLIFFS } from './cliffs';
-import { developPlayer, expectedAging, playedShare } from './development';
+import { developPlayer, expectedAging, growsUntil, playedShare } from './development';
 import { ageFactor, preferredYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
@@ -263,11 +263,25 @@ describe('development', () => {
     // "Needs reps": young, still growing in your scouts' eyes, and not playing.
     const mine = Object.values(league.players).filter((p) => p.teamId === team.id);
     const sitting = mine.find(
-      (p) => p.age <= 25 && !p.stats[league.season]?.gp && perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
+      (p) =>
+        p.age < growsUntil(p.position) &&
+        !p.stats[league.season]?.gp &&
+        perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
     );
     expect(sitting).toBeDefined();
     expect(needsReps(league, team.id, sitting!, league.season)).toBe(true);
     expect(needsReps(league, team.id, starter, league.season)).toBe(false);
+    // Past his position's growth age reps can't grow him: no flag, whatever room his scouts still see.
+    const grower = mine.find(
+      (p) =>
+        growsUntil(p.position) <= 25 && p.age < growsUntil(p.position) && needsReps(league, team.id, p, league.season),
+    );
+    if (grower) {
+      const age = grower.age;
+      grower.age = growsUntil(grower.position);
+      expect(needsReps(league, team.id, grower, league.season)).toBe(false);
+      grower.age = age;
+    }
     // Promote him and the flag goes: the reps are coming.
     const chart = team.depthChart[sitting!.position];
     chart.splice(chart.indexOf(sitting!.id), 1);
