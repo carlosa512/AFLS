@@ -14,7 +14,7 @@ export function downParts(
   e: PlayLogEntry,
   home: Team,
   away: Team,
-): { ord: string; togo: string; down: string; spot: string } | null {
+): { ord: string; togo: string; down: string; spot: string; where: string } | null {
   if (!e.down) return null;
   const ord = ORDINALS[e.down];
   const togo = e.yardLine + e.distance >= 100 ? 'Goal' : String(e.distance);
@@ -26,7 +26,7 @@ export function downParts(
       : e.yardLine < 50
         ? `${off.abbrev} ${e.yardLine}`
         : `${def.abbrev} ${100 - e.yardLine}`;
-  return { ord, togo, down: `${ord} & ${togo}`.toUpperCase(), spot: `Ball on ${where}` };
+  return { ord, togo, down: `${ord} & ${togo}`.toUpperCase(), spot: `Ball on ${where}`, where };
 }
 
 const recordText = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;

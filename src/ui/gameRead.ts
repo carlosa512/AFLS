@@ -62,7 +62,7 @@ const BOOKED: ReadonlySet<PlayKind> = new Set([
 ]);
 /** A two-point try is a real snap in the log, but nothing in it is booked. */
 const isTry = (e: PlayLogEntry) => /^Two-point try: /.test(e.text);
-const booked = (e: PlayLogEntry) => !!e.kind && BOOKED.has(e.kind) && !isTry(e);
+export const booked = (e: PlayLogEntry) => !!e.kind && BOOKED.has(e.kind) && !isTry(e);
 /** The ball went over: a pick, or a fumble the defense got. */
 const lostBall = (e: PlayLogEntry) => e.kind === 'int' || !!fumbleIn(e)?.lost;
 /** The offense scored on the play itself (a defender's return of a pick or a fumble is not this). */
@@ -387,7 +387,7 @@ export interface Drive {
 }
 
 /** A kick that happened (a flag can wipe one out: "No play"). */
-const kicked = (e: PlayLogEntry) => !/No play\./.test(e.text);
+export const kicked = (e: PlayLogEntry) => !/No play\./.test(e.text);
 
 /**
  * Every drive in the log, in order. A kickoff, an extra point and a two-point try belong to none. A live game's last

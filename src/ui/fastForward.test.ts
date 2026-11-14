@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayLogEntry, Team } from '../engine/types';
 import { clockOf } from './gameRead';
-import { beatClock, beatMs, beatSpan } from './fastForward';
+import { beatClock, beatMs, beatSpan, skipSummary } from './fastForward';
 
 const BUF = { id: 1, abbrev: 'BUF', city: 'Buffalo', name: 'Blizzard', colors: ['#00338d', '#c60c30'] } as Team;
 const NO = { id: 2, abbrev: 'NO', city: 'New Orleans', name: 'Krewe', colors: ['#101820', '#d3bc8d'] } as Team;
-void NO;
 
 /** 1st & 10 at its own 25, Q1 15:00, 0–0, the home side running for 3. */
 const entry = (e: Partial<PlayLogEntry> = {}): PlayLogEntry => ({
@@ -23,6 +22,9 @@ const entry = (e: Partial<PlayLogEntry> = {}): PlayLogEntry => ({
   to: 28,
   ...e,
 });
+
+const note = (text: string, e: Partial<PlayLogEntry> = {}): PlayLogEntry =>
+  entry({ kind: undefined, down: 0, distance: 0, from: undefined, to: undefined, text, ...e });
 
 describe('the beat and its clock', () => {
   it('beats 2 s at 1×, about 1.4 s at 2×, 1 s at 4× and never under the banner floor', () => {
@@ -54,5 +56,61 @@ describe('the beat and its clock', () => {
     // No next play (the game ends in the gap): the last play's snap.
     expect(beatSpan(plays.slice(0, 2), 0, 1)).toEqual({ start: 400, end: 430 });
     expect(beatClock(plays, { start: 400, end: 470 }, 0.5)).toEqual({ quarter: 1, clock: 465 });
+  });
+});
+
+describe('the line under the clock', () => {
+  it('a drive that carries on: its plays, its yards and the spot', () => {
+    const plays = [
+      entry({ down: 3 }),
+      entry({ from: 25, to: 30 }),
+      entry({ kind: 'pass', from: 30, to: 42 }),
+      entry({ yardLine: 42 }),
+    ];
+    expect(skipSummary(plays, 0, 2, BUF, NO)).toEqual(['2 plays · 17 yds', 'Ball on BUF 42']);
+  });
+
+  it('a punt: who punted, and who has the ball where', () => {
+    const plays = [
+      entry({ kind: 'sack' }),
+      entry({ kind: 'punt', down: 4, text: 'B.Shaw punts 45 yards.' }),
+      entry({ offense: 2, yardLine: 25, from: 75, to: 70 }),
+      entry({ offense: 2, down: 2, yardLine: 30 }),
+    ];
+    expect(skipSummary(plays, 0, 2, BUF, NO)).toEqual(['1 play · Buffalo punt', 'New Orleans ball on NO 30']);
+  });
+
+  it('after a touchdown: the extra point, then the other team’s ball', () => {
+    const after = (text: string) => [
+      entry({ text: 'Run, TOUCHDOWN' }),
+      entry({ kind: 'xp', down: 0, text }),
+      entry({ kind: 'kickoff', down: 0 }),
+      entry({ offense: 2, yardLine: 35 }),
+    ];
+    expect(skipSummary(after('M.Sherman extra point is GOOD.'), 0, 2, BUF, NO)).toEqual([
+      'Extra point good',
+      'New Orleans ball on NO 35',
+    ]);
+    expect(skipSummary(after('M.Sherman extra point is NO GOOD.'), 0, 2, BUF, NO)[0]).toBe('Extra point missed');
+  });
+
+  it('a turnover on downs, and a gap of notes only', () => {
+    const downs = [entry({ down: 4 }), note('Turnover on downs.'), entry({ offense: 2, yardLine: 32 })];
+    expect(skipSummary(downs, 0, 1, BUF, NO)).toEqual(['Turnover on downs', 'New Orleans ball on NO 32']);
+    const warn = [entry(), note('Two-minute warning.'), entry({ down: 3, yardLine: 40 })];
+    expect(skipSummary(warn, 0, 1, BUF, NO)).toEqual(['Ball on BUF 40']);
+  });
+
+  it('no spot when the game, the half or a kick comes next', () => {
+    const kneels = [entry(), entry({ kind: 'kneel', from: 54, to: 53 }), entry({ kind: 'kneel', from: 53, to: 52 })];
+    expect(skipSummary(kneels, 0, 2, BUF, NO)).toEqual(['2 plays · -2 yds']);
+    const half = [
+      entry({ quarter: 2 }),
+      entry({ quarter: 2, from: 25, to: 28 }),
+      entry({ quarter: 3, kind: 'kickoff', down: 0 }),
+    ];
+    expect(skipSummary(half, 0, 1, BUF, NO)).toEqual(['1 play · 3 yds']);
+    const punt = [entry(), entry({ from: 25, to: 28 }), entry({ kind: 'punt', down: 4 })];
+    expect(skipSummary(punt, 0, 1, BUF, NO)).toEqual(['1 play · 3 yds']);
   });
 });
