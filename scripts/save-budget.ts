@@ -86,8 +86,9 @@ export const SAVE_FEATURE_ALLOWANCES = {
   transactionPlayerIds: { firstSeason: 10, retainedSeasons: 20, games: 0, annualGrowth: 0, playersGrowth: 0 },
   // A league that ages like the NFL's (0.4.46): cliffs and retirement by the body retire more veterans, and every
   // retiree stays in the save until retirees are pruned: 365 added a season against 360 on offseason-audit. Ten more
-  // (the owner, Nov 14).
-  leagueAge: { firstSeason: 0, retainedSeasons: 0, games: 0, annualGrowth: 0, playersGrowth: 0, retiredAdded: 10 },
+  // (the owner, Nov 14). A new league built as a settled one (A2) retires its founding veterans a year sooner: 371 in
+  // its second offseason, fewer after (1,522 over five seasons against 1,617). Twenty more in all (the owner, Nov 14).
+  leagueAge: { firstSeason: 0, retainedSeasons: 0, games: 0, annualGrowth: 0, playersGrowth: 0, retiredAdded: 20 },
 };
 
 export const SAVE_SIZE_BUDGET = Object.fromEntries(
