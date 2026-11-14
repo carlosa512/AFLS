@@ -97,6 +97,9 @@ export interface LeagueRun {
   };
 }
 
+/** Trees born are counted over this many seasons, whatever the run's length (the careers band, 1–4, is per 16). */
+const BORN_SEASONS = 16;
+
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
 export function runLeague(seed: string, seasons: number): LeagueRun {
@@ -272,7 +275,8 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
         mostFromOne: Math.max(0, ...perTree.values()),
       });
       for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)])
-        if (!rootsAtStart.has(c.id) && hasTree(league, c.id)) bornRoots.add(c.id);
+        // Births over the first 16 seasons, the horizon the band was set for (a longer run only adds years to count).
+        if (s < BORN_SEASONS && !rootsAtStart.has(c.id) && hasTree(league, c.id)) bornRoots.add(c.id);
     }
     // A first-rounder hits once his true overall reaches a high-end starter's at his position by 27 (the 60th
     // percentile of its starters: what a first-round pick is for); any later pick once he reaches a solid starter's
