@@ -236,32 +236,36 @@ console.log('');
 const below = (c: number[], age: number) => Math.max(...c) - at(c, age);
 const lines: string[] = [];
 const RB = curves.RB;
-// Research: RB peak 21–26 by method (26 per Football Perspective); −25% production from 28 to 29.
+// Peak ages (the owner's call, 2026-11-14): NFL aging curves by the delta method, each player against himself season to
+// season (`scripts/research-peaks.py`, docs/research/league-age.md), not survivor-biased peak-season counts.
+// RB: snap share peaks at 24 (22–27), EPA a carry from 22. Research: −25% production from 28 to 29.
 lines.push(
-  `RB: ${check('peak age', peakAge(cohorts.RB), 24, 27, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`,
+  `RB: ${check('peak age', peakAge(cohorts.RB), 23, 26, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`,
 );
-// Research: WR and CB peak 25–28.
+// WR snap share peaks at 23 (23–27), EPA a target at 25; CB snap share at 25 (22–27).
 for (const pos of ['WR', 'CB'] as const) {
   const c = curves[pos];
   const lateAge = pos === 'CB' ? 31 : 32;
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${lateAge >= 32 ? late(`below peak at ${lateAge}`, pos, lateAge, 1.5, 4.5) : check(`below peak at ${lateAge}`, below(c, lateAge), 1.5, 4.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 27, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${lateAge >= 32 ? late(`below peak at ${lateAge}`, pos, lateAge, 1.5, 4.5) : check(`below peak at ${lateAge}`, below(c, lateAge), 1.5, 4.5)}`,
   );
 }
-// Design targets: the front seven and safeties fade from about 30.
+// The front seven and safeties: snap share peaks at 26–27 (24–28); they fade from about 30 (a design target).
 for (const pos of ['S', 'LB', 'EDGE', 'DT'] as const) {
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${late('below peak at 33', pos, 33, 1.5, 5.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28, 1)} · ${late('below peak at 33', pos, 33, 1.5, 5.5)}`,
   );
 }
-// Research: long plateaus (TE still at 89% at 34, survivor-biased).
+// TE and OL: snap share and a TE's EPA a target peak at 25 (OL 24–27); long plateaus after (TE still at 89% at 34,
+// survivor-biased).
 for (const pos of ['TE', 'OL'] as const) {
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${late('below peak at 32', pos, 32, 0, 0.6)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 28, 1)} · ${late('below peak at 32', pos, 32, 0, 0.6)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
   );
 }
 {
-  // Research: QB peak season 28.5 on average (pocket 30.7, dual-threat 26.1); rushing flat 27–29.
+  // QB: EPA a dropback is flat from 23 to 33 (delta method), so his best season lands anywhere on a long plateau.
+  // Peak-season counts put it at 28.5 (pocket 30.7, dual-threat 26.1; survivor-biased); rushing flat 27–29.
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
   // Accuracy and reads at 34 against his own best, for the quarterbacks still playing then (as the research read them).
@@ -271,7 +275,7 @@ for (const pos of ['TE', 'OL'] as const) {
   const accLeft = AGES.slice(0, j34 + 1).map((_, j) => mean(left34.map((i) => accOf(i, j))));
   const acc34 = accLeft[j34] / Math.max(...accLeft);
   lines.push(
-    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak (survivors)', acc34, 0.97, 1.01, 3)}`,
+    `QB: ${check('peak age', peakAge(cohorts.QB), 25, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak (survivors)', acc34, 0.97, 1.01, 3)}`,
   );
 }
 for (const pos of ['K', 'P'] as const)

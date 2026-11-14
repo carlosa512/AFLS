@@ -60,6 +60,30 @@ QB 37.0 (n 12), RB 27.0 (17), WR 27.0 (73), TE 31.0 (15), OL 30.0 (142), DT 29.0
 30.0 (55), S 29.5 (56), K 32.0 (22), P 30.0 (27). Shown beside AFLS's, not judged: small samples, and the "gone" column
 judges exits.
 
+## Peak ages by the delta method, 2013–2025
+
+The careers check's peak-age ranges (`scripts/careers.ts`, the owner's call, 2026-11-14) come from here rather than from
+peak-season counts, which count only the players who lasted long enough to have one. The delta method compares each
+player only with himself: the mean change from one season to the next at each age (pairs who played both, weighted by
+volume), summed into a curve. Reproduce with `python3 -I scripts/research-peaks.py`.
+
+| Position | Snap share: peak (within a tenth of the rise) | EPA a play: peak | Careers range (was) |
+| --- | --- | --- | --- |
+| RB | 24 (22–27) | 22, a carry (then a slow decline) | 23–26 (24–27) |
+| WR | 23 (23–27) | 25, a target (22–25) | 24–27 (25–28.5) |
+| CB | 25 (22–27) | | 24–27 (25–28.5) |
+| DT | 27 (25–27) | | 25–28 (25–30) |
+| EDGE | 26 (25–28) | | 25–28 (25–30) |
+| LB | 26 (24–28) | | 25–28 (25–30) |
+| S | 27 (24–27) | | 25–28 (25–30) |
+| TE | 25 (24–25) | 25, a target | 24–28 (26–32) |
+| OL | 25 (24–27) | | 24–28 (26–32) |
+| QB | not meaningful (a starter plays every snap) | flat from 23 to 33, a dropback | 25–31 (27–31) |
+
+Snap share is how much coaches play a man, the one measure every position has; EPA is play itself, for the positions with
+the numbers. By 32 a tight end's or lineman's snap share is down about a quarter from its peak (a TE's EPA a target
+similarly): the "holds within 0.6 at 32" lines may be stricter than the NFL too, left as they are for now.
+
 ## AFLS before this work (0.4.44)
 
 Three 20-season leagues, seasons 11–20: starters average 27.7–27.8, 20% are 24 or younger and 21–22% are 31 or older;

@@ -20,7 +20,9 @@ YEARS = range(2013, 2026)
 BASE = 'https://github.com/nflverse/nflverse-data/releases/download'
 if a.download:
     files = [('players.csv', f'{BASE}/players/players.csv')] + [
-        (f'snap_counts_{y}.csv', f'{BASE}/snap_counts/snap_counts_{y}.csv') for y in YEARS]
+        (f'snap_counts_{y}.csv', f'{BASE}/snap_counts/snap_counts_{y}.csv') for y in YEARS] + [
+        # For scripts/research-peaks.py: seasonal stats (EPA a play).
+        (f'stats_player_reg_{y}.csv', f'{BASE}/stats_player/stats_player_reg_{y}.csv') for y in YEARS]
     for name, url in files:
         if (root / name).exists():
             continue
