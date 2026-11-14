@@ -315,6 +315,8 @@ describe('migration and collection', () => {
     // Everything but `charts` again with the league-age work (2026-11-14): opening contracts follow the new aging table
     // (`preferredYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
     // them, the players' contracts and the result move; the charts, which no contract touches, still match.
+    // `players` again with a founding league's young given less growth ahead (2026-11-14, FOUNDING_GROWTH): only their
+    // ceilings are rolled differently, so the stream, games, charts and result still match (ratings and draws unchanged).
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -326,7 +328,7 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '46a6ce0cd773d9d3576b5f11f0e0004443e88c21ec779b1ca51a9d951c90c5b3',
+  players: '7ed01b12ecf0acaf803a73997cd6094570dbc8d528e35bf7053c5d276b40664d',
   rng: [307611251, 1174562455, 406219770, 1664109076],
   games: 'b9dea5ba6f9fd885848a004f43c0d936e1e020fdf7610823a9bf2fb4deb9f180',
   result: '3b563d6eefc77bbf0e04c511a5aec4ad03529204cec8364b239eeeaf94d1ee08',
