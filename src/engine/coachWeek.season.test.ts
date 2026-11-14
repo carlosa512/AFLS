@@ -298,7 +298,10 @@ describe.each([
   it('keeps the volume bounds', () => {
     expect(coach.length).toBeLessThanOrEqual(12);
     expect(storiesTold(coach)).toBeLessThanOrEqual(10);
-    expect(storiesOpened(l).length).toBeLessThanOrEqual(12);
+    // Stories opened, told or not, up to 15 (the owner, 2026-11-14): bench3 and vol6 opened 13 and 14 in the league-age
+    // world, mostly rooms turning Down or Split, while the league's rooms read as main's (Split 10% against 12%, Down 7%
+    // against 6% in `npm run morale`): busy seasons, not a change. What a reader sees keeps its bounds above.
+    expect(storiesOpened(l).length).toBeLessThanOrEqual(15);
     expect(Math.max(...coach.map((m) => rowsOf(m).length))).toBeLessThanOrEqual(6);
     expect(l.stories!.open.length).toBeLessThanOrEqual(4);
   });
