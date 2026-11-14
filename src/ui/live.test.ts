@@ -18,6 +18,8 @@ describe('live highlights', () => {
     const s = live.get()!;
     expect(s.current).toBeGreaterThan(before);
     expect(s.still).toBe(true);
+    // Its fast-forward counts from the play that was on screen.
+    expect(s.from).toBe(before);
     // The next play is the highlight, and nothing before it was one.
     expect(bigMoment(s.plays, s.current + 1)).toBe(true);
     for (let i = before + 1; i <= s.current; i++) expect(bigMoment(s.plays, i)).toBe(false);

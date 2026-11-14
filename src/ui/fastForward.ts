@@ -58,21 +58,23 @@ export function skipSummary(
 ): string[] {
   const gap = plays.slice(from + 1, to + 1);
   const snaps = gap.filter(booked);
-  const overs = gap.map((e) => handOver(e, home, away)).filter((h) => h !== null);
-  const words = overs.filter((h) => h.words).pop()?.words;
+  const overs = gap.map((e) => handOver(e, home, away));
+  const changed = overs.some((h) => h !== null);
+  const words = overs.filter((h) => h?.words).pop()?.words;
+  // With no words for the change (a kickoff), the yards since it: the receiving team's.
+  const last = overs.reduce((at, h, i) => (h ? i : at), -1);
+  const since = gap.slice(last + 1).filter(booked);
   const first: string[] = [];
   if (snaps.length) first.push(`${snaps.length} play${snaps.length === 1 ? '' : 's'}`);
-  if (overs.length) {
-    if (words) first.push(words);
-  } else if (snaps.length) first.push(`${snaps.reduce((sum, e) => sum + gainOf(e, home.id), 0)} yds`);
+  if (words) first.push(words);
+  else if (since.length) first.push(`${since.reduce((sum, e) => sum + gainOf(e, home.id), 0)} yds`);
   const lines = first.length ? [first.join(' · ')] : [];
   const next = plays[to + 1];
   const spot =
     next && next.kind !== 'punt' && halfOf(next.quarter) === halfOf(plays[to].quarter)
       ? downParts(next, home, away)
       : null;
-  if (spot)
-    lines.push(overs.length ? `${(next.offense === home.id ? home : away).city} ball on ${spot.where}` : spot.spot);
+  if (spot) lines.push(changed ? `${(next.offense === home.id ? home : away).city} ball on ${spot.where}` : spot.spot);
   return lines;
 }
 

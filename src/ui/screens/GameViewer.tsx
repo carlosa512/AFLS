@@ -11,6 +11,8 @@ import { fumbleIn } from '../../engine/field/fumble';
 import { holdAfter, TopDownField } from './TopDownField';
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard, PREGAME_MS } from './PregameCard';
+import { BeatClock, FastForward } from './FastForward';
+import { beatMs, beatSpan } from '../fastForward';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
@@ -229,6 +231,8 @@ export function GameViewer({
   const [speed, setSpeed] = useState(1);
   const [run, setRun] = useState(0); // bumps to replay the current play
   const [still, setStill] = useState(false);
+  // The play on screen when playing on skipped past plays: where the fast-forward to the still landing counts from.
+  const [beatFrom, setBeatFrom] = useState(0);
   // Whether the current play has finished on screen: until it has, its result, its line in the log and the score it
   // put up stay hidden, so the words never get ahead of the picture.
   const [seen, setSeen] = useState(false);
@@ -293,6 +297,7 @@ export function GameViewer({
   const advanceFrom = (from: number) => {
     // Still playing when the last play is reached past skipped ones: its end is what brings the final up.
     const to = playOn(plays, from, home.id, pick);
+    if (to.still) setBeatFrom(from);
     go(to.index, true, to.still);
   };
   const onDone = () => {
@@ -348,6 +353,10 @@ export function GameViewer({
       ? playLabel(plays[index - 1], home.id)
       : '';
   const recent = plays.slice(0, told ? index + 1 : index).reverse();
+  // The fast-forward: a still landing reached by playing on, until its field has got there. Not read from `told`: a
+  // landed note is told at once. Pausing or stepping ends it, and the field lands at once.
+  const beating = still && playing && !seen && !pre;
+  const beat = beating ? beatMs(shownSpeed) : 0;
   // What the play on screen gives the viewer to show: nothing until its result has been seen.
   const moments = playMoments(plays, index, { ...momentFacts, told, still });
   // A period's card comes up only when the replay plays into it: stepped or scrubbed to, the play shows without one.
@@ -370,6 +379,7 @@ export function GameViewer({
       animKey={`${index}:${run}`}
       speed={shownSpeed}
       still={still}
+      beat={beat}
       onDone={onDone}
     />
   );
@@ -396,9 +406,14 @@ export function GameViewer({
             away={away}
             plays={plays}
             index={index}
-            told={told}
+            told={told || beating}
             final={final}
             label={label}
+            clock={
+              beating ? (
+                <BeatClock key={index} plays={plays} span={beatSpan(plays, beatFrom, index)} ms={beat} />
+              ) : undefined
+            }
           />
 
           <div className="viewer-scene">
@@ -429,6 +444,9 @@ export function GameViewer({
               />
             ) : (
               broadcast
+            )}
+            {beating && (
+              <FastForward key={index} plays={plays} from={beatFrom} to={index} home={home} away={away} ms={beat} />
             )}
             {pre && <PregameCard league={league} game={game} home={home} away={away} label={label} />}
             <GameMoments

@@ -94,6 +94,17 @@ describe('the line under the clock', () => {
     expect(skipSummary(after('M.Sherman extra point is NO GOOD.'), 0, 2, BUF, NO)[0]).toBe('Extra point missed');
   });
 
+  it('after a kickoff alone: the receiving team’s yards since', () => {
+    const plays = [
+      entry({ kind: 'fg', down: 4, text: 'L.Cox 30-yard field goal is GOOD.' }),
+      entry({ kind: 'kickoff', down: 0 }),
+      entry({ offense: 2, yardLine: 35, from: 65, to: 55 }),
+      entry({ offense: 2, yardLine: 45, from: 55, to: 40 }),
+      entry({ offense: 2, yardLine: 60 }),
+    ];
+    expect(skipSummary(plays, 0, 3, BUF, NO)).toEqual(['2 plays · 25 yds', 'New Orleans ball on BUF 40']);
+  });
+
   it('a turnover on downs, and a gap of notes only', () => {
     const downs = [entry({ down: 4 }), note('Turnover on downs.'), entry({ offense: 2, yardLine: 32 })];
     expect(skipSummary(downs, 0, 1, BUF, NO)).toEqual(['Turnover on downs', 'New Orleans ball on NO 32']);
