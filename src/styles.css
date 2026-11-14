@@ -1941,6 +1941,71 @@ select {
 .moment-card.small {
   background: rgba(6, 10, 9, 0.4);
 }
+
+/* The fast-forward between highlights: the field dimmed and greyed, a small card in the middle with the clock running. */
+.ff {
+  --ff-dim: 0.35;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 3%;
+  pointer-events: none;
+  background: rgba(6, 10, 9, var(--ff-dim));
+  backdrop-filter: grayscale(0.85);
+  -webkit-backdrop-filter: grayscale(0.85);
+  color: var(--scene-ink);
+  animation:
+    ff-in 150ms ease-out,
+    ff-out 150ms ease-in calc(var(--beat, 2000ms) - 150ms) forwards;
+}
+.ff-in {
+  width: min(86%, 300px);
+  padding: 10px 16px 12px;
+  border-radius: 8px;
+  background: var(--scene-panel);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.ff-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--step-3);
+  line-height: 1.1;
+}
+.ff-top .icon {
+  font-size: var(--step-2);
+  opacity: 0.8;
+}
+.ff-lines {
+  margin-top: 4px;
+}
+.ff-line {
+  font-size: var(--step-0);
+  line-height: 1.35;
+}
+.ff-line + .ff-line {
+  opacity: 0.8;
+}
+@keyframes ff-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ff-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff {
+    animation: none;
+  }
+}
 .mc-in {
   width: min(100%, 520px);
   border-radius: 8px;

@@ -75,3 +75,12 @@ export function skipSummary(
     lines.push(overs.length ? `${(next.offense === home.id ? home : away).city} ball on ${spot.where}` : spot.spot);
   return lines;
 }
+
+/**
+ * How far through its beat the clock is: elapsed over the beat's length, but never less than it already showed, so a
+ * beat made longer mid-way (the speed button) holds the clock rather than running it backwards.
+ */
+export function beatProgress(elapsedMs: number, ms: number, prev: number): number {
+  if (ms <= 0) return 1;
+  return Math.max(prev, Math.min(1, elapsedMs / ms));
+}

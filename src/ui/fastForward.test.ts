@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayLogEntry, Team } from '../engine/types';
 import { clockOf } from './gameRead';
-import { beatClock, beatMs, beatSpan, skipSummary } from './fastForward';
+import { beatClock, beatMs, beatProgress, beatSpan, skipSummary } from './fastForward';
 
 const BUF = { id: 1, abbrev: 'BUF', city: 'Buffalo', name: 'Blizzard', colors: ['#00338d', '#c60c30'] } as Team;
 const NO = { id: 2, abbrev: 'NO', city: 'New Orleans', name: 'Krewe', colors: ['#101820', '#d3bc8d'] } as Team;
@@ -112,5 +112,14 @@ describe('the line under the clock', () => {
     expect(skipSummary(half, 0, 1, BUF, NO)).toEqual(['1 play · 3 yds']);
     const punt = [entry(), entry({ from: 25, to: 28 }), entry({ kind: 'punt', down: 4 })];
     expect(skipSummary(punt, 0, 1, BUF, NO)).toEqual(['1 play · 3 yds']);
+  });
+});
+
+describe('the ticking clock', () => {
+  it('never runs the clock backwards when the beat is made longer', () => {
+    expect(beatProgress(400, 800, 0)).toBe(0.5);
+    expect(beatProgress(450, 2000, 0.5)).toBe(0.5); // the speed went from 8× to 1× mid-beat
+    expect(beatProgress(3000, 2000, 0.5)).toBe(1);
+    expect(beatProgress(10, 0, 0)).toBe(1);
   });
 });

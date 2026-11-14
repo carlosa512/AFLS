@@ -3,6 +3,7 @@
  * left and score, then the clock. It reads through the last play whose result has been shown, so a score or a
  * timeout never gets ahead of the picture. Spec: docs/superpowers/specs/2026-11-10-broadcast-info-design.md §2.
  */
+import type { ReactNode } from 'react';
 import type { Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { gameClock } from '../format';
 import { recordBefore, timeoutsAt } from '../gameRead';
@@ -42,6 +43,7 @@ export function Scorebug({
   live = false,
   final = false,
   label,
+  clock,
 }: {
   league: League;
   game: Game;
@@ -57,6 +59,8 @@ export function Scorebug({
   final?: boolean;
   /** The week or the playoff round. */
   label: string;
+  /** In place of the play's period and clock: a fast-forward's count (`BeatClock`). */
+  clock?: ReactNode;
 }) {
   const entry = plays[index];
   const shown = told ? index : index - 1;
@@ -105,7 +109,7 @@ export function Scorebug({
           ) : (
             <>
               {live && <span className="live-dot" aria-hidden="true" />}
-              {period} · {gameClock(entry.clock)}
+              {clock ?? `${period} · ${gameClock(entry.clock)}`}
             </>
           )}
         </span>
