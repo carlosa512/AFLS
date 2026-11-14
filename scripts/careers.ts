@@ -623,6 +623,20 @@ console.log(
       .join(' · ');
   console.log(`  overall below a starter by age, first kickoff (informational): ${gapLine((r) => r.age.gap.first)}`);
   console.log(`  overall below a starter by age, settled (informational): ${gapLine((r) => r.age.gap.settled)}`);
+  // The founding league's reads (A2), by how long a position's prime runs, and the growth still ahead by age.
+  // `left`: growth ahead by years before his position's growth age, printed at 24 + years (24 = his growth age).
+  for (const group of ['long', 'short', 'QB', 'grow', 'left'])
+    for (const when of ['first', 'settled'] as const)
+      console.log(
+        `  ${group === 'grow' ? 'growth ahead' : group === 'left' ? 'growth ahead by years to his growth age (24 = there)' : `below a starter, ${group}`} by age, ${when === 'first' ? 'first kickoff' : 'settled'} (informational): ${gapLine(
+          (r) =>
+            Object.fromEntries(
+              Object.entries(r.age.by[when])
+                .filter(([k]) => k.startsWith(`${group}:`))
+                .map(([k, v]) => [Number(k.split(':')[1]), v]),
+            ) as Record<number, number>,
+        )}`,
+      );
   if (known.length)
     console.log(
       `⚠ known issue: too few young starters, too little job turnover, starters a little older on average and too many short-prime starters gone at 31–32 against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,

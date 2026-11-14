@@ -5,7 +5,7 @@
  */
 import { workEthicOf } from '../src/engine/traits';
 import { coachingForPlayer, NEUTRAL, staffScore, teamCoaches } from '../src/engine/coaching';
-import { developPlayer, playedShare, rollInputs, trueUp } from '../src/engine/development';
+import { developPlayer, growsUntil, playedShare, rollInputs, trueUp } from '../src/engine/development';
 import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
@@ -22,6 +22,7 @@ import { severeInjuryIn } from '../src/engine/cliffs';
 import { onGameRoster } from '../src/engine/roster';
 import {
   addFates,
+  ageGroupOf,
   exitAges,
   nextSeason,
   playedIn,
@@ -72,6 +73,11 @@ export interface LeagueRun {
     exits: Partial<Record<Position, number[]>>;
     /** Overall below his position's mean starter, by age (21–36): at the first kickoff, and over the steady kickoffs. */
     gap: { first: Record<number, number>; settled: Record<number, number> };
+    /**
+     * The founding league's reads (A2): overall below a starter by `${group}:${age}` (all, long, short, QB) and the
+     * growth still ahead of him (`grow:${age}`: true ceiling less overall), at the first kickoff and settled.
+     */
+    by: { first: Record<string, number>; settled: Record<string, number> };
   };
   /**
    * Every pick from the drafts this run held whose class is old enough to judge (five league years on): his round,
@@ -120,7 +126,13 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     ledger: { growth: [], body: [], craft: [], kpGrowth: [], kpCraft: [] },
     coached: { all: [], best: [], worst: [] },
     leaders: {},
-    age: { starters: [], fates: { all: {}, long: {}, short: {} }, exits: {}, gap: { first: {}, settled: {} } },
+    age: {
+      starters: [],
+      fates: { all: {}, long: {}, short: {} },
+      exits: {},
+      gap: { first: {}, settled: {} },
+      by: { first: {}, settled: {} },
+    },
     drafts: [],
     shifts: [],
     trees: { live: [], biggest: [], inTreeShare: [], hires: [], born: 0, foundingAlive: 0 },
@@ -166,6 +178,38 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   const meanOf = (g: Record<number, number[]>) =>
     Object.fromEntries(Object.entries(g).map(([a, xs]) => [a, mean(xs)])) as Record<number, number>;
   out.age.gap.first = meanOf(gap());
+  // The same population, split by how long a position's prime runs, with the growth still ahead of each player.
+  const gapBy = (): Record<string, number[]> => {
+    const bar = new Map(
+      POSITIONS.map((pos) => [
+        pos,
+        mean(
+          starters()
+            .filter((p) => p.position === pos)
+            .map(playerOvr),
+        ),
+      ]),
+    );
+    const out: Record<string, number[]> = {};
+    for (const p of Object.values(league.players)) {
+      if (p.retired || p.teamId === null || !onGameRoster(p) || p.position === 'K' || p.position === 'P') continue;
+      if (p.age < 21 || p.age > 36) continue;
+      const ovr = playerOvr(p);
+      const below = ovr - bar.get(p.position)!;
+      const group = p.position === 'QB' ? 'QB' : ageGroupOf(p.position);
+      (out[`all:${p.age}`] ??= []).push(below);
+      if (group) (out[`${group}:${p.age}`] ??= []).push(below);
+      (out[`grow:${p.age}`] ??= []).push(Math.max(0, p.potential - ovr));
+      // Keyed by years left before his position's growth age (21 + years, so it prints on the age axis).
+      const left = growsUntil(p.position) - p.age;
+      if (left >= -3 && left <= 6) (out[`left:${21 + 3 + left}`] ??= []).push(Math.max(0, p.potential - ovr));
+    }
+    return out;
+  };
+  const meanBy = (g: Record<string, number[]>) =>
+    Object.fromEntries(Object.entries(g).map(([k, xs]) => [k, mean(xs)])) as Record<string, number>;
+  out.age.by.first = meanBy(gapBy());
+  const settledBy: Record<string, number[]> = {};
   const settledGap: Record<number, number[]> = {};
   const seasonsRead: Starters[] = [];
   /** Everyone on a roster at some point of each season: at kickoff, at its end, or with a snap in it. */
@@ -270,6 +314,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));
     if (s >= steadyFrom) for (const [a, xs] of Object.entries(gap())) (settledGap[Number(a)] ??= []).push(...xs);
+    if (s >= steadyFrom) for (const [k, xs] of Object.entries(gapBy())) (settledBy[k] ??= []).push(...xs);
     {
       const live = liveTrees(league);
       out.trees.live.push(live.length);
@@ -324,6 +369,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   }
   out.age.exits = exitAges(seasonsRead.slice(steadyFrom), rosteredRead.slice(steadyFrom));
   out.age.gap.settled = meanOf(settledGap);
+  out.age.by.settled = meanBy(settledBy);
   for (const p of Object.values(league.players)) {
     if (!p.draft || p.draft.season < firstDraft) continue;
     if (p.draft.season <= league.season - 5) out.drafts.push({ round: p.draft.round, hit: hits.has(p.id) });
