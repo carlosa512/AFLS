@@ -10,6 +10,7 @@ import { coachName, teamCoaches } from './coaching';
 import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
+import { ordinal } from './opposition';
 import { statLine } from './stats';
 import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
@@ -1152,7 +1153,8 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           : `${man} is the new starting quarterback of ${ref.club(club)}.`,
       ]),
       rookie && qb.draft
-        ? `He was the No. ${qb.draft.pick} pick in the draft.`
+        ? // Not "No. 3": the sentence splitter ends a sentence at that period, so two such lines read as one repeated.
+          `He was taken ${ordinal(qb.draft.pick)} overall in the draft.`
         : old
           ? `${full(old)} threw most of the team's passes last season.`
           : '',

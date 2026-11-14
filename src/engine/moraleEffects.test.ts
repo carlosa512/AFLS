@@ -179,7 +179,8 @@ describe('contract talks (G2)', () => {
 
 const { MOOD_ACTS } = await import('./disputeRead');
 const { activeLearning, bodyAs, learnBlock, moveProblem, startMove } = await import('./training');
-const { beginYear, developBlock, MOOD_TILT, playedShare, RELEASE, rollInputs } = await import('./development');
+const { beginYear, developBlock, growsUntil, MOOD_TILT, playedShare, RELEASE, rollInputs } =
+  await import('./development');
 const { coachingFor } = await import('./coaching');
 const { Rng } = await import('./rng');
 const { teamPlayers } = await import('./roster');
@@ -227,15 +228,35 @@ describe('disputes (G4)', () => {
       // The spring program and camp run in the offseason (a hold-in practices from week 1).
       l.phase = 'draft';
       for (const x of Object.values(l.players)) x.morale = { level: 0, jolts: [] };
-      const p = Object.values(l.players).find(
-        (x) => x.teamId !== null && x.age <= 23 && x.potential > playerOvr(x) + 1,
-      )!;
-      const ctx = rollInputs({
-        playedShare: playedShare(p, l.season),
-        ...coachingFor(l, p.teamId, p.position),
-        bodyAs: bodyAs(p),
-      });
-      beginYear(l, new Rng(`${l.seed}:dev:${l.season}:${p.id}`), p, ctx);
+      // 2026-11-14: a young man with growth still ahead, in the league as the new rules build it: still in his growth
+      // years by position (`growsUntil`; growth ends at a position's own age now), and with enough left that his year
+      // is still open after the program and camp (a year that can't move a rating is closed early, with no mood to
+      // read). Tried on a copy, tallest ceiling first.
+      const yearFor = (lg: League, x: Player) => {
+        beginYear(
+          lg,
+          new Rng(`${lg.seed}:dev:${lg.season}:${x.id}`),
+          x,
+          rollInputs({
+            playedShare: playedShare(x, lg.season),
+            ...coachingFor(lg, x.teamId, x.position),
+            bodyAs: bodyAs(x),
+          }),
+        );
+      };
+      const p = Object.values(l.players)
+        .filter(
+          (x) => x.teamId !== null && x.age <= 23 && x.age < growsUntil(x.position) && x.potential > playerOvr(x) + 1,
+        )
+        .sort((a, b) => b.potential - playerOvr(b) - (a.potential - playerOvr(a)))
+        .find((x) => {
+          const t = copy(l);
+          yearFor(t, t.players[x.id]);
+          developBlock(t, 'program');
+          developBlock(t, 'camp');
+          return t.players[x.id].dev !== undefined;
+        })!;
+      yearFor(l, p);
       expect(p.dev?.potential).toBeDefined();
       const tilt = (set: (x: League) => void, acts = true) => {
         const x = copy(l);
