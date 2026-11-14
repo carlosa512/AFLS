@@ -1978,7 +1978,8 @@ select {
   line-height: 1.1;
 }
 .ff-top .icon {
-  font-size: 0.7em;
+  width: 0.7em;
+  height: 0.7em;
   opacity: 0.8;
 }
 .ff-lines {
