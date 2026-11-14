@@ -614,7 +614,7 @@ describe('GM habits in the draft', () => {
   it('tradeUpReason takes a quarterback at a smaller gap with tradeUpQb on', () => {
     let found = 0;
     // Its own world: the shared one's class holds no quarterback sitting just under the bar (re-found for 0.4.24's moods: -b held none, -d does).
-    const l = draftDayOf('draft-trades-qb-f');
+    const l = draftDayOf('draft-trades-qb-g');
     for (let i = 0; i < 64; i++) {
       for (const pk of picksAhead(l, WINDOW)) {
         if (pk.ownerId === l.userTeamId) continue;
