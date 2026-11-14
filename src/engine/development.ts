@@ -156,7 +156,7 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
 });
 export const DEV_RULES: DevRules = {
   pace: [0.4, 0.8],
-  primeSwing: 0.8,
+  primeSwing: 0.3,
   growthEnds: 26,
   mentalGrowth: 0.02,
   fade: 1.2,

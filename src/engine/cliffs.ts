@@ -27,7 +27,7 @@ export const CLIFF = {
   lead: 1,
   latest: 29,
   base: 0.03,
-  perYear: 0.03,
+  perYear: 0.02,
   hurt: 3,
   fragile: 0.08,
   size: [2, 4] as [number, number],

@@ -28,7 +28,7 @@ export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
 export const RAW = 0.4;
 /** The class's top before `RAW` (see `generateDraftClass`): set so the drafted league's starters hold their level. */
-export const CLASS_TOP = 14.1;
+export const CLASS_TOP = 13.6;
 /** How fast the class falls off from the top (a smaller power falls faster past the first round). */
 export const CLASS_SHAPE = 0.75;
 /**
