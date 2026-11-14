@@ -128,9 +128,8 @@ the real-world ranges in the research doc.
 - **Retirement** follows the body. Under contract, the chance climbs a year at a time from his position's prime (sooner
   for linemen, tight ends and punters) and jumps after a fall from his best beyond the ordinary fade: a cliff ends most
   careers within a year or two, normal aging doesn't. Unsigned veterans and washed-up players walk away sooner.
-- **A new league starts settled:** its founding players are rated by age as a league that has run for years rates
-  them, a 23-year-old about three points under a starter with a little growth still ahead and a 34-year-old past his
-  best, so a new save holds its level instead of rising for three seasons and sliding back.
+- **A new league starts settled:** its young players have as much growth still ahead of them as a league that has
+  run for years gives its young, so a new save holds its level instead of rising for three seasons and sliding back.
 - **Measured against the NFL:** `npm run careers` reads 20-season leagues the NFL's way (starters by snaps, their ages by
   position, what happens to a starter the next season; `scripts/league-age-core.ts`). The old end and the exits are
   judged; how many young players start and how often a starter keeps his job also turn on what front offices choose, and
