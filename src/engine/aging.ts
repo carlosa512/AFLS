@@ -89,7 +89,11 @@ export function retireChance(p: Player, ovr: number): number {
   // The body: a chance that climbs a year at a time from just before his prime ends, and more the further he has fallen
   // from his own best (a cliff, `cliffs.ts`, is how most careers end).
   // Only near the end of his prime: a young player slipping toward a ceiling that settled under him isn't done.
-  const fall = over >= RETIRE_BODY.fallFrom ? Math.max(0, bestOvr(p) - ovr - RETIRE_BODY.slack) : 0;
+  // Forgiving what a typical body loses: the slack grows with every year past his physical turn, so a cliff ends a
+  // career and the ordinary fade of a receiver at 31 doesn't.
+  const aged = Math.max(0, p.age - declineOnset(p.position, 'physical', p.traits));
+  const slack = RETIRE_BODY.slack + RETIRE_BODY.agedSlack * aged;
+  const fall = over >= RETIRE_BODY.fallFrom ? Math.max(0, bestOvr(p) - ovr - slack) : 0;
   const hazard = clamp(
     RETIRE_BODY.perYear * Math.max(0, over - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
     0,
@@ -102,12 +106,21 @@ export function retireChance(p: Player, ovr: number): number {
  * Retirement under contract (spec 2026-11-14-league-age-design.md §5):
  * - `from`: years past his prime's end (his body clock's) that the yearly chance starts to climb
  * - `perYear`: what each year past that adds
- * - `fall`: what each overall point under his own best adds, past `slack`, from `fallFrom` years past his prime's end
+ * - `fall`: what each overall point under his own best adds, past `slack` (and `agedSlack` more for each year past his
+ *   physical turn), from `fallFrom` years past his prime's end
  * - `cap`: the most a year's chance can be (until eight years past, when he goes)
- * Tuned with cliffs to the NFL's starters' exits by age (off every roster) and the careers survivor lines: a cliff ends
- * most careers within a year or two, and those still playing at 32–35 have kept most of their level.
+ * Tuned with cliffs to the NFL's starters' exits by age (off every roster: about one in ten a year at 29–32, more on the
+ * lines at 32) and the careers survivor lines: a cliff ends most careers within a year or two, the ordinary fade doesn't.
  */
-export const RETIRE_BODY = { from: -1, perYear: 0.04, fall: 0.15, slack: 0.6, fallFrom: -2, cap: 0.95 };
+export const RETIRE_BODY = {
+  from: 0,
+  perYear: 0.035,
+  fall: 0.35,
+  slack: 0.6,
+  agedSlack: 0.9,
+  fallFrom: -2,
+  cap: 0.95,
+};
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
 export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {

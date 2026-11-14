@@ -137,7 +137,8 @@ const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, 
  * - `mentalGrowth`: what the mental game adds each year through the prime
  * - `fade`: how steep the smooth decline is for everyone (a cliff takes the rest)
  * - `cliffs`: whether a veteran can fall off a cliff (`cliffs.ts`)
- * - `byPosition`: a position's own `growthEnds` and `pace` (skill players are ready sooner than linemen and passers)
+ * - `byPosition`: a position's own `growthEnds`, `pace` and `mentalGrowth` (skill players are ready sooner than linemen
+ *   and passers; a passer's reads keep sharpening into his 30s)
  */
 export interface DevRules {
   pace: [number, number];
@@ -146,7 +147,7 @@ export interface DevRules {
   mentalGrowth: number;
   fade: number;
   cliffs: boolean;
-  byPosition: Partial<Record<Position, Partial<Pick<DevRules, 'growthEnds' | 'pace'>>>>;
+  byPosition: Partial<Record<Position, Partial<Pick<DevRules, 'growthEnds' | 'pace' | 'mentalGrowth'>>>>;
 }
 export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   pace: [0.15, 0.5] as [number, number],
@@ -176,6 +177,8 @@ export const DEV_RULES: DevRules = {
     LB: { growthEnds: 25 },
     S: { growthEnds: 25 },
     EDGE: { growthEnds: 26, pace: [0.15, 0.5] },
+    // A passer's reads keep sharpening into his 30s (accuracy and reads at 34 hold within 3% of his peak).
+    QB: { mentalGrowth: 0.1 },
   },
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
@@ -183,6 +186,7 @@ const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rul
 export const timingAt = (rules: Readonly<DevRules>, pos: Position) => ({
   growthEnds: rules.byPosition[pos]?.growthEnds ?? rules.growthEnds,
   pace: rules.byPosition[pos]?.pace ?? rules.pace,
+  mentalGrowth: rules.byPosition[pos]?.mentalGrowth ?? rules.mentalGrowth,
 });
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
@@ -204,7 +208,7 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   const weights = OVR_WEIGHTS[pos];
   const attrs = ATTRIBUTES.filter((a) => profile[a] !== undefined);
   const rules = rulesOf(ctx);
-  const { growthEnds: ends, pace: paceRange } = timingAt(rules, pos);
+  const { growthEnds: ends, pace: paceRange, mentalGrowth } = timingAt(rules, pos);
 
   // Growth (or prime-years drift), in overall points.
   let delta: number;
@@ -245,7 +249,7 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
       d = delta * Math.min(2, growthShare(family, age, ends) * norm);
-      if (family === 'mental' && age >= ends) d += rules.mentalGrowth;
+      if (family === 'mental' && age >= ends) d += mentalGrowth;
     }
     targets[ATTRIBUTES.indexOf(attr)] = d + rng.normal(0, 0.35);
   }
@@ -541,7 +545,7 @@ export function expectedAging(pos: Position, age: number): number {
           Math.min(1, past) *
           (1 + 0.25 * Math.max(0, past - 1) + 0.25)
         : family === 'mental' && age >= timingAt(DEV_RULES, pos).growthEnds
-          ? DEV_RULES.mentalGrowth
+          ? timingAt(DEV_RULES, pos).mentalGrowth
           : 0;
     sum += w * d;
     total += w;

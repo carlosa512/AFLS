@@ -38,6 +38,7 @@ export const CLIFFS = { on: true, always: false };
 
 /** Positions whose careers last past the others': their climb starts at their own turn. */
 const LASTING: ReadonlySet<Position> = new Set(['QB', 'K', 'P']);
+const KICKERS: ReadonlySet<Position> = new Set(['K', 'P']);
 
 /** The most a year's chance can be. */
 const CAP = 0.5;
@@ -55,6 +56,9 @@ export function cliffChance(age: number, pos: Position, traits: Pick<Traits, 'du
   if (CLIFFS.always) return 1;
   const injury = hurt ? CLIFF.hurt : 1;
   if (age < CLIFF.from) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
+  const turn0 = declineOnset(pos, 'technical', traits) - CLIFF.lead;
+  // A kicker's or punter's body barely ages: no cliff before his own turn but after an injury.
+  if (KICKERS.has(pos) && age < turn0) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
   const turn = declineOnset(pos, 'technical', traits) - CLIFF.lead;
   const climb = LASTING.has(pos) ? turn : CLIFF.latest;
   const body = Math.max(0, 1 + CLIFF.fragile * (TRAIT_MEAN - traits.durability));
