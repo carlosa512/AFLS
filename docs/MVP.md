@@ -308,19 +308,23 @@ does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a sepa
 Each is a `⚠ known issue` in `npm run offseason` (shown, never counted) until it's fixed; then its line goes back to
 being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 
-- [ ] **Leagues grow older than the NFL's (start here: it likely explains the next items).** NFL starters average 26.6,
-      12% of them 31 or older (*nflverse* snap counts and birth dates, 2021–24). A new league matches (26.8, 12%), but by
-      season 10 its starters average 28.0 with 28% aged 31+ (main: 27.75 and 24%, so it predates 0.2.36). The oldest
-      gaps are at QB and TE (+2.4 years), punter (+2.1), WR and OL (+1.5), where ratings hold their peak longest. Look
-      at who coaches start (a young player with upside against a veteran barely better), when players retire, and how
-      ready draftees are; the league's talent sliding after year three (13.22 to 12.7 over 16 seasons) likely follows.
+- [x] **Leagues grow older than the NFL's.** **Done (0.4.46,** `docs/superpowers/specs/2026-11-14-league-age-design.md`**):**
+      `npm run careers` reads 20-season leagues the NFL's way (starters by snaps; nflverse 2013–25, `scripts/research-aging.py`,
+      `docs/research/league-age.md`). Young players are ready sooner (growth to 24, 25 or 26 by position, held to peak ages
+      from the NFL's delta-method aging curves, the owner's new ranges), veterans can fall off a cliff, and retirement follows
+      the body, forgiving the ordinary fade. Seasons 11–20, four leagues: starters 27.01 years (main 27.77, NFL 26.48), 14.4%
+      aged 31 or older (21.6%, NFL 11.8%), quarterbacks 38% (49%), tight ends 15% (29%), linemen 14% (32%); talent 12.87–13.22,
+      first-round busts 35%. **Left for the front offices (B):** 25% of starters are 24 or younger (NFL 32%; QB 14% against
+      33%), starters keep their jobs 76–80% of the time under 29 (NFL 63–69%), and short-prime starters at 31–32 leave twice
+      as often (a third of it veterans whose deals ran out and nobody signed): shown as a known issue in `npm run careers`.
 - [ ] **The free-agency market runs about half the NFL's size** (0.4.13, `npm run offseason`'s free-agency block, shown as a
       known issue): 43–74 good outside signings a year against the NFL's 84–109, 5–14 clubs with three or more against
       16–22, 38–42% of them one-year against 20%, and too few good players left with no deal (the market places nearly
       everyone). Clubs carry far more room into the window than NFL clubs (a median near 30% against 3–12%) and spend it
       refilling rosters, not on the market. Look at how much of the roster turns over each spring and the room clubs
       bring to March (`docs/research/free-agency-market.md`). Young stars are judged strictly and placed.
-- [ ] **Starters leave football more as a league ages.** (0.4.13, front offices that plan: 4.9/9.0/10% at seasons 2–4 on `offseason-audit-3` before, 2.6/5.9/6.4% after; the market now places the good ones, what remains is mostly retirements and faded veterans.) About 3% of last season's starters are unsigned or retired
+- [ ] **Starters leave football more as a league ages.** (0.4.46: now measured by age in `npm run careers` against the NFL's;
+      short-prime starters at 31–32 leave about twice as often, a third of it unsigned veterans: the front offices' work.) (0.4.13, front offices that plan: 4.9/9.0/10% at seasons 2–4 on `offseason-audit-3` before, 2.6/5.9/6.4% after; the market now places the good ones, what remains is mostly retirements and faded veterans.) About 3% of last season's starters are unsigned or retired
       at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
       retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
       shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
