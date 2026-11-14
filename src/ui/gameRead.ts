@@ -78,7 +78,8 @@ export function gainOf(e: PlayLogEntry, homeId: number): number {
 }
 
 const lineToGain = (e: PlayLogEntry) => Math.min(100, e.yardLine + e.distance);
-const half = (quarter: number) => (quarter <= 2 ? 1 : quarter <= 4 ? 2 : 3);
+/** The half a quarter is in: overtime counts as a third. */
+export const halfOf = (quarter: number): 1 | 2 | 3 => (quarter <= 2 ? 1 : quarter <= 4 ? 2 : 3);
 
 /**
  * Whether the chains moved on play `i`, the way the engine decides it: the offense's next snap is a first down it
@@ -91,7 +92,7 @@ function movedChains(plays: readonly PlayLogEntry[], i: number, homeId: number):
   if (e.kind !== 'penalty' && offenseTd(e)) return true;
   for (let j = i + 1; j < plays.length; j++) {
     const n = plays[j];
-    if (half(n.quarter) !== half(e.quarter)) break;
+    if (halfOf(n.quarter) !== halfOf(e.quarter)) break;
     if (n.kind === 'kickoff' || n.kind === 'xp' || isTry(n)) return false;
     if (!n.down) continue;
     if (n.offense !== e.offense) return false;
@@ -307,6 +308,18 @@ export function secondsOf(plays: readonly PlayLogEntry[]): number[] {
   return plays.map((e) => endOf(e.quarter) - e.clock);
 }
 
+/**
+ * The period and clock `seconds` after the opening kickoff: `secondsOf` read backwards. At a period's exact end, the
+ * period that is ending, at 0:00.
+ */
+export function clockOf(plays: readonly PlayLogEntry[], seconds: number): { quarter: number; clock: number } {
+  const endOf = periodEnds(plays);
+  const last = plays.reduce((q, e) => Math.max(q, e.quarter), 1);
+  let quarter = 1;
+  while (quarter < last && endOf(quarter) < seconds) quarter++;
+  return { quarter, clock: Math.max(0, endOf(quarter) - seconds) };
+}
+
 /** When each period ends, in game seconds: 900 a quarter, an overtime period as long as the clock it opened on. */
 function periodEnds(plays: readonly PlayLogEntry[]): (quarter: number) => number {
   const opened = new Map<number, number>();
@@ -338,8 +351,8 @@ export function timeoutsAt(
   let at = 1;
   for (let i = 0; i <= index && i < plays.length; i++) {
     const e = plays[i];
-    if (half(e.quarter) !== at) {
-      at = half(e.quarter);
+    if (halfOf(e.quarter) !== at) {
+      at = halfOf(e.quarter);
       left.home = left.away = at === 3 ? 2 : 3;
     }
     const m = /^Timeout (\S+) \((\d) left\)\.$/.exec(e.text);
@@ -405,7 +418,7 @@ export function drivesOf(plays: readonly PlayLogEntry[], homeId: number, live = 
     open.yards = spot - open.from;
     // Over when the next thing happens in its half; at its own last snap when nothing does.
     const n = plays[last + 1];
-    open.end = n && half(n.quarter) === half(plays[last].quarter) ? seconds[last + 1] : seconds[last];
+    open.end = n && halfOf(n.quarter) === halfOf(plays[last].quarter) ? seconds[last + 1] : seconds[last];
     // The clock ran out on it: it lasted to the end of its period (the half, regulation, or an overtime).
     if (how === 'half' || how === 'end') open.end = Math.max(open.end, endOf(plays[last].quarter));
     done = true;
@@ -413,7 +426,7 @@ export function drivesOf(plays: readonly PlayLogEntry[], homeId: number, live = 
   for (let i = 0; i < plays.length; i++) {
     const e = plays[i];
     const prev = plays[i - 1];
-    if (open && !done && prev && half(prev.quarter) !== half(e.quarter)) close('half', i - 1);
+    if (open && !done && prev && halfOf(prev.quarter) !== halfOf(e.quarter)) close('half', i - 1);
     if (open && !done && e.text === 'Turnover on downs.') close('downs', i - 1);
     if (open && !done && /^SAFETY!/.test(e.text)) close('safety', i - 1);
     if (!e.down || !e.kind || e.kind === 'kickoff' || e.kind === 'xp' || e.kind === 'two' || isTry(e)) continue;
