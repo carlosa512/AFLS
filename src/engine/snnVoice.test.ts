@@ -14,6 +14,8 @@ import { sentencesOf } from './voice';
 
 let l: League;
 const editions: Edition[] = [];
+/** Each club's head coach as each edition was written: a coach let go later in the season was the one to quote then. */
+const headCoachesAt: Map<number, number | undefined>[] = [];
 const said: string[] = [];
 const storiesOf = (e: Edition): EditionStory[] => [e.lead, ...(e.club ? [e.club] : []), ...e.tiles];
 beforeAll(() => {
@@ -22,6 +24,9 @@ beforeAll(() => {
     playWeek(l);
     const e = buildEdition(l, week)!;
     editions.push(e);
+    headCoachesAt.push(
+      new Map(l.teams.map((t) => [t.id, teamCoaches(l, t.id).find((c) => c.role === 'headCoach')?.id])),
+    );
     // What a filed edition would leave in the inbox for the next one to step around.
     l.inbox = [
       ...(l.inbox ?? []),
@@ -87,12 +92,14 @@ describe('a season of stories', () => {
 
   it('quotes only the head coach of the club the story is about or told for, at most once a story', () => {
     let quotes = 0;
-    for (const e of editions)
+    // Judged against the head coaches when each edition was written (2026-11-14: a club changed head coaches in
+    // season in this world, and the story before it quoted the man who had the job then).
+    for (const [i, e] of editions.entries())
       for (const s of storiesOf(e)) {
         if (!s.quote) continue;
         quotes++;
         const clubs = [s.clubId, ...(s.yours ? [l.userTeamId] : [])];
-        const coaches = clubs.map((id) => teamCoaches(l, id).find((c) => c.role === 'headCoach')?.id);
+        const coaches = clubs.map((id) => headCoachesAt[i].get(id!));
         expect(coaches).toContain(s.quote.coachId);
         expect(s.quote.playerId).toBeUndefined();
       }

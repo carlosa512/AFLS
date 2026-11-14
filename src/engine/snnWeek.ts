@@ -765,11 +765,12 @@ export function buildEdition(l: League, week: number): Edition | null {
 
 /** The longest a subject line runs. */
 export const SUBJECT = 60;
-/** A headline cut at a word, for the mail's subject. */
+/** A headline cut at a word, for the mail's subject: never longer than `max`, the ellipsis counted. */
 export const short = (text: string, max = 48) => {
   if (text.length <= max) return text;
-  const cut = text.slice(0, max + 1);
-  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 12)).replace(/[,.]$/, '')}…`;
+  // The ellipsis takes one of the `max`: a cut at a space right at `max` ran a subject a character long (2026-11-14).
+  const cut = text.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 13)).replace(/[,.]$/, '')}…`;
 };
 
 /**

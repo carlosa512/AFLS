@@ -474,6 +474,7 @@ describe('the re-sign call', () => {
   // again when nobody asks after his club's last game and a losing meeting backs only a move or words (0.4.25).
   // again with the league-age work (2026-11-14): contract lengths follow the new aging table, so who is expiring and who each club keeps moved.
   // again with the league-age work's growth by position and a founding league's young given less growth ahead (2026-11-14): ceilings differ, so who each club keeps moved.
+  // again when scouts sized a young player's ceiling guess by his position's growth age, not 26 (2026-11-14): reads moved.
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

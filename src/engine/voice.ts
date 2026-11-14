@@ -76,7 +76,9 @@ export function recentBodies(league: League, from: string, n = 5): string[] {
 /** A text split where a sentence ends; a quote's marks at either end are not part of the sentence. */
 export function sentencesOf(text: string | undefined): string[] {
   const out: string[] = [];
-  for (const s of (text ?? '').split(/(?<=[.?!]) +/)) {
+  // "No. 8" is a number, not a sentence's end: split there and every "at No. 8." read as the sentence "8.", the
+  // same in any two stories (2026-11-14).
+  for (const s of (text ?? '').split(/(?<=[.?!])(?<!\bNo\.) +/)) {
     // A quoted line ends in its closing quote, and opens with one: the sentence is the same either way.
     const t = s.replace(/^[“"]|[”"]$/g, '').trim();
     if (t) out.push(t);
