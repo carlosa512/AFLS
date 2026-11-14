@@ -30,6 +30,8 @@ export interface LiveSession {
   edition?: string;
   /** The play on screen was skipped by the highlight level: show where it ended, don't animate it. */
   still: boolean;
+  /** The play on screen when the last skip began: where its fast-forward counts from (read while `still`). */
+  from: number;
 }
 
 let session: LiveSession | null = null;
@@ -75,6 +77,7 @@ export const live = {
       out: outAt(league, game),
       finished: false,
       still: false,
+      from: 0,
     };
     emit();
   },
@@ -122,6 +125,7 @@ export const live = {
     let i = s.current;
     while (pull(s, i + 1) && !isShown(s.plays, i + 1)) i++;
     if (i === s.current) return false;
+    s.from = s.current;
     s.current = i;
     s.still = true;
     emit();

@@ -23,6 +23,8 @@ import {
 } from './GameViewer';
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard } from './PregameCard';
+import { BeatClock, FastForward } from './FastForward';
+import { beatEnd, beatMs, beatSpan } from '../fastForward';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
@@ -137,6 +139,10 @@ export function LiveGame({ league }: { league: League }) {
   const verdict = us > them ? 'W' : us < them ? 'L' : 'T';
   // Every play so far, newest first, in a box that scrolls back to the kickoff.
   const recent = s.plays.slice(0, told ? s.current + 1 : s.current).reverse();
+  // The fast-forward: a still landing reached by playing on, until its field has got there. Not read from `told`: a
+  // landed note is told at once. Pausing ends it, and the field lands at once.
+  const beating = s.still && s.playing && toldKey !== playKey && !s.finished && !pre;
+  const beat = beating ? beatMs(speed) : 0;
   // What the play on screen gives the viewer to show: nothing until its result has been seen.
   const momentFacts = { home, away, names, record, over: s.finished };
   const moments = playMoments(s.plays, s.current, { ...momentFacts, told, still: s.still });
@@ -169,6 +175,7 @@ export function LiveGame({ league }: { league: League }) {
       animKey={`live:${s.gameId}:${s.current}`}
       speed={speed}
       still={s.still}
+      beat={beat}
       onDone={onDone}
     />
   );
@@ -189,10 +196,17 @@ export function LiveGame({ league }: { league: League }) {
               away={away}
               plays={s.plays}
               index={s.current}
-              told={told}
+              told={told || beating}
               live
               final={s.finished}
               label={label}
+              clock={
+                beating ? (
+                  <BeatClock key={playKey} plays={s.plays} span={beatSpan(s.plays, s.from, s.current)} ms={beat} />
+                ) : s.still ? (
+                  beatEnd(s.plays, s.from, s.current)
+                ) : undefined
+              }
             />
 
             <div className="viewer-scene">
@@ -216,6 +230,7 @@ export function LiveGame({ league }: { league: League }) {
                   animKey={`live:${s.gameId}:${s.current}`}
                   speed={speed}
                   still={s.still}
+                  beat={beat}
                   final={s.sim.over && s.current === s.plays.length - 1}
                   onDone={onDone}
                   onSnap={() => setSnapKey(playKey)}
@@ -223,6 +238,17 @@ export function LiveGame({ league }: { league: League }) {
                 />
               ) : (
                 broadcast
+              )}
+              {beating && (
+                <FastForward
+                  key={playKey}
+                  plays={s.plays}
+                  from={s.from}
+                  to={s.current}
+                  home={home}
+                  away={away}
+                  ms={beat}
+                />
               )}
               {pre && (
                 <PregameCard

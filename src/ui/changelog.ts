@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.45',
+    date: '2026-11-14',
+    title: 'A fast-forward between highlights',
+    text: 'On Key and Ext the game no longer jumps between highlights. The field glides, the clock runs down and a card says what you skipped.',
+  },
+  {
     version: '0.4.44',
     date: '2026-11-13',
     title: 'SNN first, and a quieter free agency',

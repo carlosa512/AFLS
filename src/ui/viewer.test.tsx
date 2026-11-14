@@ -28,6 +28,10 @@ import { contrast } from './color';
 import { buildPlayNames, driveAt, drivesOf, linesAt, SHOWN_LINE, SHOWN_TEAM, teamStatsAt } from './gameRead';
 import { GamePanel, PlayersPanel } from './screens/GamePanels';
 import { VIEW_KEY } from './viewerPrefs';
+import { FastForward } from './screens/FastForward';
+import { beatClock, beatSpan, skipSummary } from './fastForward';
+import { playOn } from './highlights';
+import { gameClock } from './format';
 import { vi } from 'vitest';
 
 const nav = { openPlayer: () => {}, openTeam: () => {}, go: () => {} } as unknown as Nav;
@@ -1286,5 +1290,38 @@ describe('the building behind the field', () => {
     expect(gameStadium(league, { ...open, week: 2 }, { ...FAIR, precip: 'snow' }).look.lying).toBe(true);
     expect(gameStadium(league, { ...open, week: 15 }, { ...FAIR, tempF: 20 }).look.lying).toBe(true);
     expect(gameStadium(league, { ...open, week: 15 }, { ...FAIR, tempF: 45 }).look.lying).toBe(false);
+  });
+});
+
+describe('the fast-forward', () => {
+  const home = league.teams[game.homeId];
+  const away = league.teams[game.awayId];
+  const at = plays.findIndex((_, i) => playOn(plays, i, home.id, 'key').still);
+  const to = playOn(plays, at, home.id, 'key').index;
+
+  it('draws the forward icon, the clock as the beat starts and the line', () => {
+    const html = render(<FastForward plays={plays} from={at} to={to} home={home} away={away} ms={2000} />);
+    expect(html).toContain('class="ff"');
+    expect(html).toContain('M13 5v14l8-7z'); // the forward icon
+    expect(html).toContain(gameClock(beatClock(plays, beatSpan(plays, at, to), 0).clock));
+    for (const line of skipSummary(plays, at, to, home, away)) expect(html).toContain(line);
+  });
+
+  it('puts a clock it is given on the scorebug in place of the play’s', () => {
+    const html = render(
+      <Scorebug
+        league={league}
+        game={game}
+        home={home}
+        away={away}
+        plays={plays}
+        index={to}
+        told={false}
+        label="Week 1"
+        clock={<span>Q9 · 9:99</span>}
+      />,
+    );
+    expect(html).toContain('Q9 · 9:99');
+    expect(html).not.toContain(gameClock(plays[to].clock));
   });
 });
