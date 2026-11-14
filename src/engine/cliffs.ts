@@ -55,7 +55,7 @@ export function cliffChance(age: number, pos: Position, traits: Pick<Traits, 'du
   const injury = hurt ? CLIFF.hurt : 1;
   if (age < CLIFF.from) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
   const turn = declineOnset(pos, 'technical', traits) - CLIFF.lead;
-  const climb = LASTING.has(pos) ? turn : Math.min(turn, CLIFF.latest);
+  const climb = LASTING.has(pos) ? turn : CLIFF.latest;
   const body = Math.max(0, 1 + CLIFF.fragile * (TRAIT_MEAN - traits.durability));
   return clamp((CLIFF.base + CLIFF.perYear * Math.max(0, age - climb)) * injury * body, 0, CAP);
 }

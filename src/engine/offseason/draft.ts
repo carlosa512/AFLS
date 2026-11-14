@@ -28,12 +28,14 @@ export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
 export const RAW = 0.4;
 /** The class's top before `RAW` (see `generateDraftClass`): set so the drafted league's starters hold their level. */
-export const CLASS_TOP = 14.3;
+export const CLASS_TOP = 14.8;
 /**
  * Room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives the
  * class's talent back, so the league's starters hold (`npm run careers`).
  */
-export const HYPE_ROOM = 0.9;
+export const HYPE_ROOM = 0.4;
+/** How far a prospect's growth spreads (sd of the half-normal, overall points): most grow a little, a few a lot. */
+export const GROWTH_SPREAD = 1.4;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
@@ -71,7 +73,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     const growth =
       RAW +
       HYPE_ROOM +
-      Math.abs(rng.normal(0, 1)) * 2.1 +
+      Math.abs(rng.normal(0, 1)) * GROWTH_SPREAD +
       rng.float(0, 0.8) +
       (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
