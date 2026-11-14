@@ -13,23 +13,24 @@ import type { Player, Position, Traits } from './types';
 /**
  * - `from`: the youngest age a healthy player can fall off one
  * - `lead`: years before his technique turns (`declineOnset`) that the chance starts to climb
- * - `latest`: the climb starts by this age at every position but QB, K and P (the NFL's exits by age barely differ
+ * - `latest`: the climb starts at this age at every position but QB, K and P (the NFL's exits by age barely differ
  *   between the lines' long prime and the skill positions'; quarterbacks and kickers last)
  * - `base`: the chance a year once he's past `from` (and before the climb)
  * - `perYear`: what each year past the climb's start adds
  * - `hurt`: the chance multiplied after a severe injury that season (and, under `from`, `base × hurt`)
  * - `fragile`: per point of durability under the league's mean, the share the chance grows
  * - `size`: overall points a cliff takes, drawn between the two
- * Starting values; tuned to the NFL's "gone" rates (`npm run careers`).
+ * Tuned with retirement (`RETIRE_BODY`) to the NFL's starters' exits by age and the careers check's survivor lines; a
+ * fragile body's lean is held by the durability line (top vs bottom third at 32, 0.5–2).
  */
 export const CLIFF = {
   from: 28,
   lead: 1,
   latest: 29,
   base: 0.03,
-  perYear: 0.02,
+  perYear: 0.03,
   hurt: 3,
-  fragile: 0.08,
+  fragile: 0.04,
   size: [2, 4] as [number, number],
 };
 /** Cliffs on or off (`on`), and every chance at 1 (`always`, for tests only). */

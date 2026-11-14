@@ -157,14 +157,26 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   cliffs: false,
   byPosition: {},
 });
+/**
+ * Today's rules (spec 2026-11-14-league-age-design.md). Young players reach their level sooner, so a rostered 22-year-old
+ * starts nearer the NFL's rate: growth ends at 24 at a quicker pace; the front seven and safeties grow a year longer and
+ * edge rushers at the old pace, each held to its position's peak age from the NFL's delta-method aging curves
+ * (`scripts/careers.ts`, docs/research/league-age.md). The prime swings less (a swing piles up over a career and keeps
+ * starters old) and the mental game adds less in the 30s; cliffs and retirement (`cliffs.ts`, `RETIRE_BODY`) end careers.
+ */
 export const DEV_RULES: DevRules = {
-  pace: [0.4, 0.8],
+  pace: [0.5, 0.9],
   primeSwing: 0.3,
-  growthEnds: 26,
+  growthEnds: 24,
   mentalGrowth: 0.02,
-  fade: 1.2,
+  fade: 1,
   cliffs: true,
-  byPosition: {},
+  byPosition: {
+    DT: { growthEnds: 25 },
+    LB: { growthEnds: 25 },
+    S: { growthEnds: 25 },
+    EDGE: { growthEnds: 26, pace: [0.15, 0.5] },
+  },
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
 /** When growth ends and how fast it comes at a position, under `rules`. */

@@ -34,6 +34,8 @@ export interface AgingCurve {
  * 25–28; linemen, tight ends and specialists hold long plateaus. A quarterback's legs fade from his
  * late 20s while his arm, accuracy and reads carry him into his mid-30s, so a pocket passer lasts
  * and a runner doesn't, with no archetype needed.
+ * Tight ends and linemen turn at 30 and a quarterback's technique at 33 (a year sooner than the plateaus survivors
+ * show: by 32 NFL tight ends and linemen have lost 27–30% of their peak snap share; docs/research/league-age.md).
  */
 export const AGING: Record<Position, AgingCurve> = {
   RB: { peakEnd: 27, physicalLead: 1, slope: 1.15 },
@@ -43,9 +45,9 @@ export const AGING: Record<Position, AgingCurve> = {
   LB: { peakEnd: 29, physicalLead: 1, slope: 1 },
   EDGE: { peakEnd: 29, physicalLead: 1, slope: 1 },
   DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
-  TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
-  OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
-  QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' } },
+  TE: { peakEnd: 30, physicalLead: 0, slope: 0.8 },
+  OL: { peakEnd: 30, physicalLead: 0, slope: 0.9 },
+  QB: { peakEnd: 33, physicalLead: 4, slope: 0.65, family: { throwPower: 'technical' } },
   K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
   P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
 };
@@ -102,9 +104,10 @@ export function retireChance(p: Player, ovr: number): number {
  * - `perYear`: what each year past that adds
  * - `fall`: what each overall point under his own best adds, past `slack`, from `fallFrom` years past his prime's end
  * - `cap`: the most a year's chance can be (until eight years past, when he goes)
- * Starting values; tuned to the NFL's "gone" rates (`npm run careers`).
+ * Tuned with cliffs to the NFL's starters' exits by age (off every roster) and the careers survivor lines: a cliff ends
+ * most careers within a year or two, and those still playing at 32–35 have kept most of their level.
  */
-export const RETIRE_BODY = { from: -1, perYear: 0.015, fall: 0.05, slack: 1, fallFrom: -2, cap: 0.95 };
+export const RETIRE_BODY = { from: -1, perYear: 0.04, fall: 0.15, slack: 0.6, fallFrom: -2, cap: 0.95 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
 export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {

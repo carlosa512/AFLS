@@ -38,12 +38,12 @@ export const DRAFT_CLASS_SIZE = 260;
  * One object so a tuning script can set them; nothing in the game changes them.
  */
 export const DRAFT_CLASS = {
-  top: 13.6,
+  top: 13.45,
   fall: 7.4,
   shape: 0.75,
-  raw: 0.4,
-  hype: 0.4,
-  spread: 1.4,
+  raw: 0,
+  hype: 0.2,
+  spread: 1,
   /**
    * The share of the usual growth room a position comes in with (1 = all of it): skill positions play sooner, so they
    * come in nearer their ceiling, the growth they don't need added to where they start.
@@ -74,7 +74,8 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // 0.3 below where a new league starts (`npm run careers`, starter OVR by season). Settling ceilings and hype
     // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returned; at 13.95 the drafted
     // league settled at 12.67, two hundredths over the floor, so any reshuffle of who goes where (a draft-day
-    // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds).
+    // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds). Since prospects come in nearer
+    // their ceilings (2026-11-14: no `raw`, less hype room and spread) the top is 13.45, the league's starters 12.9–13.2.
     // Prospects come in raw (`DRAFT_CLASS.raw`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
     const quality = clamp(

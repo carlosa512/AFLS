@@ -536,15 +536,26 @@ console.log(
       .join(' · '),
 );
 // Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
-// happens to a starter the next season, pooled over the leagues' steady seasons. Shown as a known issue until the
-// aging work lands (soft: never counted).
+// happens to a starter the next season, pooled over the leagues' steady seasons. Careers own the old end and the exits:
+// the 31-or-older shares and "gone" are judged against the owner's bands (`judge`). How many young players start, the
+// mean ages they move and how often a starter keeps his job also turn on what teams choose (who starts, who moves): they
+// stay a known issue (`soft`, never counted) until the front offices' work (the next project) lands.
 {
   const known: string[] = [];
+  const line = (label: string, value: number, target: number, digits: number, range: [number, number]) =>
+    `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (NFL ${target.toFixed(digits)}, ${range[0].toFixed(digits)}–${range[1].toFixed(digits)})`;
   const soft = (label: string, value: number, target: number, width: number, digits = 1) => {
     const { normal } = bandFor(target, width);
     const out = !Number.isFinite(value) || value < normal[0] || value > normal[1];
     if (out) known.push(label);
-    return `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (NFL ${target.toFixed(digits)}, ${normal[0].toFixed(digits)}–${normal[1].toFixed(digits)})${out ? ' ⚠' : ''}`;
+    return line(label, value, target, digits, normal) + (out ? ' ⚠' : '');
+  };
+  const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
+    const { usual, normal } = bandFor(target, width);
+    return (
+      check(label, value, usual[0], usual[1], digits, normal) +
+      ` (NFL ${target.toFixed(digits)}, fails outside ${normal[0].toFixed(digits)}–${normal[1].toFixed(digits)})`
+    );
   };
   const all = runs.flatMap((r) => r.age.starters);
   const pct = (xs: number[], f: (a: number) => boolean) => (100 * xs.filter(f).length) / Math.max(1, xs.length);
@@ -562,7 +573,7 @@ console.log(
         pct(ages, (a) => a <= 24),
         nfl.young,
         sw,
-      )} · ${soft(
+      )} · ${judge(
         `${pos} 31 or older %`,
         pct(ages, (a) => a >= 31),
         nfl.old,
@@ -572,14 +583,14 @@ console.log(
   }
   const fates: Record<AgeGroup, Partial<Record<AgeBand, Fate>>> = { all: {}, long: {}, short: {} };
   for (const r of runs) addFates(fates, r.age.fates);
-  console.log('  a starter next season (still starting / gone, %):');
+  console.log('  a starter next season (still starting / gone: off every roster, %):');
   for (const g of ['all', 'long', 'short'] as AgeGroup[])
     for (const b of AGE_BANDS) {
       const f = fates[g][b];
       if (!f) continue;
       const nfl = NFL_NEXT[g][b];
       console.log(
-        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${soft(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
+        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${judge(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
       );
     }
   const exits: Partial<Record<Position, number[]>> = {};
@@ -606,7 +617,9 @@ console.log(
   console.log(`  overall below a starter by age, first kickoff (informational): ${gapLine((r) => r.age.gap.first)}`);
   console.log(`  overall below a starter by age, settled (informational): ${gapLine((r) => r.age.gap.settled)}`);
   if (known.length)
-    console.log(`⚠ known issue: leagues grow older than the NFL's (${known.length} lines outside the owner's bands)`);
+    console.log(
+      `⚠ known issue: too few young starters and too little job turnover against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,
+    );
 }
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).
 {
