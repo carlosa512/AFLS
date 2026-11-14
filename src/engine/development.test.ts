@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
-import { CLIFFS } from './cliffs';
+import { cliffChance, CLIFFS } from './cliffs';
 import { developPlayer, expectedAging, playedShare } from './development';
 import { ageFactor, preferredYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
@@ -452,7 +452,8 @@ describe('what scouts can say about makeup', () => {
     expect(careerOutlook(league, me, wr)).toMatch(/^He is past his prime/);
     const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;
     ol.traits.durability = 11;
-    ol.age = 32;
+    // A lineman turns at 30 (`AGING`, 2026-11-14: a year sooner than the survivor-biased plateau), so 31 is his last.
+    ol.age = 31;
     expect(careerOutlook(league, me, ol)).toBe(
       'He is in the last year of his prime. Expect the decline to start next year.',
     );
@@ -529,9 +530,14 @@ describe('front offices price the cliff', () => {
     } finally {
       CLIFFS.on = true;
     }
-    (Object.keys(AGING) as Position[]).forEach((_, j) => {
+    const POS = Object.keys(AGING) as Position[];
+    POS.forEach((_, j) => {
       for (let age = 21; age < 28; age++) expect(on[j][age - 21]).toBe(off[j][age - 21]);
-      for (let age = 30; age <= 36; age++) expect(on[j][age - 21]).toBeLessThan(off[j][age - 21]);
+      // From 30 a cliff can come at every position but K and P, whose cliffs wait for their own turn.
+      for (let age = 30; age <= 36; age++)
+        if (cliffChance(age, POS[j], { durability: TRAIT_MEAN }, false) > 0)
+          expect(on[j][age - 21]).toBeLessThan(off[j][age - 21]);
+        else expect(on[j][age - 21]).toBe(off[j][age - 21]);
     });
     expect(read()).toEqual(on); // no stale table once cliffs are back on
   });

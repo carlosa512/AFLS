@@ -9,6 +9,7 @@ import {
   MOOD_TILT,
   CEILING_SWING,
   DEV_RULES,
+  timingAt,
   playedShare,
   RELEASE,
   rollInputs,
@@ -17,6 +18,7 @@ import {
   weekWeight,
   yearTargets,
 } from './development';
+import { AGING } from './aging';
 import { CLIFFS } from './cliffs';
 import { createLeague } from './generate';
 import { playerOvr } from './positions';
@@ -346,7 +348,10 @@ describe("mood tilts a young player's year (G2)", () => {
     // Every rostered young player, so some have a year that's all but landed in March.
     const league = createLeague({ seed: 'tilt-close' });
     for (const p of Object.values(league.players)) p.morale = { level: 0, jolts: [] };
-    const young = Object.values(league.players).filter((p) => p.teamId !== null && p.age <= 25);
+    // In a growth year: growth ends by position (`timingAt`), at 24 for most and 26 at the latest.
+    const young = Object.values(league.players).filter(
+      (p) => p.teamId !== null && p.age < timingAt(DEV_RULES, p.position).growthEnds,
+    );
     const jumps = new Map<number, [Player, Player]>();
     for (const p of young) {
       const { rng, ctx } = year(league, p);
@@ -431,6 +436,42 @@ describe('a cliff year', () => {
       });
     } finally {
       CLIFFS.always = false;
+    }
+  });
+});
+
+describe('an old save', () => {
+  /** A veteran lineman's, tight end's and quarterback's year rolled and finished under the old rules (an old save's). */
+  const finishOld = () => {
+    let out: number[][] = [];
+    withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+      const league = createLeague({ seed: 'old-aging' });
+      const ps = Object.values(league.players)
+        .filter((p) => p.teamId !== null && ['OL', 'TE', 'QB'].includes(p.position) && p.age >= 29)
+        .slice(0, 60);
+      for (const p of ps) {
+        const { rng, ctx } = year(league, p);
+        beginYear(league, rng(), p, { ...ctx, rules: 1 });
+        p.age++;
+      }
+      for (const p of ps) trueUp(league, p);
+      out = ps.map((p) => ATTRIBUTES.map((a) => p.ratings[a]));
+    });
+    return out;
+  };
+
+  it('finishes its open year on the aging table it was rolled on, whatever the table says now', () => {
+    const before = finishOld();
+    const was = { OL: { ...AGING.OL }, TE: { ...AGING.TE }, QB: { ...AGING.QB } };
+    Object.assign(AGING.OL, { peakEnd: 25 });
+    Object.assign(AGING.TE, { peakEnd: 25 });
+    Object.assign(AGING.QB, { peakEnd: 28 });
+    try {
+      expect(finishOld()).toEqual(before);
+    } finally {
+      Object.assign(AGING.OL, was.OL);
+      Object.assign(AGING.TE, was.TE);
+      Object.assign(AGING.QB, was.QB);
     }
   });
 });

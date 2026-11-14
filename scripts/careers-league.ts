@@ -18,6 +18,7 @@ import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import { seasonTops } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
+import { severeInjuryIn } from '../src/engine/cliffs';
 import { onGameRoster } from '../src/engine/roster';
 import {
   addFates,
@@ -230,7 +231,12 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
             developPlayer(
               new Rng(`${league.seed}:dev:${league.season + 1}:${p.id}`),
               clone,
-              rollInputs({ playedShare: playedShare(p, league.season), ...coaching, bodyAs: bodyAs(p) }),
+              rollInputs({
+                playedShare: playedShare(p, league.season),
+                ...coaching,
+                bodyAs: bodyAs(p),
+                hurt: severeInjuryIn(p, league.season),
+              }),
             );
             return playerOvr(clone);
           };

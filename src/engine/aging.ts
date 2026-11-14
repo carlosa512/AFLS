@@ -66,8 +66,13 @@ export const agingFamily = (position: Position, attr: Attribute): AgingFamily =>
   AGING[position].family?.[attr] ?? ATTRIBUTE_INFO[attr].aging;
 
 /** Last age before this family of ratings starts to decline, for a player with these traits. */
-export function declineOnset(position: Position, family: AgingFamily, traits?: Pick<Traits, 'durability'>): number {
-  const c = AGING[position];
+export function declineOnset(
+  position: Position,
+  family: AgingFamily,
+  traits?: Pick<Traits, 'durability'>,
+  curve: AgingCurve = AGING[position],
+): number {
+  const c = curve;
   const shift = traits ? bodyShift(traits) : 0;
   return c.peakEnd + shift + (family === 'physical' ? -c.physicalLead : family === 'mental' ? MENTAL_LAG : 0);
 }

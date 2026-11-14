@@ -11,7 +11,7 @@
  * one jump would. Whatever hasn't landed by the next new league year lands then (the true-up), before
  * the next roll. With everything released in March (`RELEASE` at 1/0/0/0) this is the game as it was.
  */
-import { agingFamily, AGING, declineOnset } from './aging';
+import { agingFamily, AGING, declineOnset, type AgingCurve } from './aging';
 import { CLIFF, CLIFFS, cliffChance, severeInjuryIn } from './cliffs';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
@@ -148,6 +148,8 @@ export interface DevRules {
   fade: number;
   cliffs: boolean;
   byPosition: Partial<Record<Position, Partial<Pick<DevRules, 'growthEnds' | 'pace' | 'mentalGrowth'>>>>;
+  /** The aging table the year reads, where it differs from today's `AGING` (an old year keeps the table it began on). */
+  aging: Partial<Record<Position, AgingCurve>>;
 }
 export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   pace: [0.15, 0.5] as [number, number],
@@ -157,6 +159,21 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   fade: 1,
   cliffs: false,
   byPosition: {},
+  // `AGING` as it stood before 2026-11-14 (TE and OL turned at 31, a quarterback's technique at 34).
+  aging: {
+    RB: { peakEnd: 27, physicalLead: 1, slope: 1.15 },
+    WR: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    CB: { peakEnd: 28, physicalLead: 1, slope: 1 },
+    S: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    LB: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    EDGE: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
+    TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
+    OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
+    QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' as const } },
+    K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
+    P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
+  },
 });
 /**
  * Today's rules (spec 2026-11-14-league-age-design.md). Young players reach their level sooner, so a rostered 22-year-old
@@ -180,8 +197,11 @@ export const DEV_RULES: DevRules = {
     // A passer's reads keep sharpening into his 30s (accuracy and reads at 34 hold within 3% of his peak).
     QB: { mentalGrowth: 0.1 },
   },
+  aging: {},
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
+/** A position's aging curve under `rules`: today's `AGING` unless the rules keep their own. */
+const curveOf = (rules: Readonly<DevRules>, pos: Position): AgingCurve => rules.aging[pos] ?? AGING[pos];
 /** When growth ends and how fast it comes at a position, under `rules`. */
 export const timingAt = (rules: Readonly<DevRules>, pos: Position) => ({
   growthEnds: rules.byPosition[pos]?.growthEnds ?? rules.growthEnds,
@@ -240,12 +260,12 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
     const family = agingFamily(pos, attr);
     // Technique and the mental game age with the job; the body keeps the clock of the position it grew up in.
     const clock = family === 'physical' && ctx.bodyAs ? ctx.bodyAs : pos;
-    const past = age - declineOnset(clock, family, traits);
+    const past = age - declineOnset(clock, family, traits, curveOf(rules, clock));
     let d: number;
     if (past > 0) {
       // Within a year of the turn the decline phases in; after that it speeds up every season.
       const coached = ctx.decline?.[family] ?? 1;
-      const fade = AGING[clock].slope * declineMult(traits) * rules.fade;
+      const fade = curveOf(rules, clock).slope * declineMult(traits) * rules.fade;
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
       d = delta * Math.min(2, growthShare(family, age, ends) * norm);
@@ -362,7 +382,8 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
     ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
     // His ceiling can settle before the year has landed (`ceiling.ts`): the year keeps the one it was rolled with.
     ...(p.age < timingAt(DEV_RULES, p.position).growthEnds ? { potential: p.potential } : {}),
-    rules: 2,
+    // A year rolled under the old rules (a test of an old save) keeps none: it reads as v1.
+    ...(ctx.rules === 1 ? {} : { rules: 2 as const }),
     done: 0,
     applied,
   };
