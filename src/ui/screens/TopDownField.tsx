@@ -251,6 +251,7 @@ export function TopDownField({
   animKey,
   speed,
   still = false,
+  beat = 0,
   final = false,
   fallback,
   onDone,
@@ -267,6 +268,8 @@ export function TopDownField({
   animKey: string;
   speed: number;
   still?: boolean;
+  /** A still landing reached by playing on: fade the players, glide the ball, set them at the landing, over this many ms. */
+  beat?: number;
   /** The game's last play: the final whistle follows it (the celebration, the handshakes, the walk off). */
   final?: boolean;
   /** Shown if a play can't be staged: the broadcast field. */
@@ -690,7 +693,7 @@ export function TopDownField({
     };
 
     /** The play itself, at `step`. */
-    const place = (step: number, seconds: number) => {
+    const place = (step: number, seconds: number, opacity = 1) => {
       drawBarks(null);
       view.phi = turnTo;
       view.swap = swap;
@@ -707,7 +710,7 @@ export function TopDownField({
         const x = s.pos[(step * n + k) * 2];
         const y = s.pos[(step * n + k) * 2 + 1];
         const down = s.kneel?.id === s.ids[k] ? Math.max(0, Math.min(1, (step * s.dt - s.kneel.t) / KNEEL_EASE)) : 0;
-        drawDot(s.ids[k], x, y, 1, 1 - (1 - KNEEL_SCALE) * down);
+        drawDot(s.ids[k], x, y, opacity, 1 - (1 - KNEEL_SCALE) * down);
         // At the whistle: how he was moving, so he pulls up over a few steps (`transition.ts`), except the men in the
         // pile on the carrier, who go down where the tackle is.
         const prev = Math.max(0, step - 2);
@@ -859,27 +862,82 @@ export function TopDownField({
     // An injury with no stoppage staged (a viewer who asked for less motion, a man the field never placed): its call
     // is all there is of it, so with the hold that follows it stays up as long as Broadcast's banner at any speed.
     const unstaged = hurtCall ? Math.max(0, INJURY_FLOOR - holdAfter(entry) / speed) : 0;
+    // The final whistle after a still landing on the game's last play: the celebration, the handshakes, the walk off.
+    const finale = () => {
+      let raf = 0;
+      let t0 = 0;
+      let prev = 0;
+      const tick = (now: number) => {
+        if (!t0) t0 = prev = now;
+        const frame = ((now - prev) / 1000) * speed;
+        prev = now;
+        if (finaleFrame(((now - t0) / 1000) * speed, frame)) return doneRef.current();
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    };
+    // The fast-forward to a still landing, over the whole beat in real time (its length already reads the speed): the
+    // men on the field fade where they stand, the ball glides to where the skipped plays left it, and the men come up
+    // where the landed play ended.
+    if (still && beat > 0 && !reduced) {
+      const gone = [...mem.spots.entries()];
+      const ballFrom = { x: mem.ballX ?? s.ball[0], y: mem.ballX === null ? s.ball[1] : mem.ballY };
+      const ballTo = { x: s.ball[last * 3], y: s.ball[last * 3 + 1] };
+      drawFlags(null);
+      callRef.current?.style.setProperty('opacity', '0');
+      // Only the men the last play left on the field are drawn as it starts; the landed play's come up at its end.
+      const was = new Set(gone.map(([id]) => id));
+      for (const id of dotRefs.current.keys()) if (!was.has(id)) drawDot(id, 0, -20, 0);
+      let raf = 0;
+      let t0 = 0;
+      let prev = 0;
+      let set = false;
+      let stop: (() => void) | undefined;
+      const tick = (now: number) => {
+        if (!t0) t0 = prev = now;
+        const k = Math.min(1, (now - t0) / beat);
+        const frame = (now - prev) / 1000;
+        prev = now;
+        if (k < 0.7) {
+          view.phi = mem.phi ?? turnTo;
+          const fade = Math.max(0, 1 - k / 0.3);
+          for (const [id, p] of gone) drawDot(id, p.x, p.y, fade);
+          const g = Math.min(1, Math.max(0, (k - 0.3) / 0.4));
+          const e = g * g * (3 - 2 * g);
+          const bx = ballFrom.x + (ballTo.x - ballFrom.x) * e;
+          drawBall(bx, ballFrom.y + (ballTo.y - ballFrom.y) * e, 0);
+          camera(bx, frame);
+        } else {
+          if (!set) {
+            clearBench();
+            for (const [id] of gone) if (!s.ids.includes(id)) drawDot(id, 0, -20, 0);
+            set = true;
+          }
+          place(last, frame, Math.min(1, (k - 0.7) / 0.3));
+          drawFlags('down');
+        }
+        if (k >= 1) {
+          if (ending) stop = finale();
+          else doneRef.current();
+          return;
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => {
+        cancelAnimationFrame(raf);
+        stop?.();
+      };
+    }
     if (still || reduced) {
       // Nothing moves, so the window jumps straight to where the play ended.
       clearBench();
       place(last, Infinity);
       drawFlags('down');
-      if (ending && !reduced) {
-        // A skipped batch that lands on the last play still gets its final whistle.
-        let raf = 0;
-        let t0 = 0;
-        let prev = 0;
-        const tick = (now: number) => {
-          if (!t0) t0 = prev = now;
-          const frame = ((now - prev) / 1000) * speed;
-          prev = now;
-          if (finaleFrame(((now - t0) / 1000) * speed, frame)) return doneRef.current();
-          raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-      }
-      const t = setTimeout(() => doneRef.current(), Math.max(450 / speed, unstaged));
+      // A skipped batch that lands on the last play still gets its final whistle.
+      if (ending && !reduced) return finale();
+      const t = setTimeout(() => doneRef.current(), Math.max(450 / speed, unstaged, still ? beat : 0));
       return () => clearTimeout(t);
     }
     let raf = 0;
@@ -954,7 +1012,7 @@ export function TopDownField({
     };
     // animKey names the play being shown; restarting on it replays the animation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animKey, staged, layout]);
+  }, [animKey, staged, layout, beat]);
 
   if (!record) return null;
   if (!staged) return <>{fallback}</>;

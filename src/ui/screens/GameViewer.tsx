@@ -437,6 +437,7 @@ export function GameViewer({
                 animKey={`${index}:${run}`}
                 speed={shownSpeed}
                 still={still}
+                beat={beat}
                 final={index === plays.length - 1}
                 onDone={onDone}
                 onSnap={() => setSnapped(true)}
