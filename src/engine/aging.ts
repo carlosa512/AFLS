@@ -42,10 +42,10 @@ export const AGING: Record<Position, AgingCurve> = {
   S: { peakEnd: 29, physicalLead: 1, slope: 1 },
   LB: { peakEnd: 29, physicalLead: 1, slope: 1 },
   EDGE: { peakEnd: 29, physicalLead: 1, slope: 1 },
-  DT: { peakEnd: 29, physicalLead: 0, slope: 1 },
-  TE: { peakEnd: 30, physicalLead: 0, slope: 0.8 },
-  OL: { peakEnd: 30, physicalLead: 0, slope: 0.9 },
-  QB: { peakEnd: 33, physicalLead: 4, slope: 0.65, family: { throwPower: 'technical' } },
+  DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
+  TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
+  OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
+  QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' } },
   K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
   P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
 };
@@ -86,7 +86,8 @@ export function retireChance(p: Player, ovr: number): number {
   if (over >= 8) return 1;
   // The body: a chance that climbs a year at a time from just before his prime ends, and more the further he has fallen
   // from his own best (a cliff, `cliffs.ts`, is how most careers end).
-  const fall = Math.max(0, bestOvr(p) - ovr - RETIRE_BODY.slack);
+  // Only near the end of his prime: a young player slipping toward a ceiling that settled under him isn't done.
+  const fall = over >= RETIRE_BODY.fallFrom ? Math.max(0, bestOvr(p) - ovr - RETIRE_BODY.slack) : 0;
   const hazard = clamp(
     RETIRE_BODY.perYear * Math.max(0, over - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
     0,
@@ -99,11 +100,11 @@ export function retireChance(p: Player, ovr: number): number {
  * Retirement under contract (spec 2026-11-14-league-age-design.md §5):
  * - `from`: years past his prime's end (his body clock's) that the yearly chance starts to climb
  * - `perYear`: what each year past that adds
- * - `fall`: what each overall point under his own best adds, past `slack`
+ * - `fall`: what each overall point under his own best adds, past `slack`, from `fallFrom` years past his prime's end
  * - `cap`: the most a year's chance can be (until eight years past, when he goes)
  * Starting values; tuned to the NFL's "gone" rates (`npm run careers`).
  */
-export const RETIRE_BODY = { from: -1, perYear: 0.015, fall: 0.05, slack: 1, cap: 0.95 };
+export const RETIRE_BODY = { from: -1, perYear: 0.015, fall: 0.05, slack: 1, fallFrom: -2, cap: 0.95 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
 export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {

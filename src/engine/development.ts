@@ -121,7 +121,7 @@ const SLIP_SLACK = 0.3;
 const GROWTH_NORM = 1.1;
 
 /** Where growth lands: physical tools are about done by 25; late gains are technique and the mental game. */
-function growthShare(family: AgingFamily, age: number, ends = DEV_RULES.growthEnds): number {
+function growthShare(family: AgingFamily, age: number, ends: number): number {
   if (family === 'physical') return clamp((ends - age) / 3, 0, 1);
   return family === 'mental' ? 1.2 : 1;
 }
@@ -137,6 +137,7 @@ const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, 
  * - `mentalGrowth`: what the mental game adds each year through the prime
  * - `fade`: how steep the smooth decline is for everyone (a cliff takes the rest)
  * - `cliffs`: whether a veteran can fall off a cliff (`cliffs.ts`)
+ * - `byPosition`: a position's own `growthEnds` and `pace` (skill players are ready sooner than linemen and passers)
  */
 export interface DevRules {
   pace: [number, number];
@@ -145,6 +146,7 @@ export interface DevRules {
   mentalGrowth: number;
   fade: number;
   cliffs: boolean;
+  byPosition: Partial<Record<Position, Partial<Pick<DevRules, 'growthEnds' | 'pace'>>>>;
 }
 export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   pace: [0.15, 0.5] as [number, number],
@@ -153,6 +155,7 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   mentalGrowth: 0.06,
   fade: 1,
   cliffs: false,
+  byPosition: {},
 });
 export const DEV_RULES: DevRules = {
   pace: [0.4, 0.8],
@@ -161,8 +164,14 @@ export const DEV_RULES: DevRules = {
   mentalGrowth: 0.02,
   fade: 1.2,
   cliffs: true,
+  byPosition: {},
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
+/** When growth ends and how fast it comes at a position, under `rules`. */
+export const timingAt = (rules: Readonly<DevRules>, pos: Position) => ({
+  growthEnds: rules.byPosition[pos]?.growthEnds ?? rules.growthEnds,
+  pace: rules.byPosition[pos]?.pace ?? rules.pace,
+});
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
 type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'shifts' | 'ratings'>;
@@ -183,13 +192,13 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   const weights = OVR_WEIGHTS[pos];
   const attrs = ATTRIBUTES.filter((a) => profile[a] !== undefined);
   const rules = rulesOf(ctx);
-  const ends = rules.growthEnds;
+  const { growthEnds: ends, pace: paceRange } = timingAt(rules, pos);
 
   // Growth (or prime-years drift), in overall points.
   let delta: number;
   if (age < ends) {
     const gap = player.potential - overall(player.ratings, pos);
-    const pace = rng.float(rules.pace[0], rules.pace[1]);
+    const pace = rng.float(paceRange[0], paceRange[1]);
     // A ceiling the league settled under him (`ceiling.ts`): he slips toward it, a point a year at most. Same draw.
     delta =
       gap >= 0
@@ -332,11 +341,11 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
   p.dev = {
     season: league.season,
     ...(Math.abs(games / SEASON_GAMES - ctx.playedShare) < 1e-9 ? { games } : { share: ctx.playedShare }),
-    ...(p.age < DEV_RULES.growthEnds && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
+    ...(p.age < timingAt(DEV_RULES, p.position).growthEnds && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
     ...(fading && ctx.decline ? { decline: FAMILIES.map((f) => ctx.decline![f] ?? 1) } : {}),
     ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
     // His ceiling can settle before the year has landed (`ceiling.ts`): the year keeps the one it was rolled with.
-    ...(p.age < DEV_RULES.growthEnds ? { potential: p.potential } : {}),
+    ...(p.age < timingAt(DEV_RULES, p.position).growthEnds ? { potential: p.potential } : {}),
     rules: 2,
     done: 0,
     applied,
@@ -519,7 +528,7 @@ export function expectedAging(pos: Position, age: number): number {
           FAMILY_LOSS[family] *
           Math.min(1, past) *
           (1 + 0.25 * Math.max(0, past - 1) + 0.25)
-        : family === 'mental' && age >= DEV_RULES.growthEnds
+        : family === 'mental' && age >= timingAt(DEV_RULES, pos).growthEnds
           ? DEV_RULES.mentalGrowth
           : 0;
     sum += w * d;

@@ -24,7 +24,7 @@ import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/
 import { CEILING_SWING, developPlayer, recordRatings } from '../src/engine/development';
 import { retireChance } from '../src/engine/aging';
 import { generatePlayer } from '../src/engine/generate';
-import { DRAFT_CLASS } from '../src/engine/offseason/draft';
+import { DRAFT_CLASS, growthMean } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
@@ -127,17 +127,20 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
     const p = generatePlayer(rng, {
       id: 900000 + i,
       position: pos,
-      quality: rng.normal(11, 1.2) - DRAFT_CLASS.raw,
+      // As `generateDraftClass` makes him: a position that's ready sooner comes in nearer the same ceiling.
+      quality:
+        rng.normal(11, 1.2) - DRAFT_CLASS.raw + (1 - (DRAFT_CLASS.ready[pos] ?? 1)) * DRAFT_CLASS.lift * growthMean(),
       age: 21,
       teamId: null,
       jerseysUsed: new Set(),
     });
     const growth =
-      DRAFT_CLASS.raw +
-      DRAFT_CLASS.hype +
-      Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
-      rng.float(0, 0.8) +
-      (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+      (DRAFT_CLASS.ready[pos] ?? 1) *
+      (DRAFT_CLASS.raw +
+        DRAFT_CLASS.hype +
+        Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
+        rng.float(0, 0.8) +
+        (rng.chance(0.06) ? rng.float(2, 4.5) : 0));
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
     const alive: boolean[] = [];
@@ -186,15 +189,16 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
 const curve = (rows: number[][]) => AGES.map((_, j) => mean(rows.map((r) => r[j])));
 const at = (c: number[], age: number) => c[age - 21];
 /**
- * Below his own best at a late age, read on the players still in the league then: the research measured players still
- * playing against their own peak (a curve over everyone, cliffs and all, would read a fall the research never saw, and
- * survivors against everyone's peak would read their luck as no fall at all).
+ * Below their peak at a late age, read on the players still in the league then: the research measured players still
+ * playing, so a curve over everyone, cliffs and all, would read a fall the research never saw. The survivors' own average
+ * curve, its peak against its value at that age (each man's single best season would read a year's luck as a fall).
  */
 const lateBelow = (pos: Position, age: number) => {
   const c = cohorts[pos];
   const j = age - 21;
-  const falls = c.ovr.filter((_, i) => c.alive[i][j]).map((r) => Math.max(...r.slice(0, j + 1)) - r[j]);
-  return { value: mean(falls), n: falls.length };
+  const left = c.ovr.filter((_, i) => c.alive[i][j]);
+  const curveLeft = AGES.slice(0, j + 1).map((_, k) => mean(left.map((r) => r[k])));
+  return { value: Math.max(...curveLeft) - curveLeft[j], n: left.length };
 };
 const late = (label: string, pos: Position, age: number, lo: number, hi: number) => {
   const { value, n } = lateBelow(pos, age);
@@ -263,15 +267,11 @@ for (const pos of ['TE', 'OL'] as const) {
   // Accuracy and reads at 34 against his own best, for the quarterbacks still playing then (as the research read them).
   const accOf = (i: number, j: number) => (q.throwAccShort[i][j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3;
   const j34 = 34 - 21;
-  const acc34 = mean(
-    cohorts.QB.alive
-      .map((alive, i) =>
-        alive[j34] ? accOf(i, j34) / Math.max(...AGES.slice(0, j34 + 1).map((_, j) => accOf(i, j))) : NaN,
-      )
-      .filter(Number.isFinite),
-  );
+  const left34 = cohorts.QB.alive.map((alive, i) => (alive[j34] ? i : -1)).filter((i) => i >= 0);
+  const accLeft = AGES.slice(0, j34 + 1).map((_, j) => mean(left34.map((i) => accOf(i, j))));
+  const acc34 = accLeft[j34] / Math.max(...accLeft);
   lines.push(
-    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs his peak (survivors)', acc34, 0.97, 1.01, 3)}`,
+    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak (survivors)', acc34, 0.97, 1.01, 3)}`,
   );
 }
 for (const pos of ['K', 'P'] as const)

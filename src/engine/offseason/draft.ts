@@ -49,10 +49,15 @@ export const DRAFT_CLASS = {
    * come in nearer their ceiling, the growth they don't need added to where they start.
    */
   ready: {} as Partial<Record<Position, number>>,
+  /**
+   * The share of the growth room a ready position doesn't need that it starts with instead: under 1, because a player
+   * who comes in near his ceiling reaches it, where one with all of his room still has some of it left at 26.
+   */
+  lift: 1,
 };
 
 /** A prospect's mean growth room, overall points (the draws below: half-normal, uniform, the rare boom). */
-const growthMean = () =>
+export const growthMean = () =>
   DRAFT_CLASS.raw + DRAFT_CLASS.hype + DRAFT_CLASS.spread * Math.sqrt(2 / Math.PI) + 0.4 + 0.06 * 3.25;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
@@ -86,7 +91,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
       position,
-      quality: clamp(quality + (1 - ready) * growthMean(), 4, 16),
+      quality: clamp(quality + (1 - ready) * DRAFT_CLASS.lift * growthMean(), 4, 16),
       age: rng.int(21, 23),
       teamId: null,
       jerseysUsed: new Set(),
