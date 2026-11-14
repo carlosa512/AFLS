@@ -28,14 +28,32 @@ export const DRAFT_CLASS_SIZE = 260;
 /**
  * What a draft class is made of (`generateDraftClass`), in overall points:
  * - `top`: the class's best before `raw`; set so the drafted league's starters hold their level (`npm run careers`)
+ * - `fall`: how far the class's last pick sits under its first
  * - `shape`: how fast the class falls off from the top (a smaller power falls faster past the first round)
  * - `raw`: how far under his ready-to-play self a prospect comes in, given back as room to grow
  * - `hype`: room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives
  *   the class's talent back
  * - `spread`: how far growth spreads (sd of a half-normal): most grow a little, a few a lot
+ * - `ready`: by position, below
  * One object so a tuning script can set them; nothing in the game changes them.
  */
-export const DRAFT_CLASS = { top: 13.6, shape: 0.75, raw: 0.4, hype: 0.4, spread: 1.4 };
+export const DRAFT_CLASS = {
+  top: 13.6,
+  fall: 7.4,
+  shape: 0.75,
+  raw: 0.4,
+  hype: 0.4,
+  spread: 1.4,
+  /**
+   * The share of the usual growth room a position comes in with (1 = all of it): skill positions play sooner, so they
+   * come in nearer their ceiling, the growth they don't need added to where they start.
+   */
+  ready: {} as Partial<Record<Position, number>>,
+};
+
+/** A prospect's mean growth room, overall points (the draws below: half-normal, uniform, the rare boom). */
+const growthMean = () =>
+  DRAFT_CLASS.raw + DRAFT_CLASS.hype + DRAFT_CLASS.spread * Math.sqrt(2 / Math.PI) + 0.4 + 0.06 * 3.25;
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
@@ -55,15 +73,20 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // Prospects come in raw (`DRAFT_CLASS.raw`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
     const quality = clamp(
-      DRAFT_CLASS.top - DRAFT_CLASS.raw - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** DRAFT_CLASS.shape + rng.normal(0, 0.9),
+      DRAFT_CLASS.top -
+        DRAFT_CLASS.raw -
+        DRAFT_CLASS.fall * (i / (DRAFT_CLASS_SIZE - 1)) ** DRAFT_CLASS.shape +
+        rng.normal(0, 0.9),
       4,
       16,
     );
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
+    // A position that's ready sooner (`DRAFT_CLASS.ready`) comes in that much nearer his ceiling, the same ceiling.
+    const ready = DRAFT_CLASS.ready[position] ?? 1;
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
       position,
-      quality,
+      quality: clamp(quality + (1 - ready) * growthMean(), 4, 16),
       age: rng.int(21, 23),
       teamId: null,
       jerseysUsed: new Set(),
@@ -75,11 +98,12 @@ export function generateDraftClass(league: League, rng: Rng): void {
     ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth =
-      DRAFT_CLASS.raw +
-      DRAFT_CLASS.hype +
-      Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
-      rng.float(0, 0.8) +
-      (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+      ready *
+      (DRAFT_CLASS.raw +
+        DRAFT_CLASS.hype +
+        Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
+        rng.float(0, 0.8) +
+        (rng.chance(0.06) ? rng.float(2, 4.5) : 0));
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
     // Scouts see a noisy grade and an even noisier ceiling; noisier still on less film (a small school, the Pathway).
     const film = Math.sqrt(filmScale(p));
