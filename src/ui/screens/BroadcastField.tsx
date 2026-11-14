@@ -137,6 +137,7 @@ export function Field({
   animKey,
   speed,
   still = false,
+  beat = 0,
   onDone,
 }: {
   home: Team;
@@ -155,6 +156,8 @@ export function Field({
   speed: number;
   /** A play the highlight level skipped: show where it ended without animating it. */
   still?: boolean;
+  /** A still landing reached by playing on: glide to it over this many ms (0 lands at once). */
+  beat?: number;
   onDone: () => void;
 }) {
   const ballRef = useRef<SVGEllipseElement>(null);
@@ -166,8 +169,11 @@ export function Field({
   const memory = useRef<FieldMemory | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  /** The play whose fast-forward ran to its end: its beat dropping to 0 afterwards changes nothing on the field. */
+  const glided = useRef('');
 
   useEffect(() => {
+    if (!beat && glided.current === animKey) return;
     // Teams switch ends each quarter: the play is drawn where the stadium has it, read from its own quarter.
     const quarter = entry?.quarter ?? 1;
     const swapped = endsSwitched(quarter);
@@ -264,9 +270,33 @@ export function Field({
       settleLines();
     };
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // The fast-forward: the ball and the chains glide to where the skipped plays left them, over the whole beat (real
+    // time: the beat's length already reads the speed), however far that is.
+    if (still && beat > 0 && !reduced) {
+      let raf = 0;
+      let t0 = 0;
+      const glide = (now: number) => {
+        if (!t0) t0 = now;
+        const k = Math.min(1, (now - t0) / beat);
+        if (k >= 1) {
+          finish();
+          glided.current = animKey;
+          doneRef.current();
+          return;
+        }
+        const e = ease(k);
+        place(from.x + (end.x - from.x) * e, from.y + (end.y - from.y) * e, 0, 1 + (endOpacity - 1) * e);
+        lineAt(losRef.current, from.los, lines.los, k);
+        lineAt(gainRef.current, from.gain, lines.gain, k);
+        raf = requestAnimationFrame(glide);
+      };
+      trailRef.current?.setAttribute('d', '');
+      raf = requestAnimationFrame(glide);
+      return () => cancelAnimationFrame(raf);
+    }
     if (reduced || still || (!segs.length && !respot)) {
       finish();
-      const t = setTimeout(() => doneRef.current(), 450 / speed);
+      const t = setTimeout(() => doneRef.current(), still && beat > 0 ? beat : 450 / speed);
       return () => clearTimeout(t);
     }
 
@@ -315,7 +345,7 @@ export function Field({
     return () => cancelAnimationFrame(raf);
     // animKey identifies the play being shown; restarting on it replays the animation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animKey]);
+  }, [animKey, beat]);
 
   const view = stadium ?? plainView(home.abbrev, home.colors as [string, string]);
   return (

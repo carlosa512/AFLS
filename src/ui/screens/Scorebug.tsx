@@ -3,6 +3,7 @@
  * left and score, then the clock. It reads through the last play whose result has been shown, so a score or a
  * timeout never gets ahead of the picture. Spec: docs/superpowers/specs/2026-11-10-broadcast-info-design.md §2.
  */
+import type { ReactNode } from 'react';
 import type { Game, League, PlayLogEntry, Team } from '../../engine/types';
 import { gameClock } from '../format';
 import { recordBefore, timeoutsAt } from '../gameRead';
@@ -14,7 +15,7 @@ export function downParts(
   e: PlayLogEntry,
   home: Team,
   away: Team,
-): { ord: string; togo: string; down: string; spot: string } | null {
+): { ord: string; togo: string; down: string; spot: string; where: string } | null {
   if (!e.down) return null;
   const ord = ORDINALS[e.down];
   const togo = e.yardLine + e.distance >= 100 ? 'Goal' : String(e.distance);
@@ -26,7 +27,7 @@ export function downParts(
       : e.yardLine < 50
         ? `${off.abbrev} ${e.yardLine}`
         : `${def.abbrev} ${100 - e.yardLine}`;
-  return { ord, togo, down: `${ord} & ${togo}`.toUpperCase(), spot: `Ball on ${where}` };
+  return { ord, togo, down: `${ord} & ${togo}`.toUpperCase(), spot: `Ball on ${where}`, where };
 }
 
 const recordText = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
@@ -42,6 +43,7 @@ export function Scorebug({
   live = false,
   final = false,
   label,
+  clock,
 }: {
   league: League;
   game: Game;
@@ -57,6 +59,8 @@ export function Scorebug({
   final?: boolean;
   /** The week or the playoff round. */
   label: string;
+  /** In place of the play's period and clock: a fast-forward's count (`BeatClock`). */
+  clock?: ReactNode;
 }) {
   const entry = plays[index];
   const shown = told ? index : index - 1;
@@ -105,7 +109,7 @@ export function Scorebug({
           ) : (
             <>
               {live && <span className="live-dot" aria-hidden="true" />}
-              {period} · {gameClock(entry.clock)}
+              {clock ?? `${period} · ${gameClock(entry.clock)}`}
             </>
           )}
         </span>
