@@ -22,7 +22,9 @@ if a.download:
     files = [('players.csv', f'{BASE}/players/players.csv')] + [
         (f'snap_counts_{y}.csv', f'{BASE}/snap_counts/snap_counts_{y}.csv') for y in YEARS] + [
         # For scripts/research-peaks.py: seasonal stats (EPA a play).
-        (f'stats_player_reg_{y}.csv', f'{BASE}/stats_player/stats_player_reg_{y}.csv') for y in YEARS]
+        (f'stats_player_reg_{y}.csv', f'{BASE}/stats_player/stats_player_reg_{y}.csv') for y in YEARS] + [
+        # Who was on a roster (the 53, inactive, or a reserve list) in any week: "gone" is off every roster.
+        (f'roster_weekly_{y}.csv', f'{BASE}/weekly_rosters/roster_weekly_{y}.csv') for y in YEARS]
     for name, url in files:
         if (root / name).exists():
             continue
@@ -41,6 +43,17 @@ SIDE = {**{x: 'offense_snaps' for x in ('QB', 'RB', 'WR', 'TE', 'OL')},
         **{x: 'defense_snaps' for x in ('DT', 'EDGE', 'LB', 'CB', 'S')}, 'K': 'st_snaps', 'P': 'st_snaps'}
 
 births = {r['pfr_id']: r['birth_date'] for r in load('players.csv') if r.get('pfr_id') and r.get('birth_date')}
+pfr2gsis = {r['pfr_id']: r['gsis_id'] for r in load('players.csv') if r.get('pfr_id') and r.get('gsis_id')}
+# On a roster in any regular-season week: on the 53 (ACT), inactive that game (INA) or a reserve list (RES); the
+# practice squad, cut and retired aren't. A player with snaps that season was on one, whatever the file says.
+rostered = {}
+for y in YEARS:
+    ids = set()
+    if (root / f'roster_weekly_{y}.csv').exists():
+        for r in load(f'roster_weekly_{y}.csv'):
+            if r['game_type'] == 'REG' and r['status'] in ('ACT', 'INA', 'RES') and r['gsis_id']:
+                ids.add(r['gsis_id'])
+    rostered[y] = ids
 # season -> player -> total snaps of any kind; season -> (team, pos) -> player -> side snaps
 anysnaps = {}
 side = {}
@@ -95,8 +108,12 @@ for span, ys in (('2021-25', range(2021, 2026)), ('2016-25', range(2016, 2026)))
 GROUPS = {'all': list(STARTERS), 'QB': ['QB'], 'long prime (TE OL DT)': ['TE', 'OL', 'DT'],
           'short prime (RB WR CB EDGE LB S)': ['RB', 'WR', 'CB', 'EDGE', 'LB', 'S'], 'K/P': ['K', 'P']}
 BANDS = [(21, 24), (25, 26), (27, 28), (29, 29), (30, 30), (31, 31), (32, 32), (33, 33), (34, 34), (35, 36), (37, 45)]
-print('\n# A starter next season: still a starter / plays, not a starter / gone (no snaps next season)')
-print('# gone for good = no snaps in either of the next two seasons (2013-2023 only)')
+def on_roster(pid, y):
+    """On a roster (any week) or with snaps that season."""
+    return anysnaps[y].get(pid, 0) > 0 or pfr2gsis.get(pid) in rostered.get(y, set())
+
+print('\n# A starter next season: still a starter / on a roster, not a starter / gone (off every roster, no snaps)')
+print('# gone for good = off every roster in both of the next two seasons (2013-2023 only)')
 for g, poss in GROUPS.items():
     print(f'\n## {g}')
     for lo, hi in BANDS:
@@ -112,22 +129,22 @@ for g, poss in GROUPS.items():
                 n += 1
                 if pid in starters[y + 1]:
                     keep += 1
-                elif anysnaps[y + 1].get(pid, 0) > 0:
+                elif on_roster(pid, y + 1):
                     play += 1
                 else:
                     gone += 1
                 if y <= 2023:
                     n2 += 1
-                    if anysnaps[y + 1].get(pid, 0) == 0 and anysnaps[y + 2].get(pid, 0) == 0:
+                    if not on_roster(pid, y + 1) and not on_roster(pid, y + 2):
                         gone2 += 1
         if n:
             lab = f'{lo}' if lo == hi else f'{lo}-{hi}'
             print(f'{lab:6} n={n:5}  starter {100*keep/n:5.1f}%  plays {100*play/n:5.1f}%  gone {100*gone/n:5.1f}%'
                   f'  gone for good {100*gone2/max(1,n2):5.1f}%')
 
-print('\n# Age when a starter left for good (a starter in Y, no snaps in Y+1 or Y+2; 2013-2023), median and mean')
+print('\n# Age when a starter left for good (a starter in Y, off every roster in Y+1 and Y+2; 2013-2023), median and mean')
 for pos in STARTERS:
     xs = [age(pid, y) for y in range(2013, 2024) for pid, ps in starters[y].items() if ps == pos and age(pid, y)
-          and anysnaps[y + 1].get(pid, 0) == 0 and anysnaps[y + 2].get(pid, 0) == 0]
+          and not on_roster(pid, y + 1) and not on_roster(pid, y + 2)]
     if xs:
         print(f'{pos:5} n={len(xs):4}  median {statistics.median(xs):.1f}  mean {statistics.mean(xs):.1f}')

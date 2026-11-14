@@ -13,8 +13,11 @@ Research input for `docs/superpowers/specs/2026-11-14-league-age-design.md`: the
   special-teams snaps for K and P. Positions mapped: T, G, C → OL; DT, NT → DT; DE, OLB → EDGE; LB, ILB, MLB → LB; CB, DB
   → CB; S, FS, SS → S.
 - **Age:** on September 1 of the season, in whole years (AFLS keeps whole years).
-- **Next season:** a starter in Y is still starting in Y+1 (a starter anywhere), plays but doesn't start, or is gone (no
-  snaps in Y+1). Left for good: no snaps in Y+1 or Y+2.
+- **Next season:** a starter in Y is still starting in Y+1 (a starter anywhere), on a roster but not starting, or gone: off
+  every roster (not on a 53, inactive or on a reserve list in any regular-season week, and no snaps; the practice squad
+  isn't a roster). Left for good: off every roster in Y+1 and Y+2. "Gone" counted no snaps until 2026-11-14 (the owner's
+  call): AFLS dresses fewer men (41 with a snap a season against the NFL's 61), so a demoted veteran still on a roster
+  plays none here and read as gone.
 - **AFLS is read the same way** (`seasonStarters` in `scripts/league-age-core.ts`): top N by `StatLine.snaps`, K and P by
   games played.
 
@@ -40,24 +43,24 @@ Research input for `docs/superpowers/specs/2026-11-14-league-age-design.md`: the
 
 ## A starter's next season, 2013–24
 
-Still starting / gone, by age:
+Still starting / gone (off every roster), by age:
 
 | Age | All | Long prime (TE, OL, DT) | Short prime (RB, WR, CB, EDGE, LB, S) |
 | --- | --- | --- | --- |
-| 21–24 | 68.7% / 4.2% | 70.3% / 4.1% | 66.3% / 3.9% |
-| 25–26 | 64.8% / 5.8% | 64.8% / 5.4% | 62.6% / 5.9% |
-| 27–28 | 63.0% / 7.6% | 64.8% / 7.2% | 59.0% / 7.4% |
-| 29 | 60.7% / 11.1% | 61.8% / 12.0% | 55.4% / 11.9% |
-| 30 | 54.0% / 16.3% | 54.4% / 17.5% | 47.3% / 17.7% |
-| 31 | 52.3% / 15.1% | 44.9% / 18.4% | 48.1% / 15.2% |
-| 32 | 59.9% / 17.8% | 53.6% / 27.4% | 55.2% / 16.2% |
+| 21–24 | 68.7% / 2.2% | 70.3% / 2.4% | 66.3% / 1.8% |
+| 25–26 | 64.8% / 2.9% | 64.8% / 2.4% | 62.6% / 3.4% |
+| 27–28 | 63.0% / 4.6% | 64.8% / 5.3% | 59.0% / 3.7% |
+| 29 | 60.7% / 9.1% | 61.8% / 8.9% | 55.4% / 10.4% |
+| 30 | 54.0% / 14.2% | 54.4% / 15.2% | 47.3% / 15.2% |
+| 31 | 52.3% / 11.8% | 44.9% / 15.6% | 48.1% / 11.4% |
+| 32 | 59.9% / 15.3% | 53.6% / 26.2% | 55.2% / 11.4% |
 
 Past 32 the samples are small (all: 184 at 33, 126 at 34): the script prints them, and they aren't judged.
 
 ## The age a starter left for good, 2013–23 (median)
 
-QB 37.0 (n 12), RB 27.0 (17), WR 27.0 (73), TE 31.0 (15), OL 30.0 (142), DT 29.0 (57), EDGE 29.0 (51), LB 29.0 (26), CB
-30.0 (55), S 29.5 (56), K 32.0 (22), P 30.0 (27). Shown beside AFLS's, not judged: small samples, and the "gone" column
+QB 37.0 (n 12), RB 28.0 (15), WR 29.0 (48), TE 31.0 (13), OL 30.0 (112), DT 29.0 (50), EDGE 30.0 (35), LB 29.0 (21), CB
+30.0 (39), S 30.0 (48), K 33.5 (20), P 30.0 (24). Shown beside AFLS's, not judged: small samples, and the "gone" column
 judges exits.
 
 ## Peak ages by the delta method, 2013–2025

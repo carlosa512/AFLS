@@ -39,50 +39,53 @@ const row = (xs: [number, number][]) =>
     AgeBand,
     { keep: number; gone: number }
   >;
-/** A starter's next season, 2013–24 (%): still starting, and gone (no snaps). */
+/**
+ * A starter's next season, 2013–24 (%): still starting, and gone (off every roster: not on a 53 or a reserve list in any
+ * week, and no snaps; a man still on a roster who plays no snaps is on it, as the NFL counts him).
+ */
 export const NFL_NEXT: Record<AgeGroup, Record<AgeBand, { keep: number; gone: number }>> = {
   all: row([
-    [68.7, 4.2],
-    [64.8, 5.8],
-    [63.0, 7.6],
-    [60.7, 11.1],
-    [54.0, 16.3],
-    [52.3, 15.1],
-    [59.9, 17.8],
+    [68.7, 2.2],
+    [64.8, 2.9],
+    [63.0, 4.6],
+    [60.7, 9.1],
+    [54.0, 14.2],
+    [52.3, 11.8],
+    [59.9, 15.3],
   ]),
   long: row([
-    [70.3, 4.1],
-    [64.8, 5.4],
-    [64.8, 7.2],
-    [61.8, 12.0],
-    [54.4, 17.5],
-    [44.9, 18.4],
-    [53.6, 27.4],
+    [70.3, 2.4],
+    [64.8, 2.4],
+    [64.8, 5.3],
+    [61.8, 8.9],
+    [54.4, 15.2],
+    [44.9, 15.6],
+    [53.6, 26.2],
   ]),
   short: row([
-    [66.3, 3.9],
-    [62.6, 5.9],
-    [59.0, 7.4],
-    [55.4, 11.9],
-    [47.3, 17.7],
-    [48.1, 15.2],
-    [55.2, 16.2],
+    [66.3, 1.8],
+    [62.6, 3.4],
+    [59.0, 3.7],
+    [55.4, 10.4],
+    [47.3, 15.2],
+    [48.1, 11.4],
+    [55.2, 11.4],
   ]),
 };
 
-/** The median age a starter left for good, 2013–23 (informational: small samples). */
+/** The median age a starter left for good (off every roster two seasons running), 2013–23 (informational: small samples). */
 export const NFL_EXIT_AGE: Record<Position, number> = {
   QB: 37,
-  RB: 27,
-  WR: 27,
+  RB: 28,
+  WR: 29,
   TE: 31,
   OL: 30,
   DT: 29,
-  EDGE: 29,
+  EDGE: 30,
   LB: 29,
   CB: 30,
-  S: 29.5,
-  K: 32,
+  S: 30,
+  K: 33.5,
   P: 30,
 };
 
@@ -155,16 +158,24 @@ export function playedIn(league: League, season: number): Set<number> {
   return out;
 }
 
+/** Everyone on a team now: on its 53 or a reserve list (the practice squad isn't a roster, as the NFL counts it). */
+export function rosteredNow(league: League): Set<number> {
+  const out = new Set<number>();
+  for (const p of Object.values(league.players)) if (!p.retired && p.teamId !== null && !p.squad) out.add(p.id);
+  return out;
+}
+
+/** A starter's next season: still starting, on a roster (any time that season) but not starting, or gone. */
 export function nextSeason(
   starters: Starters,
   next: Starters,
-  nextPlayed: Set<number>,
+  nextRostered: Set<number>,
 ): Record<AgeGroup, Partial<Record<AgeBand, Fate>>> {
   const out: Record<AgeGroup, Partial<Record<AgeBand, Fate>>> = { all: {}, long: {}, short: {} };
   for (const [id, { pos, age }] of starters) {
     const band = ageBandOf(age);
     if (!band) continue;
-    const kind = next.has(id) ? 'keep' : nextPlayed.has(id) ? 'play' : 'gone';
+    const kind = next.has(id) ? 'keep' : nextRostered.has(id) ? 'play' : 'gone';
     const group = ageGroupOf(pos);
     for (const g of group ? (['all', group] as const) : (['all'] as const)) {
       const f = (out[g][band] ??= { n: 0, keep: 0, play: 0, gone: 0 });
@@ -190,11 +201,11 @@ export function addFates(
     }
 }
 
-/** The age of each starter who then played no snaps for two seasons. */
-export function exitAges(seasons: Starters[], played: Set<number>[]): Partial<Record<Position, number[]>> {
+/** The age of each starter who was then off every roster for two seasons. */
+export function exitAges(seasons: Starters[], rostered: Set<number>[]): Partial<Record<Position, number[]>> {
   const out: Partial<Record<Position, number[]>> = {};
   for (let i = 0; i + 2 < seasons.length; i++)
     for (const [id, { pos, age }] of seasons[i])
-      if (!played[i + 1].has(id) && !played[i + 2].has(id)) (out[pos] ??= []).push(age);
+      if (!rostered[i + 1].has(id) && !rostered[i + 2].has(id)) (out[pos] ??= []).push(age);
   return out;
 }

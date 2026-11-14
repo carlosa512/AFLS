@@ -24,6 +24,7 @@ import {
   exitAges,
   nextSeason,
   playedIn,
+  rosteredNow,
   seasonStarters,
   type AgeBand,
   type AgeGroup,
@@ -163,12 +164,14 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   out.age.gap.first = meanOf(gap());
   const settledGap: Record<number, number[]> = {};
   const seasonsRead: Starters[] = [];
-  const playedRead: Set<number>[] = [];
+  /** Everyone on a roster at some point of each season: at kickoff, at its end, or with a snap in it. */
+  const rosteredRead: Set<number>[] = [];
 
   for (let s = 0; s < seasons; s++) {
+    const atKickoff = rosteredNow(league);
     simToEndOfSeason(league);
     seasonsRead.push(seasonStarters(league, league.season));
-    playedRead.push(playedIn(league, league.season));
+    rosteredRead.push(new Set([...atKickoff, ...rosteredNow(league), ...playedIn(league, league.season)]));
     {
       const wins = new Map(league.teams.map((t) => [t.id, 0]));
       const games = regularSeasonGames(league);
@@ -308,9 +311,9 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   for (let i = steadyFrom; i < seasonsRead.length; i++) {
     for (const v of seasonsRead[i].values()) out.age.starters.push({ pos: v.pos, age: v.age });
     if (i + 1 < seasonsRead.length)
-      addFates(out.age.fates, nextSeason(seasonsRead[i], seasonsRead[i + 1], playedRead[i + 1]));
+      addFates(out.age.fates, nextSeason(seasonsRead[i], seasonsRead[i + 1], rosteredRead[i + 1]));
   }
-  out.age.exits = exitAges(seasonsRead.slice(steadyFrom), playedRead.slice(steadyFrom));
+  out.age.exits = exitAges(seasonsRead.slice(steadyFrom), rosteredRead.slice(steadyFrom));
   out.age.gap.settled = meanOf(settledGap);
   for (const p of Object.values(league.players)) {
     if (!p.draft || p.draft.season < firstDraft) continue;

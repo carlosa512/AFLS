@@ -9,6 +9,7 @@ import {
   nextSeason,
   NFL_STARTER_AGE,
   playedIn,
+  rosteredNow,
   seasonStarters,
   type Starters,
 } from './league-age-core';
@@ -57,6 +58,16 @@ describe('seasonStarters', () => {
     expect(s.has(at[0].id)).toBe(false);
   });
 
+  it('rosteredNow counts the 53 and reserve lists, not the practice squad or the unsigned', () => {
+    const on = Object.values(l.players).find((p) => p.teamId === 0 && !p.squad)!;
+    const free = Object.values(l.players).find((p) => p.teamId === null && !p.retired);
+    const squad = Object.values(l.players).find((p) => p.teamId === 0 && p.squad);
+    const r = rosteredNow(l);
+    expect(r.has(on.id)).toBe(true);
+    if (free) expect(r.has(free.id)).toBe(false);
+    if (squad) expect(r.has(squad.id)).toBe(false);
+  });
+
   it('playedIn reads snaps, and games for kickers', () => {
     const [w] = give(0, 'WR', [10]);
     const [k] = give(0, 'K', [2]);
@@ -68,7 +79,7 @@ describe('seasonStarters', () => {
 describe('nextSeason', () => {
   const st = (rows: [number, Position, number][]): Starters =>
     new Map(rows.map(([id, pos, age]) => [id, { pos, age }]));
-  it('sorts a starter into keep, play or gone by age band and group', () => {
+  it('sorts a starter into keep, on a roster or gone by age band and group', () => {
     const now = st([
       [1, 'OL', 29],
       [2, 'WR', 29],
@@ -83,7 +94,7 @@ describe('nextSeason', () => {
     expect(Object.values(r.all).reduce((n, f) => n + f!.n, 0)).toBe(3);
   });
 
-  it('exitAges counts a starter with no snaps for two seasons', () => {
+  it('exitAges counts a starter off every roster for two seasons', () => {
     const seasons = [
       st([
         [1, 'OL', 31],
