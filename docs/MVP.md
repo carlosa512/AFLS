@@ -312,9 +312,11 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       `npm run careers` reads 20-season leagues the NFL's way (starters by snaps; nflverse 2013–25, `scripts/research-aging.py`,
       `docs/research/league-age.md`). Young players are ready sooner (growth to 24, 25 or 26 by position, held to peak ages
       from the NFL's delta-method aging curves, the owner's new ranges), veterans can fall off a cliff, and retirement follows
-      the body, forgiving the ordinary fade. Seasons 11–20, four leagues: starters 27.01 years (main 27.77, NFL 26.48), 14.4%
-      aged 31 or older (21.6%, NFL 11.8%), quarterbacks 38% (49%), tight ends 15% (29%), linemen 14% (32%); talent 12.87–13.22,
-      first-round busts 35%. **Left for the front offices (B):** 25% of starters are 24 or younger (NFL 32%; QB 14% against
+      the body, forgiving the ordinary fade. Seasons 11–20, four leagues: starters 26.96 years (main 27.77, NFL 26.48), 14.2%
+      aged 31 or older (21.6%, NFL 11.8%), quarterbacks 36% (49%); first-round busts 31%. A new league is built the way a settled
+      one carries its players (0.4.47, `FOUNDING_LEAN` and `FOUNDING_GROWTH` in `generate.ts`): its young no longer grow
+      past the level the league settles at, so starters hold 12.88–13.01 from the first season to the twentieth (a peak
+      0.11 over the settled level, 0.33 before). **Left for the front offices (B):** 25% of starters are 24 or younger (NFL 32%; QB 14% against
       33%), starters keep their jobs 76–80% of the time under 29 (NFL 63–69%), and short-prime starters at 31–32 leave twice
       as often (a third of it veterans whose deals ran out and nobody signed): shown as a known issue in `npm run careers`.
 - [ ] **The free-agency market runs about half the NFL's size** (0.4.13, `npm run offseason`'s free-agency block, shown as a

@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.47',
+    date: '2026-11-14',
+    title: 'A new league that starts settled',
+    text: 'Founding players are rated by age as an older league would rate them, so a new save holds its level from the first season.',
+  },
+  {
     version: '0.4.46',
     date: '2026-11-14',
     title: 'Careers that end like real ones',
