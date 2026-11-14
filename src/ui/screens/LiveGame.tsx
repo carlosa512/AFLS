@@ -24,7 +24,7 @@ import {
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard } from './PregameCard';
 import { BeatClock, FastForward } from './FastForward';
-import { beatMs, beatSpan } from '../fastForward';
+import { beatEnd, beatMs, beatSpan } from '../fastForward';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
@@ -203,6 +203,8 @@ export function LiveGame({ league }: { league: League }) {
               clock={
                 beating ? (
                   <BeatClock key={playKey} plays={s.plays} span={beatSpan(s.plays, s.from, s.current)} ms={beat} />
+                ) : s.still ? (
+                  beatEnd(s.plays, s.from, s.current)
                 ) : undefined
               }
             />

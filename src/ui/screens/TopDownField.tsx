@@ -314,6 +314,8 @@ export function TopDownField({
   if (memory.current.game !== game.id) memory.current = fresh();
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  /** The play whose fast-forward ran to its end: its beat dropping to 0 afterwards changes nothing on the field. */
+  const glided = useRef('');
   const snapRef = useRef(onSnap);
   snapRef.current = onSnap;
   const [layout, setLayout] = useState<Layout>('wide');
@@ -451,6 +453,7 @@ export function TopDownField({
 
   useEffect(() => {
     if (!staged || !svg.current) return;
+    if (!beat && glided.current === animKey) return;
     const s = staged;
     const n = s.ids.length;
     const last = s.steps - 1;
@@ -918,6 +921,7 @@ export function TopDownField({
           drawFlags('down');
         }
         if (k >= 1) {
+          glided.current = animKey;
           if (ending) stop = finale();
           else doneRef.current();
           return;

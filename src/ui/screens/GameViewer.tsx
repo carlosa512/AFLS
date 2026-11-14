@@ -12,7 +12,7 @@ import { holdAfter, TopDownField } from './TopDownField';
 import { Field, IdleField, restingSpot } from './BroadcastField';
 import { PregameCard, PREGAME_MS } from './PregameCard';
 import { BeatClock, FastForward } from './FastForward';
-import { beatMs, beatSpan } from '../fastForward';
+import { beatEnd, beatMs, beatSpan } from '../fastForward';
 import { gameWeather, weatherAt } from '../../engine/weather';
 import { gameStadium } from '../stadiums/gameLook';
 import { driveAt } from '../gameRead';
@@ -412,6 +412,8 @@ export function GameViewer({
             clock={
               beating ? (
                 <BeatClock key={index} plays={plays} span={beatSpan(plays, beatFrom, index)} ms={beat} />
+              ) : still ? (
+                beatEnd(plays, beatFrom, index)
               ) : undefined
             }
           />

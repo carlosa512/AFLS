@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayLogEntry, Team } from '../engine/types';
 import { clockOf } from './gameRead';
-import { beatClock, beatMs, beatProgress, beatSpan, skipSummary } from './fastForward';
+import { beatClock, beatEnd, beatMs, beatProgress, beatSpan, skipSummary } from './fastForward';
 
 const BUF = { id: 1, abbrev: 'BUF', city: 'Buffalo', name: 'Blizzard', colors: ['#00338d', '#c60c30'] } as Team;
 const NO = { id: 2, abbrev: 'NO', city: 'New Orleans', name: 'Krewe', colors: ['#101820', '#d3bc8d'] } as Team;
@@ -132,5 +132,12 @@ describe('the ticking clock', () => {
     expect(beatProgress(450, 2000, 0.5)).toBe(0.5); // the speed went from 8× to 1× mid-beat
     expect(beatProgress(3000, 2000, 0.5)).toBe(1);
     expect(beatProgress(10, 0, 0)).toBe(1);
+  });
+});
+
+describe('a beat cut short', () => {
+  it('shows where the clock was going, so a pause never runs it back up', () => {
+    const plays = [entry({ clock: 500 }), entry({ clock: 470 }), entry({ clock: 430 })];
+    expect(beatEnd(plays, 0, 1)).toBe('Q1 · 7:10');
   });
 });

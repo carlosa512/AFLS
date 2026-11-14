@@ -6,6 +6,7 @@
 import type { PlayLogEntry, Team } from '../engine/types';
 import { booked, clockOf, gainOf, halfOf, kicked, secondsOf } from './gameRead';
 import { downParts } from './screens/Scorebug';
+import { gameClock } from './format';
 import { BANNER_FLOOR } from './moments';
 
 /** The beat at 1×, in milliseconds. Sped up it shortens with the square root of the speed, never under the floor. */
@@ -85,4 +86,10 @@ export function skipSummary(
 export function beatProgress(elapsedMs: number, ms: number, prev: number): number {
   if (ms <= 0) return 1;
   return Math.max(prev, Math.min(1, elapsedMs / ms));
+}
+
+/** The clock a beat was counting to, as the scorebug writes it: shown once a beat is cut short (a pause). */
+export function beatEnd(plays: readonly PlayLogEntry[], from: number, to: number): string {
+  const { quarter, clock } = beatClock(plays, beatSpan(plays, from, to), 1);
+  return `${quarter <= 4 ? `Q${quarter}` : 'OT'} · ${gameClock(clock)}`;
 }

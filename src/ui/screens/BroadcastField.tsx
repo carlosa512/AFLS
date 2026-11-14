@@ -169,8 +169,11 @@ export function Field({
   const memory = useRef<FieldMemory | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
+  /** The play whose fast-forward ran to its end: its beat dropping to 0 afterwards changes nothing on the field. */
+  const glided = useRef('');
 
   useEffect(() => {
+    if (!beat && glided.current === animKey) return;
     // Teams switch ends each quarter: the play is drawn where the stadium has it, read from its own quarter.
     const quarter = entry?.quarter ?? 1;
     const swapped = endsSwitched(quarter);
@@ -277,6 +280,7 @@ export function Field({
         const k = Math.min(1, (now - t0) / beat);
         if (k >= 1) {
           finish();
+          glided.current = animKey;
           doneRef.current();
           return;
         }
