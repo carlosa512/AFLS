@@ -3,7 +3,7 @@
  * level skipped and a line on what changed. A screen puts it up while a still landing is being glided to (a beat).
  * Spec: docs/superpowers/specs/2026-11-14-fast-forward-between-highlights-design.md.
  */
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { PlayLogEntry, Team } from '../../engine/types';
 import { beatClock, beatProgress, beatSpan, skipSummary } from '../fastForward';
 import { gameClock } from '../format';
@@ -12,15 +12,22 @@ import { Icon } from '../icons';
 const reduced = () =>
   typeof window === 'undefined' || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/** The game clock through a beat, "Q2 · 6:41": counted on its own frames from when it is put up. */
+const periodOf = (quarter: number) => (quarter <= 4 ? `Q${quarter}` : 'OT');
+
+/**
+ * The game clock through a beat, "Q2 · 6:41" (or drawn by `render`): counted on its own frames from when it is put
+ * up.
+ */
 export function BeatClock({
   plays,
   span,
   ms,
+  render,
 }: {
   plays: readonly PlayLogEntry[];
   span: { start: number; end: number };
   ms: number;
+  render?: (period: string, clock: string) => ReactNode;
 }) {
   // No window (a static render) shows the clock as the beat starts; asked for less motion, as it ends.
   const [k, setK] = useState(() => (typeof window !== 'undefined' && reduced() ? 1 : 0));
@@ -48,9 +55,10 @@ export function BeatClock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const { quarter, clock } = beatClock(plays, span, k);
+  if (render) return <>{render(periodOf(quarter), gameClock(clock))}</>;
   return (
     <>
-      {quarter <= 4 ? `Q${quarter}` : 'OT'} · {gameClock(clock)}
+      {periodOf(quarter)} · {gameClock(clock)}
     </>
   );
 }
@@ -78,10 +86,20 @@ export function FastForward({
     <div className="ff" style={{ '--beat': `${ms}ms` } as CSSProperties}>
       <div className="ff-in">
         <div className="ff-top" aria-hidden="true">
-          <Icon name="forward" />
-          <span className="num">
-            <BeatClock plays={plays} span={beatSpan(plays, from, to)} ms={ms} />
-          </span>
+          <BeatClock
+            plays={plays}
+            span={beatSpan(plays, from, to)}
+            ms={ms}
+            render={(period, clock) => (
+              <>
+                <span className="ff-tag eyebrow-sm">
+                  <Icon name="forward" />
+                  {period}
+                </span>
+                <span className="ff-clock">{clock}</span>
+              </>
+            )}
+          />
         </div>
         {lines.length > 0 && (
           <div className="ff-lines" aria-live="polite">

@@ -1968,22 +1968,33 @@ select {
   text-align: center;
 }
 .ff-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: clamp(var(--step-1), 5vw, var(--step-3));
-  line-height: 1.1;
+  display: grid;
+  justify-items: center;
 }
-.ff-top .icon {
-  width: 0.7em;
-  height: 0.7em;
-  opacity: 0.8;
+.ff-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--scene-muted);
+  letter-spacing: 0.14em;
+}
+.ff-tag .icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+.ff-clock {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(var(--step-3), 7vw, var(--step-4));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
 }
 .ff-lines {
-  margin-top: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font-body);
 }
 .ff-line {
   font-size: clamp(var(--step--1), 2.6vw, var(--step-0));
