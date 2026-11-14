@@ -26,7 +26,9 @@ import { draftBoards, draftCalls, draftedInto, draftTrades, lapseUsedPicks } fro
 
 export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
-export const RAW = 0.75;
+export const RAW = 0.4;
+/** The class's top before `RAW` (see `generateDraftClass`): set so the drafted league's starters hold their level. */
+export const CLASS_TOP = 14.3;
 /**
  * Room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives the
  * class's talent back, so the league's starters hold (`npm run careers`).
@@ -50,7 +52,7 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds).
     // Prospects come in raw (`RAW`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
-    const quality = clamp(14.1 - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
+    const quality = clamp(CLASS_TOP - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** 0.6 + rng.normal(0, 0.9), 4, 16);
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,

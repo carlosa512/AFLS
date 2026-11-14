@@ -186,14 +186,15 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
 const curve = (rows: number[][]) => AGES.map((_, j) => mean(rows.map((r) => r[j])));
 const at = (c: number[], age: number) => c[age - 21];
 /**
- * Below his position's peak at a late age, read on the players still in the league then (the research measured players
- * still playing, so a curve over everyone, cliffs and all, would read a fall the research never saw). Peak from everyone.
+ * Below his own best at a late age, read on the players still in the league then: the research measured players still
+ * playing against their own peak (a curve over everyone, cliffs and all, would read a fall the research never saw, and
+ * survivors against everyone's peak would read their luck as no fall at all).
  */
 const lateBelow = (pos: Position, age: number) => {
   const c = cohorts[pos];
   const j = age - 21;
-  const left = c.ovr.filter((_, i) => c.alive[i][j]).map((r) => r[j]);
-  return { value: Math.max(...curves[pos]) - mean(left), n: left.length };
+  const falls = c.ovr.filter((_, i) => c.alive[i][j]).map((r) => Math.max(...r.slice(0, j + 1)) - r[j]);
+  return { value: mean(falls), n: falls.length };
 };
 const late = (label: string, pos: Position, age: number, lo: number, hi: number) => {
   const { value, n } = lateBelow(pos, age);
@@ -259,11 +260,18 @@ for (const pos of ['TE', 'OL'] as const) {
   // Research: QB peak season 28.5 on average (pocket 30.7, dual-threat 26.1); rushing flat 27–29.
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
-  const acc = AGES.map((_, j) =>
-    mean(q.throwAccShort.map((r, i) => (r[j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3)),
+  // Accuracy and reads at 34 against his own best, for the quarterbacks still playing then (as the research read them).
+  const accOf = (i: number, j: number) => (q.throwAccShort[i][j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3;
+  const j34 = 34 - 21;
+  const acc34 = mean(
+    cohorts.QB.alive
+      .map((alive, i) =>
+        alive[j34] ? accOf(i, j34) / Math.max(...AGES.slice(0, j34 + 1).map((_, j) => accOf(i, j))) : NaN,
+      )
+      .filter(Number.isFinite),
   );
   lines.push(
-    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak', at(acc, 34) / Math.max(...acc), 0.97, 1.01, 3)}`,
+    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs his peak (survivors)', acc34, 0.97, 1.01, 3)}`,
   );
 }
 for (const pos of ['K', 'P'] as const)

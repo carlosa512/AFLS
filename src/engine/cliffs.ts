@@ -13,6 +13,8 @@ import type { Player, Position, Traits } from './types';
 /**
  * - `from`: the youngest age a healthy player can fall off one
  * - `lead`: years before his technique turns (`declineOnset`) that the chance starts to climb
+ * - `latest`: the climb starts by this age at every position but QB, K and P (the NFL's exits by age barely differ
+ *   between the lines' long prime and the skill positions'; quarterbacks and kickers last)
  * - `base`: the chance a year once he's past `from` (and before the climb)
  * - `perYear`: what each year past the climb's start adds
  * - `hurt`: the chance multiplied after a severe injury that season (and, under `from`, `base × hurt`)
@@ -23,6 +25,7 @@ import type { Player, Position, Traits } from './types';
 export const CLIFF = {
   from: 28,
   lead: 1,
+  latest: 29,
   base: 0.03,
   perYear: 0.03,
   hurt: 3,
@@ -31,6 +34,9 @@ export const CLIFF = {
 };
 /** Cliffs on or off (`on`), and every chance at 1 (`always`, for tests only). */
 export const CLIFFS = { on: true, always: false };
+
+/** Positions whose careers last past the others': their climb starts at their own turn. */
+const LASTING: ReadonlySet<Position> = new Set(['QB', 'K', 'P']);
 
 /** The most a year's chance can be. */
 const CAP = 0.5;
@@ -48,7 +54,8 @@ export function cliffChance(age: number, pos: Position, traits: Pick<Traits, 'du
   if (CLIFFS.always) return 1;
   const injury = hurt ? CLIFF.hurt : 1;
   if (age < CLIFF.from) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
-  const climb = declineOnset(pos, 'technical', traits) - CLIFF.lead;
+  const turn = declineOnset(pos, 'technical', traits) - CLIFF.lead;
+  const climb = LASTING.has(pos) ? turn : Math.min(turn, CLIFF.latest);
   const body = Math.max(0, 1 + CLIFF.fragile * (TRAIT_MEAN - traits.durability));
   return clamp((CLIFF.base + CLIFF.perYear * Math.max(0, age - climb)) * injury * body, 0, CAP);
 }

@@ -135,6 +135,7 @@ const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, 
  * - `primeSwing`: the sd of a year's change, in overall points, once growth is done
  * - `growthEnds`: the age growth toward the ceiling stops (physical tools fade in over the three years before it)
  * - `mentalGrowth`: what the mental game adds each year through the prime
+ * - `fade`: how steep the smooth decline is for everyone (a cliff takes the rest)
  * - `cliffs`: whether a veteran can fall off a cliff (`cliffs.ts`)
  */
 export interface DevRules {
@@ -142,6 +143,7 @@ export interface DevRules {
   primeSwing: number;
   growthEnds: number;
   mentalGrowth: number;
+  fade: number;
   cliffs: boolean;
 }
 export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
@@ -149,9 +151,17 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   primeSwing: 0.4,
   growthEnds: 26,
   mentalGrowth: 0.06,
+  fade: 1,
   cliffs: false,
 });
-export const DEV_RULES: DevRules = { ...DEV_RULES_V1, pace: [...DEV_RULES_V1.pace], cliffs: true };
+export const DEV_RULES: DevRules = {
+  pace: [0.25, 0.6],
+  primeSwing: 0.8,
+  growthEnds: 26,
+  mentalGrowth: 0.06,
+  fade: 0.6,
+  cliffs: true,
+};
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
@@ -210,7 +220,7 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
     if (past > 0) {
       // Within a year of the turn the decline phases in; after that it speeds up every season.
       const coached = ctx.decline?.[family] ?? 1;
-      const fade = AGING[clock].slope * declineMult(traits);
+      const fade = AGING[clock].slope * declineMult(traits) * rules.fade;
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
       d = delta * Math.min(2, growthShare(family, age, ends) * norm);
@@ -503,7 +513,12 @@ export function expectedAging(pos: Position, age: number): number {
     const past = age - declineOnset(pos, family);
     const d =
       past > 0
-        ? -TYPICAL_YEAR * fade * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25)
+        ? -TYPICAL_YEAR *
+          fade *
+          DEV_RULES.fade *
+          FAMILY_LOSS[family] *
+          Math.min(1, past) *
+          (1 + 0.25 * Math.max(0, past - 1) + 0.25)
         : family === 'mental' && age >= DEV_RULES.growthEnds
           ? DEV_RULES.mentalGrowth
           : 0;
