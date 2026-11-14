@@ -124,7 +124,9 @@ export const RETIRE_BODY = {
   agedSlack: 0.9,
   fallFrom: -2,
   cap: 0.95,
-  turn: {} as Partial<Record<Position, number>>,
+  // Linemen and tight ends leave sooner after their prime (the NFL's long-prime starters: 15–26% gone a year at 30–32),
+  // punters sooner than kickers (a quarter of starting punters are 31 or older, a third of kickers).
+  turn: { TE: 2, OL: 2, DT: 2, P: 3 } as Partial<Record<Position, number>>,
 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */

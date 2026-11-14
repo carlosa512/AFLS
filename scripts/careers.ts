@@ -550,6 +550,11 @@ console.log(
     if (out) known.push(label);
     return line(label, value, target, digits, normal) + (out ? ' ⚠' : '');
   };
+  // Short-prime starters at 31 and 32 leave about twice as often as the NFL's: a third of it is veterans whose deals ran
+  // out and nobody signed (the front offices' project, docs/MVP.md "Starters leave football more as a league ages"),
+  // injury retirements up to 8% at 32; retirement for age alone can't take it under the band without starving 29 and 30
+  // (the owner's call, 2026-11-14: a known issue until the front offices' work lands).
+  const B_OWNS_GONE = (g: AgeGroup, b: AgeBand) => g === 'short' && (b === '31' || b === '32');
   const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
     const { usual, normal } = bandFor(target, width);
     return (
@@ -590,7 +595,7 @@ console.log(
       if (!f) continue;
       const nfl = NFL_NEXT[g][b];
       console.log(
-        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${judge(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
+        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${(B_OWNS_GONE(g, b) ? soft : judge)(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
       );
     }
   const exits: Partial<Record<Position, number[]>> = {};
