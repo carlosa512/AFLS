@@ -1,11 +1,11 @@
 # A league that ages like the NFL's
 
-Status: design; bands and priorities approved by the owner 2026-11-14, the whole for approval. Follows up `docs/MVP.md`, "Leagues grow older than the NFL's (start here)".
+Status: approved by the owner 2026-11-14. Plan: `docs/superpowers/plans/2026-11-14-league-age.md`. Follows up `docs/MVP.md`, "Leagues grow older than the NFL's (start here)".
 
 ## Why
 
 A save should hold up for 20 seasons and more. Today a league drifts old: by season 10 its starters average 27.8 years
-against the NFL's 27.0, twice the NFL's share is 31 or older, and two thirds of the NFL's share is 24 or younger. The
+against the NFL's 26.5, twice the NFL's share is 31 or older, and two thirds of the NFL's share is 24 or younger. The
 gap is worst at quarterback. A long career is how the target player plays this game, so the world has to stay
 NFL-shaped for as long as they play. `docs/MVP.md` also suspects this drift feeds the thin free-agency market and the
 starters leaving football; those are the next project (B below) and are measured, not fixed, here.
@@ -13,28 +13,29 @@ starters leaving football; those are the next project (B below) and are measured
 ## What we measured
 
 **The NFL** (nflverse snap counts and birth dates, 2016–25; a team-season's starters are its top N at each position by
-season snaps, N as `STARTERS` in `positions.ts`, K and P by special-teams snaps; age on September 1). **AFLS**: the same
+season snaps, N as `STARTERS` in `positions.ts`, K and P by special-teams snaps; age on September 1 in whole years, as
+AFLS keeps ages). **AFLS**: the same
 reading of three 20-season leagues (seeds `age2-a`, `age2-b`, `age2-c`), seasons 11–20, where none of the starting
 league's players are left (top N by `StatLine.snaps`, K and P by games). Throwaway probes; the plan commits the NFL one
 as `scripts/research-aging.py`.
 
 | Starters | NFL mean age | AFLS | NFL 24 or younger | AFLS | NFL 31 or older | AFLS |
 | --- | --- | --- | --- | --- | --- | --- |
-| QB | 28.5 | 30.3–30.8 | 32% | 8–10% | 29% | 48–53% |
-| RB | 25.6 | 25.7–25.9 | 45% | 28–33% | 4% | 0–3% |
-| WR | 26.1 | 26.8–27.2 | 42% | 21–24% | 6% | 9–14% |
-| TE | 27.1 | 28.1–28.6 | 31% | 14–19% | 12% | 29–32% |
-| OL | 27.2 | 28.4–28.7 | 27% | 15–16% | 12.5% | 31–34% |
-| DT | 27.2 | 27.8–28.0 | 27% | 16–20% | 11% | 22–24% |
-| EDGE | 27.0 | 26.7–27.0 | 32% | 21–26% | 12% | 10–11% |
-| LB | 26.8 | 27.0–27.4 | 29% | 20–23% | 9% | 13–16% |
-| CB | 26.2 | 26.4–26.6 | 41% | 25% | 6% | 5–7% |
-| S | 26.7 | 27.3–27.5 | 32% | 18–23% | 9% | 17–19% |
-| K | 29.5 | 29.1–31.4 | 19% | 12–24% | 33% | 36–55% |
-| P | 28.6 | 29.6–30.5 | 23% | 15–25% | 25% | 44–52% |
-| All | 27.0 | 27.7–27.8 | 32% | 20% | 11.8% | 21–22% |
+| QB | 28.0 | 30.3–30.8 | 32% | 8–10% | 29% | 48–53% |
+| RB | 25.2 | 25.7–25.9 | 45% | 28–33% | 4% | 0–3% |
+| WR | 25.5 | 26.8–27.2 | 42% | 21–24% | 6% | 9–14% |
+| TE | 26.6 | 28.1–28.6 | 31% | 14–19% | 12% | 29–32% |
+| OL | 26.8 | 28.4–28.7 | 27% | 15–16% | 12.5% | 31–34% |
+| DT | 26.7 | 27.8–28.0 | 27% | 16–20% | 11% | 22–24% |
+| EDGE | 26.5 | 26.7–27.0 | 32% | 21–26% | 12% | 10–11% |
+| LB | 26.3 | 27.0–27.4 | 29% | 20–23% | 9% | 13–16% |
+| CB | 25.7 | 26.4–26.6 | 41% | 25% | 6% | 5–7% |
+| S | 26.2 | 27.3–27.5 | 32% | 18–23% | 9% | 17–19% |
+| K | 29.0 | 29.1–31.4 | 19% | 12–24% | 33% | 36–55% |
+| P | 28.1 | 29.6–30.5 | 23% | 15–25% | 25% | 44–52% |
+| All | 26.5 | 27.7–27.8 | 32% | 20% | 11.8% | 21–22% |
 
-The NFL's 2021–25 figures are within a point of these (all: 26.95, 31.7%, 11.5%).
+The NFL's 2021–25 figures are within a point of these (all: 31.7% and 11.5%).
 
 **What happens to a starter the next season** (all positions; NFL 2013–24, AFLS seed `age2-a` seasons 11–20). "Gone"
 is no snaps the next season.
@@ -127,8 +128,8 @@ Starters are counted with `STARTERS` as it stands (three receivers, three corner
   limits. It must stay the average of what the engine does, cliffs included, or the AI misprices veterans.
 - True versus perceived: the engine and development use true ratings; screens use the user's view. Hidden traits are
   never numbers.
-- `League` stays plain JSON. If a new field is stored, bump `SAVE_VERSION` and add a step to `migrate.ts`. The design
-  below needs none: a player's best overall can be read from his yearly snapshots (`recordRatings`).
+- `League` stays plain JSON. If a new field is stored, bump `SAVE_VERSION` and add a step to `migrate.ts`. A player's
+  best overall needs no field: it is read from his yearly snapshots (`recordRatings`).
 - Bands are the owner's; a check is never loosened to go green.
 
 ## Approaches
@@ -220,11 +221,18 @@ and a younger league may close it), `gm-habits`, and through `generate.ts` `quir
 ## How it lands (calls made in writing this, for the owner to check)
 
 - **Three pull requests, in order.** (1) Measurement: the research script, `league-age.md` and the careers block, its
-  new lines shown as `⚠ known issue` (the `offseason` pattern) so main stays green. (2) The starting league (section 7)
-  alone, judged by goal 3. (3) The mechanisms together (sections 2–6 and 8), which interact and are tuned as one; the
-  known-issue lines become judged lines here.
-- **Saves in progress** age under the new rules from their next new league year. No migration: nothing stored changes,
-  and a founding league already played is left as it is.
+  new lines shown as `⚠ known issue` (the `offseason` pattern) so main stays green. (2) The mechanisms together
+  (sections 2–6 and 8), which interact and are tuned as one; the known-issue lines become judged lines here. (3) The
+  starting league (section 7), judged by goal 3. The starting league comes last because it is built to look like the
+  settled league, and the mechanisms change what the settled league looks like (first drafted as second; moved
+  2026-11-14 while planning, so it is tuned once).
+- **Exit ages** (the age a starter leaves for good, by position) are shown beside the NFL's and not judged: the owner
+  set no band for them, and the "gone" lines judge exits. They replace `RETIRE`'s design targets.
+- **Saves in progress** age under the new rules from their next new league year, and a founding league already played
+  is left as it is. A save loaded mid-season has each player's year partly landed (`Player.dev`), and its later steps
+  re-roll the year from the seed; under new rules that would jump ratings mid-season. So a year remembers the rules it
+  was rolled with (`DevYear.rules`, absent on an old save's year): one optional field, `SAVE_VERSION` 100 with an upgrade
+  step that changes nothing (found while planning, 2026-11-14).
 - **A player past a cliff** retires through today's path at the next new league year: his bonus proration accelerates
   as dead money (`accelerateProration`), as a retirement under contract does now. He isn't held back for the cap's sake.
   `npm run offseason`'s dead-money and cap lines stay judged; if they move out of band, that is reported to the owner
