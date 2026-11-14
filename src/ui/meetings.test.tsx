@@ -42,8 +42,16 @@ const locker = (l: League) =>
 
 describe('meetings on screen', () => {
   it('asks the coach’s three questions with labels only, and waits for each pick', () => {
-    const l = fresh();
-    const s = requestMeeting(l, 'DL')!;
+    // Taken again with the league-age work (2026-11-14): the reshuffled world has no room in DL with a second thing
+    // behind a meeting, and a question with one option is not asked. So the room is the first one with two or more.
+    let l = fresh();
+    let s = requestMeeting(l, 'DL')!;
+    for (const scope of ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB', 'team'] as const) {
+      if (s.backings.length > 1) break;
+      l = fresh();
+      s = requestMeeting(l, scope) ?? s;
+    }
+    expect(s.backings.length).toBeGreaterThan(1);
     const html = renderToStaticMarkup(<MeetingChoices league={l} s={s} />);
     expect(html).toContain('How should I put it?');
     expect(html).toContain('What can I tell them?');

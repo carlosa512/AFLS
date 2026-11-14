@@ -91,7 +91,10 @@ describe('the weekly edition in the inbox', () => {
     for (const id of withMan.cast) delete copy.players[id];
     const html = renderToStaticMarkup(<EditionCards league={copy} message={message} open={withMan.key} />);
     expect(html).toContain('class="ed-story"');
-    expect(html).toContain(withMan.paragraphs[0].slice(0, 12));
+    // The words as read: a paragraph that opens on a club has its name set as a link (taken again with the league-age
+    // work, 2026-11-14: the world's lead now opens that way, so the tags are stripped before the words are compared).
+    const text = html.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'");
+    expect(text).toContain(withMan.paragraphs[0].slice(0, 12));
   });
 
   it('draws a player who is quoted, and sends a trade story to the trade screen', () => {

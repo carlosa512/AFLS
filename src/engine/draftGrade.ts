@@ -63,12 +63,15 @@ export function lockVerdicts(league: League): void {
 
 // ───────── draft day ─────────
 
-/** Safe: little of his value is still upside and the read is tight (about a fifth of a class). */
-const SAFE_UPSIDE = 3;
-const SAFE_SD = 1.8;
-/** Boom-or-bust: most of his value is upside, or the scouts barely know (about a fifth of a class). */
-const BOOM_UPSIDE = 5.8;
-const BOOM_SD = 2.5;
+/**
+ * Safe: little of his value is still upside and the read is tight (about a fifth of a class). Fitted again when
+ * prospects came in nearer their ceilings (2026-11-14, `DRAFT_CLASS`): over eight classes 15–23% read safe.
+ */
+const SAFE_UPSIDE = 0.6;
+const SAFE_SD = 2;
+/** Boom-or-bust: most of his value is upside, or the scouts barely know (about a fifth of a class; 14–25% of eight). */
+const BOOM_UPSIDE = 3.5;
+const BOOM_SD = 2.4;
 
 export type RiskWord = 'safe' | 'boom-or-bust' | null;
 

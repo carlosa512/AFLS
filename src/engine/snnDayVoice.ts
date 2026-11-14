@@ -48,6 +48,17 @@ function pick(l: League, at: Wording, slot: string, variants: (string | false | 
   return text;
 }
 
+/** One of the wordings no one has used yet this league year; none left, no sentence (a fact is never told twice). */
+function pickOnce(l: League, at: Wording, slot: string, variants: (string | false | undefined)[]): string {
+  const all = variants.filter((v): v is string => !!v);
+  const { skip } = around(l, at.said);
+  const start = stableHash(`${at.editionId}:${slot}`) % Math.max(1, all.length);
+  const text = [...all.slice(start), ...all.slice(0, start)].find((t) => !skip(t));
+  if (!text) return '';
+  at.said.push(...sentencesOf(text));
+  return text;
+}
+
 /** The headline, with a shorter form when the long one runs over. */
 const head = (long: string, shorter: string) => (long.length <= HEADLINE ? long : shorter);
 
@@ -343,13 +354,41 @@ const STAT_WORDS: Partial<Record<StatKey, string>> = {
   defInt: 'interceptions',
 };
 /** Why he is a name, as one sentence about a man already named: last season's honor or his place among the leaders. */
-function whyLine(last: string, why: StarWhy | null): string {
+function whyLine(l: League, at: Wording, last: string, why: StarWhy | null): string {
   if (!why) return '';
-  if (why.kind === 'award') return `${last} won one of the league's awards last season.`;
-  if (why.kind === 'allLeague') return `${last} was named All-League last season.`;
-  if (why.kind === 'passer') return `${last} was the quarterback of a winning team last season.`;
-  return `${last} was in the league's top five in ${STAT_WORDS[why.stat] ?? 'his category'} last season.`;
+  const variants =
+    why.kind === 'award'
+      ? [
+          `${last} won one of the league's awards last season.`,
+          `${last} took home one of the league's awards last season.`,
+        ]
+      : why.kind === 'allLeague'
+        ? [
+            `${last} was named All-League last season.`,
+            `${last} made the All-League team last season.`,
+            `All-League honors went to ${last} last season.`,
+          ]
+        : why.kind === 'passer'
+          ? [
+              `${last} was the quarterback of a winning team last season.`,
+              `${last} quarterbacked a winning team last season.`,
+            ]
+          : [
+              `${last} was in the league's top five in ${STAT_WORDS[why.stat] ?? 'his category'} last season.`,
+              `${last} finished last season in the league's top five in ${STAT_WORDS[why.stat] ?? 'his category'}.`,
+            ];
+  return pickOnce(l, at, `why:${last}`, variants);
 }
+/** When the game kicks off, in a wording not used yet (two openers share a kickoff time). */
+const kickLine = (l: League, at: Wording, when?: string): string =>
+  when
+    ? pickOnce(l, at, `kick:${when}`, [
+        `The game kicks off ${when}.`,
+        `Kickoff is ${when}.`,
+        `It is set to start ${when}.`,
+        `The two play ${when}.`,
+      ])
+    : '';
 const rec = (r: { w: number; l: number; t: number }) => `${r.w}–${r.l}${r.t ? `–${r.t}` : ''}`;
 const lastRecord = (l: League, teamId: number) => l.history.find((h) => h.season === l.season - 1)?.records[teamId];
 /** A team's record last season as a sentence, one of a few ways so two editions about it do not share one. */
@@ -495,7 +534,7 @@ function tradeStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         `${the} have traded for ${posWord(p)} ${man}.`,
         `${the} acquired ${posWord(p)} ${man} in a trade.`,
       ]),
-      whyLine(p.lastName, publicRecord(l).why(p)),
+      whyLine(l, at, p.lastName, publicRecord(l).why(p)),
     ],
     second: [
       back ? `The ${From} received ${back} in return.` : `${p.lastName} comes from the ${From}.`,
@@ -586,7 +625,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const ref = referrer(l, { playerIds: [p.id] });
   const Club = l.teams[club].name;
   const slot = (s: string) => `${c.key}:${s}`;
-  const why = whyLine(p.lastName, publicRecord(l).why(p));
+  const why = whyLine(l, at, p.lastName, publicRecord(l).why(p));
   const base = { picture: { playerId: p.id }, links: links(p, club), numbers: [] as EditionStory['numbers'] };
 
   if (c.angle === 'tag') {
@@ -717,7 +756,7 @@ function marketStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const ref = referrer(l, { playerIds: [p.id] });
   const Club = l.teams[club].name;
   const slot = (s: string) => `${c.key}:${s}`;
-  const why = whyLine(p.lastName, publicRecord(l).why(p));
+  const why = whyLine(l, at, p.lastName, publicRecord(l).why(p));
   const old = c.otherId !== undefined ? l.teams[c.otherId].name : '';
   const deal = c.deal ? `The deal is for ${dealWords(c.deal)}.` : '';
   const base = { picture: { playerId: p.id }, links: links(p, club) };
@@ -859,7 +898,7 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     const left = p.contract ? yearsLeft(p.contract, l.season) : 0;
     const games = statLine(p, l.season - 1)?.gp ?? 0;
     const why =
-      whyLine(p.lastName, publicRecord(l).why(p)) ||
+      whyLine(l, at, p.lastName, publicRecord(l).why(p)) ||
       (games ? `${p.lastName} played in ${games} games for the team last season.` : '');
     return assemble(c, ref, {
       ...base,
@@ -895,7 +934,7 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           `${the} have moved ${man} from ${from} to ${to}.`,
           `${man} has moved from ${from} to ${to} for ${ref.club(club)}.`,
         ]),
-        whyLine(p.lastName, publicRecord(l).why(p)),
+        whyLine(l, at, p.lastName, publicRecord(l).why(p)),
       ],
       second: [openerLine(l, at, ref, club)],
       numbers: [{ value: String(p.age), label: 'Age' }],
@@ -904,7 +943,7 @@ function cutsStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   const line = statLine(p, l.season - 1);
   const fact =
     c.angle === 'cutStar'
-      ? whyLine(p.lastName, publicRecord(l).why(p))
+      ? whyLine(l, at, p.lastName, publicRecord(l).why(p))
       : c.angle === 'cutPick' && p.draft
         ? `${p.lastName} was a ${ORDINAL[p.draft.round]}-round pick in ${p.draft.season}.`
         : line?.gp
@@ -986,7 +1025,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           `${the} open the defense of their title ${game.where}.`,
           `${the}, last season's champions, open ${game.where}.`,
         ]),
-        game.when ? `The game kicks off ${game.when}.` : '',
+        kickLine(l, at, game.when),
       ],
       second: close.length ? close : [`${the} are the champions.`],
       numbers,
@@ -1083,7 +1122,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           `${name} coaches ${ref.club(club)} for the first time ${game.where}.`,
           `${the} open ${game.where}, the first game for head coach ${name}.`,
         ]),
-        game.when ? `The game kicks off ${game.when}.` : '',
+        kickLine(l, at, game.when),
       ],
       second: [expects, ...(close.length ? close : [`${the} open ${game.where}.`])],
       numbers,
@@ -1192,7 +1231,7 @@ function yourYear(l: League, at: Wording): EditionStory | null {
     ]
       .filter(Boolean)
       .join(' '),
-    first: [pick(l, at, `${key}:lede`, [lede]), whyLine(top.lastName, record.why(top))],
+    first: [pick(l, at, `${key}:lede`, [lede]), whyLine(l, at, top.lastName, record.why(top))],
     second: [...others, openerLine(l, at, ref, u)],
     numbers: [
       ...(tagged.length ? [{ value: String(tagged.length), label: 'Tagged' }] : []),
@@ -1372,10 +1411,7 @@ function yourKickoff(l: League, at: Wording): EditionStory | null {
     yours: true,
     headline: head(`${Club} open ${game.where}`, `${Club} open against the ${Opp}`),
     summary: game.when ? `The game kicks off ${game.when}.` : `The ${Club} open ${game.where}.`,
-    first: [
-      pick(l, at, `${key}:lede`, [`${the} open the season ${game.where}.`]),
-      game.when ? `The game kicks off ${game.when}.` : '',
-    ],
+    first: [pick(l, at, `${key}:lede`, [`${the} open the season ${game.where}.`]), kickLine(l, at, game.when)],
     second: close.length ? close : [`${the} open ${game.where}.`],
     numbers: last ? [{ value: rec(last), label: 'Last season' }] : [],
     picture: { teamIds: [u, game.opp] },

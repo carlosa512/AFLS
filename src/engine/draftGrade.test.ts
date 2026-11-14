@@ -118,8 +118,8 @@ describe('riskOf', () => {
     expect(riskOf(view(12, 12.5, 13, 1.4)).word).toBe('safe');
     expect(riskOf(view(8, 14, 17, 1.6)).word).toBe('boom-or-bust');
     expect(riskOf(view(11, 12, 15, 2.6)).word).toBe('boom-or-bust');
-    expect(riskOf(view(10, 14, 16, 2)).word).toBeNull();
-    const r = riskOf(view(10, 14, 16, 2));
+    expect(riskOf(view(10, 12, 14, 2)).word).toBeNull();
+    const r = riskOf(view(10, 12, 14, 2));
     expect(r.lo).toBeLessThanOrEqual(r.mid);
     expect(r.mid).toBeLessThanOrEqual(r.hi);
   });

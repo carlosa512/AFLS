@@ -472,6 +472,7 @@ describe('camp signings', () => {
 describe('the re-sign call', () => {
   // Pin re-taken: the benching chain changes moods league-wide (0.4.24), so a season's games and everything after them reshuffle;
   // again when nobody asks after his club's last game and a losing meeting backs only a move or words (0.4.25).
+  // again with the league-age work (2026-11-14): contract lengths follow the new aging table, so who is expiring and who each club keeps moved.
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);
