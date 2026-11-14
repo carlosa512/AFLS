@@ -90,6 +90,9 @@ function movedChains(plays: readonly PlayLogEntry[], i: number, homeId: number):
   const e = plays[i];
   if (lostBall(e)) return false;
   if (e.kind !== 'penalty' && offenseTd(e)) return true;
+  // A late flag on a play that stands (a face mask after the catch) always gives a first down, even goal to go from the
+  // same line to gain, where the next snap reads as the same first down. Grounding's loss of down is no such flag.
+  if (e.kind !== 'penalty' && /PENALTY on [^:]+: [^.]+, \d+ yards?\.(?! Loss of down)/.test(e.text)) return true;
   for (let j = i + 1; j < plays.length; j++) {
     const n = plays[j];
     if (halfOf(n.quarter) !== halfOf(e.quarter)) break;

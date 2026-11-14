@@ -136,7 +136,8 @@ describe('a two-point try books no snap (0.4.14)', () => {
   it("adds no snap to the scoring side's quarterbacks: only the touchdown's own", () => {
     const l = createLeague({ seed: 'try-snaps' });
     let tries = 0;
-    for (const g of l.games.filter((x) => !x.playoffRound).slice(0, 12)) {
+    for (const g of l.games.filter((x) => !x.playoffRound).slice(0, 24)) {
+      // 24 games, not 12 (2026-11-14, league-age work): the new world's first twelve held three tries, one short of the bar.
       const live = startGame(l, g, {});
       while (!live.over) {
         // A copy: the live result hands back the game's own stat lines.
