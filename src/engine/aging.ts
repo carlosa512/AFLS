@@ -86,6 +86,9 @@ export function retireChance(p: Player, ovr: number): number {
   const over = p.age - (AGING[p.position].peakEnd + bodyShift(p.traits));
   if (p.teamId === null) return over >= 2 || ovr < 8 ? 0.6 : 0.2;
   if (over >= 8) return 1;
+  // When the yearly chance starts to climb, by position: the NFL's linemen leave sooner after their prime, its
+  // receivers and defensive backs who still start hang on longer (docs/research/league-age.md).
+  const turn = over + (RETIRE_BODY.turn[p.position] ?? 0);
   // The body: a chance that climbs a year at a time from just before his prime ends, and more the further he has fallen
   // from his own best (a cliff, `cliffs.ts`, is how most careers end).
   // Only near the end of his prime: a young player slipping toward a ceiling that settled under him isn't done.
@@ -95,7 +98,7 @@ export function retireChance(p: Player, ovr: number): number {
   const slack = RETIRE_BODY.slack + RETIRE_BODY.agedSlack * aged;
   const fall = over >= RETIRE_BODY.fallFrom ? Math.max(0, bestOvr(p) - ovr - slack) : 0;
   const hazard = clamp(
-    RETIRE_BODY.perYear * Math.max(0, over - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
+    RETIRE_BODY.perYear * Math.max(0, turn - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
     0,
     RETIRE_BODY.cap,
   );
@@ -109,6 +112,7 @@ export function retireChance(p: Player, ovr: number): number {
  * - `fall`: what each overall point under his own best adds, past `slack` (and `agedSlack` more for each year past his
  *   physical turn), from `fallFrom` years past his prime's end
  * - `cap`: the most a year's chance can be (until eight years past, when he goes)
+ * - `turn`: years added to how far past his prime he is, by position, for the climb (positive: sooner)
  * Tuned with cliffs to the NFL's starters' exits by age (off every roster: about one in ten a year at 29–32, more on the
  * lines at 32) and the careers survivor lines: a cliff ends most careers within a year or two, the ordinary fade doesn't.
  */
@@ -120,6 +124,7 @@ export const RETIRE_BODY = {
   agedSlack: 0.9,
   fallFrom: -2,
   cap: 0.95,
+  turn: {} as Partial<Record<Position, number>>,
 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
