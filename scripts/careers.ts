@@ -21,7 +21,8 @@ import { bandOf } from './band';
 import { fork } from 'node:child_process';
 import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
 import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
-import { CEILING_SWING, developPlayer } from '../src/engine/development';
+import { CEILING_SWING, developPlayer, recordRatings } from '../src/engine/development';
+import { retireChance } from '../src/engine/aging';
 import { generatePlayer } from '../src/engine/generate';
 import { HYPE_ROOM, RAW } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
@@ -107,6 +108,8 @@ const AGES = Array.from({ length: 19 }, (_, i) => 21 + i); // 21 … 39
 
 interface Cohort {
   ovr: number[][]; // [player][age index]
+  /** Still in the league at that age: he'd have retired as a rostered player does (`retireChance`), or not. */
+  alive: boolean[][];
   attr: Record<string, number[][]>;
   traits: Traits[];
 }
@@ -115,6 +118,7 @@ interface Cohort {
 function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching = NEUTRAL): Cohort {
   const out: Cohort = {
     ovr: [],
+    alive: [],
     attr: { speed: [], agility: [], throwAccShort: [], throwAccDeep: [], awareness: [] },
     traits: [],
   };
@@ -136,13 +140,25 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
+    const alive: boolean[] = [];
+    let retired = false;
     const entry = playerOvr(p);
     const attrs: Record<string, number[]> = Object.fromEntries(Object.keys(out.attr).map((a) => [a, []]));
     for (const age of AGES) {
       p.age = age;
       row.push(playerOvr(p));
+      alive.push(!retired);
+      recordRatings(p, 2000 + age);
       for (const a of Object.keys(attrs)) attrs[a].push(p.ratings[a as keyof Player['ratings']]);
       developPlayer(new Rng(`careers:dev:${pos}:${i}:${age}`), p, { playedShare, ...coaching });
+      // A rostered player's new-league-year roll, as `beginOffseason` makes it after his year (his age just ticked).
+      if (
+        !retired &&
+        new Rng(`careers:retire:${pos}:${i}:${age}`).chance(
+          retireChance({ ...p, age: age + 1, teamId: 0 }, playerOvr(p)),
+        )
+      )
+        retired = true;
       // His season's end settles his ceiling (`ceiling.ts`), leaned the way a league leans it: his work ethic, a
       // starter's snaps (or a bench's), his coaches.
       const year = age - 21;
@@ -160,6 +176,7 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       }
     }
     out.ovr.push(row);
+    out.alive.push(alive);
     for (const a of Object.keys(attrs)) out.attr[a].push(attrs[a]);
     out.traits.push(p.traits);
   }
@@ -168,10 +185,26 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
 
 const curve = (rows: number[][]) => AGES.map((_, j) => mean(rows.map((r) => r[j])));
 const at = (c: number[], age: number) => c[age - 21];
+/**
+ * Below his position's peak at a late age, read on the players still in the league then (the research measured players
+ * still playing, so a curve over everyone, cliffs and all, would read a fall the research never saw). Peak from everyone.
+ */
+const lateBelow = (pos: Position, age: number) => {
+  const c = cohorts[pos];
+  const j = age - 21;
+  const left = c.ovr.filter((_, i) => c.alive[i][j]).map((r) => r[j]);
+  return { value: Math.max(...curves[pos]) - mean(left), n: left.length };
+};
+const late = (label: string, pos: Position, age: number, lo: number, hi: number) => {
+  const { value, n } = lateBelow(pos, age);
+  return `${check(label, value, lo, hi)} (survivors ${n})`;
+};
 /** Median age of each player's own best season (the research's "peak season"). */
 const peakAge = (c: Cohort) => median(c.ovr.map((r) => AGES[r.indexOf(Math.max(...r))]));
 
-console.log(`Part 1 — cohort curves (${COHORT} draftees per position from 21, full playing time, no retirement)\n`);
+console.log(
+  `Part 1 — cohort curves (${COHORT} draftees per position from 21, full playing time; lines past 31 read the players a league would still roster)\n`,
+);
 const curves = {} as Record<Position, number[]>;
 const cohorts = {} as Record<Position, Cohort>;
 for (const pos of POSITIONS) {
@@ -205,40 +238,36 @@ lines.push(
 // Research: WR and CB peak 25–28.
 for (const pos of ['WR', 'CB'] as const) {
   const c = curves[pos];
-  const late = pos === 'CB' ? 31 : 32;
+  const lateAge = pos === 'CB' ? 31 : 32;
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${check(`below peak at ${late}`, below(c, late), 1.5, 4.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${lateAge >= 32 ? late(`below peak at ${lateAge}`, pos, lateAge, 1.5, 4.5) : check(`below peak at ${lateAge}`, below(c, lateAge), 1.5, 4.5)}`,
   );
 }
 // Design targets: the front seven and safeties fade from about 30.
 for (const pos of ['S', 'LB', 'EDGE', 'DT'] as const) {
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${check('below peak at 33', below(curves[pos], 33), 1.5, 5.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${late('below peak at 33', pos, 33, 1.5, 5.5)}`,
   );
 }
 // Research: long plateaus (TE still at 89% at 34, survivor-biased).
 for (const pos of ['TE', 'OL'] as const) {
-  const c = curves[pos];
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${check('below peak at 32', below(c, 32), 0, 0.6)} · ${check('below peak at 35', below(c, 35), 0.8, 4)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${late('below peak at 32', pos, 32, 0, 0.6)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
   );
 }
 {
   // Research: QB peak season 28.5 on average (pocket 30.7, dual-threat 26.1); rushing flat 27–29.
-  const c = curves.QB;
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
   const acc = AGES.map((_, j) =>
     mean(q.throwAccShort.map((r, i) => (r[j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3)),
   );
   lines.push(
-    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${check('below peak at 33', below(c, 33), 0, 0.6)} · ${check('below peak at 37', below(c, 37), 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak', at(acc, 34) / Math.max(...acc), 0.97, 1.01, 3)}`,
+    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak', at(acc, 34) / Math.max(...acc), 0.97, 1.01, 3)}`,
   );
 }
 for (const pos of ['K', 'P'] as const)
-  lines.push(
-    `${pos}: ${check('below peak at 35', below(curves[pos], 35), 0, 0.6)} · ${check('below peak at 38', below(curves[pos], 38), 0.3, 3)}`,
-  );
+  lines.push(`${pos}: ${late('below peak at 35', pos, 35, 0, 0.6)} · ${late('below peak at 38', pos, 38, 0.3, 3)}`);
 for (const l of lines) console.log(l);
 
 // Hidden traits and playing time (design targets: felt, never decisive).
