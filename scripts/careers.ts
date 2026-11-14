@@ -256,11 +256,12 @@ for (const pos of ['S', 'LB', 'EDGE', 'DT'] as const) {
     `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28, 1)} · ${late('below peak at 33', pos, 33, 1.5, 5.5)}`,
   );
 }
-// TE and OL: snap share and a TE's EPA a target peak at 25 (OL 24–27); long plateaus after (TE still at 89% at 34,
-// survivor-biased).
+// TE and OL: snap share and a TE's EPA a target peak at 25 (OL 24–27). By 32 they've lost 27–30% of their peak snap
+// share against a receiver's 37% (a TE's EPA a target falls about 0.6 as far), so their fall at 32 is 0.6–2.5 against a
+// receiver's 1.5–4.5 (the owner's call, 2026-11-14; it was 0–0.6, read off survivor-biased plateaus).
 for (const pos of ['TE', 'OL'] as const) {
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 28, 1)} · ${late('below peak at 32', pos, 32, 0, 0.6)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 28, 1)} · ${late('below peak at 32', pos, 32, 0.6, 2.5)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
   );
 }
 {
