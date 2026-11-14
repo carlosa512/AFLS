@@ -146,6 +146,15 @@ describe('GMs make room to keep their core', () => {
 
   it('never cuts a better player than the one it keeps', () => {
     const { l, team, p } = squeezed(-0.6, 0.2);
+    // Next year with a little room to borrow against: with none the GM rightly borrows nothing and his keeper walks, and
+    // with 10% of a cap the restructures cover it all and nothing is cut (the world after the mail-filed determinism fix,
+    // 2026-11-14, picks a club with next year full). At 8% it restructures, cuts one player and signs.
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: -Math.round(0.08 * capFor(l, l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
     const before = new Set(teamPlayers(l, team.id).map((x) => x.id));
     aiResignWindow(l, team, new Rng('room'));
     const cut = [...before]
@@ -158,6 +167,7 @@ describe('GMs make room to keep their core', () => {
       .filter((x) => x.teamId === team.id && x.contract && x.contract.signedSeason === l.season);
     expect(signed.length).toBeGreaterThan(0);
     const bar = Math.max(playerOvr(p), ...signed.map(playerOvr));
+    expect(cut.length).toBeGreaterThan(0);
     for (const x of cut) expect(playerOvr(x)).toBeLessThan(bar);
   });
 
