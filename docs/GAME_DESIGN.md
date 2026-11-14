@@ -96,31 +96,42 @@ Development runs once a year, at the start of the league year, on each player's 
 (so tuning it never reshuffles drafts or schedules). `npm run careers` checks the results against
 the real-world ranges in the research doc.
 
-- **Growth (under 26):** each year a player closes part of the gap to his hidden ceiling. Three things
-  move the pace: his **work ethic**, which spans about ×0.4 to ×1.6, **reps**, and his **coaches**
-  (see below). Reps are the share of last season's games he played. At 21 practice carries most of
-  the growth; by 24 games do. A starter grows about 20% faster than average, and a player who never
-  sees the field about 35% slower. Growth lands where it can still happen: physical tools are about
-  done by 25, and late gains are technique and the mental game.
+- **Growth (to 24 at most positions):** each year a player closes part of the gap to his hidden ceiling. Prospects
+  come in near their ready-to-play selves, so a good young player can win a job early, as in the NFL. Growth ends at 24;
+  the front seven and safeties grow to 25, and edge rushers to 26 at a slower pace, each held to its position's peak age
+  from the NFL's delta-method aging curves (`docs/research/league-age.md`). Three things move the pace: his **work
+  ethic**, which spans about ×0.4 to ×1.6, **reps**, and his **coaches** (see below). Reps are the share of last
+  season's games he played. At 21 practice carries most of the growth; by 24 games do. A starter grows about 20% faster
+  than average, and a player who never sees the field about 35% slower. Growth lands where it can still happen: physical
+  tools are done first, and late gains are technique and the mental game.
 - **Aging:** one table per position (`aging.ts`) decides when each family of ratings starts to slip:
   - **Physical tools** go first.
   - **Technique** holds through the prime.
-  - **The mental game** keeps sharpening for three more years.
+  - **The mental game** keeps sharpening for three more years (a passer's reads longest).
 
   How it plays out by position:
-  - **Backs** peak around 26 and fall hard from 28.
+  - **Backs** peak around 24 and fall hard from 28.
   - **Receivers, corners and the front seven** start fading at 29–30.
-  - **Linemen and tight ends** hold into their early 30s.
-  - **Quarterbacks** lose their legs from about 30, while their arm, accuracy and reads hold to
-    about 35. A pocket passer therefore lasts and a runner doesn't, with no archetype field.
+  - **Linemen and tight ends** turn at 30 and fade slower than receivers.
+  - **Quarterbacks** lose their legs from about 29, while their arm, accuracy and reads hold to about 35: QB play is
+    flat from 23 to 33 in the NFL, a long plateau rather than a late peak.
   - **Kickers and punters** last to the mid-30s, a few to 40.
 
   The same table also drives contract asks, contract lengths, trade values and the AI's re-sign,
   tag and contract-length age limits, so a 30-year-old back looks old to everyone and a 33-year-old
   quarterback doesn't.
-- **Retirement** follows the same clock. Players under contract hang on while their body holds:
-  retirement risk starts about two years past their position's prime and rises each year.
-  Unsigned veterans and washed-up players walk away sooner.
+- **Cliffs:** an NFL career is a plateau that can end in a sudden drop, often after an injury. From 29 (a quarterback's,
+  kicker's or punter's own turn) each year carries a small, rising chance of losing several points of body and
+  technique at once; a severe injury that season makes it likelier, a fragile body too. Before 28 only a severe injury
+  brings one. The players still playing at 34 are the few who aged well, as in the NFL. Front offices price the average
+  cliff into what they expect a veteran to become; screens never show it.
+- **Retirement** follows the body. Under contract, the chance climbs a year at a time from his position's prime (sooner
+  for linemen, tight ends and punters) and jumps after a fall from his best beyond the ordinary fade: a cliff ends most
+  careers within a year or two, normal aging doesn't. Unsigned veterans and washed-up players walk away sooner.
+- **Measured against the NFL:** `npm run careers` reads 20-season leagues the NFL's way (starters by snaps, their ages by
+  position, what happens to a starter the next season; `scripts/league-age-core.ts`). The old end and the exits are
+  judged; how many young players start and how often a starter keeps his job also turn on what front offices choose, and
+  stay a known issue for that project.
 
 **Hidden traits** (1–20 each, generated per player, never shown as numbers):
 
