@@ -85,7 +85,7 @@ const CHECKS = {
   careers: {
     cmd: ['npm', 'run', 'careers'],
     cores: 4,
-    secs: 360,
+    secs: 480,
     slow: true,
     summary: /\d+ number\(s\) outside target range/,
   },
@@ -256,6 +256,8 @@ const RULES: [RegExp, Name[]][] = [
   [/^scripts\/endings\.ts$/, ['endings']],
   [/^scripts\/offseason(-league)?\.ts$/, ['offseason']],
   [/^scripts\/careers(-league)?\.ts$/, ['careers']],
+  // The NFL's league-age measures careers judges against, and their tests.
+  [/^scripts\/league-age-core(\.test)?\.ts$/, ['test', 'careers']],
   [/^scripts\/audit\.ts$|^docs\/ATTRIBUTES\.md$/, ['audit']],
   // Quirks: the bag and its hooks, and what builds the leagues they're measured in.
   [/^src\/engine\/(?!.*\.test\.ts$)(quirks|match\/|generate|coaching|schemes|attributes|positions|traits)/, ['quirks']],

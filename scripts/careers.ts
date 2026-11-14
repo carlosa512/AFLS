@@ -625,7 +625,7 @@ console.log(
   console.log(`  overall below a starter by age, settled (informational): ${gapLine((r) => r.age.gap.settled)}`);
   if (known.length)
     console.log(
-      `⚠ known issue: too few young starters and too little job turnover against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,
+      `⚠ known issue: too few young starters, too little job turnover, starters a little older on average and too many short-prime starters gone at 31–32 against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,
     );
 }
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).

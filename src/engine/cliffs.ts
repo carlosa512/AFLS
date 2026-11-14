@@ -20,8 +20,7 @@ import type { Player, Position, Traits } from './types';
  * - `hurt`: the chance multiplied after a severe injury that season (and, under `from`, `base × hurt`)
  * - `fragile`: per point of durability under the league's mean, the share the chance grows
  * - `size`: overall points a cliff takes, drawn between the two
- * - `later`: years later the climb starts, by position (the NFL's receivers and defensive backs who still start at 31
- *   rarely leave; its linemen do at 32)
+ * - `later`: years later the climb starts, by position (none today: a tune that moves one position's exits sets it)
  * Tuned with retirement (`RETIRE_BODY`) to the NFL's starters' exits by age and the careers check's survivor lines; a
  * fragile body's lean is held by the durability line (top vs bottom third at 32, 0.5–2).
  */
@@ -59,10 +58,9 @@ export function cliffChance(age: number, pos: Position, traits: Pick<Traits, 'du
   if (CLIFFS.always) return 1;
   const injury = hurt ? CLIFF.hurt : 1;
   if (age < CLIFF.from) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
-  const turn0 = declineOnset(pos, 'technical', traits) - CLIFF.lead;
-  // A kicker's or punter's body barely ages: no cliff before his own turn but after an injury.
-  if (KICKERS.has(pos) && age < turn0) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
   const turn = declineOnset(pos, 'technical', traits) - CLIFF.lead;
+  // A kicker's or punter's body barely ages: no cliff before his own turn but after an injury.
+  if (KICKERS.has(pos) && age < turn) return hurt ? clamp(CLIFF.base * CLIFF.hurt, 0, CAP) : 0;
   const climb = (LASTING.has(pos) ? turn : CLIFF.latest) + (CLIFF.later[pos] ?? 0);
   const body = Math.max(0, 1 + CLIFF.fragile * (TRAIT_MEAN - traits.durability));
   return clamp((CLIFF.base + CLIFF.perYear * Math.max(0, age - climb)) * injury * body, 0, CAP);

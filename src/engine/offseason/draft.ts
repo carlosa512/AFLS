@@ -30,7 +30,8 @@ export const DRAFT_CLASS_SIZE = 260;
  * - `top`: the class's best before `raw`; set so the drafted league's starters hold their level (`npm run careers`)
  * - `fall`: how far the class's last pick sits under its first
  * - `shape`: how fast the class falls off from the top (a smaller power falls faster past the first round)
- * - `raw`: how far under his ready-to-play self a prospect comes in, given back as room to grow
+ * - `raw`: how far under his ready-to-play self a prospect comes in, given back as room to grow (0 since 2026-11-14:
+ *   prospects come in near the player they'll be, as the NFL's rookies start sooner than ours did)
  * - `hype`: room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives
  *   the class's talent back
  * - `spread`: how far growth spreads (sd of a half-normal): most grow a little, a few a lot
@@ -45,8 +46,9 @@ export const DRAFT_CLASS = {
   hype: 0.2,
   spread: 1,
   /**
-   * The share of the usual growth room a position comes in with (1 = all of it): skill positions play sooner, so they
-   * come in nearer their ceiling, the growth they don't need added to where they start.
+   * The share of the usual growth room a position comes in with (1 = all of it), the growth it doesn't need added to
+   * where it starts. Empty today: each position's growth age and pace (`DEV_RULES.byPosition`) gave the NFL's peak ages
+   * without it; kept so a tune can bring one position in sooner.
    */
   ready: {} as Partial<Record<Position, number>>,
   /**
@@ -76,8 +78,8 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // league settled at 12.67, two hundredths over the floor, so any reshuffle of who goes where (a draft-day
     // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds). Since prospects come in nearer
     // their ceilings (2026-11-14: no `raw`, less hype room and spread) the top is 13.45, the league's starters 12.9–13.2.
-    // Prospects come in raw (`DRAFT_CLASS.raw`): a first-rounder usually needs two or three years to become a solid starter, so a
-    // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
+    // A ceiling that settles under a prospect (`ceiling.ts`) is a bust, not a starter who stopped improving: what's left
+    // to grow (`DRAFT_CLASS.raw`, `hype`) is what a bust never reaches.
     const quality = clamp(
       DRAFT_CLASS.top -
         DRAFT_CLASS.raw -

@@ -114,10 +114,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
-- `npm run careers` — age a draft class of every position and play four 16-season leagues in
-  parallel child processes, then four more for work ethic's lean on ceilings (about 6 minutes on 4 cores, slower with fewer); checks peaks, declines,
-  retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
-  or retirement. Nothing may be flagged ▲/▼.
+- `npm run careers` — age a draft class of every position and play four 20-season leagues in
+  parallel child processes, then four more for work ethic's lean on ceilings (about 8 minutes on 4 cores, slower with fewer); checks peaks, declines,
+  retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`) against the research ranges. Run it after changing
+  `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`

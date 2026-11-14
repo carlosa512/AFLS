@@ -120,9 +120,9 @@ the real-world ranges in the research doc.
   The same table also drives contract asks, contract lengths, trade values and the AI's re-sign,
   tag and contract-length age limits, so a 30-year-old back looks old to everyone and a 33-year-old
   quarterback doesn't.
-- **Cliffs:** an NFL career is a plateau that can end in a sudden drop, often after an injury. From 29 (a quarterback's,
-  kicker's or punter's own turn) each year carries a small, rising chance of losing several points of body and
-  technique at once; a severe injury that season makes it likelier, a fragile body too. Before 28 only a severe injury
+- **Cliffs:** an NFL career is a plateau that can end in a sudden drop, often after an injury. From 28 each year carries a
+  small chance of losing several points of body and technique at once, rising from 29 (from his own turn for a
+  quarterback, a kicker or a punter, whose bodies only fall then); a severe injury that season makes it likelier, a fragile body too. Before 28 only a severe injury
   brings one. The players still playing at 34 are the few who aged well, as in the NFL. Front offices price the average
   cliff into what they expect a veteran to become; screens never show it.
 - **Retirement** follows the body. Under contract, the chance climbs a year at a time from his position's prime (sooner

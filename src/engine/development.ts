@@ -120,7 +120,7 @@ const SLIP_SLACK = 0.3;
 /** Keeps league-wide growth where it was before reps counted (most young players are backups). */
 const GROWTH_NORM = 1.1;
 
-/** Where growth lands: physical tools are about done by 25; late gains are technique and the mental game. */
+/** Where growth lands: physical tools are about done by his growth age (`growthEnds`); late gains are technique and the mental game. */
 function growthShare(family: AgingFamily, age: number, ends: number): number {
   if (family === 'physical') return clamp((ends - age) / 3, 0, 1);
   return family === 'mental' ? 1.2 : 1;
@@ -130,7 +130,9 @@ const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, 
 /**
  * The rules a year is rolled under. A year remembers which (`DevYear.rules`) and every later step re-rolls it under
  * the same ones, so a save loaded mid-season never jumps toward new numbers; a year from an old save (no `rules`) is a
- * v1 year. `DEV_RULES_V1` is frozen: change `DEV_RULES`.
+ * v1 year. `DEV_RULES_V1` is frozen. A `rules: 2` year reads `DEV_RULES` as it is now, so a retune that should not move
+ * a save loaded mid-season first freezes today's values as `DEV_RULES_V2` and stores `rules: 3` (`CLIFF` and `AGING`
+ * sit outside the versions: a change there moves a year still landing).
  * - `pace`: the share of the gap to his ceiling a young player closes in a year (times his multipliers)
  * - `primeSwing`: the sd of a year's change, in overall points, once growth is done
  * - `growthEnds`: the age growth toward the ceiling stops (physical tools fade in over the three years before it)
@@ -379,7 +381,7 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
     applyShare(p, targets, applied, 1);
     return;
   }
-  // Only what the roll read: the coaching rate feeds growth (under 26), the decline effects a fading family.
+  // Only what the roll read: the coaching rate feeds growth (in his growth years), the decline effects a fading family.
   const fading = FAMILIES.some(
     (f) => p.age > declineOnset(f === 'physical' && ctx.bodyAs ? ctx.bodyAs : p.position, f, p.traits),
   );
@@ -473,7 +475,7 @@ function growthMean(league: League): number {
 }
 
 /**
- * A step's worth of his mood on a growth year (rolled under 26): `share` is the step's nominal release, so the tilt sums
+ * A step's worth of his mood on a growth year (rolled before his growth age): `share` is the step's nominal release, so the tilt sums
  * to `MOOD_TILT.growth × pull` over a year. A week he sat counts in full: his mood in practice counts whether or not he
  * dressed (reps already set how fast the year lands).
  */
@@ -543,7 +545,10 @@ export function appliedThisYear(p: Player, attr: Attribute): number {
 
 /** The average body's year (`year` above runs 0.3–1.4). */
 const TYPICAL_YEAR = 0.85;
-/** Keyed by position and whether cliffs are on (`CLIFFS.on`), so a test that turns them off never reads a stale table. */
+/**
+ * Keyed by position and whether cliffs are on (`CLIFFS.on`), so a test that turns them off never reads a stale table;
+ * never kept under `CLIFFS.always` (a test's every-age cliff). The rules and tables it reads are constants in play.
+ */
 const agingMemo = new Map<string, number[]>();
 
 /**
@@ -556,7 +561,7 @@ export function expectedAging(pos: Position, age: number): number {
   const key = `${pos}:${CLIFFS.on}`;
   let table = agingMemo.get(key);
   if (!table) agingMemo.set(key, (table = []));
-  const memo = table[age];
+  const memo = CLIFFS.always ? undefined : table[age];
   if (memo !== undefined) return memo;
   const weights = OVR_WEIGHTS[pos];
   const fade = AGING[pos].slope;
@@ -584,7 +589,7 @@ export function expectedAging(pos: Position, age: number): number {
   // The average cliff (`cliffs.ts`) for a typical body, healthy: what a front office expects it to cost at this age.
   const cliff = cliffChance(age, pos, { durability: TRAIT_MEAN }, false) * ((CLIFF.size[0] + CLIFF.size[1]) / 2);
   const out = (total ? sum / total : 0) - (DEV_RULES.cliffs ? cliff : 0);
-  table[age] = out;
+  if (!CLIFFS.always) table[age] = out;
   return out;
 }
 

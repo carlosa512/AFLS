@@ -85,7 +85,7 @@ volume), summed into a curve. Reproduce with `python3 -I scripts/research-peaks.
 
 Snap share is how much coaches play a man, the one measure every position has; EPA is play itself, for the positions with
 the numbers. By 32 a tight end's or lineman's snap share is down about a quarter from its peak (a TE's EPA a target
-similarly): the "holds within 0.6 at 32" lines may be stricter than the NFL too, left as they are for now.
+similarly): the tight ends' and linemen's "below peak at 32" line reads 0.6–2.5 (the owner, 2026-11-14; it was 0–0.6).
 
 ## AFLS before this work (0.4.44)
 
