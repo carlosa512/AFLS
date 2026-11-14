@@ -837,8 +837,36 @@ function foundingGrowthScale(spec: PlayerSpec, growthYears: number): number {
   return target === undefined ? 1 : target / (growthYears * 0.75 + 0.4);
 }
 
+/** The standard normal's distribution function (Abramowitz and Stegun 7.1.26: within 1.5e-7). */
+function normalCdf(z: number): number {
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const erf =
+    1 -
+    ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
+}
+const starterLeans = new Map<string, number>();
+/** What a founding starter at `position` leans on average over the ages `slotAge` draws for starters. */
+function starterLean(position: Position): number {
+  const key = `${FOUNDING.on}:${position}`;
+  let lean = starterLeans.get(key);
+  if (lean === undefined) {
+    lean = 0;
+    for (let age = 22; age <= 36; age++) {
+      const lo = age === 22 ? 0 : normalCdf((age - 0.5 - STARTER_AGE.mean) / STARTER_AGE.sd);
+      const hi = age === 36 ? 1 : normalCdf((age + 0.5 - STARTER_AGE.mean) / STARTER_AGE.sd);
+      lean += (hi - lo) * foundingLean(position, age);
+    }
+    starterLeans.set(key, lean);
+  }
+  return lean;
+}
+/** A founding starter's age: normal around 27, 22 to 36. */
+const STARTER_AGE = { mean: 27, sd: 3 };
+
 function slotAge(rng: Rng, isStarter: boolean): number {
-  if (isStarter) return Math.round(clamp(rng.normal(27, 3), 22, 36));
+  if (isStarter) return Math.round(clamp(rng.normal(STARTER_AGE.mean, STARTER_AGE.sd), 22, 36));
   return rng.chance(0.55) ? rng.int(22, 25) : rng.int(25, 32);
 }
 
@@ -959,29 +987,38 @@ export function createLeague(options: NewLeagueOptions = {}): League {
     for (const position of POSITIONS)
       for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
         const roll = slotRoll(probe, position, slot);
-        (rolls[position] ??= []).push(roll);
+        const age = slotAge(probe, slot < STARTERS[position]);
+        // His age's lean is part of the roll, so a club that drew old starters has it dealt back with the rest of its
+        // luck (dealt after the deal, the lean spread a new league's records from 3.45 wins to 3.66).
+        (rolls[position] ??= []).push(roll + foundingLean(position, age));
         generatePlayer(probe, {
           id: -1,
           position,
           quality: clamp(roll, 4, 19.5),
-          age: slotAge(probe, slot < STARTERS[position]),
+          age,
           teamId: team.id,
           jerseysUsed: probeJerseys,
           founding: true,
         });
       }
+    // Each starter's luck against what his position's starters lean on average, so the deal evens clubs out and leaves
+    // the league's level where the lean puts it.
     const dealt = evenDeal(
       Object.fromEntries(
-        POSITIONS.map((pos) => [pos, rolls[pos].slice(0, STARTERS[pos]).map((q) => q - STARTER_QUALITY)]),
+        POSITIONS.map((pos) => [
+          pos,
+          rolls[pos].slice(0, STARTERS[pos]).map((q) => q - STARTER_QUALITY - starterLean(pos)),
+        ]),
       ) as Record<Position, number[]>,
     );
-    for (const pos of POSITIONS) dealt[pos].forEach((x, slot) => (rolls[pos][slot] = x + STARTER_QUALITY));
+    for (const pos of POSITIONS)
+      dealt[pos].forEach((x, slot) => (rolls[pos][slot] = x + STARTER_QUALITY + starterLean(pos)));
     for (const position of POSITIONS) {
       for (let slot = 0; slot < ROSTER_TEMPLATE[position]; slot++) {
         const isStarter = slot < STARTERS[position];
         // The roll's draw where it always came; the quality is the probe's roll, dealt.
         slotRoll(rng, position, slot);
-        // Drawn before the player as it always was (the spec's quality draws nothing): his age leans his quality.
+        // Drawn before the player as it always was (the spec's quality draws nothing).
         const age = slotAge(rng, isStarter);
         const player = generatePlayer(rng, {
           id: league.nextPlayerId++,
@@ -989,7 +1026,8 @@ export function createLeague(options: NewLeagueOptions = {}): League {
           // A franchise's record lifts its starters, not its depth: a built league's depth barely follows its
           // strength (stars cost the room it would take), and depth that did let strong clubs shrug off injuries
           // weak ones couldn't, pulling a new league apart through its first season.
-          quality: clamp(rolls[position][slot] + (isStarter ? teamTalent : 0) + foundingLean(position, age), 4, 19.5),
+          // The probe drew the same age, and his lean is in his roll.
+          quality: clamp(rolls[position][slot] + (isStarter ? teamTalent : 0), 4, 19.5),
           age,
           teamId: team.id,
           jerseysUsed,
