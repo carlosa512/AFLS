@@ -114,7 +114,10 @@ describe('the engine plays the pocket', () => {
 
   it('takes a sack at his own 2 down on the goal line, never in front of it', () => {
     const { r, taps, homeId, id } = played[0];
-    const t = taps.find((x) => x.result && x.moment.kind === 'pass')!;
+    // Re-scened with the league-age work (2026-11-14): the first dropback of the game used to do, but in the new world it is
+    // a clean one, and a clean pocket's facts (`cq`, the throw's clock) with `pk` forced to 'sack' is no sack's facts, so
+    // the passer sailed past the line. A real sack's own facts, an escape left out, is the scene that must hold.
+    const t = taps.find((x) => x.result && x.today.outcome === 'sack' && !x.moment.facts.ex)!;
     const g = league.games.find((x) => x.id === id)!;
     const seed = `${league.seed}:${g.season}:${g.id}`;
     const dir = t.start.dir;

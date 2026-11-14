@@ -312,6 +312,9 @@ describe('migration and collection', () => {
     // Everything but `charts` again with GM habits (0.4.5): three new GM archetypes join the pool, so the league's draws
     // for who runs each club move the stream, players, schedule and result; the charts still match. `result` again on
     // merging main's passing, fumbles and turnovers (0.4.6-0.4.8) with it: the same world, played differently.
+    // Everything but `charts` again with the league-age work (2026-11-14): opening contracts follow the new aging table
+    // (`preferredYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
+    // them, the players' contracts and the result move; the charts, which no contract touches, still match.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -323,9 +326,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: 'fb845ee1b0cc0915e3f991d9b841395f1a0c1dfe710983fc96c5931adb441cbf',
-  rng: [2199887664, 148623131, 2479456291, 1664091423],
-  games: 'dcbab00a27da92c50dcdb54a46a10fa5bf67c3c31c95eeaeeffcfe66b586cd77',
-  result: 'e8cbdf6437afd09959d6928b1be15c86ab387a33a36e3813054fce1282970d45',
+  players: '46a6ce0cd773d9d3576b5f11f0e0004443e88c21ec779b1ca51a9d951c90c5b3',
+  rng: [307611251, 1174562455, 406219770, 1664109076],
+  games: 'b9dea5ba6f9fd885848a004f43c0d936e1e020fdf7610823a9bf2fb4deb9f180',
+  result: '3b563d6eefc77bbf0e04c511a5aec4ad03529204cec8364b239eeeaf94d1ee08',
   charts: '72404090723297066b0a1f9aa96a4a01e9665ffcdee29147ce217e74ac6a14e1',
 };
