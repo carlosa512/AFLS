@@ -78,7 +78,12 @@ const PARITY_TARGETS: Record<string, [number, number]> = {
 /** Lines that swing with the league (`band.ts`): ⚠ outside the range above, fail outside this (the owner's call, Nov 5).
  * Win spread: NFL seasons 2021–25 read 2.84, 3.01, 2.70, 3.65 and 3.41 (nflverse); a 60-season mean sits a little inside
  * the single seasons' range. */
-const PARITY_NORMAL: Partial<Record<string, [number, number]>> = { 'win spread (SD)': [2.8, 3.6] };
+// Margin spread around strength (the owner's call, Nov 14): on near-identical code it read 12.95-13.52 from one world to
+// the next (main about 13.2), so any reshuffle of who is in the league flipped it across 13.3.
+const PARITY_NORMAL: Partial<Record<string, [number, number]>> = {
+  'win spread (SD)': [2.8, 3.6],
+  'margin spread around strength': [12.0, 13.6],
+};
 const inj: Record<string, number> = {};
 const injAdd = (k: string, v = 1) => (inj[k] = (inj[k] ?? 0) + v);
 const bySeverity: Record<string, number> = {};

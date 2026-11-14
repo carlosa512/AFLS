@@ -626,11 +626,15 @@ check(
 const resolved = [...requestEnds.values()];
 // The floor is 0.15, not 0.25 (the owner's call, Nov 3): a run sees 15-37 requests end, so one or two deals swing it,
 // and across three worlds main read 0.33-0.42 and the meetings branch 0.18-0.47. It still flags a market where requests
-// almost never end in a trade; the NFL's "roughly half" stays the target.
+// almost never end in a trade; the NFL's "roughly half" stays the target. Swings with the league (the owner's call,
+// Nov 14): a new league's young built with a settled league's growth ahead read 3 of 21 (0.14) where the world before
+// read 12 of 35. ⚠ outside 0.15-0.75, fails outside 0.1-0.85.
 check(
   `Trade requests resolved by a trade (n=${resolved.length})`,
   resolved.filter((h) => h === 'traded').length / Math.max(1, resolved.length),
   [0.15, 0.75],
+  2,
+  [0.1, 0.85],
 );
 // 8: meetings (L2). A season counts once its re-sign window is in (the last season played has none).
 const lastYear = league.season;
