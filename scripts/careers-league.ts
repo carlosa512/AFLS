@@ -99,7 +99,10 @@ export interface LeagueRun {
   };
 }
 
-/** Trees born are counted over this many seasons, whatever the run's length (the careers band, 1–4, is per 16). */
+/**
+ * Trees born are counted over this many seasons, whatever the run's length: the careers band, 1–4, is per 16, and the
+ * first 16 seasons of a 20-season run play as a 16-season run does (the owner's call, 2026-11-14).
+ */
 const BORN_SEASONS = 16;
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);

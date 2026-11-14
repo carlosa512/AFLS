@@ -269,7 +269,8 @@ for (const pos of ['TE', 'OL'] as const) {
   // Peak-season counts put it at 28.5 (pocket 30.7, dual-threat 26.1; survivor-biased); rushing flat 27–29.
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
-  // Accuracy and reads at 34 against his own best, for the quarterbacks still playing then (as the research read them).
+  // Accuracy and reads at 34 for the quarterbacks still playing then, as the research read them (the owner's call,
+  // 2026-11-14), on their average curve as the other late-age lines.
   const accOf = (i: number, j: number) => (q.throwAccShort[i][j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3;
   const j34 = 34 - 21;
   const left34 = cohorts.QB.alive.map((alive, i) => (alive[j34] ? i : -1)).filter((i) => i >= 0);
@@ -553,8 +554,8 @@ console.log(
   // Short-prime starters at 31 and 32 leave about twice as often as the NFL's: a third of it is veterans whose deals ran
   // out and nobody signed (the front offices' project, docs/MVP.md "Starters leave football more as a league ages"),
   // injury retirements up to 8% at 32; retirement for age alone can't take it under the band without starving 29 and 30
-  // (the owner's call, 2026-11-14: a known issue until the front offices' work lands).
-  // The all-positions rollup at 31 and 32 carries the same short-prime excess (long prime alone is in its bands).
+  // (the owner's call, 2026-11-14: a known issue until the front offices' work lands). The all-positions rollup at 31
+  // and 32 carries the same short-prime excess, long prime alone being in its bands (the owner's call, 2026-11-14).
   const B_OWNS_GONE = (g: AgeGroup, b: AgeBand) => (g === 'short' || g === 'all') && (b === '31' || b === '32');
   const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
     const { usual, normal } = bandFor(target, width);
@@ -654,7 +655,7 @@ console.log(
   // leagues' trees too, eight leagues, as they're played anyway.
   const born = [...t, ...(await ethicLeagues).map((r) => r.trees)].map((x) => x.born);
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check("biggest (seasons 9–16, the band's horizon)", mean(t.flatMap((x) => x.biggest.slice(8, 16))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league in 16 seasons (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check("biggest (seasons 9–16, the band's horizon: the owner's call, 2026-11-14)", mean(t.flatMap((x) => x.biggest.slice(8, 16))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league in 16 seasons (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
