@@ -394,10 +394,22 @@ for (const r of runs)
 const STARTER_OVR_CEILING = 13.3;
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
 console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
+// Goal 3 of the league-age work (A2, the plan's bands): a new league's starters peak no more than a tenth over the
+// level they settle at (seasons 11-20), so a new save holds its level rather than rising and sliding back.
+const settledOvr = mean(meanPath.slice(10, 20));
 console.log(
   check('lowest starter OVR', Math.min(...meanPath), 12.65, STARTER_OVR_CEILING) +
     ' · ' +
-    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING),
+    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING) +
+    ' · ' +
+    check(
+      'talent bump: highest season − settled (seasons 11–20)',
+      Math.max(...meanPath) - settledOvr,
+      -Infinity,
+      0.09,
+      2,
+      [-Infinity, 0.15],
+    ),
 );
 console.log(
   `starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`,

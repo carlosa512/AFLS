@@ -1,7 +1,26 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createLeague, FOUNDING, FOUNDING_GROWTH, foundingLean } from './generate';
 import { growsUntil } from './development';
-import { playerOvr } from './positions';
+import { playerOvr, STARTERS } from './positions';
+import { POSITIONS } from './types';
+import type { League } from './types';
+
+/** Overall below his position's mean starter, pooled over the long- and short-prime positions, at the given ages. */
+function below(l: League, ages: number[]): number {
+  const starters = l.teams.flatMap((t) =>
+    POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]).map((id) => l.players[id])),
+  );
+  const bar = new Map(
+    POSITIONS.map((pos) => {
+      const xs = starters.filter((p) => p.position === pos).map(playerOvr);
+      return [pos, xs.reduce((a, b) => a + b, 0) / xs.length];
+    }),
+  );
+  const xs = Object.values(l.players)
+    .filter((p) => ages.includes(p.age) && !['QB', 'K', 'P'].includes(p.position))
+    .map((p) => playerOvr(p) - bar.get(p.position)!);
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
 
 afterEach(() => {
   FOUNDING.on = true;
@@ -45,5 +64,16 @@ describe('a new league built as a settled one carries its players (A2)', () => {
       // The ceiling is clamped at his overall and at 20, so a mean lands a little off its target.
       expect(Math.abs(mean - FOUNDING_GROWTH[left]!)).toBeLessThan(0.35);
     }
+  });
+
+  it('rates its young players and its veterans against their starters as a settled league does', () => {
+    // A settled league (`npm run careers`, seasons 11-20, 2026-11-14): 22-23 about 3.0 below a starter, 33-34 about 2.3.
+    // A new league's starters stand about 0.3 further above everyone (its depth, not its ages), so the bar is 0.5.
+    const settled = createLeague({ seed: 'found-ages' });
+    expect(Math.abs(below(settled, [22, 23]) - -3.0)).toBeLessThan(0.5);
+    expect(Math.abs(below(settled, [33, 34]) - -2.3)).toBeLessThan(0.5);
+    // Rolled as before, a new league's veterans were as good as its starters.
+    FOUNDING.on = false;
+    expect(below(createLeague({ seed: 'found-ages' }), [33, 34])).toBeGreaterThan(-1.3);
   });
 });

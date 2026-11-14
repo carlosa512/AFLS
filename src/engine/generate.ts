@@ -755,15 +755,72 @@ export function evenDeal(luck: Record<Position, number[]>): Record<Position, num
 export const FOUNDING = { on: true };
 /** Overall points added to a founding player's quality at his age, by the length of his position's prime. */
 export const FOUNDING_LEAN: Record<'long' | 'short' | 'QB', Partial<Record<number, number>>> = {
-  long: {},
-  short: {},
-  QB: {},
+  long: {
+    22: -1,
+    23: -0.5,
+    24: 0.1,
+    25: 0.5,
+    26: -0.1,
+    27: -0.1,
+    28: 0.1,
+    29: 0.3,
+    30: 0.7,
+    31: 0.7,
+    32: 1.1,
+    33: -1.2,
+    34: -1.2,
+    35: -2.3,
+    36: -3.2,
+  },
+  short: {
+    22: -0.7,
+    23: -0.3,
+    24: 0.3,
+    25: 0.7,
+    26: 0,
+    27: 0.1,
+    28: 0.2,
+    29: 0.2,
+    30: 0.1,
+    31: 0.1,
+    32: 0.2,
+    33: -1.6,
+    34: -2.8,
+    35: -4.2,
+    36: -6.2,
+  },
+  QB: {
+    22: -1.4,
+    23: -0.7,
+    24: -0.2,
+    25: 0.6,
+    26: -0.4,
+    27: -0.2,
+    28: 0.9,
+    29: 0.4,
+    30: 1.1,
+    31: 0.7,
+    32: 1.4,
+    33: -0.2,
+    34: -0.6,
+    35: -0.9,
+    36: -1,
+  },
 };
 /**
  * A settled league's mean growth still ahead of a player (true ceiling less overall), by his years before his
  * position's growth age (`growsUntil`): 0 is the year he reaches it, −1 a year past.
  */
-export const FOUNDING_GROWTH: Partial<Record<number, number>> = {};
+export const FOUNDING_GROWTH: Partial<Record<number, number>> = {
+  [-3]: 0.6,
+  [-2]: 0.6,
+  [-1]: 0.55,
+  0: 0.6,
+  1: 0.95,
+  2: 1.25,
+  3: 1.55,
+  4: 1.65,
+};
 const LONG_PRIME = new Set<Position>(['TE', 'OL', 'DT']);
 const SHORT_PRIME = new Set<Position>(['RB', 'WR', 'CB', 'EDGE', 'LB', 'S']);
 /** `FOUNDING_LEAN` for a position and age; kickers and punters keep their rolls. */
