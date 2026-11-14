@@ -28,7 +28,7 @@ export const DRAFT_CLASS_SIZE = 260;
 /** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
 export const RAW = 0.4;
 /** The class's top before `RAW` (see `generateDraftClass`): set so the drafted league's starters hold their level. */
-export const CLASS_TOP = 14.8;
+export const CLASS_TOP = 14.4;
 /**
  * Room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives the
  * class's talent back, so the league's starters hold (`npm run careers`).

@@ -155,11 +155,11 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   cliffs: false,
 });
 export const DEV_RULES: DevRules = {
-  pace: [0.25, 0.6],
-  primeSwing: 1.2,
+  pace: [0.4, 0.8],
+  primeSwing: 0.8,
   growthEnds: 26,
-  mentalGrowth: 0.06,
-  fade: 0.8,
+  mentalGrowth: 0.02,
+  fade: 1.2,
   cliffs: true,
 };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);

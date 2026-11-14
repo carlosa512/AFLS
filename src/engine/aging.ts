@@ -103,7 +103,7 @@ export function retireChance(p: Player, ovr: number): number {
  * - `cap`: the most a year's chance can be (until eight years past, when he goes)
  * Starting values; tuned to the NFL's "gone" rates (`npm run careers`).
  */
-export const RETIRE_BODY = { from: -1, perYear: 0.015, fall: 0.12, slack: 1, cap: 0.95 };
+export const RETIRE_BODY = { from: -1, perYear: 0.015, fall: 0.07, slack: 1, cap: 0.95 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
 export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {
