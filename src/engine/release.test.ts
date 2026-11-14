@@ -8,6 +8,7 @@ import {
   developWeek,
   MOOD_TILT,
   CEILING_SWING,
+  DEV_RULES,
   playedShare,
   RELEASE,
   rollInputs,
@@ -366,3 +367,39 @@ describe("mood tilts a young player's year (G2)", () => {
     }
   });
 });
+
+describe('a year finishes under the rules it was rolled with', () => {
+  it('an open year rolled under the old rules lands under them, whatever the rules are now', () => {
+    expect(finishRatings(true, true)).toEqual(finishRatings(true, false));
+  });
+
+  it('a year rolled under the rules of today re-rolls under them', () => {
+    expect(finishRatings(false, true)).not.toEqual(finishRatings(false, false));
+  });
+});
+
+/** Every veteran's ratings once a half-released year is finished, from an old save (no `rules`) or not, with the rules changed before the rest lands or not. */
+function finishRatings(oldYear: boolean, changed: boolean): number[][] {
+  let out: number[][] = [];
+  withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+    const league = createLeague({ seed: 'rules' });
+    const ps = Object.values(league.players)
+      .filter((p) => p.teamId !== null && p.age >= 27)
+      .slice(0, 80);
+    for (const p of ps) {
+      const { rng, ctx } = year(league, p);
+      beginYear(league, rng(), p, ctx);
+      p.age++;
+      if (oldYear && p.dev) delete p.dev.rules;
+    }
+    const was = DEV_RULES.primeSwing;
+    if (changed) DEV_RULES.primeSwing = 3;
+    try {
+      for (const p of ps) trueUp(league, p);
+    } finally {
+      DEV_RULES.primeSwing = was;
+    }
+    out = ps.map((p) => ATTRIBUTES.map((a) => p.ratings[a]));
+  });
+  return out;
+}
