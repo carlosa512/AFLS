@@ -413,6 +413,9 @@ export function migrateLeague(league: League): League | null {
     backfillMoves(league);
     league.version = 99;
   }
+  // v100: a development year remembers the rules it was rolled under (`DevYear.rules`). A year already open has none,
+  // which reads as v1: it finishes under the rules it began with. Nothing to change.
+  if (league.version < 100) league.version = 100;
   return league;
 }
 

@@ -69,6 +69,8 @@ export interface DevContext {
   bodyAs?: Position;
   /** A year's mood tilt (`DevYear.mood`, G2), for a one-jump replay: the ratings he was gaining land at `1 + mood`. */
   mood?: number;
+  /** The rules the year is rolled under (`DEV_RULES`): 1 for a year rolled before they changed; absent, today's. */
+  rules?: 1 | 2;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -113,14 +115,38 @@ const SLIP_SLACK = 0.3;
 const GROWTH_NORM = 1.1;
 
 /** Where growth lands: physical tools are about done by 25; late gains are technique and the mental game. */
-function growthShare(family: AgingFamily, age: number): number {
-  if (family === 'physical') return clamp((26 - age) / 3, 0, 1);
+function growthShare(family: AgingFamily, age: number, ends = DEV_RULES.growthEnds): number {
+  if (family === 'physical') return clamp((ends - age) / 3, 0, 1);
   return family === 'mental' ? 1.2 : 1;
 }
 /** Physical tools fall fastest; the mental game barely moves. */
 const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, mental: 0.3 };
-/** The mental game keeps sharpening through the prime. */
-const MENTAL_GROWTH = 0.06;
+/**
+ * The rules a year is rolled under. A year remembers which (`DevYear.rules`) and every later step re-rolls it under
+ * the same ones, so a save loaded mid-season never jumps toward new numbers; a year from an old save (no `rules`) is a
+ * v1 year. `DEV_RULES_V1` is frozen: change `DEV_RULES`.
+ * - `pace`: the share of the gap to his ceiling a young player closes in a year (times his multipliers)
+ * - `primeSwing`: the sd of a year's change, in overall points, once growth is done
+ * - `growthEnds`: the age growth toward the ceiling stops (physical tools fade in over the three years before it)
+ * - `mentalGrowth`: what the mental game adds each year through the prime
+ * - `cliffs`: whether a veteran can fall off a cliff (`cliffs.ts`)
+ */
+export interface DevRules {
+  pace: [number, number];
+  primeSwing: number;
+  growthEnds: number;
+  mentalGrowth: number;
+  cliffs: boolean;
+}
+export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
+  pace: [0.15, 0.5] as [number, number],
+  primeSwing: 0.4,
+  growthEnds: 26,
+  mentalGrowth: 0.06,
+  cliffs: false,
+});
+export const DEV_RULES: DevRules = { ...DEV_RULES_V1, pace: [...DEV_RULES_V1.pace] };
+const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
 type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'shifts' | 'ratings'>;
@@ -140,12 +166,14 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   const profile = ATTRIBUTE_PROFILES[pos];
   const weights = OVR_WEIGHTS[pos];
   const attrs = ATTRIBUTES.filter((a) => profile[a] !== undefined);
+  const rules = rulesOf(ctx);
+  const ends = rules.growthEnds;
 
   // Growth (or prime-years drift), in overall points.
   let delta: number;
-  if (age < 26) {
+  if (age < ends) {
     const gap = player.potential - overall(player.ratings, pos);
-    const pace = rng.float(0.15, 0.5);
+    const pace = rng.float(rules.pace[0], rules.pace[1]);
     // A ceiling the league settled under him (`ceiling.ts`): he slips toward it, a point a year at most. Same draw.
     delta =
       gap >= 0
@@ -153,13 +181,13 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
         : gap < -SLIP_SLACK
           ? Math.max(-MAX_SLIP, (gap + SLIP_SLACK) * pace * 2)
           : 0;
-  } else delta = rng.normal(0, 0.4);
+  } else delta = rng.normal(0, rules.primeSwing);
   // Spread it so the overall moves by `delta`: weighted toward the families still growing.
   let shareSum = 0;
   let weightSum = 0;
   for (const a of attrs) {
     const w = weights[a] ?? 0;
-    shareSum += w * growthShare(agingFamily(pos, a), age);
+    shareSum += w * growthShare(agingFamily(pos, a), age, ends);
     weightSum += w;
   }
   const norm = shareSum > 0 ? weightSum / shareSum : 1;
@@ -179,8 +207,8 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
       const fade = AGING[clock].slope * declineMult(traits);
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
-      d = delta * Math.min(2, growthShare(family, age) * norm);
-      if (family === 'mental' && age >= 26) d += MENTAL_GROWTH;
+      d = delta * Math.min(2, growthShare(family, age, ends) * norm);
+      if (family === 'mental' && age >= ends) d += rules.mentalGrowth;
     }
     targets[ATTRIBUTES.indexOf(attr)] = d + rng.normal(0, 0.35);
   }
@@ -270,11 +298,12 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
   p.dev = {
     season: league.season,
     ...(Math.abs(games / SEASON_GAMES - ctx.playedShare) < 1e-9 ? { games } : { share: ctx.playedShare }),
-    ...(p.age < 26 && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
+    ...(p.age < DEV_RULES.growthEnds && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
     ...(fading && ctx.decline ? { decline: FAMILIES.map((f) => ctx.decline![f] ?? 1) } : {}),
     ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
     // His ceiling can settle before the year has landed (`ceiling.ts`): the year keeps the one it was rolled with.
-    ...(p.age < 26 ? { potential: p.potential } : {}),
+    ...(p.age < DEV_RULES.growthEnds ? { potential: p.potential } : {}),
+    rules: 2,
     done: 0,
     applied,
   };
@@ -305,6 +334,7 @@ export function yearTargets(league: League, p: Player): number[] {
     rate: d.rate,
     decline,
     bodyAs: d.bodyAs,
+    rules: d.rules ?? 1,
   });
 }
 
@@ -447,8 +477,8 @@ export function expectedAging(pos: Position, age: number): number {
     const d =
       past > 0
         ? -TYPICAL_YEAR * fade * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25)
-        : family === 'mental' && age >= 26
-          ? MENTAL_GROWTH
+        : family === 'mental' && age >= DEV_RULES.growthEnds
+          ? DEV_RULES.mentalGrowth
           : 0;
     sum += w * d;
     total += w;
