@@ -22,6 +22,7 @@ import { freezeFuturesPicks, retireCastoffs } from '../personnel/futures';
  * same AI when simulating straight through (`simOffseason`).
  */
 import { retireChance } from '../aging';
+import { severeInjuryIn } from '../cliffs';
 import { ageGms } from '../gm';
 import { employed, withLeagueAi } from '../employment';
 import {
@@ -174,6 +175,7 @@ export function beginOffseason(league: League): void {
       playedShare: playedShare(p, last),
       ...coachingForPlayer(league, p),
       bodyAs: bodyAs(p),
+      hurt: severeInjuryIn(p, last),
     });
     p.age++;
     p.experience++;

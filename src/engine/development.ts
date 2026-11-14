@@ -12,6 +12,7 @@
  * the next roll. With everything released in March (`RELEASE` at 1/0/0/0) this is the game as it was.
  */
 import { agingFamily, AGING, declineOnset } from './aging';
+import { CLIFF, cliffChance, severeInjuryIn } from './cliffs';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
 import { moraleLevel } from './morale';
@@ -71,6 +72,11 @@ export interface DevContext {
   mood?: number;
   /** The rules the year is rolled under (`DEV_RULES`): 1 for a year rolled before they changed; absent, today's. */
   rules?: 1 | 2;
+  /**
+   * A severe injury in the season just played (`severeInjuryIn`): a cliff is likelier after one. Worked out from his
+   * record wherever a year is rolled or re-rolled, never stored.
+   */
+  hurt?: boolean;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -145,7 +151,7 @@ export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
   mentalGrowth: 0.06,
   cliffs: false,
 });
-export const DEV_RULES: DevRules = { ...DEV_RULES_V1, pace: [...DEV_RULES_V1.pace] };
+export const DEV_RULES: DevRules = { ...DEV_RULES_V1, pace: [...DEV_RULES_V1.pace], cliffs: true };
 const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
@@ -211,6 +217,24 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
       if (family === 'mental' && age >= ends) d += rules.mentalGrowth;
     }
     targets[ATTRIBUTES.indexOf(attr)] = d + rng.normal(0, 0.35);
+  }
+  // A cliff (`cliffs.ts`): drawn after everything else, so the year's earlier draws keep their order. It takes `size`
+  // overall points off his body and technique at once, spread by their weights as the decline is (`FAMILY_LOSS`).
+  if (rules.cliffs && rng.chance(cliffChance(age, pos, traits, ctx.hurt ?? false))) {
+    const size = rng.float(CLIFF.size[0], CLIFF.size[1]);
+    let total = 0;
+    let hit = 0;
+    for (const attr of attrs) {
+      const w = weights[attr] ?? 0;
+      total += w;
+      const family = agingFamily(pos, attr);
+      if (family !== 'mental') hit += w * FAMILY_LOSS[family];
+    }
+    const k = hit > 0 ? (size * total) / hit : 0;
+    for (const attr of attrs) {
+      const family = agingFamily(pos, attr);
+      if (family !== 'mental') targets[ATTRIBUTES.indexOf(attr)] -= k * FAMILY_LOSS[family];
+    }
   }
   return targets;
 }
@@ -335,6 +359,7 @@ export function yearTargets(league: League, p: Player): number[] {
     decline,
     bodyAs: d.bodyAs,
     rules: d.rules ?? 1,
+    hurt: severeInjuryIn(p, d.season - 1),
   });
 }
 

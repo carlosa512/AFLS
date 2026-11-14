@@ -17,6 +17,7 @@ import {
   weekWeight,
   yearTargets,
 } from './development';
+import { CLIFFS } from './cliffs';
 import { createLeague } from './generate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -403,3 +404,33 @@ function finishRatings(oldYear: boolean, changed: boolean): number[][] {
   });
   return out;
 }
+
+describe('a cliff year', () => {
+  it('released in steps lands where one jump would', () => {
+    CLIFFS.always = true;
+    try {
+      withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+        const league = createLeague({ seed: 'cliff-steps' });
+        const ps = Object.values(league.players)
+          .filter((p) => p.teamId !== null && p.age >= 30)
+          .slice(0, 40);
+        const once = new Map<number, Player>();
+        const before = new Map(ps.map((p) => [p.id, playerOvr(p)]));
+        for (const p of ps) {
+          const { rng, ctx } = year(league, p);
+          const o = copy(p);
+          developPlayer(rng(), o, ctx);
+          once.set(p.id, o);
+          beginYear(league, rng(), p, ctx);
+          p.age++;
+        }
+        for (const p of ps) trueUp(league, p);
+        for (const p of ps) expect(p.ratings).toEqual(once.get(p.id)!.ratings);
+        // The cliff took something: every one of them lost overall on the year.
+        for (const p of ps) expect(playerOvr(p)).toBeLessThan(before.get(p.id)!);
+      });
+    } finally {
+      CLIFFS.always = false;
+    }
+  });
+});
