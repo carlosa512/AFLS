@@ -753,24 +753,29 @@ export function evenDeal(luck: Record<Position, number[]>): Record<Position, num
  * OVR by season). `on` off builds today's league (tests).
  */
 export const FOUNDING = { on: true };
-/** Overall points added to a founding player's quality at his age, by the length of his position's prime. */
+/**
+ * Overall points added to a founding player's quality at his age, by the length of his position's prime: averaging
+ * zero over a position's starters, so the lean itself lifts no position (the depth chart's picks still lift starters a
+ * little, 12.96 against 12.90). Lifted to the settled league's level instead, offenses gained on defenses: 3.56-3.60
+ * punts a game against main's 3.65 (now 3.64).
+ */
 export const FOUNDING_LEAN: Record<'long' | 'short' | 'QB', Partial<Record<number, number>>> = {
   long: {
-    22: -1,
-    23: -0.5,
-    24: 0.1,
-    25: 0.5,
-    26: -0.1,
-    27: -0.1,
-    28: 0.1,
-    29: 0.3,
-    30: 0.7,
-    31: 0.7,
-    32: 1.1,
-    33: -1.2,
-    34: -1.2,
-    35: -2.3,
-    36: -3.2,
+    22: -1.1,
+    23: -0.6,
+    24: 0,
+    25: 0.4,
+    26: -0.2,
+    27: -0.2,
+    28: 0,
+    29: 0.2,
+    30: 0.6,
+    31: 0.6,
+    32: 1,
+    33: -1.3,
+    34: -1.3,
+    35: -2.4,
+    36: -3.3,
   },
   short: {
     22: -0.7,
@@ -790,21 +795,21 @@ export const FOUNDING_LEAN: Record<'long' | 'short' | 'QB', Partial<Record<numbe
     36: -6.2,
   },
   QB: {
-    22: -1.4,
-    23: -0.7,
-    24: -0.2,
-    25: 0.6,
-    26: -0.4,
-    27: -0.2,
-    28: 0.9,
-    29: 0.4,
-    30: 1.1,
-    31: 0.7,
-    32: 1.4,
-    33: -0.2,
-    34: -0.6,
-    35: -0.9,
-    36: -1,
+    22: -1.6,
+    23: -0.9,
+    24: -0.4,
+    25: 0.4,
+    26: -0.6,
+    27: -0.4,
+    28: 0.7,
+    29: 0.2,
+    30: 0.9,
+    31: 0.5,
+    32: 1.2,
+    33: -0.4,
+    34: -0.8,
+    35: -1.1,
+    36: -1.2,
   },
 };
 /**
