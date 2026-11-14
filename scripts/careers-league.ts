@@ -18,6 +18,18 @@ import type { Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import { seasonTops } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
+import { onGameRoster } from '../src/engine/roster';
+import {
+  addFates,
+  exitAges,
+  nextSeason,
+  playedIn,
+  seasonStarters,
+  type AgeBand,
+  type AgeGroup,
+  type Fate,
+  type Starters,
+} from './league-age-core';
 // A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
 if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
@@ -51,8 +63,14 @@ export interface LeagueRun {
   coached: { all: number[]; best: number[]; worst: number[] };
   /** Each steady-state season's top five, by stat. */
   leaders: Record<string, number[][]>;
-  /** Final starters' positions and ages. */
-  starterAges: { position: Position; age: number }[];
+  /** Starters' ages the NFL's way (`league-age-core.ts`), steady seasons pooled. */
+  age: {
+    starters: { pos: Position; age: number }[];
+    fates: Record<AgeGroup, Partial<Record<AgeBand, Fate>>>;
+    exits: Partial<Record<Position, number[]>>;
+    /** Overall below his position's mean starter, by age (21–36): at the first kickoff, and over the steady kickoffs. */
+    gap: { first: Record<number, number>; settled: Record<number, number> };
+  };
   /**
    * Every pick from the drafts this run held whose class is old enough to judge (five league years on): his round,
    * and whether his true overall reached the line for his round by 27: a high-end starter's at his position (the
@@ -94,7 +112,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     ledger: { growth: [], body: [], craft: [], kpGrowth: [], kpCraft: [] },
     coached: { all: [], best: [], worst: [] },
     leaders: {},
-    starterAges: [],
+    age: { starters: [], fates: { all: {}, long: {}, short: {} }, exits: {}, gap: { first: {}, settled: {} } },
     drafts: [],
     shifts: [],
     trees: { live: [], biggest: [], inTreeShare: [], hires: [], born: 0, foundingAlive: 0 },
@@ -117,9 +135,37 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     );
   const awareness = () => mean(starters().map((p) => p.ratings.awareness));
   out.awareness[0] = awareness();
+  // Overall below his position's mean starter, by age, for every rostered player but K and P.
+  const gap = (): Record<number, number[]> => {
+    const bar = new Map(
+      POSITIONS.map((pos) => [
+        pos,
+        mean(
+          starters()
+            .filter((p) => p.position === pos)
+            .map(playerOvr),
+        ),
+      ]),
+    );
+    const out: Record<number, number[]> = {};
+    for (const p of Object.values(league.players)) {
+      if (p.retired || p.teamId === null || !onGameRoster(p) || p.position === 'K' || p.position === 'P') continue;
+      if (p.age < 21 || p.age > 36) continue;
+      (out[p.age] ??= []).push(playerOvr(p) - bar.get(p.position)!);
+    }
+    return out;
+  };
+  const meanOf = (g: Record<number, number[]>) =>
+    Object.fromEntries(Object.entries(g).map(([a, xs]) => [a, mean(xs)])) as Record<number, number>;
+  out.age.gap.first = meanOf(gap());
+  const settledGap: Record<number, number[]> = {};
+  const seasonsRead: Starters[] = [];
+  const playedRead: Set<number>[] = [];
 
   for (let s = 0; s < seasons; s++) {
     simToEndOfSeason(league);
+    seasonsRead.push(seasonStarters(league, league.season));
+    playedRead.push(playedIn(league, league.season));
     {
       const wins = new Map(league.teams.map((t) => [t.id, 0]));
       const games = regularSeasonGames(league);
@@ -208,6 +254,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
     const hcBefore = headCoaches();
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     out.starterOvr.push(mean(starters().map(playerOvr)));
+    if (s >= steadyFrom) for (const [a, xs] of Object.entries(gap())) (settledGap[Number(a)] ??= []).push(...xs);
     {
       const live = liveTrees(league);
       out.trees.live.push(live.length);
@@ -253,7 +300,14 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   out.awareness[1] = awareness();
   out.trees.born = bornRoots.size;
   out.trees.foundingAlive = founding.filter((id) => (treeOf(league, id)?.activeHeadCoaches.length ?? 0) > 0).length;
-  out.starterAges = starters().map((p) => ({ position: p.position, age: p.age }));
+  // Steady seasons: the starters of seasons steadyFrom+1 … seasons; fates need the season after, exits the two after.
+  for (let i = steadyFrom; i < seasonsRead.length; i++) {
+    for (const v of seasonsRead[i].values()) out.age.starters.push({ pos: v.pos, age: v.age });
+    if (i + 1 < seasonsRead.length)
+      addFates(out.age.fates, nextSeason(seasonsRead[i], seasonsRead[i + 1], playedRead[i + 1]));
+  }
+  out.age.exits = exitAges(seasonsRead.slice(steadyFrom), playedRead.slice(steadyFrom));
+  out.age.gap.settled = meanOf(settledGap);
   for (const p of Object.values(league.players)) {
     if (!p.draft || p.draft.season < firstDraft) continue;
     if (p.draft.season <= league.season - 5) out.drafts.push({ round: p.draft.round, hit: hits.has(p.id) });
@@ -266,5 +320,5 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
 
 // Run as the audit's child process: one seed, results back to the parent.
 if (process.env.CAREERS_SEED && process.send) {
-  process.send(runLeague(process.env.CAREERS_SEED, Number(process.env.CAREERS_SEASONS ?? 16)));
+  process.send(runLeague(process.env.CAREERS_SEED, Number(process.env.CAREERS_SEASONS ?? 20)));
 }

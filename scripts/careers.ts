@@ -4,7 +4,7 @@
  * design targets marked as such). Run it after any change to `development.ts`, `aging.ts`,
  * retirement or the hidden traits.
  *
- *   npm run careers            # cohort curves + four 16-season leagues (about 3 minutes on 4 cores)
+ *   npm run careers            # cohort curves + four 20-season leagues (about 8 minutes on 4 cores)
  *   npm run careers -- 24      # longer league runs
  *
  * Run it after changing development.ts, aging.ts, traits.ts, coaching.ts or retirement.
@@ -29,12 +29,24 @@ import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { LeagueRun } from './careers-league';
+import {
+  AGE_BANDS,
+  AGE_WIDTH,
+  addFates,
+  bandFor,
+  NFL_EXIT_AGE,
+  NFL_NEXT,
+  NFL_STARTER_AGE,
+  type AgeBand,
+  type AgeGroup,
+  type Fate,
+} from './league-age-core';
 import { LEADER_NORMAL, LEADER_TARGETS, overRecordAllowed } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
 // A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
 if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
-const seasons = Number(process.argv[2] ?? 16);
+const seasons = Number(process.argv[2] ?? 20);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
 /**
  * Four more leagues, read for one line only: work ethic's lean on ceiling shifts is a small gap between two noisy means,
@@ -481,13 +493,79 @@ console.log(
       })
       .join(' · '),
 );
-const starterAges = pool((r) => r.starterAges);
-console.log(
-  'mean starter age: ' +
-    POSITIONS.map(
-      (pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`,
-    ).join(' · '),
-);
+// Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
+// happens to a starter the next season, pooled over the leagues' steady seasons. Shown as a known issue until the
+// aging work lands (soft: never counted).
+{
+  const known: string[] = [];
+  const soft = (label: string, value: number, target: number, width: number, digits = 1) => {
+    const { normal } = bandFor(target, width);
+    const out = !Number.isFinite(value) || value < normal[0] || value > normal[1];
+    if (out) known.push(label);
+    return `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (NFL ${target.toFixed(digits)}, ${normal[0].toFixed(digits)}–${normal[1].toFixed(digits)})${out ? ' ⚠' : ''}`;
+  };
+  const all = runs.flatMap((r) => r.age.starters);
+  const pct = (xs: number[], f: (a: number) => boolean) => (100 * xs.filter(f).length) / Math.max(1, xs.length);
+  console.log("\nstarters' ages, the NFL's way (top N by snaps; seasons " + (steadyFrom + 1) + `–${seasons})`);
+  for (const pos of [...POSITIONS, 'ALL'] as const) {
+    const ages = all.filter((x) => pos === 'ALL' || x.pos === pos).map((x) => x.age);
+    const nfl = NFL_STARTER_AGE[pos];
+    const kp = pos === 'K' || pos === 'P';
+    const wide = kp || pos === 'QB';
+    const mw = pos === 'ALL' ? AGE_WIDTH.allMean : kp ? AGE_WIDTH.meanKP : AGE_WIDTH.mean;
+    const sw = pos === 'ALL' ? AGE_WIDTH.allShare : wide ? AGE_WIDTH.shareWide : AGE_WIDTH.share;
+    console.log(
+      `  ${pos.padEnd(4)} n=${ages.length} · ${soft(`${pos} mean age`, mean(ages), nfl.mean, mw, 2)} · ${soft(
+        `${pos} 24 or younger %`,
+        pct(ages, (a) => a <= 24),
+        nfl.young,
+        sw,
+      )} · ${soft(
+        `${pos} 31 or older %`,
+        pct(ages, (a) => a >= 31),
+        nfl.old,
+        sw,
+      )}`,
+    );
+  }
+  const fates: Record<AgeGroup, Partial<Record<AgeBand, Fate>>> = { all: {}, long: {}, short: {} };
+  for (const r of runs) addFates(fates, r.age.fates);
+  console.log('  a starter next season (still starting / gone, %):');
+  for (const g of ['all', 'long', 'short'] as AgeGroup[])
+    for (const b of AGE_BANDS) {
+      const f = fates[g][b];
+      if (!f) continue;
+      const nfl = NFL_NEXT[g][b];
+      console.log(
+        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${soft(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
+      );
+    }
+  const exits: Partial<Record<Position, number[]>> = {};
+  for (const r of runs)
+    for (const [pos, xs] of Object.entries(r.age.exits)) (exits[pos as Position] ??= []).push(...xs!);
+  console.log(
+    '  the age a starter left for good, median (informational): ' +
+      POSITIONS.map(
+        (pos) => `${pos} ${exits[pos]?.length ? median(exits[pos]!).toFixed(1) : 'n/a'} (NFL ${NFL_EXIT_AGE[pos]})`,
+      ).join(' · '),
+  );
+  const gapLine = (pick: (r: LeagueRun) => Record<number, number>) =>
+    Array.from({ length: 16 }, (_, i) => 21 + i)
+      .map(
+        (a) =>
+          `${a} ${mean(
+            runs
+              .map(pick)
+              .map((g) => g[a])
+              .filter(Number.isFinite),
+          ).toFixed(2)}`,
+      )
+      .join(' · ');
+  console.log(`  overall below a starter by age, first kickoff (informational): ${gapLine((r) => r.age.gap.first)}`);
+  console.log(`  overall below a starter by age, settled (informational): ${gapLine((r) => r.age.gap.settled)}`);
+  if (known.length)
+    console.log(`⚠ known issue: leagues grow older than the NFL's (${known.length} lines outside the owner's bands)`);
+}
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).
 {
   const t = runs.map((r) => r.trees);
