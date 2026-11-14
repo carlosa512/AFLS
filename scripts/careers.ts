@@ -24,7 +24,7 @@ import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/
 import { CEILING_SWING, developPlayer, recordRatings } from '../src/engine/development';
 import { retireChance } from '../src/engine/aging';
 import { generatePlayer } from '../src/engine/generate';
-import { GROWTH_SPREAD, HYPE_ROOM, RAW } from '../src/engine/offseason/draft';
+import { DRAFT_CLASS } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
@@ -127,15 +127,15 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
     const p = generatePlayer(rng, {
       id: 900000 + i,
       position: pos,
-      quality: rng.normal(11, 1.2) - RAW,
+      quality: rng.normal(11, 1.2) - DRAFT_CLASS.raw,
       age: 21,
       teamId: null,
       jerseysUsed: new Set(),
     });
     const growth =
-      RAW +
-      HYPE_ROOM +
-      Math.abs(rng.normal(0, 1)) * GROWTH_SPREAD +
+      DRAFT_CLASS.raw +
+      DRAFT_CLASS.hype +
+      Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
       rng.float(0, 0.8) +
       (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = clamp(playerOvr(p) + growth, 1, 20);

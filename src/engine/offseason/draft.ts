@@ -25,19 +25,17 @@ import { tradeContext } from '../trade/context';
 import { draftBoards, draftCalls, draftedInto, draftTrades, lapseUsedPicks } from '../trade/draft';
 
 export const DRAFT_CLASS_SIZE = 260;
-/** How far under his ready-to-play self a prospect comes in, given back as room to grow (overall points). */
-export const RAW = 0.4;
-/** The class's top before `RAW` (see `generateDraftClass`): set so the drafted league's starters hold their level. */
-export const CLASS_TOP = 13.6;
-/** How fast the class falls off from the top (a smaller power falls faster past the first round). */
-export const CLASS_SHAPE = 0.75;
 /**
- * Room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives the
- * class's talent back, so the league's starters hold (`npm run careers`).
+ * What a draft class is made of (`generateDraftClass`), in overall points:
+ * - `top`: the class's best before `raw`; set so the drafted league's starters hold their level (`npm run careers`)
+ * - `shape`: how fast the class falls off from the top (a smaller power falls faster past the first round)
+ * - `raw`: how far under his ready-to-play self a prospect comes in, given back as room to grow
+ * - `hype`: room to grow on top of that: the hype lean (`ceiling.ts`) takes back the biggest projections, and this gives
+ *   the class's talent back
+ * - `spread`: how far growth spreads (sd of a half-normal): most grow a little, a few a lot
+ * One object so a tuning script can set them; nothing in the game changes them.
  */
-export const HYPE_ROOM = 0.4;
-/** How far a prospect's growth spreads (sd of the half-normal, overall points): most grow a little, a few a lot. */
-export const GROWTH_SPREAD = 1.4;
+export const DRAFT_CLASS = { top: 13.6, shape: 0.75, raw: 0.4, hype: 0.4, spread: 1.4 };
 /** How far the league consensus sits from the truth (sd of its grade and of its ceiling). */
 export const CONSENSUS_SD = { grade: 1, ceiling: 1.4 };
 
@@ -54,9 +52,13 @@ export function generateDraftClass(league: League, rng: Rng): void {
     // (`ceiling.ts`) take a little back, which the quarter point over the old 13.7 returned; at 13.95 the drafted
     // league settled at 12.67, two hundredths over the floor, so any reshuffle of who goes where (a draft-day
     // trade) tipped it under. 14.1 settles it near 12.8 (seasons 10-16, eight seeds).
-    // Prospects come in raw (`RAW`): a first-rounder usually needs two or three years to become a solid starter, so a
+    // Prospects come in raw (`DRAFT_CLASS.raw`): a first-rounder usually needs two or three years to become a solid starter, so a
     // ceiling that settles under him (`ceiling.ts`) is a bust, not a starter who stopped improving.
-    const quality = clamp(CLASS_TOP - RAW - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** CLASS_SHAPE + rng.normal(0, 0.9), 4, 16);
+    const quality = clamp(
+      DRAFT_CLASS.top - DRAFT_CLASS.raw - 7.4 * (i / (DRAFT_CLASS_SIZE - 1)) ** DRAFT_CLASS.shape + rng.normal(0, 0.9),
+      4,
+      16,
+    );
     const position = rng.weighted(CLASS_MIX, ([, w]) => w)[0];
     const p = generatePlayer(rng, {
       id: league.nextPlayerId++,
@@ -73,9 +75,9 @@ export function generateDraftClass(league: League, rng: Rng): void {
     ensureService(p, league.season);
     // Most prospects grow a point or three; a few boom, some never move.
     const growth =
-      RAW +
-      HYPE_ROOM +
-      Math.abs(rng.normal(0, 1)) * GROWTH_SPREAD +
+      DRAFT_CLASS.raw +
+      DRAFT_CLASS.hype +
+      Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
       rng.float(0, 0.8) +
       (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
     p.potential = Math.round(clamp(playerOvr(p) + growth, playerOvr(p), 20) * 10) / 10;
