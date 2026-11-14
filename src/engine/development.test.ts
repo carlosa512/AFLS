@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
-import { developPlayer, playedShare } from './development';
+import { CLIFFS } from './cliffs';
+import { developPlayer, expectedAging, playedShare } from './development';
 import { ageFactor, preferredYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
@@ -513,5 +514,25 @@ describe('a ceiling settled under him', () => {
 
   it('holds a player sitting at his ceiling', () => {
     expect(Math.abs(year(0))).toBeLessThan(0.1);
+  });
+});
+
+describe('front offices price the cliff', () => {
+  it('expect the average cliff at the ages it comes, and only there', () => {
+    const read = () =>
+      (Object.keys(AGING) as Position[]).map((pos) => Array.from({ length: 16 }, (_, i) => expectedAging(pos, 21 + i)));
+    const on = read();
+    CLIFFS.on = false;
+    let off: number[][];
+    try {
+      off = read();
+    } finally {
+      CLIFFS.on = true;
+    }
+    (Object.keys(AGING) as Position[]).forEach((_, j) => {
+      for (let age = 21; age < 28; age++) expect(on[j][age - 21]).toBe(off[j][age - 21]);
+      for (let age = 30; age <= 36; age++) expect(on[j][age - 21]).toBeLessThan(off[j][age - 21]);
+    });
+    expect(read()).toEqual(on); // no stale table once cliffs are back on
   });
 });

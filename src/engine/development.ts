@@ -12,14 +12,14 @@
  * the next roll. With everything released in March (`RELEASE` at 1/0/0/0) this is the game as it was.
  */
 import { agingFamily, AGING, declineOnset } from './aging';
-import { CLIFF, cliffChance, severeInjuryIn } from './cliffs';
+import { CLIFF, CLIFFS, cliffChance, severeInjuryIn } from './cliffs';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
 import { moraleLevel } from './morale';
 import { moodPull } from './moodScale';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
-import { declineMult, effectiveTraits, growthMult } from './traits';
+import { declineMult, effectiveTraits, growthMult, TRAIT_MEAN } from './traits';
 import type { Attribute, DevYear, Game, League, Player, Position } from './types';
 import { ATTRIBUTES } from './types';
 import { notPracticing } from './disputeRead';
@@ -477,7 +477,8 @@ export function appliedThisYear(p: Player, attr: Attribute): number {
 
 /** The average body's year (`year` above runs 0.3–1.4). */
 const TYPICAL_YEAR = 0.85;
-const agingMemo = new Map<Position, number[]>();
+/** Keyed by position and whether cliffs are on (`CLIFFS.on`), so a test that turns them off never reads a stale table. */
+const agingMemo = new Map<string, number[]>();
 
 /**
  * The overall a typical body gains or loses, on average, in the offseason he spends at `age` once
@@ -486,8 +487,9 @@ const agingMemo = new Map<Position, number[]>();
  * coming (`outlook.ts`), whatever his body clock really says.
  */
 export function expectedAging(pos: Position, age: number): number {
-  let table = agingMemo.get(pos);
-  if (!table) agingMemo.set(pos, (table = []));
+  const key = `${pos}:${CLIFFS.on}`;
+  let table = agingMemo.get(key);
+  if (!table) agingMemo.set(key, (table = []));
   const memo = table[age];
   if (memo !== undefined) return memo;
   const weights = OVR_WEIGHTS[pos];
@@ -508,7 +510,9 @@ export function expectedAging(pos: Position, age: number): number {
     sum += w * d;
     total += w;
   }
-  const out = total ? sum / total : 0;
+  // The average cliff (`cliffs.ts`) for a typical body, healthy: what a front office expects it to cost at this age.
+  const cliff = cliffChance(age, pos, { durability: TRAIT_MEAN }, false) * ((CLIFF.size[0] + CLIFF.size[1]) / 2);
+  const out = (total ? sum / total : 0) - (DEV_RULES.cliffs ? cliff : 0);
   table[age] = out;
   return out;
 }
