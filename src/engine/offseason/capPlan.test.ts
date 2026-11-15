@@ -141,6 +141,7 @@ describe('the re-sign window in priority', () => {
 
   it('with room for one, the better keeper signs before a cheaper one', () => {
     const l = settled();
+    let checked = 0;
     for (const team of l.teams.filter((t) => t.id !== l.userTeamId)) {
       aiFifthYearOptions(l, team);
       const plan = capPlan(structuredClone(l), team, new Rng(`p${team.id}`));
@@ -150,7 +151,13 @@ describe('the re-sign window in priority', () => {
           .filter((k) => offerValue(l, k.player, team.id, k.offer) >= demand(l, k.player, team.id).walkAway)
           .map((k) => k.player.id),
       );
+      const before = l.transactions.length;
       aiResignWindow(l, team, new Rng(`p${team.id}`));
+      // 2026-11-15: front offices (owner: aim for the average): a club that cut a contract to make room for a keeper
+      // (`makeRoom` only cuts for a keeper worth more than the man it cuts, so a cheap one can be left while a dear one
+      // is made room for) did not have "room for one": the order is read only where the room it had decided it.
+      if (l.transactions.slice(before).some((t) => t.kind === 'release' && t.teamIds.includes(team.id))) continue;
+      checked++;
       const worth = plan.keepers.filter(
         (k) => k.worth && k.call === 'keep' && !promisedDeal(k.player) && takes.has(k.player.id),
       );
@@ -160,6 +167,7 @@ describe('the re-sign window in priority', () => {
           if (!resigned(l, team.id, a.player.id) && resigned(l, team.id, b.player.id))
             expect(b.cost).toBeLessThan(a.cost);
     }
+    expect(checked, 'clubs whose room decided the order').toBeGreaterThan(5);
   });
 
   it('a promised player signs even when the plan says he isn’t worth his price', () => {

@@ -180,6 +180,10 @@ describe('offers to you', () => {
       const mctx = tradeContext(m);
       const kept = keepToFit(m, p, capRoom(mctx, c.buyer));
       expect(kept).toBeGreaterThan(0);
+      // 2026-11-15: front offices (owner: aim for the average): the half of the kept money the bid must repay, under 10
+      // points here (750 kept, 9.4), can't show in a price that comes in a pick's lumps, as with a price under 50
+      // above: the same three picks (1,564.5) cleared both bids, so that case is skipped and not counted.
+      if (0.5 * POINTS_PER_K * kept! < 10) continue;
       const bid = bidFor(mctx, m.teams[c.buyer], p);
       if (!bid) continue;
       bids++;

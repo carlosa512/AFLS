@@ -399,7 +399,14 @@ describe('season flow', () => {
       const second = league.players[t.depthChart.QB[1]];
       const tied = second && playerOvr(second) === playerOvr(starterQb);
       if (hurt || tied || qbTrades.has(t.id)) continue;
-      expect(starterQb.stats[league.season]?.gp).toBeGreaterThan(10);
+      // 2026-11-15: the lineup lean and camp battles: a young quarterback within a few tenths of a veteran now takes the job
+      // on a close call (team 12: 9.3 and 24 played 15 games, the 9.5 above him on the end-of-season chart played 2), so the
+      // season's starter is the quarterback the team used most, not whoever the chart lists first.
+      const used = Math.max(
+        ...t.depthChart.QB.map((id) => league.players[id].stats[league.season]?.gp ?? 0),
+        starterQb.stats[league.season]?.gp ?? 0,
+      );
+      expect(used).toBeGreaterThan(10);
     }
 
     startNextSeason(league);

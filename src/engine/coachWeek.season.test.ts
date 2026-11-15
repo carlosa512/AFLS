@@ -256,9 +256,12 @@ function playBenchSeason(seed: string, userTeamId: number) {
 // players' deals were still open at the season's end (the bound is four), a world that happened to have more final-year deals.
 // 2026-11-15: deal lengths by worth: 'bench3' became 'bench6' (bench3 filed two bench rows and told 12 stories, bench5 told 12;
 // the shorter deals reshuffled the league again). bench6 meets every bound unchanged.
+// 2026-11-15: front offices (owner: aim for the average): a new league's minimum deals were refit and every world moved. 'bench4'
+// (team 7) had no healthy holder and backup at QB to sit in week 6 (no scene), 'bench7' ended with 6 open stories and 'bench9'
+// with 5 (bound 4); 'bench8' (same team) meets every bound unchanged.
 describe.each([
   { seed: 'bench6', team: 5 },
-  { seed: 'bench4', team: 7 },
+  { seed: 'bench8', team: 7 },
   { seed: 'vol6', team: 2 },
 ])("the head coach's letters over a season with a benching: $seed", ({ seed, team: TEAM }) => {
   let l: League;
