@@ -388,67 +388,92 @@ describe('opening league, read across fifty seeds', () => {
 
   it("commits about three-quarters of next year's cap, as a settled league does at kickoff", () => {
     // Settled: median 73.2% (71.7-75.8 by seed), p10 54.4% (49.6-58.1), p90 88.8%; rookie deals 16.0% of it, the
-    // rest 56.0% (p10 39.6%). A new league that commits ~61% (its rookie deals 7%) leaves its front offices a
+    // rest 56.0% (p10 39.6%). 2026-11-15: deal lengths by worth (owner: aim for the average): deals run shorter, so a settled league commits less
+    // (median 67.9%, 60-70% by kickoff, p10 47.5%, p90 85.2%; rookie deals 15.3%, the rest 51.0%, p10 30.9%, four
+    // leagues' 4th-7th kickoffs) and the bounds below sit on those; a new league's 50 seeds: 65.1%, 46.7%, 84.0%, 14.8%, 50.3%, 31.6%.
+    // The old figures follow. A new league that commits ~61% (its rookie deals 7%) leaves its front offices a
     // year-two market with too little to buy for the room they have; one whose room all goes on deals with years to
     // run commits 77.6% (its veterans 62.6%) and has too few buyers in season (trades' salary weight reads two years
     // of room: 13.8 in-season trades a season against main's 17.8).
     const { next, nextRookie, nextVets } = openings();
-    expect(quantile(next, 0.5)).toBeGreaterThanOrEqual(0.68);
-    expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.76);
-    expect(quantile(next, 0.1)).toBeGreaterThanOrEqual(0.5);
-    expect(quantile(next, 0.9)).toBeLessThanOrEqual(0.92);
+    expect(quantile(next, 0.5)).toBeGreaterThanOrEqual(0.63);
+    expect(quantile(next, 0.5)).toBeLessThanOrEqual(0.71);
+    expect(quantile(next, 0.1)).toBeGreaterThanOrEqual(0.43);
+    expect(quantile(next, 0.9)).toBeLessThanOrEqual(0.89);
     expect(quantile(nextRookie, 0.5)).toBeGreaterThanOrEqual(0.14);
     expect(quantile(nextRookie, 0.5)).toBeLessThanOrEqual(0.18);
-    expect(quantile(nextVets, 0.5)).toBeGreaterThanOrEqual(0.53);
-    expect(quantile(nextVets, 0.5)).toBeLessThanOrEqual(0.59);
-    expect(quantile(nextVets, 0.1)).toBeGreaterThanOrEqual(0.35);
+    expect(quantile(nextVets, 0.5)).toBeGreaterThanOrEqual(0.47);
+    expect(quantile(nextVets, 0.5)).toBeLessThanOrEqual(0.55);
+    expect(quantile(nextVets, 0.1)).toBeGreaterThanOrEqual(0.28);
   }, 60_000);
 
   it('keeps about two in five veteran deals in their last year, as a settled league does', () => {
-    // Settled: 45.6% of veteran deals, 32.1% of payroll (32.7-35.5% later on). A settled league's last-year
+    // Settled: 45.6% of veteran deals, 32.1% of payroll (32.7-35.5% later on). 2026-11-15: deal lengths by worth (owner: aim for the average): with deals
+    // running one or two years a settled league has 68.7% of its veteran deals in their last year, 35.7% of payroll,
+    // its last-year veterans paid 0.95 times their market (0.85-1.08 by kickoff); a new league's 50 seeds: 62.5%, 35.9%, 1.21.
+    // The old figures follow. A settled league's last-year
     // veterans hold about what a new league's do of its veterans' market value (20-31% at the 4th-6th kickoffs of
     // rev-0..3, against 25-28% at their openings), but are paid past it: their charge is 1.13-1.55 times their
     // market (by apy 1.08-1.38), where a new league's market-priced deals sit at 0.95 and make 24% of payroll.
     const { deals } = openings();
     const pay = deals.reduce((s, d) => s + d.hit, 0);
     const lastPay = deals.filter((d) => d.left === 1).reduce((s, d) => s + d.hit, 0) / pay;
-    expect(lastPay).toBeGreaterThanOrEqual(0.29);
-    expect(lastPay).toBeLessThanOrEqual(0.35);
+    expect(lastPay).toBeGreaterThanOrEqual(0.31);
+    expect(lastPay).toBeLessThanOrEqual(0.4);
     const vets = deals.filter((d) => d.kind !== 'rookie');
-    expect(share(vets, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.38);
-    expect(share(vets, (d) => d.left === 1)).toBeLessThanOrEqual(0.48);
-    // Paid past their market as a settled league's are (1.13-1.55 times it at the 4th-6th kickoffs), no further.
+    expect(share(vets, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.58);
+    expect(share(vets, (d) => d.left === 1)).toBeLessThanOrEqual(0.78);
+    // Paid about their market as a settled league's are (0.85-1.08 times it at the 4th-7th kickoffs; 1.13-1.55 under the
+    // old lengths), no further than a new league's raises take them.
     const last = vets.filter((d) => d.left === 1);
     const paid = last.reduce((s, d) => s + d.hit, 0) / last.reduce((s, d) => s + d.market, 0);
-    expect(paid).toBeGreaterThanOrEqual(1.1);
-    expect(paid).toBeLessThanOrEqual(1.55);
+    expect(paid).toBeGreaterThanOrEqual(0.85);
+    expect(paid).toBeLessThanOrEqual(1.35);
   }, 60_000);
 
-  it('signs each veteran for the years a player his age signs for', () => {
+  it('signs each veteran for the years a player his age and price signs for', () => {
     // Settled veteran deals by age: years left average 4.4 at 26 and under (just signed his second deal), 2.7 at
     // 27-29, 1.5 at 30-32 and 1.3 from 33, and next year's charges are 0.77 of this year's. Drawn by talent alone,
     // a new league's averaged 2.1-2.3 at every age and its front-loads made next year 0.66 of this one.
-    const { deals } = openings();
+    // 2026-11-15: deal lengths by worth (owner: aim for the average): a deal's length is its pay as a share of the cap, then age (`dealYears`).
+    // A settled league's (four leagues' 4th-7th kickoffs) average 2.3 at 26 and under, 1.8 at 27-29, 1.4 at 30-32 and
+    // 1.15 from 33; by pay, 1.09 under 0.8% of the cap, 1.27 at 0.8-2%, 1.78 at 2-5% and 2.36 from 5%; next year's charges
+    // are 0.72 of this year's. A new league's: 2.7, 1.9, 1.5, 1.2; 1.22, 1.40, 1.97, 2.40; 0.70. Its youngest band sits
+    // above (its second deals all start at once, four years in, where a settled league's came in over years), so that
+    // band is read at 2.5 within a quarter year.
+    const { deals, cap } = openings();
     // The deals the market table draws: veterans past their rookie deal whom the market prices above the minimum
     // (a minimum player a thin roster raised is on a market deal now, for the years he signed at the minimum).
     const vets = deals.filter(
       (d) => d.kind === 'veteran' && d.experience >= 4 && d.market > minSalary(d.experience, BASE_CAP),
     );
-    const bands: [number, number, number][] = [
-      [0, 26, 4.4],
-      [27, 29, 2.7],
-      [30, 32, 1.5],
-      [33, 99, 1.3],
+    const years = (band: typeof vets) => band.reduce((s, d) => s + Math.min(d.left, 5), 0) / band.length;
+    const bands: [number, number, number, number][] = [
+      [0, 26, 2.5, 0.25],
+      [27, 29, 1.8, 0.2],
+      [30, 32, 1.4, 0.2],
+      [33, 99, 1.15, 0.2],
     ];
-    for (const [lo, hi, mean] of bands) {
-      const band = vets.filter((d) => d.age >= lo && d.age <= hi);
-      const avg = band.reduce((s, d) => s + Math.min(d.left, 5), 0) / band.length;
-      expect(avg, `ages ${lo}-${hi}`).toBeGreaterThanOrEqual(mean - 0.2);
-      expect(avg, `ages ${lo}-${hi}`).toBeLessThanOrEqual(mean + 0.2);
+    for (const [lo, hi, mean, tol] of bands) {
+      const avg = years(vets.filter((d) => d.age >= lo && d.age <= hi));
+      expect(avg, `ages ${lo}-${hi}`).toBeGreaterThanOrEqual(mean - tol);
+      expect(avg, `ages ${lo}-${hi}`).toBeLessThanOrEqual(mean + tol);
     }
-    // Minimum deals: the old take a year at a time (75% from 30 here; a settled league's 78% counts a cohort of
-    // OVR 13+ players on one-year minimums that its glutted market leaves, which a new league doesn't copy), and
-    // young depth signs for three to five like an undrafted rookie.
+    // By price (the deal's player's market as a share of the cap): the dearer the longer.
+    const priced: [number, number, number][] = [
+      [0, 0.008, 1.09],
+      [0.008, 0.02, 1.27],
+      [0.02, 0.05, 1.78],
+      [0.05, 9, 2.36],
+    ];
+    for (const [lo, hi, mean] of priced) {
+      const avg = years(vets.filter((d) => d.market / cap >= lo && d.market / cap < hi));
+      expect(avg, `share ${lo}-${hi}`).toBeGreaterThanOrEqual(mean - 0.2);
+      expect(avg, `share ${lo}-${hi}`).toBeLessThanOrEqual(mean + 0.25);
+    }
+    // Minimum deals: the old take a year at a time (every one from 30 here, a settled league's too, 2026-11-15), and
+    // young depth signs for three like an undrafted rookie (a settled league's undrafted are mostly on rookie deals
+    // and its young minimum deals run a year or two; a new league keeps its undrafted on three, as the test below needs).
     const mins = deals.filter((d) => d.kind === 'minimum');
     expect(
       share(
@@ -463,7 +488,7 @@ describe('opening league, read across fifty seeds', () => {
       ),
     ).toBeGreaterThanOrEqual(0.25);
     const all = deals.filter((d) => d.kind !== 'rookie');
-    expect(all.reduce((s, d) => s + d.next, 0) / all.reduce((s, d) => s + d.hit, 0)).toBeGreaterThanOrEqual(0.75);
+    expect(all.reduce((s, d) => s + d.next, 0) / all.reduce((s, d) => s + d.hit, 0)).toBeGreaterThanOrEqual(0.66);
   }, 60_000);
 
   it('pays few veterans past twice their market into next year', () => {
@@ -473,7 +498,9 @@ describe('opening league, read across fifty seeds', () => {
     const { deals, leagues, cap } = openings();
     const vets = deals.filter((d) => d.kind !== 'rookie');
     const rich = vets.filter((d) => d.apy > 2 * d.market && d.next > 0.03 * cap);
-    expect(rich.length / leagues).toBeLessThanOrEqual(6);
+    // 2026-11-15: deal lengths by worth (owner: aim for the average): a new league's 7.5 a league against a settled
+    // league's 5.3 (shorter deals leave fewer running years for its raises to spread over), so the bound is 9, not 6.
+    expect(rich.length / leagues).toBeLessThanOrEqual(9);
     expect(
       quantile(
         vets.map((d) => d.apy / d.market),
@@ -537,14 +564,16 @@ describe('opening league, read across fifty seeds', () => {
     // A quarterback, kicker or punter signs his second deal at 26 for five years (`preferredYears`, four years later
     // on his clock than a receiver), so at 30-32 a settled league's top 32 at those positions are about a third in
     // their last year (QB 35%, K and P 32%). Years drawn by age alone put them at 57% and 60%, a receiver's.
+    // 2026-11-15: deal lengths by worth (owner: aim for the average): a settled league's now run 31% for quarterbacks and 84% for kickers and punters
+    // (cheap deals are a year at a time); a new league's 50 seeds: 31% and 80%.
     const { deals } = openings();
     const vets = deals.filter((d) => d.kind !== 'rookie' && d.rank < 32 && d.age >= 30 && d.age <= 32);
     const qbs = vets.filter((d) => d.position === 'QB');
     const specialists = vets.filter((d) => d.position === 'K' || d.position === 'P');
     expect(share(qbs, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.2);
     expect(share(qbs, (d) => d.left === 1)).toBeLessThanOrEqual(0.45);
-    expect(share(specialists, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.2);
-    expect(share(specialists, (d) => d.left === 1)).toBeLessThanOrEqual(0.45);
+    expect(share(specialists, (d) => d.left === 1)).toBeGreaterThanOrEqual(0.65);
+    expect(share(specialists, (d) => d.left === 1)).toBeLessThanOrEqual(0.95);
   }, 60_000);
 
   it('keeps payroll raises off minimum-salary players and undrafted rookies', () => {

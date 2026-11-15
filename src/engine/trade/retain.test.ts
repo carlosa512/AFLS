@@ -202,32 +202,39 @@ describe('retained salary', () => {
     // next year (that buyer counts this year's dollar at less), and in-season trades fell under the NFL's (14.8 a
     // season, floor 15). Against you it stays in full, or you buy a player with his salary kept and sell him on at a
     // profit.
-    const l = fresh();
-    const ctx = tradeContext(l);
-    const user = l.userTeamId;
     const deal = (seller: number, id: number, to: number, retain: number): TradeProposal => ({
       sides: [
         { teamId: seller, players: [id], picks: [], ...(retain ? { retain: { [id]: retain } } : {}) },
         { teamId: to, players: [], picks: [] },
       ],
     });
-    // A seller with room to spare (it weighs this year's money under face value) selling a player whose price its
-    // floor sets: what it asks is past its own read of him, so the money kept moves the floor, not the read.
-    const cases = l.teams
-      .filter((t) => t.id !== user && nowWeight(ctx, t.id) <= 0.8)
-      .flatMap((seller) => {
-        const buyer = l.teams.find((t) => t.id !== user && t.id !== seller.id && t.division !== seller.division)!;
-        return activeRoster(l, seller.id)
-          .filter(
-            (p) =>
-              p.contract &&
-              yearsLeft(p.contract, l.season) <= 1 &&
-              !playerTradeBlocker(l, p) &&
-              maxRetain(l, p) >= 2000,
-          )
-          .map((p) => ({ seller, buyer, p, v: judge(ctx, seller.id, deal(seller.id, p.id, buyer.id, 0)) }))
-          .filter(({ seller, buyer, v }) => v.give > 0 && v.need > marginFor(seller, buyer) * v.give + 1);
-      });
+    // The worlds tried in turn (2026-11-15: deal lengths by worth moved who sells what, and the first world's sellers
+    // all priced a starting quarterback, whose margin carries a premium this test doesn't read).
+    const scene = (l: League) => {
+      const ctx = tradeContext(l);
+      const user = l.userTeamId;
+      // A seller with room to spare (it weighs this year's money under face value) selling a player whose price its
+      // floor sets: what it asks is past its own read of him, so the money kept moves the floor, not the read.
+      const cases = l.teams
+        .filter((t) => t.id !== user && nowWeight(ctx, t.id) <= 0.8)
+        .flatMap((seller) => {
+          const buyer = l.teams.find((t) => t.id !== user && t.id !== seller.id && t.division !== seller.division)!;
+          return activeRoster(l, seller.id)
+            .filter(
+              (p) =>
+                p.contract &&
+                p.position !== 'QB' &&
+                yearsLeft(p.contract, l.season) <= 1 &&
+                !playerTradeBlocker(l, p) &&
+                maxRetain(l, p) >= 2000,
+            )
+            .map((p) => ({ seller, buyer, p, v: judge(ctx, seller.id, deal(seller.id, p.id, buyer.id, 0)) }))
+            .filter(({ seller, buyer, v }) => v.give > 0 && v.need > marginFor(seller, buyer) * v.give + 1);
+        });
+      return { l, ctx, user, cases };
+    };
+    const { l, ctx, user, cases } =
+      [fresh(), JSON.parse(second()), JSON.parse(third())].map(scene).find((x) => x.cases.length > 0) ?? scene(fresh());
     expect(cases.length, 'players a seller with room prices at its floor').toBeGreaterThan(0);
     const { seller, buyer, p } = cases[0];
     const keep = Math.floor(maxRetain(l, p) / 2);
