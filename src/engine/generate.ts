@@ -328,18 +328,12 @@ function draftHistory(rng: Rng, league: League, season: number, talent: number[]
 
 /**
  * Years left on a minimum-salary veteran's deal by his age on his position's clock (`ageShift`; weights for 1, 2, 3,
- * 4 and 5), as a settled league carries them at kickoff (minimum deals of players under OVR 13 from the 4th kickoff
- * on, in twelve runs; the 13+ on one-year minimums are its glutted market's, which a new league doesn't copy):
- * the old sign a year at a time, a young one now and then for three to five like an undrafted rookie.
+ * 4 and 5), as a settled league carries them at kickoff (minimum deals of veterans four or more years in, from the 4th
+ * kickoff on, in four runs). Deals by worth (`dealYears`, 2026-11-15) make them a year at a time, two for a player 25
+ * or younger on his clock (72% and 28%), where deals by age alone had the young on three to five.
  */
 const MINIMUM_YEARS_LEFT: { upTo: number; weights: number[] }[] = [
-  { upTo: 25, weights: [60, 4, 6, 11, 19] },
-  { upTo: 26, weights: [55, 7, 8, 30, 0] },
-  { upTo: 27, weights: [51, 8, 24, 17, 0] },
-  { upTo: 28, weights: [44, 25, 31, 0, 0] },
-  { upTo: 29, weights: [55, 33, 12, 0, 0] },
-  { upTo: 30, weights: [72, 28, 0, 0, 0] },
-  { upTo: 31, weights: [85, 15, 0, 0, 0] },
+  { upTo: 25, weights: [72, 28, 0, 0, 0] },
   { upTo: Infinity, weights: [100, 0, 0, 0, 0] },
 ];
 
