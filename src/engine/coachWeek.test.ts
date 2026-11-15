@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { answerBench, benchCard, benchKickoff, dismissReminder, restoreCard, setJobs } from './benching';
 import { perceive } from './scouting';
 import { STARTERS } from './positions';
-import { adviceKey, updateCoachAdvice } from './coachDecisions';
+import { adviceKey, CAMP, updateCoachAdvice } from './coachDecisions';
 import {
   coachWeekId,
   LETTER_GAP,
@@ -593,7 +593,17 @@ describe('the head coach’s weekly letter', () => {
     wr[3].traits.workEthic = 18;
     t.autoDepth = false;
     t.depthChart.WR = wr.map((p) => p.id);
-    updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
+    // 2026-11-15: the lineup lean and camp battles: two receivers of equal ratings are told apart by camp form, so the
+    // usual order may already start the man the coach prefers; camp battles are held at zero for this scene, which is
+    // about the note's key, not a camp.
+    const sd = CAMP.sd;
+    CAMP.sd = 0;
+    try {
+      updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
+    } finally {
+      CAMP.sd = sd;
+    }
+    expect(t.coachAdvice?.length, 'the coach made a depth-chart call').toBeGreaterThan(0);
     const a = t.coachAdvice!.at(-1)!;
     // A depth-chart call is a decision for you: it files a letter alone.
     deliverMail(l);

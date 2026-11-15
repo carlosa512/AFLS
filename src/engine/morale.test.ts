@@ -458,12 +458,18 @@ describe('morale: a season played', () => {
   beginOffseason(l);
 
   it('benches a starter whose room passed him at the new league year, once', () => {
-    const benched = Object.values(l.players).filter((p) => p.morale?.jolts?.some((j) => j.kind === 'benched'));
-    expect(benched.length).toBeGreaterThan(0);
-    for (const p of benched) expect(p.morale!.jolts!.filter((j) => j.kind === 'benched')).toHaveLength(1);
+    // 2026-11-15: the lineup lean and camp battles: a starter can also have been sat in season a few steps before the
+    // year turned (a job question's `sit` jolt, `benching.ts`), a second 'benched' jolt on a man (quarterback 425 of this
+    // league) that is not this step's. The new league year's own is the one at this step's clock, and it lands once.
     const clock = moraleClock(l);
+    const atNewYear = (p: Player) => p.morale!.jolts!.filter((j) => j.kind === 'benched' && j.at === clock);
+    const benched = Object.values(l.players).filter((p) =>
+      p.morale?.jolts?.some((j) => j.kind === 'benched' && j.at === clock),
+    );
+    expect(benched.length).toBeGreaterThan(0);
+    for (const p of benched) expect(atNewYear(p)).toHaveLength(1);
     moraleAdvance(l, clock);
-    for (const p of benched) expect(p.morale!.jolts!.filter((j) => j.kind === 'benched')).toHaveLength(1);
+    for (const p of benched) expect(atNewYear(p)).toHaveLength(1);
   });
 
   it('keeps every level in range through a season', () => {

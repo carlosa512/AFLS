@@ -621,14 +621,18 @@ describe('disputes: AI clubs keep their promises (G4)', () => {
       return { p, last };
     };
     const ai = l.teams.filter((t) => t.id !== l.userTeamId).map((t) => t.id);
-    const close = ai.map((id) => ({ id, x: promise(id, (g) => g >= 0 && g <= 1) })).find((c) => c.x)!;
+    const closes = ai.map((id) => ({ id, x: promise(id, (g) => g >= 0 && g <= 1) }));
+    const close = closes.find((c) => c.x)!;
     syncDepthChart(l, l.teams[close.id]);
     expect(chartOf(close.id).slice(0, n)).toContain(close.x!.p.id);
     expect(chartOf(close.id).slice(0, n)).not.toContain(close.x!.last.id);
+    // 2026-11-15: the lineup lean and camp battles: building `closes` promises a close man on every club that has one, so
+    // the far club must be one that has none, or its sync keeps that promise and moves its chart (as it should).
     const far = ai
-      .filter((id) => id !== close.id)
+      .filter((id) => id !== close.id && !closes.find((c) => c.id === id)!.x)
       .map((id) => ({ id, x: promise(id, (g) => g >= 1.5) }))
       .find((c) => c.x)!;
+    expect(far, 'a club with a promised man far behind its last starter and none close').toBeDefined();
     const before = [...chartOf(far.id)];
     syncDepthChart(l, l.teams[far.id]);
     expect(chartOf(far.id)).toEqual(before);

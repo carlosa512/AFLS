@@ -105,6 +105,10 @@ describe('the late market: a club offers what it can fit', () => {
       if (!testable(l, pick(l), t.id)) continue;
       const got = setUp(t.id, (floor) => floor * 1.03);
       if (got.teamId !== t.id) continue;
+      // 2026-11-15: the lineup lean and camp battles: a club with a contract it could cut makes room for a market deal
+      // (here a two-year one at $27M of cap against $23.5M of room), which is the cut-for-room path and not this one.
+      // The scene is a club that signed him on the room it had.
+      if (capHit(got.contract!, l.season) > floorPay(l, pick(l), t.id) * 1.03 + 1) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
       // Room short of his walk-away before day 3: never a deal below it.

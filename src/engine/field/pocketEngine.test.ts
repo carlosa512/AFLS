@@ -12,7 +12,9 @@ import { stagePlay } from './stage';
 import { skillsAt } from './snapshot';
 
 const league = createLeague({ seed: 'field-engine' });
-const week1 = league.games.filter((g) => g.week === 1).slice(0, 4);
+// 2026-11-15: the lineup lean and camp battles: four games were enough to hold a sack on the move (`ex`) before; the new
+// charts put none among them, so week one's first eight are played (the sack test asserts one is found).
+const week1 = league.games.filter((g) => g.week === 1).slice(0, 8);
 const played: { r: GameResult; taps: PocketTap[]; homeId: number; id: number }[] = [];
 // Played before the tests, a game at a time with a yield between (a long synchronous block starves vitest's worker).
 beforeAll(async () => {
@@ -114,7 +116,7 @@ describe('the engine plays the pocket', () => {
 
   it('takes a sack at his own 2 down on the goal line, never in front of it', () => {
     // Re-scened with the league-age work (2026-11-14). The first dropback of the game used to land on the line by luck;
-    // in the new world it is a clean one. Every real sack's facts, in all four games, are put at the 2
+    // in the new world it is a clean one. Every real sack's facts, in every game played, are put at the 2
     // instead: none may end in front of the goal line, and a passer run down on the move (`ex`) is run down at its depth,
     // on it. An in-pocket sack's drop (5 to 10 yards) is deeper than a 2-yard loss, so he ends in the end zone, short of
     // the spot (left for the owner: the film stops him short of where today's loss puts him).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adviceKey, updateCoachAdvice } from './coachDecisions';
+import { adviceKey, CAMP, updateCoachAdvice } from './coachDecisions';
 import { releaseCoach, ROOM_LABEL, teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject } from './inbox';
@@ -43,7 +43,16 @@ function recommending() {
   wr[3].traits.workEthic = 18;
   t.autoDepth = false;
   t.depthChart.WR = wr.map((p) => p.id);
-  updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
+  // 2026-11-15: the lineup lean and camp battles: equal ratings are told apart by camp form, so the usual order may
+  // already start the man the coach prefers; camp battles are held at zero for this scene (it is about the note).
+  const sd = CAMP.sd;
+  CAMP.sd = 0;
+  try {
+    updateCoachAdvice(l, t, staff, teamPlayers(l, t.id));
+  } finally {
+    CAMP.sd = sd;
+  }
+  expect(t.coachAdvice?.length, 'the coach made a depth-chart call').toBeGreaterThan(0);
   return { l, t };
 }
 

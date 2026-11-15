@@ -29,11 +29,16 @@ const mail = (e: Edition): InboxMessage => ({
   actions: [],
 });
 beforeAll(() => {
-  // 2026-11-15: deal lengths by worth: 'edition-screen' became 'edition-screen-2'. Week 4's lead in the old world was a
-  // trade, which has no box score to open; the test of the open story's actions needs a lead that is a game.
-  l = createLeague({ seed: 'edition-screen-2' });
-  for (let w = 0; w < 4; w++) playWeek(l);
-  edition = buildEdition(l, 4)!;
+  // 2026-11-15: deal lengths by worth, and again the lineup lean and camp battles: week 4's lead in a seeded world is the
+  // week's biggest story, which is not always a game; the test of an open story's actions needs a lead that is a game
+  // (it has a box score to open), so the world is searched for one, the first of 'edition-screen', '-2', '-3'...
+  for (let n = 1; n <= 12; n++) {
+    l = createLeague({ seed: n === 1 ? 'edition-screen' : `edition-screen-${n}` });
+    for (let w = 0; w < 4; w++) playWeek(l);
+    edition = buildEdition(l, 4)!;
+    if (edition.lead.kind === 'game') break;
+  }
+  expect(edition.lead.kind, 'a world whose week 4 leads with a game').toBe('game');
   message = mail(edition);
 }, 120_000);
 

@@ -320,6 +320,9 @@ describe('migration and collection', () => {
     // `players`, the stream, `games` and `result` again with deal lengths by worth (2026-11-15: `dealYears`): opening
     // contracts run for the years their pay and age give, they draw from the league's stream, so the stream, the
     // schedule drawn after it, the players' contracts and the result move; the charts, which no contract touches, still match.
+    // `players`, `charts` and `result` again with the lineup lean and camp battles (2026-11-15: `startScore`): who starts at
+    // each position moves (young players and high picks lean up, a camp form splits close jobs), so every chart and the game
+    // played from them move; the stream and the schedule still match, so no draw moved.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -331,9 +334,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '6f5e045fd2d5b5cfda727b8eb573bebb06658e5579115cb137c4819e6e9eb23b',
+  players: '630a9a220936712d038375bf72dfc9ddefa73dced3812d61fd0d79aefef8100f',
   rng: [643924055, 2159163808, 1869990391, 1664091751],
   games: '235d4d3cc93e3f3a8eb0ae2fbff091c0cdeda0177c001c6b9b4b68b52404ba21',
-  result: '7a49aafdae8c32ae83c2b6cb496559db2d17f1aaabcec12441ed390e71803599',
-  charts: '72404090723297066b0a1f9aa96a4a01e9665ffcdee29147ce217e74ac6a14e1',
+  result: '432a0430ca4dec56c79f845ca338407828e957e09d5946f9baca83685562d586',
+  charts: 'db5391c928087851b038414f81e0c0fdf9963ce8ef8fb98f141d263670756258',
 };

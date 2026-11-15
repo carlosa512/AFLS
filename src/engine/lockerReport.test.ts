@@ -159,10 +159,15 @@ describe('the locker room report: morale', () => {
     const l = copy(template);
     at(l, 'regular', 3);
     for (const p of ours(l)) p.morale = { level: 0, jolts: [] };
+    // 2026-11-15: the lineup lean and camp battles: the chart's starter is no longer always the best rated, and a better
+    // rated man behind him already wants more snaps. The scene is the one it was written for: the quarterbacks on the
+    // chart in order of rating, the best leaves, and the next, who sat behind him, is now the best there is.
     const qbs = ours(l)
       .filter((p) => p.position === 'QB')
       .sort((x, y) => playerOvr(y) - playerOvr(x));
+    l.teams[l.userTeamId].depthChart.QB = qbs.map((p) => p.id);
     const backup = qbs[1];
+    expect(backup, 'a backup quarterback behind the starter').toBeDefined();
     backup.morale = { level: -4, jolts: [] };
     // He sat last season, as a backup does.
     backup.stats[l.season - 1] = { gp: 10 } as Player['stats'][number];

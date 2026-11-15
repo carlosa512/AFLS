@@ -19,11 +19,18 @@ const fact = (o: Partial<BeliefFact> = {}): BeliefFact => ({
   side: 'offense',
   ...o,
 });
+// 2026-11-15: the lineup lean and camp battles: the scene is a room that is steady and falls to just above doubt (-0.15
+// from a belief near zero). Two weeks in, 'belief-words' had the receivers at -0.06 already, so a fall of 0.15 took them
+// past the warning into doubt; the world is searched for one whose receivers still sit above -0.05 after two weeks.
 const base = (() => {
-  const l = createLeague({ seed: 'belief-words' });
-  playWeek(l);
-  playWeek(l);
-  return JSON.stringify(l);
+  for (let n = 0; n < 12; n++) {
+    const l = createLeague({ seed: n ? `belief-words-${n}` : 'belief-words' });
+    playWeek(l);
+    playWeek(l);
+    const wr = runnerOf(l, l.userTeamId, 'WR');
+    if (wr && (wr.belief?.WR ?? 0) > -0.05) return JSON.stringify(l);
+  }
+  throw new Error('no world with a steady receivers room after two weeks');
 })();
 const fresh = (): League => JSON.parse(base);
 
