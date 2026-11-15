@@ -1,5 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { assessCoachAdvice, coachOrder, START_LEAN, startLean } from './coachDecisions';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { assessCoachAdvice, CAMP, campForm, coachOrder, START_LEAN, startLean, startScore } from './coachDecisions';
 import { teamCoaches } from './coaching';
 import { slotOvr } from './familiarity';
 import { createLeague } from './generate';
@@ -23,6 +23,14 @@ function wr(l: League, i: number, r: number, facts: Partial<Pick<Player, 'age' |
 const pick = (round: number) => ({ season: 1, round, pick: 1, teamId: 0 });
 
 describe('the lineup lean (project B)', () => {
+  // The lean on its own: camp form held at zero (it has its own tests below).
+  const sd = CAMP.sd;
+  beforeEach(() => {
+    CAMP.sd = 0;
+  });
+  afterEach(() => {
+    CAMP.sd = sd;
+  });
   it('startLean gives a first-round rookie the most, a second-rounder less, any young player some, half in his third season and nothing at 25 or after', () => {
     expect(startLean({ age: 22, experience: 0, draft: pick(1) })).toBeCloseTo(START_LEAN.firstRound);
 
@@ -72,5 +80,44 @@ describe('the lineup lean (project B)', () => {
     const mine = clone(t.depthChart);
     syncDepthChart(l, t);
     expect(t.depthChart.WR).toEqual(mine.WR);
+  });
+});
+
+describe('camp battles (project B)', () => {
+  it('gives each player one camp form for a season, centred on zero with CAMP.sd spread', () => {
+    const ps = Object.values(world.players);
+    for (const p of ps.slice(0, 50)) expect(campForm(p)).toBe(campForm(clone(p)));
+    const xs = ps.map(campForm);
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
+    expect(Math.abs(mean)).toBeLessThan(0.05);
+    expect(Math.abs(sd - CAMP.sd) / CAMP.sd).toBeLessThan(0.1);
+    for (const x of xs) expect(Math.abs(x)).toBeLessThanOrEqual(3 * CAMP.sd + 1e-9);
+  });
+
+  it('draws a new camp form when a year passes', () => {
+    const ps = Object.values(world.players).slice(0, 200);
+    const moved = ps.filter((p) => campForm(p) !== campForm({ ...p, age: p.age + 1 }));
+    expect(moved.length).toBeGreaterThan(190);
+  });
+
+  it('lets two close veterans trade the job across seasons, never one clearly worse', () => {
+    let swaps = 0;
+    for (let i = 0; i < 40; i++) {
+      const a = wr(world, 0, 10, { age: 26 + (i % 3), experience: 5 });
+      const b = wr(world, 1, 10.2, { age: 27, experience: 6 });
+      a.firstName = `A${i}`;
+      b.firstName = `B${i}`;
+      if (coachOrder([b, a], 'WR', [])[0].id === a.id) swaps++;
+      const clear = wr(world, 1, 10 + 6 * CAMP.sd + 0.1, { age: 27, experience: 6 });
+      expect(coachOrder([clear, a], 'WR', [])[0].id).toBe(clear.id);
+    }
+    expect(swaps).toBeGreaterThan(5);
+    expect(swaps).toBeLessThan(35);
+  });
+
+  it('startScore carries the camp form, so a quirk note never names it', () => {
+    const p = wr(world, 0, 10, { age: 27, experience: 5 });
+    expect(startScore(p, 'WR')).toBeCloseTo(slotOvr(p, 'WR') + startLean(p) + campForm(p));
   });
 });
