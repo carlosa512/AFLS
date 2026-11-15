@@ -14,7 +14,7 @@ import { playerOvr, STARTERS } from '../src/engine/positions';
 import { Rng } from '../src/engine/rng';
 import { regularSeasonGames } from '../src/engine/season/standings';
 import { bodyAs } from '../src/engine/training';
-import type { Position } from '../src/engine/types';
+import type { League, Position } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import { seasonTops } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
@@ -113,7 +113,7 @@ const BORN_SEASONS = 16;
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
-export function runLeague(seed: string, seasons: number): LeagueRun {
+export function runLeague(seed: string, seasons: number, onSeason?: (league: League, s: number) => void): LeagueRun {
   const steadyFrom = Math.floor(seasons / 2);
   const league = createLeague({ seed });
   const out: LeagueRun = {
@@ -218,6 +218,7 @@ export function runLeague(seed: string, seasons: number): LeagueRun {
   for (let s = 0; s < seasons; s++) {
     const atKickoff = rosteredNow(league);
     simToEndOfSeason(league);
+    onSeason?.(league, s);
     seasonsRead.push(seasonStarters(league, league.season));
     rosteredRead.push(new Set([...atKickoff, ...rosteredNow(league), ...playedIn(league, league.season)]));
     {

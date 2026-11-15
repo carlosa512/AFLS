@@ -51,9 +51,29 @@ export function selectionPreference(c: Coach | undefined, p: Player): number {
   if (q.includes('patientTeacher') && p.age <= 25) n += 0.04;
   return Math.max(-0.2, Math.min(0.2, n));
 }
+/**
+ * Why a young player gets the job early: NFL teams start a high pick, or any young player close to the veteran, to
+ * see what they have (a 21–24 year-old on a roster starts .42–.55 of the time, against .25–.40 here before the lean).
+ * A lean in rating points, read only from public facts (age, seasons, where he was drafted), full through his second
+ * season, half in his third, gone from his fourth or at 25. Every chart reads it the same way: AI teams, your staff's
+ * sort and game day.
+ */
+export const START_LEAN = { firstRound: 0.8, secondRound: 0.5, young: 0.4, fullThrough: 1, fadeBy: 3, ageCap: 25 };
+
+export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): number {
+  const L = START_LEAN;
+  if (p.age >= L.ageCap || p.experience >= L.fadeBy) return 0;
+  const round = p.draft?.round;
+  const lean = Math.max(round === 1 ? L.firstRound : round === 2 ? L.secondRound : 0, L.young);
+  return p.experience <= L.fullThrough ? lean : lean / 2;
+}
+
+/** Who a coach would start at a slot before his own leanings: his worth there and the youth lean. */
+export const startScore = (p: Player, position: Position): number => slotOvr(p, position) + startLean(p);
+
 export function coachOrder(players: Player[], position: Position, staff: readonly Coach[]): Player[] {
   const c = positionCoachFor(staff, position);
-  const scored = players.map((p) => ({ p, score: slotOvr(p, position) + selectionPreference(c, p) }));
+  const scored = players.map((p) => ({ p, score: startScore(p, position) + selectionPreference(c, p) }));
   return scored.sort((a, b) => b.score - a.score).map((x) => x.p);
 }
 export function selectionReason(c: Coach, p: Player, ahead: Player): string {
@@ -183,7 +203,8 @@ export function assessCoachAdvice(
     const c = positionCoachFor(staff, position);
     if (!c || !activeCoachQuirks(c).length) continue;
     const pool = available.filter((p) => (team.playingAt?.[p.id]?.pos ?? p.position) === position);
-    const ranked = [...pool].sort((a, b) => slotOvr(b, position) - slotOvr(a, position));
+    // The usual order already leans young: a quirk note only names what the coach's own leanings change.
+    const ranked = [...pool].sort((a, b) => startScore(b, position) - startScore(a, position));
     const preferred = coachOrder(pool, position, staff).slice(0, STARTERS[position]);
     const usual = ranked.slice(0, STARTERS[position]);
     const p = preferred.find((p) => !usual.includes(p));
