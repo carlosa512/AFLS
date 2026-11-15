@@ -148,10 +148,11 @@ describe('GMs make room to keep their core', () => {
     // Next year with a little room to borrow against: with none the GM rightly borrows nothing and his keeper walks, and
     // with enough the restructures cover it all and nothing is cut. Which room lands between depends on the world a
     // season leaves (8% in the world after the mail-filed fix; the league-age work's founding growth, 2026-11-14, moved
-    // it again), so rooms from 10% to 20% of a cap are tried and one where the GM restructures, cuts and signs must turn up.
+    // it again; so did deal lengths by worth, 2026-11-15: 5.6-8.8% of a cap in this world), so rooms from 0% to 20% of a cap are
+    // tried and one where the GM restructures, cuts and signs must turn up.
     let found = 0;
-    for (let step = 0; step <= 25; step++) {
-      const share = 0.1 + 0.004 * step;
+    for (let step = 0; step <= 50; step++) {
+      const share = 0.004 * step;
       const { l, team, p } = squeezed(-0.6, 0.2);
       team.deadMoney.push({
         season: l.season + 1,

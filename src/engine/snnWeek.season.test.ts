@@ -14,7 +14,9 @@ import { ruleBreaks } from './storyRules';
 import type { EditionStory, InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
 
-const SEED = 'snn-season';
+// 2026-11-15: deal lengths by worth: 'snn-season' became 'snn-season-2'. In the old world the champions' own player won the
+// MVP, so the final's awards tile (added after the cut, by design) made two stories about one club.
+const SEED = 'snn-season-2';
 let l: League;
 let quiet: League;
 const editions = () => (l.inbox ?? []).filter((m) => m.edition);

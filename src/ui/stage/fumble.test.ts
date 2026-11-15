@@ -251,7 +251,14 @@ describe('a sack fumble the quarterback lost himself, on film', () => {
   let found: { r: GameResult; i: number; homeId: number } | null = null;
   for (const g of league.games.filter((x) => !x.playoffRound).slice(0, 60)) {
     const r = simulateGame(league, g, { keepPlays: true });
-    const i = r.plays!.findIndex((e) => e.kind === 'sack' && /FUMBLE, recovered by/.test(e.text));
+    // 2026-11-15: deal lengths by worth: the first such sack in this world had a note between the sack and the fumble
+    // ("looks rattled"), which the rewrites below do not reach; the scene is a sack whose text they do rewrite.
+    const i = r.plays!.findIndex(
+      (e) =>
+        e.kind === 'sack' &&
+        /FUMBLE, recovered by/.test(e.text) &&
+        /SACKED by .+? for -?\d+ yards?(, [^.]+)?\. FUMBLE/.test(e.text),
+    );
     if (i >= 0) {
       found = { r, i, homeId: g.homeId };
       break;

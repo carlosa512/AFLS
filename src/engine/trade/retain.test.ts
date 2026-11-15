@@ -58,11 +58,18 @@ describe('retained salary', () => {
     const p = richest(l, 9);
     const keep = Math.floor(maxRetain(l, p) / 2);
     const owed = salaryToTake(l, p);
-    const pick = l.draftPicks.find((x) => x.ownerId === 4 && x.playerId === undefined)!;
+    // A buyer with the room for what he is owed less what is kept (2026-11-15: deal lengths by worth reshuffled the
+    // league's books and team 4 no longer had it), the one with the most room if several do.
+    const ctx = tradeContext(l);
+    const buyer = l.teams
+      .filter((t) => t.id !== 9 && l.draftPicks.some((x) => x.ownerId === t.id && x.playerId === undefined))
+      .sort((a, b) => capRoom(ctx, b.id) - capRoom(ctx, a.id))[0].id;
+    expect(capRoom(ctx, buyer)).toBeGreaterThan(owed - keep);
+    const pick = l.draftPicks.find((x) => x.ownerId === buyer && x.playerId === undefined)!;
     const deal: TradeProposal = {
       sides: [
         { teamId: 9, players: [p.id], picks: [], retain: { [p.id]: keep } },
-        { teamId: 4, players: [], picks: [pick.id] },
+        { teamId: buyer, players: [], picks: [pick.id] },
       ],
     };
     expect(tradeProblem(l, deal, { rosterCuts: true })).toBeNull();

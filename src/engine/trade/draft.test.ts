@@ -362,10 +362,11 @@ describe('AI trades before each pick', () => {
 
 /**
  * Its own world, cached: the shared one's picks drew no offers once AI clubs sat concussed men (0.4.20 reshuffled its
- * season); this one's first pick of yours draws them.
+ * season); this one's first pick of yours draws them. 2026-11-15: deal lengths by worth reshuffled every league's
+ * contracts and 'draft-offers-a' drew none, so this is 'draft-offers-b' (its first pick of yours draws them).
  */
 let offersWorld: string | undefined;
-const offersDay = (): League => JSON.parse((offersWorld ??= JSON.stringify(draftDayOf('draft-offers-a'))));
+const offersDay = (): League => JSON.parse((offersWorld ??= JSON.stringify(draftDayOf('draft-offers-b'))));
 
 /** Draft day walked to your first pick that draws offers (the draft room's Sim to my pick makes them). */
 function toOfferedPick(): League {

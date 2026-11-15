@@ -26,6 +26,7 @@ import {
   QUIET,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
+import { yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
 import { activeRoster } from './roster';
 import type { League, Player } from './types';
@@ -45,6 +46,19 @@ function veteran(): Player {
     .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
 }
 
+/**
+ * A veteran with at least three years left on a veteran deal, the best such man on team 0. 2026-11-15: deal lengths by
+ * worth: a veteran's deal is mostly one or two years now, so the best veteran may already be in his final year and the
+ * scene of "more so in his final year" would have nothing to compare; the scene starts from a man with years to spare.
+ */
+function veteranWithYears(): Player {
+  const found = team0
+    .filter((p) => p.contract?.kind === 'veteran' && p.experience >= 3 && yearsLeft(p.contract, league.season) >= 3)
+    .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+  expect(found, 'a veteran with three years left on team 0').toBeDefined();
+  return found;
+}
+
 /** A copy of the league with one player replaced, so a test can change him without touching the shared league. */
 function withPlayer(p: Player): League {
   return { ...league, players: { ...league.players, [p.id]: p } };
@@ -54,7 +68,7 @@ const ZERO: MoraleFactors = { contract: 0, role: 0, team: 0, room: 0, promises: 
 
 describe('morale: the factors', () => {
   it('reads a starter paid half his market as unhappy with his deal, more so in his final year', () => {
-    const s = veteran();
+    const s = veteranWithYears();
     const ctx = moraleContext(league);
     const paid = moraleFactors(league, s, ctx).contract;
     const half: Player = {

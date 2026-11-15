@@ -29,7 +29,9 @@ const mail = (e: Edition): InboxMessage => ({
   actions: [],
 });
 beforeAll(() => {
-  l = createLeague({ seed: 'edition-screen' });
+  // 2026-11-15: deal lengths by worth: 'edition-screen' became 'edition-screen-2'. Week 4's lead in the old world was a
+  // trade, which has no box score to open; the test of the open story's actions needs a lead that is a game.
+  l = createLeague({ seed: 'edition-screen-2' });
   for (let w = 0; w < 4; w++) playWeek(l);
   edition = buildEdition(l, 4)!;
   message = mail(edition);
@@ -60,6 +62,7 @@ describe('the weekly edition in the inbox', () => {
     expect(tilesIn(html)).toBe((edition.club ? 1 : 0) + edition.tiles.length);
     expect(count(html, 'class="ed-p"')).toBe(edition.lead.paragraphs.length);
     expect(html).toContain('>Close');
+    expect(edition.lead.kind, 'a lead that is a game').toBe('game');
     expect(html).toContain('>Box score<');
   });
 

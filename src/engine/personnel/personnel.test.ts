@@ -317,6 +317,9 @@ describe('migration and collection', () => {
     // them, the players' contracts and the result move; the charts, which no contract touches, still match.
     // `players` again with a founding league's young given less growth ahead (2026-11-14, FOUNDING_GROWTH): only their
     // ceilings are rolled differently, so the stream, games, charts and result still match (ratings and draws unchanged).
+    // `players`, the stream, `games` and `result` again with deal lengths by worth (2026-11-15: `dealYears`): opening
+    // contracts run for the years their pay and age give, they draw from the league's stream, so the stream, the
+    // schedule drawn after it, the players' contracts and the result move; the charts, which no contract touches, still match.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -328,9 +331,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '7ed01b12ecf0acaf803a73997cd6094570dbc8d528e35bf7053c5d276b40664d',
-  rng: [307611251, 1174562455, 406219770, 1664109076],
-  games: 'b9dea5ba6f9fd885848a004f43c0d936e1e020fdf7610823a9bf2fb4deb9f180',
-  result: '3b563d6eefc77bbf0e04c511a5aec4ad03529204cec8364b239eeeaf94d1ee08',
+  players: '6f5e045fd2d5b5cfda727b8eb573bebb06658e5579115cb137c4819e6e9eb23b',
+  rng: [643924055, 2159163808, 1869990391, 1664091751],
+  games: '235d4d3cc93e3f3a8eb0ae2fbff091c0cdeda0177c001c6b9b4b68b52404ba21',
+  result: '7a49aafdae8c32ae83c2b6cb496559db2d17f1aaabcec12441ed390e71803599',
   charts: '72404090723297066b0a1f9aa96a4a01e9665ffcdee29147ce217e74ac6a14e1',
 };

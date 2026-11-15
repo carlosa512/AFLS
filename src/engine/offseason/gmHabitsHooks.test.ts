@@ -77,6 +77,10 @@ describe('Signs a Bridge QB', () => {
   it('logs the bridge signing for a GM without the habit too', () => {
     habitsForce.off = true;
     const { l, t, young, fa } = bridgeScene(2);
+    // A 34-year-old quarterback priced at 5% of the cap or more signs for two years (`dealYears`, 2026-11-15: deal
+    // lengths by worth); a plain one-year bridge is a backup-priced man, so both quarterbacks play five points lower.
+    for (const q of [young, fa])
+      for (const k of Object.keys(q.ratings) as (keyof typeof q.ratings)[]) q.ratings[k] -= 5;
     fa.age = 34 + ageShift('QB');
     aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
     expect(fa.teamId).toBe(t.id);
