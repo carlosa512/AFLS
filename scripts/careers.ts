@@ -554,8 +554,10 @@ console.log(
 // Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
 // happens to a starter the next season, pooled over the leagues' steady seasons. Careers own the old end and the exits:
 // the 31-or-older shares and "gone" are judged against the owner's bands (`judge`). How many young players start, the
-// mean ages they move and how often a starter keeps his job also turn on what teams choose (who starts, who moves): they
-// stay a known issue (`soft`, never counted) until the front offices' work (the next project) lands.
+// mean ages they move and how often a starter keeps his job turn on what teams choose (who starts, who moves): the front
+// offices' work (2026-11-15: the lineup lean and camp battles, `coachDecisions.ts`) judges them for the league and the
+// quarterbacks, and for every age through 30 (the owner: aim for the average). By position and by length of prime they
+// stay soft (⚠, never counted), as do the 31–32 exits (retirement's follow-up).
 {
   const known: string[] = [];
   const line = (label: string, value: number, target: number, digits: number, range: [number, number]) =>
@@ -572,6 +574,8 @@ console.log(
   // (the owner's call, 2026-11-14: a known issue until the front offices' work lands). The all-positions rollup at 31
   // and 32 carries the same short-prime excess, long prime alone being in its bands (the owner's call, 2026-11-14).
   const B_OWNS_GONE = (g: AgeGroup, b: AgeBand) => (g === 'short' || g === 'all') && (b === '31' || b === '32');
+  // The league's and the quarterbacks' ages are judged; each other position's stays soft (2026-11-15).
+  const B_JUDGES = (pos: string) => pos === 'ALL' || pos === 'QB';
   const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
     const { usual, normal } = bandFor(target, width);
     return (
@@ -590,7 +594,11 @@ console.log(
     const mw = pos === 'ALL' ? AGE_WIDTH.allMean : kp ? AGE_WIDTH.meanKP : AGE_WIDTH.mean;
     const sw = pos === 'ALL' ? AGE_WIDTH.allShare : wide ? AGE_WIDTH.shareWide : AGE_WIDTH.share;
     console.log(
-      `  ${pos.padEnd(4)} n=${ages.length} · ${soft(`${pos} mean age`, mean(ages), nfl.mean, mw, 2)} · ${soft(
+      `  ${pos.padEnd(4)} n=${ages.length} · ${(B_JUDGES(pos) ? judge : soft)(`${pos} mean age`, mean(ages), nfl.mean, mw, 2)} · ${(B_JUDGES(
+        pos,
+      )
+        ? judge
+        : soft)(
         `${pos} 24 or younger %`,
         pct(ages, (a) => a <= 24),
         nfl.young,
@@ -612,7 +620,7 @@ console.log(
       if (!f) continue;
       const nfl = NFL_NEXT[g][b];
       console.log(
-        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${(B_OWNS_GONE(g, b) ? soft : judge)(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
+        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${(g === 'all' && b !== '31' && b !== '32' ? judge : soft)(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${(B_OWNS_GONE(g, b) ? soft : judge)(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
       );
     }
   const exits: Partial<Record<Position, number[]>> = {};
@@ -654,7 +662,7 @@ console.log(
       );
   if (known.length)
     console.log(
-      `⚠ known issue: too few young starters, too little job turnover, starters a little older on average and too many short-prime starters gone at 31–32 against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,
+      `⚠ known issue: some positions' ages and job turnover off the NFL's, and too many short-prime starters gone at 31–32 (${known.length} lines outside the owner's bands, soft: retirement's follow-up and by-position fits)`,
     );
 }
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).

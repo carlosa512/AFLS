@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.48',
+    date: '2026-11-15',
+    title: 'Young players get their shot',
+    text: 'Teams start young players and high picks in close calls, and starting jobs change hands at camp. Contracts run by what a player is worth, and the re-sign window groups deals by size.',
+  },
+  {
     version: '0.4.47',
     date: '2026-11-14',
     title: 'A new league that starts settled',

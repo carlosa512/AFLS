@@ -117,7 +117,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run careers` — age a draft class of every position and play four 20-season leagues in
   parallel child processes, then four more for work ethic's lean on ceilings (about 19 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
-  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`) against the research ranges. Run it after changing
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions' and the 31–32 exits soft) against the research ranges. Run it after changing
   `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
@@ -378,11 +378,13 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     rooms: `talkRoom`, `answerRoomTalk`), one answer for every open losing ask, and one club-wide `LOSING_GAP` (a man asking
     inside it is answered as you last answered, `Team.losingAnswer`, `talkStep`, your club only). A meeting makes no story
     (`roomBeat` adds its beats only to a room already open because it turned), and its result rides in the next letter filed
-    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none and its items wait, keeping their `born`; so nothing is lost, your club's ask is ignored after three steps (`waitFor` in `playerTalks.ts`; an AI club's after two) and a suggestion to your club lives a step longer (`meetings/index.ts`, `PENDING_STEPS`, no second one while it is held). Room and staff stories close with the season and the league year, silently; every kind has one story a subject a league year (a beat after it closed re-opens it, keeping what was told), and a man's deal, snaps or feud story with nothing pending closes quietly after `QUIET` steps (`quiet` in `storiesStep.ts`, told so never a closing row). `coachWeek.season.test.ts` plays a
+    for another reason, alone only when it owes something (Negotiate) or has waited `RESULT_WAIT` steps. The coach writes at most every other step (`LETTER_GAP`): the step after a letter files none and its items wait, keeping their `born`; so nothing is lost, your club's ask is ignored after three steps (`waitFor` in `playerTalks.ts`; an AI club's after two) and a suggestion to your club lives a step longer (`meetings/index.ts`, `PENDING_STEPS`, no second one while it is held). Your club has a story about at most `ROOM_STORIES` rooms a league year (`storiesStep.ts`; the last slot for a room reading Down). Room and staff stories close with the season and the league year, silently; every kind has one story a subject a league year (a beat after it closed re-opens it, keeping what was told), and a man's deal, snaps or feud story with nothing pending closes quietly after `QUIET` steps (`quiet` in `storiesStep.ts`, told so never a closing row). `coachWeek.season.test.ts` plays a
     season and holds the letters to it: at most one every other step, no sentence twice, no room told twice inside three steps, every
     meeting held told within two steps
   - `generate.ts` league/player creation · `roster.ts` depth charts, team ratings, each club's players (`teamPlayers`,
-    an index beside the league kept by `setTeam` and `addPlayer`)
+    an index beside the league kept by `setTeam` and `addPlayer`); who a coach starts is `startScore` in `coachDecisions.ts`: his worth at the
+    slot, a lean toward young players and high picks in their first seasons (`START_LEAN`) and a camp form a season
+    (`CAMP`, `campForm`: a pure function of the player and his age, nothing drawn or saved; kickers and punters skip it)
   - `size.ts` height and weight: each position's bell curve (`SIZE`, from combine percentiles), the roll (`rollSize`,
     the same two draws the flat rolls cost), `sizeZ` (the only size z-score), the matchup edges the engine adds where
     size decides (`sizeEdge`: contested balls, the jam, a passer's lanes, contact; `rushSizeEdge` and `massEdge` in
@@ -576,7 +578,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `league.ts` week/season orchestration
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
-    tags (`market.ts`)
+    tags (`market.ts`; a deal's length by what he's worth, then his age on his position's clock: `dealYears`, `DEAL_YEARS`)
   - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
