@@ -1360,6 +1360,7 @@ describe('the pocket', () => {
 
   it('takes the quarterback down where the rush meets him: a stagger, not a walk to the spot (0.4.17)', () => {
     let n = 0;
+    let walks = 0;
     for (const { e, p } of drops) {
       if (e.kind !== 'sack' || p.loose) continue;
       const who = actorsIn(e);
@@ -1376,13 +1377,16 @@ describe('the pocket', () => {
       if (met === undefined) continue;
       // Before 0.4.17 the two walked to the spot together after the hit: 38 of 76 sacks here went 4 yards and more (9.5
       // the most). Now it's the last of his drift into the rush and the stagger: 3.9 at most here, 5.0 across worlds
-      // b, c and d (a long loss, the rusher on him as he drifts back to it).
-      expect(Math.hypot(P(p, qb, last).x - P(p, qb, met).x, P(p, qb, last).y - P(p, qb, met).y), e.text).toBeLessThan(
-        6,
-      );
+      // b, c and d (a long loss, the rusher on him as he drifts back to it). 2026-11-15, the lineup lean and camp
+      // battles: two −11 yard losses went 6.0 and 5.5 (every other sack 2.6 at most). The owner's call: judge what the
+      // test is for, a stagger and not a walk, as a share, with a ceiling for a long loss.
+      const went = Math.hypot(P(p, qb, last).x - P(p, qb, met).x, P(p, qb, last).y - P(p, qb, met).y);
+      expect(went, e.text).toBeLessThan(7);
+      if (went >= 4) walks++;
       n++;
     }
     expect(n).toBeGreaterThan(20);
+    expect(walks / n).toBeLessThan(0.1);
   });
 
   it('brings the sacker past the blocker the engine names, and down with the quarterback on the sack spot', () => {

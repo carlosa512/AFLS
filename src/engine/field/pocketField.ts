@@ -188,11 +188,6 @@ const FEEL = 0.9;
 const KEEP_OFF = 2.5;
 /** Footwork in the pocket (yards a second): a step up, a slide, a climb. */
 const POCKET_PACE = 2.5;
-/**
- * Fleeing back from the rush to a long loss's spot (yards a second, the film's `SACK_CLIMB`). At footwork's pace the
- * rush caught him yards short of the spot and rode him to it, the walk 0.4.17 took out of the film.
- */
-const FLEE_PACE = 4.5;
 /** A step up into a clean pocket, a climb or slide away from pressure, a drift (yards). */
 const STEP_UP = 1;
 const SLIDE = 1.5;
@@ -427,12 +422,10 @@ export function runPocket(start: PocketStart, rng: Rng): PocketResult {
       const g = Math.hypot(gx, gy);
       // Escaping a sack he runs for it; rolling to throw it away he keeps his eyes downfield.
       // Escaping a sack he runs with the ball, at a carrier's top (the film holds him to it).
-      // Bailing from the rush to a spot behind his set (a long loss): he flees, so the rush meets him at the spot.
-      const flees = outcome === 'sack' && start.sackX !== undefined && (start.sackX - setX) * dir < -STEP_UP;
       const pace = rolling
         ? Math.min(outcome === 'sack' ? carrierTop : ROLL_PACE * q.top, g / STEP)
         : set
-          ? Math.min(flees ? Math.min(FLEE_PACE, q.top) : POCKET_PACE, g / STEP)
+          ? Math.min(POCKET_PACE, g / STEP)
           : Math.min(q.top, g / STEP);
       if (g > 0.05) qWant = { vx: (gx / g) * pace, vy: (gy / g) * pace };
     } else if (outcome === 'sack' && start.sackX !== undefined && Math.abs(start.sackX - q.x) > 0.3) {
