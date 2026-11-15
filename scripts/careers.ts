@@ -83,6 +83,9 @@ let misses = 0;
 /** Live trees swing with the league: ⚠ outside 2–5, fail outside 1–6 (the owner's call, Nov 5): the NFL had one big tree
  * at a time before 2017 and 4–5 in 2025 (spec 2026-10-28 §4.6); under 1 they've died out. */
 const LIVE_TREES_NORMAL: [number, number] = [1, 6];
+// The biggest tree swings with the league too: it sat at 3.0 (its floor) before the lineup lean and 2.8 after, which
+// moves who wins and who gets promoted. The owner's bands, 2026-11-15.
+const BIGGEST_TREE_NORMAL: [number, number] = [2.5, 6.5];
 /** Founding trees dying out in a league swings with the league: one of the leagues losing them all warns, two fail (the
  * owner's call, Nov 6: main's fewest left was 2, 0.4.8's branch had one league at 0). */
 const NO_FOUNDING_NORMAL: [number, number] = [0, 1];
@@ -681,7 +684,7 @@ console.log(
   // leagues' trees too, eight leagues, as they're played anyway.
   const born = [...t, ...(await ethicLeagues).map((r) => r.trees)].map((x) => x.born);
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check("biggest (seasons 9–16, the band's horizon: the owner's call, 2026-11-14)", mean(t.flatMap((x) => x.biggest.slice(8, 16))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league in 16 seasons (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check("biggest (seasons 9–16, the band's horizon: the owner's call, 2026-11-14)", mean(t.flatMap((x) => x.biggest.slice(8, 16))), 3, 6, 1, BIGGEST_TREE_NORMAL)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league in 16 seasons (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);
