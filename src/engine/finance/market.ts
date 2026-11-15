@@ -115,13 +115,36 @@ export function marketApy(market: Market, player: Player): number {
 }
 
 /** Years a player wants: young players lock in long deals, veterans take what they can get. */
-export function preferredYears(player: Player): number {
+/** How much a deal matters, by its APY as a share of the cap: a share on a bound goes up. */
+export type DealTier = 'key' | 'role' | 'depth';
+export const dealTier = (share: number): DealTier => (share >= 0.02 ? 'key' : share >= 0.008 ? 'role' : 'depth');
+
+/**
+ * Years a deal runs, by what it pays (rows, its APY as a share of the cap: under 0.8%, 0.8–2%, 2–5%, 5–10%, 10%+) and
+ * then the player's age on his position's clock (columns: 25 or younger, 26–27, 28–29, 30–31, 32+). The NFL sets a
+ * deal's length by worth: its veteran deals 2018–21 ran 1.2 years at under 0.8% of the cap, 1.4 at 0.8–2%, 2.3 at 2–5%,
+ * 3.1 at 5–10% and 3.8 above (`docs/research/free-agency-market.md`). Set by age alone, AFLS locked its cheap and
+ * mid-priced players up for three years or more, and few of their deals ended in a spring (project B, 2026-11-15).
+ * One object so a probe can try another table.
+ */
+export const DEAL_YEARS = {
+  shares: [0.008, 0.02, 0.05, 0.1],
+  ages: [25, 27, 29, 31],
+  years: [
+    [2, 1, 1, 1, 1],
+    [2, 2, 1, 1, 1],
+    [3, 3, 3, 2, 1],
+    [4, 4, 3, 2, 2],
+    [5, 4, 4, 3, 2],
+  ],
+};
+
+/** Years a deal at `share` of the cap runs for this player (1–5): worth first, then age on his position's clock. */
+export function dealYears(player: Pick<Player, 'age' | 'position'>, share: number): number {
   const a = player.age - ageShift(player.position);
-  if (a <= 25) return 5;
-  if (a <= 27) return 4;
-  if (a <= 29) return 3;
-  if (a <= 31) return 2;
-  return 1;
+  const row = DEAL_YEARS.shares.filter((s) => share >= s).length;
+  const col = DEAL_YEARS.ages.filter((x) => a > x).length;
+  return DEAL_YEARS.years[row][col];
 }
 
 /**

@@ -11,7 +11,7 @@ import { moraleLevel } from '../morale';
 import { moodLean } from '../moodScale';
 import { accelerateProration, capSpace, logTransaction, paidFraction, paidShare, weeksPaid } from '../finance/cap';
 import { buildContract, capHit, isExpired, remainingProration, yearOf, yearsLeft } from '../finance/contract';
-import { guaranteeAsk, leagueMarket, marketApy, minSalary, preferredYears } from '../finance/market';
+import { dealYears, guaranteeAsk, leagueMarket, marketApy, minSalary } from '../finance/market';
 import { rookieContract } from '../generate';
 import { noteSigning } from '../gmMoves';
 import { numberOnArrival } from '../jerseys';
@@ -118,7 +118,7 @@ export function demand(league: League, player: Player, teamId: number): Demand {
   return {
     market,
     askApy: Math.max(min, Math.round(market * (1 + p.greed * 0.15) * lean.ask * mood.price)),
-    askYears: preferredYears(player),
+    askYears: dealYears(player, market / m.cap),
     askGtdPct: Math.round(guaranteeAsk(m, player) * 100) / 100,
     walkAway: Math.max(
       min,

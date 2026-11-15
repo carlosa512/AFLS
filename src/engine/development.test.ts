@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
 import { cliffChance, CLIFFS } from './cliffs';
 import { developPlayer, expectedAging, growsUntil, playedShare } from './development';
-import { ageFactor, preferredYears } from './finance/market';
+import { ageFactor, dealYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
 import { buildLineup } from './match/lineup';
@@ -345,7 +345,7 @@ describe('retirement and the one aging table', () => {
     expect(ageShift('RB')).toBe(-2);
     expect(ageShift('WR')).toBe(0);
     expect(ageFactor('RB', 29)).toBeLessThan(ageFactor('OL', 29));
-    expect(preferredYears(rookie('RB', 28, 1))).toBeLessThan(preferredYears(rookie('OL', 28, 1)));
+    expect(dealYears(rookie('RB', 28, 1), 0.03)).toBeLessThan(dealYears(rookie('OL', 28, 1), 0.03));
     for (const pos of Object.keys(AGING) as Position[]) expect(Math.abs(ageShift(pos))).toBeLessThanOrEqual(4);
   });
 });

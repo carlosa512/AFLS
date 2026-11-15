@@ -27,7 +27,7 @@ import {
   maxBonusShare,
   payTier,
   positionRank,
-  preferredYears,
+  dealYears,
   TOP_APY_PCT,
   minSalary,
   rookieApy,
@@ -348,16 +348,16 @@ const SHORTER_PAST_31 = 0.4;
 
 /**
  * Where a market-priced veteran is in his deals: they follow each other from the end of his rookie deal (four
- * years in), each as long as a player his age on his position's clock asks for (`preferredYears`), a year less from
+ * years in), each as long as a deal at his price and his age on his position's clock runs (`dealYears`), a year less from
  * the front offices not chasing now once he's 31 on that clock. A quarterback, kicker or punter signs his second deal
  * at 26 for five years, so at 30 he's in its last (a settled league's top 32 at those positions are a third in their
  * last year at 30-32); drawn by age alone, as a receiver's, 57-60% were. Returns his deal's years left, counting
  * this one, and the seasons since he signed it.
  */
-function dealCycle(rng: Rng, player: Player): { remaining: number; elapsed: number } {
+function dealCycle(rng: Rng, player: Player, share: number): { remaining: number; elapsed: number } {
   for (let start = OPTION_CLASS; ; ) {
     const age = player.age - (player.experience - start);
-    let length = preferredYears({ ...player, age });
+    let length = dealYears({ ...player, age }, share);
     if (age - ageShift(player.position) >= 31 && rng.chance(SHORTER_PAST_31)) length = Math.max(1, length - 1);
     if (start + length > player.experience)
       return { remaining: start + length - player.experience, elapsed: player.experience - start };
@@ -434,7 +434,7 @@ function initialContract(
     remaining = rng.weighted([1, 2, 3, 4, 5], (k) => row.weights[k - 1]);
     // His first deal after the rookie one started at four years in.
     elapsed = rng.int(0, Math.min(5 - remaining, exp - 4));
-  } else ({ remaining, elapsed } = dealCycle(rng, player));
+  } else ({ remaining, elapsed } = dealCycle(rng, player, marketApy(market, player) / market.cap));
   const then = { ...market, cap: capThen(elapsed) };
   const younger = { ...player, age: player.age - elapsed, experience: exp - elapsed };
   const apyK = floor ? minSalary(younger.experience, then.cap) : marketApy(then, younger) * rng.float(0.85, 1.15);
@@ -452,7 +452,7 @@ function initialContract(
  */
 function rookieExtension(market: Market, player: Player, season: number, gm: GmTraits): Contract {
   const apy = marketApy(market, player);
-  const years = preferredYears(player);
+  const years = dealYears(player, apy / market.cap);
   const total = apy * years;
   const guaranteed = guaranteeAsk(market, player);
   const bonus = total * Math.min(guaranteed * (0.45 + 0.4 * gm.capAggression), maxBonusShare(gm.capAggression));
@@ -652,7 +652,7 @@ export function fitPayroll(players: Player[], season: number, target: number, ma
     if (short <= 1) break;
     const c = p.contract!;
     const now = yearOf(c, season)!;
-    const more = Array.from({ length: preferredYears({ ...p, age: p.age + 1 }) }, (_, i) => ({
+    const more = Array.from({ length: dealYears({ ...p, age: p.age + 1 }, now.base / market.cap) }, (_, i) => ({
       season: season + 1 + i,
       base: Math.round(now.base * 1.05 ** (i + 1)),
       guaranteed: 0,
