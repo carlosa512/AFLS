@@ -23,23 +23,23 @@ function wr(l: League, i: number, r: number, facts: Partial<Pick<Player, 'age' |
 const pick = (round: number) => ({ season: 1, round, pick: 1, teamId: 0 });
 
 describe('the lineup lean (project B)', () => {
-  it('startLean gives a first-round rookie 0.8, a second-rounder 0.5, an undrafted 22-year-old 0.4, and nothing at 25 or in his third season', () => {
+  it('startLean gives a first-round rookie the most, a second-rounder less, any young player some, half in his third season and nothing at 25 or after', () => {
     expect(startLean({ age: 22, experience: 0, draft: pick(1) })).toBeCloseTo(START_LEAN.firstRound);
-    expect(START_LEAN.firstRound).toBe(0.8);
-    expect(startLean({ age: 22, experience: 0, draft: pick(2) })).toBeCloseTo(0.5);
-    expect(startLean({ age: 22, experience: 0, draft: undefined })).toBeCloseTo(0.4);
-    expect(startLean({ age: 22, experience: 1, draft: pick(1) })).toBeCloseTo(0.8);
-    expect(startLean({ age: 23, experience: 2, draft: pick(1) })).toBeCloseTo(0.4);
+
+    expect(startLean({ age: 22, experience: 0, draft: pick(2) })).toBeCloseTo(START_LEAN.secondRound);
+    expect(startLean({ age: 22, experience: 0, draft: undefined })).toBeCloseTo(START_LEAN.young);
+    expect(startLean({ age: 22, experience: 1, draft: pick(1) })).toBeCloseTo(START_LEAN.firstRound);
+    expect(startLean({ age: 23, experience: 2, draft: pick(1) })).toBeCloseTo(START_LEAN.firstRound / 2);
     expect(startLean({ age: 24, experience: 3, draft: pick(1) })).toBe(0);
     expect(startLean({ age: 25, experience: 0, draft: pick(1) })).toBe(0);
   });
 
-  it('coachOrder starts a first-round rookie 0.5 below the veteran, and the veteran 1.0 above him', () => {
+  it('coachOrder starts a first-round rookie a little inside the lean below the veteran, never a little past it', () => {
     const rookie = wr(world, 0, 10, { age: 22, experience: 0, draft: pick(1) });
-    const close = wr(world, 1, 10.5, { age: 29, experience: 7 });
-    expect(slotOvr(close, 'WR') - slotOvr(rookie, 'WR')).toBeCloseTo(0.5, 1);
+    const close = wr(world, 1, 10 + START_LEAN.firstRound - 0.5, { age: 29, experience: 7 });
+    expect(slotOvr(close, 'WR') - slotOvr(rookie, 'WR')).toBeCloseTo(START_LEAN.firstRound - 0.5, 1);
     expect(coachOrder([close, rookie], 'WR', [])[0].id).toBe(rookie.id);
-    const clear = wr(world, 1, 11, { age: 29, experience: 7 });
+    const clear = wr(world, 1, 10 + START_LEAN.firstRound + 0.5, { age: 29, experience: 7 });
     expect(coachOrder([clear, rookie], 'WR', [])[0].id).toBe(clear.id);
   });
 
