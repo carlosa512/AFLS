@@ -1,6 +1,6 @@
 # Front offices that run their rosters like NFL teams (project B)
 
-Status: design, 2026-11-15. Follows the league-age work (A and A2, PR #185, `2026-11-14-league-age-design.md`), which
+Status: design, 2026-11-15, for the owner's approval. Follows the league-age work (A and A2, PR #185, `2026-11-14-league-age-design.md`), which
 made players develop, peak and retire like the NFL's and left three gaps to the front offices, shown as a known issue
 in `npm run careers`.
 
@@ -135,6 +135,19 @@ Judged in seasons 11–20 of `npm run careers` and over `npm run offseason -- 6`
   option are untouched.
 - A new line in `npm run offseason` judges veteran deals' length by pay band against the NFL's table (the research
   numbers above go into `docs/research/free-agency-market.md` with the script that measures them).
+- **Your re-sign window, grouped by the deal's size** (the owner, 2026-11-15). Shorter deals mean more of your
+  contracts expire each spring (the owner accepted that as the NFL's way). So the Re-sign tab lists expiring players in
+  groups by the size of the new deal they ask for, biggest first: key players (2% of the cap or more), role players
+  (0.8–2%) and depth (near the minimum), each with its count, sortable inside the group, the depth group with its own
+  "Let all N walk". The head coach's contracts letter lists them in the same order. A sketch:
+
+  ```
+  Re-sign window · 14 expiring
+  Key players · asking 2%+ of the cap (3)
+    J. Ruiz   CB 27  14.2   $8.1M → asks $9.4M   [Talk] [Let walk]
+  Role players · 0.8–2% (4)
+  Depth · near the minimum (7)                    [Let all 7 walk]
+  ```
 
 ### Part 2: the lineup lean (second)
 
@@ -153,6 +166,25 @@ Judged in seasons 11–20 of `npm run careers` and over `npm run offseason -- 6`
 - Built only if, after parts 1 and 2, good outside signings sit below the usual band (75). If built: before the market
   opens, AI GMs release veterans whose pay outruns what they're worth to the team, about the NFL's quarter of the
   market (41–59 players a year at 0.8% of the cap or more), with dead money inside the `offseason` bands.
+
+## Calls made in review (2026-11-15)
+
+Settled from the code or as the designer's call; the owner can overturn any of them.
+
+- **The lean and the benching chain.** The lean decides the chart from camp as ratings do today, and jobs are set on
+  cut-down day (`setJobs`), so a veteran who loses the job to a young player in camp was never its holder and asks
+  nothing, as when a better player wins camp today. A swap in season happens only when ratings move across the lean's
+  margin, and then it is a benching like any other. `morale`'s benching, talk and dispute lines must hold.
+- **The lean in a new league's first season: on.** Founding players carry draft records (`draftHistory`), so the lean
+  works from the first kickoff, and the `sim` check, which plays first seasons, judges it honestly. Switching it off for
+  season one would hide its effect on play from the one check that measures play.
+- **What the length target covers.** Every veteran deal signed in the offseason (re-signs, extensions and signings
+  from outside; not rookie deals, options or tags), as both sides were measured. The extra year for youth spreads
+  within those means, not on top of them.
+- **Bands that move.** Every band holds; the builder may retune the AI's levers (prices, reserves) to hold them. A line
+  that can't hold comes to the owner with the evidence, as a band question, never loosened.
+- **The draft-round breakdown** is re-checked on main first; if it overturns "the gap is in rounds 2–7 and undrafted",
+  the owner hears before the lean is tuned, since approach (a) rests on it.
 
 ## Left to the builder
 
