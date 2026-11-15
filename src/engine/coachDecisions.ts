@@ -73,9 +73,9 @@ export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): numb
  * preseason), so a starter at 25–28 isn't safe from a teammate as good as he is. Each player has one camp form a
  * season in rating points, a pure function of who he is and his age (it changes when he turns a year older), so it
  * draws nothing and nothing is saved. Centred on zero with `sd` spread, never past three of it: a clearly better
- * player still starts.
+ * player still starts. A team keeps one kicker and one punter: no camp battle there (`skip`).
  */
-export const CAMP = { sd: 1.0 };
+export const CAMP: { sd: number; skip: Position[] } = { sd: 1.0, skip: ['K', 'P'] };
 
 export function campForm(p: Pick<Player, 'id' | 'age' | 'firstName' | 'lastName'>): number {
   const [a, b, c] = hashUnits(`camp:${p.id}:${p.age}:${p.firstName} ${p.lastName}`);
@@ -83,7 +83,8 @@ export function campForm(p: Pick<Player, 'id' | 'age' | 'firstName' | 'lastName'
 }
 
 /** Who a coach would start at a slot before his own leanings: his worth there, the youth lean and his camp. */
-export const startScore = (p: Player, position: Position): number => slotOvr(p, position) + startLean(p) + campForm(p);
+export const startScore = (p: Player, position: Position): number =>
+  slotOvr(p, position) + startLean(p) + (CAMP.skip.includes(position) ? 0 : campForm(p));
 
 export function coachOrder(players: Player[], position: Position, staff: readonly Coach[]): Player[] {
   const c = positionCoachFor(staff, position);

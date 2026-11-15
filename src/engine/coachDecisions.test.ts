@@ -121,3 +121,11 @@ describe('camp battles (project B)', () => {
     expect(startScore(p, 'WR')).toBeCloseTo(slotOvr(p, 'WR') + startLean(p) + campForm(p));
   });
 });
+
+describe('camp battles skip the specialists', () => {
+  it('a kicker or punter starts on his worth alone', () => {
+    const k = Object.values(world.players).find((p) => p.position === 'K')!;
+    expect(startScore(k, 'K')).toBeCloseTo(slotOvr(k, 'K') + startLean(k));
+    expect(CAMP.skip).toEqual(['K', 'P']);
+  });
+});
