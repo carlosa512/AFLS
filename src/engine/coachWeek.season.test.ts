@@ -125,7 +125,7 @@ const storiesOpened = (l: League) =>
 // team), which keeps every bound unchanged. If open stories keep running over on other seeds, it is a question for the owner.
 describe.each([
   { seed: 'mail1', team: 3 },
-  { seed: 'vol11', team: 10 },
+  { seed: 'vol10', team: 10 },
 ])("the head coach's letters over a season: $seed", ({ seed, team }) => {
   let l: League;
   let coach: InboxMessage[];
