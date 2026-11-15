@@ -591,6 +591,12 @@ tr.is-user .sticky-col {
   background: var(--surface-2);
   padding-block: 5px;
 }
+/* A button in a group's label row (the re-sign window's "Let all N walk") reads as a button, not as the label. */
+.group-row td .btn {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
 /* A dragged player held over another position group: where he'd be lined up out of position. */
 .group-row.drop-target td {
   background: color-mix(in srgb, var(--marker) 22%, var(--surface-2));

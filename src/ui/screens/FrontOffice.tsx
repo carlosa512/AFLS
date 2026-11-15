@@ -5,7 +5,7 @@ import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
 import { FA_DAYS, letRestWalk, lettingWalk, setLettingWalk } from '../../engine/offseason';
-import { openContracts, openOptions } from '../../engine/contractMail';
+import { askTier, openContracts, openOptions, TIER_ORDER, TIER_TITLE } from '../../engine/contractMail';
 import {
   applyFranchiseTag,
   exerciseFifthYearOption,
@@ -126,6 +126,11 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
   const tagged = team.taggedId ? league.players[team.taggedId] : null;
   // No decision yet: the advance button waits on these, and one button answers for the rest.
   const open = openContracts(league);
+  // Biggest deals first, so the calls that matter most come first; sorting holds inside each group.
+  const groups = TIER_ORDER.map((tier) => ({
+    tier,
+    rows: expiring.filter((p) => askTier(league, p, teamId) === tier),
+  })).filter((g) => g.rows.length > 0);
 
   return (
     <>
@@ -184,67 +189,96 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                     <th>Actions</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {expiring.map((p) => {
-                    const d = demand(league, p, teamId);
-                    const n = league.negotiations[p.id];
-                    const broken = n?.status === 'broken' && n.brokenPhase === league.phase;
-                    const blocker = tagBlocker(league, p);
-                    return (
-                      <tr key={p.id}>
-                        <td className="sticky-col">
-                          <PlayerLink league={league} player={p} avatar={32} />
-                        </td>
-                        <td>{p.position}</td>
-                        <td className="num">{p.age}</td>
-                        <td className="num">
-                          <Ovr league={league} player={p} />
-                        </td>
-                        <td className="num muted">{money(p.contract!.apy)}</td>
-                        <td className="num">{money(d.market)}</td>
-                        <td className="num">
-                          {money(d.askApy)} × {d.askYears}
-                        </td>
-                        <td className={broken ? 'tone-bad small' : 'muted small'}>
-                          {broken ? 'Broken off' : n ? `${n.patience} left` : 'Open'}
-                        </td>
-                        <td>
-                          {lettingWalk(league, p.id) ? (
-                            <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                              <span className="muted small">Letting him walk</span>
-                              <button
-                                className="btn btn-sm"
-                                onClick={() => store.mutate((l) => setLettingWalk(l, p.id, false))}
-                              >
-                                Keep talking
-                              </button>
+                {groups.map(({ tier, rows }) => {
+                  const openHere = rows.filter((p) => open.some((o) => o.id === p.id));
+                  return (
+                    <tbody key={tier}>
+                      <tr className="group-row">
+                        <td colSpan={9}>
+                          <span className="row" style={{ justifyContent: 'space-between' }}>
+                            <span>
+                              {TIER_TITLE[tier]} · {rows.length}
                             </span>
-                          ) : (
-                            <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                              <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
-                                Negotiate
-                              </button>
+                            {tier === 'depth' && openHere.length > 1 && (
                               <button
                                 className="btn btn-sm"
-                                onClick={() => store.mutate((l) => setLettingWalk(l, p.id, true))}
+                                onClick={() =>
+                                  store.mutate((l) =>
+                                    letRestWalk(
+                                      l,
+                                      openHere.map((p) => p.id),
+                                    ),
+                                  )
+                                }
                               >
-                                Let walk
+                                Let all {openHere.length} walk
                               </button>
-                              <button
-                                className="btn btn-sm"
-                                disabled={!!blocker}
-                                title={blocker ?? 'One-year deal, fully guaranteed'}
-                                onClick={() => store.mutate((l) => applyFranchiseTag(l, l.players[p.id]))}
-                              >
-                                Tag {money(tagValue(league, p))}
-                              </button>
-                            </span>
-                          )}
+                            )}
+                          </span>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
+                      {rows.map((p) => {
+                        const d = demand(league, p, teamId);
+                        const n = league.negotiations[p.id];
+                        const broken = n?.status === 'broken' && n.brokenPhase === league.phase;
+                        const blocker = tagBlocker(league, p);
+                        return (
+                          <tr key={p.id}>
+                            <td className="sticky-col">
+                              <PlayerLink league={league} player={p} avatar={32} />
+                            </td>
+                            <td>{p.position}</td>
+                            <td className="num">{p.age}</td>
+                            <td className="num">
+                              <Ovr league={league} player={p} />
+                            </td>
+                            <td className="num muted">{money(p.contract!.apy)}</td>
+                            <td className="num">{money(d.market)}</td>
+                            <td className="num">
+                              {money(d.askApy)} × {d.askYears}
+                            </td>
+                            <td className={broken ? 'tone-bad small' : 'muted small'}>
+                              {broken ? 'Broken off' : n ? `${n.patience} left` : 'Open'}
+                            </td>
+                            <td>
+                              {lettingWalk(league, p.id) ? (
+                                <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                                  <span className="muted small">Letting him walk</span>
+                                  <button
+                                    className="btn btn-sm"
+                                    onClick={() => store.mutate((l) => setLettingWalk(l, p.id, false))}
+                                  >
+                                    Keep talking
+                                  </button>
+                                </span>
+                              ) : (
+                                <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                                  <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
+                                    Negotiate
+                                  </button>
+                                  <button
+                                    className="btn btn-sm"
+                                    onClick={() => store.mutate((l) => setLettingWalk(l, p.id, true))}
+                                  >
+                                    Let walk
+                                  </button>
+                                  <button
+                                    className="btn btn-sm"
+                                    disabled={!!blocker}
+                                    title={blocker ?? 'One-year deal, fully guaranteed'}
+                                    onClick={() => store.mutate((l) => applyFranchiseTag(l, l.players[p.id]))}
+                                  >
+                                    Tag {money(tagValue(league, p))}
+                                  </button>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  );
+                })}
               </table>
             </div>
           )}

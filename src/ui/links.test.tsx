@@ -5,6 +5,8 @@ import { simToEndOfSeason } from '../engine/league';
 import { advanceOffseason, beginOffseason } from '../engine/offseason';
 import { expiringPlayers } from '../engine/offseason/ai';
 import { Resign } from './screens/FrontOffice';
+import { askTier, TIER_ORDER, TIER_TITLE } from '../engine/contractMail';
+import { dealTier } from '../engine/finance/market';
 import { NewGame } from './screens/NewGame';
 import type { ReactElement } from 'react';
 import type { League, Player } from '../engine/types';
@@ -110,6 +112,34 @@ describe('Resign tables', () => {
     expect(expiring).toBeGreaterThan(0);
     expect(html.split('>Negotiate</button>').length - 1).toBe(expiring);
     expect(html).toContain('class="th-sort"');
+  });
+
+  it('the re-sign window groups expiring players by the size of the deal they ask', () => {
+    const l = createLeague({ seed: 'resign' });
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    while (l.phase !== 'resign') advanceOffseason(l);
+    const html = render(<Resign league={l} negotiate={() => {}} />);
+    const expiring = expiringPlayers(l, l.userTeamId);
+    const count = (t: (typeof TIER_ORDER)[number]) => expiring.filter((p) => askTier(l, p, l.userTeamId) === t).length;
+    const groups = TIER_ORDER.filter((t) => count(t) > 0);
+    expect(groups.length).toBeGreaterThan(1);
+    const at = groups.map((t) => html.indexOf(`${TIER_TITLE[t]} · ${count(t)}<`));
+    for (const i of at) expect(i).toBeGreaterThan(-1);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    for (const p of expiring) {
+      const g = groups.indexOf(askTier(l, p, l.userTeamId));
+      const i = html.indexOf(`${p.firstName} ${p.lastName}`);
+      expect(i).toBeGreaterThan(at[g]);
+      if (g + 1 < at.length) expect(i).toBeLessThan(at[g + 1]);
+    }
+  });
+
+  it('a player asking exactly 2% of the cap is a key player on the screen and in the letter', () => {
+    // Both read the tier through askTier, which cuts the ask at dealTier's bounds.
+    expect(dealTier(0.02)).toBe('key');
+    expect(dealTier(0.0199)).toBe('role');
+    expect(TIER_TITLE[dealTier(0.02)]).toBe('Key players');
   });
 });
 
