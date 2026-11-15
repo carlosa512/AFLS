@@ -561,7 +561,7 @@ describe('opening league, read across fifty seeds', () => {
   }, 60_000);
 
   it("signs quarterbacks and specialists for the years their position's clock gives", () => {
-    // A quarterback, kicker or punter signs his second deal at 26 for five years (`preferredYears`, four years later
+    // A quarterback, kicker or punter signs his second deal at 26 for five years (`dealYears`, four years later
     // on his clock than a receiver), so at 30-32 a settled league's top 32 at those positions are about a third in
     // their last year (QB 35%, K and P 32%). Years drawn by age alone put them at 57% and 60%, a receiver's.
     // 2026-11-15: deal lengths by worth (owner: aim for the average): a settled league's now run 31% for quarterbacks and 84% for kickers and punters

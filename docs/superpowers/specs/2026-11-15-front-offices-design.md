@@ -203,7 +203,7 @@ Settled from the code or as the designer's call; the owner can overturn any of t
 - **Deal length by worth** (`dealYears`, `DEAL_YEARS` in `finance/market.ts`): a deal's length reads the share of the cap
   first, then age on the position's clock. Lengths by pay against the NFL's are judged in `npm run offseason`.
 - **The re-sign window grouped** by the size of the deal asked: Key players, Role players, Depth (2% and 0.8% of the
-  cap), on the screen and in the director's letter; Depth has "Let all N walk".
+  cap), on the screen and in the director's letter; Depth has "Let the other N walk".
 - **The lineup lean** (`START_LEAN`: first round 2.4, second 1.5, any young player 1.0, full through a player's second
   season, half in his third, gone at 25), larger than the plan's 0.8/0.5/0.4, which left both lines short.
 - **Camp battles** (owner's choice, not in the first design): `CAMP.sd` 1.0, a pure function of the player and his age,

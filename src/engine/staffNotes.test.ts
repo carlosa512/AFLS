@@ -8,6 +8,7 @@ import { activeRoster, teamPlayers } from './roster';
 import { UNITS, unitOf, type Unit, type UnitWord } from './standing';
 import { staffRows, unitTurnFor } from './staffNotes';
 import { storiesStep } from './storiesStep';
+import { beat } from './stories';
 import { toldKeys } from './voice';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ATTRIBUTES, type InboxMessage, type League } from './types';
@@ -28,6 +29,10 @@ const withAsk = (l: League) => {
   p.morale!.talk = { club: l.userTeamId, ask: { cause: 'snaps', at: l.moraleAt ?? moraleClock(l) } };
 };
 const matchups = (l: League) => l.inbox!.filter((m) => m.id.startsWith('matchup:'));
+
+/** A room story that turned a step ago, as `storiesStep` opens one in play (a sour turn is told only through it). */
+const roomStory = (l: League, unit: Unit, how = 'Split') =>
+  beat(l, { kind: 'room', teamId: l.userTeamId, unit }, 'turned', moraleClock(l) - 1, { how });
 
 /** Our WR coach prefers a hard-working young receiver over a veteran a little ahead of him: a recommendation. */
 function recommending() {
@@ -211,6 +216,7 @@ describe('staff notes: the position coach on his unit', () => {
   it('files it in the week’s notes, in his words, and remembers it', () => {
     const l = inSeason();
     splitUnit(l, 'WR');
+    roomStory(l, 'WR');
     withAsk(l);
     deliverMail(l);
     const m = notes(l).at(-1)!;
@@ -259,6 +265,7 @@ describe('staff notes: the position coach on his unit', () => {
     const l = inSeason();
     l.week = TRADE_DEADLINE_WEEK;
     splitUnit(l, 'WR');
+    roomStory(l, 'WR');
     withAsk(l);
     deliverMail(l);
     const report = l.inbox!.find((m) => m.id === `locker:${l.season}:deadline`)!;
@@ -337,6 +344,7 @@ describe('staff rows for the weekly letter', () => {
   it('one row a room: chemistry rides in the position coach’s note', () => {
     const l = inSeason();
     splitUnit(l, 'WR');
+    roomStory(l, 'WR');
     l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:Out of sync`]: 1 };
     const { rooms, covered } = staffRows(l, toldKeys(l));
     const chemNotes = covered.filter((k) => k.startsWith('chem:')).length;

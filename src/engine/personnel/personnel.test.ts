@@ -313,7 +313,7 @@ describe('migration and collection', () => {
     // for who runs each club move the stream, players, schedule and result; the charts still match. `result` again on
     // merging main's passing, fumbles and turnovers (0.4.6-0.4.8) with it: the same world, played differently.
     // Everything but `charts` again with the league-age work (2026-11-14): opening contracts follow the new aging table
-    // (`preferredYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
+    // (`dealYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
     // them, the players' contracts and the result move; the charts, which no contract touches, still match.
     // `players` again with a founding league's young given less growth ahead (2026-11-14, FOUNDING_GROWTH): only their
     // ceilings are rolled differently, so the stream, games, charts and result still match (ratings and draws unchanged).

@@ -77,8 +77,9 @@ export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): numb
  */
 export const CAMP: { sd: number; skip: Position[] } = { sd: 1.0, skip: ['K', 'P'] };
 
-export function campForm(p: Pick<Player, 'id' | 'age' | 'firstName' | 'lastName'>): number {
-  const [a, b, c] = hashUnits(`camp:${p.id}:${p.age}:${p.firstName} ${p.lastName}`);
+export function campForm(p: Pick<Player, 'id' | 'age'>): number {
+  // Who he is and how old: never his name, which anyone can edit on a card (a rename would move who starts).
+  const [a, b, c] = hashUnits(`camp:${p.id}:${p.age}`);
   return CAMP.sd * 2 * (a + b + c - 1.5);
 }
 

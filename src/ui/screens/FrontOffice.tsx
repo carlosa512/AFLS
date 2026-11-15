@@ -211,7 +211,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                                   )
                                 }
                               >
-                                Let all {openHere.length} walk
+                                Let the other {openHere.length} walk
                               </button>
                             )}
                           </span>

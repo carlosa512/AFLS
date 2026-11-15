@@ -106,8 +106,9 @@ describe('camp battles (project B)', () => {
     for (let i = 0; i < 40; i++) {
       const a = wr(world, 0, 10, { age: 26 + (i % 3), experience: 5 });
       const b = wr(world, 1, 10.2, { age: 27, experience: 6 });
-      a.firstName = `A${i}`;
-      b.firstName = `B${i}`;
+      // Forty different pairs of players (camp form reads who he is and his age).
+      a.id = 100_000 + i;
+      b.id = 200_000 + i;
       if (coachOrder([b, a], 'WR', [])[0].id === a.id) swaps++;
       const clear = wr(world, 1, 10 + 6 * CAMP.sd + 0.1, { age: 27, experience: 6 });
       expect(coachOrder([clear, a], 'WR', [])[0].id).toBe(clear.id);
@@ -127,5 +128,14 @@ describe('camp battles skip the specialists', () => {
     const k = Object.values(world.players).find((p) => p.position === 'K')!;
     expect(startScore(k, 'K')).toBeCloseTo(slotOvr(k, 'K') + startLean(k));
     expect(CAMP.skip).toEqual(['K', 'P']);
+  });
+});
+
+describe('camp form and names (final review)', () => {
+  it('a rename never changes who starts: camp form reads no name', () => {
+    const p = Object.values(world.players)[7];
+    const before = campForm(p);
+    const renamed: typeof p = { ...p, firstName: 'Jon', lastName: 'Renamed' };
+    expect(campForm(renamed)).toBe(before);
   });
 });

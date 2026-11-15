@@ -326,7 +326,8 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       often (retirement's follow-up), and some positions' young shares (receivers 32.5% against 41.6%).
 - [ ] **The free-agency market runs about half the NFL's size** (0.4.13, `npm run offseason`'s free-agency block, shown as a
       known issue): 43–74 good outside signings a year against the NFL's 84–109, 5–14 clubs with three or more against
-      16–22, 38–42% of them one-year against 20%, and too few good players left with no deal (the market places nearly
+      16–22, a one-year share that climbs from about 25% to 50–70% by a league's fifth season against 20% (0.4.48, deal
+      lengths by worth: lengths by pay now match the NFL's, the market's size and mix are the follow-up), and too few good players left with no deal (the market places nearly
       everyone). Clubs carry far more room into the window than NFL clubs (a median near 30% against 3–12%) and spend it
       refilling rosters, not on the market. Look at how much of the roster turns over each spring and the room clubs
       bring to March (`docs/research/free-agency-market.md`). Young stars are judged strictly and placed.

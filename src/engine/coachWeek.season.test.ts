@@ -14,7 +14,7 @@ import { answerMeeting } from './meetings';
 import { advanceOffseason } from './offseason';
 import { answerBench, couldPlay, holdsJob, questionOf } from './benching';
 import { answerRoomTalk, answerTalk } from './playerTalks';
-import type { InboxMessage, League } from './types';
+import type { CoachRoom, InboxMessage, League } from './types';
 import { sentencesOf } from './voice';
 import { ROOM_STORIES } from './storiesStep';
 
@@ -152,6 +152,15 @@ describe.each([
   it('stories opened', () => expect(storiesOpened(l).length).toBeLessThanOrEqual(12));
   it('rows', () => expect(Math.max(...coach.map((m) => rowsOf(m).length))).toBeLessThanOrEqual(6));
   it('open', () => expect(l.stories!.open.length).toBeLessThanOrEqual(4));
+  it('tells a room turning sour only when it has a story (the budget holds in the staff notes too)', () => {
+    const rooms = new Set(
+      storiesOpened(l)
+        .filter((s) => s.kind === 'room')
+        .map((s) => s.unit),
+    );
+    const turns = coach.flatMap((m) => (m.covered ?? []).filter((k) => /^unit:\d+:\d+:\w+:(Split|Down)$/.test(k)));
+    for (const k of turns) expect(rooms.has(k.split(':')[3] as CoachRoom), k).toBe(true);
+  });
   it("rooms inside the year's budget", () => {
     const rooms = new Set(
       storiesOpened(l)

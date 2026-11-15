@@ -149,7 +149,12 @@ export function offerValue(
 ): number {
   const p = player.personality;
   const gtd = 1 + clamp((offer.gtdPct - d.askGtdPct) * 0.25, -0.12, 0.08);
-  const term = 1 - 0.03 * Math.abs(offer.years - d.askYears);
+  // Short of the years he asked for costs him; more years at his price or better cost him nothing (a cheap player who
+  // asks one year takes three at the same pay: a longer deal is never refused for its length alone). Under his price,
+  // the extra years count against it too.
+  const short = Math.max(0, d.askYears - offer.years);
+  const long = offer.apy >= d.askApy ? 0 : Math.max(0, offer.years - d.askYears);
+  const term = 1 - 0.03 * (short + long);
   const win = p.winning * (contenderScore(league, teamId) - 0.5) * 0.12;
   const loyal = isOwnTeam(player, teamId) ? p.loyalty * 0.05 : 0;
   return offer.apy * gtd * term * (1 + win + loyal) * contractLean(league, player, teamId).value;
@@ -364,6 +369,9 @@ export function makeOffer(league: League, player: Player, teamId: number, offer:
     n.brokenPhase = league.phase;
     n.message = 'His agent has ended talks for now.';
   } else if (insult) n.message = 'That offer is an insult. Come back with something serious.';
+  // The money works and only the length doesn't: say so, not "more money".
+  else if (offerValue(league, player, teamId, { ...offer, years: d.askYears }, d) >= d.walkAway)
+    n.message = `The money works. He wants ${d.askYears} year${d.askYears === 1 ? '' : 's'}.`;
   else if (gap < 0.06) n.message = 'Close. A little more money or guarantees should get it done.';
   else if (gap < 0.15) n.message = 'We’re still apart. Look at the money and the guarantees.';
   else n.message = 'That’s well short of what we’re looking for.';

@@ -343,10 +343,9 @@ const SHORTER_PAST_31 = 0.4;
 /**
  * Where a market-priced veteran is in his deals: they follow each other from the end of his rookie deal (four
  * years in), each as long as a deal at his price and his age on his position's clock runs (`dealYears`), a year less from
- * the front offices not chasing now once he's 31 on that clock. A quarterback, kicker or punter signs his second deal
- * at 26 for five years, so at 30 he's in its last (a settled league's top 32 at those positions are a third in their
- * last year at 30-32); drawn by age alone, as a receiver's, 57-60% were. Returns his deal's years left, counting
- * this one, and the seasons since he signed it.
+ * the front offices not chasing now once he's 31 on that clock. The length reads his price first, then his age
+ * (2026-11-15, deal lengths by worth), as a settled league's deals do. Returns his deal's years left, counting this
+ * one, and the seasons since he signed it.
  */
 function dealCycle(rng: Rng, player: Player, share: number): { remaining: number; elapsed: number } {
   for (let start = OPTION_CLASS; ; ) {

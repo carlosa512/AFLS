@@ -327,7 +327,7 @@ describe('a GM makes the room he plans, or none', () => {
   const alone = (room: number, multiYear = false) => {
     const x = squeezed(0, 1);
     const { l, team, p } = x;
-    // A keeper who wants more than one year, so his new deal is on next year's books (`preferredYears` reads his age).
+    // A keeper who wants more than one year, so his new deal is on next year's books (`dealYears` reads his age).
     if (multiYear) p.age = Math.min(p.age, 29 + ageShift(p.position));
     for (const e of expiringPlayers(l, team.id)) if (e !== p) e.teamId = null;
     const cap = capFor(l, l.season + 1);
