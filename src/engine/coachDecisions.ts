@@ -58,7 +58,7 @@ export function selectionPreference(c: Coach | undefined, p: Player): number {
  * season, half in his third, gone from his fourth or at 25. Every chart reads it the same way: AI teams, your staff's
  * sort and game day.
  */
-export const START_LEAN = { firstRound: 0.8, secondRound: 0.5, young: 0.4, fullThrough: 1, fadeBy: 3, ageCap: 25 };
+export const START_LEAN = { firstRound: 1.6, secondRound: 1.0, young: 0.8, fullThrough: 1, fadeBy: 3, ageCap: 25 };
 
 export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): number {
   const L = START_LEAN;
