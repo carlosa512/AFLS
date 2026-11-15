@@ -8,6 +8,8 @@ import {
   developWeek,
   MOOD_TILT,
   CEILING_SWING,
+  DEV_RULES,
+  timingAt,
   playedShare,
   RELEASE,
   rollInputs,
@@ -16,6 +18,8 @@ import {
   weekWeight,
   yearTargets,
 } from './development';
+import { AGING } from './aging';
+import { CLIFFS } from './cliffs';
 import { createLeague } from './generate';
 import { playerOvr } from './positions';
 import { Rng } from './rng';
@@ -344,7 +348,10 @@ describe("mood tilts a young player's year (G2)", () => {
     // Every rostered young player, so some have a year that's all but landed in March.
     const league = createLeague({ seed: 'tilt-close' });
     for (const p of Object.values(league.players)) p.morale = { level: 0, jolts: [] };
-    const young = Object.values(league.players).filter((p) => p.teamId !== null && p.age <= 25);
+    // In a growth year: growth ends by position (`timingAt`), at 24 for most and 26 at the latest.
+    const young = Object.values(league.players).filter(
+      (p) => p.teamId !== null && p.age < timingAt(DEV_RULES, p.position).growthEnds,
+    );
     const jumps = new Map<number, [Player, Player]>();
     for (const p of young) {
       const { rng, ctx } = year(league, p);
@@ -363,6 +370,108 @@ describe("mood tilts a young player's year (G2)", () => {
       const [up, down] = jumps.get(p.id)!;
       expect(p.ratings).toEqual(up.ratings);
       expect(p.ratings).toEqual(down.ratings);
+    }
+  });
+});
+
+describe('a year finishes under the rules it was rolled with', () => {
+  it('an open year rolled under the old rules lands under them, whatever the rules are now', () => {
+    expect(finishRatings(true, true)).toEqual(finishRatings(true, false));
+  });
+
+  it('a year rolled under the rules of today re-rolls under them', () => {
+    expect(finishRatings(false, true)).not.toEqual(finishRatings(false, false));
+  });
+});
+
+/** Every veteran's ratings once a half-released year is finished, from an old save (no `rules`) or not, with the rules changed before the rest lands or not. */
+function finishRatings(oldYear: boolean, changed: boolean): number[][] {
+  let out: number[][] = [];
+  withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+    const league = createLeague({ seed: 'rules' });
+    const ps = Object.values(league.players)
+      .filter((p) => p.teamId !== null && p.age >= 27)
+      .slice(0, 80);
+    for (const p of ps) {
+      const { rng, ctx } = year(league, p);
+      beginYear(league, rng(), p, ctx);
+      p.age++;
+      if (oldYear && p.dev) delete p.dev.rules;
+    }
+    const was = DEV_RULES.primeSwing;
+    if (changed) DEV_RULES.primeSwing = 3;
+    try {
+      for (const p of ps) trueUp(league, p);
+    } finally {
+      DEV_RULES.primeSwing = was;
+    }
+    out = ps.map((p) => ATTRIBUTES.map((a) => p.ratings[a]));
+  });
+  return out;
+}
+
+describe('a cliff year', () => {
+  it('released in steps lands where one jump would', () => {
+    CLIFFS.always = true;
+    try {
+      withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+        const league = createLeague({ seed: 'cliff-steps' });
+        const ps = Object.values(league.players)
+          .filter((p) => p.teamId !== null && p.age >= 30)
+          .slice(0, 40);
+        const once = new Map<number, Player>();
+        const before = new Map(ps.map((p) => [p.id, playerOvr(p)]));
+        for (const p of ps) {
+          const { rng, ctx } = year(league, p);
+          const o = copy(p);
+          developPlayer(rng(), o, ctx);
+          once.set(p.id, o);
+          beginYear(league, rng(), p, ctx);
+          p.age++;
+        }
+        for (const p of ps) trueUp(league, p);
+        for (const p of ps) expect(p.ratings).toEqual(once.get(p.id)!.ratings);
+        // The cliff took something: every one of them lost overall on the year.
+        for (const p of ps) expect(playerOvr(p)).toBeLessThan(before.get(p.id)!);
+      });
+    } finally {
+      CLIFFS.always = false;
+    }
+  });
+});
+
+describe('an old save', () => {
+  /** A veteran lineman's, tight end's and quarterback's year rolled and finished under the old rules (an old save's). */
+  const finishOld = () => {
+    let out: number[][] = [];
+    withSplit({ newYear: 0.5, program: 0.05, camp: 0.05, season: 0.4 }, () => {
+      const league = createLeague({ seed: 'old-aging' });
+      const ps = Object.values(league.players)
+        .filter((p) => p.teamId !== null && ['OL', 'TE', 'QB'].includes(p.position) && p.age >= 29)
+        .slice(0, 60);
+      for (const p of ps) {
+        const { rng, ctx } = year(league, p);
+        beginYear(league, rng(), p, { ...ctx, rules: 1 });
+        p.age++;
+      }
+      for (const p of ps) trueUp(league, p);
+      out = ps.map((p) => ATTRIBUTES.map((a) => p.ratings[a]));
+    });
+    return out;
+  };
+
+  it('finishes its open year on the aging table it was rolled on, whatever the table says now', () => {
+    const before = finishOld();
+    const was = { OL: { ...AGING.OL }, TE: { ...AGING.TE }, QB: { ...AGING.QB } };
+    Object.assign(AGING.OL, { peakEnd: 25 });
+    Object.assign(AGING.TE, { peakEnd: 25 });
+    Object.assign(AGING.QB, { peakEnd: 28 });
+    try {
+      expect(finishOld()).toEqual(before);
+    } finally {
+      Object.assign(AGING.OL, was.OL);
+      Object.assign(AGING.TE, was.TE);
+      Object.assign(AGING.QB, was.QB);
     }
   });
 });

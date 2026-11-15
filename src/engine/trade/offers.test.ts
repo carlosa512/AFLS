@@ -154,7 +154,11 @@ describe('offers to you', () => {
         if (capRoom(ctx, t.id) < salaryToTake(l, p) + 2000) continue;
         const bid = bidFor(ctx, t, p);
         if (!bid) continue;
-        cases.push({ player: p.id, buyer: t.id, paid: quickValue(ctx, t, bid.sides[0]) });
+        const paid = quickValue(ctx, t, bid.sides[0]);
+        // Taken again with the league-age work (2026-11-14): a player worth next to nothing draws one late pick, and
+        // the next pick up is a whole step, so the extra for the money you keep can't show in so small a price.
+        if (paid < 50) continue;
+        cases.push({ player: p.id, buyer: t.id, paid });
         break;
       }
     }

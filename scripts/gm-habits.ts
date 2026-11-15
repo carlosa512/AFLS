@@ -303,12 +303,16 @@ const gunShyScore = () => {
   pin('gunShy');
   const on = aiOffer(l, t, fa, new Rng('x'), 2).apy;
   unpin();
-  // Somewhere along the free agent's range he clears the usual bar but not 1.3 times it.
+  // Somewhere along the free agent's range he clears the usual bar but not 1.3 times it, at the first of a few clubs
+  // where one does (as the bridge scene looks): which club has the room and the need depends on the world (the
+  // league-age work, 2026-11-14, left the first club with none at any rating).
   let bar = 0;
-  for (let d = -6; d <= 0; d += 0.25) if (faSigns(d, null).signed && !faSigns(d, 'gunShy').signed) bar++;
+  let club = 0;
+  for (; club < 8 && bar === 0; club++)
+    for (let d = -6; d <= 0; d += 0.25) if (faSigns(d, null, club).signed && !faSigns(d, 'gunShy', club).signed) bar++;
   return {
     moved: on < off && bar > 0 ? 1 : on > off ? -1 : 0,
-    what: `offer ${(on / off).toFixed(2)}x, ${bar} free agents clear the bar off but not on`,
+    what: `offer ${(on / off).toFixed(2)}x, ${bar} free agents clear the bar off but not on (club ${club - 1})`,
   };
 };
 

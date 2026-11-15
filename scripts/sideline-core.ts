@@ -222,10 +222,15 @@ export function judgeSideline(t: SidelineTally): Line[] {
         const tol = b === TOTAL ? 1.5 : Math.max(3, 0.2 * real);
         // Too few plays to judge: luck alone moves the share by more than the tolerance allows (3.5 standard errors: a judged line fails by luck about once in 2,000).
         const se = 100 * Math.sqrt(((real / 100) * (1 - real / 100)) / Math.max(1, c.n));
+        // Swings with the league (the owner's call, Nov 14): long scrambles pushed out read 14.9-18.9 over thirty
+        // seasons on near-identical code (1,700 a sixty-season run, about a point of luck); ⚠ outside its range, fails a
+        // point past it.
+        const swings = kind === 'scramble' && b === '10+ yards' && what === 'pushed';
         lines.push({
           label: `${NAMES[kind]}, ${b}: ${what} %`,
           value: pct(k, c.n),
           range: [Math.max(0, real - tol), real + tol],
+          ...(swings ? { normal: [Math.max(0, real - tol - 1), real + tol + 1] as [number, number] } : {}),
           note: `NFL ${real} (n=${c.n})${tol < 3.5 * se ? ', too few to judge' : ''}`,
           ...(tol < 3.5 * se ? { info: true } : {}),
         });

@@ -1827,7 +1827,7 @@ function mentorStory(l: League, cand: Candidate, at: Wording): EditionStory {
   return compose(l, cand, at, {
     first: [
       `${name(x.discipleId)} of ${C(dTeam)} faces ${name(x.mentorId)} of ${C(mTeam)} next week, the first time the two have met as head coaches.`,
-      `He worked under him for years.`,
+      `${lastWord(name(x.discipleId))} worked under ${lastWord(name(x.mentorId))} for years before he became head coach in ${c(dTeam)}.`,
     ],
     second: [`${c(dTeam)} are ${rec(a)} and ${c(mTeam)} are ${rec(b)}.`, `${c(x.homeId)} are at home.`],
     headline: `${lastWord(name(x.mentorId))} meets his old assistant`,

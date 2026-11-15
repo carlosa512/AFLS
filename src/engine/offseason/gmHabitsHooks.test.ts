@@ -108,8 +108,9 @@ describe('Gun-Shy on Big Deals', () => {
       aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX });
       return fa.teamId === t.id;
     };
-    // Somewhere along the free agent's range he clears the usual bar but not 1.3 times it.
-    const hit = Array.from({ length: 25 }, (_, i) => -6 + i * 0.25).filter((d) => {
+    // Somewhere along the free agent's range he clears the usual bar but not 1.3 times it (the range moved up from -6
+    // to 4 with the league-age work, 2026-11-14: the reshuffled young starter rates higher, so the edge sits near +1).
+    const hit = Array.from({ length: 25 }, (_, i) => -2 + i * 0.25).filter((d) => {
       habitsForce.off = true;
       habitsForce.all = null;
       const off = signs(d);
@@ -248,18 +249,29 @@ describe('Extends Early', () => {
 
 describe('Tags First', () => {
   /** A club whose best expiring player the call would tag. */
-  function tagScene() {
+  function tagScene(tagsFirst = false) {
     const l = fresh();
     l.phase = 'resign';
     for (const t of l.teams) {
       if (t.id === l.userTeamId || !aiGm(l, t)) continue;
       const tagged = expiringPlayers(l, t.id).find((p) => resignCall(l, t.id, p).call === 'tag');
-      if (tagged) return { l, t, p: tagged };
+      if (!tagged) continue;
+      if (tagsFirst) {
+        // Taken again with the league-age work (2026-11-14): with the reshuffled contracts a club's best tag call can
+        // fail the tag's own test (`tryTag`) while another's passes, so the scene is a club that tags him with the habit on.
+        const trial = fresh();
+        trial.phase = 'resign';
+        habitsForce.all = 'tagsFirst';
+        aiResignWindow(trial, trial.teams[t.id], new Rng('w'));
+        habitsForce.all = null;
+        if (trial.teams[t.id].taggedId !== tagged.id) continue;
+      }
+      return { l, t, p: tagged };
     }
     throw new Error('no club with a tag call');
   }
   it('tags before the offer; off, the offer comes first', () => {
-    const on = tagScene();
+    const on = tagScene(true);
     habitsForce.all = 'tagsFirst';
     aiResignWindow(on.l, on.t, new Rng('w'));
     expect(on.t.taggedId).toBe(on.p.id);

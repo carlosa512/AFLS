@@ -21,6 +21,9 @@ describe('the ball path', () => {
     for (const e of plays) if (e.kind && !one.has(e.kind)) one.set(e.kind, e);
     const paths = Object.fromEntries([...one].map(([k, e]) => [k, buildPath(e, g.homeId, 26.65)]));
     expect(Object.keys(paths).length).toBeGreaterThan(8);
+    // Snapshot taken again with the league-age work (2026-11-14): opening contracts follow the new aging table, so the
+    // league's stream after them moves and this game's plays are others (an interception now among the kinds). The paths
+    // are still each kind's one play drawn by `buildPath`.
     expect(paths).toMatchSnapshot();
   });
 });

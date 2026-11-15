@@ -81,6 +81,6 @@ describe('assignUniforms', () => {
     const hash = createHash('sha1')
       .update(JSON.stringify(a.games.map((g) => [g.week, g.homeId, g.awayId, g.kickoff])))
       .digest('hex');
-    expect(hash).toBe('a8eb733391bd61b522971b6d074675bea890232e'); // the schedule for this seed, taken again when GM habits (0.4.5) added GM archetypes to the pool
+    expect(hash).toBe('3267f70881cca945e27f89f7703914b040cf8e3a'); // the schedule for this seed, taken again when GM habits (0.4.5) added GM archetypes to the pool, and with the league-age work (2026-11-14): opening contracts follow the new aging table and draw from the league stream before the schedule does
   });
 });

@@ -218,7 +218,18 @@ describe('the market clears', () => {
 
   it('on the last call a young star signs with a needy club that cuts its weakest minimum man', () => {
     const { l, star } = lastCall();
-    const club = l.teams.find((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut)!;
+    // The needy club: of those with a minimum man to cut, the one whose best man at his spot is the weakest (the
+    // first club with a cut held a quarterback he would not displace once the league's young stopped growing alike; 2026-11-14).
+    const best = (t: (typeof l.teams)[number]) =>
+      Math.max(
+        0,
+        ...activeRoster(l, t.id)
+          .filter((p) => p.position === star.position)
+          .map((p) => playerOvr(p)),
+      );
+    const club = l.teams
+      .filter((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut)
+      .sort((x, y) => best(x) - best(y) || x.id - y.id)[0];
     for (const t of l.teams) {
       if (t.id === l.userTeamId) continue;
       const want = t.id === club.id ? 0 : -100_000;

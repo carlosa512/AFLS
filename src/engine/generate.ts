@@ -13,7 +13,7 @@ import { rollGem, rollSize } from './size';
 import { ATTRIBUTE_PROFILES, overall, playerOvr, ROSTER_TEMPLATE, STARTERS } from './positions';
 import { numberSquad } from './jerseys';
 import { ageShift } from './aging';
-import { recordRatings } from './development';
+import { growsUntil, recordRatings } from './development';
 import { generateMedicalWorld } from './medical';
 import { generateCrews } from './officials';
 import { PROJECTED_CAP_GROWTH } from './finance/cap';
@@ -51,7 +51,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 99;
+export const SAVE_VERSION = 100;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -160,7 +160,12 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   const ratings = generateRatings(rng, position, spec.quality);
   const ovr = overall(ratings, position);
   const growthYears = Math.max(0, 26 - age);
-  const potential = clamp(ovr + growthYears * rng.float(0.2, 1.3) + rng.float(0, 0.8), ovr, 20);
+  // The same two draws for everyone; a founding player's are scaled so the growth still ahead of him is a settled
+  // league's at his years before his position's growth age (`FOUNDING_GROWTH`). Unscaled, summed as it always was.
+  const years = growthYears * rng.float(0.2, 1.3);
+  const extra = rng.float(0, 0.8);
+  const scale = foundingGrowthScale(spec, growthYears);
+  const potential = clamp(scale === 1 ? ovr + years + extra : ovr + (years + extra) * scale, ovr, 20);
   const experience = Math.max(0, age - 22 + rng.int(-1, 0));
 
   const { firstName, lastName } = newIdentity(rng, { kind: 'player', position });
@@ -737,6 +742,38 @@ export function evenDeal(luck: Record<Position, number[]>): Record<Position, num
   return Object.fromEntries(
     Object.entries(luck).map(([pos, xs]) => [pos, pos === 'QB' ? [...xs] : xs.map((x) => x + shift)]),
   ) as Record<Position, number[]>;
+}
+
+/**
+ * A new league built as a settled one carries its players (A2, 2026-11-14): a young founding player has as much growth
+ * still ahead of him as a settled league's players of his years (`FOUNDING_GROWTH`). Rolled as before, a new league's
+ * young were 1.5-3.3 points from their ceilings (a settled league's 0.6-1.6) and grew past the level the league settles
+ * at: its starters rose from 13.06 to 13.24 by the second season and slid to 12.9 by the twentieth (`npm run careers`,
+ * starter OVR by season). Ratings are rolled as before: leaning them by age too (veterans past 32 as far under the
+ * starters as a settled league's) moved the first season's play the match engine is measured on (margins around
+ * strength 13.35 against 13.17, punts 3.60), and its veterans are gone within a season or two anyway. `on` off builds
+ * the old league (tests).
+ */
+export const FOUNDING = { on: true };
+/**
+ * A settled league's mean growth still ahead of a player (true ceiling less overall), by his years before his
+ * position's growth age (`growsUntil`): 0 is the year he reaches it, −1 a year past.
+ */
+export const FOUNDING_GROWTH: Partial<Record<number, number>> = {
+  [-3]: 0.6,
+  [-2]: 0.6,
+  [-1]: 0.55,
+  0: 0.6,
+  1: 0.95,
+  2: 1.25,
+  3: 1.55,
+  4: 1.65,
+};
+/** What scales a founding player's two growth draws (mean `growthYears × 0.75 + 0.4`) to `FOUNDING_GROWTH`. */
+function foundingGrowthScale(spec: PlayerSpec, growthYears: number): number {
+  if (!FOUNDING.on || !spec.founding) return 1;
+  const target = FOUNDING_GROWTH[growsUntil(spec.position) - spec.age];
+  return target === undefined ? 1 : target / (growthYears * 0.75 + 0.4);
 }
 
 function slotAge(rng: Rng, isStarter: boolean): number {

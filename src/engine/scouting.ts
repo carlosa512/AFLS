@@ -12,7 +12,7 @@
 import { isOutlier, sizeZ } from './size';
 import { ATTRIBUTE_INFO, type AgingFamily } from './attributes';
 import { declineOnset } from './aging';
-import { repsSoFar, unsettledSpread } from './development';
+import { growsUntil, repsSoFar, unsettledSpread } from './development';
 import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } from './positions';
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
@@ -177,9 +177,11 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
   const mix = () => 0.8 * rng.normal() + 0.6 * ownEval.normal();
   // A scout who is high on a player tends to be high on all of him; each trait adds its own miss.
   const zPlayer = mix();
+  // Still growing: before his position's growth age (`growsUntil`), when his ceiling is still to be guessed at.
+  const growing = p.age < growsUntil(p.position);
   const zPot =
     0.8 * rng.normal() +
-    (p.age < 26 ? 0.6 * new Rng(`${league.seed}:view:${teamId}:${p.id}:pot:${potReaderId ?? 0}`).normal() : 0);
+    (growing ? 0.6 * new Rng(`${league.seed}:view:${teamId}:${p.id}:pot:${potReaderId ?? 0}`).normal() : 0);
   const weights = OVR_WEIGHTS[p.position];
   const ratings = {} as Record<Attribute, RatingView>;
   const centers = {} as Ratings;
@@ -218,9 +220,11 @@ export function perceive(league: League, teamId: number, p: Player): PlayerView 
   let potHiRead = ovrHi;
   let potMid = ovr;
   let potSd = ovrSd;
-  if (p.age < 26) {
-    // The younger he is, the more growth is left to guess at; even your own staff can be wrong.
-    const room = 26 - p.age;
+  if (growing) {
+    // The more growth is left to guess at, the wider the guess; even your own staff can be wrong. Years to his
+    // position's growth age, not to 26 (2026-11-14): sized for 26, a 22-year-old corner two years from done was
+    // read as if four were left, his ceiling guessed up to 3.3 points over the truth.
+    const room = growsUntil(p.position) - p.age;
     const u = (0.5 + 0.35 * room) * (1 - 0.6 * k) * accPot;
     // Overrate him now and you'll overrate his ceiling too.
     const center = p.potential + (ovr - overall(p.ratings, p.position)) + 0.8 * u * zPot;
@@ -506,7 +510,7 @@ export function characterNotes(league: League, teamId: number, p: Player): Chara
   const read = characterRead(league, teamId, p);
   if (!read) return { known: false, hedged: false, notes: [] };
   const notes: CharacterNote[] = [];
-  const young = p.age < 26;
+  const young = p.age < growsUntil(p.position);
   const we = read.workEthic;
   if (we >= 16)
     notes.push(
@@ -819,7 +823,7 @@ function bodyWords(pos: Position): { legs: string; skills: string; plural: boole
  * in `season`: snaps would speed his development (and sitting slows it).
  */
 export function needsReps(league: League, teamId: number, p: Player, season: number): boolean {
-  if (p.teamId !== teamId || p.age > 25) return false;
+  if (p.teamId !== teamId || p.age >= growsUntil(p.position)) return false;
   // Already in the starting lineup: the reps are coming.
   // (Wherever he's lined up: a youngster starting out of position is getting his snaps.)
   const at = slotOf(league, p);
@@ -1283,7 +1287,7 @@ export function scoutReportParts(league: League, teamId: number, p: Player): Sco
   const pos = p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase();
   const now = tierOf(league, p.position, view.ovr);
   const ceiling = tierOf(league, p.position, view.potHiRead);
-  const young = p.age < 26;
+  const young = p.age < growsUntil(p.position);
   // Growth that won't change his standing still matters to a contract: say so when there is some.
   const growing = young && ceiling >= now && view.potHiRead - view.ovr >= 1.5;
   const ovrHalf = (view.ovrHi - view.ovrLo) / 2;

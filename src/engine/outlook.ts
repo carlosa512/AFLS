@@ -6,7 +6,7 @@
  * builds around, pays and keeps is set on this: free agency, fifth-year options and the trade
  * market's rooms all read it, so a 15.0 who is about done doesn't push out a 15.0 who is climbing.
  */
-import { expectedAging } from './development';
+import { expectedAging, growsUntil, typicalGrowth } from './development';
 import { injuryRisk, type RiskTier } from './injuries';
 import { playerOvr } from './positions';
 import { characterRead, perceive, projectedCeiling, type PlayerView } from './scouting';
@@ -14,10 +14,6 @@ import type { League, Player, Position } from './types';
 
 /** This season, next and the one after, each a little less certain (the trade market's control weights). */
 const HORIZON = [1, 0.75, 0.55];
-/** Share of the gap to his ceiling a young player closes in a typical offseason (`developPlayer`'s average). */
-const GROWTH = 0.36;
-/** Growth is done by 26 (`developPlayer`): from then on it's the prime and the fade. */
-const GROWS_UNTIL = 26;
 /**
  * What a body's injury risk is worth in each future season, in overall points: a fragile one misses
  * about a fifth more football and plays some of the rest hurt, a sturdy one is there every week.
@@ -44,8 +40,9 @@ export function outlookOf(
   for (let k = 1; k < HORIZON.length; k++) {
     // He develops at his age this offseason, then turns a year older.
     const at = age + k - 1;
-    if (at < GROWS_UNTIL) {
-      const step = left * GROWTH;
+    // Growth by the position's rules (`growsUntil`, `typicalGrowth`); after it the prime and the fade.
+    if (at < growsUntil(pos)) {
+      const step = left * typicalGrowth(pos);
       now += step;
       left -= step;
     } else now += expectedAging(pos, at);
@@ -82,7 +79,7 @@ export interface OutlookRead {
 
 export function outlookRead(league: League, teamId: number, p: Player, view?: PlayerView): OutlookRead {
   const own = p.teamId === teamId;
-  const young = p.age < GROWS_UNTIL;
+  const young = p.age < growsUntil(p.position);
   const seen = !own || young ? (view ?? perceive(league, teamId, p)) : null;
   const ovr = own ? playerOvr(p) : seen!.ovr;
   const gap = young ? projectedCeiling(ovr, seen!.potMid, characterRead(league, teamId, p)?.workEthic) - ovr : 0;

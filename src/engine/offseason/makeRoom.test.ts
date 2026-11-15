@@ -145,20 +145,36 @@ describe('GMs make room to keep their core', () => {
   });
 
   it('never cuts a better player than the one it keeps', () => {
-    const { l, team, p } = squeezed(-0.6, 0.2);
-    const before = new Set(teamPlayers(l, team.id).map((x) => x.id));
-    aiResignWindow(l, team, new Rng('room'));
-    const cut = [...before]
-      .map((id) => l.players[id])
-      .filter((x) => x.teamId === null && x.left?.some((d) => d.how === 'cut'));
-    // The keeper a cut makes room for is whoever the window then signs (best first, so a better man than the fixture's
-    // own keeper may take the room: the benching chain's moods, 0.4.24, left an OL 15.3 ahead of this LB 14.5).
-    const signed = [...before]
-      .map((id) => l.players[id])
-      .filter((x) => x.teamId === team.id && x.contract && x.contract.signedSeason === l.season);
-    expect(signed.length).toBeGreaterThan(0);
-    const bar = Math.max(playerOvr(p), ...signed.map(playerOvr));
-    for (const x of cut) expect(playerOvr(x)).toBeLessThan(bar);
+    // Next year with a little room to borrow against: with none the GM rightly borrows nothing and his keeper walks, and
+    // with enough the restructures cover it all and nothing is cut. Which room lands between depends on the world a
+    // season leaves (8% in the world after the mail-filed fix; the league-age work's founding growth, 2026-11-14, moved
+    // it again), so rooms from 10% to 20% of a cap are tried and one where the GM restructures, cuts and signs must turn up.
+    let found = 0;
+    for (let step = 0; step <= 25; step++) {
+      const share = 0.1 + 0.004 * step;
+      const { l, team, p } = squeezed(-0.6, 0.2);
+      team.deadMoney.push({
+        season: l.season + 1,
+        amount: -Math.round(share * capFor(l, l.season + 1)),
+        playerId: -1,
+        note: 'test',
+      });
+      const before = new Set(teamPlayers(l, team.id).map((x) => x.id));
+      aiResignWindow(l, team, new Rng('room'));
+      const cut = [...before]
+        .map((id) => l.players[id])
+        .filter((x) => x.teamId === null && x.left?.some((d) => d.how === 'cut'));
+      // The keeper a cut makes room for is whoever the window then signs (best first, so a better man than the fixture's
+      // own keeper may take the room: the benching chain's moods, 0.4.24, left an OL 15.3 ahead of this LB 14.5).
+      const signed = [...before]
+        .map((id) => l.players[id])
+        .filter((x) => x.teamId === team.id && x.contract && x.contract.signedSeason === l.season);
+      if (signed.length === 0 || cut.length === 0) continue;
+      found++;
+      const bar = Math.max(playerOvr(p), ...signed.map(playerOvr));
+      for (const x of cut) expect(playerOvr(x)).toBeLessThan(bar);
+    }
+    expect(found).toBeGreaterThan(0);
   });
 
   it('restructures only a player it plans to keep starting', () => {

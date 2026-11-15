@@ -14,6 +14,7 @@
  *   npm run training          # 3 seasons
  *   npm run training -- 5
  */
+import { severeInjuryIn } from '../src/engine/cliffs';
 import { coachingForPlayer } from '../src/engine/coaching';
 import {
   developPlayer,
@@ -130,6 +131,8 @@ const takeOnce = () => {
         playedShare: playedShare(p, league.season),
         ...coachingForPlayer(league, p),
         bodyAs: bodyAs(p),
+        // As `beginOffseason` rolls it: a severe injury in the season just played makes a cliff likelier.
+        hurt: severeInjuryIn(p, league.season),
       }),
     );
     once.set(p.id, {

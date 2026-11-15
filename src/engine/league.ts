@@ -1,3 +1,4 @@
+import { resetContenderCache } from './offseason/negotiation';
 import { beliefWeek } from './belief';
 import { benchKickoff } from './benching';
 import { aiRelieve } from './relieve';
@@ -182,6 +183,10 @@ function playWeekControlled(league: League): Game[] {
   if (league.phase === 'complete') return [];
   // Offers you didn't answer lapse when you play on.
   expireOffers(league);
+  // Contender scores are read as the rosters stand this week, never as a letter filed after the last one left them
+  // (the cache's key can't see injuries that land inside the week): else a league with its mail filed prices a
+  // signing differently from one without.
+  resetContenderCache(league);
   // Chemistry (L3) reads the league as it stands at kickoff, after whatever you did this week.
   freshChemistry(league);
   freshStaff(league);

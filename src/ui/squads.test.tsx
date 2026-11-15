@@ -89,7 +89,8 @@ describe('practice squad desk', () => {
     for (const teamId of [0, 9]) {
       const html = renderToStaticMarkup(<SquadList league={l} teamId={teamId} />);
       expect(html).toContain('Practice squad');
-      for (const p of practiceSquad(l, teamId)) expect(html).toContain(p.lastName);
+      // The page escapes an apostrophe, as React does (an O'Brien reads O&#x27;Brien in the markup).
+      for (const p of practiceSquad(l, teamId)) expect(html).toContain(p.lastName.replace(/'/g, '&#x27;'));
       expect(html).toContain('Scouted ceiling');
     }
   });

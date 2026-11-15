@@ -354,15 +354,15 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
   // A head coach, a GM or a coordinator out at another club, one story a club. Any change of the season not yet told
   // is a candidate (an owner acts after the week's games, so his move is dated the week to come): one from a week the
   // reader skipped, or one an earlier edition had no room for, still reaches him.
-  const events = l.leadership.events.filter(
+  const inSeason = l.leadership.events.filter(
     (e) =>
       e.date.season === l.season &&
       e.date.phase === 'regular' &&
       e.date.week <= week + 1 &&
       e.teamId !== l.userTeamId &&
-      ['coachInterim', 'gmDismissed', 'gmHired', 'coachRelieved'].includes(e.kind) &&
-      !leadershipTold(have, e.date.season, e.date.week, e.id),
+      ['coachInterim', 'gmDismissed', 'gmHired', 'coachRelieved'].includes(e.kind),
   );
+  const events = inSeason.filter((e) => !leadershipTold(have, e.date.season, e.date.week, e.id));
   for (const teamId of new Set(events.map((e) => e.teamId))) {
     const mine = events.filter((e) => e.teamId === teamId);
     const coach = mine.find((e) => e.kind === 'coachInterim');
@@ -389,6 +389,12 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
       about = mine.filter((e) => e.kind === 'coachRelieved');
     }
     if (!leader?.out) continue;
+    // A story is told whole: when any event it covers was told (the GM's dismissal and his successor's hiring go
+    // together), the rest of it is told too, never offered again under the same key.
+    const same = (e: (typeof inSeason)[number]) =>
+      gm ? e.kind === 'gmDismissed' || e.kind === 'gmHired' : about.some((a) => a.kind === e.kind);
+    if (inSeason.some((e) => e.teamId === teamId && same(e) && leadershipTold(have, e.date.season, e.date.week, e.id)))
+      continue;
     // News from an earlier week no longer leads the page: it runs among the week's other stories.
     const old = about.every((e) => e.date.week < week);
     out.push({
@@ -759,11 +765,12 @@ export function buildEdition(l: League, week: number): Edition | null {
 
 /** The longest a subject line runs. */
 export const SUBJECT = 60;
-/** A headline cut at a word, for the mail's subject. */
+/** A headline cut at a word, for the mail's subject: never longer than `max`, the ellipsis counted. */
 export const short = (text: string, max = 48) => {
   if (text.length <= max) return text;
-  const cut = text.slice(0, max + 1);
-  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 12)).replace(/[,.]$/, '')}…`;
+  // The ellipsis takes one of the `max`: a cut at a space right at `max` ran a subject a character long (2026-11-14).
+  const cut = text.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 13)).replace(/[,.]$/, '')}…`;
 };
 
 /**

@@ -609,8 +609,13 @@ for (let s = 0; s < seasons; s++) {
     awards: save.awards - prevSave.awards,
     weekly: save.weekly - prevSave.weekly,
   };
+  /** Retirees a season the save may add: the base and each feature's allowance (`save-budget.ts`). */
+  const retiredAllowance = Object.values(SAVE_FEATURE_ALLOWANCES).reduce(
+    (sum, a) => sum + ((a as { retiredAdded?: number }).retiredAdded ?? 0),
+    0,
+  );
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · ${check('retired added', dSave.retired, 0, 320 + SAVE_FEATURE_ALLOWANCES.practiceSquads.retiredAdded, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · ${check('retired added', dSave.retired, 0, 320 + retiredAllowance, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   if (dSave && s >= 2) saveGrowth.push(dSave.total);

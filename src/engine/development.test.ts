@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AGING, ageShift, declineOnset, retireChance } from './aging';
-import { developPlayer, playedShare } from './development';
+import { AGING, ageShift, bestOvr, declineOnset, retireChance } from './aging';
+import { cliffChance, CLIFFS } from './cliffs';
+import { developPlayer, expectedAging, growsUntil, playedShare } from './development';
 import { ageFactor, preferredYears } from './finance/market';
 import { createLeague, generatePlayer, SAVE_VERSION } from './generate';
 import { simToEndOfSeason } from './league';
@@ -25,6 +26,7 @@ import {
 } from './scouting';
 import { effectiveTraits, generateTraits, poiseOf, temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type { League, Player, Position, Traits } from './types';
+import { ATTRIBUTES } from './types';
 
 const copy = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -261,11 +263,25 @@ describe('development', () => {
     // "Needs reps": young, still growing in your scouts' eyes, and not playing.
     const mine = Object.values(league.players).filter((p) => p.teamId === team.id);
     const sitting = mine.find(
-      (p) => p.age <= 25 && !p.stats[league.season]?.gp && perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
+      (p) =>
+        p.age < growsUntil(p.position) &&
+        !p.stats[league.season]?.gp &&
+        perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
     );
     expect(sitting).toBeDefined();
     expect(needsReps(league, team.id, sitting!, league.season)).toBe(true);
     expect(needsReps(league, team.id, starter, league.season)).toBe(false);
+    // Past his position's growth age reps can't grow him: no flag, whatever room his scouts still see.
+    const grower = mine.find(
+      (p) =>
+        growsUntil(p.position) <= 25 && p.age < growsUntil(p.position) && needsReps(league, team.id, p, league.season),
+    );
+    if (grower) {
+      const age = grower.age;
+      grower.age = growsUntil(grower.position);
+      expect(needsReps(league, team.id, grower, league.season)).toBe(false);
+      grower.age = age;
+    }
     // Promote him and the flag goes: the reps are coming.
     const chart = team.depthChart[sitting!.position];
     chart.splice(chart.indexOf(sitting!.id), 1);
@@ -292,14 +308,34 @@ describe('retirement and the one aging table', () => {
     const at = (pos: Position, age: number, durability = TRAIT_MEAN, teamId: number | null = 0) => {
       const p = rookie(pos, age, 1, { durability });
       p.teamId = teamId;
-      return retireChance(p, 13);
+      return retireChance(p, playerOvr(p));
     };
+    for (const pos of Object.keys(AGING) as Position[]) {
+      expect(at(pos, 26)).toBe(0);
+      for (let age = 28; age < 40; age++) expect(at(pos, age + 1)).toBeGreaterThanOrEqual(at(pos, age));
+    }
     expect(at('RB', 36)).toBe(1);
-    expect(at('K', 35)).toBe(0);
     expect(at('K', 37)).toBeLessThan(at('RB', 33));
     expect(at('QB', 36)).toBeLessThan(at('WR', 36));
     expect(at('WR', 33, 20)).toBeLessThan(at('WR', 33, 1));
-    for (let age = 28; age < 40; age++) expect(at('OL', age + 1)).toBeGreaterThanOrEqual(at('OL', age));
+  });
+
+  it('a player well under his own best is likelier to retire', () => {
+    const p = rookie('OL', 31, 2);
+    p.teamId = 0;
+    p.ratingHistory = { 2030: ATTRIBUTES.map((a) => p.ratings[a] + 3) };
+    const fallen = retireChance(p, playerOvr(p));
+    delete p.ratingHistory;
+    expect(fallen).toBeGreaterThan(retireChance(p, playerOvr(p)));
+  });
+
+  it('bestOvr falls back to today with no history, and reads a mover at his position now', () => {
+    const p = rookie('DT', 27, 3);
+    delete p.ratingHistory;
+    expect(bestOvr(p)).toBe(playerOvr(p));
+    p.ratingHistory = { 2030: ATTRIBUTES.map((a) => p.ratings[a]) };
+    p.position = 'OL';
+    expect(bestOvr(p)).toBe(playerOvr(p));
   });
 
   it('feeds contracts and trades from the same curve', () => {
@@ -430,7 +466,8 @@ describe('what scouts can say about makeup', () => {
     expect(careerOutlook(league, me, wr)).toMatch(/^He is past his prime/);
     const ol = Object.values(league.players).find((p) => p.teamId === me && p.position === 'OL')!;
     ol.traits.durability = 11;
-    ol.age = 32;
+    // A lineman turns at 30 (`AGING`, 2026-11-14: a year sooner than the survivor-biased plateau), so 31 is his last.
+    ol.age = 31;
     expect(careerOutlook(league, me, ol)).toBe(
       'He is in the last year of his prime. Expect the decline to start next year.',
     );
@@ -492,5 +529,30 @@ describe('a ceiling settled under him', () => {
 
   it('holds a player sitting at his ceiling', () => {
     expect(Math.abs(year(0))).toBeLessThan(0.1);
+  });
+});
+
+describe('front offices price the cliff', () => {
+  it('expect the average cliff at the ages it comes, and only there', () => {
+    const read = () =>
+      (Object.keys(AGING) as Position[]).map((pos) => Array.from({ length: 16 }, (_, i) => expectedAging(pos, 21 + i)));
+    const on = read();
+    CLIFFS.on = false;
+    let off: number[][];
+    try {
+      off = read();
+    } finally {
+      CLIFFS.on = true;
+    }
+    const POS = Object.keys(AGING) as Position[];
+    POS.forEach((_, j) => {
+      for (let age = 21; age < 28; age++) expect(on[j][age - 21]).toBe(off[j][age - 21]);
+      // From 30 a cliff can come at every position but K and P, whose cliffs wait for their own turn.
+      for (let age = 30; age <= 36; age++)
+        if (cliffChance(age, POS[j], { durability: TRAIT_MEAN }, false) > 0)
+          expect(on[j][age - 21]).toBeLessThan(off[j][age - 21]);
+        else expect(on[j][age - 21]).toBe(off[j][age - 21]);
+    });
+    expect(read()).toEqual(on); // no stale table once cliffs are back on
   });
 });

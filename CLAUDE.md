@@ -37,8 +37,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   per check (`.github/workflows/ci.yml`), so a red ✗ here is a red PR there. Every check fails on its
   own (non-zero exit) when a number leaves its range (`offseason` included: it judges its numbers per
   season and first vs last): never loosen a range to get green. A few lines swing with the league (trade requests, rooms in doubt and Tight rooms in
-  `morale`, live trees, leagues with no founding tree left and QB rushing leaders in `careers`, head-coach retreads, median dead money and median kickoff room in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
-  deals with a future pick and starting quarterbacks traded in season in `trades`, win spread and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
+  `morale`, trade requests resolved by a trade in `morale`, live trees, leagues with no founding tree left and QB rushing leaders in `careers`, head-coach retreads, median dead money and median kickoff room in `offseason`, a habit's most held share in `gm-habits`, draft day's trades, QB trade-ups,
+  deals with a future pick and starting quarterbacks traded in season in `trades`, win spread, the margin spread around strength, long scrambles pushed out and a bucket's scramble share in `sim`): outside their usual band they warn (⚠: this league drifted),
   outside their normal band they fail (`scripts/band.ts`; both bands the owner's call, never moved to get green). `⚠` lines are warnings that don't fail
   a run: outlier record seasons (luck in small samples) and known engine issues, each gone once fixed.
 - **`npm run format`** before committing: Prettier (`.prettierrc.json`, `.prettierignore`), and CI runs
@@ -114,10 +114,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run audit` — raise each attribute in turn, replay the same games, and check it moves play;
   rewrites `docs/ATTRIBUTES.md`. **Run it after changing `attributes.ts`, `OVR_WEIGHTS` or how the
   engine reads ratings.** Nothing may be listed under "Needs attention".
-- `npm run careers` — age a draft class of every position and play four 16-season leagues in
-  parallel child processes, then four more for work ethic's lean on ceilings (about 6 minutes on 4 cores, slower with fewer); checks peaks, declines,
-  retirements, trait and coaching effects and long-run play against the research ranges. Run it after changing `development.ts`, `aging.ts`, `traits.ts`, `coaching.ts`
-  or retirement. Nothing may be flagged ▲/▼.
+- `npm run careers` — age a draft class of every position and play four 20-season leagues in
+  parallel child processes, then four more for work ethic's lean on ceilings (about 19 minutes on 4 cores, slower with fewer); checks peaks, declines,
+  retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`) against the research ranges. Run it after changing
+  `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`

@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.47',
+    date: '2026-11-14',
+    title: 'A new league that starts settled',
+    text: 'Young players in a new league have as much growth ahead as an older league’s, so a new save holds its level from the first season.',
+  },
+  {
+    version: '0.4.46',
+    date: '2026-11-14',
+    title: 'Careers that end like real ones',
+    text: 'Young players are ready sooner, veterans can fall off a cliff, and retirement follows the body. Twenty seasons in, the league no longer grows old.',
+  },
+  {
     version: '0.4.45',
     date: '2026-11-14',
     title: 'A fast-forward between highlights',

@@ -651,6 +651,8 @@ export interface DevYear {
   potential?: number;
   /** His mood's tilt on a growth year so far (G2, `MOOD_TILT`), four places; absent at 0. */
   mood?: number;
+  /** The development rules it was rolled under (`DEV_RULES`, v100); absent on a year from an older save: v1. */
+  rules?: 2;
   /** Share of the year released so far (0–1). */
   done: number;
   /** Integer change applied so far to each rating, in `ATTRIBUTES` order; trailing zeros are dropped (missing = 0). */

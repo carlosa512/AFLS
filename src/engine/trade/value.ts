@@ -15,6 +15,7 @@
 import { aiGm, draftedBy, habitOn } from '../gmHabits';
 import { workEthicOf } from '../traits';
 import { ageShift } from '../aging';
+import { growsUntil } from '../development';
 import { CONTESTS } from '../attributes';
 import { coachingFor, effectOf, teamScheme, type Coaching } from '../coaching';
 import { paidShare, weeksPaid } from '../finance/cap';
@@ -246,8 +247,9 @@ const BACKUP = 0.35;
 const DEPTH = 0.2;
 const CLUTTER = 0.05;
 
-/** Talent plus half the room left to grow, for a player 25 or younger. */
-const effective = (age: number, ovr: number, pot: number) => ovr + (age <= 25 ? Math.max(0, pot - ovr) * 0.5 : 0);
+/** Talent plus half the room left to grow, for a player still in his growth years (`growsUntil`). */
+const effective = (p: Pick<Player, 'age' | 'position'>, ovr: number, pot: number) =>
+  ovr + (p.age < growsUntil(p.position) ? Math.max(0, pot - ovr) * 0.5 : 0);
 
 function ageMultiplier(p: Player): number {
   const a = p.age - ageShift(p.position);
@@ -323,10 +325,10 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   if (memo) return memo;
   const { league } = ctx;
   const own = playerOvr(p);
-  const young = p.age <= 25;
+  const young = p.age < growsUntil(p.position);
   // His real game: today's overall, half the growth his work ethic will really get out of him, his habits.
   const ceiling = young ? projectedCeiling(own, p.potential, workEthicOf(p)) : p.potential;
-  const real = effective(p.age, own, ceiling) + trueQuirkWorth(p);
+  const real = effective(p, own, ceiling) + trueQuirkWorth(p);
   let seen = real;
   let ovr = own;
   let character: CharacterRead | null | undefined;
@@ -338,7 +340,7 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
     character = young ? characterRead(league, team.id, p) : undefined;
     const readWork = young ? character?.workEthic : undefined;
     const misread =
-      effective(p.age, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) +
+      effective(p, view.ovr, young ? projectedCeiling(view.ovr, view.potMid, readWork) : view.potMid) +
       quirkWorth(league, team.id, p) -
       real;
     const { trust, band } = trustOf(league, team, p);
@@ -360,7 +362,7 @@ export function readPlayer(ctx: TradeContext, team: Team, p: Player, truth = fal
   // What his coaches here would make of him: a staff that develops youth gets more of a young
   // player's ceiling, one that keeps veterans going gets more years from an old one.
   const coaching = coachingOf(ctx, team.id, p.position);
-  if (p.age <= 25) lens *= 1 + 0.33 * (coaching.rate - 1);
+  if (p.age < growsUntil(p.position)) lens *= 1 + 0.33 * (coaching.rate - 1);
   else if (p.age - ageShift(p.position) >= 29) lens *= 1 - 0.25 * effectOf(coaching, p.position).aging;
   // The outlook only when a room ranks him: pricing him against the league never needs it.
   const read = {
@@ -395,7 +397,7 @@ export function outlookFor(
   if (memo !== undefined) return memo;
   const { league } = ctx;
   const own = ovrOf(ctx, p);
-  const young = p.age <= 25;
+  const young = p.age < growsUntil(p.position);
   const realGap = young ? Math.max(0, projectedCeiling(own, p.potential, workEthicOf(p)) - own) : 0;
   let ovr = own;
   let gap = realGap;

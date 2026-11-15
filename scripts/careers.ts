@@ -4,7 +4,7 @@
  * design targets marked as such). Run it after any change to `development.ts`, `aging.ts`,
  * retirement or the hidden traits.
  *
- *   npm run careers            # cohort curves + four 16-season leagues (about 3 minutes on 4 cores)
+ *   npm run careers            # cohort curves + four 20-season leagues (about 8 minutes on 4 cores)
  *   npm run careers -- 24      # longer league runs
  *
  * Run it after changing development.ts, aging.ts, traits.ts, coaching.ts or retirement.
@@ -21,20 +21,33 @@ import { bandOf } from './band';
 import { fork } from 'node:child_process';
 import { CHAIRS, coachingFrom, NEUTRAL, type Coaching } from '../src/engine/coaching';
 import { ceilingShift, COACH_LEAN, hypeLean, SNAP_LEAN, workLean } from '../src/engine/ceiling';
-import { CEILING_SWING, developPlayer } from '../src/engine/development';
+import { CEILING_SWING, developPlayer, recordRatings } from '../src/engine/development';
+import { retireChance } from '../src/engine/aging';
 import { generatePlayer } from '../src/engine/generate';
-import { HYPE_ROOM, RAW } from '../src/engine/offseason/draft';
+import { DRAFT_CLASS, growthMean } from '../src/engine/offseason/draft';
 import { playerOvr } from '../src/engine/positions';
 import { clamp, Rng } from '../src/engine/rng';
 import type { Coach, Player, Position, Traits } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { LeagueRun } from './careers-league';
+import {
+  AGE_BANDS,
+  AGE_WIDTH,
+  addFates,
+  bandFor,
+  NFL_EXIT_AGE,
+  NFL_NEXT,
+  NFL_STARTER_AGE,
+  type AgeBand,
+  type AgeGroup,
+  type Fate,
+} from './league-age-core';
 import { LEADER_NORMAL, LEADER_TARGETS, overRecordAllowed } from './leaders';
 import { habitsForce } from '../src/engine/gmHabits';
 // A run with every GM habit off, to tell a habit's lean from the league's own luck (the gm-habits check's switch).
 if (process.env.GM_HABITS_OFF === '1') habitsForce.off = true;
 
-const seasons = Number(process.argv[2] ?? 16);
+const seasons = Number(process.argv[2] ?? 20);
 const SEEDS = ['careers-audit', 'careers-audit-2', 'careers-audit-3', 'careers-audit-4'];
 /**
  * Four more leagues, read for one line only: work ethic's lean on ceiling shifts is a small gap between two noisy means,
@@ -95,6 +108,8 @@ const AGES = Array.from({ length: 19 }, (_, i) => 21 + i); // 21 … 39
 
 interface Cohort {
   ovr: number[][]; // [player][age index]
+  /** Still in the league at that age: he'd have retired as a rostered player does (`retireChance`), or not. */
+  alive: boolean[][];
   attr: Record<string, number[][]>;
   traits: Traits[];
 }
@@ -103,6 +118,7 @@ interface Cohort {
 function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching = NEUTRAL): Cohort {
   const out: Cohort = {
     ovr: [],
+    alive: [],
     attr: { speed: [], agility: [], throwAccShort: [], throwAccDeep: [], awareness: [] },
     traits: [],
   };
@@ -111,26 +127,41 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
     const p = generatePlayer(rng, {
       id: 900000 + i,
       position: pos,
-      quality: rng.normal(11, 1.2) - RAW,
+      // As `generateDraftClass` makes him: a position that's ready sooner comes in nearer the same ceiling.
+      quality:
+        rng.normal(11, 1.2) - DRAFT_CLASS.raw + (1 - (DRAFT_CLASS.ready[pos] ?? 1)) * DRAFT_CLASS.lift * growthMean(),
       age: 21,
       teamId: null,
       jerseysUsed: new Set(),
     });
     const growth =
-      RAW +
-      HYPE_ROOM +
-      Math.abs(rng.normal(0, 1)) * 2.1 +
-      rng.float(0, 0.8) +
-      (rng.chance(0.06) ? rng.float(2, 4.5) : 0);
+      (DRAFT_CLASS.ready[pos] ?? 1) *
+      (DRAFT_CLASS.raw +
+        DRAFT_CLASS.hype +
+        Math.abs(rng.normal(0, 1)) * DRAFT_CLASS.spread +
+        rng.float(0, 0.8) +
+        (rng.chance(0.06) ? rng.float(2, 4.5) : 0));
     p.potential = clamp(playerOvr(p) + growth, 1, 20);
     const row: number[] = [];
+    const alive: boolean[] = [];
+    let retired = false;
     const entry = playerOvr(p);
     const attrs: Record<string, number[]> = Object.fromEntries(Object.keys(out.attr).map((a) => [a, []]));
     for (const age of AGES) {
       p.age = age;
       row.push(playerOvr(p));
+      alive.push(!retired);
+      recordRatings(p, 2000 + age);
       for (const a of Object.keys(attrs)) attrs[a].push(p.ratings[a as keyof Player['ratings']]);
       developPlayer(new Rng(`careers:dev:${pos}:${i}:${age}`), p, { playedShare, ...coaching });
+      // A rostered player's new-league-year roll, as `beginOffseason` makes it after his year (his age just ticked).
+      if (
+        !retired &&
+        new Rng(`careers:retire:${pos}:${i}:${age}`).chance(
+          retireChance({ ...p, age: age + 1, teamId: 0 }, playerOvr(p)),
+        )
+      )
+        retired = true;
       // His season's end settles his ceiling (`ceiling.ts`), leaned the way a league leans it: his work ethic, a
       // starter's snaps (or a bench's), his coaches.
       const year = age - 21;
@@ -148,6 +179,7 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
       }
     }
     out.ovr.push(row);
+    out.alive.push(alive);
     for (const a of Object.keys(attrs)) out.attr[a].push(attrs[a]);
     out.traits.push(p.traits);
   }
@@ -156,10 +188,28 @@ function cohort(pos: Position, playedShare = 1, n = COHORT, coaching: Coaching =
 
 const curve = (rows: number[][]) => AGES.map((_, j) => mean(rows.map((r) => r[j])));
 const at = (c: number[], age: number) => c[age - 21];
+/**
+ * Below their peak at a late age, read on the players still in the league then: the research measured players still
+ * playing, so a curve over everyone, cliffs and all, would read a fall the research never saw. The survivors' own average
+ * curve, its peak against its value at that age (each man's single best season would read a year's luck as a fall).
+ */
+const lateBelow = (pos: Position, age: number) => {
+  const c = cohorts[pos];
+  const j = age - 21;
+  const left = c.ovr.filter((_, i) => c.alive[i][j]);
+  const curveLeft = AGES.slice(0, j + 1).map((_, k) => mean(left.map((r) => r[k])));
+  return { value: Math.max(...curveLeft) - curveLeft[j], n: left.length };
+};
+const late = (label: string, pos: Position, age: number, lo: number, hi: number) => {
+  const { value, n } = lateBelow(pos, age);
+  return `${check(label, value, lo, hi)} (survivors ${n})`;
+};
 /** Median age of each player's own best season (the research's "peak season"). */
 const peakAge = (c: Cohort) => median(c.ovr.map((r) => AGES[r.indexOf(Math.max(...r))]));
 
-console.log(`Part 1 — cohort curves (${COHORT} draftees per position from 21, full playing time, no retirement)\n`);
+console.log(
+  `Part 1 — cohort curves (${COHORT} draftees per position from 21, full playing time; lines past 31 read the players a league would still roster)\n`,
+);
 const curves = {} as Record<Position, number[]>;
 const cohorts = {} as Record<Position, Cohort>;
 for (const pos of POSITIONS) {
@@ -186,47 +236,52 @@ console.log('');
 const below = (c: number[], age: number) => Math.max(...c) - at(c, age);
 const lines: string[] = [];
 const RB = curves.RB;
-// Research: RB peak 21–26 by method (26 per Football Perspective); −25% production from 28 to 29.
+// Peak ages (the owner's call, 2026-11-14): NFL aging curves by the delta method, each player against himself season to
+// season (`scripts/research-peaks.py`, docs/research/league-age.md), not survivor-biased peak-season counts.
+// RB: snap share peaks at 24 (22–27), EPA a carry from 22. Research: −25% production from 28 to 29.
 lines.push(
-  `RB: ${check('peak age', peakAge(cohorts.RB), 24, 27, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`,
+  `RB: ${check('peak age', peakAge(cohorts.RB), 23, 26, 1)} · ${check('loss 28→29', at(RB, 28) - at(RB, 29), 1.0, 2.5)} · ${check('below peak at 30', below(RB, 30), 3.0, 6.0)}`,
 );
-// Research: WR and CB peak 25–28.
+// WR snap share peaks at 23 (23–27), EPA a target at 25; CB snap share at 25 (22–27).
 for (const pos of ['WR', 'CB'] as const) {
   const c = curves[pos];
-  const late = pos === 'CB' ? 31 : 32;
+  const lateAge = pos === 'CB' ? 31 : 32;
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28.5, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${check(`below peak at ${late}`, below(c, late), 1.5, 4.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 27, 1)} · ${check('below peak at 28', below(c, 28), 0, 0.5)} · ${lateAge >= 32 ? late(`below peak at ${lateAge}`, pos, lateAge, 1.5, 4.5) : check(`below peak at ${lateAge}`, below(c, lateAge), 1.5, 4.5)}`,
   );
 }
-// Design targets: the front seven and safeties fade from about 30.
+// The front seven and safeties: snap share peaks at 26–27 (24–28); they fade from about 30 (a design target).
 for (const pos of ['S', 'LB', 'EDGE', 'DT'] as const) {
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 30, 1)} · ${check('below peak at 33', below(curves[pos], 33), 1.5, 5.5)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 25, 28, 1)} · ${late('below peak at 33', pos, 33, 1.5, 5.5)}`,
   );
 }
-// Research: long plateaus (TE still at 89% at 34, survivor-biased).
+// TE and OL: snap share and a TE's EPA a target peak at 25 (OL 24–27). By 32 they've lost 27–30% of their peak snap
+// share against a receiver's 37% (a TE's EPA a target falls about 0.6 as far), so their fall at 32 is 0.6–2.5 against a
+// receiver's 1.5–4.5 (the owner's call, 2026-11-14; it was 0–0.6, read off survivor-biased plateaus).
 for (const pos of ['TE', 'OL'] as const) {
-  const c = curves[pos];
   lines.push(
-    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 26, 32, 1)} · ${check('below peak at 32', below(c, 32), 0, 0.6)} · ${check('below peak at 35', below(c, 35), 0.8, 4)}`,
+    `${pos}: ${check('peak age', peakAge(cohorts[pos]), 24, 28, 1)} · ${late('below peak at 32', pos, 32, 0.6, 2.5)} · ${late('below peak at 35', pos, 35, 0.8, 4)}`,
   );
 }
 {
-  // Research: QB peak season 28.5 on average (pocket 30.7, dual-threat 26.1); rushing flat 27–29.
-  const c = curves.QB;
+  // QB: EPA a dropback is flat from 23 to 33 (delta method), so his best season lands anywhere on a long plateau.
+  // Peak-season counts put it at 28.5 (pocket 30.7, dual-threat 26.1; survivor-biased); rushing flat 27–29.
   const q = cohorts.QB.attr;
   const speed = curve(q.speed);
-  const acc = AGES.map((_, j) =>
-    mean(q.throwAccShort.map((r, i) => (r[j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3)),
-  );
+  // Accuracy and reads at 34 for the quarterbacks still playing then, as the research read them (the owner's call,
+  // 2026-11-14), on their average curve as the other late-age lines.
+  const accOf = (i: number, j: number) => (q.throwAccShort[i][j] + q.throwAccDeep[i][j] + q.awareness[i][j]) / 3;
+  const j34 = 34 - 21;
+  const left34 = cohorts.QB.alive.map((alive, i) => (alive[j34] ? i : -1)).filter((i) => i >= 0);
+  const accLeft = AGES.slice(0, j34 + 1).map((_, j) => mean(left34.map((i) => accOf(i, j))));
+  const acc34 = accLeft[j34] / Math.max(...accLeft);
   lines.push(
-    `QB: ${check('peak age', peakAge(cohorts.QB), 27, 31, 1)} · ${check('below peak at 33', below(c, 33), 0, 0.6)} · ${check('below peak at 37', below(c, 37), 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak', at(acc, 34) / Math.max(...acc), 0.97, 1.01, 3)}`,
+    `QB: ${check('peak age', peakAge(cohorts.QB), 25, 31, 1)} · ${late('below peak at 33', 'QB', 33, 0, 0.6)} · ${late('below peak at 37', 'QB', 37, 1, 4)} · ${check('speed at 32 vs 25', at(speed, 32) / at(speed, 25), 0.6, 0.9)} · ${check('accuracy+awareness at 34 vs peak (survivors)', acc34, 0.97, 1.01, 3)}`,
   );
 }
 for (const pos of ['K', 'P'] as const)
-  lines.push(
-    `${pos}: ${check('below peak at 35', below(curves[pos], 35), 0, 0.6)} · ${check('below peak at 38', below(curves[pos], 38), 0.3, 3)}`,
-  );
+  lines.push(`${pos}: ${late('below peak at 35', pos, 35, 0, 0.6)} · ${late('below peak at 38', pos, 38, 0.3, 3)}`);
 for (const l of lines) console.log(l);
 
 // Hidden traits and playing time (design targets: felt, never decisive).
@@ -339,10 +394,22 @@ for (const r of runs)
 const STARTER_OVR_CEILING = 13.3;
 const meanPath = runs[0].starterOvr.map((_, i) => mean(runs.map((r) => r.starterOvr[i])));
 console.log(`starter OVR by season (mean): ${meanPath.map((v) => v.toFixed(2)).join(' ')}`);
+// Goal 3 of the league-age work (A2, the plan's bands): a new league's starters peak no more than a tenth over the
+// level they settle at (seasons 11-20), so a new save holds its level rather than rising and sliding back.
+const settledOvr = mean(meanPath.slice(10, 20));
 console.log(
   check('lowest starter OVR', Math.min(...meanPath), 12.65, STARTER_OVR_CEILING) +
     ' · ' +
-    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING),
+    check('highest starter OVR', Math.max(...meanPath), 12.65, STARTER_OVR_CEILING) +
+    ' · ' +
+    check(
+      'talent bump: highest season − settled (seasons 11–20)',
+      Math.max(...meanPath) - settledOvr,
+      -Infinity,
+      0.09,
+      2,
+      [-Infinity, 0.15],
+    ),
 );
 console.log(
   `starter awareness: ${runs.map((r) => `${r.awareness[0].toFixed(2)} → ${r.awareness[1].toFixed(2)}`).join(', ')} (informational: the mental game rises with age, the league shouldn't)`,
@@ -481,13 +548,112 @@ console.log(
       })
       .join(' · '),
 );
-const starterAges = pool((r) => r.starterAges);
-console.log(
-  'mean starter age: ' +
-    POSITIONS.map(
-      (pos) => `${pos} ${mean(starterAges.filter((p) => p.position === pos).map((p) => p.age)).toFixed(1)}`,
-    ).join(' · '),
-);
+// Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
+// happens to a starter the next season, pooled over the leagues' steady seasons. Careers own the old end and the exits:
+// the 31-or-older shares and "gone" are judged against the owner's bands (`judge`). How many young players start, the
+// mean ages they move and how often a starter keeps his job also turn on what teams choose (who starts, who moves): they
+// stay a known issue (`soft`, never counted) until the front offices' work (the next project) lands.
+{
+  const known: string[] = [];
+  const line = (label: string, value: number, target: number, digits: number, range: [number, number]) =>
+    `${label} ${Number.isFinite(value) ? value.toFixed(digits) : 'n/a'} (NFL ${target.toFixed(digits)}, ${range[0].toFixed(digits)}–${range[1].toFixed(digits)})`;
+  const soft = (label: string, value: number, target: number, width: number, digits = 1) => {
+    const { normal } = bandFor(target, width);
+    const out = !Number.isFinite(value) || value < normal[0] || value > normal[1];
+    if (out) known.push(label);
+    return line(label, value, target, digits, normal) + (out ? ' ⚠' : '');
+  };
+  // Short-prime starters at 31 and 32 leave about twice as often as the NFL's: a third of it is veterans whose deals ran
+  // out and nobody signed (the front offices' project, docs/MVP.md "Starters leave football more as a league ages"),
+  // injury retirements up to 8% at 32; retirement for age alone can't take it under the band without starving 29 and 30
+  // (the owner's call, 2026-11-14: a known issue until the front offices' work lands). The all-positions rollup at 31
+  // and 32 carries the same short-prime excess, long prime alone being in its bands (the owner's call, 2026-11-14).
+  const B_OWNS_GONE = (g: AgeGroup, b: AgeBand) => (g === 'short' || g === 'all') && (b === '31' || b === '32');
+  const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
+    const { usual, normal } = bandFor(target, width);
+    return (
+      check(label, value, usual[0], usual[1], digits, normal) +
+      ` (NFL ${target.toFixed(digits)}, fails outside ${normal[0].toFixed(digits)}–${normal[1].toFixed(digits)})`
+    );
+  };
+  const all = runs.flatMap((r) => r.age.starters);
+  const pct = (xs: number[], f: (a: number) => boolean) => (100 * xs.filter(f).length) / Math.max(1, xs.length);
+  console.log("\nstarters' ages, the NFL's way (top N by snaps; seasons " + (steadyFrom + 1) + `–${seasons})`);
+  for (const pos of [...POSITIONS, 'ALL'] as const) {
+    const ages = all.filter((x) => pos === 'ALL' || x.pos === pos).map((x) => x.age);
+    const nfl = NFL_STARTER_AGE[pos];
+    const kp = pos === 'K' || pos === 'P';
+    const wide = kp || pos === 'QB';
+    const mw = pos === 'ALL' ? AGE_WIDTH.allMean : kp ? AGE_WIDTH.meanKP : AGE_WIDTH.mean;
+    const sw = pos === 'ALL' ? AGE_WIDTH.allShare : wide ? AGE_WIDTH.shareWide : AGE_WIDTH.share;
+    console.log(
+      `  ${pos.padEnd(4)} n=${ages.length} · ${soft(`${pos} mean age`, mean(ages), nfl.mean, mw, 2)} · ${soft(
+        `${pos} 24 or younger %`,
+        pct(ages, (a) => a <= 24),
+        nfl.young,
+        sw,
+      )} · ${judge(
+        `${pos} 31 or older %`,
+        pct(ages, (a) => a >= 31),
+        nfl.old,
+        sw,
+      )}`,
+    );
+  }
+  const fates: Record<AgeGroup, Partial<Record<AgeBand, Fate>>> = { all: {}, long: {}, short: {} };
+  for (const r of runs) addFates(fates, r.age.fates);
+  console.log('  a starter next season (still starting / gone: off every roster, %):');
+  for (const g of ['all', 'long', 'short'] as AgeGroup[])
+    for (const b of AGE_BANDS) {
+      const f = fates[g][b];
+      if (!f) continue;
+      const nfl = NFL_NEXT[g][b];
+      console.log(
+        `    ${g.padEnd(5)} ${b.padEnd(5)} n=${f.n} · ${soft(`${g} ${b} still starting %`, (100 * f.keep) / f.n, nfl.keep, AGE_WIDTH.keep)} · ${(B_OWNS_GONE(g, b) ? soft : judge)(`${g} ${b} gone %`, (100 * f.gone) / f.n, nfl.gone, AGE_WIDTH.gone)}`,
+      );
+    }
+  const exits: Partial<Record<Position, number[]>> = {};
+  for (const r of runs)
+    for (const [pos, xs] of Object.entries(r.age.exits)) (exits[pos as Position] ??= []).push(...xs!);
+  console.log(
+    '  the age a starter left for good, median (informational): ' +
+      POSITIONS.map(
+        (pos) => `${pos} ${exits[pos]?.length ? median(exits[pos]!).toFixed(1) : 'n/a'} (NFL ${NFL_EXIT_AGE[pos]})`,
+      ).join(' · '),
+  );
+  const gapLine = (pick: (r: LeagueRun) => Record<number, number>) =>
+    Array.from({ length: 16 }, (_, i) => 21 + i)
+      .map(
+        (a) =>
+          `${a} ${mean(
+            runs
+              .map(pick)
+              .map((g) => g[a])
+              .filter(Number.isFinite),
+          ).toFixed(2)}`,
+      )
+      .join(' · ');
+  console.log(`  overall below a starter by age, first kickoff (informational): ${gapLine((r) => r.age.gap.first)}`);
+  console.log(`  overall below a starter by age, settled (informational): ${gapLine((r) => r.age.gap.settled)}`);
+  // The founding league's reads (A2), by how long a position's prime runs, and the growth still ahead by age.
+  // `left`: growth ahead by years before his position's growth age, printed at 24 + years (24 = his growth age).
+  for (const group of ['long', 'short', 'QB', 'grow', 'left'])
+    for (const when of ['first', 'settled'] as const)
+      console.log(
+        `  ${group === 'grow' ? 'growth ahead' : group === 'left' ? 'growth ahead by years to his growth age (24 = there)' : `below a starter, ${group}`} by age, ${when === 'first' ? 'first kickoff' : 'settled'} (informational): ${gapLine(
+          (r) =>
+            Object.fromEntries(
+              Object.entries(r.age.by[when])
+                .filter(([k]) => k.startsWith(`${group}:`))
+                .map(([k, v]) => [Number(k.split(':')[1]), v]),
+            ) as Record<number, number>,
+        )}`,
+      );
+  if (known.length)
+    console.log(
+      `⚠ known issue: too few young starters, too little job turnover, starters a little older on average and too many short-prime starters gone at 31–32 against the NFL's (${known.length} lines outside the owner's bands; the front offices' project)`,
+    );
+}
 // Coaching trees against the NFL (spec §4.6, docs/research/coaching-trees.md).
 {
   const t = runs.map((r) => r.trees);
@@ -515,7 +681,7 @@ console.log(
   // leagues' trees too, eight leagues, as they're played anyway.
   const born = [...t, ...(await ethicLeagues).map((r) => r.trees)].map((x) => x.born);
   console.log(
-    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check('biggest (steady)', mean(t.flatMap((x) => x.biggest.slice(Math.floor(x.biggest.length / 2)))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
+    `coaching trees: ${check('live trees (steady)', mean(t.flatMap((x) => x.live.slice(Math.floor(x.live.length / 2)))), 2, 5, 1, LIVE_TREES_NORMAL)} · ${check("biggest (seasons 9–16, the band's horizon: the owner's call, 2026-11-14)", mean(t.flatMap((x) => x.biggest.slice(8, 16))), 3, 6, 1)} · ${check('head coaches in a live tree', mean(all((x) => x.inTreeShare)), 0.15, 0.4)} · ${check('hires from a tree', fromTree, 0.1, 0.35)} · ${check('most from one tree in a busy offseason (90th pct)', busiest, 0, 0.4)} · ${check(`trees born per league in 16 seasons (${born.length} leagues)`, mean(born), 1, 4, 1)} · ${check(`leagues with no founding tree alive at the end (of ${t.length})`, t.filter((x) => x.foundingAlive === 0).length, 0, 0, 0, NO_FOUNDING_NORMAL)}`,
   );
 }
 console.log(`\n${misses} number(s) outside target range`);

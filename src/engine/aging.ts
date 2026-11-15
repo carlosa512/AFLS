@@ -10,7 +10,9 @@
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_INFO } from './attributes';
 import { clamp } from './rng';
+import { overall } from './positions';
 import { bodyShift } from './traits';
+import { ATTRIBUTES } from './types';
 import type { Attribute, Player, Position, Traits } from './types';
 
 export interface AgingCurve {
@@ -32,6 +34,8 @@ export interface AgingCurve {
  * 25–28; linemen, tight ends and specialists hold long plateaus. A quarterback's legs fade from his
  * late 20s while his arm, accuracy and reads carry him into his mid-30s, so a pocket passer lasts
  * and a runner doesn't, with no archetype needed.
+ * Tight ends and linemen turn at 30 and a quarterback's technique at 33 (a year sooner than the plateaus survivors
+ * show: by 32 NFL tight ends and linemen have lost 27–30% of their peak snap share; docs/research/league-age.md).
  */
 export const AGING: Record<Position, AgingCurve> = {
   RB: { peakEnd: 27, physicalLead: 1, slope: 1.15 },
@@ -41,9 +45,9 @@ export const AGING: Record<Position, AgingCurve> = {
   LB: { peakEnd: 29, physicalLead: 1, slope: 1 },
   EDGE: { peakEnd: 29, physicalLead: 1, slope: 1 },
   DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
-  TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
-  OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
-  QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' } },
+  TE: { peakEnd: 30, physicalLead: 0, slope: 0.8 },
+  OL: { peakEnd: 30, physicalLead: 0, slope: 0.9 },
+  QB: { peakEnd: 33, physicalLead: 4, slope: 0.65, family: { throwPower: 'technical' } },
   K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
   P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
 };
@@ -62,8 +66,13 @@ export const agingFamily = (position: Position, attr: Attribute): AgingFamily =>
   AGING[position].family?.[attr] ?? ATTRIBUTE_INFO[attr].aging;
 
 /** Last age before this family of ratings starts to decline, for a player with these traits. */
-export function declineOnset(position: Position, family: AgingFamily, traits?: Pick<Traits, 'durability'>): number {
-  const c = AGING[position];
+export function declineOnset(
+  position: Position,
+  family: AgingFamily,
+  traits?: Pick<Traits, 'durability'>,
+  curve: AgingCurve = AGING[position],
+): number {
+  const c = curve;
   const shift = traits ? bodyShift(traits) : 0;
   return c.peakEnd + shift + (family === 'physical' ? -c.physicalLead : family === 'mental' ? MENTAL_LAG : 0);
 }
@@ -82,6 +91,57 @@ export function retireChance(p: Player, ovr: number): number {
   const over = p.age - (AGING[p.position].peakEnd + bodyShift(p.traits));
   if (p.teamId === null) return over >= 2 || ovr < 8 ? 0.6 : 0.2;
   if (over >= 8) return 1;
-  const hazard = over >= 2 ? 0.06 * (over - 1) : 0;
+  // When the yearly chance starts to climb, by position: the NFL's linemen leave sooner after their prime, its
+  // receivers and defensive backs who still start hang on longer (docs/research/league-age.md).
+  const turn = over + (RETIRE_BODY.turn[p.position] ?? 0);
+  // The body: a chance that climbs a year at a time from just before his prime ends, and more the further he has fallen
+  // from his own best (a cliff, `cliffs.ts`, is how most careers end).
+  // Only near the end of his prime: a young player slipping toward a ceiling that settled under him isn't done.
+  // Forgiving what a typical body loses: the slack grows with every year past his physical turn, so a cliff ends a
+  // career and the ordinary fade of a receiver at 31 doesn't.
+  const aged = Math.max(0, p.age - declineOnset(p.position, 'physical', p.traits));
+  const slack = RETIRE_BODY.slack + RETIRE_BODY.agedSlack * aged;
+  const fall = over >= RETIRE_BODY.fallFrom ? Math.max(0, bestOvr(p) - ovr - slack) : 0;
+  const hazard = clamp(
+    RETIRE_BODY.perYear * Math.max(0, turn - RETIRE_BODY.from) + RETIRE_BODY.fall * fall,
+    0,
+    RETIRE_BODY.cap,
+  );
   return ovr < 8 && over >= 2 ? Math.max(hazard, 0.5) : hazard;
+}
+
+/**
+ * Retirement under contract (spec 2026-11-14-league-age-design.md §5):
+ * - `from`: years past his prime's end (his body clock's) that the yearly chance starts to climb
+ * - `perYear`: what each year past that adds
+ * - `fall`: what each overall point under his own best adds, past `slack` (and `agedSlack` more for each year past his
+ *   physical turn), from `fallFrom` years past his prime's end
+ * - `cap`: the most a year's chance can be (until eight years past, when he goes)
+ * - `turn`: years added to how far past his prime he is, by position, for the climb (positive: sooner)
+ * Tuned with cliffs to the NFL's starters' exits by age (off every roster: about one in ten a year at 29–32, more on the
+ * lines at 32) and the careers survivor lines: a cliff ends most careers within a year or two, the ordinary fade doesn't.
+ */
+export const RETIRE_BODY = {
+  from: 0,
+  perYear: 0.035,
+  fall: 0.35,
+  slack: 0.6,
+  agedSlack: 0.9,
+  fallFrom: -2,
+  cap: 0.95,
+  // Linemen and tight ends leave sooner after their prime (the NFL's long-prime starters: 15–26% gone a year at 30–32),
+  // punters sooner than kickers (a quarter of starting punters are 31 or older, a third of kickers).
+  turn: { TE: 2, OL: 2, DT: 2, P: 3 } as Partial<Record<Position, number>>,
+};
+
+/** His best overall at the position he plays now: today's, or any start of a league year on record. */
+export function bestOvr(p: Pick<Player, 'ratingHistory' | 'position' | 'ratings'>): number {
+  let best = overall(p.ratings, p.position);
+  for (const row of Object.values(p.ratingHistory ?? {})) {
+    const ratings = Object.fromEntries(ATTRIBUTES.map((a, i) => [a, row[i]])) as Player['ratings'];
+    const then = overall(ratings, p.position);
+    // A snapshot from before an attribute existed reads it as missing: skip it rather than poison the best.
+    if (Number.isFinite(then)) best = Math.max(best, then);
+  }
+  return best;
 }

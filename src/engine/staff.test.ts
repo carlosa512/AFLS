@@ -406,12 +406,14 @@ describe('AI front offices on their own reads', () => {
     // the one that likes him most, as it should, but for at most half his stakes again, not a fantasy price.
     // Judged league by league over four: one worst case is one player in one room, and a room packed at its
     // starter line let a +0.53 misread take a backup from half a starter's role to a full one (band, 0.516, with
-    // the other leagues at 0.16-0.34). Each league stays under half his stakes; one of four may reach 0.55.
+    // the other leagues at 0.16-0.34). Each league stays under half his stakes; one of four may reach 0.6 (the owner,
+    // 2026-11-14: with a new league's young built with a settled league's growth ahead, band's worst is a 22-year-old
+    // corner whose ceiling a scout guesses 1.6 sd high, over a starter line, at 0.587).
     const worst = ['band', 'band-2', 'band-3', 'band-4'].map(
       (seed) => (seed === 'band' ? errors : misreads(seed)).at(-1)!,
     );
     expect(worst.filter((w) => w >= 0.5).length).toBeLessThanOrEqual(1);
-    for (const w of worst) expect(w).toBeLessThan(0.55);
+    for (const w of worst) expect(w).toBeLessThan(0.6);
   });
 
   it('build boards no worse than the consensus, and scout prospects near their own picks', () => {

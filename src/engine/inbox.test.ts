@@ -143,7 +143,9 @@ describe('inbox', () => {
     expect(out.length).toBeGreaterThan(0);
     for (const p of out)
       expect(hurt.some((m) => m.actions.some((a) => a.kind === 'player' && a.playerId === p.id))).toBe(true);
-    for (const m of hurt) expect(m.actions.map((a) => a.kind)).toEqual(['player', 'medical']);
+    // 2026-11-14: an all-clear links the depth chart (`team`), as it always has; a seed that files one first showed it.
+    for (const m of hurt)
+      expect(m.actions.map((a) => a.kind)).toEqual(['player', mailSubject(m)!.kind === 'cleared' ? 'team' : 'medical']);
   });
 
   it('says "are" for the units that are plural', () => {
@@ -367,9 +369,13 @@ describe('inbox', () => {
     // Staged: another team promotes our coordinator to head coach (copies rebuild the coach index).
     const staged = copy(league);
     const user = staged.userTeamId;
-    const coordinator = Object.values(staged.coaches).find(
-      (c) => c.teamId === user && (c.role === 'offCoord' || c.role === 'defCoord'),
-    )!;
+    const isCoord = (c: { role: string }) => c.role === 'offCoord' || c.role === 'defCoord';
+    // 2026-11-14: in some worlds our coordinators' deals ran out before this point, leaving us none to lose, so
+    // the scene gives us one from another team first (the staging below is what is under test).
+    const coordinator =
+      Object.values(staged.coaches).find((c) => c.teamId === user && isCoord(c)) ??
+      Object.values(staged.coaches).find((c) => c.teamId !== null && c.teamId !== user && isCoord(c))!;
+    coordinator.teamId = user;
     const chair = { role: coordinator.role };
     const was = coachTitle(coordinator).toLowerCase();
     const hirer = staged.teams.find((t) => t.id !== user)!;
@@ -456,12 +462,13 @@ describe('inbox', () => {
     if (fa.walked.length)
       expect(wrap.body.split(`${fa.walked[0].player.firstName} ${fa.walked[0].player.lastName}`).length).toBe(2);
     // (The coaches' position suggestion is staff mail that may still ask, through the draft and camp; so is a player who
-    // speaks up at camp, until you answer him, and the head coach's meeting suggestion until you answer it: both ride in his weekly letter.)
+    // speaks up at camp, until you answer him, and the head coach's meeting suggestion until you answer it: both ride in his weekly letter.
+    // 2026-11-14: a player holding out over his deal asks until it is settled, free agency closed or not; `needsYou` reads the live dispute.)
     for (const m of league.inbox!)
       expect(
         needsYou(league, m) &&
           m.category === 'staff' &&
-          !['positionOffer', 'talk', 'meeting', 'coachWeek'].includes(mailSubject(m)?.kind ?? ''),
+          !['positionOffer', 'talk', 'meeting', 'coachWeek', 'dispute'].includes(mailSubject(m)?.kind ?? ''),
       ).toBe(false);
   });
 

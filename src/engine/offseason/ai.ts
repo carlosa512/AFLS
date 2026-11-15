@@ -616,6 +616,9 @@ export interface RestructurePlan {
   saved: number;
 }
 
+/** The least a restructure converts, in thousands. */
+const RESTRUCTURE_MIN = 1_000;
+
 /**
  * The restructures that would make up to `need` of room this league year, as a GM chooses them: the biggest deals of
  * players he plans to keep starting (`inPlans`), each converting only what's still needed and no more than next year's
@@ -640,10 +643,16 @@ export function restructurePlan(
   let saved = 0;
   for (const { p, o } of deals) {
     if (saved >= need) break;
-    // Converting x saves x(1 - 1/years) now and adds x / years to each later year, next year's included.
-    const amount = Math.min(Math.ceil((need - saved) / (1 - 1 / o.years)), Math.floor(nextRoom * o.years));
-    // Too little to be worth converting (the candidates are deals that would save over $1K).
-    if (amount < 1_000) break;
+    // Converting x saves x(1 - 1/years) now and adds x / years to each later year, next year's included. Never less
+    // than $1M: a restructure that small isn't worth the paperwork, so a club a little short converts the $1M and saves a
+    // little more than it needs. Breaking off instead left a keeper $302K short walking while a worse, dearer one $1.2M
+    // short got his room (2026-11-14).
+    const amount = Math.min(
+      Math.max(RESTRUCTURE_MIN, Math.ceil((need - saved) / (1 - 1 / o.years))),
+      Math.floor(nextRoom * o.years),
+    );
+    // No room left on next year's books for even that.
+    if (amount < RESTRUCTURE_MIN) break;
     const at = restructureOptions(league, p, amount);
     if (at.savings <= 0) break;
     steps.push({ p, amount });

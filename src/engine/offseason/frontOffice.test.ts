@@ -40,7 +40,7 @@ const afterFreeAgency = (() => {
  * A good starter cut loose after free agency (rated 12.5–14, 29 or younger, his market four times his minimum), every
  * AI club's room taken away but `clubId`'s, which gets `room` × his minimum.
  */
-function lateVeteran(clubId: number, room: number) {
+function lateVeteran(clubId: number, room: number, maxMarket = Infinity) {
   const l: League = JSON.parse(afterFreeAgency);
   const cap = l.caps[l.season];
   const market = leagueMarket(l);
@@ -54,7 +54,8 @@ function lateVeteran(clubId: number, room: number) {
       x.age <= 29 &&
       playerOvr(x) >= 12.5 &&
       playerOvr(x) <= 14 &&
-      marketApy(market, x) >= 4 * minSalary(x.experience, cap),
+      marketApy(market, x) >= 4 * minSalary(x.experience, cap) &&
+      marketApy(market, x) <= maxMarket,
   )!;
   releasePlayer(l, p);
   const min = minSalary(p.experience, cap);
@@ -127,8 +128,12 @@ describe('a GM restructures to sign a free agent he can’t fit', () => {
     l.transactions.filter((m) => m.kind === 'restructure' && m.teamIds.includes(teamId) && m.season === l.season)
       .length;
   /** `lateVeteran` with next year's books set relative to the club's ceiling, its needs counted. */
-  const withNextYear = (clubId: number, room: (ceiling: number, used: number, needs: number) => number) => {
-    const x = lateVeteran(clubId, 0.5);
+  const withNextYear = (
+    clubId: number,
+    room: (ceiling: number, used: number, needs: number) => number,
+    maxMarket = Infinity,
+  ) => {
+    const x = lateVeteran(clubId, 0.5, maxMarket);
     const team = x.l.teams[clubId];
     const cap = capFor(x.l, x.l.season + 1);
     const ceiling = nextYearCeiling(team.gm, winNow(x.l, team)) * cap;
@@ -147,8 +152,11 @@ describe('a GM restructures to sign a free agent he can’t fit', () => {
     // wants him at his market price makes it rather than offer what little it has.
     const l0: League = JSON.parse(afterFreeAgency);
     let found = false;
+    // His market price is held under a tenth of the cap: taken again with the league-age work (2026-11-14), the first
+    // player the scene finds is a 24-year-old quarterback at $60M, more than 0.2 of the cap in room can carry a year on.
+    const priced = 0.1 * capFor(l0, l0.season + 1);
     for (const t of l0.teams.filter((x) => x.id !== l0.userTeamId)) {
-      const { l, p } = withNextYear(t.id, (_c, _u, cap) => 0.2 * cap);
+      const { l, p } = withNextYear(t.id, (_c, _u, cap) => 0.2 * cap, priced);
       const before = restructuresBy(l, t.id);
       aiFreeAgencyDay(l, new Rng('room'), { rosterMax: OFFSEASON_ROSTER_MAX });
       if (l.players[p.id].teamId !== t.id) continue;

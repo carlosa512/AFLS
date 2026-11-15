@@ -11,14 +11,15 @@
  * one jump would. Whatever hasn't landed by the next new league year lands then (the true-up), before
  * the next roll. With everything released in March (`RELEASE` at 1/0/0/0) this is the game as it was.
  */
-import { agingFamily, AGING, declineOnset } from './aging';
+import { agingFamily, AGING, declineOnset, type AgingCurve } from './aging';
+import { CLIFF, CLIFFS, cliffChance, severeInjuryIn } from './cliffs';
 import type { AgingFamily } from './attributes';
 import { ATTRIBUTE_PROFILES, OVR_WEIGHTS, overall } from './positions';
 import { moraleLevel } from './morale';
 import { moodPull } from './moodScale';
 import { clamp, Rng } from './rng';
 import { REGULAR_SEASON_WEEKS } from './season/schedule';
-import { declineMult, effectiveTraits, growthMult } from './traits';
+import { declineMult, effectiveTraits, growthMult, TRAIT_MEAN } from './traits';
 import type { Attribute, DevYear, Game, League, Player, Position } from './types';
 import { ATTRIBUTES } from './types';
 import { notPracticing } from './disputeRead';
@@ -69,6 +70,13 @@ export interface DevContext {
   bodyAs?: Position;
   /** A year's mood tilt (`DevYear.mood`, G2), for a one-jump replay: the ratings he was gaining land at `1 + mood`. */
   mood?: number;
+  /** The rules the year is rolled under (`DEV_RULES`): 1 for a year rolled before they changed; absent, today's. */
+  rules?: 1 | 2;
+  /**
+   * A severe injury in the season just played (`severeInjuryIn`): a cliff is likelier after one. Worked out from his
+   * record wherever a year is rolled or re-rolled, never stored.
+   */
+  hurt?: boolean;
 }
 
 /** Regular-season games: a full season of reps. */
@@ -112,15 +120,106 @@ const SLIP_SLACK = 0.3;
 /** Keeps league-wide growth where it was before reps counted (most young players are backups). */
 const GROWTH_NORM = 1.1;
 
-/** Where growth lands: physical tools are about done by 25; late gains are technique and the mental game. */
-function growthShare(family: AgingFamily, age: number): number {
-  if (family === 'physical') return clamp((26 - age) / 3, 0, 1);
+/** Where growth lands: physical tools are about done by his growth age (`growthEnds`); late gains are technique and the mental game. */
+function growthShare(family: AgingFamily, age: number, ends: number): number {
+  if (family === 'physical') return clamp((ends - age) / 3, 0, 1);
   return family === 'mental' ? 1.2 : 1;
 }
 /** Physical tools fall fastest; the mental game barely moves. */
 const FAMILY_LOSS: Record<AgingFamily, number> = { physical: 1.2, technical: 1, mental: 0.3 };
-/** The mental game keeps sharpening through the prime. */
-const MENTAL_GROWTH = 0.06;
+/**
+ * The rules a year is rolled under. A year remembers which (`DevYear.rules`) and every later step re-rolls it under
+ * the same ones, so a save loaded mid-season never jumps toward new numbers; a year from an old save (no `rules`) is a
+ * v1 year. `DEV_RULES_V1` is frozen. A `rules: 2` year reads `DEV_RULES` as it is now, so a retune that should not move
+ * a save loaded mid-season first freezes today's values as `DEV_RULES_V2` and stores `rules: 3` (`CLIFF` and `AGING`
+ * sit outside the versions: a change there moves a year still landing).
+ * - `pace`: the share of the gap to his ceiling a young player closes in a year (times his multipliers)
+ * - `primeSwing`: the sd of a year's change, in overall points, once growth is done
+ * - `growthEnds`: the age growth toward the ceiling stops (physical tools fade in over the three years before it)
+ * - `mentalGrowth`: what the mental game adds each year through the prime
+ * - `fade`: how steep the smooth decline is for everyone (a cliff takes the rest)
+ * - `cliffs`: whether a veteran can fall off a cliff (`cliffs.ts`)
+ * - `byPosition`: a position's own `growthEnds`, `pace` and `mentalGrowth` (skill players are ready sooner than linemen
+ *   and passers; a passer's reads keep sharpening into his 30s)
+ */
+export interface DevRules {
+  pace: [number, number];
+  primeSwing: number;
+  growthEnds: number;
+  mentalGrowth: number;
+  fade: number;
+  cliffs: boolean;
+  byPosition: Partial<Record<Position, Partial<Pick<DevRules, 'growthEnds' | 'pace' | 'mentalGrowth'>>>>;
+  /** The aging table the year reads, where it differs from today's `AGING` (an old year keeps the table it began on). */
+  aging: Partial<Record<Position, AgingCurve>>;
+}
+export const DEV_RULES_V1: Readonly<DevRules> = Object.freeze({
+  pace: [0.15, 0.5] as [number, number],
+  primeSwing: 0.4,
+  growthEnds: 26,
+  mentalGrowth: 0.06,
+  fade: 1,
+  cliffs: false,
+  byPosition: {},
+  // `AGING` as it stood before 2026-11-14 (TE and OL turned at 31, a quarterback's technique at 34).
+  aging: {
+    RB: { peakEnd: 27, physicalLead: 1, slope: 1.15 },
+    WR: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    CB: { peakEnd: 28, physicalLead: 1, slope: 1 },
+    S: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    LB: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    EDGE: { peakEnd: 29, physicalLead: 1, slope: 1 },
+    DT: { peakEnd: 30, physicalLead: 0, slope: 1 },
+    TE: { peakEnd: 31, physicalLead: 0, slope: 0.8 },
+    OL: { peakEnd: 31, physicalLead: 0, slope: 0.9 },
+    QB: { peakEnd: 34, physicalLead: 5, slope: 0.65, family: { throwPower: 'technical' as const } },
+    K: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
+    P: { peakEnd: 34, physicalLead: 0, slope: 0.6 },
+  },
+});
+/**
+ * Today's rules (spec 2026-11-14-league-age-design.md). Young players reach their level sooner, so a rostered 22-year-old
+ * starts nearer the NFL's rate: growth ends at 24 at a quicker pace; the front seven and safeties grow a year longer and
+ * edge rushers at the old pace, each held to its position's peak age from the NFL's delta-method aging curves
+ * (`scripts/careers.ts`, docs/research/league-age.md). The prime swings less (a swing piles up over a career and keeps
+ * starters old) and the mental game adds less in the 30s; cliffs and retirement (`cliffs.ts`, `RETIRE_BODY`) end careers.
+ */
+export const DEV_RULES: DevRules = {
+  pace: [0.5, 0.9],
+  primeSwing: 0.3,
+  growthEnds: 24,
+  mentalGrowth: 0.02,
+  fade: 1,
+  cliffs: true,
+  byPosition: {
+    DT: { growthEnds: 25 },
+    LB: { growthEnds: 25 },
+    S: { growthEnds: 25 },
+    EDGE: { growthEnds: 26, pace: [0.15, 0.5] },
+    // A passer's reads keep sharpening into his 30s (accuracy and reads at 34 hold within 3% of his peak).
+    QB: { mentalGrowth: 0.1 },
+  },
+  aging: {},
+};
+const rulesOf = (ctx: Pick<DevContext, 'rules'>): Readonly<DevRules> => (ctx.rules === 1 ? DEV_RULES_V1 : DEV_RULES);
+/** The age growth toward the ceiling stops at a position, under today's rules (front offices and screens read it). */
+export const growsUntil = (pos: Position): number => timingAt(DEV_RULES, pos).growthEnds;
+/**
+ * The share of the gap to his ceiling a young player closes in a typical year at a position: the middle of the pace,
+ * before his makeup, reps and coaches move it (`rollYear`; capped as a year is).
+ */
+export const typicalGrowth = (pos: Position): number => {
+  const [lo, hi] = timingAt(DEV_RULES, pos).pace;
+  return Math.min(0.8, ((lo + hi) / 2) * GROWTH_NORM);
+};
+/** A position's aging curve under `rules`: today's `AGING` unless the rules keep their own. */
+const curveOf = (rules: Readonly<DevRules>, pos: Position): AgingCurve => rules.aging[pos] ?? AGING[pos];
+/** When growth ends and how fast it comes at a position, under `rules`. */
+export const timingAt = (rules: Readonly<DevRules>, pos: Position) => ({
+  growthEnds: rules.byPosition[pos]?.growthEnds ?? rules.growthEnds,
+  pace: rules.byPosition[pos]?.pace ?? rules.pace,
+  mentalGrowth: rules.byPosition[pos]?.mentalGrowth ?? rules.mentalGrowth,
+});
 
 /** What the roll reads of a player: his ratings as they stood when the year was rolled. */
 type Rolled = Pick<Player, 'age' | 'position' | 'potential' | 'traits' | 'shifts' | 'ratings'>;
@@ -140,12 +239,14 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
   const profile = ATTRIBUTE_PROFILES[pos];
   const weights = OVR_WEIGHTS[pos];
   const attrs = ATTRIBUTES.filter((a) => profile[a] !== undefined);
+  const rules = rulesOf(ctx);
+  const { growthEnds: ends, pace: paceRange, mentalGrowth } = timingAt(rules, pos);
 
   // Growth (or prime-years drift), in overall points.
   let delta: number;
-  if (age < 26) {
+  if (age < ends) {
     const gap = player.potential - overall(player.ratings, pos);
-    const pace = rng.float(0.15, 0.5);
+    const pace = rng.float(paceRange[0], paceRange[1]);
     // A ceiling the league settled under him (`ceiling.ts`): he slips toward it, a point a year at most. Same draw.
     delta =
       gap >= 0
@@ -153,13 +254,13 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
         : gap < -SLIP_SLACK
           ? Math.max(-MAX_SLIP, (gap + SLIP_SLACK) * pace * 2)
           : 0;
-  } else delta = rng.normal(0, 0.4);
+  } else delta = rng.normal(0, rules.primeSwing);
   // Spread it so the overall moves by `delta`: weighted toward the families still growing.
   let shareSum = 0;
   let weightSum = 0;
   for (const a of attrs) {
     const w = weights[a] ?? 0;
-    shareSum += w * growthShare(agingFamily(pos, a), age);
+    shareSum += w * growthShare(agingFamily(pos, a), age, ends);
     weightSum += w;
   }
   const norm = shareSum > 0 ? weightSum / shareSum : 1;
@@ -171,18 +272,36 @@ export function rollYear(rng: Rng, player: Rolled, ctx: DevContext): number[] {
     const family = agingFamily(pos, attr);
     // Technique and the mental game age with the job; the body keeps the clock of the position it grew up in.
     const clock = family === 'physical' && ctx.bodyAs ? ctx.bodyAs : pos;
-    const past = age - declineOnset(clock, family, traits);
+    const past = age - declineOnset(clock, family, traits, curveOf(rules, clock));
     let d: number;
     if (past > 0) {
       // Within a year of the turn the decline phases in; after that it speeds up every season.
       const coached = ctx.decline?.[family] ?? 1;
-      const fade = AGING[clock].slope * declineMult(traits);
+      const fade = curveOf(rules, clock).slope * declineMult(traits) * rules.fade;
       d = -year * fade * coached * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25);
     } else {
-      d = delta * Math.min(2, growthShare(family, age) * norm);
-      if (family === 'mental' && age >= 26) d += MENTAL_GROWTH;
+      d = delta * Math.min(2, growthShare(family, age, ends) * norm);
+      if (family === 'mental' && age >= ends) d += mentalGrowth;
     }
     targets[ATTRIBUTES.indexOf(attr)] = d + rng.normal(0, 0.35);
+  }
+  // A cliff (`cliffs.ts`): drawn after everything else, so the year's earlier draws keep their order. It takes `size`
+  // overall points off his body and technique at once, spread by their weights as the decline is (`FAMILY_LOSS`).
+  if (rules.cliffs && rng.chance(cliffChance(age, pos, traits, ctx.hurt ?? false))) {
+    const size = rng.float(CLIFF.size[0], CLIFF.size[1]);
+    let total = 0;
+    let hit = 0;
+    for (const attr of attrs) {
+      const w = weights[attr] ?? 0;
+      total += w;
+      const family = agingFamily(pos, attr);
+      if (family !== 'mental') hit += w * FAMILY_LOSS[family];
+    }
+    const k = hit > 0 ? (size * total) / hit : 0;
+    for (const attr of attrs) {
+      const family = agingFamily(pos, attr);
+      if (family !== 'mental') targets[ATTRIBUTES.indexOf(attr)] -= k * FAMILY_LOSS[family];
+    }
   }
   return targets;
 }
@@ -262,7 +381,7 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
     applyShare(p, targets, applied, 1);
     return;
   }
-  // Only what the roll read: the coaching rate feeds growth (under 26), the decline effects a fading family.
+  // Only what the roll read: the coaching rate feeds growth (in his growth years), the decline effects a fading family.
   const fading = FAMILIES.some(
     (f) => p.age > declineOnset(f === 'physical' && ctx.bodyAs ? ctx.bodyAs : p.position, f, p.traits),
   );
@@ -270,11 +389,13 @@ export function beginYear(league: League, rng: Rng, p: Player, ctx: DevContext):
   p.dev = {
     season: league.season,
     ...(Math.abs(games / SEASON_GAMES - ctx.playedShare) < 1e-9 ? { games } : { share: ctx.playedShare }),
-    ...(p.age < 26 && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
+    ...(p.age < timingAt(DEV_RULES, p.position).growthEnds && ctx.rate !== undefined ? { rate: ctx.rate } : {}),
     ...(fading && ctx.decline ? { decline: FAMILIES.map((f) => ctx.decline![f] ?? 1) } : {}),
     ...(ctx.bodyAs ? { bodyAs: ctx.bodyAs } : {}),
     // His ceiling can settle before the year has landed (`ceiling.ts`): the year keeps the one it was rolled with.
-    ...(p.age < 26 ? { potential: p.potential } : {}),
+    ...(p.age < timingAt(DEV_RULES, p.position).growthEnds ? { potential: p.potential } : {}),
+    // A year rolled under the old rules (a test of an old save) keeps none: it reads as v1.
+    ...(ctx.rules === 1 ? {} : { rules: 2 as const }),
     done: 0,
     applied,
   };
@@ -305,6 +426,8 @@ export function yearTargets(league: League, p: Player): number[] {
     rate: d.rate,
     decline,
     bodyAs: d.bodyAs,
+    rules: d.rules ?? 1,
+    hurt: severeInjuryIn(p, d.season - 1),
   });
 }
 
@@ -352,7 +475,7 @@ function growthMean(league: League): number {
 }
 
 /**
- * A step's worth of his mood on a growth year (rolled under 26): `share` is the step's nominal release, so the tilt sums
+ * A step's worth of his mood on a growth year (rolled before his growth age): `share` is the step's nominal release, so the tilt sums
  * to `MOOD_TILT.growth × pull` over a year. A week he sat counts in full: his mood in practice counts whether or not he
  * dressed (reps already set how fast the year lands).
  */
@@ -422,7 +545,11 @@ export function appliedThisYear(p: Player, attr: Attribute): number {
 
 /** The average body's year (`year` above runs 0.3–1.4). */
 const TYPICAL_YEAR = 0.85;
-const agingMemo = new Map<Position, number[]>();
+/**
+ * Keyed by position and whether cliffs are on (`CLIFFS.on`), so a test that turns them off never reads a stale table;
+ * never kept under `CLIFFS.always` (a test's every-age cliff). The rules and tables it reads are constants in play.
+ */
+const agingMemo = new Map<string, number[]>();
 
 /**
  * The overall a typical body gains or loses, on average, in the offseason he spends at `age` once
@@ -431,9 +558,10 @@ const agingMemo = new Map<Position, number[]>();
  * coming (`outlook.ts`), whatever his body clock really says.
  */
 export function expectedAging(pos: Position, age: number): number {
-  let table = agingMemo.get(pos);
-  if (!table) agingMemo.set(pos, (table = []));
-  const memo = table[age];
+  const key = `${pos}:${CLIFFS.on}`;
+  let table = agingMemo.get(key);
+  if (!table) agingMemo.set(key, (table = []));
+  const memo = CLIFFS.always ? undefined : table[age];
   if (memo !== undefined) return memo;
   const weights = OVR_WEIGHTS[pos];
   const fade = AGING[pos].slope;
@@ -446,15 +574,22 @@ export function expectedAging(pos: Position, age: number): number {
     const past = age - declineOnset(pos, family);
     const d =
       past > 0
-        ? -TYPICAL_YEAR * fade * FAMILY_LOSS[family] * Math.min(1, past) * (1 + 0.25 * Math.max(0, past - 1) + 0.25)
-        : family === 'mental' && age >= 26
-          ? MENTAL_GROWTH
+        ? -TYPICAL_YEAR *
+          fade *
+          DEV_RULES.fade *
+          FAMILY_LOSS[family] *
+          Math.min(1, past) *
+          (1 + 0.25 * Math.max(0, past - 1) + 0.25)
+        : family === 'mental' && age >= timingAt(DEV_RULES, pos).growthEnds
+          ? timingAt(DEV_RULES, pos).mentalGrowth
           : 0;
     sum += w * d;
     total += w;
   }
-  const out = total ? sum / total : 0;
-  table[age] = out;
+  // The average cliff (`cliffs.ts`) for a typical body, healthy: what a front office expects it to cost at this age.
+  const cliff = cliffChance(age, pos, { durability: TRAIT_MEAN }, false) * ((CLIFF.size[0] + CLIFF.size[1]) / 2);
+  const out = (total ? sum / total : 0) - (DEV_RULES.cliffs ? cliff : 0);
+  if (!CLIFFS.always) table[age] = out;
   return out;
 }
 

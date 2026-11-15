@@ -171,7 +171,32 @@ describe('a fumble on film', () => {
       const h = p.ids.indexOf(who.tackle);
       const hx = p.pos[(step * p.ids.length + h) * 2] - p.ball[step * 3];
       const hy = p.pos[(step * p.ids.length + h) * 2 + 1] - p.ball[step * 3 + 1];
-      if (Math.hypot(hx, hy) <= 1.2) found = { r, i, homeId: g.homeId };
+      if (Math.hypot(hx, hy) > 1.2) continue;
+      // And one where his own mistake leaves the tackler off the ball (2026-11-14, league-age work: the new world's first
+      // fumble was a fighter's, his tackler already at the ball whatever the words said, so 'own' told nothing apart).
+      const own = stagePlay({
+        plays: r.plays!.map((x, k) =>
+          k === i
+            ? {
+                ...x,
+                text: e.text.replace(
+                  /(\([A-Z][^)]*\))(, .+?)?(\. FUMBLE, recovered by)/,
+                  '$1, puts it on the ground$3',
+                ),
+              }
+            : x,
+        ),
+        index: i,
+        record: r.field!,
+        homeId: g.homeId,
+        seed: 'film',
+        snapY: 26.65,
+      });
+      const os = Math.round(own.loose!.t / own.dt);
+      const oh = own.ids.indexOf(who.tackle);
+      const ox = own.pos[(os * own.ids.length + oh) * 2] - own.ball[os * 3];
+      const oy = own.pos[(os * own.ids.length + oh) * 2 + 1] - own.ball[os * 3 + 1];
+      if (Math.hypot(ox, oy) > 1) found = { r, i, homeId: g.homeId };
     }
     if (found) break;
   }
