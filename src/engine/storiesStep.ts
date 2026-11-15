@@ -147,34 +147,13 @@ function feuds(league: League, user: number, clock: number): void {
 
 // ───────── rooms ─────────
 
-/**
- * Whether a room's turn is already told by its own players: every one of its unhappy players (Poor or worse) has an
- * open story of his own. A young starter happy and the veteran he passed sore reads Split, and the veteran's own story
- * already says it; a room story beside it told the same thing twice (2026-11-15, the lineup lean: the owner's caps on
- * the coach's stories held, "less is more").
- */
-function toldByItsPlayers(league: League, user: number, members: readonly number[], ctx: MoraleContext): boolean {
-  let unhappy = 0;
-  for (const id of members) {
-    const p = league.players[id];
-    const view = moraleView(league, p, ctx);
-    if (!view || view.step > 3) continue;
-    unhappy++;
-    const own = MAN_STORIES.some((kind) => openStory(league, { kind, teamId: user, playerId: id }));
-    if (!own) return false;
-  }
-  return unhappy > 0;
-}
-
 function rooms(league: League, user: number, clock: number, ctx: MoraleContext): void {
   for (const unit of UNITS) {
     if (unit === 'ST') continue;
-    const read = unitRead(league, user, unit, ctx);
-    const word = read?.word;
+    const word = unitRead(league, user, unit, ctx)?.word;
+    const bad = word === 'Down' || word === 'Split';
     const on: StoryOn = { kind: 'room', teamId: user, unit };
     const s = openStory(league, on);
-    // A room with no story yet opens one only for what its players' own stories don't tell.
-    const bad = (word === 'Down' || word === 'Split') && (!!s || !toldByItsPlayers(league, user, read!.members, ctx));
     const state = s ? lastOf(s, ['turned', 'eased']) : undefined;
     if (bad) {
       // A turn is a room newly Down or Split, back to it from easing, or the one word for the other.
