@@ -3,7 +3,7 @@ import { createLeague } from '../src/engine/generate';
 import { buildContract } from '../src/engine/finance/contract';
 import { activeRoster, setTeam } from '../src/engine/roster';
 import type { Contract, League, Player } from '../src/engine/types';
-import { ELITE, faMeasures, GOOD, windowStart } from './free-agency-core';
+import { dealLengths, ELITE, faMeasures, GOOD, windowStart } from './free-agency-core';
 
 const template = createLeague({ seed: 'fa-core', personnel: true });
 let l: League;
@@ -81,5 +81,23 @@ describe('the free-agency check', () => {
     best.injury = { type: 'test', severity: 'moderate', weeksRemaining: 6, estimate: [4, 8] } as never;
     expect(faMeasures(start, l).eliteYoungUnsigned).toBe(0);
     expect(ELITE).toBe(0.05);
+  });
+});
+
+describe('deal lengths by pay', () => {
+  it('counts every veteran deal signed this offseason by pay band', () => {
+    const at = (i: number) => activeRoster(l, 0)[i];
+    for (const p of Object.values(l.players)) if (p.contract) p.contract.signedSeason = l.season - 1;
+    at(0).contract = deal(l.season, 1, 0.005);
+    at(1).contract = deal(l.season, 2, 0.015);
+    at(2).contract = deal(l.season, 4, 0.06);
+    at(3).contract = deal(l.season, 4, 0.01, 'rookie');
+    at(4).contract = deal(l.season, 1, 0.08, 'tag');
+    const d = dealLengths(l, l.season);
+    expect(d.min).toEqual({ n: 1, mean: 1, oneYear: 1 });
+    expect(d.mid).toEqual({ n: 1, mean: 2, oneYear: 0 });
+    expect(d.big).toEqual({ n: 1, mean: 4, oneYear: 0 });
+    expect(d.good.n).toBe(0);
+    expect(d.star.n).toBe(0);
   });
 });
