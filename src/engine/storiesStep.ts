@@ -9,7 +9,7 @@ import { teamCoaches } from './coaching';
 import { employed } from './employment';
 import { credibilityRead } from './meetings/credibility';
 import { disputeOf } from './disputeRead';
-import { moraleClock, moraleContext, moraleView, QUIET, viewContext, type MoraleContext } from './morale';
+import { moraleClock, moraleContext, moraleView, QUIET, viewContext, YEAR, type MoraleContext } from './morale';
 import { CAUSE_OF } from './playerTalks';
 import { activeRoster, teamPlayers } from './roster';
 import { tierOf, unitOf, unitRead, UNITS, weightOf } from './standing';
@@ -147,13 +147,34 @@ function feuds(league: League, user: number, clock: number): void {
 
 // ───────── rooms ─────────
 
+/**
+ * Rooms a league year can have a story about (the losing, unit 'team', is the club's and not counted). The owner's call,
+ * 2026-11-15: the same number of stories shown and the best of them, not more of them, after the lineup lean put more
+ * rooms on the line (a young starter happy and the veteran he passed sore reads Split). A season averaged 2.5 rooms
+ * before it; the last slot is kept for a room reading Down.
+ */
+export const ROOM_STORIES = 3;
+
+/** Rooms with a story this league year (open or closed), by unit. */
+function roomsThisYear(league: League, user: number, clock: number): Set<string> {
+  const year = Math.floor(clock / YEAR);
+  const out = new Set<string>();
+  for (const s of [...(league.stories?.open ?? []), ...(league.stories?.closed ?? [])])
+    if (s.kind === 'room' && s.teamId === user && s.unit && s.unit !== 'team' && Math.floor(s.opened / YEAR) === year)
+      out.add(s.unit);
+  return out;
+}
+
 function rooms(league: League, user: number, clock: number, ctx: MoraleContext): void {
   for (const unit of UNITS) {
     if (unit === 'ST') continue;
     const word = unitRead(league, user, unit, ctx)?.word;
-    const bad = word === 'Down' || word === 'Split';
     const on: StoryOn = { kind: 'room', teamId: user, unit };
     const s = openStory(league, on);
+    // A room with no story this year opens one only inside the year's budget, the last slot for a room reading Down.
+    const told = s ? null : roomsThisYear(league, user, clock);
+    const room = !told || told.has(unit) || told.size < ROOM_STORIES - (word === 'Down' ? 0 : 1);
+    const bad = (word === 'Down' || word === 'Split') && room;
     const state = s ? lastOf(s, ['turned', 'eased']) : undefined;
     if (bad) {
       // A turn is a room newly Down or Split, back to it from easing, or the one word for the other.
