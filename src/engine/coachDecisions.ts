@@ -75,7 +75,7 @@ export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): numb
  * draws nothing and nothing is saved. Centred on zero with `sd` spread, never past three of it: a clearly better
  * player still starts.
  */
-export const CAMP = { sd: 0.5 };
+export const CAMP = { sd: 1.0 };
 
 export function campForm(p: Pick<Player, 'id' | 'age' | 'firstName' | 'lastName'>): number {
   const [a, b, c] = hashUnits(`camp:${p.id}:${p.age}:${p.firstName} ${p.lastName}`);
