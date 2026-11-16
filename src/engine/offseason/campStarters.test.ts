@@ -21,6 +21,13 @@ describe("last season's starters stay in football (market and exits)", () => {
     if (before > 0) expect(retireChance(p, ovr, true)).toBeLessThan(before);
   });
 
+  it('a starter judged at 31 or younger (30 last season) gets no lean: the 30s line holds (2026-11-16)', () => {
+    const p = structuredClone(Object.values(l.players).find((x) => x.position === 'OL' && x.teamId !== null)!);
+    p.age = RETIRE_BODY.starterFrom - 1;
+    expect(retireChance(p, playerOvr(p))).toBeGreaterThan(0);
+    expect(retireChance(p, playerOvr(p), true)).toBe(retireChance(p, playerOvr(p), false));
+  });
+
   it('startedLastSeason reads snaps, and kickers and punters by games', () => {
     const started = startedLastSeason(l, season);
     const team = l.teams[3];
