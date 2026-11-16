@@ -332,6 +332,12 @@ const feudSeasons: number[] = [];
 const playerGrowth: number[] = [];
 /** The whole save's growth each season from the third: judged on average (one season's games swing it ±100 KB). */
 const saveGrowth: number[] = [];
+/**
+ * Retirees the save adds a season, judged on the run's mean (the owner's call, 2026-11-16): season 2's founding veterans
+ * retire together and one spike passed the limit (393 against 380) while the mean sat at 305.
+ */
+const retiredAdded: number[] = [];
+let retiredLimit = 320;
 let prevSave: { total: number; players: number; retired: number; awards: number; weekly: number } | undefined;
 
 const MEDIC_MAX = Object.values(MEDIC_SLOTS).reduce((a, b) => a + b, 0); // 4
@@ -634,10 +640,12 @@ for (let s = 0; s < seasons; s++) {
     0,
   );
   console.log(
-    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · ${check('retired added', dSave.retired, 0, 320 + retiredAllowance, 0)} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
+    `  checks ${saveYear} save: ${check('size KB', save.total, 4000, s === 0 ? SAVE_SIZE_BUDGET.firstSeason : SAVE_SIZE_BUDGET.retainedSeasons, 0)}${dSave && s >= 2 ? ` · growth KB ${dSave.total.toFixed(0)}` : ''} · ${check('games KB', save.games, 0, SAVE_SIZE_BUDGET.games, 0)}${dSave ? ` · players growth KB ${dSave.players.toFixed(0)} · retired added ${dSave.retired} · ${check('awards growth KB', dSave.awards, -Infinity, 2.5, 1)} · ${check('weekly awards growth KB', dSave.weekly, -Infinity, 4.5, 1)}` : ''} · ${check('awards+weekly % of save', (100 * (save.awards + save.weekly)) / save.total, 0, 0.5)}`,
   );
   if (dSave) playerGrowth.push(dSave.players);
   if (dSave && s >= 2) saveGrowth.push(dSave.total);
+  if (dSave) retiredAdded.push(dSave.retired);
+  retiredLimit = 320 + retiredAllowance;
   prevSave = save;
 
   // Coaching economy. Ledger growth for under-26s x0.999 → x1.025 → x1.008 (all seeds 0.970-1.025), body x0.987-0.999 and
@@ -748,6 +756,10 @@ const PLAYERS_GROWTH_BUDGET =
 if (playerGrowth.length)
   console.log(
     `players growth a season (mean of ${playerGrowth.length}, ${playerGrowth.map((g) => g.toFixed(0)).join(' ')}): ${check('KB', avg(playerGrowth), -Infinity, PLAYERS_GROWTH_BUDGET, 0)}`,
+  );
+if (retiredAdded.length)
+  console.log(
+    `retirees the save adds a season (mean of ${retiredAdded.length}, ${retiredAdded.join(' ')}): ${check('retired added', avg(retiredAdded), 0, retiredLimit, 0)}`,
   );
 if (saveGrowth.length)
   console.log(
