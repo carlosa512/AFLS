@@ -21,6 +21,7 @@ import {
   resignCall,
   restructurePlan,
   spendable,
+  twoYearRoom,
   winNow,
 } from './ai';
 import { ageShift } from '../aging';
@@ -291,8 +292,8 @@ describe('GMs plan next year first', () => {
   });
 
   /** `squeezed`, with next year's books plus next year's needs set right at the GM's ceiling. */
-  const fullNextYear = () => {
-    const x = squeezed(0, 1);
+  const fullNextYear = (world = window) => {
+    const x = squeezed(0, 1, world);
     const { l, team } = x;
     const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * capFor(l, l.season + 1);
     const used = capSheet(l, team.id, l.season + 1).used;
@@ -322,10 +323,19 @@ describe('GMs plan next year first', () => {
   });
 
   it('stays legal when next year’s needs leave no room, cutting rather than borrowing', () => {
-    const { l, team } = fullNextYear();
+    // 2026-11-16 (the market and exits): a scene with a man compliance may cut. With nothing to cut, the cap is the law
+    // and compliance converts any deal (`aiCapCompliance`); spring cuts now take the overpaid veterans in March, and in
+    // `make-room-5` none was left, so the worlds are tried in turn until one has a cut.
+    const scene = [window, ...['make-room-6', 'make-room-7', 'make-room-8', 'make-room-9'].map(windowOf)]
+      .map((w) => fullNextYear(w))
+      .find(({ l, team }) => capCut(l, team, true) !== null);
+    expect(scene).toBeDefined();
+    const { l, team } = scene!;
+    // Short by what one cut frees (90% of it): the scene a cut decides, rather than one past every cut the club has.
+    const freed = twoYearRoom(l, capCut(l, team, true)!).now;
     team.deadMoney.push({
       season: l.season,
-      amount: Math.round(capSpace(l, team.id) + 0.03 * l.caps[l.season]),
+      amount: Math.round(capSpace(l, team.id) + Math.min(0.03 * l.caps[l.season], 0.9 * freed)),
       playerId: -1,
       note: 'test',
     });
