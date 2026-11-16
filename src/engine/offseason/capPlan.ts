@@ -5,6 +5,7 @@
  * and the window and each free-agency pass build it once per club with their own stream, so a reload plans the same.
  */
 import { leagueMarket, marketApy } from '../finance/market';
+import { playerOvr } from '../positions';
 import { teamOutlook } from '../outlook';
 import { Rng } from '../rng';
 import { quirkWorth, viewCache } from '../scouting';
@@ -110,6 +111,19 @@ function targetsFor(league: League, team: Team, depth: Record<Position, number[]
     .slice(0, 2);
 }
 
+/**
+ * How much over what it reads him worth where he's headed an AI club pays to keep its own: a club kept 47–57% of its good
+ * players whose deals ended against the NFL's 36% (2026-11-16), paying a veteran for what he was. Tuned against stayed.
+ */
+export const RESIGN_VALUE = { ratio: 1.2 };
+
+/** What a club reads its own player worth where he's headed: his market price, scaled by its outlook on him. */
+export const fairPrice = (league: League, p: Player, ahead: number): number =>
+  marketApy(leagueMarket(league), p) * Math.min(1.2, Math.max(0.5, ahead / Math.max(1, playerOvr(p))));
+
+/** A keeper's price fits the club's plan: no more than `RESIGN_VALUE.ratio` times what it reads him worth. */
+export const priceFits = (apy: number, fair: number): boolean => apy <= RESIGN_VALUE.ratio * fair;
+
 export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
   const depth = depthOutlooks(league, team);
   const wn = winNow(league, team);
@@ -133,12 +147,14 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
     offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
     // A keeper short of a starter is weighed against the coming market (the spec's depth keeper). A starter is too only
     // when the GM gambles this year: another club's man may never reach the market, so it's a bad call he can make.
-    const worth = worthIt(
-      { gain, apy: offer.apy, position: p.position },
-      upgradeBar(league, team, offer.apy),
-      c.reason === 'starter' && !gamble ? [] : targets,
-      room,
-    );
+    const worth =
+      priceFits(offer.apy, fairPrice(league, p, c.ahead)) &&
+      worthIt(
+        { gain, apy: offer.apy, position: p.position },
+        upgradeBar(league, team, offer.apy),
+        c.reason === 'starter' && !gamble ? [] : targets,
+        room,
+      );
     if (worth) {
       working[p.position].push(c.ahead);
       working[p.position].sort((a, b) => b - a);
