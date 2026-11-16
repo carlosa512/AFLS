@@ -6,7 +6,8 @@
  */
 import { capSpace } from '../src/engine/finance/cap';
 import { leagueMarket, marketApy } from '../src/engine/finance/market';
-import type { League } from '../src/engine/types';
+import { STARTERS } from '../src/engine/positions';
+import { POSITIONS, type League } from '../src/engine/types';
 
 /** A good deal: 2% of the cap or more the year it was signed (the research doc's line). */
 export const GOOD = 0.02;
@@ -55,6 +56,8 @@ export interface FaMeasures {
   outside: number;
   clubs3: number;
   oneYear: number;
+  /** The share (0–1) of good outside signings his last club cut this league year (the NFL's: 20–27%). */
+  released: number;
   eliteYoungUnsigned: number;
   /** Reported only: room at the window's start. */
   roomMedian: number;
@@ -112,6 +115,9 @@ export function faMeasures(start: WindowStart, l: League): FaMeasures {
     outside: outside.length,
     clubs3: [...perClub.values()].filter((c) => c >= 3).length,
     oneYear: outside.length ? outside.filter((p) => p.contract!.years.length === 1).length / outside.length : 0,
+    released: outside.length
+      ? outside.filter((p) => p.left?.some((d) => d.how === 'cut' && d.season === l.season)).length / outside.length
+      : 0,
     eliteYoungUnsigned,
     roomMedian: start.room[Math.floor(start.room.length / 2)],
     roomClubs10: start.room.filter((r) => r >= 0.1).length,
@@ -172,3 +178,40 @@ export function dealLengths(
     { n: number; mean: number; oneYear: number }
   >;
 }
+
+/** The market lines pooled: each the mean over seasons `from..to` (0-based) of every league. */
+export interface PooledMarket {
+  outside: number;
+  oneYear: number;
+  clubs3: number;
+  none: number;
+  released: number;
+}
+
+const meanOver = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+
+/** Seasons 2–6 by default: a generated league's first contracts aren't a market's, and one league's season is luck. */
+export function pooledMarket(runs: readonly FaMeasures[][], from = 1, to = 5): PooledMarket {
+  const all = runs.flatMap((r) => r.slice(from, to + 1));
+  const of = (k: keyof PooledMarket) => meanOver(all.map((m) => m[k]));
+  return {
+    outside: of('outside'),
+    oneYear: of('oneYear'),
+    clubs3: of('clubs3'),
+    none: of('none'),
+    released: of('released'),
+  };
+}
+
+/** Starters out of football (%), pooled the same way. */
+export function pooledOutOfFootball(runs: readonly number[][], from = 1, to = 5): number {
+  return meanOver(runs.flatMap((r) => r.slice(from, to + 1)));
+}
+
+/** Every club's starters on its depth chart at kickoff. */
+export const kickoffStarters = (l: League): number[] =>
+  l.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos])));
+
+/** Last kickoff's starters out of football at this one (%): unsigned or retired. */
+export const outOfFootball = (l: League, last: readonly number[]): number =>
+  (100 * last.filter((id) => l.players[id].retired || l.players[id].teamId === null).length) / Math.max(1, last.length);

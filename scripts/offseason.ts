@@ -35,6 +35,11 @@
 import {
   dealYearsByBand,
   faMeasures,
+  kickoffStarters,
+  outOfFootball as outOfFootballOf,
+  pooledMarket,
+  pooledOutOfFootball,
+  type FaMeasures,
   lengthSummary,
   NFL_DEAL_LENGTH,
   type PayBand,
@@ -317,9 +322,10 @@ const perRun = (n6: number) => Math.ceil((n6 * seasons) / 6);
 /** Young players' OVR gains under the best- and worst-8 coaching staffs, pooled over the run. */
 const gains = { best: [] as number[], worst: [] as number[] };
 /** Every club's depth-chart starters at a kickoff. */
-const kickoffStarters = (l: League) =>
-  l.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos])));
 let lastStarters = kickoffStarters(league);
+/** This league's market and starters out of football by season, pooled with the other leagues' at the end. */
+const ownMarket: FaMeasures[] = [];
+const ownOut: number[] = [];
 const rows: Row[] = [];
 /** Feuds a team, each season: judged on their mean over the run (one season's count swings by half on any world). */
 const feudSeasons: number[] = [];
@@ -388,9 +394,8 @@ for (let s = 0; s < seasons; s++) {
   const year = league.season;
   const k = snaps.regular!;
   // Last kickoff's starters out of football at this one: unsigned or retired.
-  const outOfFootball =
-    (100 * lastStarters.filter((id) => league.players[id].retired || league.players[id].teamId === null).length) /
-    lastStarters.length;
+  const outOfFootball = outOfFootballOf(league, lastStarters);
+  ownOut.push(outOfFootball);
   lastStarters = kickoffStarters(league);
   // The log is capped, so count this offseason's moves by date rather than by position in it.
   const moves = league.transactions.filter(
@@ -562,6 +567,7 @@ for (let s = 0; s < seasons; s++) {
   // deal 25%; 84-109 good outside signings a year, 16-22 clubs with 3+, 20% of them one-year. The owner's rule: no player
   // 28 or younger priced at 5%+ of the cap unsigned at kickoff.
   const fa = faMeasures(faStart, league);
+  ownMarket.push(fa);
   const faJudged = s >= 1;
   const faCheck = (label: string, v: number, usual: [number, number], normal: [number, number], digits = 0) =>
     faJudged ? check(label, v, usual[0], usual[1], digits, normal) : `${label} ${v.toFixed(digits)} (not judged yet)`;
@@ -841,6 +847,14 @@ if (rows.length >= 5) {
     );
     console.log(
       `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0, RETREADS_NORMAL)}`,
+    );
+  }
+  // The market, pooled: seasons 2–6 of the four leagues (one league's season is luck). Soft until the market work lands.
+  {
+    const m = pooledMarket([ownMarket, ...others.map((o) => o.market)]);
+    const out = pooledOutOfFootball([ownOut, ...others.map((o) => o.out)]);
+    console.log(
+      `market, seasons 2–6 of ${others.length + 1} leagues: ${soft('good outside signings', m.outside, 75, 120, 0, FA_MARKET, 'pooled')} · ${soft('one-year %', 100 * m.oneYear, 10, 30, 0, FA_MARKET, 'pooled')} · ${soft('clubs 3+', m.clubs3, 8, 28, 1, FA_MARKET, 'pooled')} · ${soft('no deal %', 100 * m.none, 10, 40, 0, FA_MARKET, 'pooled')} · released % ${(100 * m.released).toFixed(0)} (NFL 20–27, shown) · ${soft('starters out of football %', out, 2.5, 4.5, 1, OUT_OF_FOOTBALL, 'pooled')}`,
     );
   }
   const tail = rows.slice(-3).map((r, j) => {

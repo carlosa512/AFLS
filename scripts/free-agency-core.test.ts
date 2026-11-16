@@ -3,7 +3,16 @@ import { createLeague } from '../src/engine/generate';
 import { buildContract } from '../src/engine/finance/contract';
 import { activeRoster, setTeam } from '../src/engine/roster';
 import type { Contract, League, Player } from '../src/engine/types';
-import { dealLengths, ELITE, faMeasures, GOOD, windowStart } from './free-agency-core';
+import {
+  dealLengths,
+  ELITE,
+  faMeasures,
+  GOOD,
+  pooledMarket,
+  pooledOutOfFootball,
+  windowStart,
+  type FaMeasures,
+} from './free-agency-core';
 
 const template = createLeague({ seed: 'fa-core', personnel: true });
 let l: League;
@@ -99,5 +108,41 @@ describe('deal lengths by pay', () => {
     expect(d.big).toEqual({ n: 1, mean: 4, oneYear: 0 });
     expect(d.good.n).toBe(0);
     expect(d.star.n).toBe(0);
+  });
+});
+
+describe('the market pooled over seasons 2–6 (market and exits)', () => {
+  const season = (outside: number): FaMeasures =>
+    ({ outside, oneYear: 0.2, clubs3: 10, none: 0.1, released: 0.25 }) as FaMeasures;
+  it('pooledMarket averages seasons 2–6 of every league', () => {
+    const a = [10, 20, 30, 40, 50, 60].map(season);
+    const b = [20, 30, 40, 50, 60, 70].map(season);
+    const p = pooledMarket([a, b]);
+    expect(p.outside).toBeCloseTo(45);
+    expect(p.oneYear).toBeCloseTo(0.2);
+    expect(p.released).toBeCloseTo(0.25);
+    expect(
+      pooledOutOfFootball([
+        [9, 1, 2, 3, 4, 5],
+        [9, 5, 4, 3, 2, 1],
+      ]),
+    ).toBeCloseTo(3);
+  });
+
+  it('released counts a good outside signing cut by his club this league year', () => {
+    const [cut, walked] = [ending(0, 0), ending(1, 0)];
+    cut.contract = deal(l.season - 1, 4, GOOD * 2);
+    const start = windowStart(l);
+    for (const [p, to] of [
+      [cut, 7],
+      [walked, 8],
+    ] as const) {
+      setTeam(l, p, to);
+      p.contract = deal(l.season, 3, GOOD * 2);
+    }
+    cut.left = [{ teamId: 0, season: l.season, how: 'cut' }];
+    const m = faMeasures(start, l);
+    expect(m.outside).toBe(2);
+    expect(m.released).toBeCloseTo(0.5);
   });
 });
