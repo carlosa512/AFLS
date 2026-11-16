@@ -356,7 +356,8 @@ describe('the market clears', () => {
 
   it('never cuts a man promised a deal or one the personnel rules lock', () => {
     const { l } = lastCall();
-    for (const t of l.teams.slice(0, 10)) {
+    // Every AI club: the first ten held no minimum WR to cut once the market and exits reshuffled the world (2026-11-16).
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId)) {
       const first = fundedRoom(l, t, 'WR').cut;
       if (!first) continue;
       first.morale = { ...(first.morale ?? ({} as never)), talk: { club: t.id, promise: { kind: 'deal', made: 0 } } };
@@ -368,7 +369,8 @@ describe('the market clears', () => {
     const { l } = lastCall();
     const market = leagueMarket(l);
     let checked = 0;
-    for (const t of l.teams.slice(0, 10)) {
+    // Every AI club: the first ten held no minimum WR to cut once the market and exits reshuffled the world (2026-11-16).
+    for (const t of l.teams.filter((x) => x.id !== l.userTeamId)) {
       const first = fundedRoom(l, t, 'WR').cut;
       if (!first) continue;
       // A late-round steal: 26, rated like a star, still on his minimum deal.

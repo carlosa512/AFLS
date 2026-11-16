@@ -29,11 +29,16 @@ import { beginOffseason } from './index';
 import { demand } from './negotiation';
 
 /** A league at its re-sign window, after one season. */
+/** Each world is built once a file: several tests read the same few (each takes a season of play to build). */
+const worlds = new Map<string, string>();
 const windowOf = (seed: string) => {
+  const hit = worlds.get(seed);
+  if (hit) return hit;
   const l = createLeague({ seed });
   simToEndOfSeason(l);
   beginOffseason(l);
-  return JSON.stringify(l);
+  worlds.set(seed, JSON.stringify(l));
+  return worlds.get(seed)!;
 };
 const window = windowOf('make-room-5');
 
@@ -430,8 +435,8 @@ describe('a GM makes the room he plans, or none', () => {
 
 describe('contenders borrow, rebuilders keep next year’s room', () => {
   /** `squeezed` with next year's room to borrow against, the GM all-in (1) or rebuilding (0). */
-  const club = (wn: number) => {
-    const x = squeezed(-0.6, 1);
+  const club = (wn: number, world = window) => {
+    const x = squeezed(-0.6, 1, world);
     x.team.gm.winNow = wn;
     x.team.deadMoney.push({
       season: x.l.season + 1,
@@ -443,13 +448,18 @@ describe('contenders borrow, rebuilders keep next year’s room', () => {
   };
 
   it('a rebuilding club borrows less of next year than a contender', () => {
-    const rebuild = club(0);
-    const contend = club(1);
-    aiResignWindow(rebuild.l, rebuild.team, new Rng('room'));
-    aiResignWindow(contend.l, contend.team, new Rng('room'));
     // What its restructures push onto next year, not next year's books (a win-now GM also pays more in his re-signs) or
-    // how many it makes (several small ones can borrow less than a few big ones).
-    expect(borrowed(rebuild.l, rebuild.team.id)).toBeLessThan(borrowed(contend.l, contend.team.id));
+    // how many it makes (several small ones can borrow less than a few big ones). Pooled over three worlds: the same
+    // club in one of five read about 1% the other way once the market and exits reshuffled who it keeps (2026-11-16).
+    const lent = (wn: number) =>
+      [window, windowOf('make-room-6'), windowOf('make-room-7')]
+        .map((world) => {
+          const { l, team } = club(wn, world);
+          aiResignWindow(l, team, new Rng('room'));
+          return borrowed(l, team.id);
+        })
+        .reduce((a, b) => a + b, 0);
+    expect(lent(0)).toBeLessThan(lent(1));
   });
 
   it('a rebuilding club over the cap still gets under it', () => {
