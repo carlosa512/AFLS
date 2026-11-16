@@ -144,7 +144,7 @@ export const cutRoom = (league: League, teamId: number, cut: Player): number =>
  * minimum, which covers any of them; kept at the second-year minimum, a team with twenty spots to fill paid the
  * difference out of its in-season room.
  */
-const fillReserve = (league: League, teamId: number) =>
+export const fillReserve = (league: League, teamId: number) =>
   openSpots(league, teamId) * topMinimum(league.caps[league.season]);
 
 /**
@@ -160,13 +160,26 @@ const voidReserve = (league: League, teamId: number) =>
         .reduce((sum, p) => sum + futureProration(p.contract!, league.season), 0);
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
-export const spendable = (league: League, teamId: number) =>
-  capSpace(league, teamId) -
-  rookieReserve(league, teamId) -
-  fillReserve(league, teamId) -
-  inSeasonReserve(league, teamId) -
-  voidReserve(league, teamId) -
-  squadReserve(league, teamId);
+export const spendable = (league: League, teamId: number) => {
+  // Spend first, settle later: in free agency's first days a club may spend its in-season cushion and part of its fill
+  // reserve, as NFL clubs spend in March and fill the bottom of the roster later; it keeps them again after.
+  const early = league.phase === 'freeAgency' && (league.faDay ?? 0) >= 1 && (league.faDay ?? 0) <= SPEND_FIRST.days;
+  return (
+    capSpace(league, teamId) -
+    rookieReserve(league, teamId) -
+    (early ? 1 - SPEND_FIRST.fillShare : 1) * fillReserve(league, teamId) -
+    (early ? 0 : inSeasonReserve(league, teamId)) -
+    voidReserve(league, teamId) -
+    squadReserve(league, teamId)
+  );
+};
+
+/**
+ * The days of free agency a club spends first, and the share of its fill reserve it may spend then. By a league's fourth
+ * season clubs set aside about 12% of the cap before free agency and had 0–2% to spend, so good outside signings fell to
+ * about 60 a year, half of them squeezed one-year deals (the NFL's: 84–109 and 20%; 2026-11-16). Tuned against both.
+ */
+export const SPEND_FIRST = { days: 2, fillShare: 0.5 };
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
