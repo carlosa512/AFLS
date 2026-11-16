@@ -562,8 +562,14 @@ function topStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     const coach = l.coaches[c.coachId!];
     const name = coachName(coach);
     const before = (coach.career ?? []).filter((x) => x.season < l.season).sort((a, b) => b.season - a.season)[0];
+    // A first job is the same fact for every first-time hire: told through `pickOnce`, so two in a league year read
+    // differently and a third goes without it (a sentence is never printed twice a league year).
     const from = !before
-      ? `It is his first job in the league.`
+      ? pickOnce(l, at, slot('first'), [
+          `It is his first job in the league.`,
+          `He has never coached in the league before.`,
+          `He comes to the league for the first time.`,
+        ])
       : before.teamId === club
         ? `He was already on the ${possessive(Club)} staff.`
         : `He was ${ROLE[before.role]} with the ${l.teams[before.teamId].name} in ${before.season}.`;

@@ -481,6 +481,8 @@ describe('the re-sign call', () => {
   // keeps him for) moved (295 kept and 7 tagged before, 273 and 3 after).
   // again with the final review fixes (2026-11-16): camp form reads no name and a longer deal at his price is never refused for
   // length, so who each club keeps moved (323 kept and 10 tagged before, 321 and 3 after).
+  // again with the final fixes (2026-11-16): the club trouble cooldown and a young quarterback's lineup lean moved every depth chart and
+  // season, so who each club keeps moved (321 kept and 3 tagged before, 332 and 7 after).
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);
