@@ -31,6 +31,7 @@ import {
 import type { RestructurePreview } from '../finance/contract';
 import {
   fifthYearOptionValue,
+  dealYears,
   franchiseTagValue,
   leagueMarket,
   marketApy,
@@ -203,6 +204,26 @@ export const winNow = (league: League, team: Team) =>
 export const richness = (league: League, team: Team) =>
   clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
+/**
+ * How long an AI club's offer runs: the length a deal at this pay runs (`dealYears` at the offer's share of the cap), or
+ * his asked years when they are longer (an offer under his market price), so the length never costs him value. His ask
+ * follows his market price, and a club bidding past it signed a cheaper player's one- or two-year ask: 54% of good
+ * outside signings were one-year against the NFL's 20% (2026-11-16). A club not playing for now gives a veteran 31 or
+ * older on his position's clock a year less, as before (ages read on the clock: a 33-year-old quarterback is a 29-year-old
+ * receiver).
+ */
+export function aiOfferYears(
+  league: League,
+  team: Team,
+  player: Player,
+  apy: number,
+  d = demand(league, player, team.id),
+): number {
+  const byPay = dealYears(player, apy / league.caps[league.season]);
+  const older = player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0;
+  return clamp(Math.max(byPay, d.askYears) + older, 1, 5);
+}
+
 /** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
 export function aiOffer(
   league: League,
@@ -221,12 +242,7 @@ export function aiOffer(
     ) * (gunShyAt(league, team, player.position) ? 0.92 : 1);
   const cap = league.caps[league.season];
   const apy = Math.max(minSalary(player.experience, cap), Math.round(d.market * eager));
-  // Ages read on the position's clock: a 33-year-old quarterback is a 29-year-old receiver.
-  const years = clamp(
-    d.askYears + (player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0),
-    1,
-    5,
-  );
+  const years = aiOfferYears(league, team, player, apy, d);
   const gtdPct = clamp(d.askGtdPct * rng.float(0.85, 1.05), 0, 0.9);
   const bonusPct = Math.min(gtdPct * (0.45 + 0.4 * team.gm.capAggression), maxBonusShare(team.gm.capAggression));
   const voidYears = team.gm.capAggression > 0.75 && apy > cap * 0.04 && years < 4 ? 1 : 0;
