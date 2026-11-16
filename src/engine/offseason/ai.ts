@@ -212,6 +212,18 @@ export const richness = (league: League, team: Team) =>
  * older on his position's clock a year less, as before (ages read on the clock: a 33-year-old quarterback is a 29-year-old
  * receiver).
  */
+/**
+ * A fading veteran (this old or older on his position's clock, and headed below what he is today) needs a gain this many
+ * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older with no deal, and ours
+ * left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16).
+ */
+export const FADING = { age: 32, bar: 1.6 };
+
+/** The bid bar's multiple for a free agent, from his age on his clock and where the club reads him headed. */
+export function fadingBar(p: Pick<Player, 'age' | 'position' | 'ratings'>, ahead: number): number {
+  return p.age - ageShift(p.position) >= FADING.age && ahead < playerOvr(p as Player) ? FADING.bar : 1;
+}
+
 export function aiOfferYears(
   league: League,
   team: Team,
@@ -1125,7 +1137,8 @@ export function aiFreeAgencyDay(
       const gm = aiGm(league, team);
       // A bridge GM wants an old quarterback for a year beside his young one; a gun-shy one asks more at his position.
       const bridging = !!bridge.get(team.id) && p.position === 'QB' && p.age - ageShift('QB') >= 30;
-      const bar = bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1;
+      const bar =
+        (bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1) * (bridging ? 1 : fadingBar(p, ahead));
       const gain =
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
