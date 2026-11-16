@@ -75,3 +75,14 @@ Two follow-ups the 0.4.49 market left near an edge. The owner: wrap them up clea
   measured source, and a designation used on a cap cut would not be there for the spring.
 - "Saves" in the bar is the cap charges the team no longer pays this year and next; "dead money" is both years' share.
 - A fix version: `package.json` 0.4.50.
+
+## Added: promote a coordinator while the head coach covers (the owner, 2026-11-16)
+
+If you relieve a coordinator in season and let your head coach run that side, the open chair offered only "Find a
+coordinator"; promoting from your staff worked only in the offseason staff window. Now, from camp through the regular
+season, a coordinator chair your head coach covers can be filled by a position coach on that side who'd step up
+(`interimCandidates`, best first) on a one-year deal, under the same budget rule as promoting him while relieving a
+coordinator; the head coach stops covering that side. One move, `promoteCover(league, teamId, coachId)`, with its own
+check (`promoteCoverProblem`): only a covered chair, only that side's willing coaches, camp through the regular season,
+your team only. A coach who'd refuse or the owner protects isn't listed; with nobody, the button is disabled with the
+reason.

@@ -178,3 +178,27 @@ git commit -m "offseason: AI spring cuts use June 1 and skip cuts whose dead mon
   words), `package.json` 0.4.50, the spec's "What was built" with the final numbers.
 - [ ] **Step 4: Fresh reviewer on the branch**, then fix Critical/Important findings with a failing test first.
 - [ ] **Step 5: Push and open the PR**; read CI and fix red in one push.
+
+### Task 5: Promote a coordinator while the head coach covers
+
+**Files:**
+- Modify: `src/engine/coaching.ts` (beside `relieveProblem`/`relieveMove`), `src/ui/screens/Coaches.tsx` (`OpenChair`)
+- Test: `src/engine/coaching.test.ts` (or the file that holds the relieve tests)
+
+**Interfaces:**
+- Produces: `promoteCoverProblem(league, teamId, coachId, budget = true): string | null` and
+  `promoteCover(league, teamId, coachId): void` — the candidate is in `interimCandidates(league, teamId, side)` for a
+  side the head coach covers (`coveringHeadCoach`); phase `preseason` or `regular`; budget as in `relieveProblem`'s
+  promotion branch (without a freed salary). The move calls `promoteInto(league, teamId, c, 1)`, and the head coach no
+  longer covers that side.
+
+- [ ] **Step 1: Failing tests:** a covered chair in season gets the promoted coach as its coordinator (`coordinatorOf`
+  is him, `coveringHeadCoach` is null, his deal runs one year); refused outside camp–regular season; refused when the
+  chair isn't covered (filled, or the cover switched off); refused for a coach not in `interimCandidates` for that side
+  (the other side's coach); never on an AI team's staff from your call (teamId must be yours in the UI; the engine
+  check reads the team given).
+- [ ] **Step 2:** run, watch them fail.
+- [ ] **Step 3:** implement the two functions; in `OpenChair`, when the chair is covered and the phase allows it, a
+  "Promote…" control listing `interimCandidates` (disabled with `promoteCoverProblem`'s reason as its title when none
+  can); `npm run copy` and read the new lines against `docs/UI.md`.
+- [ ] **Step 4:** the coaching tests, `ui/ui.test.ts` (screen contract), typecheck. Commit.
