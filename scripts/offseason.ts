@@ -849,12 +849,13 @@ if (rows.length >= 5) {
       `carousel over ${others.length + 1} leagues (${all} head-coach hires): ${check('HC hires retreads %', (100 * retread) / all, 10, 50, 0, RETREADS_NORMAL)}`,
     );
   }
-  // The market, pooled: seasons 2–6 of the four leagues (one league's season is luck). Soft until the market work lands.
+  // The market, pooled: seasons 2–6 of the four leagues (one league's season is luck). No deal is judged (the market
+  // work, 2026-11-16: in band at 15%); the rest stay soft, known issues the owner left for a later pass.
   {
     const m = pooledMarket([ownMarket, ...others.map((o) => o.market)]);
     const out = pooledOutOfFootball([ownOut, ...others.map((o) => o.out)]);
     console.log(
-      `market, seasons 2–6 of ${others.length + 1} leagues: ${soft('good outside signings', m.outside, 75, 120, 0, FA_MARKET, 'pooled')} · ${soft('one-year %', 100 * m.oneYear, 10, 30, 0, FA_MARKET, 'pooled')} · ${soft('clubs 3+', m.clubs3, 8, 28, 1, FA_MARKET, 'pooled')} · ${soft('no deal %', 100 * m.none, 10, 40, 0, FA_MARKET, 'pooled')} · released % ${(100 * m.released).toFixed(0)} (NFL 20–27, shown) · ${soft('starters out of football %', out, 2.5, 4.5, 1, OUT_OF_FOOTBALL, 'pooled')}`,
+      `market, seasons 2–6 of ${others.length + 1} leagues: ${soft('good outside signings', m.outside, 75, 120, 0, FA_MARKET, 'pooled')} · ${soft('one-year %', 100 * m.oneYear, 10, 30, 0, FA_MARKET, 'pooled')} · ${soft('clubs 3+', m.clubs3, 8, 28, 1, FA_MARKET, 'pooled')} · ${check('no deal %', 100 * m.none, 10, 40, 0)} · released % ${(100 * m.released).toFixed(0)} (NFL 20–27, shown) · ${soft('starters out of football %', out, 2.5, 4.5, 1, OUT_OF_FOOTBALL, 'pooled')}`,
     );
   }
   const tail = rows.slice(-3).map((r, j) => {
