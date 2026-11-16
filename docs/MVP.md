@@ -331,12 +331,22 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       everyone). Clubs carry far more room into the window than NFL clubs (a median near 30% against 3–12%) and spend it
       refilling rosters, not on the market. Look at how much of the roster turns over each spring and the room clubs
       bring to March (`docs/research/free-agency-market.md`). Young stars are judged strictly and placed.
+      **Partial (0.4.49, `docs/superpowers/specs/2026-11-16-market-and-exits-design.md`):** AI clubs keep 35–45% of
+      their own good players (NFL 36%, was 47–57%), cut overpaid veterans in the spring (18–21% of good outside signings
+      were released, NFL 20–27%), spend first in free agency's first days and pass more on fading veterans; good deals
+      ending with no deal 15% (NFL 25%, was 2–8%), judged on four leagues' seasons 2–6. Still short: good outside
+      signings 59 a year (fewer good deals end each year than the NFL's, about 85–130 against 180: the pay structure),
+      the one-year share 48% and clubs with 3+ at 8.
 - [ ] **Starters leave football more as a league ages.** (0.4.46: now measured by age in `npm run careers` against the NFL's;
       short-prime starters at 31–32 leave about twice as often, a third of it unsigned veterans: the front offices' work.) (0.4.13, front offices that plan: 4.9/9.0/10% at seasons 2–4 on `offseason-audit-3` before, 2.6/5.9/6.4% after; the market now places the good ones, what remains is mostly retirements and faded veterans.) About 3% of last season's starters are unsigned or retired
       at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
       retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
       shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
       the bottom of a roster.
+      **Partial (0.4.49):** a starter retires less while he still starts (`RETIRE_BODY.starterLean`, kickers and punters
+      aside) and camp signs last season's unsigned starters: starters gone at 31 15.5% (in band), long prime at 31–32 in
+      band; short prime still 20.6/30.7% at 31/32 (unsigned veterans walking away) and starters out of football 7.2%
+      pooled.
 - [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
       Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
       ours don't.

@@ -599,7 +599,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
     tags (`market.ts`; a deal's length by what he's worth, then his age on his position's clock: `dealYears`, `DEAL_YEARS`)
-  - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
+  - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft; the market (0.4.49): AI offers run the length of
+    their pay (`aiOfferYears`), clubs keep their own only at a fair price (`RESIGN_VALUE`, `fairPrice` in `capPlan.ts`),
+    your good player may want to test the market (`wantsMarket`, a pure draw), free agency passes more on fading
+    veterans (`FADING`), clubs spend first in free agency's first days (`SPEND_FIRST`), cut overpaid veterans at the new
+    league year (`springCuts`, a starters' floor) and sign last season's unsigned starters in camp
+    (`campStarterSignings`); a starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`)
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and

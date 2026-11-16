@@ -153,3 +153,16 @@ Four levers, built and measured in this order (each moves the next one's numbers
 
 The knob values (tuned), how "his price fits the plan" is measured exactly, the spring-cut threshold, the player-side
 chance (low: a few in a hundred), the wording of the refusal, the probe scripts, and the order of fixing moved tests.
+
+## What was built (2026-11-16)
+
+- Lever 1 (`aiOfferYears`), lever 2 (`RESIGN_VALUE` 1.2; your side `wantsMarket`, `USER_TESTS_MARKET` 0.08), lever 3
+  (`springCuts`, `SPRING_CUT.margin` 0.5, the floor at starters under contract: `KEEP_MIN` let nobody go in March),
+  lever 4 (`campStarterSignings` with the in-season cushion and no roster limit in camp; `RETIRE_BODY.starterLean` 0.55,
+  kickers and punters aside). Added on the way, the owner's calls: free agency passes more on fading veterans (`FADING`)
+  and clubs spend first (`SPEND_FIRST`). Tried and undone: a March room share (no effect) and longer cheap deals (broke
+  the judged length line).
+- Result, four leagues' seasons 2–6: stayed 35–45%, no deal 15% (judged), released 18%; good outside signings 59,
+  one-year 48%, clubs 3+ 8.0, starters out of football 7.2% stay warnings. Careers: all 31 gone 15.5%, long prime 31–32
+  in band; short prime 31–32 and all 32 still high (soft).
+- Follow-ups: the pay structure (fewer good deals end each year than the NFL's), short-prime veterans walking away.
