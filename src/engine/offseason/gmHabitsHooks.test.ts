@@ -24,7 +24,7 @@ import {
   spendable,
   youngQbClub,
 } from './ai';
-import { demand, OFFSEASON_ROSTER_MAX } from './negotiation';
+import { demand, freeAgents, OFFSEASON_ROSTER_MAX } from './negotiation';
 
 const base = (() => {
   const l = createLeague({ seed: 'gm-habits-hooks' });
@@ -82,6 +82,14 @@ describe('Signs a Bridge QB', () => {
     for (const q of [young, fa])
       for (const k of Object.keys(q.ratings) as (keyof typeof q.ratings)[]) q.ratings[k] -= 5;
     fa.age = 34 + ageShift('QB');
+    // 2026-11-16: the market and exits: offers now run the length of the pay offered (`aiOfferYears`), and this one is a
+    // multi-year deal at a price (about $12.8M a year) the club's room (a few hundred thousand once the scene's ratings were
+    // moved) does not cover. The club is given room for it, as the scene's own comment says: the test is about the log.
+    // He is also the only one left on the market, so the club's daily signings are his (`dailyLimit`).
+    for (const q of freeAgents(l)) if (q.id !== fa.id) q.retired = true;
+    const room = capFor(l, l.season) * 0.1;
+    t.deadMoney.push({ season: l.season, amount: -Math.round(room), playerId: -1, note: 'test' });
+    t.deadMoney.push({ season: l.season + 1, amount: -Math.round(room), playerId: -1, note: 'test' });
     // 2026-11-16: final review fixes (owner: aim for the average): the signing is logged beside the club's young quarterback
     // (`youngQbClub`: its best by outlook, if 25 or younger), so any other quarterback on the club is kept below him; in
     // this world a veteran backup out-rated him once both were lowered. The scene asserts he is the club's.

@@ -177,9 +177,17 @@ describe('judged a season later', () => {
   }, 300_000);
   it('a man he got who started and then retires at the new league year still counts as a starter', () => {
     simToEndOfSeason(l);
+    // 2026-11-16: the market and exits: a starter leans off his chance of retiring (`RETIRE_BODY.starterLean`), so at 70 he
+    // no longer leaves for certain, except a kicker or punter (who skip the lean). The scene is a starting specialist, and
+    // the test asserts one was found.
     const starter = Object.values(l.players).find(
-      (q) => q.teamId !== null && !q.retired && seasonRole(l, q, l.season)?.role === 'starter',
+      (q) =>
+        q.teamId !== null &&
+        !q.retired &&
+        (q.position === 'K' || q.position === 'P') &&
+        seasonRole(l, q, l.season)?.role === 'starter',
     )!;
+    expect(starter, 'a starting kicker or punter').toBeDefined();
     starter.age = 70; // retires for certain in the step that ages him
     noteMoment(l, gm, { kind: 'trade', got: { players: [starter.id], picks: [] } });
     beginOffseason(l);
