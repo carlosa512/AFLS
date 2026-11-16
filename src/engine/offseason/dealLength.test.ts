@@ -99,3 +99,21 @@ describe("an AI club's offer runs the length of its pay (market and exits)", () 
     expect(n).toBeGreaterThan(20);
   });
 });
+
+describe('an offer under his ask runs his asked years (final review)', () => {
+  it('never adds years he did not ask for when it pays under his ask', () => {
+    const l = createLeague({ seed: 'deal-length-3' });
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cap = l.caps[l.season];
+    let n = 0;
+    for (const p of Object.values(l.players).slice(0, 600)) {
+      if (p.teamId === null) continue;
+      const d = demand(l, p, team.id);
+      const apy = Math.floor(d.askApy * 0.99);
+      if (dealYears(p, apy / cap) <= d.askYears) continue;
+      n++;
+      expect(aiOfferYears(l, team, p, apy, d)).toBeLessThanOrEqual(d.askYears);
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+});

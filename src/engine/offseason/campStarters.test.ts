@@ -73,3 +73,18 @@ describe('the retirement lean skips specialists', () => {
     expect(retireChance(k, playerOvr(k), true)).toBe(retireChance(k, playerOvr(k), false));
   });
 });
+
+describe('startedLastSeason reads the club he played for (final review)', () => {
+  it('a starter who has since moved still counts at the club he started for, not his new one', () => {
+    const l = createLeague({ seed: 'camp-starters-moved' });
+    simToEndOfSeason(l);
+    const season = l.season;
+    const before = startedLastSeason(l, season);
+    const p = Object.values(l.players).find((x) => before.has(x.id) && x.position === 'WR' && x.teamId !== null)!;
+    const from = p.teamId!;
+    setTeam(l, p, (from + 1) % l.teams.length);
+    const after = startedLastSeason(l, season);
+    // Nothing about last season changed: the same men started it, wherever they are now.
+    expect([...after].sort()).toEqual([...before].sort());
+  });
+});

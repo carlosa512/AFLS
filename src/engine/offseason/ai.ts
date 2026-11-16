@@ -233,8 +233,9 @@ export const richness = (league: League, team: Team) =>
 export const FADING = { age: 32, bar: 1.6 };
 
 /** The bid bar's multiple for a free agent, from his age on his clock and where the club reads him headed. */
-export function fadingBar(p: Pick<Player, 'age' | 'position' | 'ratings'>, ahead: number): number {
-  return p.age - ageShift(p.position) >= FADING.age && ahead < playerOvr(p as Player) ? FADING.bar : 1;
+export function fadingBar(p: Pick<Player, 'age' | 'position'>, ahead: number, seen: number): number {
+  // Headed under what the club's own scouts see in him today (`seen`): never his true rating (the fog of war).
+  return p.age - ageShift(p.position) >= FADING.age && ahead < seen ? FADING.bar : 1;
 }
 
 export function aiOfferYears(
@@ -246,7 +247,9 @@ export function aiOfferYears(
 ): number {
   const byPay = dealYears(player, apy / league.caps[league.season]);
   const older = player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0;
-  return clamp(Math.max(byPay, d.askYears) + older, 1, 5);
+  // Past his asked years only at his price or better: under it, every extra year costs him value (`offerValue`).
+  const years = apy >= d.askApy ? Math.max(byPay, d.askYears) : d.askYears;
+  return clamp(years + older, 1, 5);
 }
 
 /** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
@@ -1189,12 +1192,14 @@ export function aiFreeAgencyDay(
       const full = (room.get(team.id) ?? 0) <= 0;
       if ((full && !opts.lastCall) || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
-      const ahead = leanOutlook(p, read(team.id, p), winNow(league, team));
+      const seen = read(team.id, p);
+      const ahead = leanOutlook(p, seen, winNow(league, team));
       const gm = aiGm(league, team);
       // A bridge GM wants an old quarterback for a year beside his young one; a gun-shy one asks more at his position.
       const bridging = !!bridge.get(team.id) && p.position === 'QB' && p.age - ageShift('QB') >= 30;
       const bar =
-        (bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1) * (bridging ? 1 : fadingBar(p, ahead));
+        (bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1) *
+        (bridging ? 1 : fadingBar(p, ahead, seen.ovr));
       const gain =
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
@@ -1428,20 +1433,30 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
 }
 
 /**
- * Last season's starters by snaps: the top `STARTERS[pos]` a club and position (kickers and punters by games), a man
- * since let go read at the club he last left.
+ * Last season's starters by snaps: the top `STARTERS[pos]` a club and position (kickers and punters by games), read
+ * at the clubs he played for that season (`statTeams`, `splitStats`), not where he is now.
  */
 export function startedLastSeason(league: League, season: number): Set<number> {
-  const out = new Set<number>();
-  for (const team of league.teams)
-    for (const pos of POSITIONS) {
-      const key = pos === 'K' || pos === 'P' ? 'gp' : 'snaps';
-      const n = (p: Player) => p.stats[season]?.[key] ?? 0;
-      const ps = Object.values(league.players).filter(
-        (p) => (p.teamId ?? p.left?.at(-1)?.teamId) === team.id && p.position === pos && n(p) > 0,
-      );
-      for (const p of ps.sort((a, b) => n(b) - n(a)).slice(0, STARTERS[pos])) out.add(p.id);
+  // Each man's snaps at each club he played for that season, from his own record (a trade or a later move never
+  // moves where he started), gathered in one pass.
+  const by = new Map<string, { id: number; n: number }[]>();
+  for (const p of Object.values(league.players)) {
+    const line = p.stats[season];
+    if (!line) continue;
+    const key = p.position === 'K' || p.position === 'P' ? 'gp' : 'snaps';
+    const teams = p.statTeams?.[season] ?? (p.teamId !== null ? [p.teamId] : []);
+    for (const t of teams) {
+      const n = (teams.length > 1 ? p.splitStats?.[season]?.[t]?.[key] : line[key]) ?? 0;
+      if (n <= 0) continue;
+      const k = `${t}:${p.position}`;
+      (by.get(k) ?? by.set(k, []).get(k)!).push({ id: p.id, n });
     }
+  }
+  const out = new Set<number>();
+  for (const [k, xs] of by) {
+    const pos = k.slice(k.indexOf(':') + 1) as Position;
+    for (const x of xs.sort((a, b) => b.n - a.n || a.id - b.id).slice(0, STARTERS[pos])) out.add(x.id);
+  }
   return out;
 }
 
