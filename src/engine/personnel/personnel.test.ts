@@ -322,6 +322,8 @@ describe('migration and collection', () => {
     // schedule drawn after it, the players' contracts and the result move; the charts, which no contract touches, still match.
     // `players` and `result` once more with the minimum deals' years refitted to a settled league's (2026-11-15): the same
     // draws, a minimum veteran's deal now runs a year (two when young), so only his contract and what it pays moves.
+    // `players`, `charts` and `result` again with the final review fixes (2026-11-16): camp form reads no name (every chart moves)
+    // and a longer deal at his price is never refused for length (contracts and play move); the stream and schedule still match.
     // `players`, `charts` and `result` again with the lineup lean and camp battles (2026-11-15: `startScore`): who starts at
     // each position moves (young players and high picks lean up, a camp form splits close jobs), so every chart and the game
     // played from them move; the stream and the schedule still match, so no draw moved.
@@ -336,9 +338,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: 'f7e8934fec1907ce8241e0d9be87837fbe1ed39349a4082815404b5f60e44d81',
+  players: '9079800a8d9dc0e4b0fd379ac6ef88a5e2683dd8522ad3c51b767b917d32a2ae',
   rng: [643924055, 2159163808, 1869990391, 1664091751],
   games: '235d4d3cc93e3f3a8eb0ae2fbff091c0cdeda0177c001c6b9b4b68b52404ba21',
-  result: '4ad957394b14db1cb2da9d8450a29ce4b55b49d81b7892f6004a2285467be986',
-  charts: 'db5391c928087851b038414f81e0c0fdf9963ce8ef8fb98f141d263670756258',
+  result: '5465be902d824cb7ddb120909fe1f83c3dca1143b4f6ba005c2c1da1616a82b5',
+  charts: '6d6bb5a57189008856d632ba80583be87688a310c078337f71f7311cbf394dc9',
 };

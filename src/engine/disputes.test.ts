@@ -603,6 +603,10 @@ describe('disputes: AI clubs keep their promises (G4)', () => {
 
   it("starts a promised man for his promise's games when he's within a point of the last starter, on AI clubs only", () => {
     const l = createLeague({ seed: 'snaps-promise' });
+    // 2026-11-16: final review fixes (owner: aim for the average): a new league's charts are built without the coaches'
+    // leanings and a sync reads them, so your club's first sync may swap two close men on its own; it is synced once
+    // first, so what the last check sees is the promise's alone (an AI club's is told apart by the promise above).
+    syncDepthChart(l, l.teams[l.userTeamId]);
     const pos = 'LB';
     const n = STARTERS[pos];
     const chartOf = (teamId: number) => l.teams[teamId].depthChart[pos];

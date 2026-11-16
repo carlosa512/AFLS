@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capHit } from '../finance/contract';
+import { buildContract, capHit } from '../finance/contract';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -315,6 +315,23 @@ describe('the market clears', () => {
 
   it('swapGain: a backup passer is judged against the room without the minimum man he replaces', () => {
     const { l } = lastCall();
+    // 2026-11-16: final review fixes (owner: aim for the average): the minimum deals a new league hands out were refit, and
+    // no club's backup passer is on one any more, so none had a minimum quarterback to cut. Each club's lowest rated
+    // quarterback behind another goes on a one-year minimum deal (no bonus, so his release leaves no dead money): the
+    // scene the test is about, and `seen` asserts it was found.
+    const min = minSalary(0, l.caps[l.season]);
+    for (const t of l.teams) {
+      const qbs = activeRoster(l, t.id)
+        .filter((p) => p.position === 'QB')
+        .sort((a, b) => playerOvr(a) - playerOvr(b));
+      if (qbs.length >= 2)
+        qbs[0].contract = buildContract(
+          { years: 1, total: min, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+          l.season,
+          'minimum',
+          min,
+        );
+    }
     let seen = 0;
     for (const t of l.teams) {
       const { cut } = fundedRoom(l, t, 'QB');

@@ -15,7 +15,7 @@ import {
   inheritCoachQuirk,
   reconcileCoachBag,
 } from './coachQuirks';
-import { assessCoachAdvice, coachOrder, coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
+import { assessCoachAdvice, CAMP, coachOrder, coachTeachingWeek, updateCoachAdvice } from './coachDecisions';
 import { coachAdviceObservation, userCoachGameObservation } from './coachReports';
 import { asPromoted, coachingForPlayer, teamCoaches } from './coaching';
 import { createLeague, SAVE_VERSION } from './generate';
@@ -496,9 +496,19 @@ describe('player fit, recommendations and teaching', () => {
     a.ratings = clone(b.ratings);
     a.traits.workEthic = 1;
     b.traits.workEthic = 20;
-    expect(coachOrder([a, b], 'WR', [c])[0].id).toBe(b.id);
-    for (const key of Object.keys(a.ratings) as (keyof typeof a.ratings)[]) a.ratings[key] = 20;
-    expect(coachOrder([a, b], 'WR', [c])[0].id).toBe(a.id);
+    // 2026-11-16: final review fixes (owner: aim for the average): a near tie is a tie in everything the usual order reads,
+    // so the two have the same age, seasons and draft slot and no camp form (the lineup lean and camp battles, which
+    // otherwise split them by more than the coach's lean of at most 0.2 points).
+    Object.assign(a, { age: b.age, experience: b.experience, draft: b.draft });
+    const sd = CAMP.sd;
+    CAMP.sd = 0;
+    try {
+      expect(coachOrder([a, b], 'WR', [c])[0].id).toBe(b.id);
+      for (const key of Object.keys(a.ratings) as (keyof typeof a.ratings)[]) a.ratings[key] = 20;
+      expect(coachOrder([a, b], 'WR', [c])[0].id).toBe(a.id);
+    } finally {
+      CAMP.sd = sd;
+    }
     t.autoDepth = false;
     syncDepthChart(l, t);
     const chart = clone(t.depthChart);

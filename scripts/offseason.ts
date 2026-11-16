@@ -544,7 +544,9 @@ for (let s = 0; s < seasons; s++) {
   // seeds (offseason-audit, alt-1..3), main ran -43 to +112 a step and player size -69 to +199 (alt-2 dips to 298 and
   // rebounds to 497), while the whole run grew alike (+110 and +115 on average), so the step ceiling is 210; the pool
   // band (100-650) is what catches a runaway.
-  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 210, 0)}` : ''}`;
+  // The pool's yearly jump: 280 at most (the owner's call, 2026-11-16: with deals by worth a new league's first deals end
+  // together around season 4, +208 and +265 in two runs, then the pool holds; its level band still catches drift).
+  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 280, 0)}` : ''}`;
   // Clubs restructuring anyone this offseason: about 55% of NFL clubs restructure at least a minor deal in a year, 37% a
   // major one (over $6.5M), 78% of playoff teams (Over the Cap, "Looking at restructuring NFL contracts"). Before GMs
   // planned next year (2026-11-01), nearly every club did, three to five times a year, and the league tightened each

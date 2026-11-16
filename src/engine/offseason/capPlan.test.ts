@@ -241,41 +241,50 @@ describe('review fixes', () => {
   it('no room is made for keepers who won’t sign: nobody is cut and nothing restructured for them', () => {
     const l = fresh();
     // A club where room would really be made for its worth keepers, a tenth short of them.
-    const squeeze = (x: League, id: number) => {
+    // 2026-11-16: final review fixes (owner: aim for the average): in this world no club had room made at a tenth short (the
+    // cuts it would make fell under what a keeper is worth to it), so the squeeze deepens by a tenth at a time until one does,
+    // and the test asserts such a club was found.
+    const squeeze = (x: League, id: number, share = 0.9) => {
       const owed = capPlan(structuredClone(x), x.teams[id], new Rng('walks'))
         .keepers.filter((k) => k.worth)
         .reduce((a, k) => a + k.cost, 0);
-      x.teams[id].carryover -= spendable(x, id) - 0.9 * owed;
+      x.teams[id].carryover -= spendable(x, id) - share * owed;
     };
-    const team = l.teams.find((t) => {
-      if (t.id === l.userTeamId) return false;
-      const c = structuredClone(l);
-      squeeze(c, t.id);
-      return (
-        makeRoomFor(
-          c,
-          c.teams[t.id],
-          capPlan(c, c.teams[t.id], new Rng('walks')).keepers.filter((k) => k.worth),
-        ) > 0
-      );
-    })!;
-    for (const p of expiringPlayers(l, team.id)) {
+    let share = 0.9;
+    let team: League['teams'][number] | undefined;
+    for (; !team && share >= 0.4; share -= 0.1)
+      team = l.teams.find((t) => {
+        if (t.id === l.userTeamId) return false;
+        const c = structuredClone(l);
+        squeeze(c, t.id, share);
+        return (
+          makeRoomFor(
+            c,
+            c.teams[t.id],
+            capPlan(c, c.teams[t.id], new Rng('walks')).keepers.filter((k) => k.worth),
+          ) > 0
+        );
+      });
+    share += 0.1;
+    expect(team, 'a club that would make room for its keepers').toBeDefined();
+    const club = team!;
+    for (const p of expiringPlayers(l, club.id)) {
       p.personality.loyalty = 0;
       p.personality.greed = 1;
       if (p.morale) delete p.morale.talk;
     }
-    team.taggedId = -1; // the tag is spent: what's left is signings
-    squeeze(l, team.id);
+    club.taggedId = -1; // the tag is spent: what's left is signings
+    squeeze(l, club.id, share);
     // Every keeper prices himself out (no loyalty, a walk-away far past any offer).
-    for (const p of expiringPlayers(l, team.id)) p.personality.greed = 10;
+    for (const p of expiringPlayers(l, club.id)) p.personality.greed = 10;
     const before = new Set(
-      teamPlayers(l, team.id)
-        .filter((p) => !expiringPlayers(l, team.id).includes(p))
+      teamPlayers(l, club.id)
+        .filter((p) => !expiringPlayers(l, club.id).includes(p))
         .map((p) => p.id),
     );
     const n = l.transactions.length;
-    aiResignWindow(l, team, new Rng('walks'));
-    expect([...before].filter((id) => l.players[id].teamId !== team.id)).toEqual([]);
-    expect(l.transactions.slice(n).filter((t) => t.kind === 'restructure' && t.teamIds.includes(team.id))).toEqual([]);
+    aiResignWindow(l, club, new Rng('walks'));
+    expect([...before].filter((id) => l.players[id].teamId !== club.id)).toEqual([]);
+    expect(l.transactions.slice(n).filter((t) => t.kind === 'restructure' && t.teamIds.includes(club.id))).toEqual([]);
   });
 });

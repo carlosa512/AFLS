@@ -328,7 +328,10 @@ describe('out of position', () => {
     team.autoDepth = false;
     // The best backup corner: he outranks the corners behind him.
     const cb = l.players[team.depthChart.CB[3]];
-    expect(playerOvr(cb)).toBeGreaterThan(playerOvr(l.players[team.depthChart.CB.at(-1)!]));
+    // 2026-11-16: final review fixes (owner: aim for the average): "outranks" is the auto chart's order (worth, youth lean and
+    // camp form), no longer the rating alone: the fourth corner was rated below the last one and still ahead of him.
+    const auto = buildAutoDepthChart(teamPlayers(l, team.id)).CB;
+    expect(auto.indexOf(cb.id)).toBeLessThan(auto.indexOf(team.depthChart.CB.at(-1)!));
     placeAt(l, cb.id, 'S', undefined, 'staff');
     returnHome(l, cb.id);
     expect(team.depthChart.CB.at(-1)).not.toBe(cb.id);

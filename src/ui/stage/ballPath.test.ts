@@ -28,6 +28,8 @@ describe('the ball path', () => {
     // kinds, no interception this time); each is still its kind's first play drawn by `buildPath`.
     // Re-pinned again 2026-11-15: the lineup lean and camp battles: the charts moved, so the game's plays are others once more
     // (11 kinds with the interception back); each is still its kind's first play drawn by `buildPath`.
+    // Re-pinned 2026-11-16: final review fixes: camp form reads no name, so every chart moved again; each kind's first play is
+    // still drawn by `buildPath`.
     expect(paths).toMatchSnapshot();
   });
 });

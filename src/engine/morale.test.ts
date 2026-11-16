@@ -250,10 +250,10 @@ describe('morale: the factors', () => {
   });
 
   it('reads a backup with no games yet as content: no role to compare', () => {
-    const backup = team0
-      .filter((p) => p.position === 'WR')
-      .sort((a, b) => playerOvr(b) - playerOvr(a))
-      .at(-1)!;
+    // 2026-11-16: final review fixes (owner: aim for the average): the lowest rated receiver can now hold a starting spot (the
+    // youth lean and camp form), and then his role reads above what he expects; the backup is the last on the chart.
+    const backup = league.players[league.teams[0].depthChart.WR.at(-1)!];
+    expect(backup.position, 'a receiver at the bottom of the chart').toBe('WR');
     expect(moraleFactors(league, backup, moraleContext(league)).role).toBe(0);
     expect(STARTERS.WR).toBeGreaterThan(0);
   });

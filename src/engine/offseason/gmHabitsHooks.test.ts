@@ -82,6 +82,13 @@ describe('Signs a Bridge QB', () => {
     for (const q of [young, fa])
       for (const k of Object.keys(q.ratings) as (keyof typeof q.ratings)[]) q.ratings[k] -= 5;
     fa.age = 34 + ageShift('QB');
+    // 2026-11-16: final review fixes (owner: aim for the average): the signing is logged beside the club's young quarterback
+    // (`youngQbClub`: its best by outlook, if 25 or younger), so any other quarterback on the club is kept below him; in
+    // this world a veteran backup out-rated him once both were lowered. The scene asserts he is the club's.
+    for (const q of teamPlayers(l, t.id).filter((x) => x.position === 'QB' && x !== young))
+      for (const k of Object.keys(q.ratings) as (keyof typeof q.ratings)[])
+        q.ratings[k] = Math.min(q.ratings[k], young.ratings[k] - 3);
+    expect(youngQbClub(l, t)?.id).toBe(young.id);
     aiFreeAgencyDay(l, new Rng('bridge'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
     expect(fa.teamId).toBe(t.id);
     expect(fa.contract!.length).toBe(1);
