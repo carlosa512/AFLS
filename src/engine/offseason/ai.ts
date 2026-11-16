@@ -70,7 +70,7 @@ import {
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { personnelMoveLock } from '../personnel/elevations';
-import { capPlan, type PlannedKeeper } from './capPlan';
+import { capPlan, fairPrice, type PlannedKeeper } from './capPlan';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -991,6 +991,49 @@ export function capCut(league: League, team: Team, desperate = false, fairOnly =
   // than the cuts it spared (a traced league, 44 such cuts to main's 23).
   if (fairOnly) return null;
   return cuts.sort((a, b) => playerOvr(a.p) / a.now - playerOvr(b.p) / b.now)[0]?.p ?? null;
+}
+
+/**
+ * How far past what a club reads him worth a veteran's cap charge runs before it cuts him in the spring: the NFL's March
+ * releases put a fifth to a quarter of its good outside signings on the market, and ours rarely cut a veteran with years
+ * left (2026-11-16). Tuned against the released share.
+ */
+export const SPRING_CUT = { margin: 0.5 };
+
+/**
+ * An AI club's spring cuts at the new league year: veterans with years left whose charge runs past `SPRING_CUT.margin`
+ * over what it reads them worth where they're headed, when the cut frees room now and over two years, never a young
+ * star, a man signed this league year or one that leaves his position short of its starters under contract (in March most
+ * deals have just ended and a club refills in free agency and the draft: the season's floor, `KEEP_MIN`, counted only
+ * those under contract and let nobody go); the most room first. Your staff never cuts.
+ * Called after the trade market's call-around for cap casualties, so one it traded is gone already. Returns who went.
+ */
+export function springCuts(league: League, team: Team): Player[] {
+  if (team.id === league.userTeamId) return [];
+  const market = leagueMarket(league);
+  const wn = winNow(league, team);
+  const out: Player[] = [];
+  for (;;) {
+    const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
+    const counts = new Map<Position, number>();
+    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+    const best = roster
+      .filter(
+        (p) =>
+          (counts.get(p.position) ?? 0) > STARTERS[p.position] &&
+          lastSeason(p.contract!) > league.season &&
+          p.contract!.signedSeason !== league.season &&
+          !isYoungStar(league, p, marketApy(market, p)) &&
+          capHit(p.contract!, league.season) >
+            (1 + SPRING_CUT.margin) * fairPrice(league, p, teamOutlook(league, team.id, p, wn)),
+      )
+      .map((p) => ({ p, ...twoYearRoom(league, p) }))
+      .filter((x) => x.now > 200 && x.twoYear > 0)
+      .sort((a, b) => b.now - a.now)[0];
+    if (!best) return out;
+    releasePlayer(league, best.p);
+    out.push(best.p);
+  }
 }
 
 /**

@@ -68,6 +68,7 @@ import {
   expiringPlayers,
   fillCampRoster,
   payAhead,
+  springCuts,
 } from './ai';
 import { clockOffers } from '../trade/draft';
 import {
@@ -271,6 +272,10 @@ export function beginOffseason(league: League): void {
   leadershipNewYear(league);
   // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
   withLeagueAi(league, () => marketMoment(league, 'leagueYear'));
+  // Then the spring's cap casualties nobody traded for: AI clubs release overpaid veterans (`springCuts`).
+  withLeagueAi(league, () => {
+    for (const team of league.teams) springCuts(league, team);
+  });
   // The new league year's moods: who was passed in his room, who left, what the winter's deals say.
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
