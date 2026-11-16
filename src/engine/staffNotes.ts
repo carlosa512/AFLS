@@ -310,7 +310,10 @@ export function staffRows(
     const turn = unitTurnFor(league, told);
     const story = turn && openStory(league, { kind: 'room', teamId: league.userTeamId, unit: turn.unit as CoachRoom });
     // A room's turn must have stood: the week it turns is too soon to tell.
-    if (turn && !rested(turn.unit) && (!story || tellable(league, story, clock))) {
+    // A room turning sour is told only through its story: one over the year's budget (`ROOM_STORIES`) has none and
+    // isn't told here either (the owner: the same amount shown, the best of it).
+    const sour = turn && (turn.word === 'Split' || turn.word === 'Down');
+    if (turn && !rested(turn.unit) && (story ? tellable(league, story, clock) : !sour)) {
       const note = say(UNIT_TURN, turn.fact, { key, slot: `unit:${turn.unit}`, ...wording(league, sender.from, said) });
       said.push(note);
       covered.push(turn.key);

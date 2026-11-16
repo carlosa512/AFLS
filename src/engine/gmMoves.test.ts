@@ -130,22 +130,31 @@ describe('a GM’s notable moves', () => {
   });
 
   it('plays the same with the record off', () => {
-    const play = (on: boolean) => {
+    const play = (on: boolean, seed: string) => {
       MOVES.on = on;
       try {
-        const l = createLeague({ seed: 'moves-off' });
+        const l = createLeague({ seed });
         while (l.week <= 10) playWeek(l);
         return l;
       } finally {
         MOVES.on = true;
       }
     };
+    // 2026-11-15: the lineup lean and camp battles: no GM of 'moves-off' made a recorded move in ten weeks any more (a
+    // trade with a first, a big signing), so the record's being on had nothing to show. The scene is a world where one
+    // did, searched in order.
+    let seed = 'moves-off';
+    let on = play(true, seed);
+    for (let n = 2; n <= 8 && !Object.values(on.gms).some((g) => g.deals?.length); n++) {
+      seed = `moves-off-${n}`;
+      on = play(true, seed);
+    }
     const strip = (x: League) => {
       const copy = JSON.parse(JSON.stringify(x)) as League;
       for (const g of Object.values(copy.gms)) delete g.deals;
       return JSON.stringify(copy);
     };
-    const [on, off] = [play(true), play(false)];
+    const off = play(false, seed);
     expect(Object.values(off.gms).some((g) => g.deals)).toBe(false);
     expect(Object.values(on.gms).some((g) => g.deals?.length)).toBe(true);
     expect(strip(on)).toBe(strip(off));

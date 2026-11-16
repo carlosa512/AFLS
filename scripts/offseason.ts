@@ -32,7 +32,14 @@
  * are printed, never counted, so CI stays green until someone fixes the engine; each one disappears
  * from the output when its fix lands. Do not loosen a band to hide one: add a line here instead.
  */
-import { faMeasures, windowStart } from './free-agency-core';
+import {
+  dealYearsByBand,
+  faMeasures,
+  lengthSummary,
+  NFL_DEAL_LENGTH,
+  type PayBand,
+  windowStart,
+} from './free-agency-core';
 import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
 import { bandOf } from './band';
 import { fork } from 'node:child_process';
@@ -120,6 +127,8 @@ const sd = (xs: number[]) => Math.sqrt(avg(xs.map((x) => (x - avg(xs)) ** 2)));
 let misses = 0;
 /** Young good deals that ended and signed nothing, pooled over the judged seasons. */
 const faYoung = { ends: 0, none: 0 };
+/** Veteran deals signed in each judged offseason, by pay band: years, pooled (project B: lengths by worth). */
+const dealYearsPooled: Record<PayBand, number[]> = { min: [], mid: [], good: [], big: [], star: [] };
 
 /**
  * Format `value` against its band and count a miss when it is outside. A number that is not finite
@@ -535,7 +544,9 @@ for (let s = 0; s < seasons; s++) {
   // seeds (offseason-audit, alt-1..3), main ran -43 to +112 a step and player size -69 to +199 (alt-2 dips to 298 and
   // rebounds to 497), while the whole run grew alike (+110 and +115 on average), so the step ceiling is 210; the pool
   // band (100-650) is what catches a runaway.
-  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 210, 0)}` : ''}`;
+  // The pool's yearly jump: 280 at most (the owner's call, 2026-11-16: with deals by worth a new league's first deals end
+  // together around season 4, +208 and +265 in two runs, then the pool holds; its level band still catches drift).
+  const fas = `${check('free agents', k.fas, 100, 650, 0)}${prev ? ` · ${check('change', k.fas - prev.k.fas, -Infinity, 280, 0)}` : ''}`;
   // Clubs restructuring anyone this offseason: about 55% of NFL clubs restructure at least a minor deal in a year, 37% a
   // major one (over $6.5M), 78% of playoff teams (Over the Cap, "Looking at restructuring NFL contracts"). Before GMs
   // planned next year (2026-11-01), nearly every club did, three to five times a year, and the league tightened each
@@ -561,6 +572,8 @@ for (let s = 0; s < seasons; s++) {
   if (faJudged) {
     faYoung.ends += fa.youngEnds;
     faYoung.none += fa.youngNone;
+    const lens = dealYearsByBand(league, league.season);
+    for (const b of Object.keys(lens) as PayBand[]) dealYearsPooled[b].push(...lens[b]);
   }
   console.log(
     `  checks ${year} free agency (${fa.ends} good deals ended): ${faSoft('stayed %', 100 * fa.stayed, 20, 55)} · ${faSoft('moved %', 100 * fa.moved, 20, 60)} · ${faSoft('no deal %', 100 * fa.none, 10, 40)} · ${faSoft('good outside signings', fa.outside, 60, 135)} · ${faSoft('clubs with 3+', fa.clubs3, 8, 28)} · ${faSoft('one-year %', 100 * fa.oneYear, 5, 40)} · ${faCheck('elite young unsigned', fa.eliteYoungUnsigned, [0, 0], [0, 0])}`,
@@ -873,6 +886,18 @@ if (rows.length >= 5) {
 }
 
 // Pooled: a season has too few young good deals ending to judge (NFL 2014-20: 14% of 336 signed nothing the next spring).
+// Veteran deals' length by what they pay against the NFL's (project B, `docs/research/free-agency-market.md`): each band's
+// mean within 0.35 years and one-year share within 12 points (the owner's tolerance, 2026-11-15), pooled over the
+// judged offseasons; a band with fewer than 20 deals is shown, not judged.
+{
+  const parts = (Object.keys(NFL_DEAL_LENGTH) as PayBand[]).map((b) => {
+    const s = lengthSummary(dealYearsPooled[b]);
+    const nfl = NFL_DEAL_LENGTH[b];
+    if (s.n < 20) return `${b} n=${s.n} (too few to judge)`;
+    return `${b} n=${s.n} ${check('mean years', s.mean, +(nfl.mean - 0.35).toFixed(2), +(nfl.mean + 0.35).toFixed(2), 2)} ${check('one-year %', 100 * s.oneYear, Math.max(0, Math.round(100 * nfl.oneYear - 12)), Math.round(100 * nfl.oneYear + 12), 0)}`;
+  });
+  console.log(`\ndeal lengths by pay, pooled (NFL 2018-21): ${parts.join(' · ')}`);
+}
 if (faYoung.ends)
   console.log(
     `\nfree agency, pooled: ${soft(`no deal %, 28 or younger (${faYoung.ends} deals)`, (100 * faYoung.none) / faYoung.ends, 0, 30, 0, FA_MARKET, 'pooled')}`,

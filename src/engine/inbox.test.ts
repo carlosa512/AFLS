@@ -508,8 +508,15 @@ describe('mail through a season', () => {
       for (const m of league.inbox!)
         if (m.id.startsWith('deadline:')) needsAt.set(m.id, [...(needsAt.get(m.id) ?? []), briefingCurrent(league, m)]);
     }
+    // 2026-11-16: final fixes (owner: aim for the average): recaps are filed while the season is on (regular season and
+    // playoffs); once the final ends the phase is complete and SNN's title edition tells it. In this world our team played
+    // the final (week 22), whose recap is never filed, so the final is read apart: no recap for it, and the rest each have one.
     const ours = league.games.filter(
-      (g) => g.season === league.season && g.result && (g.homeId === user || g.awayId === user),
+      (g) =>
+        g.season === league.season &&
+        g.result &&
+        (g.homeId === user || g.awayId === user) &&
+        g.playoffRound !== 'FINAL',
     );
     const recaps = league.inbox!.filter((m) => m.id.startsWith('recap:'));
     expect(recaps).toHaveLength(ours.length);

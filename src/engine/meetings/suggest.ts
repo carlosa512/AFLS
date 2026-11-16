@@ -36,9 +36,11 @@ import type {
 /**
  * When a head coach suggests a meeting, and what he offers (L2, spec §1.1–1.2). Moments come every season and don't
  * count against the cooldowns; trouble waits on them: a room every four weeks, the team every six, any trouble at all
- * every four (the spec's lower end: about four a calm season, eight a rough one), one suggestion a week.
+ * every five (about four a calm season, eight a rough one), one suggestion a week. Any trouble was every four until
+ * 2026-11-16: the lineup lean's Split rooms (a young starter happy, the veteran he passed sore) took meetings past six a
+ * club a season (6.02, main 5.74); every five holds them at 5.55 with the room's other reads unchanged.
  */
-export const COOLDOWN = { room: 4, team: 6, week: 1, club: 4 };
+export const COOLDOWN = { room: 4, team: 6, week: 1, club: 5 };
 
 export const ROOMS: readonly CoachRoom[] = ['QB', 'RB', 'WR', 'OL', 'DL', 'LB', 'DB'];
 

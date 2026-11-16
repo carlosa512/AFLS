@@ -1,5 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { assessCoachAdvice, updateCoachAdvice, adviceKey } from './coachDecisions';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assessCoachAdvice, updateCoachAdvice, adviceKey, CAMP } from './coachDecisions';
 import { coachAdviceObservation, userCoachGameObservation } from './coachReports';
 import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
@@ -9,9 +9,18 @@ import { teamPlayers, isAvailable } from './roster';
 import { ATTRIBUTES, type CoachAdvice, type GameResult, type League } from './types';
 
 let world: League, result: GameResult;
+// 2026-11-15: the lineup lean and camp battles: these scenes give two receivers the same ratings and need the usual order
+// to start the same one it always did, which the coach's small lean then reverses. A camp form of up to three points
+// would decide that tie by the player's name, so camp battles are held at zero here (as `NO_CHEM` holds chemistry in
+// other tests); what the tests are about is a coach's quirk, not a camp.
+const campSd = CAMP.sd;
 beforeAll(() => {
+  CAMP.sd = 0;
   world = createLeague({ seed: 'coach-story-tests' });
   result = simulateGame(world, world.games[0]);
+});
+afterAll(() => {
+  CAMP.sd = campSd;
 });
 const copy = <T>(v: T): T => structuredClone(v);
 function suggestion() {

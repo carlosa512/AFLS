@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capHit } from '../finance/contract';
+import { buildContract, capHit } from '../finance/contract';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -105,6 +105,10 @@ describe('the late market: a club offers what it can fit', () => {
       if (!testable(l, pick(l), t.id)) continue;
       const got = setUp(t.id, (floor) => floor * 1.03);
       if (got.teamId !== t.id) continue;
+      // 2026-11-15: the lineup lean and camp battles: a club with a contract it could cut makes room for a market deal
+      // (here a two-year one at $27M of cap against $23.5M of room), which is the cut-for-room path and not this one.
+      // The scene is a club that signed him on the room it had.
+      if (capHit(got.contract!, l.season) > floorPay(l, pick(l), t.id) * 1.03 + 1) continue;
       signed = true;
       expect(got.contract!.length).toBe(1);
       // Room short of his walk-away before day 3: never a deal below it.
@@ -311,6 +315,23 @@ describe('the market clears', () => {
 
   it('swapGain: a backup passer is judged against the room without the minimum man he replaces', () => {
     const { l } = lastCall();
+    // 2026-11-16: final review fixes (owner: aim for the average): the minimum deals a new league hands out were refit, and
+    // no club's backup passer is on one any more, so none had a minimum quarterback to cut. Each club's lowest rated
+    // quarterback behind another goes on a one-year minimum deal (no bonus, so his release leaves no dead money): the
+    // scene the test is about, and `seen` asserts it was found.
+    const min = minSalary(0, l.caps[l.season]);
+    for (const t of l.teams) {
+      const qbs = activeRoster(l, t.id)
+        .filter((p) => p.position === 'QB')
+        .sort((a, b) => playerOvr(a) - playerOvr(b));
+      if (qbs.length >= 2)
+        qbs[0].contract = buildContract(
+          { years: 1, total: min, signingBonus: 0, guaranteedBase: 0, voidYears: 0, escalator: 0 },
+          l.season,
+          'minimum',
+          min,
+        );
+    }
     let seen = 0;
     for (const t of l.teams) {
       const { cut } = fundedRoom(l, t, 'QB');

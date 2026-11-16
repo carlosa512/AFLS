@@ -53,6 +53,50 @@ const SEEDS = [
   'trades-21',
   'trades-22',
   'trades-23',
+  // 2026-11-15: deal lengths by worth reshuffled the worlds again: none of trades-0..27 or 29..33 filed a player-for-player
+  // offer by week 9; 28 and 34 do (week 8 and 3), and the test starts at 34.
+  'trades-24',
+  'trades-25',
+  'trades-26',
+  'trades-27',
+  'trades-28',
+  'trades-29',
+  'trades-30',
+  'trades-31',
+  'trades-32',
+  'trades-33',
+  'trades-34',
+  'trades-35',
+  'trades-36',
+  'trades-37',
+  'trades-38',
+  'trades-39',
+  'trades-40',
+  // 2026-11-15: the lineup lean and camp battles reshuffled the worlds again: none of trades-34..47 files one by week 9;
+  // 48, 51..55, 57 and 62 do (week 7, 4, 5, 5, 3, 7, 4, 8), and the test starts at 54.
+  'trades-41',
+  'trades-42',
+  'trades-43',
+  'trades-44',
+  'trades-45',
+  'trades-46',
+  'trades-47',
+  'trades-48',
+  'trades-49',
+  'trades-50',
+  'trades-51',
+  'trades-52',
+  'trades-53',
+  'trades-54',
+  'trades-55',
+  'trades-56',
+  'trades-57',
+  'trades-58',
+  'trades-59',
+  'trades-60',
+  'trades-61',
+  'trades-62',
+  'trades-63',
 ];
 
 it('separates a dated staff recommendation from the briefing without repeating its text', () => {
@@ -261,7 +305,7 @@ describe('offer mail', () => {
     // A player-for-player offer is rare: start where one is filed (a long search times out on CI).
     const { league, offer } = await withFiledOffer(
       (o) => o.sides[0].players.length > 0 && o.sides[1].players.length > 0,
-      'trades-17',
+      'trades-54',
     );
     const message = mailForOffer(league, offer)!;
     const about = aboutOf(league, message);

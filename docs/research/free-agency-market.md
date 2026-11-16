@@ -103,3 +103,20 @@ NFL's 25% includes injuries and retirements), and one-year deals at 41–42% in 
 testing the market sign prove-it deals). Stayed and outside signings sit in their warning bands. No player 28 or
 younger priced at 5%+ of the cap was unsigned at any kickoff. Two-year fitted deals up to age 30 brought one-year
 deals to 27–28% but left a young star unsigned in 2030; the spec's 28 stands.
+
+## How long a deal runs, by what it pays (project B, 2026-11-15)
+
+Veteran deals (not a rookie's first deal) signed 2018–2021, by APY as a share of the cap (section 4 of
+`scripts/research-free-agency.py`), against AFLS before project B (seed `pay-recon`, deals signed in seasons 2–5):
+
+| Pay | NFL n | NFL mean years | NFL one-year | AFLS mean years | AFLS one-year |
+| --- | --- | --- | --- | --- | --- |
+| under 0.8% | 9,720 | 1.17 | 84% | 2.34 | 48% |
+| 0.8–2% | 790 | 1.38 | 70% | 2.94 | 25% |
+| 2–5% | 506 | 2.26 | 31% | 2.61 | 34% |
+| 5–10% | 265 | 3.11 | 20% | 2.77 | 26% |
+| 10%+ | 54 | 3.83 | 11% | 3.38 | 11% |
+
+The NFL sets a deal's length by what the player is worth; AFLS set it by age, so its cheap and mid-priced players were
+locked up for three years or more and few of their deals ended in any spring. Of NFL players signing with a new team at
+0.8% of the cap or more, 20–27% a year left a deal with years still to run (released).

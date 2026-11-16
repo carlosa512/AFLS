@@ -313,10 +313,20 @@ describe('migration and collection', () => {
     // for who runs each club move the stream, players, schedule and result; the charts still match. `result` again on
     // merging main's passing, fumbles and turnovers (0.4.6-0.4.8) with it: the same world, played differently.
     // Everything but `charts` again with the league-age work (2026-11-14): opening contracts follow the new aging table
-    // (`preferredYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
+    // (`dealYears`, `ageShift`), and they draw from the league's stream, so the stream, the schedule drawn after
     // them, the players' contracts and the result move; the charts, which no contract touches, still match.
     // `players` again with a founding league's young given less growth ahead (2026-11-14, FOUNDING_GROWTH): only their
     // ceilings are rolled differently, so the stream, games, charts and result still match (ratings and draws unchanged).
+    // `players`, the stream, `games` and `result` again with deal lengths by worth (2026-11-15: `dealYears`): opening
+    // contracts run for the years their pay and age give, they draw from the league's stream, so the stream, the
+    // schedule drawn after it, the players' contracts and the result move; the charts, which no contract touches, still match.
+    // `players` and `result` once more with the minimum deals' years refitted to a settled league's (2026-11-15): the same
+    // draws, a minimum veteran's deal now runs a year (two when young), so only his contract and what it pays moves.
+    // `players`, `charts` and `result` again with the final review fixes (2026-11-16): camp form reads no name (every chart moves)
+    // and a longer deal at his price is never refused for length (contracts and play move); the stream and schedule still match.
+    // `players`, `charts` and `result` again with the lineup lean and camp battles (2026-11-15: `startScore`): who starts at
+    // each position moves (young players and high picks lean up, a camp form splits close jobs), so every chart and the game
+    // played from them move; the stream and the schedule still match, so no draw moved.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -328,9 +338,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '7ed01b12ecf0acaf803a73997cd6094570dbc8d528e35bf7053c5d276b40664d',
-  rng: [307611251, 1174562455, 406219770, 1664109076],
-  games: 'b9dea5ba6f9fd885848a004f43c0d936e1e020fdf7610823a9bf2fb4deb9f180',
-  result: '3b563d6eefc77bbf0e04c511a5aec4ad03529204cec8364b239eeeaf94d1ee08',
-  charts: '72404090723297066b0a1f9aa96a4a01e9665ffcdee29147ce217e74ac6a14e1',
+  players: '9079800a8d9dc0e4b0fd379ac6ef88a5e2683dd8522ad3c51b767b917d32a2ae',
+  rng: [643924055, 2159163808, 1869990391, 1664091751],
+  games: '235d4d3cc93e3f3a8eb0ae2fbff091c0cdeda0177c001c6b9b4b68b52404ba21',
+  result: '5465be902d824cb7ddb120909fe1f83c3dca1143b4f6ba005c2c1da1616a82b5',
+  charts: '6d6bb5a57189008856d632ba80583be87688a310c078337f71f7311cbf394dc9',
 };

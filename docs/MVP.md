@@ -317,12 +317,17 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       settled league's growth still ahead of them (0.4.47, `FOUNDING_GROWTH` in `generate.ts`), so they no longer grow past
       the level the league settles at (before, starters rose from 13.06 to 13.24 by the second season and slid to 12.9).
       Rating founding players by age too moved the first season's play the match engine is measured on, so ratings are
-      rolled as before. **Left for the front offices (B):** 25% of starters are 24 or younger (NFL 32%; QB 14% against
-      33%), starters keep their jobs 76–80% of the time under 29 (NFL 63–69%), and short-prime starters at 31–32 leave twice
-      as often (a third of it veterans whose deals ran out and nobody signed): shown as a known issue in `npm run careers`.
+      rolled as before. **The front offices (B, 0.4.48,** `docs/superpowers/specs/2026-11-15-front-offices-design.md`**):**
+      coaches lean toward young players and high picks when a starting job is close, and two close players can trade the
+      job from one camp to the next (`START_LEAN`, `CAMP` in `coachDecisions.ts`): 30.7% of starters are 24 or younger
+      (NFL 32%; 25.5% before), quarterbacks 24.8% (14.7%), and starters 21–30 keep their jobs at the NFL's rates (25–26:
+      70% against 77% before, NFL 65%), judged in `npm run careers` for the league and the quarterbacks. Contracts run by
+      what a player is worth, not his age (`dealYears`). Still a known issue: short-prime starters at 31–32 leave twice as
+      often (retirement's follow-up), and some positions' young shares (receivers 32.5% against 41.6%).
 - [ ] **The free-agency market runs about half the NFL's size** (0.4.13, `npm run offseason`'s free-agency block, shown as a
       known issue): 43–74 good outside signings a year against the NFL's 84–109, 5–14 clubs with three or more against
-      16–22, 38–42% of them one-year against 20%, and too few good players left with no deal (the market places nearly
+      16–22, a one-year share that climbs from about 25% to 50–70% by a league's fifth season against 20% (0.4.48, deal
+      lengths by worth: lengths by pay now match the NFL's, the market's size and mix are the follow-up), and too few good players left with no deal (the market places nearly
       everyone). Clubs carry far more room into the window than NFL clubs (a median near 30% against 3–12%) and spend it
       refilling rosters, not on the market. Look at how much of the roster turns over each spring and the room clubs
       bring to March (`docs/research/free-agency-market.md`). Young stars are judged strictly and placed.

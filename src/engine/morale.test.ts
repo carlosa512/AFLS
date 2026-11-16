@@ -26,6 +26,7 @@ import {
   QUIET,
 } from './morale';
 import { playerOvr, STARTERS } from './positions';
+import { yearsLeft } from './finance/contract';
 import { leagueMarket, marketApy, resetLeagueMarket } from './finance/market';
 import { activeRoster } from './roster';
 import type { League, Player } from './types';
@@ -45,6 +46,19 @@ function veteran(): Player {
     .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
 }
 
+/**
+ * A veteran with at least three years left on a veteran deal, the best such man on team 0. 2026-11-15: deal lengths by
+ * worth: a veteran's deal is mostly one or two years now, so the best veteran may already be in his final year and the
+ * scene of "more so in his final year" would have nothing to compare; the scene starts from a man with years to spare.
+ */
+function veteranWithYears(): Player {
+  const found = team0
+    .filter((p) => p.contract?.kind === 'veteran' && p.experience >= 3 && yearsLeft(p.contract, league.season) >= 3)
+    .sort((a, b) => playerOvr(b) - playerOvr(a))[0];
+  expect(found, 'a veteran with three years left on team 0').toBeDefined();
+  return found;
+}
+
 /** A copy of the league with one player replaced, so a test can change him without touching the shared league. */
 function withPlayer(p: Player): League {
   return { ...league, players: { ...league.players, [p.id]: p } };
@@ -54,7 +68,7 @@ const ZERO: MoraleFactors = { contract: 0, role: 0, team: 0, room: 0, promises: 
 
 describe('morale: the factors', () => {
   it('reads a starter paid half his market as unhappy with his deal, more so in his final year', () => {
-    const s = veteran();
+    const s = veteranWithYears();
     const ctx = moraleContext(league);
     const paid = moraleFactors(league, s, ctx).contract;
     const half: Player = {
@@ -236,10 +250,10 @@ describe('morale: the factors', () => {
   });
 
   it('reads a backup with no games yet as content: no role to compare', () => {
-    const backup = team0
-      .filter((p) => p.position === 'WR')
-      .sort((a, b) => playerOvr(b) - playerOvr(a))
-      .at(-1)!;
+    // 2026-11-16: final review fixes (owner: aim for the average): the lowest rated receiver can now hold a starting spot (the
+    // youth lean and camp form), and then his role reads above what he expects; the backup is the last on the chart.
+    const backup = league.players[league.teams[0].depthChart.WR.at(-1)!];
+    expect(backup.position, 'a receiver at the bottom of the chart').toBe('WR');
     expect(moraleFactors(league, backup, moraleContext(league)).role).toBe(0);
     expect(STARTERS.WR).toBeGreaterThan(0);
   });
@@ -444,12 +458,18 @@ describe('morale: a season played', () => {
   beginOffseason(l);
 
   it('benches a starter whose room passed him at the new league year, once', () => {
-    const benched = Object.values(l.players).filter((p) => p.morale?.jolts?.some((j) => j.kind === 'benched'));
-    expect(benched.length).toBeGreaterThan(0);
-    for (const p of benched) expect(p.morale!.jolts!.filter((j) => j.kind === 'benched')).toHaveLength(1);
+    // 2026-11-15: the lineup lean and camp battles: a starter can also have been sat in season a few steps before the
+    // year turned (a job question's `sit` jolt, `benching.ts`), a second 'benched' jolt on a man (quarterback 425 of this
+    // league) that is not this step's. The new league year's own is the one at this step's clock, and it lands once.
     const clock = moraleClock(l);
+    const atNewYear = (p: Player) => p.morale!.jolts!.filter((j) => j.kind === 'benched' && j.at === clock);
+    const benched = Object.values(l.players).filter((p) =>
+      p.morale?.jolts?.some((j) => j.kind === 'benched' && j.at === clock),
+    );
+    expect(benched.length).toBeGreaterThan(0);
+    for (const p of benched) expect(atNewYear(p)).toHaveLength(1);
     moraleAdvance(l, clock);
-    for (const p of benched) expect(p.morale!.jolts!.filter((j) => j.kind === 'benched')).toHaveLength(1);
+    for (const p of benched) expect(atNewYear(p)).toHaveLength(1);
   });
 
   it('keeps every level in range through a season', () => {

@@ -118,3 +118,57 @@ export function faMeasures(start: WindowStart, l: League): FaMeasures {
     overCap: start.room.filter((r) => r < 0).length,
   };
 }
+
+/** Pay bands by APY as a share of the cap the year signed (`docs/research/free-agency-market.md`, project B). */
+export const PAY_BAND = {
+  min: [0, 0.008],
+  mid: [0.008, 0.02],
+  good: [0.02, 0.05],
+  big: [0.05, 0.1],
+  star: [0.1, Infinity],
+} as const;
+export type PayBand = keyof typeof PAY_BAND;
+/** The NFL's veteran deals signed 2018–2021: mean years and the one-year share (0–1), by pay band. */
+export const NFL_DEAL_LENGTH: Record<PayBand, { mean: number; oneYear: number }> = {
+  min: { mean: 1.17, oneYear: 0.84 },
+  mid: { mean: 1.38, oneYear: 0.7 },
+  good: { mean: 2.26, oneYear: 0.31 },
+  big: { mean: 3.11, oneYear: 0.2 },
+  star: { mean: 3.83, oneYear: 0.11 },
+};
+
+/** The years of every veteran deal (not a rookie deal or a tag) signed in `signedSeason`, on a team now, by pay band. */
+export function dealYearsByBand(l: League, signedSeason: number): Record<PayBand, number[]> {
+  const cap = l.caps[signedSeason] ?? l.caps[l.season];
+  const years: Record<PayBand, number[]> = { min: [], mid: [], good: [], big: [], star: [] };
+  for (const p of Object.values(l.players)) {
+    const c = p.contract;
+    if (p.teamId === null || !c || c.signedSeason !== signedSeason || c.kind === 'rookie' || c.kind === 'tag') continue;
+    const share = c.apy / cap;
+    const band = (Object.keys(PAY_BAND) as PayBand[]).find((b) => share >= PAY_BAND[b][0] && share < PAY_BAND[b][1])!;
+    years[band].push(c.length);
+  }
+  return years;
+}
+
+/** How many deals, their mean years and the one-year share (0–1). */
+export function lengthSummary(ys: readonly number[]): { n: number; mean: number; oneYear: number } {
+  const n = ys.length;
+  return {
+    n,
+    mean: n ? ys.reduce((a, y) => a + y, 0) / n : NaN,
+    oneYear: n ? ys.filter((y) => y === 1).length / n : NaN,
+  };
+}
+
+/** `dealYearsByBand`, summarized. */
+export function dealLengths(
+  l: League,
+  signedSeason: number,
+): Record<PayBand, { n: number; mean: number; oneYear: number }> {
+  const years = dealYearsByBand(l, signedSeason);
+  return Object.fromEntries((Object.keys(years) as PayBand[]).map((b) => [b, lengthSummary(years[b])])) as Record<
+    PayBand,
+    { n: number; mean: number; oneYear: number }
+  >;
+}

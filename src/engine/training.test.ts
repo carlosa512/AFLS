@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HEIGHTS } from './size';
+import { selectionPreference, startScore } from './coachDecisions';
+import { positionCoachFor } from './coachQuirks';
+import { teamCoaches } from './coaching';
 import { skill, useKnocks } from './attributes';
 import {
   CONVERSIONS,
@@ -287,7 +290,12 @@ describe('out of position', () => {
     expect(slotOvr(cb, 'S')).toBeGreaterThan(slotOvr(l.players[team.depthChart.S.at(-1)!], 'S'));
     placeAt(l, cb.id, 'S');
     expect(team.depthChart.S.at(-1)).not.toBe(cb.id);
-    const worth = team.depthChart.S.map((id) => slotOvr(l.players[id], 'S'));
+    // 2026-11-15: the lineup lean and camp battles: a chart ranks by his worth there plus the youth lean, his camp and his
+    // position coach's small leanings (`coachOrder`), no longer by the worth alone.
+    const coach = positionCoachFor(teamCoaches(l, team.id), 'S');
+    const worth = team.depthChart.S.map(
+      (id) => startScore(l.players[id], 'S') + selectionPreference(coach, l.players[id]),
+    );
     expect(worth).toEqual([...worth].sort((a, b) => b - a));
     // A chart with nobody out of position ranks exactly as before.
     const other = l.teams.find((t) => t.id !== team.id)!;
@@ -320,7 +328,10 @@ describe('out of position', () => {
     team.autoDepth = false;
     // The best backup corner: he outranks the corners behind him.
     const cb = l.players[team.depthChart.CB[3]];
-    expect(playerOvr(cb)).toBeGreaterThan(playerOvr(l.players[team.depthChart.CB.at(-1)!]));
+    // 2026-11-16: final review fixes (owner: aim for the average): "outranks" is the auto chart's order (worth, youth lean and
+    // camp form), no longer the rating alone: the fourth corner was rated below the last one and still ahead of him.
+    const auto = buildAutoDepthChart(teamPlayers(l, team.id)).CB;
+    expect(auto.indexOf(cb.id)).toBeLessThan(auto.indexOf(team.depthChart.CB.at(-1)!));
     placeAt(l, cb.id, 'S', undefined, 'staff');
     returnHome(l, cb.id);
     expect(team.depthChart.CB.at(-1)).not.toBe(cb.id);

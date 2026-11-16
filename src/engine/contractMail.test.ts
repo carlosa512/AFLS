@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { contractDecision, liveCall, signAtAskProblem } from './contractMail';
+import { askTier, contractDecision, liveCall, signAtAskProblem, TIER_ORDER, TIER_TITLE } from './contractMail';
 import { createLeague } from './generate';
 import { deliverMail, mailSubject, needsYou } from './inbox';
 import { simToEndOfSeason } from './league';
@@ -34,7 +34,7 @@ describe('the contracts letter', () => {
     expect(mailSubject(m)).toEqual({ kind: 'expiring', season: l.season });
     expect(l.inbox!.filter((x) => x.id.startsWith(`contracts:${l.season}:`))).toHaveLength(0);
     const expiring = expiringPlayers(l, l.userTeamId);
-    const rows = m.sections![0].rows;
+    const rows = m.sections!.flatMap((s) => s.rows);
     expect(rows.map((r) => r.playerId).sort()).toEqual(expiring.map((p) => p.id).sort());
     expect(m.covered!.sort()).toEqual(expiring.map((p) => `contracts:${l.season}:${p.id}`).sort());
     for (const r of rows) expect(r.contract).toEqual({ playerId: r.playerId });
@@ -127,5 +127,18 @@ describe('the contracts letter', () => {
     applyFranchiseTag(l, a);
     expect(liveCall(l, b.id, 'Tag')).toBe('Keep');
     expect(liveCall(l, b.id, 'Let walk')).toBe('Let walk');
+  });
+});
+
+describe('the contracts letter by the size of the deal asked (project B)', () => {
+  it('lists players in groups by the deal they ask, biggest first, each under his own group', () => {
+    const l = fresh();
+    deliverMail(l);
+    const [m] = letters(l);
+    const titles = m.sections!.map((s) => s.title);
+    expect(titles).toEqual(TIER_ORDER.map((t) => TIER_TITLE[t]).filter((t) => titles.includes(t)));
+    expect(titles.length).toBeGreaterThan(1);
+    for (const s of m.sections!)
+      for (const r of s.rows) expect(TIER_TITLE[askTier(l, l.players[r.playerId!], l.userTeamId)]).toBe(s.title);
   });
 });

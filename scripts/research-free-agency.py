@@ -113,3 +113,12 @@ for y in sorted(per_year):
 n = sum(one_year.values())
 print('   clubs seen per year:', {y: len(clubs[y]) for y in sorted(per_year)})
 print(f"3. Good outside signings on one-year deals: {100 * one_year['one'] / n:.0f}% of {n}")
+
+# 4. How long a veteran deal runs by what it pays (project B, docs/superpowers/specs/2026-11-15-front-offices-design.md):
+# veteran deals (not a rookie's first) signed 2018-2021, by APY as a share of the cap.
+BANDS = [('min', 0, 0.008), ('mid', 0.008, 0.02), ('good', 0.02, 0.05), ('big', 0.05, 0.10), ('star', 0.10, 9)]
+print('\nVeteran deal lengths by pay, 2018-2021 (mean years, one-year share):')
+for name, lo, hi in BANDS:
+    ys = [r['yrs'] for r in rows if 2018 <= r['ys'] <= 2021 and r['yrs'] > 0 and lo <= r['pct'] < hi
+          and r['draft_year'] not in ('', 'NA') and int(float(r['draft_year'])) < r['ys']]
+    print(f'  {name:5} n {len(ys):5} · mean {statistics.mean(ys):.2f} · one-year {100 * sum(y == 1 for y in ys) / len(ys):.0f}%')

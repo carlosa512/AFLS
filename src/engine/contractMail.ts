@@ -4,7 +4,9 @@
  * in the director's words. The letter's buttons (`ui/mail.tsx`) act on each row; what each player's row shows is
  * worked out from the league as it is (`contractDecision`), so a signing made on the Re-sign screen shows here too.
  */
+import { capFor } from './finance/cap';
 import { isExpired } from './finance/contract';
+import { dealTier, type DealTier } from './finance/market';
 import { lettingWalk } from './offseason';
 import { expiringPlayers, resignCall, tagBlocker, type ResignReason } from './offseason/ai';
 import { askOffer, demand, offerProblem, offerValue } from './offseason/negotiation';
@@ -19,6 +21,15 @@ const millions = (k: number) => `$${(k / 1000).toFixed(1)}M`;
 const NUMBER = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 const CALL = { keep: 'Keep', tag: 'Tag', walk: 'Let walk' } as const;
 const ORDER = { keep: 0, tag: 1, walk: 2 } as const;
+
+/** The re-sign window's groups, biggest deals first, so the calls that matter most come first. */
+export const TIER_ORDER: readonly DealTier[] = ['key', 'role', 'depth'];
+export const TIER_TITLE: Record<DealTier, string> = { key: 'Key players', role: 'Role players', depth: 'Depth' };
+
+/** Which group a player's ask puts him in: the share of this year's cap he asks for, cut at `dealTier`'s bounds. */
+export function askTier(league: League, p: Player, teamId: number): DealTier {
+  return dealTier(demand(league, p, teamId).askApy / capFor(league, league.season));
+}
 
 /** Where a player's deal stands now, wherever it was decided: the letter's row reads this, never a stored flag. */
 export function contractDecision(league: League, playerId: number): 'signed' | 'tagged' | 'walking' | 'broken' | null {
@@ -184,11 +195,22 @@ export function contractMail(league: League, have: Set<string>): Draft[] {
   const sender = director(league);
   const recent = recentBodies(league, sender.from);
   const rows = expiring
-    .map((p) => ({ p, call: resignCall(league, user, p), read: perceive(league, user, p).ovr }))
-    .sort((a, b) => ORDER[a.call.call] - ORDER[b.call.call] || b.read - a.read || a.p.id - b.p.id)
-    .map(({ p, call, read }): MailSection['rows'][number] => {
+    .map((p) => ({
+      p,
+      tier: askTier(league, p, user),
+      call: resignCall(league, user, p),
+      read: perceive(league, user, p).ovr,
+    }))
+    .sort(
+      (a, b) =>
+        TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) ||
+        ORDER[a.call.call] - ORDER[b.call.call] ||
+        b.read - a.read ||
+        a.p.id - b.p.id,
+    )
+    .map(({ p, tier, call, read }) => {
       const d = demand(league, p, user);
-      return {
+      const row: MailSection['rows'][number] = {
         playerId: p.id,
         cells: [
           fullName(p),
@@ -205,7 +227,13 @@ export function contractMail(league: League, have: Set<string>): Draft[] {
         ),
         contract: { playerId: p.id },
       };
+      return { tier, row };
     });
+  const sections: MailSection[] = TIER_ORDER.filter((t) => rows.some((r) => r.tier === t)).map((t) => ({
+    title: TIER_TITLE[t],
+    columns: ['Player', 'Age', 'Our read', 'Ask', 'Market', 'Call'],
+    rows: rows.filter((r) => r.tier === t).map((r) => r.row),
+  }));
   return [
     {
       id,
@@ -216,13 +244,7 @@ export function contractMail(league: League, have: Set<string>): Draft[] {
       category: 'contracts',
       subject: `Contracts up: ${expiring.length} player${expiring.length === 1 ? '' : 's'}, our calls`,
       body: say(OPENER, { n: expiring.length }, { key: id, slot: 'opener', recent }),
-      sections: [
-        {
-          title: 'Expiring contracts',
-          columns: ['Player', 'Age', 'Our read', 'Ask', 'Market', 'Call'],
-          rows,
-        },
-      ],
+      sections,
       covered: expiring.map((p) => `contracts:${season}:${p.id}`),
       actions: [{ kind: 'resign' }],
     },

@@ -32,6 +32,10 @@ function hashSeed(seed: string): RngState {
   return [h1 >>> 0, h2 >>> 0, h3 >>> 0, h4 >>> 0];
 }
 
+/** Four uniforms in [0, 1) read off a string, with no stream behind them: for a value that is a pure function of its
+ * key (a player's camp form), so reading it draws nothing from any game's or season's stream. */
+export const hashUnits = (key: string): number[] => hashSeed(key).map((h) => h / 4294967296);
+
 export class Rng {
   private a: number;
   private b: number;

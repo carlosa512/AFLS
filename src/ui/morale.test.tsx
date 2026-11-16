@@ -143,8 +143,10 @@ describe('the Locker Room: who runs the room', () => {
     const text = html.replace(/<[^>]+>/g, ' ');
     expect(text).toMatch(/\b(Superb|Very good|Good|Okay|Poor|Very poor|Abysmal)\b/);
     expect(text).not.toMatch(/\b(Tight|Settled|Restless)\b/);
+    // 2026-11-15: deal lengths by worth: the room's sentence for a quiet room is "There is nothing to flag." (roomVoice.ts); the
+    // pattern said "Nothing to flag." and only passed through other rooms' lowercase phrases. Every room is quiet in this world.
     expect(text).toMatch(
-      /Nothing to flag\.|Winning keeps them happy\.|want|close with|enjoying|happy with|tired of|feud/,
+      /There is nothing to flag\.|Winning keeps them happy\.|want|close with|enjoying|happy with|tired of|feud/,
     );
     expect(text).not.toMatch(/\bweight\b|\btiers?\b|faction|cohesion|influence/i);
   });

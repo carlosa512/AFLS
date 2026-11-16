@@ -24,6 +24,12 @@ describe('the ball path', () => {
     // Snapshot taken again with the league-age work (2026-11-14): opening contracts follow the new aging table, so the
     // league's stream after them moves and this game's plays are others (an interception now among the kinds). The paths
     // are still each kind's one play drawn by `buildPath`.
+    // Re-pinned 2026-11-15: deal lengths by worth reshuffled the opening league again, so this game's plays are others (11
+    // kinds, no interception this time); each is still its kind's first play drawn by `buildPath`.
+    // Re-pinned again 2026-11-15: the lineup lean and camp battles: the charts moved, so the game's plays are others once more
+    // (11 kinds with the interception back); each is still its kind's first play drawn by `buildPath`.
+    // Re-pinned 2026-11-16: final review fixes: camp form reads no name, so every chart moved again; each kind's first play is
+    // still drawn by `buildPath`.
     expect(paths).toMatchSnapshot();
   });
 });

@@ -878,7 +878,8 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
       id,
       season: league.season,
       phase: league.phase,
-      week: league.phase === 'regular' || league.phase === 'playoffs' ? league.week : 0,
+      // Once the season is over the letter keeps the week it ended on: week 0 sorted it before the final's mail.
+      week: league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete' ? league.week : 0,
       ...sender,
       category: 'staff',
       subject,

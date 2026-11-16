@@ -25,10 +25,16 @@ const at = (p: ReturnType<typeof stage>, step: number, k: number) => ({
   x: p.pos[(step * p.ids.length + k) * 2],
   y: p.pos[(step * p.ids.length + k) * 2 + 1],
 });
-/** The first step the ball is at `end`. */
+/**
+ * The step the ball arrives at `end` and stays: the first step of its last stretch there. (2026-11-15: the lineup lean and
+ * camp battles: it used to be the first step the ball was at `end` at all, but on a short throw that dies near the line
+ * the ball passes through that spot early, with the snap and the quarterback's drop, so the batter was read before the
+ * throw was in the air: 5 to 7 yards off him.)
+ */
 const arrival = (p: ReturnType<typeof stage>, end: { x: number; y: number }) => {
-  for (let s = 0; s < p.steps; s++) if (Math.hypot(p.ball[s * 3] - end.x, p.ball[s * 3 + 1] - end.y) < 0.15) return s;
-  return p.steps - 1;
+  let last = -1;
+  for (let s = 0; s < p.steps; s++) if (Math.hypot(p.ball[s * 3] - end.x, p.ball[s * 3 + 1] - end.y) >= 0.15) last = s;
+  return Math.min(last + 1, p.steps - 1);
 };
 
 describe('a ball batted down at the line', () => {
