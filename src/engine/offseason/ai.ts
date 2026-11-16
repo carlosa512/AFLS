@@ -311,8 +311,15 @@ export const YOUNG_PROVE_IT_YEARS = 1;
 
 /** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
 export const CLEARING_DAY = 3;
-/** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`). */
-export const FUNDED_RESERVE_SHARE = 0.5;
+/**
+ * The share of its in-season reserve a club may spend in camp: on the last call's clear upgrades (`fundedRoom`) and on
+ * last season's unsigned starters (`campStarterSignings`). Camp spent it whole on the starters and half on the upgrades,
+ * and 30 of 31 AI clubs reached kickoff under their cushion (median room 0.6–0.9% of the cap by a league's sixth season,
+ * main's 0.9–1.0; 2026-11-16). The stars-only pass keeps the owner's rule: it may break the whole reserve for one.
+ */
+export const CAMP_CUSHION = { share: 0 };
+/** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`): camp's. */
+export const FUNDED_RESERVE_SHARE = CAMP_CUSHION.share;
 
 /**
  * The least he takes once the market has shown its hand: the best offer made for him when it's at least half his
@@ -1236,7 +1243,7 @@ export function aiFreeAgencyDay(
       const clear = 2 * minGain.get(team.id)!;
       // Only the stars-only pass breaks a whole reserve: every pass breaking it for every young star took the league's
       // kickoff room under its floor.
-      const share = opts.starsOnly ? 1 : FUNDED_RESERVE_SHARE;
+      const share = opts.starsOnly ? 1 : CAMP_CUSHION.share;
       const swap =
         opts.lastCall && gain < clear
           ? swapGain(
@@ -1504,8 +1511,11 @@ export function campStarterSignings(league: League, started: ReadonlySet<number>
       const floor = minimumOffer(league, p);
       const perDollar = offerValue(league, p, team.id, { ...floor, apy: 1 }, d);
       const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
-      // A starter is what the in-season cushion is for: camp may spend it on him.
-      if (offerCharge(league, p, team.id, offer) > spendable(league, team.id) + inSeasonReserve(league, team.id))
+      // A starter is what the in-season cushion is for: camp may spend its share of it on him (`CAMP_CUSHION`).
+      if (
+        offerCharge(league, p, team.id, offer) >
+        spendable(league, team.id) + CAMP_CUSHION.share * inSeasonReserve(league, team.id)
+      )
         continue;
       const gain = needGain(depthOutlooks(league, team), p, teamOutlook(league, team.id, p, winNow(league, team)));
       if (gain > 0 && (!best || gain > best.gain)) best = { team, gain, offer };
