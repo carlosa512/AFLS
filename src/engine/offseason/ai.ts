@@ -318,8 +318,6 @@ export const CLEARING_DAY = 3;
  * main's 0.9–1.0; 2026-11-16). The stars-only pass keeps the owner's rule: it may break the whole reserve for one.
  */
 export const CAMP_CUSHION = { share: 0 };
-/** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`): camp's. */
-export const FUNDED_RESERVE_SHARE = CAMP_CUSHION.share;
 
 /**
  * The least he takes once the market has shown its hand: the best offer made for him when it's at least half his
@@ -338,7 +336,7 @@ export function fundedRoom(
   league: League,
   team: Team,
   position: Position,
-  reserveShare: number = FUNDED_RESERVE_SHARE,
+  reserveShare: number = CAMP_CUSHION.share,
 ): { room: number; cut: Player | null } {
   const roster = activeRoster(league, team.id);
   const count = (pos: Position) => roster.filter((p) => p.position === pos).length;

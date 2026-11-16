@@ -25,7 +25,7 @@ import {
   aiTrainingCamp,
   applyFranchiseTag,
   expiringPlayers,
-  FUNDED_RESERVE_SHARE,
+  CAMP_CUSHION,
   IN_SEASON_RESERVE,
   inSeasonReserve,
   payAhead,
@@ -118,9 +118,10 @@ describe('offseason calendar', () => {
     while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
     const cap = league.caps[league.season];
     const ai = league.teams.filter((t) => t.id !== league.userTeamId);
-    const space = ai.map((t) => capSpace(league, t.id)).sort((a, b) => a - b);
-    // The last call may draw up to `FUNDED_RESERVE_SHARE` of the reserve for a clear upgrade (the spec's funded call).
-    expect(space[ai.length >> 1]).toBeGreaterThanOrEqual((1 - FUNDED_RESERVE_SHARE) * IN_SEASON_RESERVE * cap);
+    // Each team against its own cushion (its GM's, `inSeasonReserve`): camp may spend `CAMP_CUSHION.share` of it, the
+    // stars-only pass all of it for one young star, so the median team keeps what camp leaves it, within a minimum deal.
+    const kept = ai.map((t) => capSpace(league, t.id) - (1 - CAMP_CUSHION.share) * inSeasonReserve(league, t.id));
+    expect(kept.sort((a, b) => a - b)[ai.length >> 1]).toBeGreaterThanOrEqual(-minSalary(1, cap));
     // A reserve is room kept, never a man short: a team under 53 has no room for a minimum deal (short rosters
     // without room are a known issue of their own, flagged by the offseason audit).
     for (const t of ai)

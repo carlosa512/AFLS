@@ -13,6 +13,7 @@ import {
   fitOffer,
   fitsNextYear,
   fundedRoom,
+  CAMP_CUSHION,
   inSeasonReserve,
   isYoungStar,
   spendable,
@@ -412,7 +413,7 @@ describe('the market clears', () => {
     for (const t of l.teams.slice(0, 8)) {
       const half = fundedRoom(l, t, 'WR');
       const all = fundedRoom(l, t, 'WR', 1);
-      expect(all.room - half.room).toBeCloseTo(0.5 * inSeasonReserve(l, t.id));
+      expect(all.room - half.room).toBeCloseTo((1 - CAMP_CUSHION.share) * inSeasonReserve(l, t.id));
     }
     // A pass for young stars only: a veteran a normal last call would place is left alone.
     const market = leagueMarket(l);
@@ -428,13 +429,15 @@ describe('the market clears', () => {
     expect(l.players[old.id].teamId).toBeNull();
   }, 120_000);
 
-  it('funding draws at most half the in-season reserve', () => {
+  it('funding draws at most camp’s share of the in-season reserve (`CAMP_CUSHION`)', () => {
     const { l } = lastCall();
     for (const t of l.teams.slice(0, 8)) {
       const f = fundedRoom(l, t, 'WR');
       const cutPay = f.cut ? hitOf(f.cut.contract!, l.season) : 0;
       // A young star comes before the squad's money: its reserve is his too (`squadReserve`).
-      expect(f.room).toBeCloseTo(spendable(l, t.id) + squadReserve(l, t.id) + 0.5 * inSeasonReserve(l, t.id) + cutPay);
+      expect(f.room).toBeCloseTo(
+        spendable(l, t.id) + squadReserve(l, t.id) + CAMP_CUSHION.share * inSeasonReserve(l, t.id) + cutPay,
+      );
       expect(f.cut === null || hitOf(f.cut.contract!, l.season) <= minSalary(30, l.caps[l.season])).toBe(true);
     }
   });
