@@ -1414,9 +1414,9 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
   return p;
 }
 
-/** A one-year minimum deal for `player`. */
-const minimumOffer = (league: League, player: Player): Offer => ({
-  years: 1,
+/** A minimum deal for `player`, as long as a deal at that pay runs for him (`dealYears`: three years for a young man). */
+export const minimumOffer = (league: League, player: Player): Offer => ({
+  years: dealYears(player, minSalary(player.experience, league.caps[league.season]) / league.caps[league.season]),
   apy: minSalary(player.experience, league.caps[league.season]),
   bonusPct: 0,
   gtdPct: 0,
