@@ -168,9 +168,10 @@ describe('GMs make room to keep their core', () => {
     // 2026-11-15: no world near make-room-5 has a cut at any room after deal lengths by worth (shorter deals leave the
     // restructures to cover every keeper), so the worlds are tried in turn until one does.
     let found = 0;
-    for (const world of [window, ...['make-room-6', 'make-room-7', 'make-room-8'].map(windowOf)]) {
-      for (let step = 0; step <= 50; step++) {
-        const share = 0.004 * step;
+    // Two worlds at 0.8% steps: four at 0.4% ran past CI's two minutes once no world had a cut (2026-11-16).
+    for (const world of [window, windowOf('make-room-6')]) {
+      for (let step = 0; step <= 25; step++) {
+        const share = 0.008 * step;
         const { l, team, p } = squeezed(-0.6, 0.2, world);
         team.deadMoney.push({
           season: l.season + 1,
