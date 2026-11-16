@@ -206,7 +206,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   meetings (L2): meetings per club per season, how many take one well or bristle, head coaches whose word has worn thin
   at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
   way, Anchors calming a room; and backing the staff (L4): the staff edge centred, rooms in doubt and lost, lawyers'
-  rooms doubting more, notices kept, AI clubs relieving coordinators at the NFL's rate. Run it after changing
+  rooms doubting more, notices kept (judged with 10 or more), AI clubs relieving coordinators at the NFL's rate. Run it after changing
   `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.

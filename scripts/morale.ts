@@ -563,11 +563,16 @@ check(
   ofRooms((r) => r.worst !== 'steady', withLawyer) - ofRooms((r) => r.worst !== 'steady', noLawyer),
   [0.01, 1],
 );
-check(
-  `Notice: kept share (kept ${noticesKept}, broken ${noticesBroken})`,
-  noticesKept / Math.max(1, noticesKept + noticesBroken),
-  [0.2, 0.8],
-);
+// Judged only with NOTICES_MIN or more (the owner's call, 2026-11-16): a world that dealt six read 1 kept, a share no
+// rate can be told from by chance (1 of 6 or fewer is one draw in nine at a coin flip). Fewer warn and are not judged.
+const NOTICES_MIN = 10;
+{
+  const notices = noticesKept + noticesBroken;
+  const label = `Notice: kept share (kept ${noticesKept}, broken ${noticesBroken})`;
+  const share = noticesKept / Math.max(1, notices);
+  if (notices >= NOTICES_MIN) check(label, share, [0.2, 0.8]);
+  else console.log(`⚠ ${label.padEnd(54)} ${share.toFixed(2).padStart(7)}   not judged under ${NOTICES_MIN} notices`);
+}
 check(`AI clubs relieved coordinators a season (${relieved.length} in ${SEASONS})`, relieved.length / SEASONS, [1, 3]);
 check(
   '…every one a losing club whose side ranks in the bottom quarter',
