@@ -50,9 +50,10 @@ Two follow-ups the 0.4.49 market left near an edge. The owner: wrap them up clea
 ## The design
 
 1. **June 1 for the AI's spring cuts.** In `springCuts`, while the team has designations left
-   (`team.postJune1Used < POST_JUNE1_LIMIT`), a cut is designated post-June 1, the cut with the most dead money first.
-   The cut's room is read with the designation it would get (`releasePreview(league, p, designate)`, and `twoYearRoom`
-   with it), so the choice and the room agree.
+   (`team.postJune1Used < POST_JUNE1_LIMIT`), a cut is designated post-June 1 when the designation moves money to next
+   year (none is spent on a cut with nothing prorated). The cut's room is read with the designation it would get
+   (`releasePreview(league, p, designate)`, and `twoYearRoom` with it), so the choice and the room agree, and the most
+   room first puts the cuts with the most money to move ahead of the rest.
 2. **The dead-money bar.** A spring cut goes ahead only when the dead money it leaves, this year and next, is at most
    `SPRING_CUT.deadShare` of the cap charges it saves over the same two years. Start at 0.5.
 3. **Linemen.** In `scripts/careers.ts` the OL median retirement age is printed, never judged, with a comment on why
