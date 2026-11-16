@@ -76,6 +76,19 @@ Two follow-ups the 0.4.49 market left near an edge. The owner: wrap them up clea
 - "Saves" in the bar is the cap charges the team no longer pays this year and next; "dead money" is both years' share.
 - A fix version: `package.json` 0.4.50.
 
+## What was built (2026-11-16)
+
+- Spring cuts: `designateFor` (post-June 1 where it moves money, two a year) and `cutPaysOff` (`SPRING_CUT.deadShare`
+  0.5). Three rounds of the bar (0.5, 0.35, 0.25) barely moved kickoff room, so it stays at 0.5.
+- The cushion (the owner's option 2): a probe found it leaks in camp, not free agency's first days (the median AI team
+  sat about 4% of the cap above its cushion after free agency; 30 of 31 were under it at kickoff). `CAMP_CUSHION.share`
+  caps camp's draws on it (the last call's upgrade swaps, `campStarterSignings`); the stars-only pass keeps the owner's
+  rule. Rounds: 0.25 → one season 0.5 (fail); 0 → seasons 4–6 2.2/1.3/1.7, other leagues 1.2/1.3/0.3, nothing fails;
+  0.1 → 1.7/1.1/0.9. The owner chose 0. Its cost: starters out of football 7.1 → 7.9% and clubs with 3+ good outside
+  signings 8.4 → 8.0 (both warnings).
+- Linemen: printed in `careers`, not judged (`PRINTED_RETIRE`).
+- Promote a coordinator in season (below): `promoteCoverProblem`, `promoteCover`, and the open chair's Promote buttons.
+
 ## Added: promote a coordinator while the head coach covers (the owner, 2026-11-16)
 
 If you relieve a coordinator in season and let your head coach run that side, the open chair offered only "Find a

@@ -137,7 +137,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run careers` — age a draft class of every position and play four 20-season leagues in
   parallel child processes, then four more for work ethic's lean on ceilings (about 19 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
-  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions', the 31–32 exits and linemen's median retirement age soft) against the research ranges. Run it after changing
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions' and the 31–32 exits soft, linemen's median retirement age printed only) against the research ranges. Run it after changing
   `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
@@ -603,8 +603,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     their pay (`aiOfferYears`), clubs keep their own only at a fair price (`RESIGN_VALUE`, `fairPrice` in `capPlan.ts`),
     your good player may want to test the market (`wantsMarket`, a pure draw), free agency passes more on fading
     veterans (`FADING`), clubs spend first in free agency's first days (`SPEND_FIRST`), cut overpaid veterans at the new
-    league year (`springCuts`, a starters' floor) and sign last season's unsigned starters in camp
-    (`campStarterSignings`); a starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`)
+    league year (`springCuts`, a starters' floor; designated post-June 1 where it moves money, `designateFor`, and only a
+    cut whose dead money doesn't eat the saving, `cutPaysOff`) and sign last season's unsigned starters in camp
+    (`campStarterSignings`); camp spends none of the in-season cushion but for the stars-only pass (`CAMP_CUSHION`); a
+    starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`)
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
