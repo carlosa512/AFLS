@@ -573,7 +573,9 @@ console.log(
   // injury retirements up to 8% at 32; retirement for age alone can't take it under the band without starving 29 and 30
   // (the owner's call, 2026-11-14: a known issue until the front offices' work lands). The all-positions rollup at 31
   // and 32 carries the same short-prime excess, long prime alone being in its bands (the owner's call, 2026-11-14).
-  const B_OWNS_GONE = (g: AgeGroup, b: AgeBand) => (g === 'short' || g === 'all') && (b === '31' || b === '32');
+  // 2026-11-16 (the owner's call): long prime's 31–32 exits join them as soft, the retirement follow-up's. A young
+  // quarterback's lean (`START_LEAN.qb`) took long prime's gone at 31 from 20.8% to 23.0% (fails above 21.6).
+  const B_OWNS_GONE = (_g: AgeGroup, b: AgeBand) => b === '31' || b === '32';
   // The league's and the quarterbacks' ages are judged; each other position's stays soft (2026-11-15).
   const B_JUDGES = (pos: string) => pos === 'ALL' || pos === 'QB';
   const judge = (label: string, value: number, target: number, width: number, digits = 1) => {
