@@ -44,7 +44,10 @@ describe('switching practice squads on', () => {
     }
     // Most clubs form one at camp; a few with no room or no one worth keeping don't. Across leagues it runs 26–31 of
     // 32 (seeds activation-old, sq-2, sq-3 on main before the draft-busts change: 31, 26, 30).
-    expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(26);
+    // 2026-11-16: the market and exits: 24 of 32 formed one in this world (bound 26, now 22). The eight that did not had
+    // $0.3M to $4M of room on a full 53 (and one $11M, with no one worth keeping): clubs spend first in free agency's
+    // first days now (`SPEND_FIRST`), so more reach camp with their room spent, as the test's own line says a few do.
+    expect(l.teams.filter((t) => practiceSquad(l, t.id).length > 0).length).toBeGreaterThanOrEqual(22);
     // Camp's pay-ahead held room for a full veteran squad; once squads formed, what they didn't cost was paid ahead too.
     // A club whose books moved after camp is left out: a holdout who gives in at week 1 comes back to a full 53, and
     // the cut that makes his room frees cap camp never saw (G4).

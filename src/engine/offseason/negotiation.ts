@@ -17,6 +17,7 @@ import { noteSigning } from '../gmMoves';
 import { numberOnArrival } from '../jerseys';
 import { clamp, Rng } from '../rng';
 import { activeRoster, setTeam, syncDepthChart, teamRatings } from '../roster';
+import { promisedDeal } from '../disputeRead';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
 
@@ -345,8 +346,30 @@ export interface OfferResponse {
 }
 
 /** The user makes an offer. Accepted deals are signed on the spot. */
+/**
+ * The chance a good player of yours whose deal ends wants to see the market before he re-signs, before his loyalty
+ * (the owner, 2026-11-16: "some chance, lower but non zero"). AI clubs' players have their own (`TESTS_MARKET`).
+ */
+export const USER_TESTS_MARKET = 0.08;
+
+/**
+ * Whether your player wants to test the market this league year: a good player (his market 2% of the cap or more) on
+ * your team whose deal has ended, never one you promised a deal; a pure draw on his own stream, so it reads the same
+ * every time and nothing is saved. He signs with you only once free agency opens.
+ */
+export function wantsMarket(league: League, p: Player): boolean {
+  if (p.teamId !== league.userTeamId || !p.contract || !isExpired(p.contract, league.season) || promisedDeal(p))
+    return false;
+  if (marketApy(leagueMarket(league), p) < 0.02 * league.caps[league.season]) return false;
+  return new Rng(`${league.seed}:testsMarket:${league.season}:${p.id}`).chance(
+    USER_TESTS_MARKET * (1 - p.personality.loyalty),
+  );
+}
+
 export function makeOffer(league: League, player: Player, teamId: number, offer: Offer): OfferResponse {
   const n = negotiationFor(league, player, teamId);
+  if (league.phase === 'resign' && wantsMarket(league, player))
+    return { accepted: false, message: 'He wants to see what the market says first.', negotiation: n };
   if (n.status === 'broken')
     return {
       accepted: false,

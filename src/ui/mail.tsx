@@ -3787,6 +3787,7 @@ function ContractControls({
     return <p className="mail-row-note small">Re-signed thru {lastSeason(p.contract)}</p>;
   if (decided === 'tagged') return <p className="mail-row-note small">Tagged for {league.season}</p>;
   if (decided === 'broken') return <p className="mail-row-note small">Talks broken off</p>;
+  if (decided === 'testing') return <p className="mail-row-note small">Wants to see the market first</p>;
   if (league.phase !== 'resign') {
     if (p.teamId !== null && p.teamId !== user)
       return (

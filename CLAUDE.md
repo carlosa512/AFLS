@@ -15,6 +15,26 @@ middle number for a finished MVP item, the last number for fixes.
   Do the work inline when an agent isn't clearly needed.
 - Keep explanations short and concrete, with a clear next step.
 
+## Lessons from tuning work (the front offices, 0.4.48)
+
+- **A change to who plays or who is paid reshuffles every seeded world.** Make all the engine changes first, then
+  fix the moved tests once at the end. A test finds its scene (search the world, assert the scene exists) rather than
+  pinning a lucky seed: those survived later reshuffles, pinned seeds broke again.
+- **Tune with a fast probe, judge with the real check.** A two-league scratch run (about 10 minutes) to steer, then
+  the area's check once to confirm. A 10-season `sim` line that looks bad: confirm on the area's fast script (3,000
+  games) before reacting; small samples cry wolf.
+- **Who plays spills into morale and mail.** More young starters meant sore veterans, Split rooms, more stories and
+  meetings. At design time, ask what a change does to moods, stories and meetings, and measure them early.
+- **List the lines near their edge on main before starting** (within about 5%): a small push tips them, and it should
+  be no surprise. After 0.4.48: win spread 3.58 (fails 3.6), margin spread 13.33 (fails 13.6), meetings a club a
+  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%).
+- **Settle the tolerance in brainstorming:** how close to the NFL is close enough (the owner: aim for the average,
+  not hyper-realism), which lines fail and which only warn, and a tuning step with a stop rule for any guessed number.
+- **One CPU-heavy job at a time:** agents and sims side by side thrash the cores and everything slows.
+- **A fresh reviewer before the PR** caught three real bugs the tests missed.
+- **Local runs steer, CI verifies:** run the few checks the change moves, one at a time; CI runs all of them side by
+  side. Once a PR is open, push only after local checks pass, and fix a red CI in one push.
+
 ## Commands
 
 **CI is the full run; a session runs only what it needs to steer.** Every pull request runs the checks
@@ -117,7 +137,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run careers` — age a draft class of every position and play four 20-season leagues in
   parallel child processes, then four more for work ethic's lean on ceilings (about 19 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
-  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions' and the 31–32 exits soft) against the research ranges. Run it after changing
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions', the 31–32 exits and linemen's median retirement age soft) against the research ranges. Run it after changing
   `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
@@ -186,7 +206,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   meetings (L2): meetings per club per season, how many take one well or bristle, head coaches whose word has worn thin
   at season's end and their recovery; and chemistry (L3): centred, Clicking and Out of sync shares, Sparks leaning the right
   way, Anchors calming a room; and backing the staff (L4): the staff edge centred, rooms in doubt and lost, lawyers'
-  rooms doubting more, notices kept, AI clubs relieving coordinators at the NFL's rate. Run it after changing
+  rooms doubting more, notices kept (judged with 10 or more), AI clubs relieving coordinators at the NFL's rate. Run it after changing
   `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
@@ -579,7 +599,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `finance/` contracts as year-by-year ledgers (`contract.ts`: proration, dead money,
     restructures), team cap sheets and moves (`cap.ts`), the rank-based market, rookie scale and
     tags (`market.ts`; a deal's length by what he's worth, then his age on his position's clock: `dealYears`, `DEAL_YEARS`)
-  - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft
+  - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft; the market (0.4.49): AI offers run the length of
+    their pay (`aiOfferYears`), clubs keep their own only at a fair price (`RESIGN_VALUE`, `fairPrice` in `capPlan.ts`),
+    your good player may want to test the market (`wantsMarket`, a pure draw), free agency passes more on fading
+    veterans (`FADING`), clubs spend first in free agency's first days (`SPEND_FIRST`), cut overpaid veterans at the new
+    league year (`springCuts`, a starters' floor) and sign last season's unsigned starters in camp
+    (`campStarterSignings`); a starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`)
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and

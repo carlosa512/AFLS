@@ -15,7 +15,7 @@ import {
   tagValue,
 } from '../../engine/offseason/ai';
 import { positionDepth } from '../../engine/offseason/draft';
-import { demand, extensionBlocker, freeAgents } from '../../engine/offseason/negotiation';
+import { demand, extensionBlocker, freeAgents, wantsMarket } from '../../engine/offseason/negotiation';
 import { teamPlayers } from '../../engine/roster';
 import { pron } from '../../engine/pronouns';
 import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
@@ -221,6 +221,7 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                         const d = demand(league, p, teamId);
                         const n = league.negotiations[p.id];
                         const broken = n?.status === 'broken' && n.brokenPhase === league.phase;
+                        const testing = wantsMarket(league, p);
                         const blocker = tagBlocker(league, p);
                         return (
                           <tr key={p.id}>
@@ -238,7 +239,13 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                               {money(d.askApy)} × {d.askYears}
                             </td>
                             <td className={broken ? 'tone-bad small' : 'muted small'}>
-                              {broken ? 'Broken off' : n ? `${n.patience} left` : 'Open'}
+                              {broken
+                                ? 'Broken off'
+                                : testing
+                                  ? 'Testing the market'
+                                  : n
+                                    ? `${n.patience} left`
+                                    : 'Open'}
                             </td>
                             <td>
                               {lettingWalk(league, p.id) ? (
@@ -253,7 +260,12 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                                 </span>
                               ) : (
                                 <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                                  <button className="btn btn-sm" onClick={() => negotiate(p)} disabled={broken}>
+                                  <button
+                                    className="btn btn-sm"
+                                    onClick={() => negotiate(p)}
+                                    disabled={broken || testing}
+                                    title={testing ? 'He wants to see what the market says first.' : undefined}
+                                  >
                                     Negotiate
                                   </button>
                                   <button

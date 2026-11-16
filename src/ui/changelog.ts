@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.49',
+    date: '2026-11-16',
+    title: 'A livelier spring market',
+    text: 'Teams let more players test free agency, cut overpaid veterans in March and spend early. Starters stay in the game longer, and your own player may want to see the market first.',
+  },
+  {
     version: '0.4.48',
     date: '2026-11-15',
     title: 'Young players get their shot',

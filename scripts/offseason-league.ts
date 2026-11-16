@@ -8,6 +8,7 @@ import { createLeague } from '../src/engine/generate';
 import { simToEndOfSeason } from '../src/engine/league';
 import { advanceOffseason, beginOffseason } from '../src/engine/offseason';
 import { chairSnap, newHeadCoaches, type HcOrigin } from './carousel';
+import { faMeasures, kickoffStarters, outOfFootball, windowStart, type FaMeasures } from './free-agency-core';
 
 export interface CapRun {
   seed: string;
@@ -15,6 +16,9 @@ export interface CapRun {
   space: number[][];
   /** The run's new head coaches, by where they came from (the carousel's retread share is pooled over leagues). */
   hcFrom: Record<HcOrigin, number>;
+  /** Each season's market at kickoff and its starters out of football (%), for the pooled market lines. */
+  market: FaMeasures[];
+  out: number[];
 }
 
 const seed = process.env.OFFSEASON_SEED!;
@@ -24,10 +28,17 @@ const space: number[][] = [];
 const hcFrom: Record<HcOrigin, number> = { retread: 0, coordinator: 0, other: 0 };
 // Kickoff to kickoff, as the audit's own league counts them: an in-season firing's interim is a change too.
 let before = chairSnap(league);
+const market: FaMeasures[] = [];
+const out: number[] = [];
+let lastStarters = kickoffStarters(league);
 for (let s = 0; s < seasons; s++) {
   simToEndOfSeason(league);
   beginOffseason(league);
+  const start = windowStart(league);
   while (league.phase !== 'regular') advanceOffseason(league, { autoUser: true });
+  market.push(faMeasures(start, league));
+  out.push(outOfFootball(league, lastStarters));
+  lastStarters = kickoffStarters(league);
   const hired = newHeadCoaches(league, before);
   for (const k of Object.keys(hcFrom) as HcOrigin[]) hcFrom[k] += hired[k];
   before = chairSnap(league);
@@ -38,4 +49,4 @@ for (let s = 0; s < seasons; s++) {
     }),
   );
 }
-process.send!({ seed, space, hcFrom } satisfies CapRun);
+process.send!({ seed, space, hcFrom, market, out } satisfies CapRun);

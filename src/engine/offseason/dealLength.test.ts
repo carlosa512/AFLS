@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
-import { leagueMarket, marketApy } from '../finance/market';
+import { dealYears, leagueMarket, marketApy } from '../finance/market';
+import { Rng } from '../rng';
+import { aiOffer, aiOfferYears } from './ai';
 import { askOffer, demand, makeOffer, offerProblem, offerValue } from './negotiation';
 
 describe("a deal's length in talks (project B)", () => {
@@ -61,5 +63,57 @@ describe('a refusal over length says so (final review)', () => {
     const r = makeOffer(l, p, l.userTeamId, { ...askOffer(d), apy, years: 1 });
     expect(r.accepted).toBe(false);
     expect(r.message).toBe(`The money works. He wants ${d.askYears} years.`);
+  });
+});
+
+describe("an AI club's offer runs the length of its pay (market and exits)", () => {
+  it("an AI club's offer runs the length of the pay it offers, not of his ask", () => {
+    const l = createLeague({ seed: 'deal-length' });
+    const cap = l.caps[l.season];
+    const m = leagueMarket(l);
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    // Cheap enough to ask one or two years, then offered a good deal by an eager club.
+    const p = Object.values(l.players).find((x) => x.teamId !== null && x.age <= 28 && marketApy(m, x) / cap < 0.008)!;
+    const d = demand(l, p, team.id);
+    expect(d.askYears).toBeLessThanOrEqual(2);
+    const offer = aiOffer(l, team, p, new Rng('len'), 4);
+    const share = 0.025;
+    const priced = { ...offer, apy: Math.round(share * cap) };
+    expect(aiOfferYears(l, team, p, priced.apy)).toBeGreaterThanOrEqual(dealYears(p, share));
+  });
+
+  it("an AI club's offer at or above his ask clears his walk-away whatever its length", () => {
+    const l = createLeague({ seed: 'deal-length-2' });
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    let n = 0;
+    for (const p of Object.values(l.players).slice(0, 400)) {
+      if (p.teamId === null) continue;
+      const d = demand(l, p, team.id);
+      const o = aiOffer(l, team, p, new Rng(`c${p.id}`), 2);
+      if (o.apy < d.askApy) continue;
+      n++;
+      expect(offerValue(l, p, team.id, { ...o, gtdPct: Math.max(o.gtdPct, d.askGtdPct) }, d)).toBeGreaterThanOrEqual(
+        d.walkAway * 0.999,
+      );
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+});
+
+describe('an offer under his ask runs his asked years (final review)', () => {
+  it('never adds years he did not ask for when it pays under his ask', () => {
+    const l = createLeague({ seed: 'deal-length-3' });
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const cap = l.caps[l.season];
+    let n = 0;
+    for (const p of Object.values(l.players).slice(0, 600)) {
+      if (p.teamId === null) continue;
+      const d = demand(l, p, team.id);
+      const apy = Math.floor(d.askApy * 0.99);
+      if (dealYears(p, apy / cap) <= d.askYears) continue;
+      n++;
+      expect(aiOfferYears(l, team, p, apy, d)).toBeLessThanOrEqual(d.askYears);
+    }
+    expect(n).toBeGreaterThan(0);
   });
 });

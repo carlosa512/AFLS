@@ -87,7 +87,17 @@ export const ageShift = (position: Position) => clamp(AGING[position].peakEnd - 
  * Chance a player retires this offseason (his age has just ticked over). Players under contract
  * hang on until their body tells them otherwise; unsigned veterans and washed-up players walk away.
  */
-export function retireChance(p: Player, ovr: number): number {
+export function retireChance(p: Player, ovr: number, started = false): number {
+  const chance = retireBase(p, ovr);
+  // Not kickers and punters: every club's one starts, so the lean kept old specialists past the NFL's.
+  if (!started || p.position === 'K' || p.position === 'P') return chance;
+  // Judged after his birthday: half the lean at `starterFrom` (30 last season), whole from the year after. The whole
+  // lean at 31 kept starters at 30 under the NFL's exits, none at 31 retired linemen at 31 (careers, 2026-11-16).
+  const share = p.age > RETIRE_BODY.starterFrom ? 1 : p.age === RETIRE_BODY.starterFrom ? RETIRE_BODY.starterFirst : 0;
+  return chance * (1 - share * RETIRE_BODY.starterLean);
+}
+
+function retireBase(p: Player, ovr: number): number {
   const over = p.age - (AGING[p.position].peakEnd + bodyShift(p.traits));
   if (p.teamId === null) return over >= 2 || ovr < 8 ? 0.6 : 0.2;
   if (over >= 8) return 1;
@@ -132,6 +142,11 @@ export const RETIRE_BODY = {
   // Linemen and tight ends leave sooner after their prime (the NFL's long-prime starters: 15–26% gone a year at 30–32),
   // punters sooner than kickers (a quarter of starting punters are 31 or older, a third of kickers).
   turn: { TE: 2, OL: 2, DT: 2, P: 3 } as Partial<Record<Position, number>>,
+  // A man who started last season leans this share off his chance: a starter still on the field plays on where a backup
+  // his age goes (2026-11-16: starters at 31–32 left football about twice as often as the NFL's). Tuned in careers.
+  starterLean: 0.55,
+  starterFrom: 31,
+  starterFirst: 0.5,
 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */

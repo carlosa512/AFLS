@@ -31,6 +31,7 @@ import {
   payAhead,
   signMinimum,
   spendable,
+  SPEND_FIRST,
   tagBlocker,
 } from './ai';
 import { availableProspects, draftOrder, draftPlayer, nextPick, simDraft } from './draft';
@@ -267,6 +268,10 @@ describe('offseason calendar', () => {
     beginOffseason(league);
     advanceOffseason(league, { autoUser: true });
     expect(league.phase).toBe('freeAgency');
+    // 2026-11-16: the market and exits: on free agency's first two days a club holds back only half its fill reserve and none
+    // of its in-season cushion (`SPEND_FIRST`: spend first, settle later), so the reserve priced here is read from day three
+    // on, when a club keeps all of it again.
+    league.faDay = SPEND_FIRST.days + 1;
     const cap = league.caps[league.season];
     let checked = 0;
     for (const t of league.teams) {
@@ -483,6 +488,8 @@ describe('the re-sign call', () => {
   // length, so who each club keeps moved (323 kept and 10 tagged before, 321 and 3 after).
   // again with the final fixes (2026-11-16): the club trouble cooldown and a young quarterback's lineup lean moved every depth chart and
   // season, so who each club keeps moved (321 kept and 3 tagged before, 332 and 7 after).
+  // again with the market and exits (2026-11-16): clubs re-sign their own less (`RESIGN_VALUE`, `fairPrice`) and offers run the length of
+  // their pay, so who each club keeps moved (332 kept and 7 tagged before, 281 and 12 after).
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

@@ -22,7 +22,17 @@ import { demand, offerValue } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { playerOvr } from '../positions';
 import { teamPlayers } from '../roster';
-import { capPlan, gambles, stanceFor, STANCE_BANK, STANCE_SPEND, worthIt } from './capPlan';
+import {
+  capPlan,
+  fairPrice,
+  gambles,
+  priceFits,
+  RESIGN_VALUE,
+  stanceFor,
+  STANCE_BANK,
+  STANCE_SPEND,
+  worthIt,
+} from './capPlan';
 
 let window: League;
 beforeAll(() => {
@@ -70,12 +80,14 @@ describe('the cap plan', () => {
       const plan = capPlan(l, team, new Rng(`w${team.id}`));
       for (const k of plan.keepers)
         expect(k.worth).toBe(
-          worthIt(
-            { gain: k.gain, apy: k.offer.apy, position: k.player.position },
-            upgradeBar(l, team, k.offer.apy),
-            k.reason === 'starter' && !gambles(l, team) ? [] : plan.targets,
-            plan.room,
-          ),
+          // 2026-11-16 (market and exits): the price must also fit what the club reads him worth.
+          priceFits(k.offer.apy, fairPrice(l, k.player, k.ahead)) &&
+            worthIt(
+              { gain: k.gain, apy: k.offer.apy, position: k.player.position },
+              upgradeBar(l, team, k.offer.apy),
+              k.reason === 'starter' && !gambles(l, team) ? [] : plan.targets,
+              plan.room,
+            ),
         );
     }
   });
@@ -286,5 +298,29 @@ describe('review fixes', () => {
     aiResignWindow(l, club, new Rng('walks'));
     expect([...before].filter((id) => l.players[id].teamId !== club.id)).toEqual([]);
     expect(l.transactions.slice(n).filter((t) => t.kind === 'restructure' && t.teamIds.includes(club.id))).toEqual([]);
+  });
+});
+
+describe('AI clubs re-sign their own less (market and exits)', () => {
+  it('an AI club lets a keeper go when his price runs past what it reads him worth', () => {
+    expect(priceFits(1300, 1000 / RESIGN_VALUE.ratio)).toBe(false);
+    expect(priceFits(900, 1000 / RESIGN_VALUE.ratio)).toBe(true);
+  });
+
+  it('no keeper is worth it when no price fits, and the plan is as before when every price does', () => {
+    const was = RESIGN_VALUE.ratio;
+    try {
+      RESIGN_VALUE.ratio = 0;
+      const l = fresh();
+      const none = l.teams.flatMap((t) => capPlan(l, t, new Rng(`r${t.id}`)).keepers);
+      expect(none.length).toBeGreaterThan(20);
+      expect(none.some((k) => k.worth)).toBe(false);
+      RESIGN_VALUE.ratio = Infinity;
+      const l2 = fresh();
+      const all = l2.teams.flatMap((t) => capPlan(l2, t, new Rng(`r${t.id}`)).keepers);
+      expect(all.some((k) => k.worth)).toBe(true);
+    } finally {
+      RESIGN_VALUE.ratio = was;
+    }
   });
 });

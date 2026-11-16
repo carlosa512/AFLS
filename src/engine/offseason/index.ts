@@ -67,7 +67,10 @@ import {
   aiTrainingCamp,
   expiringPlayers,
   fillCampRoster,
+  campStarterSignings,
   payAhead,
+  springCuts,
+  startedLastSeason,
 } from './ai';
 import { clockOffers } from '../trade/draft';
 import {
@@ -159,6 +162,8 @@ export function beginOffseason(league: League): void {
   // club until free agency, and picks are pruned only at finishDraft, so both still read here.
   memoryNewYear(league);
   const retirees: Player[] = [];
+  // Who started the season just played: a starter still on the field leans away from retiring (`retireChance`).
+  const started = startedLastSeason(league, last);
   for (const p of Object.values(league.players)) {
     if (p.retired) continue;
     // Close the season's service before calendar experience advances; service is not experience.
@@ -184,7 +189,7 @@ export function beginOffseason(league: League): void {
     const body = injuryRetireChance(p, league.season);
     const head = concussionRetireChance(p, league.season);
     const worn = 1 - (1 - body) * (1 - head);
-    if (own.chance(1 - (1 - retireChance(p, playerOvr(p))) * (1 - worn))) {
+    if (own.chance(1 - (1 - retireChance(p, playerOvr(p), started.has(p.id))) * (1 - worn))) {
       if (p.teamId !== null) {
         // Retiring under contract: every remaining bonus dollar accelerates.
         accelerateProration(league, p, p.teamId, 'Retired');
@@ -271,6 +276,10 @@ export function beginOffseason(league: League): void {
   leadershipNewYear(league);
   // The new league year opens the trade market: deals agreed over the winter, cap casualties, stars on the move.
   withLeagueAi(league, () => marketMoment(league, 'leagueYear'));
+  // Then the spring's cap casualties nobody traded for: AI clubs release overpaid veterans (`springCuts`).
+  withLeagueAi(league, () => {
+    for (const team of league.teams) springCuts(league, team);
+  });
   // The new league year's moods: who was passed in his room, who left, what the winter's deals say.
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.
@@ -427,6 +436,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
         completeMoves(league);
         // Camp: teams with surplus deal it before the cut to 53.
         marketMoment(league, 'camp');
+        // Last season's starters still unsigned go to a club with the need, before the cut to 53.
+        campStarterSignings(league, startedLastSeason(league, league.season - 1));
         for (const team of ai) aiTrainingCamp(league, team, rng);
         ensureStaffed(league, { autoUser: auto });
         ensureCoached(league, { autoUser: auto });

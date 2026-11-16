@@ -31,6 +31,7 @@ import {
 import type { RestructurePreview } from '../finance/contract';
 import {
   fifthYearOptionValue,
+  dealYears,
   franchiseTagValue,
   leagueMarket,
   marketApy,
@@ -69,7 +70,7 @@ import {
 } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { personnelMoveLock } from '../personnel/elevations';
-import { capPlan, type PlannedKeeper } from './capPlan';
+import { capPlan, fairPrice, type PlannedKeeper } from './capPlan';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -143,7 +144,7 @@ export const cutRoom = (league: League, teamId: number, cut: Player): number =>
  * minimum, which covers any of them; kept at the second-year minimum, a team with twenty spots to fill paid the
  * difference out of its in-season room.
  */
-const fillReserve = (league: League, teamId: number) =>
+export const fillReserve = (league: League, teamId: number) =>
   openSpots(league, teamId) * topMinimum(league.caps[league.season]);
 
 /**
@@ -159,13 +160,26 @@ const voidReserve = (league: League, teamId: number) =>
         .reduce((sum, p) => sum + futureProration(p.contract!, league.season), 0);
 
 /** What an AI team can spend right now without starving the draft class or the bottom of the roster. */
-export const spendable = (league: League, teamId: number) =>
-  capSpace(league, teamId) -
-  rookieReserve(league, teamId) -
-  fillReserve(league, teamId) -
-  inSeasonReserve(league, teamId) -
-  voidReserve(league, teamId) -
-  squadReserve(league, teamId);
+export const spendable = (league: League, teamId: number) => {
+  // Spend first, settle later: in free agency's first days a club may spend its in-season cushion and part of its fill
+  // reserve, as NFL clubs spend in March and fill the bottom of the roster later; it keeps them again after.
+  const early = league.phase === 'freeAgency' && (league.faDay ?? 0) >= 1 && (league.faDay ?? 0) <= SPEND_FIRST.days;
+  return (
+    capSpace(league, teamId) -
+    rookieReserve(league, teamId) -
+    (early ? 1 - SPEND_FIRST.fillShare : 1) * fillReserve(league, teamId) -
+    (early ? 0 : inSeasonReserve(league, teamId)) -
+    voidReserve(league, teamId) -
+    squadReserve(league, teamId)
+  );
+};
+
+/**
+ * The days of free agency a club spends first, and the share of its fill reserve it may spend then. By a league's fourth
+ * season clubs set aside about 12% of the cap before free agency and had 0–2% to spend, so good outside signings fell to
+ * about 60 a year, half of them squeezed one-year deals (the NFL's: 84–109 and 20%; 2026-11-16). Tuned against both.
+ */
+export const SPEND_FIRST = { days: 2, fillShare: 0.5 };
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -203,6 +217,41 @@ export const winNow = (league: League, team: Team) =>
 export const richness = (league: League, team: Team) =>
   clamp((capSpace(league, team.id) - 0.08 * league.caps[league.season]) / (0.25 * league.caps[league.season]), 0, 1);
 
+/**
+ * How long an AI club's offer runs: the length a deal at this pay runs (`dealYears` at the offer's share of the cap), or
+ * his asked years when they are longer (an offer under his market price), so the length never costs him value. His ask
+ * follows his market price, and a club bidding past it signed a cheaper player's one- or two-year ask: 54% of good
+ * outside signings were one-year against the NFL's 20% (2026-11-16). A club not playing for now gives a veteran 31 or
+ * older on his position's clock a year less, as before (ages read on the clock: a 33-year-old quarterback is a 29-year-old
+ * receiver).
+ */
+/**
+ * A fading veteran (this old or older on his position's clock, and headed below what he is today) needs a gain this many
+ * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older with no deal, and ours
+ * left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16).
+ */
+export const FADING = { age: 32, bar: 1.6 };
+
+/** The bid bar's multiple for a free agent, from his age on his clock and where the club reads him headed. */
+export function fadingBar(p: Pick<Player, 'age' | 'position'>, ahead: number, seen: number): number {
+  // Headed under what the club's own scouts see in him today (`seen`): never his true rating (the fog of war).
+  return p.age - ageShift(p.position) >= FADING.age && ahead < seen ? FADING.bar : 1;
+}
+
+export function aiOfferYears(
+  league: League,
+  team: Team,
+  player: Player,
+  apy: number,
+  d = demand(league, player, team.id),
+): number {
+  const byPay = dealYears(player, apy / league.caps[league.season]);
+  const older = player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0;
+  // Past his asked years only at his price or better: under it, every extra year costs him value (`offerValue`).
+  const years = apy >= d.askApy ? Math.max(byPay, d.askYears) : d.askYears;
+  return clamp(years + older, 1, 5);
+}
+
 /** A GM's offer to a player, shaped by need, ambition and cap style (`rich`: his club's `richness`, if read already). */
 export function aiOffer(
   league: League,
@@ -221,12 +270,7 @@ export function aiOffer(
     ) * (gunShyAt(league, team, player.position) ? 0.92 : 1);
   const cap = league.caps[league.season];
   const apy = Math.max(minSalary(player.experience, cap), Math.round(d.market * eager));
-  // Ages read on the position's clock: a 33-year-old quarterback is a 29-year-old receiver.
-  const years = clamp(
-    d.askYears + (player.age - ageShift(player.position) >= 31 && team.gm.winNow < 0.5 ? -1 : 0),
-    1,
-    5,
-  );
+  const years = aiOfferYears(league, team, player, apy, d);
   const gtdPct = clamp(d.askGtdPct * rng.float(0.85, 1.05), 0, 0.9);
   const bonusPct = Math.min(gtdPct * (0.45 + 0.4 * team.gm.capAggression), maxBonusShare(team.gm.capAggression));
   const voidYears = team.gm.capAggression > 0.75 && apy > cap * 0.04 && years < 4 ? 1 : 0;
@@ -966,6 +1010,49 @@ export function capCut(league: League, team: Team, desperate = false, fairOnly =
 }
 
 /**
+ * How far past what a club reads him worth a veteran's cap charge runs before it cuts him in the spring: the NFL's March
+ * releases put a fifth to a quarter of its good outside signings on the market, and ours rarely cut a veteran with years
+ * left (2026-11-16). Tuned against the released share.
+ */
+export const SPRING_CUT = { margin: 0.5 };
+
+/**
+ * An AI club's spring cuts at the new league year: veterans with years left whose charge runs past `SPRING_CUT.margin`
+ * over what it reads them worth where they're headed, when the cut frees room now and over two years, never a young
+ * star, a man signed this league year or one that leaves his position short of its starters under contract (in March most
+ * deals have just ended and a club refills in free agency and the draft: the season's floor, `KEEP_MIN`, counted only
+ * those under contract and let nobody go); the most room first. Your staff never cuts.
+ * Called after the trade market's call-around for cap casualties, so one it traded is gone already. Returns who went.
+ */
+export function springCuts(league: League, team: Team): Player[] {
+  if (team.id === league.userTeamId) return [];
+  const market = leagueMarket(league);
+  const wn = winNow(league, team);
+  const out: Player[] = [];
+  for (;;) {
+    const roster = teamPlayers(league, team.id).filter((p) => p.contract && !isExpired(p.contract, league.season));
+    const counts = new Map<Position, number>();
+    for (const p of roster) if (!p.ir) counts.set(p.position, (counts.get(p.position) ?? 0) + 1);
+    const best = roster
+      .filter(
+        (p) =>
+          (counts.get(p.position) ?? 0) > STARTERS[p.position] &&
+          lastSeason(p.contract!) > league.season &&
+          p.contract!.signedSeason !== league.season &&
+          !isYoungStar(league, p, marketApy(market, p)) &&
+          capHit(p.contract!, league.season) >
+            (1 + SPRING_CUT.margin) * fairPrice(league, p, teamOutlook(league, team.id, p, wn)),
+      )
+      .map((p) => ({ p, ...twoYearRoom(league, p) }))
+      .filter((x) => x.now > 200 && x.twoYear > 0)
+      .sort((a, b) => b.now - a.now)[0];
+    if (!best) return out;
+    releasePlayer(league, best.p);
+    out.push(best.p);
+  }
+}
+
+/**
  * The room a cut makes this league year (`now`) and over this year and next (`twoYear`): his hit next year comes off
  * the books, the dead money the cut pushes there goes on. From camp a cut is booked post-June 1, so it can look cheap
  * now and leave next year worse than keeping him.
@@ -1105,11 +1192,14 @@ export function aiFreeAgencyDay(
       const full = (room.get(team.id) ?? 0) <= 0;
       if ((full && !opts.lastCall) || (signedToday.get(team.id) ?? 0) >= dailyLimit.get(team.id)!) continue;
       // Bid on what its own scouts see: his game, plus or minus the habits they've caught on film.
-      const ahead = leanOutlook(p, read(team.id, p), winNow(league, team));
+      const seen = read(team.id, p);
+      const ahead = leanOutlook(p, seen, winNow(league, team));
       const gm = aiGm(league, team);
       // A bridge GM wants an old quarterback for a year beside his young one; a gun-shy one asks more at his position.
       const bridging = !!bridge.get(team.id) && p.position === 'QB' && p.age - ageShift('QB') >= 30;
-      const bar = bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1;
+      const bar =
+        (bridging ? 0.5 : gunShyAt(league, team, p.position) ? 1.3 : 1) *
+        (bridging ? 1 : fadingBar(p, ahead, seen.ovr));
       const gain =
         needGain(depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
         (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
@@ -1342,8 +1432,66 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
   return p;
 }
 
+/**
+ * Last season's starters by snaps: the top `STARTERS[pos]` a club and position (kickers and punters by games), read
+ * at the clubs he played for that season (`statTeams`, `splitStats`), not where he is now.
+ */
+export function startedLastSeason(league: League, season: number): Set<number> {
+  // Each man's snaps at each club he played for that season, from his own record (a trade or a later move never
+  // moves where he started), gathered in one pass.
+  const by = new Map<string, { id: number; n: number }[]>();
+  for (const p of Object.values(league.players)) {
+    const line = p.stats[season];
+    if (!line) continue;
+    const key = p.position === 'K' || p.position === 'P' ? 'gp' : 'snaps';
+    const teams = p.statTeams?.[season] ?? (p.teamId !== null ? [p.teamId] : []);
+    for (const t of teams) {
+      const n = (teams.length > 1 ? p.splitStats?.[season]?.[t]?.[key] : line[key]) ?? 0;
+      if (n <= 0) continue;
+      const k = `${t}:${p.position}`;
+      (by.get(k) ?? by.set(k, []).get(k)!).push({ id: p.id, n });
+    }
+  }
+  const out = new Set<number>();
+  for (const [k, xs] of by) {
+    const pos = k.slice(k.indexOf(':') + 1) as Position;
+    for (const x of xs.sort((a, b) => b.n - a.n || a.id - b.id).slice(0, STARTERS[pos])) out.add(x.id);
+  }
+  return out;
+}
+
+/**
+ * Camp: each of last season's starters still unsigned goes to the AI club that gains most from him at his position
+ * and fits him under its cap (the cut to 53 follows in camp), at what he'll take (his walk-away, never under the minimum). The unsigned are
+ * then the fading and the backups, as in the NFL (2026-11-16: starters out of football ran 5–8% against 2–4%).
+ */
+export function campStarterSignings(league: League, started: ReadonlySet<number>): Player[] {
+  const out: Player[] = [];
+  for (const p of freeAgents(league)) {
+    if (!started.has(p.id) || p.injury || p.retired) continue;
+    let best: { team: Team; gain: number; offer: Offer } | undefined;
+    for (const team of league.teams) {
+      // Camp rosters run past 53 until the cut (`aiTrainingCamp`): only the cap limits a camp signing.
+      if (team.id === league.userTeamId) continue;
+      const d = demand(league, p, team.id);
+      const floor = minimumOffer(league, p);
+      const perDollar = offerValue(league, p, team.id, { ...floor, apy: 1 }, d);
+      const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
+      // A starter is what the in-season cushion is for: camp may spend it on him.
+      if (offerCharge(league, p, team.id, offer) > spendable(league, team.id) + inSeasonReserve(league, team.id))
+        continue;
+      const gain = needGain(depthOutlooks(league, team), p, teamOutlook(league, team.id, p, winNow(league, team)));
+      if (gain > 0 && (!best || gain > best.gain)) best = { team, gain, offer };
+    }
+    if (!best) continue;
+    signPlayer(league, p, best.team.id, best.offer);
+    out.push(p);
+  }
+  return out;
+}
+
 /** A one-year minimum deal for `player`. */
-const minimumOffer = (league: League, player: Player): Offer => ({
+export const minimumOffer = (league: League, player: Player): Offer => ({
   years: 1,
   apy: minSalary(player.experience, league.caps[league.season]),
   bonusPct: 0,

@@ -46,6 +46,7 @@ import {
   tradeAngle,
   tradeRecordFor,
   leadershipMail,
+  promotionCandidates,
 } from './inbox';
 import { reputation } from './gmVoice';
 import { emptyMarket } from './trade/execute';
@@ -387,7 +388,28 @@ describe('inbox', () => {
       [hirer.id, user],
       `${hirer.abbrev} hired ${staged.teams[user].abbrev} ${was} ${coordinator.firstName} ${coordinator.lastName} as head coach`,
     );
+    // 2026-11-16: the market and exits: a staff in which no one a rung below the chair has a season behind him has no one to
+    // promote ("go to the market"). The scene gives one of our position coaches on that side a season in his room, and
+    // asserts there is someone to promote from within.
+    if (!promotionCandidates(copy(staged), chair).length) {
+      const side = chair.role === 'offCoord' ? ['QB', 'RB', 'WR', 'OL'] : ['DL', 'LB', 'DB'];
+      // (A staff with no position coach on that side is given one from another team.)
+      const onSide = (c: { role: string; room?: string }) =>
+        c.role === 'positionCoach' && !!c.room && side.includes(c.room);
+      const pc =
+        Object.values(staged.coaches).find((c) => c.teamId === user && onSide(c)) ??
+        Object.values(staged.coaches).find(
+          (c) => c.teamId !== null && c.teamId !== user && c.teamId !== hirer.id && onSide(c),
+        );
+      if (pc) pc.teamId = user;
+      if (pc)
+        pc.career = [
+          ...(pc.career ?? []),
+          { season: staged.season - 1, teamId: user, role: 'positionCoach', room: pc.room },
+        ];
+    }
     const world = copy(staged);
+    expect(promotionCandidates(world, chair).length, 'a coach of ours who could be promoted').toBeGreaterThan(0);
     deliverMail(world);
     const gone = world.inbox!.find((m) => m.id.startsWith(`staff:${world.season}:gone:${coordinator.id}:`))!;
     expect(mailSubject(gone)).toEqual({ kind: 'poached', season: world.season, coachId: coordinator.id, chair });

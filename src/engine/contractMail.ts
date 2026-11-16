@@ -9,7 +9,7 @@ import { isExpired } from './finance/contract';
 import { dealTier, type DealTier } from './finance/market';
 import { lettingWalk } from './offseason';
 import { expiringPlayers, resignCall, tagBlocker, type ResignReason } from './offseason/ai';
-import { askOffer, demand, offerProblem, offerValue } from './offseason/negotiation';
+import { askOffer, demand, offerProblem, offerValue, wantsMarket } from './offseason/negotiation';
 import { teamPlayers } from './roster';
 import { perceive } from './scouting';
 import { director, type Draft } from './senders';
@@ -32,13 +32,18 @@ export function askTier(league: League, p: Player, teamId: number): DealTier {
 }
 
 /** Where a player's deal stands now, wherever it was decided: the letter's row reads this, never a stored flag. */
-export function contractDecision(league: League, playerId: number): 'signed' | 'tagged' | 'walking' | 'broken' | null {
+export function contractDecision(
+  league: League,
+  playerId: number,
+): 'signed' | 'tagged' | 'walking' | 'broken' | 'testing' | null {
   const p = league.players[playerId];
   if (!p) return null;
   const user = league.userTeamId;
   if (p.teamId === user && p.contract && !isExpired(p.contract, league.season))
     return p.contract.kind === 'tag' ? 'tagged' : 'signed';
   if (lettingWalk(league, playerId)) return 'walking';
+  // He wants to see the market first: decided for the window, and he goes to free agency unless you sign him there.
+  if (league.phase === 'resign' && wantsMarket(league, p)) return 'testing';
   const n = league.negotiations[playerId];
   if (n?.teamId === user && n.status === 'broken' && n.brokenPhase === league.phase) return 'broken';
   return null;
@@ -218,7 +223,7 @@ export function contractMail(league: League, have: Set<string>): Draft[] {
           String(Math.round(read)),
           `${millions(d.askApy)} × ${d.askYears}, ${Math.round(d.askGtdPct * 100)}% gtd`,
           millions(d.market),
-          CALL[call.call],
+          wantsMarket(league, p) ? 'Testing the market' : CALL[call.call],
         ],
         note: say(
           NOTE,
