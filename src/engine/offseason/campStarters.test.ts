@@ -65,3 +65,11 @@ describe("last season's starters stay in football (market and exits)", () => {
     expect(STARTERS.WR).toBeGreaterThan(0);
   });
 });
+
+describe('the retirement lean skips specialists', () => {
+  it('a kicker or punter who started retires as before', () => {
+    const l = createLeague({ seed: 'camp-starters-kp' });
+    const k = Object.values(l.players).find((x) => x.position === 'P')!;
+    expect(retireChance(k, playerOvr(k), true)).toBe(retireChance(k, playerOvr(k), false));
+  });
+});

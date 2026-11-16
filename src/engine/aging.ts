@@ -89,7 +89,9 @@ export const ageShift = (position: Position) => clamp(AGING[position].peakEnd - 
  */
 export function retireChance(p: Player, ovr: number, started = false): number {
   const chance = retireBase(p, ovr);
-  return started ? chance * (1 - RETIRE_BODY.starterLean) : chance;
+  // Not kickers and punters: every club's one starts, so the lean kept old specialists past the NFL's.
+  const lean = started && p.position !== 'K' && p.position !== 'P';
+  return lean ? chance * (1 - RETIRE_BODY.starterLean) : chance;
 }
 
 function retireBase(p: Player, ovr: number): number {
@@ -139,7 +141,7 @@ export const RETIRE_BODY = {
   turn: { TE: 2, OL: 2, DT: 2, P: 3 } as Partial<Record<Position, number>>,
   // A man who started last season leans this share off his chance: a starter still on the field plays on where a backup
   // his age goes (2026-11-16: starters at 31–32 left football about twice as often as the NFL's). Tuned in careers.
-  starterLean: 0.4,
+  starterLean: 0.55,
 };
 
 /** His best overall at the position he plays now: today's, or any start of a league year on record. */
