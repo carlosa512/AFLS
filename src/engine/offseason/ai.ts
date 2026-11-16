@@ -1427,6 +1427,54 @@ function streetFreeAgent(league: League, position: Position, rng: Rng, maxAge = 
   return p;
 }
 
+/**
+ * Last season's starters by snaps: the top `STARTERS[pos]` a club and position (kickers and punters by games), a man
+ * since let go read at the club he last left.
+ */
+export function startedLastSeason(league: League, season: number): Set<number> {
+  const out = new Set<number>();
+  for (const team of league.teams)
+    for (const pos of POSITIONS) {
+      const key = pos === 'K' || pos === 'P' ? 'gp' : 'snaps';
+      const n = (p: Player) => p.stats[season]?.[key] ?? 0;
+      const ps = Object.values(league.players).filter(
+        (p) => (p.teamId ?? p.left?.at(-1)?.teamId) === team.id && p.position === pos && n(p) > 0,
+      );
+      for (const p of ps.sort((a, b) => n(b) - n(a)).slice(0, STARTERS[pos])) out.add(p.id);
+    }
+  return out;
+}
+
+/**
+ * Camp: each of last season's starters still unsigned goes to the AI club that gains most from him at his position
+ * and fits him under its cap (the cut to 53 follows in camp), at what he'll take (his walk-away, never under the minimum). The unsigned are
+ * then the fading and the backups, as in the NFL (2026-11-16: starters out of football ran 5–8% against 2–4%).
+ */
+export function campStarterSignings(league: League, started: ReadonlySet<number>): Player[] {
+  const out: Player[] = [];
+  for (const p of freeAgents(league)) {
+    if (!started.has(p.id) || p.injury || p.retired) continue;
+    let best: { team: Team; gain: number; offer: Offer } | undefined;
+    for (const team of league.teams) {
+      // Camp rosters run past 53 until the cut (`aiTrainingCamp`): only the cap limits a camp signing.
+      if (team.id === league.userTeamId) continue;
+      const d = demand(league, p, team.id);
+      const floor = minimumOffer(league, p);
+      const perDollar = offerValue(league, p, team.id, { ...floor, apy: 1 }, d);
+      const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
+      // A starter is what the in-season cushion is for: camp may spend it on him.
+      if (offerCharge(league, p, team.id, offer) > spendable(league, team.id) + inSeasonReserve(league, team.id))
+        continue;
+      const gain = needGain(depthOutlooks(league, team), p, teamOutlook(league, team.id, p, winNow(league, team)));
+      if (gain > 0 && (!best || gain > best.gain)) best = { team, gain, offer };
+    }
+    if (!best) continue;
+    signPlayer(league, p, best.team.id, best.offer);
+    out.push(p);
+  }
+  return out;
+}
+
 /** A minimum deal for `player`, as long as a deal at that pay runs for him (`dealYears`: three years for a young man). */
 export const minimumOffer = (league: League, player: Player): Offer => ({
   years: dealYears(player, minSalary(player.experience, league.caps[league.season]) / league.caps[league.season]),
