@@ -15,6 +15,26 @@ middle number for a finished MVP item, the last number for fixes.
   Do the work inline when an agent isn't clearly needed.
 - Keep explanations short and concrete, with a clear next step.
 
+## Lessons from tuning work (the front offices, 0.4.48)
+
+- **A change to who plays or who is paid reshuffles every seeded world.** Make all the engine changes first, then
+  fix the moved tests once at the end. A test finds its scene (search the world, assert the scene exists) rather than
+  pinning a lucky seed: those survived later reshuffles, pinned seeds broke again.
+- **Tune with a fast probe, judge with the real check.** A two-league scratch run (about 10 minutes) to steer, then
+  the area's check once to confirm. A 10-season `sim` line that looks bad: confirm on the area's fast script (3,000
+  games) before reacting; small samples cry wolf.
+- **Who plays spills into morale and mail.** More young starters meant sore veterans, Split rooms, more stories and
+  meetings. At design time, ask what a change does to moods, stories and meetings, and measure them early.
+- **List the lines near their edge on main before starting** (within about 5%): a small push tips them, and it should
+  be no surprise. After 0.4.48: win spread 3.58 (fails 3.6), margin spread 13.33 (fails 13.6), meetings a club a
+  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%).
+- **Settle the tolerance in brainstorming:** how close to the NFL is close enough (the owner: aim for the average,
+  not hyper-realism), which lines fail and which only warn, and a tuning step with a stop rule for any guessed number.
+- **One CPU-heavy job at a time:** agents and sims side by side thrash the cores and everything slows.
+- **A fresh reviewer before the PR** caught three real bugs the tests missed.
+- **Local runs steer, CI verifies:** run the few checks the change moves, one at a time; CI runs all of them side by
+  side. Once a PR is open, push only after local checks pass, and fix a red CI in one push.
+
 ## Commands
 
 **CI is the full run; a session runs only what it needs to steer.** Every pull request runs the checks
