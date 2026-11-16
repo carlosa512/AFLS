@@ -58,13 +58,25 @@ export function selectionPreference(c: Coach | undefined, p: Player): number {
  * season, half in his third, gone from his fourth or at 25. Every chart reads it the same way: AI teams, your staff's
  * sort and game day.
  */
-export const START_LEAN = { firstRound: 2.4, secondRound: 1.5, young: 1.0, fullThrough: 1, fadeBy: 3, ageCap: 25 };
+// A quarterback grows later than anyone (`growsUntil`), so a young one sits further behind the veteran than a young
+// player at any other position: his lean is `qb` times the rest (2026-11-16: at 1× young QBs started 21–25% of the time
+// across reshuffles, at the band's 22.5% floor; NFL 32.5%).
+export const START_LEAN = {
+  firstRound: 2.4,
+  secondRound: 1.5,
+  young: 1.0,
+  fullThrough: 1,
+  fadeBy: 3,
+  ageCap: 25,
+  qb: 1.25,
+};
 
-export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'>): number {
+export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'> & { position?: Player['position'] }): number {
   const L = START_LEAN;
   if (p.age >= L.ageCap || p.experience >= L.fadeBy) return 0;
   const round = p.draft?.round;
-  const lean = Math.max(round === 1 ? L.firstRound : round === 2 ? L.secondRound : 0, L.young);
+  const lean =
+    Math.max(round === 1 ? L.firstRound : round === 2 ? L.secondRound : 0, L.young) * (p.position === 'QB' ? L.qb : 1);
   return p.experience <= L.fullThrough ? lean : lean / 2;
 }
 

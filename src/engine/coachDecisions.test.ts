@@ -139,3 +139,13 @@ describe('camp form and names (final review)', () => {
     expect(campForm(renamed)).toBe(before);
   });
 });
+
+describe('a young quarterback leans further (2026-11-16)', () => {
+  it('gives a first-round rookie quarterback qb times the lean of a first-round rookie elsewhere', () => {
+    const pick = { season: 1, round: 1, pick: 1, teamId: 0 };
+    const qb = startLean({ age: 22, experience: 0, draft: pick, position: 'QB' });
+    const wr = startLean({ age: 22, experience: 0, draft: pick, position: 'WR' });
+    expect(START_LEAN.qb).toBeGreaterThan(1);
+    expect(qb).toBeCloseTo(wr * START_LEAN.qb);
+  });
+});
