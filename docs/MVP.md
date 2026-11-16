@@ -343,10 +343,11 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       retirements, half faded veterans (about 32, rated 9–10, already asking the minimum) no club has room for. It
       shows with or without restructures, so it isn't the cap squeeze; look at when starters retire and how clubs fill
       the bottom of a roster.
-      **Partial (0.4.49):** a starter retires less while he still starts (`RETIRE_BODY.starterLean`, kickers and punters
-      aside) and camp signs last season's unsigned starters: starters gone at 31 15.5% (in band), long prime at 31–32 in
-      band; short prime still 20.6/30.7% at 31/32 (unsigned veterans walking away) and starters out of football 7.2%
-      pooled.
+      **Partial (0.4.49):** a starter retires less while he still starts (`RETIRE_BODY.starterLean`, half of it at 31 and
+      all of it from 32, kickers and punters aside) and camp signs last season's unsigned starters: starters gone at 30
+      13.0% and at 31 17.0% (NFL 14.2/11.8), long prime 12.7/14.4% at 30/31; short prime still 23.2/33.5% at 31/32
+      (unsigned veterans walking away) and starters out of football 7.0% pooled. Linemen's median retirement age (31
+      against 32–36) is soft in `careers`: veteran linemen cut or passed over retire unsigned.
 - [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
       Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
       ours don't.

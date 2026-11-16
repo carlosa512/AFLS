@@ -159,10 +159,15 @@ chance (low: a few in a hundred), the wording of the refusal, the probe scripts,
 - Lever 1 (`aiOfferYears`), lever 2 (`RESIGN_VALUE` 1.2; your side `wantsMarket`, `USER_TESTS_MARKET` 0.08), lever 3
   (`springCuts`, `SPRING_CUT.margin` 0.5, the floor at starters under contract: `KEEP_MIN` let nobody go in March),
   lever 4 (`campStarterSignings` with the in-season cushion and no roster limit in camp; `RETIRE_BODY.starterLean` 0.55,
-  kickers and punters aside). Added on the way, the owner's calls: free agency passes more on fading veterans (`FADING`)
+  kickers and punters aside, a part of it at 31 and all of it from 32 after his birthday: `starterFrom` 31, `starterFirst` 0.5). Added on the way, the owner's calls: free agency passes more on fading veterans (`FADING`)
   and clubs spend first (`SPEND_FIRST`). Tried and undone: a March room share (no effect) and longer cheap deals (broke
   the judged length line).
 - Result, four leagues' seasons 2–6: stayed 35–45%, no deal 15% (judged), released 18%; good outside signings 59,
   one-year 48%, clubs 3+ 8.0, starters out of football 7.2% stay warnings. Careers: all 31 gone 15.5%, long prime 31–32
   in band; short prime 31–32 and all 32 still high (soft).
-- Follow-ups: the pay structure (fewer good deals end each year than the NFL's), short-prime veterans walking away.
+- CI (2026-11-16): the whole lean at every age took long-prime starters at 30 under the NFL's exits (8.7%, fails under
+  9.2); none at 31 made linemen retire from rosters at 31 (median, fails under 32). Half at 31: starters at 30 gone 12.7%
+  (NFL 15.2); linemen's median retirement age made soft (the owner's call), since no lean at 31 brought it back.
+- Follow-ups: the pay structure (fewer good deals end each year than the NFL's), short-prime veterans walking away,
+  linemen retiring young from rosters (veteran linemen cut or passed over retire unsigned), and the median club's room
+  at kickoff, which runs 0.5–1.0% of the cap in seasons 4–6 against main's 0.9–1.0 (warns under 1, fails under 0.5).

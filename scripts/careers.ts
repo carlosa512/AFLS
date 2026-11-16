@@ -537,6 +537,13 @@ const RETIRE: Record<string, [number, number]> = {
   QB: [35, 40],
   'K/P': [36, 42],
 };
+/**
+ * Soft (⚠, never counted; the owner's call, 2026-11-16): linemen's median retirement age fell to 31 once the market and
+ * exits cut and passed over more veteran linemen, who then retire unsigned and leave the rostered count younger. No lean
+ * on starters at 31 brought it back without taking the starters-at-30 exits under the NFL's. A follow-up.
+ */
+const SOFT_RETIRE = new Set(['OL']);
+const softRetire: string[] = [];
 console.log(
   'median retirement age (rostered, steady state): ' +
     Object.entries(retiredAt)
@@ -544,6 +551,11 @@ console.log(
       .map(([group, ages]) => {
         const r = RETIRE[group];
         const m = ages.length >= 8 ? median(ages) : NaN;
+        if (r && SOFT_RETIRE.has(group) && Number.isFinite(m)) {
+          const out = m < r[0] || m > r[1];
+          if (out) softRetire.push(`${group} ${m.toFixed(1)}`);
+          return `${group} ${m.toFixed(1)} (${r[0]}–${r[1]})${out ? ' ⚠' : ''} n=${ages.length}`;
+        }
         return (
           (r ? check(group, m, r[0], r[1], 1) : `${group} ${Number.isFinite(m) ? m.toFixed(1) : 'n/a'}`) +
           ` n=${ages.length}`
@@ -551,6 +563,10 @@ console.log(
       })
       .join(' · '),
 );
+if (softRetire.length)
+  console.log(
+    `⚠ known issue: linemen retire young from rosters (${softRetire.join(', ')}; soft: veteran linemen cut or passed over retire unsigned, a follow-up)`,
+  );
 // Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
 // happens to a starter the next season, pooled over the leagues' steady seasons. Careers own the old end and the exits:
 // the 31-or-older shares and "gone" are judged against the owner's bands (`judge`). How many young players start, the

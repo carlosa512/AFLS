@@ -137,7 +137,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
 - `npm run careers` — age a draft class of every position and play four 20-season leagues in
   parallel child processes, then four more for work ethic's lean on ceilings (about 19 minutes on 4 cores, slower with fewer); checks peaks, declines,
   retirements, trait and coaching effects, long-run play and the league's age (starters' ages and who is gone a season on,
-  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions' and the 31–32 exits soft) against the research ranges. Run it after changing
+  read in seasons 11–20 against the NFL's, `scripts/league-age-core.ts`; the league's and the quarterbacks' young shares and mean ages and how often a starter 21–30 keeps his job are judged, other positions', the 31–32 exits and linemen's median retirement age soft) against the research ranges. Run it after changing
   `development.ts`, `aging.ts`, `cliffs.ts`, `traits.ts`, `coaching.ts`, the draft class or retirement. Nothing may be flagged ▲/▼.
 - `npm run offseason -- 6` — run seasons back to back and summarize AI front-office activity, cap
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
