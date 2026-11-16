@@ -131,10 +131,7 @@ export const DEAL_YEARS = {
   shares: [0.008, 0.02, 0.05, 0.1],
   ages: [25, 27, 29, 31],
   years: [
-    // The cheapest deals: a young player signs for three years (two at 26–27 on his clock), as the NFL's young
-    // minimum and undrafted players do; at one year every March opened most of a roster and the reserve for refilling
-    // it ate the room clubs bring to free agency (2026-11-16, the market and exits).
-    [3, 2, 1, 1, 1],
+    [2, 1, 1, 1, 1],
     [2, 2, 1, 1, 1],
     [3, 3, 3, 2, 1],
     [4, 4, 3, 2, 2],

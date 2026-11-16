@@ -1475,9 +1475,9 @@ export function campStarterSignings(league: League, started: ReadonlySet<number>
   return out;
 }
 
-/** A minimum deal for `player`, as long as a deal at that pay runs for him (`dealYears`: three years for a young man). */
+/** A one-year minimum deal for `player`. */
 export const minimumOffer = (league: League, player: Player): Offer => ({
-  years: dealYears(player, minSalary(player.experience, league.caps[league.season]) / league.caps[league.season]),
+  years: 1,
   apy: minSalary(player.experience, league.caps[league.season]),
   bonusPct: 0,
   gtdPct: 0,

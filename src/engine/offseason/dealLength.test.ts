@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { dealYears, leagueMarket, marketApy } from '../finance/market';
 import { Rng } from '../rng';
-import { aiOffer, aiOfferYears, minimumOffer } from './ai';
+import { aiOffer, aiOfferYears } from './ai';
 import { askOffer, demand, makeOffer, offerProblem, offerValue } from './negotiation';
 
 describe("a deal's length in talks (project B)", () => {
@@ -14,7 +14,7 @@ describe("a deal's length in talks (project B)", () => {
     )!;
     p.age = 27;
     const d = demand(l, p, p.teamId!);
-    expect(d.askYears).toBe(2); // 2026-11-16: a cheap 27-year-old receiver asks two years now (the market and exits)
+    expect(d.askYears).toBe(1);
     const offer = { years: 5, apy: d.askApy, bonusPct: 0, gtdPct: d.askGtdPct, voidYears: 0 };
     expect(offerValue(l, p, p.teamId!, offer, d)).toBeGreaterThanOrEqual(d.walkAway);
   });
@@ -97,21 +97,5 @@ describe("an AI club's offer runs the length of its pay (market and exits)", () 
       );
     }
     expect(n).toBeGreaterThan(20);
-  });
-});
-
-describe('young cheap players sign longer (market and exits)', () => {
-  it('a cheap player 25 or younger on his clock asks three years, 26–27 two', () => {
-    expect(dealYears({ age: 23, position: 'WR' }, 0.004)).toBe(3);
-    expect(dealYears({ age: 27, position: 'WR' }, 0.004)).toBe(2);
-    expect(dealYears({ age: 30, position: 'WR' }, 0.004)).toBe(1);
-  });
-
-  it("an AI club's minimum offer runs the table's length for him", () => {
-    const l = createLeague({ seed: 'deal-length' });
-    const young = Object.values(l.players).find((x) => x.position === 'WR' && x.age <= 23)!;
-    const old = Object.values(l.players).find((x) => x.position === 'WR' && x.age >= 31)!;
-    expect(minimumOffer(l, young).years).toBe(3);
-    expect(minimumOffer(l, old).years).toBe(1);
   });
 });

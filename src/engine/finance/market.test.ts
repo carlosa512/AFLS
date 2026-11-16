@@ -12,7 +12,7 @@ describe('deal length by worth, then age (project B)', () => {
   it("gives a deal the table's years by its share and the player's age on his position's clock", () => {
     const wr = (age: number) => ({ age, position: 'WR' as const });
     const rows: [number, number[]][] = [
-      [0.005, [3, 2, 1, 1, 1]], // 2026-11-16: young cheap players sign longer (the market and exits)
+      [0.005, [2, 1, 1, 1, 1]],
       [0.015, [2, 2, 1, 1, 1]],
       [0.03, [3, 3, 3, 2, 1]],
       [0.07, [4, 4, 3, 2, 2]],
