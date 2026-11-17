@@ -98,3 +98,18 @@ the career view's layout within the card's existing parts, and the `--slim` fing
   over a played league's slimmed retirees) is what guards them. Making `ratings`, `traits` and `personality` optional
   would ripple through hundreds of active-player reads.
 - **Play unchanged** is checked with the `--slim` fingerprint: the dropped fields removed from both sides, then hashed.
+
+## What was built (0.4.52)
+
+- `RETIRED_KEEP` and `slimRetired` in `roster.ts`. The keep list gained two small fields from the census: `scouting`
+  (the consensus grade and ceiling on draft day, which the draft history lists) and `moves` (the positions he left,
+  which name his old stat columns). `left` stays dropped.
+- A retired pick's draft grade locks as he retires (`lockRetiredVerdict` in `draftGrade.ts`), every grade of a moment
+  before anyone is slimmed. `lockVerdicts` skips retired players, and `pickMark` reads a stored grade first.
+- Slimming runs at the new league year and for camp's castoffs (`retireCastoffs` returns who left; its caller locks
+  and slims, which keeps `futures.ts` out of an import cycle).
+- `SAVE_VERSION` 101 locks and slims the retired players an older save carries.
+- The card: a retired player's is a career view (`RetiredCard`: position, Retired, seasons, a coach line if he went
+  on to coach, honors, Teams from `teamRuns`, Draft, Career stats). `Ovr` shows a dash for him and Compare skips him.
+- Play unchanged: with retired players' grades, `scouting` and `moves` set aside and the version read as 100, both
+  `--slim` fingerprints equal the hashes from before the change (fp-a 3 on, fp-b 3 off).
