@@ -11,7 +11,7 @@ import { buildMarket, marketApy, type Market } from './finance/market';
 import { playerOvr, STARTERS } from './positions';
 import { moodLean, moodPull } from './moodScale';
 import { clamp } from './rng';
-import { activeRoster } from './roster';
+import { activePlayers, activeRoster } from './roster';
 import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
@@ -89,7 +89,7 @@ export function moraleContext(league: League): MoraleContext {
     }
   for (const room of rooms.values()) room.sort((a, b) => b - a);
   const snaps: Partial<Record<Position, number[]>> = {};
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.teamId !== null && p.mentor !== undefined) {
       const m = league.players[p.mentor];
       if (m?.teamId === p.teamId) mentors.add(m.id);
@@ -396,7 +396,7 @@ export function moraleMean(league: League): number {
   const clock = league.moraleAt ?? moraleClock(league);
   let sum = 0;
   let n = 0;
-  for (const p of Object.values(league.players))
+  for (const p of activePlayers(league))
     if (p.teamId !== null && p.morale) {
       sum += moraleLevel(league, p, clock);
       n++;
@@ -590,7 +590,7 @@ export function seedMorale(league: League): void {
   const spots = new Map(league.teams.map((t) => [t.id, league.phase === 'regular' && playoffRace(league, t.id).spot]));
   rememberClinches(league, new Set(), spots);
   const spot = () => false;
-  for (const p of Object.values(league.players))
+  for (const p of activePlayers(league))
     if (p.teamId !== null && !p.retired && !p.morale) {
       p.morale = { level: round(moraleTarget(moraleFactors(league, p, ctx))) };
       // What already happened this league year (a captaincy, a benching, a friend cut) is history to a save from

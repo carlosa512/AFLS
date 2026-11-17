@@ -8,6 +8,7 @@
  * Each settle runs on its own stream (`${seed}:ceiling:${season}:${id}`), so development, retirement and every game
  * draw exactly what they drew before.
  */
+import { activePlayers } from './roster';
 import { coachingForPlayer } from './coaching';
 import { CEILING_SWING, playedShare, settleYear } from './development';
 import { overall } from './positions';
@@ -172,7 +173,7 @@ export function settleFinished(league: League): void {
   const season = league.season;
   const alive = league.phase === 'playoffs' ? stillPlaying(league) : new Set<number>();
   let peers: PeerTable | undefined;
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.retired || settleYear(p) === null || p.ceilingShifts?.[season] !== undefined) continue;
     if (p.teamId !== null && alive.has(p.teamId)) continue;
     settleCeiling(league, p, season, (peers ??= peerTable(league, season)));

@@ -8,7 +8,7 @@ import { activeCoachQuirks } from './coachQuirks';
 import { ROOM_OF, teamCoaches } from './coaching';
 import { addMarbles, QUIRKS, QUIRKS_FOR, type QuirkInfo } from './quirks';
 import { Rng } from './rng';
-import { activeRoster, starters } from './roster';
+import { activePlayers, activeRoster, starters } from './roster';
 import { characterRead, seasonRole } from './scouting';
 import { temperamentOf, TRAIT_MEAN } from './traits';
 import { positionIn } from './training';
@@ -218,7 +218,7 @@ function benched(league: League, p: Player): boolean {
  */
 export function tiesOffseason(league: League): void {
   const season = league.season;
-  for (const p of Object.values(league.players)) if (!p.retired && p.ties) endFeudsOutsideRoom(league, p);
+  for (const p of activePlayers(league)) if (!p.retired && p.ties) endFeudsOutsideRoom(league, p);
   for (const team of league.teams) {
     const byPos = new Map<Position, Player[]>();
     for (const p of activeRoster(league, team.id)) byPos.set(p.position, [...(byPos.get(p.position) ?? []), p]);

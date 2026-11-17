@@ -59,6 +59,7 @@ import { overall, playerOvr, STARTERS } from './positions';
 import { activeQuirks, addMarbles, type QuirkId } from './quirks';
 import { clamp, Rng } from './rng';
 import {
+  activePlayers,
   activeRoster,
   chooseCover,
   isAvailable,
@@ -1481,7 +1482,7 @@ export function injuryWeek(league: League): void {
   // His position coach's habits: how hard the room practices and how well it recovers.
   const care = (p: Player) =>
     p.teamId === null ? roomCare(undefined) : roomCare(positionCoachFor(teamCoaches(league, p.teamId), p.position));
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.retired) continue;
     const inj = p.injury;
     // A concussion is a test a week, the first in the week it happened: some clear in time for the next game.
@@ -1502,7 +1503,7 @@ export function injuryWeek(league: League): void {
   // Practice: teams still playing football this week and next.
   const playing = practicingTeams(league);
   const rng = new Rng(`${league.seed}:${season}:${week}:practice`);
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.retired || p.teamId === null || !playing.has(p.teamId) || p.ir || p.injury) continue;
     const d = dept(p.teamId);
     const f = riskFactors(league, p, d);
@@ -1517,7 +1518,7 @@ export function injuryWeek(league: League): void {
   }
   // Front offices with something to handle: anyone hurt or on reserve, or a spot open on the 53.
   const rosters = new Map<number, Player[]>();
-  for (const p of Object.values(league.players))
+  for (const p of activePlayers(league))
     if (p.teamId !== null) (rosters.get(p.teamId) ?? rosters.set(p.teamId, []).get(p.teamId)!).push(p);
   const ai = new Rng(`${league.seed}:${season}:${week}:injury-moves`);
   for (const team of league.teams) {

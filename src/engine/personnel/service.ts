@@ -1,4 +1,4 @@
-import { rosterList } from '../roster';
+import { activePlayers, rosterList } from '../roster';
 import type { Game, League, Player } from '../types';
 import { PERSONNEL_RULES } from './rules';
 import type { PlayerService, ServiceAssignment } from './types';
@@ -47,7 +47,7 @@ export function rollService(p: Player, season: number): void {
 
 export function serviceRoster(league: League, game: Game): ServiceAssignment[] {
   const out: ServiceAssignment[] = [];
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.teamId !== game.homeId && p.teamId !== game.awayId) continue;
     const list = rosterList(p);
     if (list === 'active' || list === 'injuredReserve') out.push({ playerId: p.id, list });
