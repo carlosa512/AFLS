@@ -243,9 +243,12 @@ export function beginOffseason(league: League): void {
   developCoaches(league, retirees);
   // His draft grade has locked and a club may have hired him to coach, just above: from here his card shows his career
   // only, and the rest of what he carried goes (`slimRetired`).
-  // Every grade locks before anyone is slimmed: the league's reference still reads the depth charts they sit on.
-  for (const p of retirees) lockRetiredVerdict(league, p);
-  for (const p of retirees) slimRetired(p);
+  // Last camp's castoffs who left football go with them (still whole: their season is over too). Every grade locks
+  // before anyone is slimmed: the league's reference still reads the depth charts they sit on.
+  const slim = new Set(retirees);
+  for (const p of Object.values(league.players)) if (p.retired && p.ratings) slim.add(p);
+  for (const p of slim) lockRetiredVerdict(league, p);
+  for (const p of slim) slimRetired(p);
   developMedics(league);
   crewsNewYear(league);
 
@@ -457,11 +460,9 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
         formPracticeSquads(league, auto || staffHandlesSquad(league));
         // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.
         for (const team of ai) payAhead(league, team);
-        // Camp is over: last year's squad castoffs nobody wanted may leave football. As at any retirement, every grade
-        // locks before anyone is slimmed.
-        const gone = retireCastoffs(league);
-        for (const p of gone) lockRetiredVerdict(league, p);
-        for (const p of gone) slimRetired(p);
+        // Camp is over: last year's squad castoffs nobody wanted may leave football. They are slimmed at the next new
+        // league year, not now: this season still reads how they left (a friend left behind misses one).
+        retireCastoffs(league);
       }
       league.phase = 'regular';
       league.week = 1;

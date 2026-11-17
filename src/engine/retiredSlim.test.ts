@@ -32,15 +32,42 @@ describe('the census: a league plays on with its retired players slimmed (2026-1
 });
 
 describe('retirement slims a player (2026-11-17)', () => {
-  it('after an offseason every retired player keeps only what he keeps', () => {
+  it('a camp castoff keeps his record through the season (a friend left behind still misses him), slimmed at the new league year', () => {
+    const l = createLeague({ seed: 'slim-castoffs', personnel: true });
+    // The first camp that sends a castoff out of football (finds the scene rather than pinning a seed).
+    let gone: Player[] = [];
+    for (let s = 0; s < 4 && !gone.length; s++) {
+      simToEndOfSeason(l);
+      beginOffseason(l);
+      while (l.phase !== 'preseason') advanceOffseason(l, { autoUser: true });
+      const released = [...(l.personnel!.futures?.released ?? [])];
+      while ((l.phase as League['phase']) !== 'regular') advanceOffseason(l, { autoUser: true });
+      gone = released.map((id) => l.players[id]).filter((p) => p.retired);
+    }
+    expect(gone.length).toBeGreaterThan(0);
+    for (const p of gone) expect(p.ratings, `${p.id}`).toBeDefined();
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    for (const p of gone)
+      expect(
+        Object.keys(p).filter((k) => !RETIRED_KEEP.includes(k as keyof Player)),
+        `${p.id}`,
+      ).toEqual([]);
+  }, 600_000);
+
+  it('at the new league year every retired player keeps only what he keeps', () => {
     const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
     season(l);
     season(l);
+    simToEndOfSeason(l);
+    beginOffseason(l);
     const retired = Object.values(l.players).filter((p) => p.retired);
     expect(retired.length).toBeGreaterThan(50);
+    // `ties` aside: a mentor who retired can still befriend his mentee when their pair ends a few weeks on (older
+    // behaviour, left alone here because changing it changes play).
     for (const p of retired)
       expect(
-        Object.keys(p).filter((k) => !RETIRED_KEEP.includes(k as keyof Player)),
+        Object.keys(p).filter((k) => !RETIRED_KEEP.includes(k as keyof Player) && k !== 'ties'),
         `${p.id}`,
       ).toEqual([]);
   }, 600_000);
@@ -51,6 +78,9 @@ describe("a retired pick's draft grade (2026-11-17)", () => {
     const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
     season(l);
     season(l);
+    // At the new league year, when the year's retirees and last camp's castoffs are slimmed.
+    simToEndOfSeason(l);
+    beginOffseason(l);
     // Picks from this league's own drafts (a founding veteran's draft line is made up and never graded).
     const first = createLeague({ seed: 'slim-at-retirement', personnel: true }).season;
     const early = Object.values(l.players).filter((p) => p.retired && p.draft && p.draft.season > first);

@@ -121,7 +121,7 @@ export function castoffRetireChance(p: Pick<Player, 'potential' | 'age'>): numbe
 
 /**
  * End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football.
- * Returns who left, for the caller to lock their grades and slim them (`slimRetired`).
+ * Returns who left; the next new league year locks their grades and slims them (`slimRetired`).
  */
 export function retireCastoffs(league: League): Player[] {
   const f = league.personnel?.futures;
