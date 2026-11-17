@@ -694,6 +694,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   expiring contract has an answer (`openContracts` in `contractMail.ts`: signed, tagged, let walk or talks broken
   off), then "Decide N fifth-year options" until each is exercised or declined (`openOptions`). The Re-sign tab has
   "Let walk" on a row and "Let the other N walk", and "Decline all N" over the options.
+- **A retired player keeps only his career** (`RETIRED_KEEP`, `slimRetired` in `roster.ts`, spec
+  `docs/superpowers/specs/2026-11-17-retired-player-slim-design.md`): no ratings, traits, personality, injuries or
+  combine. A reader that can see retired players checks `retired` first; his draft grade locks as he retires
+  (`lockRetiredVerdict`), his card is a career view and `Ovr` shows a dash.
 - **A player changes club through `setTeam`, joins the league through `addPlayer` and retires through `retirePlayer`**
   (`roster.ts`), tests included: `teamPlayers`, `activePlayers` (players still in football) and `unsignedPlayers` read
   indexes those keep. A loop that skips retired players reads `activePlayers`; one that ranks or counts players (who

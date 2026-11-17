@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.52',
+    date: '2026-11-17',
+    title: 'Smaller saves',
+    text: 'A retired player now keeps only his career: his stats, honors, teams and draft. His card shows just that, and a long save grows far less each season.',
+  },
+  {
     version: '0.4.51',
     date: '2026-11-17',
     title: 'Long careers stay quick',

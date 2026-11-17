@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retired Card Mock</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --card: #fff;
+        --ink: #1b1f24;
+        --muted: #6b7280;
+        --line: #e3e6ea;
+        --team: #003594;
+        --team2: #869397;
+        --gone: #b42318;
+        --gone-bg: #fdecea;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #111418;
+          --card: #1a1e24;
+          --ink: #e7e9ec;
+          --muted: #9aa3ad;
+          --line: #2a3038;
+          --gone-bg: #3a1714;
+          --gone: #ff8a7a;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #111418;
+        --card: #1a1e24;
+        --ink: #e7e9ec;
+        --muted: #9aa3ad;
+        --line: #2a3038;
+        --gone-bg: #3a1714;
+        --gone: #ff8a7a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px 16px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.45 system-ui,
+          -apple-system,
+          Segoe UI,
+          sans-serif;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 0 20px;
+        max-width: 900px;
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 20px;
+        align-items: start;
+        max-width: 1200px;
+      }
+      .col h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .head {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 16px;
+        background: var(--team);
+        color: #fff;
+      }
+      .avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--team2);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 22px;
+        flex: none;
+      }
+      .head small {
+        opacity: 0.85;
+        display: block;
+        font-size: 13px;
+      }
+      .head b {
+        font-size: 22px;
+      }
+      .sec {
+        border-top: 1px solid var(--line);
+        padding: 12px 16px;
+      }
+      .sec h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .gone {
+        background: var(--gone-bg);
+      }
+      .gone h3::after {
+        content: '  · goes';
+        color: var(--gone);
+      }
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 13px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2px 16px;
+        font-size: 13px;
+      }
+      .grid span:nth-child(even) {
+        text-align: right;
+        color: var(--muted);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      th,
+      td {
+        text-align: right;
+        padding: 3px 4px;
+        border-bottom: 1px solid var(--line);
+      }
+      th:first-child,
+      td:first-child,
+      th:nth-child(2),
+      td:nth-child(2) {
+        text-align: left;
+      }
+      tr.total td {
+        font-weight: 700;
+        border-bottom: none;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 16px;
+        max-width: 900px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A retired player's card, today and after the change</h1>
+    <p class="lede">
+      Thomas Burns, a retired quarterback from a ten-season test league. Sections shaded red on the left go away. The
+      right is the new career view: his career stats, awards, teams and draft info, nothing else.
+    </p>
+    <div class="cols">
+      <div class="col">
+        <h2>Today</h2>
+        <div class="card">
+          <div class="head">
+            <div class="avatar">TB</div>
+            <div><small>Quarterback · Retired</small><b>Thomas Burns</b></div>
+          </div>
+          <div class="sec gone">
+            <h3>Overall and ceiling</h3>
+            <div class="pills">
+              <span class="pill">OVR 13–15</span><span class="pill">POT 15–16</span><span class="pill">Age 34</span
+              ><span class="pill">6'4" · 230 lb</span>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Honors</h3>
+            <div class="pills">
+              <span class="pill">MVP 2030</span><span class="pill">OPOY 2031</span
+              ><span class="pill">All-League 2nd 2030, 2031</span>
+            </div>
+          </div>
+          <div class="sec gone">
+            <h3>Scout report and makeup</h3>
+            <p class="muted" style="margin: 0">
+              A verdict, his game in a few lines, character and personality notes, injury risk tier.
+            </p>
+          </div>
+          <div class="sec gone">
+            <h3>Habits over time</h3>
+            <p class="muted" style="margin: 0">On-field habits seen on film and when they came and went.</p>
+          </div>
+          <div class="sec gone">
+            <h3>Ratings at QB</h3>
+            <div class="grid">
+              <span>Arm strength</span><span>14–16</span><span>Accuracy</span><span>15–17</span><span>Decisions</span
+              ><span>15–16</span><span>Pocket presence</span><span>13–15</span><span>…eight more</span><span></span>
+            </div>
+          </div>
+          <div class="sec gone">
+            <h3>Development</h3>
+            <p class="muted" style="margin: 0">Growth outlook as your scouts see it.</p>
+          </div>
+          <div class="sec">
+            <h3>Draft &amp; combine</h3>
+            <p style="margin: 0">2024 · Round 1, pick 23 · Dallas Stampede</p>
+            <p class="muted" style="margin: 4px 0 0; background: var(--gone-bg)">
+              40-yard dash, bench, vertical, cone, shuttle… <span style="color: var(--gone)">· combine goes</span>
+            </p>
+          </div>
+          <div class="sec gone">
+            <h3>Injury history</h3>
+            <p class="muted" style="margin: 0">Every injury, its length and scars.</p>
+          </div>
+          <div class="sec">
+            <h3>Stats</h3>
+            <p class="muted" style="margin: 0">Season by season, as on the right.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <h2>New: career view</h2>
+        <div class="card">
+          <div class="head">
+            <div class="avatar">TB</div>
+            <div><small>Quarterback · Retired · 12 seasons</small><b>Thomas Burns</b></div>
+          </div>
+          <div class="sec">
+            <h3>Honors</h3>
+            <div class="pills">
+              <span class="pill">MVP 2030</span><span class="pill">OPOY 2031</span
+              ><span class="pill">All-League 2nd 2030, 2031</span>
+            </div>
+          </div>
+          <div class="sec">
+            <h3>Draft</h3>
+            <p style="margin: 0">2024 · Round 1, pick 23 · Dallas Stampede</p>
+          </div>
+          <div class="sec">
+            <h3>Teams</h3>
+            <p style="margin: 0">Dallas Stampede 2026–2031 · New England Admirals 2032–2035</p>
+          </div>
+          <div class="sec">
+            <h3>Career stats</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Team</th>
+                  <th>GP</th>
+                  <th>Att</th>
+                  <th>Yds</th>
+                  <th>TD</th>
+                  <th>Int</th>
+                  <th>Rush</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026</td>
+                  <td>DAL</td>
+                  <td>17</td>
+                  <td>621</td>
+                  <td>4,702</td>
+                  <td>35</td>
+                  <td>7</td>
+                  <td>636</td>
+                </tr>
+                <tr>
+                  <td>2027</td>
+                  <td>DAL</td>
+                  <td>17</td>
+                  <td>540</td>
+                  <td>4,368</td>
+                  <td>38</td>
+                  <td>4</td>
+                  <td>681</td>
+                </tr>
+                <tr>
+                  <td>2028</td>
+                  <td>DAL</td>
+                  <td>17</td>
+                  <td>566</td>
+                  <td>4,615</td>
+                  <td>41</td>
+                  <td>7</td>
+                  <td>651</td>
+                </tr>
+                <tr>
+                  <td>2029</td>
+                  <td>DAL</td>
+                  <td>17</td>
+                  <td>557</td>
+                  <td>4,816</td>
+                  <td>35</td>
+                  <td>6</td>
+                  <td>678</td>
+                </tr>
+                <tr>
+                  <td>2030</td>
+                  <td>DAL</td>
+                  <td>17</td>
+                  <td>580</td>
+                  <td>4,948</td>
+                  <td>46</td>
+                  <td>3</td>
+                  <td>523</td>
+                </tr>
+                <tr>
+                  <td>2031</td>
+                  <td>DAL</td>
+                  <td>15</td>
+                  <td>528</td>
+                  <td>4,690</td>
+                  <td>44</td>
+                  <td>10</td>
+                  <td>671</td>
+                </tr>
+                <tr>
+                  <td>2032</td>
+                  <td>NE</td>
+                  <td>17</td>
+                  <td>548</td>
+                  <td>3,837</td>
+                  <td>24</td>
+                  <td>3</td>
+                  <td>794</td>
+                </tr>
+                <tr>
+                  <td>2033</td>
+                  <td>NE</td>
+                  <td>15</td>
+                  <td>493</td>
+                  <td>3,944</td>
+                  <td>26</td>
+                  <td>3</td>
+                  <td>542</td>
+                </tr>
+                <tr>
+                  <td>2034</td>
+                  <td>NE</td>
+                  <td>10</td>
+                  <td>301</td>
+                  <td>2,602</td>
+                  <td>18</td>
+                  <td>4</td>
+                  <td>355</td>
+                </tr>
+                <tr>
+                  <td>2035</td>
+                  <td>NE</td>
+                  <td>13</td>
+                  <td>498</td>
+                  <td>4,074</td>
+                  <td>34</td>
+                  <td>1</td>
+                  <td>306</td>
+                </tr>
+                <tr class="total">
+                  <td>Career</td>
+                  <td></td>
+                  <td>155</td>
+                  <td>5,232</td>
+                  <td>42,596</td>
+                  <td>341</td>
+                  <td>48</td>
+                  <td>5,837</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      A mock, not a screenshot: the real card keeps the game's own styles. Today's rating and overall ranges are
+      placeholders for your scouts' read; the stats, awards, teams and draft line are his real record from the test
+      league. His 2024–25 seasons came before the test league's first season, so they aren't in it.
+    </p>
+  </body>
+</html>

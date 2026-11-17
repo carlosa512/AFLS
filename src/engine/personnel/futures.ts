@@ -119,20 +119,21 @@ export function castoffRetireChance(p: Pick<Player, 'potential' | 'age'>): numbe
   return Math.min(0.92, Math.max(0.03, base + (p.age >= 29 ? 0.15 : 0)));
 }
 
-/** End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football. */
-export function retireCastoffs(league: League): void {
+/**
+ * End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football.
+ * Returns who left; the next new league year locks their grades and slims them (`slimRetired`).
+ */
+export function retireCastoffs(league: League): Player[] {
   const f = league.personnel?.futures;
-  if (!league.personnel?.enabled || !f?.released?.length) return;
+  if (!league.personnel?.enabled || !f?.released?.length) return [];
+  const gone: Player[] = [];
   for (const id of f.released) {
     const p = league.players[id];
     if (!p || p.retired || p.teamId !== null || p.contract || p.squad || p.waiver) continue;
     if (!new Rng(`${league.seed}:castoff:${league.season}:${id}`).chance(castoffRetireChance(p))) continue;
     retirePlayer(league, p);
-    // As any retirement: the record stays, what only a developing player needs goes.
-    delete p.quirkBag;
-    delete p.learning;
-    delete p.dev;
-    delete p.ratingHistory;
+    gone.push(p);
   }
   f.released = [];
+  return gone;
 }

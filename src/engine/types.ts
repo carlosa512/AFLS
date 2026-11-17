@@ -335,6 +335,8 @@ export interface Player {
   gear?: Gear;
   /** The league years he was named a captain, oldest first (his avatar's patch counts the ones in a row). */
   captainSeasons?: number[];
+  /** A player who retired over his concussions: how many he had, kept for his retirement letter after his injuries go. */
+  retiredConcussions?: number;
   /** What he is hurt with right now, if anything (see `injuries.ts`). */
   injury?: Injury;
   /** Every injury that cost him time, oldest first. Public: the league's injury reports. */

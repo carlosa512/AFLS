@@ -6,7 +6,7 @@ import { meetingsStep } from '../meetings';
 import { storiesStep } from '../storiesStep';
 import { storiesNewYear } from '../stories';
 import { moraleStep } from '../morale';
-import { lockVerdicts } from '../draftGrade';
+import { lockRetiredVerdict, lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
@@ -42,7 +42,14 @@ import {
   ownerRetentionReviews,
 } from '../coaching';
 import { beginYear, developBlock, playedShare, recordRatings, trueUp } from '../development';
-import { concussionRetireChance, delegates, injuriesNewYear, injuryRetireChance, manageInjuries } from '../injuries';
+import {
+  concussionCount,
+  concussionRetireChance,
+  delegates,
+  injuriesNewYear,
+  injuryRetireChance,
+  manageInjuries,
+} from '../injuries';
 import { developMedics, ensureMedical, medicalWindowCloses } from '../medical';
 import { crewsNewYear } from '../officials';
 import { accelerateProration, capSheet, capSpace, logTransaction, nextCap } from '../finance/cap';
@@ -50,7 +57,7 @@ import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
-import { activeRoster, retirePlayer, setTeam, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, retirePlayer, setTeam, slimRetired, syncDepthChart, teamPlayers } from '../roster';
 import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
@@ -204,6 +211,8 @@ export function beginOffseason(league: League): void {
       setTeam(league, p, null);
       p.contract = null;
       retirePlayer(league, p);
+      // His letter says when his head made the call; his injuries go when he is slimmed below.
+      if (head > 0) p.retiredConcussions = concussionCount(p);
       // A retired player keeps his record (stats, awards, injuries, draft, habits) and his last ratings for his card;
       // what only a developing player needs goes, or the save grows with every class that ages out.
       delete p.quirkBag;
@@ -241,14 +250,14 @@ export function beginOffseason(league: League): void {
   resetScouting(league);
   developStaff(league);
   developCoaches(league, retirees);
-  // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played (and to the
-  // clubs that might hire him to coach, just above).
-  for (const p of retirees) {
-    delete p.left;
-    delete p.shifts;
-    delete p.shiftedLast;
-    delete p.lostMentor;
-  }
+  // His draft grade has locked and a club may have hired him to coach, just above: from here his card shows his career
+  // only, and the rest of what he carried goes (`slimRetired`).
+  // Last camp's castoffs who left football go with them (still whole: their season is over too). Every grade locks
+  // before anyone is slimmed: the league's reference still reads the depth charts they sit on.
+  const slim = new Set(retirees);
+  for (const p of Object.values(league.players)) if (p.retired && p.ratings) slim.add(p);
+  for (const p of slim) lockRetiredVerdict(league, p);
+  for (const p of slim) slimRetired(p);
   developMedics(league);
   crewsNewYear(league);
 
@@ -460,7 +469,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
         formPracticeSquads(league, auto || staffHandlesSquad(league));
         // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.
         for (const team of ai) payAhead(league, team);
-        // Camp is over: last year's squad castoffs nobody wanted may leave football.
+        // Camp is over: last year's squad castoffs nobody wanted may leave football. They are slimmed at the next new
+        // league year, not now: this season still reads how they left (a friend left behind misses one).
         retireCastoffs(league);
       }
       league.phase = 'regular';

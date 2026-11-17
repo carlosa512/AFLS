@@ -209,9 +209,10 @@ const RESTRUCTURING =
 // Save growth: retired players are flagged retired (offseason/index.ts) but never removed, and each keeps its ratings,
 // ratingHistory, stats and combine while generateDraftClass adds 260 players a year. The players blob grows about
 // 430 KB a season for good (3.9 MB of retired players by 2039); the live players level off near 3.5 MB. The 650 KB band
-// below is 1.5x today's growth, so it cannot see this; the fix is to prune old retirees or strip their history.
+// below is 1.5x today's growth, so it cannot see this. Since 0.4.52 a retired player keeps only his career
+// (`slimRetired`): six seasons' save 17.5 MB → 16.3 MB, growth about 924 → 624 KB a season; still every retiree is kept.
 const ISSUE_SAVE_GROWTH =
-  'the save grows without bound: retired players are never pruned (band: players blob under 100 KB/season)';
+  'the save grows without bound: every retired player is kept, slimmed to his career (band: players blob under 100 KB/season)';
 
 // ───────── Snapshots ─────────
 
