@@ -87,6 +87,8 @@ Two follow-ups the 0.4.49 market left near an edge. The owner: wrap them up clea
   0.1 → 1.7/1.1/0.9. The owner chose 0. Its cost: starters out of football 7.1 → 7.9% and clubs with 3+ good outside
   signings 8.4 → 8.0 (both warnings).
 - Linemen: printed in `careers`, not judged (`PRINTED_RETIRE`).
+- CI: the careers job gets 45 minutes (the owner's call, 2026-11-17). Its seasons slow from 11s to 32s as retired players
+  pile up in the save, and two runs on slow runners passed 30. The fix, a compact archive for retired players, is next.
 - Promote a coordinator in season (below): `promoteCoverProblem`, `promoteCover`, and the open chair's Promote buttons.
 
 ## Added: promote a coordinator while the head coach covers (the owner, 2026-11-16)
