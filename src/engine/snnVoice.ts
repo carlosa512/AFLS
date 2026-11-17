@@ -1634,7 +1634,7 @@ function overall(n: number): string {
   return `${n}${suffix}`;
 }
 
-/** Where a team took him in the draft: "13th overall in 2030", "in the fourth round this year". */
+/** Where a team took him in the draft: "sixth overall in 2030", "26th overall this year", "in the fourth round in 2027". */
 function draftedWhere(l: League, d: NonNullable<Player['draft']>): string {
   const when = d.season === l.season ? 'this year' : `in ${d.season}`;
   return d.round === 1 ? `${overall(d.pick)} overall ${when}` : `in the ${nth(d.round)} round ${when}`;
@@ -1655,12 +1655,10 @@ function pathLine(l: League, p: Player, sellerId: number, buyerId: number): stri
   const others: number[] = [];
   for (const x of p.left ?? [])
     if (x.teamId !== sellerId && x.teamId !== d?.teamId && !others.includes(x.teamId)) others.push(x.teamId);
-  const also =
-    others.length > 3
-      ? `he has played for ${w(others.length)} other teams`
-      : others.length
-        ? `he has also played for ${[others.slice(0, -1).map(C).join(', '), C(others.at(-1)!)].filter(Boolean).join(' and ')}`
-        : '';
+  // `Player.left` keeps his newest three departures, this trade's among them: at most two teams to name.
+  const also = others.length
+    ? `he has also played for ${[others.slice(0, -1).map(C).join(', '), C(others.at(-1)!)].filter(Boolean).join(' and ')}`
+    : '';
   if (d) return `${C(d.teamId)} drafted him ${draftedWhere(l, d)}${also ? `, and ${also}` : ''}.`;
   return also ? `${cap(also)}.` : '';
 }

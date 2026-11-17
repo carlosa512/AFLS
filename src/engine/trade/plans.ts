@@ -361,6 +361,9 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const sellsEarly = habitOn(league, team, 'sellsEarly');
   const keep = untouchables(ctx, team);
   for (const p of roster) {
+    // A high pick in his rookie season is held whatever he or the club wants (`freshPick`): `judge` would refuse every
+    // deal, and a listing would only start rumors of a sale that cannot happen.
+    if (freshPick(league, p)) continue;
     // He's asked out, the league knows and his club is shopping him (G4b): on the block, whoever he is.
     if (wantsOut(p) === 'public' && disputeOf(p)?.answered?.choice === 'shop') {
       out.push({ playerId: p.id, reason: 'wantsOut', keenness: WANTS_OUT_KEEN });

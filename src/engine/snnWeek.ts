@@ -631,10 +631,12 @@ export function storylineCandidates(l: League, week: number, have: Set<string>):
     if (b.at <= (l.moraleAt ?? 0) - STORY_FRESH) continue;
     if (s.kind === 'benched') {
       // A benching is news when it is a quarterback's or a name's: a lineup call about anyone else is the coach's
-      // business, and SNN would be printing every chart change. What becomes of it is told only after the benching was.
-      if (b.kind === 'sat' && p.position !== 'QB' && !isName(l, names, p)) continue;
-      if (b.kind !== 'sat' && ![...have].some((k) => k.startsWith(`storyline:${s.id}:`) && k.endsWith(':sat')))
-        continue;
+      // business, and SNN would be printing every chart change. What becomes of it is told only after the benching was,
+      // or with it, when both came before an edition could print the benching (a long advance files only the last week).
+      const news = p.position === 'QB' || isName(l, names, p);
+      const satTold = [...have].some((k) => k.startsWith(`storyline:${s.id}:`) && k.endsWith(':sat'));
+      const satFresh = fresh.some((x) => x.kind === 'sat');
+      if (b.kind === 'sat' ? !news : !(satTold || (news && satFresh))) continue;
     }
     // An ending nobody outside could read (an injury settling it, a holdout drifting back) is not a story.
     if (b.kind === 'settled' && !SETTLED.includes(b.how ?? '')) continue;

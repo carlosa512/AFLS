@@ -393,6 +393,27 @@ describe('your club’s public storylines', () => {
     wr.draft = was;
   });
 
+  it('tells a quarterback benched and back before any edition printed it, as his return', () => {
+    // A long advance files only the latest week: the benching and the return are both fresh, and the return covers it.
+    wipe();
+    l.moraleAt = clock();
+    const [qb, other] = [mine('QB'), mine('QB', 1)];
+    beat(l, on(qb.id), 'sat', clock() - 1, { pub: true, other: other.id });
+    closeStory(l, on(qb.id), 'backIn', clock(), undefined, true);
+    const now = told();
+    expect(now.map((c) => c.angle)).toEqual(['backIn']);
+    expect(now[0].covers?.some((k) => k.endsWith(':sat'))).toBe(true);
+    // A man who is not news gets neither.
+    wipe();
+    const wr = mine('WR');
+    const was = wr.draft;
+    wr.draft = { season: l.season - 6, round: 6, pick: 190, teamId: l.userTeamId };
+    beat(l, on(wr.id), 'sat', clock() - 1, { pub: true });
+    closeStory(l, on(wr.id), 'backIn', clock(), undefined, true);
+    expect(told()).toEqual([]);
+    wr.draft = was;
+  });
+
   it('tells only fresh news: a benching from weeks ago that no edition printed is not told late', () => {
     wipe();
     l.moraleAt = clock();
