@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason/index';
+import { pickMark } from './draftGrade';
 import { RETIRED_KEEP } from './roster';
 import type { League, Player } from './types';
 
@@ -42,5 +43,22 @@ describe('retirement slims a player (2026-11-17)', () => {
         Object.keys(p).filter((k) => !RETIRED_KEEP.includes(k as keyof Player)),
         `${p.id}`,
       ).toEqual([]);
+  }, 600_000);
+});
+
+describe("a retired pick's draft grade (2026-11-17)", () => {
+  it('locks when he retires, before slimming, and his card reads it after', () => {
+    const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
+    season(l);
+    season(l);
+    // Picks from this league's own drafts (a founding veteran's draft line is made up and never graded).
+    const first = createLeague({ seed: 'slim-at-retirement', personnel: true }).season;
+    const early = Object.values(l.players).filter((p) => p.retired && p.draft && p.draft.season > first);
+    expect(early.length).toBeGreaterThan(0);
+    // A pick who never played is graded by nobody (`pickMark`), retired or not.
+    for (const p of early.filter((x) => x.experience > 0)) {
+      expect(p.draft!.verdict, `${p.id}`).toBeDefined();
+      expect(pickMark(l, p)).toEqual({ verdict: p.draft!.verdict, locked: true });
+    }
   }, 600_000);
 });

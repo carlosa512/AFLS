@@ -44,8 +44,9 @@ const liveVerdict = (league: League, p: Player): PickVerdict =>
  * his ceiling settles.
  */
 export function pickMark(league: League, p: Player): PickMark | null {
+  // A stored verdict first: a retired pick keeps it after his scouting read is gone (`slimRetired`).
+  if (p.draft?.verdict) return { verdict: p.draft.verdict, locked: true };
   if (!p.draft || !p.scouting) return null;
-  if (p.draft.verdict) return { verdict: p.draft.verdict, locked: true };
   if (p.experience === 0 && !Object.keys(p.ceilingShifts ?? {}).length) return { verdict: null, locked: false };
   return { verdict: liveVerdict(league, p), locked: false };
 }
@@ -59,6 +60,16 @@ export function lockVerdicts(league: League): void {
     if (!p.draft || !p.scouting || p.draft.verdict) continue;
     if (league.season - p.draft.season >= VERDICT_YEARS) p.draft.verdict = liveVerdict(league, p);
   }
+}
+
+/**
+ * A pick's verdict locked as he retires, before his scouting read and ratings go (`slimRetired`): his career is over,
+ * so the read is the one three years on would have used. A pick nobody grades yet (he never played) stays ungraded.
+ */
+export function lockRetiredVerdict(league: League, p: Player): void {
+  if (!p.draft || !p.scouting || p.draft.verdict) return;
+  if (p.experience === 0 && !Object.keys(p.ceilingShifts ?? {}).length) return;
+  p.draft.verdict = liveVerdict(league, p);
 }
 
 // ───────── draft day ─────────

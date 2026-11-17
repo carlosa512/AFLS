@@ -6,7 +6,7 @@ import { meetingsStep } from '../meetings';
 import { storiesStep } from '../storiesStep';
 import { storiesNewYear } from '../stories';
 import { moraleStep } from '../morale';
-import { lockVerdicts } from '../draftGrade';
+import { lockRetiredVerdict, lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
 import { formPracticeSquads } from '../personnel/squadMarket';
 import { settleSquadPayroll } from '../personnel/payroll';
@@ -243,6 +243,8 @@ export function beginOffseason(league: League): void {
   developCoaches(league, retirees);
   // His draft grade has locked and a club may have hired him to coach, just above: from here his card shows his career
   // only, and the rest of what he carried goes (`slimRetired`).
+  // Every grade locks before anyone is slimmed: the league's reference still reads the depth charts they sit on.
+  for (const p of retirees) lockRetiredVerdict(league, p);
   for (const p of retirees) slimRetired(p);
   developMedics(league);
   crewsNewYear(league);
@@ -455,8 +457,11 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
         formPracticeSquads(league, auto || staffHandlesSquad(league));
         // Camp's pay-ahead held room for a full squad of veterans; whatever the squad didn't cost is paid ahead now.
         for (const team of ai) payAhead(league, team);
-        // Camp is over: last year's squad castoffs nobody wanted may leave football.
-        retireCastoffs(league);
+        // Camp is over: last year's squad castoffs nobody wanted may leave football. As at any retirement, every grade
+        // locks before anyone is slimmed.
+        const gone = retireCastoffs(league);
+        for (const p of gone) lockRetiredVerdict(league, p);
+        for (const p of gone) slimRetired(p);
       }
       league.phase = 'regular';
       league.week = 1;

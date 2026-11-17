@@ -1,5 +1,5 @@
 import { takesMinimum } from '../offseason/negotiation';
-import { activeRoster, practiceSquad, retirePlayer, slimRetired } from '../roster';
+import { activeRoster, practiceSquad, retirePlayer } from '../roster';
 import { perceive } from '../scouting';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
@@ -119,17 +119,21 @@ export function castoffRetireChance(p: Pick<Player, 'potential' | 'age'>): numbe
   return Math.min(0.92, Math.max(0.03, base + (p.age >= 29 ? 0.15 : 0)));
 }
 
-/** End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football. */
-export function retireCastoffs(league: League): void {
+/**
+ * End of camp: last year's unkept squad players still unsigned roll once, on their own stream, to leave football.
+ * Returns who left, for the caller to lock their grades and slim them (`slimRetired`).
+ */
+export function retireCastoffs(league: League): Player[] {
   const f = league.personnel?.futures;
-  if (!league.personnel?.enabled || !f?.released?.length) return;
+  if (!league.personnel?.enabled || !f?.released?.length) return [];
+  const gone: Player[] = [];
   for (const id of f.released) {
     const p = league.players[id];
     if (!p || p.retired || p.teamId !== null || p.contract || p.squad || p.waiver) continue;
     if (!new Rng(`${league.seed}:castoff:${league.season}:${id}`).chance(castoffRetireChance(p))) continue;
     retirePlayer(league, p);
-    // As any retirement: his career stays, the rest goes (camp is over, nothing here reads him again).
-    slimRetired(p);
+    gone.push(p);
   }
   f.released = [];
+  return gone;
 }
