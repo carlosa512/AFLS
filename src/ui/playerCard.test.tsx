@@ -3,9 +3,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { createLeague } from '../engine/generate';
 import { mentoringWeek } from '../engine/mentoring';
-import { activeRoster } from '../engine/roster';
+import { activeRoster, retirePlayer, slimRetired } from '../engine/roster';
+import type { Player } from '../engine/types';
 import { NavContext, type Nav } from './nav';
 import { PlayerCard } from './screens/PlayerCard';
+import { Ovr } from './scouting';
 
 const nav = {
   openPlayer: () => {},
@@ -92,5 +94,55 @@ describe('the player card: pills only up top', () => {
     const html = facts(card(theirs.id));
     expect(html).toMatch(/tag-pill[^"]*tag-warn[^>]*>Holds a grudge/);
     expect(html).not.toContain('Still sore');
+  });
+});
+
+describe('a retired player’s card: his career and nothing else (2026-11-17)', () => {
+  const l = createLeague({ seed: 'retired-card' });
+  const p = Object.values(l.players).find((x) => x.position === 'QB' && x.teamId !== null)!;
+  const team = p.teamId!;
+  const other = (team + 1) % l.teams.length;
+  p.stats = {
+    [l.season - 1]: { gp: 17, passCmp: 380, passAtt: 560, passYds: 4300, passTd: 30, passInt: 9 },
+    [l.season]: { gp: 15, passCmp: 300, passAtt: 470, passYds: 3500, passTd: 24, passInt: 8 },
+  } as Player['stats'];
+  p.statTeams = { [l.season - 1]: [team], [l.season]: [other] };
+  retirePlayer(l, p);
+  p.teamId = null;
+  p.contract = null;
+  slimRetired(p);
+  const html = renderToStaticMarkup(
+    <NavContext.Provider value={nav}>
+      <PlayerCard league={l} player={p} onClose={() => {}} />
+    </NavContext.Provider>,
+  );
+
+  it('shows that he is retired, the teams he played for and his career stats', () => {
+    expect(html).toContain('Retired');
+    expect(html).toContain('Teams');
+    expect(html).toContain(l.teams[team].name);
+    expect(html).toContain(l.teams[other].name);
+    expect(html).toContain('Career stats');
+    expect(html).toContain('4300');
+  });
+
+  it('shows a dash for his overall in a list', () => {
+    expect(renderToStaticMarkup(<Ovr league={l} player={p} />)).toContain('–');
+  });
+
+  it('shows no ratings, scouting, makeup, habits, development, combine, health or contract', () => {
+    for (const gone of [
+      'Overall',
+      'Potential',
+      'Ratings at',
+      'class="report"',
+      'Development',
+      'combine',
+      'Habits',
+      'Contract',
+      'Health',
+      'Injur',
+    ])
+      expect(html, gone).not.toContain(gone);
   });
 });
