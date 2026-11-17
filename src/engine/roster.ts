@@ -93,6 +93,11 @@ export function teamPlayers(league: League, teamId: number): Player[] {
 /** Move a player to a club (null: none). Every change of a player's club goes through here. */
 export function setTeam(league: League, p: Player, teamId: number | null): void {
   const index = byTeam.get(league);
+  const free = noClub.get(league);
+  if (free && p.teamId !== teamId && !p.retired) {
+    if (teamId === null) place(free, p);
+    else if (p.teamId === null || p.teamId === undefined) drop(free, p);
+  }
   if (index && p.teamId !== teamId) {
     unplace(index, p, p.teamId);
     if (teamId !== null) {
@@ -142,10 +147,37 @@ export function activePlayers(league: League): readonly Player[] {
   return list;
 }
 
+/** Each league's players still in football with no club, in id order (free agents and draft prospects among them). */
+const noClub = new WeakMap<League, Player[]>();
+
+function noClubIndex(league: League): Player[] {
+  let list = noClub.get(league);
+  if (!list) {
+    list = activePlayers(league).filter((p) => p.teamId === null || p.teamId === undefined);
+    noClub.set(league, list);
+  }
+  return list;
+}
+
+/**
+ * Every player still in football with no club, in id order (free agents, draft prospects, players on waivers): what a pass
+ * over `league.players` for unsigned, unretired players reads. Read-only, like `activePlayers`.
+ */
+export function unsignedPlayers(league: League): readonly Player[] {
+  let list = noClubIndex(league);
+  if (list.some((p) => p.retired || (p.teamId !== null && p.teamId !== undefined) || league.players[p.id] !== p)) {
+    noClub.delete(league);
+    list = noClubIndex(league);
+  }
+  return list;
+}
+
 /** A player leaves football. Every retirement goes through here; what else a retirement does stays with its caller. */
 export function retirePlayer(league: League, p: Player): void {
   const list = inFootball.get(league);
   if (list) drop(list, p);
+  const free = noClub.get(league);
+  if (free) drop(free, p);
   p.retired = true;
 }
 
@@ -158,6 +190,11 @@ export function addPlayer(league: League, p: Player): void {
   if (list) {
     if (before) drop(list, before);
     if (!p.retired) place(list, p);
+  }
+  const free = noClub.get(league);
+  if (free) {
+    if (before) drop(free, before);
+    if (!p.retired && (p.teamId === null || p.teamId === undefined)) place(free, p);
   }
   league.players[p.id] = p;
   if (index && p.teamId !== null && p.teamId !== undefined) {

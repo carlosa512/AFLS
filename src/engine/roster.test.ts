@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { beginOffseason } from './offseason/index';
-import { activePlayers, addPlayer, retirePlayer } from './roster';
+import { activePlayers, addPlayer, retirePlayer, setTeam, unsignedPlayers } from './roster';
+import { advanceOffseason } from './offseason/index';
+import { freeAgents } from './offseason/negotiation';
 import type { League } from './types';
 
 let base: string;
@@ -54,4 +56,43 @@ describe('players still in football (long-league speed)', () => {
     expect(ids(activePlayers(l))).toContain(p.id);
     expect(ids(activePlayers(copy))).not.toContain(p.id);
   });
+});
+
+describe('the unsigned and free agents (long-league speed)', () => {
+  const unsignedTruth = (l: League) =>
+    Object.values(l.players)
+      .filter((p) => !p.retired && p.teamId === null)
+      .map((p) => p.id);
+
+  it('lists the unsigned, in id order, through signings and cuts', () => {
+    const l = fresh();
+    expect(ids(unsignedPlayers(l))).toEqual(unsignedTruth(l));
+    const fa = unsignedPlayers(l)[0];
+    setTeam(l, fa, 3);
+    expect(ids(unsignedPlayers(l))).toEqual(unsignedTruth(l));
+    const rostered = Object.values(l.players).find((p) => p.teamId === 5 && !p.retired)!;
+    setTeam(l, rostered, null);
+    expect(ids(unsignedPlayers(l))).toEqual(unsignedTruth(l));
+    retirePlayer(l, rostered);
+    expect(ids(unsignedPlayers(l))).toEqual(unsignedTruth(l));
+  });
+
+  it('heals when a player signs behind its back', () => {
+    const l = fresh();
+    const fa = unsignedPlayers(l)[1];
+    fa.teamId = 4;
+    expect(ids(unsignedPlayers(l))).toEqual(unsignedTruth(l));
+  });
+
+  it('freeAgents is what it always was, prospects never in it', () => {
+    const l = fresh();
+    while (l.phase !== 'draft') advanceOffseason(l, { autoUser: true });
+    expect(l.draftClass.length).toBeGreaterThan(0);
+    const prospects = new Set(l.draftClass);
+    const old = Object.values(l.players).filter(
+      (p) => p.teamId === null && !p.retired && !p.squad && !p.waiver && !prospects.has(p.id),
+    );
+    expect(ids(freeAgents(l))).toEqual(ids(old));
+    for (const id of l.draftClass) expect(ids(freeAgents(l))).not.toContain(id);
+  }, 120_000);
 });
