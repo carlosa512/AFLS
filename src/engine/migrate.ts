@@ -210,7 +210,7 @@ export function migrateLeague(league: League): League | null {
   // the others, as a new league rolls them.
   if (league.version < 61) {
     for (const p of Object.values(league.players))
-      if (p.traits.leads === undefined) {
+      if (p.traits && p.traits.leads === undefined) {
         const t = generateTraits(p);
         Object.assign(p.traits, {
           leads: t.leads,
@@ -678,7 +678,7 @@ function toV33(league: League) {
  */
 function toV31(league: League) {
   for (const p of Object.values(league.players))
-    if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+    if (p.traits && p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
   league.version = 31;
 }
 
@@ -705,7 +705,8 @@ function toV35(league: League) {
  */
 function toV13(league: League) {
   for (const p of Object.values(league.players)) {
-    if (p.traits.injuryResistance !== undefined) continue;
+    // A slimmed retired player has no traits to fill (`slimRetired`).
+    if (!p.traits || p.traits.injuryResistance !== undefined) continue;
     const t = generateTraits(p);
     p.traits.injuryResistance = t.injuryResistance;
     p.traits.naturalFitness = t.naturalFitness;

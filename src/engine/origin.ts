@@ -94,7 +94,8 @@ export function fillOrigins(league: League): void {
   const players = Object.values(league.players);
   for (const position of POSITIONS) {
     const group = players
-      .filter((p) => p.position === position)
+      // A slimmed retired player has no ratings to rank; his origin was filled before he was slimmed.
+      .filter((p) => p.position === position && p.ratings)
       .sort((a, b) => playerOvr(b) - playerOvr(a) || a.id - b.id);
     group.forEach((p, i) => {
       if (p.origin !== undefined) return;
