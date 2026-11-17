@@ -100,6 +100,8 @@ function build(league: League): Index {
  * read to see whether one was hired or retired was a second a season by a league's tenth (2026-11-17).
  */
 const coachChanges = new WeakMap<League, number>();
+/** How many hires and retirements of coaches the league has seen (`noteCoachesChanged`): a cache's check. */
+export const coachChangesOf = (league: League): number => coachChanges.get(league) ?? 0;
 export const noteCoachesChanged = (league: League): void =>
   void coachChanges.set(league, (coachChanges.get(league) ?? 0) + 1);
 

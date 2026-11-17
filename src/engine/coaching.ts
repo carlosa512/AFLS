@@ -38,7 +38,7 @@ import {
   traitsFromPlayer,
   wantsStepUp,
 } from './coachTraits';
-import { inheritedScheme, keepBonus, mainMentor, noteCoachesChanged, treeLean } from './trees';
+import { coachChangesOf, inheritedScheme, keepBonus, mainMentor, noteCoachesChanged, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
   coachPlayerFit,
@@ -529,21 +529,37 @@ function visionNow(league: League, hc: Coach): Vision {
 }
 
 /** Who held a chair on a team at the end of last season, read off careers (he may have moved on, or retired). */
+/**
+ * Last season's holder of each chair, worked out in one pass over every coach the league ever had and kept for the
+ * league year (its rows are done once the season is): a pass for each chair asked about was a fifth of a second a
+ * season by a league's tenth (2026-11-17). A hire or a retirement (`coachChangesOf`) reads it again.
+ */
+const lastHolders = new WeakMap<League, { season: number; changes: number; by: Map<string, Coach> }>();
+
 function lastSeasonHolder(league: League, teamId: number, role: CoachRole): Coach | undefined {
-  const last = league.season - 1;
-  let latest: Coach | undefined;
-  let through = -1;
-  for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
-    const spell = c.career?.find((cs) => cs.season === last && cs.teamId === teamId && cs.role === role);
-    if (!spell) continue;
-    // A legacy row describes the season-end holder. New rows distinguish actual partial seasons.
-    const week = spell.record?.throughWeek ?? Infinity;
-    if (week > through) {
-      latest = c;
-      through = week;
+  const changes = coachChangesOf(league);
+  let hit = lastHolders.get(league);
+  if (!hit || hit.season !== league.season || hit.changes !== changes) {
+    const last = league.season - 1;
+    const best = new Map<string, { c: Coach; through: number }>();
+    for (const c of [...Object.values(league.coaches), ...Object.values(league.retiredCoaches)]) {
+      const seen = new Set<string>();
+      for (const cs of c.career ?? []) {
+        if (cs.season !== last) continue;
+        const key = `${cs.teamId}:${cs.role}`;
+        // His first row for the chair, as a search for it would find.
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // A legacy row describes the season-end holder. New rows distinguish actual partial seasons.
+        const week = cs.record?.throughWeek ?? Infinity;
+        const had = best.get(key);
+        if (!had || week > had.through) best.set(key, { c, through: week });
+      }
     }
+    hit = { season: league.season, changes, by: new Map([...best].map(([k, v]) => [k, v.c])) };
+    lastHolders.set(league, hit);
   }
-  return latest;
+  return hit.by.get(`${teamId}:${role}`);
 }
 
 /** How a coordinator fits his head coach's vision: 1 is what he wants, 0 the opposite. Null for other chairs, or with no head coach. */
