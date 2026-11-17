@@ -1,5 +1,5 @@
 import { takesMinimum } from '../offseason/negotiation';
-import { activeRoster, practiceSquad, retirePlayer } from '../roster';
+import { activeRoster, practiceSquad, retirePlayer, slimRetired } from '../roster';
 import { perceive } from '../scouting';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
@@ -128,11 +128,8 @@ export function retireCastoffs(league: League): void {
     if (!p || p.retired || p.teamId !== null || p.contract || p.squad || p.waiver) continue;
     if (!new Rng(`${league.seed}:castoff:${league.season}:${id}`).chance(castoffRetireChance(p))) continue;
     retirePlayer(league, p);
-    // As any retirement: the record stays, what only a developing player needs goes.
-    delete p.quirkBag;
-    delete p.learning;
-    delete p.dev;
-    delete p.ratingHistory;
+    // As any retirement: his career stays, the rest goes (camp is over, nothing here reads him again).
+    slimRetired(p);
   }
   f.released = [];
 }

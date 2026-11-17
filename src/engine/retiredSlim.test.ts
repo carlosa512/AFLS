@@ -29,3 +29,18 @@ describe('the census: a league plays on with its retired players slimmed (2026-1
     season(l);
   }, 600_000);
 });
+
+describe('retirement slims a player (2026-11-17)', () => {
+  it('after an offseason every retired player keeps only what he keeps', () => {
+    const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
+    season(l);
+    season(l);
+    const retired = Object.values(l.players).filter((p) => p.retired);
+    expect(retired.length).toBeGreaterThan(50);
+    for (const p of retired)
+      expect(
+        Object.keys(p).filter((k) => !RETIRED_KEEP.includes(k as keyof Player)),
+        `${p.id}`,
+      ).toEqual([]);
+  }, 600_000);
+});

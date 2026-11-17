@@ -50,7 +50,7 @@ import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
-import { activeRoster, retirePlayer, setTeam, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, retirePlayer, setTeam, slimRetired, syncDepthChart, teamPlayers } from '../roster';
 import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
@@ -241,14 +241,9 @@ export function beginOffseason(league: League): void {
   resetScouting(league);
   developStaff(league);
   developCoaches(league, retirees);
-  // His card keeps who mentored him; how he left clubs and what mentors moved only mattered while he played (and to the
-  // clubs that might hire him to coach, just above).
-  for (const p of retirees) {
-    delete p.left;
-    delete p.shifts;
-    delete p.shiftedLast;
-    delete p.lostMentor;
-  }
+  // His draft grade has locked and a club may have hired him to coach, just above: from here his card shows his career
+  // only, and the rest of what he carried goes (`slimRetired`).
+  for (const p of retirees) slimRetired(p);
   developMedics(league);
   crewsNewYear(league);
 

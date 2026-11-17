@@ -204,6 +204,15 @@ export const RETIRED_KEEP: readonly (keyof Player)[] = [
   'contract',
 ];
 
+/**
+ * A retired player down to what he keeps (`RETIRED_KEEP`). Run once a retirement's moment is over: the new league year
+ * after his draft grade locks and a club may hire him to coach, camp's castoffs at camp's end.
+ */
+export function slimRetired(p: Player): void {
+  for (const k of Object.keys(p))
+    if (!RETIRED_KEEP.includes(k as keyof Player)) delete (p as unknown as Record<string, unknown>)[k];
+}
+
 /** A player leaves football. Every retirement goes through here; what else a retirement does stays with its caller. */
 export function retirePlayer(league: League, p: Player): void {
   const list = inFootball.get(league);
