@@ -93,6 +93,11 @@ export function teamPlayers(league: League, teamId: number): Player[] {
 /** Move a player to a club (null: none). Every change of a player's club goes through here. */
 export function setTeam(league: League, p: Player, teamId: number | null): void {
   const index = byTeam.get(league);
+  const free = noClub.get(league);
+  if (free && p.teamId !== teamId && !p.retired) {
+    if (teamId === null) place(free, p);
+    else if (p.teamId === null || p.teamId === undefined) drop(free, p);
+  }
   if (index && p.teamId !== teamId) {
     unplace(index, p, p.teamId);
     if (teamId !== null) {
@@ -106,11 +111,94 @@ export function setTeam(league: League, p: Player, teamId: number | null): void 
   p.teamId = teamId;
 }
 
+/**
+ * Each league's players still in football, in id order: built from one pass the first time it is read, then kept current
+ * by `addPlayer` and `retirePlayer`, beside the league like `byTeam`. Code that skips retired players read every player
+ * the league ever had: by a league's tenth season most of them were retired, and a season ran 25% slower (2026-11-17).
+ */
+const inFootball = new WeakMap<League, Player[]>();
+
+function footballIndex(league: League): Player[] {
+  let list = inFootball.get(league);
+  if (!list) {
+    list = Object.values(league.players).filter((p) => !p.retired);
+    inFootball.set(league, list);
+  }
+  return list;
+}
+
+/** Out of an id-ordered list, if he's in it. */
+function drop(list: Player[], p: Player): void {
+  const at = list.indexOf(p);
+  if (at >= 0) list.splice(at, 1);
+}
+
+/**
+ * Every player still in football (not retired), in id order: what a pass over `league.players` that skips retired players
+ * reads, without walking them. Read-only: copy it before changing the league while walking it.
+ */
+export function activePlayers(league: League): readonly Player[] {
+  let list = footballIndex(league);
+  // A player retired or replaced by hand, not through `retirePlayer` or `addPlayer` (a test, an old save's upgrade): read
+  // again. One added by hand, never listed, is not caught: players join through `addPlayer`.
+  if (list.some((p) => p.retired || league.players[p.id] !== p)) {
+    inFootball.delete(league);
+    list = footballIndex(league);
+  }
+  return list;
+}
+
+/** Each league's players still in football with no club, in id order (free agents and draft prospects among them). */
+const noClub = new WeakMap<League, Player[]>();
+
+function noClubIndex(league: League): Player[] {
+  let list = noClub.get(league);
+  if (!list) {
+    list = activePlayers(league).filter((p) => p.teamId === null || p.teamId === undefined);
+    noClub.set(league, list);
+  }
+  return list;
+}
+
+/**
+ * Every player still in football with no club, in id order (free agents, draft prospects, players on waivers): what a pass
+ * over `league.players` for unsigned, unretired players reads. Read-only, like `activePlayers`.
+ */
+export function unsignedPlayers(league: League): readonly Player[] {
+  let list = noClubIndex(league);
+  // A listed player retired, signed or replaced by hand: read again. One unsigned by hand (`p.teamId = null`), never
+  // listed, is not caught: clubs change through `setTeam`.
+  if (list.some((p) => p.retired || (p.teamId !== null && p.teamId !== undefined) || league.players[p.id] !== p)) {
+    noClub.delete(league);
+    list = noClubIndex(league);
+  }
+  return list;
+}
+
+/** A player leaves football. Every retirement goes through here; what else a retirement does stays with its caller. */
+export function retirePlayer(league: League, p: Player): void {
+  const list = inFootball.get(league);
+  if (list) drop(list, p);
+  const free = noClub.get(league);
+  if (free) drop(free, p);
+  p.retired = true;
+}
+
 /** A new player into the league (a draft class, an undrafted signing, a generated free agent). */
 export function addPlayer(league: League, p: Player): void {
   const index = byTeam.get(league);
   const before = league.players[p.id];
   if (index && before) unplace(index, before, before.teamId);
+  const list = inFootball.get(league);
+  if (list) {
+    if (before) drop(list, before);
+    if (!p.retired) place(list, p);
+  }
+  const free = noClub.get(league);
+  if (free) {
+    if (before) drop(free, before);
+    if (!p.retired && (p.teamId === null || p.teamId === undefined)) place(free, p);
+  }
   league.players[p.id] = p;
   if (index && p.teamId !== null && p.teamId !== undefined) {
     const club = index.get(p.teamId);

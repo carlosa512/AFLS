@@ -6,7 +6,7 @@
  */
 import type { Coaching } from '../coaching';
 import { capSheet } from '../finance/cap';
-import { onGameRoster } from '../roster';
+import { activePlayers, onGameRoster } from '../roster';
 import { leagueMarket, minSalary, type Market } from '../finance/market';
 import { ROSTER_MAX } from '../offseason/negotiation';
 import { playerOvr } from '../positions';
@@ -70,7 +70,7 @@ export interface TradeContext {
 
 function rostersOf(league: League): Map<number, Player[]> {
   const rosters = new Map<number, Player[]>(league.teams.map((t) => [t.id, []]));
-  for (const p of Object.values(league.players)) if (p.teamId !== null && !p.squad) rosters.get(p.teamId)?.push(p);
+  for (const p of activePlayers(league)) if (p.teamId !== null && !p.squad) rosters.get(p.teamId)?.push(p);
   return rosters;
 }
 

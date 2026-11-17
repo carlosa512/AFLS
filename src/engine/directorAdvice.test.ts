@@ -15,7 +15,7 @@ import {
 } from './directorAdvice';
 import { isExpired, yearsLeft } from './finance/contract';
 import { perceive } from './scouting';
-import { teamPlayers } from './roster';
+import { setTeam, teamPlayers } from './roster';
 import { computeRecords } from './season/standings';
 import { emptyMarket } from './trade/execute';
 import { tradeContext } from './trade/context';
@@ -278,7 +278,7 @@ describe('the director’s picks', () => {
     for (const p of Object.values(l.players)
       .filter((p) => p.position === pos && p.teamId !== null && p.teamId !== l.userTeamId)
       .slice(0, 6)) {
-      p.teamId = null;
+      setTeam(l, p, null);
       l.knowledge[p.id] = 1;
     }
     const rows = faTargets(l, 4, 1e9);
@@ -337,7 +337,7 @@ describe('the director’s mail', () => {
     for (const p of Object.values(l.players)
       .filter((p) => p.position === pos && p.teamId !== null && p.teamId !== l.userTeamId)
       .slice(0, 6)) {
-      p.teamId = null;
+      setTeam(l, p, null);
       l.knowledge[p.id] = 1;
     }
     const a = adviceFor(l, 1e9)!;

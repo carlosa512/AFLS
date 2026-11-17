@@ -1,3 +1,4 @@
+import { activePlayers } from '../roster';
 import type { League, Player } from '../types';
 
 /** AFLS reserves a full regular-season week on signing, even between payroll ticks. */
@@ -39,7 +40,7 @@ export function squadPayroll(league: League, teamId: number, season = league.sea
     ]),
   );
   const week = squadPayWeek(league);
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     const a = p.squad?.agreement;
     if (p.teamId === null || !a || a.season !== season) continue;
     const total = totals.get(p.teamId)!;
@@ -66,7 +67,7 @@ export function settleSquadPayroll(league: League): void {
     payroll.receipts = {};
     delete payroll.credits;
   }
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     const a = p.squad?.agreement;
     if (p.teamId === null || !a || a.season !== league.season) continue;
     const count = Math.max(0, week - Math.max(a.paidThrough, a.startWeek - 1));

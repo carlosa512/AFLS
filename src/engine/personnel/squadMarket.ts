@@ -5,7 +5,7 @@ import { favoriteJersey } from '../jerseys';
 import { capSpace } from '../finance/cap';
 import { inSeasonReserve } from '../offseason/ai';
 import { contenderScore, resetContenderCache, takesMinimum } from '../offseason/negotiation';
-import { activeRoster, addPlayer, practiceSquad } from '../roster';
+import { activeRoster, addPlayer, practiceSquad, unsignedPlayers } from '../roster';
 import { playerOvr } from '../positions';
 import { recordRatings } from '../development';
 import { Rng } from '../rng';
@@ -20,7 +20,7 @@ import type { SquadOffer } from './types';
 
 export function squadCandidates(league: League): Player[] {
   const draft = new Set(league.draftClass);
-  return Object.values(league.players).filter(
+  return unsignedPlayers(league).filter(
     (p) => !p.retired && p.teamId === null && !p.contract && !p.waiver && !p.injury && !draft.has(p.id),
   );
 }

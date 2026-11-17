@@ -16,7 +16,7 @@ import { rookieContract } from '../generate';
 import { noteSigning } from '../gmMoves';
 import { numberOnArrival } from '../jerseys';
 import { clamp, Rng } from '../rng';
-import { activeRoster, setTeam, syncDepthChart, teamRatings } from '../roster';
+import { activeRoster, setTeam, syncDepthChart, teamRatings, unsignedPlayers } from '../roster';
 import { promisedDeal } from '../disputeRead';
 import type { Contract, League, Negotiation, Player } from '../types';
 import { OFFSEASON_PHASES } from '../types';
@@ -456,9 +456,7 @@ export function signPlayer(
 /** Free agents: unsigned, not retired, not in the draft class. */
 export function freeAgents(league: League): Player[] {
   const prospects = new Set(league.draftClass);
-  return Object.values(league.players).filter(
-    (p) => p.teamId === null && !p.retired && !p.squad && !p.waiver && !prospects.has(p.id),
-  );
+  return unsignedPlayers(league).filter((p) => p.teamId === null && !p.squad && !p.waiver && !prospects.has(p.id));
 }
 
 /**

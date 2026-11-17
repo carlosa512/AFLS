@@ -694,8 +694,10 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   expiring contract has an answer (`openContracts` in `contractMail.ts`: signed, tagged, let walk or talks broken
   off), then "Decide N fifth-year options" until each is exercised or declined (`openOptions`). The Re-sign tab has
   "Let walk" on a row and "Let the other N walk", and "Decline all N" over the options.
-- **A player changes club through `setTeam`, and joins the league through `addPlayer`** (`roster.ts`), tests included:
-  `teamPlayers` reads an index those keep. A club cleared by hand is caught and read again; a club set by hand isn't.
+- **A player changes club through `setTeam`, joins the league through `addPlayer` and retires through `retirePlayer`**
+  (`roster.ts`), tests included: `teamPlayers`, `activePlayers` (players still in football) and `unsignedPlayers` read
+  indexes those keep. A loop that skips retired players reads `activePlayers`; one that ranks or counts players (who
+  started, records) keeps reading every player. A club cleared by hand is caught and read again; a club set by hand isn't.
 - `League` must stay plain JSON. If you change its shape, bump `SAVE_VERSION` in `generate.ts` and
   add an upgrade step to `migrate.ts` (old saves are migrated on load, never thrown away).
 - `league.season` is the league year: it ticks over when the offseason begins (like the NFL's March

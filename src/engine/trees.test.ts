@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { simToEndOfSeason } from './league';
+import { playWeek, simToEndOfSeason } from './league';
 import {
   disciplesOf,
   hasTree,
@@ -564,4 +564,23 @@ describe('pedigree', () => {
     expect(treeLean(l, null, man, 'positionCoach')).toBe(0);
     expect(treeLean(l, null, man, 'headCoach', -0.9)).toBeCloseTo(-0.9);
   });
+});
+
+describe('the trees cache (long-league speed, 2026-11-17)', () => {
+  it('a cached read gives the trees a fresh build gives, week by week through a season', () => {
+    const l = createLeague({ seed: 'trees-cache' });
+    const read = (x: League) =>
+      Object.keys(x.coaches)
+        .map(Number)
+        .map((id) => ({
+          id,
+          links: linksOf(x, id).map((k) => `${k.mentorId}:${k.as}`),
+          disciples: disciplesOf(x, id).map((c) => c.id),
+          tree: treeFor(x, id)?.rootId ?? null,
+        }));
+    for (let w = 0; w < 18; w++) {
+      playWeek(l);
+      expect(read(l)).toEqual(read(JSON.parse(JSON.stringify(l))));
+    }
+  }, 300_000);
 });

@@ -17,7 +17,7 @@ import { ATTRIBUTE_PROFILES, overall, OVR_WEIGHTS, POSITION_NAMES, STARTERS } fr
 import { activeQuirks, formingQuirks, QUIRKS, type QuirkId, type QuirkTone } from './quirks';
 import { clamp, Rng } from './rng';
 import { knockFor } from './familiarity';
-import { headline, slotOf, starters, teamRatings, UNIT_POSITIONS } from './roster';
+import { activePlayers, headline, slotOf, starters, teamRatings, UNIT_POSITIONS } from './roster';
 import { accuracy, FOCUS_OF, readFor, teamStaff, type Domain } from './staff';
 import { filmScale } from './origin';
 import { passerRating } from './stats';
@@ -875,7 +875,7 @@ function reference(league: League): Reference {
   const starterIds = new Set(
     league.teams.flatMap((t) => POSITIONS.flatMap((pos) => t.depthChart[pos].slice(0, STARTERS[pos]))),
   );
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.teamId === null || p.retired || p.squad) continue;
     const ovr = overall(p.ratings, p.position);
     curves[p.position].push(ovr);

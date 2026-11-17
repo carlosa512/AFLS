@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.51',
+    date: '2026-11-17',
+    title: 'Long careers stay quick',
+    text: 'Later seasons of a long career no longer slow down: a season ten years in now plays about as fast as an early one.',
+  },
+  {
     version: '0.4.50',
     date: '2026-11-16',
     title: 'Room to breathe at kickoff',

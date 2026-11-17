@@ -6,7 +6,7 @@
  * leadership and standing only, never by work ethic, so the league as a whole doesn't drift.
  */
 import { addTie } from './relationships';
-import { activeRoster } from './roster';
+import { activePlayers, activeRoster } from './roster';
 import { characterRead, seasonRole } from './scouting';
 import { formerPositions } from './training';
 import { clamp, Rng } from './rng';
@@ -208,7 +208,7 @@ export function mentoringWeek(league: League): void {
 export function mentoringYearEnd(league: League): void {
   const last = league.season - 1;
   const banked: Player[] = [];
-  for (const p of Object.values(league.players)) {
+  for (const p of activePlayers(league)) {
     if (p.retired) continue;
     const m = p.mentor === undefined ? undefined : league.players[p.mentor];
     if (m && (p.mentorWeeks ?? 0) > 0) {
