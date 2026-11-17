@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
-import { simToEndOfSeason } from './league';
+import { playWeek } from './league';
 import { advanceOffseason, beginOffseason } from './offseason/index';
 import { lockVerdicts, pickMark, VERDICT_YEARS } from './draftGrade';
 import { activeRoster, RETIRED_KEEP } from './roster';
@@ -15,39 +15,54 @@ export function slimAll(league: League): void {
         if (!RETIRED_KEEP.includes(k as keyof Player)) delete (p as unknown as Record<string, unknown>)[k];
 }
 
-const season = (l: League) => {
-  simToEndOfSeason(l);
+// A week (or an offseason step) at a time with a yield between: played in one stretch, a season kept the test worker
+// from reporting for minutes (vitest's onTaskUpdate RPC timeout), as in awards.test.ts.
+const tick = () => new Promise((done) => setTimeout(done, 0));
+const simToEndOfSeason = async (l: League) => {
+  while (l.phase !== 'complete') {
+    playWeek(l);
+    await tick();
+  }
+};
+const toPhase = async (l: League, phase: League['phase']) => {
+  while (l.phase !== phase) {
+    advanceOffseason(l, { autoUser: true });
+    await tick();
+  }
+};
+const season = async (l: League) => {
+  await simToEndOfSeason(l);
   beginOffseason(l);
-  while (l.phase !== 'regular') advanceOffseason(l, { autoUser: true });
+  await toPhase(l, 'regular');
 };
 
 describe('the census: a league plays on with its retired players slimmed (2026-11-17)', () => {
   // Practice squads on: the most code that walks players. Two seasons retire a class; one more plays every step over it.
-  it('plays a season and its offseason over slimmed retirees', () => {
+  it('plays a season and its offseason over slimmed retirees', async () => {
     const l = createLeague({ seed: 'census', personnel: true });
-    for (let s = 0; s < 2; s++) season(l);
+    for (let s = 0; s < 2; s++) await season(l);
     expect(Object.values(l.players).filter((p) => p.retired).length).toBeGreaterThan(100);
     slimAll(l);
-    season(l);
+    await season(l);
   }, 600_000);
 });
 
 describe('retirement slims a player (2026-11-17)', () => {
-  it('a camp castoff keeps his record through the season (a friend left behind still misses him), slimmed at the new league year', () => {
+  it('a camp castoff keeps his record through the season (a friend left behind still misses him), slimmed at the new league year', async () => {
     const l = createLeague({ seed: 'slim-castoffs', personnel: true });
     // The first camp that sends a castoff out of football (finds the scene rather than pinning a seed).
     let gone: Player[] = [];
     for (let s = 0; s < 4 && !gone.length; s++) {
-      simToEndOfSeason(l);
+      await simToEndOfSeason(l);
       beginOffseason(l);
-      while (l.phase !== 'preseason') advanceOffseason(l, { autoUser: true });
+      await toPhase(l, 'preseason');
       const released = [...(l.personnel!.futures?.released ?? [])];
-      while ((l.phase as League['phase']) !== 'regular') advanceOffseason(l, { autoUser: true });
+      await toPhase(l, 'regular');
       gone = released.map((id) => l.players[id]).filter((p) => p.retired);
     }
     expect(gone.length).toBeGreaterThan(0);
     for (const p of gone) expect(p.ratings, `${p.id}`).toBeDefined();
-    simToEndOfSeason(l);
+    await simToEndOfSeason(l);
     beginOffseason(l);
     for (const p of gone)
       expect(
@@ -56,11 +71,11 @@ describe('retirement slims a player (2026-11-17)', () => {
       ).toEqual([]);
   }, 600_000);
 
-  it('at the new league year every retired player keeps only what he keeps', () => {
+  it('at the new league year every retired player keeps only what he keeps', async () => {
     const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
-    season(l);
-    season(l);
-    simToEndOfSeason(l);
+    await season(l);
+    await season(l);
+    await simToEndOfSeason(l);
     beginOffseason(l);
     const retired = Object.values(l.players).filter((p) => p.retired);
     expect(retired.length).toBeGreaterThan(50);
@@ -75,12 +90,12 @@ describe('retirement slims a player (2026-11-17)', () => {
 });
 
 describe("a retired pick's draft grade (2026-11-17)", () => {
-  it('locks when he retires, before slimming, and his card reads it after', () => {
+  it('locks when he retires, before slimming, and his card reads it after', async () => {
     const l = createLeague({ seed: 'slim-at-retirement', personnel: true });
-    season(l);
-    season(l);
+    await season(l);
+    await season(l);
     // At the new league year, when the year's retirees and last camp's castoffs are slimmed.
-    simToEndOfSeason(l);
+    await simToEndOfSeason(l);
     beginOffseason(l);
     // Picks from this league's own drafts (a founding veteran's draft line is made up and never graded).
     const first = createLeague({ seed: 'slim-at-retirement', personnel: true }).season;
@@ -101,7 +116,7 @@ describe("a retired pick's draft grade (2026-11-17)", () => {
 });
 
 describe('what a retirement letter still knows (2026-11-17)', () => {
-  it('a player who retires over his concussions says so in his letter, after he is slimmed', () => {
+  it('a player who retires over his concussions says so in his letter, after he is slimmed', async () => {
     const l = createLeague({ seed: 'slim-concussions' });
     const p = activeRoster(l, l.userTeamId).find((x) => x.position === 'LB')!;
     p.age = 44;
