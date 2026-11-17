@@ -20,6 +20,7 @@
     "offseason": "tsx scripts/offseason.ts",
     "audit": "tsx scripts/audit.ts",
     "careers": "tsx scripts/careers.ts",
+    "fingerprint": "tsx scripts/fingerprint.ts",
     "quirks": "tsx scripts/quirks.ts",
     "gm-habits": "tsx scripts/gm-habits.ts",
     "coach-quirks": "tsx scripts/coach-quirks.ts",
