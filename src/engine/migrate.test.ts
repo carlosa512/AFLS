@@ -501,3 +501,18 @@ describe('save v101', () => {
     expect(active.map((p) => up.players[p.id])).toEqual(before);
   });
 });
+
+describe('save v101 mid-season', () => {
+  it('a castoff cut this league year keeps how he left until the next new league year (a friend still misses him)', () => {
+    const l = createLeague({ seed: 'v101-castoff' });
+    const [cut, old] = Object.values(l.players).filter((p) => p.teamId !== null);
+    for (const p of [cut, old]) retirePlayer(l, p);
+    cut.left = [{ teamId: 3, season: l.season, how: 'cut' }];
+    old.left = [{ teamId: 3, season: l.season - 1, how: 'cut' }];
+    l.version = 100;
+    const up = migrateLeague(l)!;
+    expect(up.players[cut.id].left).toEqual([{ teamId: 3, season: l.season, how: 'cut' }]);
+    expect(up.players[cut.id].ratings).toBeDefined();
+    expect(up.players[old.id].left).toBeUndefined();
+  });
+});

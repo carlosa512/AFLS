@@ -202,6 +202,7 @@ export const RETIRED_KEEP: readonly (keyof Player)[] = [
   'portrait',
   'gear',
   'captainSeasons',
+  'retiredConcussions',
   'retired',
   'teamId',
   'contract',

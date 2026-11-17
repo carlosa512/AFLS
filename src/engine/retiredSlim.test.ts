@@ -3,7 +3,8 @@ import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason/index';
 import { lockVerdicts, pickMark, VERDICT_YEARS } from './draftGrade';
-import { RETIRED_KEEP } from './roster';
+import { activeRoster, RETIRED_KEEP } from './roster';
+import { deliverMail } from './inbox';
 import type { League, Player } from './types';
 
 /** Every retired player reduced to what he keeps (`RETIRED_KEEP`), as `slimRetired` and the save upgrade leave him. */
@@ -97,4 +98,28 @@ describe("a retired pick's draft grade (2026-11-17)", () => {
     expect(() => lockVerdicts(l)).not.toThrow();
     for (const p of early) expect(() => pickMark(l, p)).not.toThrow();
   }, 600_000);
+});
+
+describe('what a retirement letter still knows (2026-11-17)', () => {
+  it('a player who retires over his concussions says so in his letter, after he is slimmed', () => {
+    const l = createLeague({ seed: 'slim-concussions' });
+    const p = activeRoster(l, l.userTeamId).find((x) => x.position === 'LB')!;
+    p.age = 44;
+    // He finished the season with us: the letter is ours.
+    p.statTeams = { [l.season]: [l.userTeamId] };
+    p.stats = { [l.season]: { gp: 17 } };
+    p.injuries = [1, 2, 3, 4].map((w) => ({
+      type: 'concussion',
+      severity: 'moderate' as const,
+      season: l.season,
+      week: w * 3,
+      weeks: 2,
+    }));
+    l.phase = 'complete';
+    beginOffseason(l);
+    expect(p.retired).toBe(true);
+    deliverMail(l);
+    const letter = l.inbox!.find((m) => m.id === `retirement:${l.season}:${p.id}`)!;
+    expect(letter.body).toContain('4 concussions');
+  });
 });

@@ -61,7 +61,6 @@ import { editionMail } from './snnWeek';
 import { capSpace } from './finance/cap';
 import {
   concussionCount,
-  concussionRetireChance,
   concussionsLately,
   concussionWindow,
   delegates,
@@ -541,10 +540,9 @@ function newYearMail(league: League, have: Set<string>): Draft[] {
       from: fullName(p),
       category: 'retirement',
       subject: `${fullName(p)} retires`,
-      body:
-        concussionRetireChance(p, season) > 0
-          ? `After ${plural(p.experience, 'season')} in the league and ${concussionCount(p)} concussions, I've decided my health has to come first. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`
-          : `After ${plural(p.experience, 'season')} in the league${careerWords(league, p)}, I've decided it's time to retire. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
+      body: p.retiredConcussions
+        ? `After ${plural(p.experience, 'season')} in the league and ${p.retiredConcussions} concussions, I've decided my health has to come first. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`
+        : `After ${plural(p.experience, 'season')} in the league${careerWords(league, p)}, I've decided it's time to retire. Thank you to everyone in the ${teamName(team)} organization, my teammates and our fans.`,
       actions: [{ kind: 'player', playerId: p.id }],
     });
   }

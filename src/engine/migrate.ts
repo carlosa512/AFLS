@@ -2,6 +2,7 @@ import { moraleClock, seedMorale } from './morale';
 import { STARTERS } from './positions';
 import { seedFoundingTrees } from './trees';
 import { slimRetired, teamRatings } from './roster';
+import { concussionCount, concussionRetireChance } from './injuries';
 import { lockRetiredVerdict, lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
@@ -419,8 +420,15 @@ export function migrateLeague(league: League): League | null {
   // v101: a retired player keeps only his career (`RETIRED_KEEP`, `slimRetired`). His draft grade locks first, read
   // as it reads now, since the scouting read it comes from goes with the rest.
   if (league.version < 101) {
-    const retired = Object.values(league.players).filter((p) => p.retired);
+    // A castoff cut this league year waits for the next new league year, as at runtime: this season still reads how
+    // he left (a friend left behind misses him). That year's sweep slims him (`p.retired && p.ratings`).
+    const retired = Object.values(league.players).filter(
+      (p) => p.retired && !p.left?.some((d) => d.season === league.season),
+    );
     for (const p of retired) lockRetiredVerdict(league, p);
+    // A retirement letter not yet filed still says when his head made the call, as it read his injuries.
+    for (const p of retired)
+      if (concussionRetireChance(p, league.season) > 0) p.retiredConcussions = concussionCount(p);
     for (const p of retired) slimRetired(p);
     league.version = 101;
   }
