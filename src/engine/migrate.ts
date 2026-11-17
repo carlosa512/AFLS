@@ -1,8 +1,8 @@
 import { moraleClock, seedMorale } from './morale';
 import { STARTERS } from './positions';
 import { seedFoundingTrees } from './trees';
-import { teamRatings } from './roster';
-import { lockVerdicts } from './draftGrade';
+import { slimRetired, teamRatings } from './roster';
+import { lockRetiredVerdict, lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
@@ -416,6 +416,14 @@ export function migrateLeague(league: League): League | null {
   // v100: a development year remembers the rules it was rolled under (`DevYear.rules`). A year already open has none,
   // which reads as v1: it finishes under the rules it began with. Nothing to change.
   if (league.version < 100) league.version = 100;
+  // v101: a retired player keeps only his career (`RETIRED_KEEP`, `slimRetired`). His draft grade locks first, read
+  // as it reads now, since the scouting read it comes from goes with the rest.
+  if (league.version < 101) {
+    const retired = Object.values(league.players).filter((p) => p.retired);
+    for (const p of retired) lockRetiredVerdict(league, p);
+    for (const p of retired) slimRetired(p);
+    league.version = 101;
+  }
   return league;
 }
 
