@@ -61,6 +61,8 @@ export const starsOf = (league: League, p: Player, scale: StarScale = 'league', 
 
 /** Overall as a table cell: exact for your players, a dashed "estimate" chip for everyone else. */
 export function Ovr({ league, player, decimals = 1 }: { league: League; player: Player; decimals?: number }) {
+  // A retired player keeps no ratings (`slimRetired`): his career is his record, not a number.
+  if (player.retired) return <span className="muted">–</span>;
   const v = viewOf(league, player);
   if (v.exact) return <Rating value={v.ovr} decimals={decimals} />;
   const range = `${v.ovrLo.toFixed(1)}–${v.ovrHi.toFixed(1)}`;

@@ -1,8 +1,9 @@
 import { moraleClock, seedMorale } from './morale';
 import { STARTERS } from './positions';
 import { seedFoundingTrees } from './trees';
-import { teamRatings } from './roster';
-import { lockVerdicts } from './draftGrade';
+import { slimRetired, teamRatings } from './roster';
+import { concussionCount, concussionRetireChance } from './injuries';
+import { lockRetiredVerdict, lockVerdicts } from './draftGrade';
 import { fillOrigins } from './origin';
 import { generateCoachQuirks, inheritCoachQuirk } from './coachQuirks';
 /**
@@ -210,7 +211,7 @@ export function migrateLeague(league: League): League | null {
   // the others, as a new league rolls them.
   if (league.version < 61) {
     for (const p of Object.values(league.players))
-      if (p.traits.leads === undefined) {
+      if (p.traits && p.traits.leads === undefined) {
         const t = generateTraits(p);
         Object.assign(p.traits, {
           leads: t.leads,
@@ -416,6 +417,21 @@ export function migrateLeague(league: League): League | null {
   // v100: a development year remembers the rules it was rolled under (`DevYear.rules`). A year already open has none,
   // which reads as v1: it finishes under the rules it began with. Nothing to change.
   if (league.version < 100) league.version = 100;
+  // v101: a retired player keeps only his career (`RETIRED_KEEP`, `slimRetired`). His draft grade locks first, read
+  // as it reads now, since the scouting read it comes from goes with the rest.
+  if (league.version < 101) {
+    // A castoff cut this league year waits for the next new league year, as at runtime: this season still reads how
+    // he left (a friend left behind misses him). That year's sweep slims him (`p.retired && p.ratings`).
+    const retired = Object.values(league.players).filter(
+      (p) => p.retired && !p.left?.some((d) => d.season === league.season),
+    );
+    for (const p of retired) lockRetiredVerdict(league, p);
+    // A retirement letter not yet filed still says when his head made the call, as it read his injuries.
+    for (const p of retired)
+      if (concussionRetireChance(p, league.season) > 0) p.retiredConcussions = concussionCount(p);
+    for (const p of retired) slimRetired(p);
+    league.version = 101;
+  }
   return league;
 }
 
@@ -670,7 +686,7 @@ function toV33(league: League) {
  */
 function toV31(league: League) {
   for (const p of Object.values(league.players))
-    if (p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
+    if (p.traits && p.traits.versatility === undefined) p.traits.versatility = generateTraits(p).versatility;
   league.version = 31;
 }
 
@@ -697,7 +713,8 @@ function toV35(league: League) {
  */
 function toV13(league: League) {
   for (const p of Object.values(league.players)) {
-    if (p.traits.injuryResistance !== undefined) continue;
+    // A slimmed retired player has no traits to fill (`slimRetired`).
+    if (!p.traits || p.traits.injuryResistance !== undefined) continue;
     const t = generateTraits(p);
     p.traits.injuryResistance = t.injuryResistance;
     p.traits.naturalFitness = t.naturalFitness;

@@ -1416,6 +1416,8 @@ button.strip-line:hover .ab {
   gap: 14px;
   align-items: center;
   padding: 18px;
+  /* Room for the close button in the corner, so a long line in the head never runs under it. */
+  padding-right: 52px;
   color: #fff;
   position: relative;
 }

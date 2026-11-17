@@ -9,6 +9,7 @@ import {
   staffGaps,
   verdictFor,
   verdictRecord,
+  lockRetiredVerdict,
 } from './draftGrade';
 import { createLeague, SAVE_VERSION } from './generate';
 import { migrateLeague } from './migrate';
@@ -74,14 +75,16 @@ describe('pickMark', () => {
 });
 
 describe('lockVerdicts', () => {
-  it('locks picks three league years back, retired players too, and never rewrites one', () => {
+  it('locks picks three league years back, a retired one as he retires, and never rewrites one', () => {
     const league = createLeague({ seed: 'dg-lock' });
     const s = league.season;
-    const [old, recent, gone] = drafted(league, [s - 3, s - 2, s - 3]);
+    const [old, recent, gone] = drafted(league, [s - 3, s - 2, s - 1]);
+    gone.experience = Math.max(1, gone.experience);
+    lockRetiredVerdict(league, gone);
     gone.retired = true;
+    expect(gone.draft!.verdict).toBeDefined();
     lockVerdicts(league);
     expect(old.draft!.verdict).toBeDefined();
-    expect(gone.draft!.verdict).toBeDefined();
     expect(recent.draft!.verdict).toBeUndefined();
     const other = old.draft!.verdict === 'miss' ? 'hit' : 'miss';
     old.draft!.verdict = other;

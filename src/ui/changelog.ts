@@ -13,10 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '0.4.52',
+    version: '0.4.53',
     date: '2026-11-17',
     title: 'Rookies stay, news that matters',
     text: 'Teams no longer trade a first- or second-round pick in his rookie season. SNN reports benchings of quarterbacks and names only, and trade stories say who drafted the player.',
+  },
+  {
+    version: '0.4.52',
+    date: '2026-11-17',
+    title: 'Smaller saves',
+    text: 'A retired player now keeps only his career: his stats, honors, teams and draft. His card shows just that, and a long save grows far less each season.',
   },
   {
     version: '0.4.51',

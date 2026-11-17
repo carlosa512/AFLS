@@ -4,7 +4,8 @@ import { deliverMail, mailSubject } from './inbox';
 import { migrateLeague } from './migrate';
 import { WINDOW } from './meetings/commitments';
 import { moraleAdvance, moraleContext, moraleFactors, moraleTarget, YEAR } from './morale';
-import { activeRoster } from './roster';
+import { activeRoster, retirePlayer, RETIRED_KEEP } from './roster';
+import { pickMark } from './draftGrade';
 import { nameCaptains } from './personality';
 import { playWeek } from './league';
 import { emptyMarket } from './trade/execute';
@@ -18,7 +19,6 @@ describe('save v65 and v66', () => {
     const before = JSON.parse(JSON.stringify(l.inbox));
     l.version = 64;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(100);
     expect(up.version).toBe(SAVE_VERSION);
     expect(up.inbox).toEqual(before);
   });
@@ -474,5 +474,45 @@ describe('save v99', () => {
     expect(filled).toEqual(live.filter((m) => m.kind === 'trade'));
     // Loading it again changes nothing.
     expect(migrateLeague(JSON.parse(JSON.stringify(up)))).toEqual(up);
+  });
+});
+
+describe('save v101', () => {
+  it('a v100 save loads at 101 with its retired players slimmed, their grades read as before, the rest untouched', () => {
+    const l = createLeague({ seed: 'v101' });
+    const gone = Object.values(l.players)
+      .filter((p) => p.teamId !== null)
+      .slice(0, 40);
+    for (const p of gone) retirePlayer(l, p);
+    const marks = Object.fromEntries(gone.map((p) => [p.id, pickMark(l, p)]));
+    const active = Object.values(l.players).filter((p) => !p.retired);
+    const before = JSON.parse(JSON.stringify(active));
+    l.version = 100;
+    const up = migrateLeague(l)!;
+    expect(SAVE_VERSION).toBe(101);
+    expect(up.version).toBe(101);
+    for (const p of gone) {
+      const q = up.players[p.id];
+      for (const k of Object.keys(q)) expect(RETIRED_KEEP, `${q.id} ${k}`).toContain(k);
+      expect(pickMark(up, q), `${q.id}`).toEqual(
+        marks[p.id] && marks[p.id]!.verdict ? { verdict: marks[p.id]!.verdict, locked: true } : null,
+      );
+    }
+    expect(active.map((p) => up.players[p.id])).toEqual(before);
+  });
+});
+
+describe('save v101 mid-season', () => {
+  it('a castoff cut this league year keeps how he left until the next new league year (a friend still misses him)', () => {
+    const l = createLeague({ seed: 'v101-castoff' });
+    const [cut, old] = Object.values(l.players).filter((p) => p.teamId !== null);
+    for (const p of [cut, old]) retirePlayer(l, p);
+    cut.left = [{ teamId: 3, season: l.season, how: 'cut' }];
+    old.left = [{ teamId: 3, season: l.season - 1, how: 'cut' }];
+    l.version = 100;
+    const up = migrateLeague(l)!;
+    expect(up.players[cut.id].left).toEqual([{ teamId: 3, season: l.season, how: 'cut' }]);
+    expect(up.players[cut.id].ratings).toBeDefined();
+    expect(up.players[old.id].left).toBeUndefined();
   });
 });

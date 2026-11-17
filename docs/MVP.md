@@ -65,8 +65,8 @@ Each MVP item finished from here bumps the middle version number (`docs/VERSIONI
       `scouting.ts`); only New Game reads `teamRatings`, for each club's overall before you pick (you have no scouts
       yet). It shows no record: a new league has no history. The rules every screen follows are in `docs/UI.md`.
 - [x] **15. Save and load** · **Done**: IndexedDB autosave after every change, backup export and import (`saves.tsx`)
-      and old saves migrated on load (`migrate.ts`). Known issue: saves grow about 430 KB a season because retired
-      players are never pruned.
+      and old saves migrated on load (`migrate.ts`). A retired player keeps only his career (0.4.52, `slimRetired`), so
+      a save no longer carries every retired player whole.
 
 ## After alpha
 
@@ -300,8 +300,8 @@ does (3+ within reach and untouched: 28% against 31%), so the crowd isn't a sepa
       **Done (0.4.15):** each club's read is kept across the passes, stamped with what it uses (`offseason/faReads.ts`),
       the win-now lean laid on fresh; an offseason plays byte for byte as before, and four seasons run 69 s → 63 s (free
       agency 17 s → 11 s).
-- Considered and left (the owner's call): slimming retired players further. Retirement already drops what only a
-  developing player needs; traits, personality and combine stay for the card (about 13% of a save at season 6).
+- Slimming retired players: **Done (0.4.52)**, the owner's call. A retired player keeps his career only
+  (`RETIRED_KEEP`), and his card shows just that.
 
 ## Follow-up: what the front-office work left (0.2.36)
 

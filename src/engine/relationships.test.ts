@@ -305,7 +305,7 @@ describe('speaking out', () => {
     expect(any).toBe(true);
   });
 
-  it('lets a retired man keep his mentor on his card and drop the rest', () => {
+  it('drops a retired man’s ties, mentors and the rest: he keeps his career only (`slimRetired`)', () => {
     const l = fresh('retire-trim');
     const [vet, kid] = activeRoster(l, 1).filter((x) => x.position === 'LB');
     vet.age = 45; // he retires at the new league year
@@ -319,6 +319,6 @@ describe('speaking out', () => {
     expect(vet.left).toBeUndefined();
     expect(vet.shifts).toBeUndefined();
     expect(vet.ties).toBeUndefined();
-    expect(vet.mentoredBy).toHaveLength(1);
+    expect(vet.mentoredBy).toBeUndefined();
   });
 });

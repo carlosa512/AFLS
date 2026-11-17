@@ -27,7 +27,8 @@ import { Icon } from '../icons';
 /** Side by side, with the same fog as everywhere else: you compare what your scouts believe. */
 export function Compare({ league }: { league: League }) {
   const nav = useNav();
-  const players = nav.compareIds.map((id) => league.players[id]).filter((p): p is Player => !!p);
+  // A player who retired since he was added has no ratings to compare (`slimRetired`).
+  const players = nav.compareIds.map((id) => league.players[id]).filter((p): p is Player => !!p && !p.retired);
   const views = players.map((p) => viewOf(league, p));
 
   if (players.length === 0) {

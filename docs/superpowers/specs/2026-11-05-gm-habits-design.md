@@ -115,7 +115,7 @@ Shared rules:
 ### Sells a Year Early (`sellsEarly`)
 
 - **Lean** (`trade/plans.ts`, `tradeBlock`): a new block reason, `secondDeal`, for a starter on a rookie contract with
-  two years or fewer left, or a starter whose `injuryRisk` tier is High; keenness 0.45, in any stance. (0.4.52: the
+  two years or fewer left, or a starter whose `injuryRisk` tier is High; keenness 0.45, in any stance. (0.4.53: the
   injury branch is for a man off his rookie deal, `sellsEarlyCase`. A hurt-prone rookie with three or four years of
   control is no year early: the branch had sold a sixth overall pick a month into his first season.)
 - **Logged:** trades away a starter (on his depth chart) on a rookie deal with two years or fewer left, or with a High

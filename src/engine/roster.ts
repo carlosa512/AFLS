@@ -175,6 +175,48 @@ export function unsignedPlayers(league: League): readonly Player[] {
   return list;
 }
 
+/**
+ * What a retired player keeps: his career (stats, the teams by season, his draft line and the consensus read the day he
+ * was taken, the positions he moved from, which name his old stat columns, captaincies) and who he was. His
+ * card shows only that; everything a player still in football needs goes (`slimRetired`), so the save stops carrying
+ * every retired player whole (2026-11-17: retired players were 4.7 MB of a 17 MB save by a league's tenth season).
+ */
+export const RETIRED_KEEP: readonly (keyof Player)[] = [
+  'id',
+  'firstName',
+  'lastName',
+  'nameEdited',
+  'position',
+  'age',
+  'heightIn',
+  'weightLb',
+  'jersey',
+  'experience',
+  'draft',
+  'scouting',
+  'moves',
+  'stats',
+  'statTeams',
+  'splitStats',
+  'origin',
+  'portrait',
+  'gear',
+  'captainSeasons',
+  'retiredConcussions',
+  'retired',
+  'teamId',
+  'contract',
+];
+
+/**
+ * A retired player down to what he keeps (`RETIRED_KEEP`). Run once a retirement's moment is over: the new league year
+ * after his draft grade locks and a club may hire him to coach, camp's castoffs at camp's end.
+ */
+export function slimRetired(p: Player): void {
+  for (const k of Object.keys(p))
+    if (!RETIRED_KEEP.includes(k as keyof Player)) delete (p as unknown as Record<string, unknown>)[k];
+}
+
 /** A player leaves football. Every retirement goes through here; what else a retirement does stays with its caller. */
 export function retirePlayer(league: League, p: Player): void {
   const list = inFootball.get(league);

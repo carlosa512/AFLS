@@ -888,7 +888,103 @@ function PositionSection({ league, player: p }: { league: League; player: Player
   );
 }
 
-export function PlayerCard({ league, player: p, onClose }: { league: League; player: Player; onClose: () => void }) {
+type CardProps = { league: League; player: Player; onClose: () => void };
+
+/** A player's card: a retired player's is his career only, as he keeps nothing else (`slimRetired`). */
+export function PlayerCard(props: CardProps) {
+  return props.player.retired ? <RetiredCard {...props} /> : <ActiveCard {...props} />;
+}
+
+/** The teams he played for, in order, each with its run of seasons ("2026–2031"), read from his stat lines. */
+export function teamRuns(p: Player): { teamId: number; from: number; to: number }[] {
+  const runs: { teamId: number; from: number; to: number }[] = [];
+  const seasons = Object.keys(p.statTeams ?? {})
+    .map(Number)
+    .sort((a, b) => a - b);
+  for (const season of seasons)
+    for (const teamId of p.statTeams![season]) {
+      const last = runs.at(-1);
+      if (last && last.teamId === teamId && last.to >= season - 1) last.to = season;
+      else runs.push({ teamId, from: season, to: season });
+    }
+  return runs;
+}
+
+/** A retired player's card: who he was, the teams he played for, his draft, his honors and his career stats. */
+function RetiredCard({ league, player: p, onClose }: CardProps) {
+  const nav = useNav();
+  const honors = honorBadges(playerHonors(league, p.id));
+  const coach = coachOfPlayer(league, p.id);
+  const runs = teamRuns(p);
+  return (
+    <Sheet
+      label={`${p.firstName} ${p.lastName}`}
+      team={null}
+      onClose={onClose}
+      head={
+        <>
+          <PlayerAvatar player={p} team={null} size={128} />
+          <div style={{ minWidth: 0 }}>
+            <span style={{ opacity: 0.85, fontSize: 'var(--step--1)' }}>
+              {POSITION_NAMES[p.position]} · Retired
+              {p.experience > 0 ? ` · ${p.experience} ${p.experience === 1 ? 'season' : 'seasons'}` : ''}
+            </span>
+            <h2 style={{ fontSize: 'var(--step-3)' }}>
+              {p.firstName} {p.lastName}
+            </h2>
+          </div>
+        </>
+      }
+    >
+      {coach && (
+        <p className="small" style={{ margin: 0 }}>
+          {league.coaches[coach.id] ? 'Now coaching: ' : 'Went on to coach: '}
+          <button className="linklike" onClick={() => nav.openStaff('coach', coach.id)}>
+            {coachTitle(coach)}
+            {coach.teamId !== null
+              ? `, ${league.teams[coach.teamId].abbrev}`
+              : league.coaches[coach.id]
+                ? ', on the market'
+                : ' (retired)'}
+          </button>
+        </p>
+      )}
+      {honors.length > 0 && (
+        <div className="pill-row" aria-label="Honors">
+          {honors.map((h) => (
+            <span key={h.label} className="tag-pill tag-good" title={`${h.label}: ${h.seasons.join(', ')}`}>
+              {h.seasons.length > 1 ? `${h.seasons.length}× ${h.label}` : `${h.seasons[0]} ${h.label}`}
+            </span>
+          ))}
+        </div>
+      )}
+      {runs.length > 0 && (
+        <Section id="teams" title="Teams">
+          <ul className="small" style={{ margin: 0, paddingLeft: '1.2em' }}>
+            {runs.map((r) => (
+              <li key={`${r.teamId}-${r.from}`}>
+                {league.teams[r.teamId].city} {league.teams[r.teamId].name}{' '}
+                <span className="num muted">{r.from === r.to ? r.from : `${r.from}–${r.to}`}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      {p.draft && (
+        <Section id="draft" title="Draft">
+          <DraftLine league={league} player={p} />
+        </Section>
+      )}
+      {Object.keys(p.stats).length > 0 && (
+        <Section id="stats" title="Career stats">
+          <StatsTable league={league} player={p} />
+        </Section>
+      )}
+    </Sheet>
+  );
+}
+
+function ActiveCard({ league, player: p, onClose }: CardProps) {
   const nav = useNav();
   const team = p.teamId !== null ? league.teams[p.teamId] : null;
   const view = viewOf(league, p);
