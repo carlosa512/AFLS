@@ -95,6 +95,28 @@ describe('GM habits in trades', () => {
     expect(entry?.keenness).toBe(0.45);
   });
 
+  it('Sells a Year Early: a hurt-prone veteran goes, a hurt-prone rookie with years of control stays', () => {
+    const l = fresh();
+    const team = l.teams[AI];
+    team.stance = { ...(team.stance ?? ({} as never)), mode: 'contend' } as never;
+    team.gm.loyalty = 0;
+    const [vet, rookie] = starters(l, team, 'WR');
+    for (const p of [vet, rookie]) {
+      p.traits.injuryResistance = 1;
+      p.traits.durability = 1;
+      p.injuries = [];
+    }
+    vet.contract!.kind = 'veteran';
+    // A rookie deal with three years left: two years from his second contract, nothing to sell a year early.
+    rookie.contract!.kind = 'rookie';
+    rookie.contract!.years = [0, 1, 2].map((i) => ({ ...rookie.contract!.years[0], season: l.season + i }));
+    rookie.draft = { season: l.season - 1, round: 3, pick: 70, teamId: AI };
+    withHabit('sellsEarly');
+    const block = tradeBlock(tradeContext(l), team);
+    expect(block.find((e) => e.playerId === vet.id)?.reason).toBe('secondDeal');
+    expect(block.find((e) => e.playerId === rookie.id)?.reason).not.toBe('secondDeal');
+  });
+
   it('Brings His Guys Back: a man he drafted is worth 8% more to him', () => {
     const l = fresh();
     const team = l.teams[AI];
@@ -200,6 +222,22 @@ describe('executeTrade logs habit moves', () => {
       ],
     });
     expect(logOf(l, AI).filter((m) => m.habit === 'sellsEarly')).toMatchObject([{ playerId: p.id, good: true }]);
+  });
+
+  it('sellsEarly: a hurt-prone starter years from his second contract was not sold early', () => {
+    const l = fresh();
+    const p = starters(l, l.teams[AI], 'WR')[0];
+    p.traits.injuryResistance = 1;
+    p.traits.durability = 1;
+    p.contract!.kind = 'rookie';
+    p.contract!.years = [0, 1, 2].map((i) => ({ ...p.contract!.years[0], season: l.season + i }));
+    executeTrade(l, {
+      sides: [
+        { teamId: AI, players: [p.id], picks: [] },
+        { teamId: AI2, players: [], picks: pick(l, AI2, 1) },
+      ],
+    });
+    expect(logOf(l, AI).filter((m) => m.habit === 'sellsEarly')).toEqual([]);
   });
 
   it('hisGuys: receiving a man he drafted', () => {

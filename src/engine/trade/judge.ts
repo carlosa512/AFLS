@@ -25,6 +25,7 @@ import { standingWith, STANDING_MARGIN } from '../gmMemory';
 import { tableLine, type TableBand } from '../gmTalk';
 import { talkRefusal } from './talks';
 import {
+  freshPick,
   freshSigningRefusal,
   guaranteesShed,
   playerTradeBlocker,
@@ -266,6 +267,13 @@ function pickHoldRefusal(ctx: TradeContext, mine: TradeSide): string | null {
   return held ? `They're keeping their ${held.season} first-round pick until draft day.` : null;
 }
 
+/** An AI club won't send a high pick in his rookie season (`freshPick`), whatever it is offered. */
+function rookieRefusal(league: League, team: Team, mine: TradeSide): string | null {
+  if (team.id === league.userTeamId) return null;
+  const p = mine.players.map((id) => league.players[id]).find((x) => x && freshPick(league, x));
+  return p ? `They won't trade ${p.firstName} ${p.lastName} in his rookie season.` : null;
+}
+
 /** The margin a GM wants over what he gives: a small win against the user, merely not losing to another AI. */
 export function marginFor(team: Team, other: Team, vsUser = false, standing = 0): number {
   // Division rivals rarely deal with each other (Flacco in 2025 was only the third QB trade between them this century): they want a lot more.
@@ -285,6 +293,7 @@ export function judge(ctx: TradeContext, teamId: number, proposal: TradeProposal
   const problem = tradeProblem(league, proposal, { rosterCuts: opts.rosterCuts, ctx });
   const refusal =
     freshSigningRefusal(league, teamId, proposal) ??
+    rookieRefusal(league, team, mine) ??
     centrepieceRefusal(ctx, team, proposal) ??
     rivalRefusal(ctx, team, proposal) ??
     (opts.releasing ? null : deadRefusal(ctx, team, mine)) ??

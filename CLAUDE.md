@@ -610,7 +610,9 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
-    blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown); `judge`
+    blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown) and the rookie hold (an
+    AI team never trades a first- or second-round pick in his rookie season, `freshPick`: untouchable, and `judge`
+    refuses it); `judge`
     in `judge.ts`, the one evaluator every deal goes through (seller floors at the going rate, soft
     first-round pricing by the drafts a team is left without a first, scaled by the GM's win-now, a centrepiece for a star, division rivals; `releasing` weighs a deal against
     a cut); `executeTrade` (retained salary as the sender's dead money, the AI buyer's trade-and-extend

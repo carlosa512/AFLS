@@ -1626,6 +1626,45 @@ function divisionStory(l: League, cand: Candidate, at: Wording): EditionStory {
   });
 }
 
+/** A draft slot as it is printed: words through the eighteenth, then 21st, 22nd, 23rd. */
+function overall(n: number): string {
+  if (n <= 18) return nth(n);
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+  return `${n}${suffix}`;
+}
+
+/** Where a team took him in the draft: "13th overall in 2030", "in the fourth round this year". */
+function draftedWhere(l: League, d: NonNullable<Player['draft']>): string {
+  const when = d.season === l.season ? 'this year' : `in ${d.season}`;
+  return d.round === 1 ? `${overall(d.pick)} overall ${when}` : `in the ${nth(d.round)} round ${when}`;
+}
+
+/**
+ * Who a traded man was before the deal, in one sentence: the team that let him go drafted him, or he goes back to the
+ * team that did, or who drafted him and the other teams he has played for (`Player.left`, in the order he left them).
+ * '' when there is nothing to tell: an undrafted man who has only played for the team that traded him.
+ */
+function pathLine(l: League, p: Player, sellerId: number, buyerId: number): string {
+  const d = p.draft;
+  if (d?.teamId === sellerId) return `${C(sellerId)} drafted him ${draftedWhere(l, d)}.`;
+  if (d?.teamId === buyerId)
+    return d.season === l.season
+      ? 'He goes back to the team that drafted him this year.'
+      : `He goes back to the team that drafted him in ${d.season}.`;
+  const others: number[] = [];
+  for (const x of p.left ?? [])
+    if (x.teamId !== sellerId && x.teamId !== d?.teamId && !others.includes(x.teamId)) others.push(x.teamId);
+  const also =
+    others.length > 3
+      ? `he has played for ${w(others.length)} other teams`
+      : others.length
+        ? `he has also played for ${[others.slice(0, -1).map(C).join(', '), C(others.at(-1)!)].filter(Boolean).join(' and ')}`
+        : '';
+  if (d) return `${C(d.teamId)} drafted him ${draftedWhere(l, d)}${also ? `, and ${also}` : ''}.`;
+  return also ? `${cap(also)}.` : '';
+}
+
 function tradeStory(l: League, cand: Candidate, at: Wording): EditionStory {
   const t = cand.trade!;
   const p = l.players[t.playerId];
@@ -1670,6 +1709,9 @@ function tradeStory(l: League, cand: Candidate, at: Wording): EditionStory {
       ? `${nickOf(l, S)} sell ${p.lastName} to ${townOf(l, B)} for a ${nth(t.pick.round)}`
       : `${nickOf(l, S)} trade ${p.lastName} to ${townOf(l, B)}`;
   }
+  // Who he was before the deal: the team that drafted him, or where else he has played.
+  const path = pathLine(l, p, S, B);
+  if (path) first.splice(cand.angle === 'secondSale' ? 2 : 1, 0, path);
   const has = seasonSoFar(l, p.id, t.week);
   if (has) first.push(`${M(p.id)} has ${has} this season.`);
   const window = deadlineLine(l, at, cand, t.week);

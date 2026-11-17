@@ -13,9 +13,11 @@ import { newsCandidates, rankCandidates, STORY_FRESH, storylineCandidates, type 
 import { beat, closeStory, COACH, markTold, SNN_OUTLET, untold } from './stories';
 import { joined, layoffSpan, writeStory } from './snnVoice';
 import { ruleBreaks } from './storyRules';
+import { speaksOut } from './relationships';
+import { recordPct, recordsBefore } from './snnStory';
 import { reportableTrades } from './tradeNews';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
-import type { League } from './types';
+import type { League, Player } from './types';
 
 let l: League;
 const byWeek = new Map<number, Candidate[]>();
@@ -99,6 +101,47 @@ describe('the week’s other news', () => {
     const one = at();
     const pair = trades.slice(0, 2).map((c) => writeStory(l, { ...c, trade: { ...c.trade!, week: 5 } }, one));
     if (pair.length === 2) expect(pair.filter((s) => /deadline/.test(s.paragraphs.join(' '))).length).toBe(1);
+  });
+
+  it('says who drafted the traded man, or where he has played before', () => {
+    const c = all().find((x) => x.kind === 'trade')!;
+    const p = l.players[c.trade!.playerId];
+    const [S, B] = [c.trade!.sellerId, c.trade!.buyerId];
+    const D = l.teams.find((t) => t.id !== S && t.id !== B)!.id;
+    const E = l.teams.find((t) => ![S, B, D].includes(t.id))!.id;
+    const was = { draft: p.draft, left: p.left };
+    const first = (x: Partial<Player>) => {
+      Object.assign(p, x);
+      const story = writeStory(l, c, at());
+      expect(ruleBreaks(l, story), story.paragraphs.join(' ')).toEqual([]);
+      return story.paragraphs[0];
+    };
+    // The club that let him go drafted him: where and when.
+    expect(first({ draft: { season: l.season - 3, round: 1, pick: 22, teamId: S }, left: [] })).toMatch(
+      new RegExp(`drafted him 22nd overall in ${l.season - 3}\\.`),
+    );
+    expect(first({ draft: { season: l.season - 2, round: 4, pick: 110, teamId: S }, left: [] })).toMatch(
+      new RegExp(`drafted him in the fourth round in ${l.season - 2}\\.`),
+    );
+    // Another club drafted him, and he has been around.
+    const around = first({
+      draft: { season: l.season - 5, round: 2, pick: 40, teamId: D },
+      left: [
+        { teamId: D, season: l.season - 2, how: 'walked' },
+        { teamId: E, season: l.season - 1, how: 'cut' },
+      ],
+    });
+    expect(around).toMatch(
+      new RegExp(`drafted him in the second round in ${l.season - 5}, and he has also played for`),
+    );
+    // Going back to the club that drafted him.
+    expect(
+      first({
+        draft: { season: l.season - 4, round: 3, pick: 80, teamId: B },
+        left: [{ teamId: B, season: l.season - 1, how: 'traded' }],
+      }),
+    ).toMatch(new RegExp(`He goes back to the team that drafted him in ${l.season - 4}\\.`));
+    Object.assign(p, was);
   });
 
   it('tells a second sale as one, with the first sale as its callback', () => {
@@ -333,10 +376,21 @@ describe('your club’s public storylines', () => {
     const second = told([first[0].key]);
     expect(second.map((c) => c.angle)).toEqual(['backIn']);
     expect(second[0].key).not.toBe(first[0].key);
-    // A man who is not the quarterback ranks with the week's other stories.
+    // A man who is not the quarterback is news when he is a name (a recent high pick here), ranked with the week's
+    // other stories, and otherwise not at all: nor is what became of a benching nobody printed.
     wipe();
-    beat(l, on(mine('WR').id), 'sat', clock(), { pub: true });
+    const wr = mine('WR');
+    const was = wr.draft;
+    wr.draft = { season: l.season - 1, round: 1, pick: 20, teamId: l.userTeamId };
+    beat(l, on(wr.id), 'sat', clock(), { pub: true });
     expect(told()[0].tier).toBe(4);
+    wipe();
+    wr.draft = { season: l.season - 1, round: 5, pick: 150, teamId: l.userTeamId };
+    beat(l, on(wr.id), 'sat', clock(), { pub: true });
+    expect(told()).toEqual([]);
+    closeStory(l, on(wr.id), 'backIn', clock() + 1, undefined, true);
+    expect(told()).toEqual([]);
+    wr.draft = was;
   });
 
   it('tells only fresh news: a benching from weeks ago that no edition printed is not told late', () => {
@@ -369,7 +423,7 @@ describe('your club’s public storylines', () => {
     wipe();
     const [qb, other, wr, rb] = [mine('QB'), mine('QB', 1), mine('WR'), mine('RB')];
     const at0 = clock();
-    const write = () => told().map((c) => writeStory(l, c, at(), { brief: true }));
+    const write = (have: string[] = []) => told(have).map((c) => writeStory(l, c, at(), { brief: true }));
     const check = (stories: ReturnType<typeof write>, n: number) => {
       expect(stories).toHaveLength(n);
       for (const s of stories) {
@@ -389,18 +443,55 @@ describe('your club’s public storylines', () => {
     // How much he had played is said more than one way: a man who started them all is not "16 of 16".
     const everyGame = opened.map((s) => s.paragraphs[0]).filter((p) => /\b(\d+|\w+) of [^.]*\b\1 games\b/.test(p));
     expect(everyGame).toEqual([]);
-    // Closings.
+    // Closings, each after its benching was told (a recent high pick at running back: a name).
     wipe();
-    beat(l, on(qb.id), 'sat', at0, { pub: true, other: other.id });
+    const was = rb.draft;
+    rb.draft = { season: l.season - 1, round: 2, pick: 40, teamId: l.userTeamId };
+    const sats = [
+      beat(l, on(qb.id), 'sat', at0, { pub: true, other: other.id })!,
+      beat(l, on(rb.id), 'sat', at0, { pub: true })!,
+    ].map((x) => `storyline:${x.id}:${at0}:sat`);
     closeStory(l, on(qb.id), 'settled', at0 + 3, 'chart', true);
-    beat(l, on(rb.id), 'sat', at0, { pub: true });
     closeStory(l, on(rb.id), 'backIn', at0 + 2, undefined, true);
     beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id }, 'leaked', at0, { pub: true });
     beat(l, { kind: 'deal', teamId: l.userTeamId, playerId: wr.id }, 'disputeEnd', at0 + 4, {
       how: 'withdrawn',
       pub: true,
     });
-    check(write(), 3);
+    check(write(sats), 3);
+    rb.draft = was;
     wipe();
+  });
+});
+
+describe('what leads the week', () => {
+  it('ranks the week’s news on the records going into it, as the games are', () => {
+    // Read after the week, a week-1 winner's news outranked every game (all 0–0 going in) and led the page.
+    for (const [week, cs] of byWeek) {
+      const before = recordsBefore(l, week);
+      const pct = (id: number) => recordPct(before.get(id) ?? { w: 0, l: 0, t: 0, streak: 0 });
+      // A story about two clubs weighs both; a rumor weighs the club it is about.
+      for (const c of cs)
+        expect([pct(c.clubId), c.teams.reduce((s, id) => s + pct(id), 0)], c.key).toContainEqual(c.stakes);
+    }
+    expect(all().length).toBeGreaterThan(0);
+  });
+
+  it('ranks a player speaking out by who he is: a name’s word is news, a journeyman’s fills a quiet week', () => {
+    // Ours, cut by another club this season, and loud enough to say so (the scene is searched, not pinned).
+    const other = l.teams.find((t) => t.id !== l.userTeamId)!.id;
+    const p = Object.values(l.players).find((x) => {
+      if (x.teamId !== l.userTeamId || x.retired) return false;
+      x.traits.controversy = 20;
+      return speaksOut(l, x, l.season, 'cut');
+    })!;
+    const was = { left: p.left, draft: p.draft };
+    p.left = [{ teamId: other, season: l.season, how: 'cut' }];
+    const speak = () => newsCandidates(l, 16, new Set()).find((c) => c.key === `speak:${l.season}:${p.id}:cut`);
+    p.draft = { season: l.season - 6, round: 6, pick: 190, teamId: other };
+    expect(speak()).toMatchObject({ kind: 'speak', tier: 5 });
+    p.draft = { season: l.season - 1, round: 1, pick: 12, teamId: other };
+    expect(speak()).toMatchObject({ kind: 'speak', tier: 4 });
+    Object.assign(p, was);
   });
 });

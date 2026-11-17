@@ -90,6 +90,17 @@ export function freshlySigned(league: League, p: Player, teamId: number): boolea
   return weeks !== null && weeks < signingWait(league, teamId);
 }
 
+/** The rounds a club keeps through a rookie's first season. */
+export const HOLD_ROUNDS = 2;
+
+/**
+ * A first- or second-round pick in his rookie season, from draft day to the new league year: no club trades one. It
+ * drafted him to play him, and his signing bonus would land on its cap as dead money. The NFL's young first-rounders
+ * who were traded (Rosen, Wilson) went a year on at the soonest, once their clubs had seen them play.
+ */
+export const freshPick = (league: League, p: Player): boolean =>
+  !!p.draft && p.draft.round <= HOLD_ROUNDS && p.draft.season === league.season;
+
 /** The judging GM's refusal over a fresh signing in the deal, in his words (no weeks, no numbers). */
 export function freshSigningRefusal(league: League, teamId: number, proposal: TradeProposal): string | null {
   for (const side of proposal.sides) {

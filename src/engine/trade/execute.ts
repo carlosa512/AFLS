@@ -1,14 +1,14 @@
 /** Moving the assets. The sending team books the bonus money still on each traded contract; the new team takes the salary. */
 import { aiGm, draftedBy, logMove, type HabitId } from '../gmHabits';
 import { noteTrade } from '../gmMoves';
-import { injuryRisk } from '../injuries';
 import { noteDeparture } from '../relationships';
 import { autoPostJune1, logTransaction, paidShare, weeksPaid } from '../finance/cap';
-import { deadMoney, yearsLeft } from '../finance/contract';
+import { deadMoney } from '../finance/contract';
 import { aiExtendArrival } from '../offseason/ai';
 import { numberOnArrival } from '../jerseys';
 import { setTeam, starters, syncDepthChart } from '../roster';
 import type { DealKind, League, TradeMarket, TradeRecord, Physical } from '../types';
+import { sellsEarlyCase } from './plans';
 import type { TradeProposal } from './rules';
 
 /** Trades kept for trade trails and the market's memory: the last five league years. */
@@ -45,8 +45,7 @@ function habitMoves(league: League, proposal: TradeProposal): HabitMove[] {
     for (const id of side.players) {
       const p = league.players[id];
       if (!starters(league, team, p.position).some((s) => s.id === id)) continue;
-      const c = p.contract;
-      if ((c?.kind === 'rookie' && yearsLeft(c, league.season) <= 2) || injuryRisk(league, team.id, p).tier === 'High')
+      if (sellsEarlyCase(league, team.id, p))
         out.push({
           teamId: team.id,
           habit: 'sellsEarly',

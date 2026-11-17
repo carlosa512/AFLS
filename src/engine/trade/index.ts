@@ -71,6 +71,7 @@ export {
 } from './plans';
 export {
   freshlySigned,
+  freshPick,
   isDeadlineDay,
   maxRetain,
   retainedBy,
