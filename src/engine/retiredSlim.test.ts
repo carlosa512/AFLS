@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { simToEndOfSeason } from './league';
 import { advanceOffseason, beginOffseason } from './offseason/index';
-import { pickMark } from './draftGrade';
+import { lockVerdicts, pickMark, VERDICT_YEARS } from './draftGrade';
 import { RETIRED_KEEP } from './roster';
 import type { League, Player } from './types';
 
@@ -60,5 +60,11 @@ describe("a retired pick's draft grade (2026-11-17)", () => {
       expect(p.draft!.verdict, `${p.id}`).toBeDefined();
       expect(pickMark(l, p)).toEqual({ verdict: p.draft!.verdict, locked: true });
     }
+    // His draft day stays in the draft history: the consensus read when he was taken.
+    for (const p of early) expect(p.scouting, `${p.id}`).toBeDefined();
+    // Three years on, the yearly lock passes over a slimmed pick it can no longer read; his card still answers.
+    l.season += VERDICT_YEARS;
+    expect(() => lockVerdicts(l)).not.toThrow();
+    for (const p of early) expect(() => pickMark(l, p)).not.toThrow();
   }, 600_000);
 });

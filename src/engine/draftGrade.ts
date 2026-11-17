@@ -47,6 +47,8 @@ export function pickMark(league: League, p: Player): PickMark | null {
   // A stored verdict first: a retired pick keeps it after his scouting read is gone (`slimRetired`).
   if (p.draft?.verdict) return { verdict: p.draft.verdict, locked: true };
   if (!p.draft || !p.scouting) return null;
+  // A retired pick with no grade was never graded (`lockRetiredVerdict`): his read is gone with his ratings.
+  if (p.retired) return { verdict: null, locked: false };
   if (p.experience === 0 && !Object.keys(p.ceilingShifts ?? {}).length) return { verdict: null, locked: false };
   return { verdict: liveVerdict(league, p), locked: false };
 }
@@ -57,7 +59,8 @@ export function pickMark(league: League, p: Player): PickMark | null {
  */
 export function lockVerdicts(league: League): void {
   for (const p of Object.values(league.players)) {
-    if (!p.draft || !p.scouting || p.draft.verdict) continue;
+    // A retired pick's grade locked as he retired, if it ever would (`lockRetiredVerdict`).
+    if (!p.draft || !p.scouting || p.draft.verdict || p.retired) continue;
     if (league.season - p.draft.season >= VERDICT_YEARS) p.draft.verdict = liveVerdict(league, p);
   }
 }
