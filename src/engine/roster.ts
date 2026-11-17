@@ -139,7 +139,8 @@ function drop(list: Player[], p: Player): void {
  */
 export function activePlayers(league: League): readonly Player[] {
   let list = footballIndex(league);
-  // A player retired or replaced by hand, not through `retirePlayer` or `addPlayer` (a test, an old save's upgrade): read again.
+  // A player retired or replaced by hand, not through `retirePlayer` or `addPlayer` (a test, an old save's upgrade): read
+  // again. One added by hand, never listed, is not caught: players join through `addPlayer`.
   if (list.some((p) => p.retired || league.players[p.id] !== p)) {
     inFootball.delete(league);
     list = footballIndex(league);
@@ -165,6 +166,8 @@ function noClubIndex(league: League): Player[] {
  */
 export function unsignedPlayers(league: League): readonly Player[] {
   let list = noClubIndex(league);
+  // A listed player retired, signed or replaced by hand: read again. One unsigned by hand (`p.teamId = null`), never
+  // listed, is not caught: clubs change through `setTeam`.
   if (list.some((p) => p.retired || (p.teamId !== null && p.teamId !== undefined) || league.players[p.id] !== p)) {
     noClub.delete(league);
     list = noClubIndex(league);
