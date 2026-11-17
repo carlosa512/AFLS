@@ -106,11 +106,59 @@ export function setTeam(league: League, p: Player, teamId: number | null): void 
   p.teamId = teamId;
 }
 
+/**
+ * Each league's players still in football, in id order: built from one pass the first time it is read, then kept current
+ * by `addPlayer` and `retirePlayer`, beside the league like `byTeam`. Code that skips retired players read every player
+ * the league ever had: by a league's tenth season most of them were retired, and a season ran 25% slower (2026-11-17).
+ */
+const inFootball = new WeakMap<League, Player[]>();
+
+function footballIndex(league: League): Player[] {
+  let list = inFootball.get(league);
+  if (!list) {
+    list = Object.values(league.players).filter((p) => !p.retired);
+    inFootball.set(league, list);
+  }
+  return list;
+}
+
+/** Out of an id-ordered list, if he's in it. */
+function drop(list: Player[], p: Player): void {
+  const at = list.indexOf(p);
+  if (at >= 0) list.splice(at, 1);
+}
+
+/**
+ * Every player still in football (not retired), in id order: what a pass over `league.players` that skips retired players
+ * reads, without walking them. Read-only: copy it before changing the league while walking it.
+ */
+export function activePlayers(league: League): readonly Player[] {
+  let list = footballIndex(league);
+  // A player retired or replaced by hand, not through `retirePlayer` or `addPlayer` (a test, an old save's upgrade): read again.
+  if (list.some((p) => p.retired || league.players[p.id] !== p)) {
+    inFootball.delete(league);
+    list = footballIndex(league);
+  }
+  return list;
+}
+
+/** A player leaves football. Every retirement goes through here; what else a retirement does stays with its caller. */
+export function retirePlayer(league: League, p: Player): void {
+  const list = inFootball.get(league);
+  if (list) drop(list, p);
+  p.retired = true;
+}
+
 /** A new player into the league (a draft class, an undrafted signing, a generated free agent). */
 export function addPlayer(league: League, p: Player): void {
   const index = byTeam.get(league);
   const before = league.players[p.id];
   if (index && before) unplace(index, before, before.teamId);
+  const list = inFootball.get(league);
+  if (list) {
+    if (before) drop(list, before);
+    if (!p.retired) place(list, p);
+  }
   league.players[p.id] = p;
   if (index && p.teamId !== null && p.teamId !== undefined) {
     const club = index.get(p.teamId);

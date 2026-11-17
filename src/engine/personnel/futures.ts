@@ -1,5 +1,5 @@
 import { takesMinimum } from '../offseason/negotiation';
-import { activeRoster, practiceSquad } from '../roster';
+import { activeRoster, practiceSquad, retirePlayer } from '../roster';
 import { perceive } from '../scouting';
 import { Rng } from '../rng';
 import type { League, Player } from '../types';
@@ -127,7 +127,7 @@ export function retireCastoffs(league: League): void {
     const p = league.players[id];
     if (!p || p.retired || p.teamId !== null || p.contract || p.squad || p.waiver) continue;
     if (!new Rng(`${league.seed}:castoff:${league.season}:${id}`).chance(castoffRetireChance(p))) continue;
-    p.retired = true;
+    retirePlayer(league, p);
     // As any retirement: the record stays, what only a developing player needs goes.
     delete p.quirkBag;
     delete p.learning;

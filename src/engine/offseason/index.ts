@@ -50,7 +50,7 @@ import { minSalary } from '../finance/market';
 import { isExpired, trimPast } from '../finance/contract';
 import { playerOvr, STARTERS } from '../positions';
 import { Rng } from '../rng';
-import { activeRoster, setTeam, syncDepthChart, teamPlayers } from '../roster';
+import { activeRoster, retirePlayer, setTeam, syncDepthChart, teamPlayers } from '../roster';
 import { quirkOffseason } from '../quirks';
 import { resetScouting } from '../scouting';
 import { developStaff, ensureStaffed, staffWindowCloses } from '../staff';
@@ -203,7 +203,7 @@ export function beginOffseason(league: League): void {
       }
       setTeam(league, p, null);
       p.contract = null;
-      p.retired = true;
+      retirePlayer(league, p);
       // A retired player keeps his record (stats, awards, injuries, draft, habits) and his last ratings for his card;
       // what only a developing player needs goes, or the save grows with every class that ages out.
       delete p.quirkBag;
