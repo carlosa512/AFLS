@@ -107,3 +107,17 @@ changed, and the determinism script.
   difference, the weekly key stays and the rebuild is made cheaper instead.
 - **The 10% target is a goal with a stop rule:** the named loops first, then up to three profile rounds. If a season
   from the season-10 save is still more than 10% slower, the work stops and goes back to the owner with the numbers.
+
+## What was built (2026-11-17)
+
+- `retirePlayer`, `activePlayers` and `unsignedPlayers` in `roster.ts`, beside the league like `teamPlayers`, healing on
+  read; `freeAgents` reads the unsigned list.
+- Loops switched where they provably never see a retired player (an explicit check first, or a club needed: every
+  retirement clears the club): morale, scouting, the practice squad's service and payroll, the squad market, injuries,
+  mentoring, ceilings, relationships, the trade context. Loops that rank or count players stay: switching
+  `startedLastSeason` changed play (a starter retiring at the new league year still holds a top-snaps slot in camp).
+- The coaching trees: the cost was the cache's key (counting every coach on each read), now a counter the three writers
+  that add or retire a coach bump (`noteCoachesChanged`); the week stays in the check. Last season's chair holders are
+  worked out once a league year.
+- Result (best of two, `archive-probe`, personnel on): a season from the season-1 save 32.6s, from the season-10 save
+  35.4s (+8.6%), against 37.9s and 47.3s (+25%) before. Both fingerprints (`npm run fingerprint`) identical throughout.
