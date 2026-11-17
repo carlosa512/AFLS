@@ -40,7 +40,7 @@ interface Index {
   /** The seasons each root was a winner (`winningSeasons`), until his head-coach seasons change. */
   winners: Map<number, { seasons: number; winning: Set<number> | 'always'; share: Map<number, number> }>;
 }
-const cache = new WeakMap<League, { key: string; index: Index }>();
+const cache = new WeakMap<League, { index: Index; season: number; phase: string; week: number; changes: number }>();
 
 /** Who held a chair on a club in a season: the man with the most weeks in it (an interim season goes to the longer). */
 function holders(league: League): Map<string, Coach> {
@@ -94,12 +94,30 @@ function build(league: League): Index {
 }
 
 /** The tree index for the league as it is now (careers only change at hires and season's end). */
+/**
+ * How many times a league's coaches were added or retired (`noteCoachesChanged`, from the writers in `coaching.ts` and
+ * the founding trees below). The trees are read many times a step, and counting every coach the league ever had on each
+ * read to see whether one was hired or retired was a second a season by a league's tenth (2026-11-17).
+ */
+const coachChanges = new WeakMap<League, number>();
+export const noteCoachesChanged = (league: League): void =>
+  void coachChanges.set(league, (coachChanges.get(league) ?? 0) + 1);
+
 function index(league: League): Index {
-  const key = `${league.season}:${league.phase}:${league.week}:${Object.keys(league.coaches).length}:${Object.keys(league.retiredCoaches).length}`;
   const hit = cache.get(league);
-  if (hit?.key === key) return hit.index;
+  const changes = coachChanges.get(league) ?? 0;
+  // The week stays in the check: an interim's weeks can overtake the man he replaced mid-season, with no hire, and
+  // change who held the chair.
+  if (
+    hit &&
+    hit.season === league.season &&
+    hit.phase === league.phase &&
+    hit.week === league.week &&
+    hit.changes === changes
+  )
+    return hit.index;
   const fresh = build(league);
-  cache.set(league, { key, index: fresh });
+  cache.set(league, { index: fresh, season: league.season, phase: league.phase, week: league.week, changes });
   return fresh;
 }
 
@@ -474,6 +492,7 @@ export function seedFoundingTrees(league: League, strength?: (teamId: number) =>
     };
     legend.traits = packTraits(rollCoachTraits(league.seed, legend));
     league.retiredCoaches[legend.id] = legend;
+    noteCoachesChanged(league);
     founders.push(legend);
   }
   const clubs = league.teams.map((t) => t.id);

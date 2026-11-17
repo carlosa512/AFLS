@@ -38,7 +38,7 @@ import {
   traitsFromPlayer,
   wantsStepUp,
 } from './coachTraits';
-import { inheritedScheme, keepBonus, mainMentor, treeLean } from './trees';
+import { inheritedScheme, keepBonus, mainMentor, noteCoachesChanged, treeLean } from './trees';
 import { workEthicOf } from './traits';
 import {
   coachPlayerFit,
@@ -1424,6 +1424,7 @@ function newCoach(league: League, rng: Rng, chair: Chair, youth: number, veteran
   generateCoachQuirks(league.seed, c);
   c.traits = packTraits(rollCoachTraits(league.seed, c));
   league.coaches[c.id] = c;
+  noteCoachesChanged(league);
   touch();
   return c;
 }
@@ -1670,6 +1671,7 @@ function leaveFootball(league: League, c: Coach): void {
     league.retiredCoaches[c.id] = c;
   }
   delete league.coaches[c.id];
+  noteCoachesChanged(league);
 }
 
 /**
