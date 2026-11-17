@@ -260,16 +260,18 @@ describe('development', () => {
     expect(gp).toBeGreaterThanOrEqual(10);
     expect(playedShare(starter, league.season)).toBe(Math.min(1, gp / 17));
     expect(playedShare(third, league.season)).toBeLessThan(0.3);
-    // "Needs reps": young, still growing in your scouts' eyes, and not playing.
+    // "Needs reps": young, still growing in his own club's eyes, and not playing. Searched across the league: whether
+    // your club has one depends on who a season's injuries pressed into a game.
     const mine = Object.values(league.players).filter((p) => p.teamId === team.id);
-    const sitting = mine.find(
+    const sitting = Object.values(league.players).find(
       (p) =>
+        p.teamId !== null &&
         p.age < growsUntil(p.position) &&
         !p.stats[league.season]?.gp &&
-        perceive(league, team.id, p).potMid - playerOvr(p) >= 1.5,
+        perceive(league, p.teamId, p).potMid - playerOvr(p) >= 1.5,
     );
     expect(sitting).toBeDefined();
-    expect(needsReps(league, team.id, sitting!, league.season)).toBe(true);
+    expect(needsReps(league, sitting!.teamId!, sitting!, league.season)).toBe(true);
     expect(needsReps(league, team.id, starter, league.season)).toBe(false);
     // Past his position's growth age reps can't grow him: no flag, whatever room his scouts still see.
     const grower = mine.find(

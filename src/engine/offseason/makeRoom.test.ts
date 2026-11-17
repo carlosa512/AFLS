@@ -44,7 +44,9 @@ const window = windowOf('make-room-5');
 
 /**
  * A club with a keeper it can't fit: the AI club with the most it could save by restructuring, its best expiring
- * player it wants to keep (loyal, so he doesn't test the market), and its room taken down to `room` × his market.
+ * player it wants to keep (loyal, so he doesn't test the market), and its room taken down to `room` × his market. Not a
+ * club with a franchise tag to place: the tag rightly takes the room first, and which clubs have one depends on the
+ * world a season of play leaves.
  */
 function squeezed(room: number, capAggression: number, world = window) {
   const l: League = JSON.parse(world);
@@ -57,8 +59,9 @@ function squeezed(room: number, capAggression: number, world = window) {
       .reduce((a, b) => a + b, 0);
   const keepers = (t: number) =>
     expiringPlayers(l, t).filter((p) => playerOvr(p) >= 12 && resignCall(l, t, p).call === 'keep');
+  const tags = (t: number) => expiringPlayers(l, t).some((p) => resignCall(l, t, p).call === 'tag');
   const team = l.teams
-    .filter((t) => t.id !== l.userTeamId && keepers(t.id).length)
+    .filter((t) => t.id !== l.userTeamId && keepers(t.id).length && !tags(t.id))
     .sort((a, b) => saves(b.id) - saves(a.id))[0];
   const p: Player = keepers(team.id)[0];
   p.personality.loyalty = 1;
