@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.50',
+    date: '2026-11-16',
+    title: 'Room to breathe at kickoff',
+    text: 'Teams use the June 1 cut, skip cuts that cost more than they save and keep money for the season. You can promote a coordinator in season when your head coach calls that side.',
+  },
+  {
     version: '0.4.49',
     date: '2026-11-16',
     title: 'A livelier spring market',

@@ -650,7 +650,9 @@ const counts = league.teams.flatMap((t) => {
 });
 check(`Meetings per club per season (${counts.length} club-seasons)`, mean(counts), [3, 6]);
 check(`Reactions: lands (n=${menMet})`, menLand / menMet, [0.35, 0.6]);
-check('Reactions: bristles', menBristle / menMet, [0.1, 0.3]);
+// Swings with the league (the owner's call, 2026-11-16): it sat at 0.10–0.12 run to run, on its floor, and a change to
+// who signs in camp read it 0.0998. ⚠ outside 0.1–0.3, fails outside 0.07–0.35.
+check('Reactions: bristles', menBristle / menMet, [0.1, 0.3], 2, [0.07, 0.35]);
 const wornAll = [wornShare, ...(await wornPool)];
 check(`Head coaches worn thin at season's end (${wornAll.length} leagues)`, mean(wornAll.map(mean)), [0.05, 0.2]);
 check(

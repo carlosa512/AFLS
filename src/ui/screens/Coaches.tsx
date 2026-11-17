@@ -81,6 +81,8 @@ import {
   coveringHeadCoach,
   setHeadCoachCover,
   interimCandidates,
+  promoteCover,
+  promoteCoverProblem,
   relieveProblem,
   type Cover,
 } from '../../engine/coaching';
@@ -1229,11 +1231,13 @@ function ActingChair({ chair, hc, onFind }: { chair: Chair; hc: Coach; onFind?: 
 }
 
 function OpenChair({
+  league,
   chair,
   staying,
   leaving,
   onFind,
 }: {
+  league?: League;
   chair: Chair;
   staying: readonly Coach[];
   leaving?: Coach;
@@ -1275,11 +1279,53 @@ function OpenChair({
         </label>
       )}
       <div className="staff-actions">
+        {side && covering && league && <PromoteCover league={league} side={side} />}
         <button className="btn btn-sm" onClick={onFind}>
           Find {withArticle(chairNoun(chair))}
         </button>
       </div>
     </li>
+  );
+}
+
+/**
+ * In season, a position coach on that side steps up into the chair the head coach covers, on a one-year deal: you let
+ * the head coach run it and changed your mind (`promoteCover`). Outside camp and the season the staff window's promotion
+ * does this.
+ */
+function PromoteCover({ league, side }: { league: League; side: 'offCoord' | 'defCoord' }) {
+  const announce = useContext(Announce);
+  if (league.phase !== 'preseason' && league.phase !== 'regular') return null;
+  const teamId = league.userTeamId;
+  const candidates = interimCandidates(league, teamId, side);
+  if (!candidates.length)
+    return (
+      <button className="btn btn-sm" disabled title="Nobody on that side of the staff will step up.">
+        Promote from the staff
+      </button>
+    );
+  return (
+    <>
+      {candidates.map((pc) => {
+        const problem = promoteCoverProblem(league, teamId, pc.id);
+        return (
+          <button
+            key={pc.id}
+            className="btn btn-sm"
+            disabled={!!problem}
+            title={
+              problem ?? `${coachName(pc)} runs the ${side === 'offCoord' ? 'offense' : 'defense'} on a one-year deal.`
+            }
+            onClick={() => {
+              store.mutate((l) => promoteCover(l, l.userTeamId, pc.id));
+              announce(`Promoted ${coachName(pc)}.`, 'mine');
+            }}
+          >
+            Promote {pc.lastName}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -2076,6 +2122,7 @@ export function CoachesScreen({ league }: { league: League }) {
                         cards.push(
                           <OpenChair
                             key={`open-${key}`}
+                            league={league}
                             chair={ch}
                             staying={staying}
                             leaving={gone}

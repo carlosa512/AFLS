@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { beliefOf, runnerOf, shiftBelief } from './belief';
-import { interimCandidates, protectCoach, relieveProblem, teamCoaches, VACANT } from './coaching';
+import {
+  coordinatorOf,
+  coveringHeadCoach,
+  interimCandidates,
+  promoteCover,
+  promoteCoverProblem,
+  protectCoach,
+  relieveProblem,
+  setHeadCoachCover,
+  teamCoaches,
+  VACANT,
+} from './coaching';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { relieveCoordinator } from './relieve';
@@ -92,5 +103,56 @@ describe('relieving a coordinator mid-season', () => {
     expect(e[0].teamId).toBe(0);
     expect(e[0].coachId).toBe(c.id);
     expect(e[0].report).toContain(`relieved offensive coordinator ${c.firstName} ${c.lastName} of his duties`);
+  });
+});
+
+describe('promoting a coordinator while the head coach covers (2026-11-16)', () => {
+  /** In season, the offensive coordinator relieved and the head coach running the offense. */
+  const covered = () => {
+    const l = fresh();
+    relieveCoordinator(l, 0, oc(l).id);
+    expect(coveringHeadCoach(teamCoaches(l, 0), 'offCoord')?.id).toBe(hc(l).id);
+    return l;
+  };
+
+  it('a position coach on that side takes the chair on a one-year deal and the head coach stops covering', () => {
+    const l = covered();
+    const pc = interimCandidates(l, 0, 'offCoord')[0];
+    expect(pc).toBeDefined();
+    expect(promoteCoverProblem(l, 0, pc.id)).toBeNull();
+    promoteCover(l, 0, pc.id);
+    expect(coordinatorOf(teamCoaches(l, 0), 'offCoord')?.id).toBe(pc.id);
+    expect(coveringHeadCoach(teamCoaches(l, 0), 'offCoord')).toBeNull();
+    expect(pc.contract!.through).toBe(l.season);
+  });
+
+  it('only from camp through the regular season', () => {
+    const l = covered();
+    const pc = interimCandidates(l, 0, 'offCoord')[0];
+    for (const phase of ['resign', 'freeAgency', 'playoffs'] as const) {
+      l.phase = phase;
+      expect(promoteCoverProblem(l, 0, pc.id)).toBe(
+        'A coordinator can be promoted this way from camp through the regular season.',
+      );
+    }
+    l.phase = 'preseason';
+    expect(promoteCoverProblem(l, 0, pc.id)).toBeNull();
+  });
+
+  it('only while the head coach covers the chair', () => {
+    const filled = fresh();
+    const pc = interimCandidates(filled, 0, 'offCoord')[0];
+    expect(promoteCoverProblem(filled, 0, pc.id)).toBe('The head coach isn’t running that side.');
+    const off = covered();
+    setHeadCoachCover(off, 0, 'offCoord', false);
+    expect(promoteCoverProblem(off, 0, pc.id)).toBe('The head coach isn’t running that side.');
+  });
+
+  it('only a coach on that side who would step up', () => {
+    const l = covered();
+    const def = teamCoaches(l, 0).find(
+      (c) => c.role === 'positionCoach' && !interimCandidates(l, 0, 'offCoord').includes(c),
+    )!;
+    expect(promoteCoverProblem(l, 0, def.id)).toBe('He won’t step up into that chair.');
   });
 });

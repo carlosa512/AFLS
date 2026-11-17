@@ -311,8 +311,13 @@ export const YOUNG_PROVE_IT_YEARS = 1;
 
 /** From this free-agency day a free agent nobody pays his floor takes the best offer made for him (`clearingFloor`). */
 export const CLEARING_DAY = 3;
-/** The share of its in-season reserve a club may draw on the last call to sign a clear upgrade (`fundedRoom`). */
-export const FUNDED_RESERVE_SHARE = 0.5;
+/**
+ * The share of its in-season reserve a club may spend in camp: on the last call's clear upgrades (`fundedRoom`) and on
+ * last season's unsigned starters (`campStarterSignings`). Camp spent it whole on the starters and half on the upgrades,
+ * and 30 of 31 AI clubs reached kickoff under their cushion (median room 0.6–0.9% of the cap by a league's sixth season,
+ * main's 0.9–1.0; 2026-11-16). The stars-only pass keeps the owner's rule: it may break the whole reserve for one.
+ */
+export const CAMP_CUSHION = { share: 0 };
 
 /**
  * The least he takes once the market has shown its hand: the best offer made for him when it's at least half his
@@ -331,7 +336,7 @@ export function fundedRoom(
   league: League,
   team: Team,
   position: Position,
-  reserveShare: number = FUNDED_RESERVE_SHARE,
+  reserveShare: number = CAMP_CUSHION.share,
 ): { room: number; cut: Player | null } {
   const roster = activeRoster(league, team.id);
   const count = (pos: Position) => roster.filter((p) => p.position === pos).length;
@@ -1014,14 +1019,23 @@ export function capCut(league: League, team: Team, desperate = false, fairOnly =
  * releases put a fifth to a quarter of its good outside signings on the market, and ours rarely cut a veteran with years
  * left (2026-11-16). Tuned against the released share.
  */
-export const SPRING_CUT = { margin: 0.5 };
+export const SPRING_CUT = {
+  margin: 0.5,
+  /**
+   * The most dead money a spring cut may leave, this year and next, as a share of the cap charges it saves over the same
+   * two years: NFL clubs rarely cut a veteran whose dead money eats the saving, and ours added about 0.8% of the cap of
+   * dead money a team (kickoff room fell under main's; 2026-11-16). Tuned against kickoff room in `offseason`.
+   */
+  deadShare: 0.5,
+};
 
 /**
  * An AI club's spring cuts at the new league year: veterans with years left whose charge runs past `SPRING_CUT.margin`
  * over what it reads them worth where they're headed, when the cut frees room now and over two years, never a young
  * star, a man signed this league year or one that leaves his position short of its starters under contract (in March most
  * deals have just ended and a club refills in free agency and the draft: the season's floor, `KEEP_MIN`, counted only
- * those under contract and let nobody go); the most room first. Your staff never cuts.
+ * those under contract and let nobody go), and only a cut whose dead money doesn't eat the saving (`cutPaysOff`); the most
+ * room first, read with the June 1 designation where one is left and moves money (`designateFor`). Your staff never cuts.
  * Called after the trade market's call-around for cap casualties, so one it traded is gone already. Returns who went.
  */
 export function springCuts(league: League, team: Team): Player[] {
@@ -1043,11 +1057,13 @@ export function springCuts(league: League, team: Team): Player[] {
           capHit(p.contract!, league.season) >
             (1 + SPRING_CUT.margin) * fairPrice(league, p, teamOutlook(league, team.id, p, wn)),
       )
-      .map((p) => ({ p, ...twoYearRoom(league, p) }))
+      .filter((p) => cutPaysOff(league, p))
+      .map((p) => ({ p, designate: designateFor(league, p) }))
+      .map((x) => ({ ...x, ...twoYearRoom(league, x.p, x.designate) }))
       .filter((x) => x.now > 200 && x.twoYear > 0)
       .sort((a, b) => b.now - a.now)[0];
     if (!best) return out;
-    releasePlayer(league, best.p);
+    releasePlayer(league, best.p, best.designate);
     out.push(best.p);
   }
 }
@@ -1057,9 +1073,25 @@ export function springCuts(league: League, team: Team): Player[] {
  * the books, the dead money the cut pushes there goes on. From camp a cut is booked post-June 1, so it can look cheap
  * now and leave next year worse than keeping him.
  */
-export function twoYearRoom(league: League, p: Player): { now: number; twoYear: number } {
-  const pre = releasePreview(league, p);
+export function twoYearRoom(league: League, p: Player, designate = false): { now: number; twoYear: number } {
+  const pre = releasePreview(league, p, designate);
   return { now: pre.savings, twoYear: pre.savings + capHit(p.contract!, league.season + 1) - pre.nextYear };
+}
+
+/**
+ * Whether an AI club designates `p`'s spring cut post-June 1, as you can: while it has a designation left, and only when
+ * the designation moves money to next year (a cut with nothing prorated would waste one a later cut could use).
+ */
+export const designateFor = (league: League, p: Player): boolean => {
+  const pre = releasePreview(league, p, true);
+  return pre.canDesignate && pre.nextYear > 0;
+};
+
+/** A spring cut pays off when its dead money, this year and next, is at most `SPRING_CUT.deadShare` of the charges it saves. */
+export function cutPaysOff(league: League, p: Player): boolean {
+  const pre = releasePreview(league, p);
+  const saves = capHit(p.contract!, league.season) + capHit(p.contract!, league.season + 1);
+  return pre.thisYear + pre.nextYear <= SPRING_CUT.deadShare * saves;
 }
 
 // ───────── free agency ─────────
@@ -1209,7 +1241,7 @@ export function aiFreeAgencyDay(
       const clear = 2 * minGain.get(team.id)!;
       // Only the stars-only pass breaks a whole reserve: every pass breaking it for every young star took the league's
       // kickoff room under its floor.
-      const share = opts.starsOnly ? 1 : FUNDED_RESERVE_SHARE;
+      const share = opts.starsOnly ? 1 : CAMP_CUSHION.share;
       const swap =
         opts.lastCall && gain < clear
           ? swapGain(
@@ -1477,8 +1509,11 @@ export function campStarterSignings(league: League, started: ReadonlySet<number>
       const floor = minimumOffer(league, p);
       const perDollar = offerValue(league, p, team.id, { ...floor, apy: 1 }, d);
       const offer = { ...floor, apy: Math.max(floor.apy, Math.ceil(d.walkAway / perDollar)) };
-      // A starter is what the in-season cushion is for: camp may spend it on him.
-      if (offerCharge(league, p, team.id, offer) > spendable(league, team.id) + inSeasonReserve(league, team.id))
+      // A starter is what the in-season cushion is for: camp may spend its share of it on him (`CAMP_CUSHION`).
+      if (
+        offerCharge(league, p, team.id, offer) >
+        spendable(league, team.id) + CAMP_CUSHION.share * inSeasonReserve(league, team.id)
+      )
         continue;
       const gain = needGain(depthOutlooks(league, team), p, teamOutlook(league, team.id, p, winNow(league, team)));
       if (gain > 0 && (!best || gain > best.gain)) best = { team, gain, offer };

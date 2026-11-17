@@ -538,12 +538,12 @@ const RETIRE: Record<string, [number, number]> = {
   'K/P': [36, 42],
 };
 /**
- * Soft (⚠, never counted; the owner's call, 2026-11-16): linemen's median retirement age fell to 31 once the market and
- * exits cut and passed over more veteran linemen, who then retire unsigned and leave the rostered count younger. No lean
- * on starters at 31 brought it back without taking the starters-at-30 exits under the NFL's. A follow-up.
+ * Printed, never judged (the owner's call, 2026-11-16): linemen's median retirement age. The starter lean keeps old
+ * starting linemen playing, so fewer retire at 33 and up and the median of those who do falls; good linemen aren't
+ * retiring younger (starting linemen who retired at 30 or younger: 21 after 0.4.49, 27 before, one league, eight
+ * seasons), and backups cycling out is fine. Good players leaving by age are judged by the exits lines below.
  */
-const SOFT_RETIRE = new Set(['OL']);
-const softRetire: string[] = [];
+const PRINTED_RETIRE = new Set(['OL']);
 console.log(
   'median retirement age (rostered, steady state): ' +
     Object.entries(retiredAt)
@@ -551,11 +551,8 @@ console.log(
       .map(([group, ages]) => {
         const r = RETIRE[group];
         const m = ages.length >= 8 ? median(ages) : NaN;
-        if (r && SOFT_RETIRE.has(group) && Number.isFinite(m)) {
-          const out = m < r[0] || m > r[1];
-          if (out) softRetire.push(`${group} ${m.toFixed(1)}`);
-          return `${group} ${m.toFixed(1)} (${r[0]}–${r[1]})${out ? ' ⚠' : ''} n=${ages.length}`;
-        }
+        if (r && PRINTED_RETIRE.has(group) && Number.isFinite(m))
+          return `${group} ${m.toFixed(1)} (${r[0]}–${r[1]}, printed) n=${ages.length}`;
         return (
           (r ? check(group, m, r[0], r[1], 1) : `${group} ${Number.isFinite(m) ? m.toFixed(1) : 'n/a'}`) +
           ` n=${ages.length}`
@@ -563,10 +560,6 @@ console.log(
       })
       .join(' · '),
 );
-if (softRetire.length)
-  console.log(
-    `⚠ known issue: linemen retire young from rosters (${softRetire.join(', ')}; soft: veteran linemen cut or passed over retire unsigned, a follow-up)`,
-  );
 // Starters' ages the NFL's way (docs/research/league-age.md, spec 2026-11-14-league-age-design.md): by position, and what
 // happens to a starter the next season, pooled over the leagues' steady seasons. Careers own the old end and the exits:
 // the 31-or-older shares and "gone" are judged against the owner's bands (`judge`). How many young players start, the

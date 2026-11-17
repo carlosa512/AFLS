@@ -346,8 +346,11 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       **Partial (0.4.49):** a starter retires less while he still starts (`RETIRE_BODY.starterLean`, half of it at 31 and
       all of it from 32, kickers and punters aside) and camp signs last season's unsigned starters: starters gone at 30
       13.0% and at 31 17.0% (NFL 14.2/11.8), long prime 12.7/14.4% at 30/31; short prime still 23.2/33.5% at 31/32
-      (unsigned veterans walking away) and starters out of football 7.0% pooled. Linemen's median retirement age (31
-      against 32–36) is soft in `careers`: veteran linemen cut or passed over retire unsigned.
+      (unsigned veterans walking away) and starters out of football 7–8% pooled. Linemen's median retirement age (31
+      against 32–36) is printed, not judged, in `careers` (0.4.50): fewer old starters retiring lowers the median of
+      those who do, and good linemen aren't retiring younger. Kickoff room (0.4.50): AI spring cuts use the June 1
+      designation and skip cuts whose dead money eats the saving, and camp spends none of the in-season cushion (the
+      stars-only pass aside): median room 2.2/1.3/1.7% in seasons 4–6, against 0.9–1.4% before.
 - [ ] **Clubs restructuring sits under the NFL's in a new league's first seasons** (about 25–38% against its 55%,
       Over the Cap) and swings 19–59% season to season. NFL clubs also restructure to extend their own players early;
       ours don't.

@@ -1093,6 +1093,32 @@ export function relieveMove(league: League, teamId: number, coachId: number, cov
   } else promoteInto(league, teamId, league.coaches[cover], 1);
 }
 
+/**
+ * Why `coachId` can't take a coordinator chair your head coach is covering, or null: from camp through the regular
+ * season, as relieving one is, a position coach on that side who'd step up (`interimCandidates`), within the budget. You
+ * may have let the head coach run the side and changed your mind; the staff window's promotion is for the offseason.
+ */
+export function promoteCoverProblem(league: League, teamId: number, coachId: number, budget = true): string | null {
+  if (league.phase !== 'preseason' && league.phase !== 'regular')
+    return 'A coordinator can be promoted this way from camp through the regular season.';
+  const c = league.coaches[coachId];
+  const up = c && promotionFor(c);
+  const side = up && (up.role === 'offCoord' || up.role === 'defCoord') ? up.role : null;
+  if (!side) return 'He won’t step up into that chair.';
+  const staff = teamCoaches(league, teamId);
+  if (!coveringHeadCoach(staff, side)) return 'The head coach isn’t running that side.';
+  if (!interimCandidates(league, teamId, side).some((x) => x.id === coachId))
+    return 'He won’t step up into that chair.';
+  return budget ? budgetProblem(league, teamId, { role: side }, moveOverspend(league, teamId, c, 1, 'promote')) : null;
+}
+
+/** He steps up into the chair the head coach was covering, on a one-year deal (`promoteCoverProblem`). */
+export function promoteCover(league: League, teamId: number, coachId: number): void {
+  const problem = promoteCoverProblem(league, teamId, coachId);
+  if (problem) throw new Error(problem);
+  promoteInto(league, teamId, league.coaches[coachId], 1);
+}
+
 /** Dismiss the man in his chair and hire `coachId` in one move. */
 export function replaceCoach(league: League, teamId: number, coachId: number, years = 2): void {
   const c = league.coaches[coachId];

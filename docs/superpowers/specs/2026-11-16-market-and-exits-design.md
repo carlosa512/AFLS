@@ -168,6 +168,5 @@ chance (low: a few in a hundred), the wording of the refusal, the probe scripts,
 - CI (2026-11-16): the whole lean at every age took long-prime starters at 30 under the NFL's exits (8.7%, fails under
   9.2); none at 31 made linemen retire from rosters at 31 (median, fails under 32). Half at 31: starters at 30 gone 12.7%
   (NFL 15.2); linemen's median retirement age made soft (the owner's call), since no lean at 31 brought it back.
-- Follow-ups: the pay structure (fewer good deals end each year than the NFL's), short-prime veterans walking away,
-  linemen retiring young from rosters (veteran linemen cut or passed over retire unsigned), and the median club's room
-  at kickoff, which runs 0.5–1.0% of the cap in seasons 4–6 against main's 0.9–1.0 (warns under 1, fails under 0.5).
+- Follow-ups: the pay structure (fewer good deals end each year than the NFL's), short-prime veterans walking away.
+  Linemen's retirement age and kickoff room were taken up in `2026-11-16-cap-room-and-linemen-design.md` (0.4.50).
