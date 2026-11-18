@@ -54,6 +54,17 @@
       "source": "487d2cd2-ceb7-415c-83ee-527fc4c291a0",
       "model": "gemini-nano-banana-2.1",
       "credits": 12
+    },
+    {
+      "asset_id": "cec12d5e-0576-456b-80f9-cd6086a9b8b2",
+      "sha12": "283556c8dcbc",
+      "label": "test c: face-3 edited for test a's helmet, with test a as style reference; it redrew test a instead",
+      "file": "spritecook/c-helmet-large-face-3.png",
+      "kind": "edit",
+      "source": "21a3297d-14b2-4506-8bbc-0cc96b3d233d",
+      "style": ["da5291bd-f2ef-450b-87b3-4b951647984a"],
+      "model": "gemini-nano-banana-2.1",
+      "credits": 12
     }
   ]
 }

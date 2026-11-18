@@ -37,6 +37,12 @@ TESTS = [
          'Misses face-3, the widest head: his skull pokes out at the back (35 cells) and the shell\'s edge cuts his near eye.',
          'So helmets come in sizes, or each face gets its own fit.',
      ]),
+    ('c. The same helmet on face-3, by edit with a style reference', 'Edit face-3 to wear test a\'s helmet, sized to his head, with test a as the style reference.',
+     'mixels/face-3.png', 'spritecook/c-helmet-large-face-3.png', [
+         'Fail: the style reference won. It redrew test a (174 cells differ from it) with face-0\'s face and tee, not face-3.',
+         'An edit plus a reference of the same subject copies the reference, as Mixels did. Edit with words only.',
+         'Cost: 12 credits (Nano Banana 2.1). 4 left.',
+     ]),
 ]
 VERDICTS = {}
 
