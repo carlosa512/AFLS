@@ -9,7 +9,7 @@ import { simToEndOfSeason } from '../src/engine/league';
 import { beginOffseason } from '../src/engine/offseason';
 import { playToKickoff, type SeasonFlow } from './cap-books-core';
 import { chairSnap, newHeadCoaches, type HcOrigin } from './carousel';
-import { faMeasures, kickoffStarters, outOfFootball, windowStart, type FaMeasures } from './free-agency-core';
+import { faMeasures, goodEnds, kickoffStarters, outOfFootball, windowStart, type FaMeasures } from './free-agency-core';
 
 export interface CapRun {
   seed: string;
@@ -39,8 +39,9 @@ const out: number[] = [];
 let lastStarters = kickoffStarters(league);
 for (let s = 0; s < played; s++) {
   simToEndOfSeason(league);
+  const ends = goodEnds(league);
   beginOffseason(league);
-  const start = windowStart(league);
+  const start = windowStart(league, ends);
   flows.push(playToKickoff(league));
   if (s < seasons) {
     market.push(faMeasures(start, league));

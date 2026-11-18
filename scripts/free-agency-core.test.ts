@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createLeague } from '../src/engine/generate';
 import { buildContract } from '../src/engine/finance/contract';
-import { activeRoster, setTeam } from '../src/engine/roster';
+import { activeRoster, retirePlayer, setTeam } from '../src/engine/roster';
 import type { Contract, League, Player } from '../src/engine/types';
 import {
   dealLengths,
   ELITE,
   faMeasures,
   GOOD,
+  goodEnds,
   pooledMarket,
   pooledOutOfFootball,
   windowStart,
@@ -54,6 +55,35 @@ describe('the free-agency check', () => {
     const m = faMeasures(start, l);
     expect(m.ends).toBe(3);
     expect([m.stayed, m.moved, m.none]).toEqual([1 / 3, 1 / 3, 1 / 3]);
+  });
+
+  it('a deal ends where its play does: a void year after its last real year leaves it counted', () => {
+    const p = ending(0, 0);
+    const apy = p.contract!.apy;
+    p.contract = buildContract(
+      { years: 3, total: apy * 3, signingBonus: apy, guaranteedBase: 0, voidYears: 1 },
+      l.season - 3,
+      'veteran',
+      900,
+    );
+    p.contract.apy = apy;
+    expect(p.contract.years.at(-1)).toMatchObject({ season: l.season, void: true });
+    expect(windowStart(l).ending.map((e) => e.id)).toEqual([p.id]);
+  });
+
+  it('read before the new league year, a man who retires as his good deal ends is a no deal (the NFL counts him so)', () => {
+    const [stay, gone] = [activeRoster(l, 0)[0], activeRoster(l, 0)[1]];
+    for (const p of [stay, gone]) p.contract = deal(l.season - 2, 3, GOOD * 2);
+    // The league's own deals ending this season are read too: the scene's two are among them.
+    const ends = goodEnds(l).filter((e) => e.id === stay.id || e.id === gone.id);
+    expect(ends).toHaveLength(2);
+    // The new league year: one retires, the other re-signs.
+    setTeam(l, gone, null);
+    gone.contract = null;
+    retirePlayer(l, gone);
+    stay.contract = deal(l.season + 1, 2, GOOD * 2);
+    const m = faMeasures(windowStart(l, ends), l);
+    expect([m.ends, m.stayed, m.none]).toEqual([2, 0.5, 0.5]);
   });
 
   it('a deal under 2% of the cap the year it was signed is not counted', () => {

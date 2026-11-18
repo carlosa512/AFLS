@@ -147,3 +147,17 @@ and 11, edge rushers 4 and 11, corners 3 and 5. The 10th-best receiver is paid 9
 AFLS, the 10th edge rusher 8.6% and 10.2%, the 10th defensive tackle 7.7% and 10.8%: the pay curve (`payTier`) is flatter
 at the top than the NFL's, so stars take a tenth more of the cap and fewer players are paid in the middle, where the
 NFL's free agents are.
+
+### "No deal" counted the NFL's way (0.4.53, 2026-11-18)
+
+The NFL's 25% counts a player who retired as his good deal ended (the data can't tell him from one nobody signed). The
+offseason check read its good deals after the new league year's retirements, so the about 12 a league year who retire as a
+good deal ends left the count, and a deal with a void year after its last real one was left out too. It now reads them before
+the retirements (`goodEnds` in `scripts/free-agency-core.ts`, the owner's call) by each deal's last real year. On the
+offseason check's four leagues and three more, seasons 2–6:
+
+| | All | 28 or younger | 29–31 | 32 and older |
+| --- | --- | --- | --- | --- |
+| Read after the retirements | 6.5–11.3% | | | |
+| Read before them (the NFL's way) | 15.6–20.6% | 3–9% | 15–19% | 25–44% |
+| The NFL | 25% | 14% | 19% | 40% |

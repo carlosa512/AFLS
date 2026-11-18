@@ -43,6 +43,7 @@ import {
   lengthSummary,
   NFL_DEAL_LENGTH,
   type PayBand,
+  goodEnds,
   windowStart,
 } from './free-agency-core';
 import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
@@ -390,9 +391,11 @@ for (let s = 0; s < seasons; s++) {
     .sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id)))
     .map((t) => t.id);
   const before = new Map(young.map((p) => [p.id, { ovr: playerOvr(p), team: p.teamId! }]));
+  // Whose good deals end, read before the new league year's retirements (a man who retires is a no deal, as the NFL's).
+  const ends = goodEnds(league);
   beginOffseason(league);
   // The re-sign window's start: whose good deals just ended, and the room clubs bring to it.
-  const faStart = windowStart(league);
+  const faStart = windowStart(league, ends);
   for (const [id, b] of before) {
     const p = league.players[id];
     if (p.retired) continue;

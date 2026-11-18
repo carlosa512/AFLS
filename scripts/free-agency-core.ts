@@ -5,6 +5,7 @@
  * the league at the re-sign window's start and at kickoff; nothing is stored.
  */
 import { capSpace } from '../src/engine/finance/cap';
+import { lastSeason } from '../src/engine/finance/contract';
 import { leagueMarket, marketApy } from '../src/engine/finance/market';
 import { STARTERS } from '../src/engine/positions';
 import { POSITIONS, type League } from '../src/engine/types';
@@ -27,18 +28,34 @@ export interface WindowStart {
   teamAt: Record<number, number | null>;
 }
 
-/** Call right after `beginOffseason`: the re-sign window's start. */
-export function windowStart(l: League): WindowStart {
-  const cap = l.caps[l.season];
-  const ending: WindowStart['ending'] = [];
-  const teamAt: Record<number, number | null> = {};
+/** A good deal ending, with the club it ends with. */
+export type GoodEnd = { id: number; teamId: number };
+
+/** The good deals whose last real year is `ended` (void years aren't played: a deal with one ends where its play does). */
+function goodEndsOf(l: League, ended: number): GoodEnd[] {
+  const out: GoodEnd[] = [];
   for (const p of Object.values(l.players)) {
-    teamAt[p.id] = p.teamId;
     const c = p.contract;
-    if (p.teamId === null || !c || c.years.at(-1)!.season !== l.season - 1) continue;
-    if (c.apy / (l.caps[c.signedSeason] ?? cap) < GOOD) continue;
-    ending.push({ id: p.id, teamId: p.teamId, young: p.age <= YOUNG });
+    if (p.retired || p.teamId === null || !c || lastSeason(c) !== ended) continue;
+    if (c.apy / (l.caps[c.signedSeason] ?? l.caps[l.season]) < GOOD) continue;
+    out.push({ id: p.id, teamId: p.teamId });
   }
+  return out;
+}
+
+/**
+ * Call just before `beginOffseason`: the good deals ending with the season just played, read before the new league
+ * year's retirements, so a man who retires counts as no deal. The NFL's 25% counts him so (the research doc: injuries
+ * and retirements all land in "no deal"); read after the roll, the ~12 a league year who retire left the count.
+ */
+export const goodEnds = (l: League): GoodEnd[] => goodEndsOf(l, l.season);
+
+/** Call right after `beginOffseason`: the re-sign window's start, its good deals ending from `goodEnds` before it. */
+export function windowStart(l: League, ends: readonly GoodEnd[] = goodEndsOf(l, l.season - 1)): WindowStart {
+  const cap = l.caps[l.season];
+  const teamAt: Record<number, number | null> = {};
+  for (const p of Object.values(l.players)) teamAt[p.id] = p.teamId;
+  const ending = ends.map((e) => ({ ...e, young: l.players[e.id].age <= YOUNG }));
   const room = l.teams.map((t) => capSpace(l, t.id) / cap).sort((a, b) => a - b);
   return { season: l.season, room, ending, teamAt };
 }

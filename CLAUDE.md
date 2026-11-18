@@ -143,7 +143,8 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
-  should stay stable across seasons, and the free-agency market against the NFL's (who stays, who moves, good outside signings, one-year deals, no young star unsigned at kickoff; `scripts/free-agency-core.ts`, `docs/research/free-agency-market.md`). Three more leagues play in child processes for the cap-space drift
+  should stay stable across seasons, and the free-agency market against the NFL's (who stays, who moves or signs nowhere, read before the new league year's
+  retirements as the NFL counts it, good outside signings, one-year deals, no young star unsigned at kickoff; `scripts/free-agency-core.ts`, `docs/research/free-agency-market.md`). Three more leagues play in child processes for the cap-space drift
   check (one league's 32 teams are too few), and those three play on to ten seasons for the cap books' drift (kickoff
   room every season 4–10, free agency's signings a club, the roster entering camp and next year's commitments, seasons
   8–10 against 2–4; `scripts/cap-books-core.ts`); `--seed x` plays another world.
