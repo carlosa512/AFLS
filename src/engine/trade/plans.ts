@@ -18,7 +18,7 @@ import { computeRecords, conferenceSeeds, winPct, type TeamRecord } from '../sea
 import type { League, Player, Position, Stance, Team, TradeMarket } from '../types';
 import { POSITIONS } from '../types';
 import { ovrOf, rosterOf, spendable, type TradeContext } from './context';
-import { freshlySigned, maxRetain, playerTradeBlocker, salaryToTake } from './rules';
+import { freshlySigned, freshPick, maxRetain, playerTradeBlocker, salaryToTake } from './rules';
 import { AI_BAND, outlookFor, POSITION_TRADE, readPlayer, salaryWeight, TRADE_BAND } from './value';
 
 // ───────── stance ─────────
@@ -274,9 +274,9 @@ export interface BlockEntry {
 
 /**
  * Players a team won't discuss: yours are the ones you've marked Untouchable; an AI team's are a
- * contender's starting quarterback, and its best young players (by
- * the overall it knows exactly) for a loyal GM, the most loyal keeping four, the least one. Worked
- * out once per team and pass.
+ * contender's starting quarterback, a high pick in his rookie season (`freshPick`), and its best young
+ * players (by the overall it knows exactly) for a loyal GM, the most loyal keeping four, the least one.
+ * Worked out once per team and pass.
  */
 export function untouchables(ctx: TradeContext, team: Team): Set<number> {
   const memo = (ctx.untouchables ??= new Map()).get(team.id);
@@ -290,6 +290,8 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
     ctx.untouchables.set(team.id, out);
     return out;
   }
+  // A first- or second-round pick stays through his rookie season, whatever the club's plans.
+  for (const p of roster) if (freshPick(league, p)) out.add(p.id);
   // The quarterback it builds around: the one it sees leading it over the next few years, not just this week.
   const qbs = roster
     .filter((p) => p.position === 'QB')
@@ -311,6 +313,17 @@ export function untouchables(ctx: TradeContext, team: Team): Set<number> {
 }
 
 export const untouchable = (ctx: TradeContext, team: Team, p: Player) => untouchables(ctx, team).has(p.id);
+
+/**
+ * A man Sells a Year Early would move: one near his second contract (a rookie deal with two years or fewer left), or a
+ * hurt-prone one on any other deal. A rookie deal with more years than that is no year early: the club has him cheap,
+ * and his bonus would land on its cap as dead money (a hurt-prone first-rounder sold a month after the draft).
+ */
+export function sellsEarlyCase(league: League, teamId: number, p: Player): boolean {
+  const c = p.contract;
+  if (!c) return false;
+  return c.kind === 'rookie' ? yearsLeft(c, league.season) <= 2 : injuryRisk(league, teamId, p).tier === 'High';
+}
 
 /** How far below the league's starter line a player's outlook is worth reading for the trade block. */
 const NEAR_LINE = 2;
@@ -348,6 +361,9 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
   const sellsEarly = habitOn(league, team, 'sellsEarly');
   const keep = untouchables(ctx, team);
   for (const p of roster) {
+    // A high pick in his rookie season is held whatever he or the club wants (`freshPick`): `judge` would refuse every
+    // deal, and a listing would only start rumors of a sale that cannot happen.
+    if (freshPick(league, p)) continue;
     // He's asked out, the league knows and his club is shopping him (G4b): on the block, whoever he is.
     if (wantsOut(p) === 'public' && disputeOf(p)?.answered?.choice === 'shop') {
       out.push({ playerId: p.id, reason: 'wantsOut', keenness: WANTS_OUT_KEEN });
@@ -371,13 +387,8 @@ export function tradeBlock(ctx: TradeContext, team: Team): BlockEntry[] {
     // Tagged and not worth his price to this team long-term (a seller, or a cap it can't fit him under): tag and trade (Ngakoue, Clowney).
     if (p.contract!.kind === 'tag' && !inSeason && (mode === 'retool' || mode === 'rebuild' || tight))
       add('tagged', 0.7);
-    // Sells a Year Early: a starter on a rookie deal with two years left, or a hurt-prone one, goes a year before he falls.
-    if (
-      sellsEarly &&
-      starterGrade &&
-      ((p.contract!.kind === 'rookie' && left <= 2) || injuryRisk(league, team.id, p).tier === 'High')
-    )
-      add('secondDeal', 0.45);
+    // Sells a Year Early: a starter near his second contract, or a hurt-prone one, goes a year before he falls.
+    if (sellsEarly && starterGrade && sellsEarlyCase(league, team.id, p)) add('secondDeal', 0.45);
     if (r >= ROSTER_TEMPLATE[p.position] || (p.position === 'QB' && r >= 2)) add('surplus', 0.4);
     else if (r >= S && ovrOf(ctx, p) >= line[p.position]) add('surplus', 0.5);
     // Only a big salary can be a burden worth paying to move: one well above what the market pays a

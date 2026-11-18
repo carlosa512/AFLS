@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.53',
+    date: '2026-11-18',
+    title: 'Rookies stay, GMs plan ahead',
+    text: 'Teams keep first- and second-round rookies and plan their cap three years out. Free agency fills rosters all spring, and SNN covers the benchings that matter and who drafted a traded player.',
+  },
+  {
     version: '0.4.52',
     date: '2026-11-17',
     title: 'Smaller saves',

@@ -295,8 +295,9 @@ The dead band needs memory, so each team keeps `stance` (mode and since when). T
 | Overpaid | Clearly negative surplus on a team with cap pressure (a dump candidate) | High |
 | Blocked youngster | A young player stuck behind a starter at a deep position | Low |
 
-**Untouchable** (AI): a franchise QB on a contender, players extended this league year, and the team's
-top three young players for a loyal GM (`loyalty`). Your own statuses are yours to set (section 5).
+**Untouchable** (AI): a franchise QB on a contender, players extended this league year, a first- or
+second-round pick in his rookie season (`freshPick`), and the team's top three young players for a loyal GM
+(`loyalty`). Your own statuses are yours to set (section 5).
 
 **Interest** is the world noticing players, FM's "monitoring → interested → ready to bid." A team's
 interest in a player rises when:
@@ -1067,6 +1068,14 @@ Where the build departed from the plan, and why:
   starters it won't re-sign (30 and up).
 - **In season nobody trades a first projected in the top ten** (`heldPick`). A team waits to see who's
   there on draft day, and can trade down then (Phase 4). This applies to offers from you too.
+- **No AI team trades a first- or second-round pick in his rookie season** (`freshPick` in `rules.ts`, from draft
+  day to the new league year): he is untouchable, so he is never on its block, in a swap or priced for you, and
+  `judge` refuses any deal that sends him, at any price. From 2002 to 2025 the NFL traded none after draft weekend
+  (the one rookie-year trade of either round was the Manning–Rivers swap on draft day); rounds 3–7 went about 0.4 a
+  year, mostly at final cuts, and stay open. In his second league year he is tradable again, as in the NFL (Trent
+  Richardson, Minkah Fitzpatrick and five other first-rounders since 2002). `scripts/research-rookie-trades.py`
+  counts it. Before this, AFLS traded about one a season: a rebuilding Condors GM with Sells a Year Early sold the
+  sixth pick four weeks into his first season and carried about $36M of his bonus as dead money.
 - **Sellers' floors count picks at the league's going rate** (`goingRate`: midway between the two
   chart styles, 25% off a year). On his own chart a Pick Hoarder prizes Day 2 and future picks, so he
   happily took a third less than the league would pay for a player. Every GM still prices what a pick
@@ -1350,7 +1359,11 @@ Built as planned:
 - **Rehab trades:** a deal in the offseason goes through when the doctor clears a player to rehab.
 - **Future-for-current pick swaps** (`pickSwapFor`): before the draft (league year and free agency), a
   win-now GM (future discount 0.3 or more) trades next year's pick for a patient GM's (0.22 or less)
-  this year's, a round later.
+  this year's, a round later. It is its own call (`pickSwapCall`), made whatever came of his business about players
+  that day, and one a spring: as that call's fallback it was crowded out once clubs had cap room in the spring (2.3 a
+  league year, picks for players past 80%), and called every day of free agency a GM spent the future picks draft day
+  trades with (5.9 a league year; deals with a future pick on draft day 2.4). One a spring: 4.2, and 1.7 more on draft
+  day (0.4.53).
 
 Where the build departed from the plan, and why:
 - **Physicals settle at once**, instead of pending until the next calendar step. The AI market's deals

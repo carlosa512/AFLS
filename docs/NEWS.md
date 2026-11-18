@@ -103,10 +103,13 @@ division's race (the next round's pairings in the playoffs) and next week's game
 | 1 | A head coach or GM out at another club, a star traded |
 | 2 | A division lead changing hands, an unbeaten club at 5–0 or better losing, a winless one at 0–5 or worse winning |
 | 3 | An upset, a tie, a streak of six ending, a first-round pick traded, a star out for the season |
-| 4 | A comeback, a win against the yardage, one player's day, a quarterback lost, another reportable trade, a coordinator relieved, a player speaking out, a coach losing his room |
-| 5 | A rout, overtime, a plain result, a run reaching six, a rumor, a coach facing his mentor, your bye |
+| 4 | A comeback, a win against the yardage, one player's day, a quarterback lost, another reportable trade, a coordinator relieved, a name speaking out, a coach losing his room |
+| 5 | A rout, overtime, a plain result, a run reaching six, a rumor, a coach facing his mentor, anyone else speaking out, your bye |
 
-Inside a tier the clubs' records decide, then a stable hash. The cut: one story a club, one angle twice at most, one
+Inside a tier the clubs' records going into the week decide, for a game and for the week's other news alike (read
+after the week, a week-1 winner's news outranked every game and a released backup led the page), then a stable hash. A
+name is a star by last season's public record or a first- or second-round pick of the last three drafts
+(`publicStanding.ts`). The cut: one story a club, one angle twice at most, one
 trade tile unless a second is tier 1. Your game leads only at tier 3 or better; otherwise it is the Your club tile. A star
 of yours lost for the season is told inside that story. The biggest other news about your club (first place taken, a
 man speaking out, a run reaching six) has one tile by right, as a brief: one paragraph, its news alone, since the
@@ -127,6 +130,8 @@ Tune them there, from a season of editions.
 - One angle a story. Two paragraphs of prose: what happened and why, then what it means and what comes next.
 - Sentences join facts. A man's full name first, then his surname.
 - One callback at most, from the public record (the first meeting, an earlier sale, last week).
+- A trade says who the man was before it, in one sentence (`pathLine`): the team that traded him drafted him (where
+  and when), he goes back to the team that drafted him, or who drafted him and the other teams he has played for.
 - It stops on a fact (a name, a number, a fixture). No sign-off and no line written to sound good.
 - No semicolon, no colon inside a sentence, two numbers a sentence at most (the story's own final score aside).
 - No sentence twice in a season (`seasonSaid`).
@@ -233,9 +238,10 @@ late window squeezed out, what had nothing on record, and which families the rec
 ### Your club's storylines in the edition
 
 SNN reads the story store as a second outlet (`SNN_OUTLET` in `stories.ts`) and sees only your club's public beats: a
-starter left off the lineup (a quarterback's benching ranks a tier higher), his return or the job changing hands, a
-trade request once it has leaked and how it ended (traded, withdrawn, signed, released), and a coordinator you
-relieved. Each is a tile about your club, told once (`storyline:{storyId}:{clock}:{beat}`), regular season only. An
+starter left off the lineup when he is a quarterback (ranked a tier higher) or a name (a star by last season's
+record, a recent high pick), and then his return or the job changing hands; a trade request once it has leaked and how
+it ended (traded, withdrawn, signed, released); and a coordinator you relieved. Anyone else's benching is a lineup
+call, not news, and what becomes of a benching is told only after the benching was (it had been a tile most weeks). Each is a tile about your club, told once (`storyline:{storyId}:{clock}:{beat}`), regular season only. An
 ending nobody outside could read (a job settled by an injury, a holdout drifting back) is not a story.
 
 ### What coverage does

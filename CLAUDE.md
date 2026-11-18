@@ -143,8 +143,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   health, roster sizes, league talent, injuries and the scouting, coaching and medical economies. Run
   it after changes to `finance/`, `offseason/`, `trade/`, `staff.ts`, `coaching.ts`, `medical.ts`
   or `injuries.ts`; talent, cap space, rosters and the coaching ledger (growth and decline ×1.00)
-  should stay stable across seasons, and the free-agency market against the NFL's (who stays, who moves, good outside signings, one-year deals, no young star unsigned at kickoff; `scripts/free-agency-core.ts`, `docs/research/free-agency-market.md`). Three more leagues play in child processes for the cap-space drift
-  check (one league's 32 teams are too few); `--seed x` plays another world.
+  should stay stable across seasons, and the free-agency market against the NFL's (who stays, who moves or signs nowhere, read before the new league year's
+  retirements as the NFL counts it, good outside signings, one-year deals, no young star unsigned at kickoff; `scripts/free-agency-core.ts`, `docs/research/free-agency-market.md`). Three more leagues play in child processes for the cap-space drift
+  check (one league's 32 teams are too few), and those three play on to ten seasons for the cap books' drift (kickoff
+  room every season 4–10, free agency's signings a club, the roster entering camp and next year's commitments, seasons
+  8–10 against 2–4; `scripts/cap-books-core.ts`); `--seed x` plays another world.
+- `npm run cap-books [-- seed seasons]` — a preview, not a check: one league's cap books season by season (kickoff room,
+  free agency's signings a club, the roster entering camp, next year's commitments, restructure money still to land,
+  camp's dead money), read the way the offseason check's drift lines read them. Defaults `offseason-audit-3`, 10.
 - `npm run gm-habits` — four 10-season leagues in child processes: the AI general managers' habits (`gmHabits.ts`) carried,
   gained and lost (active per GM, changes a year, every habit present by season 5, none past 40%, no GM past three, someone
   turns Gun-Shy); `npm run gm-habits -- --effects` also pins each habit on for every AI club for 3 seasons and checks it
@@ -602,15 +608,25 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft; the market (0.4.49): AI offers run the length of
     their pay (`aiOfferYears`), clubs keep their own only at a fair price (`RESIGN_VALUE`, `fairPrice` in `capPlan.ts`),
     your good player may want to test the market (`wantsMarket`, a pure draw), free agency passes more on fading
-    veterans (`FADING`), clubs spend first in free agency's first days (`SPEND_FIRST`), cut overpaid veterans at the new
+    veterans (`FADING`, from 30 on the position's clock), cut overpaid veterans at the new
     league year (`springCuts`, a starters' floor; designated post-June 1 where it moves money, `designateFor`, and only a
     cut whose dead money doesn't eat the saving, `cutPaysOff`) and sign last season's unsigned starters in camp
     (`campStarterSignings`); camp spends none of the in-season cushion but for the stars-only pass (`CAMP_CUSHION`); a
-    starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`)
+    starter retires less (`RETIRE_BODY.starterLean` in `aging.ts`); the cap books (0.4.53, `capBooks.ts`, spec
+    `docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`): every way an AI club commits money (re-signs in
+    `capPlan.ts`, free-agency offers, restructures, extensions, tags) must fit its next three league years (`capBooks`:
+    committed money, the draft class, the 53's open spots at the minimum, the in-season reserve and next spring's keepers,
+    best first as far as the GM's ceiling holds them; `fits`, `dealAdds`, `commit`); a deal is never shortened to fit
+    (`shapeToBooks` drops void years and bonus, then makes no offer), a player is kept ahead of the keepers ranked below
+    him (`aside`), and a free agent the market passed by keeps his years at a lower price (`priceToBooks`); a
+    free-agency signing gets back the minimum its open spot held (`aiFreeAgencyDay`), and nothing is borrowed against
+    the in-season cushion in free agency's first days (`SPEND_FIRST`)
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and
-    blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown); `judge`
+    blockers in `rules.ts`, with the hidden wait on new signings (each GM's own, never shown) and the rookie hold (an
+    AI team never trades a first- or second-round pick in his rookie season, `freshPick`: untouchable, and `judge`
+    refuses it); `judge`
     in `judge.ts`, the one evaluator every deal goes through (seller floors at the going rate, soft
     first-round pricing by the drafts a team is left without a first, scaled by the GM's win-now, a centrepiece for a star, division rivals; `releasing` weighs a deal against
     a cut); `executeTrade` (retained salary as the sender's dead money, the AI buyer's trade-and-extend

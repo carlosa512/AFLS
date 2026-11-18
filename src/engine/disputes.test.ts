@@ -436,7 +436,10 @@ function firmHoldout(
   kind: 'holdIn' | 'holdOut' = 'holdOut',
 ) {
   Object.assign(l.teams[teamId].gm, { loyalty: 0, stubbornness });
-  room(l, teamId, 60_000);
+  // Money isn't the question here, this year or on the books' next three (0.4.53): a club whose next year is full of
+  // keepers its scouts rank above him lets the holdout run, as a generated world's tight books did in two scenes.
+  for (let k = 0; k <= 3; k++)
+    l.teams[teamId].deadMoney.push({ season: l.season + k, amount: -60_000, playerId: -1, note: 'test' });
   const p = souredDeal(l, teamId, RUN_STEPS - 1, 0, (x) => resignCall(l, teamId, x).call !== 'walk');
   for (const x of teamPlayers(l, teamId))
     if (x.position === p.position && x !== p)

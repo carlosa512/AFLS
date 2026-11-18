@@ -267,10 +267,17 @@ describe('Extends Early', () => {
 });
 
 describe('Tags First', () => {
-  /** A club whose best expiring player the call would tag. */
-  function tagScene(tagsFirst = false) {
+  /** A league in its re-sign window where every AI club has next year's room for a tag (`capBooks`). */
+  const tagWorld = () => {
     const l = fresh();
     l.phase = 'resign';
+    for (const t of l.teams)
+      t.deadMoney.push({ season: l.season + 1, amount: -200_000, playerId: -1, note: 'test room' });
+    return l;
+  };
+  /** A club whose best expiring player the call would tag. */
+  function tagScene(tagsFirst = false) {
+    const l = tagWorld();
     for (const t of l.teams) {
       if (t.id === l.userTeamId || !aiGm(l, t)) continue;
       const tagged = expiringPlayers(l, t.id).find((p) => resignCall(l, t.id, p).call === 'tag');
@@ -278,8 +285,7 @@ describe('Tags First', () => {
       if (tagsFirst) {
         // Taken again with the league-age work (2026-11-14): with the reshuffled contracts a club's best tag call can
         // fail the tag's own test (`tryTag`) while another's passes, so the scene is a club that tags him with the habit on.
-        const trial = fresh();
-        trial.phase = 'resign';
+        const trial = tagWorld();
         habitsForce.all = 'tagsFirst';
         aiResignWindow(trial, trial.teams[t.id], new Rng('w'));
         habitsForce.all = null;

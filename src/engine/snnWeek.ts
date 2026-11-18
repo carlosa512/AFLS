@@ -16,12 +16,23 @@ import { gameOfWeek } from './season/gameOfWeek';
 import { computeRecords, divisionStandings } from './season/standings';
 import { CUT, gameFacts, recordPct, recordsBefore, type ClubRecord, type GameAngle, type GameFacts } from './snnStory';
 import { employed } from './employment';
+import { draftedHigh, publicRecord } from './publicStanding';
 import { columnClaims, pickColumn, type Claim } from './snnColumn';
 import { columnStory, writeStory } from './snnVoice';
 import type { Draft } from './senders';
 import { SNN_OUTLET } from './stories';
 import { titleEdition } from './snnTitle';
-import type { BeatKind, Edition, EditionKind, EditionScore, EditionStory, Game, League, StatLine } from './types';
+import type {
+  BeatKind,
+  Edition,
+  EditionKind,
+  EditionScore,
+  EditionStory,
+  Game,
+  League,
+  Player,
+  StatLine,
+} from './types';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
@@ -63,6 +74,15 @@ export interface Candidate {
     now: boolean;
     coach?: { name: string; side: string };
   };
+}
+
+/**
+ * A club's winning percentage going into `week`: what every candidate's stakes read, a game's and the week's other
+ * news alike. Read after the week, a week-1 winner's news ranked above every game (all 0–0 going in) and led the page.
+ */
+function stakesIn(l: League, week: number): (teamId: number) => number {
+  const before = recordsBefore(l, week);
+  return (id) => recordPct(before.get(id) ?? { w: 0, l: 0, t: 0, streak: 0 });
 }
 
 /** A game's tier by its angle (spec §2). */
@@ -154,12 +174,13 @@ function formOf(l: League, teamId: number, week: number): { week: number; r: 'W'
 export function runCandidates(l: League, week: number): Candidate[] {
   if (week > 18) return [];
   const after = recordsBefore(l, week + 1);
+  const pct = stakesIn(l, week);
   const out: Candidate[] = [];
   for (const g of played(l, week))
     for (const teamId of [g.homeId, g.awayId]) {
       const form = formOf(l, teamId, week);
       const rec = after.get(teamId)!;
-      const stakes = recordPct(rec);
+      const stakes = pct(teamId);
       if (Math.abs(rec.streak) === CUT.streak) {
         const startWeek = form[form.length - CUT.streak].week;
         out.push({
@@ -250,7 +271,7 @@ export function starOutCandidates(l: League, week: number): Candidate[] {
     const att = x.line.passAtt ?? 0;
     if (att > (passer.get(x.teamId)?.att ?? 0)) passer.set(x.teamId, { id, att });
   }
-  const after = recordsBefore(l, week + 1);
+  const pct = stakesIn(l, week);
   return hurt
     .filter((i) => top.has(i.playerId) || honored.has(i.playerId) || passer.get(i.teamId)?.id === i.playerId)
     .map((i) => ({
@@ -260,7 +281,7 @@ export function starOutCandidates(l: League, week: number): Candidate[] {
       tier: 3 as const,
       clubId: i.teamId,
       teams: [i.teamId],
-      stakes: recordPct(after.get(i.teamId) ?? { w: 0, l: 0, t: 0, streak: 0 }),
+      stakes: pct(i.teamId),
       out: { playerId: i.playerId, gameId: i.gameId },
     }));
 }
@@ -285,7 +306,9 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
   if (week > 18) return [];
   const out: Candidate[] = [];
   const after = recordsBefore(l, week + 1);
-  const pct = (id: number) => recordPct(after.get(id) ?? { w: 0, l: 0, t: 0, streak: 0 });
+  const pct = stakesIn(l, week);
+  // Where a buyer stands now, for the trade's angle (a contender adding): the stakes read the week going in.
+  const now = (id: number) => recordPct(after.get(id) ?? { w: 0, l: 0, t: 0, streak: 0 });
   const fresh = (c: Candidate) => !have.has(c.key) && !(c.covers ?? []).some((id) => have.has(id));
   const has = (suffix: string) => [...have].some((id) => id.endsWith(suffix));
 
@@ -323,7 +346,7 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
           r.sides.some((s) => s.teamId !== t.sellerId && s.players.length === 0),
       ).length;
       const angle =
-        earlierSales && !t.swap ? 'secondSale' : t.swap ? 'swap' : pct(t.buyerId) >= 0.6 ? 'contender' : 'sale';
+        earlierSales && !t.swap ? 'secondSale' : t.swap ? 'swap' : now(t.buyerId) >= 0.6 ? 'contender' : 'sale';
       out.push({
         key: `trade:${t.key}`,
         kind: 'trade',
@@ -410,12 +433,14 @@ export function newsCandidates(l: League, week: number, have: Set<string>): Cand
     });
   }
 
+  const names = publicRecord(l);
   for (const f of speakFacts(l, have))
     out.push({
       key: f.id,
       kind: 'speak',
       angle: f.kind,
-      tier: 4,
+      // A name speaking out is news. A journeyman's word on his release fills a tile on a quiet week, never the lead.
+      tier: isName(l, names, l.players[f.playerId]) ? 4 : 5,
       clubId: f.teamId,
       teams: [f.teamId],
       stakes: pct(f.teamId),
@@ -566,6 +591,10 @@ function raceOf(l: League, week: number, userTeamId: number): Edition['race'] {
   };
 }
 
+/** A name in public: a star by last season's record (an award, All-League, a league leader, a winning passer) or a recent high pick. */
+const isName = (l: League, names: ReturnType<typeof publicRecord>, p: Player) =>
+  names.why(p) !== null || draftedHigh(l, p);
+
 /** Public beats an edition prints, and the ways a public dispute can end that are worth a line. */
 const TELLS: BeatKind[] = ['sat', 'backIn', 'settled', 'left', 'leaked', 'disputeEnd'];
 const ENDINGS = ['traded', 'withdrawn', 'promise', 'signed', 'released'];
@@ -587,6 +616,7 @@ export function storylineCandidates(l: League, week: number, have: Set<string>):
   const user = l.userTeamId;
   const out: Candidate[] = [];
   const base = { kind: 'storyline' as const, clubId: user, teams: [user], stakes: 0 };
+  const names = publicRecord(l);
   for (const s of [...(l.stories?.open ?? []), ...(l.stories?.closed ?? [])]) {
     const pub = s.beats.filter((b) => SNN_OUTLET.sees(l, s, b) && TELLS.includes(b.kind));
     const keyOf = (b: (typeof pub)[number]) => `storyline:${s.id}:${b.at}:${b.kind}`;
@@ -599,6 +629,15 @@ export function storylineCandidates(l: League, week: number, have: Set<string>):
     if (b.kind === 'settled' && [...have].some(ended)) continue;
     // Old news is not news: only a beat of the last two steps is told.
     if (b.at <= (l.moraleAt ?? 0) - STORY_FRESH) continue;
+    if (s.kind === 'benched') {
+      // A benching is news when it is a quarterback's or a name's: a lineup call about anyone else is the coach's
+      // business, and SNN would be printing every chart change. What becomes of it is told only after the benching was,
+      // or with it, when both came before an edition could print the benching (a long advance files only the last week).
+      const news = p.position === 'QB' || isName(l, names, p);
+      const satTold = [...have].some((k) => k.startsWith(`storyline:${s.id}:`) && k.endsWith(':sat'));
+      const satFresh = fresh.some((x) => x.kind === 'sat');
+      if (b.kind === 'sat' ? !news : !(satTold || (news && satFresh))) continue;
+    }
     // An ending nobody outside could read (an injury settling it, a holdout drifting back) is not a story.
     if (b.kind === 'settled' && !SETTLED.includes(b.how ?? '')) continue;
     if (b.kind === 'disputeEnd' && !ENDINGS.includes(b.how ?? '')) continue;

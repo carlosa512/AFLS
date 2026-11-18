@@ -43,6 +43,7 @@ import {
   lengthSummary,
   NFL_DEAL_LENGTH,
   type PayBand,
+  goodEnds,
   windowStart,
 } from './free-agency-core';
 import { SAVE_SIZE_BUDGET, SAVE_FEATURE_ALLOWANCES } from './save-budget';
@@ -88,6 +89,7 @@ import {
 import type { Coach, League, Phase } from '../src/engine/types';
 import { POSITIONS } from '../src/engine/types';
 import type { CapRun } from './offseason-league';
+import { median } from './cap-books-core';
 import { chairKey, chairSnap, hcOrigin } from './carousel';
 
 const seasons = Number(process.argv.slice(2).find((a, i, all) => !a.startsWith('-') && all[i - 1] !== '--seed') ?? 3);
@@ -100,13 +102,20 @@ const league = createLeague({ seed: SEED, personnel: true });
  * More leagues for the cap-space drift check, each in its own process while this one plays: one league's median is
  * a single team's cap space. Only a run long enough for the drift checks needs them.
  */
+/** Seasons the drift leagues play for the cap books' lines (2026-11-18): the drain hid inside six. */
+const DRIFT_SEASONS = 10;
 const capRuns: Promise<CapRun[]> = Promise.all(
   (seasons >= 5 ? [2, 3, 4] : []).map(
     (n) =>
       new Promise<CapRun>((resolve, reject) => {
         const seed = `${SEED}-${n}`;
         const child = fork(new URL('./offseason-league.ts', import.meta.url).pathname, [], {
-          env: { ...process.env, OFFSEASON_SEED: seed, OFFSEASON_SEASONS: String(seasons) },
+          env: {
+            ...process.env,
+            OFFSEASON_SEED: seed,
+            OFFSEASON_SEASONS: String(seasons),
+            OFFSEASON_DRIFT_SEASONS: String(DRIFT_SEASONS),
+          },
         });
         let done = false;
         child.once('message', (run) => {
@@ -382,9 +391,11 @@ for (let s = 0; s < seasons; s++) {
     .sort((a, b) => staffScore(teamCoaches(league, b.id)) - staffScore(teamCoaches(league, a.id)))
     .map((t) => t.id);
   const before = new Map(young.map((p) => [p.id, { ovr: playerOvr(p), team: p.teamId! }]));
+  // Whose good deals end, read before the new league year's retirements (a man who retires is a no deal, as the NFL's).
+  const ends = goodEnds(league);
   beginOffseason(league);
   // The re-sign window's start: whose good deals just ended, and the room clubs bring to it.
-  const faStart = windowStart(league);
+  const faStart = windowStart(league, ends);
   for (const [id, b] of before) {
     const p = league.players[id];
     if (p.retired) continue;
@@ -902,6 +913,25 @@ if (rows.length >= 5) {
   console.log(
     `  cap: median space %cap over ${others.length + 1} leagues ${tail.map((x) => x.toFixed(1)).join(' · ')} · ${check('spread over the last 3', Math.max(...tail) - Math.min(...tail), 0, 1, 1)} · ${check('free agents, last step', end.k.fas - rows[rows.length - 2].k.fas, -Infinity, 210, 0)}`,
   );
+  // The cap books (`docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`): over the three drift leagues'
+  // ten seasons, kickoff room holds and nothing drains. Room is every team's pooled (one league's median is one team's
+  // room); the rest is each league's median, averaged. Bands the owner's call (2026-11-18): warn outside the first,
+  // fail outside the second.
+  if (others.length && others.every((o) => o.flows.length >= DRIFT_SEASONS)) {
+    const pooledRoom = (i: number) => median(others.flatMap((o) => o.space[i]));
+    const across = (i: number, k: 'faSigned' | 'campRoster' | 'committed') => avg(others.map((o) => o.flows[i][k]));
+    const span = (from: number, to: number, k: 'faSigned' | 'campRoster' | 'committed') =>
+      avg(Array.from({ length: to - from + 1 }, (_, j) => across(from - 1 + j, k)));
+    const rooms = Array.from({ length: DRIFT_SEASONS - 3 }, (_, j) => j + 4).map((n) =>
+      check(`s${n}`, pooledRoom(n - 1), 1.5, 4, 1, [1, 5]),
+    );
+    console.log(
+      `  cap books, ${others.length} leagues × ${DRIFT_SEASONS} seasons: kickoff room % ${rooms.join(' · ')}`,
+    );
+    console.log(
+      `    ${check('FA signings a club, seasons 8–10 ÷ 2–4', span(8, 10, 'faSigned') / span(2, 4, 'faSigned'), 0.8, 1.2, 2, [0.65, 1.35])} · ${check('roster entering camp, 8–10 ÷ 2–4', span(8, 10, 'campRoster') / span(2, 4, 'campRoster'), 0.8, 1.2, 2, [0.65, 1.35])} · ${check('next year used at kickoff, 8–10 − 2–4 (points)', span(8, 10, 'committed') - span(2, 4, 'committed'), -5, 5, 1, [-10, 10])}`,
+    );
+  }
   // The neutrality ledger must not walk: growth 0.999 → 1.008 (+0.009), body 0.999 → 0.987, craft 0.999 → 0.996.
   // Role values wander within a point (biggest: S&C +0.7); staff value falls 10.30 → 10.00 (all seeds -0.05 to -0.30,
   // worth watching) against a band of 0.6.

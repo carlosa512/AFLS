@@ -50,6 +50,15 @@ describe('the market reads a public trade request (G4b)', () => {
     }
   });
 
+  it('a high pick in his rookie season stays off the block even when his club shops his public request', () => {
+    const l = league();
+    const team = l.teams.find((t) => t.id !== l.userTeamId)!;
+    const p = tradeable(l, team.id)[0];
+    p.draft = { season: l.season, round: 1, pick: 8, teamId: team.id };
+    asks(l, p, 'shop', true);
+    expect(tradeBlock(tradeContext(l), team).some((e) => e.playerId === p.id)).toBe(false);
+  });
+
   it("his club holds out for 15% less once it's public, from AI clubs and from you; a private request moves nothing", () => {
     const l = league();
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;

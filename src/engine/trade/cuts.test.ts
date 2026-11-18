@@ -9,7 +9,8 @@ import { activeRoster, setTeam } from '../roster';
 import type { League } from '../types';
 import { judge, tradeContext } from '.';
 import { dumpFor, pickSwapFor } from './deals';
-import { initiate } from './market';
+import { emptyMarket, executeTrade } from './execute';
+import { initiate, pickSwapCall } from './market';
 import { tradeBlock } from './plans';
 import type { TradeProposal } from './rules';
 import { nextDraftSeason, salaryWeight } from './value';
@@ -87,6 +88,30 @@ describe('future-for-current pick swaps', () => {
     // In season nobody swaps like this.
     l.phase = 'regular';
     expect(pickSwapFor(tradeContext(l), l.teams[1], l.teams)).toBeNull();
+  });
+
+  it('is its own call before the draft, and one a spring', () => {
+    const l = fresh();
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    l.market = emptyMarket();
+    for (const t of l.teams) t.gm.futureDiscount = t.id === 1 ? 0.38 : 0.18;
+    const open = () => true;
+    // Only in the league year and free agency: in season and at camp the call has no swap to make.
+    expect(pickSwapCall(tradeContext(l), l.market, l.teams[1], 'camp', open)).toBeNull();
+    const deal = pickSwapCall(tradeContext(l), l.market, l.teams[1], 'faDay', open);
+    expect(deal?.kind).toBe('futureSwap');
+    executeTrade(l, deal!.proposal, { kind: deal!.kind, tag: deal!.tag });
+    // Made one this spring: called on the next day of free agency, he keeps his other future picks for draft day,
+    // though another swap is there to make.
+    expect(
+      pickSwapFor(
+        tradeContext(l),
+        l.teams[1],
+        l.teams.filter((t) => t.id !== l.userTeamId),
+      ),
+    ).not.toBeNull();
+    expect(pickSwapCall(tradeContext(l), l.market, l.teams[1], 'faDay', open)).toBeNull();
   });
 });
 
