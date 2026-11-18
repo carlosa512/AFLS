@@ -71,6 +71,13 @@ describe('a GM’s cap books', () => {
     books.years.forEach((y) => expect(y.keepers[p.id]).toBeCloseTo((price * y.cap) / capFor(l, l.season), 0));
   });
 
+  it('leaves a deal that has already ended to the re-sign window: a decision, not a need', () => {
+    const l = fresh();
+    const team = l.teams[AI];
+    const p = keeperEnding(l, team, l.season - 1);
+    for (const y of capBooks(l, team).years) expect(y.keepers[p.id]).toBeUndefined();
+  });
+
   it('leaves a deal that ends later to later: his spot counts at the minimum, not his price', () => {
     const l = fresh();
     const team = l.teams[AI];

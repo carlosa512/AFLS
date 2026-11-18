@@ -102,7 +102,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1745,
       948,
     ],
-    "tagged": [],
+    "tagged": [
+      274,
+    ],
   },
   "CLE": {
     "kept": [
@@ -143,7 +145,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       639,
       670,
     ],
-    "tagged": [],
+    "tagged": [
+      668,
+    ],
   },
   "DET": {
     "kept": [
@@ -158,7 +162,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1129,
       1148,
     ],
-    "tagged": [],
+    "tagged": [
+      1144,
+    ],
   },
   "GB": {
     "kept": [
@@ -211,7 +217,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "KC": {
     "kept": [
-      710,
+      723,
       706,
       719,
       692,
@@ -240,6 +246,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1589,
       1574,
       1590,
+      1565,
       1554,
       1566,
       1549,
@@ -282,7 +289,6 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       869,
       1228,
-      1245,
       1271,
       1236,
       1242,
@@ -316,7 +322,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1430,
       989,
     ],
-    "tagged": [],
+    "tagged": [
+      927,
+    ],
   },
   "NYE": {
     "kept": [
@@ -380,7 +388,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1657,
       1655,
     ],
-    "tagged": [],
+    "tagged": [
+      1652,
+    ],
   },
   "SF": {
     "kept": [
@@ -424,6 +434,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1502,
       1044,
+      1027,
       328,
       1009,
       1053,

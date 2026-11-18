@@ -263,11 +263,10 @@ describe('the bill comes later, within next year’s books', () => {
 
 describe('GMs plan next year first', () => {
   /** An AI club's players whose deals end after this league year and that it plans to keep. */
-  // Next year's keepers: the players a club plans to keep whose deals end by this league year, those it is re-signing in
-  // this window among them (their new deals land on next year too, `capBooks`).
+  // Next spring's keepers: the players a club plans to keep whose deals end after this league year (`capBooks`).
   const nextKeepers = (l: League, teamId: number) =>
     teamPlayers(l, teamId).filter(
-      (x) => x.contract && lastSeason(x.contract) <= l.season && inPlans(l, l.teams[teamId], x),
+      (x) => x.contract && lastSeason(x.contract) === l.season && inPlans(l, l.teams[teamId], x),
     );
 
   /** His deal runs on, at its last year's terms, through next league year. */
@@ -448,15 +447,19 @@ describe('a GM makes the room he plans, or none', () => {
 
 describe('contenders borrow, rebuilders keep next year’s room', () => {
   /** `squeezed` with next year's room to borrow against, the GM all-in (1) or rebuilding (0). */
+  // Next year's room sized to the books (`capBooks`) so a rebuilding GM's ceiling binds at 1% of the cap and a contender's
+  // sits above his need: the ceiling is what differs. A fixed amount stopped binding once the books read next year anew.
   const club = (wn: number, world = window) => {
     const x = squeezed(-0.6, 1, world);
-    x.team.gm.winNow = wn;
+    x.team.gm.winNow = 0;
+    const next = capBooks(x.l, x.team).years[0];
     x.team.deadMoney.push({
-      season: x.l.season + 1,
-      amount: -Math.round(0.2 * capFor(x.l, x.l.season + 1)),
+      season: next.season,
+      amount: Math.round(next.room - 0.01 * next.cap),
       playerId: -1,
       note: 'test',
     });
+    x.team.gm.winNow = wn;
     return x;
   };
 

@@ -78,12 +78,14 @@ export function capBooks(league: League, team: Team): CapBooks {
   const market = leagueMarket(league);
   const now = capFor(league, s);
   const roster = teamPlayers(league, team.id).filter((p) => p.contract && !p.squad && !p.waiver);
-  // Who the club is about to re-sign: the players it plans to keep whose deals end this league year. A deal that ends
-  // later is a decision for later, and its spot counts at the minimum, as cap analysts project a year out (Over the
-  // Cap's effective cap space). Counting every starter at market by the third year put every club past its books. A
+  // Next spring's keepers: the players it plans to keep whose deals end after this league year. A deal that ends later
+  // is a decision for later, and its spot counts at the minimum, as cap analysts project a year out (Over the Cap's
+  // effective cap space): counting every starter at market by the third year put every club past its books. A deal that
+  // has already ended (the re-sign window's own) is a decision being made now, and enters the books as committed once
+  // he signs: counted as a need too, it read next year full at every club, and every keeper got a one-year deal. A
   // tagged player is owed his price next year whatever the plan reads: the tag says the club means to keep him.
   const kept = roster.filter(
-    (p) => lastSeason(p.contract!) <= s && (p.contract!.kind === 'tag' || inPlans(league, team, p, depth, wn)),
+    (p) => lastSeason(p.contract!) === s && (p.contract!.kind === 'tag' || inPlans(league, team, p, depth, wn)),
   );
   const years: BookYear[] = [];
   for (let k = 1; k <= BOOKS.horizon; k++) {
