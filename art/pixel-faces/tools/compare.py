@@ -19,6 +19,18 @@ TESTS = [
          'The helmet is one blue with a highlight, so code can recolor it per club.',
          'Cost: 12 credits (Nano Banana 2.1).',
      ]),
+    ('b. Jersey and shoulder pads by edit', 'Edit face-0: an orange football jersey over shoulder pads, no helmet, change nothing else.',
+     'mixels/face-0.png', 'spritecook/b-jersey-pads-face-0.png', [
+         'Pass: the head is untouched. 1 of 625 head cells changed above the pads.',
+         'By design the body changed: the pads rise to the jaw and hide most of the neck.',
+         'Pass: true 64x64 pixel art, no half-transparent pixels. The colors are noisy again (591 near-duplicates of 26).',
+         'The jersey is the tee\'s orange, so the same recolor works.',
+         'Cost: 12 credits (Nano Banana 2.1).',
+     ]),
+    ('a + b together, in code', 'Test a\'s helmet (the cells test a changed) laid over test b. No credits: both edits kept the frame, so they stack.',
+     'spritecook/b-jersey-pads-face-0.png', 'spritecook/ab-composite-face-0.png', [
+         'The in-game look from two separate edits: each part can come from its own generation and be layered.',
+     ]),
 ]
 VERDICTS = {}
 

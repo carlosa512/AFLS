@@ -44,6 +44,16 @@
       "source": "487d2cd2-ceb7-415c-83ee-527fc4c291a0",
       "model": "gemini-nano-banana-2.1",
       "credits": 12
+    },
+    {
+      "asset_id": "b2e462b1-204f-4b8f-8ebd-bc2668e4390a",
+      "sha12": "7c242a6e64b6",
+      "label": "test b: face-0 edited to wear an orange football jersey over shoulder pads",
+      "file": "spritecook/b-jersey-pads-face-0.png",
+      "kind": "edit",
+      "source": "487d2cd2-ceb7-415c-83ee-527fc4c291a0",
+      "model": "gemini-nano-banana-2.1",
+      "credits": 12
     }
   ]
 }
