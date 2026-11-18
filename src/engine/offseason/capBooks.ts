@@ -167,3 +167,35 @@ export function dealAdds(league: League, player: Player, teamId: number, offer: 
   }
   return adds;
 }
+
+/**
+ * The offer as a GM can carry it on his books, shaped before he walks away from it: the void years go first (their
+ * bonus money lands on years the deal doesn't even cover), then the bonus share, then years, down to one. Null when
+ * even one year with no bonus doesn't fit (it lands nothing on later years, so that is rare: a club re-signing a man
+ * whose old bonus still runs). `soft` reads the GM's full ceiling (`softRoom`): a core player he means to keep.
+ */
+export function shapeToBooks(
+  league: League,
+  team: Team,
+  player: Player,
+  offer: Offer,
+  books: CapBooks,
+  soft = false,
+): Offer | null {
+  const ok = (o: Offer) => fits(books, dealAdds(league, player, team.id, o, books), soft);
+  let o = { ...offer };
+  if (ok(o)) return o;
+  if (o.voidYears) {
+    o = { ...o, voidYears: 0 };
+    if (ok(o)) return o;
+  }
+  if (o.bonusPct > 0) {
+    o = { ...o, bonusPct: 0 };
+    if (ok(o)) return o;
+  }
+  while (o.years > 1) {
+    o = { ...o, years: o.years - 1 };
+    if (ok(o)) return o;
+  }
+  return null;
+}

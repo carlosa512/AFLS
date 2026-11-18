@@ -60,7 +60,6 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1354,
       1363,
       1350,
-      1360,
       1353,
       1373,
       1375,
@@ -450,7 +449,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1502,
       1044,
-      328,
+      1027,
       1009,
       1053,
     ],

@@ -23,6 +23,7 @@ import {
   upgradeBar,
   winNow,
 } from './ai';
+import { capBooks, commit, dealAdds, shapeToBooks } from './capBooks';
 import { offerCharge, type Offer } from './negotiation';
 
 export type Stance = 'spend' | 'balance' | 'bank';
@@ -131,6 +132,8 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
   const targets = targetsFor(league, team, depth, wn);
   const room = spendable(league, team.id);
   const gamble = gambles(league, team);
+  // The books the plan spends as it keeps each man (`capBooks`): a keeper's deal must fit the years it reaches.
+  const books = capBooks(league, team);
   const keepers: PlannedKeeper[] = [];
   // Best first by where the club reads them headed; each judged against the room as the plan leaves it, the worth
   // keepers before him in it (two expiring receivers don't both fill the same hole).
@@ -142,20 +145,26 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
     const c = resignCall(league, team.id, p, working, wn);
     if (c.call === 'walk') continue;
     const gain = needGain(working, p, c.ahead + quirkWorth(league, team.id, p));
-    const offer = aiOffer(league, team, p, rng, gain);
+    const asked = aiOffer(league, team, p, rng, gain);
     // A loyal GM pays his own a little more, a hard one a little less.
-    offer.apy = Math.round(offer.apy * (0.96 + team.gm.loyalty * 0.08));
+    asked.apy = Math.round(asked.apy * (0.96 + team.gm.loyalty * 0.08));
     // A keeper short of a starter is weighed against the coming market (the spec's depth keeper). A starter is too only
     // when the GM gambles this year: another club's man may never reach the market, so it's a bad call he can make.
-    const worth =
-      priceFits(offer.apy, fairPrice(league, p, c.ahead)) &&
+    const wanted =
+      priceFits(asked.apy, fairPrice(league, p, c.ahead)) &&
       worthIt(
-        { gain, apy: offer.apy, position: p.position },
-        upgradeBar(league, team, offer.apy),
+        { gain, apy: asked.apy, position: p.position },
+        upgradeBar(league, team, asked.apy),
         c.reason === 'starter' && !gamble ? [] : targets,
         room,
       );
+    // Shaped to the books before anyone signs: a man the club wants may stretch to the GM's full ceiling in the later
+    // years (`softRoom`); one it can't carry even for a year isn't worth keeping.
+    const carried = shapeToBooks(league, team, p, asked, books, wanted);
+    const worth = wanted && !!carried;
+    const offer = carried ?? asked;
     if (worth) {
+      commit(books, dealAdds(league, p, team.id, offer, books));
       working[p.position].push(c.ahead);
       working[p.position].sort((a, b) => b - a);
     }

@@ -71,7 +71,7 @@ import {
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { personnelMoveLock } from '../personnel/elevations';
 import { capPlan, fairPrice, type PlannedKeeper } from './capPlan';
-import { capBooks, commit, type CapBooks } from './capBooks';
+import { capBooks, commit, dealAdds, fits, shapeToBooks, type CapBooks } from './capBooks';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -287,14 +287,6 @@ export function fitOffer(offer: Offer, budget: number, min: number, age = Infini
   const years = age <= 28 ? YOUNG_PROVE_IT_YEARS : 1;
   return { years, apy: Math.floor(Math.min(offer.apy, budget)), bonusPct: 0, gtdPct: offer.gtdPct, voidYears: 0 };
 }
-
-/**
- * Whether a multi-year deal leaves next year's room: next year's books, what its plan needs then (keepers whose deals
- * end this year at market, the draft class: `nextYearNeeds`) and this deal's APY, within what this GM lets next year
- * carry (`nextYearCeiling` of the cap). A club that spent next spring's keeper money on a free agent lost the keeper.
- */
-export const fitsNextYear = (committedNext: number, needs: number, apy: number, ceiling: number): boolean =>
-  committedNext + needs + apy <= ceiling;
 
 /**
  * How many of a club's keepers want to see what the market pays, however loyal the club: this × (1 − loyalty). The NFL
@@ -895,9 +887,11 @@ export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
   if (offer.years <= yearsLeft(p.contract, league.season)) return false;
   offer.apy = walkAwayApy(league, p, team.id, offer);
   if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
-  if (capSheet(league, team.id, league.season + 1).used + offer.apy > capFor(league, league.season + 1) * 0.92)
-    return false;
-  signPlayer(league, p, team.id, offer);
+  // Every year the new deal reaches must fit the books, as the GM keeps them (`capBooks`): an extension is a want, so it
+  // gets the hard limit, and one shaped back to the years he already has extends nothing.
+  const shaped = shapeToBooks(league, team, p, offer, capBooks(league, team));
+  if (!shaped || shaped.years <= yearsLeft(p.contract, league.season)) return false;
+  signPlayer(league, p, team.id, shaped);
   return true;
 }
 
@@ -927,8 +921,11 @@ export function aiSettle(league: League, team: Team, p: Player): boolean {
   if (!isExpired(p.contract, league.season) && extensionBlocker(league, p)) return false;
   if (resignCall(league, team.id, p).call === 'walk') return false;
   const d = demand(league, p, team.id);
-  const offer = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
-  offer.apy = walkAwayApy(league, p, team.id, offer, d);
+  const asked = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
+  asked.apy = walkAwayApy(league, p, team.id, asked, d);
+  // A man it would keep: the deal may stretch to the GM's full ceiling in the later years (`softRoom`), no further.
+  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team), true);
+  if (!offer || offerValue(league, p, team.id, offer, d) < d.walkAway) return false;
   // A man it would keep, so it makes room as it does for a keeper in the re-sign window: restructures, then a cut.
   const short = offerCharge(league, p, team.id, offer) - spendable(league, team.id);
   if (short > 0 && makeRoom(league, team, short, p, offer.years > 1 ? offer.apy : 0) < short) return false;
@@ -951,7 +948,9 @@ export function aiExtendArrival(league: League, team: Team, p: Player): boolean 
   if (ovr < (others[STARTERS[p.position] - 1] ?? 0) - 0.5) return false;
   if (!willExtend(league, p, team.id)) return false;
   const rng = new Rng(`${league.seed}:extend-offer:${league.season}:${p.id}:${team.id}`);
-  const offer = aiOffer(league, team, p, rng, needGain({ ...depth, [p.position]: others }, p, ovr));
+  const asked = aiOffer(league, team, p, rng, needGain({ ...depth, [p.position]: others }, p, ovr));
+  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team));
+  if (!offer) return false;
   const d = demand(league, p, team.id);
   if (offerValue(league, p, team.id, offer, d) < d.walkAway || offerProblem(league, p, team.id, offer)) return false;
   signPlayer(league, p, team.id, offer);
@@ -1160,9 +1159,7 @@ export function aiFreeAgencyDay(
   const room = new Map(
     teams.map((t) => [t.id, (opts.rosterMax ?? rosterLimit(league)) - activeRoster(league, t.id).length]),
   );
-  // Cap planning (`capPlan.ts`): big deals must also leave next year's keepers their room, and a banking club buys young.
-  const nextCap = capFor(league, league.season + 1);
-  const committedNext = new Map(teams.map((t) => [t.id, capSheet(league, t.id, league.season + 1).used]));
+  // Cap planning (`capPlan.ts`): every deal fits the club's books (`booksOk`), and a banking club buys young.
   // Each club's plan, built the first time a decision reads it (a big deal's next-year check, a banking club's bid):
   // most clubs never need one in a pass, and building all 32 every pass was most of a late pass's time. In free agency a
   // plan has no keepers, so it draws nothing: when it's built doesn't move the stream.
@@ -1181,18 +1178,12 @@ export function aiFreeAgencyDay(
     if (!f) funds.set(key, (f = fundedRoom(league, team, position, share)));
     return f;
   };
-  // A big multi-year deal leaves next year's keepers their room (`fitsNextYear`), a fitted one as much as a market one.
-  const nextYearOk = (team: Team, o: Offer) =>
-    !(
-      o.years > 1 &&
-      o.apy > 0.03 * league.caps[league.season] &&
-      !fitsNextYear(
-        committedNext.get(team.id)!,
-        planOf(team).nextYear,
-        o.apy,
-        nextYearCeiling(team.gm, winNow(league, team)) * nextCap,
-      )
-    );
+  // Every year a deal reaches must fit the club's books (`capBooks`), net of the open spot he fills: a free agent gets
+  // the hard limit. It replaced a next-year check that let the years after fill up unchecked.
+  const booksOk = (team: Team, p: Player, o: Offer) => {
+    const books = roomOf(team).books;
+    return fits(books, dealAdds(league, p, team.id, o, books));
+  };
   const signedToday = new Map<number, number>();
   // Each club's room to spend, read once a pass and again when it signs: a club's cap is read off every player in the
   // league, and reading it for each bid was most of a free-agency day (70% of a careers league).
@@ -1280,6 +1271,10 @@ export function aiFreeAgencyDay(
         continue;
       }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
+      // The deal as the club can carry it on its books: void years, then bonus, then years go first.
+      const shaped = shapeToBooks(league, team, p, offer, roomOf(team).books);
+      if (!shaped) continue;
+      offer = shaped;
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
         planOf(team).stance === 'bank' &&
@@ -1317,7 +1312,7 @@ export function aiFreeAgencyDay(
         // A young man's fitted deal is a prove-it deal at the room a club has (no bonus, two years): it skips next
         // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
         const young = p.age <= 28;
-        if (fitted && !young && !nextYearOk(team, fitted)) continue;
+        if (fitted && !young && !booksOk(team, p, fitted)) continue;
         if (!fitted && opts.lastCall && lift >= clear) {
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
@@ -1336,7 +1331,7 @@ export function aiFreeAgencyDay(
         }
         offer = fitted;
       }
-      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !nextYearOk(team, offer))
+      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !booksOk(team, p, offer))
         continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
     }
@@ -1387,8 +1382,6 @@ export function aiFreeAgencyDay(
     if (!best.cut) room.set(best.team.id, room.get(best.team.id)! - 1);
     // Its room and roster moved: its funded reads are read again when next needed.
     for (const key of [...funds.keys()]) if (key.startsWith(`${best.team.id}:`)) funds.delete(key);
-    // Next year's books as they stand now: his deal and any restructure made for it.
-    committedNext.set(best.team.id, capSheet(league, best.team.id, league.season + 1).used);
     rich.set(best.team.id, richness(league, best.team));
     rooms.delete(best.team.id);
     signedToday.set(best.team.id, (signedToday.get(best.team.id) ?? 0) + 1);

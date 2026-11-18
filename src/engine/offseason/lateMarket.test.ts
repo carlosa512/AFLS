@@ -11,7 +11,6 @@ import {
   CLEARING_DAY,
   clearingFloor,
   fitOffer,
-  fitsNextYear,
   fundedRoom,
   CAMP_CUSHION,
   inSeasonReserve,
@@ -184,12 +183,6 @@ describe('spending discipline', () => {
       voidYears: 0,
     });
     expect(fitOffer(offer, 5_200.7, 1_100, 31)!.years).toBe(1);
-  });
-
-  it('a multi-year bid that eats next year’s keepers’ room is refused', () => {
-    // Next year's books, its keepers and the draft, and the new deal, within what this GM lets next year carry.
-    expect(fitsNextYear(250_000, 30_000, 20_000, 310_000)).toBe(true);
-    expect(fitsNextYear(250_000, 50_000, 20_000, 310_000)).toBe(false);
   });
 
   it('a bank club passes on a 30-year-old marginal upgrade but signs a 25-year-old', () => {
