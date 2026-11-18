@@ -7,3 +7,4 @@ dist-single/
 .DS_Store
 work/
 .superpowers/
+__pycache__/
