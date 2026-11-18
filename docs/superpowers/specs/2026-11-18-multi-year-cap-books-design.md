@@ -161,3 +161,38 @@ bring the owner the table of rounds.
   pushing a later year below zero room; a season-long test that camp compliance cuts stay rare.
 - Updating `docs/MVP.md` (kickoff room, tags forgetting next year, restructures), `CLAUDE.md`'s `offseason/` line, and
   `docs/GAME_DESIGN.md`'s cap section.
+
+## What shipped (rulings made while building, 2026-11-18)
+
+The design above, with these changes, each found by a probe and recorded in the build ledger:
+
+- **Keepers are next spring's only, best first.** The books count players whose deals end this league year (not every
+  deal ending inside the horizon: by the third year that put every club past its books), and only as many as the GM's
+  full ceiling holds, best first by the club's outlook, a tag before anyone. Counted all at market, the keepers alone
+  read next year past the limit at 20–24 of 31 clubs every season, and no club could sign a free agent for more than a
+  year. A deal that has already ended (the re-sign window's own) is a decision being made now, not a need.
+- **A deal is never shortened to fit** (the owner: a club signs the players who matter and makes the money work around
+  them). `shapeToBooks` gives up void years, then bonus, then makes no offer. Shortening always "fit" (a one-year deal
+  lands nothing on later years), only pushed the price onto next spring, and ran one-year deals to half the market.
+- **A better player is kept ahead of the keepers below him** (`aside`): their price, less the minimum their spot then
+  costs, is his to use; they face the books when their own deals end.
+- **The books' last year stands for each year after it** (the largest add on or past it, not their sum: summed, a
+  five-year deal read as twice its price).
+- **A free agent the market passed by keeps his years at a lower price** (`priceToBooks`, from the clearing day): never
+  a one-year deal at his full price. In the market's first days a club whose books can't carry him stays out.
+- **Free agency credits the spot a signing fills** (`aiFreeAgencyDay`): the minimum the fill reserve held for it comes
+  back, as it already did for a re-sign. Uncredited, a club's room ran dry on its first good signings, its minimum
+  signings waited for camp, and free agency's signings a club fell from 11 to 4 by a league's fifth season.
+- **No early spending** (`SPEND_FIRST.days` 0, `fillShare` 0): with the credit, the cushion spent in the first days took
+  kickoff room under 1.5% of the cap, and nothing rebuilt it.
+- **The fading bar re-tuned to 2.0** (`FADING`, from 1.6): once clubs could afford cheap old veterans, good deals ending
+  with no deal fell under 10% (NFL 25%). 2.4 tipped two unrelated edge lines (feuds a team, new head coaches).
+- Tried and left out: a two-year cell for 32-and-older good deals (`DEAL_YEARS`; NFL 2–5% at 32+: mean 1.62 years, 48%
+  one-year, nflverse 2018–21) moved nothing on the line it aimed at.
+
+Result on `npm run offseason -- 6` (CI's seed, three drift leagues to season 10): kickoff room 2.0–2.5% in every season
+4–10, cap spread 0.4, next year's commitments +0.5 points, free agency's signings a club 0.93 and the roster entering
+camp 0.97 (seasons 8–10 against 2–4), deal lengths by pay all inside the NFL's, nothing outside its range. The
+free-agency market's size is still a known issue, now supply-bound: about 105 good deals end a year against the NFL's
+181, stars over 10% of the cap run 2.0 a club against the NFL's 1.2, and 8–10% of good outside signings were released
+against 20–27% (`docs/MVP.md`).

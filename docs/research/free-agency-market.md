@@ -120,3 +120,30 @@ Veteran deals (not a rookie's first deal) signed 2018–2021, by APY as a share 
 The NFL sets a deal's length by what the player is worth; AFLS set it by age, so its cheap and mid-priced players were
 locked up for three years or more and few of their deals ended in any spring. Of NFL players signing with a new team at
 0.8% of the cap or more, 20–27% a year left a deal with years still to run (released).
+
+## Where the market's size comes from (0.4.53, 2026-11-18)
+
+Probes on `offseason-audit-3` after the cap books (`docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`).
+Free agency's falling signings a club (11 in seasons 2–4 to 4 by season 8) was an accounting gap, now fixed: a signing
+didn't get back the minimum its open spot held, so a club's room ran dry on its first good signings and its minimum
+signings waited for camp. The size of the good market is a separate thing, and it is supply:
+
+- **Good deals ending:** about 95–125 a year against the NFL's 181. Of those, about a quarter are players 32 or so whose
+  market fell under 2% of the cap; they move on minimum one-year deals and don't count as good outside signings.
+- **Released:** 8–10% of good outside signings against the NFL's 20–27%.
+- **Pay by rank** (players a club, by APY as a share of the cap the year signed; the NFL's from nflverse's contract
+  file, the 2022 snapshot of active deals, the top 53 a club; ours at kickoff in season 3):
+
+| Pay | NFL players | NFL share of cap | AFLS players | AFLS share of cap |
+| --- | --- | --- | --- | --- |
+| 10%+ | 1.2 | 16% | 2.0 | 26% |
+| 5–10% | 4.7 | 34% | 3.7 | 25% |
+| 2–5% | 7.8 | 25% | 6.6 | 20% |
+| 0.8–2% | 13.0 | 17% | 8.4 | 11% |
+| under 0.8% | 26.4 | 14% | 33 | 14% |
+
+Over 10% of the cap by position, the NFL against AFLS: quarterbacks 11 and 16, receivers 7 and 17, defensive tackles 4
+and 11, edge rushers 4 and 11, corners 3 and 5. The 10th-best receiver is paid 9.6% of the cap in the NFL and 12.5% in
+AFLS, the 10th edge rusher 8.6% and 10.2%, the 10th defensive tackle 7.7% and 10.8%: the pay curve (`payTier`) is flatter
+at the top than the NFL's, so stars take a tenth more of the cap and fewer players are paid in the middle, where the
+NFL's free agents are.

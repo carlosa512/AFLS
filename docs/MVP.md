@@ -337,6 +337,16 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       ending with no deal 15% (NFL 25%, was 2–8%), judged on four leagues' seasons 2–6. Still short: good outside
       signings 59 a year (fewer good deals end each year than the NFL's, about 85–130 against 180: the pay structure),
       the one-year share 48% and clubs with 3+ at 8.
+      **Partial (0.4.53, the cap books, `docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`):** free
+      agency's signings a club no longer fall by half after a league's fourth season (seasons 8–10 against 2–4: 0.93,
+      was 0.42; `npm run offseason`'s drift lines judge it). A free-agency signing now gets back the minimum his open spot
+      held, as a re-sign does: uncredited, a club's room ran dry on its first good signings and its minimum signings waited
+      for camp. Clubs plan three years ahead and count next spring's keepers only as far as next year holds them, so
+      young good free agents get long deals again. Still short, and supply-bound: good outside signings about 57 a year,
+      one-year 50%, clubs with 3+ at 9. About 105 good deals end a year against the NFL's 181, stars over 10% of the cap
+      run 2.0 a club against the NFL's 1.2 (nflverse's 2022 contracts) with fewer deals at 0.8–5%, and 8–10% of good
+      outside signings were released (NFL 20–27%). The next step is the pay curve (`payTier`) by position against the
+      NFL's.
 - [ ] **Starters leave football more as a league ages.** (0.4.46: now measured by age in `npm run careers` against the NFL's;
       short-prime starters at 31–32 leave about twice as often, a third of it unsigned veterans: the front offices' work.) (0.4.13, front offices that plan: 4.9/9.0/10% at seasons 2–4 on `offseason-audit-3` before, 2.6/5.9/6.4% after; the market now places the good ones, what remains is mostly retirements and faded veterans.) About 3% of last season's starters are unsigned or retired
       at kickoff early on, 5–8% by season 6 in every world (NFL 2.1–4.0%, *nflverse* 2021–24). About half is
@@ -357,12 +367,12 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
 - [ ] **Tags spike when a big class of stars comes due at once** (0.4.13: with three in four keepers free to test the market, clubs tag more: 14, 19, 16 at seasons 2–4 on `offseason-audit-3`, against 11 and 12 before) (20 in one season, 11–13 in others, against the NFL's
       6–10). NFL clubs extend most stars a year early, so few reach the tag; ours only re-sign a player once his deal
       has run out.
-- [ ] **Room made for a tag or a one-year deal forgets next year.** The re-sign window counts a keeper's new deal against
-      next year before it borrows, but the tag path (and a one-year deal) counts nothing: a GM that just made no room
-      for a keeper's new deal can then restructure to tag him, though next spring he's owed his price again, as
-      `nextYearNeeds` counts him once tagged. Counting his market price there (`inPlans` keepers only) fixes it, but
-      it moved two checks when tried: `morale`'s underpaid final-year starters reading Poor (0.59 against 0.6–1 then; the floor is 0.5 since G4) and
-      `trades`' draft-day deals with a future pick (2.6 against 3–9). Measure both before it ships.
+- [x] **Room made for a tag or a one-year deal forgets next year.** **Done (0.4.53, the cap books):** every way an AI
+      club commits money reads its next three league years (`capBooks.ts`), a tag included: next spring's price must fit
+      next year's books before a club restructures to tag him. Kickoff room holds at 2.0–2.5% of the cap in every season
+      4–10 on three leagues (was 0.1–1.2% by season 6), and `trades` holds. Before: the re-sign window counted a
+      keeper's new deal against next year before it borrowed, but the tag path (and a one-year deal) counted nothing,
+      so a GM that had just made no room for a keeper's new deal could restructure to tag him.
 
 ## Follow-up: coaching trees run at the floor of their NFL bands
 
