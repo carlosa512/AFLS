@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capFor, capSheet, capSpace, releasePreview, restructureOptions } from '../finance/cap';
 import { capHit, isExpired, lastSeason } from '../finance/contract';
-import { marketApy, leagueMarket, topMinimum } from '../finance/market';
+import { marketApy, leagueMarket, minSalary, topMinimum } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
@@ -27,6 +27,7 @@ import {
 import { ageShift } from '../aging';
 import { beginOffseason } from './index';
 import { demand } from './negotiation';
+import { capBooks } from './capBooks';
 
 /** A league at its re-sign window, after one season. */
 /** Each world is built once a file: several tests read the same few (each takes a season of play to build). */
@@ -262,10 +263,18 @@ describe('the bill comes later, within next year’s books', () => {
 
 describe('GMs plan next year first', () => {
   /** An AI club's players whose deals end after this league year and that it plans to keep. */
+  // Next year's keepers: the players a club plans to keep whose deals end by this league year, those it is re-signing in
+  // this window among them (their new deals land on next year too, `capBooks`).
   const nextKeepers = (l: League, teamId: number) =>
     teamPlayers(l, teamId).filter(
-      (x) => x.contract && lastSeason(x.contract) === l.season && inPlans(l, l.teams[teamId], x),
+      (x) => x.contract && lastSeason(x.contract) <= l.season && inPlans(l, l.teams[teamId], x),
     );
+
+  /** His deal runs on, at its last year's terms, through next league year. */
+  const throughNextYear = (l: League, k: Player) => {
+    const last = k.contract!.years.at(-1)!;
+    for (let y = last.season + 1; y <= l.season + 1; y++) k.contract!.years.push({ ...last, season: y });
+  };
 
   it('counts next year’s planned keepers and next year’s draft class', () => {
     const l: League = JSON.parse(window);
@@ -273,7 +282,9 @@ describe('GMs plan next year first', () => {
     const market = leagueMarket(l);
     const keepers = nextKeepers(l, team.id);
     const base = nextYearNeeds(l, team);
-    expect(base).toBeGreaterThanOrEqual(keepers.reduce((a, x) => a + marketApy(market, x), 0) - 1);
+    // Each at his price on next year's cap: his next deal is signed next year (`capBooks`).
+    const grown = capFor(l, l.season + 1) / capFor(l, l.season);
+    expect(base).toBeGreaterThanOrEqual(keepers.reduce((a, x) => a + marketApy(market, x) * grown, 0) - 1);
     // Another club's pick for next year, now his: next year's class costs more.
     const pick = l.draftPicks.find((d) => d.season === l.season + 1 && d.ownerId !== team.id)!;
     pick.ownerId = team.id;
@@ -281,23 +292,22 @@ describe('GMs plan next year first', () => {
     expect(withPick).toBeGreaterThan(base);
     // A keeper whose deal runs a year past next year's window isn't a need yet.
     const k = keepers[0];
-    const last = k.contract!.years.find((y) => y.season === l.season)!;
-    k.contract!.years.push({ ...last, season: l.season + 1 });
-    expect(nextYearNeeds(l, team)).toBeCloseTo(withPick - marketApy(market, k), 0);
+    throughNextYear(l, k);
+    expect(nextYearNeeds(l, team)).toBeCloseTo(withPick - marketApy(market, k) * grown, 0);
   });
 
   it('counts the injury cushion once: in the ceiling, not in the needs', () => {
-    // No keeper's deal ends next year and no pick next year: nothing is owed (the ceiling's room under the cap is the
-    // cushion for in-season injuries).
+    // No keeper's deal ends next year and no pick next year: only the 53's open spots at the minimum are owed (the
+    // ceiling's room under the cap is the cushion for in-season injuries).
     const l: League = JSON.parse(window);
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     const other = l.teams.find((t) => t.id !== team.id)!;
     for (const d of l.draftPicks) if (d.season === l.season + 1 && d.ownerId === team.id) d.ownerId = other.id;
     for (const k of nextKeepers(l, team.id)) {
-      const last = k.contract!.years.find((y) => y.season === l.season)!;
-      k.contract!.years.push({ ...last, season: l.season + 1 });
+      throughNextYear(l, k);
     }
-    expect(nextYearNeeds(l, team)).toBe(0);
+    const next = capBooks(l, team).years[0];
+    expect(nextYearNeeds(l, team)).toBeCloseTo(next.spots * minSalary(1, capFor(l, l.season + 1)), 0);
   });
 
   /** `squeezed`, with next year's books plus next year's needs set right at the GM's ceiling. */

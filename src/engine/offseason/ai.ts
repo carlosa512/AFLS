@@ -44,7 +44,7 @@ import {
 import { playerOvr, ROSTER_TEMPLATE, STARTERS } from '../positions';
 import { recordRatings } from '../development';
 import { leanOutlook, teamOutlook } from '../outlook';
-import { generatePlayer, NEXT_YEAR_CEILING, rookieContract } from '../generate';
+import { generatePlayer, NEXT_YEAR_CEILING } from '../generate';
 import { favoriteJersey } from '../jerseys';
 import { clamp, Rng } from '../rng';
 import { activeRoster, addPlayer, syncDepthChart, teamPlayers } from '../roster';
@@ -71,6 +71,7 @@ import {
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { personnelMoveLock } from '../personnel/elevations';
 import { capPlan, fairPrice, type PlannedKeeper } from './capPlan';
+import { capBooks, commit, type CapBooks } from './capBooks';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -618,45 +619,54 @@ function makeRoom(league: League, team: Team, need: number, keeper: Player, next
 }
 
 /**
- * What next year will need before anything is borrowed against it: the players whose deals end after this league year
- * that the club plans to keep (`inPlans`), at their market price; and next year's draft class (the picks it owns for
- * next season, a pick's slot read from its round until the order is set). The cushion for in-season injuries is the
- * ceiling's own room under the cap (`NEXT_YEAR_CEILING`), so it isn't counted again. A GM who borrowed without these was
- * short again the next spring and borrowed more: room made for keepers ran 86, 98, 137 and 167 restructures in seasons
- * 1-4.
+ * What next year will need before anything is borrowed against it, as the books read it (`capBooks`): the keepers whose
+ * deals end this league year, at their market price; next year's draft class; and the 53's open spots at the minimum.
+ * The cushion for in-season injuries is the ceiling's own room under the cap (`NEXT_YEAR_CEILING`), so it isn't counted
+ * here. A GM who borrowed without these was short again the next spring and borrowed more: room made for keepers ran
+ * 86, 98, 137 and 167 restructures in seasons 1-4.
  */
-export function nextYearNeeds(league: League, team: Team, plans = planner(league, team)): number {
-  const season = league.season + 1;
-  const cap = capFor(league, season);
-  const market = leagueMarket(league);
-  const keepers = teamPlayers(league, team.id)
-    .filter((p) => p.contract && lastSeason(p.contract) === league.season && plans(p))
-    .reduce((sum, p) => sum + marketApy(market, p), 0);
-  const draft = league.draftPicks
-    .filter((d) => d.season === season && d.ownerId === team.id && d.playerId === undefined)
-    .reduce((sum, d) => sum + capHit(rookieContract(d.overall ?? (d.round - 1) * 32 + 16, season, cap), season), 0);
-  return keepers + draft;
+export function nextYearNeeds(league: League, team: Team): number {
+  const next = capBooks(league, team).years[0];
+  return next.needed - capFor(league, next.season) * IN_SEASON_RESERVE * (1.5 - team.gm.capAggression);
 }
 
-/** What a club could borrow against next year: its planned starters' deals and next year's room after its needs. */
-interface ClubRoom {
+/** What a club could borrow: its planned starters' deals, biggest saving first, and its books (`capBooks`). */
+export interface ClubRoom {
   deals: { p: Player; o: RestructurePreview }[];
-  nextRoom: number;
+  books: CapBooks;
 }
 
-function clubRoom(league: League, team: Team): ClubRoom {
+/** The deals of players a club plans to keep starting that a restructure would save it something on, biggest first. */
+export function clubDeals(league: League, team: Team): ClubRoom['deals'] {
   const plans = planner(league, team);
-  const deals = teamPlayers(league, team.id)
+  return teamPlayers(league, team.id)
     .filter((p) => p.contract && !isExpired(p.contract, league.season) && canRestructure(league, p))
     .filter(plans)
     .map((p) => ({ p, o: restructureOptions(league, p) }))
     .filter((x) => x.o.savings > 1_000)
     .sort((a, b) => b.o.savings - a.o.savings);
-  const nextRoom =
-    nextYearCeiling(team.gm, winNow(league, team)) * capFor(league, league.season + 1) -
-    capSheet(league, team.id, league.season + 1).used -
-    nextYearNeeds(league, team, plans);
-  return { deals, nextRoom };
+}
+
+function clubRoom(league: League, team: Team): ClubRoom {
+  return { deals: clubDeals(league, team), books: capBooks(league, team) };
+}
+
+/**
+ * The most of `o`'s deal a club can convert and still carry on its books: the converted money lands a share a year on
+ * each of the deal's later years (`addedPerYear`), and every year of the books it reaches keeps its room.
+ */
+function carryable(books: CapBooks, o: RestructurePreview, soft: boolean): number {
+  const later = Math.max(0, o.years - 1);
+  if (!later) return 0;
+  const per = new Array<number>(books.years.length).fill(0);
+  for (let j = 0; j < later; j++) per[Math.min(j, books.years.length - 1)]++;
+  let most = Infinity;
+  per.forEach((n, i) => {
+    if (!n) return;
+    const room = soft ? books.years[i].softRoom : books.years[i].room;
+    most = Math.min(most, room <= 0 ? 0 : Math.floor((room * o.years) / n));
+  });
+  return most;
 }
 
 /** A club's restructures, chosen before any is made: which deals, how much of each, and the room they make. */
@@ -686,7 +696,12 @@ export function restructurePlan(
   // whole room each week, which cost a careers run its time limit).
   if (!isOffseason(league.phase)) return { steps: [], saved: 0 };
   const room = opts.room ?? clubRoom(league, team);
-  let nextRoom = room.nextRoom - (opts.nextOwed ?? 0);
+  // A plan is read before anything is committed: it spends a copy of the books, never the club's (a pass reads the same
+  // books for every free agent it weighs).
+  const books: CapBooks = JSON.parse(JSON.stringify(room.books));
+  if (opts.nextOwed) commit(books, [opts.nextOwed]);
+  // Room made for a keeper the club means to re-sign may use the GM's full ceiling in the later years (`softRoom`).
+  const soft = !!opts.keeper;
   const deals = room.deals.filter((x) => x.p !== opts.keeper);
   const steps: RestructurePlan['steps'] = [];
   let saved = 0;
@@ -698,15 +713,15 @@ export function restructurePlan(
     // short got his room (2026-11-14).
     const amount = Math.min(
       Math.max(RESTRUCTURE_MIN, Math.ceil((need - saved) / (1 - 1 / o.years))),
-      Math.floor(nextRoom * o.years),
+      carryable(books, o, soft),
     );
-    // No room left on next year's books for even that.
-    if (amount < RESTRUCTURE_MIN) break;
+    // No room on the years this deal reaches for even that: a shorter deal may still fit.
+    if (amount < RESTRUCTURE_MIN) continue;
     const at = restructureOptions(league, p, amount);
-    if (at.savings <= 0) break;
+    if (at.savings <= 0) continue;
     steps.push({ p, amount });
     saved += at.savings;
-    nextRoom -= at.addedPerYear;
+    commit(books, new Array(Math.max(0, at.years - 1)).fill(at.addedPerYear));
   }
   return { steps, saved };
 }
@@ -1287,7 +1302,7 @@ export function aiFreeAgencyDay(
         const longest = Math.max(1, ...r.deals.map((x) => x.o.years));
         const bound = Math.min(
           r.deals.reduce((a, x) => a + x.o.savings, 0),
-          (r.nextRoom - nextOwed) * (longest - 1),
+          (r.books.years[0].room - nextOwed) * (longest - 1),
         );
         if (bound >= short) {
           const attempt = restructurePlan(league, team, short, { nextOwed, room: r });

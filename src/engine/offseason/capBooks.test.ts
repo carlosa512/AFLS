@@ -1,13 +1,13 @@
 /** A GM's cap books (`docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`): three years ahead. */
 import { describe, expect, it } from 'vitest';
-import { capFor, capSheet } from '../finance/cap';
+import { capFor, capSheet, restructureOptions } from '../finance/cap';
 import { lastSeason } from '../finance/contract';
 import { leagueMarket, marketApy } from '../finance/market';
 import { createLeague } from '../generate';
 import { teamPlayers } from '../roster';
 import type { League, Player, Team } from '../types';
-import { inPlans } from './ai';
-import { BOOKS, capBooks, fits, minRoom } from './capBooks';
+import { clubDeals, inPlans, restructurePlan } from './ai';
+import { BOOKS, capBooks, commit, fits, minRoom } from './capBooks';
 
 const base = JSON.stringify(createLeague({ seed: 'cap-books' }));
 const fresh = (): League => JSON.parse(base);
@@ -122,5 +122,56 @@ describe('a GM’s cap books', () => {
     expect(minRoom(books)).toBeLessThan(0);
     expect(fits(books, [1])).toBe(false);
     expect(fits(books, [])).toBe(true);
+  });
+});
+
+describe('restructures read the books', () => {
+  /** A club in its re-sign window with room next year and `later` of each later year's cap free. */
+  function squeezedLater(later: number) {
+    const l = fresh();
+    l.phase = 'resign';
+    const team = l.teams[AI];
+    const set = (k: number, share: number) => {
+      const y = capBooks(l, team).years[k - 1];
+      team.deadMoney.push({ season: y.season, amount: Math.round(y.room - share * y.cap), playerId: -1, note: 'test' });
+    };
+    set(1, 0.15);
+    set(2, later);
+    set(3, later);
+    return { l, team };
+  }
+
+  /** The books after a plan's steps, each spreading its added charge over its deal's later years. */
+  function afterPlan(l: League, team: Team, plan: ReturnType<typeof restructurePlan>) {
+    const books = capBooks(l, team);
+    for (const { p, amount } of plan.steps) {
+      const o = restructureOptions(l, p, amount);
+      commit(books, new Array(Math.max(0, o.years - 1)).fill(o.addedPerYear));
+    }
+    return books;
+  }
+
+  it('never leaves a year of the books short', () => {
+    const { l, team } = squeezedLater(0.01);
+    const plan = restructurePlan(l, team, 1e9);
+    expect(plan.steps.length).toBeGreaterThan(0);
+    for (const y of afterPlan(l, team, plan).years) expect(y.room).toBeGreaterThanOrEqual(-1);
+  });
+
+  it('restructures nothing for a club past its books in a later year', () => {
+    const l = fresh();
+    l.phase = 'resign';
+    const team = l.teams[AI];
+    const y2 = l.season + 2;
+    team.deadMoney.push({ season: y2, amount: Math.round(1.2 * capFor(l, y2)), playerId: -1, note: 'test' });
+    expect(restructurePlan(l, team, 1e9).steps).toEqual([]);
+  });
+
+  it('reads a plan without spending the books it read', () => {
+    const { l, team } = squeezedLater(0.05);
+    const books = capBooks(l, team);
+    const before = JSON.stringify(books);
+    restructurePlan(l, team, 1e9, { room: { deals: clubDeals(l, team), books } });
+    expect(JSON.stringify(books)).toBe(before);
   });
 });

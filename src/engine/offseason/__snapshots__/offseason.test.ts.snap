@@ -4,22 +4,21 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
 {
   "ARI": {
     "kept": [
-      1536,
       1485,
       1520,
-      1512,
       1527,
       1537,
-      1516,
       1526,
-      1486,
-      1496,
+      1509,
       1501,
+      1718,
       1531,
       1535,
       1764,
     ],
-    "tagged": [],
+    "tagged": [
+      1536,
+    ],
   },
   "ATL": {
     "kept": [
@@ -27,7 +26,6 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1290,
       1277,
       1294,
-      1275,
       1748,
       1305,
       1324,
@@ -54,6 +52,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1329,
       1377,
       1371,
+      1361,
       1342,
       1338,
       1378,
@@ -63,9 +62,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1350,
       1360,
       1353,
+      1373,
       1375,
       395,
-      1331,
     ],
     "tagged": [],
   },
@@ -173,6 +172,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1195,
       1218,
       1173,
+      1196,
       1709,
     ],
     "tagged": [],
@@ -220,7 +220,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "KC": {
     "kept": [
-      697,
+      710,
       706,
       719,
       692,
@@ -246,19 +246,16 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "LAS": {
     "kept": [
+      1589,
       1574,
       1590,
-      1553,
-      1565,
-      1573,
-      1560,
+      1554,
       1566,
+      1549,
       1766,
       1772,
     ],
-    "tagged": [
-      1589,
-    ],
+    "tagged": [],
   },
   "LV": {
     "kept": [
@@ -292,18 +289,15 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "MIN": {
     "kept": [
+      869,
       1228,
-      1267,
-      1256,
       1245,
-      1263,
       1271,
       1236,
       1242,
+      1241,
     ],
-    "tagged": [
-      869,
-    ],
+    "tagged": [],
   },
   "NE": {
     "kept": [
@@ -323,9 +317,13 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   },
   "NO": {
     "kept": [
-      1398,
+      1427,
+      1393,
       1402,
       1415,
+      1428,
+      1430,
+      989,
     ],
     "tagged": [
       927,
@@ -382,7 +380,6 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "PIT": {
     "kept": [
       424,
-      416,
       423,
       379,
       378,
@@ -400,7 +397,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1692,
       1664,
-      1688,
+      1660,
       1685,
       1669,
       1651,
@@ -417,10 +414,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1634,
       1610,
       1626,
+      1643,
       1601,
-      1639,
       1618,
-      1641,
     ],
     "tagged": [],
   },
@@ -432,8 +428,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1482,
       1454,
       1456,
-      1753,
-      1483,
+      1467,
     ],
     "tagged": [],
   },
@@ -455,11 +450,9 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1502,
       1044,
-      1027,
       328,
       1009,
       1053,
-      1019,
     ],
     "tagged": [
       1498,
