@@ -131,12 +131,34 @@ export function initiate(
       }
     }
   }
-  // Before the draft a GM who wants help now trades next year's pick for this year's.
-  if (moment === 'leagueYear' || moment === 'faDay') {
-    const swap = pickSwapFor(ctx, team, ai);
-    if (swap) return swap;
-  }
   return null;
+}
+
+/**
+ * Before the draft a GM who wants help now trades next year's pick for this year's, on the same call as his business
+ * about players and whatever came of it. As the call's fallback it was crowded out once clubs had the room to buy
+ * players in the spring (2.3 a league year against the NFL's 5–6, and picks for players past 80% of the market).
+ */
+export function pickSwapCall(
+  ctx: TradeContext,
+  market: TradeMarket,
+  team: Team,
+  moment: Moment,
+  open: (t: Team) => boolean,
+): Deal | null {
+  if (moment !== 'leagueYear' && moment !== 'faDay') return null;
+  const { league } = ctx;
+  // One a spring: called every day of free agency, a GM spent the future picks draft day trades with (5.9 a league
+  // year in the market and deals with a future pick on draft day under the NFL's 2.5).
+  if (
+    market.history.some((r) => r.kind === 'futureSwap' && r.season === league.season && r.sides[0].teamId === team.id)
+  )
+    return null;
+  return pickSwapFor(
+    ctx,
+    team,
+    league.teams.filter((t) => t.id !== league.userTeamId && t.id !== team.id && open(t)),
+  );
 }
 
 /**
@@ -194,12 +216,17 @@ export function marketMoment(league: League, moment: Moment): TradeRecord[] {
     const sure = Math.abs(stanceScore(ctx, team));
     const p = TRADE_VOLUME * pace * (0.4 + 0.9 * gmActivity(league, team)) * (0.6 + 0.8 * sure) * (0.5 + urgency);
     if (!rng.chance(Math.min(1, p))) continue;
-    const deal = initiate(ctx, market, team, moment, listings, open);
-    if (!deal) continue;
-    const record = close(ctx, deal, busy);
-    if (!record) continue;
-    made.push(record);
-    listings = listingsOf(ctx);
+    // The swap is looked for once the player deal has closed: that deal may have spent the pick it would offer.
+    for (const call of [
+      () => initiate(ctx, market, team, moment, listings, open),
+      () => pickSwapCall(ctx, market, team, moment, open),
+    ]) {
+      const deal = call();
+      const record = deal && close(ctx, deal, busy);
+      if (!record) continue;
+      made.push(record);
+      listings = listingsOf(ctx);
+    }
   }
   // A man who's asked out and been shopped, and the league knows: his club calls around (G4b).
   const sold = wantsOutCalls(ctx, listings, rng.shuffle([...ai]), open, busy);

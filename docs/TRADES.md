@@ -1359,7 +1359,11 @@ Built as planned:
 - **Rehab trades:** a deal in the offseason goes through when the doctor clears a player to rehab.
 - **Future-for-current pick swaps** (`pickSwapFor`): before the draft (league year and free agency), a
   win-now GM (future discount 0.3 or more) trades next year's pick for a patient GM's (0.22 or less)
-  this year's, a round later.
+  this year's, a round later. It is its own call (`pickSwapCall`), made whatever came of his business about players
+  that day, and one a spring: as that call's fallback it was crowded out once clubs had cap room in the spring (2.3 a
+  league year, picks for players past 80%), and called every day of free agency a GM spent the future picks draft day
+  trades with (5.9 a league year; deals with a future pick on draft day 2.4). One a spring: 4.2, and 1.7 more on draft
+  day (0.4.53).
 
 Where the build departed from the plan, and why:
 - **Physicals settle at once**, instead of pending until the next calendar step. The AI market's deals
