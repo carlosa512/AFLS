@@ -71,7 +71,7 @@ import {
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { personnelMoveLock } from '../personnel/elevations';
 import { capPlan, fairPrice, type PlannedKeeper } from './capPlan';
-import { capBooks, commit, dealAdds, fits, shapeToBooks, type CapBooks } from './capBooks';
+import { capBooks, commit, dealAdds, fits, priceToBooks, shapeToBooks, type CapBooks } from './capBooks';
 import { aiGm, draftedBy, gunShyAt, habitOn, logMove } from '../gmHabits';
 
 /** Fewest players an AI keeps at each position through cutdowns. */
@@ -1289,12 +1289,16 @@ export function aiFreeAgencyDay(
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       // The deal as the club can carry it on its books: void years, then bonus go first, and the keepers it reads below
       // him wait their turn. One its books can't carry even so is never cut short: in the market's first days that club
-      // stays out and a club with room signs him long; once the market has passed him by (`clearing`), it goes the way
-      // one it can't afford this year does, a prove-it deal at the room it has (`fitOffer`).
-      const shaped = shapeToBooks(league, team, p, offer, roomOf(team).books, false, ahead);
-      const uncarried = !shaped;
-      if (uncarried && !clearing) continue;
-      if (shaped) offer = shaped;
+      // stays out and a club with room signs him long; once the market has passed him by (`clearing`), his price falls
+      // to what its books carry and the length stays (`priceToBooks`), an offer he weighs against his walk-away.
+      let shaped = shapeToBooks(league, team, p, offer, roomOf(team).books, false, ahead);
+      const lowered = !shaped;
+      if (!shaped) {
+        if (!clearing) continue;
+        shaped = priceToBooks(league, team, p, offer, roomOf(team).books, minimum, false, ahead);
+        if (!shaped) continue;
+      }
+      offer = shaped;
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
         planOf(team).stance === 'bank' &&
@@ -1311,7 +1315,7 @@ export function aiFreeAgencyDay(
       // its needs and his own deal's: the NFL's March restructures are mostly room for free agency. A quick bound
       // first (what its deals could save, held to next year's room), then the plan itself; the room is made once he
       // has chosen the club.
-      if (short > 0 && !uncarried) {
+      if (short > 0) {
         const r = roomOf(team);
         const nextOwed = offer.years > 1 ? offer.apy : 0;
         const longest = Math.max(1, ...r.deals.map((x) => x.o.years));
@@ -1324,7 +1328,7 @@ export function aiFreeAgencyDay(
           if (attempt.saved >= short) plan = attempt;
         }
       }
-      if ((short > 0 || uncarried) && !plan) {
+      if (short > 0 && !plan) {
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
@@ -1351,12 +1355,15 @@ export function aiFreeAgencyDay(
         }
         offer = fitted;
       }
-      if (
-        !(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && (short > 0 || uncarried)) &&
-        !booksOk(team, p, offer, ahead)
-      )
+      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !booksOk(team, p, offer, ahead))
         continue;
-      bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
+      const value = offerValue(league, p, team.id, offer);
+      // A price fallen to the books' is an offer below his market: he weighs it as the clearing day does (`fallback`).
+      if (lowered && value < floorAt(team.id)) {
+        fallback.push({ team, offer, value });
+        continue;
+      }
+      bids.push({ team, offer, value, plan, bridging });
     }
     // He takes the best offer that beats what he'd walk away from; a club that borrows makes its room only now.
     let best = bids

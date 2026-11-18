@@ -24,7 +24,7 @@ import {
 } from './ai';
 import { beginOffseason } from './index';
 import { playerOvr } from '../positions';
-import { BOOKS, capBooks, commit, fits, minRoom, shapeToBooks } from './capBooks';
+import { BOOKS, capBooks, commit, dealAdds, fits, minRoom, priceToBooks, shapeToBooks } from './capBooks';
 import type { Offer } from './negotiation';
 
 const base = JSON.stringify(createLeague({ seed: 'cap-books' }));
@@ -277,6 +277,25 @@ describe('offers fit the books', () => {
     const x = withRooms([0.3, 0.0005, 0.0005]);
     // s+2's soft room is a fade above its hard room, too little for his price: no deal, rather than a shorter one.
     expect(shapeToBooks(x.l, x.team, outsider(x.l), { ...star(x.l), voidYears: 0 }, x.books, true)).toBeNull();
+  });
+
+  it('lets a passed-by free agent’s price fall to what the books carry, never his years', () => {
+    const x = withRooms([0.3, 0.0005, 0.0005]);
+    const p = outsider(x.l);
+    const offer = { ...star(x.l), voidYears: 0 };
+    expect(shapeToBooks(x.l, x.team, p, offer, x.books)).toBeNull();
+    const min = minSalary(p.experience, x.l.caps[x.l.season]);
+    const lower = priceToBooks(x.l, x.team, p, offer, x.books, min)!;
+    expect(lower.years).toBe(offer.years);
+    expect(lower.apy).toBeLessThan(offer.apy);
+    expect(lower.apy).toBeGreaterThanOrEqual(min);
+    expect(fits(x.books, dealAdds(x.l, p, x.team.id, lower, x.books))).toBe(true);
+    // A thousand dollars more and it wouldn't fit: the most the books carry.
+    expect(shapeToBooks(x.l, x.team, p, { ...lower, apy: lower.apy + 2 }, x.books)).toBeNull();
+    // A deal that fits is left as it is, and a floor that doesn't fit makes no offer.
+    const roomy = withRooms([0.3, 0.3, 0.3]);
+    expect(priceToBooks(roomy.l, roomy.team, outsider(roomy.l), offer, roomy.books, min)).toEqual(offer);
+    expect(priceToBooks(x.l, x.team, p, offer, x.books, offer.apy - 1)).toBeNull();
   });
 
   it('lets a keeper the club wants stretch to the GM’s full ceiling where a free agent can’t', () => {

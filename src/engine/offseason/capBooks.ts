@@ -242,3 +242,33 @@ export function shapeToBooks(
   }
   return null;
 }
+
+/**
+ * The most a club's books carry for `offer`'s years, for a man the market has passed by: his price falls until the deal
+ * fits (never below `floor`), and the length stays. A deal cut short at his full price only pushed it onto next spring.
+ * Null when even `floor` doesn't fit.
+ */
+export function priceToBooks(
+  league: League,
+  team: Team,
+  player: Player,
+  offer: Offer,
+  books: CapBooks,
+  floor: number,
+  soft = false,
+  above = -Infinity,
+): Offer | null {
+  const at = (apy: number) => shapeToBooks(league, team, player, { ...offer, apy }, books, soft, above);
+  const full = at(offer.apy);
+  if (full) return full;
+  if (floor >= offer.apy || !at(floor)) return null;
+  // Halve the gap between a price that fits and one that doesn't, to within a thousand dollars.
+  let lo = floor;
+  let hi = offer.apy;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (at(mid)) lo = mid;
+    else hi = mid;
+  }
+  return at(lo);
+}
