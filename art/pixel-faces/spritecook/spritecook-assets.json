@@ -1,0 +1,49 @@
+{
+  "assets": [
+    {
+      "asset_id": "487d2cd2-ceb7-415c-83ee-527fc4c291a0",
+      "sha12": "f0a030990ba8",
+      "label": "face-0: Mixels bald base, snapped to 64x64",
+      "file": "mixels/face-0.png",
+      "kind": "upload"
+    },
+    {
+      "asset_id": "8d9b42ab-8c2d-4b1c-b56f-90385bb0d7a5",
+      "sha12": "e606ee776229",
+      "label": "face-1: Mixels bald base, snapped to 64x64",
+      "file": "mixels/face-1.png",
+      "kind": "upload"
+    },
+    {
+      "asset_id": "27b07b30-ef01-4fe1-8f7c-fccd2d0de081",
+      "sha12": "18cc3336660c",
+      "label": "face-2: Mixels bald base, snapped to 64x64",
+      "file": "mixels/face-2.png",
+      "kind": "upload"
+    },
+    {
+      "asset_id": "21a3297d-14b2-4506-8bbc-0cc96b3d233d",
+      "sha12": "27a94816eb43",
+      "label": "face-3: Mixels bald base, snapped to 64x64",
+      "file": "mixels/face-3.png",
+      "kind": "upload"
+    },
+    {
+      "asset_id": "5e18cf1c-f25f-47fe-9401-96da8fd5b998",
+      "sha12": "72fb729a839d",
+      "label": "face-4: Mixels bald base, snapped to 64x64 and mirrored",
+      "file": "mixels/face-4.png",
+      "kind": "upload"
+    },
+    {
+      "asset_id": "da5291bd-f2ef-450b-87b3-4b951647984a",
+      "sha12": "cc10657f6435",
+      "label": "test a: face-0 edited to wear a plain blue helmet with a grey two-bar facemask",
+      "file": "spritecook/a-helmet-face-0.png",
+      "kind": "edit",
+      "source": "487d2cd2-ceb7-415c-83ee-527fc4c291a0",
+      "model": "gemini-nano-banana-2.1",
+      "credits": 12
+    }
+  ]
+}
