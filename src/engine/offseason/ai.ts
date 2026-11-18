@@ -887,7 +887,7 @@ export function tryTag(
  */
 export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
   if (p.teamId !== team.id || !p.contract || extensionBlocker(league, p)) return false;
-  const { call, reason } = resignCall(league, team.id, p);
+  const { call, reason, ahead } = resignCall(league, team.id, p);
   if (call === 'walk' || reason !== 'starter') return false;
   const offer = aiOffer(league, team, p, new Rng(`${league.seed}:extend-early:${league.season}:${p.id}`), 1);
   // An extension runs past the deal he has: the offer shortens with age, and a veteran offered no more years than he has
@@ -896,8 +896,8 @@ export function aiExtendEarly(league: League, team: Team, p: Player): boolean {
   offer.apy = walkAwayApy(league, p, team.id, offer);
   if (offerCharge(league, p, team.id, offer) > spendable(league, team.id)) return false;
   // Every year the new deal reaches must fit the books, as the GM keeps them (`capBooks`): an extension is a want, so it
-  // gets the hard limit, and one shaped back to the years he already has extends nothing.
-  const shaped = shapeToBooks(league, team, p, offer, capBooks(league, team));
+  // gets the hard limit, kept ahead of next spring's keepers below him.
+  const shaped = shapeToBooks(league, team, p, offer, capBooks(league, team), false, ahead);
   if (!shaped || shaped.years <= yearsLeft(p.contract, league.season)) return false;
   signPlayer(league, p, team.id, shaped);
   return true;
@@ -927,12 +927,14 @@ export function aiSettle(league: League, team: Team, p: Player): boolean {
   if (!MOOD_ACTS.on || p.teamId !== team.id || !p.contract) return false;
   // A deal the rules allow now (a rookie after three seasons), and one the club would make.
   if (!isExpired(p.contract, league.season) && extensionBlocker(league, p)) return false;
-  if (resignCall(league, team.id, p).call === 'walk') return false;
+  const call = resignCall(league, team.id, p);
+  if (call.call === 'walk') return false;
   const d = demand(league, p, team.id);
   const asked = aiOffer(league, team, p, new Rng(`${league.seed}:dispute:${league.season}:${p.id}`), 1);
   asked.apy = walkAwayApy(league, p, team.id, asked, d);
-  // A man it would keep: the deal may stretch to the GM's full ceiling in the later years (`softRoom`), no further.
-  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team), true);
+  // A man it would keep: the deal may stretch to the GM's full ceiling in the later years (`softRoom`), no further, and
+  // he's kept ahead of next spring's keepers below him.
+  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team), true, call.ahead);
   if (!offer || offerValue(league, p, team.id, offer, d) < d.walkAway) return false;
   // A man it would keep, so it makes room as it does for a keeper in the re-sign window: restructures, then a cut.
   const short = offerCharge(league, p, team.id, offer) - spendable(league, team.id);
@@ -957,7 +959,7 @@ export function aiExtendArrival(league: League, team: Team, p: Player): boolean 
   if (!willExtend(league, p, team.id)) return false;
   const rng = new Rng(`${league.seed}:extend-offer:${league.season}:${p.id}:${team.id}`);
   const asked = aiOffer(league, team, p, rng, needGain({ ...depth, [p.position]: others }, p, ovr));
-  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team));
+  const offer = shapeToBooks(league, team, p, asked, capBooks(league, team), false, ovr);
   if (!offer) return false;
   const d = demand(league, p, team.id);
   if (offerValue(league, p, team.id, offer, d) < d.walkAway || offerProblem(league, p, team.id, offer)) return false;
@@ -1187,11 +1189,17 @@ export function aiFreeAgencyDay(
     return f;
   };
   // Every year a deal reaches must fit the club's books (`capBooks`), net of the open spot he fills: a free agent gets
-  // the hard limit. It replaced a next-year check that let the years after fill up unchecked.
-  const booksOk = (team: Team, p: Player, o: Offer) => {
+  // the hard limit, kept ahead of next spring's keepers the club reads below him (`above`). It replaced a next-year
+  // check that let the years after fill up unchecked.
+  const booksOk = (team: Team, p: Player, o: Offer, above: number) => {
     const books = roomOf(team).books;
-    return fits(books, dealAdds(league, p, team.id, o, books));
+    return fits(books, dealAdds(league, p, team.id, o, books), false, above);
   };
+  // From the clearing day on (and in the late passes), the market has passed a man by: a prove-it deal is his market.
+  const clearing =
+    league.phase === 'freeAgency'
+      ? league.faDay >= CLEARING_DAY
+      : league.phase === 'draft' || league.phase === 'preseason';
   const signedToday = new Map<number, number>();
   // Each club's room to spend, read once a pass and again when it signs: a club's cap is read off every player in the
   // league, and reading it for each bid was most of a free-agency day (70% of a careers league).
@@ -1279,11 +1287,13 @@ export function aiFreeAgencyDay(
         continue;
       }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
-      // The deal as the club can carry it on its books: void years, then bonus, then years go first.
-      // A market deal its books can't carry goes the way one it can't afford this year does: a prove-it deal at the
-      // room it has (`fitOffer`), never his market deal cut short.
-      const shaped = shapeToBooks(league, team, p, offer, roomOf(team).books);
+      // The deal as the club can carry it on its books: void years, then bonus go first, and the keepers it reads below
+      // him wait their turn. One its books can't carry even so is never cut short: in the market's first days that club
+      // stays out and a club with room signs him long; once the market has passed him by (`clearing`), it goes the way
+      // one it can't afford this year does, a prove-it deal at the room it has (`fitOffer`).
+      const shaped = shapeToBooks(league, team, p, offer, roomOf(team).books, false, ahead);
       const uncarried = !shaped;
+      if (uncarried && !clearing) continue;
       if (shaped) offer = shaped;
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
@@ -1322,7 +1332,7 @@ export function aiFreeAgencyDay(
         // A young man's fitted deal is a prove-it deal at the room a club has (no bonus, two years): it skips next
         // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
         const young = p.age <= 28;
-        if (fitted && !young && !booksOk(team, p, fitted)) continue;
+        if (fitted && !young && !booksOk(team, p, fitted, ahead)) continue;
         if (!fitted && opts.lastCall && lift >= clear) {
           // The last call, funded: a clear upgrade it can't fit, paid for with half its in-season reserve and its
           // weakest minimum man at his spot (a minimum deal leaves no dead money).
@@ -1343,7 +1353,7 @@ export function aiFreeAgencyDay(
       }
       if (
         !(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && (short > 0 || uncarried)) &&
-        !booksOk(team, p, offer)
+        !booksOk(team, p, offer, ahead)
       )
         continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
@@ -1360,10 +1370,6 @@ export function aiFreeAgencyDay(
       });
     // Nobody pays his floor: from day 3 (and in the late passes) the best offer made for him is his market, when it's
     // at least half what he'd walk away from. Sights by the offers clubs can make, not the calendar alone.
-    const clearing =
-      league.phase === 'freeAgency'
-        ? league.faDay >= CLEARING_DAY
-        : league.phase === 'draft' || league.phase === 'preseason';
     if (!best && clearing && fallback.length) {
       const top = fallback.sort((a, b) => b.value - a.value || a.team.id - b.team.id)[0];
       if (top.value >= clearingFloor(floorAt(top.team.id), top.value, minimum)) best = top;

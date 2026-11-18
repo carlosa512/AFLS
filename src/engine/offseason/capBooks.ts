@@ -11,9 +11,11 @@ import { capFor, capSheet } from '../finance/cap';
 import { capHit, lastSeason } from '../finance/contract';
 import { leagueMarket, marketApy, minSalary } from '../finance/market';
 import { rookieContract } from '../generate';
+import { teamOutlook } from '../outlook';
+import { STARTERS } from '../positions';
 import { teamPlayers } from '../roster';
 import type { League, Player, Team } from '../types';
-import { depthOutlooks, inPlans, IN_SEASON_RESERVE, nextYearCeiling, winNow } from './ai';
+import { depthOutlooks, IN_SEASON_RESERVE, nextYearCeiling, winNow } from './ai';
 import { prospectiveContract, type Offer } from './negotiation';
 
 /**
@@ -51,6 +53,11 @@ export interface CapBooks {
   teamId: number;
   /** `years[0]` is next league year. */
   years: BookYear[];
+  /**
+   * Each keeper's outlook as the club reads him (`teamOutlook`), by id: a better player is kept ahead of the keepers
+   * below him (`fits`' `above`), as a GM ranks his roster.
+   */
+  ahead: Record<number, number>;
 }
 
 /** The in-season reserve a GM keeps in a given year (`inSeasonReserve`, on that year's cap). */
@@ -84,9 +91,16 @@ export function capBooks(league: League, team: Team): CapBooks {
   // has already ended (the re-sign window's own) is a decision being made now, and enters the books as committed once
   // he signs: counted as a need too, it read next year full at every club, and every keeper got a one-year deal. A
   // tagged player is owed his price next year whatever the plan reads: the tag says the club means to keep him.
-  const kept = roster.filter(
-    (p) => lastSeason(p.contract!) === s && (p.contract!.kind === 'tag' || inPlans(league, team, p, depth, wn)),
-  );
+  // In plans is `inPlans`: his outlook at least the last starter's at his position.
+  const ahead: Record<number, number> = {};
+  const kept = roster.filter((p) => {
+    if (lastSeason(p.contract!) !== s) return false;
+    const o = teamOutlook(league, team.id, p, wn);
+    const line = depth[p.position][STARTERS[p.position] - 1] ?? -Infinity;
+    if (p.contract!.kind !== 'tag' && o < line - 1e-9) return false;
+    ahead[p.id] = o;
+    return true;
+  });
   const years: BookYear[] = [];
   for (let k = 1; k <= BOOKS.horizon; k++) {
     const season = s + k;
@@ -117,20 +131,45 @@ export function capBooks(league: League, team: Team): CapBooks {
       softRoom: softLimit - committed - needed,
     });
   }
-  return { teamId: team.id, years };
+  return { teamId: team.id, years, ahead };
 }
 
-/** `adds` folded onto the horizon: index i lands on `years[i]`, anything past the last year lands on it. */
+/**
+ * `adds` folded onto the horizon: index i lands on `years[i]`, and the books' last year stands for each year after it,
+ * so it carries the largest of what lands on it or past it. Summed there, a five-year deal's last two years were
+ * judged against one year's room, and long deals read as twice their price.
+ */
 function folded(books: CapBooks, adds: readonly number[]): number[] {
   const n = books.years.length;
   const out = new Array<number>(n).fill(0);
-  adds.forEach((x, i) => (out[Math.min(i, n - 1)] += x));
+  adds.forEach((x, i) => {
+    if (i < n - 1) out[i] += x;
+    else out[n - 1] = Math.max(out[n - 1], x);
+  });
   return out;
 }
 
-/** Whether the books carry `adds` (a year with nothing added is never judged: a club already past it can still sign a one-year deal). */
-export function fits(books: CapBooks, adds: readonly number[], soft = false): boolean {
-  return folded(books, adds).every((x, i) => x <= 0 || (soft ? books.years[i].softRoom : books.years[i].room) >= x);
+/**
+ * What a year frees for a player the club reads at `above`: the keepers it ranks below him (`CapBooks.ahead`) wait their
+ * turn, each his price less the minimum deal his spot then costs. They face the books when their own deals end.
+ */
+function aside(books: CapBooks, i: number, above: number): number {
+  if (above === -Infinity) return 0;
+  const y = books.years[i];
+  let sum = 0;
+  for (const [id, price] of Object.entries(y.keepers))
+    if ((books.ahead[+id] ?? Infinity) < above) sum += Math.max(0, price - minSalary(1, y.cap));
+  return sum;
+}
+
+/**
+ * Whether the books carry `adds` (a year with nothing added is never judged: a club already past it can still sign a
+ * one-year deal). With `above`, for a player the club reads at that outlook: the keepers below him step aside (`aside`).
+ */
+export function fits(books: CapBooks, adds: readonly number[], soft = false, above = -Infinity): boolean {
+  return folded(books, adds).every(
+    (x, i) => x <= 0 || (soft ? books.years[i].softRoom : books.years[i].room) + aside(books, i, above) >= x,
+  );
 }
 
 /** The smallest room across the horizon. */
@@ -175,10 +214,11 @@ export function dealAdds(league: League, player: Player, teamId: number, offer: 
 
 /**
  * The offer as a GM can carry it on his books, reshaped before he walks away from it: the void years go first (their
- * bonus money lands on years the deal doesn't even cover), then the bonus share. A deal is never shortened for a free
- * agent or an extension (the hard limit): a one-year deal lands nothing on the books, so shortening always "fit" and only
- * pushed his price onto next spring, and one-year deals ran to half the market. Null then: no offer. A keeper the club
- * wants (`soft`, the GM's full ceiling) may take fewer years, down to one, rather than walk.
+ * bonus money lands on years the deal doesn't even cover), then the bonus share. A deal is never shortened to fit: a
+ * one-year deal lands nothing on the books, so shortening always "fit" and only pushed his price onto next spring, and
+ * one-year deals ran to half the market (the owner, 2026-11-18: a club signs the players who matter and makes the money
+ * work around them). Null then: no offer. A keeper the club wants may stretch to the GM's full ceiling (`soft`), and a
+ * player it reads at `above` is kept ahead of the keepers below him (`fits`).
  */
 export function shapeToBooks(
   league: League,
@@ -187,8 +227,9 @@ export function shapeToBooks(
   offer: Offer,
   books: CapBooks,
   soft = false,
+  above = -Infinity,
 ): Offer | null {
-  const ok = (o: Offer) => fits(books, dealAdds(league, player, team.id, o, books), soft);
+  const ok = (o: Offer) => fits(books, dealAdds(league, player, team.id, o, books), soft, above);
   let o = { ...offer };
   if (ok(o)) return o;
   if (o.voidYears) {
@@ -197,11 +238,6 @@ export function shapeToBooks(
   }
   if (o.bonusPct > 0) {
     o = { ...o, bonusPct: 0 };
-    if (ok(o)) return o;
-  }
-  if (!soft) return null;
-  while (o.years > 1) {
-    o = { ...o, years: o.years - 1 };
     if (ok(o)) return o;
   }
   return null;

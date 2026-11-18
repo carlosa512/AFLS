@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { capFor, capSheet, restructureOptions } from '../finance/cap';
 import { lastSeason, yearsLeft } from '../finance/contract';
-import { leagueMarket, marketApy } from '../finance/market';
+import { leagueMarket, marketApy, minSalary } from '../finance/market';
 import { createLeague } from '../generate';
 import { setTeam, teamPlayers } from '../roster';
 import { simToEndOfSeason } from '../league';
@@ -24,7 +24,7 @@ import {
 } from './ai';
 import { beginOffseason } from './index';
 import { playerOvr } from '../positions';
-import { BOOKS, capBooks, commit, dealAdds, fits, minRoom, shapeToBooks } from './capBooks';
+import { BOOKS, capBooks, commit, fits, minRoom, shapeToBooks } from './capBooks';
 import type { Offer } from './negotiation';
 
 const base = JSON.stringify(createLeague({ seed: 'cap-books' }));
@@ -115,7 +115,7 @@ describe('a GM’s cap books', () => {
     expect(capBooks(l, team).years[2].needed).toBeCloseTo(before, -2);
   });
 
-  it('lands money past the horizon on its last year', () => {
+  it('judges each year past the horizon against its last year, never their sum', () => {
     const l = fresh();
     // Room in every year of the books (a generated league's clubs open with next year spoken for).
     for (let k = 1; k <= 3; k++)
@@ -132,6 +132,41 @@ describe('a GM’s cap books', () => {
     for (const x of [last + 1, last - 1]) expect(fits(books, [0, 0, 0, x])).toBe(fits(books, [0, 0, x]));
     expect(fits(books, [0, 0, 0, last + 1])).toBe(false);
     expect(fits(books, [0, 0, 0, last - 1])).toBe(true);
+    // A long deal's last years each fit the last year's room: the books' last year stands for each year after it.
+    const most = last - 1;
+    expect(fits(books, [0, 0, most, most, most])).toBe(true);
+    expect(fits(books, [0, 0, most, most, last + 1])).toBe(false);
+    // And a commitment past the horizon takes the most that lands on one year, once.
+    const after = commit(JSON.parse(JSON.stringify(books)), [0, 0, most, most]);
+    expect(after.years[2].room).toBeCloseTo(last - most, 6);
+  });
+
+  it('keeps a better player ahead of next spring’s keepers it ranks below him, never ahead of a better one', () => {
+    const l = fresh();
+    const team = l.teams[AI];
+    keeperEnding(l, team, l.season);
+    // Room next year (a generated league's clubs open with it spoken for).
+    team.deadMoney.push({
+      season: l.season + 1,
+      amount: -Math.round(0.3 * capFor(l, l.season + 1)),
+      playerId: -1,
+      note: 'test',
+    });
+    const books = capBooks(l, team);
+    const ids = Object.keys(books.ahead).map(Number);
+    expect(ids.length).toBeGreaterThan(0);
+    // The keeper the club ranks lowest: a player read just above him may take his money, less the minimum his spot costs.
+    const low = ids.sort((a, b) => books.ahead[a] - books.ahead[b] || a - b)[0];
+    const y = books.years[0];
+    const freed = y.keepers[low] - minSalary(1, y.cap);
+    expect(freed).toBeGreaterThan(0);
+    const ties = ids.filter((id) => books.ahead[id] === books.ahead[low]).length;
+    expect(ties).toBe(1);
+    const adds = [y.room + freed - 1];
+    expect(fits(books, adds)).toBe(false);
+    expect(fits(books, adds, false, books.ahead[low] + 1e-6)).toBe(true);
+    // Read no better than him, the player waits behind him like everyone else.
+    expect(fits(books, adds, false, books.ahead[low])).toBe(false);
   });
 
   it('reads a club past its books as having no room, and adds nothing to it', () => {
@@ -238,12 +273,10 @@ describe('offers fit the books', () => {
     expect(shapeToBooks(x.l, x.team, outsider(x.l), star(x.l), x.books)).toBeNull();
   });
 
-  it('shortens a keeper’s deal the club wants until it fits, down to one year', () => {
+  it('never shortens a keeper’s deal to fit: one it can’t carry goes to the market', () => {
     const x = withRooms([0.3, 0.0005, 0.0005]);
-    // s+2's soft room is a fade above its hard room, too little for his price: two years, then.
-    const two = shapeToBooks(x.l, x.team, outsider(x.l), { ...star(x.l), voidYears: 0 }, x.books, true)!;
-    expect(two.years).toBeLessThan(3);
-    expect(fits(x.books, dealAdds(x.l, outsider(x.l), x.team.id, two, x.books), true)).toBe(true);
+    // s+2's soft room is a fade above its hard room, too little for his price: no deal, rather than a shorter one.
+    expect(shapeToBooks(x.l, x.team, outsider(x.l), { ...star(x.l), voidYears: 0 }, x.books, true)).toBeNull();
   });
 
   it('lets a keeper the club wants stretch to the GM’s full ceiling where a free agent can’t', () => {

@@ -159,8 +159,9 @@ export function capPlan(league: League, team: Team, rng: Rng): CapPlan {
         room,
       );
     // Shaped to the books before anyone signs: a man the club wants may stretch to the GM's full ceiling in the later
-    // years (`softRoom`); one it can't carry even for a year isn't worth keeping.
-    const carried = shapeToBooks(league, team, p, asked, books, wanted);
+    // years (`softRoom`), kept ahead of next spring's keepers it ranks below him; one whose deal it can't carry even so
+    // goes to the market, where a club with room signs him long. His deal is never cut short to fit.
+    const carried = shapeToBooks(league, team, p, asked, books, wanted, c.ahead);
     const worth = wanted && !!carried;
     const offer = carried ?? asked;
     if (worth) {

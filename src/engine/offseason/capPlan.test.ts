@@ -22,6 +22,7 @@ import { demand, offerValue } from './negotiation';
 import { MOOD_ACTS, promisedDeal } from '../disputeRead';
 import { playerOvr } from '../positions';
 import { teamPlayers } from '../roster';
+import { capBooks, commit, dealAdds, shapeToBooks } from './capBooks';
 import {
   capPlan,
   fairPrice,
@@ -74,21 +75,30 @@ describe('the cap plan', () => {
     expect(worthIt(keeper, 1, [target('CB', 5_000)], 50_000)).toBe(true);
   });
 
-  it('every keeper is judged by that rule at his own offer', () => {
+  it('every keeper is judged by that rule at his own offer, and kept only if the books carry his whole deal', () => {
     const l = fresh();
     for (const team of l.teams.slice(0, 8)) {
       const plan = capPlan(l, team, new Rng(`w${team.id}`));
-      for (const k of plan.keepers)
-        expect(k.worth).toBe(
-          // 2026-11-16 (market and exits): the price must also fit what the club reads him worth.
+      // The books replayed as the plan spends them, best first (2026-11-18, the cap books).
+      const books = capBooks(l, team);
+      for (const k of plan.keepers) {
+        // 2026-11-16 (market and exits): the price must also fit what the club reads him worth.
+        const rule =
           priceFits(k.offer.apy, fairPrice(l, k.player, k.ahead)) &&
-            worthIt(
-              { gain: k.gain, apy: k.offer.apy, position: k.player.position },
-              upgradeBar(l, team, k.offer.apy),
-              k.reason === 'starter' && !gambles(l, team) ? [] : plan.targets,
-              plan.room,
-            ),
-        );
+          worthIt(
+            { gain: k.gain, apy: k.offer.apy, position: k.player.position },
+            upgradeBar(l, team, k.offer.apy),
+            k.reason === 'starter' && !gambles(l, team) ? [] : plan.targets,
+            plan.room,
+          );
+        const carried = shapeToBooks(l, team, k.player, k.offer, books, true, k.ahead);
+        expect(k.worth).toBe(rule && !!carried);
+        // Never cut short to fit: a keeper is kept on the deal he was offered, or not at all.
+        if (k.worth) {
+          expect(carried!.years).toBe(k.offer.years);
+          commit(books, dealAdds(l, k.player, team.id, k.offer, books));
+        }
+      }
     }
   });
 
