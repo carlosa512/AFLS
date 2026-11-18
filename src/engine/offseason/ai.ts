@@ -230,8 +230,10 @@ export const richness = (league: League, team: Team) =>
  */
 /**
  * A fading veteran (this old or older on his position's clock, and headed below what he is today) needs a gain this many
- * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older with no deal, and ours
- * left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16).
+ * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older and 19% at 29–31 with
+ * no deal, and ours left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16). From 30 since
+ * the cap books (the owner, 2026-11-18): once a signing got back its open spot's minimum, clubs could afford every
+ * downhill veteran, and 29–31 found a club 98% of the time.
  */
 export const FADING = { age: 30, bar: 2.0 };
 

@@ -338,11 +338,12 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       signings 59 a year (fewer good deals end each year than the NFL's, about 85–130 against 180: the pay structure),
       the one-year share 48% and clubs with 3+ at 8.
       **Partial (0.4.53, the cap books, `docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`):** free
-      agency's signings a club no longer fall by half after a league's fourth season (seasons 8–10 against 2–4: 0.93,
+      agency's signings a club no longer fall by half after a league's fourth season (seasons 8–10 against 2–4: 0.90,
       was 0.42; `npm run offseason`'s drift lines judge it). A free-agency signing now gets back the minimum his open spot
       held, as a re-sign does: uncredited, a club's room ran dry on its first good signings and its minimum signings waited
       for camp. Clubs plan three years ahead and count next spring's keepers only as far as next year holds them, so
-      young good free agents get long deals again. Still short, and supply-bound: good outside signings about 57 a year,
+      young good free agents get long deals again, and pass more on veterans 30 and older headed down (`FADING`: good
+      deals ending with no deal 11%, NFL 25%). Still short, and supply-bound: good outside signings about 57 a year,
       one-year 50%, clubs with 3+ at 9. About 105 good deals end a year against the NFL's 181, stars over 10% of the cap
       run 2.0 a club against the NFL's 1.2 (nflverse's 2022 contracts) with fewer deals at 0.8–5%, and 8–10% of good
       outside signings were released (NFL 20–27%). The next step is the pay curve (`payTier`) by position against the
@@ -369,7 +370,7 @@ being judged. Spec: `docs/superpowers/specs/2026-11-01-front-offices-design.md`.
       has run out.
 - [x] **Room made for a tag or a one-year deal forgets next year.** **Done (0.4.53, the cap books):** every way an AI
       club commits money reads its next three league years (`capBooks.ts`), a tag included: next spring's price must fit
-      next year's books before a club restructures to tag him. Kickoff room holds at 2.0–2.5% of the cap in every season
+      next year's books before a club restructures to tag him. Kickoff room holds at 2.1–2.8% of the cap in every season
       4–10 on three leagues (was 0.1–1.2% by season 6), and `trades` holds. Before: the re-sign window counted a
       keeper's new deal against next year before it borrowed, but the tag path (and a one-year deal) counted nothing,
       so a GM that had just made no room for a keeper's new deal could restructure to tag him.

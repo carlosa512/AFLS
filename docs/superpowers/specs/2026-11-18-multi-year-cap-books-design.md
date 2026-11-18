@@ -185,14 +185,19 @@ The design above, with these changes, each found by a probe and recorded in the 
   signings waited for camp, and free agency's signings a club fell from 11 to 4 by a league's fifth season.
 - **No early spending** (`SPEND_FIRST.days` 0, `fillShare` 0): with the credit, the cushion spent in the first days took
   kickoff room under 1.5% of the cap, and nothing rebuilt it.
-- **The fading bar re-tuned to 2.0** (`FADING`, from 1.6): once clubs could afford cheap old veterans, good deals ending
-  with no deal fell under 10% (NFL 25%). 2.4 tipped two unrelated edge lines (feuds a team, new head coaches).
+- **The fading rule from 30, at a bar of 2.0** (`FADING`, from 32 and 1.6; the owner's call after three rounds on the
+  bar): once clubs could afford every downhill veteran, good deals ending with no deal fell to 8–9% (NFL 25%), and
+  29–31-year-olds found a club 98% of the time (NFL 81%). A higher bar at 32 alone barely moved it.
+- **A fresh review's fixes:** a deal's years past the horizon are netted like the last year they fold onto; a lowered
+  offer that falls back keeps the restructure that pays for it; a restructure reserves every year of the deals it makes
+  room for, the window's earlier keepers included (it reserved next year's pay alone).
 - Tried and left out: a two-year cell for 32-and-older good deals (`DEAL_YEARS`; NFL 2–5% at 32+: mean 1.62 years, 48%
   one-year, nflverse 2018–21) moved nothing on the line it aimed at.
 
-Result on `npm run offseason -- 6` (CI's seed, three drift leagues to season 10): kickoff room 2.0–2.5% in every season
-4–10, cap spread 0.4, next year's commitments +0.5 points, free agency's signings a club 0.93 and the roster entering
-camp 0.97 (seasons 8–10 against 2–4), deal lengths by pay all inside the NFL's, nothing outside its range. The
+Result on `npm run offseason -- 6` (CI's seed, three drift leagues to season 10): kickoff room 2.1–2.8% in every season
+4–10, cap spread 0.3, next year's commitments −0.7 points, free agency's signings a club 0.90 and the roster entering
+camp 0.97 (seasons 8–10 against 2–4), good deals ending with no deal 11%, deal lengths by pay all inside the NFL's,
+nothing outside its range. The
 free-agency market's size is still a known issue, now supply-bound: about 105 good deals end a year against the NFL's
 181, stars over 10% of the cap run 2.0 a club against the NFL's 1.2, and 8–10% of good outside signings were released
 against 20–27% (`docs/MVP.md`).

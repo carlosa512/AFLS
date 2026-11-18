@@ -607,7 +607,7 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   - `offseason/` the calendar (`index.ts`), negotiation, AI front offices (`ai.ts`), the draft; the market (0.4.49): AI offers run the length of
     their pay (`aiOfferYears`), clubs keep their own only at a fair price (`RESIGN_VALUE`, `fairPrice` in `capPlan.ts`),
     your good player may want to test the market (`wantsMarket`, a pure draw), free agency passes more on fading
-    veterans (`FADING`), cut overpaid veterans at the new
+    veterans (`FADING`, from 30 on the position's clock), cut overpaid veterans at the new
     league year (`springCuts`, a starters' floor; designated post-June 1 where it moves money, `designateFor`, and only a
     cut whose dead money doesn't eat the saving, `cutPaysOff`) and sign last season's unsigned starters in camp
     (`campStarterSignings`); camp spends none of the in-season cushion but for the stars-only pass (`CAMP_CUSHION`); a
