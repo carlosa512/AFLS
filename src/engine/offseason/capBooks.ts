@@ -106,18 +106,35 @@ export function capBooks(league: League, team: Team): CapBooks {
     const season = s + k;
     const cap = capFor(league, season);
     const committed = capSheet(league, team.id, season).used;
-    const keepers: Record<number, number> = {};
-    for (const p of kept) keepers[p.id] = (marketApy(market, p) * cap) / now;
     const contracted = roster.filter((p) => lastSeason(p.contract!) >= season).length;
     const picks = draftClass(league, team.id, season);
-    const spots = Math.max(0, ROSTER - contracted - Object.keys(keepers).length - picks.length);
-    const needed =
-      Object.values(keepers).reduce((a, b) => a + b, 0) +
-      picks.reduce((a, b) => a + b, 0) +
-      spots * minSalary(1, cap) +
-      reserveIn(league, team, season);
     const limit = cap * (ceiling - BOOKS.fade * (k - 1));
     const softLimit = cap * ceiling;
+    const minimum = minSalary(1, cap);
+    // Every spot nobody under contract or drafted fills at the minimum, then the keepers best first (a tag before
+    // anyone), each in place of a minimum spot, as far as the GM's full ceiling holds them: the ones it can't hold are
+    // the ones he'd let walk next spring, as a GM plans to keep the best of his own he can pay. Counted all at market,
+    // the keepers alone read next year past the limit at two clubs in three, and no club could sign anyone for longer
+    // than a year in free agency: the market's young players waited for camp and signed one-year deals there.
+    let needed =
+      picks.reduce((a, b) => a + b, 0) +
+      Math.max(0, ROSTER - contracted - picks.length) * minimum +
+      reserveIn(league, team, season);
+    const keepers: Record<number, number> = {};
+    const order = [...kept].sort(
+      (a, b) =>
+        Number(b.contract!.kind === 'tag') - Number(a.contract!.kind === 'tag') ||
+        ahead[b.id] - ahead[a.id] ||
+        a.id - b.id,
+    );
+    for (const p of order) {
+      const price = (marketApy(market, p) * cap) / now;
+      const more = price - (ROSTER - contracted - picks.length - Object.keys(keepers).length > 0 ? minimum : 0);
+      if (p.contract!.kind !== 'tag' && committed + needed + more > softLimit) continue;
+      keepers[p.id] = price;
+      needed += more;
+    }
+    const spots = Math.max(0, ROSTER - contracted - Object.keys(keepers).length - picks.length);
     years.push({
       season,
       cap,

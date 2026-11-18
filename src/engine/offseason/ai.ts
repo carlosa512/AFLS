@@ -182,7 +182,7 @@ export const spendable = (league: League, teamId: number) => {
  * first; the fill money no longer does (2026-11-18): nothing rebuilt it, and clubs reached camp short of bodies and cut
  * restructured veterans to fill the 53 (`docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`).
  */
-export const SPEND_FIRST = { days: 2, fillShare: 0 };
+export const SPEND_FIRST = { days: 0, fillShare: 0 };
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -233,7 +233,7 @@ export const richness = (league: League, team: Team) =>
  * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older with no deal, and ours
  * left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16).
  */
-export const FADING = { age: 32, bar: 1.6 };
+export const FADING = { age: 32, bar: 2.0 };
 
 /** The bid bar's multiple for a free agent, from his age on his clock and where the club reads him headed. */
 export function fadingBar(p: Pick<Player, 'age' | 'position'>, ahead: number, seen: number): number {
@@ -1166,6 +1166,11 @@ export function aiFreeAgencyDay(
   const teams = league.teams.filter((t) => opts.includeUser || t.id !== league.userTeamId);
   const depth = new Map(teams.map((t) => [t.id, depthOutlooks(league, t)]));
   const budget = new Map(teams.map((t) => [t.id, spendable(league, t.id)]));
+  // A signing fills a spot the fill reserve holds a minimum for, so that minimum comes back with him, as it does for a
+  // re-sign (`aiResignWindow`). Uncredited, a club's spendable ran out on its first good signings and every minimum
+  // man it still needed waited for camp: free agency's signings a club fell from 11 to 4 by a league's fifth season.
+  const spots = new Map(teams.map((t) => [t.id, openSpots(league, t.id)]));
+  const back = (teamId: number) => (spots.get(teamId)! > 0 ? topMinimum(league.caps[league.season]) : 0);
   const room = new Map(
     teams.map((t) => [t.id, (opts.rosterMax ?? rosterLimit(league)) - activeRoster(league, t.id).length]),
   );
@@ -1310,7 +1315,7 @@ export function aiFreeAgencyDay(
         offer.apy * (1 - offer.bonusPct) +
         (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
       let plan: RestructurePlan | undefined;
-      const short = yearOne - budget.get(team.id)!;
+      const short = yearOne - budget.get(team.id)! - back(team.id);
       // Can't fit his market price, but restructuring players it plans to keep could, within next year's room after
       // its needs and his own deal's: the NFL's March restructures are mostly room for free agency. A quick bound
       // first (what its deals could save, held to next year's room), then the plan itself; the room is made once he
@@ -1332,7 +1337,7 @@ export function aiFreeAgencyDay(
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
-        const fitted = fitOffer(offer, budget.get(team.id)!, minimum, p.age);
+        const fitted = fitOffer(offer, budget.get(team.id)! + back(team.id), minimum, p.age);
         // A young man's fitted deal is a prove-it deal at the room a club has (no bonus, two years): it skips next
         // year's check, which is for the big market deals that eat a keeper's room (the owner, Nov 8).
         const young = p.age <= 28;
@@ -1405,7 +1410,11 @@ export function aiFreeAgencyDay(
     if (bridgeYoung) logMove(league, best.team, 'bridgeQb', { playerId: bridgeYoung.id });
     if (signer && draftedBy(signer, p)) logMove(league, best.team, 'hisGuys', { playerId: p.id });
     budget.set(best.team.id, budget.get(best.team.id)! - (before - capSpace(league, best.team.id)));
-    if (!best.cut) room.set(best.team.id, room.get(best.team.id)! - 1);
+    if (!best.cut) {
+      room.set(best.team.id, room.get(best.team.id)! - 1);
+      budget.set(best.team.id, budget.get(best.team.id)! + back(best.team.id));
+      spots.set(best.team.id, Math.max(0, spots.get(best.team.id)! - 1));
+    }
     // Its room and roster moved: its funded reads are read again when next needed.
     for (const key of [...funds.keys()]) if (key.startsWith(`${best.team.id}:`)) funds.delete(key);
     rich.set(best.team.id, richness(league, best.team));

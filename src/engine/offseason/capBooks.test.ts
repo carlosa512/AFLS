@@ -15,7 +15,6 @@ import {
   expiringPlayers,
   fillReserve,
   inPlans,
-  inSeasonReserve,
   restructurePlan,
   SPEND_FIRST,
   spendable,
@@ -218,13 +217,15 @@ describe('restructures read the books', () => {
     for (const y of afterPlan(l, team, plan).years) expect(y.room).toBeGreaterThanOrEqual(-1);
   });
 
-  it('restructures nothing for a club past its books in a later year', () => {
+  it('restructures nothing into a later year the club is already past', () => {
     const l = fresh();
     l.phase = 'resign';
     const team = l.teams[AI];
     const y2 = l.season + 2;
     team.deadMoney.push({ season: y2, amount: Math.round(1.2 * capFor(l, y2)), playerId: -1, note: 'test' });
-    expect(restructurePlan(l, team, 1e9).steps).toEqual([]);
+    // A deal that ends next year may still convert (its money lands on next year alone); none reaches the year past it.
+    for (const { p, amount } of restructurePlan(l, team, 1e9).steps)
+      expect(restructureOptions(l, p, amount).years - 1).toBeLessThan(2);
   });
 
   it('reads a plan without spending the books it read', () => {
@@ -377,7 +378,7 @@ describe('tags and early spending', () => {
     expect(tryTag(l, team, p, depthOutlooks(l, team), playerOvr(p) + 5, offer, () => 1e9)).toBe(false);
   });
 
-  it('keeps the money that fills the 53 in free agency’s first days, and spends only the cushion', () => {
+  it('keeps the fill money and the in-season cushion from free agency’s first day', () => {
     const l = fresh();
     const team = l.teams[AI];
     // Five open spots on the 53, so there is fill money to keep.
@@ -386,7 +387,9 @@ describe('tags and early spending', () => {
     l.phase = 'freeAgency';
     l.faDay = SPEND_FIRST.days + 1;
     const later = spendable(l, team.id);
+    // Nothing rebuilt a cushion spent in the first days: the league's kickoff room fell under 1.5% of the cap
+    // (2026-11-18). A signing still gets back the minimum his spot held (`aiFreeAgencyDay`).
     l.faDay = 1;
-    expect(spendable(l, team.id) - later).toBeCloseTo(inSeasonReserve(l, team.id), 0);
+    expect(spendable(l, team.id)).toBeCloseTo(later, 0);
   });
 });
