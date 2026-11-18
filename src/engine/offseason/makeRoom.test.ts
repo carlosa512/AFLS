@@ -7,7 +7,7 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { teamPlayers } from '../roster';
-import type { League, Player } from '../types';
+import type { League, Player, Team } from '../types';
 import {
   aiCapCompliance,
   aiResignWindow,
@@ -28,6 +28,19 @@ import { ageShift } from '../aging';
 import { beginOffseason } from './index';
 import { demand } from './negotiation';
 import { capBooks } from './capBooks';
+
+/**
+ * Next year's dead money pushed until its books' room is `room`: the books count next spring's keepers only as far as
+ * the year holds them (2026-11-18), so money added to next year lets the lowest keepers walk and the room moves again.
+ */
+function setBooksRoom(league: League, team: Team, room: number): void {
+  for (let pass = 0; pass < 40; pass++) {
+    const y = capBooks(league, team).years[0];
+    const off = y.room - room;
+    if (Math.abs(off) < 1) return;
+    team.deadMoney.push({ season: y.season, amount: Math.round(off), playerId: -1, note: 'test' });
+  }
+}
 
 /** A league at its re-sign window, after one season. */
 /** Each world is built once a file: several tests read the same few (each takes a season of play to build). */
@@ -313,14 +326,10 @@ describe('GMs plan next year first', () => {
   const fullNextYear = (world = window) => {
     const x = squeezed(0, 1, world);
     const { l, team } = x;
-    const ceiling = nextYearCeiling(team.gm, winNow(l, team)) * capFor(l, l.season + 1);
-    const used = capSheet(l, team.id, l.season + 1).used;
-    team.deadMoney.push({
-      season: l.season + 1,
-      amount: Math.round(ceiling - used - nextYearNeeds(l, team)),
-      playerId: -1,
-      note: 'test',
-    });
+    // Next year full once its needs are counted (the books' room less the in-season reserve they also keep). The books
+    // count next spring's keepers as far as the year holds them (2026-11-18), so the year is set until it holds none.
+    const reserve = capBooks(l, team).years[0].needed - nextYearNeeds(l, team);
+    setBooksRoom(l, team, -reserve);
     return x;
   };
 

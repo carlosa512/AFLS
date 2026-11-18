@@ -27,7 +27,7 @@ describe('free agency passes more on fading veterans (market and exits)', () => 
 });
 
 describe('AI clubs spend first in free agency (market and exits)', () => {
-  it('in its first days a club may spend its in-season cushion (and SPEND_FIRST.fillShare of its fill reserve), then keeps them again', () => {
+  it('in its first SPEND_FIRST.days a club may spend its in-season cushion (and SPEND_FIRST.fillShare of its fill reserve), then keeps them again', () => {
     const l = createLeague({ seed: 'spend-first' });
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     l.phase = 'freeAgency';
@@ -35,7 +35,10 @@ describe('AI clubs spend first in free agency (market and exits)', () => {
     const later = spendable(l, team.id);
     l.faDay = 1;
     const early = spendable(l, team.id);
-    expect(early - later).toBeCloseTo(inSeasonReserve(l, team.id) + SPEND_FIRST.fillShare * fillReserve(l, team.id), 0);
+    // None now (2026-11-18): nothing rebuilt a cushion spent early, and kickoff room fell under 1.5% of the cap.
+    const spent =
+      SPEND_FIRST.days >= 1 ? inSeasonReserve(l, team.id) + SPEND_FIRST.fillShare * fillReserve(l, team.id) : 0;
+    expect(early - later).toBeCloseTo(spent, 0);
     l.phase = 'resign';
     expect(spendable(l, team.id)).toBeCloseTo(later, 0);
   });

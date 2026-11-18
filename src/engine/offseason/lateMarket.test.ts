@@ -10,6 +10,7 @@ import {
   bankBuys,
   CLEARING_DAY,
   clearingFloor,
+  fillReserve,
   fitOffer,
   fundedRoom,
   CAMP_CUSHION,
@@ -27,7 +28,7 @@ import {
 import { teamOutlook } from '../outlook';
 import { capHit as hitOf } from '../finance/contract';
 import { capSheet, releasePreview } from '../finance/cap';
-import { leagueMarket, marketApy, minSalary } from '../finance/market';
+import { leagueMarket, marketApy, minSalary, topMinimum } from '../finance/market';
 import { setTeam } from '../roster';
 import { squadReserve } from '../personnel/squads';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
@@ -87,9 +88,11 @@ describe('the late market: a club offers what it can fit', () => {
         const d = demand(l, p, t.id);
         // Far enough under for the rest that no single cut could cover a deal.
         const want = t.id === clubId ? room(floorPay(l, p, t.id), d.market) : -100_000;
+        // A signing gets back the minimum his open spot held (2026-11-18), so the room set here is less that minimum.
+        const back = fillReserve(l, t.id) > 0 ? topMinimum(l.caps[l.season]) : 0;
         t.deadMoney.push({
           season: l.season,
-          amount: Math.round(spendable(l, t.id) - want),
+          amount: Math.round(spendable(l, t.id) - (want - back)),
           playerId: -1,
           note: 'test',
         });
@@ -214,7 +217,7 @@ describe('the market clears', () => {
     return { l, star };
   };
 
-  it('on the last call a young star signs with a needy club that cuts its weakest minimum man', () => {
+  it('on the last call a young star signs with a needy club, the minimum its open spot held paying him', () => {
     const { l, star } = lastCall();
     // The needy club: of those with a minimum man to cut, the one whose best man at his spot is the weakest (the
     // first club with a cut held a quarterback he would not displace once the league's young stopped growing alike; 2026-11-14).
@@ -226,7 +229,7 @@ describe('the market clears', () => {
           .map((p) => playerOvr(p)),
       );
     const club = l.teams
-      .filter((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut)
+      .filter((t) => t.id !== l.userTeamId && fundedRoom(l, t, star.position).cut && fillReserve(l, t.id) > 0)
       .sort((x, y) => best(x) - best(y) || x.id - y.id)[0];
     for (const t of l.teams) {
       if (t.id === l.userTeamId) continue;
@@ -237,9 +240,11 @@ describe('the market clears', () => {
     const dead = capSheet(l, club.id, l.season).dead;
     aiFreeAgencyDay(l, new Rng('funded'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
     expect(l.players[star.id].teamId).toBe(club.id);
-    // A funded signing is a prove-it deal: two years for a man 28 or younger (the owner, Nov 8), one for a veteran.
+    // A prove-it deal: two years for a man 28 or younger (the owner, Nov 8), one for a veteran.
     expect(l.players[star.id].contract!.length).toBe(l.players[star.id].age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
-    expect(l.players[cut.id].teamId).toBeNull();
+    // An open spot's minimum comes back with him (2026-11-18): nobody is cut to make room the club already has. A full
+    // club swaps its weakest minimum man for him (the next test).
+    expect(l.players[cut.id].teamId).toBe(club.id);
     expect(capSheet(l, club.id, l.season).dead).toBe(dead);
   }, 120_000);
 

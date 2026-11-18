@@ -8,7 +8,7 @@ import { simToEndOfSeason } from '../league';
 import { playerOvr } from '../positions';
 import { Rng } from '../rng';
 import { setTeam, teamPlayers } from '../roster';
-import type { League, Player } from '../types';
+import type { League, Player, Team } from '../types';
 import {
   aiFreeAgencyDay,
   aiResignWindow,
@@ -22,9 +22,23 @@ import {
   YOUNG_PROVE_IT_YEARS,
 } from './ai';
 import { NEXT_YEAR_CEILING } from '../generate';
+import { capBooks } from './capBooks';
 import { gambles } from './capPlan';
 import { advanceOffseason, beginOffseason } from './index';
 import { demand, OFFSEASON_ROSTER_MAX, signPlayer } from './negotiation';
+
+/**
+ * Next year's dead money pushed until its books' room is `room`: the books count next spring's keepers only as far as
+ * the year holds them (2026-11-18), so money added to next year lets the lowest keepers walk and the room moves again.
+ */
+function setBooksRoom(league: League, team: Team, room: number): void {
+  for (let pass = 0; pass < 40; pass++) {
+    const y = capBooks(league, team).years[0];
+    const off = y.room - room;
+    if (Math.abs(off) < 1) return;
+    team.deadMoney.push({ season: y.season, amount: Math.round(off), playerId: -1, note: 'test' });
+  }
+}
 
 /** A league at the draft step after one season: free agency's five days are done. */
 const afterFreeAgency = (() => {
@@ -138,12 +152,10 @@ describe('a GM restructures to sign a free agent he can’t fit', () => {
     const cap = capFor(x.l, x.l.season + 1);
     const ceiling = nextYearCeiling(team.gm, winNow(x.l, team)) * cap;
     const used = capSheet(x.l, clubId, x.l.season + 1).used;
-    team.deadMoney.push({
-      season: x.l.season + 1,
-      amount: Math.round(ceiling - used - nextYearNeeds(x.l, team) - room(ceiling, used, cap)),
-      playerId: -1,
-      note: 'test',
-    });
+    // Next year's room after its needs (the books' less the in-season reserve they also keep). The books count next
+    // spring's keepers as far as the year holds them (2026-11-18), so the year is set until it holds what is asked.
+    const reserve = capBooks(x.l, team).years[0].needed - nextYearNeeds(x.l, team);
+    setBooksRoom(x.l, team, room(ceiling, used, cap) - reserve);
     return x;
   };
 
