@@ -254,7 +254,7 @@ const RULES: [RegExp, Name[]][] = [
   [/^scripts\/band(\.test)?\.ts$/, ['test', 'morale', 'careers', 'sim']],
   [/^scripts\/leaders\.ts$/, ['sim', 'careers']],
   [/^scripts\/endings\.ts$/, ['endings']],
-  [/^scripts\/offseason(-league)?\.ts$/, ['offseason']],
+  [/^scripts\/(offseason(-league)?|cap-books(-core)?)\.ts$/, ['offseason']],
   [/^scripts\/careers(-league)?\.ts$/, ['careers']],
   // The NFL's league-age measures careers judges against, and their tests.
   [/^scripts\/league-age-core(\.test)?\.ts$/, ['test', 'careers']],

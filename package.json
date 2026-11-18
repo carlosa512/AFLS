@@ -18,6 +18,7 @@
     "sim": "tsx scripts/calibrate.ts",
     "endings": "tsx scripts/endings.ts",
     "offseason": "tsx scripts/offseason.ts",
+    "cap-books": "tsx scripts/cap-books.ts",
     "audit": "tsx scripts/audit.ts",
     "careers": "tsx scripts/careers.ts",
     "fingerprint": "tsx scripts/fingerprint.ts",
