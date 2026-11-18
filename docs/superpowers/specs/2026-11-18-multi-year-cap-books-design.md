@@ -142,7 +142,9 @@ per pass where a loop calls it). For each future league year `y` of the horizon 
 - The offseason check's cap-drift leagues play **10 seasons** instead of 6 (they already run in child processes beside
   the main league), and judge the trend: kickoff room, free-agency signings and the roster entering camp in seasons 8–10
   against 2–4. The child leagues run in parallel, so the job grows by a few minutes, well inside CI's 30-minute limit.
-  Bands: OWNER_BANDS (set at review).
+  Bands (the owner, 2026-11-18), warn outside the first, fail outside the second: kickoff room each settled season
+  (4–10) 1.5–4% and 1–5%; free-agency signings a team and the roster entering camp, seasons 8–10 against 2–4, within
+  20% and 35%; next year's committed share, seasons 8–10 against 2–4, within 5 and 10 points.
 
 ### Tuning step and stop rule
 
