@@ -31,6 +31,12 @@ TESTS = [
      'spritecook/b-jersey-pads-face-0.png', 'spritecook/ab-composite-face-0.png', [
          'The in-game look from two separate edits: each part can come from its own generation and be layered.',
      ]),
+    ('Test a\'s helmet on all five faces, in code', 'The helmet lifted off face-0 and moved onto each face so the eyes line up. No credits.',
+     'spritecook/sheet-bare-faces.png', 'spritecook/sheet-a-helmet-on-all-code.png', [
+         'Fits four of five (faces 0, 1, 2 and 4) by moving it 0 to 2 pixels: one helmet can be a part, like the hair.',
+         'Misses face-3, the widest head: his skull pokes out at the back (35 cells) and the shell\'s edge cuts his near eye.',
+         'So helmets come in sizes, or each face gets its own fit.',
+     ]),
 ]
 VERDICTS = {}
 
@@ -67,7 +73,7 @@ def section(title, ask, src_path, res_path, notes):
     row = [tile(src, 5, f'source · {os.path.basename(src_path)}'), tile(res, 5, f'result · {os.path.basename(res_path)}')]
     if src.size == res.size and 'face' in os.path.basename(src_path) and not res_path.startswith('spritecook/c-'):
         row.append(tile(diff(src, res), 5, 'changed cells (magenta)'))
-    sizes = [card(res, 128, 'card 128'), card(res, 64, 'phone 64'), card(res, 32, 'list 32')]
+    sizes = [card(res, 128, 'card 128'), card(res, 64, 'phone 64'), card(res, 32, 'list 32')] if res.size == (64, 64) else []
     li = ''.join(f'<li>{html.escape(n)}</li>' for n in notes)
     return (f'<section><h2>{html.escape(title)}</h2><p class="ask">{html.escape(ask)}</p>'
             f'<div class="row">{"".join(row)}</div><div class="row small">{"".join(sizes)}</div>'
