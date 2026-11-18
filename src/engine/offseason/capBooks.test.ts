@@ -229,29 +229,28 @@ describe('offers fit the books', () => {
     expect(shapeToBooks(l, team, outsider(l), offer, books)).toEqual(offer);
   });
 
-  it('gives up the void year first, then years, until the deal fits', () => {
+  it('gives up the void year first, then never shortens a free agent’s deal: no offer instead', () => {
     // The void year's bonus money lands on s+3 alone: with no room there, it goes and the rest is untouched.
     let x = withRooms([0.3, 0.3, 0.0005]);
     expect(shapeToBooks(x.l, x.team, outsider(x.l), star(x.l), x.books)).toMatchObject({ voidYears: 0, years: 3 });
-    // No room in s+2 either: a two-year deal.
+    // No room in s+2 either: a shorter deal would only push his price onto next spring, so the GM walks away.
     x = withRooms([0.3, 0.0005, 0.0005]);
-    const two = shapeToBooks(x.l, x.team, outsider(x.l), star(x.l), x.books)!;
-    expect(two).toMatchObject({ voidYears: 0, years: 2 });
-    expect(fits(x.books, dealAdds(x.l, outsider(x.l), x.team.id, two, x.books))).toBe(true);
-    // None anywhere: one year, which lands nothing on the books.
-    x = withRooms([0.0005, 0.0005, 0.0005]);
-    expect(shapeToBooks(x.l, x.team, outsider(x.l), star(x.l), x.books)).toMatchObject({
-      years: 1,
-      voidYears: 0,
-      bonusPct: 0,
-    });
+    expect(shapeToBooks(x.l, x.team, outsider(x.l), star(x.l), x.books)).toBeNull();
+  });
+
+  it('shortens a keeper’s deal the club wants until it fits, down to one year', () => {
+    const x = withRooms([0.3, 0.0005, 0.0005]);
+    // s+2's soft room is a fade above its hard room, too little for his price: two years, then.
+    const two = shapeToBooks(x.l, x.team, outsider(x.l), { ...star(x.l), voidYears: 0 }, x.books, true)!;
+    expect(two.years).toBeLessThan(3);
+    expect(fits(x.books, dealAdds(x.l, outsider(x.l), x.team.id, two, x.books), true)).toBe(true);
   });
 
   it('lets a keeper the club wants stretch to the GM’s full ceiling where a free agent can’t', () => {
     // s+3's hard room gone; its soft room (no fade) still has two fades of the cap.
     const { l, team, books } = withRooms([0.3, 0.3, 0.0005]);
     const offer = { ...star(l), voidYears: 0, years: 4 };
-    expect(shapeToBooks(l, team, outsider(l), offer, books)!.years).toBeLessThan(4);
+    expect(shapeToBooks(l, team, outsider(l), offer, books)).toBeNull();
     expect(shapeToBooks(l, team, outsider(l), offer, books, true)!.years).toBe(4);
   });
 

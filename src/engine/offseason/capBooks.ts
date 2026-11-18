@@ -174,10 +174,11 @@ export function dealAdds(league: League, player: Player, teamId: number, offer: 
 }
 
 /**
- * The offer as a GM can carry it on his books, shaped before he walks away from it: the void years go first (their
- * bonus money lands on years the deal doesn't even cover), then the bonus share, then years, down to one. Null when
- * even one year with no bonus doesn't fit (it lands nothing on later years, so that is rare: a club re-signing a man
- * whose old bonus still runs). `soft` reads the GM's full ceiling (`softRoom`): a core player he means to keep.
+ * The offer as a GM can carry it on his books, reshaped before he walks away from it: the void years go first (their
+ * bonus money lands on years the deal doesn't even cover), then the bonus share. A deal is never shortened for a free
+ * agent or an extension (the hard limit): a one-year deal lands nothing on the books, so shortening always "fit" and only
+ * pushed his price onto next spring, and one-year deals ran to half the market. Null then: no offer. A keeper the club
+ * wants (`soft`, the GM's full ceiling) may take fewer years, down to one, rather than walk.
  */
 export function shapeToBooks(
   league: League,
@@ -198,6 +199,7 @@ export function shapeToBooks(
     o = { ...o, bonusPct: 0 };
     if (ok(o)) return o;
   }
+  if (!soft) return null;
   while (o.years > 1) {
     o = { ...o, years: o.years - 1 };
     if (ok(o)) return o;

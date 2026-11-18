@@ -1280,9 +1280,11 @@ export function aiFreeAgencyDay(
       }
       if (bridging) offer = { ...offer, years: 1, bonusPct: 0, voidYears: 0 };
       // The deal as the club can carry it on its books: void years, then bonus, then years go first.
+      // A market deal its books can't carry goes the way one it can't afford this year does: a prove-it deal at the
+      // room it has (`fitOffer`), never his market deal cut short.
       const shaped = shapeToBooks(league, team, p, offer, roomOf(team).books);
-      if (!shaped) continue;
-      offer = shaped;
+      const uncarried = !shaped;
+      if (shaped) offer = shaped;
       if (gain < upgradeBar(league, team, offer.apy, rich.get(team.id)) * bar) continue;
       if (
         planOf(team).stance === 'bank' &&
@@ -1299,7 +1301,7 @@ export function aiFreeAgencyDay(
       // its needs and his own deal's: the NFL's March restructures are mostly room for free agency. A quick bound
       // first (what its deals could save, held to next year's room), then the plan itself; the room is made once he
       // has chosen the club.
-      if (short > 0) {
+      if (short > 0 && !uncarried) {
         const r = roomOf(team);
         const nextOwed = offer.years > 1 ? offer.apy : 0;
         const longest = Math.max(1, ...r.deals.map((x) => x.o.years));
@@ -1312,7 +1314,7 @@ export function aiFreeAgencyDay(
           if (attempt.saved >= short) plan = attempt;
         }
       }
-      if (short > 0 && !plan) {
+      if ((short > 0 || uncarried) && !plan) {
         // Can't fit his market price: offer what it can fit, and he takes it only if it beats his walk-away (below).
         // No cut to make room: releasing a pricier veteran for him put his bonus money on the cap at once, and by year
         // four the league's dead money passed 6% of a median cap; the late passes and the last call place him instead.
@@ -1339,7 +1341,10 @@ export function aiFreeAgencyDay(
         }
         offer = fitted;
       }
-      if (!(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && short > 0) && !booksOk(team, p, offer))
+      if (
+        !(offer.bonusPct === 0 && offer.years === 2 && p.age <= 28 && (short > 0 || uncarried)) &&
+        !booksOk(team, p, offer)
+      )
         continue;
       bids.push({ team, offer, value: offerValue(league, p, team.id, offer), plan, bridging });
     }
