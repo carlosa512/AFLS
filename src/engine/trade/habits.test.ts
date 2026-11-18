@@ -115,6 +115,9 @@ describe('GM habits in trades', () => {
     const block = tradeBlock(tradeContext(l), team);
     expect(block.find((e) => e.playerId === vet.id)?.reason).toBe('secondDeal');
     expect(block.find((e) => e.playerId === rookie.id)?.reason).not.toBe('secondDeal');
+    // The control: the same rookie with two years left would go, so it is his years that keep him, not the scene.
+    rookie.contract!.years = rookie.contract!.years.slice(0, 2);
+    expect(tradeBlock(tradeContext(l), team).find((e) => e.playerId === rookie.id)?.reason).toBe('secondDeal');
   });
 
   it('Brings His Guys Back: a man he drafted is worth 8% more to him', () => {

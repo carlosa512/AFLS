@@ -233,7 +233,7 @@ export const richness = (league: League, team: Team) =>
  * times the usual bar before an AI club bids: the NFL leaves 40% of its good players 32 and older with no deal, and ours
  * left almost nobody (2–8% of all good deals ending against the NFL's 25%; 2026-11-16).
  */
-export const FADING = { age: 32, bar: 2.0 };
+export const FADING = { age: 30, bar: 2.0 };
 
 /** The bid bar's multiple for a free agent, from his age on his clock and where the club reads him headed. */
 export function fadingBar(p: Pick<Player, 'age' | 'position'>, ahead: number, seen: number): number {
@@ -590,14 +590,20 @@ const planner = (league: League, team: Team) => {
 /**
  * Make `need` of room this league year to keep `keeper`, as an NFL front office does: restructure its biggest deals,
  * converting only what it needs and no more than next year's books can carry as this GM keeps them (`nextYearCeiling`),
- * his own new deal (`nextOwed`) among them, then cut the veteran it can best spare, never one better than the keeper,
+ * his own new deal and those before him (`deals`) among them, then cut the veteran it can best spare, never one better than the keeper,
  * and only when it all closes the gap. The bill comes later, on next years' caps; uncapped,
  * contenders kept their core a year and hit cap hell two later (record carryover −0.09 at three seasons, dead money
  * climbing league-wide). Returns the room made.
  */
-function makeRoom(league: League, team: Team, need: number, keeper: Player, nextOwed = 0): number {
+function makeRoom(
+  league: League,
+  team: Team,
+  need: number,
+  keeper: Player,
+  deals: readonly { player: Player; offer: Offer }[] = [],
+): number {
   // All or nothing: room that falls short leaves him walking with the restructures' bill or the cut's dead money paid.
-  const plan = restructurePlan(league, team, need, { keeper, nextOwed });
+  const plan = restructurePlan(league, team, need, { keeper, deals });
   if (plan.saved >= need) return restructureRoom(league, team, plan);
   // A keeper's room is a want, not the law: no cut that leaves next year worse or drops a man signed this year.
   const cut = capCut(league, team, false, true);
@@ -676,7 +682,8 @@ const RESTRUCTURE_MIN = 1_000;
  * The restructures that would make up to `need` of room this league year, as a GM chooses them: the biggest deals of
  * players he plans to keep starting (`inPlans`), each converting only what's still needed and no more than next year's
  * books can carry as this GM keeps them (`nextYearCeiling`), with next year's own needs counted first (`nextYearNeeds`)
- * and anything else the room is for (`nextOwed`: the next-year pay of the deal it makes room for). Nothing is changed:
+ * and the deals the room is for (`deals`: every year each new deal reaches, the keepers before him in a window among
+ * them). Nothing is changed:
  * a club reads its plan before it commits to anything (an estimate that ran high left restructures made for a free
  * agent who then went elsewhere).
  */
@@ -684,7 +691,7 @@ export function restructurePlan(
   league: League,
   team: Team,
   need: number,
-  opts: { keeper?: Player; nextOwed?: number; room?: ClubRoom } = {},
+  opts: { keeper?: Player; deals?: readonly { player: Player; offer: Offer }[]; room?: ClubRoom } = {},
 ): RestructurePlan {
   // Restructures happen in the offseason: in season there's nothing to plan (a club over the cap mid-season read its
   // whole room each week, which cost a careers run its time limit).
@@ -693,7 +700,9 @@ export function restructurePlan(
   // A plan is read before anything is committed: it spends a copy of the books, never the club's (a pass reads the same
   // books for every free agent it weighs).
   const books: CapBooks = JSON.parse(JSON.stringify(room.books));
-  if (opts.nextOwed) commit(books, [opts.nextOwed]);
+  // The deals it makes room for, every year each reaches: reserved for next year alone, a four-year deal and the
+  // restructures that paid for it each fit the later years alone and not together.
+  for (const d of opts.deals ?? []) commit(books, dealAdds(league, d.player, team.id, d.offer, books));
   // Room made for a keeper the club means to re-sign may use the GM's full ceiling in the later years (`softRoom`).
   const soft = !!opts.keeper;
   const deals = room.deals.filter((x) => x.p !== opts.keeper);
@@ -785,7 +794,7 @@ export function aiResignWindow(league: League, team: Team, rng: Rng): void {
     const wanted = !testsMarket && offerValue(league, p, team.id, offer, d) >= d.walkAway;
     // A keeper it can't fit: the GM makes room before he lets him walk (a third of a contender's keepers were lost
     // to the cap with nobody making room).
-    if (wanted && cost > budget()) makeRoom(league, team, cost - budget(), p, offer.years > 1 ? offer.apy : 0);
+    if (wanted && cost > budget()) makeRoom(league, team, cost - budget(), p, [{ player: p, offer }]);
     if (wanted && cost <= budget()) {
       signPlayer(league, p, team.id, offer);
       mine.push(ahead);
@@ -835,13 +844,20 @@ export function makeRoomFor(league: League, team: Team, keepers: readonly Planne
   const back = openSpots(league, team.id) > 0 ? topMinimum(league.caps[league.season]) : 0;
   let owed = 0;
   let made = 0;
+  // The keepers funded so far: room made for the next reserves their deals' later years too.
+  const funded: { player: Player; offer: Offer }[] = [];
   for (const k of keepers) {
     owed += Math.max(0, k.cost - back);
     const short = owed - spendable(league, team.id);
-    if (short <= 0) continue;
-    const got = makeRoom(league, team, short, k.player, k.offer.years > 1 ? k.offer.apy : 0);
-    if (got >= short) made += got;
-    else owed -= Math.max(0, k.cost - back);
+    if (short <= 0) {
+      funded.push({ player: k.player, offer: k.offer });
+      continue;
+    }
+    const got = makeRoom(league, team, short, k.player, [...funded, { player: k.player, offer: k.offer }]);
+    if (got >= short) {
+      made += got;
+      funded.push({ player: k.player, offer: k.offer });
+    } else owed -= Math.max(0, k.cost - back);
   }
   return made;
 }
@@ -938,7 +954,7 @@ export function aiSettle(league: League, team: Team, p: Player): boolean {
   if (!offer || offerValue(league, p, team.id, offer, d) < d.walkAway) return false;
   // A man it would keep, so it makes room as it does for a keeper in the re-sign window: restructures, then a cut.
   const short = offerCharge(league, p, team.id, offer) - spendable(league, team.id);
-  if (short > 0 && makeRoom(league, team, short, p, offer.years > 1 ? offer.apy : 0) < short) return false;
+  if (short > 0 && makeRoom(league, team, short, p, [{ player: p, offer }]) < short) return false;
   signPlayer(league, p, team.id, offer);
   return true;
 }
@@ -1242,7 +1258,7 @@ export function aiFreeAgencyDay(
       cut?: Player | null;
     }[] = [];
     // Offers a club wants to make but that fall short of his floor: what he's worth to the market today.
-    const fallback: { team: Team; offer: Offer; value: number }[] = [];
+    const fallback: { team: Team; offer: Offer; value: number; plan?: RestructurePlan }[] = [];
     const minimum = minSalary(p.experience, league.caps[league.season]);
     // What he signs for: his walk-away, or on the last call anything from his minimum up.
     const floorAt = (teamId: number) => (opts.lastCall ? minimum : demand(league, p, teamId).walkAway);
@@ -1322,14 +1338,14 @@ export function aiFreeAgencyDay(
       // has chosen the club.
       if (short > 0) {
         const r = roomOf(team);
-        const nextOwed = offer.years > 1 ? offer.apy : 0;
+        const nextOwed = dealAdds(league, p, team.id, offer, r.books)[0] ?? 0;
         const longest = Math.max(1, ...r.deals.map((x) => x.o.years));
         const bound = Math.min(
           r.deals.reduce((a, x) => a + x.o.savings, 0),
           (r.books.years[0].room - nextOwed) * (longest - 1),
         );
         if (bound >= short) {
-          const attempt = restructurePlan(league, team, short, { nextOwed, room: r });
+          const attempt = restructurePlan(league, team, short, { deals: [{ player: p, offer }], room: r });
           if (attempt.saved >= short) plan = attempt;
         }
       }
@@ -1365,7 +1381,7 @@ export function aiFreeAgencyDay(
       const value = offerValue(league, p, team.id, offer);
       // A price fallen to the books' is an offer below his market: he weighs it as the clearing day does (`fallback`).
       if (lowered && value < floorAt(team.id)) {
-        fallback.push({ team, offer, value });
+        fallback.push({ team, offer, value, plan });
         continue;
       }
       bids.push({ team, offer, value, plan, bridging });
@@ -1384,7 +1400,14 @@ export function aiFreeAgencyDay(
     // at least half what he'd walk away from. Sights by the offers clubs can make, not the calendar alone.
     if (!best && clearing && fallback.length) {
       const top = fallback.sort((a, b) => b.value - a.value || a.team.id - b.team.id)[0];
-      if (top.value >= clearingFloor(floorAt(top.team.id), top.value, minimum)) best = top;
+      if (top.value >= clearingFloor(floorAt(top.team.id), top.value, minimum)) {
+        best = top;
+        // A lowered offer a restructure paid for: the room is made now, as a bid's is.
+        if (top.plan) {
+          budget.set(top.team.id, budget.get(top.team.id)! + restructureRoom(league, top.team, top.plan));
+          rooms.delete(top.team.id);
+        }
+      }
     }
     if (!best) continue;
     // A funded signing releases the man who paid for it first (his spot is the new man's).

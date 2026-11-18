@@ -218,7 +218,8 @@ export function dealAdds(league: League, player: Player, teamId: number, offer: 
   const adds: number[] = [];
   for (let season = s + 1; season <= end; season++) {
     let x = capHit(next, season) - (old ? capHit(old, season) : 0);
-    const y = books?.years[season - s - 1];
+    // Past the horizon, the books' last year stands for the year (as `folded` judges it): netted the same way.
+    const y = books?.years[Math.min(season - s - 1, books.years.length - 1)];
     if (y) {
       const kept = y.keepers[player.id];
       if (kept !== undefined) x -= kept;
