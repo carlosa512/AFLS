@@ -245,6 +245,8 @@ describe('the tag keeps a star who’d walk', () => {
     p.personality.loyalty = 0;
     if (ageOver !== undefined) p.age = ageShift(p.position) + ageOver;
     t.deadMoney.push({ season: l.season, amount: -200_000, playerId: -1, note: 'test room' });
+    // Next year's room too: a tag needs next year's books to carry his price (`capBooks`).
+    t.deadMoney.push({ season: l.season + 1, amount: -200_000, playerId: -1, note: 'test room' });
     return { l, t, p };
   };
 

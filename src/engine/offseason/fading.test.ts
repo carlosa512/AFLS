@@ -27,7 +27,7 @@ describe('free agency passes more on fading veterans (market and exits)', () => 
 });
 
 describe('AI clubs spend first in free agency (market and exits)', () => {
-  it('in its first days a club may spend its in-season cushion and half its fill reserve, then keeps them again', () => {
+  it('in its first days a club may spend its in-season cushion (and SPEND_FIRST.fillShare of its fill reserve), then keeps them again', () => {
     const l = createLeague({ seed: 'spend-first' });
     const team = l.teams.find((t) => t.id !== l.userTeamId)!;
     l.phase = 'freeAgency';

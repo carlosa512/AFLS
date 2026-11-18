@@ -178,9 +178,11 @@ export const spendable = (league: League, teamId: number) => {
 /**
  * The days of free agency a club spends first, and the share of its fill reserve it may spend then. By a league's fourth
  * season clubs set aside about 12% of the cap before free agency and had 0–2% to spend, so good outside signings fell to
- * about 60 a year, half of them squeezed one-year deals (the NFL's: 84–109 and 20%; 2026-11-16). Tuned against both.
+ * about 60 a year, half of them squeezed one-year deals (the NFL's: 84–109 and 20%; 2026-11-16). The cushion still goes
+ * first; the fill money no longer does (2026-11-18): nothing rebuilt it, and clubs reached camp short of bodies and cut
+ * restructured veterans to fill the 53 (`docs/superpowers/specs/2026-11-18-multi-year-cap-books-design.md`).
  */
-export const SPEND_FIRST = { days: 2, fillShare: 0.5 };
+export const SPEND_FIRST = { days: 2, fillShare: 0 };
 
 /**
  * Each position's outlooks for a team (best first; `outlook.ts`), ignoring players whose deals have
@@ -867,6 +869,12 @@ export function tryTag(
     tagValue(league, p) - (capHit(p.contract!, league.season) - remainingProration(p.contract!, league.season));
   const keep = needGain(depth, p, ahead + quirkWorth(league, team.id, p));
   if (keep < upgradeBar(league, team, tagValue(league, p))) return false;
+  // Next spring he's owed his price again (a deal or a second tag): next year's books must carry it, to the GM's full
+  // ceiling (`softRoom`), net of what they already count for him. A tag that counted nothing for next year let a club
+  // restructure to tag a man it couldn't pay the year after.
+  const next = capBooks(league, team).years[0];
+  const owed = next.keepers[p.id] === undefined ? marketApy(leagueMarket(league), p) : 0;
+  if (next.softRoom < owed) return false;
   if (value > budget()) makeRoom(league, team, value - budget(), p);
   if (value > budget()) return false;
   applyFranchiseTag(league, p);

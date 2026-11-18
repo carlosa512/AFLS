@@ -102,9 +102,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1745,
       948,
     ],
-    "tagged": [
-      274,
-    ],
+    "tagged": [],
   },
   "CLE": {
     "kept": [
@@ -145,9 +143,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       639,
       670,
     ],
-    "tagged": [
-      668,
-    ],
+    "tagged": [],
   },
   "DET": {
     "kept": [
@@ -162,9 +158,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1129,
       1148,
     ],
-    "tagged": [
-      1144,
-    ],
+    "tagged": [],
   },
   "GB": {
     "kept": [
@@ -190,9 +184,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       470,
       446,
     ],
-    "tagged": [
-      455,
-    ],
+    "tagged": [],
   },
   "IND": {
     "kept": [
@@ -324,9 +316,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1430,
       989,
     ],
-    "tagged": [
-      927,
-    ],
+    "tagged": [],
   },
   "NYE": {
     "kept": [
@@ -368,29 +358,16 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
   "PHI": {
     "kept": [
       1214,
+      997,
       987,
       979,
       983,
     ],
-    "tagged": [
-      986,
-    ],
+    "tagged": [],
   },
   "PIT": {
-    "kept": [
-      424,
-      423,
-      379,
-      378,
-      409,
-      377,
-      386,
-      396,
-      389,
-    ],
-    "tagged": [
-      1077,
-    ],
+    "kept": [],
+    "tagged": [],
   },
   "SEA": {
     "kept": [
@@ -403,9 +380,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1657,
       1655,
     ],
-    "tagged": [
-      1652,
-    ],
+    "tagged": [],
   },
   "SF": {
     "kept": [
@@ -449,13 +424,11 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
     "kept": [
       1502,
       1044,
-      1027,
+      328,
       1009,
       1053,
     ],
-    "tagged": [
-      1498,
-    ],
+    "tagged": [],
   },
 }
 `;

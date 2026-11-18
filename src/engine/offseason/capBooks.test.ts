@@ -4,9 +4,26 @@ import { capFor, capSheet, restructureOptions } from '../finance/cap';
 import { lastSeason, yearsLeft } from '../finance/contract';
 import { leagueMarket, marketApy } from '../finance/market';
 import { createLeague } from '../generate';
-import { teamPlayers } from '../roster';
+import { setTeam, teamPlayers } from '../roster';
+import { simToEndOfSeason } from '../league';
 import type { League, Player, Team } from '../types';
-import { aiExtendEarly, clubDeals, inPlans, restructurePlan } from './ai';
+import {
+  aiExtendEarly,
+  applyFranchiseTag,
+  clubDeals,
+  depthOutlooks,
+  expiringPlayers,
+  fillReserve,
+  inPlans,
+  inSeasonReserve,
+  restructurePlan,
+  SPEND_FIRST,
+  spendable,
+  tagValue,
+  tryTag,
+} from './ai';
+import { beginOffseason } from './index';
+import { playerOvr } from '../positions';
 import { BOOKS, capBooks, commit, dealAdds, fits, minRoom, shapeToBooks } from './capBooks';
 import type { Offer } from './negotiation';
 
@@ -250,5 +267,68 @@ describe('offers fit the books', () => {
     const y2 = l.season + 2;
     team.deadMoney.push({ season: y2, amount: Math.round(1.2 * capFor(l, y2)), playerId: -1, note: 'test' });
     expect(aiExtendEarly(l, team, l.players[scene!.playerId])).toBe(false);
+  });
+});
+
+/** A league at its re-sign window after one played season, built once. */
+let windowJson: string | undefined;
+const windowWorld = (): League => {
+  if (!windowJson) {
+    const l = createLeague({ seed: 'cap-books' });
+    simToEndOfSeason(l);
+    beginOffseason(l);
+    windowJson = JSON.stringify(l);
+  }
+  return JSON.parse(windowJson);
+};
+
+describe('tags and early spending', () => {
+  it('counts a tagged player next year even when the club doesn’t list him as a keeper', () => {
+    const l = fresh();
+    const team = l.teams[AI];
+    const s = l.season;
+    // A backup, out of the club's plans, whose deal ends this year: tagged, he is owed his price next year.
+    const p = teamPlayers(l, AI).find((x) => x.contract && !inPlans(l, team, x) && x.contract.kind !== 'rookie')!;
+    p.contract!.years = p.contract!.years.filter((y) => y.season <= s);
+    expect(capBooks(l, team).years[0].keepers[p.id]).toBeUndefined();
+    applyFranchiseTag(l, p);
+    expect(capBooks(l, team).years[0].keepers[p.id]).toBeGreaterThan(0);
+  });
+
+  it('tags no one next year’s books can’t carry', () => {
+    const l = windowWorld();
+    // A tag an AI club would make today, with all the room this year could give: found in the world, not pinned.
+    const scene = (() => {
+      for (const team of l.teams.filter((t) => t.id !== l.userTeamId))
+        for (const p of expiringPlayers(l, team.id)) {
+          const copy: League = JSON.parse(JSON.stringify(l));
+          const t = copy.teams[team.id];
+          const q = copy.players[p.id];
+          const offer: Offer = { years: 4, apy: tagValue(copy, q) * 2, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+          if (tryTag(copy, t, q, depthOutlooks(copy, t), playerOvr(q) + 5, offer, () => 1e9))
+            return { teamId: team.id, playerId: p.id };
+        }
+      return null;
+    })();
+    expect(scene).not.toBeNull();
+    const team = l.teams[scene!.teamId];
+    const p = l.players[scene!.playerId];
+    const y1 = l.season + 1;
+    team.deadMoney.push({ season: y1, amount: Math.round(1.2 * capFor(l, y1)), playerId: -1, note: 'test' });
+    const offer: Offer = { years: 4, apy: tagValue(l, p) * 2, bonusPct: 0, gtdPct: 0, voidYears: 0 };
+    expect(tryTag(l, team, p, depthOutlooks(l, team), playerOvr(p) + 5, offer, () => 1e9)).toBe(false);
+  });
+
+  it('keeps the money that fills the 53 in free agency’s first days, and spends only the cushion', () => {
+    const l = fresh();
+    const team = l.teams[AI];
+    // Five open spots on the 53, so there is fill money to keep.
+    for (const p of teamPlayers(l, AI).slice(0, 5)) setTeam(l, p, null);
+    expect(fillReserve(l, team.id)).toBeGreaterThan(0);
+    l.phase = 'freeAgency';
+    l.faDay = SPEND_FIRST.days + 1;
+    const later = spendable(l, team.id);
+    l.faDay = 1;
+    expect(spendable(l, team.id) - later).toBeCloseTo(inSeasonReserve(l, team.id), 0);
   });
 });
