@@ -175,16 +175,17 @@ export function Draft({ league }: { league: League }) {
                   ))}
                 </select>
                 {room && (
-                  <button
-                    className="btn btn-sm"
-                    aria-pressed={needsOnly}
-                    onClick={() => {
-                      setNeedsOnly(!needsOnly);
-                      setPos('ALL');
-                    }}
-                  >
-                    Needs only
-                  </button>
+                  <div className="seg seg-sm" role="group" aria-label="Show">
+                    <button
+                      aria-pressed={needsOnly}
+                      onClick={() => {
+                        setNeedsOnly(!needsOnly);
+                        setPos('ALL');
+                      }}
+                    >
+                      Needs only
+                    </button>
+                  </div>
                 )}
                 <PositionFilter
                   value={pos}
@@ -312,10 +313,15 @@ export function Draft({ league }: { league: League }) {
     </div>
   );
   if (clock.kind === 'none') return grid;
+  // The rail sticks just under the app's top bar, whose height depends on the screen: measure it.
+  const underBar = (el: HTMLDivElement | null) => {
+    const bar = el && document.querySelector<HTMLElement>('.topbar');
+    if (el && bar) el.style.setProperty('--topbar-h', `${bar.offsetHeight}px`);
+  };
   // While the draft is on, the rail runs beside the page from 1,290 pixels wide (below it, the strip and the lineup
   // panel under the clock take its place).
   return (
-    <div className="draft-room">
+    <div className="draft-room" ref={underBar}>
       {grid}
       <aside className="draft-rail">
         {room && <LineupCard league={league} room={room} id="draft-lineup" />}

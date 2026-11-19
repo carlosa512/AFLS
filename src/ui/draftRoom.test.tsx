@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -100,7 +101,7 @@ describe('your lineup', () => {
 describe('pick rail', () => {
   /** The rail's row for one pick, by its number. */
   const rowOf = (html: string, no: number) =>
-    new RegExp(`<li class="pick-row[^"]*" data-no="${no}">(.*?)</li>`).exec(html)?.[1];
+    new RegExp(`<li class="pick-row[^"]*" data-no="${no}"[^>]*>(.*?)</li>`).exec(html)?.[1];
 
   it('lists every pick, the made ones with their player, and marks the clock', () => {
     const l = live();
@@ -182,5 +183,40 @@ describe('draft room', () => {
   it('opens your draft history on the last two drafts', () => {
     const html = renderToStaticMarkup(<Draft league={live()} />);
     expect(html).toMatch(/<option value="recent" selected="">Last two drafts<\/option>/);
+  });
+});
+
+describe('final review fixes', () => {
+  const css = readFileSync('src/styles.css', 'utf8');
+
+  it('keeps the rail below the sticky top bar', () => {
+    const rail = /\.draft-rail \{[^}]*position: sticky;[^}]*\}/.exec(css)![0];
+    expect(rail).toContain('var(--topbar-h');
+    expect(readFileSync('src/ui/screens/Draft.tsx', 'utf8')).toContain("'--topbar-h'");
+  });
+
+  it('refreshes the room when the league changes, not only when a pick is made', () => {
+    // The league is mutated in place: the store's version is what says it changed (a day of free agency, a trade).
+    expect(readFileSync('src/ui/draftRoom.tsx', 'utf8')).toMatch(
+      /useSyncExternalStore\(store\.subscribe, store\.version/,
+    );
+  });
+
+  it('colors a need apart from a minor one', () => {
+    const rule = (sel: string) => new RegExp(`(^|\\n)${sel.replace(/\./g, '\\.')} \\{([^}]*)\\}`).exec(css)?.[2] ?? '';
+    expect(rule('.need-pill.need')).toContain('background');
+    expect(rule('.need-swatch.need')).toContain('background');
+    expect(rule('.need-pill')).not.toContain('var(--surface-2)');
+  });
+
+  it('shows Needs only as a pressed toggle', () => {
+    const html = renderToStaticMarkup(<Draft league={live()} />);
+    expect(html).toMatch(/<div class="seg seg-sm"[^>]*><button aria-pressed="false">Needs only<\/button><\/div>/);
+  });
+
+  it('marks the first pick of each round for the round jump', () => {
+    const l = live();
+    const html = render(l, (room) => <PickRail league={l} room={room} />);
+    for (let r = 1; r <= 7; r++) expect(html).toContain(`data-first="${r}"`);
   });
 });

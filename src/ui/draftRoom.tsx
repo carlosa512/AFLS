@@ -2,7 +2,7 @@
  * The draft room's pieces (spec `docs/superpowers/specs/2026-11-19-draft-room-rail-design.md`): your needs line, your
  * lineup behind it, the pick rail and the phone's pick strip. Everything is your scouts' read (`engine/draftNeeds.ts`).
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { teamScheme } from '../engine/coaching';
 import {
   draftNeeds,
@@ -21,6 +21,7 @@ import type { DraftPick, League } from '../engine/types';
 import { MoreLink, Panel, PlayerLink, Section, TeamChip, TeamLink } from './components';
 import { Icon } from './icons';
 import { Ovr, schemeFitOf } from './scouting';
+import { store } from './store';
 
 export interface DraftRoom {
   /** Your needs, on your schemes' starting spots. */
@@ -36,6 +37,8 @@ export interface DraftRoom {
  * changed in place, so the memo keys on the season, the phase and how many picks are in.
  */
 export function useDraftRoom(league: League): DraftRoom | null {
+  // The league is changed in place: the store's version says it changed (a pick, a trade, a day of free agency).
+  const version = useSyncExternalStore(store.subscribe, store.version, store.version);
   const made = draftOrder(league).filter((pk) => pk.playerId !== undefined).length;
   const on = employed(league);
   return useMemo(() => {
@@ -51,7 +54,7 @@ export function useDraftRoom(league: League): DraftRoom | null {
       scheme,
       byTeam,
     };
-  }, [league, league.season, league.phase, made, on]); // the league itself is mutated in place: these say when it changed
+  }, [league, version, league.season, league.phase, made, on]); // the league itself is mutated in place: these say when it changed
 }
 
 const TIER_CLASS = { big: ' big', need: ' need', minor: '' } as const;
@@ -283,20 +286,21 @@ export function PickRail({ league, room }: { league: League; room: DraftRoom | n
     const row = ol?.querySelector<HTMLElement>('.is-clock');
     if (ol && row) ol.scrollTop = row.offsetTop - ol.clientHeight / 3;
   }, [clock?.id]);
-  const jump = (round: number) => {
+  const [round, setRound] = useState(clock?.round ?? 1);
+  useEffect(() => setRound(clock?.round ?? 1), [clock?.round]);
+  // A sticky round header reports where it sticks, not where it sits: jump to the round's first pick instead.
+  const jump = (r: number) => {
+    setRound(r);
     const ol = list.current;
-    const head = ol?.querySelector<HTMLElement>(`[data-round="${round}"]`);
-    if (ol && head) ol.scrollTop = head.offsetTop;
+    const first = ol?.querySelector<HTMLElement>(`[data-first="${r}"]`);
+    const head = first?.previousElementSibling as HTMLElement | null;
+    if (ol && first) ol.scrollTop = first.offsetTop - (head?.offsetHeight ?? 0);
   };
   return (
     <section className="panel pick-rail">
       <div className="panel-head">
         <h2>Picks</h2>
-        <select
-          aria-label="Jump to round"
-          defaultValue={clock?.round ?? 1}
-          onChange={(e) => jump(Number(e.target.value))}
-        >
+        <select aria-label="Jump to round" value={round} onChange={(e) => jump(Number(e.target.value))}>
           {Array.from({ length: ROUNDS }, (_, i) => (
             <option key={i + 1} value={i + 1}>
               Round {i + 1}
@@ -310,11 +314,16 @@ export function PickRail({ league, room }: { league: League; room: DraftRoom | n
           const cls = `pick-row${made ? ' made' : ''}${pk.ownerId === league.userTeamId ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`;
           return [
             (i === 0 || order[i - 1].round !== pk.round) && (
-              <li key={`r${pk.round}`} className="pick-round eyebrow-sm" data-round={pk.round}>
+              <li key={`r${pk.round}`} className="pick-round eyebrow-sm">
                 Round {pk.round}
               </li>
             ),
-            <li key={pk.id} className={cls} data-no={pk.overall}>
+            <li
+              key={pk.id}
+              className={cls}
+              data-no={pk.overall}
+              data-first={i === 0 || order[i - 1].round !== pk.round ? pk.round : undefined}
+            >
               <span className="pick-no">{pk.overall}</span>
               <TeamChip team={league.teams[pk.ownerId]} />
               <span className="pick-body">
