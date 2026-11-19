@@ -67,8 +67,8 @@ trade table hides yours). Your club is marked "(you)". It goes in the panel's `a
 - **Sorting:** every table of comparable rows sorts with `useSort`, `sortRows` and `SortTh`. A list with no
   header (trade assets, your block) uses `SortSeg` with the same state. A click sorts by the column's natural
   order, and a second click flips it.
-- **Fixed order, on purpose:** box scores, the Schedule, Compare, and the depth chart's default view. Their
-  order is the game's or yours.
+- **Fixed order, on purpose:** box scores, the Schedule, Compare, the depth chart's default view and the draft
+  room's lineup (positions in the game's order). Their order is the game's or yours.
 - **Column names:** `Player`, `Pos`, `Age`, `OVR`, `Stars`, `Cap hit`, `Thru`. A screen's own columns keep
   their own names (`Your grade`, `Ceiling`, `Ask`, `Market`).
 - **Your row:** `tr.is-user`, and nothing else. (`.is-user-text` bolds your team's name inside a sentence; it

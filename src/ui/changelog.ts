@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.54',
+    date: '2026-11-19',
+    title: 'A draft room with your needs',
+    text: 'Every pick runs down the side of the draft, with what each team still needs. Your needs and your lineup sit beside the board, and the board can show only the positions you need.',
+  },
+  {
     version: '0.4.53',
     date: '2026-11-18',
     title: 'Rookies stay, GMs plan ahead',

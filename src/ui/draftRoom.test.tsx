@@ -10,6 +10,7 @@ import { Rng } from '../engine/rng';
 import { FRONTS, OFF_SCHEMES, offenseLabel, type TeamScheme } from '../engine/schemes';
 import { tradeContext } from '../engine/trade/context';
 import type { League } from '../engine/types';
+import { Draft } from './screens/Draft';
 import { LineupCard, NeedsLine, PickRail, PickStrip, useDraftRoom, type DraftRoom } from './draftRoom';
 
 /** One league on draft day, before the first pick and with one of your picks made, the next one on the clock. */
@@ -159,5 +160,27 @@ describe('pick rail', () => {
     const cards = [...html.matchAll(/class="pick-card((?: [^"]*)?)"/g)].map((m) => m[1]);
     expect(cards).toHaveLength(14);
     expect(cards[2]).toContain('is-clock');
+  });
+});
+
+describe('draft room', () => {
+  it('lays out the room with the rail, the needs line and no old ticker', () => {
+    const html = renderToStaticMarkup(<Draft league={live()} />);
+    for (const part of ['draft-room', 'draft-rail', 'pick-rail', 'pick-strip', 'Your needs'])
+      expect(html).toContain(part);
+    expect(html.match(/Your lineup/g)?.length).toBe(2);
+    expect(html).not.toContain('draft-ticker');
+    expect(html).not.toContain('Latest picks');
+  });
+
+  it('tags board rows at a position you need, and offers Needs only', () => {
+    const html = renderToStaticMarkup(<Draft league={live()} />);
+    expect(html).toMatch(/class="need-tag (big|need)"/);
+    expect(html).toContain('Needs only');
+  });
+
+  it('opens your draft history on the last two drafts', () => {
+    const html = renderToStaticMarkup(<Draft league={live()} />);
+    expect(html).toMatch(/<option value="recent" selected="">Last two drafts<\/option>/);
   });
 });

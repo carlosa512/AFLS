@@ -3894,21 +3894,54 @@ details.more > summary {
 }
 
 /* ───────── draft room ───────── */
-.draft-ticker {
-  list-style: none;
-  margin: 0 0 14px;
-  padding: 0;
-  display: grid;
-  gap: 6px;
+/* The draft room (screens/Draft.tsx): the page and, from 1,290 pixels wide, the rail beside it. Below that the rail's
+   two parts move into the page: the strip in the clock panel and the lineup under it. */
+.draft-rail {
+  display: none;
 }
-.draft-ticker li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
+@media (min-width: 1290px) {
+  main.wrap:has(.draft-room) {
+    max-width: 1500px;
+  }
+  .draft-room {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 20px;
+    align-items: start;
+  }
+  .draft-rail {
+    position: sticky;
+    top: 12px;
+    height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .draft-rail > .lineup-card {
+    flex: none;
+    max-height: 70%;
+    overflow: auto;
+  }
+  .draft-rail > .pick-rail {
+    flex: 1;
+  }
+  .draft-room .pick-strip,
+  .draft-room .draft-lineup-narrow {
+    display: none;
+  }
 }
-.draft-ticker li:first-child {
+/* A board row at a position you need. */
+.need-tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: var(--step--2);
   font-weight: 700;
+  background: var(--surface-2);
+}
+.need-tag.big {
+  background: color-mix(in srgb, var(--loss) 15%, var(--surface));
+  color: color-mix(in srgb, var(--loss) 78%, var(--ink));
 }
 /* Your needs and your lineup (ui/draftRoom.tsx): a need's color says how hard it presses, the same scale everywhere. */
 .needs-line {
@@ -4005,15 +4038,19 @@ table.lineup {
   font-size: var(--step--1);
   margin-bottom: 8px;
 }
+table.lineup {
+  width: 100%;
+}
+table.lineup th,
 table.lineup td {
-  padding-block: 4px;
+  padding: 4px 3px;
   white-space: nowrap;
 }
 table.lineup tbody + tbody tr:first-child td {
   border-top: 8px solid transparent;
 }
 .lineup-man {
-  max-width: 120px;
+  max-width: 108px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
