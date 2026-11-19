@@ -36,11 +36,11 @@ export interface DraftRoom {
  * The draft room's reads for this moment of the draft, or null when you have no team to draft for. The league is
  * changed in place, so the memo keys on the season, the phase and how many picks are in.
  */
-export function useDraftRoom(league: League): DraftRoom | null {
+export function useDraftRoom(league: League, enabled = true): DraftRoom | null {
   // The league is changed in place: the store's version says it changed (a pick, a trade, a day of free agency).
   const version = useSyncExternalStore(store.subscribe, store.version, store.version);
   const made = draftOrder(league).filter((pk) => pk.playerId !== undefined).length;
-  const on = employed(league);
+  const on = enabled && employed(league);
   return useMemo(() => {
     if (!on) return null;
     const ctx = tradeContext(league);
@@ -56,6 +56,23 @@ export function useDraftRoom(league: League): DraftRoom | null {
     };
   }, [league, version, league.season, league.phase, made, on]); // the league itself is mutated in place: these say when it changed
 }
+
+/** Your pick: only while you have a team (between jobs, the club you last looked at isn't yours). */
+const isMine = (league: League, pk: DraftPick) => employed(league) && pk.ownerId === league.userTeamId;
+
+const WIDE = '(min-width: 1290px)';
+const wideNow = () => matchMedia(WIDE).matches;
+const onWide = (fn: () => void) => {
+  const q = matchMedia(WIDE);
+  q.addEventListener('change', fn);
+  return () => q.removeEventListener('change', fn);
+};
+/** Whether the screen is wide enough for the rail (1,290 pixels, as in `styles.css`); null before it can know. */
+export function useWide(): boolean | null {
+  return useSyncExternalStore(onWide, wideNow, () => null);
+}
+/** What the draft room draws: the rail when wide, the strip and the lineup panel when narrow, both until it knows. */
+export const drawn = (wide: boolean | null) => ({ rail: wide !== false, narrow: wide !== true });
 
 const TIER_CLASS = { big: ' big', need: ' need', minor: '' } as const;
 
@@ -214,7 +231,7 @@ export function LineupCard({
         <span className="need-key small muted">
           <span>
             <i className="fit-dot good" />
-            Good fit
+            Ideal or good fit
           </span>
           <span>
             <i className="fit-dot average" />
@@ -242,7 +259,7 @@ function PickToCome({
   pick: DraftPick;
   clock: boolean;
 }) {
-  const mine = pick.ownerId === league.userTeamId;
+  const mine = isMine(league, pick);
   const theirs = room?.byTeam.get(pick.ownerId);
   return (
     <>
@@ -311,7 +328,7 @@ export function PickRail({ league, room }: { league: League; room: DraftRoom | n
       <ol className="pick-list" ref={list}>
         {order.map((pk, i) => {
           const made = pk.playerId !== undefined ? league.players[pk.playerId] : null;
-          const cls = `pick-row${made ? ' made' : ''}${pk.ownerId === league.userTeamId ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`;
+          const cls = `pick-row${made ? ' made' : ''}${isMine(league, pk) ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`;
           return [
             (i === 0 || order[i - 1].round !== pk.round) && (
               <li key={`r${pk.round}`} className="pick-round eyebrow-sm">
@@ -361,7 +378,7 @@ export function PickStrip({ league, room }: { league: League; room: DraftRoom | 
         return (
           <div
             key={pk.id}
-            className={`pick-card${pk.ownerId === league.userTeamId ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`}
+            className={`pick-card${isMine(league, pk) ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`}
           >
             <span className="pick-card-top">
               <span className="pick-no">{pk.overall}</span>

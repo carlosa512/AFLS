@@ -12,7 +12,7 @@ import { FRONTS, OFF_SCHEMES, offenseLabel, type TeamScheme } from '../engine/sc
 import { tradeContext } from '../engine/trade/context';
 import type { League } from '../engine/types';
 import { Draft } from './screens/Draft';
-import { LineupCard, NeedsLine, PickRail, PickStrip, useDraftRoom, type DraftRoom } from './draftRoom';
+import { drawn, LineupCard, NeedsLine, PickRail, PickStrip, useDraftRoom, type DraftRoom } from './draftRoom';
 
 /** One league on draft day, before the first pick and with one of your picks made, the next one on the clock. */
 const fixture = (() => {
@@ -218,5 +218,67 @@ describe('final review fixes', () => {
     const l = live();
     const html = render(l, (room) => <PickRail league={l} room={room} />);
     for (let r = 1; r <= 7; r++) expect(html).toContain(`data-first="${r}"`);
+  });
+});
+
+describe('small fixes', () => {
+  it('marks no pick as yours when you are between jobs', () => {
+    const l = live();
+    l.gms[l.userGmId].teamId = null;
+    const html = renderToStaticMarkup(
+      <>
+        <PickRail league={l} room={null} />
+        <PickStrip league={l} room={null} />
+      </>,
+    );
+    expect(html).not.toContain('is-mine');
+    expect(html).not.toContain('Your pick');
+    expect(html).not.toContain('You&#x27;re on the clock');
+  });
+
+  it('draws the rail on a wide screen and the strip on a narrow one, both before it knows', () => {
+    expect(drawn(true)).toEqual({ rail: true, narrow: false });
+    expect(drawn(false)).toEqual({ rail: false, narrow: true });
+    expect(drawn(null)).toEqual({ rail: true, narrow: true });
+  });
+
+  it('works nothing out when it is off', () => {
+    expect(render(live(), () => null)).toBe('');
+    expect(renderToStaticMarkup(<Off league={live()} />)).toBe('none');
+  });
+
+  it('names an ideal fit in the key', () => {
+    const l = live();
+    const html = render(l, (room) => <LineupCard league={l} room={room!} id="key-test" />);
+    expect(html).toContain('Ideal or good fit');
+  });
+
+  it("opens on your team's last two drafts, not the league's", () => {
+    const l = live();
+    const mine = Object.values(l.players).find((p) => p.draft?.teamId === l.userTeamId && p.scouting)!;
+    const other = Object.values(l.players).find((p) => p.draft && p.scouting && p.draft.teamId !== l.userTeamId)!;
+    other.draft!.season = l.season - 1;
+    mine.draft!.season = l.season - 3;
+    const html = renderToStaticMarkup(<Draft league={l} />);
+    const history = html.slice(html.indexOf('Draft history'), html.indexOf('<aside'));
+    expect(history).toContain(mine.lastName);
+  });
+
+  it('keeps the draft-day pill comment out of Draft.tsx', () => {
+    expect(readFileSync('src/ui/screens/Draft.tsx', 'utf8')).not.toContain("Draft day's own judgment");
+  });
+});
+
+/** useDraftRoom switched off. */
+function Off({ league }: { league: League }) {
+  return <>{useDraftRoom(league, false) ? 'room' : 'none'}</>;
+}
+
+describe('phone width', () => {
+  it("keeps a table's hidden labels inside its scroller, so a phone page never grows sideways", () => {
+    // A `.visually-hidden` label is absolutely placed: with no positioned scroller around it, a wide table's labels
+    // escape the scroll and stretch the whole page (the draft board made a phone page 887 pixels wide).
+    const rule = /(^|\n)\.table-scroll \{([^}]*)\}/.exec(readFileSync('src/styles.css', 'utf8'))![2];
+    expect(rule).toContain('position: relative');
   });
 });

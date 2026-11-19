@@ -516,6 +516,8 @@ main.wrap {
 
 /* ───────── tables (agate type) ───────── */
 .table-scroll {
+  /* Holds absolutely placed labels (.visually-hidden) inside the scroll, or a wide table widens the whole page. */
+  position: relative;
   overflow-x: auto;
   min-width: 0;
   -webkit-overflow-scrolling: touch;

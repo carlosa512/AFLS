@@ -45,7 +45,17 @@ import {
   ScoutButton,
   viewOf,
 } from '../scouting';
-import { DraftDayPill, LineupCard, NeedsLine, PickRail, PickStrip, useDraftRoom, type DraftRoom } from '../draftRoom';
+import {
+  DraftDayPill,
+  drawn,
+  LineupCard,
+  NeedsLine,
+  PickRail,
+  PickStrip,
+  useDraftRoom,
+  useWide,
+  type DraftRoom,
+} from '../draftRoom';
 import { shownNeeds } from '../../engine/draftNeeds';
 import { store } from '../store';
 import { Icon } from '../icons';
@@ -76,7 +86,8 @@ export function Draft({ league }: { league: League }) {
   const [needsOnly, setNeedsOnly] = useState(false);
   // A new filter or ranking starts back at the top of the board.
   useEffect(() => setShown(BOARD_PAGE), [pos, sort, needsOnly]);
-  const room = useDraftRoom(league);
+  const room = useDraftRoom(league, clockState(league).kind !== 'none');
+  const show = drawn(useWide());
   // The positions your board tags as needs: the ones your needs line shows that you haven't drafted for yet.
   const needAt = new Map(
     (room ? shownNeeds(room.mine) : []).filter((n) => !n.filled && n.tier !== 'minor').map((n) => [n.position, n.tier]),
@@ -118,11 +129,11 @@ export function Draft({ league }: { league: League }) {
     <div className="home-grid">
       {clock.kind !== 'none' && (
         <div className="home-cell span-12">
-          <DraftClock league={league} clock={clock} room={room} />
+          <DraftClock league={league} clock={clock} room={room} strip={show.narrow} />
         </div>
       )}
 
-      {clock.kind !== 'none' && room && (
+      {clock.kind !== 'none' && room && show.narrow && (
         <div className="home-cell span-12 draft-lineup-narrow">
           <LineupCard league={league} room={room} id="draft-lineup-narrow" defaultOpen={!phoneWide()} />
         </div>
@@ -312,7 +323,8 @@ export function Draft({ league }: { league: League }) {
       )}
     </div>
   );
-  if (clock.kind === 'none') return grid;
+  if (clock.kind === 'none' || !show.rail)
+    return clock.kind === 'none' ? grid : <div className="draft-room">{grid}</div>;
   // The rail sticks just under the app's top bar, whose height depends on the screen: measure it.
   const underBar = (el: HTMLDivElement | null) => {
     const bar = el && document.querySelector<HTMLElement>('.topbar');
@@ -431,6 +443,11 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
   // Drafts this league held: those players keep the consensus read. A new league's veterans come with made-up draft lines.
   const drafted = Object.values(league.players).filter((p) => p.draft && p.scouting);
   const years = [...new Set(drafted.map((p) => p.draft!.season))].sort((a, b) => b - a);
+  // A team's last two drafts are its own: the two newest years it drafted in, not the league's.
+  const teamYears = (team: number | 'all') =>
+    team === 'all'
+      ? years
+      : years.filter((y) => drafted.some((p) => p.draft!.season === y && p.draft!.teamId === team));
   const [team, setTeam] = useState<number | 'all'>(league.userTeamId);
   const [pickedYear, setYear] = useState<number | 'all' | 'recent' | null>(null);
   const [shown, setShown] = useState(HISTORY_PAGE);
@@ -448,7 +465,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
       (p) =>
         (team === 'all' || p.draft!.teamId === team) &&
         (year === 'all' ||
-          (year === 'recent' ? years.slice(0, 2).includes(p.draft!.season) : p.draft!.season === year)) &&
+          (year === 'recent' ? teamYears(team).slice(0, 2).includes(p.draft!.season) : p.draft!.season === year)) &&
         (round === 'all' || p.draft!.round === round),
     )
     .sort(
@@ -592,10 +609,13 @@ function DraftClock({
   league,
   clock,
   room,
+  strip,
 }: {
   league: League;
   clock: Exclude<ClockState, { kind: 'none' }>;
   room: DraftRoom | null;
+  /** The pick strip, on a narrow screen. */
+  strip: boolean;
 }) {
   // What the league said when you shopped your pick or called the teams ahead, until the pick on the clock moves.
   const [heard, setHeard] = useState<{ at: number; text: string } | null>(null);
@@ -603,7 +623,7 @@ function DraftClock({
   if (clock.kind === 'preview')
     return (
       <OfficeHero headline={`${league.season} draft class`}>
-        <PickStrip league={league} room={room} />
+        {strip && <PickStrip league={league} room={room} />}
         {room && <NeedsLine room={room} />}
         <Facts>
           <Fact label="Prospects">{clock.prospects}</Fact>
@@ -685,7 +705,7 @@ function DraftClock({
           {heard.text}
         </p>
       )}
-      <PickStrip league={league} room={room} />
+      {strip && <PickStrip league={league} room={room} />}
       {room && <NeedsLine room={room} />}
       <Facts>
         <Fact label="Your next pick">
@@ -790,7 +810,6 @@ function GapPill({ gap }: { gap: Gap }) {
   );
 }
 
-/** Draft day's own judgment: taken a dozen picks ahead of the consensus (a reach) or after it (value). */
 const VERDICT_TEXT = { steal: 'Steal', hit: 'Hit', miss: 'Miss' } as const;
 const VERDICT_TONE = { steal: ' tag-good', hit: '', miss: ' tag-bad' } as const;
 
