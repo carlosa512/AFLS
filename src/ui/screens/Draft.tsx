@@ -45,6 +45,7 @@ import {
   ScoutButton,
   viewOf,
 } from '../scouting';
+import { DraftDayPill } from '../draftRoom';
 import { store } from '../store';
 import { Icon } from '../icons';
 
@@ -728,22 +729,6 @@ function GapPill({ gap }: { gap: Gap }) {
 }
 
 /** Draft day's own judgment: taken a dozen picks ahead of the consensus (a reach) or after it (value). */
-function DraftDayPill({ value }: { value: 'reach' | 'steal' | null }) {
-  if (value === 'reach')
-    return (
-      <span className="tag-pill tag-warn" title="Taken a dozen picks or more ahead of his consensus rank">
-        reach
-      </span>
-    );
-  if (value === 'steal')
-    return (
-      <span className="tag-pill tag-good" title="Taken a dozen picks or more after his consensus rank">
-        value
-      </span>
-    );
-  return null;
-}
-
 const VERDICT_TEXT = { steal: 'Steal', hit: 'Hit', miss: 'Miss' } as const;
 const VERDICT_TONE = { steal: ' tag-good', hit: '', miss: ' tag-bad' } as const;
 
