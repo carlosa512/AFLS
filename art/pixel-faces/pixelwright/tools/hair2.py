@@ -52,7 +52,49 @@ def swept():
              [(32, 17), (28, 11), (23, 7)], [(28, 19), (24, 14), (19, 12)]]
     return drawn(poly, lines)
 
-STY = {'curly': curly, 'mane': mane, 'straight': straight, 'swept': swept}
+def mane2():
+    C = H.chain
+    cl = []
+    # back locks first, falling in waves to the shoulders
+    cl += C([(24, 6), (16, 12), (12, 21), (14, 29), (11, 37), (13, 44)], 4.6, 3.0)
+    cl += C([(26, 6), (18, 13), (15, 22), (17, 30), (14, 38), (15, 44)], 4.4, 3.0)
+    cl += C([(28, 5), (20, 12), (18, 21), (20, 30), (18, 38), (20, 44)], 4.2, 2.8)
+    cl += C([(30, 7), (24, 14), (22, 23), (24, 31), (22, 39)], 3.8, 2.6)
+    # the crown and the far side, falling behind the face
+    cl += C([(32, 3), (25, 4), (18, 8), (14, 14)], 4.6, 3.2)
+    cl += C([(35, 3), (41, 5), (46, 10), (48, 17), (48, 24), (47, 30)], 4.2, 2.0)
+    cl += C([(33, 5), (29, 9), (26, 15), (25, 21)], 3.6, 2.4)
+    # the fringe, parted near the middle and falling either way
+    cl += C([(32, 7), (31, 12), (30, 16), (28, 19)], 2.6, 1.3)
+    cl += C([(35, 6), (37, 11), (37, 15), (36, 19)], 2.6, 1.3)
+    cl += C([(38, 6), (42, 10), (44, 15), (45, 19)], 2.6, 1.3)
+    k = lambda xy: keep(xy) or (xy[0] <= 24 and xy[1] <= 42) or (xy[1] <= 20 and xy[0] >= 27)
+    cells = H.curls(cl)
+    for xy in H.FACE:
+        if keep(xy) and xy not in cells:
+            cells[xy] = 1  # the scalp under the locks, so no skin shows through the top
+    return H.finish(cells, keep=k)
+
+def swept2():
+    C = H.chain
+    cl = []
+    # close at the back, then tufts lying back along the skull, the front row last so it sits on top
+    cl += C([(24, 13), (21, 17), (20, 21)], 2.2, 1.4)
+    cl += C([(28, 8), (22, 10), (19, 14)], 2.6, 1.6)
+    cl += C([(36, 8), (29, 6), (23, 9)], 2.8, 1.4)
+    cl += C([(40, 8), (33, 5), (27, 5)], 2.8, 1.4)
+    cl += C([(44, 10), (38, 6), (32, 4)], 2.8, 1.4)
+    cl += C([(33, 16), (28, 13), (24, 13)], 2.5, 1.4)
+    cl += C([(37, 15), (32, 12), (27, 11)], 2.6, 1.4)
+    cl += C([(41, 15), (36, 12), (31, 10)], 2.6, 1.4)
+    cl += C([(45, 15), (40, 11), (35, 9)], 2.6, 1.4)
+    cells = H.curls(cl)
+    for xy in H.FACE:
+        if keep(xy) and xy not in cells:
+            cells[xy] = 1
+    return H.finish(cells, keep=keep)
+
+STY = {'mane2': mane2, 'swept2': swept2, 'curly': curly, 'mane': mane, 'straight': straight, 'swept': swept}
 D = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '')
 if __name__ == '__main__':
     names = sys.argv[1:] or list(STY)

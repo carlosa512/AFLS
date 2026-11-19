@@ -144,3 +144,19 @@ def strands(out, lines, lit_edge=True, lit_until=0.65):
                             out[n2] = max(out[n2], 2)
                         break
     return out
+
+def chain(path, r0, r1, step=1.6):
+    """A lock as a chain of curl clumps along a path, from r0 at the root to r1 at the tip: wavy or tufted hair with
+    the same lit-clump texture as the curls."""
+    pts = []
+    for k in range(len(path) - 1):
+        (x0, y0), (x1, y1) = path[k], path[k + 1]
+        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
+        for s in range(n):
+            pts.append((x0 + (x1 - x0) * s / n, y0 + (y1 - y0) * s / n))
+    pts.append(path[-1])
+    out = []
+    for i, (x, y) in enumerate(pts):
+        u = i / max(1, len(pts) - 1)
+        out.append((x, y, r0 + (r1 - r0) * u))
+    return out
