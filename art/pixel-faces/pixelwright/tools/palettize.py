@@ -56,7 +56,7 @@ def remap(k):
             t = 'tee.%d' % min(range(4), key=lambda i: abs(Lab_L(hx(PAL['tee'][i])) - L))
         elif L < 13:
             # very dark marks on the skin: lashes and pupils at the eyes, brows above them, else a crease
-            if top - 1 <= y <= bot + 1:
+            if top - 1 <= y <= bot + 1 and min(x2 for x2, _ in whites) - 2 <= x <= max(x2 for x2, _ in whites) + 2:
                 t = 'iris'
             elif top - 5 <= y < top - 1:
                 t = 'hair.0'

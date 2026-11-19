@@ -42,6 +42,6 @@ def render(layers, scale=8, bg=(60, 64, 72)):
                 p[x, y] = rgb(t) + (255,)
     return im.resize((64 * scale, 64 * scale), Image.NEAREST)
 def save(name, g):
-    json.dump({'%d,%d' % xy: t for xy, t in g.items()}, open(os.path.join(os.path.dirname(__file__), name + '.json'), 'w'))
+    open(os.path.join(os.path.dirname(__file__), name + '.json'), 'w').write(json.dumps({'%d,%d' % xy: t for xy, t in g.items()}, indent=2) + '\n')
 def load(name):
     return {tuple(map(int, k.split(','))): v for k, v in json.load(open(os.path.join(os.path.dirname(__file__), name + '.json'))).items()}
