@@ -48,8 +48,8 @@ export interface TradeContext {
   stanceScores?: Map<number, number>;
   seeds?: Map<number, number[]>;
   starterLine?: Record<Position, number>;
-  /** The league's median starter on each viewing club's read (`scoutedNeeds`), by club. */
-  viewLines?: Map<number, Record<Position, number>>;
+  /** The league's median starter on each viewing club's read (`scoutedLine`), by club and starter counts. */
+  viewLines?: Map<string, Record<Position, number>>;
   needs?: Map<number, Need[]>;
   blocks?: Map<number, BlockEntry[]>;
   untouchables?: Map<number, Set<number>>;
