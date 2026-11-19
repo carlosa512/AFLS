@@ -2,7 +2,7 @@
  * The draft room's pieces (spec `docs/superpowers/specs/2026-11-19-draft-room-rail-design.md`): your needs line, your
  * lineup behind it, the pick rail and the phone's pick strip. Everything is your scouts' read (`engine/draftNeeds.ts`).
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { teamScheme } from '../engine/coaching';
 import {
   draftNeeds,
@@ -14,11 +14,11 @@ import {
   type TeamDraftNeeds,
 } from '../engine/draftNeeds';
 import { employed } from '../engine/employment';
-import { draftOrder } from '../engine/offseason/draft';
+import { draftOrder, nextPick, reachOrSteal, ROUNDS } from '../engine/offseason/draft';
 import { defenseLabel, offenseLabel, PERSONNEL_LABEL, type TeamScheme } from '../engine/schemes';
 import { tradeContext } from '../engine/trade/context';
-import type { League } from '../engine/types';
-import { MoreLink, Panel, PlayerLink, Section } from './components';
+import type { DraftPick, League } from '../engine/types';
+import { MoreLink, Panel, PlayerLink, Section, TeamChip, TeamLink } from './components';
 import { Icon } from './icons';
 import { Ovr, schemeFitOf } from './scouting';
 
@@ -224,6 +224,151 @@ export function LineupCard({
         </span>
       </Section>
     </Panel>
+  );
+}
+
+/** What a pick still to come shows: whose it is and, for another team, the needs our scouts see. */
+function PickToCome({
+  league,
+  room,
+  pick,
+  clock,
+}: {
+  league: League;
+  room: DraftRoom | null;
+  pick: DraftPick;
+  clock: boolean;
+}) {
+  const mine = pick.ownerId === league.userTeamId;
+  const theirs = room?.byTeam.get(pick.ownerId);
+  return (
+    <>
+      <span className="pick-who">
+        {mine ? (
+          <b>{clock ? "You're on the clock" : 'Your pick'}</b>
+        ) : (
+          <>
+            <TeamLink team={league.teams[pick.ownerId]} />
+            {clock && <b> On the clock</b>}
+          </>
+        )}
+      </span>
+      {!mine && theirs && (
+        <span className="pill-row">
+          {theirs.needs.slice(0, 3).map((n) => (
+            <NeedPill key={n.position} need={n} plain early={theirs.littleFilm} />
+          ))}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** "via DAL" when a pick changed hands. */
+const via = (league: League, pk: DraftPick) =>
+  pk.originalTeamId !== pk.ownerId && (
+    <span className="muted small"> via {league.teams[pk.originalTeamId].abbrev}</span>
+  );
+
+/**
+ * Every pick of the draft beside the page, made and to come, in a list that scrolls on its own. It keeps the pick on
+ * the clock a third of the way down as the draft moves, by its own scroll so the page stays put.
+ */
+export function PickRail({ league, room }: { league: League; room: DraftRoom | null }) {
+  const order = draftOrder(league);
+  const clock = nextPick(league);
+  const list = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const ol = list.current;
+    const row = ol?.querySelector<HTMLElement>('.is-clock');
+    if (ol && row) ol.scrollTop = row.offsetTop - ol.clientHeight / 3;
+  }, [clock?.id]);
+  const jump = (round: number) => {
+    const ol = list.current;
+    const head = ol?.querySelector<HTMLElement>(`[data-round="${round}"]`);
+    if (ol && head) ol.scrollTop = head.offsetTop;
+  };
+  return (
+    <section className="panel pick-rail">
+      <div className="panel-head">
+        <h2>Picks</h2>
+        <select
+          aria-label="Jump to round"
+          defaultValue={clock?.round ?? 1}
+          onChange={(e) => jump(Number(e.target.value))}
+        >
+          {Array.from({ length: ROUNDS }, (_, i) => (
+            <option key={i + 1} value={i + 1}>
+              Round {i + 1}
+            </option>
+          ))}
+        </select>
+      </div>
+      <ol className="pick-list" ref={list}>
+        {order.map((pk, i) => {
+          const made = pk.playerId !== undefined ? league.players[pk.playerId] : null;
+          const cls = `pick-row${made ? ' made' : ''}${pk.ownerId === league.userTeamId ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`;
+          return [
+            (i === 0 || order[i - 1].round !== pk.round) && (
+              <li key={`r${pk.round}`} className="pick-round eyebrow-sm" data-round={pk.round}>
+                Round {pk.round}
+              </li>
+            ),
+            <li key={pk.id} className={cls} data-no={pk.overall}>
+              <span className="pick-no">{pk.overall}</span>
+              <TeamChip team={league.teams[pk.ownerId]} />
+              <span className="pick-body">
+                {made ? (
+                  <span className="pick-who">
+                    <span className="muted small">{made.position}</span> <PlayerLink league={league} player={made} />
+                    <DraftDayPill value={reachOrSteal({ pick: pk.overall!, rank: pk.consRank })} />
+                    {via(league, pk)}
+                  </span>
+                ) : (
+                  <>
+                    <PickToCome league={league} room={room} pick={pk} clock={pk === clock} />
+                    {via(league, pk)}
+                  </>
+                )}
+              </span>
+            </li>,
+          ];
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/** The rail on a narrow screen: a strip of picks to swipe, from two before the clock to a dozen after it. */
+export function PickStrip({ league, room }: { league: League; room: DraftRoom | null }) {
+  const order = draftOrder(league);
+  const clock = nextPick(league);
+  const at = clock ? order.indexOf(clock) : -1;
+  const from = at >= 0 ? Math.max(0, at - 2) : Math.max(0, order.length - 14);
+  return (
+    <div className="pick-strip" aria-label="Picks">
+      {order.slice(from, from + 14).map((pk) => {
+        const made = pk.playerId !== undefined ? league.players[pk.playerId] : null;
+        return (
+          <div
+            key={pk.id}
+            className={`pick-card${pk.ownerId === league.userTeamId ? ' is-mine' : ''}${pk === clock ? ' is-clock' : ''}`}
+          >
+            <span className="pick-card-top">
+              <span className="pick-no">{pk.overall}</span>
+              <TeamChip team={league.teams[pk.ownerId]} />
+            </span>
+            {made ? (
+              <span className="pick-who">
+                <span className="muted small">{made.position}</span> <PlayerLink league={league} player={made} />
+              </span>
+            ) : (
+              <PickToCome league={league} room={room} pick={pk} clock={pk === clock} />
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

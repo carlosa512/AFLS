@@ -4038,6 +4038,99 @@ table.lineup tbody + tbody tr:first-child td {
   background: var(--loss);
   box-shadow: none;
 }
+/* The pick rail (ui/draftRoom.tsx): every pick in a list with its own scroll, the clock tinted gold, yours edged. */
+.pick-rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 4px;
+}
+.pick-rail .panel-head {
+  margin-bottom: 6px;
+}
+.pick-list {
+  position: relative;
+  list-style: none;
+  margin: 0 -16px;
+  padding: 0 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  flex: 1;
+}
+.pick-round {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 6px 6px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.pick-row {
+  display: grid;
+  grid-template-columns: 2.2em auto minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: center;
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.pick-row.is-mine,
+.pick-card.is-mine {
+  box-shadow: inset 3px 0 0 var(--marker);
+}
+.pick-row.is-clock,
+.pick-card.is-clock {
+  background: color-mix(in srgb, var(--marker) 24%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--marker);
+}
+.pick-no {
+  font-family: var(--font-data);
+  font-size: var(--step--1);
+  color: var(--muted);
+  text-align: right;
+}
+.pick-body {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.pick-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pick-body .pill-row,
+.pick-card .pill-row {
+  gap: 4px;
+}
+.pick-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 0 14px;
+  padding: 2px 0 6px;
+  scroll-snap-type: x proximity;
+}
+.pick-card {
+  flex: none;
+  width: 150px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: var(--step--1);
+  scroll-snap-align: start;
+}
+.pick-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .prospect-grade {
   display: flex;
   align-items: baseline;
