@@ -167,6 +167,12 @@ const NEED_WEIGHT = Object.fromEntries(POSITIONS.map((p) => [p, Math.sqrt(POSITI
   number
 >;
 
+/**
+ * How short a need leaves the position, on one scale for every position (0 … 1, a hole is 1): its urgency without the
+ * position's weight. The draft room colours needs by it, so a kicker can read as a big need too.
+ */
+export const needSeverity = (n: Need) => clamp(n.urgency / NEED_WEIGHT[n.position], 0, 1);
+
 /** Healthy enough to count in the lineup: not on reserve, not out a month. */
 const healthy = (league: League, p: Player) =>
   !p.ir && !(league.phase === 'regular' && p.injury && p.injury.estimate[0] >= 4);
@@ -177,12 +183,16 @@ export function starterLine(ctx: TradeContext): Record<Position, number> {
 }
 
 /** The league's median starter at each position, with players rated by `ovr`: the truth or one club's read. */
-function lineOn(ctx: TradeContext, ovr: (p: Player) => number): Record<Position, number> {
+function lineOn(
+  ctx: TradeContext,
+  ovr: (p: Player) => number,
+  starters: Record<Position, number> = STARTERS,
+): Record<Position, number> {
   const all = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
   for (const t of ctx.league.teams) {
     const mine = Object.fromEntries(POSITIONS.map((pos) => [pos, [] as number[]])) as Record<Position, number[]>;
     for (const p of rosterOf(ctx, t.id)) mine[p.position].push(ovr(p));
-    for (const pos of POSITIONS) all[pos].push(...mine[pos].sort((a, b) => b - a).slice(0, STARTERS[pos]));
+    for (const pos of POSITIONS) all[pos].push(...mine[pos].sort((a, b) => b - a).slice(0, starters[pos]));
   }
   const line = {} as Record<Position, number>;
   for (const pos of POSITIONS) {
@@ -205,20 +215,23 @@ export function teamNeeds(ctx: TradeContext, team: Team): Need[] {
 
 /**
  * The needs rules for one roster, with players rated by `ovr` against the league's median starter `line`:
- * the team's own exact read (`teamNeeds`) or another club's scouting of it (`scoutedNeeds`).
+ * the team's own exact read (`teamNeeds`) or another club's scouting of it (`scoutedNeeds`). `starters` is how many
+ * start at each position (a scheme's spots, for the draft room); a position nobody starts at is never a need.
  */
 export function needsOn(
   league: League,
   roster: readonly Player[],
   line: Record<Position, number>,
   ovr: (p: Player) => number,
+  starters: Record<Position, number> = STARTERS,
 ): Need[] {
   const out: Need[] = [];
   const lookAhead = league.phase !== 'regular' || league.week >= 6;
   for (const pos of POSITIONS) {
     const room = roster.filter((p) => p.position === pos && underContract(league, p));
     const fit = room.filter((p) => healthy(league, p)).sort((a, b) => ovr(b) - ovr(a));
-    const S = STARTERS[pos];
+    const S = starters[pos];
+    if (!S) continue;
     let need: Need | null = null;
     if (fit.length < S) need = { position: pos, urgency: 1, reason: 'hole' };
     else {
@@ -242,15 +255,33 @@ const LITTLE_FILM = 0.35;
  */
 export function scoutedNeeds(ctx: TradeContext, viewerId: number, team: Team): { needs: Need[]; littleFilm: boolean } {
   const seen = (p: Player) => ctx.view(viewerId, p).ovr;
+  return {
+    needs: needsOn(ctx.league, rosterOf(ctx, team.id), scoutedLine(ctx, viewerId), seen),
+    littleFilm: littleFilm(ctx, viewerId, team),
+  };
+}
+
+/**
+ * The league's median starter on `viewerId`'s read, pooling each team's top `starters` at each position: with a
+ * scheme's counts, a second tight end is measured against teams' top two tight ends, not their top one.
+ */
+export function scoutedLine(
+  ctx: TradeContext,
+  viewerId: number,
+  starters: Record<Position, number> = STARTERS,
+): Record<Position, number> {
+  const key = `${viewerId}:${POSITIONS.map((p) => starters[p]).join(',')}`;
   const lines = (ctx.viewLines ??= new Map());
-  let line = lines.get(viewerId);
-  if (!line) lines.set(viewerId, (line = lineOn(ctx, seen)));
+  let line = lines.get(key);
+  if (!line) lines.set(key, (line = lineOn(ctx, (p) => ctx.view(viewerId, p).ovr, starters)));
+  return line;
+}
+
+/** Whether `viewerId`'s scouts have too little film on `team`'s starters for their read of its needs to be more than a guess. */
+export function littleFilm(ctx: TradeContext, viewerId: number, team: Team): boolean {
   const known = POSITIONS.flatMap((pos) => starters(ctx.league, team, pos)).map((p) => ctx.view(viewerId, p).knowledge);
   const film = known.reduce((s, k) => s + k, 0) / Math.max(1, known.length);
-  return {
-    needs: needsOn(ctx.league, rosterOf(ctx, team.id), line, seen),
-    littleFilm: !known.length || film < LITTLE_FILM,
-  };
+  return !known.length || film < LITTLE_FILM;
 }
 
 // ───────── the trade block ─────────

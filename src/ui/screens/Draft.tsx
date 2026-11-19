@@ -45,6 +45,18 @@ import {
   ScoutButton,
   viewOf,
 } from '../scouting';
+import {
+  DraftDayPill,
+  drawn,
+  LineupCard,
+  NeedsLine,
+  PickRail,
+  PickStrip,
+  useDraftRoom,
+  useWide,
+  type DraftRoom,
+} from '../draftRoom';
+import { shownNeeds } from '../../engine/draftNeeds';
 import { store } from '../store';
 import { Icon } from '../icons';
 
@@ -63,20 +75,29 @@ type BoardDrill = (typeof BOARD_DRILLS)[number][0];
 
 /** Board rows shown at a time: a round's worth, so the board stays a screen or two tall. */
 const BOARD_PAGE = 32;
+/** Draft history rows shown at a time: a draft's worth of your own picks, so the panel stays short. */
+const HISTORY_PAGE = 8;
 
 export function Draft({ league }: { league: League }) {
   const [pos, setPos] = useState<Position | 'ALL'>('ALL');
   const [sort, onSort, setSort] = useSort<BoardSort>({ key: 'rank', desc: false });
   const [drill, setDrill] = useState<BoardDrill>('forty');
   const [shown, setShown] = useState(BOARD_PAGE);
+  const [needsOnly, setNeedsOnly] = useState(false);
   // A new filter or ranking starts back at the top of the board.
-  useEffect(() => setShown(BOARD_PAGE), [pos, sort]);
+  useEffect(() => setShown(BOARD_PAGE), [pos, sort, needsOnly]);
+  const room = useDraftRoom(league, clockState(league).kind !== 'none');
+  const show = drawn(useWide());
+  // The positions your board tags as needs: the ones your needs line shows that you haven't drafted for yet.
+  const needAt = new Map(
+    (room ? shownNeeds(room.mine) : []).filter((n) => !n.filled && n.tier !== 'minor').map((n) => [n.position, n.tier]),
+  );
   const all = availableProspects(league);
   // Both boards across the whole class: the consensus rank is roughly where the league will take him.
   const gaps = staffGaps(league, all);
   // Sort the whole class before paging it, so "fastest" or "best ceiling" reaches past the first page.
   const prospects = sortRows(
-    all.filter((p) => pos === 'ALL' || p.position === pos),
+    all.filter((p) => (pos === 'ALL' || p.position === pos) && (!needsOnly || needAt.has(p.position))),
     sort,
     (p, key) => {
       const v = viewOf(league, p);
@@ -104,11 +125,17 @@ export function Draft({ league }: { league: League }) {
   const offers = draftDayOffers(league);
   const hasHistory = Object.values(league.players).some((p) => p.draft && p.scouting);
 
-  return (
+  const grid = (
     <div className="home-grid">
       {clock.kind !== 'none' && (
         <div className="home-cell span-12">
-          <DraftClock league={league} clock={clock} />
+          <DraftClock league={league} clock={clock} room={room} strip={show.narrow} />
+        </div>
+      )}
+
+      {clock.kind !== 'none' && room && show.narrow && (
+        <div className="home-cell span-12 draft-lineup-narrow">
+          <LineupCard league={league} room={room} id="draft-lineup-narrow" defaultOpen={!phoneWide()} />
         </div>
       )}
 
@@ -158,7 +185,26 @@ export function Draft({ league }: { league: League }) {
                     </option>
                   ))}
                 </select>
-                <PositionFilter value={pos} onChange={setPos} />
+                {room && (
+                  <div className="seg seg-sm" role="group" aria-label="Show">
+                    <button
+                      aria-pressed={needsOnly}
+                      onClick={() => {
+                        setNeedsOnly(!needsOnly);
+                        setPos('ALL');
+                      }}
+                    >
+                      Needs only
+                    </button>
+                  </div>
+                )}
+                <PositionFilter
+                  value={pos}
+                  onChange={(p) => {
+                    setPos(p);
+                    setNeedsOnly(false);
+                  }}
+                />
               </span>
             }
           >
@@ -212,7 +258,10 @@ export function Draft({ league }: { league: League }) {
                           <span className="board-rank muted small">{gaps.get(p.id)!.consensus}</span>
                           <PlayerLink league={league} player={p} avatar={32} />
                         </td>
-                        <td>{p.position}</td>
+                        <td>
+                          {p.position}
+                          {needAt.has(p.position) && <span className={`need-tag ${needAt.get(p.position)}`}>Need</span>}
+                        </td>
                         <td>
                           <OriginTag player={p} />
                         </td>
@@ -274,7 +323,28 @@ export function Draft({ league }: { league: League }) {
       )}
     </div>
   );
+  if (clock.kind === 'none' || !show.rail)
+    return clock.kind === 'none' ? grid : <div className="draft-room">{grid}</div>;
+  // The rail sticks just under the app's top bar, whose height depends on the screen: measure it.
+  const underBar = (el: HTMLDivElement | null) => {
+    const bar = el && document.querySelector<HTMLElement>('.topbar');
+    if (el && bar) el.style.setProperty('--topbar-h', `${bar.offsetHeight}px`);
+  };
+  // While the draft is on, the rail runs beside the page from 1,290 pixels wide (below it, the strip and the lineup
+  // panel under the clock take its place).
+  return (
+    <div className="draft-room" ref={underBar}>
+      {grid}
+      <aside className="draft-rail">
+        {room && <LineupCard league={league} room={room} id="draft-lineup" />}
+        <PickRail league={league} room={room} />
+      </aside>
+    </div>
+  );
 }
+
+/** A phone's width: the lineup under the clock starts folded there (a fold you choose is remembered after that). */
+const phoneWide = () => typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
 
 /**
  * Your picks in the next draft (or the one under way), with the later years folded away. Picks you
@@ -373,20 +443,29 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
   // Drafts this league held: those players keep the consensus read. A new league's veterans come with made-up draft lines.
   const drafted = Object.values(league.players).filter((p) => p.draft && p.scouting);
   const years = [...new Set(drafted.map((p) => p.draft!.season))].sort((a, b) => b - a);
+  // A team's last two drafts are its own: the two newest years it drafted in, not the league's.
+  const teamYears = (team: number | 'all') =>
+    team === 'all'
+      ? years
+      : years.filter((y) => drafted.some((p) => p.draft!.season === y && p.draft!.teamId === team));
   const [team, setTeam] = useState<number | 'all'>(league.userTeamId);
-  const [pickedYear, setYear] = useState<number | 'all' | null>(null);
+  const [pickedYear, setYear] = useState<number | 'all' | 'recent' | null>(null);
+  const [shown, setShown] = useState(HISTORY_PAGE);
   const [pickedRound, setRound] = useState<number | 'all' | null>(null);
   const [sort, onSort] = useSort<'pick' | 'verdict'>({ key: 'pick', desc: false });
+  // A new filter starts back at the top.
+  useEffect(() => setShown(HISTORY_PAGE), [team, pickedYear, pickedRound]);
   if (!years.length) return null;
-  // One team's history is short enough to show whole; the league's goes a year and a round at a time.
-  const year = pickedYear ?? (team === 'all' ? years[0] : 'all');
+  // One team's history opens on its last two drafts; the league's goes a year and a round at a time.
+  const year = pickedYear ?? (team === 'all' ? years[0] : 'recent');
   const following = live !== undefined && year === league.season;
   const round = pickedRound ?? (team !== 'all' ? 'all' : following ? live : 1);
   const filtered = drafted
     .filter(
       (p) =>
         (team === 'all' || p.draft!.teamId === team) &&
-        (year === 'all' || p.draft!.season === year) &&
+        (year === 'all' ||
+          (year === 'recent' ? teamYears(team).slice(0, 2).includes(p.draft!.season) : p.draft!.season === year)) &&
         (round === 'all' || p.draft!.round === round),
     )
     .sort(
@@ -410,8 +489,11 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
           <select
             aria-label="Draft year"
             value={year}
-            onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            onChange={(e) =>
+              setYear(e.target.value === 'all' || e.target.value === 'recent' ? e.target.value : Number(e.target.value))
+            }
           >
+            <option value="recent">Last two drafts</option>
             <option value="all">All years</option>
             {years.map((y) => (
               <option key={y} value={y}>
@@ -441,7 +523,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
             <table>
               <thead>
                 <tr>
-                  {year === 'all' && <th className="num">Year</th>}
+                  {(year === 'all' || year === 'recent') && <th className="num">Year</th>}
                   <SortTh label="Pick" k="pick" sort={sort} onSort={onSort} desc={false} className="num" />
                   <th className="sticky-col">Player</th>
                   <SortTh label="Verdict" k="verdict" sort={sort} onSort={onSort} desc={false} />
@@ -457,12 +539,12 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((p) => {
+                {rows.slice(0, shown).map((p) => {
                   const d = p.draft!;
                   const value = reachOrSteal(d);
                   return (
                     <tr key={p.id} className={d.teamId === league.userTeamId && team === 'all' ? 'is-user' : undefined}>
-                      {year === 'all' && <td className="num">{d.season}</td>}
+                      {(year === 'all' || year === 'recent') && <td className="num">{d.season}</td>}
                       <td className="num muted">
                         {d.round}.{d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
                       </td>
@@ -489,6 +571,16 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
             </table>
           </div>
         )}
+        {rows.length > shown && (
+          <div className="row" style={{ justifyContent: 'center', marginTop: 10 }}>
+            <button className="btn btn-sm" onClick={() => setShown((n) => n + HISTORY_PAGE)}>
+              Show {Math.min(HISTORY_PAGE, rows.length - shown)} more
+            </button>
+            <span className="muted small">
+              {shown} of {rows.length}
+            </span>
+          </div>
+        )}
       </Section>
     </Panel>
   );
@@ -513,13 +605,26 @@ const pickName = (pk: DraftPick) => `Round ${pk.round}, No. ${pk.overall}`;
  * The draft room's hero: the class ahead before the draft, the pick on the clock during it (your own in gold), the
  * last few picks as a ticker, and where your next pick stands.
  */
-function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockState, { kind: 'none' }> }) {
+function DraftClock({
+  league,
+  clock,
+  room,
+  strip,
+}: {
+  league: League;
+  clock: Exclude<ClockState, { kind: 'none' }>;
+  room: DraftRoom | null;
+  /** The pick strip, on a narrow screen. */
+  strip: boolean;
+}) {
   // What the league said when you shopped your pick or called the teams ahead, until the pick on the clock moves.
   const [heard, setHeard] = useState<{ at: number; text: string } | null>(null);
   const visits = <Fact label="Scouting visits left">{league.scoutPoints}</Fact>;
   if (clock.kind === 'preview')
     return (
       <OfficeHero headline={`${league.season} draft class`}>
+        {strip && <PickStrip league={league} room={room} />}
+        {room && <NeedsLine room={room} />}
         <Facts>
           <Fact label="Prospects">{clock.prospects}</Fact>
           <Fact label="Your first pick">{clock.firstPick ? pickName(clock.firstPick) : 'None'}</Fact>
@@ -548,10 +653,6 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
     });
     setHeard({ at: pick.id, text });
   };
-  const recent = order
-    .filter((pk) => pk.playerId !== undefined)
-    .slice(-3)
-    .reverse();
   return (
     <OfficeHero
       urgent={userUp}
@@ -604,26 +705,8 @@ function DraftClock({ league, clock }: { league: League; clock: Exclude<ClockSta
           {heard.text}
         </p>
       )}
-      {recent.length > 0 && (
-        <ol className="draft-ticker" aria-label="Latest picks">
-          {recent.map((pk) => {
-            const p = league.players[pk.playerId!];
-            const value = reachOrSteal({ pick: pk.overall!, rank: pk.consRank });
-            return (
-              <li key={pk.id}>
-                <span className="muted small num">No. {pk.overall}</span>
-                <TeamChip team={league.teams[pk.ownerId]} />
-                {pk.originalTeamId !== pk.ownerId && (
-                  <span className="muted small">via {league.teams[pk.originalTeamId].abbrev}</span>
-                )}
-                <span className="muted small">{p.position}</span>
-                <PlayerLink league={league} player={p} />
-                <DraftDayPill value={value} />
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      {strip && <PickStrip league={league} room={room} />}
+      {room && <NeedsLine room={room} />}
       <Facts>
         <Fact label="Your next pick">
           {myNext ? (
@@ -725,23 +808,6 @@ function GapPill({ gap }: { gap: Gap }) {
       {gap.tag === 'sleeper' ? <>Sleeper {arrow}</> : gap.tag === 'fade' ? <>Fade {arrow}</> : arrow}
     </span>
   );
-}
-
-/** Draft day's own judgment: taken a dozen picks ahead of the consensus (a reach) or after it (value). */
-function DraftDayPill({ value }: { value: 'reach' | 'steal' | null }) {
-  if (value === 'reach')
-    return (
-      <span className="tag-pill tag-warn" title="Taken a dozen picks or more ahead of his consensus rank">
-        reach
-      </span>
-    );
-  if (value === 'steal')
-    return (
-      <span className="tag-pill tag-good" title="Taken a dozen picks or more after his consensus rank">
-        value
-      </span>
-    );
-  return null;
 }
 
 const VERDICT_TEXT = { steal: 'Steal', hit: 'Hit', miss: 'Miss' } as const;
