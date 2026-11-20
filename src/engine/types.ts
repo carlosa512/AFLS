@@ -15,6 +15,7 @@ import type {
   GameDayList,
 } from './personnel/types';
 import type { Weather } from './weather';
+import type { Offer } from './offseason/negotiation';
 import type { FieldFacts } from './field/moment';
 import type { FieldSnapshot } from './field/snapshot';
 
@@ -1681,6 +1682,46 @@ export interface PickDeal {
   got: string[];
 }
 
+/** A team's standing offer for a free agent in the race (`offseason/race.ts`). */
+export interface RaceOffer {
+  teamId: number;
+  offer: Offer;
+  /** The free-agency day it was placed or last changed. */
+  day: number;
+  /** The team's opening price for him ($K a year), kept across days: its raises stop short of a share above it. */
+  first: number;
+}
+
+/** An agent's call that his player is about to sign elsewhere while your offer is behind. */
+export interface RaceWarning {
+  playerId: number;
+  day: number;
+  answered: boolean;
+}
+
+/** A free agent who chose in the race: where, on which day, how many offers he weighed and your place among them. */
+export interface RaceResult {
+  playerId: number;
+  teamId: number;
+  day: number;
+  offers: number;
+  userPlace: number | null;
+  userDropped?: true;
+}
+
+/**
+ * Free agency's race (`offseason/race.ts`): the standing offers by player, the day each first drew one (`since`), the
+ * agents' warnings and the players warned about since you last led, and who chose where.
+ */
+export interface FaRace {
+  season: number;
+  offers: Record<number, RaceOffer[]>;
+  since: Record<number, number>;
+  warnings: RaceWarning[];
+  warnedSinceLead: number[];
+  results: RaceResult[];
+}
+
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
 export interface Negotiation {
   playerId: number;
@@ -2439,6 +2480,11 @@ export interface League {
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;
+  /**
+   * Free agency's race (`offseason/race.ts`). Unset until the first race; its offers are emptied when free agency
+   * ends and its results kept until the next race opens.
+   */
+  faRace?: FaRace;
   /**
    * What the user's scouts have learned beyond film, by player id (0–1). Only scouted players
    * appear; everyone else's knowledge is derived (see `engine/scouting.ts`).

@@ -423,14 +423,14 @@ export function signBid(pass: BidPass, p: Player, bid: Bid): void {
 /**
  * `bid` raised to `apy`, if its club would still make that offer, checked as `bidsFor` checks it: the upgrade his price
  * must buy (`upgradeBar`, and a banking club's rule), the deal on its books (`shapeToBooks`: void years, then bonus go
- * first, never shorter) and its year-one charge in what it can spend or restructure. A last-call swap is checked against
- * its funded room alone, as it was made. Null when the club wouldn't. Draws nothing: a raise is the same offer at a
- * higher price, never a new one.
+ * first, never shorter) and its year-one charge in what it can spend or restructure. A last-call funded bid (one that
+ * carries `cut`, a man to release or null when none is needed) is checked against its funded room alone, as it was made.
+ * Null when the club wouldn't. Draws nothing: a raise is the same offer at a higher price, never a new one.
  */
 export function raiseTo(pass: BidPass, p: Player, bid: Bid, apy: number): Bid | null {
   const { league } = pass;
   const team = bid.team;
-  if (bid.cut) {
+  if (bid.cut !== undefined) {
     const offer = { ...bid.offer, apy };
     if (yearOne(offer) > fundedFor(pass, team, p.position, shareOf(pass)).room) return null;
     return { ...bid, offer, value: offerValue(league, p, team.id, offer) };

@@ -91,6 +91,7 @@ import {
   simDraft,
 } from './draft';
 import { OFFSEASON_ROSTER_MAX, resetContenderCache, ROSTER_MAX } from './negotiation';
+import { closeRace, openRace, raceDay } from './race';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
@@ -398,13 +399,16 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       for (const team of ai) if (capSpace(league, team.id) < 0) aiCapCompliance(league, team);
       league.phase = 'freeAgency';
       league.faDay = 1;
+      // Every AI team's opening offers are in before you see the market; nobody signs yet.
+      openRace(league, rng, { includeUser: auto });
       break;
     case 'freeAgency':
-      aiFreeAgencyDay(league, rng, { includeUser: auto });
+      raceDay(league, rng, { includeUser: auto });
       marketMoment(league, 'faDay');
       if (league.faDay < FA_DAYS) league.faDay++;
       else {
         league.phase = 'draft';
+        closeRace(league);
         // The draft can open on your pick.
         clockOffers(league);
       }
