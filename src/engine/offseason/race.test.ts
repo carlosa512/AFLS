@@ -1,10 +1,40 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { capSpace } from '../finance/cap';
+import { minSalary } from '../finance/market';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
-import type { League, Phase, RaceOffer } from '../types';
+import { activeRoster } from '../roster';
+import { tradeCapImpact, tradeProblem, playerTradeBlocker, type TradeProposal } from '../trade/rules';
+import type { League, Phase, Player, RaceOffer } from '../types';
 import { payable, raiseTo, teamMoney, yearOne, type BidPass } from './bids';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
-import { decides, raceWatch, rankOffers, RACE, type DecideOpts, type RankedOffer } from './race';
+import {
+  askOffer,
+  demand,
+  freeAgents,
+  negotiationFor,
+  offerCharge,
+  offerProblem,
+  offerValue,
+  rosterLimit,
+  signPlayer,
+  type Offer,
+} from './negotiation';
+import {
+  decides,
+  inRace,
+  letGo,
+  pendingWarnings,
+  placeUserOffer,
+  pullUserOffer,
+  raceWarningOpen,
+  raceWatch,
+  rankOffers,
+  RACE,
+  standingFitProblem,
+  type DecideOpts,
+  type RankedOffer,
+} from './race';
 
 /** A ranked offer worth `value` to him at `apy` a year. */
 const offer = (teamId: number, value: number, apy = 1): RankedOffer => ({
@@ -68,14 +98,18 @@ function onDay(day: number, autoUser = true): League {
   return l;
 }
 
-/** What the race judged for a player: his offers that day, the ones he would sign, best first, and what else he weighed. */
-type Judged = { offers: RaceOffer[]; ranked: RankedOffer[]; o: DecideOpts };
+/**
+ * What the race judged for a player: his offers that day, the ones he would sign, best first, and what else he weighed
+ * (the last time he was judged), and how many he would sign the first time, before any stepped aside (`weighed`).
+ */
+type Judged = { offers: RaceOffer[]; ranked: RankedOffer[]; o: DecideOpts; weighed: number };
 
 /** The next advance, with what the race judged for each player (`check` sees each in the day's own pass). */
 function advanceWatched(l: League, check?: (pass: BidPass, j: Judged, playerId: number) => void): Map<number, Judged> {
   const seen = new Map<number, Judged>();
   raceWatch.onJudge = (pass, p, offers, ranked, o) => {
-    const j = { offers: structuredClone([...offers]), ranked: structuredClone([...ranked]), o: { ...o } };
+    const weighed = seen.get(p.id)?.weighed ?? ranked.length;
+    const j = { offers: structuredClone([...offers]), ranked: structuredClone([...ranked]), o: { ...o }, weighed };
     seen.set(p.id, j);
     check?.(pass, j, p.id);
   };
@@ -127,7 +161,7 @@ describe('the race for AI teams', () => {
       for (const r of l.faRace!.results.filter((x) => x.day === day)) {
         const j = seen.get(r.playerId)!;
         expect(decides(j.ranked, j.o)).toBe(true);
-        expect(r).toMatchObject({ teamId: j.ranked[0].teamId, offers: j.ranked.length });
+        expect(r).toMatchObject({ teamId: j.ranked[0].teamId, offers: j.weighed });
         expect(l.players[r.playerId].teamId).toBe(r.teamId);
         results++;
       }
@@ -261,6 +295,20 @@ describe('the race for AI teams', () => {
     expect(offersFrom(yours, yours.userTeamId)).toBe(0);
   });
 
+  it('a player left with no offer is no longer counted as waiting', () => {
+    const l = onDay(1);
+    let lost = 0;
+    while (l.phase === 'freeAgency') {
+      const before = structuredClone(l.faRace!.offers);
+      advanceOffseason(l, { autoUser: true });
+      const race = l.faRace!;
+      // Every day he has waited is counted from his first offer still standing: none, no count.
+      for (const id of Object.keys(race.since)) expect(race.offers[+id]?.length).toBeGreaterThan(0);
+      for (const id of Object.keys(before)) if (l.players[+id].teamId === null && !race.offers[+id]) lost++;
+    }
+    expect(lost).toBeGreaterThan(0);
+  });
+
   it('a save from before the race', () => {
     const l = onDay(2);
     delete l.faRace;
@@ -270,5 +318,391 @@ describe('the race for AI teams', () => {
     expect(Object.keys(l.faRace!.offers).length).toBeGreaterThan(0);
     expect(l.faRace!.results).toEqual([]);
     expect(faSignings(l)).toHaveLength(signed);
+  });
+});
+
+/** Your team's free-agency day `day`, run by you (the warnings stop the game), as a cached world. */
+const yours = (() => {
+  const cache = new Map<number, string>();
+  return (day: number): League => {
+    if (!cache.has(day)) cache.set(day, JSON.stringify(onDay(day, false)));
+    return JSON.parse(cache.get(day)!);
+  };
+})();
+
+const you = (l: League) => l.userTeamId;
+
+/** Your room on the cap set to `space` ($K), through the carryover. */
+function setSpace(l: League, space: number): void {
+  const t = l.teams[you(l)];
+  t.carryover += space - capSpace(l, t.id);
+}
+
+/** His ask from you, at `apy` a year. */
+const askAt = (l: League, p: Player, apy: number): Offer => ({
+  ...askOffer(demand(l, p, you(l))),
+  apy: Math.round(apy),
+});
+
+/** The least a year, in the shape of his ask, he'd take from you: his walk-away (his value is linear in the money). */
+function floorApy(l: League, p: Player): number {
+  const d = demand(l, p, you(l));
+  const ask = askOffer(d);
+  const per = offerValue(l, p, you(l), ask, d) / ask.apy;
+  return Math.max(minSalary(p.experience, l.caps[l.season]), Math.ceil(d.walkAway / per) + 1);
+}
+
+/** An offer at his walk-away from you, which stands but trails anyone who pays more. */
+const atFloor = (l: League, p: Player) => askAt(l, p, floorApy(l, p));
+
+/** Half again over the best other offer for him: he'd take it clearly. */
+function overTop(l: League, p: Player): Offer {
+  const top = Math.max(...l.faRace!.offers[p.id].filter((o) => o.teamId !== you(l)).map((o) => o.offer.apy));
+  return askAt(l, p, Math.max(top, floorApy(l, p)) * 1.5);
+}
+
+/** Free agents another team has an offer in for, best market first, and the ones with two or more such offers. */
+const contested = (l: League, rivals = 1) =>
+  freeAgents(l).filter(
+    (p) => (l.faRace!.offers[p.id] ?? []).filter((o) => o.teamId !== you(l)).length >= rivals && !p.injury,
+  );
+
+/** Your place among the offers he'd sign. */
+const placeOf = (l: League, p: Player) =>
+  rankOffers(l, p, l.faRace!.offers[p.id] ?? []).findIndex((r) => r.teamId === you(l)) + 1;
+
+/** Your roster filled to `open` spots short of the limit with minimum free agents nobody else bid on. */
+function fillRoster(l: League, open: number): void {
+  const pool = freeAgents(l).filter((p) => !l.faRace!.offers[p.id]);
+  while (activeRoster(l, you(l)).length < rosterLimit(l) - open) {
+    const p = pool.shift()!;
+    const apy = minSalary(p.experience, l.caps[l.season]);
+    signPlayer(l, p, you(l), { years: 1, apy, bonusPct: 0, gtdPct: 0, voidYears: 0 });
+  }
+}
+
+/** Offers at the floor on as many contested players as the roster takes, room to spare. Their ids. */
+function trailEverywhere(l: League): number[] {
+  setSpace(l, 500_000);
+  const placed: number[] = [];
+  for (const p of contested(l)) {
+    if (placeUserOffer(l, p, atFloor(l, p)).status === 'standing') placed.push(p.id);
+  }
+  return placed;
+}
+
+/** The next advance, run by you, with the last judging of each player. */
+function judged(l: League): Map<number, Judged> {
+  const seen = new Map<number, Judged>();
+  raceWatch.onJudge = (_pass, p, offers, ranked, o) => {
+    const weighed = seen.get(p.id)?.weighed ?? ranked.length;
+    seen.set(p.id, {
+      offers: structuredClone([...offers]),
+      ranked: structuredClone([...ranked]),
+      o: { ...o },
+      weighed,
+    });
+  };
+  advanceOffseason(l);
+  delete raceWatch.onJudge;
+  return seen;
+}
+
+describe('your offers', () => {
+  afterEach(() => {
+    delete raceWatch.onJudge;
+  });
+
+  it('uncontested: signs on the spot', () => {
+    const l = yours(1);
+    const p = freeAgents(l)
+      .filter((x) => !l.faRace!.offers[x.id] && !x.injury)
+      .find((x) => {
+        const d = demand(l, x, you(l));
+        const ask = askOffer(d);
+        return offerValue(l, x, you(l), ask, d) >= d.walkAway && !offerProblem(l, x, you(l), ask);
+      })!;
+    expect(inRace(l, p.id)).toBe(false);
+    expect(placeUserOffer(l, p, askOffer(demand(l, p, you(l))))).toMatchObject({ status: 'signed' });
+    expect(p.teamId).toBe(you(l));
+  });
+
+  it('contested: your offer stands', () => {
+    const l = yours(1);
+    const p = contested(l)[0];
+    expect(inRace(l, p.id)).toBe(true);
+    const offer = atFloor(l, p);
+    expect(placeUserOffer(l, p, offer).status).toBe('standing');
+    expect(p.teamId).toBeNull();
+    expect(l.faRace!.offers[p.id].find((o) => o.teamId === you(l))).toMatchObject({ offer, first: offer.apy });
+  });
+
+  it("every rival drops out: yours at day's end", () => {
+    const l = yours(1);
+    const p = contested(l)[0];
+    expect(placeUserOffer(l, p, atFloor(l, p)).status).toBe('standing');
+    // Nobody else can spend a dollar: every other offer is gone by the morning.
+    for (const t of l.teams)
+      if (t.id !== you(l)) t.deadMoney.push({ season: l.season, amount: 10_000_000, playerId: p.id, note: 'test' });
+    l.faRace!.offers[p.id] = l.faRace!.offers[p.id].filter((o) => o.teamId === you(l));
+    expect(p.teamId).toBeNull();
+    advanceOffseason(l);
+    expect(p.teamId).toBe(you(l));
+    expect(l.faRace!.results.find((r) => r.playerId === p.id)).toMatchObject({ teamId: you(l), userPlace: 1 });
+  });
+
+  it('under his floor: refused, patience spent', () => {
+    const l = yours(1);
+    const p = contested(l).find((x) => {
+      const apy = Math.round(floorApy(l, x) * 0.95);
+      return apy >= minSalary(x.experience, l.caps[l.season]) && apy >= demand(l, x, you(l)).market * 0.8;
+    })!;
+    const patience = negotiationFor(l, p, you(l)).patience;
+    const reply = placeUserOffer(l, p, askAt(l, p, floorApy(l, p) * 0.95));
+    expect(reply.status).toBe('refused');
+    expect(l.negotiations[p.id].patience).toBe(patience - 1);
+    expect(l.faRace!.offers[p.id].some((o) => o.teamId === you(l))).toBe(false);
+    expect(p.teamId).toBeNull();
+  });
+
+  it('offers must fit together', () => {
+    // The cap: each fits alone, the two together don't.
+    let l = yours(1);
+    let [a, b] = contested(l);
+    const [oa, ob] = [atFloor(l, a), atFloor(l, b)];
+    setSpace(l, offerCharge(l, a, you(l), oa) + offerCharge(l, b, you(l), ob) - 1);
+    expect(offerProblem(l, b, you(l), ob)).toBeNull();
+    expect(placeUserOffer(l, a, oa).status).toBe('standing');
+    const reply = placeUserOffer(l, b, ob);
+    expect(reply.status).toBe('refused');
+    expect(reply.message).toContain('cap room');
+    expect(b.teamId).toBeNull();
+    // The roster: one open spot takes one offer, not two.
+    l = yours(1);
+    [a, b] = contested(l);
+    fillRoster(l, 1);
+    setSpace(l, 500_000);
+    expect(placeUserOffer(l, a, atFloor(l, a)).status).toBe('standing');
+    expect(offerProblem(l, b, you(l), atFloor(l, b))).toBeNull();
+    const full = placeUserOffer(l, b, atFloor(l, b));
+    expect(full.status).toBe('refused');
+    expect(full.message).toContain(`${rosterLimit(l)}`);
+    expect(standingFitProblem(l, you(l))).toBeNull();
+  });
+
+  it('lowering is refused', () => {
+    const l = yours(1);
+    const p = contested(l)[0];
+    const floor = floorApy(l, p);
+    expect(placeUserOffer(l, p, askAt(l, p, floor * 1.05)).status).toBe('standing');
+    expect(placeUserOffer(l, p, askAt(l, p, floor * 1.02))).toEqual({
+      status: 'refused',
+      message: 'You can raise your offer or pull it.',
+    });
+    expect(l.faRace!.offers[p.id].find((o) => o.teamId === you(l))!.offer.apy).toBe(Math.round(floor * 1.05));
+    // A raise stands, and keeps the first price.
+    expect(placeUserOffer(l, p, askAt(l, p, floor * 1.1)).status).toBe('standing');
+    expect(l.faRace!.offers[p.id].find((o) => o.teamId === you(l))!.first).toBe(Math.round(floor * 1.05));
+  });
+
+  it('pulling a leading offer ends talks', () => {
+    const l = yours(1);
+    setSpace(l, 500_000);
+    const [lead, ...rest] = contested(l);
+    expect(placeUserOffer(l, lead, overTop(l, lead)).status).toBe('standing');
+    expect(placeOf(l, lead)).toBe(1);
+    pullUserOffer(l, lead.id);
+    expect(l.negotiations[lead.id]).toMatchObject({ status: 'broken', brokenPhase: 'freeAgency' });
+    expect(l.faRace!.offers[lead.id].some((o) => o.teamId === you(l))).toBe(false);
+    expect(placeUserOffer(l, lead, overTop(l, lead)).status).toBe('broken');
+    // Third or further back: free.
+    const third = rest.find((p) => {
+      if (rankOffers(l, p, l.faRace!.offers[p.id]).length < 2) return false;
+      if (placeUserOffer(l, p, atFloor(l, p)).status !== 'standing') return false;
+      if (placeOf(l, p) >= 3) return true;
+      letGo(l, p.id);
+      return false;
+    })!;
+    pullUserOffer(l, third.id);
+    expect(l.negotiations[third.id]?.status).not.toBe('broken');
+    expect(l.faRace!.offers[third.id].some((o) => o.teamId === you(l))).toBe(false);
+  });
+
+  it('the warning', () => {
+    const l = yours(1);
+    const placed = trailEverywhere(l);
+    expect(placed.length).toBeGreaterThan(5);
+    const seen = judged(l);
+    const warned = pendingWarnings(l);
+    expect(warned.length).toBeGreaterThan(0);
+    for (const id of warned) {
+      // He'd have signed with the team ahead of you: he waits a day instead, your offer still in.
+      const j = seen.get(id)!;
+      expect(decides(j.ranked, j.o)).toBe(true);
+      expect(j.ranked[0].teamId).not.toBe(you(l));
+      expect(l.players[id].teamId).toBeNull();
+      expect(raceWarningOpen(l, id)).toBe(true);
+      expect(l.faRace!.offers[id].some((o) => o.teamId === you(l))).toBe(true);
+    }
+    const saved = JSON.stringify(l);
+    expect(() => advanceOffseason(l)).toThrow('Answer the agents first.');
+    // Let him go: the offer is pulled, no hard feelings.
+    const id = warned[0];
+    letGo(l, id);
+    expect(raceWarningOpen(l, id)).toBe(false);
+    expect(l.negotiations[id]?.status).not.toBe('broken');
+    expect(l.faRace!.offers[id].some((o) => o.teamId === you(l))).toBe(false);
+    // Or raise: any raise answers it.
+    const r: League = JSON.parse(saved);
+    const p = r.players[id];
+    const mine = r.faRace!.offers[id].find((o) => o.teamId === you(r))!;
+    expect(placeUserOffer(r, p, { ...mine.offer, apy: mine.offer.apy + 1 }).status).toBe('standing');
+    expect(raceWarningOpen(r, id)).toBe(false);
+    expect(pendingWarnings(r)).not.toContain(id);
+  });
+
+  it('warned once per lost lead', () => {
+    const l = yours(1);
+    trailEverywhere(l);
+    advanceOffseason(l);
+    const warned = pendingWarnings(l);
+    expect(warned.length).toBeGreaterThan(0);
+    // A raise that still trails answers each.
+    for (const id of warned) {
+      const mine = l.faRace!.offers[id].find((o) => o.teamId === you(l))!;
+      expect(placeUserOffer(l, l.players[id], { ...mine.offer, apy: mine.offer.apy + 1 }).status).toBe('standing');
+      expect(placeOf(l, l.players[id])).toBeGreaterThan(1);
+    }
+    const seen = judged(l);
+    let elsewhere = 0;
+    for (const id of warned) {
+      expect(pendingWarnings(l)).not.toContain(id);
+      const j = seen.get(id)!;
+      if (decides(j.ranked, j.o) && j.ranked[0].teamId !== you(l)) {
+        expect(l.players[id].teamId).toBe(j.ranked[0].teamId);
+        elsewhere++;
+      }
+    }
+    expect(elsewhere).toBeGreaterThan(0);
+  });
+
+  it('the eve of the last day warns everyone you trail', () => {
+    const l = yours(FA_DAYS - 1);
+    trailEverywhere(l);
+    const seen = judged(l);
+    expect(l.faDay).toBe(FA_DAYS);
+    let trailing = 0;
+    let undecided = 0;
+    for (const [id, j] of seen) {
+      const place = j.ranked.findIndex((r) => r.teamId === you(l));
+      if (place < 1) continue;
+      trailing++;
+      if (!decides(j.ranked, j.o)) undecided++;
+      expect(pendingWarnings(l)).toContain(id);
+      expect(l.players[id].teamId).toBeNull();
+    }
+    expect(trailing).toBeGreaterThan(0);
+    expect(undecided).toBeGreaterThan(0);
+  });
+
+  it('two wins the same day fit', () => {
+    const l = yours(1);
+    const [a, b] = contested(l);
+    fillRoster(l, 2);
+    setSpace(l, 500_000);
+    const [oa, ob] = [overTop(l, a), overTop(l, b)];
+    // Just the room for both.
+    setSpace(l, Math.ceil(offerCharge(l, a, you(l), oa) + offerCharge(l, b, you(l), ob)) + 1);
+    expect(placeUserOffer(l, a, oa).status).toBe('standing');
+    expect(placeUserOffer(l, b, ob).status).toBe('standing');
+    advanceOffseason(l);
+    expect(a.teamId).toBe(you(l));
+    expect(b.teamId).toBe(you(l));
+    expect(capSpace(l, you(l))).toBeGreaterThanOrEqual(0);
+    expect(activeRoster(l, you(l)).length).toBeLessThanOrEqual(rosterLimit(l));
+  });
+
+  it('an offer that no longer fits is dropped', () => {
+    const l = yours(FA_DAYS);
+    setSpace(l, 500_000);
+    const placed = contested(l, 2)
+      .slice(0, 3)
+      .filter((p) => placeUserOffer(l, p, overTop(l, p)).status === 'standing');
+    expect(placed.length).toBeGreaterThan(0);
+    // A release's dead money: none of them fits any more.
+    l.teams[you(l)].deadMoney.push({
+      season: l.season,
+      amount: capSpace(l, you(l)),
+      playerId: placed[0].id,
+      note: 'test',
+    });
+    for (const p of placed) expect(offerProblem(l, p, you(l), overTop(l, p))).not.toBeNull();
+    advanceOffseason(l);
+    let told = 0;
+    for (const p of placed) {
+      expect(p.teamId).not.toBe(you(l));
+      const result = l.faRace!.results.find((r) => r.playerId === p.id);
+      if (!result) continue;
+      expect(result.userDropped).toBe(true);
+      told++;
+    }
+    expect(told).toBeGreaterThan(0);
+  });
+
+  it('a trade that breaks your offers is refused', () => {
+    const l = yours(1);
+    setSpace(l, 500_000);
+    const offered = contested(l)
+      .slice(0, 2)
+      .map((p) => {
+        const offer = atFloor(l, p);
+        expect(placeUserOffer(l, p, offer).status).toBe('standing');
+        return offerCharge(l, p, you(l), offer);
+      });
+    const charges = offered.reduce((a, b) => a + b, 0);
+    const pick = l.draftPicks.find((d) => d.ownerId === you(l) && d.playerId === undefined)!;
+    const star = Object.values(l.players).find(
+      (p) =>
+        p.teamId !== null &&
+        p.teamId !== you(l) &&
+        p.contract &&
+        !playerTradeBlocker(l, p) &&
+        capSpace(l, you(l)) -
+          tradeCapImpact(l, {
+            sides: [
+              { teamId: you(l), players: [], picks: [pick.id] },
+              { teamId: p.teamId, players: [p.id], picks: [] },
+            ],
+          })[0].space >
+          charges,
+    )!;
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: you(l), players: [], picks: [pick.id] },
+        { teamId: star.teamId!, players: [star.id], picks: [] },
+      ],
+    };
+    // Room for him, but not for him and your offers.
+    const cost = capSpace(l, you(l)) - tradeCapImpact(l, proposal)[0].space;
+    setSpace(l, cost + Math.floor(charges / 2));
+    const space = tradeCapImpact(l, proposal)[0].space;
+    expect(space).toBeGreaterThanOrEqual(0);
+    const problem = standingFitProblem(l, you(l), { space });
+    expect(problem).toContain('cap room');
+    expect(tradeProblem(l, proposal)).toBe(problem);
+    for (const id of Object.keys(l.faRace!.offers)) letGo(l, +id);
+    expect(tradeProblem(l, proposal)).toBeNull();
+  });
+
+  it('spectating: no warnings', () => {
+    const l: League = JSON.parse(atResign);
+    l.gms[l.userGmId].teamId = null;
+    advanceOffseason(l);
+    expect(l.phase).toBe('freeAgency');
+    while (l.phase === 'freeAgency') {
+      advanceOffseason(l);
+      expect(pendingWarnings(l)).toEqual([]);
+    }
+    expect(l.faRace!.results.length).toBeGreaterThan(0);
   });
 });

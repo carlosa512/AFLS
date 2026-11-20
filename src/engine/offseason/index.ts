@@ -66,7 +66,7 @@ import { bodyAs, completeMoves, learnBlock, planMoves } from '../training';
 import { expireOffers, marketMoment, recheckOffers, TRADE_DEADLINE_WEEK } from '../trade';
 import { divisionStandings } from '../season/standings';
 import type { League, Phase, Player } from '../types';
-import { POSITIONS } from '../types';
+import { FA_DAYS, POSITIONS } from '../types';
 import {
   aiCapCompliance,
   aiFreeAgencyDay,
@@ -91,7 +91,7 @@ import {
   simDraft,
 } from './draft';
 import { OFFSEASON_ROSTER_MAX, resetContenderCache, ROSTER_MAX } from './negotiation';
-import { closeRace, openRace, raceDay } from './race';
+import { closeRace, openRace, pendingWarnings, raceDay } from './race';
 import { rollService } from '../personnel/service';
 import { settleFinished } from '../ceiling';
 import { mentoringYearEnd, settleMentoring } from '../mentoring';
@@ -102,7 +102,7 @@ import { settleOffseasonWaivers, staffHandlesSquad, syncPersonnel, waiversPendin
 import { ensureWaivers } from '../personnel/waivers';
 import { numberSwitches } from '../jerseys';
 
-export const FA_DAYS = 5;
+export { FA_DAYS };
 
 /**
  * You've decided to let an expiring player walk (or changed your mind). Nothing in the sim reads it: a player you don't
@@ -363,6 +363,10 @@ export function advanceOffseason(league: League, opts: { autoUser?: boolean } = 
   return withLeagueAi(league, () => advanceOffseasonControlled(league, opts));
 }
 function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }): Phase {
+  const auto = !!opts.autoUser || !employed(league);
+  // An agent's warning waits for your answer (a staff-run team never stops).
+  if (league.phase === 'freeAgency' && !auto && pendingWarnings(league).length)
+    throw new Error('Answer the agents first.');
   if (league.personnel?.enabled && league.phase === 'preseason' && !opts.autoUser) {
     const blockers = offseasonBlockers(league);
     if (blockers.length) throw new Error(blockers.join(' '));
@@ -372,7 +376,6 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
   expireOffers(league);
   resetContenderCache(league);
   const rng = new Rng(league.rngState);
-  const auto = !!opts.autoUser || !employed(league);
   const ai = league.teams.filter((t) => auto || t.id !== league.userTeamId);
   switch (league.phase) {
     case 'resign':

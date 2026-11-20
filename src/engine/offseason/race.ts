@@ -4,10 +4,15 @@
  * raises included, and every player with offers is judged (`raceDay`): he signs when his best stands out or he has
  * waited long enough (`decides`), else his offers stand overnight. The last day settles everyone with a valid offer.
  * It changes when a player chooses, not what he values (`offerValue`), and builds on the AI's bid pass (`bids.ts`).
+ * Your offers stand beside theirs (`placeUserOffer`), must fit together (`standingFitProblem`), and an agent warns you
+ * once each time you lose the lead on a player who is about to sign elsewhere: he waits a day for your answer.
  */
+import { capSpace } from '../finance/cap';
 import { gunShyAt } from '../gmHabits';
 import type { Rng } from '../rng';
-import type { FaRace, League, Player, RaceOffer } from '../types';
+import { activeRoster } from '../roster';
+import type { FaRace, League, Player, RaceOffer, RaceResult } from '../types';
+import { FA_DAYS } from '../types';
 import { winNow } from './ai';
 import {
   bidPass,
@@ -25,8 +30,17 @@ import {
   type BidPass,
   type FaPassOpts,
 } from './bids';
-import { FA_DAYS } from './index';
-import { demand, offerValue, type Offer } from './negotiation';
+import {
+  demand,
+  makeOffer,
+  negotiationFor,
+  offerCharge,
+  offerProblem,
+  offerValue,
+  rosterLimit,
+  signPlayer,
+  type Offer,
+} from './negotiation';
 
 /** Starting guesses, tuned against the NFL's signing timing. */
 export const RACE = {
@@ -167,7 +181,8 @@ function withBid(book: Book, add: Bid, drop?: Bid): Book | null {
  * Each AI team's offer for `p` today: its bid rebuilt from today's read, or its standing offer when that is worth more
  * to him and the team would still make it (`raiseTo`), never past its limit for him (`RACE.ceiling` over its first
  * price) and on the last day never above its standing offer. A team that no longer bids drops out, and only an offer
- * at his walk-away stands.
+ * at his walk-away stands. A bid over the limit the team won't make at the limit leaves its standing offer, when it
+ * would still make that.
  */
 function dayBids(pass: BidPass, p: Player, standing: readonly RaceOffer[], bids: readonly Bid[], lastDay: boolean) {
   const { league } = pass;
@@ -176,12 +191,15 @@ function dayBids(pass: BidPass, p: Player, standing: readonly RaceOffer[], bids:
   for (const today of bids) {
     const old = before.get(today.team.id);
     const first = old?.first ?? today.offer.apy;
+    // Its standing offer as the team would make it today, read once and only when needed.
+    let kept: Bid | null | undefined;
+    const keep = () =>
+      kept === undefined ? (kept = old ? raiseTo(pass, p, { ...today, offer: old.offer }, old.offer.apy) : null) : kept;
     let bid: Bid | null = today;
-    if (old && offerValue(league, p, old.teamId, old.offer) > today.value)
-      bid = raiseTo(pass, p, { ...today, offer: old.offer }, old.offer.apy) ?? today;
+    if (old && offerValue(league, p, old.teamId, old.offer) > today.value) bid = keep() ?? today;
     const limit = lastDay && old ? Math.min(old.offer.apy, first * RACE.ceiling) : first * RACE.ceiling;
     // Held to its limit: a lower price than one the team would make, checked again for the restructures it needs.
-    if (bid.offer.apy > limit) bid = raiseTo(pass, p, bid, Math.floor(limit));
+    if (bid.offer.apy > limit) bid = raiseTo(pass, p, bid, Math.floor(limit)) ?? keep();
     if (bid && bid.value >= demand(league, p, bid.team.id).walkAway) day.push({ bid, first });
   }
   return day;
@@ -191,6 +209,17 @@ function dayBids(pass: BidPass, p: Player, standing: readonly RaceOffer[], bids:
 function raiseStep(league: League, bid: Bid, p: Player): number {
   if (gunShyAt(league, bid.team, p.position)) return 0;
   return winNow(league, bid.team) >= 0.5 ? RACE.raise : RACE.raise / 2;
+}
+
+/** Your team, when you run it in this pass (your offers are yours, never the AI's); null when your staff does. */
+const userOf = (pass: BidPass): number | null =>
+  pass.teams.some((t) => t.id === pass.league.userTeamId) ? null : pass.league.userTeamId;
+
+/** Whether your standing offer still stands: you could make it now (`offerProblem`) and it clears his walk-away. */
+function standsFor(league: League, p: Player, o: RaceOffer): boolean {
+  if (offerProblem(league, p, o.teamId, o.offer)) return false;
+  const d = demand(league, p, o.teamId);
+  return offerValue(league, p, o.teamId, o.offer, d) >= d.walkAway;
 }
 
 /**
@@ -234,18 +263,22 @@ function placeOffers(
     }
     books.set(teamId, book);
   }
+  const user = userOf(pass);
   if (raises)
     for (const p of poolOf(pass)) {
       const entries = kept.get(p.id);
       if (!entries) continue;
-      const leader = entries.reduce((a, e) => (e.bid.value > a.bid.value ? e : a)).bid;
+      // The leader may be your standing offer: a team behind you raises as it would behind another team.
+      const mine = user === null ? undefined : race.offers[p.id]?.find((o) => o.teamId === user);
+      const yours = mine && standsFor(league, p, mine) ? offerValue(league, p, user!, mine.offer) : 0;
+      const leader = Math.max(yours, ...entries.map((e) => e.bid.value));
       for (const entry of entries) {
         const { bid, first } = entry;
-        if (bid.value >= leader.value) continue;
+        if (bid.value >= leader) continue;
         const step = raiseStep(league, bid, p);
         if (!step) continue;
         const target = Math.min(
-          Math.round(bid.offer.apy * (leader.value / bid.value) * (1 + step)),
+          Math.round(bid.offer.apy * (leader / bid.value) * (1 + step)),
           Math.floor(first * RACE.ceiling),
         );
         if (target <= bid.offer.apy) continue;
@@ -301,8 +334,11 @@ function signable(pass: BidPass, p: Player, bid: Bid): Bid | null {
 /**
  * A free-agency day's end: the AI teams update their offers (`placeOffers`), then each free agent with offers, best
  * market first, signs his best if he decides today (`decides`) and that team can still sign him now (`signable`; else
- * its offer steps aside and he weighs the rest); everyone else's offers stand overnight. Then, from the
- * clearing day, a player with no offer at his walk-away signs the best made for him as the AI's pass would
+ * its offer steps aside and he weighs the rest); everyone else's offers stand overnight. Your standing offer is judged
+ * beside theirs while you could still make it (`offerProblem`, again as he signs): else it is dropped and his result
+ * says so. When he'd sign elsewhere while your offer trails, and his agent hasn't warned you since you last led, he
+ * waits a day and the agent warns you; on the eve of the last day you are warned about everyone you trail. Then, from
+ * the clearing day, a player with no offer at his walk-away signs the best made for him as the AI's pass would
  * (`pickBest`), with a team whose standing offers still leave it the room. A race not yet open (a save from before it)
  * opens instead. The signings made.
  */
@@ -314,30 +350,57 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   }
   const pass = bidPass(league, rng, opts);
   const lastDay = league.faDay >= FA_DAYS;
+  const eve = league.faDay === FA_DAYS - 1;
+  const user = userOf(pass);
   const { kept, fallback } = placeOffers(pass, race, lastDay, !lastDay);
   const offers: FaRace['offers'] = {};
+  const warned = new Set(race.warnedSinceLead);
+  const dropped = new Set(race.dropped);
+  /** His result: your place among the offers he weighed before any stepped aside (what you saw), and any drop. */
+  const result = (p: Player, teamId: number, weighed: readonly RankedOffer[]): RaceResult => {
+    const place = weighed.findIndex((r) => r.teamId === user);
+    const r: RaceResult = {
+      playerId: p.id,
+      teamId,
+      day: league.faDay,
+      offers: weighed.length,
+      userPlace: place < 0 ? null : place + 1,
+    };
+    if (dropped.delete(p.id)) r.userDropped = true;
+    return r;
+  };
   /** Each team's offers still open after the judging: what a signing from the fallback must leave room for. */
   const open = new Map<number, Bid[]>();
   const left: Player[] = [];
   let signings = 0;
   for (const p of poolOf(pass)) {
-    const entries = kept.get(p.id);
-    if (!entries) {
+    const entries = kept.get(p.id) ?? [];
+    const standing = race.offers[p.id] ?? [];
+    let mine = user === null ? undefined : standing.find((o) => o.teamId === user);
+    if (mine && !standsFor(league, p, mine)) {
+      dropped.add(p.id);
+      mine = undefined;
+    }
+    if (!entries.length && !mine) {
       if (fallback.has(p.id)) left.push(p);
       continue;
     }
-    const standing = race.offers[p.id] ?? [];
     let today = entries.map(({ bid, first }) => {
       const old = standing.find((o) => o.teamId === bid.team.id);
       const same = old && JSON.stringify(old.offer) === JSON.stringify(bid.offer);
       return same ? old : raceOffer(league, bid, first);
     });
+    if (mine) today.push(mine);
     // He chooses; a winner that can no longer sign him now steps aside, and he weighs the rest the same day.
     let ranked: RankedOffer[];
+    let weighed: RankedOffer[] | undefined;
     let won: Bid | null = null;
+    let yoursWon = false;
     for (;;) {
       ranked = rankOffers(league, p, today);
+      weighed ??= ranked;
       if (ranked.length) race.since[p.id] ??= league.faDay;
+      if (ranked.length && ranked[0].teamId === user) warned.delete(p.id);
       const o: DecideOpts = {
         waited: league.faDay - (race.since[p.id] ?? league.faDay),
         patience: p.personality.patience,
@@ -346,23 +409,41 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
       };
       raceWatch.onJudge?.(pass, p, today, ranked, o);
       if (!decides(ranked, o)) break;
-      const best = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
-      won = signable(pass, p, best);
-      if (won) break;
-      raceWatch.onStepAside?.(pass, p, best);
-      today = today.filter((t) => t.teamId !== best.team.id);
+      if (ranked[0].teamId === user) {
+        // Yours wins if you can still make it now, after the day's earlier signings.
+        if (!offerProblem(league, p, user, mine!.offer)) {
+          yoursWon = true;
+          break;
+        }
+        dropped.add(p.id);
+      } else {
+        const best = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
+        won = signable(pass, p, best);
+        if (won) break;
+        raceWatch.onStepAside?.(pass, p, best);
+      }
+      const gone = ranked[0].teamId;
+      today = today.filter((t) => t.teamId !== gone);
+      if (gone === user) mine = undefined;
+    }
+    // You trail him: once each time you lose the lead his agent warns you before he signs elsewhere, and on the eve of
+    // the last day about everyone you trail.
+    const trailing = !!mine && ranked.length > 0 && ranked[0].teamId !== user && ranked.some((r) => r.teamId === user);
+    if (trailing && !lastDay && !warned.has(p.id) && (won || eve)) {
+      won = null;
+      warned.add(p.id);
+      race.warnings.push({ playerId: p.id, day: league.faDay, answered: false });
+    }
+    if (yoursWon) {
+      signPlayer(league, p, user!, mine!.offer);
+      signings++;
+      race.results.push(result(p, user!, weighed));
+      continue;
     }
     if (won) {
       signBid(pass, p, won);
       signings++;
-      const place = ranked.findIndex((r) => r.teamId === league.userTeamId);
-      race.results.push({
-        playerId: p.id,
-        teamId: won.team.id,
-        day: league.faDay,
-        offers: ranked.length,
-        userPlace: place < 0 ? null : place + 1,
-      });
+      race.results.push(result(p, won.team.id, weighed));
       continue;
     }
     if (!ranked.length) {
@@ -383,9 +464,154 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
     if (!best) continue;
     signBid(pass, p, best);
     signings++;
+    // Your offer for him was dropped: his result says where he went.
+    if (dropped.has(p.id)) race.results.push(result(p, best.team.id, []));
   }
   race.offers = offers;
+  // A player left with no offer waits for nobody: his days count again from his next one.
+  for (const id of Object.keys(race.since)) if (!offers[+id]) delete race.since[+id];
+  race.warnedSinceLead = [...warned].filter((id) => offers[id]);
+  race.dropped = [...dropped].filter((id) => league.players[id].teamId === null);
+  if (!race.dropped.length) delete race.dropped;
   return signings;
+}
+
+/** What placing an offer of yours did: signed on the spot, standing in the race, refused, or talks broken off. */
+export interface RaceReply {
+  status: 'signed' | 'standing' | 'refused' | 'broken';
+  message: string;
+}
+
+/** This season's race while free agency runs, or null. */
+const liveRace = (league: League): FaRace | null =>
+  league.phase === 'freeAgency' && league.faRace?.season === league.season ? league.faRace : null;
+
+/** Your standing offer for a player, if any. */
+const yourOffer = (league: League, playerId: number): RaceOffer | undefined =>
+  liveRace(league)?.offers[playerId]?.find((o) => o.teamId === league.userTeamId);
+
+/** Whether another team has a standing offer for him: your offer for him goes through the race. */
+export function inRace(league: League, playerId: number): boolean {
+  return !!liveRace(league)?.offers[playerId]?.some((o) => o.teamId !== league.userTeamId);
+}
+
+/** Players whose agent's warning you haven't answered: the game waits for them. */
+export function pendingWarnings(league: League): number[] {
+  return [
+    ...new Set(
+      liveRace(league)
+        ?.warnings.filter((w) => !w.answered)
+        .map((w) => w.playerId) ?? [],
+    ),
+  ];
+}
+
+/** Whether his agent's warning is waiting on your answer. */
+export function raceWarningOpen(league: League, playerId: number): boolean {
+  return !!liveRace(league)?.warnings.some((w) => w.playerId === playerId && !w.answered);
+}
+
+/** His agent's warning answered (a raise, a pull, letting him go). */
+function answer(race: FaRace, playerId: number): void {
+  for (const w of race.warnings) if (w.playerId === playerId) w.answered = true;
+}
+
+/** Your offer for him taken out of the race; with no offer left he waits for nobody. */
+function withdraw(race: FaRace, league: League, playerId: number): void {
+  const left = (race.offers[playerId] ?? []).filter((o) => o.teamId !== league.userTeamId);
+  if (left.length) race.offers[playerId] = left;
+  else {
+    delete race.offers[playerId];
+    delete race.since[playerId];
+  }
+  answer(race, playerId);
+}
+
+const millions = (k: number) => `$${(Math.max(0, k) / 1000).toFixed(1)}M`;
+
+/**
+ * Whether a team's standing offers fit together, with `add` in place of its offer for him: their year-one charges within
+ * its cap space (`space`, after a trade, else today's) and their count with its active roster within the roster limit.
+ * Yours are held to this, not the AI's books: the dialog's own check (`offerProblem`) over all of them at once.
+ */
+export function standingFitProblem(
+  league: League,
+  teamId: number,
+  o: { add?: { player: Player; offer: Offer }; space?: number } = {},
+): string | null {
+  const mine: { player: Player; offer: Offer }[] = [];
+  for (const [id, offers] of Object.entries(liveRace(league)?.offers ?? {})) {
+    if (+id === o.add?.player.id) continue;
+    const ours = offers.find((x) => x.teamId === teamId);
+    if (ours) mine.push({ player: league.players[+id], offer: ours.offer });
+  }
+  if (o.add) mine.push(o.add);
+  const total = mine.reduce((a, m) => a + offerCharge(league, m.player, teamId, m.offer), 0);
+  const space = o.space ?? capSpace(league, teamId);
+  if (total > space)
+    return `Not enough cap room for all your offers. Their hits this year add up to ${millions(total)}, you have ${millions(space)}.`;
+  const limit = rosterLimit(league);
+  if (activeRoster(league, teamId).length + mine.length > limit)
+    return `Your roster and your offers come to more than ${limit} players. Release someone or pull an offer.`;
+  return null;
+}
+
+/**
+ * Your offer for a free agent. One you couldn't make, or with talks broken off, is refused as in any negotiation; so
+ * is one that doesn't fit with your other offers (`standingFitProblem`). Under his walk-away it is refused and costs
+ * his agent's patience (`makeOffer`), and nothing is stored. With no other team in for him he signs on the spot.
+ * Otherwise it stands in the race (an offer worth no more to him than yours standing is refused: you can raise or
+ * pull), and answers his agent's warning.
+ */
+export function placeUserOffer(league: League, p: Player, offer: Offer): RaceReply {
+  const teamId = league.userTeamId;
+  const problem = offerProblem(league, p, teamId, offer);
+  if (problem) return { status: 'refused', message: problem };
+  const n = negotiationFor(league, p, teamId);
+  if (n.status === 'broken') return { status: 'broken', message: n.message ?? 'His agent has ended talks for now.' };
+  const fit = standingFitProblem(league, teamId, { add: { player: p, offer } });
+  if (fit) return { status: 'refused', message: fit };
+  const d = demand(league, p, teamId);
+  const value = offerValue(league, p, teamId, offer, d);
+  if (value < d.walkAway) return { status: 'refused', message: makeOffer(league, p, teamId, offer).message };
+  const race = liveRace(league);
+  const old = yourOffer(league, p.id);
+  if (!race || (!old && !inRace(league, p.id))) {
+    const r = makeOffer(league, p, teamId, offer);
+    return { status: r.accepted ? 'signed' : 'refused', message: r.message };
+  }
+  if (old && value <= offerValue(league, p, teamId, old.offer, d))
+    return { status: 'refused', message: 'You can raise your offer or pull it.' };
+  const placed: RaceOffer = { teamId, offer, day: league.faDay, first: old?.first ?? offer.apy };
+  race.offers[p.id] = [...(race.offers[p.id] ?? []).filter((o) => o.teamId !== teamId), placed];
+  race.since[p.id] ??= league.faDay;
+  if (race.dropped) race.dropped = race.dropped.filter((id) => id !== p.id);
+  answer(race, p.id);
+  return { status: 'standing', message: 'Your offer is in. He will weigh it with the others.' };
+}
+
+/**
+ * Pull your offer for him. Pulling one that leads or is second ends talks with him for the rest of free agency; one
+ * further back is free.
+ */
+export function pullUserOffer(league: League, playerId: number): void {
+  const race = liveRace(league);
+  if (!race || !yourOffer(league, playerId)) return;
+  const p = league.players[playerId];
+  const place = rankOffers(league, p, race.offers[playerId]).findIndex((r) => r.teamId === league.userTeamId);
+  if (place === 0 || place === 1) {
+    const n = negotiationFor(league, p, league.userTeamId);
+    n.status = 'broken';
+    n.brokenPhase = league.phase;
+    n.message = 'His agent has ended talks for now.';
+  }
+  withdraw(race, league, playerId);
+}
+
+/** Let him go: your answer to his agent's warning, your offer pulled with no hard feelings. */
+export function letGo(league: League, playerId: number): void {
+  const race = liveRace(league);
+  if (race) withdraw(race, league, playerId);
 }
 
 /** Free agency ends: offers lapse, and the results stay until the next race opens. */
@@ -396,4 +622,5 @@ export function closeRace(league: League): void {
   race.since = {};
   race.warnings = [];
   race.warnedSinceLead = [];
+  delete race.dropped;
 }

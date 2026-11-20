@@ -1711,7 +1711,8 @@ export interface RaceResult {
 
 /**
  * Free agency's race (`offseason/race.ts`): the standing offers by player, the day each first drew one (`since`), the
- * agents' warnings and the players warned about since you last led, and who chose where.
+ * agents' warnings and the players warned about since you last led, and who chose where. `dropped`: players whose
+ * offer of yours the race dropped (it no longer fit) and who haven't chosen yet, so their result says so.
  */
 export interface FaRace {
   season: number;
@@ -1720,6 +1721,7 @@ export interface FaRace {
   warnings: RaceWarning[];
   warnedSinceLead: number[];
   results: RaceResult[];
+  dropped?: number[];
 }
 
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
@@ -2402,6 +2404,8 @@ export interface Game {
  */
 export type Phase = 'regular' | 'playoffs' | 'complete' | 'resign' | 'freeAgency' | 'draft' | 'preseason';
 export const OFFSEASON_PHASES: readonly Phase[] = ['resign', 'freeAgency', 'draft', 'preseason'];
+/** Free agency's days (`League.faDay` runs 1 to this). Kept here, a leaf, so the race and the calendar can both read it. */
+export const FA_DAYS = 5;
 
 export interface SeasonSummary {
   season: number;
