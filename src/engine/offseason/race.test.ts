@@ -600,6 +600,36 @@ describe('your offers', () => {
     expect(elsewhere).toBeGreaterThan(0);
   });
 
+  it('a warning answered by taking the lead: losing it again brings a fresh warning', () => {
+    const l = yours(1);
+    trailEverywhere(l);
+    advanceOffseason(l);
+    let rewarned = 0;
+    while (l.phase === 'freeAgency' && l.faDay < FA_DAYS) {
+      // Each warning answered by a narrow lead: just over the best offer he has.
+      const led: number[] = [];
+      for (const id of pendingWarnings(l)) {
+        const p = l.players[id];
+        const d = demand(l, p, you(l));
+        const ask = askOffer(d);
+        const per = offerValue(l, p, you(l), ask, d) / ask.apy;
+        const top = Math.max(...l.faRace!.offers[id].map((o) => offerValue(l, p, o.teamId, o.offer)));
+        const reply = placeUserOffer(l, p, askAt(l, p, Math.max(floorApy(l, p), Math.ceil((top * 1.01) / per))));
+        if (reply.status === 'standing' && placeOf(l, p) === 1) led.push(id);
+      }
+      for (const id of pendingWarnings(l)) letGo(l, id);
+      const before = new Set(l.faRace!.warnings.map((w) => `${w.playerId}:${w.day}`));
+      advanceOffseason(l);
+      for (const id of led) {
+        // An AI raise overnight may take the lead back: he waits and his agent calls again, never signs elsewhere.
+        expect([null, you(l)]).toContain(l.players[id].teamId);
+        if ((l.faRace?.warnings ?? []).some((w) => w.playerId === id && !before.has(`${w.playerId}:${w.day}`)))
+          rewarned++;
+      }
+    }
+    expect(rewarned).toBeGreaterThan(0);
+  });
+
   it('the eve of the last day warns everyone you trail', () => {
     const l = yours(FA_DAYS - 1);
     trailEverywhere(l);
@@ -658,6 +688,57 @@ describe('your offers', () => {
     }
     expect(rivals).toBeGreaterThan(0);
     for (const id of led) expect(l.players[id].teamId).toBe(you(l));
+  });
+
+  it('the last day keeps no lead you did not hold at the eve', () => {
+    /**
+     * The last day judged: each player's first ranking (before any team stepped aside) as the judging made it, and his
+     * offers ranked as they stand.
+     */
+    const lastDay = (l: League) => {
+      const first = new Map<number, { judged: RankedOffer[]; natural: RankedOffer[] }>();
+      advanceWatched(
+        l,
+        (pass, j, id) => {
+          if (first.has(id)) return;
+          first.set(id, { judged: j.ranked, natural: rankOffers(pass.league, pass.league.players[id], j.offers) });
+        },
+        false,
+      );
+      return first;
+    };
+    /** Those who trail as the offers stand were judged that way (yours not kept first). How many trailed. */
+    const notKept = (l: League, ids: number[], last: ReturnType<typeof lastDay>): number => {
+      let trailed = 0;
+      for (const id of ids) {
+        const j = last.get(id);
+        if (!j?.natural.some((r) => r.teamId === you(l)) || j.natural[0].teamId === you(l)) continue;
+        trailed++;
+        expect(j.judged.map((r) => r.teamId)).toEqual(j.natural.map((r) => r.teamId));
+      }
+      return trailed;
+    };
+    // Warned before the eve and answered by a raise that still trails, then trailing as the eve ended (no second
+    // warning: he hasn't led since): on the last day he weighs the offers as they are.
+    let l = yours(FA_DAYS - 2);
+    trailEverywhere(l);
+    judged(l);
+    const answered: number[] = [];
+    for (const id of pendingWarnings(l)) {
+      const p = l.players[id];
+      const mine = l.faRace!.offers[id].find((o) => o.teamId === you(l))!;
+      expect(placeUserOffer(l, p, { ...mine.offer, apy: mine.offer.apy + 1 }).status).toBe('standing');
+      if (placeOf(l, p) > 1) answered.push(id);
+    }
+    const eve = judged(l);
+    for (const id of pendingWarnings(l)) letGo(l, id);
+    const warned = answered.filter((id) => eve.get(id)?.ranked[0]?.teamId !== you(l) && !l.players[id].teamId);
+    expect(warned.length).toBeGreaterThan(0);
+    expect(notKept(l, warned, lastDay(l))).toBeGreaterThan(0);
+    // An offer first placed on the last day, trailing: the eve never judged it, so nothing is kept for it.
+    l = yours(FA_DAYS);
+    const placed = trailEverywhere(l);
+    expect(notKept(l, placed, lastDay(l))).toBeGreaterThan(0);
   });
 
   it('two wins the same day fit', () => {

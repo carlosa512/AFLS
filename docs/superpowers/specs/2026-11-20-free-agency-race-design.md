@@ -71,7 +71,9 @@ race, you can fight for a player, and sometimes you lose him.
    with offers is judged (pool order, best first, budgets shrinking as teams sign, as today), then the warnings fire
    (below). The free-agency days stay at five (`FA_DAYS`).
 4. **The last day.** At day 5's end every player with an offer at or above his floor picks his best ("waited long
-   enough" is forced). Offers that don't win lapse. A player with none goes on to the late passes as today.
+   enough" is forced). Offers that don't win lapse. A player with none goes on to the late passes as today. An offer of
+   yours that led as the eve ended, and that you haven't changed since, still leads on the last day, whatever the night
+   did to what the others are worth to him: he is never lost to it unwarned.
 
 ### Who goes through the race
 
@@ -104,10 +106,11 @@ he values.
   be rebuilt the same every day.) An AI raise never goes past the team's own read of what he's worth to it, so bidding a rival up only makes it pay
   what it already thought he was worth.
 - **The agent's warning.** At a day's end, if he would sign with another team, you have an offer in, you're behind,
-  and you haven't been warned about him since you last led, he waits a day instead and his agent calls: "He's close.
-  Kansas City is ahead." It's an inbox letter (it needs you, `needsYou`) and a flag on his row. You get one warning
-  each time you lose the lead, so you are never lost without one, and the warnings end because AI raises stop at a
-  team's limit. If you answer and are still behind at the next day's end, he signs.
+  and you haven't been warned about him since you last led (at a day's end, or as your raise took the lead), he waits
+  a day instead and his agent calls: "He's close. Kansas City is ahead." It's an inbox letter (it needs you,
+  `needsYou`) and a flag on his row. You get one warning each time you lose the lead, so you are never lost without
+  one, and the warnings end because AI raises stop at a team's limit. If you answer and are still behind at the next
+  day's end, he signs.
 - **The game stops for a warning** (the owner's call). Until every warning is answered, the advance button reads
   "Answer 1 agent" (or "Answer N agents"), as it reads "Decide N contracts" in the re-sign window (`offseasonStep` in
   `ui/App.tsx`, the blockers it reads). Two answers, on the letter and on his page: improve your offer (any raise
@@ -115,8 +118,9 @@ he values.
   user team never stops.
 - **Your offers must fit together.** The dialog's own check (`offerProblem`) over all your standing offers at once:
   their year-one cap hits add up to no more than your cap space, and they fit on your roster with the players you
-  have. Anything that would break it (a new offer, a raise, a signing on the spot, a trade that takes on salary) is
-  refused with the reason, where the button is. You are not held to the AI's multi-year books; your planning is yours.
+  have. Anything that would break it (a new offer, a raise, a signing on the spot, an extension, a trade that takes on
+  salary) is refused with the reason, where the button is. You are not held to the AI's multi-year books; your
+  planning is yours.
 - **Pulling an offer** is allowed. Pulling one that leads or is second ends talks with him for the rest of free agency
   (the broken talks the negotiation already has); pulling one further back is free.
 - **Patience still counts.** An offer under his walk-away uses up his agent's patience as today (`Negotiation.patience`;
@@ -134,9 +138,11 @@ Jalen Price   CB    14.4  DAL GB WAS +2     None         Waiting on more offers
 ```
 
 - Teams in: a chip per team with an offer in (team colours, yours in the marker yellow), the first few and "+n".
-- Your offer: Leading, "2nd of 4", or None, with a coloured dot.
+- Your offer: Leading, "2nd of 4", or None, with a coloured dot; "Under his terms" when it still stands but no longer
+  reaches what he would take (the day's end drops it).
 - Status, in words from the same rule that decides: Waiting on more offers, Weighing offers, Close to a decision.
   "Close" is a hint, never a promise of the day.
+- "Agent called" in place of the status while his agent's warning waits on you, and that row comes first.
 - A yellow edge on rows you have an offer on. The players nobody else wants (the sign-on-the-spot ones) stay listed
   as today.
 
@@ -149,7 +155,8 @@ variant B of the mockup:
   yellow, with your own offer written under it.
 - His agent's line: who leads and the leader's money per year, rounded (about $13M a year). The agent rounds honestly.
 - The offer controls stay (years, per year, guaranteed, bonus, void years, the patience pips). "Make offer" places or
-  updates your standing offer. "Pull offer" next to it.
+  updates your standing offer. "Pull offer" next to it ("Pull offer and end talks" when it leads or is second). While
+  his agent's warning waits, the dialog says he called, and "Let him go" takes the pull's place.
 
 **When the day ends** one short letter for each player you had an offer on, win or lose ("Dante Okafor signs with
 us", "Marcus Hale picks Kansas City"), saying what tipped it in his words when one thing did. Letters go through

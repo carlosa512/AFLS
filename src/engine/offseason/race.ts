@@ -361,10 +361,11 @@ function signable(pass: BidPass, p: Player, bid: Bid): Bid | null {
  * its offer steps aside and he weighs the rest); everyone else's offers stand overnight. Your standing offer is judged
  * beside theirs while you could still make it (`offerProblem`, again as he signs): else it is dropped and his result
  * says so. When he'd sign elsewhere while your offer trails, and his agent hasn't warned you since you last led, he
- * waits a day and the agent warns you; on the eve of the last day you are warned about everyone you trail. Then, from
- * the clearing day, a player with no offer at his walk-away signs the best made for him as the AI's pass would
- * (`pickBest`), with a team whose standing offers still leave it the room. A race not yet open (a save from before it)
- * opens instead. The signings made.
+ * waits a day and the agent warns you; on the eve of the last day you are warned about everyone you trail. On the last
+ * day an offer of yours that led as the eve ended, unchanged since, still leads (`ledAtEve`): he is never lost to the
+ * night's drift unwarned. Then, from the clearing day, a player with no offer at his walk-away signs the best made for
+ * him as the AI's pass would (`pickBest`), with a team whose standing offers still leave it the room. A race not yet
+ * open (a save from before it) opens instead. The signings made.
  */
 export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   const race = league.faRace;
@@ -610,7 +611,8 @@ export function standingFitProblem(
  * is one that doesn't fit with your other offers (`standingFitProblem`). Under his walk-away it is refused and costs
  * his agent's patience (`makeOffer`), and nothing is stored. With no other team in for him he signs on the spot.
  * Otherwise it stands in the race (an offer worth no more to him than yours standing is refused: you can raise or
- * pull), and answers his agent's warning.
+ * pull), and answers his agent's warning; one that takes the lead counts as leading, so losing it again brings a new
+ * warning.
  */
 export function placeUserOffer(league: League, p: Player, offer: Offer): RaceReply {
   const teamId = league.userTeamId;
@@ -638,6 +640,9 @@ export function placeUserOffer(league: League, p: Player, offer: Offer): RaceRep
   if (race.droppedWhy) delete race.droppedWhy[p.id];
   if (race.droppedOn) delete race.droppedOn[p.id];
   answer(race, p.id);
+  // Leading now, as the screen shows: lose the lead again and his agent warns you again.
+  if (rankOffers(league, p, race.offers[p.id])[0]?.teamId === teamId)
+    race.warnedSinceLead = race.warnedSinceLead.filter((id) => id !== p.id);
   return { status: 'standing', message: 'Your offer is in. He will weigh it with the others.' };
 }
 
