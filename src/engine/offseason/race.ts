@@ -63,7 +63,7 @@ export const RACE = {
    * How many AI teams bid on one player, by his place in the pool by market worth: an NFL depth or role player draws one
    * to three suitors, and only the top of the market draws a crowd.
    */
-  bidders: { top: 32, topMax: 6, next: 96, nextMax: 4, restMax: 2 },
+  bidders: { top: 32, topMax: 8, next: 96, nextMax: 5, restMax: 3 },
 };
 
 /** The most AI teams that open offers for the player at `order` in the pool (best market first). */

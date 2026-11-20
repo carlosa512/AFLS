@@ -138,7 +138,7 @@ only a team you run and moves no AI-only number.
 ## Depth bidders capped
 
 A real save showed a punter with 21 teams' offers on day 2. `placeOffers` now keeps each player's most interested AI
-bidders by his place in the pool by market worth (`RACE.bidders`: top 32 up to 6, next 96 up to 4, the rest up to 2;
+bidders by his place in the pool by market worth (`RACE.bidders`: top 32 up to 8, next 96 up to 5, the rest up to 3;
 NFL depth players draw one to three suitors). A team already holding a standing offer keeps it; new entrants fill what
 is left by their `gain`. Your offer never counts and is never trimmed; the late passes are untouched. The bid-builder
 golden hash in `bids.test.ts` was re-pinned.
@@ -158,3 +158,14 @@ AI bidders per player on day 1 (opening offers, two leagues, players with at lea
 
 `npm run morale` (exit 0, 0 outside): meetings a club a season 5.71 (3-6; was 5.63), Tight rooms 0.33 (0.15-0.35; was 0.34), trade requests
 resolved by a trade 0.15 (0.15-0.75, on its floor, as before).
+
+### Caps loosened to 8 / 5 / 3
+
+The first caps (6 / 4 / 2) failed CI's `careers` check once: points per team-game 21.00 against a floor of 21. A probe
+(`.check/probe-bidders.ts`, the check's four 20-season leagues, seasons 11-20, one process each) read 21.47 with the cap
+off, 21.00 with 6 / 4 / 2 and 21.40 with 8 / 5 / 3. Per league the points swing about 1.0 either way between runs of the
+same seed, so the 0.47 gap is a bit over one standard error of the pooled mean, and the position-by-position starter
+OVR (QB, K, P, WR, OL, CB, S, LB, RB, TE) showed no consistent shift. Read as noise around an edge that sits near 21,
+the fallback caps were taken. With them: `npm run careers` exit 0 (points 21.39), `npm run offseason -- 6` exit 0,
+`npm run morale` exit 0. The golden hash in `bids.test.ts` was re-pinned again, and the step-aside test allows a
+thousand of rounding on a team's budget (a deal fitted to the dollar can land a fraction of a thousand past it).

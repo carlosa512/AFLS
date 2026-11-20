@@ -20,7 +20,7 @@ first pick of the whole market. Meanwhile the AI teams already run an auction am
 bid on its own read and the player takes the best one that clears his floor (`aiFreeAgencyDay` in `offseason/ai.ts`).
 You are just not in it.
 
-As the market opens, a player draws only his most interested AI teams, by his place in the market (`RACE.bidders`: up to 6 at the top 32, 4 for the next 96, 2 for the rest), as depth players draw one to three suitors in the NFL.
+As the market opens, a player draws only his most interested AI teams, by his place in the market (`RACE.bidders`: up to 8 at the top 32, 5 for the next 96, 3 for the rest), as depth players draw one to three suitors in the NFL.
 
 The fix: one race that every team, yours included, runs in. Other teams bid on the players you want, you can see the
 race, you can fight for a player, and sometimes you lose him.
