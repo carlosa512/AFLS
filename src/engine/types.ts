@@ -1690,6 +1690,8 @@ export interface RaceOffer {
   day: number;
   /** The team's opening price for him ($K a year), kept across days: its raises stop short of a share above it. */
   first: number;
+  /** Your offer ranked first when you placed or last raised it (`placeUserOffer`): on the last day that lead stands. */
+  led?: boolean;
 }
 
 /** An agent's call that his player is about to sign elsewhere while your offer is behind. */

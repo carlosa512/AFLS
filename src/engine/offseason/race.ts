@@ -362,8 +362,8 @@ function signable(pass: BidPass, p: Player, bid: Bid): Bid | null {
  * beside theirs while you could still make it (`offerProblem`, again as he signs): else it is dropped and his result
  * says so. When he'd sign elsewhere while your offer trails, and his agent hasn't warned you since you last led, he
  * waits a day and the agent warns you; on the eve of the last day you are warned about everyone you trail. On the last
- * day an offer of yours that led as the eve ended, unchanged since, still leads (`ledAtEve`): he is never lost to the
- * night's drift unwarned. Then, from the clearing day, a player with no offer at his walk-away signs the best made for
+ * day an offer of yours that led as the eve ended, or that led when you placed it that day, still leads (`ledAtEve`):
+ * the final day closes out all deals, and he is never lost to the night's drift unwarned. Then, from the clearing day, a player with no offer at his walk-away signs the best made for
  * him as the AI's pass would (`pickBest`), with a team whose standing offers still leave it the room. A race not yet
  * open (a save from before it) opens instead. The signings made.
  */
@@ -429,9 +429,10 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
       return same ? old : raceOffer(league, bid, first);
     });
     if (mine) today.push(mine);
-    // Your offer led as the eve ended (he hasn't been warned since): on the last day it still leads, whatever the night
-    // did to what the others are worth to him (a rival's signings move its pull). He is never lost to it unwarned.
-    const ledAtEve = lastDay && !!mine && mine.day < FA_DAYS && !warned.has(p.id);
+    // Your offer led as the eve ended, or led when you placed it on the last day (he hasn't been warned since): it
+    // still leads, whatever the night did to what the others are worth to him (a rival's signings move its pull).
+    // He is never lost to it unwarned.
+    const ledAtEve = lastDay && !!mine && (mine.day < FA_DAYS || !!mine.led) && !warned.has(p.id);
     // He chooses; a winner that can no longer sign him now steps aside, and he weighs the rest the same day.
     let ranked: RankedOffer[];
     let weighed: RankedOffer[] | undefined;
@@ -635,14 +636,16 @@ export function placeUserOffer(league: League, p: Player, offer: Offer): RaceRep
     return { status: 'refused', message: 'You can raise your offer or pull it.' };
   const placed: RaceOffer = { teamId, offer, day: league.faDay, first: old?.first ?? offer.apy };
   race.offers[p.id] = [...(race.offers[p.id] ?? []).filter((o) => o.teamId !== teamId), placed];
+  // Judged when placed: on the last day an offer that ranks first now stays first at the day's end.
+  const leads = rankOffers(league, p, race.offers[p.id])[0]?.teamId === teamId;
+  if (leads) placed.led = true;
   race.since[p.id] ??= league.faDay;
   if (race.dropped) race.dropped = race.dropped.filter((id) => id !== p.id);
   if (race.droppedWhy) delete race.droppedWhy[p.id];
   if (race.droppedOn) delete race.droppedOn[p.id];
   answer(race, p.id);
   // Leading now, as the screen shows: lose the lead again and his agent warns you again.
-  if (rankOffers(league, p, race.offers[p.id])[0]?.teamId === teamId)
-    race.warnedSinceLead = race.warnedSinceLead.filter((id) => id !== p.id);
+  if (leads) race.warnedSinceLead = race.warnedSinceLead.filter((id) => id !== p.id);
   return { status: 'standing', message: 'Your offer is in. He will weigh it with the others.' };
 }
 

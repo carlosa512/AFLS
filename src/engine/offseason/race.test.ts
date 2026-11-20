@@ -735,10 +735,39 @@ describe('your offers', () => {
     const warned = answered.filter((id) => eve.get(id)?.ranked[0]?.teamId !== you(l) && !l.players[id].teamId);
     expect(warned.length).toBeGreaterThan(0);
     expect(notKept(l, warned, lastDay(l))).toBeGreaterThan(0);
-    // An offer first placed on the last day, trailing: the eve never judged it, so nothing is kept for it.
+    // An offer first placed on the last day, trailing: it was not first when placed, so nothing is kept for it.
     l = yours(FA_DAYS);
     const placed = trailEverywhere(l);
     expect(notKept(l, placed, lastDay(l))).toBeGreaterThan(0);
+  });
+
+  it('the last day keeps an offer that led when you placed it', () => {
+    const l = yours(FA_DAYS);
+    setSpace(l, 500_000);
+    // A narrow lead placed on the last day, over the best offer he has: judged when placed, never lost unwarned.
+    const led: number[] = [];
+    for (const p of contested(l)) {
+      const d = demand(l, p, you(l));
+      const ask = askOffer(d);
+      const per = offerValue(l, p, you(l), ask, d) / ask.apy;
+      const top = Math.max(...l.faRace!.offers[p.id].map((o) => offerValue(l, p, o.teamId, o.offer)));
+      const offer = askAt(l, p, Math.max(floorApy(l, p), Math.ceil((top * 1.003) / per)));
+      if (placeUserOffer(l, p, offer).status === 'standing' && placeOf(l, p) === 1) led.push(p.id);
+    }
+    expect(led.length).toBeGreaterThan(0);
+    // The night moves what the rivals are worth to him (their rosters change): their standing offers rise past yours.
+    for (const id of led)
+      for (const o of l.faRace!.offers[id])
+        if (o.teamId !== you(l)) o.offer = { ...o.offer, apy: Math.round(o.offer.apy * 1.3) };
+    const first = new Map<number, RankedOffer[]>();
+    advanceWatched(
+      l,
+      (_pass, j, id) => {
+        if (!first.has(id)) first.set(id, j.ranked);
+      },
+      false,
+    );
+    for (const id of led) expect(first.get(id)![0].teamId).toBe(you(l));
   });
 
   it('two wins the same day fit', () => {

@@ -72,8 +72,10 @@ race, you can fight for a player, and sometimes you lose him.
    (below). The free-agency days stay at five (`FA_DAYS`).
 4. **The last day.** At day 5's end every player with an offer at or above his floor picks his best ("waited long
    enough" is forced). Offers that don't win lapse. A player with none goes on to the late passes as today. An offer of
-   yours that led as the eve ended, and that you haven't changed since, still leads on the last day, whatever the night
-   did to what the others are worth to him: he is never lost to it unwarned.
+   yours that led as the eve ended, or that led when you placed or raised it on the last day, and that you haven't
+   changed since, still leads at the day's end, whatever the night did to what the others are worth to him: the final
+   day closes out all deals, and he is never lost to it unwarned. An offer placed on the last day that did not lead
+   then is not kept.
 
 ### Who goes through the race
 
