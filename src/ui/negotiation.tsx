@@ -17,12 +17,15 @@ import {
   talksOpen,
   type Offer,
 } from '../engine/offseason/negotiation';
+import { inRace, letGo, placeUserOffer, pullUserOffer } from '../engine/offseason/race';
+import { raceView } from '../engine/offseason/raceView';
 import { careerOutlook } from '../engine/scouting';
 import type { League, Player } from '../engine/types';
 import { Dialog, PlayerAvatar } from './components';
 import { money } from './format';
 import { Ovr } from './scouting';
 import { liveLock } from './live';
+import { RacePanel } from './race';
 import { store } from './store';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -74,8 +77,16 @@ export function NegotiationDialog({
 }) {
   const teamId = league.userTeamId;
   const d = demand(league, player, teamId);
-  const [offer, setOffer] = useState<Offer>(() => askOffer(d));
-  const [result, setResult] = useState<{ accepted: boolean; message: string; summary?: string } | null>(null);
+  // Free agency's race: while other teams are in for him (or your offer stands), an offer stands beside theirs.
+  const view = raceView(league, player.id);
+  const race = view && (inRace(league, player.id) || view.yours) ? view : null;
+  const [offer, setOffer] = useState<Offer>(() => (race?.yours ? { ...race.yours } : askOffer(d)));
+  const [result, setResult] = useState<{
+    accepted: boolean;
+    message: string;
+    summary?: string;
+    standing?: boolean;
+  } | null>(null);
   // Peek without mutating the save: negotiationFor creates state, so read it from a scratch copy.
   const existing = league.negotiations[player.id];
   const patience = existing?.teamId === teamId ? existing.patience : d.patience;
@@ -98,14 +109,33 @@ export function NegotiationDialog({
   const send = () => {
     // Summarize before signing: afterwards the player's new deal would read as the "prior" one.
     const summary = `${offer.years} yr, ${money(offer.apy * offer.years)} (${money(offer.apy)}/yr), ${money(Math.round(totalGuaranteed(preview)))} guaranteed.`;
-    let r: { accepted: boolean; message: string } = { accepted: false, message: '' };
+    let r: { accepted: boolean; message: string; standing?: boolean } = { accepted: false, message: '' };
     store.mutate((l) => {
       const p = l.players[player.id];
+      // In free agency every offer goes through the race: it signs him on the spot only when nobody else is in.
+      if (l.phase === 'freeAgency' && p.teamId === null) {
+        const reply = placeUserOffer(l, p, offer);
+        r =
+          reply.status === 'standing'
+            ? { accepted: false, standing: true, message: 'Your offer is in.' }
+            : { accepted: reply.status === 'signed', message: reply.message };
+        return;
+      }
       negotiationFor(l, p, teamId);
       r = makeOffer(l, p, teamId, offer);
     });
     setResult({ ...r, summary });
   };
+  const pull = () => {
+    store.mutate((l) => pullUserOffer(l, player.id));
+    setResult(null);
+  };
+  const letHimGo = () => {
+    store.mutate((l) => letGo(l, player.id));
+    onClose();
+  };
+  // Pulling an offer that leads or is second ends talks with him; his agent's warning open, letting him go is free.
+  const pullEnds = race?.place === 1 || race?.place === 2;
 
   if (result?.accepted) {
     return (
@@ -135,8 +165,22 @@ export function NegotiationDialog({
           <button className="btn" onClick={() => set(askOffer(d))}>
             Match his ask
           </button>
+          {race?.yours &&
+            (race.warned ? (
+              <button className="btn" onClick={letHimGo}>
+                Let him go
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={pull}
+                title={pullEnds ? 'His agent ends talks if you pull an offer that leads or is second.' : undefined}
+              >
+                Pull offer
+              </button>
+            ))}
           <button className="btn btn-primary" disabled={!!problem || broken} onClick={send}>
-            Make offer
+            {race?.yours ? 'Update offer' : 'Make offer'}
           </button>
         </>
       }
@@ -159,6 +203,7 @@ export function NegotiationDialog({
           ))}
         </div>
       </div>
+      {race && <RacePanel league={league} player={player} view={race} />}
       {/* Worth knowing before you pick the years: when your scouts expect him to start fading. */}
       <p className="muted small" style={{ margin: 0 }}>
         {careerOutlook(league, teamId, player)}
@@ -175,7 +220,9 @@ export function NegotiationDialog({
           His agent has ended talks for now. They reopen in the next phase of the offseason.
         </p>
       )}
-      {result && !result.accepted && <p className="callout callout-bad">{result.message}</p>}
+      {result && !result.accepted && (
+        <p className={`callout ${result.standing ? 'callout-good' : 'callout-bad'}`}>{result.message}</p>
+      )}
 
       <div className="field-row">
         <span>Years</span>

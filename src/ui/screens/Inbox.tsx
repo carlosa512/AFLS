@@ -622,7 +622,7 @@ export function MessageBody({
           </p>
         </aside>
       )}
-      <MailCards league={league} message={m} />
+      <MailCards league={league} message={m} onNegotiate={negotiate} />
       {actions.length > 0 && (
         <div className="row">
           {actions.map((a, i) =>

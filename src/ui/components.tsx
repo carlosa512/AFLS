@@ -576,7 +576,9 @@ export function Dialog({
       root?.querySelector<HTMLElement>('[data-autofocus]') ??
       root?.querySelector<HTMLElement>('.dialog-body input, .dialog-body select, .dialog-body button') ??
       root?.querySelector<HTMLElement>('button')
-    )?.focus();
+    )
+      // Opened at its top: a long body (a free agent's race above the offer) doesn't scroll down to the first control.
+      ?.focus({ preventScroll: true });
     return () => opener?.focus?.();
   }, []);
   const onKey = (e: ReactKeyboardEvent) => {
