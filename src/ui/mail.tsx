@@ -47,6 +47,10 @@ import {
 import { askOffer, demand, makeOffer, rookieCost, ROSTER_MAX } from '../engine/offseason/negotiation';
 import { applyFranchiseTag, tagBlocker, tagValue } from '../engine/offseason/ai';
 import { setLettingWalk } from '../engine/offseason';
+import { letGo } from '../engine/offseason/race';
+import { raceView } from '../engine/offseason/raceView';
+import { NegotiationDialog } from './negotiation';
+import { RacePanel, RacePlace } from './race';
 import { contractDecision, liveCall, signAtAskProblem } from '../engine/contractMail';
 import { coachSchemeLabel } from '../engine/schemes';
 import {
@@ -181,7 +185,16 @@ const SHOW = 3;
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function MailCards({ league, message }: { league: League; message: InboxMessage }) {
+export function MailCards({
+  league,
+  message,
+  onNegotiate,
+}: {
+  league: League;
+  message: InboxMessage;
+  /** Open contract talks over the inbox, so the dialog outlives a card that closes once answered. */
+  onNegotiate?: (playerId: number) => void;
+}) {
   const notes = message.gmNotes?.filter((n) => league.gms[n.gmId]);
   // SNN's weekly edition draws itself (`edition.tsx`): this file only hands it over.
   if (message.edition)
@@ -203,12 +216,20 @@ export function MailCards({ league, message }: { league: League; message: InboxM
           <GmWho league={league} gm={league.gms[n.gmId]} line={n.line} />
         </Card>
       ))}
-      <KindCards league={league} message={message} />
+      <KindCards league={league} message={message} onNegotiate={onNegotiate} />
     </>
   );
 }
 
-function KindCards({ league, message }: { league: League; message: InboxMessage }) {
+function KindCards({
+  league,
+  message,
+  onNegotiate,
+}: {
+  league: League;
+  message: InboxMessage;
+  onNegotiate?: (playerId: number) => void;
+}) {
   const s = mailSubject(message);
   switch (s?.kind) {
     case 'news':
@@ -277,6 +298,11 @@ function KindCards({ league, message }: { league: League; message: InboxMessage 
       return <DeadlineCards league={league} s={s} live={briefingCurrent(league, message)} />;
     case 'race':
       return <RaceCards league={league} s={s} />;
+    case 'faRace':
+      // Only an agent's warning asks something, and only while it is open: results and dropped offers are told whole.
+      return s.day !== null && needsYou(league, message) ? (
+        <FaRaceCards league={league} playerId={s.playerId} onNegotiate={onNegotiate} />
+      ) : null;
     case 'owner':
       return <OwnerCards league={league} s={s} />;
     case 'rundown':
@@ -2789,7 +2815,49 @@ function Option({
   );
 }
 
-/** Ways to fill the chair a coach left: our own men one rung below it, and the best of the market. */
+/**
+ * Whether the message's card holds its own primary answer (an agent's open warning: Improve your offer), so the
+ * letter's own links under it are all secondary and the letter keeps one yellow button.
+ */
+export function cardLeads(league: League, message: InboxMessage): boolean {
+  const s = mailSubject(message);
+  return s?.kind === 'faRace' && s.day !== null && needsYou(league, message) && raceView(league, s.playerId) !== null;
+}
+
+/** His agent's warning: the player, his race as he sees it, and your two answers. */
+function FaRaceCards({
+  league,
+  playerId,
+  onNegotiate,
+}: {
+  league: League;
+  playerId: number;
+  onNegotiate?: (playerId: number) => void;
+}) {
+  const [talking, setTalking] = useState(false);
+  const p = league.players[playerId];
+  const view = p && raceView(league, playerId);
+  if (!view) return null;
+  return (
+    <Card>
+      <Who league={league} p={p} sub={`${p.position} · age ${p.age}`} side={<RacePlace view={view} />} />
+      <RacePanel league={league} player={p} view={view} />
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => (onNegotiate ? onNegotiate(playerId) : setTalking(true))}
+        >
+          Improve your offer
+        </button>
+        <button className="btn btn-sm" onClick={() => store.mutate((l) => letGo(l, playerId))}>
+          Let him go
+        </button>
+      </div>
+      {talking && <NegotiationDialog league={league} player={p} onClose={() => setTalking(false)} />}
+    </Card>
+  );
+}
+
 /**
  * The owner's question about your interim head coach: his two answers while it waits, then how it ended, read from
  * the league as it is (he holds the job, or he does not).

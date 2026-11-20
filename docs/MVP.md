@@ -155,6 +155,21 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
       calibrated rain chances on the schedule and the next-game card (`forecast` in `weather.ts`). Trend arrows and a
       staff hook are not built yet (`docs/WEATHER.md`).
 
+## 0.5: The offseason comes alive
+
+The first milestone after alpha: an offseason where the other 31 teams want the same players you do. 0.5.0 lands when
+all three are Done (`docs/VERSIONING.md`).
+
+- [x] **The free-agency race** · **Done** (0.4.55): every AI team puts in its opening offers as the market opens, raises
+      when it is behind, and steps aside when it can no longer sign a player; a player signs when one offer stands out or
+      he has waited long enough, so the best go in the first days and depth players later. Your offers stand beside
+      theirs and must fit together, and his agent warns you before a player you bid on signs elsewhere
+      (`offseason/race.ts`, `bids.ts`, `raceView.ts`, `raceMail.ts`; spec
+      `docs/superpowers/specs/2026-11-20-free-agency-race-design.md`).
+- [ ] **Compensatory picks** · **Missing**: picks for the free agents a team loses, by what they signed for elsewhere
+      (a departure is already recorded, `noteDeparture`).
+- [ ] **Suspensions** · **Missing**.
+
 ## Not in the shipped game
 
 - **A real-world start file** (real players and rosters), for legal reasons. If this is ever revisited, the usual

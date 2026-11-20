@@ -15,10 +15,15 @@ import {
   userExtensionOffer,
   acceptGmOffer,
 } from '../engine/leadership';
-import { beginOffseason, letRestWalk, setLettingWalk } from '../engine/offseason';
+import { advanceOffseason, beginOffseason, letRestWalk, setLettingWalk } from '../engine/offseason';
 import { exerciseFifthYearOption } from '../engine/offseason/ai';
+import { capSpace } from '../engine/finance/cap';
+import { minSalary } from '../engine/finance/market';
+import { askOffer, demand, freeAgents, offerValue } from '../engine/offseason/negotiation';
+import { letGo, pendingWarnings, placeUserOffer } from '../engine/offseason/race';
 import { teamPlayers } from '../engine/roster';
-import type { League } from '../engine/types';
+import type { League, Player } from '../engine/types';
+import { FA_DAYS } from '../engine/types';
 import { offseasonStep } from './App';
 
 /** The re-sign window, with any question about your own job answered first. */
@@ -132,5 +137,54 @@ describe('opening free agency', () => {
     go.run(l);
     expect(l.phase).toBe('freeAgency');
     expect(interim.interim).toBeUndefined();
+  });
+});
+
+/** Free agency's first day, run by you, every team's opening offers standing (no season played: it reads offers only). */
+function freeAgencyDay1(): League {
+  const l = createLeague({ seed: 'fa-race-door' });
+  l.phase = 'complete' as League['phase'];
+  beginOffseason(l);
+  while (l.phase !== 'resign') advanceOffseason(l, { autoUser: true });
+  advanceOffseason(l, { autoUser: false });
+  expect(l.phase).toBe('freeAgency');
+  return l;
+}
+
+/** The least a year, in the shape of his ask, he'd take from you: an offer that stands but trails. */
+function atFloor(l: League, p: Player) {
+  const d = demand(l, p, l.userTeamId);
+  const ask = askOffer(d);
+  const per = offerValue(l, p, l.userTeamId, ask, d) / ask.apy;
+  return { ...ask, apy: Math.max(minSalary(p.experience, l.caps[l.season]), Math.ceil(d.walkAway / per) + 1) };
+}
+
+describe('the agents stop the day', () => {
+  it('waits on every open warning, and the button opens the letter', () => {
+    const l = freeAgencyDay1();
+    expect(offseasonStep(l)!.label).toBe(`Next free-agency day (1/${FA_DAYS})`);
+    // Trail on every contested player, with the room to spare: the agents call as the day ends.
+    const t = l.teams[l.userTeamId];
+    t.carryover += 500_000 - capSpace(l, t.id);
+    for (const p of freeAgents(l).filter((p) => !p.injury && (l.faRace!.offers[p.id] ?? []).length))
+      placeUserOffer(l, p, atFloor(l, p));
+    advanceOffseason(l);
+    deliverMail(l);
+    const warned = pendingWarnings(l);
+    expect(warned.length).toBeGreaterThan(2);
+    for (const id of warned.slice(2)) letGo(l, id);
+    expect(offseasonStep(l)!.label).toBe('Answer 2 agents');
+    letGo(l, warned[1]);
+    const step = offseasonStep(l)!;
+    expect(step.label).toBe('Answer 1 agent');
+    const w = l.faRace!.warnings.find((x) => x.playerId === warned[0] && !x.answered)!;
+    const letter = `race:${l.season}:${warned[0]}:${w.day}`;
+    expect(l.inbox!.some((m) => m.id === letter)).toBe(true);
+    expect(step.then).toEqual({ view: 'inbox', messageId: letter });
+    // The button takes you there and changes nothing.
+    step.run(l);
+    expect(pendingWarnings(l)).toEqual([warned[0]]);
+    letGo(l, warned[0]);
+    expect(offseasonStep(l)!.label).toBe(`Next free-agency day (2/${FA_DAYS})`);
   });
 });

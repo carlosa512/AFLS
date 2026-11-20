@@ -432,6 +432,9 @@ export function migrateLeague(league: League): League | null {
     for (const p of retired) slimRetired(p);
     league.version = 101;
   }
+  // v102: free agency's race (`League.faRace`, `offseason/race.ts`). Nothing to change: a save without one opens the
+  // race at its next free-agency day (`raceDay`).
+  if (league.version < 102) league.version = 102;
   return league;
 }
 

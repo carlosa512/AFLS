@@ -620,7 +620,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     (`shapeToBooks` drops void years and bonus, then makes no offer), a player is kept ahead of the keepers ranked below
     him (`aside`), and a free agent the market passed by keeps his years at a lower price (`priceToBooks`); a
     free-agency signing gets back the minimum its open spot held (`aiFreeAgencyDay`), and nothing is borrowed against
-    the in-season cushion in free agency's first days (`SPEND_FIRST`)
+    the in-season cushion in free agency's first days (`SPEND_FIRST`); the free-agency race (0.4.55, `race.ts`, spec
+    `docs/superpowers/specs/2026-11-20-free-agency-race-design.md`): every AI team's opening offers as the market opens,
+    raises, and a player who signs at a day's end when his best stands out or he has waited (`decides`, `RACE`); your
+    offers stand beside theirs (`placeUserOffer`) and an agent's warning stops the game (`pendingWarnings`). The bids are
+    `bids.ts` (the late passes' `aiFreeAgencyDay` too), what a screen may read `raceView.ts`, the letters
+    `src/engine/raceMail.ts` (beside `inbox.ts`)
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and

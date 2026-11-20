@@ -3,6 +3,7 @@ import { lineupProblem } from '../engine/benching';
 import { employed } from '../engine/employment';
 import { interimPending, pendingGmOffers, userExtensionOffer } from '../engine/leadership';
 import { openContracts, openOptions } from '../engine/contractMail';
+import { pendingWarnings } from '../engine/offseason/race';
 import { GeneralManagers } from './screens/GeneralManagers';
 import { PublicRoster, SpectatorHome } from './screens/GmEmployment';
 import { useEffect, useState } from 'react';
@@ -134,10 +135,24 @@ export function offseasonStep(league: League): Step | null {
           };
       }
       return { label: 'Open free agency', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'fa' } };
-    case 'freeAgency':
+    case 'freeAgency': {
+      // The day waits on every agent who called: his letter has the answers (the Free agents tab, if it was deleted).
+      const waiting = employed(league) ? pendingWarnings(league) : [];
+      if (waiting.length) {
+        const w = league.faRace!.warnings.find((x) => x.playerId === waiting[0] && !x.answered)!;
+        const letter = `race:${league.season}:${w.playerId}:${w.day}`;
+        return {
+          label: waiting.length === 1 ? 'Answer 1 agent' : `Answer ${waiting.length} agents`,
+          run: () => {},
+          then: (league.inbox ?? []).some((m) => m.id === letter && !m.deleted)
+            ? { view: 'inbox', messageId: letter }
+            : { view: 'office', tab: 'fa' },
+        };
+      }
       return league.faDay < FA_DAYS
         ? { label: `Next free-agency day (${league.faDay}/${FA_DAYS})`, run: (l) => advanceOffseason(l) }
         : { label: 'Go to the draft', run: (l) => advanceOffseason(l), then: { view: 'office', tab: 'draft' } };
+    }
     case 'draft':
       return draftComplete(league)
         ? { label: 'Start training camp', run: (l) => advanceOffseason(l), then: { view: 'cap' } }

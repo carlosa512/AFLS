@@ -10,6 +10,7 @@ AFLS versions are `MAJOR.MINOR.PATCH`, set in `package.json` and shown on the ma
   point, never a paragraph; a test holds the limits. Players read it from the version tag on any screen: the
   newest line of versions (every `0.4.x`) is open with its updates listed, older lines are folded.
 - **Alpha** is reached when every MVP item is Done.
+- After alpha, the middle number goes up when a milestone in `docs/MVP.md` is finished.
 - **1.0.0** is release.
 
 The count started at `0.1.0` on 2026-10-20. Items already Done on that day don't count, so the middle number tracks

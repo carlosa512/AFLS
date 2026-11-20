@@ -89,8 +89,12 @@ describe('the market clears by camp', () => {
     for (const t of l0.teams) {
       if (t.id === l0.userTeamId) continue;
       const last = lateVeteran(t.id, 1.5);
+      const mark = last.l.transactions.at(-1);
       aiFreeAgencyDay(last.l, new Rng('camp'), { rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
       if (last.l.players[last.p.id].teamId !== t.id) continue;
+      // The scene is a club with only its room: one that restructured made more of it.
+      const made = last.l.transactions.slice(last.l.transactions.indexOf(mark!) + 1);
+      if (made.some((x) => x.kind === 'restructure' && x.teamIds.includes(t.id))) continue;
       found = true;
       const signed = last.l.players[last.p.id];
       // A prove-it deal: one year for a veteran, two for a player 28 or younger (`fitOffer`).

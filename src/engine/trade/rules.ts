@@ -7,6 +7,8 @@ import { autoPostJune1, isOffseason, paidShare } from '../finance/cap';
 import { minSalary } from '../finance/market';
 import { capHit, deadMoney, isExpired } from '../finance/contract';
 import { rosterLimit } from '../offseason/negotiation';
+import { standingFitProblem } from '../offseason/race';
+import { employed } from '../employment';
 import { STARTERS } from '../positions';
 import { personnelMoveLock } from '../personnel/elevations';
 import { onGameRoster } from '../roster';
@@ -238,6 +240,15 @@ export function tradeProblem(
     const other = proposal.sides[1 - i];
     const team = league.teams[side.teamId];
     if (salary && impact[i].space < 0) return `${team.name} would be over the cap after this trade.`;
+    // In free agency your standing offers must still fit with what the trade leaves you: its cap room and its roster.
+    // Only when you run the team: your staff's offers are the AI's, held to its own books.
+    if (league.phase === 'freeAgency' && side.teamId === league.userTeamId && employed(league)) {
+      const offers = standingFitProblem(league, side.teamId, {
+        space: impact[i].space,
+        roster: other.players.length - side.players.length,
+      });
+      if (offers) return offers;
+    }
     const roster = rosterOf(ctx, side.teamId);
     const size = roster.filter(onGameRoster).length - side.players.length + other.players.length;
     if (size > rosterLimit(league) && !opts.rosterCuts && side.teamId === league.userTeamId)

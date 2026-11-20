@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Free Agency Mockups</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #eff2ee;
+        --surface: #ffffff;
+        --surface-2: #e5eae4;
+        --ink: #121915;
+        --muted: #5a675f;
+        --line: #d3dbd3;
+        --marker: #ffcf1f;
+        --marker-ink: #251e00;
+        --win: #187a40;
+        --loss: #b3302a;
+        --tie: #8a7416;
+        --bar: #121915;
+        --shadow: 0 1px 2px rgba(18, 25, 21, 0.08), 0 4px 16px rgba(18, 25, 21, 0.06);
+        --font-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+        --font-body: 'Atkinson Hyperlegible', system-ui, sans-serif;
+        --font-data: 'IBM Plex Mono', ui-monospace, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #0d1210;
+          --surface: #141b17;
+          --surface-2: #1b241f;
+          --ink: #e5ebe6;
+          --muted: #93a198;
+          --line: #29342e;
+          --marker: #ffd43b;
+          --marker-ink: #1f1900;
+          --win: #50c27f;
+          --loss: #ff6f62;
+          --tie: #d9c25a;
+          --bar: #e5ebe6;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #0d1210;
+        --surface: #141b17;
+        --surface-2: #1b241f;
+        --ink: #e5ebe6;
+        --muted: #93a198;
+        --line: #29342e;
+        --marker: #ffd43b;
+        --marker-ink: #1f1900;
+        --win: #50c27f;
+        --loss: #ff6f62;
+        --tie: #d9c25a;
+        --bar: #e5ebe6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.45 var(--font-body);
+      }
+      main {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1,
+      h2 {
+        font-family: var(--font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+        margin: 0;
+      }
+      h1 {
+        font-size: 2.25rem;
+        line-height: 1;
+      }
+      h2 {
+        font-size: 1.5rem;
+        margin-top: 40px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      h2 .n {
+        font-family: var(--font-data);
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .lede {
+        color: var(--muted);
+        margin: 8px 0 0;
+        max-width: 60ch;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 0.8125rem;
+        margin: 10px 2px 0;
+        max-width: 62ch;
+      }
+      .eyebrow {
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .card {
+        background: var(--surface);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+      }
+      .num {
+        font-family: var(--font-data);
+        font-variant-numeric: tabular-nums;
+      }
+      .muted {
+        color: var(--muted);
+      }
+
+      /* Team chips */
+      .chip {
+        display: inline-grid;
+        place-items: center;
+        min-width: 38px;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 6px;
+        font: 700 0.6875rem/1 var(--font-body);
+        letter-spacing: 0.04em;
+        color: #fff;
+      }
+      .chip.you {
+        background: var(--marker);
+        color: var(--marker-ink);
+      }
+      .chips {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .more {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-left: 2px;
+      }
+
+      /* Pills */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .pill::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .pill.lead {
+        color: var(--win);
+      }
+      .pill.behind {
+        color: var(--loss);
+      }
+      .pill.none {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .pill.none::before {
+        background: transparent;
+        border: 1.5px solid currentColor;
+        width: 7px;
+        height: 7px;
+      }
+
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--surface-2);
+        display: grid;
+        place-items: center;
+        font: 700 0.75rem var(--font-body);
+        color: var(--muted);
+        flex: none;
+      }
+      .who {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        min-width: 0;
+      }
+      .who b {
+        display: block;
+      }
+      .who small {
+        color: var(--muted);
+      }
+
+      /* 1. The market */
+      .market-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .days {
+        display: flex;
+        gap: 4px;
+      }
+      .days i {
+        width: 22px;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--surface-2);
+      }
+      .days i.on {
+        background: var(--ink);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(170px, 1.6fr) 56px minmax(140px, 1.3fr) 110px 70px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+      .row.th {
+        padding-top: 10px;
+        padding-bottom: 8px;
+      }
+      .row.yours {
+        box-shadow: inset 3px 0 0 var(--marker);
+      }
+      .ovr {
+        font-family: var(--font-data);
+        font-weight: 500;
+      }
+      @media (max-width: 640px) {
+        .row {
+          grid-template-columns: 1fr auto;
+          row-gap: 8px;
+        }
+        .row.th {
+          display: none;
+        }
+        .row .ovr {
+          justify-self: end;
+        }
+        .row .chips {
+          grid-column: 1;
+        }
+        .row .pill {
+          justify-self: end;
+        }
+        .row .day {
+          display: none;
+        }
+      }
+
+      /* 2. One player's market */
+      .variants {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        gap: 16px;
+        margin-top: 14px;
+      }
+      .variant {
+        display: flex;
+        flex-direction: column;
+      }
+      .tag {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 2px 8px;
+      }
+      .tag b {
+        font-family: var(--font-display);
+        font-size: 1.25rem;
+        text-transform: uppercase;
+      }
+      .pick {
+        background: var(--marker);
+        color: var(--marker-ink);
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 999px;
+      }
+      .variant .card {
+        padding: 16px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .p-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .decides {
+        text-align: right;
+        font-size: 0.8125rem;
+      }
+      .decides b {
+        display: block;
+        font-size: 1rem;
+      }
+      .wants {
+        font-size: 0.875rem;
+      }
+      .wants .eyebrow {
+        display: block;
+        margin-bottom: 2px;
+      }
+      .offers {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .offer {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+      .offer .deal {
+        font-size: 0.875rem;
+      }
+      .offer .deal .num {
+        font-size: 0.8125rem;
+      }
+      .offer.you .deal b {
+        color: var(--ink);
+      }
+      .barline {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+      .track {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--surface-2);
+        overflow: hidden;
+      }
+      .track i {
+        display: block;
+        height: 100%;
+        border-radius: 4px;
+        background: var(--bar);
+        opacity: 0.78;
+      }
+      .track.you i {
+        background: var(--marker);
+        opacity: 1;
+      }
+      .yourdeal {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin: -4px 0 0 54px;
+      }
+      .agent {
+        border-left: 3px solid var(--line);
+        padding: 2px 0 2px 10px;
+        font-size: 0.875rem;
+      }
+      .agent .eyebrow {
+        display: block;
+      }
+      .btn {
+        margin-top: auto;
+        align-self: flex-start;
+        font: 700 0.875rem var(--font-body);
+        padding: 9px 14px;
+        border-radius: 8px;
+        border: 0;
+        background: var(--ink);
+        color: var(--surface);
+      }
+      .place {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .place b {
+        font-family: var(--font-display);
+        font-size: 3rem;
+        line-height: 0.9;
+      }
+      .tradeoff {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        margin: 8px 2px 0;
+      }
+      .tradeoff b {
+        color: var(--ink);
+      }
+
+      /* 3. The day ends */
+      .ends {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        gap: 16px;
+        margin-top: 14px;
+      }
+      .mail {
+        padding: 14px 16px;
+        display: flex;
+        gap: 12px;
+      }
+      .mail .bar {
+        width: 4px;
+        border-radius: 2px;
+        flex: none;
+      }
+      .mail h3 {
+        margin: 2px 0 4px;
+        font-size: 1rem;
+      }
+      .mail p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">Option 2, the open market</span>
+      <h1>Free agency mockups</h1>
+      <p class="lede">
+        You're the Chicago Gale here. Three pieces to react to: the market list, one player's market (three ways to show
+        the other teams), and the moment he decides.
+      </p>
+
+      <!-- 1 -->
+      <h2><span class="n">1</span>The market</h2>
+      <div class="card" style="margin-top: 14px">
+        <div class="market-head">
+          <div>
+            <div class="eyebrow">Free agency</div>
+            <b>Day 1 of 5</b>
+          </div>
+          <div class="days" aria-label="Day 1 of 5"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="row th eyebrow">
+          <span>Player</span><span>Ovr</span><span>Teams in</span><span>You</span><span>Decides</span>
+        </div>
+        <div class="row yours">
+          <div class="who">
+            <div class="avatar">MH</div>
+            <div><b>Marcus Hale</b><small>WR · 27</small></div>
+          </div>
+          <span class="ovr">15.8</span>
+          <div class="chips">
+            <span class="chip" style="background: #e31837">KC</span
+            ><span class="chip" style="background: #004c54">PHI</span
+            ><span class="chip" style="background: #aa0000">SF</span><span class="chip you">CHI</span>
+          </div>
+          <span class="pill behind">2nd of 4</span>
+          <span class="day num">Day 2</span>
+        </div>
+        <div class="row yours">
+          <div class="who">
+            <div class="avatar">DO</div>
+            <div><b>Dante Okafor</b><small>EDGE · 29</small></div>
+          </div>
+          <span class="ovr">15.1</span>
+          <div class="chips">
+            <span class="chip you">CHI</span><span class="chip" style="background: #008e97">MIA</span>
+          </div>
+          <span class="pill lead">You lead</span>
+          <span class="day num">Day 2</span>
+        </div>
+        <div class="row">
+          <div class="who">
+            <div class="avatar">JP</div>
+            <div><b>Jalen Price</b><small>CB · 26</small></div>
+          </div>
+          <span class="ovr">14.4</span>
+          <div class="chips">
+            <span class="chip" style="background: #003594">DAL</span
+            ><span class="chip" style="background: #203731">GB</span
+            ><span class="chip" style="background: #5a1414">WAS</span><span class="more">+2</span>
+          </div>
+          <span class="pill none">No offer</span>
+          <span class="day num">Day 3</span>
+        </div>
+        <div class="row">
+          <div class="who">
+            <div class="avatar">TB</div>
+            <div><b>Tyler Brandt</b><small>OL · 30</small></div>
+          </div>
+          <span class="ovr">13.9</span>
+          <div class="chips"><span class="muted" style="font-size: 0.8125rem">No one yet</span></div>
+          <span class="pill none">No offer</span>
+          <span class="day num">Day 3</span>
+        </div>
+      </div>
+      <p class="note">
+        The team chips are the life of the screen: you see who's in at a glance. A yellow edge marks the players you've
+        bid on. Backups and minimum players aren't listed here because they still sign on the spot.
+      </p>
+
+      <!-- 2 -->
+      <h2><span class="n">2</span>One player's market</h2>
+      <p class="lede" style="margin-top: 4px">
+        The same moment three ways. Kansas City leads and you're second. The difference is how much you see of the other
+        teams' offers.
+      </p>
+      <div class="variants">
+        <!-- A -->
+        <div class="variant">
+          <div class="tag"><b>A · Every offer</b></div>
+          <div class="card">
+            <div class="p-head">
+              <div class="who">
+                <div class="avatar">MH</div>
+                <div>
+                  <b>Marcus Hale</b><small>WR · 27 · <span class="num">15.8</span></small>
+                </div>
+              </div>
+              <div class="decides"><span class="muted">Decides</span><b>Day 2</b></div>
+            </div>
+            <div class="wants"><span class="eyebrow">What matters to him</span>Money first, then a winner</div>
+            <div class="offers">
+              <div class="offer">
+                <span class="chip" style="background: #e31837">KC</span>
+                <div class="deal">
+                  <b>$13.1M</b> <span class="muted">a year ·</span> <span class="num">4 yr · 60% gtd</span>
+                </div>
+              </div>
+              <div class="offer you">
+                <span class="chip you">CHI</span>
+                <div class="deal">
+                  <b>$12.8M</b> <span class="muted">a year ·</span> <span class="num">4 yr · 55% gtd</span>
+                </div>
+              </div>
+              <div class="offer">
+                <span class="chip" style="background: #004c54">PHI</span>
+                <div class="deal">
+                  <b>$12.5M</b> <span class="muted">a year ·</span> <span class="num">3 yr · 50% gtd</span>
+                </div>
+              </div>
+              <div class="offer">
+                <span class="chip" style="background: #aa0000">SF</span>
+                <div class="deal">
+                  <b>$11.9M</b> <span class="muted">a year ·</span> <span class="num">5 yr · 45% gtd</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn">Improve your offer</button>
+          </div>
+          <p class="tradeoff">
+            <b>Most to read.</b> Every rival deal in full, like Madden. You can beat it to the dollar, which makes it
+            easy to game and breaks the "only what your scouts know" rule.
+          </p>
+        </div>
+
+        <!-- B -->
+        <div class="variant">
+          <div class="tag"><b>B · How he sees them</b><span class="pick">My pick</span></div>
+          <div class="card">
+            <div class="p-head">
+              <div class="who">
+                <div class="avatar">MH</div>
+                <div>
+                  <b>Marcus Hale</b><small>WR · 27 · <span class="num">15.8</span></small>
+                </div>
+              </div>
+              <div class="decides"><span class="muted">Decides</span><b>Day 2</b></div>
+            </div>
+            <div class="wants"><span class="eyebrow">What matters to him</span>Money first, then a winner</div>
+            <div class="offers">
+              <div class="barline">
+                <span class="chip" style="background: #e31837">KC</span>
+                <div class="track"><i style="width: 92%"></i></div>
+              </div>
+              <div class="barline">
+                <span class="chip you">CHI</span>
+                <div class="track you"><i style="width: 84%"></i></div>
+              </div>
+              <div class="yourdeal">Yours <span class="num">$12.8M a year · 4 yr</span></div>
+              <div class="barline">
+                <span class="chip" style="background: #004c54">PHI</span>
+                <div class="track"><i style="width: 78%"></i></div>
+              </div>
+              <div class="barline">
+                <span class="chip" style="background: #aa0000">SF</span>
+                <div class="track"><i style="width: 61%"></i></div>
+              </div>
+            </div>
+            <div class="agent">
+              <span class="eyebrow">His agent</span>Kansas City is a little ahead of you. They're around $13M a year.
+            </div>
+            <button class="btn">Improve your offer</button>
+          </div>
+          <p class="tradeoff">
+            <b>The race at a glance.</b> The bars are how much he likes each offer (money, a winner, home, how he feels
+            about you). Rival numbers come only through his agent, rounded.
+          </p>
+        </div>
+
+        <!-- C -->
+        <div class="variant">
+          <div class="tag"><b>C · Just your place</b></div>
+          <div class="card">
+            <div class="p-head">
+              <div class="who">
+                <div class="avatar">MH</div>
+                <div>
+                  <b>Marcus Hale</b><small>WR · 27 · <span class="num">15.8</span></small>
+                </div>
+              </div>
+              <div class="decides"><span class="muted">Decides</span><b>Day 2</b></div>
+            </div>
+            <div class="wants"><span class="eyebrow">What matters to him</span>Money first, then a winner</div>
+            <div class="place"><b>2nd</b><span class="muted">of 4 teams</span></div>
+            <div class="chips">
+              <span class="chip" style="background: #e31837">KC</span
+              ><span class="muted" style="font-size: 0.875rem">leads.</span>
+            </div>
+            <div class="yourdeal" style="margin: 0">Yours <span class="num">$12.8M a year · 4 yr</span></div>
+            <button class="btn">Improve your offer</button>
+          </div>
+          <p class="tradeoff">
+            <b>Cleanest.</b> One number and who leads. Calm, but you can't tell whether you're a hair behind or miles
+            off.
+          </p>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <h2><span class="n">3</span>The day ends</h2>
+      <p class="lede" style="margin-top: 4px">
+        When you advance the day, every player who was deciding picks a team. One short letter each, in the inbox.
+      </p>
+      <div class="ends">
+        <div class="card mail">
+          <span class="bar" style="background: var(--win)"></span>
+          <div>
+            <div class="eyebrow">Free agency · Day 2</div>
+            <h3>Dante Okafor signs with us</h3>
+            <p>Three years and $34.5M. Miami was close behind. He said playing for a winner tipped it.</p>
+          </div>
+        </div>
+        <div class="card mail">
+          <span class="bar" style="background: var(--loss)"></span>
+          <div>
+            <div class="eyebrow">Free agency · Day 2</div>
+            <h3>Marcus Hale picks Kansas City</h3>
+            <p>His agent says the money decided it. Kansas City's deal is four years and about $52M.</p>
+          </div>
+        </div>
+      </div>
+      <p class="note">
+        If the player you lose was on your team last season, the loss could earn a compensatory pick a year later.
+        That's where the comp picks idea fits in.
+      </p>
+    </main>
+  </body>
+</html>
