@@ -1,5 +1,7 @@
 # Free-agency race: the baseline before any engine change (2026-11-20)
 
+Base: `9af1f07` (the plan's commit, before any engine change).
+
 `npm run offseason -- 6` on branch `claude/amazing-hypatia-dpa9ud` with no engine change (seed `offseason-audit-3`, world
 2027 to 2032). Result: **0 numbers outside the target range**, 4m51s wall, 17m17s CPU (it forks three more leagues).
 `⚠` marks a line outside its usual band (warns). `≈edge` marks a line within about 5% of a band's edge, the ones a
@@ -45,3 +47,71 @@ the `freeAgency` phase, three offseasons after the first three seasons, millisec
 
 The race may cost no more than the opening offers and one decision pass a day: day 1 (about 1.1 to 1.4 s) is the opening
 offers and each later day (0.4 to 0.8 s) is one decision pass. The scratch script lives outside the repo.
+
+## Tuning the race (Task 8)
+
+A probe (one league, seed `offseason-audit-3`, three offseasons, staff-run) counts free-agency signings by day, good
+(2%+ of the cap) and elite (5%+) race signings by day, the contested share, step-asides by day, players with a valid
+offer on day 5 left unsigned, and the time of the step that opens the race and of each day. The same probe on `9af1f07`:
+
+| Offseason | FA signings by day | Total | Open ms | Days ms |
+| --- | --- | --- | --- | --- |
+| 2027 | 211/78/37/11/4 | 341 | 1008 | 3602 |
+| 2028 | 205/89/50/13/13 | 370 | 1104 | 4016 |
+| 2029 | 230/123/62/33/5 | 453 | 1134 | 3608 |
+
+Round 0, the race as Task 7 left it (`lead` 0.08, `wait` 2, `patienceDays` 2, `raise` 0.04, `ceiling` 1.15,
+`overcommit` 2). `npm run offseason -- 6`: **0 outside target**, feuds a team 0.70, FA signings a club 8–10 ÷ 2–4 0.90.
+
+| Offseason | FA signings by day | Good by day | Elite by day | Contested | Step-asides by day | Unsigned with an offer |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 42/52/28/51/50 = 223 | 18/9/7/10/16 | 8/4/3/7/5 | 43% | 4/7/1/3/3 | 0 |
+| 2028 | 91/39/48/59/89 = 326 | 13/7/8/16/14 | 4/1/3/8/4 | 60% | 21/0/0/4/127 | 24 |
+| 2029 | 76/57/36/63/83 = 315 | 21/11/9/11/16 | 10/2/5/6/9 | 47% | 53/12/6/17/80 | 3 |
+
+Race lines by season (6): signed by day 2 % 45, 34, 47, 63, 58, 65 · contested % 43, 60, 47, 32, 18, 15 · elite mean
+day 2.9, 3.4, 3.1, 2.4, 2.7, 1.9.
+
+Round 1, `wait` 2 → 1. `npm run offseason -- 3`: mid one-year % 58 (58–82) ▼ (the base itself fails big one-year % 7 at
+three seasons: the pooled deal lengths are noisy over three).
+
+| Offseason | FA signings by day | Good by day | Elite by day | Contested | Step-asides by day | Unsigned with an offer |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 42/52/50/41/66 = 251 | 18/9/13/12/16 | 8/4/7/6/2 | 51% | 4/7/5/16/59 | 4 |
+| 2028 | 78/62/66/53/55 = 314 | 15/19/15/12/12 | 5/6/7/3/4 | 53% | 35/19/20/16/28 | 5 |
+| 2029 | 71/57/74/66/86 = 354 | 18/12/22/13/7 | 9/7/12/5/5 | 44% | 50/18/45/44/183 | 10 |
+
+Round 2, `lead` 0.08 → 0.05 (with `wait` 1). `npm run offseason -- 3`: big one-year % 7 (8–32) ▼, as the base.
+
+| Offseason | FA signings by day | Good by day | Elite by day | Contested | Step-asides by day | Unsigned with an offer |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 53/46/59/57/86 = 301 | 23/13/18/10/11 | 11/3/8/4/2 | 53% | 7/12/6/20/114 | 7 |
+| 2028 | 90/63/58/53/84 = 348 | 21/9/17/11/10 | 11/2/7/5/2 | 62% | 46/17/12/6/132 | 27 |
+| 2029 | 80/58/76/62/58 = 334 | 17/15/21/10/10 | 8/7/10/4/1 | 45% | 49/34/42/48/41 | 4 |
+
+Round 3, `patienceDays` 2 → 1 (with `wait` 1, `lead` 0.05). `npm run offseason -- 3`: **2 outside**, mid one-year % 56
+(58–82) ▼ and big one-year % 5 (8–32) ▼: signing earlier, at full market terms, makes longer deals.
+
+| Offseason | FA signings by day | Good by day | Elite by day | Contested | Step-asides by day | Unsigned with an offer |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2027 | 53/55/65/58/71 = 302 | 23/17/20/7/9 | 11/5/8/2/1 | 57% | 7/13/15/59/133 | 37 |
+| 2028 | 98/66/77/71/83 = 395 | 24/12/14/8/5 | 6/6/6/2/3 | 60% | 21/35/55/99/150 | 25 |
+| 2029 | 93/82/83/67/82 = 407 | 17/19/18/11/6 | 8/14/8/2/1 | 59% | 73/31/30/98/152 | 17 |
+
+Judged with `npm run offseason -- 6` (three steering rounds, the stop rule):
+
+- Round 2's numbers (`lead` 0.05, `wait` 1): **1 outside**, feuds a team, mean of 6 seasons 0.48 (0.5–1.8) ▼. The race
+  lines: signed by day 2 % 48, 44, 44, 58, 72, 66 · contested % 53, 62, 45, 37, 33, 24 · elite mean day 2.4, 2.4, 2.4,
+  2.0, 1.8, 2.1. FA signings a club 8–10 ÷ 2–4 0.87.
+- Round 1's numbers (`wait` 1), **shipped**: **0 outside**. The race lines: signed by day 2 % 40, 47, 42, 49, 62, 46 ·
+  contested % 51, 53, 44, 36, 23, 31 · elite mean day 2.6, 2.8, 2.7, 2.4, 2.4, 3.0. Near an edge: FA signings a club
+  8–10 ÷ 2–4 **0.81** (0.8–1.2), feuds a team 0.66 (0.5–1.8). Market pooled: good outside signings 63 (75–120) ⚠,
+  one-year % 39 (10–30) ⚠ (the base: 60 and 49). Deal lengths pooled: mid one-year % 67, big 15.
+
+Timing (the probe, round 1 against `9af1f07`): the five days alone 4004, 3336, 3866 ms against 3602, 4016, 3608 (1.0×);
+the opening offers moved day 1's pass into the step that opens free agency (2301, 2234, 2692 ms against 1008, 1104,
+1134), so the opening step and the five days together are 6305, 5570, 6558 ms against 4610, 5120, 4742 (**1.27×**,
+under the 1.5× that would send it back to the pass).
+
+`npm run morale` on the shipped numbers: **0 outside**. Near an edge: meetings a club a season 5.50 (3–6; 5.55 after
+0.4.48), trade requests a season 14.50 (3–15), Tight rooms 0.34 (0.15–0.35), rooms in doubt 0.23 (0.1–0.25).

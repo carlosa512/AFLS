@@ -169,6 +169,19 @@ describe('what he wants', () => {
     p.personality.greed = 0.2;
     p.personality.winning = 1;
     expect(wantsLine(l, l.userTeamId, p)).toBe('Home first, then a winner');
+    // Home says his old team already: loyalty never makes the second.
+    const old = p.statTeams?.[l.season - 1]?.at(-1) ?? team;
+    if (!l.faRace!.offers[p.id].some((o) => o.teamId === old))
+      l.faRace!.offers[p.id].push({
+        teamId: old,
+        offer: { years: 1, apy: 1, bonusPct: 0, gtdPct: 0, voidYears: 0 },
+        day: l.faDay,
+        first: 1,
+      });
+    p.personality.loyalty = 1;
+    p.personality.greed = 0.5;
+    p.personality.winning = 0.2;
+    expect(wantsLine(l, l.userTeamId, p)).toBe('Home first, then money');
   });
 
   it('counts staying with his old team only when that team has an offer in', () => {

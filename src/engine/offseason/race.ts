@@ -47,7 +47,7 @@ export const RACE = {
   /** The share his best offer must beat the next by, in his eyes, to stand out (half that at his full ask). */
   lead: 0.08,
   /** The days he waits at most before he takes his best. */
-  wait: 2,
+  wait: 1,
   /** The extra days the most patient one waits (scaled by his patience, 0–1). */
   patienceDays: 2,
   /** The share an AI team behind beats the leader by when it raises (a win-now GM; half that otherwise). */
@@ -314,6 +314,14 @@ function placeOffers(
   return { kept, fallback };
 }
 
+/** The same deal, term by term. */
+const sameOffer = (a: Offer, b: Offer): boolean =>
+  a.years === b.years &&
+  a.apy === b.apy &&
+  a.bonusPct === b.bonusPct &&
+  a.gtdPct === b.gtdPct &&
+  a.voidYears === b.voidYears;
+
 const raceOffer = (league: League, bid: Bid, first: number): RaceOffer => ({
   teamId: bid.team.id,
   offer: bid.offer,
@@ -344,7 +352,7 @@ function signable(pass: BidPass, p: Player, bid: Bid): Bid | null {
   const money = teamMoney(pass, bid.team.id);
   if (money.room < 1 || money.signingsLeft < 1) return null;
   const now = payable(pass, p, bid);
-  return now && JSON.stringify(now.offer) === JSON.stringify(bid.offer) ? now : null;
+  return now && sameOffer(now.offer, bid.offer) ? now : null;
 }
 
 /**
@@ -374,6 +382,13 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   const dropped = new Set(race.dropped);
   /** Why each was dropped (`FaRace.droppedWhy`): you couldn't make it any more, or it fell under his walk-away. */
   const why: Record<number, 'cap' | 'floor'> = { ...race.droppedWhy };
+  /** The day each was dropped (`FaRace.droppedOn`). */
+  const on: Record<number, number> = { ...race.droppedOn };
+  const drop = (p: Player, reason: 'cap' | 'floor') => {
+    dropped.add(p.id);
+    why[p.id] = reason;
+    on[p.id] = league.faDay;
+  };
   /** His result: your place among the offers he weighed before any stepped aside (what you saw), and any drop. */
   const result = (p: Player, teamId: number, weighed: readonly RankedOffer[]): RaceResult => {
     const place = weighed.findIndex((r) => r.teamId === user);
@@ -400,8 +415,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
     const standing = race.offers[p.id] ?? [];
     let mine = user === null ? undefined : standing.find((o) => o.teamId === user);
     if (mine && !standsFor(league, p, mine)) {
-      dropped.add(p.id);
-      why[p.id] = offerProblem(league, p, mine.teamId, mine.offer) ? 'cap' : 'floor';
+      drop(p, offerProblem(league, p, mine.teamId, mine.offer) ? 'cap' : 'floor');
       mine = undefined;
     }
     if (!entries.length && !mine) {
@@ -410,10 +424,13 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
     }
     let today = entries.map(({ bid, first }) => {
       const old = standing.find((o) => o.teamId === bid.team.id);
-      const same = old && JSON.stringify(old.offer) === JSON.stringify(bid.offer);
+      const same = old && sameOffer(old.offer, bid.offer);
       return same ? old : raceOffer(league, bid, first);
     });
     if (mine) today.push(mine);
+    // Your offer led as the eve ended (he hasn't been warned since): on the last day it still leads, whatever the night
+    // did to what the others are worth to him (a rival's signings move its pull). He is never lost to it unwarned.
+    const ledAtEve = lastDay && !!mine && mine.day < FA_DAYS && !warned.has(p.id);
     // He chooses; a winner that can no longer sign him now steps aside, and he weighs the rest the same day.
     let ranked: RankedOffer[];
     let weighed: RankedOffer[] | undefined;
@@ -421,6 +438,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
     let yoursWon = false;
     for (;;) {
       ranked = rankOffers(league, p, today);
+      if (ledAtEve) ranked = [...ranked.filter((r) => r.teamId === user), ...ranked.filter((r) => r.teamId !== user)];
       weighed ??= ranked;
       if (ranked.length) race.since[p.id] ??= league.faDay;
       if (ranked.length && ranked[0].teamId === user) warned.delete(p.id);
@@ -438,8 +456,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
           yoursWon = true;
           break;
         }
-        dropped.add(p.id);
-        why[p.id] = 'cap';
+        drop(p, 'cap');
       } else {
         const best = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
         won = signable(pass, p, best);
@@ -499,7 +516,11 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   if (!race.dropped.length) delete race.dropped;
   const still = race.dropped ?? [];
   race.droppedWhy = Object.fromEntries(Object.entries(why).filter(([id]) => still.includes(+id)));
-  if (!still.length) delete race.droppedWhy;
+  race.droppedOn = Object.fromEntries(Object.entries(on).filter(([id]) => still.includes(+id)));
+  if (!still.length) {
+    delete race.droppedWhy;
+    delete race.droppedOn;
+  }
   return signings;
 }
 
@@ -558,13 +579,14 @@ const millions = (k: number) => `$${(Math.max(0, k) / 1000).toFixed(1)}M`;
 
 /**
  * Whether a team's standing offers fit together, with `add` in place of its offer for him: their year-one charges within
- * its cap space (`space`, after a trade, else today's) and their count with its active roster within the roster limit.
- * Yours are held to this, not the AI's books: the dialog's own check (`offerProblem`) over all of them at once.
+ * its cap space (`space`, after a trade, else today's) and their count with its active roster (and the players a trade
+ * brings in less those it sends, `roster`) within the roster limit. Yours are held to this, not the AI's books: the
+ * dialog's own check (`offerProblem`) over all of them at once.
  */
 export function standingFitProblem(
   league: League,
   teamId: number,
-  o: { add?: { player: Player; offer: Offer }; space?: number } = {},
+  o: { add?: { player: Player; offer: Offer }; space?: number; roster?: number } = {},
 ): string | null {
   const mine: { player: Player; offer: Offer }[] = [];
   for (const [id, offers] of Object.entries(liveRace(league)?.offers ?? {})) {
@@ -578,7 +600,7 @@ export function standingFitProblem(
   if (total > space)
     return `Not enough cap room for all your offers. Their hits this year add up to ${millions(total)}, you have ${millions(space)}.`;
   const limit = rosterLimit(league);
-  if (activeRoster(league, teamId).length + mine.length > limit)
+  if (activeRoster(league, teamId).length + (o.roster ?? 0) + mine.length > limit)
     return `Your roster and your offers come to more than ${limit} players. Release someone or pull an offer.`;
   return null;
 }
@@ -614,6 +636,7 @@ export function placeUserOffer(league: League, p: Player, offer: Offer): RaceRep
   race.since[p.id] ??= league.faDay;
   if (race.dropped) race.dropped = race.dropped.filter((id) => id !== p.id);
   if (race.droppedWhy) delete race.droppedWhy[p.id];
+  if (race.droppedOn) delete race.droppedOn[p.id];
   answer(race, p.id);
   return { status: 'standing', message: 'Your offer is in. He will weigh it with the others.' };
 }
@@ -647,7 +670,10 @@ export function letGo(league: League, playerId: number): void {
   else pullUserOffer(league, playerId);
 }
 
-/** Free agency ends: offers lapse, and the results stay until the next race opens. */
+/**
+ * Free agency ends: offers lapse, and the results stay until the next race opens, with the offers of yours the last day
+ * dropped (their letters are filed after it).
+ */
 export function closeRace(league: League): void {
   const race = league.faRace;
   if (!race) return;
@@ -655,6 +681,4 @@ export function closeRace(league: League): void {
   race.since = {};
   race.warnings = [];
   race.warnedSinceLead = [];
-  delete race.dropped;
-  delete race.droppedWhy;
 }

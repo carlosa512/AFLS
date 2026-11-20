@@ -148,7 +148,7 @@ describe('where he signed', () => {
     const resulted = l.faRace!.results.filter((r) => r.userDropped);
     expect(dropped.length + resulted.length).toBeGreaterThan(0);
     for (const id of dropped) {
-      const m = racePosts(l).filter((x) => x.id === `race:${l.season}:${id}:dropped`);
+      const m = racePosts(l).filter((x) => x.id === `race:${l.season}:${id}:dropped:${l.faRace!.droppedOn![id]}`);
       expect(m).toHaveLength(1);
       expect(mailSubject(m[0])).toMatchObject({ kind: 'faRace', playerId: id, day: null, dropped: true });
       expect(m[0].body).toContain('cap room or our roster');
@@ -156,7 +156,7 @@ describe('where he signed', () => {
     }
     // Signed the same day, his result tells it instead.
     for (const r of resulted) {
-      expect(racePosts(l).some((x) => x.id === `race:${l.season}:${r.playerId}:dropped`)).toBe(false);
+      expect(racePosts(l).some((x) => x.id.startsWith(`race:${l.season}:${r.playerId}:dropped`))).toBe(false);
       expect(racePosts(l).filter((x) => x.id === `race:${l.season}:${r.playerId}:done`)).toHaveLength(1);
     }
   });

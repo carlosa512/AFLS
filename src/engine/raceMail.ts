@@ -3,7 +3,7 @@
  * `docs/superpowers/specs/2026-11-20-free-agency-race-design.md`): a player's agent calling when another team is about
  * to take him from us (it asks for an answer while his warning is open), our offer coming off the table, and where he
  * signed when we had an offer in. Told only from what a screen may read (`raceView`) and the public record: another
- * team's number is the agent's rounded one. Filed once each, keyed by player and day.
+ * team's number is the agent's rounded one. Filed once each, keyed by player and day (a drop by the day it came off).
  */
 import { raceView } from './offseason/raceView';
 import { clubFeeling } from './relationships';
@@ -17,8 +17,12 @@ const city = (league: League, teamId: number) => league.teams[teamId].city;
 /** A yearly figure ($K) to the nearest half million, as the agents say it: "$13M", "$12.5M". */
 const about = (apyK: number) => `$${Math.round(apyK / 500) / 2}M`;
 
-/** The share of a year's pay another team's deal must beat ours by to be what tipped it. */
+/**
+ * The share of a year's pay another team's deal must beat ours by to be what tipped it, and the least gap ($K) that
+ * reads as more once rounded to the half million.
+ */
 const TIP = 1.05;
+const TIP_MIN = 250;
 
 const base = (league: League, id: string, p: Player): Omit<Draft, 'subject' | 'body'> => ({
   id,
@@ -80,14 +84,18 @@ function result(league: League, id: string, p: Player, r: RaceResult): Draft {
   const where = city(league, r.teamId);
   // The one thing that tipped it: a team that paid clearly more, or the team he had played for and went back to.
   let tip = '';
-  if (c && r.userApy !== undefined && c.apy >= r.userApy * TIP)
+  if (c && r.userApy !== undefined && c.apy >= r.userApy * TIP && c.apy - r.userApy >= TIP_MIN)
     tip = ` ${where} paid about ${about(c.apy - r.userApy)} a year more than we offered.`;
   else if (clubFeeling(league, p, r.teamId) === 'home') tip = ` He had played for ${where} before, and he went back.`;
-  const place = r.userDropped
-    ? 'Our offer had already come off the table.'
-    : r.userPlace === null
-      ? ''
-      : `Our offer was ${PLACES[r.userPlace - 1] ?? `number ${r.userPlace}`} of ${r.offers} that he weighed.`;
+  // Ours led when he weighed them only when it came off the table as he chose: we could no longer make it.
+  const place =
+    r.userPlace === 1
+      ? 'Our offer was the best he had, but we could no longer make it when he chose.'
+      : r.userDropped
+        ? 'Our offer had already come off the table.'
+        : r.userPlace === null
+          ? ''
+          : `Our offer was ${PLACES[r.userPlace - 1] ?? `number ${r.userPlace}`} of the ${r.offers} he weighed.`;
   return {
     ...base(league, id, p),
     subject: `${name(p)} signed with ${where}`,
@@ -106,16 +114,16 @@ export function raceMail(league: League, have: Set<string>): Draft[] {
   };
   // A player with a result: his result says it all, so no letter for an offer that came off the table first.
   const resulted = new Set(race.results.map((r) => r.playerId));
-  if (league.phase === 'freeAgency') {
+  if (league.phase === 'freeAgency')
     for (const w of race.warnings) {
       const id = `race:${league.season}:${w.playerId}:${w.day}`;
       if (!w.answered && !have.has(id)) file(warning(league, id, league.players[w.playerId], w.day));
     }
-    for (const playerId of race.dropped ?? []) {
-      const id = `race:${league.season}:${playerId}:dropped`;
-      if (!have.has(id) && !resulted.has(playerId))
-        file(dropped(league, id, league.players[playerId], race.droppedWhy?.[playerId]));
-    }
+  // Keyed by the day it came off, so a second offer dropped the same year is told too; the last day's after it closes.
+  for (const playerId of race.dropped ?? []) {
+    const id = `race:${league.season}:${playerId}:dropped:${race.droppedOn?.[playerId] ?? league.faDay}`;
+    if (!have.has(id) && !resulted.has(playerId))
+      file(dropped(league, id, league.players[playerId], race.droppedWhy?.[playerId]));
   }
   for (const r of race.results) {
     if (r.userPlace === null && !r.userDropped) continue;

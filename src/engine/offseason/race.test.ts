@@ -6,7 +6,7 @@ import { simToEndOfSeason } from '../league';
 import { activeRoster } from '../roster';
 import { tradeCapImpact, tradeProblem, playerTradeBlocker, type TradeProposal } from '../trade/rules';
 import type { League, Phase, Player, RaceOffer } from '../types';
-import { payable, raiseTo, teamMoney, yearOne, type BidPass } from './bids';
+import { payable, raiseTo, teamMoney, type BidPass } from './bids';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import {
   askOffer,
@@ -104,8 +104,15 @@ function onDay(day: number, autoUser = true): League {
  */
 type Judged = { offers: RaceOffer[]; ranked: RankedOffer[]; o: DecideOpts; weighed: number };
 
-/** The next advance, with what the race judged for each player (`check` sees each in the day's own pass). */
-function advanceWatched(l: League, check?: (pass: BidPass, j: Judged, playerId: number) => void): Map<number, Judged> {
+/**
+ * The next advance, staff-run unless `autoUser` is false, with what the race judged for each player (`check` sees each
+ * in the day's own pass).
+ */
+function advanceWatched(
+  l: League,
+  check?: (pass: BidPass, j: Judged, playerId: number) => void,
+  autoUser = true,
+): Map<number, Judged> {
   const seen = new Map<number, Judged>();
   raceWatch.onJudge = (pass, p, offers, ranked, o) => {
     const weighed = seen.get(p.id)?.weighed ?? ranked.length;
@@ -113,7 +120,7 @@ function advanceWatched(l: League, check?: (pass: BidPass, j: Judged, playerId: 
     seen.set(p.id, j);
     check?.(pass, j, p.id);
   };
-  advanceOffseason(l, { autoUser: true });
+  advanceOffseason(l, { autoUser });
   delete raceWatch.onJudge;
   return seen;
 }
@@ -204,8 +211,11 @@ describe('the race for AI teams', () => {
       teams++;
       const bids = made.map((m) => m.bid);
       const m = teamMoney(pass, teamId);
-      // Year-one charges, less the room the one restructure it may plan would make.
-      const total = bids.reduce((a, b) => a + yearOne(b.offer) - (b.plan?.saved ?? 0), 0);
+      // What each would add to its cap this year as a contract, less the room the one restructure it may plan would make.
+      const total = made.reduce(
+        (a, { p, bid }) => a + offerCharge(pass.league, p, teamId, bid.offer) - (bid.plan?.saved ?? 0),
+        0,
+      );
       expect(total).toBeLessThanOrEqual(RACE.overcommit * (m.budget + m.back * Math.min(bids.length, m.spots)));
       expect(bids.length).toBeLessThanOrEqual(RACE.overcommit * m.room);
       expect(bids.filter((b) => b.plan).length).toBeLessThanOrEqual(1);
@@ -228,7 +238,10 @@ describe('the race for AI teams', () => {
       // It can't sign him now: no spot, no signing left today, or not the money for this offer.
       const m = teamMoney(pass, bid.team.id);
       const offer = payable(pass, p, bid)?.offer;
-      expect(m.room < 1 || m.signingsLeft < 1 || JSON.stringify(offer) !== JSON.stringify(bid.offer)).toBe(true);
+      const same =
+        !!offer &&
+        (['years', 'apy', 'bonusPct', 'gtdPct', 'voidYears'] as const).every((k) => offer[k] === bid.offer[k]);
+      expect(m.room < 1 || m.signingsLeft < 1 || !same).toBe(true);
     };
     while (l.phase === 'freeAgency') {
       aside = [];
@@ -392,21 +405,7 @@ function trailEverywhere(l: League): number[] {
 }
 
 /** The next advance, run by you, with the last judging of each player. */
-function judged(l: League): Map<number, Judged> {
-  const seen = new Map<number, Judged>();
-  raceWatch.onJudge = (_pass, p, offers, ranked, o) => {
-    const weighed = seen.get(p.id)?.weighed ?? ranked.length;
-    seen.set(p.id, {
-      offers: structuredClone([...offers]),
-      ranked: structuredClone([...ranked]),
-      o: { ...o },
-      weighed,
-    });
-  };
-  advanceOffseason(l);
-  delete raceWatch.onJudge;
-  return seen;
-}
+const judged = (l: League): Map<number, Judged> => advanceWatched(l, undefined, false);
 
 describe('your offers', () => {
   afterEach(() => {
@@ -559,6 +558,8 @@ describe('your offers', () => {
     }
     const saved = JSON.stringify(l);
     expect(() => advanceOffseason(l)).toThrow('Answer the agents first.');
+    // Refused, the advance changed nothing.
+    expect(JSON.stringify(l)).toBe(saved);
     // Let him go: the offer is pulled, no hard feelings.
     const id = warned[0];
     letGo(l, id);
@@ -619,7 +620,11 @@ describe('your offers', () => {
   });
 
   it('the last day: only the teams in at the eve, at no more', () => {
-    const l = yours(FA_DAYS - 1);
+    // Most of the market has signed by the eve: a fuller race, day 2's, played as the eve, every player's wait
+    // starting now, so that only a lead decides him.
+    const l = yours(2);
+    l.faDay = FA_DAYS - 1;
+    for (const id of Object.keys(l.faRace!.since)) l.faRace!.since[+id] = l.faDay;
     setSpace(l, 500_000);
     // A narrow lead on every contested player the roster takes: just over the best offer he has.
     for (const p of contested(l)) {
@@ -675,9 +680,8 @@ describe('your offers', () => {
   it('an offer that no longer fits is dropped', () => {
     const l = yours(FA_DAYS);
     setSpace(l, 500_000);
-    const placed = contested(l, 2)
-      .slice(0, 3)
-      .filter((p) => placeUserOffer(l, p, overTop(l, p)).status === 'standing');
+    // Every player the roster takes with two teams in for him: some of them sign elsewhere today.
+    const placed = contested(l, 2).filter((p) => placeUserOffer(l, p, overTop(l, p)).status === 'standing');
     expect(placed.length).toBeGreaterThan(0);
     // A release's dead money: none of them fits any more.
     l.teams[you(l)].deadMoney.push({
@@ -740,8 +744,37 @@ describe('your offers', () => {
     const problem = standingFitProblem(l, you(l), { space });
     expect(problem).toContain('cap room');
     expect(tradeProblem(l, proposal)).toBe(problem);
+    // Your staff's offers, while you are out of a job, are the AI's: held to its own books.
+    const gm = l.gms[l.userGmId].teamId;
+    l.gms[l.userGmId].teamId = null;
+    expect(tradeProblem(l, proposal)).toBeNull();
+    l.gms[l.userGmId].teamId = gm;
     for (const id of Object.keys(l.faRace!.offers)) pullUserOffer(l, +id);
     expect(tradeProblem(l, proposal)).toBeNull();
+  });
+
+  it('a trade that brings in more players than it sends counts them beside your offers', () => {
+    const l = yours(1);
+    setSpace(l, 500_000);
+    const [p] = contested(l);
+    expect(placeUserOffer(l, p, atFloor(l, p)).status).toBe('standing');
+    // Your roster and your one offer fill it.
+    fillRoster(l, 1);
+    setSpace(l, 500_000);
+    const pick = l.draftPicks.find((d) => d.ownerId === you(l) && d.playerId === undefined)!;
+    const star = Object.values(l.players).find(
+      (x) => x.teamId !== null && x.teamId !== you(l) && x.contract && !playerTradeBlocker(l, x),
+    )!;
+    const proposal: TradeProposal = {
+      sides: [
+        { teamId: you(l), players: [], picks: [pick.id] },
+        { teamId: star.teamId!, players: [star.id], picks: [] },
+      ],
+    };
+    expect(standingFitProblem(l, you(l))).toBeNull();
+    const problem = standingFitProblem(l, you(l), { roster: 1 });
+    expect(problem).toContain('roster');
+    expect(tradeProblem(l, proposal)).toBe(problem);
   });
 
   it('spectating: no warnings', () => {

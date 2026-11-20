@@ -1716,7 +1716,8 @@ export interface RaceResult {
 /**
  * Free agency's race (`offseason/race.ts`): the standing offers by player, the day each first drew one (`since`), the
  * agents' warnings and the players warned about since you last led, and who chose where. `dropped`: players whose
- * offer of yours the race dropped (it no longer fit) and who haven't chosen yet, so their result says so.
+ * offer of yours the race dropped (it no longer fit) and who haven't chosen yet, so their result says so; kept past
+ * free agency's last day until the next race opens.
  */
 export interface FaRace {
   season: number;
@@ -1728,6 +1729,8 @@ export interface FaRace {
   dropped?: number[];
   /** Why each of them was dropped: `cap` when you could no longer make it, `floor` when it fell under his walk-away. */
   droppedWhy?: Record<number, 'cap' | 'floor'>;
+  /** The free-agency day each of them was dropped. */
+  droppedOn?: Record<number, number>;
 }
 
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */

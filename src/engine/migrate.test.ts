@@ -478,7 +478,7 @@ describe('save v99', () => {
 });
 
 describe('save v101', () => {
-  it('a v100 save loads at 101 with its retired players slimmed, their grades read as before, the rest untouched', () => {
+  it('a v100 save loads with its retired players slimmed, their grades read as before, the rest untouched', () => {
     const l = createLeague({ seed: 'v101' });
     const gone = Object.values(l.players)
       .filter((p) => p.teamId !== null)
@@ -489,8 +489,7 @@ describe('save v101', () => {
     const before = JSON.parse(JSON.stringify(active));
     l.version = 100;
     const up = migrateLeague(l)!;
-    expect(SAVE_VERSION).toBe(101);
-    expect(up.version).toBe(101);
+    expect(up.version).toBe(SAVE_VERSION);
     for (const p of gone) {
       const q = up.players[p.id];
       for (const k of Object.keys(q)) expect(RETIRED_KEEP, `${q.id} ${k}`).toContain(k);

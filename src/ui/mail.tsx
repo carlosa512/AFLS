@@ -2815,11 +2815,6 @@ function Option({
   );
 }
 
-/** Ways to fill the chair a coach left: our own men one rung below it, and the best of the market. */
-/**
- * The owner's question about your interim head coach: his two answers while it waits, then how it ended, read from
- * the league as it is (he holds the job, or he does not).
- */
 /**
  * Whether the message's card holds its own primary answer (an agent's open warning: Improve your offer), so the
  * letter's own links under it are all secondary and the letter keeps one yellow button.
@@ -2863,6 +2858,10 @@ function FaRaceCards({
   );
 }
 
+/**
+ * The owner's question about your interim head coach: his two answers while it waits, then how it ended, read from
+ * the league as it is (he holds the job, or he does not).
+ */
 function InterimCards({
   league,
   s,

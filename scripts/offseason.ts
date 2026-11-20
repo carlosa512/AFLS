@@ -606,9 +606,12 @@ for (let s = 0; s < seasons; s++) {
     `  checks ${year} free agency (${fa.ends} good deals ended): ${faSoft('stayed %', 100 * fa.stayed, 20, 55)} · ${faSoft('moved %', 100 * fa.moved, 20, 60)} · ${faSoft('no deal %', 100 * fa.none, 10, 40)} · ${faSoft('good outside signings', fa.outside, 60, 135)} · ${faSoft('clubs with 3+', fa.clubs3, 8, 28)} · ${faSoft('one-year %', 100 * fa.oneYear, 5, 40)} · ${faCheck('elite young unsigned', fa.eliteYoungUnsigned, [0, 0], [0, 0])}`,
   );
   // The race's pace: warn-only, ranges 0-100 until a source with signing dates exists (not measured).
+  // With no good signing in it there is nothing to measure: shown as n/a, never a warning.
   const race = raceMeasures(league);
   console.log(
-    `  free-agency race (${race.n} good signings): ${soft('signed by day 2 %', 100 * race.byDay[1], 0, 100, 0, FA_RACE, String(year))} · ${soft('contested %', 100 * race.contested, 0, 100, 0, FA_RACE, String(year))} · elite mean day ${Number.isFinite(race.eliteDay) ? race.eliteDay.toFixed(1) : 'n/a'} (shown, not measured)`,
+    race.n
+      ? `  free-agency race (${race.n} good signings): ${soft('signed by day 2 %', 100 * race.byDay[1], 0, 100, 0, FA_RACE, String(year))} · ${soft('contested %', 100 * race.contested, 0, 100, 0, FA_RACE, String(year))} · elite mean day ${Number.isFinite(race.eliteDay) ? race.eliteDay.toFixed(1) : 'n/a'} (shown, not measured)`
+      : '  free-agency race (0 good signings): signed by day 2 % n/a · contested % n/a · elite mean day n/a',
   );
   // Reported, not judged: AFLS rosters refill far more each spring, so the room isn't alike even when the market is.
   console.log(

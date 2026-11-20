@@ -97,7 +97,8 @@ export function wantsLine(league: League, teamId: number, p: Player): string | n
   if (inFor(old)) wants.push({ word: 'staying with his old team', weight: read.loyalty });
   wants.sort((a, b) => b.weight - a.weight);
   const home = offers.some((o) => clubFeeling(league, p, o.teamId) === 'home');
-  const [first, second] = home ? [{ word: 'home' }, wants[0]] : wants;
+  // Home first says his old team already: the second is money or a winner.
+  const [first, second] = home ? [{ word: 'home' }, wants.find((w) => w.word !== 'staying with his old team')!] : wants;
   const lead = first.word[0].toUpperCase() + first.word.slice(1);
   return `${lead} first, then ${second.word}`;
 }
