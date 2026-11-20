@@ -182,24 +182,38 @@ function withBid(book: Book, add: Bid, drop?: Bid): Book | null {
  * to him and the team would still make it (`raiseTo`), never past its limit for him (`RACE.ceiling` over its first
  * price) and on the last day never above its standing offer. A team that no longer bids drops out, and only an offer
  * at his walk-away stands. A bid over the limit the team won't make at the limit leaves its standing offer, when it
- * would still make that.
+ * would still make that. On the last day, for a player you have an offer in for (`held`), only the teams that stood
+ * at the eve compete, none worth more to him than its standing offer: the eve's warnings told you everything that
+ * can beat you.
  */
-function dayBids(pass: BidPass, p: Player, standing: readonly RaceOffer[], bids: readonly Bid[], lastDay: boolean) {
+function dayBids(
+  pass: BidPass,
+  p: Player,
+  standing: readonly RaceOffer[],
+  bids: readonly Bid[],
+  lastDay: boolean,
+  held: boolean,
+) {
   const { league } = pass;
   const before = new Map(standing.map((o) => [o.teamId, o]));
   const day: { bid: Bid; first: number }[] = [];
   for (const today of bids) {
     const old = before.get(today.team.id);
+    if (held && !old) continue;
     const first = old?.first ?? today.offer.apy;
     // Its standing offer as the team would make it today, read once and only when needed.
     let kept: Bid | null | undefined;
     const keep = () =>
       kept === undefined ? (kept = old ? raiseTo(pass, p, { ...today, offer: old.offer }, old.offer.apy) : null) : kept;
+    const was = old ? offerValue(league, p, old.teamId, old.offer) : 0;
     let bid: Bid | null = today;
-    if (old && offerValue(league, p, old.teamId, old.offer) > today.value) bid = keep() ?? today;
+    if (old && was > today.value) bid = keep() ?? today;
     const limit = lastDay && old ? Math.min(old.offer.apy, first * RACE.ceiling) : first * RACE.ceiling;
     // Held to its limit: a lower price than one the team would make, checked again for the restructures it needs.
     if (bid.offer.apy > limit) bid = raiseTo(pass, p, bid, Math.floor(limit)) ?? keep();
+    // Against your offer on the last day: no more than its standing offer was worth to him.
+    if (held && bid && bid.value > was) bid = keep();
+    if (held && bid && bid.value > was) bid = null;
     if (bid && bid.value >= demand(league, p, bid.team.id).walkAway) day.push({ bid, first });
   }
   return day;
@@ -237,11 +251,14 @@ function placeOffers(
   const { league } = pass;
   const byTeam = new Map<number, Entry[]>();
   const fallback = new Map<number, Bid[]>();
+  const user = userOf(pass);
   poolOf(pass).forEach((p, order) => {
     if (skips(pass, p)) return;
     const made = bidsFor(pass, p);
     fallback.set(p.id, made.fallback);
-    for (const { bid, first } of dayBids(pass, p, race.offers[p.id] ?? [], made.bids, lastDay)) {
+    const standing = race.offers[p.id] ?? [];
+    const held = lastDay && user !== null && standing.some((o) => o.teamId === user);
+    for (const { bid, first } of dayBids(pass, p, standing, made.bids, lastDay, held)) {
       const entry = { p, bid, first, gain: bidGain(pass, bid.team, p), order };
       const list = byTeam.get(bid.team.id);
       if (list) list.push(entry);
@@ -263,7 +280,6 @@ function placeOffers(
     }
     books.set(teamId, book);
   }
-  const user = userOf(pass);
   if (raises)
     for (const p of poolOf(pass)) {
       const entries = kept.get(p.id);
@@ -608,10 +624,15 @@ export function pullUserOffer(league: League, playerId: number): void {
   withdraw(race, league, playerId);
 }
 
-/** Let him go: your answer to his agent's warning, your offer pulled with no hard feelings. */
+/**
+ * Let him go: your answer to his agent's warning, your offer pulled with no hard feelings. With no warning open it is
+ * an ordinary pull (`pullUserOffer`), or leading and walking away would cost nothing.
+ */
 export function letGo(league: League, playerId: number): void {
   const race = liveRace(league);
-  if (race) withdraw(race, league, playerId);
+  if (!race) return;
+  if (raceWarningOpen(league, playerId)) withdraw(race, league, playerId);
+  else pullUserOffer(league, playerId);
 }
 
 /** Free agency ends: offers lapse, and the results stay until the next race opens. */

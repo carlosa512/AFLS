@@ -520,12 +520,25 @@ describe('your offers', () => {
       if (rankOffers(l, p, l.faRace!.offers[p.id]).length < 2) return false;
       if (placeUserOffer(l, p, atFloor(l, p)).status !== 'standing') return false;
       if (placeOf(l, p) >= 3) return true;
-      letGo(l, p.id);
+      pullUserOffer(l, p.id);
       return false;
     })!;
     pullUserOffer(l, third.id);
     expect(l.negotiations[third.id]?.status).not.toBe('broken');
     expect(l.faRace!.offers[third.id].some((o) => o.teamId === you(l))).toBe(false);
+  });
+
+  it('letting him go with no warning open is a pull', () => {
+    const l = yours(1);
+    setSpace(l, 500_000);
+    const p = contested(l)[0];
+    expect(placeUserOffer(l, p, overTop(l, p)).status).toBe('standing');
+    expect(raceWarningOpen(l, p.id)).toBe(false);
+    letGo(l, p.id);
+    expect(l.negotiations[p.id]).toMatchObject({ status: 'broken', brokenPhase: 'freeAgency' });
+    expect(l.faRace!.offers[p.id].some((o) => o.teamId === you(l))).toBe(false);
+    // So leading, walking away and coming back lower can't happen.
+    expect(placeUserOffer(l, p, atFloor(l, p)).status).toBe('broken');
   });
 
   it('the warning', () => {
@@ -603,6 +616,43 @@ describe('your offers', () => {
     }
     expect(trailing).toBeGreaterThan(0);
     expect(undecided).toBeGreaterThan(0);
+  });
+
+  it('the last day: only the teams in at the eve, at no more', () => {
+    const l = yours(FA_DAYS - 1);
+    setSpace(l, 500_000);
+    // A narrow lead on every contested player the roster takes: just over the best offer he has.
+    for (const p of contested(l)) {
+      const d = demand(l, p, you(l));
+      const ask = askOffer(d);
+      const per = offerValue(l, p, you(l), ask, d) / ask.apy;
+      const top = Math.max(...l.faRace!.offers[p.id].map((o) => offerValue(l, p, o.teamId, o.offer)));
+      placeUserOffer(l, p, askAt(l, p, Math.max(floorApy(l, p), Math.ceil((top * 1.003) / per))));
+    }
+    const eve = judged(l);
+    // The eve's warnings answered by letting those players go: what's left you led as the eve ended.
+    for (const id of pendingWarnings(l)) letGo(l, id);
+    const standing = structuredClone(l.faRace!.offers);
+    const led = [...eve]
+      .filter(([id, j]) => j.ranked[0]?.teamId === you(l) && standing[id]?.some((o) => o.teamId === you(l)))
+      .map(([id]) => id);
+    expect(led.length).toBeGreaterThan(0);
+    const last = judged(l);
+    let rivals = 0;
+    for (const [id, j] of last) {
+      if (!j.offers.some((o) => o.teamId === you(l))) continue;
+      const p = l.players[id];
+      for (const o of j.offers) {
+        if (o.teamId === you(l)) continue;
+        // Every rival stood at the eve, and offers him no more than it did.
+        const then = standing[id]?.find((x) => x.teamId === o.teamId);
+        expect(then).toBeDefined();
+        expect(offerValue(l, p, o.teamId, o.offer)).toBeLessThanOrEqual(offerValue(l, p, o.teamId, then!.offer));
+        rivals++;
+      }
+    }
+    expect(rivals).toBeGreaterThan(0);
+    for (const id of led) expect(l.players[id].teamId).toBe(you(l));
   });
 
   it('two wins the same day fit', () => {
@@ -690,7 +740,7 @@ describe('your offers', () => {
     const problem = standingFitProblem(l, you(l), { space });
     expect(problem).toContain('cap room');
     expect(tradeProblem(l, proposal)).toBe(problem);
-    for (const id of Object.keys(l.faRace!.offers)) letGo(l, +id);
+    for (const id of Object.keys(l.faRace!.offers)) pullUserOffer(l, +id);
     expect(tradeProblem(l, proposal)).toBeNull();
   });
 
