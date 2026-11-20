@@ -59,7 +59,18 @@ export const RACE = {
    * spend, and its open spots on the roster.
    */
   overcommit: 2,
+  /**
+   * How many AI teams bid on one player, by his place in the pool by market worth: an NFL depth or role player draws one
+   * to three suitors, and only the top of the market draws a crowd.
+   */
+  bidders: { top: 32, topMax: 6, next: 96, nextMax: 4, restMax: 2 },
 };
+
+/** The most AI teams that open offers for the player at `order` in the pool (best market first). */
+export function bidderCap(order: number): number {
+  const b = RACE.bidders;
+  return order < b.top ? b.topMax : order < b.top + b.next ? b.nextMax : b.restMax;
+}
 
 /** An offer he would sign: worth `value` to him, at or above his walk-away from that team (`floor`). */
 export interface RankedOffer {
@@ -258,7 +269,20 @@ function placeOffers(
     fallback.set(p.id, made.fallback);
     const standing = race.offers[p.id] ?? [];
     const held = lastDay && user !== null && standing.some((o) => o.teamId === user);
-    for (const { bid, first } of dayBids(pass, p, standing, made.bids, lastDay, held)) {
+    const day = dayBids(pass, p, standing, made.bids, lastDay, held);
+    // The most interested teams only (`RACE.bidders`): a team already in keeps its offer, the new ones fill what is left
+    // by the upgrade he is to each. Your offer is never in this list, so it never counts.
+    const mine = new Set(standing.map((o) => o.teamId));
+    const slots = bidderCap(order) - day.filter((d) => mine.has(d.bid.team.id)).length;
+    const fresh = day.filter((d) => !mine.has(d.bid.team.id));
+    const cut = new Set<(typeof day)[number]>();
+    if (fresh.length > Math.max(0, slots)) {
+      const ranked = fresh.map((d) => ({ d, gain: bidGain(pass, d.bid.team, p) })).sort((a, b) => b.gain - a.gain);
+      for (const { d } of ranked.slice(Math.max(0, slots))) cut.add(d);
+    }
+    for (const d of day) {
+      if (cut.has(d)) continue;
+      const { bid, first } = d;
       const entry = { p, bid, first, gain: bidGain(pass, bid.team, p), order };
       const list = byTeam.get(bid.team.id);
       if (list) list.push(entry);

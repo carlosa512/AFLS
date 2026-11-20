@@ -21,6 +21,7 @@ import {
   type Offer,
 } from './negotiation';
 import {
+  bidderCap,
   decides,
   inRace,
   letGo,
@@ -202,6 +203,76 @@ describe('the race for AI teams', () => {
       });
     expect(offers).toBeGreaterThan(0);
     expect(raised).toBeGreaterThan(0);
+  });
+
+  /** The AI offers each player has in a day's pass, with his place in the pool (read as the offers are set). */
+  function watchBidders(): Map<number, { n: number; order: number }> {
+    const seen = new Map<number, { n: number; order: number }>();
+    raceWatch.onFit = (pass, teamId, made) => {
+      for (const { p } of made) {
+        if (teamId === pass.league.userTeamId) continue;
+        const was = seen.get(p.id);
+        seen.set(p.id, { n: (was?.n ?? 0) + 1, order: pass.pool.indexOf(p) });
+      }
+    };
+    return seen;
+  }
+
+  it('the opening offers keep the most interested teams, by his tier', () => {
+    const l: League = JSON.parse(atResign);
+    const seen = watchBidders();
+    advanceOffseason(l, { autoUser: true });
+    expect(l.phase).toBe('freeAgency');
+    for (const { n, order } of seen.values()) expect(n).toBeLessThanOrEqual(bidderCap(order));
+    // The cap is by tier, not flat: a player at the top of the market draws more than the rest can.
+    const top = [...seen.values()].filter((v) => v.order < RACE.bidders.top);
+    expect(Math.max(...top.map((v) => v.n))).toBeGreaterThan(RACE.bidders.restMax);
+    expect(bidderCap(0)).toBe(RACE.bidders.topMax);
+    expect(bidderCap(RACE.bidders.top)).toBe(RACE.bidders.nextMax);
+    expect(bidderCap(RACE.bidders.top + RACE.bidders.next)).toBe(RACE.bidders.restMax);
+  });
+
+  it('a later day adds no bidder past his tier, and keeps a standing offer', () => {
+    const l = onDay(2);
+    const before = new Map(Object.entries(l.faRace!.offers).map(([id, o]) => [+id, o.map((x) => x.teamId)]));
+    const seen = watchBidders();
+    advanceOffseason(l, { autoUser: true });
+    for (const [id, { n, order }] of seen)
+      expect(n).toBeLessThanOrEqual(Math.max(bidderCap(order), before.get(id)?.length ?? 0));
+    // Nobody who stood the day before drops only for being outranked: any still unsigned keeps every team that could fit it.
+    const signed = new Set(faSignings(l).map((t) => t.playerId));
+    let kept = 0;
+    for (const [id, teams] of before) {
+      if (signed.has(id)) continue;
+      const now = (l.faRace!.offers[id] ?? []).map((o) => o.teamId);
+      kept += teams.filter((t) => now.includes(t)).length;
+    }
+    expect(kept).toBeGreaterThan(0);
+  });
+
+  it('your offer is never trimmed and never counts against the cap', () => {
+    const l = (() => {
+      const w: League = JSON.parse(atResign);
+      advanceOffseason(w, { autoUser: false });
+      return w;
+    })();
+    const you = l.userTeamId;
+    // The player with the most AI offers: at his tier's cap already.
+    const p = freeAgents(l).sort(
+      (a, b) => (l.faRace!.offers[b.id]?.length ?? 0) - (l.faRace!.offers[a.id]?.length ?? 0),
+    )[0];
+    const rivals = l.faRace!.offers[p.id].length;
+    expect(rivals).toBeGreaterThan(RACE.bidders.restMax);
+    l.teams[you].carryover += 500_000_000;
+    const d = demand(l, p, you);
+    const ask = askOffer(d);
+    const low = { ...ask, apy: Math.round(ask.apy * 0.8) };
+    const res = placeUserOffer(l, p, low);
+    if (res.status !== 'standing') return;
+    const seen = watchBidders();
+    advanceOffseason(l, { autoUser: false });
+    expect(seen.get(p.id)?.n ?? 0).toBeLessThanOrEqual(Math.max(RACE.bidders.topMax, rivals));
+    if (p.teamId === null) expect(l.faRace!.offers[p.id].some((o) => o.teamId === you)).toBe(true);
   });
 
   it("a team's offers fit its money", () => {

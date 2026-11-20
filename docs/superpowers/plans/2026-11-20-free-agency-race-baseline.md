@@ -134,3 +134,27 @@ under the 1.5× that would send it back to the pass).
 
 The 0.07 step was not needed (0.06 was clean). The last-day rule (an offer that led when placed stays first) touches
 only a team you run and moves no AI-only number.
+
+## Depth bidders capped
+
+A real save showed a punter with 21 teams' offers on day 2. `placeOffers` now keeps each player's most interested AI
+bidders by his place in the pool by market worth (`RACE.bidders`: top 32 up to 6, next 96 up to 4, the rest up to 2;
+NFL depth players draw one to three suitors). A team already holding a standing offer keeps it; new entrants fill what
+is left by their `gain`. Your offer never counts and is never trimmed; the late passes are untouched. The bid-builder
+golden hash in `bids.test.ts` was re-pinned.
+
+AI bidders per player on day 1 (opening offers, two leagues, players with at least one offer), median / max:
+
+| Tier | Before | After |
+| --- | --- | --- |
+| Top 32 | 4 / 18 | 4 / 6 |
+| Next 96 | 1 / 22 | 2 / 4 |
+| Rest | 1 / 7 | 1 / 2 |
+
+`npm run offseason -- 6` (exit 0, 0 outside): signed by day 2 % 72, 59, 65, 69, 80, 82 · contested % 45, 41, 53, 33,
+24, 26 (before: signed by day 2 % 47, 41, 41, 61, 61, 57, contested % 49, 63, 59, 54, 32, 33) · elite mean day 2.2,
+2.4, 2.2, 1.7, 1.6, 1.5. FA signings a club 8-10 / 2-4 0.88 (0.8-1.2; was 0.84), feuds a team mean 0.61 (0.5-1.8; was
+0.57).
+
+`npm run morale` (exit 0, 0 outside): meetings a club a season 5.71 (3-6; was 5.63), Tight rooms 0.33 (0.15-0.35; was 0.34), trade requests
+resolved by a trade 0.15 (0.15-0.75, on its floor, as before).
