@@ -614,33 +614,37 @@ describe('GM habits in the draft', () => {
 
   it('tradeUpReason takes a quarterback at a smaller gap with tradeUpQb on', () => {
     let found = 0;
-    // Its own world: the shared one's class holds no quarterback sitting just under the bar (re-found for 0.4.24's moods: -b held none, -g does; found again with the league-age work, 2026-11-14: the class changed shape and -g held none, -e does; moved again the same day by a founding league's young having less growth ahead: -e held none, -a does).
-    const l = draftDayOf('draft-trades-qb-a');
-    for (let i = 0; i < 64; i++) {
-      for (const pk of picksAhead(l, WINDOW)) {
-        if (pk.ownerId === l.userTeamId) continue;
-        const team = l.teams[pk.ownerId];
-        habitsForce.off = true;
-        const off = tradeUpReason(tradeContext(l), team, pk);
-        habitsForce.off = false;
-        habitsForce.all = 'tradeUpQb';
-        const on = tradeUpReason(tradeContext(l), team, pk);
-        habitsForce.all = null;
-        if (off) expect(on).not.toBeNull();
-        if (on && !off) {
-          found++;
-          expect(on.target.position).toBe('QB');
-          // Either the lower bar (0.75 of the minimum) or the long jump open at a plain minimum.
-          const clock = nextPick(l)!;
-          const min = covetMin(clock.round);
-          expect(on.gap).toBeGreaterThanOrEqual(0.75 * min);
-          if (pk.overall! - clock.overall! <= LONG_JUMP) expect(on.gap).toBeLessThan(min);
-          else expect(on.gap).toBeLessThan(2 * min);
+    // Its own worlds, searched until one's class holds a quarterback sitting just under the bar: any change to who plays
+    // or who is paid reshuffles the class, and a single pinned world kept losing the scene (-b, -g, -e, -a in turn).
+    for (const w of ['a', 'e', 'g', 'b', 'c', 'd', 'f', 'h']) {
+      if (found > 0) break;
+      const l = draftDayOf(`draft-trades-qb-${w}`);
+      for (let i = 0; i < 64; i++) {
+        for (const pk of picksAhead(l, WINDOW)) {
+          if (pk.ownerId === l.userTeamId) continue;
+          const team = l.teams[pk.ownerId];
+          habitsForce.off = true;
+          const off = tradeUpReason(tradeContext(l), team, pk);
+          habitsForce.off = false;
+          habitsForce.all = 'tradeUpQb';
+          const on = tradeUpReason(tradeContext(l), team, pk);
+          habitsForce.all = null;
+          if (off) expect(on).not.toBeNull();
+          if (on && !off) {
+            found++;
+            expect(on.target.position).toBe('QB');
+            // Either the lower bar (0.75 of the minimum) or the long jump open at a plain minimum.
+            const clock = nextPick(l)!;
+            const min = covetMin(clock.round);
+            expect(on.gap).toBeGreaterThanOrEqual(0.75 * min);
+            if (pk.overall! - clock.overall! <= LONG_JUMP) expect(on.gap).toBeLessThan(min);
+            else expect(on.gap).toBeLessThan(2 * min);
+          }
         }
+        draftTrades.off = true;
+        simDraft(l, new Rng(`qb-${i}`), { stopAtUser: false, limit: 1 });
+        draftTrades.off = false;
       }
-      draftTrades.off = true;
-      simDraft(l, new Rng(`qb-${i}`), { stopAtUser: false, limit: 1 });
-      draftTrades.off = false;
     }
     expect(found).toBeGreaterThan(0);
   });
