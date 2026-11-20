@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import type { League, Phase, RaceOffer } from '../types';
-import { raiseTo, type BidPass } from './bids';
+import { raiseTo, teamMoney, yearOne, type BidPass } from './bids';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { decides, raceWatch, rankOffers, RACE, type DecideOpts, type RankedOffer } from './race';
 
@@ -91,6 +91,7 @@ const faSignings = (l: League) =>
 describe('the race for AI teams', () => {
   afterEach(() => {
     delete raceWatch.onJudge;
+    delete raceWatch.onFit;
   });
 
   it('opening offers are in and nobody signs', () => {
@@ -140,22 +141,44 @@ describe('the race for AI teams', () => {
     const l = onDay(1);
     let offers = 0;
     let raised = 0;
+    // As a team sets its offers, it would still make each at its price.
+    raceWatch.onFit = (pass, teamId, made) => {
+      for (const { p, bid } of made) {
+        expect(bid.team.id).toBe(teamId);
+        expect(raiseTo(pass, p, bid, bid.offer.apy)).not.toBeNull();
+      }
+    };
     while (l.phase === 'freeAgency')
-      advanceWatched(l, (pass, j, playerId) => {
+      advanceWatched(l, (pass, j) => {
         const ai = new Set(pass.teams.map((t) => t.id));
         for (const o of j.offers) {
           if (!ai.has(o.teamId)) continue;
           offers++;
           if (o.offer.apy > o.first) raised++;
           expect(o.offer.apy).toBeLessThanOrEqual(o.first * RACE.ceiling);
-          // The team would still make it at its price.
-          const p = pass.league.players[playerId];
-          const bid = { team: pass.league.teams[o.teamId], offer: o.offer, value: 0 };
-          expect(raiseTo(pass, p, bid, o.offer.apy)).not.toBeNull();
         }
       });
     expect(offers).toBeGreaterThan(0);
     expect(raised).toBeGreaterThan(0);
+  });
+
+  it("a team's offers fit its money", () => {
+    const l: League = JSON.parse(atResign);
+    let teams = 0;
+    raceWatch.onFit = (pass, teamId, made) => {
+      teams++;
+      const bids = made.map((m) => m.bid);
+      const m = teamMoney(pass, teamId);
+      // Year-one charges, less the room the one restructure it may plan would make.
+      const total = bids.reduce((a, b) => a + yearOne(b.offer) - (b.plan?.saved ?? 0), 0);
+      expect(total).toBeLessThanOrEqual(m.budget + m.back * Math.min(bids.length, m.spots));
+      expect(bids.length).toBeLessThanOrEqual(Math.min(m.room, m.signingsLeft));
+      expect(bids.filter((b) => b.plan).length).toBeLessThanOrEqual(1);
+    };
+    // The opening offers, then each day's.
+    do advanceOffseason(l, { autoUser: true });
+    while (l.phase === 'freeAgency');
+    expect(teams).toBeGreaterThan(5 * 20);
   });
 
   it('no raises on the last day', () => {

@@ -203,7 +203,7 @@ function booksOk(pass: BidPass, team: Team, p: Player, o: Offer, above: number):
 }
 
 /** Year-one charge: bonus spreads, so the hit is below the APY for bigger deals. */
-const yearOne = (offer: Offer) =>
+export const yearOne = (offer: Offer) =>
   offer.apy * (1 - offer.bonusPct) +
   (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
 
@@ -228,6 +228,23 @@ function interest(pass: BidPass, team: Team, p: Player) {
     needGain(pass.depth.get(team.id)!, p, ahead + quirkWorth(league, team.id, p)) +
     (gm && draftedBy(gm, p) && habitOn(league, team, 'hisGuys') ? 0.5 : 0);
   return { ahead, bridging, bar, gain };
+}
+
+/** The upgrade `p` is to `team`, as its own scouts read him: what its bids weigh. Reads only. */
+export const bidGain = (pass: BidPass, team: Team, p: Player): number => interest(pass, team, p).gain;
+
+/**
+ * What a club has to work with in this pass, as signings have left it: what it can spend, the minimum a signing gets back
+ * for each open spot it fills (`spots` of them), its room on the roster and the signings left to it today. Reads only.
+ */
+export function teamMoney(pass: BidPass, teamId: number) {
+  return {
+    budget: pass.budget.get(teamId)!,
+    back: topMinimum(pass.league.caps[pass.league.season]),
+    spots: pass.spots.get(teamId)!,
+    room: pass.room.get(teamId)!,
+    signingsLeft: pass.dailyLimit.get(teamId)! - (pass.signedToday.get(teamId) ?? 0),
+  };
 }
 
 /**

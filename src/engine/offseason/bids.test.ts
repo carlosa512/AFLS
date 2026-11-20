@@ -28,8 +28,8 @@ describe('the bid builder', () => {
     const atKickoff = outcome(l);
     // Moved by the free-agency race (`race.ts`): only the free-agency phase's entries differ at the draft.
     expect([atDraft, atKickoff]).toEqual([
-      '416fe6517b84f70fbb5de81192981b165617dec9f6143e120bedc8401ede1479',
-      'bbe738a438c0c374bc517fccb16b622d296adaa3daf65b4da7883baae0ea29d7',
+      '53b8c04b8bdc84af878ef69e15311d85cdba981a6799fd4c80661dbc80da5657',
+      'cfcd9c5094066652fb2ab51c37f2d7b4680c1989e63d659b6bf6465767068fb4',
     ]);
   });
 
