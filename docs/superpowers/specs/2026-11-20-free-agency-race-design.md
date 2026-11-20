@@ -100,15 +100,19 @@ he values.
 
 - **AI teams answer.** An AI team that's behind on a player it wants can raise its offer once a day, up to the most
   it would pay him (its own read and need, and its GM: win-now raises more, gun-shy less). So a bidding war can happen,
-  and it ends at a team's limit. *(Brainstorm proposal, not yet confirmed by the owner: without it the race is static,
-  since an AI team's offer would be rebuilt the same every day.)*
-  An AI raise never goes past the team's own read of what he's worth to it, so bidding a rival up only makes it pay
+  and it ends at a team's limit. (The owner confirmed it: without it the race is static, since an AI team's offer would
+  be rebuilt the same every day.) An AI raise never goes past the team's own read of what he's worth to it, so bidding a rival up only makes it pay
   what it already thought he was worth.
 - **The agent's warning.** At a day's end, if he would sign with another team, you have an offer in, you're behind,
   and you haven't been warned about him since you last led, he waits a day instead and his agent calls: "He's close.
   Kansas City is ahead." It's an inbox letter (it needs you, `needsYou`) and a flag on his row. You get one warning
   each time you lose the lead, so you are never lost without one, and the warnings end because AI raises stop at a
   team's limit. If you answer and are still behind at the next day's end, he signs.
+- **The game stops for a warning** (the owner's call). Until every warning is answered, the advance button reads
+  "Answer 1 agent" (or "Answer N agents"), as it reads "Decide N contracts" in the re-sign window (`offseasonStep` in
+  `ui/App.tsx`, the blockers it reads). Two answers, on the letter and on his page: improve your offer (any raise
+  answers it, even one that leaves you behind) or "Let him go", which pulls your offer with no penalty. A staff-run
+  user team never stops.
 - **Your offers must fit together.** The dialog's own check (`offerProblem`) over all your standing offers at once:
   their year-one cap hits add up to no more than your cap space, and they fit on your roster with the players you
   have. Anything that would break it (a new offer, a raise, a signing on the spot, a trade that takes on salary) is
@@ -228,13 +232,18 @@ training listed as to do) is brought up to date in the same PR.
   `moraleView` and `disputeView` work).
 - The letters' exact words, inside the house rules.
 
+## The owner's answers after the review (2026-11-20)
+
+- AI teams fight back: once a day when behind, up to their own read of him (a bidding war that ends).
+- The game stops for an agent's warning until you raise or let him go.
+
 ## Calls made in the brainstorm, for the owner to check
 
-- AI teams raise once a day when behind, up to their own read of him (a bidding war that ends).
 - An offer under his walk-away doesn't stand; it's refused and costs patience, as today.
 - Your standing offers must fit your cap space and roster together, by the dialog's own check, not the AI's books.
 - One agent's warning each time you lose the lead; if you're still behind a day later, he signs.
-- Pulling an offer that leads or is second ends talks for the rest of free agency; one further back is free.
+- Pulling an offer that leads or is second ends talks for the rest of free agency; one further back is free, and so is
+  "Let him go" on a warning.
 - At day 5's end everyone with an offer at or above his floor picks; offers that don't win lapse.
 - Free agency stays five days, with the opening offers placed as it opens, under the same limits as a day's pass.
 - The NFL's signing timing is measured first; the new lines warn only until you set their bands.
