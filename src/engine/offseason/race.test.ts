@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createLeague } from '../generate';
 import { simToEndOfSeason } from '../league';
 import type { League, Phase, RaceOffer } from '../types';
-import { raiseTo, teamMoney, yearOne, type BidPass } from './bids';
+import { payable, raiseTo, teamMoney, yearOne, type BidPass } from './bids';
 import { advanceOffseason, beginOffseason, FA_DAYS } from './index';
 import { decides, raceWatch, rankOffers, RACE, type DecideOpts, type RankedOffer } from './race';
 
@@ -92,6 +92,7 @@ describe('the race for AI teams', () => {
   afterEach(() => {
     delete raceWatch.onJudge;
     delete raceWatch.onFit;
+    delete raceWatch.onStepAside;
   });
 
   it('opening offers are in and nobody signs', () => {
@@ -171,14 +172,50 @@ describe('the race for AI teams', () => {
       const m = teamMoney(pass, teamId);
       // Year-one charges, less the room the one restructure it may plan would make.
       const total = bids.reduce((a, b) => a + yearOne(b.offer) - (b.plan?.saved ?? 0), 0);
-      expect(total).toBeLessThanOrEqual(m.budget + m.back * Math.min(bids.length, m.spots));
-      expect(bids.length).toBeLessThanOrEqual(Math.min(m.room, m.signingsLeft));
+      expect(total).toBeLessThanOrEqual(RACE.overcommit * (m.budget + m.back * Math.min(bids.length, m.spots)));
+      expect(bids.length).toBeLessThanOrEqual(RACE.overcommit * m.room);
       expect(bids.filter((b) => b.plan).length).toBeLessThanOrEqual(1);
     };
     // The opening offers, then each day's.
     do advanceOffseason(l, { autoUser: true });
     while (l.phase === 'freeAgency');
     expect(teams).toBeGreaterThan(5 * 20);
+  });
+
+  it("a team that can't afford him steps aside", () => {
+    const l = onDay(1);
+    let asides = 0;
+    let day: BidPass | undefined;
+    const morning = new Map<number, number>();
+    let aside: { playerId: number; teamId: number }[] = [];
+    raceWatch.onStepAside = (pass, p, bid) => {
+      asides++;
+      aside.push({ playerId: p.id, teamId: bid.team.id });
+      // It can't sign him now: no spot, no signing left today, or not the money for this offer.
+      const m = teamMoney(pass, bid.team.id);
+      const offer = payable(pass, p, bid)?.offer;
+      expect(m.room < 1 || m.signingsLeft < 1 || JSON.stringify(offer) !== JSON.stringify(bid.offer)).toBe(true);
+    };
+    while (l.phase === 'freeAgency') {
+      aside = [];
+      day = undefined;
+      advanceWatched(l, (pass) => {
+        // The first player judged comes before any signing: what each team had to spend that morning.
+        if (day) return;
+        day = pass;
+        for (const t of pass.teams) morning.set(t.id, teamMoney(pass, t.id).budget);
+      });
+      // No team signed past what it could: today's limit, its roster and its money (a team already short signs nobody).
+      for (const t of day!.teams) {
+        const m = teamMoney(day!, t.id);
+        expect(m.signingsLeft).toBeGreaterThanOrEqual(0);
+        expect(m.room).toBeGreaterThanOrEqual(0);
+        expect(m.budget).toBeGreaterThanOrEqual(Math.min(0, morning.get(t.id)!));
+      }
+      // A team that stepped aside didn't sign him that day.
+      for (const { playerId, teamId } of aside) expect(l.players[playerId].teamId).not.toBe(teamId);
+    }
+    expect(asides).toBeGreaterThan(0);
   });
 
   it('no raises on the last day', () => {

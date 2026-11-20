@@ -13,6 +13,7 @@ import {
   bidPass,
   bidsFor,
   bidGain,
+  payable,
   pickBest,
   poolOf,
   raiseTo,
@@ -39,6 +40,11 @@ export const RACE = {
   raise: 0.04,
   /** A team never raises past 15% above its own first price for him, the price its scouts' read set. */
   ceiling: 1.15,
+  /**
+   * Real teams talk to more players than they can sign: a team's open offers may add up to this many times what it can
+   * spend, and its open spots on the roster.
+   */
+  overcommit: 2,
 };
 
 /** An offer he would sign: worth `value` to him, at or above his walk-away from that team (`floor`). */
@@ -87,11 +93,13 @@ export function decides(ranked: readonly RankedOffer[], o: DecideOpts): boolean 
 }
 
 /**
- * Windows on the race in the day's own pass, for its tests: each team's offers once they are set (`onFit`), and each
- * player as he is judged, before he signs (`onJudge`). Nothing in the game sets them.
+ * Windows on the race in the day's own pass, for its tests: each team's offers once they are set (`onFit`), each
+ * player as he is judged, before he signs (`onJudge`, again after a winner steps aside), and a winner that can no longer
+ * sign him (`onStepAside`). Nothing in the game sets them.
  */
 export const raceWatch: {
   onFit?: (pass: BidPass, teamId: number, offers: readonly { p: Player; bid: Bid }[]) => void;
+  onStepAside?: (pass: BidPass, p: Player, bid: Bid) => void;
   onJudge?: (
     pass: BidPass,
     p: Player,
@@ -125,10 +133,10 @@ interface Entry {
 const charge = (bid: Bid) => yearOne(bid.offer) - (bid.plan?.saved ?? 0);
 
 /**
- * A team's open offers, which must fit together as your own do: their year-one charges within what it can spend (with
- * the minimum back for each open spot they'd fill, and the room one restructure would make), and no more of them than
- * its room on the roster or its signings left today. A signing uses its money as `signBid` records it, so the next
- * day's book starts from the new room.
+ * A team's open offers, which must fit together: their year-one charges within `RACE.overcommit` times what it can
+ * spend (with the minimum back for each open spot they'd fill, and the room one restructure would make), and no more
+ * of them than that many times its room on the roster. Whether it can sign one now is read as he chooses
+ * (`signable`). A signing uses its money as `signBid` records it, so the next day's book starts from the new room.
  */
 interface Book {
   money: ReturnType<typeof teamMoney>;
@@ -150,8 +158,8 @@ function withBid(book: Book, add: Bid, drop?: Bid): Book | null {
   const count = book.count + (drop ? 0 : 1);
   const plans = book.plans + (add.plan ? 1 : 0) - (drop?.plan ? 1 : 0);
   const total = book.charge + charge(add) - (drop ? charge(drop) : 0);
-  if (count > Math.min(money.room, money.signingsLeft) || plans > 1) return null;
-  if (total > money.budget + money.back * Math.min(count, money.spots)) return null;
+  if (count > RACE.overcommit * money.room || plans > 1) return null;
+  if (total > RACE.overcommit * (money.budget + money.back * Math.min(count, money.spots))) return null;
   return { money, charge: total, count, plans };
 }
 
@@ -280,8 +288,20 @@ export function openRace(league: League, rng: Rng, opts: FaPassOpts): void {
 }
 
 /**
+ * `bid` as its team can sign him now, after the day's earlier signings: a spot on its roster, a signing left today
+ * (`dailyLimit`) and the money for this very offer (`payable`). Null when it can't.
+ */
+function signable(pass: BidPass, p: Player, bid: Bid): Bid | null {
+  const money = teamMoney(pass, bid.team.id);
+  if (money.room < 1 || money.signingsLeft < 1) return null;
+  const now = payable(pass, p, bid);
+  return now && JSON.stringify(now.offer) === JSON.stringify(bid.offer) ? now : null;
+}
+
+/**
  * A free-agency day's end: the AI teams update their offers (`placeOffers`), then each free agent with offers, best
- * market first, signs his best if he decides today (`decides`); everyone else's offers stand overnight. Then, from the
+ * market first, signs his best if he decides today (`decides`) and that team can still sign him now (`signable`; else
+ * its offer steps aside and he weighs the rest); everyone else's offers stand overnight. Then, from the
  * clearing day, a player with no offer at his walk-away signs the best made for him as the AI's pass would
  * (`pickBest`), with a team whose standing offers still leave it the room. A race not yet open (a save from before it)
  * opens instead. The signings made.
@@ -307,22 +327,32 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
       continue;
     }
     const standing = race.offers[p.id] ?? [];
-    const today = entries.map(({ bid, first }) => {
+    let today = entries.map(({ bid, first }) => {
       const old = standing.find((o) => o.teamId === bid.team.id);
       const same = old && JSON.stringify(old.offer) === JSON.stringify(bid.offer);
       return same ? old : raceOffer(league, bid, first);
     });
-    const ranked = rankOffers(league, p, today);
-    if (ranked.length) race.since[p.id] ??= league.faDay;
-    const o: DecideOpts = {
-      waited: league.faDay - (race.since[p.id] ?? league.faDay),
-      patience: p.personality.patience,
-      lastDay,
-      askApy: ranked.length ? demand(league, p, ranked[0].teamId).askApy : Infinity,
-    };
-    raceWatch.onJudge?.(pass, p, today, ranked, o);
-    if (decides(ranked, o)) {
-      const won = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
+    // He chooses; a winner that can no longer sign him now steps aside, and he weighs the rest the same day.
+    let ranked: RankedOffer[];
+    let won: Bid | null = null;
+    for (;;) {
+      ranked = rankOffers(league, p, today);
+      if (ranked.length) race.since[p.id] ??= league.faDay;
+      const o: DecideOpts = {
+        waited: league.faDay - (race.since[p.id] ?? league.faDay),
+        patience: p.personality.patience,
+        lastDay,
+        askApy: ranked.length ? demand(league, p, ranked[0].teamId).askApy : Infinity,
+      };
+      raceWatch.onJudge?.(pass, p, today, ranked, o);
+      if (!decides(ranked, o)) break;
+      const best = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
+      won = signable(pass, p, best);
+      if (won) break;
+      raceWatch.onStepAside?.(pass, p, best);
+      today = today.filter((t) => t.teamId !== best.team.id);
+    }
+    if (won) {
       signBid(pass, p, won);
       signings++;
       const place = ranked.findIndex((r) => r.teamId === league.userTeamId);
@@ -345,7 +375,10 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   }
   for (const p of left) {
     // No offer at his walk-away: from the clearing day the best made for him is his market, as the AI's pass signs.
-    const room = (fallback.get(p.id) ?? []).filter((b) => withBid(bookOf(pass, b.team.id, open.get(b.team.id)), b));
+    const room = (fallback.get(p.id) ?? []).flatMap((b) => {
+      const now = withBid(bookOf(pass, b.team.id, open.get(b.team.id)), b) && signable(pass, p, b);
+      return now ? [now] : [];
+    });
     const best = pickBest(pass, p, [], room);
     if (!best) continue;
     signBid(pass, p, best);

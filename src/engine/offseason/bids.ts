@@ -458,10 +458,28 @@ export function raiseTo(pass: BidPass, p: Player, bid: Bid, apy: number): Bid | 
   // A banking club's stance is its plan's, read without building one (a plan draws for its keepers).
   const stance = pass.plans.get(team.id)?.stance ?? stanceFor(winNow(league, team));
   if (stance === 'bank' && !bankBuys(p.age, gain, upgradeBar(league, team, apy, rich))) return null;
-  const offer = shapeToBooks(league, team, p, { ...bid.offer, apy }, roomOf(pass, team).books, false, ahead);
-  if (!offer) return null;
-  const short = yearOne(offer) - pass.budget.get(team.id)! - back(pass, team.id);
-  const plan = short > 0 ? planFor(pass, team, p, offer, short) : undefined;
+  return paid(pass, p, bid, { ...bid.offer, apy }, ahead);
+}
+
+/** `bid` at `offer` as its club's books and room carry it now (`shapeToBooks`, then what it can spend or restructure). */
+function paid(pass: BidPass, p: Player, bid: Bid, offer: Offer, ahead: number): Bid | null {
+  const { league } = pass;
+  const team = bid.team;
+  const shaped = shapeToBooks(league, team, p, offer, roomOf(pass, team).books, false, ahead);
+  if (!shaped) return null;
+  const short = yearOne(shaped) - pass.budget.get(team.id)! - back(pass, team.id);
+  const plan = short > 0 ? planFor(pass, team, p, shaped, short) : undefined;
   if (short > 0 && !plan) return null;
-  return { ...bid, offer, value: offerValue(league, p, team.id, offer), plan };
+  return { ...bid, offer: shaped, value: offerValue(league, p, team.id, shaped), plan };
+}
+
+/**
+ * `bid` as its club can pay for it now, after the signings it has made: the deal on its books and its year-one charge
+ * in what it can spend or restructure (a funded bid in its funded room). Not its upgrade bars: whether it can, not
+ * whether it would. Null when it can't. Draws nothing.
+ */
+export function payable(pass: BidPass, p: Player, bid: Bid): Bid | null {
+  if (bid.cut !== undefined)
+    return yearOne(bid.offer) > fundedFor(pass, bid.team, p.position, shareOf(pass)).room ? null : bid;
+  return paid(pass, p, bid, bid.offer, interest(pass, bid.team, p).ahead);
 }
