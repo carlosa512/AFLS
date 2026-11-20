@@ -385,6 +385,9 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
       userPlace: place < 0 ? null : place + 1,
     };
     if (place >= 0) r.userApy = weighed[place].offer.apy;
+    // The deal he signed, read now (before anything can change it): the check judges good and elite signings by it.
+    const c = p.contract;
+    if (c) r.apyShare = c.apy / (league.caps[c.signedSeason] ?? league.caps[league.season]);
     if (dropped.delete(p.id)) r.userDropped = true;
     return r;
   };

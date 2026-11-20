@@ -1708,6 +1708,8 @@ export interface RaceResult {
   userPlace: number | null;
   /** What your offer paid a year ($K) when he weighed it. */
   userApy?: number;
+  /** The deal he signed, a year's pay over that year's cap (the offseason check's good and elite signings). */
+  apyShare?: number;
   userDropped?: true;
 }
 

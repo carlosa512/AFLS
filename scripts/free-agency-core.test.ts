@@ -11,6 +11,7 @@ import {
   goodEnds,
   pooledMarket,
   pooledOutOfFootball,
+  raceMeasures,
   windowStart,
   type FaMeasures,
 } from './free-agency-core';
@@ -174,5 +175,41 @@ describe('the market pooled over seasons 2–6 (market and exits)', () => {
     const m = faMeasures(start, l);
     expect(m.outside).toBe(2);
     expect(m.released).toBeCloseTo(0.5);
+  });
+});
+
+describe('the free-agency race measured', () => {
+  const at = (day: number, offers: number, apyShare: number) => ({
+    playerId: 1,
+    teamId: 0,
+    day,
+    offers,
+    userPlace: null,
+    apyShare,
+  });
+  it('counts good signings by day, the elite mean day and the contested share', () => {
+    l.faRace = {
+      offers: {},
+      since: {},
+      warnings: [],
+      warnedSinceLead: [],
+      results: [
+        at(1, 1, GOOD * 2),
+        at(1, 2, GOOD * 2),
+        at(3, 1, ELITE * 2),
+        // Under GOOD, and one with no recorded deal: neither counts.
+        at(5, 3, GOOD / 2),
+        { playerId: 2, teamId: 0, day: 2, offers: 2, userPlace: null },
+      ],
+    } as never;
+    const m = raceMeasures(l);
+    expect(m.n).toBe(3);
+    expect(m.byDay.map((v) => +v.toFixed(2))).toEqual([0.67, 0.67, 1, 1, 1]);
+    expect(m.contested).toBeCloseTo(1 / 3);
+    expect(m.eliteDay).toBe(3);
+  });
+  it('is empty without a race', () => {
+    l.faRace = undefined;
+    expect(raceMeasures(l)).toEqual({ byDay: [0, 0, 0, 0, 0], eliteDay: NaN, contested: NaN, n: 0 });
   });
 });
