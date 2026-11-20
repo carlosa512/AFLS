@@ -10,7 +10,7 @@ import { minSalary } from '../engine/finance/market';
 import { createLeague } from '../engine/generate';
 import { advanceOffseason, beginOffseason } from '../engine/offseason';
 import { deliverMail } from '../engine/inbox';
-import { askOffer, demand, freeAgents, offerValue } from '../engine/offseason/negotiation';
+import { askOffer, demand, freeAgents, offerCharge, offerProblem, offerValue } from '../engine/offseason/negotiation';
 import { letGo, placeUserOffer } from '../engine/offseason/race';
 import { raceView, wantsLine } from '../engine/offseason/raceView';
 import type { League, Player } from '../engine/types';
@@ -86,6 +86,22 @@ describe('the Free agents tab in the race', () => {
     expect(html).toContain('Leading');
   });
 
+  it('flags a player whose agent called and lists him first, whatever the sort', () => {
+    const l = fresh();
+    // The last contested player in the list, your offer at his floor.
+    const p = freeAgents(l)
+      .filter((x) => teamsIn(l, x) >= 1)
+      .reverse()
+      .find((x) => placeUserOffer(l, x, atFloor(l, x)).status === 'standing')!;
+    expect(render(<FreeAgents league={l} negotiate={() => {}} />)).not.toContain('Agent called');
+    l.faRace!.warnings.push({ playerId: p.id, day: l.faDay, answered: false });
+    const html = render(<FreeAgents league={l} negotiate={() => {}} />);
+    expect(count(html, '>Agent called<')).toBe(1);
+    const first = html.slice(html.indexOf('<tbody>'), html.indexOf('</tr>', html.indexOf('<tbody>')));
+    expect(first).toContain('Agent called');
+    expect(first).toContain(p.lastName);
+  });
+
   it('shows the market and the ask outside the free-agency days', () => {
     const l = fresh();
     l.phase = 'draft';
@@ -117,6 +133,10 @@ describe('the Free agents tab in the race', () => {
     expect(render(<RacePlace view={raceView(l, p.id)!} />)).toContain('Leading');
     const v = { ...raceView(l, p.id)!, place: 2 };
     expect(render(<RacePlace view={v} />)).toContain(`2nd of ${v.of}`);
+    // Still standing but under what he would take now: not "None".
+    const under = { ...raceView(l, p.id)!, place: null };
+    expect(render(<RacePlace view={under} />)).toContain('Under his terms');
+    expect(render(<RacePlace view={under} />)).not.toContain('None');
   });
 });
 
@@ -136,13 +156,30 @@ describe('the dialog for a player in the race', () => {
     html = dialog();
     expectBars(html, l, p);
     expect(html).toContain('>Update offer<');
-    expect(html).toContain('>Pull offer<');
+    // Leading: pulling it ends talks, and the button says so.
+    expect(html).toContain('>Pull offer and end talks<');
     expect(html).not.toContain('Let him go');
+    expect(html).not.toContain('His agent called');
     // His agent's warning open: letting him go is the answer, and costs nothing.
     l.faRace!.warnings.push({ playerId: p.id, day: l.faDay, answered: false });
     html = dialog();
     expect(html).toContain('>Let him go<');
     expect(html).not.toContain('Pull offer');
+    expect(html).toContain('His agent called.');
+  });
+
+  it('a pull that costs nothing reads Pull offer', () => {
+    const l = fresh();
+    const p = freeAgents(l).find(
+      (x) =>
+        teamsIn(l, x) >= 3 &&
+        placeUserOffer(l, x, atFloor(l, x)).status === 'standing' &&
+        raceView(l, x.id)!.place! >= 3,
+    )!;
+    expect(p).toBeDefined();
+    const html = render(<NegotiationDialog league={l} player={p} onClose={() => {}} />);
+    expect(html).toContain('>Pull offer<');
+    expect(html).not.toContain('end talks');
   });
 
   it('draws a bar for your offer when it stands further back than fifth', () => {
@@ -167,6 +204,28 @@ describe('the dialog for a player in the race', () => {
     const html = render(<NegotiationDialog league={l} player={p} onClose={() => {}} />);
     expect(html).toContain(`>${l.teams[v.leader!].city}</button> leads at about $${v.leaderApy! / 1000}M a year.`);
     expect(html).not.toContain(`>${l.teams[v.leader!].name}<`);
+  });
+
+  it('an extension that would break your standing offers is refused with the reason', () => {
+    const l = fresh();
+    const p = contested(l, 2);
+    bid(l, p);
+    const mine = l.faRace!.offers[p.id].find((o) => o.teamId === l.userTeamId)!.offer;
+    const charge = offerCharge(l, p, l.userTeamId, mine);
+    // One of your players whose extension at his ask adds to this year's cap, less than the offer's charge.
+    const own = Object.values(l.players).find((x) => {
+      if (x.teamId !== l.userTeamId || x.retired) return false;
+      const add = offerCharge(l, x, l.userTeamId, askOffer(demand(l, x, l.userTeamId)));
+      return add > 1 && add < charge;
+    })!;
+    expect(own).toBeDefined();
+    // Room for the standing offer and a dollar more: the extension alone fits, the two together don't.
+    const t = l.teams[l.userTeamId];
+    t.carryover += charge + 1 - capSpace(l, t.id);
+    expect(offerProblem(l, own, l.userTeamId, askOffer(demand(l, own, l.userTeamId)))).toBeNull();
+    const html = render(<NegotiationDialog league={l} player={own} onClose={() => {}} />);
+    expect(html).toContain('Not enough cap room for all your offers.');
+    expect(html).toMatch(/btn-primary" disabled="">/);
   });
 
   it('has no race panel for a player nobody else is in for', () => {

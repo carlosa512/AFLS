@@ -431,6 +431,8 @@ type FaSort = 'name' | 'pos' | 'age' | 'ovr' | 'fit' | 'market' | 'ask' | 'teams
 
 /** The race's columns sort the busiest race, your best place and the nearest decision first. */
 const STATUS_ORDER = { waiting: 0, weighing: 1, close: 2 } as const;
+/** His agent called: above every status. */
+const CALLED = 3;
 const placeValue = (v: RaceView | null) => (v?.place ? -v.place : -99);
 
 export function FreeAgents({
@@ -514,7 +516,7 @@ export function FreeAgents({
       };
     });
   // Sort the whole pool before trimming it, so "youngest" or "cheapest" reaches past the top of the market.
-  const pool = sortRows(rows, sort, ({ p, d, gain, race, view }, key) =>
+  const sorted = sortRows(rows, sort, ({ p, d, gain, race, view }, key) =>
     key === 'name'
       ? `${p.lastName} ${p.firstName}`.toLowerCase()
       : key === 'pos'
@@ -533,10 +535,14 @@ export function FreeAgents({
                     ? placeValue(view)
                     : key === 'status'
                       ? race
-                        ? STATUS_ORDER[race.status]
+                        ? race.warned
+                          ? CALLED
+                          : STATUS_ORDER[race.status]
                         : -1
                       : d.market,
-  ).slice(0, 120);
+  );
+  // A player whose agent called waits on your answer: his row comes first, whatever the sort.
+  const pool = [...sorted.filter((r) => r.view?.warned), ...sorted.filter((r) => !r.view?.warned)].slice(0, 120);
   return (
     <Panel
       title="Free agents"
@@ -603,7 +609,15 @@ export function FreeAgents({
                         {race ? <RaceChips league={league} view={race} /> : <span className="muted small">–</span>}
                       </td>
                       <td>{view ? <RacePlace view={view} /> : <span className="muted small">–</span>}</td>
-                      <td className="small">{race ? STATUS_WORDS[race.status] : <span className="muted">–</span>}</td>
+                      <td className="small">
+                        {race?.warned ? (
+                          <span className="tag-pill tag-warn">Agent called</span>
+                        ) : race ? (
+                          STATUS_WORDS[race.status]
+                        ) : (
+                          <span className="muted">–</span>
+                        )}
+                      </td>
                     </>
                   ) : (
                     <>

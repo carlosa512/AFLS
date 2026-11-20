@@ -44,11 +44,16 @@ export function RaceChips({ league, view, max = 3 }: { league: League; view: Rac
   );
 }
 
-/** Where your offer stands: Leading, "2nd of 4", or None, after a dot in its colour. */
+/**
+ * Where your offer stands: Leading, "2nd of 4", or None, after a dot in its colour; "Under his terms" when it still
+ * stands but no longer reaches what he would take (the day's end drops it).
+ */
 export function RacePlace({ view }: { view: RaceView }) {
   const [tone, words] =
     view.place === null
-      ? ['none', 'None']
+      ? view.yours
+        ? ['behind', 'Under his terms']
+        : ['none', 'None']
       : view.place === 1
         ? ['lead', 'Leading']
         : ['behind', `${ordinal(view.place)} of ${view.of}`];

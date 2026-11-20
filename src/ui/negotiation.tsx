@@ -12,12 +12,13 @@ import {
   demand,
   makeOffer,
   negotiationFor,
+  offerCharge,
   offerProblem,
   prospectiveContract,
   talksOpen,
   type Offer,
 } from '../engine/offseason/negotiation';
-import { inRace, letGo, placeUserOffer, pullUserOffer } from '../engine/offseason/race';
+import { inRace, letGo, placeUserOffer, pullUserOffer, standingFitProblem } from '../engine/offseason/race';
 import { raceView } from '../engine/offseason/raceView';
 import { careerOutlook } from '../engine/scouting';
 import type { League, Player } from '../engine/types';
@@ -102,7 +103,15 @@ export function NegotiationDialog({
     setResult(null);
   };
   const preview = prospectiveContract(league, player, teamId, offer);
-  const problem = liveLock() ?? offerProblem(league, player, teamId, offer);
+  // In free agency an extension is held to your standing offers too: they must still fit after it.
+  const problem =
+    liveLock() ??
+    offerProblem(league, player, teamId, offer) ??
+    (own && league.phase === 'freeAgency'
+      ? standingFitProblem(league, teamId, {
+          space: capSpace(league, teamId) - offerCharge(league, player, teamId, offer),
+        })
+      : null);
   const hitNow = capHit(preview, league.season);
   const space = capSpace(league, teamId) + (own && player.contract ? capHit(player.contract, league.season) : 0);
 
@@ -134,7 +143,8 @@ export function NegotiationDialog({
     store.mutate((l) => letGo(l, player.id));
     onClose();
   };
-  // Pulling an offer that leads or is second ends talks with him; his agent's warning open, letting him go is free.
+  // Pulling an offer that leads or is second ends talks with him, and the button says so (a touch screen shows no
+  // tooltip); his agent's warning open, letting him go is free.
   const pullEnds = race?.place === 1 || race?.place === 2;
 
   if (result?.accepted) {
@@ -171,12 +181,8 @@ export function NegotiationDialog({
                 Let him go
               </button>
             ) : (
-              <button
-                className="btn"
-                onClick={pull}
-                title={pullEnds ? 'His agent ends talks if you pull an offer that leads or is second.' : undefined}
-              >
-                Pull offer
+              <button className="btn" onClick={pull}>
+                {pullEnds ? 'Pull offer and end talks' : 'Pull offer'}
               </button>
             ))}
           <button className="btn btn-primary" disabled={!!problem || broken} onClick={send}>
@@ -204,6 +210,11 @@ export function NegotiationDialog({
         </div>
       </div>
       {race && <RacePanel league={league} player={player} view={race} />}
+      {race?.warned && (
+        <p className="callout callout-gold" role="status">
+          His agent called. If your offer still trails when the day ends, he can sign with the team ahead.
+        </p>
+      )}
       {/* Worth knowing before you pick the years: when your scouts expect him to start fading. */}
       <p className="muted small" style={{ margin: 0 }}>
         {careerOutlook(league, teamId, player)}
