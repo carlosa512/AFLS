@@ -69,9 +69,9 @@ describe('when he decides', () => {
   });
 
   it('needs half the lead for an offer at his full ask', () => {
-    expect(RACE.lead).toBe(0.08);
-    expect(decides([offer(1, 1.05, 10), offer(2, 1)], { ...fresh, askApy: 10 })).toBe(true);
-    expect(decides([offer(1, 1.03, 10), offer(2, 1)], { ...fresh, askApy: 10 })).toBe(false);
+    expect(RACE.lead).toBe(0.06);
+    expect(decides([offer(1, 1.04, 10), offer(2, 1)], { ...fresh, askApy: 10 })).toBe(true);
+    expect(decides([offer(1, 1.02, 10), offer(2, 1)], { ...fresh, askApy: 10 })).toBe(false);
     expect(decides([offer(1, 1.05, 9), offer(2, 1)], { ...fresh, askApy: 10 })).toBe(false);
   });
 
@@ -727,9 +727,18 @@ describe('your offers', () => {
     for (const id of pendingWarnings(l)) {
       const p = l.players[id];
       const mine = l.faRace!.offers[id].find((o) => o.teamId === you(l))!;
-      expect(placeUserOffer(l, p, { ...mine.offer, apy: mine.offer.apy + 1 }).status).toBe('standing');
+      // A raise that closes in on the best rival without passing it: still trailing, but by less than he needs to sign.
+      const d = demand(l, p, you(l));
+      const per = offerValue(l, p, you(l), mine.offer, d) / mine.offer.apy;
+      const top = Math.max(
+        ...l.faRace!.offers[id].filter((o) => o.teamId !== you(l)).map((o) => offerValue(l, p, o.teamId, o.offer)),
+      );
+      const apy = Math.max(mine.offer.apy + 1, Math.floor((top * 0.97) / per));
+      expect(placeUserOffer(l, p, { ...mine.offer, apy }).status).toBe('standing');
       if (placeOf(l, p) > 1) answered.push(id);
     }
+    // His wait starts over with the raise, so that only a lead decides him on the eve.
+    for (const id of answered) l.faRace!.since[id] = l.faDay;
     const eve = judged(l);
     for (const id of pendingWarnings(l)) letGo(l, id);
     const warned = answered.filter((id) => eve.get(id)?.ranked[0]?.teamId !== you(l) && !l.players[id].teamId);

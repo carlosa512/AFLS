@@ -115,3 +115,22 @@ under the 1.5× that would send it back to the pass).
 
 `npm run morale` on the shipped numbers: **0 outside**. Near an edge: meetings a club a season 5.50 (3–6; 5.55 after
 0.4.48), trade requests a season 14.50 (3–15), Tight rooms 0.34 (0.15–0.35), rooms in doubt 0.23 (0.1–0.25).
+
+## Owner's calls
+
+`RACE.lead` lowered from 0.08 as far as the stop rule allows (no check line may fail; no range moved). Each run is
+`npm run offseason -- 6`.
+
+- `lead` 0.05: **1 outside** (exit 1), feuds a team, mean of 6 seasons 0.48 (0.5–1.8) ▼. Signed by day 2 % 48, 44, 44,
+  58, 72, 66 · contested % 53, 62, 45, 37, 33, 24 · elite mean day 2.4, 2.4, 2.4, 2.0, 1.8, 2.1. FA signings a club
+  8–10 ÷ 2–4 0.87. Rejected.
+- `lead` 0.06, **shipped**: **0 outside** (exit 0). Signed by day 2 % 47, 41, 41, 61, 61, 57 · contested % 49, 63, 59,
+  54, 32, 33 · elite mean day 2.4, 2.9, 2.9, 2.1, 2.4, 2.0. Feuds a team, mean of 6 seasons 0.57 (0.5–1.8). FA
+  signings a club 8–10 ÷ 2–4 0.84 (0.8–1.2), roster entering camp 0.97, next year used at kickoff +0.7. Round 1's
+  0.08 ran elite mean day 2.4–3.0 and signed by day 2 % 40–62.
+- `npm run morale` on 0.06: **0 outside**. Meetings a club a season 5.63 (3–6), trade requests a season 10.50 (3–15),
+  trade requests resolved by a trade 0.15 (0.15–0.75, on its floor), Tight rooms 0.34 (0.15–0.35), rooms in doubt 0.22
+  (0.1–0.25).
+
+The 0.07 step was not needed (0.06 was clean). The last-day rule (an offer that led when placed stays first) touches
+only a team you run and moves no AI-only number.

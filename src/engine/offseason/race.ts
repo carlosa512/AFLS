@@ -45,7 +45,7 @@ import {
 /** Starting guesses, tuned against the NFL's signing timing. */
 export const RACE = {
   /** The share his best offer must beat the next by, in his eyes, to stand out (half that at his full ask). */
-  lead: 0.08,
+  lead: 0.06,
   /** The days he waits at most before he takes his best. */
   wait: 1,
   /** The extra days the most patient one waits (scaled by his patience, 0–1). */
