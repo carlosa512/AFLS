@@ -3461,6 +3461,11 @@ tr.has-offer > td:first-child {
 .mail-card .race-panel {
   margin-top: 12px;
 }
+.race-more-teams {
+  padding-left: 54px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
 .race-agent {
   margin: 0;
   padding: 2px 0 2px 10px;

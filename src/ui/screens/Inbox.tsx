@@ -19,7 +19,7 @@ import { badgeOn } from '../color';
 import { useNav } from '../App';
 import { PHASE_LABELS, weekLabel } from '../format';
 import { InjuryTag } from '../injuries';
-import { MailCards, MailSections } from '../mail';
+import { cardLeads, MailCards, MailSections } from '../mail';
 import { NegotiationDialog } from '../negotiation';
 import { LinkedText, nameIndex, type MoveIndex, type Who } from '../moves';
 import { store } from '../store';
@@ -577,6 +577,7 @@ export function MessageBody({
   const shut = (a: InboxAction) =>
     !!m.edition && a.kind === 'fa' && (league.phase !== 'freeAgency' || !employed(league));
   const actions = m.actions.filter((a) => !skip.includes(a.kind) && !shut(a));
+  const cardPrimary = cardLeads(league, m);
   return (
     <>
       {/* An edition's stories are its body: the mail's own text is only there for search. */}
@@ -626,7 +627,8 @@ export function MessageBody({
       {actions.length > 0 && (
         <div className="row">
           {actions.map((a, i) =>
-            i === 0 ? (
+            // The first link is the primary, unless the card above already holds the letter's answer.
+            i === 0 && !cardPrimary ? (
               <button key={i} className="btn btn-sm btn-primary" onClick={() => act(a)}>
                 {actionLabel(league, m, a)}
               </button>

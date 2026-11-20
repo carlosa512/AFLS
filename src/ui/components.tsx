@@ -367,24 +367,27 @@ export function TeamChip({ team, large }: { team: Team; large?: boolean }) {
 
 /**
  * A team's name, and it always opens its page. The one way a screen shows a team: `chip` (the colour chip
- * before the name) in tables and lists, none in a sentence; `full` for "Dallas Rangers" over "Rangers";
- * `sub` a record or note under the name, outside the link.
+ * before the name) in tables and lists, none in a sentence; `full` for "Dallas Rangers" over "Rangers", `city` for
+ * "Dallas" where the words around it name teams by city (free agency's race, as its letters do); `sub` a record or note
+ * under the name, outside the link.
  */
 export function TeamLink({
   team,
   chip = false,
   full = false,
+  city = false,
   sub,
   className,
 }: {
   team: Team;
   chip?: boolean;
   full?: boolean;
+  city?: boolean;
   sub?: ReactNode;
   className?: string;
 }) {
   const nav = useNav();
-  const name = full ? `${team.city} ${team.name}` : team.name;
+  const name = full ? `${team.city} ${team.name}` : city ? team.city : team.name;
   const link = (
     <button
       type="button"

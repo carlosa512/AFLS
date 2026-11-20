@@ -62,21 +62,34 @@ const about = (apyK: number) => `$${apyK / 1000}M`;
 function AgentLine({ league, view }: { league: League; view: RaceView }) {
   if (view.leader === null || view.leaderApy === null) return <>No team has an offer in that he would sign.</>;
   if (view.leader === league.userTeamId) return <>Your offer leads.</>;
-  const team = <TeamLink team={league.teams[view.leader]} />;
+  // By city, as his agent's letters say it.
+  const team = <TeamLink team={league.teams[view.leader]} city />;
   return view.yours ? (
     <>
-      The {team} are ahead of you at about {about(view.leaderApy)} a year.
+      {team} is ahead of you at about {about(view.leaderApy)} a year.
     </>
   ) : (
     <>
-      The {team} lead at about {about(view.leaderApy)} a year.
+      {team} leads at about {about(view.leaderApy)} a year.
     </>
   );
+}
+
+/** The most bars a panel shows; the rest are counted. */
+export const RACE_BARS = 5;
+
+/** The teams a panel draws a bar for: the top `RACE_BARS`, yours always among them when it stands further back. */
+export function barsShown(view: RaceView): RaceView['teams'] {
+  const top = view.teams.slice(0, RACE_BARS);
+  const yours = view.teams.find((t) => t.you);
+  return !yours || top.includes(yours) ? top : [...top.slice(0, RACE_BARS - 1), yours];
 }
 
 /** One player's race as he sees it: what matters to him, how he likes each offer, and his agent's line. */
 export function RacePanel({ league, player, view }: { league: League; player: Player; view: RaceView }) {
   const wants = wantsLine(league, league.userTeamId, player);
+  const bars = barsShown(view);
+  const more = view.teams.length - bars.length;
   return (
     <section className="race-panel" aria-label="Offers for him">
       <div className="race-top">
@@ -90,7 +103,7 @@ export function RacePanel({ league, player, view }: { league: League; player: Pl
       </div>
       {view.teams.length > 0 && (
         <div className="race-bars">
-          {view.teams.map((t) => (
+          {bars.map((t) => (
             <div key={t.teamId} className={`race-bar${t.you ? ' is-you' : ''}`}>
               <Chip team={league.teams[t.teamId]} you={t.you} />
               <span className="race-track" aria-hidden="true">
@@ -106,6 +119,7 @@ export function RacePanel({ league, player, view }: { league: League; player: Pl
               )}
             </div>
           ))}
+          {more > 0 && <span className="race-more-teams">{more === 1 ? '1 more team' : `${more} more teams`}</span>}
         </div>
       )}
       <p className="race-agent">

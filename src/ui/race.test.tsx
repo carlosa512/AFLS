@@ -6,18 +6,21 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { capSpace } from '../engine/finance/cap';
+import { minSalary } from '../engine/finance/market';
 import { createLeague } from '../engine/generate';
 import { advanceOffseason, beginOffseason } from '../engine/offseason';
 import { deliverMail } from '../engine/inbox';
-import { askOffer, demand, freeAgents } from '../engine/offseason/negotiation';
+import { askOffer, demand, freeAgents, offerValue } from '../engine/offseason/negotiation';
 import { letGo, placeUserOffer } from '../engine/offseason/race';
 import { raceView, wantsLine } from '../engine/offseason/raceView';
 import type { League, Player } from '../engine/types';
 import { MailCards } from './mail';
+import { nameIndex } from './moves';
 import { NavContext, type Nav } from './nav';
 import { NegotiationDialog } from './negotiation';
-import { RaceChips, RacePlace } from './race';
+import { RACE_BARS, RaceChips, RacePlace } from './race';
 import { FreeAgents } from './screens/FrontOffice';
+import { MessageBody } from './screens/Inbox';
 
 const nav = {
   openPlayer: () => {},
@@ -55,6 +58,20 @@ function bid(l: League, p: Player): void {
   expect(placeUserOffer(l, p, { ...ask, apy: Math.round(Math.max(ask.apy, top) * 1.5) }).status).toBe('standing');
 }
 const count = (html: string, s: string) => html.split(s).length - 1;
+/** The least a year, in the shape of his ask, he'd take from you: an offer that stands at the back of his race. */
+function atFloor(l: League, p: Player) {
+  const d = demand(l, p, l.userTeamId);
+  const ask = askOffer(d);
+  const per = offerValue(l, p, l.userTeamId, ask, d) / ask.apy;
+  return { ...ask, apy: Math.max(minSalary(p.experience, l.caps[l.season]), Math.ceil(d.walkAway / per) + 1) };
+}
+/** The bars a dialog draws: the top five, yours among them, and a line counting the rest. */
+function expectBars(html: string, l: League, p: Player) {
+  const n = raceView(l, p.id)!.teams.length;
+  expect(count(html, 'class="race-track')).toBe(Math.min(RACE_BARS, n));
+  if (n > RACE_BARS) expect(html).toContain(n - RACE_BARS === 1 ? '1 more team<' : `${n - RACE_BARS} more teams<`);
+  else expect(html).not.toContain('more team');
+}
 
 describe('the Free agents tab in the race', () => {
   it('shows who is in, your place and his status, and marks the rows you bid on', () => {
@@ -111,13 +128,13 @@ describe('the dialog for a player in the race', () => {
     let html = dialog();
     expect(html).toContain('What matters to him');
     expect(html).toContain(wantsLine(l, l.userTeamId, p)!);
-    expect(count(html, 'class="race-track')).toBe(raceView(l, p.id)!.teams.length);
+    expectBars(html, l, p);
     expect(html).toContain('His agent');
     expect(html).toContain('>Make offer<');
     expect(html).not.toContain('Pull offer');
     bid(l, p);
     html = dialog();
-    expect(count(html, 'class="race-track')).toBe(raceView(l, p.id)!.teams.length);
+    expectBars(html, l, p);
     expect(html).toContain('>Update offer<');
     expect(html).toContain('>Pull offer<');
     expect(html).not.toContain('Let him go');
@@ -126,6 +143,30 @@ describe('the dialog for a player in the race', () => {
     html = dialog();
     expect(html).toContain('>Let him go<');
     expect(html).not.toContain('Pull offer');
+  });
+
+  it('draws a bar for your offer when it stands further back than fifth', () => {
+    const l = fresh();
+    const p = freeAgents(l).find(
+      (x) =>
+        teamsIn(l, x) > RACE_BARS &&
+        placeUserOffer(l, x, atFloor(l, x)).status === 'standing' &&
+        raceView(l, x.id)!.place! > RACE_BARS,
+    )!;
+    expect(p).toBeDefined();
+    const html = render(<NegotiationDialog league={l} player={p} onClose={() => {}} />);
+    expectBars(html, l, p);
+    expect(count(html, 'race-bar is-you')).toBe(1);
+    expect(html).toContain('Yours');
+  });
+
+  it("names the leader by city in his agent's line", () => {
+    const l = fresh();
+    const p = contested(l, 2);
+    const v = raceView(l, p.id)!;
+    const html = render(<NegotiationDialog league={l} player={p} onClose={() => {}} />);
+    expect(html).toContain(`>${l.teams[v.leader!].city}</button> leads at about $${v.leaderApy! / 1000}M a year.`);
+    expect(html).not.toContain(`>${l.teams[v.leader!].name}<`);
   });
 
   it('has no race panel for a player nobody else is in for', () => {
@@ -153,7 +194,16 @@ describe("his agent's warning in the inbox", () => {
     expect(html).toContain('>Improve your offer<');
     expect(html).toContain('>Let him go<');
     expect(html).toContain('2nd of');
+    expect(html).toContain('is ahead of you at about');
+    // The whole letter: the card's Improve your offer is its one yellow button, the letter's own links under it.
+    const body = () =>
+      render(<MessageBody league={l} m={letter} index={nameIndex(l)} act={() => {}} onNegotiate={() => {}} />);
+    expect(count(body(), 'btn-primary')).toBe(1);
+    expect(body()).toMatch(/btn-primary[^>]*>Improve your offer</);
     letGo(l, p.id);
+    // Answered, the card is gone and the letter's first link leads again.
+    expect(count(body(), 'btn-primary')).toBe(1);
+    expect(body()).not.toContain('Improve your offer');
     html = render(<MailCards league={l} message={letter} />);
     expect(html).not.toContain('Improve your offer');
     expect(html).not.toContain('What matters to him');

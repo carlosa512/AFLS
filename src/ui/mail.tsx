@@ -2820,6 +2820,15 @@ function Option({
  * The owner's question about your interim head coach: his two answers while it waits, then how it ended, read from
  * the league as it is (he holds the job, or he does not).
  */
+/**
+ * Whether the message's card holds its own primary answer (an agent's open warning: Improve your offer), so the
+ * letter's own links under it are all secondary and the letter keeps one yellow button.
+ */
+export function cardLeads(league: League, message: InboxMessage): boolean {
+  const s = mailSubject(message);
+  return s?.kind === 'faRace' && s.day !== null && needsYou(league, message) && raceView(league, s.playerId) !== null;
+}
+
 /** His agent's warning: the player, his race as he sees it, and your two answers. */
 function FaRaceCards({
   league,
