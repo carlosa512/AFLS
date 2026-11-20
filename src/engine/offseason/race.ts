@@ -372,6 +372,8 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   const offers: FaRace['offers'] = {};
   const warned = new Set(race.warnedSinceLead);
   const dropped = new Set(race.dropped);
+  /** Why each was dropped (`FaRace.droppedWhy`): you couldn't make it any more, or it fell under his walk-away. */
+  const why: Record<number, 'cap' | 'floor'> = { ...race.droppedWhy };
   /** His result: your place among the offers he weighed before any stepped aside (what you saw), and any drop. */
   const result = (p: Player, teamId: number, weighed: readonly RankedOffer[]): RaceResult => {
     const place = weighed.findIndex((r) => r.teamId === user);
@@ -382,6 +384,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
       offers: weighed.length,
       userPlace: place < 0 ? null : place + 1,
     };
+    if (place >= 0) r.userApy = weighed[place].offer.apy;
     if (dropped.delete(p.id)) r.userDropped = true;
     return r;
   };
@@ -395,6 +398,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
     let mine = user === null ? undefined : standing.find((o) => o.teamId === user);
     if (mine && !standsFor(league, p, mine)) {
       dropped.add(p.id);
+      why[p.id] = offerProblem(league, p, mine.teamId, mine.offer) ? 'cap' : 'floor';
       mine = undefined;
     }
     if (!entries.length && !mine) {
@@ -432,6 +436,7 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
           break;
         }
         dropped.add(p.id);
+        why[p.id] = 'cap';
       } else {
         const best = entries.find(({ bid }) => bid.team.id === ranked[0].teamId)!.bid;
         won = signable(pass, p, best);
@@ -489,6 +494,9 @@ export function raceDay(league: League, rng: Rng, opts: FaPassOpts): number {
   race.warnedSinceLead = [...warned].filter((id) => offers[id]);
   race.dropped = [...dropped].filter((id) => league.players[id].teamId === null);
   if (!race.dropped.length) delete race.dropped;
+  const still = race.dropped ?? [];
+  race.droppedWhy = Object.fromEntries(Object.entries(why).filter(([id]) => still.includes(+id)));
+  if (!still.length) delete race.droppedWhy;
   return signings;
 }
 
@@ -602,6 +610,7 @@ export function placeUserOffer(league: League, p: Player, offer: Offer): RaceRep
   race.offers[p.id] = [...(race.offers[p.id] ?? []).filter((o) => o.teamId !== teamId), placed];
   race.since[p.id] ??= league.faDay;
   if (race.dropped) race.dropped = race.dropped.filter((id) => id !== p.id);
+  if (race.droppedWhy) delete race.droppedWhy[p.id];
   answer(race, p.id);
   return { status: 'standing', message: 'Your offer is in. He will weigh it with the others.' };
 }
@@ -644,4 +653,5 @@ export function closeRace(league: League): void {
   race.warnings = [];
   race.warnedSinceLead = [];
   delete race.dropped;
+  delete race.droppedWhy;
 }

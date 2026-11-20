@@ -1,4 +1,6 @@
 import { offMarketMail } from './offMarketMail';
+import { raceWarningOpen } from './offseason/race';
+import { raceMail as freeAgencyRaceMail } from './raceMail';
 import { headCoachesOffStaff, lockerMail, recapAside } from './lockerMail';
 import { lockerReportMail } from './lockerReport';
 import { talkNeedsYou } from './talkMail';
@@ -788,6 +790,9 @@ export type MailSubject =
   | { kind: 'cleared'; season: number; week: number; playerId: number; type: string }
   | { kind: 'deadline'; season: number; weeksLeft: number | 'day' }
   | { kind: 'race'; season: number; level: 'spot' | 'division' | 'bye' | 'out' }
+  // Free agency's race (raceMail.ts): the agent's warning (`day` set) needs you while it waits on your answer; our
+  // offer coming off the table and where he signed (`day` null) ask nothing.
+  | { kind: 'faRace'; season: number; playerId: number; day: number | null; dropped?: true }
   | { kind: 'flex'; season: number; gameId: number }
   | { kind: 'owner'; season: number }
   // The owner asks about your interim head coach before he offers him the job: it needs you until you answer.
@@ -907,6 +912,17 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
     case 'deadline':
       return { kind: 'deadline', season, weeksLeft: a === 'day' ? 'day' : Number(a) };
     case 'race':
+      // A free agent's letter has his id and the day or its kind after the season; the playoff race's has a level only.
+      if (b !== undefined)
+        return b === 'done' || b === 'dropped'
+          ? {
+              kind: 'faRace',
+              season,
+              playerId: Number(a),
+              day: null,
+              ...(b === 'dropped' ? { dropped: true as const } : {}),
+            }
+          : { kind: 'faRace', season, playerId: Number(a), day: Number(b) };
       return { kind: 'race', season, level: a as 'spot' | 'division' | 'bye' | 'out' };
     case 'flex':
       return { kind: 'flex', season, gameId: Number(a) };
@@ -1041,6 +1057,8 @@ export function needsYou(league: League, m: InboxMessage): boolean {
     case 'injury':
     case 'deadline':
       return false;
+    case 'faRace':
+      return s.day !== null && raceWarningOpen(league, s.playerId);
     case 'waivers':
       return waiverLetterNeedsYou(league, m.sections);
     case 'expiring':
@@ -3154,10 +3172,12 @@ export function deliverMail(league: League): void {
         ...poachedMail(league, have),
         ...carouselMail(league, have),
         ...offMarketMail(league, have),
+        ...freeAgencyRaceMail(league, have),
       );
     // Free agency is over by the draft (or by camp, if a sim ran straight through it).
     if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...faWrapMail(league, have));
-    if (league.phase === 'draft') fresh.push(...draftDayMail(league, have));
+    // The last day's results come in as free agency closes.
+    if (league.phase === 'draft') fresh.push(...freeAgencyRaceMail(league, have), ...draftDayMail(league, have));
     // The coaches' position suggestion while a plan can still start; the note once cut-down day has made the move.
     if (league.phase === 'draft' || league.phase === 'preseason') fresh.push(...positionOfferMail(league, have));
     if (league.phase === 'regular' || league.phase === 'playoffs' || league.phase === 'complete')

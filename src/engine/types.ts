@@ -1706,6 +1706,8 @@ export interface RaceResult {
   day: number;
   offers: number;
   userPlace: number | null;
+  /** What your offer paid a year ($K) when he weighed it. */
+  userApy?: number;
   userDropped?: true;
 }
 
@@ -1722,6 +1724,8 @@ export interface FaRace {
   warnedSinceLead: number[];
   results: RaceResult[];
   dropped?: number[];
+  /** Why each of them was dropped: `cap` when you could no longer make it, `floor` when it fell under his walk-away. */
+  droppedWhy?: Record<number, 'cap' | 'floor'>;
 }
 
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
