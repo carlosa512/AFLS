@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.55',
+    date: '2026-11-20',
+    title: 'Free agency is a race',
+    text: 'Other teams bid on the free agents you want and raise when they fall behind, and the best sign in the first days. Your offers stand beside theirs, and an agent calls before you lose a player.',
+  },
+  {
     version: '0.4.54',
     date: '2026-11-19',
     title: 'A draft room with your needs',

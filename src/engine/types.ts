@@ -15,6 +15,7 @@ import type {
   GameDayList,
 } from './personnel/types';
 import type { Weather } from './weather';
+import type { Offer } from './offseason/negotiation';
 import type { FieldFacts } from './field/moment';
 import type { FieldSnapshot } from './field/snapshot';
 
@@ -1681,6 +1682,59 @@ export interface PickDeal {
   got: string[];
 }
 
+/** A team's standing offer for a free agent in the race (`offseason/race.ts`). */
+export interface RaceOffer {
+  teamId: number;
+  offer: Offer;
+  /** The free-agency day it was placed or last changed. */
+  day: number;
+  /** The team's opening price for him ($K a year), kept across days: its raises stop short of a share above it. */
+  first: number;
+  /** Your offer ranked first when you placed or last raised it (`placeUserOffer`): on the last day that lead stands. */
+  led?: boolean;
+}
+
+/** An agent's call that his player is about to sign elsewhere while your offer is behind. */
+export interface RaceWarning {
+  playerId: number;
+  day: number;
+  answered: boolean;
+}
+
+/** A free agent who chose in the race: where, on which day, how many offers he weighed and your place among them. */
+export interface RaceResult {
+  playerId: number;
+  teamId: number;
+  day: number;
+  offers: number;
+  userPlace: number | null;
+  /** What your offer paid a year ($K) when he weighed it. */
+  userApy?: number;
+  /** The deal he signed, a year's pay over that year's cap (the offseason check's good and elite signings). */
+  apyShare?: number;
+  userDropped?: true;
+}
+
+/**
+ * Free agency's race (`offseason/race.ts`): the standing offers by player, the day each first drew one (`since`), the
+ * agents' warnings and the players warned about since you last led, and who chose where. `dropped`: players whose
+ * offer of yours the race dropped (it no longer fit) and who haven't chosen yet, so their result says so; kept past
+ * free agency's last day until the next race opens.
+ */
+export interface FaRace {
+  season: number;
+  offers: Record<number, RaceOffer[]>;
+  since: Record<number, number>;
+  warnings: RaceWarning[];
+  warnedSinceLead: number[];
+  results: RaceResult[];
+  dropped?: number[];
+  /** Why each of them was dropped: `cap` when you could no longer make it, `floor` when it fell under his walk-away. */
+  droppedWhy?: Record<number, 'cap' | 'floor'>;
+  /** The free-agency day each of them was dropped. */
+  droppedOn?: Record<number, number>;
+}
+
 /** A user negotiation with a player (re-signing or free agency). Asks are derived, not stored. */
 export interface Negotiation {
   playerId: number;
@@ -2361,6 +2415,8 @@ export interface Game {
  */
 export type Phase = 'regular' | 'playoffs' | 'complete' | 'resign' | 'freeAgency' | 'draft' | 'preseason';
 export const OFFSEASON_PHASES: readonly Phase[] = ['resign', 'freeAgency', 'draft', 'preseason'];
+/** Free agency's days (`League.faDay` runs 1 to this). Kept here, a leaf, so the race and the calendar can both read it. */
+export const FA_DAYS = 5;
 
 export interface SeasonSummary {
   season: number;
@@ -2439,6 +2495,11 @@ export interface League {
   negotiations: Record<number, Negotiation>;
   /** Free-agency day within the current offseason (0 before it opens). */
   faDay: number;
+  /**
+   * Free agency's race (`offseason/race.ts`). Unset until the first race; its offers are emptied when free agency
+   * ends and its results kept until the next race opens.
+   */
+  faRace?: FaRace;
   /**
    * What the user's scouts have learned beyond film, by player id (0–1). Only scouted players
    * appear; everyone else's knowledge is derived (see `engine/scouting.ts`).

@@ -438,7 +438,18 @@ baseline and nudged each offseason; a weekly rotation, penalties logged by kind,
 next-game card, an Officials tab ranking every crew, and each game's penalties against the crew's
 average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
 
-**Next: Front office depth**
+**✅ Training, morale and holdouts (done)** — position moves taught over an offseason program, camp and practice
+weeks, development released week by week, mentoring (`docs/TRAINING.md`); every player's mood, players speaking up,
+promises, hold-ins, holdouts and trade requests, the locker room's voices, team meetings, chemistry and belief in the
+staff (`docs/MVP.md`, "Morale and holdouts").
+
+**Next: 0.5, the offseason comes alive** (`docs/MVP.md`)
+- ✅ The free-agency race (0.4.55): every team bids at once, raises and steps aside; players choose over five days;
+  your offers stand beside theirs, and an agent warns you before you lose a player.
+- Compensatory picks for the free agents a team loses.
+- Suspensions.
+
+**Then: Front office depth**
 - **Bug, its own PR:** an AI front office can kick off a season over the cap with a short roster.
   `npm run offseason -- 6` on the penalties branch (b02412e) had Atlanta $1.2M over the cap with 42
   players in 2030; the check already warns about short rosters as a known issue. Look at how the AI
@@ -449,13 +460,9 @@ average in the box score. Spec and later phases: `docs/OFFICIALS.md`.
   sixteen seasons and feeds the QB's pocket presence and decision making far more than any defender's
   contest. Review how each attribute ages and what it feeds, now that penalties, special teams and
   schemes read them too. Numbers: `docs/PENALTIES.md`, "Checks when Phase 3a landed".
-- Training, practice and position moves (plan: `docs/TRAINING.md`): an offseason program and
-  training camp as calendar steps, development released week by week, coaches teaching a player a
-  new position over time (no instant switch), an optional weekly practice plan on the CBA's padded
-  budget, then mentoring.
-- Morale (playing time, contract, results) and holdouts.
+- An optional weekly practice plan on the CBA's padded budget (`docs/TRAINING.md`).
 - Per-game form (consistency, big games); training camp injuries and the PUP list.
-- Compensatory picks, RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
+- RFA/ERFA tenders, LTBE/NLTBE incentives, conditional picks.
 - Trade-down offers during the draft (offers to you landed with the trade market's Phase 2).
 
 **Then: Game day**

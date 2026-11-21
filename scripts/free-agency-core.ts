@@ -232,3 +232,31 @@ export const kickoffStarters = (l: League): number[] =>
 /** Last kickoff's starters out of football at this one (%): unsigned or retired. */
 export const outOfFootball = (l: League, last: readonly number[]): number =>
   (100 * last.filter((id) => l.players[id].retired || l.players[id].teamId === null).length) / Math.max(1, last.length);
+
+export interface RaceMeasures {
+  /** The cumulative share of good signings made by each day 1–5. */
+  byDay: number[];
+  /** The mean day an elite player signed (NaN with none). */
+  eliteDay: number;
+  /** The share of good signings that had two or more valid offers when he signed. */
+  contested: number;
+  /** Good signings read. */
+  n: number;
+}
+
+/**
+ * The race's results (`League.faRace.results`, kept until the next race opens): when good signings (`GOOD` of the cap
+ * or more, read from the deal's share the result recorded) came, how late the elite ones did and how many drew a
+ * second offer. Read at kickoff, nothing stored.
+ */
+export function raceMeasures(l: League): RaceMeasures {
+  const good = (l.faRace?.results ?? []).filter((r) => (r.apyShare ?? 0) >= GOOD);
+  const n = good.length;
+  const elite = good.filter((r) => (r.apyShare ?? 0) >= ELITE);
+  return {
+    byDay: [1, 2, 3, 4, 5].map((d) => (n ? good.filter((r) => r.day <= d).length / n : 0)),
+    eliteDay: elite.length ? elite.reduce((s, r) => s + r.day, 0) / elite.length : NaN,
+    contested: n ? good.filter((r) => r.offers >= 2).length / n : NaN,
+    n,
+  };
+}

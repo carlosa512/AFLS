@@ -16,6 +16,8 @@ import {
 } from '../../engine/offseason/ai';
 import { positionDepth } from '../../engine/offseason/draft';
 import { demand, extensionBlocker, freeAgents, wantsMarket } from '../../engine/offseason/negotiation';
+import { inRace } from '../../engine/offseason/race';
+import { raceView, STATUS_WORDS, type RaceView } from '../../engine/offseason/raceView';
 import { teamPlayers } from '../../engine/roster';
 import { pron } from '../../engine/pronouns';
 import { resignForecast, staffName, staffWindowOpen } from '../../engine/staff';
@@ -38,6 +40,7 @@ import {
 import { attentionText, coachAttention } from '../coaching';
 import { money, PHASE_LABELS } from '../format';
 import { NegotiationDialog } from '../negotiation';
+import { RaceChips, RacePlace } from '../race';
 import { Ovr, seenOvr, viewOf } from '../scouting';
 import { CoachesScreen } from './Coaches';
 import { Draft } from './Draft';
@@ -424,9 +427,15 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
 
 // ───────── free agents ─────────
 
-type FaSort = 'name' | 'pos' | 'age' | 'ovr' | 'fit' | 'market' | 'ask';
+type FaSort = 'name' | 'pos' | 'age' | 'ovr' | 'fit' | 'market' | 'ask' | 'teams' | 'place' | 'status';
 
-function FreeAgents({
+/** The race's columns sort the busiest race, your best place and the nearest decision first. */
+const STATUS_ORDER = { waiting: 0, weighing: 1, close: 2 } as const;
+/** His agent called: above every status. */
+const CALLED = 3;
+const placeValue = (v: RaceView | null) => (v?.place ? -v.place : -99);
+
+export function FreeAgents({
   league,
   start,
   negotiate,
@@ -437,7 +446,8 @@ function FreeAgents({
   negotiate: (p: Player) => void;
 }) {
   const [pos, setPos] = useState<Position | 'ALL'>(start ?? 'ALL');
-  const [sort, onSort] = useSort<FaSort>({ key: 'market', desc: true });
+  // In free agency's days the market column gives way to the race: start on the overall, a column on screen.
+  const [sort, onSort] = useSort<FaSort>({ key: league.phase === 'freeAgency' ? 'ovr' : 'market', desc: true });
   const [pendingSort, onPendingSort] = useSort<ResignSort>({ key: 'ovr', desc: true });
   const teamId = league.userTeamId;
   const depth = positionDepth(league, teamId);
@@ -490,11 +500,23 @@ function FreeAgents({
       </Panel>
     );
   }
+  // Free agency's days: who is in for each player and where your offer stands, in place of his market and ask.
+  const racing = league.phase === 'freeAgency';
   const rows = freeAgents(league)
     .filter((p) => pos === 'ALL' || p.position === pos)
-    .map((p) => ({ p, d: demand(league, p, teamId), gain: needGain(depth, p, seenOvr(league, p)) }));
+    .map((p) => {
+      const view = racing ? raceView(league, p.id) : null;
+      return {
+        p,
+        d: demand(league, p, teamId),
+        gain: needGain(depth, p, seenOvr(league, p)),
+        // His race, while another team is in for him or your offer stands; else he signs on the spot.
+        race: view && (inRace(league, p.id) || view.yours) ? view : null,
+        view,
+      };
+    });
   // Sort the whole pool before trimming it, so "youngest" or "cheapest" reaches past the top of the market.
-  const pool = sortRows(rows, sort, ({ p, d, gain }, key) =>
+  const sorted = sortRows(rows, sort, ({ p, d, gain, race, view }, key) =>
     key === 'name'
       ? `${p.lastName} ${p.firstName}`.toLowerCase()
       : key === 'pos'
@@ -507,8 +529,20 @@ function FreeAgents({
               ? gain
               : key === 'ask'
                 ? d.askApy
-                : d.market,
-  ).slice(0, 120);
+                : key === 'teams'
+                  ? (race?.teams.length ?? 0)
+                  : key === 'place'
+                    ? placeValue(view)
+                    : key === 'status'
+                      ? race
+                        ? race.warned
+                          ? CALLED
+                          : STATUS_ORDER[race.status]
+                        : -1
+                      : d.market,
+  );
+  // A player whose agent called waits on your answer: his row comes first, whatever the sort.
+  const pool = [...sorted.filter((r) => r.view?.warned), ...sorted.filter((r) => !r.view?.warned)].slice(0, 120);
   return (
     <Panel
       title="Free agents"
@@ -533,15 +567,25 @@ function FreeAgents({
               <SortTh label="Age" k="age" sort={sort} onSort={onSort} desc={false} className="num" />
               <SortTh label="OVR" k="ovr" sort={sort} onSort={onSort} className="num" />
               <SortTh label="For you" k="fit" sort={sort} onSort={onSort} />
-              <SortTh label="Market" k="market" sort={sort} onSort={onSort} className="num" />
-              <SortTh label="Ask" k="ask" sort={sort} onSort={onSort} className="num" />
+              {racing ? (
+                <>
+                  <SortTh label="Teams in" k="teams" sort={sort} onSort={onSort} />
+                  <SortTh label="Your offer" k="place" sort={sort} onSort={onSort} />
+                  <SortTh label="Status" k="status" sort={sort} onSort={onSort} />
+                </>
+              ) : (
+                <>
+                  <SortTh label="Market" k="market" sort={sort} onSort={onSort} className="num" />
+                  <SortTh label="Ask" k="ask" sort={sort} onSort={onSort} className="num" />
+                </>
+              )}
               <th />
             </tr>
           </thead>
           <tbody>
-            {pool.map(({ p, d, gain }) => {
+            {pool.map(({ p, d, gain, race, view }) => {
               return (
-                <tr key={p.id}>
+                <tr key={p.id} className={view?.yours ? 'has-offer' : undefined}>
                   <td className="sticky-col">
                     <PlayerLink league={league} player={p} avatar={32} />
                   </td>
@@ -559,10 +603,30 @@ function FreeAgents({
                       <span className="muted small">–</span>
                     )}
                   </td>
-                  <td className="num">{money(d.market)}</td>
-                  <td className="num">
-                    {money(d.askApy)} × {d.askYears}
-                  </td>
+                  {racing ? (
+                    <>
+                      <td>
+                        {race ? <RaceChips league={league} view={race} /> : <span className="muted small">–</span>}
+                      </td>
+                      <td>{view ? <RacePlace view={view} /> : <span className="muted small">–</span>}</td>
+                      <td className="small">
+                        {race?.warned ? (
+                          <span className="tag-pill tag-warn">Agent called</span>
+                        ) : race ? (
+                          STATUS_WORDS[race.status]
+                        ) : (
+                          <span className="muted">–</span>
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="num">{money(d.market)}</td>
+                      <td className="num">
+                        {money(d.askApy)} × {d.askYears}
+                      </td>
+                    </>
+                  )}
                   <td>
                     <button className="btn btn-sm" onClick={() => negotiate(p)}>
                       Negotiate

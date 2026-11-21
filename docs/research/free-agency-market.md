@@ -161,3 +161,22 @@ offseason check's four leagues and three more, seasons 2–6:
 | Read after the retirements | 6.5–11.3% | | | |
 | Read before them (the NFL's way) | 15.6–20.6% | 3–9% | 15–19% | 25–44% |
 | The NFL | 25% | 14% | 19% | 40% |
+
+## When the market signs (free-agency race, 2026-11-20)
+
+Research input for `docs/superpowers/specs/2026-11-20-free-agency-race-design.md`: how fast the NFL's good players
+(`GOOD`, a new deal of 2% of the cap or more) and elite ones (`ELITE`, 5% or more) agree to deals across the negotiating
+window (day 1) and the league year's first four days. `python scripts/research-fa-timing.py` measures it from any
+file that carries signing dates.
+
+**No source with dates was found, so there is no measured table.** Checked 2026-11-20:
+
+- nflverse's copy of Over The Cap's contract history (`historical_contracts.csv.gz`) has `year_signed` and no date
+  (columns: player, position, team, year_signed, years, value, apy, guaranteed, apy_cap_pct, draft fields).
+- Over The Cap's free-agency page (`overthecap.com/free-agency/<year>`) loads its tables by script and its columns are
+  player, position, old team, new team, type, snaps, age, APY and guarantees: no date.
+- Spotrac's free-agency pages answered 402 through the proxy.
+- nflverse has no transactions release at the usual path (404).
+
+The script exits with that message on the nflverse file and reads a `--dates` csv (`otc_id`, `year_signed`,
+`date_signed`) if one is ever scraped. The new race lines in the offseason check stay warn-only with no NFL band.
