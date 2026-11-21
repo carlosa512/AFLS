@@ -202,10 +202,14 @@ function booksOk(pass: BidPass, team: Team, p: Player, o: Offer, above: number):
   return fits(books, dealAdds(pass.league, p, team.id, o, books), false, above);
 }
 
-/** Year-one charge: bonus spreads, so the hit is below the APY for bigger deals. */
+/**
+ * Year-one charge: bonus spreads, so the hit is below the APY for bigger deals. Rounded as the contract is built
+ * (`buildContract` rounds the base and the bonus to the thousand), so a deal fitted to this figure never books a
+ * fraction past the room it was fitted to.
+ */
 export const yearOne = (offer: Offer) =>
-  offer.apy * (1 - offer.bonusPct) +
-  (offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
+  Math.round(offer.apy * (1 - offer.bonusPct)) +
+  Math.round(offer.apy * offer.years * offer.bonusPct) / Math.min(5, offer.years + offer.voidYears);
 
 /**
  * Only the stars-only pass breaks a whole reserve: every pass breaking it for every young star took the league's

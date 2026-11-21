@@ -328,8 +328,7 @@ describe('the race for AI teams', () => {
         const m = teamMoney(day!, t.id);
         expect(m.signingsLeft).toBeGreaterThanOrEqual(0);
         expect(m.room).toBeGreaterThanOrEqual(0);
-        // A thousand of slack: a deal fitted to the dollar can land a rounding past the budget (a fraction of a thousand).
-        expect(m.budget).toBeGreaterThanOrEqual(Math.min(0, morning.get(t.id)!) - 1);
+        expect(m.budget).toBeGreaterThanOrEqual(Math.min(0, morning.get(t.id)!));
       }
       // A team that stepped aside didn't sign him that day.
       for (const { playerId, teamId } of aside) expect(l.players[playerId].teamId).not.toBe(teamId);
