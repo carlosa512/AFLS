@@ -155,7 +155,7 @@ variant B of the mockup:
 
 - What matters to him, in words, through your own read of him (as `personalityRead` and the character notes do: the
   top one or two of money, a winner, staying with his old team, home). Never a number.
-- A bar per team: how much he likes each offer, the leader's full. Bars are coarse (a few steps, not exact). Yours in
+- A bar per team: how much he likes each offer, the leader's full. Bars are coarse (tenths, not exact) and read the last fifth behind the leader (`BAR_SPAN`): offers are a few percent apart, and as plain shares of the leader's every bar showed full. Yours in
   yellow, with your own offer written under it.
 - His agent's line: who leads and the leader's money per year, rounded (about $13M a year). The agent rounds honestly.
 - The offer controls stay (years, per year, guaranteed, bonus, void years, the patience pips). "Make offer" places or

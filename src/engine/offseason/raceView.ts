@@ -35,8 +35,15 @@ export interface RaceView {
 
 const HALF_MILLION = 500;
 
-/** A bar in tenths of the leader's: at least a tenth, so a team in for him always shows. */
-export const barOf = (value: number, top: number): number => Math.max(0.1, Math.round((value / top) * 10) / 10);
+/**
+ * How far behind the leader the shortest bar sits: offers in a race are close (a few percent apart), so a bar read as a
+ * plain share of the leader's showed every offer full. Over this span a 2% gap is a bar a tenth shorter.
+ */
+export const BAR_SPAN = 0.2;
+
+/** A bar in tenths, the leader's full and an offer `BAR_SPAN` or more behind at a tenth, so a team in for him always shows. */
+export const barOf = (value: number, top: number): number =>
+  Math.max(0.1, Math.round((1 - (1 - value / top) / BAR_SPAN) * 10) / 10);
 
 /** What an agent says of a price ($K a year): to the nearest half million. */
 export const roundApy = (apy: number): number => Math.round(apy / HALF_MILLION) * HALF_MILLION;
