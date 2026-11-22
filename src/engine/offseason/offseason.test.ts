@@ -491,6 +491,8 @@ describe('the re-sign call', () => {
   // season, so who each club keeps moved (321 kept and 3 tagged before, 332 and 7 after).
   // again with the market and exits (2026-11-16): clubs re-sign their own less (`RESIGN_VALUE`, `fairPrice`) and offers run the length of
   // their pay, so who each club keeps moved (332 kept and 7 tagged before, 281 and 12 after).
+  // again with a wider camp through the prime (0.4.56, `CAMP.prime`): who starts at 25-28 moved, so who each club keeps
+  // moved (257 kept and 4 tagged before, 269 and 4 after).
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

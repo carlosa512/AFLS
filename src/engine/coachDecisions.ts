@@ -86,13 +86,28 @@ export function startLean(p: Pick<Player, 'age' | 'experience' | 'draft'> & { po
  * season in rating points, a pure function of who he is and his age (it changes when he turns a year older), so it
  * draws nothing and nothing is saved. Centred on zero with `sd` spread, never past three of it: a clearly better
  * player still starts. A team keeps one kicker and one punter: no camp battle there (`skip`).
+ *
+ * Through the prime (`prime`, 25–28) the spread is wider. Before it the youth lean and growth move the order, after it
+ * the decline does; in between a player's rating barely moves (`primeSwing`), so camp is all that can. At one spread for
+ * every age a starter who stayed with his team kept his job the next season 75.5% of the time at 25–26 and 75.9% at
+ * 27–28, against 73–74% at 21–24 and 29–30; the NFL's (2013–24) is flat, 71–73% at every age. A wider spread for
+ * everyone cost the starters too much talent (a worse player starts more often); one for the prime alone brings 25–26
+ * and 27–28 to the NFL's and leaves the other ages as they were (0.4.56).
  */
-export const CAMP: { sd: number; skip: Position[] } = { sd: 1.0, skip: ['K', 'P'] };
+export const CAMP: { sd: number; prime: { from: number; to: number; scale: number }; skip: Position[] } = {
+  sd: 1.0,
+  prime: { from: 25, to: 28, scale: 1.5 },
+  skip: ['K', 'P'],
+};
+
+/** The camp form's spread at his age: `sd`, times `prime.scale` through the prime. */
+export const campSpread = (age: number): number =>
+  CAMP.sd * (age >= CAMP.prime.from && age <= CAMP.prime.to ? CAMP.prime.scale : 1);
 
 export function campForm(p: Pick<Player, 'id' | 'age'>): number {
   // Who he is and how old: never his name, which anyone can edit on a card (a rename would move who starts).
   const [a, b, c] = hashUnits(`camp:${p.id}:${p.age}`);
-  return CAMP.sd * 2 * (a + b + c - 1.5);
+  return campSpread(p.age) * 2 * (a + b + c - 1.5);
 }
 
 /** Who a coach would start at a slot before his own leanings: his worth there, the youth lean and his camp. */

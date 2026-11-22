@@ -78,10 +78,10 @@ exports[`the ball path > draws the same path for one play of each kind as before
   ],
   "penalty": [
     {
-      "dur": 1.1199999999999999,
+      "dur": 0.8,
       "peak": 0,
-      "x0": 66,
-      "x1": 56,
+      "x0": 63,
+      "x1": 58,
       "y0": 26.65,
       "y1": 26.65,
     },
@@ -130,6 +130,24 @@ exports[`the ball path > draws the same path for one play of each kind as before
       "x1": 39,
       "y0": 26.65,
       "y1": 26.65,
+    },
+  ],
+  "scramble": [
+    {
+      "dur": 0.252,
+      "peak": 0,
+      "x0": 20,
+      "x1": 17,
+      "y0": 26.65,
+      "y1": 26.65,
+    },
+    {
+      "dur": 0.9239999999999999,
+      "peak": 0,
+      "x0": 17,
+      "x1": 23,
+      "y0": 26.65,
+      "y1": 12.249999999999998,
     },
   ],
   "xp": [

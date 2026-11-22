@@ -805,6 +805,11 @@ describe('your offers', () => {
         ...l.faRace!.offers[id].filter((o) => o.teamId !== you(l)).map((o) => offerValue(l, p, o.teamId, o.offer)),
       );
       const apy = Math.max(mine.offer.apy + 1, Math.floor((top * 0.97) / per));
+      // A man whose walk-away sits that close to the best rival has no such raise: let go, he isn't this scene.
+      if (offerValue(l, p, you(l), { ...mine.offer, apy }, d) < d.walkAway) {
+        letGo(l, id);
+        continue;
+      }
       expect(placeUserOffer(l, p, { ...mine.offer, apy }).status).toBe('standing');
       if (placeOf(l, p) > 1) answered.push(id);
     }
