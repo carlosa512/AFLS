@@ -21,8 +21,10 @@ export function compMail(league: League, have: Set<string>): Draft[] {
   const n = mine.length;
   const lines = mine.map((pk) => {
     const p = pk.compFor === undefined ? undefined : league.players[pk.compFor];
-    const to = p?.teamId == null ? null : league.teams[p.teamId];
-    return `A ${ROUND[pk.round]}-round compensatory pick for ${short(p)}${to ? `, who signed with the ${to.city} ${to.name}` : ''}.`;
+    const to = pk.compTo === undefined || pk.compTo === user ? null : league.teams[pk.compTo];
+    // Without the clause the sentence would end on an initialed name, which reads as a clipped sentence: say it in full.
+    const name = to || !p ? short(p) : `${p.firstName} ${p.lastName}`;
+    return `A ${ROUND[pk.round]}-round compensatory pick for ${name}${to ? `, who signed with the ${to.city} ${to.name}` : ''}.`;
   });
   const count = COUNT[n] ?? String(n);
   return [

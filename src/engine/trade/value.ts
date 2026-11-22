@@ -180,7 +180,7 @@ export function goingRate(league: League, pick: DraftPick, ctx?: TradeContext): 
  * mail is filed once and read later, when a projection would be stale, so it leaves that to the live card.
  */
 export const pickLabel = (league: League, pick: DraftPick, opts: { projected?: boolean } = {}) =>
-  `${pick.season} round ${pick.round}${pick.comp ? ' (comp)' : ''}${
+  `${pick.season} round ${pick.round}${pick.comp ? ' comp pick' : ''}${
     pick.overall
       ? ` (No. ${pick.overall})`
       : opts.projected === false

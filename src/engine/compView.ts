@@ -1,5 +1,5 @@
 import { capFor } from './finance/cap';
-import { compRound, compTally } from './offseason/comp';
+import { compRound, compTally, compWindow } from './offseason/comp';
 import { demand, walkedAway } from './offseason/negotiation';
 import type { League, Player } from './types';
 
@@ -9,23 +9,27 @@ export const short = (p?: Player) => (p ? `${p.firstName[0]}. ${p.lastName}` : '
 
 /** What letting a player of ours walk would likely earn (his market pay's round), or null when it would earn nothing. */
 export function walkLine(league: League, p: Player): string | null {
-  const round = compRound(demand(league, p, league.userTeamId).market, capFor(league, league.season));
+  const user = league.userTeamId;
+  // Only a player whose last team is ours could be credited to us.
+  if (walkedAway(p, user === 0 ? 1 : 0) !== user) return null;
+  const round = compRound(demand(league, p, user).market, capFor(league, league.season));
   return round === null ? null : `If he signs elsewhere, likely a ${ROUND[round]}-round compensatory pick next year.`;
 }
 
 /** What signing a free agent at `apy` would undo: the loss of ours his signing cancels, or null. */
 export function cancelLine(league: League, p: Player, apy: number): string | null {
   const user = league.userTeamId;
-  if (league.phase !== 'freeAgency' || walkedAway(p, user) === undefined) return null;
-  const { cancelled } = compTally(league, user, { extraGain: { playerId: p.id, apy } });
-  const hit = cancelled.find((c) => c.by.playerId === p.id);
+  if (!compWindow(league.phase) || walkedAway(p, user) === undefined) return null;
+  // Adding a gain can reshuffle which losses the others cancel, so compare the picks before and after.
+  const after = compTally(league, user, { extraGain: { playerId: p.id, apy } }).picks;
+  const hit = compTally(league, user).picks.find((b) => !after.some((a) => a.playerId === b.playerId));
   if (!hit) return null;
-  return `Signing him cancels the ${ROUND[hit.loss.round]}-round compensatory pick you are on track for (${short(league.players[hit.loss.playerId])}).`;
+  return `Signing him cancels the ${ROUND[hit.round]}-round compensatory pick you are on track for (${short(league.players[hit.playerId])}).`;
 }
 
 /** The compensatory picks our club is on track for while free agency runs, or null with none. */
 export function tallyLine(league: League): string | null {
-  if (league.phase !== 'freeAgency') return null;
+  if (!compWindow(league.phase)) return null;
   const { picks } = compTally(league, league.userTeamId);
   if (!picks.length) return null;
   const parts = picks.map((m, i) => {

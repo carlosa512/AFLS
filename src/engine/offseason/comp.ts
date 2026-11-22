@@ -38,9 +38,14 @@ export interface CompMove {
   teamId: number;
   round: Round;
   apy: number;
+  /** On a loss, the team that signed him. */
+  to?: number;
 }
 
 const better = (a: CompMove, b: CompMove) => a.round - b.round || b.apy - a.apy;
+
+/** The phases whose signings count: free agency and the draft (the user can sign free agents in both). */
+export const compWindow = (phase: string) => phase === 'freeAgency' || phase === 'draft';
 
 /** This league year's qualifying free-agent signings: those that took a player from a team, in free agency or the draft. */
 export function compMoves(league: League, season = league.season): { losses: CompMove[]; gains: CompMove[] } {
@@ -49,10 +54,10 @@ export function compMoves(league: League, season = league.season): { losses: Com
   const cap = capFor(league, season);
   for (const t of league.transactions) {
     if (t.kind !== 'sign' || t.from === undefined || t.apy === undefined || t.playerId === undefined) continue;
-    if (t.season !== season || (t.phase !== 'freeAgency' && t.phase !== 'draft')) continue;
+    if (t.season !== season || !compWindow(t.phase)) continue;
     const round = compRound(t.apy, cap);
     if (round === null) continue;
-    losses.push({ playerId: t.playerId, teamId: t.from, round, apy: t.apy });
+    losses.push({ playerId: t.playerId, teamId: t.from, round, apy: t.apy, to: t.teamIds[0] });
     gains.push({ playerId: t.playerId, teamId: t.teamIds[0], round, apy: t.apy });
   }
   return { losses, gains };
@@ -96,7 +101,7 @@ export function freezeComp(league: League): void {
   const owed = league.compOwed ?? [];
   for (const team of league.teams)
     for (const m of compTally(league, team.id).picks)
-      owed.push({ season: league.season, teamId: team.id, playerId: m.playerId, round: m.round, apy: m.apy });
+      owed.push({ season: league.season, teamId: team.id, playerId: m.playerId, round: m.round, apy: m.apy, to: m.to });
   league.compOwed = owed;
   league.compFrozen = league.season;
 }
@@ -119,6 +124,7 @@ export function awardComp(league: League): DraftPick[] {
     comp: true,
     compFor: c.playerId,
     compApy: c.apy,
+    ...(c.to !== undefined ? { compTo: c.to } : {}),
   }));
   league.draftPicks.push(...picks);
   return picks;

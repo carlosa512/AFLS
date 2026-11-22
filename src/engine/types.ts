@@ -1669,6 +1669,8 @@ export interface CompOwed {
   playerId: number;
   round: 3 | 4 | 5 | 6 | 7;
   apy: number;
+  /** The team he signed with, kept so a letter a year on does not name wherever he plays by then. */
+  to?: number;
 }
 
 export interface DraftPick {
@@ -1686,6 +1688,8 @@ export interface DraftPick {
   compFor?: number;
   /** What he signed for elsewhere, in $K a year: orders the comp picks of a round (best paid first). */
   compApy?: number;
+  /** The team the lost player signed with, carried from `CompOwed.to`. */
+  compTo?: number;
   /** The player taken with it, once used. */
   playerId?: number;
   /** Where the league consensus ranked that player in his class: reach or steal. */

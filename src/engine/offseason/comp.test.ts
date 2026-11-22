@@ -139,7 +139,7 @@ describe('freeze, award and the draft order', () => {
     const l = league();
     const id = walk(l, 1, 2, 3);
     freezeComp(l);
-    expect(l.compOwed).toMatchObject([{ season: l.season, teamId: 1, playerId: id, round: 3 }]);
+    expect(l.compOwed).toMatchObject([{ season: l.season, teamId: 1, playerId: id, round: 3, to: 2 }]);
     walk(l, 4, 5, 4);
     freezeComp(l);
     expect(l.compOwed).toHaveLength(1);
@@ -153,6 +153,7 @@ describe('freeze, award and the draft order', () => {
     l.season++;
     const picks = awardComp(l);
     expect(picks.map((p) => p.compFor).sort()).toEqual([a, a + 1].sort());
+    expect(picks.every((p) => p.compTo === 2)).toBe(true);
     for (const p of picks) {
       expect(p).toMatchObject({ season: year + 1, comp: true });
       expect(p.ownerId).toBe(p.originalTeamId);

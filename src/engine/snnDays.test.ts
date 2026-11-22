@@ -195,7 +195,7 @@ describe('Draft day', () => {
 
   describe('compensatory picks', () => {
     /** A comp pick of `round` used on `p`, earned by his team for a player of another club. */
-    const comp = (p: Player, round: number, owner = p.draft!.teamId) => {
+    const comp = (p: Player, round: number, owner = p.draft!.teamId, compTo?: number) => {
       const gone = Object.values(l.players).find((x) => x.teamId !== null && x.teamId !== owner && !x.draft)!;
       p.draft!.round = round;
       l.draftPicks.push({
@@ -207,6 +207,7 @@ describe('Draft day', () => {
         comp: true,
         compFor: gone.id,
         compApy: 20000,
+        ...(compTo !== undefined ? { compTo } : {}),
         playerId: p.id,
       });
       return gone;
@@ -233,10 +234,35 @@ describe('Draft day', () => {
       expect(stories(e).some((x) => x.paragraphs.join(' ').includes(fifth.lastName) && x.angle === 'comp')).toBe(false);
     });
 
+    it('names who signed him then, and the team that earned a traded pick', () => {
+      const third = pick(others()[6], 0, 90, 70);
+      const signer = others()[9];
+      const earner = others()[10];
+      const gone = comp(third, 3, earner, signer);
+      // He has moved on since; the story keeps the team he signed with.
+      gone.teamId = others()[11];
+      for (const x of Object.values(l.players)) if (x.draft?.season === l.season && x.draft.pick === 40) delete x.draft;
+      const e = buildDay(l, ['draft'])!;
+      const text = e.tiles.find((t) => t.angle === 'comp')!.paragraphs.join(' ');
+      expect(text).toMatch(new RegExp(`to (the )?${l.teams[signer].name} in free agency`));
+      expect(text).not.toContain(l.teams[others()[11]].name);
+      expect(text).toContain(l.teams[earner].name);
+    });
+
+    it('does not credit a traded comp pick to the reader in his draft', () => {
+      const gone = comp(mine[1], 4, others()[3]);
+      const e = buildDay(l, ['draft'])!;
+      const t = e.club!.paragraphs.join(' ');
+      expect(t).toContain('as a compensatory pick.');
+      expect(t).not.toContain('awarded for losing');
+      expect(t).not.toContain(`${gone.firstName} ${gone.lastName}`);
+      expect(t).not.toContain('pick at No.');
+    });
+
     it('tells the reader’s own comp picks inside his team’s slot', () => {
       const gone = comp(mine[1], 4);
       const e = buildDay(l, ['draft'])!;
-      expect(e.club!.paragraphs.join(' ')).toContain('was a compensatory pick');
+      expect(e.club!.paragraphs.join(' ')).toContain('as a compensatory pick, awarded for losing');
       expect(e.club!.paragraphs.join(' ')).toContain(`${gone.firstName} ${gone.lastName}`);
       expect(ruleBreaks(l, e.club!)).toEqual([]);
       for (const p of mine) l.draftPicks = l.draftPicks.filter((x) => x.playerId !== p.id);

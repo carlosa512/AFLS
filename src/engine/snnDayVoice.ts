@@ -332,7 +332,8 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     // The pick a team was awarded for a player it lost: told from the man it took, with who left.
     const dp = l.draftPicks.find((x) => x.comp && x.playerId === p.id);
     const gone = dp?.compFor === undefined ? undefined : l.players[dp.compFor];
-    const goneTo = gone?.teamId == null ? null : gone.teamId;
+    const goneTo = dp?.compTo ?? null;
+    const earner = dp && dp.originalTeamId !== club ? dp.originalTeamId : null;
     const the = cap(ref.club(club));
     const man = ref.man(p.id);
     const lost = gone ? ref.man(gone.id) : '';
@@ -346,7 +347,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       first: [
         `${the} took ${posWord(p)} ${man} at No. ${c.pick}, a third-round compensatory pick.`,
         gone
-          ? `The pick was awarded for losing ${lost}${goneTo === null || goneTo === club ? '' : ` to ${ref.club(goneTo)}`} in free agency.`
+          ? `The pick was awarded ${earner === null ? '' : `to ${ref.club(earner)} `}for losing ${lost}${goneTo === null || goneTo === club ? '' : ` to ${ref.club(goneTo)}`} in free agency.`
           : '',
       ],
       second: [rankLine(p.lastName, c), openerLine(l, at, ref, club)],
@@ -1302,8 +1303,8 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   const lostMen = comps.flatMap((x) => (x.compFor !== undefined && l.players[x.compFor] ? [x.compFor] : []));
   const compLine = comps.length
     ? comps.length === 1
-      ? `The pick at No. ${l.players[comps[0].playerId!].draft!.pick} was a compensatory pick${lostMen.length ? `, awarded for losing ${full(l.players[lostMen[0]])}` : ''}.`
-      : `${cap(count(comps.length))} of the picks were compensatory, awarded for free agents the team lost last year.`
+      ? `${l.players[comps[0].playerId!].lastName} went at No. ${l.players[comps[0].playerId!].draft!.pick} as a compensatory pick${lostMen.length && comps[0].originalTeamId === u ? `, awarded for losing ${full(l.players[lostMen[0]])}` : ''}.`
+      : `${cap(count(comps.length))} of the picks were compensatory, the first at No. ${l.players[comps[0].playerId!].draft!.pick}${comps.every((x) => x.originalTeamId === u) ? `, awarded for free agents the ${Club} lost last year` : ''}.`
     : '';
   const where = a.draft!.pick === 1 ? 'the first pick' : `the No. ${a.draft!.pick} pick`;
   const c = { pick: a.draft!.pick, rank: a.draft!.rank };
