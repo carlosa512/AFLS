@@ -54,8 +54,10 @@ for (let i = 0; i < n; i++) {
     const next = plays[j + 1];
     const lastSnapOfHalf =
       !next || next.quarter !== p.quarter || (next.quarter === 4 && next.clock === 0 && !next.down);
-    // The trailing (or tied, in range) offense's final snap of regulation was an ordinary run.
-    if (p.quarter === 4 && lastSnapOfHalf && diff < 0 && p.kind === 'run')
+    // The trailing (or tied, in range) offense's final snap of regulation was an ordinary run. A run that scores the
+    // touchdown is no nonsense: down 1 in easy range with a timeout, a coach runs to set up the kick (`playForFieldGoal`),
+    // and a run that breaks for the end zone wins it (0.4.56, 'end-…' 5000: 13 s, 2nd and 8 at the 26, 26-yard TD).
+    if (p.quarter === 4 && lastSnapOfHalf && diff < 0 && p.kind === 'run' && !/TOUCHDOWN/.test(p.text))
       flag('trailing team ends game on a run', plays, j);
     if (p.quarter === 4 && lastSnapOfHalf && diff < 0 && p.kind === 'kneel')
       flag('trailing team kneels at the end', plays, j);
