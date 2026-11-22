@@ -85,6 +85,24 @@ describe('compTally', () => {
     gain(l, 5);
     expect(compTally(l, 1).picks.map((p) => p.round)).toEqual([3]);
   });
+  it('a round 5 gain with losses 4 and 6 cancels the 6', () => {
+    const l = league();
+    lose(l, [4, 6]);
+    gain(l, 5);
+    expect(compTally(l, 1).picks.map((p) => p.round)).toEqual([4]);
+  });
+  it('a round 5 gain with losses 4 and 7 cancels the 7', () => {
+    const l = league();
+    lose(l, [4, 7]);
+    gain(l, 5);
+    expect(compTally(l, 1).picks.map((p) => p.round)).toEqual([4]);
+  });
+  it('a round 7 gain with losses 3 and 4 cancels the 4, the worst left', () => {
+    const l = league();
+    lose(l, [3, 4]);
+    gain(l, 7);
+    expect(compTally(l, 1).picks.map((p) => p.round)).toEqual([3]);
+  });
   it('a round 3 gain with losses 5 and 6 cancels the 5', () => {
     const l = league();
     lose(l, [5, 6]);

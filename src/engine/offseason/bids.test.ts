@@ -15,7 +15,7 @@ import { advanceOffseason, beginOffseason } from './index';
  */
 const outcome = (l: League) =>
   createHash('sha256')
-    .update(JSON.stringify(l.transactions.map(({ from: _f, apy: _a, ...t }) => t)))
+    .update(JSON.stringify(l.transactions.map((t) => ({ ...t, from: undefined, apy: undefined }))))
     .update(JSON.stringify(l.teams.map((t) => capSpace(l, t.id))))
     .digest('hex');
 

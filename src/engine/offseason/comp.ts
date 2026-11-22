@@ -55,8 +55,10 @@ export function compMoves(league: League, season = league.season): { losses: Com
 }
 
 /**
- * What a team is owed: its losses less its gains, one for one. Best gain first, each cancels the loss nearest its
- * round (a tie cancels the better one), then the cap of `COMP.max`, best first. `extraGain` asks "what if I signed him".
+ * What a team is owed: its losses less its gains, one for one. Gains go best first (round, then pay). Each cancels the
+ * best remaining loss of its own round or lower (a larger round number); if every loss left is better than the gain,
+ * it cancels the worst one, so a cheaper signing never wipes out the biggest compensation. Then the cap of `COMP.max`,
+ * best first. `extraGain` asks "what if I signed him".
  */
 export function compTally(
   league: League,
@@ -73,10 +75,9 @@ export function compTally(
   }
   const cancelled: { loss: CompMove; by: CompMove }[] = [];
   for (const g of got.sort(better)) {
-    let at = -1;
-    mine.forEach((l, i) => {
-      if (at < 0 || Math.abs(l.round - g.round) < Math.abs(mine[at].round - g.round)) at = i;
-    });
+    // mine is best first: the first loss no better than the gain, else (the gain is smaller than all) the worst one.
+    let at = mine.findIndex((l) => l.round >= g.round);
+    if (at < 0) at = mine.length - 1;
     if (at >= 0) cancelled.push({ loss: mine.splice(at, 1)[0], by: g });
   }
   return { picks: COMP.on ? mine.slice(0, COMP.max) : [], cancelled };
