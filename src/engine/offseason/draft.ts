@@ -69,7 +69,10 @@ const CLASS_MIX: [Position, number][] = POSITIONS.map((p) => [p, p === 'K' || p 
 
 export function generateDraftClass(league: League, rng: Rng): void {
   league.draftClass = [];
-  for (let i = 0; i < DRAFT_CLASS_SIZE; i++) {
+  // A compensatory pick is a pick more than 224: the class grows by as many prospects, on the same curve (the quality
+  // is read against `DRAFT_CLASS_SIZE`), so a draft with none is the class it always was.
+  const size = DRAFT_CLASS_SIZE + league.draftPicks.filter((p) => p.season === league.season && p.comp).length;
+  for (let i = 0; i < size; i++) {
     // A steep top, a long flat middle: a few day-one starters, many projects.
     // A class a little stronger than a new league's roster would need on its own (14.1 at the top): once the
     // generated veterans have retired, the draft alone carries the league, and at 13.5 it settled starters about
@@ -152,9 +155,18 @@ export function setDraftOrder(league: League, lastSeason: number): void {
     })
     .sort((a, b) => a.depth - b.depth || a.pct - b.pct || a.diff - b.diff || a.id - b.id)
     .map((x) => x.id);
-  for (const pick of league.draftPicks) {
-    if (pick.season !== league.season) continue;
-    pick.overall = (pick.round - 1) * 32 + order.indexOf(pick.originalTeamId) + 1;
+  // A round's regular picks by the order, then its compensatory picks (best paid first), numbered straight through.
+  const picks = league.draftPicks.filter((p) => p.season === league.season);
+  let overall = 0;
+  for (let round = 1; round <= DRAFT_ROUNDS; round++) {
+    const inRound = picks.filter((p) => p.round === round);
+    const regular = inRound
+      .filter((p) => !p.comp)
+      .sort((a, b) => order.indexOf(a.originalTeamId) - order.indexOf(b.originalTeamId));
+    const comp = inRound
+      .filter((p) => p.comp)
+      .sort((a, b) => (b.compApy ?? 0) - (a.compApy ?? 0) || a.originalTeamId - b.originalTeamId || a.id - b.id);
+    for (const pick of [...regular, ...comp]) pick.overall = ++overall;
   }
 }
 
@@ -311,11 +323,12 @@ export function draftPlayer(league: League, pick: DraftPick, player: Player): vo
   // Read before he joins the roster: the habit log asks what the room looked like when the pick was made.
   const depth = positionDepth(league, team.id)[player.position];
   setTeam(league, player, team.id);
-  player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season]);
+  player.contract = rookieContract(pick.overall!, league.season, league.caps[league.season], pick.round);
   player.draft = {
     season: league.season,
     round: pick.round,
     pick: pick.overall!,
+    slot: pick.overall! - league.draftPicks.filter((p) => p.season === pick.season && p.round < pick.round).length,
     teamId: team.id,
     rank: pick.consRank,
     ...(via !== undefined ? { via } : {}),

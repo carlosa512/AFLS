@@ -1,5 +1,5 @@
 import { capFor } from '../finance/cap';
-import type { League } from '../types';
+import type { CompOwed, DraftPick, League } from '../types';
 
 type Round = 3 | 4 | 5 | 6 | 7;
 
@@ -81,4 +81,41 @@ export function compTally(
     if (at >= 0) cancelled.push({ loss: mine.splice(at, 1)[0], by: g });
   }
   return { picks: COMP.on ? mine.slice(0, COMP.max) : [], cancelled };
+}
+
+/**
+ * Camp opens: every team's tally is written down for the league year's free agency, once. Anything signed after
+ * (a veteran in camp or the season) counts for nothing; the list is awarded at the next new league year.
+ */
+export function freezeComp(league: League): void {
+  if (league.compFrozen === league.season) return;
+  const owed = league.compOwed ?? [];
+  for (const team of league.teams)
+    for (const m of compTally(league, team.id).picks)
+      owed.push({ season: league.season, teamId: team.id, playerId: m.playerId, round: m.round, apy: m.apy });
+  league.compOwed = owed;
+  league.compFrozen = league.season;
+}
+
+/**
+ * At the new league year (after `league.season++`): last year's frozen entries become this draft's compensatory
+ * picks, each owned by the team that lost the player. Awarded once: the entries leave `compOwed`.
+ */
+export function awardComp(league: League): DraftPick[] {
+  const owed = league.compOwed ?? [];
+  const due = owed.filter((c: CompOwed) => c.season === league.season - 1);
+  if (!due.length) return [];
+  league.compOwed = owed.filter((c) => c.season !== league.season - 1);
+  const picks: DraftPick[] = due.map((c) => ({
+    id: league.nextPickId++,
+    season: league.season,
+    round: c.round,
+    originalTeamId: c.teamId,
+    ownerId: c.teamId,
+    comp: true,
+    compFor: c.playerId,
+    compApy: c.apy,
+  }));
+  league.draftPicks.push(...picks);
+  return picks;
 }

@@ -294,6 +294,8 @@ export interface Player {
     verdict?: PickVerdict;
     /** The team that held the pick first, when it came from another team. */
     via?: number;
+    /** Place within his round (comp picks run past 32); `pick` is the overall. Absent on older drafts. */
+    slot?: number;
     /** A pick moved during the draft: the team that sent it and what it got, as pick labels. */
     deal?: PickDeal;
   };
@@ -1659,6 +1661,16 @@ export interface GameManagement {
   away: { gmId: number | null; coaches: { id: number; role: CoachRole; room?: CoachRoom }[] };
 }
 
+/** A compensatory pick earned in a league year's free agency, frozen at camp and awarded at the next new league year. */
+export interface CompOwed {
+  /** The league year of the free agency that earned it. */
+  season: number;
+  teamId: number;
+  playerId: number;
+  round: 3 | 4 | 5 | 6 | 7;
+  apy: number;
+}
+
 export interface DraftPick {
   id: number;
   /** Draft year (the draft held in that league year's offseason). */
@@ -1668,6 +1680,12 @@ export interface DraftPick {
   ownerId: number;
   /** Overall slot once the order is known. */
   overall?: number;
+  /** A compensatory pick: awarded at the new league year for a free agent lost, last in its round. */
+  comp?: true;
+  /** The free agent it pays for (comp picks). */
+  compFor?: number;
+  /** What he signed for elsewhere, in $K a year: orders the comp picks of a round (best paid first). */
+  compApy?: number;
   /** The player taken with it, once used. */
   playerId?: number;
   /** Where the league consensus ranked that player in his class: reach or steal. */
@@ -2504,6 +2522,10 @@ export interface League {
    * ends and its results kept until the next race opens.
    */
   faRace?: FaRace;
+  /** Comp picks earned and not yet awarded (`offseason/comp.ts`). Unset on saves from before they existed. */
+  compOwed?: CompOwed[];
+  /** The league year whose comp picks `compOwed` already holds: freezing happens once a year. */
+  compFrozen?: number;
   /**
    * What the user's scouts have learned beyond film, by player id (0–1). Only scouted players
    * appear; everyone else's knowledge is derived (see `engine/scouting.ts`).

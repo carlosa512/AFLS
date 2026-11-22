@@ -71,9 +71,9 @@ function draftClass(league: League, teamId: number, season: number): number[] {
   const slots = onFile.length
     ? onFile
         .filter((d) => d.ownerId === teamId && d.playerId === undefined)
-        .map((d) => d.overall ?? (d.round - 1) * 32 + 16)
-    : CLASS_SLOTS;
-  return slots.map((slot) => capHit(rookieContract(slot, season, cap), season));
+        .map((d) => ({ slot: d.overall ?? (d.round - 1) * 32 + 16, round: d.round }))
+    : CLASS_SLOTS.map((slot) => ({ slot, round: Math.ceil(slot / 32) }));
+  return slots.map(({ slot, round }) => capHit(rookieContract(slot, season, cap, round), season));
 }
 
 /** The books as they stand. One depth read a call: cheap enough for a decision, built once for a loop. */

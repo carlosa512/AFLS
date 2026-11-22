@@ -51,7 +51,7 @@ import { inSeasonReserve } from './offseason/ai';
 import type { Contract, DraftPick, GmTraits, League, Personality, Player, Position, Ratings, Team } from './types';
 import { ATTRIBUTES, POSITIONS } from './types';
 
-export const SAVE_VERSION = 102;
+export const SAVE_VERSION = 103;
 /** 2026 salary cap, in thousands of dollars. */
 export const SALARY_CAP = BASE_CAP;
 export const DRAFT_ROUNDS = 7;
@@ -207,11 +207,13 @@ export function generatePlayer(rng: Rng, spec: PlayerSpec): Player {
   return player;
 }
 
-/** A slotted four-year rookie deal for the `overall` pick in the `draftSeason` draft. */
-export function rookieContract(overall: number, draftSeason: number, cap: number): Contract {
+/**
+ * A slotted four-year rookie deal for the `overall` pick in the `draftSeason` draft. `round` is the pick's own: a
+ * compensatory third-rounder is picked after No. 96 and still carries a third-rounder's guarantee.
+ */
+export function rookieContract(overall: number, draftSeason: number, cap: number, round: number): Contract {
   const apy = rookieApy(overall, cap);
   const total = apy * 4;
-  const round = Math.ceil(overall / 32);
   const bonus = total * rookieBonusShare(overall);
   const min = minSalary(0, cap);
   // First-rounders are fully guaranteed; Day 2 picks get their first year guaranteed.
@@ -378,7 +380,7 @@ function initialContract(
     exp <= OPTION_CLASS &&
     payTier(player.position, positionRank(market, player)) >= 0.45;
   if (draft && (exp < OPTION_CLASS || option)) {
-    const c = rookieContract(draft.pick, draft.season, capThen(exp));
+    const c = rookieContract(draft.pick, draft.season, capThen(exp), draft.round);
     if (option) {
       // Priced the spring he was four years in, at that year's cap.
       const value = Math.round(fifthYearOptionValue(league, player) / 1.07 ** (exp - (OPTION_CLASS - 1)));

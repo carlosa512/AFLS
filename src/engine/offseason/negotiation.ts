@@ -472,7 +472,7 @@ export function rookieCost(league: League, teamId: number): number {
   const season = league.season;
   return league.draftPicks
     .filter((p) => p.season === season && p.ownerId === teamId && p.playerId === undefined)
-    .reduce((s, p) => s + capHit(rookieContract(p.overall ?? 100, season, league.caps[season]), season), 0);
+    .reduce((s, p) => s + capHit(rookieContract(p.overall ?? 100, season, league.caps[season], p.round), season), 0);
 }
 
 /** Cap room a team keeps aside before the draft for this offseason's rookie class. */
