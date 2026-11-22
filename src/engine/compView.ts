@@ -4,8 +4,8 @@ import { demand, walkedAway } from './offseason/negotiation';
 import type { League, Player } from './types';
 
 /** Words only: the round and who it is for, never a pay or a cap share. */
-const ROUND: Record<number, string> = { 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th' };
-const short = (p?: Player) => (p ? `${p.firstName[0]}. ${p.lastName}` : 'a player');
+export const ROUND: Record<number, string> = { 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th' };
+export const short = (p?: Player) => (p ? `${p.firstName[0]}. ${p.lastName}` : 'a player');
 
 /** What letting a player of ours walk would likely earn (his market pay's round), or null when it would earn nothing. */
 export function walkLine(league: League, p: Player): string | null {

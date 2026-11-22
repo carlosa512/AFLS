@@ -97,6 +97,7 @@ import {
   teamPlayers,
   wrSpotsOf,
 } from './roster';
+import { compMail } from './compMail';
 import { futuresKept, futuresPicks, futuresWindowOpen } from './personnel/futures';
 import { elevationUses } from './personnel/elevations';
 import { isPrimeTime, kickoffLabel } from './season/kickoff';
@@ -823,6 +824,7 @@ export type MailSubject =
   | { kind: 'waiverOut'; season: number; entryId: number }
   | { kind: 'callups'; season: number; playerId: number }
   | { kind: 'futuresKept'; season: number }
+  | { kind: 'comp'; season: number }
   // The locker room's letters (lockerMail.ts): mentors, a grown-up player, captains, feuds and friends, a player who
   // speaks out, homecomings. Nothing on them is asked of you.
   | { kind: 'locker'; season: number }
@@ -965,6 +967,8 @@ export function mailSubject(m: InboxMessage): MailSubject | null {
       return { kind: 'futures', season };
     case 'futuresKept':
       return { kind: 'futuresKept', season };
+    case 'comp':
+      return { kind: 'comp', season };
     case 'squadPoach':
       return { kind: 'squadPoach', season, week: Number(a), playerId: Number(b) };
     case 'ceiling':
@@ -3159,6 +3163,7 @@ export function deliverMail(league: League): void {
         ...newYearMail(league, have),
         ...contractMail(league, have),
         ...futuresKeptMail(league, have),
+        ...compMail(league, have),
         ...personnelOfferMail(league, have),
       );
     if (league.phase === 'playoffs' || league.phase === 'complete') fresh.push(...futuresMail(league, have));

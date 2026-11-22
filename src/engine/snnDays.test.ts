@@ -193,6 +193,57 @@ describe('Draft day', () => {
     for (const s of stories(e)) expect(s.kind).toBe('day');
   });
 
+  describe('compensatory picks', () => {
+    /** A comp pick of `round` used on `p`, earned by his team for a player of another club. */
+    const comp = (p: Player, round: number, owner = p.draft!.teamId) => {
+      const gone = Object.values(l.players).find((x) => x.teamId !== null && x.teamId !== owner && !x.draft)!;
+      p.draft!.round = round;
+      l.draftPicks.push({
+        id: l.nextPickId++,
+        season: l.season,
+        round,
+        originalTeamId: owner,
+        ownerId: owner,
+        comp: true,
+        compFor: gone.id,
+        compApy: 20000,
+        playerId: p.id,
+      });
+      return gone;
+    };
+    const others = () => l.teams.map((t) => t.id).filter((id) => id !== l.userTeamId);
+
+    it('tells a rival’s third-round comp pick as a tile, never the lead, and nothing for its fifth', () => {
+      const third = pick(others()[6], 0, 90, 70);
+      const gone = comp(third, 3);
+      const fifth = pick(others()[7], 0, 170, 150);
+      comp(fifth, 5);
+      const cs = dayCandidates(l, 'draft', new Set());
+      expect(cs.filter((c) => c.angle === 'comp').map((c) => c.playerId)).toEqual([third.id]);
+      expect(cs.find((c) => c.angle === 'comp')!.tier).toBe(3);
+      // The page has three tiles: the fall at No. 40 would take the last, so the scene leaves it out.
+      for (const x of Object.values(l.players)) if (x.draft?.season === l.season && x.draft.pick === 40) delete x.draft;
+      const e = buildDay(l, ['draft'])!;
+      expect(e.lead.angle).not.toBe('comp');
+      const tile = e.tiles.find((t) => t.angle === 'comp');
+      expect(tile).toBeTruthy();
+      expect(tile!.paragraphs[0]).toContain('third-round compensatory pick');
+      expect(tile!.paragraphs[0]).toContain(`${gone.firstName} ${gone.lastName}`);
+      expect(ruleBreaks(l, tile!)).toEqual([]);
+      expect(stories(e).some((x) => x.paragraphs.join(' ').includes(fifth.lastName) && x.angle === 'comp')).toBe(false);
+    });
+
+    it('tells the reader’s own comp picks inside his team’s slot', () => {
+      const gone = comp(mine[1], 4);
+      const e = buildDay(l, ['draft'])!;
+      expect(e.club!.paragraphs.join(' ')).toContain('was a compensatory pick');
+      expect(e.club!.paragraphs.join(' ')).toContain(`${gone.firstName} ${gone.lastName}`);
+      expect(ruleBreaks(l, e.club!)).toEqual([]);
+      for (const p of mine) l.draftPicks = l.draftPicks.filter((x) => x.playerId !== p.id);
+      expect(buildDay(l, ['draft'])!.club!.paragraphs.join(' ')).not.toContain('compensatory');
+    });
+  });
+
   it('files nothing when the day has no lead', () => {
     for (const p of Object.values(l.players)) if (p.draft?.season === l.season) delete p.draft;
     expect(dayMail(l)).toEqual([]);
