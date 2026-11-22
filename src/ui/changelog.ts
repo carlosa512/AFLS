@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.4.57',
+    date: '2026-11-22',
+    title: 'Compensatory picks',
+    text: 'Lose a good free agent and you may get a pick back next year. The Re-sign tab and free agency show when.',
+  },
+  {
     version: '0.4.56',
     date: '2026-11-22',
     title: 'Clearer offer bars, real camp battles',

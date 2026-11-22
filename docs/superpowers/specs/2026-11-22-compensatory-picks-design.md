@@ -41,9 +41,12 @@ sign). That can be a later step.
 
 - `DraftPick.comp?: true` — a compensatory pick. Its `originalTeamId` is the team that earned it.
 - `DraftPick.compFor?: number` — the player whose departure earned it (for the letter, the list and SNN).
-- No stored tally: losses and gains are read from `Player.left` and the free-agency signings in `league.transactions`
-  (`kind: 'sign'` with `playerId`, this league year) through one reader, `compTally(league, teamId)`, which screens and
-  the award share.
+- Signings record the team a player walked from and his yearly pay (`Transaction.from`, `apy`); `compTally(league,
+  teamId)` reads them live for the screens. When camp opens each team's result is frozen into `League.compOwed`
+  (`compFrozen` keeps it to once a year), because the transaction log is trimmed long before the next league year. An
+  awarded pick keeps the deal's pay (`DraftPick.compApy`) to order a round's comp picks.
+- `Player.draft.slot` is a drafted player's place within his round (comp picks run past 32); each comp pick adds one
+  prospect to the draft class.
 - Draft order: `setDraftOrder` places a round's comp picks after its 32 regular picks and numbers `overall`
   continuously (a round is no longer always 32 picks). Every reader that derives a round or a slot from `overall`
   assuming 32 a round is found and fixed (`pickLabel`, trade values, the draft room, SNN).
@@ -68,7 +71,8 @@ from the truth.
    whom (one sentence a pick), or nothing if none. The picks show in your draft list marked "Comp".
 
 **SNN's draft-day edition** (`snnDays.ts`): one line about your team's comp picks when you have any, and a line for
-any other team's 3rd-round comp pick (the big ones). Nothing otherwise.
+any other team's 3rd-round comp pick (the big ones). Nothing otherwise. Your own comp picks are a sentence in your
+team's own slot of the draft-day edition (the edition never gives the reader's team a tile).
 
 ## Tests
 
