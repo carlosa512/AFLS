@@ -328,8 +328,7 @@ describe('the race for AI teams', () => {
         const m = teamMoney(day!, t.id);
         expect(m.signingsLeft).toBeGreaterThanOrEqual(0);
         expect(m.room).toBeGreaterThanOrEqual(0);
-        // A thousand of slack: a deal fitted to the dollar can land a rounding past the budget (a fraction of a thousand).
-        expect(m.budget).toBeGreaterThanOrEqual(Math.min(0, morning.get(t.id)!) - 1);
+        expect(m.budget).toBeGreaterThanOrEqual(Math.min(0, morning.get(t.id)!));
       }
       // A team that stepped aside didn't sign him that day.
       for (const { playerId, teamId } of aside) expect(l.players[playerId].teamId).not.toBe(teamId);
@@ -806,6 +805,11 @@ describe('your offers', () => {
         ...l.faRace!.offers[id].filter((o) => o.teamId !== you(l)).map((o) => offerValue(l, p, o.teamId, o.offer)),
       );
       const apy = Math.max(mine.offer.apy + 1, Math.floor((top * 0.97) / per));
+      // A man whose walk-away sits that close to the best rival has no such raise: let go, he isn't this scene.
+      if (offerValue(l, p, you(l), { ...mine.offer, apy }, d) < d.walkAway) {
+        letGo(l, id);
+        continue;
+      }
       expect(placeUserOffer(l, p, { ...mine.offer, apy }).status).toBe('standing');
       if (placeOf(l, p) > 1) answered.push(id);
     }

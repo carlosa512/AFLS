@@ -95,11 +95,13 @@ describe('the market clears by camp', () => {
       // The scene is a club with only its room: one that restructured made more of it.
       const made = last.l.transactions.slice(last.l.transactions.indexOf(mark!) + 1);
       if (made.some((x) => x.kind === 'restructure' && x.teamIds.includes(t.id))) continue;
-      found = true;
       const signed = last.l.players[last.p.id];
+      // Nor one he is a clear upgrade for: the last call pays for that with the squad's money and a minimum man's spot
+      // as well (`fundedRoom`), more than the room the scene gives it.
+      if (capHit(signed.contract!, last.l.season) > 1.5 * last.min + 1) continue;
+      found = true;
       // A prove-it deal: one year for a veteran, two for a player 28 or younger (`fitOffer`).
       expect(signed.contract!.length).toBe(signed.age <= 28 ? YOUNG_PROVE_IT_YEARS : 1);
-      expect(capHit(signed.contract!, last.l.season)).toBeLessThanOrEqual(1.5 * last.min + 1);
       // Before camp he takes less than his walk-away from nobody.
       const early = lateVeteran(t.id, 1.5);
       const walkAway = demand(early.l, early.p, t.id).walkAway;

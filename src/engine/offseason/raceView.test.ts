@@ -31,8 +31,9 @@ const keysOf = (x: unknown): string[] =>
   x && typeof x === 'object' ? Object.entries(x).flatMap(([k, v]) => [k, ...keysOf(v)]) : [];
 
 describe('the race as a screen reads it', () => {
-  it('bars are tenths of the leader, at least a tenth', () => {
-    expect([1.0, 0.84, 0.61].map((v) => barOf(v, 1))).toEqual([1, 0.8, 0.6]);
+  it('bars are tenths over the last fifth behind the leader, at least a tenth', () => {
+    expect([1.0, 0.98, 0.96, 0.9].map((v) => barOf(v, 1))).toEqual([1, 0.9, 0.8, 0.5]);
+    expect(barOf(0.8, 1)).toBe(0.1);
     expect(barOf(0.01, 1)).toBe(0.1);
   });
 

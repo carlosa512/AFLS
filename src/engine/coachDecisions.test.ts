@@ -1,5 +1,14 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { assessCoachAdvice, CAMP, campForm, coachOrder, START_LEAN, startLean, startScore } from './coachDecisions';
+import {
+  assessCoachAdvice,
+  CAMP,
+  campForm,
+  campSpread,
+  coachOrder,
+  START_LEAN,
+  startLean,
+  startScore,
+} from './coachDecisions';
 import { teamCoaches } from './coaching';
 import { slotOvr } from './familiarity';
 import { createLeague } from './generate';
@@ -84,15 +93,32 @@ describe('the lineup lean (project B)', () => {
 });
 
 describe('camp battles (project B)', () => {
-  it('gives each player one camp form for a season, centred on zero with CAMP.sd spread', () => {
+  it("gives each player one camp form for a season, centred on zero with his age's spread", () => {
     const ps = Object.values(world.players);
     for (const p of ps.slice(0, 50)) expect(campForm(p)).toBe(campForm(clone(p)));
-    const xs = ps.map(campForm);
+    // In units of his age's spread: one sd, never past three.
+    const xs = ps.map((p) => campForm(p) / campSpread(p.age));
     const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
     const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
     expect(Math.abs(mean)).toBeLessThan(0.05);
-    expect(Math.abs(sd - CAMP.sd) / CAMP.sd).toBeLessThan(0.1);
-    for (const x of xs) expect(Math.abs(x)).toBeLessThanOrEqual(3 * CAMP.sd + 1e-9);
+    expect(Math.abs(sd - 1)).toBeLessThan(0.1);
+    for (const x of xs) expect(Math.abs(x)).toBeLessThanOrEqual(3 + 1e-9);
+  });
+
+  it('spreads camp wider through the prime, 25 to 28, than before or after it', () => {
+    const { from, to } = CAMP.prime;
+    expect(campSpread(from)).toBeGreaterThan(campSpread(from - 1));
+    expect(campSpread(to)).toBeGreaterThan(campSpread(to + 1));
+    expect(campSpread(from - 1)).toBe(CAMP.sd);
+    expect(campSpread(to + 1)).toBe(CAMP.sd);
+    // Held at zero, no age has a camp (the tests that turn it off set `sd` alone).
+    const sd = CAMP.sd;
+    CAMP.sd = 0;
+    try {
+      expect(campSpread(26)).toBe(0);
+    } finally {
+      CAMP.sd = sd;
+    }
   });
 
   it('draws a new camp form when a year passes', () => {
@@ -110,7 +136,7 @@ describe('camp battles (project B)', () => {
       a.id = 100_000 + i;
       b.id = 200_000 + i;
       if (coachOrder([b, a], 'WR', [])[0].id === a.id) swaps++;
-      const clear = wr(world, 1, 10 + 6 * CAMP.sd + 0.1, { age: 27, experience: 6 });
+      const clear = wr(world, 1, 10 + 6 * campSpread(27) + 0.1, { age: 27, experience: 6 });
       expect(coachOrder([clear, a], 'WR', [])[0].id).toBe(clear.id);
     }
     expect(swaps).toBeGreaterThan(5);

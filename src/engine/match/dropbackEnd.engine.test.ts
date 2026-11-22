@@ -25,8 +25,11 @@ const SLIDES = [
 describe('how a play ends, in the engine', () => {
   it('taps every sack, never past his goal line, and some cost nothing', () => {
     const sacks = taps.filter((t) => t.kind === 'sack');
-    // A sack a flag wiped out is logged as the penalty, its text kept.
-    expect(sacks.length).toBe(plays.filter((e) => / SACKED by /.test(e.text)).length);
+    // A sack a flag wiped out is logged as the penalty, its text kept. A two-point try is a snap with nothing booked
+    // (`twoPointTry`): a sack on one is in its text and taps no ending.
+    expect(sacks.length).toBe(
+      plays.filter((e) => / SACKED by /.test(e.text) && !e.text.startsWith('Two-point try: ')).length,
+    );
     for (const t of sacks) expect(t.loss!).toBeLessThanOrEqual(t.yardLine!);
     expect(sacks.some((t) => t.loss === 0)).toBe(true);
   });

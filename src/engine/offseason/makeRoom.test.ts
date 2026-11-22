@@ -290,7 +290,11 @@ describe('GMs plan next year first', () => {
 
   it('counts next year’s planned keepers and next year’s draft class', () => {
     const l: League = JSON.parse(window);
-    const team = l.teams.find((t) => t.id !== l.userTeamId && nextKeepers(l, t.id).length)!;
+    // A club whose books hold its keepers with room to spare: a pick added there is a cost, not a keeper squeezed out
+    // (a club at its ceiling keeps its best first, `capBooks`, and a pick can push its last keeper out of the count).
+    const team = l.teams.find(
+      (t) => t.id !== l.userTeamId && nextKeepers(l, t.id).length && capBooks(l, t).years[0].room > 25_000,
+    )!;
     const market = leagueMarket(l);
     const keepers = nextKeepers(l, team.id);
     const base = nextYearNeeds(l, team);

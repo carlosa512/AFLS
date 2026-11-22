@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chemistryOf } from './chemistry';
 import { adviceKey, CAMP, updateCoachAdvice } from './coachDecisions';
 import { releaseCoach, ROOM_LABEL, teamCoaches } from './coaching';
 import { createLeague } from './generate';
@@ -345,14 +346,17 @@ describe('staff rows for the weekly letter', () => {
     const l = inSeason();
     splitUnit(l, 'WR');
     roomStory(l, 'WR');
-    l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:Out of sync`]: 1 };
+    // Told Out of sync before (or, a room that reads Out of sync now, Gelling): its chemistry now is news either way.
+    const now = chemistryOf(l, l.userTeamId, 'WR')!.word;
+    const before = now === 'Out of sync' ? 'Gelling' : 'Out of sync';
+    l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:${before}`]: 1 };
     const { rooms, covered } = staffRows(l, toldKeys(l));
     const chemNotes = covered.filter((k) => k.startsWith('chem:')).length;
     const wr = rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR);
     expect(wr).toHaveLength(1);
     expect(wr[0].coachId).toBeDefined();
     expect(wr[0].note).toBeTruthy();
-    // The room was told Out of sync before, so its chemistry now is news: a clause in the same note.
+    // Its chemistry is news: a clause in the same note.
     expect(chemNotes).toBeGreaterThan(0);
     expect(covered).toContain(`unit:${moraleClock(l)}:${l.userTeamId}:WR:Split`);
     expect(rooms.map((r) => r.note).join(' ')).not.toMatch(/shrug|\d/i);
@@ -364,6 +368,9 @@ describe('staff rows for the weekly letter', () => {
     // The league's step has run to this week's clock (the template's is from week one).
     l.moraleAt = moraleClock(l);
     storiesStep(l);
+    // Its chemistry was told as it reads now, long enough ago: the turn is the only thing the room could say.
+    const chem = chemistryOf(l, l.userTeamId, 'WR')!.word;
+    l.mailTold = { ...l.mailTold, [`chem:${moraleClock(l) - 5}:${l.userTeamId}:WR:${chem}`]: 1 };
     const story = l.stories!.open.find((s) => s.kind === 'room' && s.unit === 'WR')!;
     expect(story.beats.at(-1)!.kind).toBe('turned');
     expect(staffRows(l, toldKeys(l)).rooms.filter((r) => r.cells[0] === ROOM_LABEL.WR)).toHaveLength(0);

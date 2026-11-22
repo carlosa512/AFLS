@@ -26,10 +26,10 @@ describe('the bid builder', () => {
     // On through the draft's pass, the last call and camp's passes (the swap and the stars-only pass).
     while ((l.phase as Phase) !== 'regular') advanceOffseason(l, { autoUser: true });
     const atKickoff = outcome(l);
-    // Moved by the free-agency race (`race.ts`) and its tuning (`RACE`, 0.4.55): the free-agency phase's entries differ.
+    // Moved by the free-agency race (`race.ts`) and its tuning (`RACE`, 0.4.55): the free-agency phase's entries differ. Moved again by `yearOne` rounding as the contract does (a fit to the dollar). Moved again by a wider camp through the prime (0.4.56, `CAMP.prime`): who starts moves, and so what a club needs and bids.
     expect([atDraft, atKickoff]).toEqual([
-      '2b48302d6752945f78c0f3326ef36d544f0f5bdb3a1e1e42c57504f25ce52349',
-      'a71835735cf284790d670169cc1f8f85040c07bdc635bc6da72e7fee2881d364',
+      '16089cc0aa56f29b6c8357910101bcce45dc9adec7942f872b78894a30c00dca',
+      '1de6e82e30898ed8f0c0508d3958e211b78a9a08a0439626a087196bfd2ef32a',
     ]);
   });
 

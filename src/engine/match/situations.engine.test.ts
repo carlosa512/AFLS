@@ -103,10 +103,15 @@ describe('the two-point try, in the engine', () => {
         checked++;
       });
     expect(checked).toBeGreaterThan(0);
-    // An overtime walk-off has no try: nothing after the winning touchdown in the 5th.
-    for (const { plays } of games) {
+    // An overtime walk-off has no try: nothing after a touchdown in overtime that puts the side that scored ahead. One
+    // that leaves it level or behind (the second possession's answer) still has its try.
+    for (const { plays, homeId } of games) {
       const last = lastIndex(plays, (e) => e.quarter >= 5 && /TOUCHDOWN/.test(e.text));
-      if (last >= 0) expect(plays.slice(last + 1).some((e) => TRY.test(e.text))).toBe(false);
+      if (last < 0) continue;
+      const td = plays[last];
+      const [mine, theirs] = td.offense === homeId ? [td.homeScore, td.awayScore] : [td.awayScore, td.homeScore];
+      if (mine <= theirs) continue;
+      expect(plays.slice(last + 1).some((e) => TRY.test(e.text))).toBe(false);
     }
   });
 });

@@ -27,7 +27,7 @@ const fresh = (): League => JSON.parse(base);
  * buyer's outlooks, as the extension itself reads them (`aiExtendArrival`): today's overall would take
  * a fading veteran who wouldn't start over a climbing youngster there.
  */
-function arrival(l: League): { p: Player; buyer: Team } {
+function* arrivals(l: League): Generator<{ p: Player; buyer: Team }> {
   const starts = (t: Team, p: Player) => {
     const outlook = (x: Player) => teamOutlook(l, t.id, x, t.gm.winNow);
     const room = teamPlayers(l, t.id)
@@ -49,9 +49,13 @@ function arrival(l: League): { p: Player; buyer: Team } {
     const buyer = ai.find(
       (t) => t.id !== p.teamId && capSpace(l, t.id) > 0.15 * l.caps[l.season] && starts(t, p) && willExtend(l, p, t.id),
     );
-    if (buyer) return { p, buyer };
+    if (buyer) yield { p, buyer };
   }
-  throw new Error('no arrival found');
+}
+function arrival(l: League): { p: Player; buyer: Team } {
+  const first = arrivals(l).next();
+  if (first.done) throw new Error('no arrival found');
+  return first.value;
 }
 
 describe('trade and extend', () => {
@@ -70,24 +74,36 @@ describe('trade and extend', () => {
   });
 
   it('extends him on arrival when his ask fits, keeping the deal he was traded on', () => {
-    const l = fresh();
-    const { p, buyer } = arrival(l);
-    const was = p.contract!;
-    const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
-    const record = executeTrade(
-      l,
-      {
-        sides: [
-          { teamId: p.teamId!, players: [p.id], picks: [] },
-          { teamId: buyer.id, players: [], picks: [pick.id] },
-        ],
-      },
-      { kind: 'sale' },
-    );
-    expect(record.extended).toEqual([{ playerId: p.id, tradedOn: was }]);
-    // A new deal with his new team (its length is his ask: a veteran may take one year).
-    expect(l.players[p.id].contract).not.toBe(was);
-    expect(l.players[p.id].contract!.signedSeason).toBe(l.season);
+    // The scene is an arrival whose ask the buyer's books carry (`aiExtendArrival` shapes it to them): one whose
+    // books can't is traded on his deal, and the next is tried.
+    let seen = 0;
+    for (const { p: first } of arrivals(fresh())) {
+      const l = fresh();
+      const { p, buyer } = [...arrivals(l)].find((x) => x.p.id === first.id)!;
+      const was = p.contract!;
+      const pick = l.draftPicks.find((x) => x.ownerId === buyer.id && x.playerId === undefined)!;
+      const record = executeTrade(
+        l,
+        {
+          sides: [
+            { teamId: p.teamId!, players: [p.id], picks: [] },
+            { teamId: buyer.id, players: [], picks: [pick.id] },
+          ],
+        },
+        { kind: 'sale' },
+      );
+      if (!record.extended) {
+        expect(l.players[p.id].contract).toBe(was);
+        continue;
+      }
+      expect(record.extended).toEqual([{ playerId: p.id, tradedOn: was }]);
+      // A new deal with his new team (its length is his ask: a veteran may take one year).
+      expect(l.players[p.id].contract).not.toBe(was);
+      expect(l.players[p.id].contract!.signedSeason).toBe(l.season);
+      seen++;
+      break;
+    }
+    expect(seen).toBe(1);
   });
 
   it('never extends a player for you', () => {

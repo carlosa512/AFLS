@@ -327,6 +327,8 @@ describe('migration and collection', () => {
     // `players`, `charts` and `result` again with the lineup lean and camp battles (2026-11-15: `startScore`): who starts at
     // each position moves (young players and high picks lean up, a camp form splits close jobs), so every chart and the game
     // played from them move; the stream and the schedule still match, so no draw moved.
+    // `players`, `charts` and `result` again with a wider camp through the prime (0.4.56: `CAMP.prime`): who starts at
+    // 25-28 moves, so the charts, what a player carries from them and the game move; the stream and schedule still match.
     expect({
       players: hash(l.players),
       rng: l.rngState,
@@ -338,9 +340,9 @@ describe('migration and collection', () => {
 });
 
 const BASELINE = {
-  players: '9079800a8d9dc0e4b0fd379ac6ef88a5e2683dd8522ad3c51b767b917d32a2ae',
+  players: '1bb41e20d6b2c2e7dc5383142e0d5d27eeaf8e7a5209b17df05af7ee1226b722',
   rng: [643924055, 2159163808, 1869990391, 1664091751],
   games: '235d4d3cc93e3f3a8eb0ae2fbff091c0cdeda0177c001c6b9b4b68b52404ba21',
-  result: '5465be902d824cb7ddb120909fe1f83c3dca1143b4f6ba005c2c1da1616a82b5',
-  charts: '6d6bb5a57189008856d632ba80583be87688a310c078337f71f7311cbf394dc9',
+  result: '2d89d090edc515665c6f400758a0dea63239541ae5695bcd39e2712c7f43df28',
+  charts: '57d8d137fbfd73cd2dbca49a2aaee80a0f039f5e4e34e0737166a20ecc1ea6dd',
 };
