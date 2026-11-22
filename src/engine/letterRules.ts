@@ -30,6 +30,7 @@ export const LETTER_FILES: readonly { file: string; quotes?: true }[] = [
   { file: 'src/engine/directorAdvice.ts' },
   { file: 'src/engine/waiverMail.ts' },
   { file: 'src/engine/contractMail.ts' },
+  { file: 'src/engine/compView.ts' },
   { file: 'src/engine/offMarketMail.ts' },
   { file: 'src/engine/raceMail.ts' },
   { file: 'src/engine/gmTalk.ts', quotes: true },

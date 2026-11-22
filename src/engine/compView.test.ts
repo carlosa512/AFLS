@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { capFor, logTransaction } from './finance/cap';
 import { createLeague } from './generate';
-import { COMP } from './offseason/comp';
+import { COMP, compRound } from './offseason/comp';
 import { demand } from './offseason/negotiation';
 import { cancelLine, tallyLine, walkLine } from './compView';
-import { letterBreaks } from './letterRules';
 import { pickLabel } from './trade/value';
 import type { League } from './types';
 
@@ -28,7 +27,8 @@ describe('walkLine', () => {
     expect(walkLine(l, yes!)).toMatch(
       /^If he signs elsewhere, likely a (3rd|4th|5th|6th|7th)-round compensatory pick next year\.$/,
     );
-    expect(letterBreaks(walkLine(l, yes!)!)).toEqual([]); // it rides in the contracts letter
+    const want = compRound(demand(l, yes!, l.userTeamId).market, cap)!;
+    expect(walkLine(l, yes!)).toContain(`a ${['', '', '', '3rd', '4th', '5th', '6th', '7th'][want]}-round`);
     expect(walkLine(l, no!)).toBeNull();
   });
 });
@@ -46,7 +46,9 @@ describe('cancelLine and tallyLine', () => {
   };
   it('tallies what we are on track for, and says nothing with none', () => {
     const { l } = setup();
-    expect(tallyLine(l)).toMatch(/^Compensatory picks on track: a 4th \(\w\. [\w'-]+\), a 6th \(\w\. [\w'-]+\)\.$/);
+    expect(tallyLine(l)).toMatch(
+      /^On track for a 4th-round compensatory pick \(\w\. [\w'-]+\) and a 6th \(\w\. [\w'-]+\)\.$/,
+    );
     const empty = world();
     empty.phase = 'freeAgency';
     expect(tallyLine(empty)).toBeNull();
@@ -57,6 +59,8 @@ describe('cancelLine and tallyLine', () => {
     a.contract = null;
     a.statTeams = { [l.season - 1]: [user === 7 ? 8 : 7] };
     a.left = [];
+    const lost = mine(l)[0];
+    expect(cancelLine(l, a, pay(l, 4))).toContain(`${lost.firstName[0]}. ${lost.lastName}`);
     expect(cancelLine(l, a, pay(l, 4))).toMatch(
       /^Signing him cancels the 4th-round compensatory pick you are on track for \(/,
     );

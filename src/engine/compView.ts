@@ -1,5 +1,5 @@
 import { capFor } from './finance/cap';
-import { compRound, compTally, type CompMove } from './offseason/comp';
+import { compRound, compTally } from './offseason/comp';
 import { demand, walkedAway } from './offseason/negotiation';
 import type { League, Player } from './types';
 
@@ -28,6 +28,11 @@ export function tallyLine(league: League): string | null {
   if (league.phase !== 'freeAgency') return null;
   const { picks } = compTally(league, league.userTeamId);
   if (!picks.length) return null;
-  const say = (m: CompMove) => `a ${ROUND[m.round]} (${short(league.players[m.playerId])})`;
-  return `Compensatory picks on track: ${picks.map(say).join(', ')}.`;
+  const parts = picks.map((m, i) => {
+    const who = `(${short(league.players[m.playerId])})`;
+    return i === 0 ? `a ${ROUND[m.round]}-round compensatory pick ${who}` : `a ${ROUND[m.round]} ${who}`;
+  });
+  const list =
+    parts.length < 2 ? parts[0] : `${parts.slice(0, -1).join(', ')}${parts.length > 2 ? ',' : ''} and ${parts.at(-1)}`;
+  return `On track for ${list}.`;
 }
