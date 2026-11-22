@@ -516,7 +516,7 @@ for (let s = 0; s < seasons; s++) {
   console.log(
     `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length}, concussions ${moves.filter((m) => m.kind === 'retire' && /concussions/.test(m.text)).length})`,
   );
-  // Compensatory picks awarded at this new league year (a report, not judged: Task 3 tuned the bands to about 32 a year).
+  // Compensatory picks awarded at this new league year (a report, not judged: the bands in `COMP` aim for about 32 a year).
   const compAwarded = league.draftPicks.filter((pk) => pk.season === league.season && pk.comp);
   console.log(
     `  comp picks: ${compAwarded.length} (${[3, 4, 5, 6, 7].map((r) => `R${r} ${compAwarded.filter((pk) => pk.round === r).length}`).join(' · ')}) · teams with one ${new Set(compAwarded.map((pk) => pk.originalTeamId)).size}`,
