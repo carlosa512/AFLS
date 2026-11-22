@@ -345,7 +345,14 @@ export function runField(start: FieldStart, rng: Rng): FieldResult {
           else if (d < 0) {
             sliding = true;
             // The man closing slipped out of reach at the last stride: he goes down short of his spot, never past it.
-            slideBrake = Math.max(FALL, (v * v * along) / (2 * Math.max(0.3, left())));
+            // Still carried away from it (a pick made running back toward his own goal), he stops within `ANCHOR` of
+            // it: at `FALL` alone his momentum took him a yard and a half and more behind it.
+            const back = Math.max(0, -c.vx * dir);
+            slideBrake = Math.max(
+              FALL,
+              (v * v * along) / (2 * Math.max(0.3, left())),
+              (v * back) / (2 * Math.max(0.3, ANCHOR - left())),
+            );
           }
         }
       }
