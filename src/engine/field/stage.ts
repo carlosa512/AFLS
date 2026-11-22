@@ -709,13 +709,36 @@ function tackleRun(
       : aheadMe > aheadHit
         ? meet(pos, n, k, chase, end, start, last)
         : giveGround(pos, n, k, chase, end, start, last) || meet(pos, n, k, chase, end, start, last)) ||
-    meet(pos, n, k, chase, end, start, last, true, chase.carrier);
+    straightIn(pos, n, k, chase, end, start, last, aheadMe > -1);
   if (ran) {
     const was = pos.slice(start * n * 2, (last + 1) * n * 2);
     easeOut(pos, n, k, start, last);
     if (!withinLegs(pos, n, k, start, last, chase.legs)) pos.set(was, start * n * 2);
   }
   return ran;
+}
+
+/**
+ * The last resort: one straight run to the tackle. Level with the carrier or in front of him, a carrier who bends away
+ * (a cutback across the field, a loop before the hole) would have the straight run open the gap to him, so the man
+ * shadows him instead (`neverOpen`); if his legs can't keep that up, the straight run stands.
+ */
+function straightIn(
+  pos: Float32Array,
+  n: number,
+  k: number,
+  chase: { carrier: number; legs: number },
+  end: Pt,
+  start: number,
+  last: number,
+  level: boolean,
+): boolean {
+  if (!meet(pos, n, k, chase, end, start, last, true, chase.carrier)) return false;
+  if (!level) return true;
+  const straight = pos.slice((start + 1) * n * 2, (last + 1) * n * 2);
+  neverOpen(pos, n, k, chase.carrier, start, last);
+  if (!withinLegs(pos, n, k, start, last, chase.legs)) pos.set(straight, (start + 1) * n * 2);
+  return true;
 }
 
 /** Coming to meet the carrier he runs at least this pace (yards a second), setting off later if he has time. */
@@ -805,6 +828,27 @@ function meet(
 }
 
 /**
+ * Whatever the carrier's path does (a bend toward the corner, a stall in the hole, a cutback away from him), the man
+ * in front of him never opens the gap: no further off the carrier than he was a step before, toward where the plan
+ * has him.
+ */
+function neverOpen(pos: Float32Array, n: number, k: number, c: number, start: number, last: number) {
+  let most = Infinity;
+  for (let st = start; st <= last; st++) {
+    const cx = pos[(st * n + c) * 2];
+    const cy = pos[(st * n + c) * 2 + 1];
+    const x = pos[(st * n + k) * 2];
+    const y = pos[(st * n + k) * 2 + 1];
+    const d = Math.hypot(x - cx, y - cy);
+    if (d > most && d > 0) {
+      pos[(st * n + k) * 2] = cx + ((x - cx) / d) * most;
+      pos[(st * n + k) * 2 + 1] = cy + ((y - cy) / d) * most;
+    }
+    most = Math.min(most, d);
+  }
+}
+
+/**
  * Gives ground in front of him: he stays on the carrier's path ahead of him (where the carrier will be a moment from
  * now, a moment that shrinks to nothing), coming across from wherever he stood, so the gap closes as the tackle comes
  * and he's never on him early or running away from him. False when it would ask more of his legs (nothing written).
@@ -860,19 +904,7 @@ function giveGround(
     pos[(st * n + k) * 2] = on.x + off.x * (1 - g) + hit.x * g;
     pos[(st * n + k) * 2 + 1] = on.y + off.y * (1 - g) + hit.y * g;
   }
-  // Whatever the carrier's path does (a bend toward the corner, a stall in the hole), he never opens the gap to him: no
-  // further off the carrier than he was a step before, toward where the plan has him.
-  let most = Infinity;
-  for (let st = start; st <= last; st++) {
-    const car = P(st, c);
-    const me1 = P(st, k);
-    const d = Math.hypot(me1.x - car.x, me1.y - car.y);
-    if (d > most && d > 0) {
-      pos[(st * n + k) * 2] = car.x + ((me1.x - car.x) / d) * most;
-      pos[(st * n + k) * 2 + 1] = car.y + ((me1.y - car.y) / d) * most;
-    }
-    most = Math.min(most, d);
-  }
+  neverOpen(pos, n, k, c, start, last);
   if (withinLegs(pos, n, k, start, last, chase.legs)) return true;
   pos.set(was, start * n * 2);
   return false;
