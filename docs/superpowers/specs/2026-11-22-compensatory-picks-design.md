@@ -19,9 +19,9 @@ cap. A player who walks and comes back to his own team is no loss. Players cut o
 - **His round** comes from his new deal's yearly pay (average per year, as a share of that league year's cap), by bands
   in `COMP.bands`: the biggest deals bring a 3rd, then 4th, 5th, 6th and 7th. Below the floor he is not a qualifying
   free agent.
-- **Cancelling**: gains are taken best first; each cancels the best remaining loss of the same round or lower; a gain
-  bigger than every remaining loss cancels the best remaining loss. Losses left over are picks, best first, at most
-  `COMP.max` (4) a team.
+- **Cancelling**: gains are taken best first; each cancels the best remaining loss of the same round or lower (round 3
+  is the best); a gain smaller than every remaining loss cancels the smallest remaining loss, so a cheap signing never
+  wipes out a team's biggest compensation. Losses left over are picks, best first, at most `COMP.max` (4) a team.
 - **The tally is final** when free agency closes (camp). Its picks are awarded at the next new league year, for that
   league year's draft, and placed at the end of their round, ordered among themselves by the size of the deal that
   earned them (biggest first).
