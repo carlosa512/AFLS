@@ -1757,6 +1757,10 @@ export interface Transaction {
    * none, and SNN's big-day editions skip an entry without one.
    */
   playerId?: number;
+  /** A free agent's signing: the team he walked from (compensatory picks, `offseason/comp.ts`). Never set on a release-and-sign, squad or waiver move. */
+  from?: number;
+  /** A free agent's signing: the average yearly pay of the deal, in $K, when `from` is set. */
+  apy?: number;
   kind:
     | 'sign'
     | 'resign'
