@@ -5,16 +5,20 @@ type Round = 3 | 4 | 5 | 6 | 7;
 
 /**
  * Compensatory picks: a team that loses free agents and signs fewer than it loses is paid back in rounds 3–7.
- * The round comes from the deal's share of the cap (`bands`, tuned in Task 3); under `floor` it counts for nothing.
+ * The round comes from the deal's share of the cap (`bands`); under `floor` it counts for nothing. Tuned to about 32 a
+ * league a year with every round at 5-8 (owner: aim for the average): probed on four leagues x four offseasons, re-tallying
+ * each year's signings at several settings. At 0.008 it was 38 a year, and shifting the bands up a little barely cut it
+ * (the 4-pick cap and the loss-less-gain count bind), so the floor sits at 2% of the cap. Result 31.3 a year
+ * (R3 5.6, R4 5.7, R5 5.9, R6 7.3, R7 6.8), 13.6 teams a year with one (NFL usually 14-17, shown not tuned to).
  */
 export const COMP: { floor: number; bands: { round: Round; share: number }[]; max: number; on: boolean } = {
-  floor: 0.008,
+  floor: 0.02,
   bands: [
-    { round: 3, share: 0.06 },
-    { round: 4, share: 0.035 },
-    { round: 5, share: 0.02 },
-    { round: 6, share: 0.012 },
-    { round: 7, share: 0.008 },
+    { round: 3, share: 0.1 },
+    { round: 4, share: 0.07 },
+    { round: 5, share: 0.05 },
+    { round: 6, share: 0.032 },
+    { round: 7, share: 0.02 },
   ],
   max: 4,
   on: true,
