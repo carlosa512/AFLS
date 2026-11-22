@@ -14,9 +14,9 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.4.56',
-    date: '2026-11-21',
-    title: 'Clearer offer bars',
-    text: "The bars in a free agent's offers now show how far behind the leader each team is, even a few percent. AI teams no longer go a few dollars over what they can spend.",
+    date: '2026-11-22',
+    title: 'Clearer offer bars, real camp battles',
+    text: 'Offer bars now show how far behind the leader each team is, and AI teams stay within budget. Starters in their prime face real camp battles, as in the NFL.',
   },
   {
     version: '0.4.55',
