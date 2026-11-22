@@ -4,6 +4,7 @@
  * in the director's words. The letter's buttons (`ui/mail.tsx`) act on each row; what each player's row shows is
  * worked out from the league as it is (`contractDecision`), so a signing made on the Re-sign screen shows here too.
  */
+import { walkLine } from './compView';
 import { capFor } from './finance/cap';
 import { isExpired } from './finance/contract';
 import { dealTier, type DealTier } from './finance/market';
@@ -225,11 +226,16 @@ export function contractMail(league: League, have: Set<string>): Draft[] {
           millions(d.market),
           wantsMarket(league, p) ? 'Testing the market' : CALL[call.call],
         ],
-        note: say(
-          NOTE,
-          { reason: call.reason, call: call.call, better: betterTeammate(league, p), age: p.age },
-          { key: id, slot: `note:${p.id}`, recent },
-        ),
+        note: [
+          say(
+            NOTE,
+            { reason: call.reason, call: call.call, better: betterTeammate(league, p), age: p.age },
+            { key: id, slot: `note:${p.id}`, recent },
+          ),
+          walkLine(league, p),
+        ]
+          .filter(Boolean)
+          .join(' '),
         contract: { playerId: p.id },
       };
       return { tier, row };

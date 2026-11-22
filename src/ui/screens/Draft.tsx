@@ -381,6 +381,7 @@ function YourPicks({ league }: { league: League }) {
                   ) : pk.originalTeamId !== teamId ? (
                     <span className="tag-pill tag-good">from {league.teams[pk.originalTeamId].abbrev}</span>
                   ) : null}
+                  {pk.comp && <span className="tag-pill">Comp</span>}
                 </td>
                 <td>{used && !gone && <PlayerLink league={league} player={used} pos />}</td>
               </tr>

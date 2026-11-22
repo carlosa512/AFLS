@@ -425,15 +425,8 @@ export function signPlayer(
       note: 'Salary paid before extension',
     });
   // A free agent signing somewhere new walked away from his last club, unless it cut or traded him.
-  let walkedFrom: number | undefined;
-  if (!own) {
-    const seasons = Object.keys(player.statTeams ?? {}).map(Number);
-    const last = seasons.length ? player.statTeams![Math.max(...seasons)].at(-1) : undefined;
-    if (last !== undefined && last !== teamId && !player.left?.some((d) => d.teamId === last)) {
-      noteDeparture(league, player, last, 'walked');
-      walkedFrom = last;
-    }
-  }
+  const walkedFrom = own ? undefined : walkedAway(player, teamId);
+  if (walkedFrom !== undefined) noteDeparture(league, player, walkedFrom, 'walked');
   player.contract = prospectiveContract(league, player, teamId, offer, kind);
   setTeam(league, player, teamId);
   // Paid over a starter in his room who's still on an older deal: it may not go down well.
@@ -455,6 +448,13 @@ export function signPlayer(
     player.id,
     walkedFrom === undefined ? undefined : { from: walkedFrom, apy: offer.apy },
   );
+}
+
+/** The club a free agent walked away from if he signs with `teamId` (his last, unless it cut or traded him). */
+export function walkedAway(player: Player, teamId: number): number | undefined {
+  const seasons = Object.keys(player.statTeams ?? {}).map(Number);
+  const last = seasons.length ? player.statTeams![Math.max(...seasons)].at(-1) : undefined;
+  return last !== undefined && last !== teamId && !player.left?.some((d) => d.teamId === last) ? last : undefined;
 }
 
 /** Free agents: unsigned, not retired, not in the draft class. */
