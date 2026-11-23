@@ -625,7 +625,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     raises, and a player who signs at a day's end when his best stands out or he has waited (`decides`, `RACE`); your
     offers stand beside theirs (`placeUserOffer`) and an agent's warning stops the game (`pendingWarnings`). The bids are
     `bids.ts` (the late passes' `aiFreeAgencyDay` too), what a screen may read `raceView.ts`, the letters
-    `src/engine/raceMail.ts` (beside `inbox.ts`)
+    `src/engine/raceMail.ts` (beside `inbox.ts`); compensatory picks (0.4.57, `comp.ts`, spec
+    `docs/superpowers/specs/2026-11-22-compensatory-picks-design.md`): a team's losses to other teams in free agency for
+    at least `COMP.floor` of the cap, less its outside signings (`compTally`, one gain cancels the best loss of its round
+    or lower, else the smallest), frozen when camp opens (`freezeComp`, `League.compOwed`) and awarded at the next new
+    league year at the end of their rounds (`awardComp`, `setDraftOrder`); the screens' lines are `compView.ts`, the
+    director's letter `compMail.ts`.
   - `trade/` trades (`docs/TRADES.md`): pick charts and player value (talent × control by the role he'd
     have on the buyer's depth chart, his contract against the market weighed by cap room) in
     `value.ts`, with the league's going rate for a pick (`goingRate`); the window, deadline day and

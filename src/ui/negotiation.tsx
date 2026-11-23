@@ -20,6 +20,7 @@ import {
 } from '../engine/offseason/negotiation';
 import { inRace, letGo, placeUserOffer, pullUserOffer, standingFitProblem } from '../engine/offseason/race';
 import { raceView } from '../engine/offseason/raceView';
+import { cancelLine } from '../engine/compView';
 import { careerOutlook } from '../engine/scouting';
 import type { League, Player } from '../engine/types';
 import { Dialog, PlayerAvatar } from './components';
@@ -93,6 +94,7 @@ export function NegotiationDialog({
   const patience = existing?.teamId === teamId ? existing.patience : d.patience;
   const broken = existing?.teamId === teamId && existing.status === 'broken' && existing.brokenPhase === league.phase;
   const own = player.teamId === teamId;
+  const cancel = cancelLine(league, player, offer.apy);
   const min = minSalary(player.experience, league.caps[league.season]);
 
   const set = (patch: Partial<Offer>) => {
@@ -219,6 +221,11 @@ export function NegotiationDialog({
       <p className="muted small" style={{ margin: 0 }}>
         {careerOutlook(league, teamId, player)}
       </p>
+      {cancel && (
+        <p className="muted small" style={{ margin: 0 }}>
+          {cancel}
+        </p>
+      )}
       <p className="agent-ask">
         <span className="eyebrow">His ask</span>
         <b className="num">

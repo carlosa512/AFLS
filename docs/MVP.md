@@ -166,8 +166,11 @@ all three are Done (`docs/VERSIONING.md`).
       theirs and must fit together, and his agent warns you before a player you bid on signs elsewhere
       (`offseason/race.ts`, `bids.ts`, `raceView.ts`, `raceMail.ts`; spec
       `docs/superpowers/specs/2026-11-20-free-agency-race-design.md`).
-- [ ] **Compensatory picks** · **Missing**: picks for the free agents a team loses, by what they signed for elsewhere
-      (a departure is already recorded, `noteDeparture`).
+- [x] **Compensatory picks** · **Done** (0.4.57): a team gets picks (rounds 3–7, at most four) for the free agents it
+      loses to other teams for real money, less the ones it signs, awarded at the next new league year at the end of
+      their rounds; you see it where you decide (the Re-sign tab and contracts letter, the offer dialog, the free-agency
+      tally, the director's letter, SNN on draft day). Files: `offseason/comp.ts`, `compView.ts`, `compMail.ts`; spec
+      `docs/superpowers/specs/2026-11-22-compensatory-picks-design.md`.
 - [ ] **Suspensions** · **Missing**.
 
 ## Not in the shipped game

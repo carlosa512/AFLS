@@ -183,6 +183,33 @@ function draftCandidates(l: League): DayCandidate[] {
   return out;
 }
 
+/**
+ * A third-round compensatory pick used by another team is a story (the NFL's big ones: a starter lost to a rich deal);
+ * the 4th to 7th are not, and the reader's own are told inside his team's slot (`yourDraft`), which a tile never is.
+ */
+function compCandidates(l: League): DayCandidate[] {
+  const out: DayCandidate[] = [];
+  for (const pk of l.draftPicks) {
+    if (!pk.comp || pk.season !== l.season || pk.round !== 3 || pk.playerId === undefined) continue;
+    const p = l.players[pk.playerId];
+    if (!p?.draft || p.draft.season !== l.season) continue;
+    out.push({
+      key: `draft:${l.season}:comp:${p.id}`,
+      day: 'draft',
+      angle: 'comp',
+      tier: 3,
+      clubId: p.draft.teamId,
+      teams: [p.draft.teamId],
+      playerId: p.id,
+      pick: p.draft.pick,
+      ...(p.draft.rank !== undefined ? { rank: p.draft.rank } : {}),
+      // The better paid the player lost, the bigger the story.
+      stakes: Math.min(0.2, (pk.compApy ?? 0) / 100000),
+    });
+  }
+  return out;
+}
+
 const lastRecord = (l: League, teamId: number) => l.history.find((h) => h.season === l.season - 1)?.records[teamId];
 /** Last season's winning percentage, for ranking one team's news over another's; even when there was no last season. */
 const lastPct = (l: League, teamId: number) => {
@@ -712,7 +739,7 @@ export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandid
   const rec = publicRecord(l);
   const all = [
     ...(day === 'draft'
-      ? draftCandidates(l)
+      ? [...draftCandidates(l), ...compCandidates(l)]
       : day === 'year'
         ? [...yearCandidates(l, rec), ...pressureCandidates(l)]
         : day === 'market'
@@ -748,7 +775,7 @@ const ONCE = new Set(['wait', 'ahead', 'seat', 'pressure', 'mentor']);
  */
 const RESERVED = [new Set(['seat', 'pressure']), new Set(['mentor'])];
 /** Stories that fill a tile and never lead a page. */
-const NO_LEAD = new Set(['mentor']);
+const NO_LEAD = new Set(['mentor', 'comp']);
 const TILES = 3;
 
 /**

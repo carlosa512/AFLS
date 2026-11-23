@@ -4,6 +4,7 @@ import { GeneralManagers } from './GeneralManagers';
 import { capSpace } from '../../engine/finance/cap';
 import { lastSeason, yearsLeft } from '../../engine/finance/contract';
 import { fifthYearOptionValue } from '../../engine/finance/market';
+import { tallyLine, walkLine } from '../../engine/compView';
 import { FA_DAYS, letRestWalk, lettingWalk, setLettingWalk } from '../../engine/offseason';
 import { askTier, openContracts, openOptions, TIER_ORDER, TIER_TITLE } from '../../engine/contractMail';
 import {
@@ -225,11 +226,13 @@ export function Resign({ league, negotiate }: { league: League; negotiate: (p: P
                         const n = league.negotiations[p.id];
                         const broken = n?.status === 'broken' && n.brokenPhase === league.phase;
                         const testing = wantsMarket(league, p);
+                        const walk = walkLine(league, p);
                         const blocker = tagBlocker(league, p);
                         return (
                           <tr key={p.id}>
                             <td className="sticky-col">
                               <PlayerLink league={league} player={p} avatar={32} />
+                              {walk && <div className="muted small">{walk}</div>}
                             </td>
                             <td>{p.position}</td>
                             <td className="num">{p.age}</td>
@@ -445,6 +448,7 @@ export function FreeAgents({
   start?: Position;
   negotiate: (p: Player) => void;
 }) {
+  const tally = tallyLine(league);
   const [pos, setPos] = useState<Position | 'ALL'>(start ?? 'ALL');
   // In free agency's days the market column gives way to the race: start on the overall, a column on screen.
   const [sort, onSort] = useSort<FaSort>({ key: league.phase === 'freeAgency' ? 'ovr' : 'market', desc: true });
@@ -555,7 +559,7 @@ export function FreeAgents({
     >
       <p className="muted small" style={{ marginTop: 0 }}>
         {league.phase === 'freeAgency'
-          ? `Day ${league.faDay} of ${FA_DAYS}.`
+          ? `Day ${league.faDay} of ${FA_DAYS}.${tally ? ` ${tally}` : ''}`
           : 'Players still unsigned take less the longer they wait.'}
       </p>
       <div className="table-scroll">

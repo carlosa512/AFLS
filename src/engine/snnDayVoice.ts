@@ -328,6 +328,35 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
     });
   }
 
+  if (c.angle === 'comp') {
+    // The pick a team was awarded for a player it lost: told from the man it took, with who left.
+    const dp = l.draftPicks.find((x) => x.comp && x.playerId === p.id);
+    const gone = dp?.compFor === undefined ? undefined : l.players[dp.compFor];
+    const goneTo = dp?.compTo ?? null;
+    const earner = dp && dp.originalTeamId !== club ? dp.originalTeamId : null;
+    const the = cap(ref.club(club));
+    const man = ref.man(p.id);
+    const lost = gone ? ref.man(gone.id) : '';
+    return assemble(c, ref, {
+      kicker: 'Draft day',
+      headline: head(
+        `${Club} use a compensatory pick on ${tag(p)}`,
+        `${Club} take ${p.lastName} with a compensatory pick`,
+      ),
+      summary: `${p.lastName} went at No. ${c.pick}, a third-round compensatory pick.`,
+      first: [
+        `${the} took ${posWord(p)} ${man} at No. ${c.pick}, a third-round compensatory pick.`,
+        gone
+          ? `The pick was awarded ${earner === null ? '' : `to ${ref.club(earner)} `}for losing ${lost}${goneTo === null || goneTo === club ? '' : ` to ${ref.club(goneTo)}`} in free agency.`
+          : '',
+      ],
+      second: [rankLine(p.lastName, c), openerLine(l, at, ref, club)],
+      numbers: pickChips(c),
+      picture: { playerId: p.id },
+      links: links(p, club),
+    });
+  }
+
   // 'haul': the most picks in the first two rounds.
   const the = cap(ref.club(club));
   const man = ref.man(p.id);
@@ -1265,6 +1294,18 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   const the = cap(ref.club(u));
   const man = ref.man(a.id);
   const n = mine.length;
+  // Picks of ours that were compensatory, in the order taken, with the players lost for them.
+  const comps = l.draftPicks
+    .filter(
+      (x) => x.comp && x.season === l.season && x.playerId !== undefined && l.players[x.playerId]?.draft?.teamId === u,
+    )
+    .sort((x, y) => l.players[x.playerId!].draft!.pick - l.players[y.playerId!].draft!.pick);
+  const lostMen = comps.flatMap((x) => (x.compFor !== undefined && l.players[x.compFor] ? [x.compFor] : []));
+  const compLine = comps.length
+    ? comps.length === 1
+      ? `${l.players[comps[0].playerId!].lastName} went at No. ${l.players[comps[0].playerId!].draft!.pick} as a compensatory pick${lostMen.length && comps[0].originalTeamId === u ? `, awarded for losing ${full(l.players[lostMen[0]])}` : ''}.`
+      : `${cap(count(comps.length))} of the picks were compensatory, the first at No. ${l.players[comps[0].playerId!].draft!.pick}${comps.every((x) => x.originalTeamId === u) ? `, awarded for free agents the ${Club} lost last year` : ''}.`
+    : '';
   const where = a.draft!.pick === 1 ? 'the first pick' : `the No. ${a.draft!.pick} pick`;
   const c = { pick: a.draft!.pick, rank: a.draft!.rank };
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
@@ -1287,7 +1328,11 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
       ]),
       rankLine(a.lastName, c),
     ],
-    second: b ? [`${cap(posWord(b))} ${ref.man(b.id)} followed at No. ${b.draft!.pick}.`] : [openerLine(l, at, ref, u)],
+    second: [
+      ...(b ? [`${cap(posWord(b))} ${ref.man(b.id)} followed at No. ${b.draft!.pick}.`] : []),
+      compLine,
+      ...(b ? [] : [openerLine(l, at, ref, u)]),
+    ],
     numbers: [
       { value: String(n), label: n === 1 ? 'Pick' : 'Picks' },
       { value: `No. ${a.draft!.pick}`, label: 'First pick' },

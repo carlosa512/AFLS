@@ -141,9 +141,15 @@ export function logTransaction(
   teamIds: number[],
   text: string,
   playerId?: number,
+  /** A free agent's signing that took him from another team: who he left and what he was paid a year. */
+  walk?: { from: number; apy: number },
 ): void {
   const t: Transaction = { season: league.season, phase: league.phase, week: league.week, teamIds, kind, text };
   if (playerId !== undefined) t.playerId = playerId;
+  if (walk) {
+    t.from = walk.from;
+    t.apy = walk.apy;
+  }
   league.transactions.push(t);
   // Keep saves small: a few seasons of history is plenty.
   if (league.transactions.length > 3000) league.transactions.splice(0, league.transactions.length - 3000);

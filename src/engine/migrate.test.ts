@@ -515,3 +515,16 @@ describe('save v101 mid-season', () => {
     expect(up.players[old.id].left).toBeUndefined();
   });
 });
+
+describe('save v103', () => {
+  it('loads a v102 save: nothing owed, nothing frozen', () => {
+    const l = createLeague({ seed: 'v103' });
+    delete l.compOwed;
+    delete l.compFrozen;
+    l.version = 102;
+    const up = migrateLeague(l)!;
+    expect(up.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(103);
+    expect(up.compOwed).toBeUndefined();
+  });
+});

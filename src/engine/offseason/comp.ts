@@ -1,0 +1,131 @@
+import { capFor } from '../finance/cap';
+import type { CompOwed, DraftPick, League } from '../types';
+
+type Round = 3 | 4 | 5 | 6 | 7;
+
+/**
+ * Compensatory picks: a team that loses free agents and signs fewer than it loses is paid back in rounds 3–7.
+ * The round comes from the deal's share of the cap (`bands`); under `floor` it counts for nothing. Tuned to about 32 a
+ * league a year with every round at 5-8 (owner: aim for the average): probed on four leagues x four offseasons, re-tallying
+ * each year's signings at several settings. At 0.008 it was 38 a year, and shifting the bands up a little barely cut it
+ * (the 4-pick cap and the loss-less-gain count bind), so the floor sits at 2% of the cap. Result 31.3 a year
+ * (R3 5.6, R4 5.7, R5 5.9, R6 7.3, R7 6.8), 13.6 teams a year with one (NFL usually 14-17, shown not tuned to).
+ */
+export const COMP: { floor: number; bands: { round: Round; share: number }[]; max: number; on: boolean } = {
+  floor: 0.02,
+  bands: [
+    { round: 3, share: 0.1 },
+    { round: 4, share: 0.07 },
+    { round: 5, share: 0.05 },
+    { round: 6, share: 0.032 },
+    { round: 7, share: 0.02 },
+  ],
+  max: 4,
+  on: true,
+};
+
+/** The round a deal is worth (best band whose share it reaches), or null under the floor. `apy` and `cap` in $K. */
+export function compRound(apy: number, cap: number): Round | null {
+  const share = apy / cap;
+  if (share < COMP.floor) return null;
+  for (const b of COMP.bands) if (share >= b.share) return b.round;
+  return null;
+}
+
+export interface CompMove {
+  playerId: number;
+  /** The team that lost him (a loss) or signed him (a gain). */
+  teamId: number;
+  round: Round;
+  apy: number;
+  /** On a loss, the team that signed him. */
+  to?: number;
+}
+
+const better = (a: CompMove, b: CompMove) => a.round - b.round || b.apy - a.apy;
+
+/** The phases whose signings count: free agency and the draft (the user can sign free agents in both). */
+export const compWindow = (phase: string) => phase === 'freeAgency' || phase === 'draft';
+
+/** This league year's qualifying free-agent signings: those that took a player from a team, in free agency or the draft. */
+export function compMoves(league: League, season = league.season): { losses: CompMove[]; gains: CompMove[] } {
+  const losses: CompMove[] = [];
+  const gains: CompMove[] = [];
+  const cap = capFor(league, season);
+  for (const t of league.transactions) {
+    if (t.kind !== 'sign' || t.from === undefined || t.apy === undefined || t.playerId === undefined) continue;
+    if (t.season !== season || !compWindow(t.phase)) continue;
+    const round = compRound(t.apy, cap);
+    if (round === null) continue;
+    losses.push({ playerId: t.playerId, teamId: t.from, round, apy: t.apy, to: t.teamIds[0] });
+    gains.push({ playerId: t.playerId, teamId: t.teamIds[0], round, apy: t.apy });
+  }
+  return { losses, gains };
+}
+
+/**
+ * What a team is owed: its losses less its gains, one for one. Gains go best first (round, then pay). Each cancels the
+ * best remaining loss of its own round or lower (a larger round number); if every loss left is better than the gain,
+ * it cancels the worst one, so a cheaper signing never wipes out the biggest compensation. Then the cap of `COMP.max`,
+ * best first. `extraGain` asks "what if I signed him".
+ */
+export function compTally(
+  league: League,
+  teamId: number,
+  opts?: { extraGain?: { playerId: number; apy: number } },
+): { picks: CompMove[]; cancelled: { loss: CompMove; by: CompMove }[] } {
+  const { losses, gains } = compMoves(league);
+  const mine = losses.filter((m) => m.teamId === teamId).sort(better);
+  const got = gains.filter((m) => m.teamId === teamId);
+  const extra = opts?.extraGain;
+  if (extra && !got.some((g) => g.playerId === extra.playerId)) {
+    const round = compRound(extra.apy, capFor(league, league.season));
+    if (round !== null) got.push({ playerId: extra.playerId, teamId, round, apy: extra.apy });
+  }
+  const cancelled: { loss: CompMove; by: CompMove }[] = [];
+  for (const g of got.sort(better)) {
+    // mine is best first: the first loss no better than the gain, else (the gain is smaller than all) the worst one.
+    let at = mine.findIndex((l) => l.round >= g.round);
+    if (at < 0) at = mine.length - 1;
+    if (at >= 0) cancelled.push({ loss: mine.splice(at, 1)[0], by: g });
+  }
+  return { picks: COMP.on ? mine.slice(0, COMP.max) : [], cancelled };
+}
+
+/**
+ * Camp opens: every team's tally is written down for the league year's free agency, once. Anything signed after
+ * (a veteran in camp or the season) counts for nothing; the list is awarded at the next new league year.
+ */
+export function freezeComp(league: League): void {
+  if (league.compFrozen === league.season) return;
+  const owed = league.compOwed ?? [];
+  for (const team of league.teams)
+    for (const m of compTally(league, team.id).picks)
+      owed.push({ season: league.season, teamId: team.id, playerId: m.playerId, round: m.round, apy: m.apy, to: m.to });
+  league.compOwed = owed;
+  league.compFrozen = league.season;
+}
+
+/**
+ * At the new league year (after `league.season++`): last year's frozen entries become this draft's compensatory
+ * picks, each owned by the team that lost the player. Awarded once: the entries leave `compOwed`.
+ */
+export function awardComp(league: League): DraftPick[] {
+  const owed = league.compOwed ?? [];
+  const due = owed.filter((c: CompOwed) => c.season === league.season - 1);
+  if (!due.length) return [];
+  league.compOwed = owed.filter((c) => c.season !== league.season - 1);
+  const picks: DraftPick[] = due.map((c) => ({
+    id: league.nextPickId++,
+    season: league.season,
+    round: c.round,
+    originalTeamId: c.teamId,
+    ownerId: c.teamId,
+    comp: true,
+    compFor: c.playerId,
+    compApy: c.apy,
+    ...(c.to !== undefined ? { compTo: c.to } : {}),
+  }));
+  league.draftPicks.push(...picks);
+  return picks;
+}

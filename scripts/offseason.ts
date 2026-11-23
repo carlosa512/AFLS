@@ -510,8 +510,16 @@ for (let s = 0; s < seasons; s++) {
     `  agency: top choices who said no ${agency.refusals} · fired head coaches stepping down ${agency.stepDowns} · former head coaches coordinating ${agency.exHeads}`,
   );
   const drafted = count('draft');
+  const compDrafted = league.draftPicks.filter(
+    (pk) => pk.season === league.season && pk.comp && pk.playerId !== undefined,
+  ).length;
   console.log(
     `  moves: re-signed ${count('resign')}, signed ${count('sign')}, released ${count('release')}, restructured ${count('restructure')}, tagged ${count('tag')}, options ${count('option')}, drafted ${drafted}, retired(notable) ${count('retire')} (injuries ${moves.filter((m) => m.kind === 'retire' && /injuries/.test(m.text)).length}, concussions ${moves.filter((m) => m.kind === 'retire' && /concussions/.test(m.text)).length})`,
+  );
+  // Compensatory picks awarded at this new league year (a report, not judged: the bands in `COMP` aim for about 32 a year).
+  const compAwarded = league.draftPicks.filter((pk) => pk.season === league.season && pk.comp);
+  console.log(
+    `  comp picks: ${compAwarded.length} (${[3, 4, 5, 6, 7].map((r) => `R${r} ${compAwarded.filter((pk) => pk.round === r).length}`).join(' · ')}) · teams with one ${new Set(compAwarded.map((pk) => pk.originalTeamId)).size}`,
   );
   const depts = league.teams.map((t) => departmentFor(league, t.id));
   const medPay = league.teams.map((t) => medicalPayroll(league, t.id) / medicalBudget(league, t.id));
@@ -699,11 +707,12 @@ for (let s = 0; s < seasons; s++) {
     `  checks ${year} medical: ${check('injuries/team', hurtPerTeam, 18, 34, 1)} · ${check('severe/team', severePerTeam, 0.5, 3.5, 1)} · ${check('weeks lost/team', weeksPerTeam, 60, 180, 0)} · ${check('physio mean', avg(depts.map((d) => d.physio)), 9.5, 12.5)} · ${check('science mean', avg(depts.map((d) => d.science)), 9.5, 12.5)} · ${check('payroll mean %', 100 * avg(medPay), 55, 95, 0)} · ${check('over budget', medOver, 0, 2, 0)} · ${check('staff/team min', Math.min(...medics), MEDIC_MAX, MEDIC_MAX, 0)} · ${check('market', medMkt, 20, 50, 0)}`,
   );
 
-  // Draft. 7 rounds x 32 teams = 224 picks every year. Worth (0.6 OVR + 0.4 potential): round 1 12.82-13.29 (all seeds
+  // Draft. 7 rounds x 32 teams = 224 regular picks every year, plus the compensatory picks (shown, judged by Task 3's
+  // comp check): `drafted` counts every pick used. Worth (0.6 OVR + 0.4 potential): round 1 12.82-13.29 (all seeds
   // 12.61-13.33), rounds 2-3 10.70-11.09, so round 1 beats 2-3 by 1.7-2.5; teams reach 11.6-15.1 slots off the consensus
   // board (all seeds 11.5-15.3). Best- vs worst-staffed teams is NOT banded: the gap swings from -0.35 to +0.6.
   console.log(
-    `  checks ${year} draft: ${check('picks', drafted, 7 * league.teams.length, 7 * league.teams.length, 0)} · ${check('R1 worth', r1, 11.8, 14.5)} · ${check('R2-3', r23, 9.8, 12)} · ${check('R1 − R2-3', r1 - r23, 1, Infinity)} · ${check('|slot − consensus|', reach, 8, 20, 1)}\n`,
+    `  checks ${year} draft: ${check('regular picks', drafted - compDrafted, 7 * league.teams.length, 7 * league.teams.length, 0)} (+${compDrafted} comp) · ${check('R1 worth', r1, 11.8, 14.5)} · ${check('R2-3', r23, 9.8, 12)} · ${check('R1 − R2-3', r1 - r23, 1, Infinity)} · ${check('|slot − consensus|', reach, 8, 20, 1)}\n`,
   );
 
   // The coaching carousel against the NFL (docs/GAME_DESIGN.md, "How coaching works"): 7.0 new head coaches a year over

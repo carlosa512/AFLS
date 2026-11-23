@@ -381,6 +381,7 @@ function YourPicks({ league }: { league: League }) {
                   ) : pk.originalTeamId !== teamId ? (
                     <span className="tag-pill tag-good">from {league.teams[pk.originalTeamId].abbrev}</span>
                   ) : null}
+                  {pk.comp && <span className="tag-pill">Comp</span>}
                 </td>
                 <td>{used && !gone && <PlayerLink league={league} player={used} pos />}</td>
               </tr>
@@ -546,7 +547,7 @@ function DraftHistory({ league, live }: { league: League; live?: number }) {
                     <tr key={p.id} className={d.teamId === league.userTeamId && team === 'all' ? 'is-user' : undefined}>
                       {(year === 'all' || year === 'recent') && <td className="num">{d.season}</td>}
                       <td className="num muted">
-                        {d.round}.{d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
+                        {d.round}.{d.slot ?? d.pick - (d.round - 1) * 32} <span className="small">(No. {d.pick})</span>
                       </td>
                       <td className="sticky-col">
                         <PlayerLink league={league} player={p} />

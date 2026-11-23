@@ -256,7 +256,10 @@ describe('offseason calendar', () => {
     const cap = league.caps[league.season];
     for (const t of league.teams) {
       const picks = league.draftPicks.filter((p) => p.season === league.season && p.ownerId === t.id);
-      const hits = picks.reduce((s, p) => s + capHit(rookieContract(p.overall!, league.season, cap), league.season), 0);
+      const hits = picks.reduce(
+        (s, p) => s + capHit(rookieContract(p.overall!, league.season, cap, p.round), league.season),
+        0,
+      );
       expect(rookieCost(league, t.id)).toBeCloseTo(hits, 0);
     }
   });

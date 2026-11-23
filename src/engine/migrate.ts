@@ -435,6 +435,9 @@ export function migrateLeague(league: League): League | null {
   // v102: free agency's race (`League.faRace`, `offseason/race.ts`). Nothing to change: a save without one opens the
   // race at its next free-agency day (`raceDay`).
   if (league.version < 102) league.version = 102;
+  // v103: compensatory picks (`League.compOwed`, `offseason/comp.ts`). Nothing to change: a save without any owes none,
+  // and the next camp freezes the year's tally.
+  if (league.version < 103) league.version = 103;
   return league;
 }
 

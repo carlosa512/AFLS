@@ -80,6 +80,7 @@ import {
   startedLastSeason,
 } from './ai';
 import { clockOffers } from '../trade/draft';
+import { awardComp, freezeComp } from './comp';
 import {
   aiDraftChoice,
   draftComplete,
@@ -160,6 +161,8 @@ export function beginOffseason(league: League): void {
     team.taggedId = null;
     team.deadMoney = team.deadMoney.filter((d) => d.season >= last);
   }
+  // Last year's compensatory picks join the draft before the order is set (they go last in their rounds).
+  awardComp(league);
   setDraftOrder(league, last);
   noteCoachOverspend(league);
 
@@ -424,6 +427,8 @@ function advanceOffseasonControlled(league: League, opts: { autoUser?: boolean }
       aiFreeAgencyDay(league, rng, { includeUser: auto });
       league.phase = 'preseason';
       aiFreeAgencyDay(league, rng, { includeUser: auto, rosterMax: OFFSEASON_ROSTER_MAX, lastCall: true });
+      // Camp has opened: free agency's tally is final and will be paid in next year's draft.
+      freezeComp(league);
       // Camp opens: anyone still hurt going into week 1 can go on reserve, off the 53 (yours too, unless you manage injuries).
       for (const team of league.teams) if (delegates(league, team)) manageInjuries(league, team, rng);
       // Coaches pick the position moves they'll teach, then the spring program's learning (docs/TRAINING.md §4).

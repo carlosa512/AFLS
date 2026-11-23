@@ -9,10 +9,13 @@ import type { League, Phase } from '../types';
 import { bidPass, bidsFor, poolOf, raiseTo, skips } from './bids';
 import { advanceOffseason, beginOffseason } from './index';
 
-/** The league's free-agency outcome as one hash: every transaction and every club's cap space. */
+/**
+ * The league's free-agency outcome as one hash: every transaction and every club's cap space. A transaction's `from` and
+ * `apy` (the compensatory record, `comp.ts`) are left out: they only record a signing, so the hash stays what it was.
+ */
 const outcome = (l: League) =>
   createHash('sha256')
-    .update(JSON.stringify(l.transactions))
+    .update(JSON.stringify(l.transactions.map((t) => ({ ...t, from: undefined, apy: undefined }))))
     .update(JSON.stringify(l.teams.map((t) => capSpace(l, t.id))))
     .digest('hex');
 
