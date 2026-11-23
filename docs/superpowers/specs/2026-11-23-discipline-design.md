@@ -198,6 +198,41 @@ it won't settle, stop and bring the numbers to the owner. Bands are the owner's 
 - `npm run morale` must stay green (mood jolts, meetings).
 - `npm run editions` (weekly and `--days`) for reading the words; `npm run letters` for the coach's rows.
 
+## Settled after the builder check
+
+The builder's questions, answered from the conversation and the code; each marked **(call)** is a call made in
+writing this up, for the owner to check.
+
+- **Ejections and play.** The foul itself, its yards and the rest of the drive are unchanged; the ejected man's
+  backup plays the rest of the game. About nine a season over 272 games barely moves anything; every `sim` line must
+  stay inside its band, as for any change (not literally unchanged). **(call)**
+- **Character counts twice, on purpose.** The foul rolls already read a man's temperament (`discipline` in
+  `match/lineup.ts`) and sportsmanship (`roughness`); the ejection odds read them again, so a hothead fouls more and,
+  when he does, is thrown out more. That is the point.
+- **The ladder counts league suspensions only**, never fines, team fines or games you sat him. `REVIEW.fouls` and
+  `REVIEW.span` start as guesses (three dangerous fouls within four games) and are tuned with the rest. **(call)**
+- **Volume is a league year's**: in-season weeks and the offseason together. The offseason gets a fixed number of
+  trouble rolls (one at each of its main steps), each scaled so the year lands on target. **(call)**
+- **Public or private.** A public spat and a skipped team event are public by nature: SNN may report them for any team.
+  A missed meeting, curfew or a practice scuffle stays inside the team, unless the team sits him, which is reported as
+  sat "for a violation of team rules", as NFL teams announce it. AI teams get no letter; what is public reaches SNN.
+  When your head coach handles discipline, his answer is a note row in his letter, with no question. **(call)**
+- **In the coach's letter** a team-rules row is an ask (the tier of player talks): it needs your answer, so it always
+  stays, counts toward `MAX_ROWS`, and waits through `LETTER_GAP` like any ask. A man holding in, holding out, not
+  reporting, suspended or already in trouble this week draws none; an injured man can still miss a meeting. An open
+  benching question or talk doesn't stop it, and both rows may stand in one letter. **(call)**
+- **Mood jolts**: a league fine is a small one (like your fine), a suspension a larger one by its length, your three
+  answers as above. All measured early against meetings and rooms. **(call)**
+- **Sitting him a game** is your answer, kept in his record but not on the ladder; he simply doesn't play that game
+  (no stats, no snaps), and it is not a benching.
+- **The record** keeps each incident (kind, week, outcome) and the lean from your last answer (how much likelier or
+  less likely more trouble is, and until when). It is dropped when he retires (`RETIRED_KEEP` keeps the career only).
+  **(call)**
+- **Quotes read the man's true personality, for every team.** The press shows what a man is like over a season, so it
+  doubles as a little scouting; the owner heard this in the playback. A quote never names a trait or a label.
+- **Good-side stories** are an average of about two a week league-wide, not a cap; an edition still runs one story a
+  team and keeps them to tiles.
+
 ## Left to the builder
 
 The exact odds (fitted by the tuning step), the stream's name, where each piece of state lives if a better home
