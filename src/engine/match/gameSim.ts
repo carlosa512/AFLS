@@ -93,11 +93,13 @@ import type {
   OpenField,
   PlayLogEntry,
   Player,
+  Position,
   StatKey,
   StatLine,
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
+import { isAvailable } from '../roster';
 import { approach, fieldStart } from '../field/approach';
 import { MID, HASH_HI, HASH_LO } from '../field/geometry';
 import { momentOf, type FieldFacts, type FieldMoment } from '../field/moment';
@@ -1462,19 +1464,27 @@ export class GameSim {
     for (const { p, why } of this.ejectPending) {
       if (this.out.has(p.id)) continue;
       const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
+      if (!this.hasCover(p, side)) continue;
       this.out.add(p.id);
-      // A side with nobody left to take his place (a third-string quarterback is the only one) keeps him on the field.
-      try {
-        this.rebuildSide(side);
-      } catch {
-        this.out.delete(p.id);
-        continue;
-      }
       this.ejections.push({ playerId: p.id, teamId: p.teamId!, quarter: this.quarter, clock: this.clock, why });
       this.snapshot = null;
       this.log(`Ejection: ${this.abbrev(side)} ${p.position} ${short(p)} is ejected.`);
+      this.rebuildSide(side);
     }
     this.ejectPending = [];
+  }
+
+  /**
+   * Whether his side can field someone at his job without him. The lineup builder fills a short spot from the roster
+   * (a safety at corner, a punter for a kicker), but a quarterback or a specialist with nobody healthy behind him would
+   * leave it empty: that man stays in the game and nothing is recorded.
+   */
+  private hasCover(p: Player, side: Side): boolean {
+    if (p.position !== 'QB' && p.position !== 'K' && p.position !== 'P') return true;
+    const team = this.lineups[side].team;
+    const spare = (pos: Position) =>
+      team.depthChart[pos].some((id) => id !== p.id && !this.out.has(id) && isAvailable(this.league.players[id]));
+    return spare(p.position) || (p.position !== 'QB' && spare(p.position === 'K' ? 'P' : 'K'));
   }
 
   /** Queue a man's ejection once: the first reason he earns is the one on his record. */
@@ -1484,34 +1494,17 @@ export class GameSim {
   }
 
   /**
-   * A fight after the whistle on a play with contact: a short-tempered defender throws a punch at the man he just hit
-   * (unsportsmanlike conduct, and out); if that man has a short temper too and swings back, both go and the fouls offset
-   * with nothing enforced. The play's yards are untouched. Only the ejection stream is drawn.
+   * The after-the-whistle foul the engine already rolls on a sack may have been a fight: a short-tempered rusher threw a
+   * punch at the quarterback (he is out whether or not the flag is taken), and if the quarterback's temper is short too
+   * he swings back (his foul offsets, nothing is enforced for it). No new foul: only the ejection stream is drawn.
    */
-  private fight(result: PlayResult, fouls: LiveFoul[]) {
-    if (!EJECT.on) return;
-    const defTeam = this.lineups[this.def].team.id;
-    const defenders = new Set<Player>();
-    for (const [p, key] of result.stats.entries)
-      if ((key === 'tackles' || key === 'sacks') && p.teamId === defTeam) defenders.add(p);
-    if (result.kind === 'sack' && result.rusher) defenders.add(result.rusher);
-    if (!defenders.size) return;
-    const men = [...defenders].filter((p) => !this.out.has(p.id));
-    if (!men.length) return;
-    const play = result.kind === 'sack' ? 3 : result.turnover ? 2 : 1;
-    const heat = men.reduce((sum, p) => sum + hotHead(p), 0) / men.length;
-    if (!this.ejectRng.chance(EJECT.fight * play * heat)) return;
-    const aggressor = this.ejectRng.weighted(men, hotHead);
-    // The man he hit: the quarterback he sacked, else the offense's man in the play, else the passer.
-    const hit = result.stats.entries.map(([p]) => p).filter((p) => p.teamId !== defTeam && !this.out.has(p.id));
-    const victim = result.kind === 'sack' ? this.lineups[this.offense].qb : (hit[0] ?? this.lineups[this.offense].qb);
-    this.eject(aggressor, 'fight');
-    if (!this.out.has(victim.id) && this.ejectRng.chance(EJECT.fightBack * hotHead(victim))) {
-      this.eject(victim, 'fight');
-      this.flag(this.def, 'unsportsmanlike', aggressor, 'offset');
-      this.flag(this.offense, 'unsportsmanlike', victim, 'offset');
-    } else if (!fouls.some((f) => f.foul === 'unsportsmanlike' && f.by === aggressor)) {
-      fouls.push({ foul: 'unsportsmanlike', by: aggressor });
+  private fight(rusher: Player) {
+    if (!EJECT.on || !this.ejectRng.chance(EJECT.fight * hotHead(rusher))) return;
+    this.eject(rusher, 'fight');
+    const qb = this.lineups[this.offense].qb;
+    if (!this.out.has(qb.id) && this.ejectRng.chance(EJECT.fightBack * hotHead(qb))) {
+      this.eject(qb, 'fight');
+      this.flag(this.offense, 'unsportsmanlike', qb, 'offset');
     }
   }
 
@@ -5099,7 +5092,6 @@ export class GameSim {
       else if (roll < pDpi + DEF_HOLDING * grabby) fouls.push({ foul: 'defHolding' });
     }
     this.personalFouls(result, fouls);
-    this.fight(result, fouls);
     return fouls;
   }
 
@@ -5149,6 +5141,7 @@ export class GameSim {
       this.rng.chance(UNSPORTSMANLIKE * loose(result.rusher, DL_DISCIPLINE) * all)
     ) {
       fouls.push({ foul: 'unsportsmanlike', by: result.rusher });
+      this.fight(result.rusher);
     }
   }
 
@@ -5386,6 +5379,8 @@ export class GameSim {
   }
 
   result(): GameResult {
+    // An ejection on the game's last play lands here: no later step would apply it.
+    if (this.over && this.ejectPending.length) this.ejectStoppage();
     const plays = this.plays;
     const playerTeams: Record<number, number> = {};
     for (const l of this.lineups) for (const p of activePlayers(l)) playerTeams[p.id] = l.team.id;

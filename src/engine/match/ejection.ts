@@ -6,15 +6,15 @@ import { temperamentOf, TRAIT_MEAN } from '../traits';
  * A player is thrown out only for the NFL's reasons (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`): a
  * fight after the whistle, a second unsportsmanlike conduct foul in one game (automatic, no dice) and, very rarely, a
  * flagrant hit. Every draw is on the game's own `:eject` stream, so with `on` false every other roll is unchanged.
- * `fight` is the odds a contact play ends in one (a sack counts triple, a turnover double); `fightBack` that the man he
+ * `fight` is the odds the after-the-whistle foul on a sack was a fight; `fightBack` that the man he
  * hit swings back; `flagrant` the odds an accepted personal foul is judged flagrant. Starting odds from
  * `docs/research/discipline.md` (about 15 a league season, most of them fights); the discipline check tunes them.
  */
 export const EJECT: { on: boolean; fight: number; fightBack: number; flagrant: Partial<Record<Foul, number>> } = {
   on: true,
-  fight: 0.0002,
+  fight: 0.3,
   fightBack: 0.25,
-  flagrant: { roughingPasser: 0.025, unnecessaryRoughness: 0.025, horseCollar: 0.02 },
+  flagrant: { roughingPasser: 0.016, unnecessaryRoughness: 0.016, horseCollar: 0.012 },
 };
 
 /** A short temper starts it and keeps it going: about ±2.5 across the league's range. */
