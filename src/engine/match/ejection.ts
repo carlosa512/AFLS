@@ -12,13 +12,13 @@ import { temperamentOf, TRAIT_MEAN } from '../traits';
  */
 export const EJECT: { on: boolean; fight: number; fightBack: number; flagrant: Partial<Record<Foul, number>> } = {
   on: true,
-  fight: 0.3,
-  fightBack: 0.25,
-  flagrant: { roughingPasser: 0.016, unnecessaryRoughness: 0.016, horseCollar: 0.012 },
+  fight: 0.138,
+  fightBack: 0.19,
+  flagrant: { roughingPasser: 0.017, unnecessaryRoughness: 0.017, horseCollar: 0.013 },
 };
 
-/** A short temper starts it and keeps it going: about ±2.5 across the league's range. */
-export const hotHead = (p: Player) => Math.exp(-0.18 * (temperamentOf(p) - TRAIT_MEAN));
+/** A short temper starts it and keeps it going: about ±3 across the league's range. */
+export const hotHead = (p: Player) => Math.exp(-0.28 * (temperamentOf(p) - TRAIT_MEAN));
 
 /** A dirty player's hit is the one the league calls flagrant (the same lean as the late hit itself). */
 export const flagrantLean = (p: Player) => Math.exp(-0.06 * (roughness(p) - 11));

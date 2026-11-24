@@ -222,6 +222,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
+- `npm run conduct [-- --leagues 2 --seasons 4]` — discipline (`docs/research/discipline.md`, "Targets for AFLS"): three leagues for
+  eight seasons, the others in child processes. Judges ejections a league season (and the fight share and flagrant hits),
+  league suspensions and their one-game share, the bottom fifth's share of off-field trouble and a first suspension past one game
+  (never); prints trouble by personality, AI head coaches' answers and the ladder. Run it after changing `conduct.ts`,
+  `match/ejection.ts` or the ejection code in `match/gameSim.ts`. Nothing may be ✗. `npm run quotes -- --check` is its own check too.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 

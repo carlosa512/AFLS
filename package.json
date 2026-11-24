@@ -32,6 +32,7 @@
     "size": "tsx scripts/size.ts",
     "crews": "tsx scripts/crews.ts",
     "morale": "tsx scripts/morale.ts",
+    "conduct": "tsx scripts/conduct.ts",
     "trades": "tsx scripts/trades.ts",
     "training": "tsx scripts/training.ts",
     "waivers": "tsx scripts/waivers.ts",
