@@ -242,6 +242,8 @@ function closeRow(team: Team, playerId: number): void {
 /** A row left past the usual wait is Let it go; a man gone from the club takes his row with him. */
 export function settleConduct(league: League): void {
   const team = league.teams[league.userTeamId];
+  // A user between jobs (`userTeamId` -1, the league playing itself) has no desk.
+  if (!team) return;
   const now = league.moraleAt ?? moraleClock(league);
   for (const row of [...(team.conduct?.pending ?? [])]) {
     const p = league.players[row.playerId];

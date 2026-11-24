@@ -12,6 +12,7 @@ import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
 import { ordinal } from './opposition';
+import { draw, speaks } from './playerQuote';
 import { statLine } from './stats';
 import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
@@ -125,6 +126,8 @@ interface Parts {
   picture: EditionStory['picture'];
   links: InboxAction[];
   table?: EditionStory['table'];
+  /** The player the story is about, in his own words (`playerQuote.ts`). */
+  quote?: EditionStory['quote'];
   yours?: true;
 }
 
@@ -147,6 +150,7 @@ const assemble = (
   numbers: x.numbers.slice(0, 3),
   paragraphs: [x.first.filter(Boolean).join(' '), x.second.filter(Boolean).join(' ')],
   ...(x.table ? { table: x.table } : {}),
+  ...(x.quote ? { quote: x.quote } : {}),
   links: x.links,
   ...(c.covers?.length ? { covers: c.covers } : {}),
 });
@@ -1220,8 +1224,30 @@ export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionS
   if (c.day === 'cuts') return cutsStory(l, c, at);
   if (c.day === 'kickoff') return kickoffStory(l, c, at);
   if (c.day === 'year') return yearStory(l, c, at);
-  if (c.day === 'market') return marketStory(l, c, at);
-  return draftStory(l, c, at);
+  if (c.day === 'market') return withVoice(l, c, at, marketStory(l, c, at));
+  return withVoice(l, c, at, draftStory(l, c, at));
+}
+
+/** The stories of the day about one player who signed or was picked: two in three give him the words. */
+const SPEAKS = new Set(['first', 'up', 'qb', 'wait', 'ahead', 'comp', 'haul', 'moved', 'richest', 'home']);
+function withVoice(l: League, c: DayCandidate, at: Wording, story: EditionStory): EditionStory {
+  if (c.playerId === undefined || !SPEAKS.has(c.angle) || draw(`${at.editionId}:${c.key}:says`, 2) === 0) return story;
+  const p = l.players[c.playerId];
+  const draft = c.day === 'draft';
+  const quote = speaks(
+    l,
+    p,
+    draft ? 'drafted' : 'signed',
+    {
+      key: c.key,
+      at,
+      ...(draft
+        ? { pick: c.pick, round: p.draft?.round, slid: c.angle === 'wait' }
+        : { returning: c.angle === 'home', rich: c.angle === 'richest' }),
+    },
+    c.clubId,
+  );
+  return quote ? { ...story, quote } : story;
 }
 
 /** The reader's team in the window before free agency: who it tagged, kept and let reach the market, in public terms. */
@@ -1350,6 +1376,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
     ],
     picture: { playerId: a.id },
     links: [{ kind: 'draft' }, { kind: 'team', teamId: u }],
+    quote: speaks(l, a, 'drafted', { key, at, pick: a.draft!.pick, round: a.draft!.round }, u),
     table: {
       head: ['Pick', 'Player', 'Consensus'],
       rows: mine
@@ -1412,6 +1439,7 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
     ],
     picture: { playerId: top.id },
     links: [{ kind: 'team', teamId: u }],
+    ...(lost ? {} : { quote: speaks(l, top, 'signed', { key, at }, u) }),
   });
 }
 

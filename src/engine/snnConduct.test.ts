@@ -3,6 +3,7 @@ import { createLeague } from './generate';
 import { playWeek } from './league';
 import { teamPlayers } from './roster';
 import { conductCandidates, freshGood, goodSideWeek } from './snnConduct';
+import { letterBreaks } from './letterRules';
 import { LEDES } from './snnConductVoice';
 import { sentencesOf } from './voice';
 import { cutEdition, rankCandidates, buildEdition, type Candidate } from './snnWeek';
@@ -206,6 +207,30 @@ describe('the good side', () => {
     }
   });
 
+  it('tells a good deed in two paragraphs about the man, the deed and his career, with no record or standing', () => {
+    const cs = deeds();
+    expect(cs.length).toBeGreaterThan(10);
+    const said: string[] = [];
+    let quoted = 0;
+    for (const c of cs) {
+      const s: EditionStory = writeStory(l, c, { editionId: `snn:${l.season}:${c.key}`, said });
+      expect(s.paragraphs, s.headline).toHaveLength(2);
+      const second = s.paragraphs[1];
+      expect(second, second).not.toMatch(/\d–\d|lead the|trail|sit behind|open the season|travel to|host |next\./);
+      expect(second.length).toBeGreaterThan(0);
+      expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+      // The man speaks: a good story has no word from his head coach.
+      if (s.quote) {
+        quoted++;
+        expect(s.quote.playerId).toBe(c.conduct!.playerId);
+        expect(s.quote.coachId).toBeUndefined();
+        expect(letterBreaks(s.quote.text, { quotes: true })).toEqual([]);
+      }
+    }
+    expect(quoted).toBeGreaterThan(0);
+    expect(quoted).toBeLessThan(cs.length);
+  });
+
   it('tells a man once a league year, and no second family moment', () => {
     const p = l.players[goodSideWeek(l, at(4))[0].playerId];
     const have = new Set([`good:${l.season}:2:${p.id}:community`]);
@@ -391,6 +416,54 @@ describe('late stories, quotes and depth', () => {
       expect(c.tier).toBe(5);
       const s = writeDayStory(l, c, { editionId: `snn:${l.season}:d:${c.day}`, said: [] });
       expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+    }
+  });
+});
+
+describe('players in their own words', () => {
+  it('quotes the man in a suspension story, or his head coach, never both, in words that pass the rules', () => {
+    const said: string[] = [];
+    const stories: EditionStory[] = [];
+    for (let k = 0; k < 10; k++) {
+      const team = 14 + k;
+      const p = teamPlayers(l, team).filter((x) => !x.retired)[k % 4];
+      p.discipline = {
+        entries: [
+          {
+            season: l.season,
+            week: step(WEEK),
+            teamId: team,
+            kind: 'fight',
+            outcome: 'suspended',
+            games: 1,
+            public: true,
+          },
+        ],
+      };
+      const c = all().find((x) => x.conduct?.playerId === p.id)!;
+      stories.push(writeStory(l, c, { editionId: `snn:${l.season}:q${k}`, said }, {}));
+    }
+    const talking = stories.filter((s) => s.quote?.playerId !== undefined);
+    expect(talking.length).toBeGreaterThan(2);
+    expect(stories.filter((s) => s.quote?.coachId !== undefined).length).toBeGreaterThan(0);
+    for (const s of stories) {
+      if (!s.quote) continue;
+      expect(s.quote.playerId === undefined || s.quote.coachId === undefined).toBe(true);
+      if (s.quote.playerId !== undefined) expect(s.quote.playerId).toBe(s.cast[0]);
+      expect(letterBreaks(s.quote.text, { quotes: true }), s.quote.text).toEqual([]);
+      expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+    }
+    // No quote twice: a man speaks a line nobody has said this league year.
+    const texts = stories.flatMap((s) => (s.quote ? [s.quote.text] : []));
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+
+  it('names the story’s own team one way, never by its nickname in one sentence and its city in the next', () => {
+    for (const c of all()) {
+      const s = story(c);
+      const t = l.teams[c.clubId];
+      const text = s.paragraphs.join(' ');
+      expect(text.includes(t.name) && text.includes(t.city), text).toBe(false);
     }
   });
 });

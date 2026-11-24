@@ -91,6 +91,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
   with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
   changing a letter's words and read the lines you touched; `letterRules.test.ts` fails on a break.
+- `npm run quotes [-- --check]` — players in their own words (`playerQuote.ts`, lines in `playerQuoteLines.ts`): every
+  line each personality can say at each moment (drafted, signed, bigWin, badLoss, trouble, suspended, back, goodSide) to
+  `.check/quotes.md`, for reading straight through; with `--check` it also plays ten seasons (about 7 minutes), collects
+  every player quote SNN printed and fails when one line is printed more than 3 times (whatever team or city is in it)
+  or fewer than 80% of the printed quotes are distinct. Run it after adding or changing a quote line or where a story
+  quotes a player (`snnVoice.ts`, `snnDayVoice.ts`, `snnConductVoice.ts`).
 - `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
   enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
   for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
@@ -374,6 +380,14 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     champions' regular season and who they beat; how many titles that makes), a tile for the league's most valuable
     player and the other awards, and two lists (the season's awards, the champions' road). A storyline about your team
     is told the week it happens or the week after and never late (`STORY_FRESH` in `snnWeek.ts`)
+  - `playerQuote.ts` the one quote a story may give the player it is about (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`,
+    "Players talk"): `playerQuote`/`speaks` read his personality (`personalityOf(trueCharacter(p))`, never shown) and
+    choose among whole hand-written lines (`playerQuoteLines.ts`, slots for facts only: {team}, {city}, {nth}, {games}…)
+    through `say`: the most specific that fits (a first-round pick, a late one, a return, the richest deal, a kind of
+    good deed, trouble on the field or off it), none said this league year, the plain voice when his own are spent and no
+    quote at all when that is spent too. Moments: drafted and signed (`snnDayVoice.ts`, `withVoice`), a big win or bad
+    loss for the day's best player (`snnVoice.ts`), trouble, a suspension and a good deed (`snnConductVoice.ts`); one
+    quote a story, the player's or his head coach's. Mail-side only: nothing in the sim reads it.
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing

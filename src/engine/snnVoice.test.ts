@@ -90,7 +90,7 @@ describe('a season of stories', () => {
         }
   });
 
-  it('quotes only the head coach of the club the story is about or told for, at most once a story', () => {
+  it('quotes only the head coach of the club the story is about or told for, or the player it is about, at most once a story', () => {
     let quotes = 0;
     // Judged against the head coaches when each edition was written (2026-11-14: a club changed head coaches in
     // season in this world, and the story before it quoted the man who had the job then).
@@ -98,6 +98,12 @@ describe('a season of stories', () => {
       for (const s of storiesOf(e)) {
         if (!s.quote) continue;
         quotes++;
+        // Or the player the story is about, in his own words (`playerQuote.ts`): one quote either way.
+        if (s.quote.playerId !== undefined) {
+          expect(s.quote.coachId).toBeUndefined();
+          expect(s.cast).toContain(s.quote.playerId);
+          continue;
+        }
         const clubs = [s.clubId, ...(s.yours ? [l.userTeamId] : [])];
         const coaches = clubs.map((id) => headCoachesAt[i].get(id!));
         expect(coaches).toContain(s.quote.coachId);

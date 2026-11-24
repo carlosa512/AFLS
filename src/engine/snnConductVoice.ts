@@ -18,7 +18,8 @@ import type { Candidate } from './snnWeek';
 import { ordinal } from './opposition';
 import { POSITION_NAMES } from './positions';
 import { draftedHigh, publicRecord } from './publicStanding';
-import { referrer } from './refer';
+import { draw, speaks, type QuoteMoment } from './playerQuote';
+import { cap, referrer } from './refer';
 import { computeRecords, divisionStandings } from './season/standings';
 import type { ConductFacts } from './snnConduct';
 import { statLine } from './stats';
@@ -30,8 +31,11 @@ interface Wording {
   said: string[];
 }
 interface Options {
+  /** No quote at all (a tile). */
   quote?: false;
   brief?: true;
+  /** The player may speak though no head coach does (a good deed has no word from the coach). */
+  voice?: true;
 }
 
 // ───────── tokens and small words ─────────
@@ -41,10 +45,15 @@ const C = (id: number) => `{C:${id}}`;
 const c = (id: number) => `{c:${id}}`;
 /** A team's bare nickname ("Squall"): write the article yourself. */
 const N = (id: number) => `{N:${id}}`;
-const resolveTokens = (text: string, ref: ReturnType<typeof referrer>) =>
+/**
+ * Tokens as a story prints them. The story's own team is named one way throughout (its nickname: "the Tarpons"), never
+ * by nickname in one sentence and by city in the next; any other team is a city, or the referrer's choice.
+ */
+const resolveTokens = (text: string, ref: ReturnType<typeof referrer>, own: { id: number; name: string }) =>
   text
     .replace(/\{(M|C|c|N):(\d+)\}/g, (_, kind: string, n: string) => {
       const id = Number(n);
+      if (id === own.id && kind !== 'M') return kind === 'N' ? own.name : `the ${own.name}`;
       if (kind === 'N') {
         ref.club(id);
         return ref.nickname(id);
@@ -53,9 +62,26 @@ const resolveTokens = (text: string, ref: ReturnType<typeof referrer>) =>
     })
     .replace(/(^|[.?!] )([a-z])/g, (_, lead: string, ch: string) => lead + ch.toUpperCase());
 const menIn = (text: string) => [...text.matchAll(/\{M:(\d+)\}/g)].map((m) => Number(m[1]));
-const SMALL = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
-const w = (n: number) => (Number.isInteger(n) && n >= 0 && n < 10 ? SMALL[n] : String(n));
-const NTH = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+const SMALL = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const w = (n: number) => (Number.isInteger(n) && n >= 0 && n < SMALL.length ? SMALL[n] : String(n));
+const NTH = [
+  '',
+  'first',
+  'second',
+  'third',
+  'fourth',
+  'fifth',
+  'sixth',
+  'seventh',
+  'eighth',
+  'ninth',
+  'tenth',
+  'eleventh',
+  'twelfth',
+  'thirteenth',
+  'fourteenth',
+  'fifteenth',
+];
 const nth = (n: number) => NTH[n] ?? ordinal(n);
 const games = (n: number) => (n === 1 ? 'one game' : `${w(n)} games`);
 const QUARTER = ['', 'first', 'second', 'third', 'fourth'];
@@ -113,6 +139,13 @@ interface Sheet {
   next: Next | null;
   /** A season line worth one sentence ("six sacks this season"), or ''. */
   fact: string;
+  age: number;
+  /** His seasons in the league, this one counted. */
+  exp: number;
+  /** When and in what round this team drafted him, in any year, or null. */
+  drafted: { season: number; round: number } | null;
+  /** What last season's record said of him, as the rest of a sentence about him ("was named All-League last season"), or ''. */
+  honor: string;
   /** In a good story: a place, a count of teammates, an event. */
   place: string;
   mates: number;
@@ -209,6 +242,10 @@ function sheetOf(l: League, cand: Candidate): Sheet {
         }
       : null,
     fact: factOf(l, p),
+    age: p.age,
+    exp: p.experience + 1,
+    drafted: p.draft && p.draft.teamId === club ? { season: p.draft.season, round: p.draft.round } : null,
+    honor: '',
     place: PLACES[hash(`${cand.key}:place`) % PLACES.length],
     mates: 4 + (hash(`${cand.key}:mates`) % 9),
     event: EVENTS[hash(`${cand.key}:event`) % EVENTS.length],
@@ -236,12 +273,21 @@ function L<S = Sheet>(text: (s: S) => string, reads = 0, when?: (s: S) => boolea
 
 // ───────── what happened: the lede ─────────
 
+/**
+ * What the league did, as a sentence of its own that names the man (a sentence with no name in it is the same in every
+ * story, and one said rules out every line that holds it): four ways to say it, so a bank's lines do not share one.
+ */
+const RULED: readonly ((s: Sheet) => string)[] = [
+  (s) => (s.fined ? `The league fined ${M(s.id)}.` : `The league suspended ${M(s.id)} for ${gw(s)}.`),
+  (s) => (s.fined ? `${M(s.id)} was fined by the league.` : `${M(s.id)} was handed ${gw(s)} by the league.`),
+  (s) => (s.fined ? `The league gave ${M(s.id)} a fine.` : `The league gave ${M(s.id)} a suspension of ${gw(s)}.`),
+  (s) => (s.fined ? `The league fined ${M(s.id)} for it.` : `The league ruled ${M(s.id)} out for ${gw(s)}.`),
+];
+
 const FIGHT: Bank = [
   L((s) => `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} for fighting.`),
   L((s) => `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and the league has suspended him for ${gw(s)}.`),
-  L(
-    (s) => `A fight ${qtrIn(s)} ${where(s)} has cost ${s.who} ${gw(s)}. The league suspended him after he was ejected.`,
-  ),
+  L((s) => `A fight ${qtrIn(s)} ${where(s)} has cost ${s.who} ${gw(s)}, after the league reviewed his ejection.`),
   L((s) => `${s.who} will sit out ${gw(s)} after the league ruled on his ejection for fighting ${where(s)}.`),
   L(
     (s) =>
@@ -250,13 +296,12 @@ const FIGHT: Bank = [
   // A game his team lost, a game it won, and a name: each its own cell, with several lines.
   L(
     (s) =>
-      `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league suspended him for ${gw(s)}.`,
+      `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. ${RULED[0](s)}`,
     1,
     lost,
   ),
   L(
-    (s) =>
-      `In a ${score(s)} loss ${where(s)}, ${s.who} was thrown out ${qtrIn(s)} for fighting. The league suspended him for ${gw(s)}.`,
+    (s) => `In a ${score(s)} loss ${where(s)}, ${s.who} was thrown out ${qtrIn(s)} for fighting. ${RULED[1](s)}`,
     1,
     lost,
   ),
@@ -268,7 +313,7 @@ const FIGHT: Bank = [
   ),
   L(
     (s) =>
-      `${s.who} was thrown out for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} still won ${score(s)}. The league suspended him for ${gw(s)}.`,
+      `${s.who} was thrown out for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} still won ${score(s)}. ${RULED[2](s)}`,
     1,
     won,
   ),
@@ -316,7 +361,7 @@ const FIGHT: Bank = [
   ),
   L(
     (s) =>
-      `${s.who} drew ${gw(s)} from the league for fighting ${where(s)}, longer than his last suspension. He has now been suspended ${w(s.bans)} times in two seasons.`,
+      `${s.who} drew ${gw(s)} from the league for fighting ${where(s)}, longer than his last suspension. That makes ${w(s.bans)} suspensions for ${M(s.id)} in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
@@ -330,52 +375,48 @@ const TWO: Bank = [
   ),
   L(
     (s) =>
-      `${s.who} picked up two unsportsmanlike conduct penalties ${where(s)} and was ejected ${qtrIn(s)}. The league ${him(s)}.`,
+      `${s.who} picked up two unsportsmanlike conduct penalties ${where(s)} and was ejected ${qtrIn(s)}. ${RULED[0](s)}`,
   ),
-  L((s) => `Two unsportsmanlike conduct penalties got ${s.who} ejected ${qtrIn(s)} ${where(s)}. The league ${him(s)}.`),
+  L((s) => `Two unsportsmanlike conduct penalties got ${s.who} ejected ${qtrIn(s)} ${where(s)}. ${RULED[1](s)}`),
   L(
     (s) =>
       `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, and the league ${him(s)}.`,
   ),
   L((s) => `After ${s.who} was ejected ${where(s)} for two unsportsmanlike conduct penalties, the league ${him(s)}.`),
+  L((s) => `${s.who} was ejected ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. ${RULED[2](s)}`, 1, lost),
   L(
-    (s) => `${s.who} was ejected ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${him(s)}.`,
+    (s) =>
+      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. ${RULED[3](s)}`,
     1,
     lost,
   ),
   L(
     (s) =>
-      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. The league ${him(s)}.`,
+      `In a ${score(s)} loss ${where(s)}, a second unsportsmanlike conduct penalty got ${s.who} ejected, and the league ${him(s)}.`,
     1,
     lost,
   ),
   L(
     (s) =>
-      `In a ${score(s)} loss ${where(s)}, a second unsportsmanlike conduct penalty got ${s.who} ejected. The league ${him(s)}.`,
-    1,
-    lost,
-  ),
-  L(
-    (s) =>
-      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, though ${c(s.club)} went on to win ${score(s)}. The league ${him(s)}.`,
+      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, though ${c(s.club)} went on to win ${score(s)}. ${RULED[1](s)}`,
     1,
     won,
   ),
   L(
     (s) =>
-      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. The league ${him(s)}.`,
+      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. ${RULED[2](s)}`,
     1,
     won,
   ),
   L(
     (s) =>
-      `A second unsportsmanlike conduct penalty got ${s.who} ejected in a ${score(s)} win ${where(s)}. The league ${him(s)}.`,
+      `A second unsportsmanlike conduct penalty got ${s.who} ejected in a ${score(s)} win ${where(s)}. ${RULED[3](s)}`,
     1,
     won,
   ),
   L(
     (s) =>
-      `It was the second ejection of the season for ${s.who}, this time for two unsportsmanlike conduct penalties ${where(s)}. The league suspended him for ${gw(s)}.`,
+      `It was the second ejection of the season for ${s.who}, this time for two unsportsmanlike conduct penalties ${where(s)}. ${RULED[0](s)}`,
     3,
     (s) => s.nth >= 2 && !s.fined,
   ),
@@ -393,48 +434,44 @@ const FLAGRANT: Bank = [
       ? `The league fined ${s.who} after he was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`
       : `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`,
   ),
-  L(
-    (s) =>
-      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a hit the officials called flagrant. The league ${him(s)}.`,
-  ),
-  L((s) => `A hit the officials called flagrant got ${s.who} ejected ${where(s)}. The league ${him(s)}.`),
+  L((s) => `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a hit the officials called flagrant. ${RULED[0](s)}`),
+  L((s) => `A hit the officials called flagrant got ${s.who} ejected ${where(s)}. ${RULED[1](s)}`),
   L(
     (s) =>
       `The league ${s.fined ? 'fined' : 'suspended'} ${s.who}${s.fined ? '' : ` for ${gw(s)}`} after a flagrant hit ${qtrIn(s)} ${where(s)} got him ejected.`,
   ),
   L(
     (s) =>
-      `A hit the officials called flagrant got ${s.who} thrown out ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${him(s)}.`,
+      `A hit the officials called flagrant got ${s.who} thrown out ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. ${RULED[2](s)}`,
     1,
     lost,
   ),
   L(
     (s) =>
-      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. The league ${him(s)}.`,
+      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. ${RULED[3](s)}`,
     1,
     lost,
   ),
   L(
-    (s) => `In a ${score(s)} loss ${where(s)}, ${s.who} was ejected for a flagrant hit. The league ${him(s)}.`,
+    (s) => `In a ${score(s)} loss ${where(s)}, ${s.who} was ejected for a flagrant hit, and the league ${him(s)}.`,
     1,
     lost,
   ),
   L(
     (s) =>
-      `${s.who} was ejected for a flagrant hit ${qtrIn(s)} ${where(s)}, though ${c(s.club)} held on to win ${score(s)}. The league ${him(s)}.`,
+      `${s.who} was ejected for a flagrant hit ${qtrIn(s)} ${where(s)}, though ${c(s.club)} held on to win ${score(s)}. ${RULED[1](s)}`,
     1,
     won,
   ),
   L(
     (s) =>
-      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. The league ${him(s)}.`,
+      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. ${RULED[2](s)}`,
     1,
     won,
   ),
-  L((s) => `A flagrant hit got ${s.who} ejected in a ${score(s)} win ${where(s)}. The league ${him(s)}.`, 1, won),
+  L((s) => `A flagrant hit got ${s.who} ejected in a ${score(s)} win ${where(s)}. ${RULED[3](s)}`, 1, won),
   L(
-    (s) =>
-      `${s.who} was ejected for a flagrant hit, his ${nth(s.nth)} ejection of the season. The league suspended him for ${gw(s)}.`,
+    (s) => `${s.who} was ejected for a flagrant hit, his ${nth(s.nth)} ejection of the season. ${RULED[0](s)}`,
     3,
     (s) => s.nth >= 2 && !s.fined,
   ),
@@ -449,20 +486,17 @@ const FINE: Bank = [
   ),
   L(
     (s) =>
-      `${s.who} was fined by the league for a run of dangerous fouls, ${w(REVIEW.fouls)} of them in ${w(REVIEW.span)} games. There was no suspension.`,
+      `${s.who} was fined by the league for a run of dangerous fouls, ${w(REVIEW.fouls)} of them in ${w(REVIEW.span)} games. ${M(s.id)} was not suspended.`,
   ),
   L(
     (s) =>
-      `The league fined ${s.who} for a dangerous foul ${where(s)}, the ${nth(REVIEW.fouls)} he has been flagged for in ${w(REVIEW.span)} games. There was no suspension.`,
+      `The league fined ${s.who} for a dangerous foul ${where(s)}, the ${nth(REVIEW.fouls)} he has been flagged for in ${w(REVIEW.span)} games. The league did not suspend ${M(s.id)}.`,
   ),
+  L((s) => `${cap(FINED)} have cost ${s.who} a fine. The latest came ${where(s)}, and the league did not suspend him.`),
+  L((s) => `${s.who} drew a fine from the league for his hit ${where(s)}. ${M(s.id)} has been flagged for ${FINED}.`),
   L(
     (s) =>
-      `Three dangerous fouls in four games have cost ${s.who} a fine. The latest came ${where(s)}, and the league did not suspend him.`,
-  ),
-  L((s) => `${s.who} drew a fine from the league for his hit ${where(s)}. He has been flagged for ${FINED}.`),
-  L(
-    (s) =>
-      `${s.who} drew a fine from the league after another dangerous foul ${where(s)}, a ${score(s)} ${lost(s) ? 'loss' : 'win'}. He has been flagged for ${FINED}.`,
+      `${s.who} drew a fine from the league after another dangerous foul ${where(s)}, a ${score(s)} ${lost(s) ? 'loss' : 'win'}. That makes ${FINED} for ${M(s.id)}.`,
     1,
     (s) => s.won !== null,
   ),
@@ -635,7 +669,7 @@ const COMMUNITY: Bank = [
     (s) => s.rookie,
   ),
   L(
-    (s) => `${s.who}, one of the ${N(s.club)} captains, led a visit to ${s.place} this week.`,
+    (s) => `${s.who}, one of the three captains the ${N(s.club)} named, led a visit to ${s.place} this week.`,
     3,
     (s) => s.captain,
   ),
@@ -706,7 +740,7 @@ const TEAMMATE: Bank = [
   ),
 ];
 
-/** A line about the man himself, for a good story, which has no game behind it. */
+/** A line about the man's career, for a good story, which has no game behind it. */
 const ABOUT: Bank = [
   L(
     (s) => `He is in his ${nth(s.seasons)} season with ${c(s.club)}.`,
@@ -714,11 +748,65 @@ const ABOUT: Bank = [
     (s) => s.seasons >= 2,
   ),
   L(
-    (s) => `He was drafted by ${c(s.club)} in the ${nth(s.round)} round this year.`,
+    (s) => `He is in his first season with ${c(s.club)}.`,
+    1,
+    (s) => s.seasons === 1 && s.round === 0,
+  ),
+  L(
+    (s) => `He is ${s.age} and in his ${nth(s.exp)} season in the league.`,
+    1,
+    (s) => s.exp >= 3,
+  ),
+  L(
+    (s) => `${c(s.club)} drafted him in the ${nth(s.drafted!.round)} round in ${s.drafted!.season}.`,
     2,
+    (s) => !!s.drafted && !s.rookie,
+  ),
+  L(
+    (s) => `He was drafted by ${c(s.club)} in the ${nth(s.round)} round this year.`,
+    3,
     (s) => s.rookie && s.round > 0,
   ),
 ];
+
+/** What the public record says of him: an honor, or the team's own word for him. */
+const HONOR: Bank = [
+  L(
+    (s) => `${M(s.id)} ${s.honor}.`,
+    2,
+    (s) => !!s.honor,
+  ),
+  L(
+    (s) => `The ${N(s.club)} named ${M(s.id)} one of their three captains this year.`,
+    3,
+    (s) => s.captain,
+  ),
+  L(
+    (s) => `${M(s.id)} is one of the three captains the ${N(s.club)} named this year.`,
+    3,
+    (s) => s.captain,
+  ),
+];
+
+const STAT_WORDS: Record<string, string> = {
+  passYds: 'passing yards',
+  rushYds: 'rushing yards',
+  recYds: 'receiving yards',
+  sacks: 'sacks',
+  defInt: 'interceptions',
+};
+/** Last season's honor as the rest of a sentence about a man already named, or ''. */
+function honorOf(l: League, p: Player): string {
+  const why = publicRecord(l).why(p);
+  if (!why) return '';
+  return why.kind === 'award'
+    ? "won one of the league's awards last season"
+    : why.kind === 'allLeague'
+      ? 'was named All-League last season'
+      : why.kind === 'passer'
+        ? 'was the quarterback of a winning team last season'
+        : `was in the league's top five in ${STAT_WORDS[why.stat] ?? 'his category'} last season`;
+}
 
 // ───────── what it means: what he misses, a fact, where the team stands, what is next ─────────
 
@@ -778,7 +866,7 @@ const STAND: Bank = [
   L(
     (s) => `${c(s.club)} are ${s.rec} and trail ${c(s.leaderId)} in the ${s.division}.`,
     2,
-    (s) => !s.leading && s.w + s.l > 1,
+    (s) => !s.leading && s.w + s.l > 1 && s.leaderId !== s.opp && s.leaderId !== s.next?.opp,
   ),
   L(
     (s) => `At ${s.rec}, ${c(s.club)} lead the ${s.division}.`,
@@ -788,7 +876,7 @@ const STAND: Bank = [
   L(
     (s) => `At ${s.rec}, ${c(s.club)} sit behind ${c(s.leaderId)} in the ${s.division}.`,
     2,
-    (s) => !s.leading && s.w + s.l > 1,
+    (s) => !s.leading && s.w + s.l > 1 && s.leaderId !== s.opp && s.leaderId !== s.next?.opp,
   ),
 ];
 /** The team was just named: it is "the team" now. */
@@ -802,7 +890,7 @@ const STAND_PRON: Bank = [
   L(
     (s) => `The team is ${s.rec} and trails ${c(s.leaderId)} in the ${s.division}.`,
     2,
-    (s) => !s.leading && s.w + s.l > 1,
+    (s) => !s.leading && s.w + s.l > 1 && s.leaderId !== s.opp && s.leaderId !== s.next?.opp,
   ),
 ];
 /** The record is already said: where the team stands in its division. */
@@ -815,7 +903,7 @@ const STAND_NOREC: Bank = [
   L(
     (s) => `${c(s.club)} trail ${c(s.leaderId)} in the ${s.division}.`,
     1,
-    (s) => !s.leading && s.w + s.l > 1,
+    (s) => !s.leading && s.w + s.l > 1 && s.leaderId !== s.opp && s.leaderId !== s.next?.opp,
   ),
 ];
 
@@ -967,6 +1055,31 @@ function quoteBank(angle: string, fined: boolean): keyof typeof QUOTES | undefin
   return ['ejectFight', 'ejectTwo', 'ejectFlagrant', 'ban', 'banFight'].includes(angle) ? 'ban' : undefined;
 }
 
+// ───────── the player's own words ─────────
+
+/** The moment a story's player speaks at: a suspension, other trouble (a fine, a team matter, an ejection), or a good deed. */
+const momentOf = (angle: string, fined: boolean): QuoteMoment =>
+  angle.startsWith('good') ? 'goodSide' : OUT_ANGLES.has(angle) && !fined ? 'suspended' : 'trouble';
+/** The angles whose man the league suspends for games. */
+const OUT_ANGLES = new Set(['ejectFight', 'ejectTwo', 'ejectFlagrant', 'ban', 'banFight']);
+const quoteFacts = (s: Sheet, key: string, at: Wording, angle: string, good: boolean) => ({
+  key,
+  at,
+  games: s.games,
+  onField: angle.startsWith('eject') || angle === 'fine' || angle === 'ban',
+  fined: s.fined || angle === 'fine',
+  ...(good
+    ? {
+        kind:
+          angle === 'goodCommunity'
+            ? ('community' as const)
+            : angle === 'goodFamily'
+              ? ('family' as const)
+              : ('teammate' as const),
+      }
+    : {}),
+});
+
 // ───────── assembling ─────────
 
 /** A paragraph stops on a fact: a number, a man of the story or a team (`storyRules.ts`). */
@@ -1004,7 +1117,7 @@ export const LEDES: Record<string, Bank> = {
   goodTeammate: TEAMMATE,
 };
 /** The angles whose man is out for games: the second paragraph says which one he misses. */
-const OUT = new Set(['ejectFight', 'ejectTwo', 'ejectFlagrant', 'ban', 'banFight']);
+const OUT = OUT_ANGLES;
 /** Sentences after the lede: enough to mean something, few enough to stay one angle. */
 const AFTER_MAX = 3;
 
@@ -1021,32 +1134,42 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
   const out = OUT.has(angle) && !s.fined && s.left > 0;
   const sat = angle === 'spat' || angle === 'teamEvent' ? x.outcome === 'sat' : false;
   const miss = out ? pick(l, MISS, s, at, key, 'miss') : sat ? pick(l, ALSO, s, at, key, 'also') : '';
+  // A good deed is about the man, the deed and his career: no record, no standing and no next game.
+  if (good) s.honor = honorOf(l, p);
   const about = good ? pick(l, ABOUT, s, at, key, 'about') : '';
+  // A captain named in the lede is not named again.
+  const honor = good ? pick(l, HONOR, { ...s, captain: s.captain && !/captain/.test(lede) }, at, key, 'honor') : '';
   const fact = pick(l, FACT, s, at, key, 'fact');
   // The record said in the lede or the fact is not said again, and a team just named is "the team".
   const saysRec = [lede, fact].some((t) => t.includes(s.rec));
   const named = [lede, miss, about, fact].join(' ').includes(c(s.club));
-  const stand = offseason ? '' : pick(l, saysRec ? STAND_NOREC : named ? STAND_PRON : STAND, s, at, key, 'stand');
+  const stand =
+    offseason || good ? '' : pick(l, saysRec ? STAND_NOREC : named ? STAND_PRON : STAND, s, at, key, 'stand');
   const told = [lede, miss, about, fact, stand].join(' ');
   const next =
-    s.next && !out && !told.includes(c(s.next.opp)) ? pick(l, offseason ? OPEN : NEXT, s, at, key, 'next') : '';
+    s.next && !out && !good && !told.includes(c(s.next.opp))
+      ? pick(l, offseason ? OPEN : NEXT, s, at, key, 'next')
+      : '';
   // At most three: what he misses, where the team stands and what is next come first; a season line and a line about
   // the man fill what is left, in the order they read.
-  const order = [miss, stand, next, fact, about];
+  const order = good ? [about, honor, fact] : [miss, stand, next, fact, about];
   const keep = new Set(order.filter(Boolean).slice(0, AFTER_MAX));
-  const second = [miss, about, fact, stand, next].filter((t) => t && keep.has(t));
+  const second = (good ? [about, honor, fact] : [miss, about, fact, stand, next]).filter((t) => t && keep.has(t));
   const first = [lede];
   if (!second.length)
     second.push(
-      offseason
-        ? s.next
-          ? `${c(s.club)} open the season ${nextWhere(s)}.`
-          : `${M(s.id)} plays for ${c(s.club)}.`
-        : `${c(s.club)} are ${s.rec}.`,
+      good
+        ? `${M(s.id)} plays for ${c(s.club)}.`
+        : offseason
+          ? s.next
+            ? `${c(s.club)} open the season ${nextWhere(s)}.`
+            : `${M(s.id)} plays for ${c(s.club)}.`
+          : `${c(s.club)} are ${s.rec}.`,
     );
 
   const ref = referrer(l, { playerIds: [...new Set([lede, ...second].flatMap(menIn))] });
-  const parts = [...first, ...second].map((t) => resolveTokens(t, ref));
+  const own = { id: s.club, name: l.teams[s.club].name };
+  const parts = [...first, ...second].map((t) => resolveTokens(t, ref, own));
   const cast = [...new Set([lede, ...second].flatMap(menIn))];
   // A story about your own team's second slot stands as one paragraph (`brief`), and a story stops on a fact: the
   // lede takes the lines after it until it does.
@@ -1063,11 +1186,19 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
     key,
     'head',
   );
+  // One quote a story: the player it is about, or his head coach. The player speaks in one story of two, and the
+  // coach in the other half of the trouble stories (a good one has no word from him).
   const coach = teamCoaches(l, s.club).find((k) => k.role === 'headCoach');
   const bank = quoteBank(angle, s.fined);
+  const manSpeaks = (opt.quote !== false || opt.voice) && draw(`${at.editionId}:${key}:who`, 2) !== 0;
+  const man = manSpeaks
+    ? speaks(l, p, momentOf(angle, s.fined), quoteFacts(s, key, at, angle, good), s.club)
+    : undefined;
   const fresh = bank ? QUOTES[bank].filter((t) => !saidAlready(l, at, t)) : [];
   const quoteLine =
-    coach && fresh.length && opt.quote !== false ? fresh[hash(`${at.editionId}:${key}:quote`) % fresh.length] : '';
+    !man && coach && fresh.length && opt.quote !== false
+      ? fresh[hash(`${at.editionId}:${key}:quote`) % fresh.length]
+      : '';
   if (quoteLine) at.said.push(...sentencesOf(quoteLine));
 
   return {
@@ -1087,16 +1218,18 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
         ? []
         : [{ value: s.rec, label: 'Record' }],
     paragraphs,
-    ...(quoteLine && coach
-      ? {
-          quote: {
-            coachId: coach.id,
-            name: `${coach.firstName} ${coach.lastName}`,
-            role: `${l.teams[s.club].name} head coach`,
-            text: quoteLine,
-          },
-        }
-      : {}),
+    ...(man
+      ? { quote: man }
+      : quoteLine && coach
+        ? {
+            quote: {
+              coachId: coach.id,
+              name: `${coach.firstName} ${coach.lastName}`,
+              role: `${l.teams[s.club].name} head coach`,
+              text: quoteLine,
+            },
+          }
+        : {}),
     links: [
       { kind: 'player', playerId: s.id },
       { kind: 'team', teamId: s.club },
@@ -1193,9 +1326,13 @@ export function conductOffseasonStory(
   const lede = pick(l, OFF_LEDE, s, at, c0.key, 'lede');
   const after = pick(l, OFF_AFTER, s, at, c0.key, 'after');
   const ref = referrer(l, { playerIds: [p.id] });
-  const paragraphs = [lede, after].map((t) => resolveTokens(t, ref));
+  const paragraphs = [lede, after].map((t) => resolveTokens(t, ref, { id: club, name: l.teams[club].name }));
   at.said.push(...paragraphs.flatMap((t) => sentencesOf(t)));
   const head = pick(l, OFF_HEAD, { ...s, last: p.lastName }, at, c0.key, 'head');
+  const quote =
+    draw(`${at.editionId}:${c0.key}:who`, 2) === 0
+      ? undefined
+      : speaks(l, p, 'suspended', { key: c0.key, at, games: s.games, onField: false }, club);
   return {
     key: c0.key,
     kind: 'conduct',
@@ -1209,6 +1346,7 @@ export function conductOffseasonStory(
     cast: [p.id],
     numbers: [{ value: String(s.games), label: s.games === 1 ? 'Game' : 'Games' }],
     paragraphs,
+    ...(quote ? { quote } : {}),
     links: [
       { kind: 'player', playerId: p.id },
       { kind: 'team', teamId: club },
@@ -1244,5 +1382,5 @@ export function goodDayStory(
       star: publicRecord(l).why(p) !== null || draftedHigh(l, p),
     },
   } as Candidate;
-  return conductStory(l, cand, at, { quote: false });
+  return conductStory(l, cand, at, { quote: false, voice: true });
 }

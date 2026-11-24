@@ -378,6 +378,12 @@ describe('your answers', () => {
     expect(p.discipline!.entries[0].outcome).toBe('letGo');
   });
 
+  it('settles nothing, and does not throw, while the user has no team (the league plays itself)', () => {
+    const l = createLeague({ seed: 'cd-nojob' });
+    l.userTeamId = -1;
+    expect(() => settleConduct(l)).not.toThrow();
+  });
+
   it('the head coach handles it at once when set to, answering what already waits', () => {
     const l = createLeague({ seed: 'cd-bycoach' });
     const mine = teamPlayers(l, l.userTeamId);

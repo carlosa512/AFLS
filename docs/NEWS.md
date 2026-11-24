@@ -135,7 +135,14 @@ Tune them there, from a season of editions.
 - It stops on a fact (a name, a number, a fixture). No sign-off and no line written to sound good.
 - No semicolon, no colon inside a sentence, two numbers a sentence at most (the story's own final score aside).
 - No sentence twice in a season (`seasonSaid`).
-- One quote a story at most, plain, from the head coach of the story's club: a judgment on a fact, never a new event.
+- One quote a story at most, plain: the head coach of the story's club (a judgment on a fact, never a new event) or the
+  player the story is about (`playerQuote.ts`). A player speaks on draft day (the pick), in free agency (a signing), after
+  his big day in a game (a big win, or a bad loss on the losing side), in trouble, on a suspension and in a good-side
+  story, in a voice drawn from his personality: whole lines written by hand with slots for facts only (a name, a team, a
+  number), the most specific that fits, no sentence twice a league year, and the plain voice when his own are spent. A
+  quote never names a trait, a label or a number from a hidden scale, and it never claims an event the sim did not make.
+  `npm run quotes` writes every line to `.check/quotes.md` for reading; `npm run quotes -- --check` plays ten seasons and
+  fails when one quote is printed more than three times or fewer than four in five printed quotes are distinct.
 - Public facts only: box scores, standings, transactions, injuries, what a man said in public. No rating, mood or
   hidden trait.
 

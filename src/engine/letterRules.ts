@@ -46,6 +46,8 @@ export const LETTER_FILES: readonly { file: string; quotes?: true }[] = [
   { file: 'src/engine/inbox.ts' },
   { file: 'src/engine/snnDays.ts' },
   { file: 'src/engine/snnDayVoice.ts' },
+  { file: 'src/engine/playerQuote.ts', quotes: true },
+  { file: 'src/engine/playerQuoteLines.ts', quotes: true },
 ];
 
 /** A word no letter uses, whoever is writing or speaking. Matched whole-word, any case. */

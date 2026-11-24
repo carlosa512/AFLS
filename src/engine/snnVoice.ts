@@ -18,6 +18,7 @@ import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
+import { draw, speaks } from './playerQuote';
 import { conductStory } from './snnConductVoice';
 import { gmPiece } from './snnGmVoice';
 import type { Candidate } from './snnWeek';
@@ -1212,7 +1213,22 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
 
   const club = opt.yours ?? cand.clubId;
   const coach = headCoach(l, club);
-  const quoteText = coach && opt.quote !== false ? pickLine(l, QUOTE, { ...s, club }, at, cand.key, 'quote', true) : '';
+  // A player's big day gives him the words one time in three: the winner after a big win, the loser after a bad
+  // loss. One quote a story, and when the player has said all he can this league year the coach speaks.
+  const dayMan =
+    opt.quote !== false && a === 'day' && s.day && s.f.day?.teamId === club && s.ws !== s.ls ? s.day : undefined;
+  const manSays = !!dayMan && (!coach || draw(`${at.editionId}:${cand.key}:who`, 3) === 0);
+  const manQuote = manSays
+    ? speaks(
+        l,
+        dayMan!.p,
+        dayMan!.won ? 'bigWin' : 'badLoss',
+        { key: cand.key, at, opp: l.teams[dayMan!.won ? s.L : s.W].name },
+        club,
+      )
+    : undefined;
+  const quoteText =
+    !manQuote && coach && opt.quote !== false ? pickLine(l, QUOTE, { ...s, club }, at, cand.key, 'quote', true) : '';
 
   const cast = [...new Set(raw.flatMap(menIn))];
   const ref = referrer(l, { playerIds: cast });
@@ -1246,16 +1262,18 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
     cast,
     numbers: chipsOf(s),
     paragraphs,
-    ...(quoteText && coach
-      ? {
-          quote: {
-            coachId: coach.id,
-            name: `${coach.firstName} ${coach.lastName}`,
-            role: `${l.teams[club].name} head coach`,
-            text: quoteText,
-          },
-        }
-      : {}),
+    ...(manQuote
+      ? { quote: manQuote }
+      : quoteText && coach
+        ? {
+            quote: {
+              coachId: coach.id,
+              name: `${coach.firstName} ${coach.lastName}`,
+              role: `${l.teams[club].name} head coach`,
+              text: quoteText,
+            },
+          }
+        : {}),
     links,
   };
 }
@@ -1901,7 +1919,8 @@ function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): Edit
   if (cand.kind === 'rumor') return rumorStory(l, cand, at);
   if (cand.kind === 'leaderOut') return leaderOutStory(l, cand, at);
   if (cand.kind === 'speak') return speakStory(l, cand, at);
-  if (cand.kind === 'conduct') return conductStory(l, cand, at, opt);
+  // A tile carries no word from the head coach, but the player a conduct story is about may still speak.
+  if (cand.kind === 'conduct') return conductStory(l, cand, at, { ...opt, voice: true });
   if (cand.kind === 'room') return roomStory(l, cand, at);
   if (cand.kind === 'mentor') return mentorStory(l, cand, at);
   if (cand.kind === 'storyline') return storylineStory(l, cand, at);
