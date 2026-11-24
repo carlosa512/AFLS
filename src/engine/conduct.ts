@@ -138,12 +138,21 @@ export function reviewWeek(league: League, results: GameResult[]): void {
 const headCoachOf = (league: League, teamId: number) => teamCoaches(league, teamId).find((c) => c.role === 'headCoach');
 
 /** What an answer does: the entry, the mood, the lean, and a game sat. */
-function applyAnswer(league: League, p: Player, kind: ConductKind, answer: 'fine' | 'sat' | 'letGo', clock: number) {
+function applyAnswer(
+  league: League,
+  p: Player,
+  kind: ConductKind,
+  answer: 'fine' | 'sat' | 'letGo',
+  clock: number,
+  byCoach = false,
+) {
   const sat = answer === 'sat';
   record(league, p, clock, {
     kind,
     outcome: answer,
     ...(sat || PUBLIC_KINDS.has(kind) ? { public: true as const } : {}),
+    // Only your own head coach's answers are told back to you, as a note in his letter.
+    ...(byCoach && p.teamId === league.userTeamId ? { byCoach: true as const } : {}),
   });
   if (answer === 'fine') addJolt(p, 'fined', TROUBLE.jolt.fine, clock);
   if (sat) {
@@ -207,7 +216,7 @@ export function troubleWeek(league: League, step: 'week' | 'offseason'): void {
       if (kind === 'fight') rule(league, p, 'fight', clock, 'suspend');
       else if (userHolds)
         (team.conduct ??= {}).pending = [...(team.conduct?.pending ?? []), { playerId: p.id, kind, clock }];
-      else applyAnswer(league, p, kind, coachAnswer(league, p, clock), clock);
+      else applyAnswer(league, p, kind, coachAnswer(league, p, clock), clock, true);
     }
   }
 }
@@ -254,7 +263,8 @@ export function setConductByCoach(league: League, on: boolean): void {
     for (const row of [...(team.conduct.pending ?? [])]) {
       const p = league.players[row.playerId];
       closeRow(team, row.playerId);
-      if (p && !p.retired && p.teamId === team.id) applyAnswer(league, p, row.kind, coachAnswer(league, p, now), now);
+      if (p && !p.retired && p.teamId === team.id)
+        applyAnswer(league, p, row.kind, coachAnswer(league, p, now), now, true);
     }
     team.conduct.byCoach = true;
   } else if (team.conduct) {

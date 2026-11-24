@@ -36,6 +36,7 @@ import { FieldSwitch } from '../dev';
 import { store } from '../store';
 import { LinkedText, moveIndex, MoveText, type Who } from '../moves';
 import { ScoreStrip } from '../strip';
+import { DisciplineByCoach } from '../meetings';
 import { LeagueLeaders, SeasonSoFar, TeamStatsWidget, TheirInjuries, WaitingForYou, YourInjuries } from '../widgets';
 import { GameStar, gameStory, KeyStats, LineScore, standouts, Standouts } from '../game';
 import { Icon } from '../icons';
@@ -160,6 +161,7 @@ function NextGame({ league }: { league: League }) {
         Crew: <CrewNote league={league} game={game} />
       </p>
       <TheirInjuries league={league} opp={opp} game={game} />
+      {!game.result && <DisciplineByCoach league={league} />}
       {league.personnel?.enabled && !game.result && (
         <p>
           <button className="btn btn-sm btn-primary" onClick={() => nav.go({ view: 'roster', teamId: user.id })}>

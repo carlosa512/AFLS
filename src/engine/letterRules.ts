@@ -9,6 +9,8 @@
 export const LETTER_FILES: readonly { file: string; quotes?: true }[] = [
   { file: 'src/engine/coachWeek.ts' },
   { file: 'src/engine/coachWeekVoice.ts' },
+  { file: 'src/engine/conductVoice.ts' },
+  { file: 'src/engine/conductMail.ts' },
   { file: 'src/engine/playerVoice.ts', quotes: true },
   { file: 'src/engine/talkMail.ts' },
   { file: 'src/engine/benchVoice.ts', quotes: true },

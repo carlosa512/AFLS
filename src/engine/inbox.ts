@@ -6,6 +6,7 @@ import { lockerReportMail } from './lockerReport';
 import { talkNeedsYou } from './talkMail';
 import { coachWeekMail, coachWeekNeedsYou } from './coachWeek';
 import { meetingMail, meetingNeedsYou } from './meetings/mail';
+import { conductLetters } from './conductMail';
 import { disputeMail, disputeNeedsYou } from './disputeMail';
 import { promiseMail, promisesNeedYou } from './promiseMail';
 import { director, doctor, headCoach, type Draft } from './senders';
@@ -3153,6 +3154,7 @@ export function deliverMail(league: League): void {
       ...coachWeekMail(league, have),
       ...meetingMail(league, have),
       ...disputeMail(league, have),
+      ...conductLetters(league, have),
       ...promiseMail(league, have),
     );
     if (league.phase === 'resign')

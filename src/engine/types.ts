@@ -262,6 +262,8 @@ export interface ConductEntry {
   outcome: 'fine' | 'sat' | 'letGo' | 'leagueFine' | 'suspended';
   games?: number;
   public?: true;
+  /** Your head coach answered it for you (`setConductByCoach`), so his letter tells it as a note. */
+  byCoach?: true;
   /** The club he was with when it happened (SNN reads it through `publicConduct`). */
   teamId?: number;
 }
@@ -1938,6 +1940,8 @@ export interface MailSection {
     bench?: { playerId: number; clock: number };
     /** A starter cleared and not in his spot: Put him back and Leave it (`restoreCard`). */
     restore?: { playerId: number };
+    /** Trouble waiting on your ruling (`conduct.ts`): Fine him, Sit him a game, Let it go, drawn from the team's pending list. */
+    conduct?: { playerId: number; clock: number };
     /** His row speaks for the club's losing: the one answer goes to every man with an open ask (`answerRoomTalk`). */
     talkRoom?: { unit: 'team'; clock: number };
   }[];

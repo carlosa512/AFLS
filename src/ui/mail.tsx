@@ -171,9 +171,11 @@ import { store } from './store';
 import { decideInterim } from '../engine/leadership';
 import { answerBench, benchCard, dismissReminder, putBack, restoreCard } from '../engine/benching';
 import { answerRoomTalk, answerTalk } from '../engine/playerTalks';
-import { newestLosingLetter } from '../engine/coachWeek';
+import { conductOpen, newestLosingLetter } from '../engine/coachWeek';
+import { answerConduct } from '../engine/conduct';
+import { conductSettled } from '../engine/conductMail';
 import { talkCard } from '../engine/talkMail';
-import { MeetingChoices } from './meetings';
+import { DisciplineByCoach, MeetingChoices } from './meetings';
 import { answerDispute, disputeCard } from '../engine/disputes';
 import { setWaiverClaim } from '../engine/personnel/waivers';
 import { FuturesCell } from './personnel';
@@ -908,6 +910,45 @@ function RestoreCards({ league, playerId }: { league: League; playerId: number }
           Leave it
         </button>
       </div>
+    </Card>
+  );
+}
+
+/** Trouble on the team: Fine him, Sit him a game or Let it go while it waits on you, how it was settled after. */
+function ConductChoices({ league, s }: { league: League; s: { playerId: number; clock: number } }) {
+  if (!conductOpen(league, s))
+    return (
+      <Card>
+        <span className="muted small">{conductSettled(league, s.playerId)}</span>
+      </Card>
+    );
+  const answer = (a: 'fine' | 'sat' | 'letGo') => store.mutate((l) => answerConduct(l, s.playerId, a));
+  return (
+    <Card title="Your call">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-sm"
+          title="A fine stings a little and may keep him in line."
+          onClick={() => answer('fine')}
+        >
+          Fine him
+        </button>
+        <button
+          className="btn btn-sm"
+          title="He misses the next game. It stings more and keeps him in line best."
+          onClick={() => answer('sat')}
+        >
+          Sit him a game
+        </button>
+        <button
+          className="btn btn-sm"
+          title="No penalty. He may read it as nothing happening."
+          onClick={() => answer('letGo')}
+        >
+          Let it go
+        </button>
+      </div>
+      <DisciplineByCoach league={league} />
     </Card>
   );
 }
@@ -3741,6 +3782,7 @@ function LetterSection({
             )}
             {r.bench && <BenchCards league={league} s={r.bench} />}
             {r.restore && <RestoreCards league={league} playerId={r.restore.playerId} />}
+            {r.conduct && <ConductChoices league={league} s={r.conduct} />}
             {r.meeting && (
               <MeetingChoices key={`${r.meeting.clock}:${r.meeting.scope}`} league={league} s={r.meeting} />
             )}
