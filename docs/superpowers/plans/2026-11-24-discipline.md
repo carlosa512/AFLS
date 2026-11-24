@@ -37,7 +37,7 @@ it binds). Mockups: https://claude.ai/artifact/QkHe1QKRWamLZtWdg2wFCA
 - AI front offices change nothing about who they sign or keep.
 - Lines near their edge on main: meetings a club a season ~5.5 (fails 6), Tight rooms ~0.35 (warns), win spread and
   margin spread near their edges. Measure meetings and rooms as soon as jolts land (Task 4).
-- Make all engine changes first (Tasks 2–4, 6); fix tests the reshuffle moves once, in Task 8, by finding their scene.
+- Make all engine changes first (Tasks 2–4, 6–7); fix tests the reshuffle moves once, in Task 9, by finding their scene.
 - Version 0.5.0 (the 0.5 milestone finishes, `docs/VERSIONING.md`), changelog entry, `docs/MVP.md` Suspensions to
   Done, `CLAUDE.md` architecture line, `docs/GAME_DESIGN.md` 0.5 section.
 - `npm run format` before each commit; commits end with the session's attribution lines.
@@ -104,27 +104,36 @@ it binds). Mockups: https://claude.ai/artifact/QkHe1QKRWamLZtWdg2wFCA
 
 ### Task 3: Ejections in the game
 
-**Files:** Modify `src/engine/match/gameSim.ts`; Test `src/engine/match/ejection.engine.test.ts`.
+Only the NFL's reasons (spec, "On the field: ejections"): a fight, a second unsportsmanlike conduct foul in one game
+(automatic), and a very rare flagrant hit.
+
+**Files:** Modify `src/engine/match/gameSim.ts` (or a small `match/ejection.ts` beside it); Test
+`src/engine/match/ejection.engine.test.ts`.
 
 **Interfaces:**
 - Consumes: `GameResult.ejections` (Task 2).
-- Produces: `EJECT: { on: boolean; byFoul: Partial<Record<Foul, number>>; fight: number; temper: number }` exported
-  from `gameSim.ts` (or a small `match/ejection.ts`); `GameResult.ejections: { playerId: number; teamId: number;
-  quarter: number; clock: number; foul: Foul; fight?: true }[]`.
-- [ ] **Step 1: Failing tests:** with `EJECT.on = false` every play of a seeded game is identical to main's (prove the
-  new stream changes nothing else); with the odds forced to 1 for unnecessary roughness, the first such accepted foul
-  logs "<name> is ejected." and the man takes no later snap; the play's yards and the foul's yards are unchanged; an
-  ejected kicker's next kick goes to the cover the injury path picks; `GameResult.ejections` holds the entry.
+- Produces: `EJECT: { on: boolean; fight: number; fightBack: number; flagrant: Partial<Record<Foul, number>> }`;
+  `GameResult.ejections: { playerId: number; teamId: number; quarter: number; clock: number; why: 'fight' |
+  'twoUnsportsmanlike' | 'flagrant' }[]`.
+- [ ] **Step 1: Failing tests:** with `EJECT.on = false` every play of a seeded game is identical to main's (the new
+  stream changes nothing else); a man charged a second accepted unsportsmanlike conduct foul in one game is ejected on
+  that play with no extra draw; with `EJECT.fight` forced to 1 after a whistle-ending contact play, the man is charged
+  unsportsmanlike conduct and ejected, and with `fightBack` forced to 1 the other man too; with `flagrant` forced to 1
+  for unnecessary roughness the first such accepted foul ejects him; an ejected man takes no later snap, the play's
+  and the foul's yards are unchanged, an ejected kicker's kicks go to the cover the injury path picks, and
+  `GameResult.ejections` holds each with its `why`.
 - [ ] **Step 2:** Run — fails.
-- [ ] **Step 3: Implement:** `this.ejectRng = new Rng(`${seed}:eject`)` beside `injuryRng`/`flagRng` (~1106); after an
-  accepted personal foul in `flag()` (~5268, `personal: true` in `penalties.ts`), roll `EJECT.byFoul[foul] ×
-  temper lean (temperamentOf, roughness)`; a celebration/unsportsmanlike foul after the whistle by a low-temperament
-  man may be a fight (`EJECT.fight`), ejecting him and, if his temper is short too, the man he fought. Factor the
-  removal out of `injuryStoppage` (~1430–1470: `this.out.add`, `snapshot = null`, the lineup rebuild, `syncKnocks`,
-  `fields`, `fieldRecord.changes`, `qbLeans`) into one helper both call; add `ejections` to the result (~5396) like
-  `injuries`. Starting odds: aim for ~9 a league season (Task 1's number); Task 7 tunes.
+- [ ] **Step 3: Implement:** `this.ejectRng = new Rng(`${seed}:eject`)` beside `injuryRng`/`flagRng` (~1106). In
+  `flag()` (~5268) on an accepted foul: a second unsportsmanlike conduct for the same man in the game ejects him
+  (count per man in the game); a personal foul may be flagrant (`EJECT.flagrant[foul]` × his sportsmanship lean from
+  `roughness`). After the whistle (where the celebration foul is rolled, ~5072), a fight: odds from the play and the
+  men in it × temperament lean (`temperamentOf`); it is charged as unsportsmanlike conduct (offsetting if both swing)
+  and ejects. Factor the removal out of `injuryStoppage` (~1430–1470: `this.out.add`, `snapshot = null`, the lineup
+  rebuild, `syncKnocks`, `fields`, `fieldRecord.changes`, `qbLeans`) into one helper both call; add `ejections` to the
+  result (~5396) like `injuries`. Starting odds: about nine ejections a league season, most fights, flagrant a handful
+  (Task 1's numbers); Task 8 tunes.
 - [ ] **Step 4:** The tests; `npm run sim -- 10` once (personal fouls a game and every line inside its band).
-- [ ] **Step 5: Commit** "Ejections: a bad personal foul by a short temper can end his game".
+- [ ] **Step 5: Commit** "Ejections: fights, a second unsportsmanlike and the rare flagrant hit".
 
 ### Task 4: Trouble, the league's review and your answers (engine)
 
@@ -191,48 +200,75 @@ team-sat man is not a benching), `src/engine/meetings/index.ts` pattern for the 
 - [ ] **Step 4:** The tests, `npm run typecheck`, `npm run letters` and `npm run copy`: read the new lines.
 - [ ] **Step 5: Commit** "Discipline on your desk: the coach's row, the league's letter, the roster and the card".
 
-### Task 6: SNN — trouble, the good side and players talking
+### Task 6: SNN stories — trouble and the good side
 
 **Files:**
-- Create: `src/engine/snnConductVoice.ts` (stories and player quotes), `src/engine/playerQuote.ts` (the quote lines by
-  personality and moment: draft pick, signing, after a big game, trouble, good side).
-- Modify: `src/engine/snnWeek.ts` (candidates from `publicConduct` and good-side rolls; good side and team-rules items
-  tier 5 so they never lead, `cutEdition` ~495), `src/engine/snnVoice.ts` (a story about one player may quote him
-  instead of the head coach: `EditionStory.quote` already allows `playerId`, precedent `speakStory` ~1789),
-  `src/engine/snnDays.ts` and `src/engine/snnDayVoice.ts` (`Parts.quote` in `assemble` ~122; a quote in the draft
-  pick's story ~155 and a signing's ~789; a suspension handed down in the offseason as a candidate),
-  `docs/NEWS.md` (the quote rule: the head coach or the player the story is about, one a story).
-- Test: `src/engine/snnConduct.test.ts`, `snnWeek`/`snnDays` test additions.
+- Create: `src/engine/snnConductVoice.ts` (the stories), `src/engine/snnConduct.test.ts`.
+- Modify: `src/engine/snnWeek.ts` (candidates from `publicConduct` and good-side rolls; good-side and team-rules items
+  tier 5 so they never lead, `cutEdition` ~495), `src/engine/snnDays.ts` (a suspension handed down in the offseason as
+  a big-day candidate).
 
 **Interfaces:**
-- Produces: `goodSideWeek(league, clock)` (pure, from `hashUnits`, high leadership, loyalty, work ethic and
-  temperament: about two a week league-wide); `playerQuote(league, p, moment, facts): string | null` reading
-  `personalityOf(trueCharacter(p))`; no line twice a league year (the `pick` pattern).
-- [ ] **Step 1: Failing tests:** an ejection, a suspension and a public spat become candidates; a good-side story is a
-  tile, never the lead; a story about one player quotes him in his personality's voice (a Hothead's lines differ from
-  a Company Man's for the same moment); no quote names a trait or label (a word list test); `ruleBreaks` is empty for
-  every built story; draft day and a signing carry a quote.
-- [ ] **Step 2:** Run — fail. **Step 3: Implement** (the mockups' stories are the tone to aim for).
-- [ ] **Step 4:** The tests; `npm run editions` (weekly) and `npm run editions -- --days` over two offseasons: read
-  every discipline story and quote in `.check/editions.md` and `.check/day-editions.md`, fix what reads badly.
-- [ ] **Step 5: Commit** "SNN: players in trouble, players doing good, and players in their own words".
+- Produces: `goodSideWeek(league, clock)` (pure, `hashUnits`, high leadership, loyalty, work ethic and temperament:
+  about two a week league-wide); the stories' kinds and the facts each reads.
+- [ ] **Step 1: Failing tests:** an ejection, a suspension, a fine and a public spat become candidates; a team sitting
+  a man is reported as "for a violation of team rules"; a good-side story is a tile and never the lead; `ruleBreaks`
+  is empty for every built story.
+- [ ] **Step 2:** Run — fail.
+- [ ] **Step 3: Implement** to the spec's "Depth and quality of the words": whole hand-written lines with fact slots
+  only, several lines per story kind and angle, the most specific that fits (the `say`/`pick` pattern), no sentence
+  twice a league year. The mockups' stories are the tone.
+- [ ] **Step 4:** The tests; `npm run editions` (weekly) and `npm run editions -- --days` over two offseasons: read every
+  discipline and good-side story in `.check/editions.md` and `.check/day-editions.md`; fix what reads badly.
+- [ ] **Step 5: Commit** "SNN: players in trouble and players doing good".
 
-### Task 7: Tune it and the conduct check
+### Task 7: Players in their own words
+
+**Files:**
+- Create: `src/engine/playerQuote.ts` (quote lines by personality and moment), `src/engine/playerQuote.test.ts`,
+  `scripts/quotes.ts` (`npm run quotes`, a preview: every line each personality can say at each moment, to
+  `.check/quotes.md`).
+- Modify: `src/engine/snnVoice.ts` (a story about one player may quote him instead of the head coach:
+  `EditionStory.quote` already allows `playerId`, precedent `speakStory` ~1789), `src/engine/snnDayVoice.ts`
+  (`Parts.quote` in `assemble` ~122; a quote in the draft pick's story ~155 and a signing's ~789),
+  `src/engine/snnConductVoice.ts` (quotes in trouble and good-side stories), `docs/NEWS.md` (the quote rule: the head
+  coach or the player the story is about, one a story), `package.json` (`"quotes"`).
+
+**Interfaces:**
+- Produces: `type QuoteMoment = 'drafted' | 'signed' | 'bigWin' | 'badLoss' | 'trouble' | 'suspended' | 'back' |
+  'goodSide'`; `playerQuote(league: League, p: Player, moment: QuoteMoment, facts: QuoteFacts): string | null`,
+  reading `personalityOf(trueCharacter(p))`; a plain voice for a personality without lines for a moment.
+- [ ] **Step 1: Failing tests:** every personality has several lines for every moment or falls back to the plain voice,
+  never to an empty quote; for the same moment a Hothead's line differs from a Company Man's; no quote names a trait
+  or label (a word list); a ten-season league's printed quotes: no line more than a few times (start at 3), and the
+  share of distinct lines above a floor (start at 0.8); every line passes the letter and story word rules.
+- [ ] **Step 2:** Run — fail.
+- [ ] **Step 3: Implement**: whole hand-written lines, slots for facts only; the most specific line that fits wins; no
+  sentence twice a league year. Aim for depth: at least four lines a personality a moment where the moment is common
+  (drafted, signed, trouble), two where rare.
+- [ ] **Step 4:** The tests; `npm run quotes` and `npm run editions -- --days`; read the whole preview.
+- [ ] **Step 5: Read-aloud review:** a fresh reviewer (no code) reads `.check/quotes.md`, `.check/editions.md` and
+  `.check/day-editions.md` and lists every line that reads stiff, odd, unlike a person or repeated; fix them all, run
+  the preview again.
+- [ ] **Step 6: Commit** "Players in their own words: quotes by personality on draft day, in free agency, after games and
+  in trouble".
+
+### Task 8: Tune it and the conduct check
 
 **Files:** Create `scripts/conduct.ts`; modify `package.json` (`"conduct": "tsx scripts/conduct.ts"`), `scripts/check.ts`
 (`CHECKS.conduct` ~46–214 and a `RULES` entry for `conduct.ts`, `match/gameSim.ts`, `scripts/conduct*.ts`),
 `src/engine/conduct.ts` and the `EJECT` odds.
 
 - [ ] **Step 1:** `scripts/conduct.ts` plays a few leagues (child processes like `morale`) for several seasons and
-  judges, with `scripts/band.ts`, the spec's table: ejections a season, league suspensions a season (and one-game
-  share), the bottom fifth's share of trouble (fail under half), any first suspension over one game (fail), and prints
+  judges, with `scripts/band.ts`, the spec's table: ejections a season (and flagrant ones: fail above 8), league
+  suspensions a season (and one-game share), the bottom fifth's share of trouble (fail under half), any first suspension over one game (fail), and prints
   trouble by personality, AI coaches' answers and the ladder.
 - [ ] **Step 2:** Tune `EJECT`, `TROUBLE` and `REVIEW` to Task 1's targets with a fast probe (two leagues), at most
   three rounds; if it won't settle, stop and report the numbers.
 - [ ] **Step 3:** Judge once each, one at a time: `npm run conduct`, `npm run sim -- 10`, `npm run morale`. All exit 0.
 - [ ] **Step 4: Commit** "Discipline tuned to the NFL's counts, and the conduct check".
 
-### Task 8: Moved tests, docs and the version
+### Task 9: Moved tests, docs and the version
 
 **Files:** whatever seeded tests moved; `docs/MVP.md` (Suspensions → Done, the 0.5 milestone line), `docs/GAME_DESIGN.md`
 (0.5 section), `CLAUDE.md` (an architecture line for `conduct.ts`, its check in Commands), `package.json` 0.5.0,

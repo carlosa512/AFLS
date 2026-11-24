@@ -76,15 +76,21 @@ losing tilts give most of A's slow build for much less.
 
 ### On the field: ejections
 
-- After a personal foul is charged (`personalFouls` in `match/gameSim.ts`, the fouls with `personal: true` in
-  `penalties.ts`), the man may be ejected: odds from how bad the foul is (unsportsmanlike conduct and unnecessary
-  roughness highest), his temperament and sportsmanship (`temperamentOf`, `roughness`), drawn from the game's own
-  ejection stream (`${seed}:${season}:${gameId}:ej` or the codebase's equivalent naming).
-- A fight: rarely, an unsportsmanlike foul after the whistle by a low-temperament man is a fight and ejects him
-  outright (and may eject the man he fought, if that man's temper is short too).
+A player is thrown out only for the NFL's own reasons (owner, 2026-11-24):
+
+- **A fight** (the most common). After the whistle a short-tempered man throws a punch: unsportsmanlike conduct and
+  ejected. If the man he hit has a short temper too and swings back, both go. Odds from the play (a sack, a late hit,
+  a scrum after a turnover) and both men's temperament (`temperamentOf`), drawn from the game's own ejection stream.
+- **Two unsportsmanlike conduct fouls in one game**: automatic, as in the NFL. The second one ends his game. No new
+  dice: the foul rolls already lean on temperament (`discipline` in `match/lineup.ts`), so hotheads reach two more
+  often.
+- **A flagrant hit**: very rare, a handful a league season, never a weekly thing. A personal foul (roughing the
+  passer, unnecessary roughness, face mask) may be judged flagrant, with odds from sportsmanship (`roughness`): a Dirty
+  Player does it far more than anyone.
 - Ejected: a play-log line ("…is ejected."), he is removed and the lineup rebuilt exactly as for an in-game injury
   (`this.out`, `buildLineup`), and the result keeps it (`GameResult.ejections: { playerId, teamId, quarter, clock,
-  foul }[]`). The play's yardage and the foul itself are unchanged: ejection adds no yards.
+  why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[]`). The play's yardage and the foul itself are unchanged:
+  ejection adds no yards.
 
 ### Off the field: trouble
 
@@ -158,8 +164,22 @@ two; third and after, up to four. Nothing longer. A suspension handed down in th
   trait, a label or a number.
 - Where players speak: draft day (the pick, rookies included), a free-agency signing, after a big game, in trouble, in
   a good-side story.
-- No sentence twice a league year (`pick`/`say` patterns), and `npm run editions` (`--days`, weekly) is the preview
-  for reading them.
+
+### Depth and quality of the words (owner, 2026-11-24)
+
+Lots of depth so nothing gets repetitive, and nothing weirdly worded or awkward, built the way the SNN rework was:
+
+- **Whole lines, written by hand.** Every quote and story sentence is a complete line with slots only for facts (a
+  name, a team, a number). No sentences assembled from fragments: that is where awkward lines come from.
+- **Many lines per personality and moment.** Each personality has its own lines for each moment (draft day, signing,
+  big win, bad loss, trouble, suspension, the return, the good side), several per cell; the most specific line that
+  fits wins (the `say` pattern), and a personality short on lines falls back to a plain voice, never to a repeat.
+- **Repetition is checked.** No sentence twice a league year (as now), and a check plays a ten-season league: it
+  fails if one quote appears more than a few times, or if too small a share of all printed quotes are distinct lines.
+- **A preview to read.** `npm run quotes` writes every line each personality can say at each moment to one file, for
+  reading straight through, beside the existing `npm run editions` previews.
+- **A read-aloud review.** Before the PR a fresh reviewer reads only the preview and printed editions, with no code,
+  and flags anything stiff, odd or repeated; those are fixed, and the owner reads the preview file before merge.
 
 ## Numbers and tolerance (settled with the owner)
 
@@ -169,7 +189,8 @@ guesses:
 
 | Line | Target | Judged |
 |---|---|---|
-| Ejections a league season | about one every two weeks (~9) | warn outside the usual band, fail outside the normal band |
+| Ejections a league season | about one every two weeks (~9), most of them fights | warn outside the usual band, fail outside the normal band |
+| Flagrant-hit ejections a league season | very rare (a handful, about 2–6) | fail above 8 a season |
 | League suspensions a season | a handful (~4–8), most one game | as above |
 | Team-rules trouble on a team a season | most seasons with a Hothead or a Coaster on the roster, almost never without one | reported |
 | Share of trouble from the bottom fifth of temperament/work ethic | most of it | fail if under half |
@@ -207,8 +228,8 @@ writing this up, for the owner to check.
   backup plays the rest of the game. About nine a season over 272 games barely moves anything; every `sim` line must
   stay inside its band, as for any change (not literally unchanged). **(call)**
 - **Character counts twice, on purpose.** The foul rolls already read a man's temperament (`discipline` in
-  `match/lineup.ts`) and sportsmanship (`roughness`); the ejection odds read them again, so a hothead fouls more and,
-  when he does, is thrown out more. That is the point.
+  `match/lineup.ts`) and sportsmanship (`roughness`); a fight reads temperament again and a flagrant hit
+  sportsmanship again, so a hothead fouls more and, when he does, fights more. That is the point.
 - **The ladder counts league suspensions only**, never fines, team fines or games you sat him. `REVIEW.fouls` and
   `REVIEW.span` start as guesses (three dangerous fouls within four games) and are tuned with the rest. **(call)**
 - **Volume is a league year's**: in-season weeks and the offseason together. The offseason gets a fixed number of
