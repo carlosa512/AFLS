@@ -1081,6 +1081,7 @@ export class GameSim {
   private flagRng: Rng;
   /** Fights and flagrant hits: its own stream, so ejections off leaves every other roll as it was. */
   private ejectRng: Rng;
+  private dangerousFouls: NonNullable<GameResult['personalFouls']> = [];
   private ejectPending: { p: Player; why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[] = [];
   private ejections: NonNullable<GameResult['ejections']> = [];
   private unsportsCount = new Map<number, number>();
@@ -5345,6 +5346,8 @@ export class GameSim {
       qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
     }
     if (!by) return;
+    if (foul === 'roughingPasser' || foul === 'unnecessaryRoughness' || foul === 'faceMask')
+      this.dangerousFouls.push({ playerId: by.id, foul });
     this.chargedAccepted(foul, by);
     const line = (this.playerStats[by.id] ??= {});
     line.penalties = (line.penalties ?? 0) + 1;
@@ -5477,6 +5480,7 @@ export class GameSim {
       ...(this.fieldRecord ? { field: this.fieldRecord } : {}),
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
       ...(this.ejections.length ? { ejections: this.ejections } : {}),
+      ...(this.dangerousFouls.length ? { personalFouls: this.dangerousFouls } : {}),
       condition,
       weather: this.weather,
       ...(this.crew ? { crewId: this.crew.id } : {}),

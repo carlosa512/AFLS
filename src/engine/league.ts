@@ -37,7 +37,7 @@ import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
-import { serveGames } from './conduct';
+import { reviewWeek, serveGames, troubleWeek } from './conduct';
 import { finishPersonnelGame, preparePersonnelGame, syncPersonnel } from './personnel/flow';
 import type { Game, GameResult, League, Player } from './types';
 
@@ -203,6 +203,13 @@ function playWeekControlled(league: League): Game[] {
     // Every game of the week, even one already played live or early: its teams played.
     weekGames.flatMap((g) => [g.homeId, g.awayId]),
   );
+  // The league's review of the week, then the week's off-field trouble: after the countdown, so a fresh suspension
+  // isn't counted down the week it is handed down.
+  reviewWeek(
+    league,
+    weekGames.flatMap((g) => (g.result ? [g.result] : [])),
+  );
+  troubleWeek(league, 'week');
   coachQuirksWeek(league);
   if (league.phase === 'regular')
     for (const team of league.teams) {

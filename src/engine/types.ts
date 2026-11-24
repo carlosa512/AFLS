@@ -262,11 +262,18 @@ export interface ConductEntry {
   outcome: 'fine' | 'sat' | 'letGo' | 'leagueFine' | 'suspended';
   games?: number;
   public?: true;
+  /** The club he was with when it happened (SNN reads it through `publicConduct`). */
+  teamId?: number;
 }
 
 export interface Player {
   /** His trouble record; `lean.by` multiplies his trouble odds until the step clock reaches `until`. Gone when he retires. */
-  discipline?: { entries: ConductEntry[]; lean?: { by: number; until: number } };
+  discipline?: {
+    entries: ConductEntry[];
+    lean?: { by: number; until: number };
+    /** The clocks of his recent dangerous fouls, for the league's pattern review (`REVIEW`). */
+    fouls?: number[];
+  };
   /** Games still to miss, served game by game (`serveGames`); `by` says who ruled. Gone when he retires. */
   suspension?: { games: number; by: 'league' | 'team'; reason: ConductKind };
   id: number;
@@ -2392,6 +2399,8 @@ export type PackedActors = (number | null)[];
 
 export interface GameResult {
   /** Players thrown out of the game (`conduct.ts`). */
+  /** Accepted dangerous personal fouls by man, what the league's pattern review counts (`conduct.ts`). */
+  personalFouls?: { playerId: number; foul: Foul }[];
   ejections?: {
     playerId: number;
     teamId: number;
