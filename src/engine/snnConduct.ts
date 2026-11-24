@@ -8,6 +8,8 @@
 import { gamesInWeek } from './league';
 import { YEAR } from './morale';
 import { characterZ, trueCharacter } from './personality';
+import { moraleContext } from './morale';
+import { unitOf, unitRead } from './standing';
 import { draftedHigh, publicRecord } from './publicStanding';
 import { hashUnits } from './rng';
 import { suspended, teamPlayers } from './roster';
@@ -49,6 +51,10 @@ export interface ConductFacts {
   bans: number;
   /** His other public troubles this league year, before this one. */
   again: number;
+  /** The week of the edition that tells it (0 on a big day of the offseason): the record and the next game are read as of it. */
+  asOf: number;
+  /** A prior dangerous-foul fine and ban on his record (two league years), for what a line may say he had before. */
+  prior: { fine: boolean; ban: boolean };
   /** A named man: a star by last season's record or a recent high pick. */
   star: boolean;
 }
@@ -92,6 +98,36 @@ export function goodSideWeek(l: League, clock: number): { playerId: number; kind
     });
   }
   return out.sort((a, b) => a.playerId - b.playerId);
+}
+
+/**
+ * A man's room is fit for a story about the teammate everyone wants: its read is not Split or Down. A room too small to
+ * have a read passes.
+ */
+export function roomFine(
+  l: League,
+  p: { id: number; position: Parameters<typeof unitOf>[0]; teamId: number | null },
+  ctx = moraleContext(l),
+): boolean {
+  if (p.teamId === null) return false;
+  const word = unitRead(l, p.teamId, unitOf(p.position), ctx)?.word;
+  return word !== 'Split' && word !== 'Down';
+}
+
+/**
+ * The good deeds nobody has told yet: none for a man already told this league year (one a man a year), and no second
+ * family moment ever. A teammate story the room's read would contradict is told as community work instead.
+ */
+export function freshGood(l: League, clock: number, have: Set<string>): { playerId: number; kind: GoodKind }[] {
+  const told = [...have].filter((k) => k.startsWith('good:'));
+  const ctx = moraleContext(l);
+  return goodSideWeek(l, clock).flatMap((g) => {
+    const p = l.players[g.playerId];
+    const mine = told.filter((k) => k.split(':')[3] === String(p.id));
+    if (mine.some((k) => k.split(':')[1] === String(l.season))) return [];
+    if (g.kind === 'family' && mine.some((k) => k.endsWith(':family'))) return [];
+    return [g.kind === 'teammate' && !roomFine(l, p, ctx) ? { ...g, kind: 'community' as const } : g];
+  });
 }
 
 /** The clock a game week's good deeds are rolled at: its morale step in the league year. */
@@ -160,6 +196,11 @@ export function conductCandidates(
           outcome: e.outcome,
           ...(e.games !== undefined ? { games: e.games } : {}),
           week: gw,
+          asOf: week,
+          prior: {
+            fine: entries.slice(0, i).some((x) => x.kind === 'dangerousFouls' && x.outcome === 'leagueFine'),
+            ban: entries.slice(0, i).some((x) => x.kind === 'dangerousFouls' && x.outcome === 'suspended'),
+          },
           ...(game ? { gameId: game.id } : {}),
           ...(ej ? { quarter: ej.quarter } : {}),
           nth: entries.filter((x) => x.kind === 'ejected' && x.season === l.season).indexOf(e) + 1,
@@ -172,10 +213,12 @@ export function conductCandidates(
     });
   }
   // The good side: a tile on any week, in the regular season.
-  if (week <= 18)
-    for (const g of goodSideWeek(l, goodClock(l, week))) {
+  // Rolled from today's rosters, so only for the week just played: a past week is never re-rolled.
+  const latest = Math.max(0, ...l.games.filter((g) => g.season === l.season && g.result).map((g) => g.week));
+  if (week <= 18 && week === latest)
+    for (const g of freshGood(l, goodClock(l, week), have)) {
       const p = l.players[g.playerId];
-      const key = `good:${l.season}:${week}:${p.id}`;
+      const key = `good:${l.season}:${week}:${p.id}:${g.kind}`;
       if (have.has(key) || p.teamId === null) continue;
       const angle = g.kind === 'community' ? 'goodCommunity' : g.kind === 'family' ? 'goodFamily' : 'goodTeammate';
       out.push({
@@ -191,6 +234,8 @@ export function conductCandidates(
           playerId: p.id,
           angle,
           week,
+          asOf: week,
+          prior: { fine: false, ban: false },
           nth: 0,
           bans: 0,
           again: 0,

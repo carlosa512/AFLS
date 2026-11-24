@@ -2,9 +2,11 @@
  * The words of SNN's stories about players in trouble and players doing good (`snnConduct.ts` chooses them, this
  * writes them). Every sentence is a whole line written by hand with slots only for facts (a name, a team, a number,
  * a place) and chosen by a condition on public facts through `say` (`voice.ts`): the most specific that fits, a stable
- * tie-break, none said before this league year. A story is two paragraphs: what happened and why, then what it means
- * and what is next. The tone stops at a fight and a missed curfew, and a man's character is never named: only what he
- * did. Written to `storyRules.ts` and the house rules in `docs/NEWS.md`.
+ * tie-break, none said before this league year. `say` takes only the most specific group that fits, so each cell a story
+ * commonly lands in (an ejection for fighting that won or lost the game, a fine, a ruling off the field) holds several
+ * lines with different openings. A story is two paragraphs: what happened and why, then what it means and what is
+ * next. The tone stops at a fight and a missed curfew, and a man's character is never named: only what he did. No line
+ * claims a weekday, a time of year or a record the sim does not hold, and a good deed never carries the team's record.
  *
  * A team sitting a man for a private kind of trouble is told as the NFL's teams tell it: held out "for a violation of
  * team rules", never the incident. The head coach's quote is the existing mechanism (`EditionStory.quote`); a
@@ -77,6 +79,7 @@ interface Sheet {
   who: string;
   star: boolean;
   rookie: boolean;
+  /** One of the three captains his team named this year. */
   captain: boolean;
   angle: string;
   /** The round he was drafted in by this team this year, or 0. */
@@ -85,8 +88,11 @@ interface Sheet {
   seasons: number;
   nth: number;
   bans: number;
+  /** Games of the ruling, and the games still to miss as of the edition. */
   games: number;
+  left: number;
   fined: boolean;
+  prior: { fine: boolean; ban: boolean };
   /** The ejection's quarter (5 is overtime), and the game it happened in. */
   qtr: number;
   opp: number;
@@ -107,7 +113,7 @@ interface Sheet {
   next: Next | null;
   /** A season line worth one sentence ("six sacks this season"), or ''. */
   fact: string;
-  /** Who he is in a good story: a place, a count of teammates, an event. */
+  /** In a good story: a place, a count of teammates, an event. */
   place: string;
   mates: number;
   event: 'son' | 'daughter' | 'wedding' | 'engaged';
@@ -142,25 +148,27 @@ const PLACES = [
 ];
 const EVENTS: Sheet['event'][] = ['son', 'daughter', 'wedding', 'engaged'];
 
-function sheetOf(l: League, cand: Candidate, week: number): Sheet {
+function sheetOf(l: League, cand: Candidate): Sheet {
   const x = cand.conduct!;
   const p = l.players[x.playerId];
   const club = cand.clubId;
+  const asOf = x.asOf;
   const game = x.gameId === undefined ? undefined : l.games.find((g) => g.id === x.gameId);
   const home = game?.homeId === club;
   const r = game?.result;
   const [us, them] = !r ? [0, 0] : home ? [r.homeScore, r.awayScore] : [r.awayScore, r.homeScore];
-  const now = through(l, Math.max(1, week));
+  // The record and the next game are the edition's: a story told a week late is told from this week.
+  const now = through(l, Math.max(1, asOf));
   const records = computeRecords(now);
   const row = records.get(club)!;
   const table = divisionStandings(now, records)[l.teams[club].division];
   const nextGame = l.games
-    .filter((g) => g.season === l.season && g.week > week && (g.homeId === club || g.awayId === club))
+    .filter((g) => g.season === l.season && g.week > asOf && (g.homeId === club || g.awayId === club))
     .sort((a, b) => a.week - b.week)[0];
   const seasons = Object.entries(p.statTeams ?? {}).filter(
     ([s, ids]) => Number(s) <= l.season && ids.includes(club),
   ).length;
-  const key = `${cand.key}`;
+  const caps = l.teams[club].captains;
   return {
     id: p.id,
     club,
@@ -169,13 +177,16 @@ function sheetOf(l: League, cand: Candidate, week: number): Sheet {
     star: x.star,
     rookie: p.experience === 0,
     angle: x.angle,
-    captain: Object.values(l.teams[club].captains ?? {}).includes(p.id),
+    captain: !!caps && (caps.offense === p.id || caps.defense === p.id || caps.specialTeams === p.id),
     round: p.draft && p.draft.season === l.season && p.draft.teamId === club ? p.draft.round : 0,
     seasons: Math.max(1, seasons),
     nth: x.nth,
     bans: x.bans,
     games: x.games ?? 1,
+    // A man already part way through it (a story told a week late) has less left to miss.
+    left: p.suspension ? p.suspension.games : x.week < asOf ? 0 : (x.games ?? 1),
     fined: x.outcome === 'leagueFine',
+    prior: x.prior,
     qtr: x.quarter ?? 0,
     opp: game ? (home ? game.awayId : game.homeId) : club,
     home,
@@ -194,13 +205,13 @@ function sheetOf(l: League, cand: Candidate, week: number): Sheet {
       ? {
           opp: nextGame.homeId === club ? nextGame.awayId : nextGame.homeId,
           home: nextGame.homeId === club,
-          bye: nextGame.week > week + 1,
+          bye: nextGame.week > asOf + 1,
         }
       : null,
     fact: factOf(l, p),
-    place: PLACES[hash(`${key}:place`) % PLACES.length],
-    mates: 4 + (hash(`${key}:mates`) % 9),
-    event: EVENTS[hash(`${key}:event`) % EVENTS.length],
+    place: PLACES[hash(`${cand.key}:place`) % PLACES.length],
+    mates: 4 + (hash(`${cand.key}:mates`) % 9),
+    event: EVENTS[hash(`${cand.key}:event`) % EVENTS.length],
   };
 }
 
@@ -215,121 +226,212 @@ const gw = (s: Sheet) => games(s.games);
 const score = (s: Sheet) => `${s.ws}–${s.ls}`;
 const lost = (s: Sheet) => s.won === false;
 const won = (s: Sheet) => s.won === true;
+/** What the league did, after the man is named: "fined him", "suspended him for two games". */
+const him = (s: Sheet) => (s.fined ? 'fined him' : `suspended him for ${gw(s)}`);
 
-type Bank = readonly Line<Sheet>[];
-const L = (text: (s: Sheet) => string, reads = 0, when?: (s: Sheet) => boolean): Line<Sheet> => ({
-  text,
-  reads,
-  ...(when ? { when } : {}),
-});
+type Bank<S = Sheet> = readonly Line<S>[];
+function L<S = Sheet>(text: (s: S) => string, reads = 0, when?: (s: S) => boolean): Line<S> {
+  return { text, reads, ...(when ? { when } : {}) };
+}
 
-// ───────── what happened: the lede, a line or two ─────────
+// ───────── what happened: the lede ─────────
 
 const FIGHT: Bank = [
+  L((s) => `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} for fighting.`),
+  L((s) => `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and the league has suspended him for ${gw(s)}.`),
+  L(
+    (s) => `A fight ${qtrIn(s)} ${where(s)} has cost ${s.who} ${gw(s)}. The league suspended him after he was ejected.`,
+  ),
+  L((s) => `${s.who} will sit out ${gw(s)} after the league ruled on his ejection for fighting ${where(s)}.`),
   L(
     (s) =>
-      `The league suspended ${s.who} for ${gw(s)} on Tuesday. He was ejected ${qtrIn(s)} ${where(s)} for fighting.`,
+      `The league handed ${s.who} a suspension of ${gw(s)} for fighting ${qtrIn(s)} ${where(s)}, where he was ejected.`,
   ),
-  L(
-    (s) =>
-      `${c(s.club)} will be without ${s.who} for ${gw(s)}. The league ruled on Tuesday after he was ejected for fighting ${qtrIn(s)} ${where(s)}.`,
-    1,
-    (s) => s.star,
-  ),
-  L(
-    (s) =>
-      `${s.who} will serve a suspension of ${gw(s)}, the league ruled on Tuesday. He was ejected for fighting ${where(s)}, his ${nth(s.nth)} ejection this season.`,
-    2,
-    (s) => s.nth >= 2,
-  ),
+  // A game his team lost, a game it won, and a name: each its own cell, with several lines.
   L(
     (s) =>
       `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league suspended him for ${gw(s)}.`,
     1,
-    (s) => lost(s),
+    lost,
+  ),
+  L(
+    (s) =>
+      `In a ${score(s)} loss ${where(s)}, ${s.who} was thrown out ${qtrIn(s)} for fighting. The league suspended him for ${gw(s)}.`,
+    1,
+    lost,
+  ),
+  L(
+    (s) =>
+      `The league suspended ${s.who} for ${gw(s)} after he was ejected for fighting in a ${score(s)} loss ${where(s)}.`,
+    1,
+    lost,
   ),
   L(
     (s) =>
       `${s.who} was thrown out for fighting ${qtrIn(s)} ${where(s)}, and ${c(s.club)} still won ${score(s)}. The league suspended him for ${gw(s)}.`,
     1,
-    (s) => won(s),
+    won,
   ),
   L(
     (s) =>
-      `The league gave ${s.who} a suspension of ${gw(s)} on Tuesday, longer than his last, for fighting ${qtrIn(s)} ${where(s)}. It is his ${nth(s.bans)} suspension in two seasons.`,
+      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} did not finish it. He was ejected ${qtrIn(s)} for fighting, and the league suspended him for ${gw(s)}.`,
+    1,
+    won,
+  ),
+  L(
+    (s) =>
+      `The league suspended ${s.who} for ${gw(s)} after he was ejected for fighting in a ${score(s)} win ${where(s)}.`,
+    1,
+    won,
+  ),
+  L(
+    (s) =>
+      `${c(s.club)} will be without ${s.who} for ${gw(s)}. He was ejected for fighting ${qtrIn(s)} ${where(s)}, and the league suspended him.`,
+    1,
+    (s) => s.star && s.won === null,
+  ),
+  L(
+    (s) =>
+      `${s.who} is suspended for ${gw(s)}. The league ruled after he was ejected for fighting ${qtrIn(s)} ${where(s)}.`,
+    1,
+    (s) => s.star && s.won === null,
+  ),
+  L(
+    (s) =>
+      `${s.who} will serve a suspension of ${gw(s)}. He was ejected for fighting ${where(s)}, his ${nth(s.nth)} ejection this season.`,
+    2,
+    (s) => s.nth >= 2,
+  ),
+  L(
+    (s) =>
+      `${s.who} has now been thrown out of ${w(s.nth)} games this season. This one was for fighting ${where(s)}, and the league suspended him for ${gw(s)}.`,
+    2,
+    (s) => s.nth >= 2,
+  ),
+  L(
+    (s) =>
+      `The league gave ${s.who} a suspension of ${gw(s)}, longer than his last, for fighting ${qtrIn(s)} ${where(s)}. It is his ${nth(s.bans)} suspension in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
   L(
     (s) =>
-      `A fight ${qtrIn(s)} ${where(s)} cost ${s.who} a game and then some. The league ruled on Tuesday that he will sit out ${gw(s)}.`,
-    0,
-    (s) => s.games > 1,
+      `${s.who} drew ${gw(s)} from the league for fighting ${where(s)}, longer than his last suspension. He has now been suspended ${w(s.bans)} times in two seasons.`,
+    3,
+    (s) => s.bans >= 2 && s.games > 1,
   ),
 ];
 
 const TWO: Bank = [
   L((s) =>
     s.fined
-      ? `The league fined ${s.who} on Tuesday after he was ejected ${qtrIn(s)} ${where(s)}. It was his second unsportsmanlike conduct penalty of the game.`
-      : `The league suspended ${s.who} for ${gw(s)} on Tuesday. He was ejected ${qtrIn(s)} ${where(s)} after his second unsportsmanlike conduct penalty.`,
+      ? `The league fined ${s.who} after he was ejected ${qtrIn(s)} ${where(s)}. It was his second unsportsmanlike conduct penalty of the game.`
+      : `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} after his second unsportsmanlike conduct penalty.`,
   ),
   L(
     (s) =>
-      `${s.who} picked up two unsportsmanlike conduct penalties ${where(s)} and was ejected ${qtrIn(s)}. The league ruled on Tuesday and ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
+      `${s.who} picked up two unsportsmanlike conduct penalties ${where(s)} and was ejected ${qtrIn(s)}. The league ${him(s)}.`,
+  ),
+  L((s) => `Two unsportsmanlike conduct penalties got ${s.who} ejected ${qtrIn(s)} ${where(s)}. The league ${him(s)}.`),
+  L(
+    (s) =>
+      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, and the league ${him(s)}.`,
+  ),
+  L((s) => `After ${s.who} was ejected ${where(s)} for two unsportsmanlike conduct penalties, the league ${him(s)}.`),
+  L(
+    (s) => `${s.who} was ejected ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${him(s)}.`,
     1,
-    (s) => !s.star,
+    lost,
   ),
   L(
     (s) =>
-      `${s.who} was ejected ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
-    2,
-    (s) => lost(s),
+      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. The league ${him(s)}.`,
+    1,
+    lost,
   ),
   L(
     (s) =>
-      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, though ${c(s.club)} went on to win ${score(s)}. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
-    2,
-    (s) => won(s),
+      `In a ${score(s)} loss ${where(s)}, a second unsportsmanlike conduct penalty got ${s.who} ejected. The league ${him(s)}.`,
+    1,
+    lost,
   ),
   L(
     (s) =>
-      `It was the second ejection of the season for ${s.who}, this time for two unsportsmanlike conduct penalties ${where(s)}. The league suspended him for ${gw(s)} on Tuesday.`,
+      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a second unsportsmanlike conduct penalty, though ${c(s.club)} went on to win ${score(s)}. The league ${him(s)}.`,
+    1,
+    won,
+  ),
+  L(
+    (s) =>
+      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} after two unsportsmanlike conduct penalties. The league ${him(s)}.`,
+    1,
+    won,
+  ),
+  L(
+    (s) =>
+      `A second unsportsmanlike conduct penalty got ${s.who} ejected in a ${score(s)} win ${where(s)}. The league ${him(s)}.`,
+    1,
+    won,
+  ),
+  L(
+    (s) =>
+      `It was the second ejection of the season for ${s.who}, this time for two unsportsmanlike conduct penalties ${where(s)}. The league suspended him for ${gw(s)}.`,
     3,
     (s) => s.nth >= 2 && !s.fined,
   ),
   L(
     (s) =>
-      `${c(s.club)} lost ${s.who} ${qtrIn(s)} ${where(s)}, when his second unsportsmanlike conduct penalty got him ejected. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
-    1,
-    (s) => s.star,
+      `${s.who} has been ejected twice this season. The latest came ${where(s)} after two unsportsmanlike conduct penalties, and the league suspended him for ${gw(s)}.`,
+    3,
+    (s) => s.nth >= 2 && !s.fined,
   ),
 ];
 
 const FLAGRANT: Bank = [
   L((s) =>
     s.fined
-      ? `The league fined ${s.who} on Tuesday after he was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`
-      : `The league suspended ${s.who} for ${gw(s)} on Tuesday. He was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`,
+      ? `The league fined ${s.who} after he was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`
+      : `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} for a flagrant hit.`,
   ),
   L(
     (s) =>
-      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a hit the officials called flagrant. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`} on Tuesday.`,
+      `${s.who} was ejected ${qtrIn(s)} ${where(s)} for a hit the officials called flagrant. The league ${him(s)}.`,
+  ),
+  L((s) => `A hit the officials called flagrant got ${s.who} ejected ${where(s)}. The league ${him(s)}.`),
+  L(
+    (s) =>
+      `The league ${s.fined ? 'fined' : 'suspended'} ${s.who}${s.fined ? '' : ` for ${gw(s)}`} after a flagrant hit ${qtrIn(s)} ${where(s)} got him ejected.`,
+  ),
+  L(
+    (s) =>
+      `A hit the officials called flagrant got ${s.who} thrown out ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${him(s)}.`,
     1,
-    (s) => !s.star,
+    lost,
   ),
   L(
     (s) =>
-      `A hit the officials called flagrant got ${s.who} thrown out ${qtrIn(s)} ${where(s)}, and ${c(s.club)} lost ${score(s)}. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
-    2,
-    (s) => lost(s),
+      `${c(s.club)} lost ${score(s)} ${where(s)}, and ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. The league ${him(s)}.`,
+    1,
+    lost,
+  ),
+  L(
+    (s) => `In a ${score(s)} loss ${where(s)}, ${s.who} was ejected for a flagrant hit. The league ${him(s)}.`,
+    1,
+    lost,
   ),
   L(
     (s) =>
-      `${s.who} was ejected for a flagrant hit ${qtrIn(s)} ${where(s)}, though ${c(s.club)} held on to win ${score(s)}. The league ${s.fined ? 'fined him' : `suspended him for ${gw(s)}`}.`,
-    2,
-    (s) => won(s) && s.close,
+      `${s.who} was ejected for a flagrant hit ${qtrIn(s)} ${where(s)}, though ${c(s.club)} held on to win ${score(s)}. The league ${him(s)}.`,
+    1,
+    won,
   ),
+  L(
+    (s) =>
+      `${c(s.club)} won ${score(s)} ${where(s)}, but ${s.who} was ejected ${qtrIn(s)} for a flagrant hit. The league ${him(s)}.`,
+    1,
+    won,
+  ),
+  L((s) => `A flagrant hit got ${s.who} ejected in a ${score(s)} win ${where(s)}. The league ${him(s)}.`, 1, won),
   L(
     (s) =>
       `${s.who} was ejected for a flagrant hit, his ${nth(s.nth)} ejection of the season. The league suspended him for ${gw(s)}.`,
@@ -343,23 +445,25 @@ const FINED = `${w(REVIEW.fouls)} dangerous fouls in ${w(REVIEW.span)} games`;
 const FINE: Bank = [
   L(
     (s) =>
-      `The league fined ${s.who} on Tuesday. It was his ${nth(REVIEW.fouls)} dangerous foul in ${w(REVIEW.span)} games, and the league reviews a pattern like that.`,
+      `The league fined ${s.who} after his latest dangerous foul ${where(s)}. It was his ${nth(REVIEW.fouls)} in ${w(REVIEW.span)} games.`,
   ),
   L(
     (s) =>
-      `${s.who} was fined by the league on Tuesday for a run of dangerous fouls, ${w(REVIEW.fouls)} of them in ${w(REVIEW.span)} games. There was no suspension.`,
+      `${s.who} was fined by the league for a run of dangerous fouls, ${w(REVIEW.fouls)} of them in ${w(REVIEW.span)} games. There was no suspension.`,
+  ),
+  L(
+    (s) =>
+      `The league fined ${s.who} for a dangerous foul ${where(s)}, the ${nth(REVIEW.fouls)} he has been flagged for in ${w(REVIEW.span)} games. There was no suspension.`,
+  ),
+  L(
+    (s) =>
+      `Three dangerous fouls in four games have cost ${s.who} a fine. The latest came ${where(s)}, and the league did not suspend him.`,
+  ),
+  L((s) => `${s.who} drew a fine from the league for his hit ${where(s)}. He has been flagged for ${FINED}.`),
+  L(
+    (s) =>
+      `${s.who} drew a fine from the league after another dangerous foul ${where(s)}, a ${score(s)} ${lost(s) ? 'loss' : 'win'}. He has been flagged for ${FINED}.`,
     1,
-  ),
-  L(
-    (s) =>
-      `The league fined ${s.who} for a hit ${where(s)}, the ${nth(REVIEW.fouls)} dangerous foul he has been flagged for in ${w(REVIEW.span)} games. There was no suspension.`,
-    2,
-    (s) => !lost(s) || s.close,
-  ),
-  L(
-    (s) =>
-      `${s.who} drew a fine from the league after another dangerous foul ${where(s)}, ${c(s.club)}'s ${score(s)} ${lost(s) ? 'loss' : won(s) ? 'win' : 'game'}. He has been flagged for ${FINED}.`,
-    2,
     (s) => s.won !== null,
   ),
   L(
@@ -371,50 +475,59 @@ const FINE: Bank = [
 ];
 
 const BAN: Bank = [
-  L((s) =>
-    s.games === 1
-      ? `The league suspended ${s.who} for one game on Tuesday. It was his latest dangerous foul ${where(s)}, and the league had already fined him for a run of them.`
-      : `The league suspended ${s.who} for ${gw(s)} on Tuesday after another dangerous foul ${where(s)}. He had been fined for a run of them before.`,
+  L(
+    (s) =>
+      `The league suspended ${s.who} for ${gw(s)} after a dangerous foul ${where(s)}, the latest in a run of them.`,
   ),
   L(
     (s) =>
-      `${s.who} will sit out ${gw(s)} after the league ruled on Tuesday that his run of dangerous fouls had gone too far. The latest came ${where(s)}.`,
-    1,
+      `${s.who} will sit out ${gw(s)} after the league ruled that his run of dangerous fouls had gone too far. The latest came ${where(s)}.`,
   ),
   L(
     (s) =>
-      `${c(s.club)} will be without ${s.who} for ${gw(s)}. The league suspended him on Tuesday for his pattern of dangerous fouls, the latest of them ${where(s)}.`,
+      `A dangerous foul ${where(s)} has cost ${s.who} ${gw(s)}. The league suspended him for the run of them he has had.`,
+  ),
+  L(
+    (s) =>
+      `${c(s.club)} will be without ${s.who} for ${gw(s)}. The league suspended him for his pattern of dangerous fouls, the latest of them ${where(s)}.`,
     1,
     (s) => s.star,
   ),
   L(
     (s) =>
-      `The league suspended ${s.who} for ${gw(s)} on Tuesday, longer than his last suspension. The latest dangerous foul came ${where(s)}, and it is his ${nth(s.bans)} ban in two seasons.`,
+      `The league suspended ${s.who} for ${gw(s)} after another dangerous foul ${where(s)}. It had already fined him for a run of them.`,
+    2,
+    (s) => s.prior.fine && !s.prior.ban,
+  ),
+  L(
+    (s) =>
+      `${s.who} was suspended for ${gw(s)} after a dangerous foul ${where(s)}, and the league had fined him for his fouls before. ${c(s.club)} lost that game ${score(s)}.`,
+    3,
+    (s) => s.prior.fine && !s.prior.ban && lost(s),
+  ),
+  L(
+    (s) =>
+      `The league suspended ${s.who} for ${gw(s)}, longer than his last suspension. The latest dangerous foul came ${where(s)}, and it is his ${nth(s.bans)} suspension in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
   L(
     (s) =>
-      `${s.who} was suspended for ${gw(s)} after a dangerous foul ${where(s)}, the latest in a run of them. ${c(s.club)} lost that game ${score(s)}.`,
-    2,
-    (s) => lost(s),
+      `${s.who} was suspended for ${gw(s)} after a dangerous foul ${where(s)}. ${c(s.club)} lost that game ${score(s)}.`,
+    1,
+    lost,
   ),
 ];
 
 const FIGHT_OFF: Bank = [
-  L((s) =>
-    s.games === 1
-      ? `The league suspended ${s.who} for one game after a fight away from the stadium. It ruled on Tuesday.`
-      : `The league suspended ${s.who} for ${gw(s)} after a fight away from the stadium. It ruled on Tuesday.`,
-  ),
-  L(
-    (s) => `${s.who} was in a fight away from the stadium, and the league suspended him for ${gw(s)}.`,
-    0,
-    (s) => !s.star,
-  ),
+  L((s) => `The league suspended ${s.who} for ${gw(s)} after a fight away from the stadium.`),
+  L((s) => `${s.who} was in a fight away from the stadium, and the league has suspended him for ${gw(s)}.`),
+  L((s) => `A fight away from the stadium has cost ${s.who} ${gw(s)}, the league ruled.`),
+  L((s) => `The league ruled that ${s.who} will sit out ${gw(s)} for a fight away from the stadium.`),
+  L((s) => `${s.who} drew a suspension of ${gw(s)} from the league for a fight away from the stadium.`),
   L(
     (s) =>
-      `${c(s.club)} will play without ${s.who} for ${gw(s)}. The league ruled on Tuesday after a fight away from the stadium.`,
+      `${c(s.club)} will play without ${s.who} for ${gw(s)}. The league suspended him after a fight away from the stadium.`,
     1,
     (s) => s.star,
   ),
@@ -423,11 +536,6 @@ const FIGHT_OFF: Bank = [
       `The league gave ${s.who} ${gw(s)}, longer than his last suspension, for a fight away from the stadium. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
-  ),
-  L(
-    (s) => `A fight away from the stadium has cost ${s.who} ${gw(s)}. The league suspended him on Tuesday.`,
-    1,
-    (s) => s.l > s.w,
   ),
 ];
 
@@ -453,68 +561,47 @@ const SAT: Bank = [
     (s) =>
       `${s.who} was held out of the next game for a violation of team rules, ${C(s.club)} announced. The team plays ${nextWhere(s)}.`,
     1,
-    (s) => !!s.next && s.w > s.l,
+    (s) => !!s.next,
   ),
   L(
     (s) =>
       `${C(s.club)} will play ${nextWhere(s)} without ${s.who}. The team held him out for a violation of team rules.`,
     1,
-    (s) => !!s.next && s.l > s.w,
+    (s) => !!s.next,
   ),
   L(
     (s) =>
       `The team held ${s.who} out of its next game for a violation of team rules. ${C(s.club)} will play ${nextWhere(s)} without him.`,
-    0,
+    1,
     (s) => !!s.next && s.rookie,
   ),
 ];
 
 const SPAT: Bank = [
   L((s) => `${s.who} got into a public argument with someone on his own team this week.`),
+  L((s) => `An argument between ${s.who} and someone on his own team spilled into public view this week.`),
+  L((s) => `${s.who} took a disagreement with someone on his own team public this week.`),
+  L((s) => `${s.who} and someone on the ${N(s.club)} traded words in public this week.`),
   L(
-    (s) => `${C(s.club)} have a public argument to settle, and ${s.who} is in the middle of it.`,
+    (s) => `The ${N(s.club)} have a public disagreement to settle, and ${s.who} is part of it.`,
     1,
     (s) => s.star,
-  ),
-  L(
-    (s) =>
-      `A disagreement between ${s.who} and someone on his own team became public this week, with ${c(s.club)} at ${s.rec}.`,
-    1,
-    (s) => s.w > s.l,
-  ),
-  L(
-    (s) =>
-      `${s.who} took a disagreement inside the ${N(s.club)} locker room public this week, and the team is ${s.rec}.`,
-    1,
-    (s) => s.l > s.w,
   ),
   L(
     (s) => `${s.who} is in the news again, this time for a public argument with someone on his own team.`,
     3,
     (s) => s.again >= 1,
   ),
-  L(
-    (s) => `An argument between ${s.who} and someone on his own team spilled into public view this week.`,
-    0,
-    (s) => !s.star,
-  ),
 ];
 
 const EVENT: Bank = [
-  L((s) => `${s.who} skipped a team event this week, and ${C(s.club)} know it.`),
-  L(
-    (s) => `${s.who} was not at a ${N(s.club)} team event this week. The team has not said why.`,
-    1,
-    (s) => !s.star,
-  ),
-  L(
-    (s) => `${s.who} did not turn up for a ${N(s.club)} team event this week, and the team is ${s.rec}.`,
-    1,
-    (s) => s.l > s.w,
-  ),
+  L((s) => `${s.who} was not at a ${N(s.club)} team event this week.`),
+  L((s) => `${s.who} skipped a team event this week.`),
+  L((s) => `${s.who} did not turn up for a ${N(s.club)} team event this week.`),
+  L((s) => `A ${N(s.club)} team event went ahead this week without ${s.who}.`),
   L(
     (s) =>
-      `This is not the first time ${s.who} has been in the news this season, and he skipped a ${N(s.club)} team event this week.`,
+      `This is not the first time ${s.who} has been in the news this season. He skipped a ${N(s.club)} team event this week.`,
     3,
     (s) => s.again >= 1,
   ),
@@ -523,59 +610,65 @@ const EVENT: Bank = [
     2,
     (s) => s.star,
   ),
-  L(
-    (s) => `A ${N(s.club)} team event went on without ${s.who} this week, with the team at ${s.rec}.`,
-    1,
-    (s) => s.w > s.l,
-  ),
 ];
 
-// ───────── the good side ─────────
+// ───────── the good side: no record, no weekday ─────────
 
 const COMMUNITY: Bank = [
-  L((s) => `${s.who} spent his day off at ${s.place}, and he brought ${w(s.mates)} teammates with him.`),
+  L((s) => `${s.who} spent an afternoon at ${s.place} this week, and he brought ${w(s.mates)} teammates with him.`),
+  L((s) => `${w(s.mates)} ${N(s.club)} players went to ${s.place} this week, and ${s.who} led the trip.`),
+  L((s) => `${s.who} took ${w(s.mates)} of his teammates to ${s.place} this week.`),
   L(
-    (s) =>
-      `${s.who} has made ${s.place} a regular stop in his ${nth(s.seasons)} season with ${c(s.club)}, and this week he brought ${w(s.mates)} teammates along.`,
-    2,
-    (s) => s.seasons >= 4,
-  ),
-  L(
-    (s) => `With a game to prepare for, ${s.who} still found the time on his day off to visit ${s.place}.`,
+    (s) => `${s.who} had a game to prepare for and still found the time this week to visit ${s.place}.`,
     1,
     (s) => s.star,
   ),
   L(
-    (s) => `${s.who} made time this week to visit ${s.place}, and ${c(s.club)} are ${s.rec}.`,
-    1,
-    (s) => s.w > s.l,
-  ),
-  L(
     (s) =>
-      `${c(s.club)} are ${s.rec}, and ${s.who} still spent his day off at ${s.place} with ${w(s.mates)} of his teammates.`,
+      `${s.who}, in his ${nth(s.seasons)} season with ${c(s.club)}, took ${w(s.mates)} teammates to ${s.place} this week.`,
     1,
-    (s) => s.l > s.w,
+    (s) => s.seasons >= 4,
   ),
   L(
-    (s) => `${s.who}, a rookie, spent his day off at ${s.place}, one of his first visits as a professional.`,
+    (s) => `${s.who}, a rookie, visited ${s.place} this week with ${w(s.mates)} of his teammates.`,
     2,
     (s) => s.rookie,
+  ),
+  L(
+    (s) => `${s.who}, one of the ${N(s.club)} captains, led a visit to ${s.place} this week.`,
+    3,
+    (s) => s.captain,
   ),
 ];
 
 const FAMILY: Bank = [
   L(
-    (s) => `${s.who} became a father this week when his son was born on Monday.`,
+    (s) => `${s.who} became a father this week when his son was born.`,
     1,
     (s) => s.event === 'son',
   ),
   L(
-    (s) => `${s.who} became a father this week when his daughter was born on Monday.`,
+    (s) => `${s.who} and his family welcomed a son this week.`,
+    1,
+    (s) => s.event === 'son',
+  ),
+  L(
+    (s) => `${s.who} became a father this week when his daughter was born.`,
     1,
     (s) => s.event === 'daughter',
   ),
   L(
-    (s) => `${s.who} got married on Monday, his day off.`,
+    (s) => `A daughter was born to ${s.who} this week.`,
+    1,
+    (s) => s.event === 'daughter',
+  ),
+  L(
+    (s) => `${s.who} got married this week.`,
+    1,
+    (s) => s.event === 'wedding',
+  ),
+  L(
+    (s) => `${s.who} was married this week, with a few of his ${N(s.club)} teammates there.`,
     1,
     (s) => s.event === 'wedding',
   ),
@@ -585,53 +678,29 @@ const FAMILY: Bank = [
     (s) => s.event === 'engaged',
   ),
   L(
-    (s) => `${s.who} and his family welcomed a son this week, and ${c(s.club)} are ${s.rec}.`,
-    2,
-    (s) => s.event === 'son' && s.w > s.l,
-  ),
-  L(
-    (s) => `${s.who} spent his day off at the hospital with his newborn daughter.`,
-    2,
-    (s) => s.event === 'daughter' && s.l >= s.w,
-  ),
-  L(
-    (s) => `${s.who} was married on Monday in front of his family and a few of his ${N(s.club)} teammates.`,
-    2,
-    (s) => s.event === 'wedding' && s.seasons >= 3,
-  ),
-  L(
-    (s) => `${s.who} is engaged, he announced this week, a few months into his first season with ${c(s.club)}.`,
-    2,
-    (s) => s.event === 'engaged' && s.rookie,
+    (s) => `${s.who} is engaged, he announced this week.`,
+    1,
+    (s) => s.event === 'engaged',
   ),
 ];
 
 const TEAMMATE: Bank = [
-  L((s) => `${s.who} is the player the rest of the ${N(s.club)} locker room goes to first, teammates say.`),
+  L((s) => `${s.who} is the kind of teammate a locker room wants, and the ${N(s.club)} have one in him.`),
+  L((s) => `Few players are as popular in the ${N(s.club)} locker room as ${s.who}.`),
   L(
     (s) => `After ${w(s.seasons)} seasons with ${c(s.club)}, ${s.who} is the teammate other players want next to them.`,
     2,
     (s) => s.seasons >= 5,
   ),
   L(
-    (s) => `${s.who} is only a rookie, but his teammates on ${c(s.club)} already go to him first.`,
+    (s) =>
+      `${s.who} is only a rookie, and he is already one of the most popular players in the ${N(s.club)} locker room.`,
     2,
     (s) => s.rookie,
   ),
   L(
-    (s) => `Teammates on ${c(s.club)} keep pointing to ${s.who} when they explain why the team is ${s.rec}.`,
-    1,
-    (s) => s.w > s.l,
-  ),
-  L(
     (s) =>
-      `${c(s.club)} are ${s.rec}, and teammates keep pointing to ${s.who} as the one who has held the locker room together.`,
-    1,
-    (s) => s.l > s.w,
-  ),
-  L(
-    (s) =>
-      `${s.who} is one of the ${N(s.club)} captains, and players around the locker room say he is the one they want beside them.`,
+      `${s.who} is one of the three captains the ${N(s.club)} named this year, and the locker room has few players it would rather have beside it.`,
     3,
     (s) => s.captain,
   ),
@@ -649,50 +718,43 @@ const ABOUT: Bank = [
     2,
     (s) => s.rookie && s.round > 0,
   ),
-  L(
-    (s) => `He is one of the three captains ${c(s.club)} named this year.`,
-    3,
-    (s) => s.captain && s.angle !== 'goodTeammate',
-  ),
 ];
 
-// ───────── what it means: a fact, then where the team stands, then what is next ─────────
+// ───────── what it means: what he misses, a fact, where the team stands, what is next ─────────
 
-/** After the lede, one line of context about the man or what comes of it. */
 const MISS: Bank = [
   L(
     (s) => `He will miss the game ${nextWhere(s)}.`,
     0,
-    (s) => !!s.next && !s.next.bye && s.games === 1,
-  ),
-  L(
-    (s) => `He will miss the next ${w(s.games)} games, the first of them ${nextWhere(s)} after the bye week.`,
-    2,
-    (s) => !!s.next?.bye && s.games > 1,
+    (s) => !!s.next && !s.next.bye && s.left === 1,
   ),
   L(
     (s) => `He will miss the game ${nextWhere(s)} after the bye week.`,
     1,
-    (s) => !!s.next?.bye && s.games === 1,
+    (s) => !!s.next?.bye && s.left === 1,
   ),
   L(
-    (s) => `He will miss the next ${w(s.games)} games, starting ${nextWhere(s)}.`,
+    (s) => `He will miss the next ${w(s.left)} games, starting ${nextWhere(s)}.`,
     2,
-    (s) => !!s.next && s.games > 1 && !s.next.bye,
+    (s) => !!s.next && s.left > 1 && !s.next.bye,
+  ),
+  L(
+    (s) => `He will miss the next ${w(s.left)} games, the first of them ${nextWhere(s)} after the bye week.`,
+    2,
+    (s) => !!s.next?.bye && s.left > 1,
   ),
   L(
     (s) => `${c(s.club)} will play ${nextWhere(s)} without him.`,
     1,
-    (s) => !!s.next && !s.next.bye && s.w >= s.l && s.games === 1,
+    (s) => !!s.next && !s.next.bye && s.w >= s.l && s.left === 1,
   ),
   L(
     (s) => `The suspension begins with the game ${nextWhere(s)}.`,
     1,
-    (s) => !!s.next && !s.next.bye && s.games === 1,
+    (s) => !!s.next && !s.next.bye && s.left === 1,
   ),
 ];
 
-/** A line of his season that stands out. */
 const FACT: Bank = [
   L(
     (s) => `${M(s.id)} has ${s.fact}.`,
@@ -729,7 +791,21 @@ const STAND: Bank = [
     (s) => !s.leading && s.w + s.l > 1,
   ),
 ];
-
+/** The team was just named: it is "the team" now. */
+const STAND_PRON: Bank = [
+  L((s) => `The team is ${s.rec}.`),
+  L(
+    (s) => `The team is ${s.rec} and leads the ${s.division}.`,
+    2,
+    (s) => s.leading && s.w + s.l > 1,
+  ),
+  L(
+    (s) => `The team is ${s.rec} and trails ${c(s.leaderId)} in the ${s.division}.`,
+    2,
+    (s) => !s.leading && s.w + s.l > 1,
+  ),
+];
+/** The record is already said: where the team stands in its division. */
 const STAND_NOREC: Bank = [
   L(
     (s) => `${c(s.club)} lead the ${s.division}.`,
@@ -743,7 +819,11 @@ const STAND_NOREC: Bank = [
   ),
 ];
 
-const ALSO: Bank = [L((s) => `${c(s.club)} also held him out of the next game.`, 0)];
+const ALSO: Bank = [
+  L((s) => `${c(s.club)} also held him out of the next game.`),
+  L(() => `The team also sat him for its next game.`),
+  L(() => `He will not play in the team's next game either, the team said.`),
+];
 
 const NEXT: Bank = [
   L(
@@ -761,6 +841,11 @@ const NEXT: Bank = [
     0,
     (s) => !!s.next && !s.next.bye,
   ),
+];
+/** On a big day of the offseason: the season's first game. */
+const OPEN: Bank = [
+  L((s) => `${c(s.club)} open the season ${nextWhere(s)}.`),
+  L((s) => `The first game of the season for ${c(s.club)} is ${nextWhere(s)}.`),
 ];
 
 // ───────── headlines and the head coach's word ─────────
@@ -826,8 +911,8 @@ const HEADS: Record<string, readonly Line<HeadSheet>[]> = {
     { text: (s) => `${s.last} stays away from a team event`, reads: 0 },
   ],
   goodCommunity: [
-    { text: (s) => `${s.last} spends his day off at ${s.place}` },
-    { text: (s) => `${s.club_} ${s.pos} ${s.last} gives his day off away`, reads: 0 },
+    { text: (s) => `${s.last} spends an afternoon at ${s.place}` },
+    { text: (s) => `${s.club_} ${s.pos} ${s.last} gives his time away`, reads: 0 },
     { text: (s) => `${s.last} takes ${w(s.mates)} teammates to ${s.place}`, reads: 0 },
   ],
   goodFamily: [
@@ -851,8 +936,8 @@ const HEADS: Record<string, readonly Line<HeadSheet>[]> = {
   ],
   goodTeammate: [
     { text: (s) => `${s.last} is the teammate everyone wants` },
-    { text: (s) => `${s.club_} locker room points to ${s.last}`, reads: 0 },
-    { text: (s) => `${s.last} holds the ${s.club_} together`, reads: 0 },
+    { text: (s) => `${s.last} is a favorite in the ${s.club_} locker room`, reads: 0 },
+    { text: (s) => `${s.club_} ${s.pos} ${s.last} is the teammate everyone wants`, reads: 0 },
   ],
 };
 
@@ -875,15 +960,12 @@ const QUOTES: Record<string, readonly string[]> = {
     'We have talked, and he understands where the line is.',
   ],
 };
-const QUOTE_BANK: Record<string, keyof typeof QUOTES> = {
-  sat: 'sat',
-  ejectFight: 'ban',
-  ejectTwo: 'ban',
-  ejectFlagrant: 'ban',
-  ban: 'ban',
-  banFight: 'ban',
-  fine: 'fine',
-};
+/** The head coach's word: a fined man (an ejection or a pattern of fouls) gets the fine's, never the suspension's. */
+function quoteBank(angle: string, fined: boolean): keyof typeof QUOTES | undefined {
+  if (angle === 'sat') return 'sat';
+  if (angle === 'fine' || (fined && angle.startsWith('eject'))) return 'fine';
+  return ['ejectFight', 'ejectTwo', 'ejectFlagrant', 'ban', 'banFight'].includes(angle) ? 'ban' : undefined;
+}
 
 // ───────── assembling ─────────
 
@@ -923,33 +1005,47 @@ export const LEDES: Record<string, Bank> = {
 };
 /** The angles whose man is out for games: the second paragraph says which one he misses. */
 const OUT = new Set(['ejectFight', 'ejectTwo', 'ejectFlagrant', 'ban', 'banFight']);
+/** Sentences after the lede: enough to mean something, few enough to stay one angle. */
+const AFTER_MAX = 3;
 
-/** One story from a conduct candidate. */
+/** One story from a conduct candidate (a week's edition, or a good deed on a big day when `x.asOf` is 0). */
 export function conductStory(l: League, cand: Candidate, at: Wording, opt: Options = {}): EditionStory {
   const x: ConductFacts = cand.conduct!;
-  const week = x.week;
-  const s = sheetOf(l, cand, week);
+  const s = sheetOf(l, cand);
   const p = l.players[s.id];
   const angle = x.angle;
   const good = angle.startsWith('good');
+  const offseason = x.asOf === 0;
   const key = cand.key;
   const lede = pick(l, LEDES[angle], s, at, key, 'lede');
-  const out = OUT.has(angle) && !(s.fined && x.outcome === 'leagueFine');
+  const out = OUT.has(angle) && !s.fined && s.left > 0;
   const sat = angle === 'spat' || angle === 'teamEvent' ? x.outcome === 'sat' : false;
   const miss = out ? pick(l, MISS, s, at, key, 'miss') : sat ? pick(l, ALSO, s, at, key, 'also') : '';
   const about = good ? pick(l, ABOUT, s, at, key, 'about') : '';
   const fact = pick(l, FACT, s, at, key, 'fact');
-  // The record said in the lede or the fact is not said again, and the next game is said once.
+  // The record said in the lede or the fact is not said again, and a team just named is "the team".
   const saysRec = [lede, fact].some((t) => t.includes(s.rec));
-  const stand = pick(l, saysRec ? STAND_NOREC : STAND, s, at, key, 'stand');
+  const named = [lede, miss, about, fact].join(' ').includes(c(s.club));
+  const stand = offseason ? '' : pick(l, saysRec ? STAND_NOREC : named ? STAND_PRON : STAND, s, at, key, 'stand');
   const told = [lede, miss, about, fact, stand].join(' ');
-  const next = s.next && !out && !told.includes(c(s.next.opp)) ? pick(l, NEXT, s, at, key, 'next') : '';
-  const second = [miss, about, fact, stand, next].filter(Boolean);
-  // A story needs two paragraphs: a lede of two sentences splits at its first, else the standing stays alone.
+  const next =
+    s.next && !out && !told.includes(c(s.next.opp)) ? pick(l, offseason ? OPEN : NEXT, s, at, key, 'next') : '';
+  // At most three: what he misses, where the team stands and what is next come first; a season line and a line about
+  // the man fill what is left, in the order they read.
+  const order = [miss, stand, next, fact, about];
+  const keep = new Set(order.filter(Boolean).slice(0, AFTER_MAX));
+  const second = [miss, about, fact, stand, next].filter((t) => t && keep.has(t));
   const first = [lede];
-  if (!second.length) second.push(`${c(s.club)} are ${s.rec}.`);
+  if (!second.length)
+    second.push(
+      offseason
+        ? s.next
+          ? `${c(s.club)} open the season ${nextWhere(s)}.`
+          : `${M(s.id)} plays for ${c(s.club)}.`
+        : `${c(s.club)} are ${s.rec}.`,
+    );
 
-  const ref = referrer(l, { playerIds: [...new Set([...[lede, ...second].flatMap(menIn)])] });
+  const ref = referrer(l, { playerIds: [...new Set([lede, ...second].flatMap(menIn))] });
   const parts = [...first, ...second].map((t) => resolveTokens(t, ref));
   const cast = [...new Set([lede, ...second].flatMap(menIn))];
   // A story about your own team's second slot stands as one paragraph (`brief`), and a story stops on a fact: the
@@ -968,7 +1064,7 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
     'head',
   );
   const coach = teamCoaches(l, s.club).find((k) => k.role === 'headCoach');
-  const bank = QUOTE_BANK[angle];
+  const bank = quoteBank(angle, s.fined);
   const fresh = bank ? QUOTES[bank].filter((t) => !saidAlready(l, at, t)) : [];
   const quoteLine =
     coach && fresh.length && opt.quote !== false ? fresh[hash(`${at.editionId}:${key}:quote`) % fresh.length] : '';
@@ -987,7 +1083,9 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
     cast,
     numbers: out
       ? [{ value: String(s.games), label: s.games === 1 ? 'Game' : 'Games' }]
-      : [{ value: s.rec, label: 'Record' }],
+      : offseason || good
+        ? []
+        : [{ value: s.rec, label: 'Record' }],
     paragraphs,
     ...(quoteLine && coach
       ? {
@@ -1015,61 +1113,58 @@ interface Off extends Pick<Sheet, 'id' | 'club' | 'who' | 'star' | 'rookie' | 'g
 const openerWhere = (s: Off) =>
   !s.opener ? '' : s.opener.home ? `at home against ${c(s.opener.opp)}` : `at ${c(s.opener.opp)}`;
 
-const OFF_LEDE: readonly Line<Off>[] = [
-  L2(
+const OFF_LEDE: Bank<Off> = [
+  L(
     (s) =>
       `The league suspended ${s.who} for ${games(s.games)} after a fight away from the stadium. He will serve it when the season begins.`,
   ),
-  L2(
+  L(
     (s) =>
       `${c(s.club)} will open the season without ${s.who}. The league suspended him for ${games(s.games)} after a fight away from the stadium.`,
     1,
     (s) => s.star,
   ),
-  L2(
+  L(
     (s) =>
       `A fight away from the stadium has cost ${s.who} ${games(s.games)} of the coming season. The league ruled before a game has been played.`,
     1,
     (s) => !s.star,
   ),
-  L2(
+  L(
     (s) =>
       `The league gave ${s.who} ${games(s.games)}, longer than his last suspension, for a fight away from the stadium. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
-  L2(
+  L(
     (s) =>
       `${s.who}, a rookie, has been suspended for ${games(s.games)} by the league before he has played a game, after a fight away from the stadium.`,
     2,
     (s) => s.rookie,
   ),
 ];
-const OFF_AFTER: readonly Line<Off>[] = [
-  L2(
+const OFF_AFTER: Bank<Off> = [
+  L(
     (s) => `He will miss the season opener ${openerWhere(s)}.`,
     1,
     (s) => !!s.opener && s.games === 1,
   ),
-  L2(
+  L(
     (s) => `He will miss the first ${w(s.games)} games, starting with the opener ${openerWhere(s)}.`,
     2,
     (s) => !!s.opener && s.games > 1,
   ),
-  L2(
+  L(
     (s) => `${c(s.club)} open the season ${openerWhere(s)}, and he will not be there.`,
     1,
     (s) => !!s.opener,
   ),
-  L2((s) => `He will begin serving it with the first game ${c(s.club)} play this season.`),
+  L((s) => `He will begin serving it with the first game ${c(s.club)} play this season.`),
 ];
-function L2<S>(text: (s: S) => string, reads = 0, when?: (s: S) => boolean): Line<S> {
-  return { text, reads, ...(when ? { when } : {}) };
-}
-const OFF_HEAD: readonly Line<Off & { last: string }>[] = [
-  { text: (s) => `${s.last} suspended ${games(s.games)} before the season` },
-  { text: (s) => `${s.last} will miss ${s.games === 1 ? 'the opener' : `the first ${games(s.games)}`}`, reads: 0 },
-  { text: (s) => `League suspends ${s.last} after a fight`, reads: 0 },
+const OFF_HEAD: Bank<Off & { last: string }> = [
+  L((s) => `${s.last} suspended ${games(s.games)} before the season`),
+  L((s) => `${s.last} will miss ${s.games === 1 ? 'the opener' : `the first ${games(s.games)}`}`),
+  L((s) => `League suspends ${s.last} after a fight`),
 ];
 
 /** A suspension ruled in the offseason, as a big-day story: what the league did, and the game he starts the season out of. */
@@ -1119,4 +1214,35 @@ export function conductOffseasonStory(
       { kind: 'team', teamId: club },
     ],
   };
+}
+
+/** A good deed on a big day's page: the same banks as the week's, with no record and the season's first game next. */
+export function goodDayStory(
+  l: League,
+  c0: { key: string; clubId: number; playerId: number; tier: 1 | 2 | 3 | 4 | 5; kind: string },
+  at: Wording,
+): EditionStory {
+  const p = l.players[c0.playerId];
+  const angle = c0.kind === 'community' ? 'goodCommunity' : c0.kind === 'family' ? 'goodFamily' : 'goodTeammate';
+  const cand = {
+    key: c0.key,
+    kind: 'conduct',
+    angle,
+    tier: c0.tier,
+    clubId: c0.clubId,
+    teams: [c0.clubId],
+    stakes: 0,
+    conduct: {
+      playerId: p.id,
+      angle,
+      week: 0,
+      asOf: 0,
+      prior: { fine: false, ban: false },
+      nth: 0,
+      bans: 0,
+      again: 0,
+      star: publicRecord(l).why(p) !== null || draftedHigh(l, p),
+    },
+  } as Candidate;
+  return conductStory(l, cand, at, { quote: false });
 }

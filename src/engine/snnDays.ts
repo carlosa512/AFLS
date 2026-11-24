@@ -17,10 +17,11 @@ import { mentorFacts } from './lockerMail';
 import { freeAgents } from './offseason/negotiation';
 import { draftedHigh, publicRecord, type PublicRecord } from './publicStanding';
 import { activeRoster } from './roster';
+import { YEAR } from './morale';
 import { kickoffLabel, kickoffOrder } from './season/kickoff';
 import { statLine } from './stats';
 import type { Draft } from './senders';
-import { offseasonBans } from './snnConduct';
+import { freshGood, offseasonBans } from './snnConduct';
 import { writeDayStory, yourDayStory } from './snnDayVoice';
 import { short, SNN, SUBJECT } from './snnWeek';
 import type { Edition, EditionDay, EditionList, League, Phase, Player } from './types';
@@ -756,6 +757,32 @@ function banCandidates(l: League, day: Day): DayCandidate[] {
     }));
 }
 
+/**
+ * A good deed in a quiet moment (the same roll as the week's, read at the step the day closes on): one a page at most,
+ * a tile, never the lead. `have` keeps a man to one a league year.
+ */
+function goodCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
+  const clock = l.season * YEAR + BAN_BY[day];
+  const g = freshGood(l, clock, have)
+    .filter((x) => l.players[x.playerId].teamId !== null)
+    .sort((a, b) => stableHash(`${dayId(l, day)}:${a.playerId}`) - stableHash(`${dayId(l, day)}:${b.playerId}`))[0];
+  if (!g) return [];
+  const p = l.players[g.playerId];
+  return [
+    {
+      key: `good:${l.season}:${day}:${p.id}:${g.kind}`,
+      day,
+      angle: 'good',
+      tier: 5,
+      clubId: p.teamId!,
+      teams: [p.teamId!],
+      stakes: 0.2,
+      playerId: p.id,
+      got: [g.kind],
+    },
+  ];
+}
+
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
   const rec = publicRecord(l);
@@ -771,6 +798,7 @@ export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandid
             : [...kickoffCandidates(l), ...openingCandidates(l, have)]),
     ...tradeCandidates(l, day, rec),
     ...banCandidates(l, day),
+    ...goodCandidates(l, day, have),
   ];
   // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
   // By Kickoff a new head coach is told as his first game, so a change no edition found room for rests there.
@@ -798,7 +826,7 @@ const ONCE = new Set(['wait', 'ahead', 'seat', 'pressure', 'mentor']);
  */
 const RESERVED = [new Set(['seat', 'pressure']), new Set(['mentor'])];
 /** Stories that fill a tile and never lead a page. */
-const NO_LEAD = new Set(['mentor', 'comp']);
+const NO_LEAD = new Set(['mentor', 'comp', 'good']);
 const TILES = 3;
 
 /**

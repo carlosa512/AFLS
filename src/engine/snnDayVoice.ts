@@ -7,7 +7,7 @@
  * where a weekly story ends on the next fixture.
  */
 import { coachName, teamCoaches } from './coaching';
-import { conductOffseasonStory } from './snnConductVoice';
+import { conductOffseasonStory, goodDayStory } from './snnConductVoice';
 import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
@@ -1214,6 +1214,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
   if (c.angle === 'trade') return tradeStory(l, c, at);
+  if (c.angle === 'good') return goodDayStory(l, { ...c, playerId: c.playerId!, kind: c.got![0] }, at);
   if (c.angle === 'conduct') return conductOffseasonStory(l, { ...c, playerId: c.playerId! }, at, DAY_KICKER[c.day]);
   if (c.angle === 'pressure' || c.angle === 'seat') return pressureStory(l, c, at);
   if (c.day === 'cuts') return cutsStory(l, c, at);

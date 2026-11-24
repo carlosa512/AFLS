@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { teamPlayers } from './roster';
-import { conductCandidates, goodSideWeek } from './snnConduct';
+import { conductCandidates, freshGood, goodSideWeek } from './snnConduct';
 import { LEDES } from './snnConductVoice';
 import { sentencesOf } from './voice';
 import { cutEdition, rankCandidates, buildEdition, type Candidate } from './snnWeek';
@@ -143,9 +143,9 @@ describe('the good side', () => {
   });
 
   it('is a tile, never the lead, and one story a team', () => {
-    const goods = goodSideWeek(l, at(3));
-    expect(goods.length).toBeGreaterThan(0);
-    const cs = conductCandidates(l, 3, new Set()).filter((c) => c.conduct && c.angle.startsWith('good'));
+    // Rolled only for the week just played: a past week is never re-rolled from today's rosters.
+    expect(conductCandidates(l, WEEK - 1, new Set()).filter((c) => c.angle.startsWith('good'))).toEqual([]);
+    const cs = conductCandidates(l, WEEK, new Set()).filter((c) => c.conduct && c.angle.startsWith('good'));
     expect(cs.length).toBeGreaterThan(0);
     for (const c of cs) expect(c.tier).toBe(5);
     const game = (k: string, club: number, tier: Candidate['tier']): Candidate => ({
@@ -163,15 +163,56 @@ describe('the good side', () => {
     expect(new Set(cut.tiles.map((t) => t.clubId)).size).toBe(cut.tiles.length);
   });
 
-  it('keeps every good-side story to the writing rules and says nothing of a trait', () => {
-    for (const w of [3, 4, 5, 6, 7, 8]) {
-      const cs = conductCandidates(l, w, new Set()).filter((c) => c.angle.startsWith('good'));
-      for (const c of cs) {
-        const s: EditionStory = story(c);
-        expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
-        expect(s.paragraphs.join(' ')).not.toMatch(/leadership|work ethic|temperament|loyalty/i);
-      }
+  /** A good-side candidate for each deed rolled at a run of clocks, as the week would build it. */
+  const deeds = (): Candidate[] =>
+    [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].flatMap((w) =>
+      freshGood(l, at(w), new Set()).map((g) => {
+        const p = l.players[g.playerId];
+        const angle = g.kind === 'community' ? 'goodCommunity' : g.kind === 'family' ? 'goodFamily' : 'goodTeammate';
+        return {
+          key: `good:${l.season}:${w}:${p.id}:${g.kind}`,
+          kind: 'conduct',
+          angle,
+          tier: 5,
+          clubId: p.teamId!,
+          teams: [p.teamId!],
+          stakes: 0,
+          conduct: {
+            playerId: p.id,
+            angle,
+            week: WEEK,
+            asOf: WEEK,
+            prior: { fine: false, ban: false },
+            nth: 0,
+            bans: 0,
+            again: 0,
+            star: false,
+          },
+        } as Candidate;
+      }),
+    );
+
+  it('keeps every good-side story to the writing rules, with no trait, weekday or record in it', () => {
+    const cs = deeds();
+    expect(cs.length).toBeGreaterThan(10);
+    for (const c of cs) {
+      const s: EditionStory = story(c);
+      const text = s.paragraphs.join(' ');
+      expect(ruleBreaks(l, s), text).toEqual([]);
+      expect(text).not.toMatch(/leadership|work ethic|temperament|loyalty/i);
+      expect(text).not.toMatch(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|months into/);
+      // A good deed never carries the team's record.
+      expect(s.paragraphs[0]).not.toMatch(/\d–\d/);
     }
+  });
+
+  it('tells a man once a league year, and no second family moment', () => {
+    const p = l.players[goodSideWeek(l, at(4))[0].playerId];
+    const have = new Set([`good:${l.season}:2:${p.id}:community`]);
+    for (let w = 1; w <= 30; w++) expect(freshGood(l, at(w), have).some((g) => g.playerId === p.id)).toBe(false);
+    const old = new Set([`good:${l.season - 1}:9:${p.id}:family`]);
+    for (let w = 1; w <= 60; w++)
+      expect(freshGood(l, at(w), old).some((g) => g.playerId === p.id && g.kind === 'family')).toBe(false);
   });
 });
 
@@ -221,5 +262,135 @@ describe('the depth of the words', () => {
     }
     const twice = out.filter((x, i) => out.indexOf(x) !== i);
     expect(twice).toEqual([]);
+  });
+});
+
+describe('late stories, quotes and depth', () => {
+  /** A fight ejection in the week before the edition's, so the edition tells it a week late. */
+  it('reads the next game and the record as of the edition, not the week the thing happened', () => {
+    const g = l.games.find((x) => x.season === l.season && x.week === WEEK - 1 && x.result)!;
+    const p = teamPlayers(l, g.homeId).filter((x) => !x.retired)[11];
+    g.result!.ejections = [{ playerId: p.id, teamId: g.homeId, quarter: 2, clock: 100, why: 'fight' }];
+    (p.discipline ??= { entries: [] }).entries.push({
+      season: l.season,
+      week: step(WEEK - 1),
+      teamId: g.homeId,
+      kind: 'ejected',
+      outcome: 'suspended',
+      games: 3,
+      public: true,
+    });
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    expect(c.conduct!.asOf).toBe(WEEK);
+    const next = l.games
+      .filter((x) => x.season === l.season && x.week > WEEK && (x.homeId === g.homeId || x.awayId === g.homeId))
+      .sort((a, b) => a.week - b.week)[0];
+    const text = story(c).paragraphs.join(' ');
+    const opp = next.homeId === g.homeId ? next.awayId : next.homeId;
+    expect(text).toContain(l.teams[opp].city);
+    expect(text).not.toMatch(/miss the next three games/);
+  });
+
+  it('gives a fined ejection the fine’s word from the head coach, never a suspension’s', () => {
+    const bans = ['next player up', 'let his teammates down', 'respect the league', 'handle it better'];
+    const g = l.games.find(
+      (x) => x.season === l.season && x.week === WEEK && x.result && x.homeId !== 15 && x.awayId !== 15,
+    )!;
+    for (let k = 0; k < 6; k++) {
+      const p = teamPlayers(l, g.homeId).filter((x) => !x.retired)[12 + k];
+      g.result!.ejections = [
+        ...(g.result!.ejections ?? []),
+        { playerId: p.id, teamId: g.homeId, quarter: 1 + (k % 4), clock: 100, why: 'flagrant' },
+      ];
+      (p.discipline ??= { entries: [] }).entries.push({
+        season: l.season,
+        week: step(WEEK),
+        teamId: g.homeId,
+        kind: 'ejected',
+        outcome: 'leagueFine',
+        public: true,
+      });
+      const c = all().find((x) => x.conduct?.playerId === p.id)!;
+      const q = story(c).quote?.text ?? '';
+      for (const b of bans) expect(q).not.toContain(b);
+    }
+  });
+
+  it('prints four different ledes for four first-time fight ejections', () => {
+    const said: string[] = [];
+    const ledes: string[] = [];
+    const g = l.games.find((x) => x.season === l.season && x.week === WEEK && x.result)!;
+    for (let k = 0; k < 4; k++) {
+      const p = teamPlayers(l, k % 2 ? g.homeId : g.awayId).filter((x) => !x.retired)[20 + k];
+      g.result!.ejections = [{ playerId: p.id, teamId: p.teamId!, quarter: 1 + k, clock: 100, why: 'fight' }];
+      p.discipline = {
+        entries: [
+          {
+            season: l.season,
+            week: step(WEEK),
+            teamId: p.teamId!,
+            kind: 'ejected',
+            outcome: 'suspended',
+            games: 1,
+            public: true,
+          },
+        ],
+      };
+      const c = all().find((x) => x.conduct?.playerId === p.id)!;
+      ledes.push(
+        writeStory(l, c, { editionId: `snn:${l.season}:w${WEEK + k}`, said }, {}).paragraphs[0].replace(
+          /[A-Z][a-z]+ [A-Z][a-z]+/g,
+          'X',
+        ),
+      );
+    }
+    expect(new Set(ledes).size).toBe(4);
+  });
+
+  it('says a prior fine only when his record holds one and no ban', () => {
+    const g = l.games.find((x) => x.season === l.season && x.week === WEEK && x.result)!;
+    const mk = (i: number, prior: ConductEntry[]) => {
+      const p = teamPlayers(l, g.homeId).filter((x) => !x.retired)[30 + i];
+      p.discipline = {
+        entries: [
+          ...prior,
+          {
+            season: l.season,
+            week: step(WEEK),
+            teamId: g.homeId,
+            kind: 'dangerousFouls',
+            outcome: 'suspended',
+            games: 1,
+            public: true,
+          },
+        ],
+      };
+      return story(all().find((x) => x.conduct?.playerId === p.id)!).paragraphs.join(' ');
+    };
+    const none = mk(0, []);
+    expect(none).not.toMatch(/already fined|fined him for his fouls before/);
+    const fined = mk(1, [
+      {
+        season: l.season,
+        week: step(WEEK) - 4,
+        teamId: g.homeId,
+        kind: 'dangerousFouls',
+        outcome: 'leagueFine',
+        public: true,
+      },
+    ]);
+    expect(fined).toMatch(/fined him/);
+  });
+
+  it('puts a good deed on a big day as a tile, never the lead, and keeps the rules', () => {
+    const cs = ['year', 'market', 'draft', 'cuts'].flatMap((d) =>
+      dayCandidates(l, d as 'year', new Set()).filter((c) => c.angle === 'good'),
+    );
+    expect(cs.length).toBeGreaterThan(0);
+    for (const c of cs) {
+      expect(c.tier).toBe(5);
+      const s = writeDayStory(l, c, { editionId: `snn:${l.season}:d:${c.day}`, said: [] });
+      expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+    }
   });
 });
