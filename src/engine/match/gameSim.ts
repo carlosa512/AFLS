@@ -44,6 +44,7 @@ import {
 import { departmentFor, type Department } from '../medical';
 import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
+import { EJECT, flagrantLean, hotHead } from './ejection';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf, temperamentOf } from '../traits';
@@ -894,7 +895,7 @@ function unitIds(u: FieldUnits): number[] {
   ];
 }
 
-class GameSim {
+export class GameSim {
   private rng: Rng;
   private habitRng: Rng;
   private coachReports: CoachGameReport[] = [];
@@ -1076,6 +1077,11 @@ class GameSim {
   private calls: CrewCalls;
   /** Who drew a flag is bookkeeping, like credit: its own stream, so it never changes the game. */
   private flagRng: Rng;
+  /** Fights and flagrant hits: its own stream, so ejections off leaves every other roll as it was. */
+  private ejectRng: Rng;
+  private ejectPending: { p: Player; why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[] = [];
+  private ejections: NonNullable<GameResult['ejections']> = [];
+  private unsportsCount = new Map<number, number>();
   /** A defender jumped offside at the snap: the play runs, and the offense picks it or the 5 yards. */
   private offsideFlag = false;
   /** The defense fouled on the half's last play: one more snap with no time on the clock. */
@@ -1105,6 +1111,7 @@ class GameSim {
     this.creditRng = new Rng(`${seed}:credit`);
     this.injuryRng = new Rng(`${seed}:injury`);
     this.flagRng = new Rng(`${seed}:flags`);
+    this.ejectRng = new Rng(`${seed}:eject`);
     this.days = options.days ?? [teamDay(seed, game.homeId), teamDay(seed, game.awayId)];
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
@@ -1225,6 +1232,7 @@ class GameSim {
       this.log('Two-minute warning.');
     }
     if (this.hurt.length) this.injuryStoppage();
+    if (this.ejectPending.length) this.ejectStoppage();
     if (++this.steps > MAX_STEPS) {
       this.over = true;
       return;
@@ -1426,6 +1434,87 @@ class GameSim {
     if (roll < contact + soft) this.hurt.push([p, roll < contact ? 'contact' : 'soft']);
   }
 
+  /** A man leaves the game (hurt or thrown out): his side's lineup is rebuilt without him, the next man in. */
+  private rebuildSide(side: Side) {
+    const qb = this.lineups[side].qb;
+    this.lineups[side] = buildLineup(
+      this.league,
+      this.lineups[side].team,
+      this.out,
+      this.game,
+      this.moodMean,
+      this.days[side],
+      this.options.chemistry?.[side],
+      this.options.staff?.[side],
+    );
+    this.syncKnocks();
+    this.fields[side] = units(this.lineups[side]);
+    if (this.fieldRecord) {
+      const u = fieldUnits(this.lineups[side]);
+      this.fieldRecord.changes.push([this.plays.length, side, u]);
+      this.noteJerseys(u);
+    }
+    if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
+  }
+
+  /** Between plays: the men a fight, a second unsportsmanlike or a flagrant hit threw out leave, and the next steps in. */
+  private ejectStoppage() {
+    for (const { p, why } of this.ejectPending) {
+      if (this.out.has(p.id)) continue;
+      const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
+      this.out.add(p.id);
+      // A side with nobody left to take his place (a third-string quarterback is the only one) keeps him on the field.
+      try {
+        this.rebuildSide(side);
+      } catch {
+        this.out.delete(p.id);
+        continue;
+      }
+      this.ejections.push({ playerId: p.id, teamId: p.teamId!, quarter: this.quarter, clock: this.clock, why });
+      this.snapshot = null;
+      this.log(`Ejection: ${this.abbrev(side)} ${p.position} ${short(p)} is ejected.`);
+    }
+    this.ejectPending = [];
+  }
+
+  /** Queue a man's ejection once: the first reason he earns is the one on his record. */
+  private eject(p: Player, why: 'fight' | 'twoUnsportsmanlike' | 'flagrant') {
+    if (this.out.has(p.id) || this.ejectPending.some((e) => e.p === p)) return;
+    this.ejectPending.push({ p, why });
+  }
+
+  /**
+   * A fight after the whistle on a play with contact: a short-tempered defender throws a punch at the man he just hit
+   * (unsportsmanlike conduct, and out); if that man has a short temper too and swings back, both go and the fouls offset
+   * with nothing enforced. The play's yards are untouched. Only the ejection stream is drawn.
+   */
+  private fight(result: PlayResult, fouls: LiveFoul[]) {
+    if (!EJECT.on) return;
+    const defTeam = this.lineups[this.def].team.id;
+    const defenders = new Set<Player>();
+    for (const [p, key] of result.stats.entries)
+      if ((key === 'tackles' || key === 'sacks') && p.teamId === defTeam) defenders.add(p);
+    if (result.kind === 'sack' && result.rusher) defenders.add(result.rusher);
+    if (!defenders.size) return;
+    const men = [...defenders].filter((p) => !this.out.has(p.id));
+    if (!men.length) return;
+    const play = result.kind === 'sack' ? 3 : result.turnover ? 2 : 1;
+    const heat = men.reduce((sum, p) => sum + hotHead(p), 0) / men.length;
+    if (!this.ejectRng.chance(EJECT.fight * play * heat)) return;
+    const aggressor = this.ejectRng.weighted(men, hotHead);
+    // The man he hit: the quarterback he sacked, else the offense's man in the play, else the passer.
+    const hit = result.stats.entries.map(([p]) => p).filter((p) => p.teamId !== defTeam && !this.out.has(p.id));
+    const victim = result.kind === 'sack' ? this.lineups[this.offense].qb : (hit[0] ?? this.lineups[this.offense].qb);
+    this.eject(aggressor, 'fight');
+    if (!this.out.has(victim.id) && this.ejectRng.chance(EJECT.fightBack * hotHead(victim))) {
+      this.eject(victim, 'fight');
+      this.flag(this.def, 'unsportsmanlike', aggressor, 'offset');
+      this.flag(this.offense, 'unsportsmanlike', victim, 'offset');
+    } else if (!fouls.some((f) => f.foul === 'unsportsmanlike' && f.by === aggressor)) {
+      fouls.push({ foul: 'unsportsmanlike', by: aggressor });
+    }
+  }
+
   /** Between plays: the injured leave for good and the next man steps in. */
   private injuryStoppage() {
     for (const [p, mechanism] of this.hurt) {
@@ -1448,25 +1537,7 @@ class GameSim {
       this.log(
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
-      const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(
-        this.league,
-        this.lineups[side].team,
-        this.out,
-        this.game,
-        this.moodMean,
-        this.days[side],
-        this.options.chemistry?.[side],
-        this.options.staff?.[side],
-      );
-      this.syncKnocks();
-      this.fields[side] = units(this.lineups[side]);
-      if (this.fieldRecord) {
-        const u = fieldUnits(this.lineups[side]);
-        this.fieldRecord.changes.push([this.plays.length, side, u]);
-        this.noteJerseys(u);
-      }
-      if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
+      this.rebuildSide(side);
     }
     this.hurt = [];
   }
@@ -5028,6 +5099,7 @@ class GameSim {
       else if (roll < pDpi + DEF_HOLDING * grabby) fouls.push({ foul: 'defHolding' });
     }
     this.personalFouls(result, fouls);
+    this.fight(result, fouls);
     return fouls;
   }
 
@@ -5280,9 +5352,24 @@ class GameSim {
       qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
     }
     if (!by) return;
+    this.chargedAccepted(foul, by);
     const line = (this.playerStats[by.id] ??= {});
     line.penalties = (line.penalties ?? 0) + 1;
     line.penaltyYds = (line.penaltyYds ?? 0) + yards;
+  }
+
+  /** An accepted foul against a man: a second unsportsmanlike conduct ends his game, and a personal foul may be flagrant. */
+  private chargedAccepted(foul: Foul, by: Player) {
+    if (!EJECT.on) return;
+    if (foul === 'unsportsmanlike') {
+      const n = (this.unsportsCount.get(by.id) ?? 0) + 1;
+      this.unsportsCount.set(by.id, n);
+      if (n >= 2) this.eject(by, 'twoUnsportsmanlike');
+      return;
+    }
+    const odds = EJECT.flagrant[foul];
+    if (odds && FOULS[foul].personal && !this.out.has(by.id) && this.ejectRng.chance(odds * flagrantLean(by)))
+      this.eject(by, 'flagrant');
   }
 
   private markRedZone() {
@@ -5394,6 +5481,7 @@ class GameSim {
       plays,
       ...(this.fieldRecord ? { field: this.fieldRecord } : {}),
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
+      ...(this.ejections.length ? { ejections: this.ejections } : {}),
       condition,
       weather: this.weather,
       ...(this.crew ? { crewId: this.crew.id } : {}),
