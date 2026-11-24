@@ -1,0 +1,225 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { createLeague } from './generate';
+import { playWeek } from './league';
+import { teamPlayers } from './roster';
+import { conductCandidates, goodSideWeek } from './snnConduct';
+import { LEDES } from './snnConductVoice';
+import { sentencesOf } from './voice';
+import { cutEdition, rankCandidates, buildEdition, type Candidate } from './snnWeek';
+import { writeStory } from './snnVoice';
+import { ruleBreaks } from './storyRules';
+import { dayCandidates } from './snnDays';
+import { writeDayStory } from './snnDayVoice';
+import { YEAR } from './morale';
+import type { ConductEntry, EditionStory, League, Player } from './types';
+
+let l: League;
+const WEEK = 2;
+/** The morale step a game week's trouble is filed under. */
+const step = (week: number) => 8 + week;
+
+/** A man of a team with his trouble on file, in the week just played. */
+function troubled(i: number, entry: Omit<ConductEntry, 'season' | 'week'>, week = WEEK, team = (i % 31) + 1): Player {
+  const p = teamPlayers(l, team).filter((x) => !x.retired)[i];
+  const d = (p.discipline ??= { entries: [] });
+  d.entries.push({ season: l.season, week: step(week), teamId: team, ...entry });
+  return p;
+}
+
+beforeAll(() => {
+  l = createLeague({ seed: 'snn-conduct' });
+  for (let i = 0; i < WEEK; i++) playWeek(l);
+}, 120_000);
+
+const story = (c: Candidate) => writeStory(l, c, { editionId: `snn:${l.season}:w${WEEK}`, said: [] });
+const all = () => conductCandidates(l, WEEK, new Set());
+
+describe('trouble as candidates', () => {
+  it('tells a league suspension, a league fine, a public spat and a team sitting a man', () => {
+    const ban = troubled(0, { kind: 'fight', outcome: 'suspended', games: 1, public: true }, WEEK, 3);
+    const fine = troubled(1, { kind: 'dangerousFouls', outcome: 'leagueFine', public: true }, WEEK, 4);
+    const spat = troubled(2, { kind: 'spat', outcome: 'letGo', public: true }, WEEK, 5);
+    const sat = troubled(3, { kind: 'curfew', outcome: 'sat', public: true }, WEEK, 6);
+    const private1 = troubled(4, { kind: 'meeting', outcome: 'fine' }, WEEK, 7);
+    const cs = all();
+    const by = (p: Player) => cs.find((c) => c.conduct?.playerId === p.id);
+    expect(by(ban)?.angle).toBe('banFight');
+    expect(by(fine)?.angle).toBe('fine');
+    expect(by(spat)?.angle).toBe('spat');
+    expect(by(sat)?.angle).toBe('sat');
+    expect(by(private1)).toBeUndefined();
+    for (const c of cs) expect(c.kind).toBe('conduct');
+  });
+
+  it('reports a team sitting a man as a violation of team rules, and names no incident', () => {
+    const p = troubled(5, { kind: 'curfew', outcome: 'sat', public: true }, WEEK, 8);
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    const s = story(c);
+    expect(s.paragraphs.join(' ')).toMatch(/violation of team rules/);
+    expect(s.paragraphs.join(' ')).not.toMatch(/curfew/i);
+  });
+
+  it('tells an ejection by why it happened, from the game', () => {
+    const g = l.games.find((x) => x.season === l.season && x.week === WEEK && x.result)!;
+    const p = teamPlayers(l, g.homeId).filter((x) => !x.retired)[6];
+    g.result!.ejections = [{ playerId: p.id, teamId: g.homeId, quarter: 3, clock: 400, why: 'fight' }];
+    (p.discipline ??= { entries: [] }).entries.push({
+      season: l.season,
+      week: step(WEEK),
+      teamId: g.homeId,
+      kind: 'ejected',
+      outcome: 'suspended',
+      games: 1,
+      public: true,
+    });
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    expect(c.angle).toBe('ejectFight');
+    const s = story(c);
+    expect(s.paragraphs.join(' ')).toMatch(/third quarter/);
+    expect(ruleBreaks(l, s)).toEqual([]);
+  });
+
+  it('tells a fine after an ejection, and its short form stops on a fact', () => {
+    const g = l.games.find(
+      (x) => x.season === l.season && x.week === WEEK && x.result && x.awayId !== 13 && x.homeId !== 13,
+    )!;
+    const p = teamPlayers(l, g.awayId).filter((x) => !x.retired)[8];
+    g.result!.ejections = [{ playerId: p.id, teamId: g.awayId, quarter: 2, clock: 300, why: 'flagrant' }];
+    (p.discipline ??= { entries: [] }).entries.push({
+      season: l.season,
+      week: step(WEEK),
+      teamId: g.awayId,
+      kind: 'ejected',
+      outcome: 'leagueFine',
+      public: true,
+    });
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    expect(c.angle).toBe('ejectFlagrant');
+    for (const brief of [false, true]) {
+      const s = writeStory(l, c, { editionId: `snn:${l.season}:w${WEEK}`, said: [] }, brief ? { brief: true } : {});
+      expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+    }
+  });
+
+  it('does not tell what an earlier edition told, or news that is more than a week old', () => {
+    const p = troubled(7, { kind: 'spat', outcome: 'fine', public: true }, WEEK, 9);
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    expect(conductCandidates(l, WEEK, new Set([c.key])).find((x) => x.key === c.key)).toBeUndefined();
+    const old = troubled(8, { kind: 'spat', outcome: 'fine', public: true }, 0, 10);
+    expect(all().find((x) => x.conduct?.playerId === old.id)).toBeUndefined();
+  });
+
+  it('keeps every built story to the writing rules', () => {
+    for (const c of all()) {
+      const s = story(c);
+      expect(ruleBreaks(l, s), `${c.angle}: ${s.paragraphs.join(' ')}`).toEqual([]);
+      expect(s.kind).toBe('conduct');
+      // As the reader's own team's second story, one paragraph that still stops on a fact.
+      const one = writeStory(l, c, { editionId: `snn:${l.season}:w${WEEK}`, said: [] }, { brief: true, quote: false });
+      expect(ruleBreaks(l, one), `${c.angle} brief: ${one.paragraphs.join(' ')}`).toEqual([]);
+    }
+  });
+});
+
+describe('the good side', () => {
+  const at = (week: number) => l.season * YEAR + step(week);
+
+  it('rolls about two a week league-wide, the same each time it is asked', () => {
+    let n = 0;
+    for (let w = 1; w <= 30; w++) n += goodSideWeek(l, at(w)).length;
+    expect(n / 30).toBeGreaterThan(1);
+    expect(n / 30).toBeLessThan(4);
+    expect(goodSideWeek(l, at(3))).toEqual(goodSideWeek(l, at(3)));
+  });
+
+  it('leans to the loyal, hard-working, level-headed leaders', () => {
+    const score = (p: Player) =>
+      p.traits.leads + p.traits.workEthic + p.traits.temperament + p.personality.loyalty * 10;
+    const picked: Player[] = [];
+    for (let w = 1; w <= 60; w++) for (const g of goodSideWeek(l, at(w))) picked.push(l.players[g.playerId]);
+    const everyone = Object.values(l.players).filter((p) => !p.retired && p.teamId !== null);
+    const avg = (ps: Player[]) => ps.reduce((a, p) => a + score(p), 0) / ps.length;
+    expect(avg(picked)).toBeGreaterThan(avg(everyone));
+  });
+
+  it('is a tile, never the lead, and one story a team', () => {
+    const goods = goodSideWeek(l, at(3));
+    expect(goods.length).toBeGreaterThan(0);
+    const cs = conductCandidates(l, 3, new Set()).filter((c) => c.conduct && c.angle.startsWith('good'));
+    expect(cs.length).toBeGreaterThan(0);
+    for (const c of cs) expect(c.tier).toBe(5);
+    const game = (k: string, club: number, tier: Candidate['tier']): Candidate => ({
+      key: k,
+      kind: 'game',
+      angle: 'result',
+      tier,
+      stakes: 0.1,
+      clubId: club,
+      teams: [club, club + 1],
+    });
+    const cut = cutEdition(rankCandidates([...cs.map((c) => ({ ...c, stakes: 9 })), game('g1', 20, 5)], 'x'), null)!;
+    expect(cut.lead.kind).toBe('game');
+    expect(cut.tiles.some((t) => t.kind === 'conduct')).toBe(true);
+    expect(new Set(cut.tiles.map((t) => t.clubId)).size).toBe(cut.tiles.length);
+  });
+
+  it('keeps every good-side story to the writing rules and says nothing of a trait', () => {
+    for (const w of [3, 4, 5, 6, 7, 8]) {
+      const cs = conductCandidates(l, w, new Set()).filter((c) => c.angle.startsWith('good'));
+      for (const c of cs) {
+        const s: EditionStory = story(c);
+        expect(ruleBreaks(l, s), s.paragraphs.join(' ')).toEqual([]);
+        expect(s.paragraphs.join(' ')).not.toMatch(/leadership|work ethic|temperament|loyalty/i);
+      }
+    }
+  });
+});
+
+describe('the edition', () => {
+  it('can print a trouble story on the page', () => {
+    const p = troubled(9, { kind: 'fight', outcome: 'suspended', games: 2, public: true }, WEEK, 12);
+    p.draft = { season: l.season, round: 1, pick: 3, teamId: 12 };
+    const e = buildEdition(l, WEEK)!;
+    const stories = [e.lead, ...(e.club ? [e.club] : []), ...e.tiles];
+    expect(stories.some((s) => s.kind === 'conduct' && s.cast.includes(p.id))).toBe(true);
+  });
+});
+
+describe('a suspension handed down in the offseason', () => {
+  it('is a big-day story, served from week one, and keeps the rules', () => {
+    const p = troubled(10, { kind: 'fight', outcome: 'suspended', games: 1, public: true }, -5, 14);
+    p.discipline!.entries.at(-1)!.week = 3; // the free-agency window's third step
+    for (const day of ['year', 'market', 'kickoff'] as const) {
+      const cs = dayCandidates(l, day, new Set()).filter((c) => c.angle === 'conduct' && c.playerId === p.id);
+      expect(cs.length, day).toBe(day === 'year' ? 0 : 1);
+    }
+    const c = dayCandidates(l, 'market', new Set()).find((x) => x.playerId === p.id)!;
+    const s = writeDayStory(l, c, { editionId: `snn:${l.season}:d:market`, said: [] });
+    expect(s.paragraphs.join(' ')).toMatch(/season/);
+    expect(ruleBreaks(l, s)).toEqual([]);
+    expect(dayCandidates(l, 'market', new Set([c.key])).find((x) => x.key === c.key)).toBeUndefined();
+  });
+});
+
+describe('the depth of the words', () => {
+  it('has several whole ledes for each kind of story', () => {
+    for (const [angle, bank] of Object.entries(LEDES)) expect(bank.length, angle).toBeGreaterThanOrEqual(4);
+  });
+
+  it('says no sentence twice when a league year of the same trouble is told in a row', () => {
+    const said: string[] = [];
+    const out: string[] = [];
+    for (let k = 0; k < 24; k++) {
+      const team = (k % 31) + 1;
+      const p = teamPlayers(l, team).filter((x) => !x.retired)[k % 5];
+      p.discipline = {
+        entries: [{ season: l.season, week: step(WEEK), teamId: team, kind: 'spat', outcome: 'letGo', public: true }],
+      };
+      const c = all().find((x) => x.conduct?.playerId === p.id)!;
+      const s = writeStory(l, c, { editionId: `snn:${l.season}:w${k}`, said }, {});
+      out.push(...s.paragraphs.flatMap((t) => sentencesOf(t)));
+    }
+    const twice = out.filter((x, i) => out.indexOf(x) !== i);
+    expect(twice).toEqual([]);
+  });
+});

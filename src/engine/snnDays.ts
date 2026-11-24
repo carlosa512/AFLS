@@ -20,6 +20,7 @@ import { activeRoster } from './roster';
 import { kickoffLabel, kickoffOrder } from './season/kickoff';
 import { statLine } from './stats';
 import type { Draft } from './senders';
+import { offseasonBans } from './snnConduct';
 import { writeDayStory, yourDayStory } from './snnDayVoice';
 import { short, SNN, SUBJECT } from './snnWeek';
 import type { Edition, EditionDay, EditionList, League, Phase, Player } from './types';
@@ -734,6 +735,27 @@ export const legacyYear = (l: League, have: Set<string>): boolean =>
     (yearDigests(l).some((id) => have.has(id)) ||
       [...have].some((id) => id.startsWith(`leadership-phase:${l.season}:`))));
 
+/** The last offseason step each day's edition can still tell a ruling from (the re-sign window is 0, camp 7). */
+const BAN_BY: Record<Day, number> = { year: 0, market: 5, draft: 6, cuts: 7, kickoff: 7 };
+
+/** A suspension the league handed down in the offseason: told on the first big day built after it was ruled. */
+function banCandidates(l: League, day: Day): DayCandidate[] {
+  const rec = publicRecord(l);
+  return offseasonBans(l)
+    .filter((b) => b.step <= BAN_BY[day])
+    .map((b) => ({
+      key: `conduct:${l.season}:${b.playerId}:${b.step}:ban`,
+      day,
+      angle: 'conduct',
+      tier: 3 as const,
+      clubId: b.clubId,
+      teams: [b.clubId],
+      stakes: rec.worth(l.players[b.playerId]),
+      playerId: b.playerId,
+      n: b.games,
+    }));
+}
+
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
   const rec = publicRecord(l);
@@ -748,6 +770,7 @@ export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandid
             ? [...cutsCandidates(l, rec), ...campCandidates(l, rec)]
             : [...kickoffCandidates(l), ...openingCandidates(l, have)]),
     ...tradeCandidates(l, day, rec),
+    ...banCandidates(l, day),
   ];
   // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
   // By Kickoff a new head coach is told as his first game, so a change no edition found room for rests there.

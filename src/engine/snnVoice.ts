@@ -18,6 +18,7 @@ import { startsOf, type Unit } from './slump';
 import type { Claim, ClubContext } from './snnColumn';
 import { CUT, type ClubRecord, type GameFacts } from './snnStory';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
+import { conductStory } from './snnConductVoice';
 import { gmPiece } from './snnGmVoice';
 import type { Candidate } from './snnWeek';
 import type { EditionScore, EditionStory, Game, GameResult, InboxAction, League, Player, StatLine } from './types';
@@ -1900,6 +1901,7 @@ function write(l: League, cand: Candidate, at: Wording, opt: StoryOptions): Edit
   if (cand.kind === 'rumor') return rumorStory(l, cand, at);
   if (cand.kind === 'leaderOut') return leaderOutStory(l, cand, at);
   if (cand.kind === 'speak') return speakStory(l, cand, at);
+  if (cand.kind === 'conduct') return conductStory(l, cand, at, opt);
   if (cand.kind === 'room') return roomStory(l, cand, at);
   if (cand.kind === 'mentor') return mentorStory(l, cand, at);
   if (cand.kind === 'storyline') return storylineStory(l, cand, at);

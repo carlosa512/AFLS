@@ -2020,6 +2020,8 @@ export type EditionKind =
   | 'speak'
   | 'room'
   | 'mentor'
+  /** A player in trouble or doing good (`snnConduct.ts`). */
+  | 'conduct'
   /** SNN's opinion piece: a claim and its evidence (`snnColumn.ts`). */
   | 'column'
   /** One of your club's public storylines (`stories.ts`). */

@@ -7,6 +7,7 @@
  * where a weekly story ends on the next fixture.
  */
 import { coachName, teamCoaches } from './coaching';
+import { conductOffseasonStory } from './snnConductVoice';
 import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
@@ -18,6 +19,14 @@ import { cap, possessive, referrer, type Referrer } from './refer';
 import type { Day, DayCandidate } from './snnDays';
 import type { CoachRole, EditionStory, InboxAction, Kickoff, League, Player, Position, StatKey } from './types';
 import { around, sentencesOf, stableHash } from './voice';
+
+const DAY_KICKER: Record<Day, string> = {
+  year: 'The new league year',
+  market: 'Free agency',
+  draft: 'Draft day',
+  cuts: 'Cut-down day',
+  kickoff: 'Kickoff',
+};
 
 interface Wording {
   editionId: string;
@@ -1205,6 +1214,7 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
   if (c.angle === 'trade') return tradeStory(l, c, at);
+  if (c.angle === 'conduct') return conductOffseasonStory(l, { ...c, playerId: c.playerId! }, at, DAY_KICKER[c.day]);
   if (c.angle === 'pressure' || c.angle === 'seat') return pressureStory(l, c, at);
   if (c.day === 'cuts') return cutsStory(l, c, at);
   if (c.day === 'kickoff') return kickoffStory(l, c, at);
