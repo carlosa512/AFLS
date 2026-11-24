@@ -242,7 +242,33 @@ export interface HelmetDesign {
   mask: string;
 }
 
+/** What a player did wrong, on or off the field (`conduct.ts`). */
+export type ConductKind =
+  | 'curfew'
+  | 'meeting'
+  | 'late'
+  | 'teamEvent'
+  | 'spat'
+  | 'practiceScuffle'
+  | 'fight'
+  | 'ejected'
+  | 'dangerousFouls';
+
+/** One trouble on his record and how it was settled. */
+export interface ConductEntry {
+  season: number;
+  week: number;
+  kind: ConductKind;
+  outcome: 'fine' | 'sat' | 'letGo' | 'leagueFine' | 'suspended';
+  games?: number;
+  public?: true;
+}
+
 export interface Player {
+  /** His trouble record; `lean.by` multiplies his trouble odds until the step clock reaches `until`. Gone when he retires. */
+  discipline?: { entries: ConductEntry[]; lean?: { by: number; until: number } };
+  /** Games still to miss, served game by game (`serveGames`); `by` says who ruled. Gone when he retires. */
+  suspension?: { games: number; by: 'league' | 'team'; reason: ConductKind };
   id: number;
   firstName: string;
   lastName: string;
@@ -399,7 +425,11 @@ export type MoraleJolt =
   | 'meeting'
   // A job question left open, and a clear word on it (`benching.ts`).
   | 'unsure'
-  | 'settled';
+  | 'settled'
+  // Discipline (`conduct.ts`): a fine, a suspension, a night on the bench.
+  | 'fined'
+  | 'suspended'
+  | 'satDown';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -1119,6 +1149,8 @@ export interface JobQuestion {
 }
 
 export interface Team {
+  /** Trouble waiting on your ruling, and whether the head coach rules on it (`conduct.ts`). */
+  conduct?: { pending?: { playerId: number; kind: ConductKind; clock: number }[]; byCoach?: true };
   /**
    * Who holds a starting job at each position, kept by `benching.ts`: set on cut-down day, earned by three starts in a
    * row, cleared at the new league year. At your club, `out`: he was out at a kickoff (his injury count then, which
@@ -2359,6 +2391,14 @@ export interface PlayActors {
 export type PackedActors = (number | null)[];
 
 export interface GameResult {
+  /** Players thrown out of the game (`conduct.ts`). */
+  ejections?: {
+    playerId: number;
+    teamId: number;
+    quarter: number;
+    clock: number;
+    why: 'fight' | 'twoUnsportsmanlike' | 'flagrant';
+  }[];
   /** Event-time coaching evidence; independent of replay retention. */
   coaching?: CoachGameReport[];
   homeScore: number;

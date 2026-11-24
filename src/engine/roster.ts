@@ -259,7 +259,10 @@ export const playingHurt = (i: Injury | undefined) =>
   !!i && (i.treatment === 'injection' || (i.treatment === 'brace' && !i.braceWait));
 
 /** Can he play this week? Not on reserve, and healthy or playing through it. */
-export const isAvailable = (p: Player) => onGameRoster(p) && (!p.injury || playingHurt(p.injury));
+export const isAvailable = (p: Player) => onGameRoster(p) && (!p.injury || playingHurt(p.injury)) && !suspended(p);
+
+/** Serving a suspension (the league's or the team's): out of every game until the games are served. */
+export const suspended = (p: Player) => !!p.suspension && p.suspension.games > 0;
 
 /**
  * Depth chart ordered by what each player is worth where he lines up: his own position, or the one `playingAt`

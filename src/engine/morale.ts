@@ -435,6 +435,9 @@ const FACTOR_WORDS: Record<keyof MoraleFactors, [string, string]> = {
 };
 
 const JOLT_WORDS: Record<MoraleJolt, string> = {
+  fined: 'Still smarting from the fine',
+  suspended: 'Sore about the suspension',
+  satDown: 'Stung by sitting out',
   benched: 'Still stung by the benching',
   snubbed: 'Noticed who got paid',
   friendGone: 'Misses a friend who left',

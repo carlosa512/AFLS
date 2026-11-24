@@ -37,6 +37,7 @@ import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
+import { serveGames } from './conduct';
 import { finishPersonnelGame, preparePersonnelGame, syncPersonnel } from './personnel/flow';
 import type { Game, GameResult, League, Player } from './types';
 
@@ -196,6 +197,10 @@ function playWeekControlled(league: League): Game[] {
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
+  serveGames(
+    league,
+    games.flatMap((g) => [g.homeId, g.awayId]),
+  );
   coachQuirksWeek(league);
   if (league.phase === 'regular')
     for (const team of league.teams) {

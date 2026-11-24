@@ -2,7 +2,7 @@ import { skill, useKnocks } from '../attributes';
 import { specialTeamsEdge, teamScheme } from '../coaching';
 import type { TeamScheme } from '../schemes';
 import { knockFor, slotOvr } from '../familiarity';
-import { isAvailable, onGameRoster, playingHurt } from '../roster';
+import { isAvailable, onGameRoster, playingHurt, suspended } from '../roster';
 import { sportsOffset, temperamentOf, TRAIT_MEAN } from '../traits';
 import type { Game, League, Player, Position, Team } from '../types';
 import { gameDayTeam } from '../personnel/gameDay';
@@ -200,7 +200,8 @@ export function buildLineup(
     out = new Set([
       ...out,
       ...[...day.dressedIds, ...(day.emergencyQbId === undefined ? [] : [day.emergencyQbId])].filter(
-        (id) => league.players[id]?.injury && !playingHurt(league.players[id].injury),
+        (id) =>
+          suspended(league.players[id]) || (league.players[id]?.injury && !playingHurt(league.players[id].injury)),
       ),
     ]);
   const allowed = (p: Player) =>
@@ -211,7 +212,7 @@ export function buildLineup(
         !p.ir &&
         (!p.squad || day!.elevatedIds.includes(p.id))
       : onGameRoster(p);
-  const available = (p: Player) => allowed(p) && (!p.injury || playingHurt(p.injury));
+  const available = (p: Player) => allowed(p) && (!p.injury || playingHurt(p.injury)) && !suspended(p);
   const emergency = day?.emergencyQbId;
   const emergencyReady =
     emergency !== undefined &&
