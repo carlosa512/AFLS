@@ -5,6 +5,7 @@
 import { suspended, teamPlayers } from './roster';
 import type { League } from './types';
 
+/** Lives in roster.ts (`isAvailable` reads it) so roster and conduct never import each other. */
 export { suspended };
 
 /**

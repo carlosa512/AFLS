@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { benchKickoff, clearedNotStarting, setJobs } from './benching';
 import { serveGames, suspended } from './conduct';
 import { createLeague } from './generate';
-import { gamesInWeek, playWeek } from './league';
+import { gamesInWeek, playGame, playWeek } from './league';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
 import { isAvailable, retirePlayer, slimRetired } from './roster';
@@ -72,15 +72,8 @@ describe('serveGames', () => {
     let w = 1;
     while (!bye(w)) w++;
     const team = bye(w)!;
-    const p = l.players[team.depthChart.QB[0]];
-    ban(p, 1);
-    for (; l.week < w; ) {
-      playWeek(l);
-      // Not his bye yet: he serves his one game on his first game played.
-      if (p.suspension?.games === 0 || !p.suspension) break;
-    }
     // Move to the bye week with a fresh ban and check it holds.
-    const l2 = createLeague({ seed: 'cd-bye' });
+    const l2 = l;
     const t2 = l2.teams[team.id];
     const p2 = l2.players[t2.depthChart.QB[0]];
     l2.week = w;
@@ -89,6 +82,31 @@ describe('serveGames', () => {
     expect(p2.suspension?.games).toBe(1);
     playWeek(l2);
     expect(p2.suspension).toBeUndefined();
+  });
+});
+
+describe('serving in every kind of week', () => {
+  it('counts a game already played (live or early) when the week is played', () => {
+    const l = createLeague({ seed: 'cd-live' });
+    const g = gamesInWeek(l)[0];
+    const p = l.players[l.teams[g.homeId].depthChart.QB[0]];
+    ban(p, 2);
+    // Its result is recorded first, as a live game does.
+    playGame(l, g);
+    expect(g.result).toBeDefined();
+    playWeek(l);
+    expect(p.suspension?.games).toBe(1);
+  });
+
+  it('keeps counting into the playoffs', () => {
+    const l = createLeague({ seed: 'cd-playoffs' });
+    while (l.phase === 'regular') playWeek(l);
+    expect(l.phase).toBe('playoffs');
+    const t = l.games.find((g) => g.season === l.season && g.week === l.week)!;
+    const p = l.players[l.teams[t.homeId].depthChart.QB[0]];
+    ban(p, 2);
+    playWeek(l);
+    expect(p.suspension?.games).toBe(1);
   });
 });
 

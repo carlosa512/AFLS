@@ -201,7 +201,8 @@ export function buildLineup(
       ...out,
       ...[...day.dressedIds, ...(day.emergencyQbId === undefined ? [] : [day.emergencyQbId])].filter(
         (id) =>
-          suspended(league.players[id]) || (league.players[id]?.injury && !playingHurt(league.players[id].injury)),
+          (league.players[id] && suspended(league.players[id])) ||
+          (league.players[id]?.injury && !playingHurt(league.players[id].injury)),
       ),
     ]);
   const allowed = (p: Player) =>

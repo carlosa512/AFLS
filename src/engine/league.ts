@@ -192,14 +192,16 @@ function playWeekControlled(league: League): Game[] {
   freshChemistry(league);
   freshStaff(league);
   const weekPlayed = league.phase;
-  const games = gamesInWeek(league).filter((g) => !g.result);
+  const weekGames = gamesInWeek(league);
+  const games = weekGames.filter((g) => !g.result);
   benchKickoff(league);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
   injuryWeek(league);
   serveGames(
     league,
-    games.flatMap((g) => [g.homeId, g.awayId]),
+    // Every game of the week, even one already played live or early: its teams played.
+    weekGames.flatMap((g) => [g.homeId, g.awayId]),
   );
   coachQuirksWeek(league);
   if (league.phase === 'regular')
