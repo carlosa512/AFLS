@@ -443,11 +443,12 @@ weeks, development released week by week, mentoring (`docs/TRAINING.md`); every 
 promises, hold-ins, holdouts and trade requests, the locker room's voices, team meetings, chemistry and belief in the
 staff (`docs/MVP.md`, "Morale and holdouts").
 
-**Next: 0.5, the offseason comes alive** (`docs/MVP.md`)
+**Done: 0.5, the offseason comes alive** (`docs/MVP.md`)
 - ✅ The free-agency race (0.4.55): every team bids at once, raises and steps aside; players choose over five days;
   your offers stand beside theirs, and an agent warns you before you lose a player.
-- Compensatory picks for the free agents a team loses.
-- Suspensions.
+- ✅ Compensatory picks (0.4.57): a team gets picks for the free agents it loses.
+- ✅ Suspensions (0.5.0): ejections, the league's weekly review and suspensions, trouble off the field with your call
+  on it, the good side, and players in their own words.
 
 **Then: Front office depth**
 - **Bug, its own PR:** an AI front office can kick off a season over the cap with a short roster.

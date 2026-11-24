@@ -655,7 +655,10 @@ describe('your offers', () => {
     // A raise that still trails answers each.
     for (const id of warned) {
       const mine = l.faRace!.offers[id].find((o) => o.teamId === you(l))!;
-      expect(placeUserOffer(l, l.players[id], { ...mine.offer, apy: mine.offer.apy + 1 }).status).toBe('standing');
+      // 2026-11-24 (0.5.0): a day on, a player's walk-away can have moved past the floor he was bid at (his mood follows
+      // who plays), and a raise under it is refused as "Close". The raise stays a small one: just over his floor today.
+      const raise = Math.max(mine.offer.apy + 1, floorApy(l, l.players[id]));
+      expect(placeUserOffer(l, l.players[id], { ...mine.offer, apy: raise }).status).toBe('standing');
       expect(placeOf(l, l.players[id])).toBeGreaterThan(1);
     }
     const seen = judged(l);

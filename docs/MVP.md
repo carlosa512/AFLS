@@ -157,8 +157,8 @@ Not needed for alpha. Some are already built; each one shows the MVP item it hoo
 
 ## 0.5: The offseason comes alive
 
-The first milestone after alpha: an offseason where the other 31 teams want the same players you do. 0.5.0 lands when
-all three are Done (`docs/VERSIONING.md`).
+The first milestone after alpha: an offseason where the other 31 teams want the same players you do. 0.5.0 landed when
+all three were Done (`docs/VERSIONING.md`).
 
 - [x] **The free-agency race** · **Done** (0.4.55): every AI team puts in its opening offers as the market opens, raises
       when it is behind, and steps aside when it can no longer sign a player; a player signs when one offer stands out or
@@ -171,7 +171,13 @@ all three are Done (`docs/VERSIONING.md`).
       their rounds; you see it where you decide (the Re-sign tab and contracts letter, the offer dialog, the free-agency
       tally, the director's letter, SNN on draft day). Files: `offseason/comp.ts`, `compView.ts`, `compMail.ts`; spec
       `docs/superpowers/specs/2026-11-22-compensatory-picks-design.md`.
-- [ ] **Suspensions** · **Missing**.
+- [x] **Suspensions** · **Done** (0.5.0): a player is thrown out of a game only for the NFL's reasons (a fight after the
+      whistle, a second unsportsmanlike foul, a rare flagrant hit) and the league's weekly review suspends him for
+      repeat dangerous fouls, one game, then two, then four; trouble off the field (a missed curfew, meeting or team
+      event, a spat or a scuffle in practice) lands on your desk with three calls (fine him, sit him a game, let it go)
+      or your head coach rules for you; the good side (good deeds), SNN's stories and players in their own words come
+      with it. Files: `conduct.ts`, `match/ejection.ts`, `conductMail.ts`, `snnConduct.ts`, `playerQuote.ts`; spec
+      `docs/superpowers/specs/2026-11-23-discipline-design.md`; checked by `npm run conduct` and `npm run quotes`.
 
 ## Not in the shipped game
 

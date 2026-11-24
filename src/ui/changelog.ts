@@ -13,6 +13,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-11-24',
+    title: 'Discipline and players off the field',
+    text: 'Players can be thrown out of games, suspended by the league or get in trouble off the field, and you rule on it or your coach does. Some do good deeds and speak in their own words.',
+  },
+  {
     version: '0.4.57',
     date: '2026-11-22',
     title: 'Compensatory picks',

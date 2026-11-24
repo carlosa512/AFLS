@@ -385,6 +385,18 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     champions' regular season and who they beat; how many titles that makes), a tile for the league's most valuable
     player and the other awards, and two lists (the season's awards, the champions' road). A storyline about your team
     is told the week it happens or the week after and never late (`STORY_FRESH` in `snnWeek.ts`)
+  - `conduct.ts` discipline (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`): the league's weekly review of
+    dangerous fouls and ejections (`reviewWeek`, `REVIEW`: a pattern, not one foul, earns a suspension, `LADDER` 1, 2, 4
+    games over two league years), trouble off the field drawn from character (`troubleWeek`, `TROUBLE`: curfew, meetings,
+    team events, spats, practice scuffles), your three answers (`answerConduct`: fine, sit, let it go; `Team.conduct.pending`)
+    or your head coach's by his discipline trait (`setConductByCoach`), the games a suspension costs (`serveGames`, `Player.suspension`;
+    `isAvailable` reads it through `roster.ts`) and what the public may read (`publicConduct`: only what went public). A
+    sitting or suspension is not a benching: no job question, no job lost. Its draws are on their own streams, and it moves
+    moods through `addJolt` (`fined`, `suspended`, `satDown`). `match/ejection.ts` (`EJECT`) puts a man out only for the NFL's
+    reasons (a fight, a second unsportsmanlike foul, a rare flagrant hit) on the game's own `:eject` stream, so every other
+    roll is untouched; `GameResult.ejections`/`personalFouls` keep it. `conductMail.ts` and `conductVoice.ts` the league
+    office's letter and the head coach's rows and notes (a row in `coachWeek.ts`, no row labelled on the page); `snnConduct.ts`
+    and `snnConductVoice.ts` SNN's trouble and good-side stories from `publicConduct`, mail-side only, nothing in the sim reads them
   - `playerQuote.ts` the one quote a story may give the player it is about (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`,
     "Players talk"): `playerQuote`/`speaks` read his personality (`personalityOf(trueCharacter(p))`, never shown) and
     choose among whole hand-written lines (`playerQuoteLines.ts`, slots for facts only: {team}, {city}, {nth}, {games}…)

@@ -203,13 +203,15 @@ it won't settle, stop and bring the numbers to the owner. Bands are the owner's 
 
 ## Data (save upgrade)
 
-- `Player.discipline?: { season: number; week: number; kind: …; outcome: … }[]` — his record, kept short (the last
-  two league years), for the ladder and the stories.
-- `Player.suspension?: { games: number; reason: … }`.
-- `GameResult.ejections?`.
-- A pending team-rules row for your team (where the coach's letter reads asks today, e.g. `Team.discipline.pending`),
-  and `Team.disciplineByCoach?: boolean`.
-- A "trouble odds" lean from your last answer, kept with the record (`Player.discipline` carries it).
+(Names as built.)
+
+- `Player.discipline?: { entries: ConductEntry[]; lean?: { by, until }; fouls?: number[] }` — his record, kept short
+  (the last two league years), for the ladder and the stories; the "trouble odds" lean from your last answer sits
+  beside the entries.
+- `Player.suspension?: { games: number; by: 'league' | 'team'; reason: ConductKind }`.
+- `GameResult.ejections?` and `GameResult.personalFouls?` (what the league's pattern review counts).
+- `Team.conduct?: { pending?: { playerId, kind, clock }[]; byCoach?: true }`: the team-rules rows waiting on your
+  ruling, and whether your head coach rules on them.
 
 ## Checks and previews
 
