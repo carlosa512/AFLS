@@ -92,6 +92,7 @@ describe('a season of stories', () => {
 
   it('quotes only the head coach of the club the story is about or told for, or the player it is about, at most once a story', () => {
     let quotes = 0;
+    let players = 0;
     // Judged against the head coaches when each edition was written (2026-11-14: a club changed head coaches in
     // season in this world, and the story before it quoted the man who had the job then).
     for (const [i, e] of editions.entries())
@@ -102,6 +103,7 @@ describe('a season of stories', () => {
         if (s.quote.playerId !== undefined) {
           expect(s.quote.coachId).toBeUndefined();
           expect(s.cast).toContain(s.quote.playerId);
+          players++;
           continue;
         }
         const clubs = [s.clubId, ...(s.yours ? [l.userTeamId] : [])];
@@ -110,6 +112,27 @@ describe('a season of stories', () => {
         expect(s.quote.playerId).toBeUndefined();
       }
     expect(quotes).toBeGreaterThan(0);
+    // The wiring prints player quotes: a season has some.
+    expect(players).toBeGreaterThan(0);
+  });
+
+  it('has no player promise next week after his team’s last game of the season', () => {
+    let checked = 0;
+    for (const e of editions)
+      for (const s of storiesOf(e)) {
+        if (s.quote?.playerId === undefined || s.kind !== 'game' || !s.score) continue;
+        const g = l.games.find((x) => x.id === s.score!.gameId)!;
+        const team = l.players[s.quote.playerId].teamId;
+        const later = l.games.some(
+          (x) =>
+            x.season === g.season && !x.playoffRound && x.week > g.week && (x.homeId === team || x.awayId === team),
+        );
+        const goesOn = g.playoffRound ? g.playoffRound !== 'FINAL' && s.clubId === team : later;
+        if (goesOn) continue;
+        checked++;
+        expect(s.quote.text).not.toMatch(/next week|next one|another game|another one|next big|keep going|next time/i);
+      }
+    expect(checked).toBeGreaterThanOrEqual(0);
   });
 
   it('does not say a sentence twice across the season', () => {

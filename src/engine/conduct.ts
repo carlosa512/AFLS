@@ -46,7 +46,7 @@ export const TROUBLE = {
   controversy: { base: 0.00015, tilt: 1.4 },
   /** A scuffle at practice: low temperament. */
   scuffle: { base: 0.00015, tilt: 1.6 },
-  /** A fight away from the stadium: very low temperament. */
+  /** A fight off the field: very low temperament. */
   fight: { base: 0.000006, tilt: 2.2 },
   /** A bad mood adds up to this much (exp of the mood's lean), and each loss in a row of his team's this much. */
   mood: 0.5,

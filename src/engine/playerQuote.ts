@@ -11,7 +11,7 @@ import { ordinal } from './opposition';
 import { personalityOf, trueCharacter, type PersonalityName } from './personality';
 import { PLAIN, VOICES, type Cond, type QuoteMoment } from './playerQuoteLines';
 import { POSITION_NAMES } from './positions';
-import type { EditionStory, League, Player } from './types';
+import type { EditionStory, League, Player, Position } from './types';
 import { around, say, sentencesOf, stableHash, type Line } from './voice';
 
 export type { QuoteMoment } from './playerQuoteLines';
@@ -45,6 +45,14 @@ export interface QuoteFacts {
   /** Trouble: on the field (a flag, an ejection) or off it, and whether the ruling was a fine. */
   onField?: boolean;
   fined?: boolean;
+  /** Trouble: heated (a flag, a fight, an argument), minor (an event missed, a team sit, an argument), a league ruling. */
+  heated?: boolean;
+  minor?: boolean;
+  league?: boolean;
+  /** A game: the team has another game to play (no quote may promise next week without one). */
+  next?: boolean;
+  /** His position, filled in from the player. */
+  pos?: Position;
   /** A good-side story: what kind. */
   kind?: 'community' | 'family' | 'teammate';
 }
@@ -109,7 +117,7 @@ const ORD_TENS = [
   'eightieth',
   'ninetieth',
 ];
-function spellOrdinal(n: number): string {
+export function spellOrdinal(n: number): string {
   if (n < 20) return ORD_UNIT[n];
   if (n >= 100) return ordinal(n);
   return n % 10 ? `${TENS[Math.floor(n / 10)]}-${ORD_UNIT[n % 10]}` : ORD_TENS[Math.floor(n / 10)];
@@ -145,24 +153,44 @@ const COND: Record<Cond, (f: QuoteFacts) => boolean> = {
   offField: (f) => f.onField === false,
   fined: (f) => !!f.fined,
   deed: (f) => f.kind !== undefined && f.kind !== 'family',
+  next: (f) => f.next === true,
+  one: (f) => f.games === 1,
+  many: (f) => (f.games ?? 0) > 1,
+  skill: (f) => ['QB', 'RB', 'WR', 'TE'].includes(f.pos ?? ''),
+  receiver: (f) => ['WR', 'TE', 'RB'].includes(f.pos ?? ''),
+  heated: (f) => f.heated === true,
+  minor: (f) => f.minor === true,
+  league: (f) => f.league === true,
 };
 
+/**
+ * The cases that say something particular (a first-round pick, a return, the richest deal, a kind of deed): their
+ * lines are chosen ahead of the rest. The other conditions only keep a line from printing where it would be wrong (no
+ * game to follow, one game out, an event missed), so those lines compete evenly with the rest.
+ */
+const FLAVOUR: ReadonlySet<Cond> = new Set<Cond>(['first', 'down', 'home', 'rich', 'community', 'family']);
+
 /** A personality's lines for a moment as a bank for `say`: its own at reads 1, a narrow case at 2, the plain voice at 0. */
-export function bankFor(name: PersonalityName, moment: QuoteMoment): Line<QuoteFacts>[] {
-  const own: Line<QuoteFacts>[] = VOICES[name][moment].map((e) => {
-    const [cond, text] = typeof e === 'string' ? [undefined, e] : e;
-    return {
-      reads: cond ? 2 : 1,
-      when: (f: QuoteFacts) => fits(text, f) && (!cond || COND[cond](f)),
-      text: (f: QuoteFacts) => fill(text, f),
-    };
+export function bankFor(
+  name: PersonalityName,
+  moment: QuoteMoment,
+  /** Told which line each filled text came from (for the no-repeat rule by line). */
+  seen?: Map<string, string>,
+): Line<QuoteFacts>[] {
+  const make = (text: string, reads: number, cond?: Cond): Line<QuoteFacts> => ({
+    reads,
+    when: (f: QuoteFacts) => fits(text, f) && (!cond || COND[cond](f)),
+    text: (f: QuoteFacts) => {
+      const out = fill(text, f);
+      seen?.set(out, text);
+      return out;
+    },
   });
-  const plain: Line<QuoteFacts>[] = PLAIN[moment].map((text) => ({
-    reads: 0,
-    when: (f: QuoteFacts) => fits(text, f),
-    text: (f: QuoteFacts) => fill(text, f),
-  }));
-  return [...own, ...plain];
+  const own = VOICES[name][moment].map((e) => {
+    const [cond, text] = typeof e === 'string' ? [undefined, e] : e;
+    return make(text, cond && FLAVOUR.has(cond) ? 2 : 1, cond);
+  });
+  return [...own, ...PLAIN[moment].map((text) => make(text, 0))];
 }
 
 /** Every line a personality can say at a moment, as written (slots shown), for the preview and the tests. */
@@ -188,14 +216,23 @@ export const PERSONALITIES = Object.keys(VOICES) as PersonalityName[];
 export function playerQuote(league: League, p: Player, moment: QuoteMoment, facts: QuoteFacts): string | null {
   const name = personalityOf(trueCharacter(p));
   const base = facts.at ? around(league, facts.at.said) : undefined;
-  const text = say(bankFor(name, moment), facts, {
-    // `say` breaks ties on the key's hash, whose low bits only count its odd characters: a mixed key spreads the picks.
-    key: String(stableHash(`${facts.at?.editionId ?? ''}:${facts.key}`) >>> 3),
-    slot: `quote:${moment}`,
-    ...(base ? { skip: base.skip } : {}),
-  });
-  if (!text || base?.skip(text)) return null;
-  facts.at?.said.push(...sentencesOf(text));
+  const lines = new Map<string, string>();
+  const marked = (raw: string | undefined) => (raw ? `⟦${moment}:${raw}⟧` : '');
+  // A line is said once a league year however many teams it names: its template is noted as well as its sentences.
+  const heard = (t: string) =>
+    !!base?.skip(t) || (!!facts.at && facts.at.said.includes(marked(lines.get(t))) && lines.has(t));
+  const text = say(
+    bankFor(name, moment, lines),
+    { ...facts, pos: p.position },
+    {
+      // `say` breaks ties on the key's hash, whose low bits only count its odd characters: a mixed key spreads the picks.
+      key: String(stableHash(`${facts.at?.editionId ?? ''}:${facts.key}`) >>> 3),
+      slot: `quote:${moment}`,
+      ...(facts.at ? { skip: heard } : {}),
+    },
+  );
+  if (!text || heard(text)) return null;
+  facts.at?.said.push(...sentencesOf(text), marked(lines.get(text)));
   return text;
 }
 

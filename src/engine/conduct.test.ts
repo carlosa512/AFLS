@@ -247,7 +247,7 @@ describe('trouble by character', () => {
     expect(entries(l)).toEqual([]);
   });
 
-  it('a fight away from the stadium goes to the league as a suspension', () => {
+  it('a fight off the field goes to the league as a suspension', () => {
     const l = createLeague({ seed: 'cd-fight' });
     const all = rostered(l, true);
     setAll(l, all, 'temperament', 1);

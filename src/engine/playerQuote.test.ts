@@ -20,7 +20,7 @@ beforeAll(() => {
   l = createLeague({ seed: 'player-quotes' });
 }, 60_000);
 
-/** The most a personality's lines at a moment must number: four where the moment is common, two where it is rare. */
+/** The least a personality's lines at a moment must number: four where the moment is common, two where it is rare. */
 const FLOOR: Record<QuoteMoment, number> = {
   drafted: 4,
   signed: 4,
@@ -66,18 +66,33 @@ describe('every personality has words for every moment', () => {
   it('has lines that fit each case, not just a plain one: every kind of good deed, trouble on or off the field, a first-round pick, a late one', () => {
     const own = (name: Parameters<typeof bankFor>[0], m: QuoteMoment, f: Partial<QuoteFacts>) =>
       bankFor(name, m).filter(
-        (x) => (x.reads ?? 0) > 0 && (!x.when || x.when({ key: 'k', team: 'T', city: 'C', pick: 9, games: 2, ...f })),
+        (x) =>
+          (x.reads ?? 0) > 0 &&
+          (!x.when || x.when({ key: 'k', team: 'T', city: 'C', pick: 9, games: 2, pos: 'OL', ...f })),
       ).length;
-    for (const name of PERSONALITIES) {
-      for (const kind of ['community', 'family', 'teammate'] as const)
-        expect(own(name, 'goodSide', { kind }), `${name} good deed ${kind}`).toBeGreaterThanOrEqual(2);
-      for (const onField of [true, false])
-        expect(own(name, 'trouble', { onField }), `${name} trouble ${onField}`).toBeGreaterThanOrEqual(3);
-      expect(own(name, 'trouble', { onField: false, fined: false }), `${name} no fine`).toBeGreaterThanOrEqual(3);
-      expect(own(name, 'drafted', { round: 1 }), `${name} first round`).toBeGreaterThanOrEqual(4);
-      expect(own(name, 'drafted', { round: 6, slid: true }), `${name} late`).toBeGreaterThanOrEqual(4);
-      expect(own(name, 'signed', { returning: true }), `${name} returning`).toBeGreaterThanOrEqual(4);
-    }
+    const cases: [string, QuoteMoment, Partial<QuoteFacts>, number][] = [
+      ['good community', 'goodSide', { kind: 'community' }, 2],
+      ['good family', 'goodSide', { kind: 'family' }, 2],
+      ['good teammate', 'goodSide', { kind: 'teammate' }, 2],
+      ['trouble on the field', 'trouble', { onField: true, heated: true, league: true }, 3],
+      ['trouble off it, a fight', 'trouble', { onField: false, heated: true, league: true }, 3],
+      ['trouble, a missed event', 'trouble', { onField: false, minor: true }, 3],
+      ['trouble, an argument', 'trouble', { onField: false, heated: true, minor: true }, 3],
+      ['first round', 'drafted', { round: 1 }, 4],
+      ['late', 'drafted', { round: 6, slid: true }, 4],
+      ['returning', 'signed', { returning: true }, 4],
+      ['win, a game follows', 'bigWin', { next: true }, 2],
+      ['win, season over', 'bigWin', { next: false }, 2],
+      ['loss, a game follows', 'badLoss', { next: true }, 2],
+      ['loss, season over', 'badLoss', { next: false }, 2],
+      ['one game out', 'suspended', { games: 1 }, 2],
+      ['games out', 'suspended', { games: 2 }, 2],
+      ['back after one', 'back', { games: 1 }, 2],
+      ['back after several', 'back', { games: 2 }, 2],
+    ];
+    for (const name of PERSONALITIES)
+      for (const [label, m, f, least] of cases)
+        expect(own(name, m, f), `${name} ${label}`).toBeGreaterThanOrEqual(least);
   });
 
   it("is one voice a personality: a Hothead's line is not a Company Man's", () => {
@@ -144,6 +159,20 @@ function byPersonality(): Map<string, Player> {
   return out;
 }
 
+describe('a quote after a team’s last game says nothing of next week', () => {
+  it('has no line that promises a game when none follows', () => {
+    for (const name of PERSONALITIES)
+      for (const m of ['bigWin', 'badLoss'] as const)
+        for (const x of bankFor(name, m)) {
+          const text = x.text({ key: 'k', team: 'T', city: 'C', opp: 'O', next: false });
+          if (!x.when!({ key: 'k', team: 'T', city: 'C', opp: 'O', next: false, pos: 'OL' })) continue;
+          expect(text, `${name} ${m}`).not.toMatch(
+            /next week|next one|another game|another one|next big|keep going|next time/i,
+          );
+        }
+  });
+});
+
 describe('a player speaks', () => {
   it('says something at every moment, whatever his personality, in a shape the story rules hold', () => {
     const men = byPersonality();
@@ -163,6 +192,13 @@ describe('a player speaks', () => {
       expect(text, m).toBeTruthy();
       expect(text).not.toMatch(/\{|\}/);
     }
+    // A slotted line is not even a candidate without its fact, and is one with it.
+    const name = personalityOf(trueCharacter(p));
+    const slotted = bankFor(name, 'drafted').filter(
+      (x) => x.text({ key: 'k', team: 'T' }).includes('T') && !x.when!({ key: 'k' }),
+    );
+    expect(slotted.length).toBeGreaterThan(0);
+    for (const x of slotted) expect(x.when!({ key: 'k', team: 'T', city: 'C', pick: 9, round: 1 })).toBeDefined();
   });
 
   it('is the same quote for the same story, and never the same sentence twice in a league year', () => {

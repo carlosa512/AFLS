@@ -18,7 +18,7 @@ import type { Candidate } from './snnWeek';
 import { ordinal } from './opposition';
 import { POSITION_NAMES } from './positions';
 import { draftedHigh, publicRecord } from './publicStanding';
-import { draw, speaks, type QuoteMoment } from './playerQuote';
+import { draw, spellOrdinal, speaks, type QuoteMoment } from './playerQuote';
 import { cap, referrer } from './refer';
 import { computeRecords, divisionStandings } from './season/standings';
 import type { ConductFacts } from './snnConduct';
@@ -64,25 +64,7 @@ const resolveTokens = (text: string, ref: ReturnType<typeof referrer>, own: { id
 const menIn = (text: string) => [...text.matchAll(/\{M:(\d+)\}/g)].map((m) => Number(m[1]));
 const SMALL = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const w = (n: number) => (Number.isInteger(n) && n >= 0 && n < SMALL.length ? SMALL[n] : String(n));
-const NTH = [
-  '',
-  'first',
-  'second',
-  'third',
-  'fourth',
-  'fifth',
-  'sixth',
-  'seventh',
-  'eighth',
-  'ninth',
-  'tenth',
-  'eleventh',
-  'twelfth',
-  'thirteenth',
-  'fourteenth',
-  'fifteenth',
-];
-const nth = (n: number) => NTH[n] ?? ordinal(n);
+const nth = (n: number) => (n >= 1 && n < 100 ? spellOrdinal(n) : ordinal(n));
 const games = (n: number) => (n === 1 ? 'one game' : `${w(n)} games`);
 const QUARTER = ['', 'first', 'second', 'third', 'fourth'];
 const posWord = (p: Player) => (p.position === 'OL' ? 'offensive lineman' : POSITION_NAMES[p.position].toLowerCase());
@@ -554,20 +536,20 @@ const BAN: Bank = [
 ];
 
 const FIGHT_OFF: Bank = [
-  L((s) => `The league suspended ${s.who} for ${gw(s)} after a fight away from the stadium.`),
-  L((s) => `${s.who} was in a fight away from the stadium, and the league has suspended him for ${gw(s)}.`),
-  L((s) => `A fight away from the stadium has cost ${s.who} ${gw(s)}, the league ruled.`),
-  L((s) => `The league ruled that ${s.who} will sit out ${gw(s)} for a fight away from the stadium.`),
-  L((s) => `${s.who} drew a suspension of ${gw(s)} from the league for a fight away from the stadium.`),
+  L((s) => `The league suspended ${s.who} for ${gw(s)} after a fight off the field.`),
+  L((s) => `${s.who} was in a fight off the field, and the league has suspended him for ${gw(s)}.`),
+  L((s) => `A fight off the field has cost ${s.who} ${gw(s)}, the league ruled.`),
+  L((s) => `The league ruled that ${s.who} will sit out ${gw(s)} for a fight off the field.`),
+  L((s) => `${s.who} drew a suspension of ${gw(s)} from the league for a fight off the field.`),
   L(
     (s) =>
-      `${c(s.club)} will play without ${s.who} for ${gw(s)}. The league suspended him after a fight away from the stadium.`,
+      `${c(s.club)} will play without ${s.who} for ${gw(s)}. The league suspended him after a fight off the field.`,
     1,
     (s) => s.star,
   ),
   L(
     (s) =>
-      `The league gave ${s.who} ${gw(s)}, longer than his last suspension, for a fight away from the stadium. It is his ${nth(s.bans)} ruling in two seasons.`,
+      `The league gave ${s.who} ${gw(s)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
@@ -1067,6 +1049,10 @@ const quoteFacts = (s: Sheet, key: string, at: Wording, angle: string, good: boo
   at,
   games: s.games,
   onField: angle.startsWith('eject') || angle === 'fine' || angle === 'ban',
+  // An outburst (a flag, a fight, an argument), a small matter (an event missed, a team sit, an argument) and a league ruling.
+  heated: angle !== 'sat' && angle !== 'teamEvent',
+  minor: angle === 'sat' || angle === 'spat' || angle === 'teamEvent',
+  league: angle !== 'sat' && angle !== 'spat' && angle !== 'teamEvent',
   fined: s.fined || angle === 'fine',
   ...(good
     ? {
@@ -1249,29 +1235,29 @@ const openerWhere = (s: Off) =>
 const OFF_LEDE: Bank<Off> = [
   L(
     (s) =>
-      `The league suspended ${s.who} for ${games(s.games)} after a fight away from the stadium. He will serve it when the season begins.`,
+      `The league suspended ${s.who} for ${games(s.games)} after a fight off the field. He will serve it when the season begins.`,
   ),
   L(
     (s) =>
-      `${c(s.club)} will open the season without ${s.who}. The league suspended him for ${games(s.games)} after a fight away from the stadium.`,
+      `${c(s.club)} will open the season without ${s.who}. The league suspended him for ${games(s.games)} after a fight off the field.`,
     1,
     (s) => s.star,
   ),
   L(
     (s) =>
-      `A fight away from the stadium has cost ${s.who} ${games(s.games)} of the coming season. The league ruled before a game has been played.`,
+      `A fight off the field has cost ${s.who} ${games(s.games)} of the coming season. The league ruled before a game has been played.`,
     1,
     (s) => !s.star,
   ),
   L(
     (s) =>
-      `The league gave ${s.who} ${games(s.games)}, longer than his last suspension, for a fight away from the stadium. It is his ${nth(s.bans)} ruling in two seasons.`,
+      `The league gave ${s.who} ${games(s.games)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
   L(
     (s) =>
-      `${s.who}, a rookie, has been suspended for ${games(s.games)} by the league before he has played a game, after a fight away from the stadium.`,
+      `${s.who}, a rookie, has been suspended for ${games(s.games)} by the league before he has played a game, after a fight off the field.`,
     2,
     (s) => s.rookie,
   ),
@@ -1332,7 +1318,13 @@ export function conductOffseasonStory(
   const quote =
     draw(`${at.editionId}:${c0.key}:who`, 2) === 0
       ? undefined
-      : speaks(l, p, 'suspended', { key: c0.key, at, games: s.games, onField: false }, club);
+      : speaks(
+          l,
+          p,
+          'suspended',
+          { key: c0.key, at, games: s.games, onField: false, heated: true, league: true },
+          club,
+        );
   return {
     key: c0.key,
     kind: 'conduct',

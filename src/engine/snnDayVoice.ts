@@ -229,7 +229,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           ? head(`${Club} trade ${price} to move up for ${p.lastName}`, `${Club} move up for ${p.lastName}`)
           : head(`${Club} move up to No. ${c.pick} for ${tag(p)}`, `${Club} move up for ${p.lastName}`),
       summary:
-        from && c.got?.length ? `The ${from} got ${gotWords(c.got)} for the pick.` : `${Club} traded up for the pick.`,
+        from && c.got?.length ? `The ${from} traded down from No. ${c.pick}.` : `${Club} traded up for the pick.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} traded up to No. ${c.pick} and took ${posWord(p)} ${man}.`,
@@ -571,18 +571,15 @@ function tradeStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   return assemble(c, ref, {
     kicker: 'Trade',
     headline: head(`${Club} trade for ${tag(p)}`, `${Club} trade for ${p.lastName}`),
-    summary: back ? `The ${From} get ${back}.` : `He comes from the ${From}.`,
+    summary: back ? `The ${From} get ${back}.` : `The ${From} traded him away.`,
     first: [
       pick(l, at, slot('lede'), [
-        `${the} have traded for ${posWord(p)} ${man}.`,
-        `${the} acquired ${posWord(p)} ${man} in a trade.`,
+        `${the} have traded for ${posWord(p)} ${man} from the ${From}.`,
+        `${the} acquired ${posWord(p)} ${man} from the ${From} in a trade.`,
       ]),
       whyLine(l, at, p.lastName, publicRecord(l).why(p)),
     ],
-    second: [
-      back ? `The ${From} received ${back} in return.` : `${p.lastName} comes from the ${From}.`,
-      openerLine(l, at, ref, club),
-    ],
+    second: [back ? `The ${From} received ${back} in return.` : '', openerLine(l, at, ref, club)],
     numbers: [{ value: String(p.age), label: 'Age' }],
     picture: { playerId: p.id },
     links: links(p, club),
@@ -684,7 +681,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       ...base,
       kicker: 'Tagged',
       headline: head(`${Club} use the franchise tag on ${tag(p)}`, `${Club} tag ${p.lastName}`),
-      summary: `${p.lastName} stays with the ${Club} for at least one more season.`,
+      summary: `The ${Club} kept ${p.lastName} with the franchise tag.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} used the franchise tag on ${posWord(p)} ${man}.`,
@@ -1099,14 +1096,14 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         : '';
     const split =
       off && def
-        ? `${cap(count(off))} of them start on offense and ${count(def)} on defense.`
+        ? `${cap(count(off))} of them start on offense, ${count(def)} on defense${n - off - def > 0 ? ` and ${count(n - off - def)} in the kicking game` : ''}.`
         : off || def
           ? `${cap(count(off || def))} of them start on ${off ? 'offense' : 'defense'}.`
           : '';
     return assemble(c, ref, {
       kicker: 'New starters',
       headline: head(`${Club} open the season with ${count(n)} new starters`, `${Club} have ${count(n)} new starters`),
-      summary: `No team has more. The ${Club} open ${game.where}.`,
+      summary: `No team has more. ${City} open ${game.where}.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} open the season with ${count(n)} starters who were not with the team last season.`,
@@ -1292,7 +1289,7 @@ function yourYear(l: League, at: Wording): EditionStory | null {
       : '',
   ].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(
       did === 'let' ? `${Club} let ${tag(top)} reach free agency` : `${Club} keep ${tag(top)}`,
@@ -1346,7 +1343,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   const where = a.draft!.pick === 1 ? 'the first pick' : `the No. ${a.draft!.pick} pick`;
   const c = { pick: a.draft!.pick, rank: a.draft!.rank };
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(
       `${Club} make ${count(n)} pick${n === 1 ? '' : 's'}, starting with ${tag(a)}`,
@@ -1420,7 +1417,7 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
     came.length > 1 ? `${cap(count(came.length))} players signed in all.` : '',
   ].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: !lost
       ? head(`${Club} sign ${tag(top)}`, `${Club} sign ${top.lastName}`)
@@ -1460,7 +1457,7 @@ function yourCuts(l: League, at: Wording): EditionStory | null {
   const the = cap(ref.club(u));
   const gp = statLine(top, l.season - 1)?.gp ?? 0;
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(`${Club} release ${tag(top)}`, `${Club} release ${top.lastName}`),
     summary: [
@@ -1499,7 +1496,7 @@ function yourKickoff(l: League, at: Wording): EditionStory | null {
   const last = lastRecord(l, u);
   const close = [wentLine(l, at, cap(ref.city(u)), u), wentLine(l, at, `The ${Opp}`, game.opp)].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(`${Club} open ${game.where}`, `${Club} open against the ${Opp}`),
     summary: game.when ? `The game kicks off ${game.when}.` : `The ${Club} open ${game.where}.`,

@@ -34,7 +34,7 @@ describe('discipline on the screens', () => {
     };
     const html = renderToStaticMarkup(<DisciplineSection league={league} p={a} />);
     expect(html).toContain('Discipline');
-    expect(html).toContain('a fight away from the stadium, suspended one game.');
+    expect(html).toContain('a fight off the field, suspended one game.');
     expect(renderToStaticMarkup(<DisciplineSection league={league} p={c} />)).toBe('');
   });
 

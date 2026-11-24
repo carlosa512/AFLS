@@ -187,6 +187,18 @@ describe('Draft day', () => {
     expect(list.rows.every((r) => l.players[r.playerId!].draft!.round === 1)).toBe(true);
   });
 
+  it('lets the player a pick story is about speak, in words that keep the rules', () => {
+    const e = buildDay(l, ['draft'])!;
+    const talking = stories(e).filter((s) => s.quote?.playerId !== undefined);
+    expect(talking.length).toBeGreaterThan(0);
+    for (const s of talking) {
+      expect(s.cast).toContain(s.quote!.playerId);
+      expect(s.quote!.coachId).toBeUndefined();
+      expect(ruleBreaks(l, s), s.headline).toEqual([]);
+      expect(s.quote!.text).not.toMatch(/\{|\}/);
+    }
+  });
+
   it('keeps every story to the writing rules and stops on a fact', () => {
     const e = buildDay(l, ['draft'])!;
     for (const s of stories(e)) expect(ruleBreaks(l, s), s.headline).toEqual([]);
@@ -483,6 +495,16 @@ describe('Free agency', () => {
       const p = any(others[4 + n], 1);
       p.stats[l.season - 1] = { gp: 17, snaps: 900 };
       sign(p, others[9], 2, 3000);
+    }
+  });
+
+  it('lets a player who signed speak, in words that keep the rules', () => {
+    const e = buildDay(l, ['market'])!;
+    const talking = stories(e).filter((s) => s.quote?.playerId !== undefined);
+    expect(talking.length).toBeGreaterThan(0);
+    for (const s of talking) {
+      expect(s.cast).toContain(s.quote!.playerId);
+      expect(ruleBreaks(l, s), s.headline).toEqual([]);
     }
   });
 

@@ -26,7 +26,7 @@ export const INCIDENT: Record<ConductKind, string> = {
   teamEvent: 'a skipped team event',
   spat: 'a public spat',
   practiceScuffle: 'a scuffle at practice',
-  fight: 'a fight away from the stadium',
+  fight: 'a fight off the field',
   ejected: 'an ejection',
   dangerousFouls: 'a run of dangerous fouls',
 };
@@ -242,7 +242,7 @@ const THING: Record<ConductKind, string> = {
   teamEvent: 'skipping a team event',
   spat: 'the public spat',
   practiceScuffle: 'the scuffle at practice',
-  fight: 'the fight away from the stadium',
+  fight: 'the fight off the field',
   ejected: 'his ejection',
   dangerousFouls: 'his dangerous fouls',
 };
@@ -363,8 +363,8 @@ export const LEAGUE_RULING: readonly Line<LeagueFact>[] = [
   ...lg(
     (f) => ruled(f) && f.kind === 'fight',
     2,
-    (f) => `The league has suspended ${f.full} for ${gameWord(f.games)} for a fight away from the stadium.`,
-    (f) => `${f.full} is suspended for ${gameWord(f.games)} by the league after a fight away from the stadium.`,
+    (f) => `The league has suspended ${f.full} for ${gameWord(f.games)} for a fight off the field.`,
+    (f) => `${f.full} is suspended for ${gameWord(f.games)} by the league after a fight off the field.`,
   ),
   ...lg(
     (f) => ruled(f) && f.kind === 'dangerousFouls',
@@ -400,7 +400,7 @@ export const LEAGUE_RULING: readonly Line<LeagueFact>[] = [
   ...lg(
     (f) => !ruled(f) && f.kind === 'fight',
     2,
-    (f) => `The league has fined ${f.full} for a fight away from the stadium.`,
+    (f) => `The league has fined ${f.full} for a fight off the field.`,
   ),
 ];
 

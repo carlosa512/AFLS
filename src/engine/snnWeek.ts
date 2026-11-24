@@ -527,7 +527,21 @@ export function cutEdition(
   const ownNews =
     userTeamId === null
       ? undefined
-      : ranked.find((x) => x.clubId === userTeamId && x !== lead && x !== club && x !== clubExtra && !mine(x));
+      : ranked.find(
+          (x) =>
+            x.clubId === userTeamId &&
+            x !== lead &&
+            x !== club &&
+            x !== clubExtra &&
+            !mine(x) &&
+            // One story a team: a flag or an ejection in the game the club's own story already tells is not told twice.
+            !(
+              x.kind === 'conduct' &&
+              !!own &&
+              x.conduct?.gameId !== undefined &&
+              own.key === `game:${x.conduct.gameId}`
+            ),
+        );
   // The limit is on tiles: a trade that leads does not use it up.
   let trades = ownNews?.kind === 'trade' ? 1 : 0;
   const picked: Candidate[] = ownNews ? [ownNews] : [];

@@ -83,6 +83,8 @@ function injuryPhrase(type: string): string {
   const label = injuryLabel(type);
   const lower = /^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
   if (/[^s]s$/.test(lower)) return lower;
+  // Turf toe, like back spasms, takes no article.
+  if (/^turf toe/.test(lower)) return lower;
   return `${/^[aeiou]/.test(lower) ? 'an' : 'a'} ${lower}`;
 }
 
@@ -420,7 +422,7 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   ],
   unbeatenFalls: [
     line((s) => `${C(s.L)} lost for the first time this season, ${s.final} to ${C(s.W)}.`),
-    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended their unbeaten start at ${w(s.lBefore.w)} games.`),
+    line((s) => `${C(s.W)} beat ${C(s.L)} ${s.final}, ending that team's unbeaten start at ${w(s.lBefore.w)} games.`),
     // One sentence: its first half alone is true of every week of the run, and would be said twice.
     line((s) => `${C(s.L)} had won all ${w(s.lBefore.w)} of their games before ${C(s.W)} beat them ${s.final}.`),
   ],
@@ -440,7 +442,7 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   ],
   streakEnds: [
     line(
-      (s) => `${C(s.W)} beat ${C(s.L)} ${s.final} and ended their winning streak at ${w(streakLen(s))}.`,
+      (s) => `${C(s.W)} beat ${C(s.L)} ${s.final}, ending that team's winning streak at ${w(streakLen(s))}.`,
       (s) => s.f.streak!.length > 0,
       1,
     ),
@@ -473,7 +475,7 @@ const LEDE: Record<GameFacts['angle'], GL[]> = {
   qbLost: [
     line(
       (s) =>
-        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter and ${s.qb!.teamId === s.W ? 'still beat' : 'lost to'} ${C(s.qb!.teamId === s.W ? s.L : s.W)} ${s.final}.`,
+        `${C(s.qb!.teamId)} lost quarterback ${M(s.qb!.starter.id)} to ${s.qb!.injury} in the ${s.qb!.quarter} quarter and ${s.qb!.teamId === s.W ? 'still beat' : 'was beaten by'} ${C(s.qb!.teamId === s.W ? s.L : s.W)} ${s.final}.`,
       (s) => s.ws !== s.ls,
       1,
     ),
@@ -821,7 +823,7 @@ const QUOTE: Line<QuoteSheet>[] = [
     3,
   ),
   q(
-    'For a rookie he played like he had been here for years.',
+    "For a rookie he played like he'd been here for years.",
     (s) => won(s) && !!s.day?.won && s.day.p.experience === 0,
     3,
   ),
@@ -837,38 +839,51 @@ const QUOTE: Line<QuoteSheet>[] = [
   q('We had the lead and we let them back in it.', (s) => lost(s) && s.f.fits.includes('comeback'), 2),
   q("It's one win. We needed it.", (s) => won(s) && s.f.fits.includes('winlessWins'), 2),
   q(
-    'We were not going to win them all. We have to play better than that.',
+    "We weren't going to win them all. We have to play better than that.",
     (s) => lost(s) && s.f.fits.includes('unbeatenFalls'),
     2,
   ),
   q(
-    'We have played better than our record. Today it showed on the scoreboard.',
+    "We've played better than our record. Today it showed on the scoreboard.",
     (s) => won(s) && s.f.fits.includes('upset'),
     2,
   ),
   q('We knew we could play with them.', (s) => won(s) && s.f.fits.includes('upset'), 2),
   q('We lost to a team that played harder than we did.', (s) => lost(s) && s.f.fits.includes('upset'), 2),
-  q('We will know more about him this week.', (s) => !!s.qb && s.club === s.qb.teamId, 2),
+  q("We'll know more about him this week.", (s) => !!s.qb && s.club === s.qb.teamId, 2),
   q(
-    'You lose your quarterback and the plan changes. We did not adjust well enough.',
+    "You lose your quarterback and the plan changes. We didn't adjust well enough.",
     (s) => !!s.qb && s.club === s.qb.teamId && lost(s),
     3,
   ),
   q(
-    'The streak was going to end some time. I would rather it ended in a better game than that.',
+    "The streak was going to end some time. I'd rather it ended in a better game than that.",
     (s) => lost(s) && s.f.angle === 'streakEnds' && s.f.streak!.length > 0,
     3,
   ),
   q(
-    'That one has been a long time coming for this group.',
+    "That one's been a long time coming for this group.",
     (s) => won(s) && s.f.angle === 'streakEnds' && s.f.streak!.length < 0,
     3,
   ),
   q('We were ahead early and stayed there.', (s) => won(s) && s.f.fits.includes('rout'), 1),
   q('We were second best in every part of that game.', (s) => lost(s) && s.f.fits.includes('rout'), 1),
-  q('We could not protect the quarterback, and it showed.', (s) => lost(s) && s.lT.sacked >= 6, 2),
+  q("We couldn't protect the quarterback, and it showed.", (s) => lost(s) && s.lT.sacked >= 6, 2),
   q('Our front won that game.', (s) => won(s) && s.lT.sacked >= 6, 2),
 ];
+
+/**
+ * Whether the team of a game's best player has another game to play: a regular-season game later in the schedule, or a
+ * playoff win short of the final. A quote that talks of next week needs one (an elimination, a title and a season's
+ * last game have none).
+ */
+function gameFollows(l: League, s: GameSheet, won: boolean): boolean {
+  const team = won ? s.W : s.L;
+  if (s.g.playoffRound) return won && s.g.playoffRound !== 'FINAL';
+  return l.games.some(
+    (g) => g.season === s.g.season && !g.playoffRound && g.week > s.g.week && (g.homeId === team || g.awayId === team),
+  );
+}
 
 // ───────── assembling a game story ─────────
 
@@ -1223,7 +1238,7 @@ function gameStory(l: League, cand: Candidate, at: Wording, opt: StoryOptions): 
         l,
         dayMan!.p,
         dayMan!.won ? 'bigWin' : 'badLoss',
-        { key: cand.key, at, opp: l.teams[dayMan!.won ? s.L : s.W].name },
+        { key: cand.key, at, opp: l.teams[dayMan!.won ? s.L : s.W].name, next: gameFollows(l, s, dayMan!.won) },
         club,
       )
     : undefined;
@@ -1707,7 +1722,9 @@ function tradeStory(l: League, cand: Candidate, at: Wording): EditionStory {
   let headline: string;
   if (cand.angle === 'secondSale') {
     first.push(
-      `${C(S)} are ${rec(recS)} and selling.`,
+      recS.w > recS.l
+        ? `${C(S)}, ${rec(recS)} this season, made another sale.`
+        : `${C(S)} are ${rec(recS)} and selling.`,
       `${M(p.id)}, ${p.age}, ${every}went to ${C(B)} for ${price}.`,
       `He is the ${nth(t.earlierSales + 1)} player ${c(S)} have traded away this season.`,
     );
@@ -1716,6 +1733,8 @@ function tradeStory(l: League, cand: Candidate, at: Wording): EditionStory {
       : `${nickOf(l, S)} sell again, ${p.lastName} to ${townOf(l, B)}`;
   } else if (cand.angle === 'swap') {
     first.push(`${C(B)} and ${C(S)} swapped players, with ${position} ${M(p.id)} going to ${c(B)}.`);
+    // What the seller got besides the player: the pick, and from whom.
+    if (t.pick) first.push(`${C(S)} also got a ${t.pick.season} ${nth(t.pick.round)}-round pick from ${c(B)}.`);
     headline = `${nickOf(l, B)} get ${p.lastName} in a swap with ${townOf(l, S)}`;
   } else if (cand.angle === 'contender') {
     first.push(`${C(B)} added ${position} ${M(p.id)} from ${C(S)} for ${price}.`);

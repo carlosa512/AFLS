@@ -901,7 +901,12 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
       .slice(0, DAY.listRows)
       .map((x) => ({
         teamId: x.teamId,
-        cells: [l.teams[x.teamId].name, x.job === 'coach' ? 'Head coach' : 'General manager', x.outName, x.inName],
+        cells: [
+          l.teams[x.teamId].name,
+          x.job === 'coach' ? 'Head coach' : 'General manager',
+          x.outName || 'Vacant',
+          x.inName || 'Vacant',
+        ],
       }));
     if (rows.length) out.push({ title: 'Changes at the top', head: ['Team', 'Job', 'Out', 'In'], rows });
   }
@@ -914,7 +919,7 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
         teamId: x.to,
         cells: [
           nameOf(x.p),
-          x.from !== undefined && x.from !== x.to ? l.teams[x.from].name : '',
+          x.from === undefined ? 'Free agent' : x.from === x.to ? 'Re-signed' : l.teams[x.from].name,
           l.teams[x.to].name,
           `${x.p.contract!.length} yr, $${Math.round(totalOf(x.p) / 1000)}M`,
         ],
