@@ -12,7 +12,7 @@ import { personalityOf, trueCharacter, type PersonalityName } from './personalit
 import { PLAIN, VOICES, type Cond, type QuoteMoment } from './playerQuoteLines';
 import { POSITION_NAMES } from './positions';
 import type { EditionStory, League, Player, Position } from './types';
-import { around, say, sentencesOf, stableHash, type Line } from './voice';
+import { around, say, sentencesOf, stableHash, toldKeys, type Line } from './voice';
 
 export type { QuoteMoment } from './playerQuoteLines';
 
@@ -214,13 +214,36 @@ export const PERSONALITIES = Object.keys(VOICES) as PersonalityName[];
  * league year. The chosen sentences are noted in `facts.at.said`, so the next story steps around them.
  */
 export function playerQuote(league: League, p: Player, moment: QuoteMoment, facts: QuoteFacts): string | null {
+  return quoteWithLine(league, p, moment, facts)?.text ?? null;
+}
+
+/** The key a line is kept under in an edition's `covered`, so it is said once a league year across editions. */
+export const quoteLineKey = (season: number, moment: QuoteMoment, raw: string) =>
+  `quote:${season}:${moment}:${stableHash(raw).toString(36)}`;
+
+/** `playerQuote`, with the key of the line it chose (for the story to keep in its edition's `covered`). */
+function quoteWithLine(
+  league: League,
+  p: Player,
+  moment: QuoteMoment,
+  facts: QuoteFacts,
+): { text: string; line: string } | null {
   const name = personalityOf(trueCharacter(p));
   const base = facts.at ? around(league, facts.at.said) : undefined;
   const lines = new Map<string, string>();
   const marked = (raw: string | undefined) => (raw ? `⟦${moment}:${raw}⟧` : '');
+  // Lines an earlier edition of this league year kept in its `covered` (the in-edition marker is below).
+  const told = facts.at ? toldKeys(league) : undefined;
   // A line is said once a league year however many teams it names: its template is noted as well as its sentences.
-  const heard = (t: string) =>
-    !!base?.skip(t) || (!!facts.at && facts.at.said.includes(marked(lines.get(t))) && lines.has(t));
+  const heard = (t: string) => {
+    if (base?.skip(t)) return true;
+    const raw = lines.get(t);
+    return (
+      !!facts.at &&
+      raw !== undefined &&
+      (facts.at.said.includes(marked(raw)) || !!told?.has(quoteLineKey(league.season, moment, raw)))
+    );
+  };
   const text = say(
     bankFor(name, moment, lines),
     { ...facts, pos: p.position },
@@ -232,8 +255,9 @@ export function playerQuote(league: League, p: Player, moment: QuoteMoment, fact
     },
   );
   if (!text || heard(text)) return null;
-  facts.at?.said.push(...sentencesOf(text), marked(lines.get(text)));
-  return text;
+  const raw = lines.get(text) ?? text;
+  facts.at?.said.push(...sentencesOf(text), marked(raw));
+  return { text, line: quoteLineKey(league.season, moment, raw) };
 }
 
 /** "rookie cornerback", "offensive lineman": how a quote's byline names a position. */
@@ -253,7 +277,13 @@ export function speaks(
   teamId: number,
 ): EditionStory['quote'] | undefined {
   const team = league.teams[teamId];
-  const text = playerQuote(league, p, moment, { team: team.name, city: team.city, ...facts });
-  if (!text) return undefined;
-  return { playerId: p.id, name: `${p.firstName} ${p.lastName}`, role: `${team.name} ${posName(p)}`, text };
+  const said = quoteWithLine(league, p, moment, { team: team.name, city: team.city, ...facts });
+  if (!said) return undefined;
+  return {
+    playerId: p.id,
+    name: `${p.firstName} ${p.lastName}`,
+    role: `${team.name} ${posName(p)}`,
+    text: said.text,
+    line: said.line,
+  };
 }

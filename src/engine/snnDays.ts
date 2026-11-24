@@ -1061,7 +1061,7 @@ export function dayMail(l: League): Draft[] {
           ...days.slice(0, -1).map((d) => dayId(l, d)),
           // The new league year's edition stands in for the digests of old, whichever of their news it printed.
           ...(day === 'year' ? yearDigests(l) : []),
-          ...stories.flatMap((s) => [s.key, ...(s.covers ?? [])]),
+          ...stories.flatMap((s) => [s.key, ...(s.covers ?? []), ...(s.quote?.line ? [s.quote.line] : [])]),
         ]),
       ],
       // What is known of the new GMs rides under the page, as it did under the front-office digest.

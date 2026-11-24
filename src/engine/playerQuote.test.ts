@@ -8,6 +8,7 @@ import {
   MOMENTS,
   PERSONALITIES,
   playerQuote,
+  speaks,
   type QuoteFacts,
   type QuoteMoment,
 } from './playerQuote';
@@ -216,6 +217,43 @@ describe('a player speaks', () => {
     }
     expect(heard.length).toBeGreaterThanOrEqual(linesOf('Even-Keeled', 'drafted').length - 2);
     expect(playerQuote(l, p, 'drafted', { key: 'last', at, ...FACTS })).toBeNull();
+  });
+
+  it('keeps a line from printing again in a later edition of the league year, whoever the team', () => {
+    const p = [...byPersonality().values()].find((x) => personalityOf(trueCharacter(x)) === 'Even-Keeled')!;
+    const used = new Set<string>();
+    // Edition after edition, each filed with the line it printed in its `covered`, as the mail does.
+    for (let i = 0; i < 60; i++) {
+      const team = l.teams[i % l.teams.length];
+      const q = speaks(
+        l,
+        p,
+        'bigWin',
+        { key: `g${i}`, at: { editionId: `snn:t:w${i}`, said: [] }, next: true },
+        team.id,
+      );
+      if (!q) break;
+      expect(used.has(q.line!), `${q.text} printed twice`).toBe(false);
+      used.add(q.line!);
+      l.inbox = [
+        ...(l.inbox ?? []),
+        {
+          id: `snn:${l.season}:w${i}`,
+          season: l.season,
+          phase: 'regular',
+          week: i,
+          from: 'SNN',
+          category: 'league',
+          subject: '',
+          body: q.text,
+          covered: [q.line!],
+          read: false,
+          actions: [],
+        },
+      ];
+    }
+    expect(used.size).toBeGreaterThanOrEqual(linesOf('Even-Keeled', 'bigWin').length);
+    l.inbox = [];
   });
 
   it('prefers the narrower case: a first-round pick has his own words while they are unsaid', () => {

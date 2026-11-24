@@ -881,7 +881,8 @@ function gameFollows(l: League, s: GameSheet, won: boolean): boolean {
   const team = won ? s.W : s.L;
   if (s.g.playoffRound) return won && s.g.playoffRound !== 'FINAL';
   return l.games.some(
-    (g) => g.season === s.g.season && !g.playoffRound && g.week > s.g.week && (g.homeId === team || g.awayId === team),
+    (g) =>
+      g.season === s.g.season && !g.playoffRound && g.week === s.g.week + 1 && (g.homeId === team || g.awayId === team),
   );
 }
 

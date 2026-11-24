@@ -8,7 +8,8 @@ import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { ruleBreaks } from './storyRules';
-import { buildEdition } from './snnWeek';
+import { buildEdition, gameCandidates } from './snnWeek';
+import { writeStory } from './snnVoice';
 import type { Edition, EditionStory, League } from './types';
 import { sentencesOf } from './voice';
 
@@ -116,23 +117,35 @@ describe('a season of stories', () => {
     expect(players).toBeGreaterThan(0);
   });
 
-  it('has no player promise next week after his team’s last game of the season', () => {
+  it('has no player promise next week after his team’s last game, or before a bye', () => {
     let checked = 0;
-    for (const e of editions)
-      for (const s of storiesOf(e)) {
-        if (s.quote?.playerId === undefined || s.kind !== 'game' || !s.score) continue;
-        const g = l.games.find((x) => x.id === s.score!.gameId)!;
-        const team = l.players[s.quote.playerId].teamId;
-        const later = l.games.some(
-          (x) =>
-            x.season === g.season && !x.playoffRound && x.week > g.week && (x.homeId === team || x.awayId === team),
-        );
-        const goesOn = g.playoffRound ? g.playoffRound !== 'FINAL' && s.clubId === team : later;
-        if (goesOn) continue;
-        checked++;
-        expect(s.quote.text).not.toMatch(/next week|next one|another game|another one|next big|keep going|next time/i);
-      }
-    expect(checked).toBeGreaterThanOrEqual(0);
+    let followed = 0;
+    for (let week = 1; week <= 18; week++)
+      for (const c of gameCandidates(l, week).filter((x) => x.angle === 'day'))
+        // The draw on who speaks is by edition id: ask under many ids until the player's turn comes.
+        for (let k = 0; k < 24; k++) {
+          const s = writeStory(l, c, { editionId: `snn:probe:${week}:${k}`, said: [] }, {});
+          if (s.quote?.playerId === undefined) continue;
+          const team = l.players[s.quote.playerId].teamId;
+          const plays = l.games.some(
+            (x) =>
+              x.season === l.season &&
+              !x.playoffRound &&
+              x.week === week + 1 &&
+              (x.homeId === team || x.awayId === team),
+          );
+          if (plays) {
+            followed++;
+            continue;
+          }
+          // The team's last game of the year (week 18), or a bye the week after: no next week.
+          checked++;
+          expect(s.quote.text, `week ${week}`).not.toMatch(
+            /next week|next one|another game|another one|next big|keep going|next time|bounce back/i,
+          );
+        }
+    expect(checked).toBeGreaterThan(0);
+    expect(followed).toBeGreaterThan(0);
   });
 
   it('does not say a sentence twice across the season', () => {

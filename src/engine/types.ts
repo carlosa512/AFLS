@@ -2080,7 +2080,8 @@ export interface EditionStory {
   brief?: true;
   /** A Column's evidence: a few rows of two values each, the second the one the claim rests on. */
   table?: { head: string[]; rows: string[][] };
-  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
+  /** `line`: the key of the player's line, kept in the edition's `covered` so it is said once a league year. */
+  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string; line?: string };
   links: InboxAction[];
   /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */
   covers?: string[];

@@ -865,7 +865,9 @@ export function editionMail(l: League): Draft[] {
       subject: `${edition.label} · ${short(edition.lead.headline, SUBJECT - edition.label.length - 3)}`,
       body: stories.flatMap((s) => [...s.paragraphs, ...(s.quote ? [s.quote.text] : [])]).join('\n\n'),
       edition,
-      covered: [...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? [])]))],
+      covered: [
+        ...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? []), ...(s.quote?.line ? [s.quote.line] : [])])),
+      ],
       // Each story carries its own buttons.
       actions: [],
     },

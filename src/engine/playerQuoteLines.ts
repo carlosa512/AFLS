@@ -75,9 +75,10 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "I'm not appealing, but I'm not agreeing either.",
       ['many', 'Look at how similar plays were ruled this season, and tell me {games} is consistent.'],
       "I'll serve it, and I'll keep a record of how it was decided.",
-      "{games} for that is a lot, and I'll say so privately.",
+      ['many', "{games} for that is a lot, and I'll say so privately."],
       ['one', "I'll sit it out, and I'd still like to know what the standard was."],
       ['one', "Look at how similar plays were ruled this season, and tell me that's consistent."],
+      ['one', "One game for that is a lot, and I'll say so privately."],
     ],
     back: [
       "I did what the ruling said. Now I'm back at work, and that's the end of it.",
@@ -220,7 +221,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "That's a good day. Somebody on the other side had a bad one.",
     ],
     badLoss: [
-      "We'll see them again, and it'll go differently.",
+      "I don't like how that one ended, and I won't forget it.",
       ['next', "I didn't do enough. I'll be harder to deal with next week."],
       "We gave that one away, and I'm in a mood about it.",
       "I don't lose well, and everybody in that locker room knows it.",
@@ -275,7 +276,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
     ],
     suspended: [
       "I'm angry at the league, angry at myself, and mostly angry I'm not out there.",
-      "{games} is a long time to sit with a temper like mine, but I'll use it.",
+      ['many', "{games} is a long time to sit with a temper like mine, but I'll use it."],
       "I'll be fine by tomorrow. Today I'm not.",
       ['many', '{games} will drag, and I deserve every minute of it.'],
       'I need to cool off, and apparently the league agrees.',
@@ -284,6 +285,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "I'm furious with myself, and I'll take it out in the weight room.",
       "I'll use this to cool off, and I'll be better for it.",
       "I need to be a better teammate, and I'll start now.",
+      ['one', "One game is long enough to sit with a temper like mine, but I'll use it."],
     ],
     back: [
       "I'm calm now. Ask me again in the third quarter.",
@@ -337,9 +339,9 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "I don't think anybody in that room had a problem until someone found a camera.",
       "I'm a professional, and I was treated like I wasn't. That's all I'll say.",
       "I know who I am, and a headline won't change that.",
-      "It's a lot of attention for something so small. Then again, I'm used to attention.",
+      ['minor', "It's a lot of attention for something so small. Then again, I'm used to attention."],
       "I'd rather not talk about this, and I'd rather you didn't write about it.",
-      "It's blown out of proportion because it's me.",
+      ['minor', "It's blown out of proportion because it's me."],
     ],
     suspended: [
       '{games} without me is going to be an adventure for them. I hope they enjoy it.',
@@ -582,7 +584,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "I'm not going to lose sleep over it. I have games to prepare for.",
       "My job is to play, and I'm focused on that.",
       "I'll move on. There's work to do.",
-      "Let's not make this bigger than it is. I'm here to play.",
+      ['minor', "Let's not make this bigger than it is. I'm here to play."],
       "It's done, and I'm focused on playing.",
     ],
     suspended: [
@@ -1002,12 +1004,13 @@ export const VOICES: Record<PersonalityName, Voice> = {
     trouble: [
       ['offField', "I overslept. It's a bad look and I know it."],
       ['offField', "I forgot, and then I forgot to remember. That's pretty much the whole story."],
-      "It's not a big deal. I'll try harder next time.",
+      ['minor', "It's not a big deal. I'll try harder next time."],
       ['offField', "I wasn't there, and I should've been. That's on me."],
-      "I'm not going to make a thing of it, and I hope nobody else does.",
+      ['minor', "I'm not going to make a thing of it, and I hope nobody else does."],
       "I wasn't really thinking, and then everybody was looking at me.",
-      "I figured it would blow over. Turns out it didn't.",
+      ['minor', "I figured it would blow over. Turns out it didn't."],
       "My bad. I'll set an alarm or something.",
+      "It got away from me, and I'll be more careful.",
     ],
     suspended: [
       "{games} off isn't the worst thing.",
@@ -1208,7 +1211,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['next', "It's tough, but there's another game next week."],
       "We'll go through the film and find what we missed.",
       "I'm not happy with how I played, and I'll be better.",
-      "That's not the way we wanted it to go. We'll bounce back.",
+      ['next', "That's not the way we wanted it to go. We'll bounce back."],
       ['next', "We'll own it and get ready for next week."],
     ],
     goodSide: [
