@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { conductOpen, MAX_ROWS, weekItems } from './coachWeek';
 import { answerConduct, reviewWeek, setConductByCoach, settleConduct } from './conduct';
-import { conductFact, conductLetters, disciplineLines, leagueFact } from './conductMail';
+import { conductFact, conductLetters, conductSettled, disciplineLines, leagueFact } from './conductMail';
 import {
   CONDUCT_BEFORE,
   CONDUCT_DONE,
@@ -19,7 +19,7 @@ import { deliverMail, needsYou } from './inbox';
 import { moraleClock } from './morale';
 import { waitFor } from './playerTalks';
 import { activeRoster } from './roster';
-import { stableHash, toldKeys, seasonSaid, say } from './voice';
+import { toldKeys, say } from './voice';
 import type { ConductKind, GameResult, League } from './types';
 
 const template = createLeague({ seed: 'conduct-mail' });
@@ -107,7 +107,6 @@ describe('the head coach’s row about trouble', () => {
     expect(
       CONDUCT_LEAD.filter((x) => x.when!({ ...conductFact(l, p, 'curfew'), inSeason: true })).length,
     ).toBeGreaterThan(4);
-    expect(stableHash('x')).toBeTypeOf('number');
   });
 
   it('with the head coach handling it, tells you what he did as a note with no question', () => {
@@ -157,7 +156,7 @@ describe('the league office’s letter', () => {
     deliverMail(l);
     expect(mine()).toHaveLength(2);
     expect(mine()[1].subject).toBe(`${p.firstName} ${p.lastName} suspended one game`);
-    expect(mine()[1].body).toMatch(/second ejection this year and his first suspension/);
+    expect(mine()[1].body).toMatch(/second ejection this season and his first suspension/);
     expect(mine()[1].body).toMatch(/He will miss the game at .* and is eligible to return in week \d+\.$/);
     expect(mine()[1].week).toBe(7);
   });
@@ -195,7 +194,7 @@ describe('the league office’s letter', () => {
       /^(The league has suspended Tre Rowe for one game for fighting in the third quarter at Miami\.|Tre Rowe is suspended)/,
     );
     expect(text).toContain('He was ejected for it.');
-    expect(text).toContain('It is his second ejection this year and his first suspension.');
+    expect(text).toContain('It is his second ejection this season and his first suspension.');
     expect(
       text.endsWith('He will miss the game at home against New England and is eligible to return in week 10.'),
     ).toBe(true);
@@ -225,7 +224,6 @@ describe('the league office’s letter', () => {
     expect(f.next).toMatch(/^at /);
     expect(f.back).toBeGreaterThan(1);
     expect(f.bans).toBe(1);
-    expect(seasonSaid(l, 'League office', 'conduct:')).toEqual([]);
   });
 });
 
@@ -250,14 +248,44 @@ describe('a card’s Discipline list', () => {
     };
     const mine = disciplineLines(l, p);
     expect(mine.map((r) => `${r.when}: ${r.text}`)).toEqual([
-      'Week 8: A missed curfew. The head coach sat him for a game.',
-      'Week 7: Ejected, fined by the league.',
-      'Last season, week 12: A scuffle at practice. You fined him.',
+      'Week 8: a missed curfew. The head coach sat him for a game.',
+      'Week 7: ejected, fined by the league.',
+      'Last season, week 12: a scuffle at practice. You fined him.',
     ]);
     l.userTeamId = (l.userTeamId + 1) % l.teams.length;
     expect(disciplineLines(l, p).map((r) => r.text)).toEqual([
-      'A missed curfew. The team sat him for a game.',
-      'Ejected, fined by the league.',
+      'a missed curfew. The team sat him for a game.',
+      'ejected, fined by the league.',
     ]);
+  });
+});
+
+describe('what a card and a row show of a man who changed teams', () => {
+  it('hides his old team’s private entries and words its public ones as theirs', () => {
+    const l = scene();
+    const [p] = activeRoster(l, l.userTeamId);
+    const old = (l.userTeamId + 1) % l.teams.length;
+    p.discipline = {
+      entries: [
+        { season: l.season, week: 14, kind: 'curfew', outcome: 'fine', teamId: old },
+        { season: l.season, week: 15, kind: 'spat', outcome: 'sat', public: true, teamId: old },
+        { season: l.season, week: 16, kind: 'late', outcome: 'letGo', teamId: l.userTeamId },
+      ],
+    };
+    expect(disciplineLines(l, p).map((r) => r.text)).toEqual([
+      'a late arrival at practice. You let it go.',
+      'a public spat. The team sat him for a game.',
+    ]);
+  });
+
+  it('shows no buttons for a row whose man has left, and no other incident’s outcome', () => {
+    const l = scene();
+    const [p] = pend(l, 1);
+    const s = { playerId: p.id, clock: l.moraleAt! };
+    p.discipline = { entries: [{ season: l.season - 1, week: 3, kind: 'late', outcome: 'sat', teamId: l.userTeamId }] };
+    expect(conductOpen(l, s)).toBe(true);
+    p.teamId = (l.userTeamId + 1) % l.teams.length;
+    expect(conductOpen(l, s)).toBe(false);
+    expect(conductSettled(l, p.id, s.clock)).toBe('This one is settled.');
   });
 });

@@ -155,32 +155,31 @@ export const CONDUCT_BEFORE: readonly Line<ConductFact>[] = [
   {
     when: (f) => f.times === 1 && !f.lastOutcome,
     reads: 1,
-    text: () => 'It is the second time this year.',
+    text: () => 'It is the second time this season.',
   },
   {
     when: (f) => f.times === 1 && !!f.lastOutcome,
     reads: 2,
-    text: (f) => `It is the second time this year. ${OUTCOME_LAST[f.lastOutcome!]}`,
+    text: (f) => `It is the second time this season. ${OUTCOME_LAST[f.lastOutcome!]}`,
   },
   {
     when: (f) => f.times === 2,
     reads: 1,
-    text: () => 'It is the third time this year.',
+    text: () => 'It is the third time this season.',
   },
   {
     when: (f) => f.times === 2 && !!f.lastOutcome,
     reads: 2,
-    text: (f) => `It is the third time this year. ${OUTCOME_LAST[f.lastOutcome!]}`,
+    text: (f) => `It is the third time this season. ${OUTCOME_LAST[f.lastOutcome!]}`,
   },
-  { when: (f) => f.times >= 3, reads: 1, text: () => 'He has been in trouble more than three times this year.' },
-  { when: (f) => f.times >= 3, reads: 1, text: () => 'This has happened to us again and again this year.' },
+  { when: (f) => f.times >= 3, reads: 1, text: () => 'He has been in trouble more than three times this season.' },
+  { when: (f) => f.times >= 3, reads: 1, text: () => 'This has happened to us again and again this season.' },
 ];
 
 /** The coach's read, before your answer. */
 export const CONDUCT_READ: readonly Line<ConductFact>[] = [
   { reads: 0, text: () => 'The rest of the team is waiting to see what we do.' },
-  { reads: 0, text: () => 'The team is watching how we handle it.' },
-  { reads: 0, text: () => 'Whatever we do here, the rest of the team will take note of it.' },
+  { reads: 0, text: () => 'Everyone will notice what we do here.' },
   { reads: 0, text: () => 'How we answer this sets the standard for the rest of the team.' },
   { reads: 0, text: () => 'He knows what the rules are, and so does everyone around him.' },
   { when: (f) => f.rookie, reads: 2, text: () => 'He is young and still learning what is expected here.' },
@@ -198,7 +197,7 @@ export const CONDUCT_READ: readonly Line<ConductFact>[] = [
   {
     when: (f) => f.starter && !f.rookie,
     reads: 2,
-    text: () => 'He starts for us, and the rest of the team is watching what we do.',
+    text: () => 'He starts for us, so a game without him would cost us on the field.',
   },
   { when: (f) => f.veteran && !f.starter, reads: 2, text: () => 'He has been around long enough to know better.' },
   {
@@ -209,7 +208,7 @@ export const CONDUCT_READ: readonly Line<ConductFact>[] = [
   {
     when: (f) => f.kind === 'spat' || f.kind === 'teamEvent',
     reads: 1,
-    text: () => 'Everyone has seen it, so whatever we do will be seen too.',
+    text: () => 'Everyone has seen it, so they will see what we do.',
   },
 ];
 
@@ -262,11 +261,11 @@ export const CONDUCT_DONE: readonly Line<NoteFact>[] = [
   ...ans('fine', [
     (f) => `I fined ${f.last} for ${THING[f.kind]}.`,
     (f) => `${f.last} is fined for ${THING[f.kind]}, and I made it clear that it stops here.`,
-    (f) => `I took a fine from ${f.last} over ${THING[f.kind]}.`,
+    (f) => `${f.last} gets a fine for ${THING[f.kind]}, and he knows where we stand.`,
   ]),
   ...ans('sat', [
-    (f) => `I am sitting ${f.last} for the next game over ${THING[f.kind]}.`,
-    (f) => `${f.last} will not play in the next game because of ${THING[f.kind]}.`,
+    (f) => `${f.last} sits the next game for ${THING[f.kind]}.`,
+    (f) => `I am sitting ${f.last} for a game over ${THING[f.kind]}.`,
     (f) => `I sat ${f.last} down for a game over ${THING[f.kind]}.`,
   ]),
   ...ans('letGo', [
@@ -410,12 +409,12 @@ export const LEAGUE_RECORD: readonly Line<LeagueFact>[] = [
   ...lg(
     (f) => f.kind === 'ejected' && ruled(f),
     2,
-    (f) => `It is his ${ordinalWord(f.ejections)} ejection this year and his ${ordinalWord(f.bans)} suspension.`,
+    (f) => `It is his ${ordinalWord(f.ejections)} ejection this season and his ${ordinalWord(f.bans)} suspension.`,
   ),
   ...lg(
     (f) => f.kind === 'ejected' && !ruled(f),
     2,
-    (f) => `It is his ${ordinalWord(f.ejections)} ejection this year.`,
+    (f) => `It is his ${ordinalWord(f.ejections)} ejection this season.`,
   ),
   ...lg(
     (f) => f.kind !== 'ejected' && ruled(f) && f.bans === 1,
@@ -435,7 +434,7 @@ export const LEAGUE_RECORD: readonly Line<LeagueFact>[] = [
   ...lg(
     (f) => f.kind === 'ejected' && !ruled(f),
     3,
-    () => 'There is no suspension, and a second ejection this year would bring one.',
+    () => 'There is no suspension, and a second ejection this season would bring one.',
   ),
 ];
 

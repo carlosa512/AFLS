@@ -618,11 +618,11 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
   // Notes that ride along: he answers by his own discipline when you let him, and the league's fines and suspensions
   // reach you in its own letter and again here in a sentence. They never file a letter alone.
   for (const p of teamPlayers(league, user))
-    for (const e of p.discipline?.entries ?? []) {
+    for (const [idx, e] of (p.discipline?.entries ?? []).entries()) {
       const isRuling = e.outcome === 'leagueFine' || e.outcome === 'suspended';
       if (e.season !== league.season || e.teamId !== user || !(e.byCoach || isRuling)) continue;
       const born = e.season * YEAR + e.week;
-      const key = `conductnote:${e.season}:${e.week}:${p.id}:${e.kind}`;
+      const key = `conductnote:${e.season}:${e.week}:${p.id}:${idx}`;
       if (told.has(key) || clock - born >= STALE || clock < born) continue;
       const earlier = (p.discipline?.entries ?? []).filter(
         (x) => x !== e && x.season === e.season && x.week < e.week && x.kind === e.kind,
@@ -988,6 +988,7 @@ export function newestLosingLetter(league: League): string | undefined {
 
 /** His row still waits on your ruling: the team's list holds it. */
 export const conductOpen = (league: League, s: { playerId: number; clock: number }) =>
+  league.players[s.playerId]?.teamId === league.userTeamId &&
   !!league.teams[league.userTeamId].conduct?.pending?.some((r) => r.playerId === s.playerId && r.clock === s.clock);
 
 /** The letter still asks while any of its rows waits on your answer: a man's ask, or the meeting request. */

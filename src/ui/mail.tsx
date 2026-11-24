@@ -919,7 +919,7 @@ function ConductChoices({ league, s }: { league: League; s: { playerId: number; 
   if (!conductOpen(league, s))
     return (
       <Card>
-        <span className="muted small">{conductSettled(league, s.playerId)}</span>
+        <span className="muted small">{conductSettled(league, s.playerId, s.clock)}</span>
       </Card>
     );
   const answer = (a: 'fine' | 'sat' | 'letGo') => store.mutate((l) => answerConduct(l, s.playerId, a));

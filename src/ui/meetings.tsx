@@ -67,6 +67,7 @@ export function MeetingChoices({ league, s }: { league: League; s: { clock: numb
           Let the coach handle these himself
         </label>
       )}
+      {!card.gm && <DisciplineByCoach league={league} />}
     </div>
   );
 }
