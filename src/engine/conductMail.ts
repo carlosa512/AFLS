@@ -27,7 +27,8 @@ const QUARTER = ['', 'first', 'second', 'third', 'fourth'];
 
 /** The head coach's fact sheet for a man in trouble (before the answer is on his record). */
 export function conductFact(league: League, p: Player, kind: ConductKind): ConductFact {
-  const entries = p.discipline?.entries ?? [];
+  // The last two league years: older trouble is forgotten (`ConductFact.clean`).
+  const entries = (p.discipline?.entries ?? []).filter((e) => e.season >= league.season - 1);
   const team = p.teamId === null ? undefined : league.teams[p.teamId];
   const spot = team ? team.depthChart[p.position].indexOf(p.id) : -1;
   const answered = entries.filter((e) => e.outcome === 'fine' || e.outcome === 'sat' || e.outcome === 'letGo');
@@ -122,7 +123,8 @@ export function conductLetters(league: League, have: Set<string>): Draft[] {
       out.push({
         id,
         season: e.season,
-        phase: inSeason ? (gw > 18 ? 'playoffs' : 'regular') : league.phase,
+        // Step 8 is the last offseason step, rolled after the phase flipped: it is camp, never "week 0" of the season.
+        phase: inSeason ? (gw > 18 ? 'playoffs' : 'regular') : e.week >= 7 ? 'preseason' : league.phase,
         week: inSeason ? gw : 0,
         from: 'League office',
         category: 'league',
@@ -141,11 +143,13 @@ export function conductLetters(league: League, have: Set<string>): Draft[] {
 const offseasonAt = (step: number) =>
   step === 0 ? 'in the re-sign window' : step < 6 ? 'in free agency' : step === 6 ? 'at the draft' : 'at camp';
 
-const DONE: Record<'fine' | 'sat' | 'letGo', [string, string]> = {
-  fine: ['You fined him.', 'The head coach fined him.'],
-  sat: ['You sat him for a game.', 'The head coach sat him for a game.'],
-  letGo: ['You let it go.', 'The head coach let it go.'],
+/** Worded by who answered: you on your desk, your head coach, or else the team (a predecessor, an answer that timed out). */
+const DONE: Record<'fine' | 'sat' | 'letGo', [string, string, string]> = {
+  fine: ['You fined him.', 'The head coach fined him.', 'The team fined him.'],
+  sat: ['You sat him for a game.', 'The head coach sat him for a game.', 'The team sat him for a game.'],
+  letGo: ['You let it go.', 'The head coach let it go.', 'The team let it go.'],
 };
+const doneWho = (e: ConductEntry) => (e.byYou ? 0 : e.byCoach ? 1 : 2);
 
 /**
  * What his record says, newest first, in words that follow "Week 8:" on a card. An entry is yours only if it happened on
@@ -154,7 +158,9 @@ const DONE: Record<'fine' | 'sat' | 'letGo', [string, string]> = {
  */
 export function disciplineLines(league: League, p: Player): { when: string; text: string }[] {
   const rows: { when: string; text: string }[] = [];
+  // Only the last two league years: older trouble is forgotten, and "last season" is always the season before.
   for (const e of [...(p.discipline?.entries ?? [])].reverse()) {
+    if (e.season < league.season - 1) continue;
     const mine = e.teamId === league.userTeamId;
     if (!mine && !e.public) continue;
     const found = e.kind === 'ejected' && e.teamId !== undefined ? gameOf(league, e.teamId, e) : undefined;
@@ -162,7 +168,7 @@ export function disciplineLines(league: League, p: Player): { when: string; text
     const g = found?.result?.ejections?.some((x) => x.playerId === p.id) ? found : undefined;
     const lastYear = e.season !== league.season;
     const when =
-      e.week >= FIRST_GAME_STEP
+      e.week > FIRST_GAME_STEP
         ? `${lastYear ? 'Last season, week' : 'Week'} ${e.week - FIRST_GAME_STEP}${
             g && e.teamId !== undefined ? ` ${whereOf(league, g, e.teamId).replace('at home against', 'against')}` : ''
           }`
@@ -172,7 +178,7 @@ export function disciplineLines(league: League, p: Player): { when: string; text
     let text: string;
     if (e.outcome === 'leagueFine') text = `${what}, fined by the league.`;
     else if (e.outcome === 'suspended') text = `${what}, suspended ${gameWord(games)}.`;
-    else if (mine) text = `${what}. ${DONE[e.outcome][e.byCoach ? 1 : 0]}`;
+    else if (mine) text = `${what}. ${DONE[e.outcome][doneWho(e)]}`;
     else text = `${what}${e.outcome === 'sat' ? '. The team sat him for a game.' : '.'}`;
     rows.push({ when, text });
   }
@@ -188,6 +194,6 @@ export function conductSettled(league: League, playerId: number, clock: number):
       (x.outcome === 'fine' || x.outcome === 'sat' || x.outcome === 'letGo'),
   );
   return e && (e.outcome === 'fine' || e.outcome === 'sat' || e.outcome === 'letGo')
-    ? DONE[e.outcome][e.byCoach ? 1 : 0]
+    ? DONE[e.outcome][doneWho(e)]
     : 'This one is settled.';
 }

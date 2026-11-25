@@ -258,10 +258,10 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['rich', 'They showed me a number, I smiled, and then I got nervous about living up to it.'],
     ],
     trouble: [
-      "It happened fast. I'm not proud of how it went.",
+      ['heated', "It happened fast. I'm not proud of how it went."],
       ['heated', "I lost my temper, and I'll own that. It passed, but not in time."],
       ['heated', "I was heated, and I did things I can't take back."],
-      'I was fine one second and gone the next.',
+      ['heated', 'I was fine one second and gone the next.'],
       ['heated', 'I snapped, and I knew it the second it happened.'],
       ['heated', "I'm not making excuses. I was angry, and it came out the wrong way."],
       ['heated', 'Everybody has a breaking point, and I found mine.'],
@@ -387,6 +387,8 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['down', "Where I'm picked doesn't change anything. I'll work the same."],
       ['first', "Going {nth} doesn't change how I work. I'll be early to everything."],
       ['first', "I'm thankful to the {team}. I'll be ready for training camp."],
+      ['first', 'A first-round pick is a start, and I plan to treat it like one.'],
+      ['first', "I'll be the first one at the facility every morning, and that doesn't change tonight."],
       "I'm thankful for everyone who's been there for me.",
     ],
     signed: [
@@ -458,7 +460,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
     ],
     trouble: [
       'I got caught up in a moment. I usually handle those better.',
-      "I'm the one who's calm when it counts. This time I wasn't, and I'll fix that.",
+      ['heated', "I'm the one who's calm when it counts. This time I wasn't, and I'll fix that."],
       "It was a bad moment. I'm good at moving past bad moments.",
       "That's not me. I'll show you that when it matters.",
     ],
@@ -766,12 +768,13 @@ export const VOICES: Record<PersonalityName, Voice> = {
     trouble: [
       ['onField', "He put his hands on me first. I'm not going to stand there and take it."],
       ['onField', "I'd do it again. Quote me."],
-      "I reacted. I react. It's who I am, and I'm not going to apologize for that.",
+      ['heated', "I reacted. I react. It's who I am, and I'm not going to apologize for that."],
       ['onField', 'Ask him what he said to me. Then ask me why I did it.'],
       ['heated', "I'm not apologizing for being angry."],
       'Believe what you want. I know what happened.',
       "I've got a short fuse, and everybody knows it. I'll deal with it.",
-      'I said what I said and I did what I did.',
+      ['minor', "It's a mistake, and I'll take the heat for it. Then I'm moving on."],
+      ['heated', 'I said what I said and I did what I did.'],
     ],
     suspended: [
       "They can sit me for {games}. It won't change anything.",
@@ -1204,6 +1207,11 @@ export const VOICES: Record<PersonalityName, Voice> = {
       "A win's a win, and we'll take it. There's more to do.",
       'Everybody pitched in today.',
       'We stayed with the plan, and it worked.',
+      'We took care of the little things, and it showed.',
+      'It was a solid day from start to finish.',
+      'The work we put in this week paid off.',
+      'Credit to the whole team. We got it done.',
+      'Good teams find a way, and we found one today.',
     ],
     badLoss: [
       "It's a loss, and we'll learn from it.",

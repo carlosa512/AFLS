@@ -23,6 +23,7 @@ import { clamp, Rng } from './rng';
 import { computeRecords } from './season/standings';
 import { TRADE_DEADLINE_WEEK } from './trade/rules';
 import { ensureStaffed, promoteScoutToDirector, staffValue, teamStaff } from './staff';
+import { leaveDesk } from './conduct';
 import { leaveClub } from './meetings';
 import type {
   Coach,
@@ -480,7 +481,10 @@ export function acceptGmOffer(l: League, teamId: number): void {
     appointGm(l, teamId, user.id, { through: offer.through });
   }
   // What was waiting on you at your old club lapses there (L2).
-  if (changingClub) leaveClub(l, l.userTeamId);
+  if (changingClub) {
+    leaveClub(l, l.userTeamId);
+    leaveDesk(l, l.userTeamId);
+  }
   l.userTeamId = teamId;
   const terms = gmOfferTerms(l, offer);
   user.appointments.at(-1)!.terms = JSON.parse(JSON.stringify(terms));

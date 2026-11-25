@@ -5,7 +5,7 @@ import { beliefNewYear } from '../belief';
 import { meetingsStep } from '../meetings';
 import { storiesStep } from '../storiesStep';
 import { storiesNewYear } from '../stories';
-import { troubleWeek } from '../conduct';
+import { conductNewYear, troubleWeek } from '../conduct';
 import { moraleStep } from '../morale';
 import { lockRetiredVerdict, lockVerdicts } from '../draftGrade';
 import { cflArrivals } from './arrivals';
@@ -295,6 +295,7 @@ export function beginOffseason(league: League): void {
     for (const team of league.teams) springCuts(league, team);
   });
   // The new league year's moods: who was passed in his room, who left, what the winter's deals say.
+  conductNewYear(league);
   troubleWeek(league, 'offseason');
   moraleStep(league);
   // Then the step's meetings (L2): the season's end in the re-sign window, camp, commitments judged.

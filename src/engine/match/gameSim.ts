@@ -44,7 +44,7 @@ import {
 import { departmentFor, type Department } from '../medical';
 import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
-import { EJECT, flagrantLean, hotHead } from './ejection';
+import { DANGEROUS_FOULS, EJECT, flagrantLean, hotHead } from './ejection';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf, temperamentOf } from '../traits';
@@ -1497,7 +1497,9 @@ export class GameSim {
   /**
    * The after-the-whistle foul the engine already rolls on a sack may have been a fight: a short-tempered rusher threw a
    * punch at the quarterback (he is out whether or not the flag is taken), and if the quarterback's temper is short too
-   * he swings back (his foul offsets, nothing is enforced for it). No new foul: only the ejection stream is drawn.
+   * he swings back (his foul is tallied as offsetting and nothing is enforced for it, but the rusher's 15 yards still
+   * stand: the NFL would offset the two dead-ball fouls, and changing enforcement would move the penalty lines). No new
+   * foul: only the ejection stream is drawn.
    */
   private fight(rusher: Player) {
     if (!EJECT.on || !this.ejectRng.chance(EJECT.fight * hotHead(rusher))) return;
@@ -5346,8 +5348,7 @@ export class GameSim {
       qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
     }
     if (!by) return;
-    if (foul === 'roughingPasser' || foul === 'unnecessaryRoughness' || foul === 'faceMask')
-      this.dangerousFouls.push({ playerId: by.id, foul });
+    if (DANGEROUS_FOULS.includes(foul)) this.dangerousFouls.push({ playerId: by.id, foul });
     this.chargedAccepted(foul, by);
     const line = (this.playerStats[by.id] ??= {});
     line.penalties = (line.penalties ?? 0) + 1;

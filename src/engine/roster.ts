@@ -108,6 +108,8 @@ export function setTeam(league: League, p: Player, teamId: number | null): void 
   }
   // Waiting on room at the club he reported to (G4): a new club has none to make.
   if (p.teamId !== teamId && p.morale?.reported) delete p.morale.reported;
+  // A team's own sitting is its business: it does not follow him to another team (the league's ruling does).
+  if (p.teamId !== teamId && p.suspension?.by === 'team') delete p.suspension;
   p.teamId = teamId;
 }
 

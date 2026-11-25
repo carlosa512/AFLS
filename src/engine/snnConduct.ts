@@ -166,7 +166,8 @@ export function conductCandidates(
     const entries = row.discipline?.entries ?? [];
     entries.forEach((e, i) => {
       const gw = e.week - REGULAR;
-      if (!e.public || e.season !== l.season || gw < week - 1 || gw > week) return;
+      // Step 8 (gw 0) is the last offseason step: no game week, told with the offseason's rulings.
+      if (!e.public || e.season !== l.season || gw < 1 || gw < week - 1 || gw > week) return;
       const club = e.teamId ?? row.teamId;
       if (club === null || club === undefined) return;
       const game = gamesInWeek(l, gw).find((g) => g.result && (g.homeId === club || g.awayId === club));
@@ -258,7 +259,7 @@ export function offseasonBans(
   const out: ReturnType<typeof offseasonBans> = [];
   for (const p of Object.values(l.players))
     for (const e of p.discipline?.entries ?? [])
-      if (e.public && e.season === l.season && e.week < REGULAR && e.outcome === 'suspended' && !p.retired) {
+      if (e.public && e.season === l.season && e.week <= REGULAR && e.outcome === 'suspended' && !p.retired) {
         const clubId = e.teamId ?? p.teamId;
         if (clubId === null || clubId === undefined) continue;
         out.push({

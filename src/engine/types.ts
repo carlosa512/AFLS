@@ -264,6 +264,8 @@ export interface ConductEntry {
   public?: true;
   /** Your head coach answered it for you (`setConductByCoach`), so his letter tells it as a note. */
   byCoach?: true;
+  /** You answered it yourself, on your desk, while you ran the team: only then does his card say "You". */
+  byYou?: true;
   /** The club he was with when it happened (SNN reads it through `publicConduct`). */
   teamId?: number;
 }
@@ -2405,9 +2407,9 @@ export interface PlayActors {
 export type PackedActors = (number | null)[];
 
 export interface GameResult {
-  /** Players thrown out of the game (`conduct.ts`). */
   /** Accepted dangerous personal fouls by man, what the league's pattern review counts (`conduct.ts`). */
   personalFouls?: { playerId: number; foul: Foul }[];
+  /** Players thrown out of the game (`conduct.ts`). */
   ejections?: {
     playerId: number;
     teamId: number;

@@ -42,7 +42,7 @@ import {
   CONDUCT_RULED,
   type NoteFact,
 } from './conductVoice';
-import { employed } from './employment';
+import { employed, managesTeam } from './employment';
 import { reportTellsRooms } from './lockerReport';
 import { dueRows, meetingCard, requestRow, resultRows, suggestionId, resultId } from './meetings/mail';
 import { SCOPE_NOUN, styleOf } from './meetings/facts';
@@ -988,6 +988,7 @@ export function newestLosingLetter(league: League): string | undefined {
 
 /** His row still waits on your ruling: the team's list holds it. */
 export const conductOpen = (league: League, s: { playerId: number; clock: number }) =>
+  managesTeam(league, league.userTeamId) &&
   league.players[s.playerId]?.teamId === league.userTeamId &&
   !!league.teams[league.userTeamId].conduct?.pending?.some((r) => r.playerId === s.playerId && r.clock === s.clock);
 

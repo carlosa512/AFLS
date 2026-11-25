@@ -197,7 +197,6 @@ function playWeekControlled(league: League): Game[] {
   benchKickoff(league);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
-  injuryWeek(league);
   serveGames(
     league,
     // Every game of the week, even one already played live or early: its teams played.
@@ -210,6 +209,9 @@ function playWeekControlled(league: League): Game[] {
     weekGames.flatMap((g) => (g.result ? [g.result] : [])),
   );
   troubleWeek(league, 'week');
+  // The injury week's cover pass (AI clubs sign, promote or call up for a hole) comes last, so it sees this week's
+  // suspensions as the short absences they are: the games just served and the rulings just handed down.
+  injuryWeek(league);
   coachQuirksWeek(league);
   if (league.phase === 'regular')
     for (const team of league.teams) {

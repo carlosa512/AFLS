@@ -1180,7 +1180,11 @@ export function conductStory(l: League, cand: Candidate, at: Wording, opt: Optio
   const man = manSpeaks
     ? speaks(l, p, momentOf(angle, s.fined), quoteFacts(s, key, at, angle, good), s.club)
     : undefined;
-  const fresh = bank ? QUOTES[bank].filter((t) => !saidAlready(l, at, t)) : [];
+  // A coach who talks of next week needs a game there: no bye, no season's end, no playoff exit (`s.next`).
+  const gameNextWeek = !!s.next && !s.next.bye;
+  const fresh = bank
+    ? QUOTES[bank].filter((t) => !saidAlready(l, at, t) && (gameNextWeek || !/\bnext week\b/i.test(t)))
+    : [];
   const quoteLine =
     !man && coach && fresh.length && opt.quote !== false
       ? fresh[hash(`${at.editionId}:${key}:quote`) % fresh.length]

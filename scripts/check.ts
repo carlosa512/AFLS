@@ -322,11 +322,16 @@ const RULES: [RegExp, Name[]][] = [
     /^src\/engine\/(?!.*\.test\.ts$)(morale|playerTalks|disputes|disputeRead|disputeMail|development|match\/lineup|training|offseason\/negotiation|chemistry|standing|moodScale|staffEdge|belief|relieve|meetings\/[\w/]+)\.ts$|^scripts\/morale\.ts$/,
     ['morale'],
   ],
-  // Conduct: ejections and the odds, the league's review and trouble, and what builds the leagues and plays the games.
-  [/^src\/engine\/(?!.*\.test\.ts$)(conduct|match\/(gameSim|ejection))\.ts$|^scripts\/conduct[\w-]*\.ts$/, ['conduct']],
+  // Conduct: ejections and the odds, the league's review and trouble, and what builds the leagues and plays the games
+  // (`league.ts` runs the review, `match/lineup.ts` reads roughness, `traits.ts`/`morale.ts` the odds' makeup and mood,
+  // `generate.ts` the leagues).
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(conduct|league|generate|traits|morale|match\/(gameSim|ejection|lineup))\.ts$|^scripts\/conduct[\w-]*\.ts$/,
+    ['conduct'],
+  ],
   // Player quotes: the lines, where SNN prints them, and the check that counts what was printed.
   [
-    /^src\/engine\/(?!.*\.test\.ts$)(playerQuote[\w]*|snnVoice|snnDayVoice|snnConductVoice|snnWeek|snnDays)\.ts$|^scripts\/quotes\.ts$/,
+    /^src\/engine\/(?!.*\.test\.ts$)(playerQuote[\w]*|snnVoice|snnDayVoice|snnConduct|snnConductVoice|snnWeek|snnDays|voice|personality)\.ts$|^scripts\/quotes\.ts$/,
     ['quotes'],
   ],
   // The harness itself, dependencies and compiler settings can break anything.

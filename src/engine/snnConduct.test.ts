@@ -467,3 +467,38 @@ describe('players in their own words', () => {
     }
   });
 });
+
+describe('a coach who talks of next week', () => {
+  const lines = (team: number) => {
+    const p = teamPlayers(l, team).filter((x) => !x.retired)[7];
+    p.discipline = {
+      entries: [{ season: l.season, week: step(WEEK), teamId: team, kind: 'curfew', outcome: 'sat', public: true }],
+    };
+    const c = all().find((x) => x.conduct?.playerId === p.id)!;
+    const out: string[] = [];
+    for (let k = 0; k < 80; k++) {
+      const q = writeStory(l, c, { editionId: `snn:${l.season}:nw${k}`, said: [] }, {}).quote;
+      if (q?.coachId !== undefined) out.push(q.text);
+    }
+    return { out };
+  };
+
+  it('says it only when the team has a game next week: never before a bye or after its last game', () => {
+    const team = 20;
+    // With games to come the line is on the shelf.
+    expect(lines(team).out.some((t) => /next week/.test(t))).toBe(true);
+    const kept = l.games;
+    try {
+      // Nothing left on the schedule after this week (the season's end, an exit): no line about next week.
+      l.games = kept.filter((g) => !(g.week > WEEK && (g.homeId === team || g.awayId === team)));
+      const none = lines(team).out;
+      expect(none.length).toBeGreaterThan(0);
+      expect(none.filter((t) => /next week/.test(t))).toEqual([]);
+      // A bye: the next game is two weeks out.
+      l.games = kept.filter((g) => !(g.week === WEEK + 1 && (g.homeId === team || g.awayId === team)));
+      expect(lines(team).out.filter((t) => /next week/.test(t))).toEqual([]);
+    } finally {
+      l.games = kept;
+    }
+  });
+});

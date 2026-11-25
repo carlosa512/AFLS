@@ -136,7 +136,8 @@ for (const q of printed) {
   const line = lineOf(q.text);
   printedLines.set(line, (printedLines.get(line) ?? 0) + 1);
 }
-const distinct = printed.length ? count.size / printed.length : 1;
+// By lines, as the spec says: the same line with another team's name in it is one line, not two.
+const distinct = printed.length ? printedLines.size / printed.length : 1;
 const worst = [...printedLines].sort((a, b) => b[1] - a[1]);
 const over = worst.filter(([, n]) => n > MAX_SAME);
 const byWho = new Map<string, number>();
@@ -147,7 +148,7 @@ out.push(
   `## A ${seasons}-season league (seed \`${seed}\`)`,
   '',
   `- Player quotes printed: **${printed.length}** (not counted: head coaches quoted ${coachQuotes}, players speaking out ${spokeOut}).`,
-  `- Distinct share: **${distinct.toFixed(3)}** (${count.size} different quotes as printed, must be at least ${MIN_DISTINCT}; ${printedLines.size} different lines).`,
+  `- Distinct share: **${distinct.toFixed(3)}** (${printedLines.size} different lines of ${printed.length}, must be at least ${MIN_DISTINCT}; ${count.size} different quotes as printed).`,
   `- Most often printed: one line **${worst[0]?.[1] ?? 0}** times, whatever team or city was in it (must be at most ${MAX_SAME}).`,
   `- By personality: ${[...byWho]
     .sort((a, b) => b[1] - a[1])

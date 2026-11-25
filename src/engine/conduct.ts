@@ -1,10 +1,13 @@
 /**
  * Discipline (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`): trouble on and off the field and what
- * comes of it. This file so far holds the countdown; the rulings come with the later steps.
+ * comes of it. The games a suspension costs (`serveGames`), the league's review of a week (`reviewWeek`), each step's
+ * off-field trouble (`troubleWeek`), your answers and your head coach's (`answerConduct`, `settleConduct`,
+ * `setConductByCoach`) and what the public may read (`publicConduct`).
  */
 import { traitLean, traitOf } from './coachTraits';
 import { teamCoaches } from './coaching';
 import { disputeOf, onDidNotReport } from './disputeRead';
+import { managesTeam } from './employment';
 import { addJolt, moraleClock, moraleLevel, moodLean, YEAR } from './morale';
 import { waitFor } from './playerTalks';
 import { hashUnits } from './rng';
@@ -27,6 +30,27 @@ export function serveGames(league: League, teamIds: number[]): void {
       p.suspension.games -= 1;
       if (p.suspension.games <= 0) delete p.suspension;
     }
+  }
+}
+
+/**
+ * A new league year: a team's own sitting ends with the year, and a record keeps only the last two league years (what
+ * the ladder and the readers look at), its foul clocks only those the pattern review could still count. Reads and
+ * changes nothing a draw depends on, so no seeded world moves.
+ */
+export function conductNewYear(league: League): void {
+  const clock = league.season * YEAR;
+  for (const p of Object.values(league.players)) {
+    if (p.suspension?.by === 'team') delete p.suspension;
+    const d = p.discipline;
+    if (!d) continue;
+    d.entries = d.entries.filter((e) => e.season >= league.season - 1);
+    if (d.fouls) {
+      d.fouls = d.fouls.filter((c) => clock - c < REVIEW.span);
+      if (!d.fouls.length) delete d.fouls;
+    }
+    if (d.lean && d.lean.until <= clock) delete d.lean;
+    if (!d.entries.length && !d.fouls && !d.lean) delete p.discipline;
   }
 }
 
@@ -101,7 +125,8 @@ function rule(league: League, p: Player, kind: ConductKind, clock: number, rulin
   }
   const games = LADDER[Math.min(priorBans(league, p), LADDER.length - 1)];
   record(league, p, clock, { kind, outcome: 'suspended', games, public: true });
-  p.suspension = { games: Math.max(games, p.suspension?.games ?? 0), by: 'league', reason: kind };
+  // Two suspensions add up, and the league's ruling is the one on the record.
+  p.suspension = { games: games + (p.suspension?.games ?? 0), by: 'league', reason: kind };
   addJolt(p, 'suspended', REVIEW.jolt.suspension[games], clock);
 }
 
@@ -144,7 +169,7 @@ function applyAnswer(
   kind: ConductKind,
   answer: 'fine' | 'sat' | 'letGo',
   clock: number,
-  byCoach = false,
+  by: 'coach' | 'you' | 'team' = 'team',
 ) {
   const sat = answer === 'sat';
   record(league, p, clock, {
@@ -152,11 +177,14 @@ function applyAnswer(
     outcome: answer,
     ...(sat || PUBLIC_KINDS.has(kind) ? { public: true as const } : {}),
     // Only your own head coach's answers are told back to you, as a note in his letter.
-    ...(byCoach && p.teamId === league.userTeamId ? { byCoach: true as const } : {}),
+    ...(by === 'coach' && p.teamId === league.userTeamId ? { byCoach: true as const } : {}),
+    // The card says "You" only for what you answered on your desk while you ran the team.
+    ...(by === 'you' ? { byYou: true as const } : {}),
   });
   if (answer === 'fine') addJolt(p, 'fined', TROUBLE.jolt.fine, clock);
   if (sat) {
-    p.suspension = { games: Math.max(1, p.suspension?.games ?? 0), by: 'team', reason: kind };
+    // A game sat adds to one he owes, and the league's ruling stays the one on the record.
+    p.suspension = { ...(p.suspension ?? { by: 'team', reason: kind }), games: 1 + (p.suspension?.games ?? 0) };
     addJolt(p, 'satDown', TROUBLE.jolt.sat, clock);
   }
   (p.discipline ??= { entries: [] }).lean = { by: TROUBLE.lean[answer], until: clock + TROUBLE.leanSteps };
@@ -186,7 +214,10 @@ export function troubleWeek(league: League, step: 'week' | 'offseason'): void {
   const records = step === 'week' ? computeRecords(league) : undefined;
   for (const team of league.teams) {
     const losses = Number(/^L(\d+)$/.exec(records?.get(team.id)?.streak ?? '')?.[1] ?? 0);
-    const userHolds = team.id === league.userTeamId && !team.conduct?.byCoach;
+    // Your desk is the team you run: a row left on any other team is its head coach's to answer.
+    const yours = managesTeam(league, team.id);
+    if (!yours) handOver(league, team);
+    const userHolds = yours && !team.conduct?.byCoach;
     for (const p of teamPlayers(league, team.id)) {
       if (p.retired || inTrouble(p)) continue;
       if (team.conduct?.pending?.some((r) => r.playerId === p.id)) continue;
@@ -216,19 +247,20 @@ export function troubleWeek(league: League, step: 'week' | 'offseason'): void {
       if (kind === 'fight') rule(league, p, 'fight', clock, 'suspend');
       else if (userHolds)
         (team.conduct ??= {}).pending = [...(team.conduct?.pending ?? []), { playerId: p.id, kind, clock }];
-      else applyAnswer(league, p, kind, coachAnswer(league, p, clock), clock, true);
+      else applyAnswer(league, p, kind, coachAnswer(league, p, clock), clock, 'coach');
     }
   }
 }
 
-/** Your answer to a row: only for a man still on your team with a row waiting. */
+/** Your answer to a row: only for a man still on the team you run with a row waiting. */
 export function answerConduct(league: League, playerId: number, answer: 'fine' | 'sat' | 'letGo'): void {
   const team = league.teams[league.userTeamId];
+  if (!team || !managesTeam(league, team.id)) return;
   const row = team.conduct?.pending?.find((r) => r.playerId === playerId);
   const p = league.players[playerId];
   if (!row || !p || p.retired || p.teamId !== team.id) return;
   closeRow(team, playerId);
-  applyAnswer(league, p, row.kind, answer, league.moraleAt ?? moraleClock(league));
+  applyAnswer(league, p, row.kind, answer, league.moraleAt ?? moraleClock(league), 'you');
 }
 
 function closeRow(team: Team, playerId: number): void {
@@ -239,18 +271,47 @@ function closeRow(team: Team, playerId: number): void {
   if (!c.pending && !c.byCoach) delete team.conduct;
 }
 
-/** A row left past the usual wait is Let it go; a man gone from the club takes his row with him. */
-export function settleConduct(league: League): void {
-  const team = league.teams[league.userTeamId];
-  // A user between jobs (`userTeamId` -1, the league playing itself) has no desk.
-  if (!team) return;
+/**
+ * Rows waiting on a team you don't run (you were let go, or took another job) are answered at once, as its head coach
+ * would. A man gone from the team takes his row with him.
+ */
+function handOver(league: League, team: Team): void {
   const now = league.moraleAt ?? moraleClock(league);
   for (const row of [...(team.conduct?.pending ?? [])]) {
     const p = league.players[row.playerId];
-    if (!p || p.retired || p.teamId !== team.id) closeRow(team, row.playerId);
-    else if (now >= row.clock + waitFor(league, p)) {
-      closeRow(team, row.playerId);
-      applyAnswer(league, p, row.kind, 'letGo', now);
+    closeRow(team, row.playerId);
+    if (p && !p.retired && p.teamId === team.id)
+      applyAnswer(league, p, row.kind, coachAnswer(league, p, now), now, 'coach');
+  }
+  // His setting goes with the desk.
+  if (team.conduct?.byCoach) {
+    delete team.conduct.byCoach;
+    if (!team.conduct.pending) delete team.conduct;
+  }
+}
+
+/** You are leaving a team: whatever was waiting on your desk there is answered as its head coach would. */
+export function leaveDesk(league: League, teamId: number): void {
+  const team = league.teams[teamId];
+  if (team) handOver(league, team);
+}
+
+/** A row left past the usual wait is Let it go; a man gone from the club takes his row with him. */
+export function settleConduct(league: League): void {
+  const now = league.moraleAt ?? moraleClock(league);
+  for (const team of league.teams) {
+    // A user between jobs (the league playing itself) or another team has no desk of yours.
+    if (!managesTeam(league, team.id)) {
+      if (team.conduct) handOver(league, team);
+      continue;
+    }
+    for (const row of [...(team.conduct?.pending ?? [])]) {
+      const p = league.players[row.playerId];
+      if (!p || p.retired || p.teamId !== team.id) closeRow(team, row.playerId);
+      else if (now >= row.clock + waitFor(league, p)) {
+        closeRow(team, row.playerId);
+        applyAnswer(league, p, row.kind, 'letGo', now);
+      }
     }
   }
 }
@@ -258,6 +319,7 @@ export function settleConduct(league: League): void {
 /** "Let the head coach handle discipline": he answers by his own trait, like the meetings' setting. */
 export function setConductByCoach(league: League, on: boolean): void {
   const team = league.teams[league.userTeamId];
+  if (!team || !managesTeam(league, team.id)) return;
   if (on) {
     // What waits now, he answers now.
     (team.conduct ??= {}).byCoach = true;
@@ -266,7 +328,7 @@ export function setConductByCoach(league: League, on: boolean): void {
       const p = league.players[row.playerId];
       closeRow(team, row.playerId);
       if (p && !p.retired && p.teamId === team.id)
-        applyAnswer(league, p, row.kind, coachAnswer(league, p, now), now, true);
+        applyAnswer(league, p, row.kind, coachAnswer(league, p, now), now, 'coach');
     }
     team.conduct.byCoach = true;
   } else if (team.conduct) {

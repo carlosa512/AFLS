@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { benchKickoff, clearedNotStarting, setJobs } from './benching';
 import {
   answerConduct,
+  conductNewYear,
   LADDER,
+  leaveDesk,
   publicConduct,
   reviewWeek,
   serveGames,
@@ -15,6 +17,8 @@ import { setTrait } from './coachTraits';
 import { teamCoaches } from './coaching';
 import { waitFor } from './playerTalks';
 import { createLeague } from './generate';
+import { recommendedGameDay, gameDayProblem } from './personnel/gameDay';
+import { squadCover } from './personnel/cover';
 import { gamesInWeek, playGame, playWeek } from './league';
 import { buildLineup } from './match/lineup';
 import { migrateLeague } from './migrate';
@@ -440,5 +444,132 @@ describe('the lean from your last answer', () => {
     const rate = (ps: Player[]) => ps.reduce((n, p) => n + (p.discipline?.entries.length ?? 0), 0) / ps.length;
     expect(rate(groups.letGo)).toBeGreaterThan(rate(groups.none));
     expect(rate(groups.none)).toBeGreaterThan(rate(groups.sat));
+  });
+});
+
+describe('a desk is the team you run', () => {
+  const pend2 = (l: League, ps: Player[]) => {
+    l.teams[l.userTeamId].conduct = { pending: ps.map((p) => ({ playerId: p.id, kind: 'meeting', clock: 100 })) };
+    l.moraleAt = 100;
+  };
+  const jobless = (l: League) => {
+    l.gms[l.userGmId].teamId = null;
+  };
+
+  it('a jobless user has no open row, no answer, and no setting to change, and nothing throws', () => {
+    const l = createLeague({ seed: 'cd-desk-closed' });
+    const [p] = teamPlayers(l, l.userTeamId);
+    pend2(l, [p]);
+    jobless(l);
+    answerConduct(l, p.id, 'sat');
+    expect(p.suspension).toBeUndefined();
+    l.userTeamId = -1;
+    expect(() => answerConduct(l, p.id, 'sat')).not.toThrow();
+    expect(() => setConductByCoach(l, true)).not.toThrow();
+  });
+
+  it('leaving the club settles its waiting rows as the head coach would, and files no new ones', () => {
+    const l = createLeague({ seed: 'cd-desk-leave' });
+    const team = l.teams[l.userTeamId];
+    const mine = teamPlayers(l, l.userTeamId).slice(0, 2);
+    pend2(l, mine);
+    jobless(l);
+    leaveDesk(l, l.userTeamId);
+    expect(team.conduct).toBeUndefined();
+    for (const p of mine) expect(p.discipline?.entries).toHaveLength(1);
+    // A row left behind some other way is settled by the next step, never held on the old team.
+    const [q] = teamPlayers(l, l.userTeamId).slice(2, 3);
+    pend2(l, [q]);
+    settleConduct(l);
+    expect(team.conduct).toBeUndefined();
+    expect(q.discipline!.entries).toHaveLength(1);
+    // And trouble on a team you do not run is answered at once, never filed for you.
+    setAll(l, teamPlayers(l, l.userTeamId), 'workEthic', 1);
+    steps(l, 6);
+    expect(team.conduct?.pending).toBeUndefined();
+  });
+});
+
+describe('a team sitting and suspensions that add up', () => {
+  it('a sitting does not follow a man to another team, or into the next league year', () => {
+    const l = createLeague({ seed: 'cd-team-sit' });
+    const [a, b, c] = teamPlayers(l, l.userTeamId);
+    ban(a, 1, 'team');
+    ban(b, 1, 'team');
+    ban(c, 2, 'league');
+    setTeam(l, a, l.teams.find((t) => t.id !== l.userTeamId)!.id);
+    expect(a.suspension).toBeUndefined();
+    conductNewYear(l);
+    expect(b.suspension).toBeUndefined();
+    expect(c.suspension).toMatchObject({ games: 2, by: 'league' });
+  });
+
+  it('two suspensions add up, and the league keeps its name on the record', () => {
+    const l = createLeague({ seed: 'cd-add' });
+    const [p, q] = teamPlayers(l, l.userTeamId);
+    l.phase = 'regular';
+    l.week = 3;
+    // A league ruling, then a game sat from a row filed before it.
+    reviewWeek(l, [eject(p, 'fight')]);
+    l.teams[l.userTeamId].conduct = { pending: [{ playerId: p.id, kind: 'late', clock: 50 }] };
+    answerConduct(l, p.id, 'sat');
+    expect(p.suspension).toMatchObject({ games: 2, by: 'league', reason: 'ejected' });
+    // And the other way round.
+    l.teams[l.userTeamId].conduct = { pending: [{ playerId: q.id, kind: 'late', clock: 50 }] };
+    answerConduct(l, q.id, 'sat');
+    reviewWeek(l, [eject(q, 'fight')]);
+    expect(q.suspension).toMatchObject({ games: 2, by: 'league' });
+  });
+
+  it('a record keeps two league years, drops an empty one, and ages out foul clocks', () => {
+    const l = createLeague({ seed: 'cd-prune' });
+    const [p, q] = teamPlayers(l, l.userTeamId);
+    p.discipline = {
+      entries: [{ season: l.season - 2, week: 12, kind: 'curfew', outcome: 'fine' }],
+      fouls: [(l.season - 1) * 32 + 20],
+    };
+    q.discipline = {
+      entries: [
+        { season: l.season - 2, week: 12, kind: 'curfew', outcome: 'fine' },
+        { season: l.season - 1, week: 12, kind: 'late', outcome: 'fine' },
+      ],
+    };
+    conductNewYear(l);
+    expect(p.discipline).toBeUndefined();
+    expect(q.discipline!.entries.map((e) => e.season)).toEqual([l.season - 1]);
+  });
+});
+
+describe('a suspended player on game day and in AI cover', () => {
+  it('is not on the staff’s active list, and a list that holds him is a problem', () => {
+    const l = createLeague({ seed: 'cd-gameday', personnel: true });
+    const team = l.userTeamId;
+    const g = l.games.find((x) => x.season === l.season && !x.result && (x.homeId === team || x.awayId === team))!;
+    const qb = l.players[l.teams[team].depthChart.QB[0]];
+    expect(recommendedGameDay(l, g, team).dressedIds).toContain(qb.id);
+    ban(qb, 1);
+    const plan = recommendedGameDay(l, g, team);
+    expect(plan.dressedIds).not.toContain(qb.id);
+    expect(gameDayProblem(l, g, team, plan)).toBeNull();
+    expect(gameDayProblem(l, g, team, { ...plan, dressedIds: [...plan.dressedIds, qb.id] })).toMatch(/unavailable/);
+  });
+
+  it('counts as a short absence for the AI: a one-game ban is covered by a call-up, a long one is not', () => {
+    const l = createLeague({ seed: 'cd-cover', personnel: true, userTeamId: 0 });
+    l.phase = 'regular';
+    const team = l.teams.find(
+      (t) => t.id !== 0 && teamPlayers(l, t.id).some((p) => p.squad?.kind === 'practiceSquad' && !p.injury),
+    )!;
+    const squad = teamPlayers(l, team.id).find((p) => p.squad?.kind === 'practiceSquad' && !p.injury)!;
+    const starter = teamPlayers(l, team.id).find((p) => !p.squad && p.position === squad.position)!;
+    // The one man at his spot is the suspended one: found by emptying the spot of everyone else.
+    for (const p of teamPlayers(l, team.id).filter((p) => !p.squad && p.position === squad.position && p !== starter))
+      p.injury = undefined;
+    ban(starter, 1);
+    const short = squadCover(l, team.id, squad.position);
+    ban(starter, 9);
+    const long = squadCover(l, team.id, squad.position);
+    expect(short).toBe('callup');
+    expect(long).not.toBe('callup');
   });
 });

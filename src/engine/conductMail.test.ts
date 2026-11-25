@@ -233,7 +233,7 @@ describe('a card’s Discipline list', () => {
     const [p] = activeRoster(l, l.userTeamId);
     p.discipline = {
       entries: [
-        { season: l.season - 1, week: 20, kind: 'practiceScuffle', outcome: 'fine', teamId: l.userTeamId },
+        { season: l.season - 1, week: 20, kind: 'practiceScuffle', outcome: 'fine', byYou: true, teamId: l.userTeamId },
         { season: l.season, week: 15, kind: 'ejected', outcome: 'leagueFine', public: true, teamId: l.userTeamId },
         {
           season: l.season,
@@ -269,7 +269,7 @@ describe('what a card and a row show of a man who changed teams', () => {
       entries: [
         { season: l.season, week: 14, kind: 'curfew', outcome: 'fine', teamId: old },
         { season: l.season, week: 15, kind: 'spat', outcome: 'sat', public: true, teamId: old },
-        { season: l.season, week: 16, kind: 'late', outcome: 'letGo', teamId: l.userTeamId },
+        { season: l.season, week: 16, kind: 'late', outcome: 'letGo', byYou: true, teamId: l.userTeamId },
       ],
     };
     expect(disciplineLines(l, p).map((r) => r.text)).toEqual([
@@ -287,5 +287,49 @@ describe('what a card and a row show of a man who changed teams', () => {
     p.teamId = (l.userTeamId + 1) % l.teams.length;
     expect(conductOpen(l, s)).toBe(false);
     expect(conductSettled(l, p.id, s.clock)).toBe('This one is settled.');
+  });
+});
+
+describe('old trouble and who answered it', () => {
+  it('shows and counts only the last two league years, and "last season" only for the season before', () => {
+    const l = scene();
+    const [p] = activeRoster(l, l.userTeamId);
+    p.discipline = {
+      entries: [
+        { season: l.season - 3, week: 14, kind: 'curfew', outcome: 'fine', byYou: true, teamId: l.userTeamId },
+        { season: l.season - 2, week: 15, kind: 'late', outcome: 'sat', byYou: true, teamId: l.userTeamId },
+      ],
+    };
+    expect(disciplineLines(l, p)).toEqual([]);
+    expect(conductFact(l, p, 'curfew')).toMatchObject({ clean: true });
+    expect(conductFact(l, p, 'curfew').lastOutcome).toBeUndefined();
+    p.discipline.entries.push({ season: l.season - 1, week: 12, kind: 'late', outcome: 'fine', teamId: l.userTeamId });
+    expect(disciplineLines(l, p).map((r) => r.when)).toEqual(['Last season, week 4']);
+    expect(conductFact(l, p, 'curfew')).toMatchObject({ clean: false, lastOutcome: 'fine' });
+  });
+
+  it('calls the last offseason step camp, never week 0', () => {
+    const l = scene();
+    const [p] = activeRoster(l, l.userTeamId);
+    p.discipline = {
+      entries: [{ season: l.season, week: 8, kind: 'curfew', outcome: 'fine', teamId: l.userTeamId }],
+    };
+    expect(disciplineLines(l, p)[0].when).toBe('This offseason, at camp');
+  });
+
+  it('says "You" only for an answer made on your desk, and words every other one from the team’s side', () => {
+    const l = scene();
+    const [a, b, c] = pend(l, 3);
+    answerConduct(l, a.id, 'fine');
+    expect(disciplineLines(l, a)[0].text).toMatch(/You fined him\.$/);
+    // An answer left to time, a predecessor's (nobody's flag) and the head coach's own.
+    l.moraleAt! += waitFor(l, b);
+    settleConduct(l);
+    expect(disciplineLines(l, b)[0].text).toMatch(/The team let it go\.$/);
+    c.discipline = {
+      entries: [{ season: l.season, week: 9, kind: 'late', outcome: 'sat', teamId: l.userTeamId }],
+    };
+    expect(disciplineLines(l, c)[0].text).toMatch(/The team sat him for a game\.$/);
+    expect(conductSettled(l, c.id, l.season * 32)).toBe('The team sat him for a game.');
   });
 });
