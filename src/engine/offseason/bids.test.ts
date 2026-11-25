@@ -29,10 +29,10 @@ describe('the bid builder', () => {
     // On through the draft's pass, the last call and camp's passes (the swap and the stars-only pass).
     while ((l.phase as Phase) !== 'regular') advanceOffseason(l, { autoUser: true });
     const atKickoff = outcome(l);
-    // Moved by the free-agency race (`race.ts`) and its tuning (`RACE`, 0.4.55): the free-agency phase's entries differ. Moved again by `yearOne` rounding as the contract does (a fit to the dollar). Moved again by a wider camp through the prime (0.4.56, `CAMP.prime`): who starts moves, and so what a club needs and bids. Moved again by discipline (0.5.0, 2026-11-24): a player thrown out or suspended in the season changes who plays, so what a club needs and bids.
+    // Moved by the free-agency race (`race.ts`) and its tuning (`RACE`, 0.4.55): the free-agency phase's entries differ. Moved again by `yearOne` rounding as the contract does (a fit to the dollar). Moved again by a wider camp through the prime (0.4.56, `CAMP.prime`): who starts moves, and so what a club needs and bids. Moved again by discipline (0.5.0, 2026-11-24): a player thrown out or suspended in the season changes who plays, so what a club needs and bids. Moved again by the final review fixes (0.5.0, 2026-11-25): suspensions are served and reviewed before the injury week and a team's sitting ends with the year, so the season's games, and what each club needs and bids, differ.
     expect([atDraft, atKickoff]).toEqual([
-      '8b6d1e63ebfadd095c3b77ac47174208e1689985377234a5cf705ae56eb98bb9',
-      'bc54ec27caa7919572bb559e3084019a08810006ea48ee01b05e6391cfdcaf3d',
+      '7962bc158dcc8a64ecb0799aaeac0249d23afd98dc3cbef4e14fb1024ac0f7ee',
+      'a9bc52fec16c668b2b6b20c242998ca0011cdab37935c76cf53a90c4082f6a67',
     ]);
   });
 

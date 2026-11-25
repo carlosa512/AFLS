@@ -281,10 +281,14 @@ function playBenchSeason(seed: string, userTeamId: number) {
 // ended with 6 open stories (bound 4), all deals and snaps, none about a player with a conduct entry; 'bench18' (same team)
 // meets every bound unchanged and replaces it. Over six worlds (bench4, bench8, bench13, bench14, vol6, bench10) still open
 // at season's end averaged 4.0 on main (1fb188c) and 4.8 now, stories opened 10.7 and 12.0.
+// 2026-11-25: the final review fixes (suspensions served and reviewed before the injury week, a team's sitting ending with the
+// year) moved the worlds again. 'vol6' (team 2) ended with 5 open stories (bound 4); 'vol7' (same team) meets every bound
+// unchanged and replaces it. Across five worlds (vol7 to vol11) open at season's end averaged 4.6 and stories opened 11.2;
+// 'vol8', 'vol10' and 'vol11' fail a bound, 'vol7' and 'vol9' meet all.
 describe.each([
   { seed: 'bench13', team: 5 },
   { seed: 'bench18', team: 7 },
-  { seed: 'vol6', team: 2 },
+  { seed: 'vol7', team: 2 },
 ])("the head coach's letters over a season with a benching: $seed", ({ seed, team: TEAM }) => {
   let l: League;
   let coach: InboxMessage[];

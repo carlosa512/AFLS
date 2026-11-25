@@ -498,6 +498,9 @@ describe('the re-sign call', () => {
   // moved (257 kept and 4 tagged before, 269 and 4 after).
   // again with discipline (0.5.0, 2026-11-24): a player thrown out of a game or suspended changes who plays and what a season
   // holds, so who each club keeps moved (269 kept and 4 tagged before, 261 and 4 after).
+  // again with the final review fixes (0.5.0, 2026-11-25): the league's review, the week's trouble and a suspension's cover now run
+  // before the injury week, and a team's sitting ends with the year, so a season's games and who each club keeps moved
+  // (261 kept and 4 tagged before, 257 and 6 after).
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

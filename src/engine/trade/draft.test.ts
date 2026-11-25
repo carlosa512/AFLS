@@ -365,19 +365,45 @@ describe('AI trades before each pick', () => {
  * season); this one's first pick of yours draws them. 2026-11-15: deal lengths by worth reshuffled every league's
  * contracts and 'draft-offers-a' drew none, so this is 'draft-offers-e' after the minimum deals were refitted moved it again (its first pick of yours draws them).
  */
+/**
+ * 2026-11-25: the final review fixes (suspensions served and reviewed before the injury week, a team's sitting ending with the
+ * year) reshuffled every season again and 'draft-offers-e' drew none. The world is now found rather than pinned: the first
+ * of these seeds whose draft day walks to a pick that draws offers (the order is fixed, so the same world every run).
+ */
+const OFFER_SEEDS = [
+  'draft-offers-e',
+  'draft-offers-f',
+  'draft-offers-g',
+  'draft-offers-h',
+  'draft-offers-i',
+  'draft-offers-j',
+];
 let offersWorld: string | undefined;
-const offersDay = (): League => JSON.parse((offersWorld ??= JSON.stringify(draftDayOf('draft-offers-e'))));
+const offersDay = (): League => JSON.parse((offersWorld ??= findOffersWorld()));
+
+function walkToOffer(l: League): boolean {
+  for (let tries = 0; tries < 7; tries++) {
+    draftToUserPick(l);
+    if (!nextPick(l)) return false;
+    if (openOffers(l).some((o) => o.reason === 'draft')) return true;
+    draftForUser(l);
+  }
+  return false;
+}
+
+function findOffersWorld(): string {
+  for (const seed of OFFER_SEEDS) {
+    const world = JSON.stringify(draftDayOf(seed));
+    if (walkToOffer(JSON.parse(world))) return world;
+  }
+  throw new Error('No pick of yours drew an offer');
+}
 
 /** Draft day walked to your first pick that draws offers (the draft room's Sim to my pick makes them). */
 function toOfferedPick(): League {
   const l = offersDay();
-  for (let tries = 0; tries < 7; tries++) {
-    draftToUserPick(l);
-    if (!nextPick(l)) break;
-    if (openOffers(l).some((o) => o.reason === 'draft')) return l;
-    draftForUser(l);
-  }
-  throw new Error('No pick of yours drew an offer');
+  if (!walkToOffer(l)) throw new Error('No pick of yours drew an offer');
+  return l;
 }
 const onYourPick = (l: League) => openOffers(l).filter((o) => o.sides[1].picks.includes(nextPick(l)!.id));
 

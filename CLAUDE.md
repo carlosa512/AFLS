@@ -27,7 +27,8 @@ middle number for a finished MVP item, the last number for fixes.
   meetings. At design time, ask what a change does to moods, stories and meetings, and measure them early.
 - **List the lines near their edge on main before starting** (within about 5%): a small push tips them, and it should
   be no surprise. After 0.4.48: win spread 3.58 (fails 3.6), margin spread 13.33 (fails 13.6), meetings a club a
-  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%).
+  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%). After 0.5.0: meetings a club a season 5.72 (fails
+  6), ejections a league season 9.2 (warns under 10), and the quotes check's most printed line at 3 (fails above 3).
 - **Settle the tolerance in brainstorming:** how close to the NFL is close enough (the owner: aim for the average,
   not hyper-realism), which lines fail and which only warn, and a tuning step with a stop rule for any guessed number.
 - **One CPU-heavy job at a time:** agents and sims side by side thrash the cores and everything slows.

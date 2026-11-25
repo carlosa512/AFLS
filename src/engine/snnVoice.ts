@@ -2388,6 +2388,7 @@ export const COLUMN: Record<string, ColumnBank> = {
         (s) =>
           `What was written was true of those weeks, but ${c(s.id)} have fixed it since, and that should be said as plainly as the criticism was.`,
       ),
+      col((s) => `The criticism fit those weeks, and ${c(s.id)} have answered it since, so the record should say so.`),
     ],
     stakes: CREDIT_STAKES,
     headline: (s, l) => `A correction on the ${s.noun} ${whereOf(l, s.id)}`,
