@@ -276,8 +276,10 @@ export const CONDUCT_DONE: readonly Line<NoteFact>[] = [
   ...ans(
     'letGo',
     [
-      (f) => `I let ${f.last} off for ${THING[f.kind]} again, and that cannot go on.`,
-      (f) => `I let ${f.last} off again for ${THING[f.kind]}, and I have no good reason to do it a third time.`,
+      (f) =>
+        `I let ${f.last} off for ${THING[f.kind]}, and he has been in trouble before this season. That cannot go on.`,
+      (f) =>
+        `I let ${f.last} off for ${THING[f.kind]}, and I have no good reason to go easy on him with this much trouble already this season.`,
     ],
     2,
     (f) => f.times > 0,

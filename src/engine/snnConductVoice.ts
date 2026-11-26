@@ -19,7 +19,7 @@ import { ordinal } from './opposition';
 import { POSITION_NAMES } from './positions';
 import { draftedHigh, publicRecord } from './publicStanding';
 import { draw, spellOrdinal, speaks, type QuoteMoment } from './playerQuote';
-import { cap, referrer } from './refer';
+import { referrer } from './refer';
 import { computeRecords, divisionStandings } from './season/standings';
 import type { ConductFacts } from './snnConduct';
 import { statLine } from './stats';
@@ -271,7 +271,7 @@ const RULED: readonly ((s: Sheet) => string)[] = [
 const FIGHT: Bank = [
   L((s) => `The league suspended ${s.who} for ${gw(s)}. He was ejected ${qtrIn(s)} ${where(s)} for fighting.`),
   L((s) => `${s.who} was ejected for fighting ${qtrIn(s)} ${where(s)}, and the league has suspended him for ${gw(s)}.`),
-  L((s) => `A fight ${qtrIn(s)} ${where(s)} has cost ${s.who} ${gw(s)}, after the league reviewed his ejection.`),
+  L((s) => `${s.who} will miss ${gw(s)} after a fight ${qtrIn(s)} ${where(s)}. The league reviewed his ejection.`),
   L((s) => `${s.who} will sit out ${gw(s)} after the league ruled on his ejection for fighting ${where(s)}.`),
   L(
     (s) =>
@@ -476,11 +476,14 @@ const FINE: Bank = [
     (s) =>
       `The league fined ${s.who} for a dangerous foul ${where(s)}, the ${nth(REVIEW.fouls)} he has been flagged for in ${w(REVIEW.span)} games. The league did not suspend ${M(s.id)}.`,
   ),
-  L((s) => `${cap(FINED)} have cost ${s.who} a fine. The latest came ${where(s)}, and the league did not suspend him.`),
-  L((s) => `${s.who} drew a fine from the league for his hit ${where(s)}. ${M(s.id)} has been flagged for ${FINED}.`),
   L(
     (s) =>
-      `${s.who} drew a fine from the league after another dangerous foul ${where(s)}, a ${score(s)} ${lost(s) ? 'loss' : 'win'}. That makes ${FINED} for ${M(s.id)}.`,
+      `${s.who} has been flagged for ${FINED} and was fined for the latest ${where(s)}. The league did not suspend him.`,
+  ),
+  L((s) => `${s.who} was fined by the league for his hit ${where(s)}. ${M(s.id)} has been flagged for ${FINED}.`),
+  L(
+    (s) =>
+      `${s.who} was fined by the league after another dangerous foul ${where(s)}, a ${score(s)} ${lost(s) ? 'loss' : 'win'}. That makes ${FINED} for ${M(s.id)}.`,
     1,
     (s) => s.won !== null,
   ),
@@ -503,7 +506,7 @@ const BAN: Bank = [
   ),
   L(
     (s) =>
-      `A dangerous foul ${where(s)} has cost ${s.who} ${gw(s)}. The league suspended him for the run of them he has had.`,
+      `${s.who} will miss ${gw(s)} after a dangerous foul ${where(s)}. The league suspended him for the run of them he has had.`,
   ),
   L(
     (s) =>
@@ -540,7 +543,7 @@ const BAN: Bank = [
 const FIGHT_OFF: Bank = [
   L((s) => `The league suspended ${s.who} for ${gw(s)} after a fight off the field.`),
   L((s) => `${s.who} was in a fight off the field, and the league has suspended him for ${gw(s)}.`),
-  L((s) => `A fight off the field has cost ${s.who} ${gw(s)}, the league ruled.`),
+  L((s) => `${s.who} will miss ${gw(s)} after a fight off the field, the league ruled.`),
   L((s) => `The league ruled that ${s.who} will sit out ${gw(s)} for a fight off the field.`),
   L((s) => `The league gave ${s.who} a ${gwAdj(s)} suspension for a fight off the field.`),
   L(
@@ -1256,7 +1259,7 @@ const OFF_LEDE: Bank<Off> = [
   ),
   L(
     (s) =>
-      `A fight off the field has cost ${s.who} ${games(s.games)} of the coming season. The league ruled before a game has been played.`,
+      `${s.who} will miss ${games(s.games)} of the coming season after a fight off the field. The league ruled before a game has been played.`,
     1,
     (s) => !s.star,
   ),

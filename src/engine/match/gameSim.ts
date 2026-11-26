@@ -1482,12 +1482,15 @@ export class GameSim {
     };
     const fighters = gone.filter((g) => g.why === 'fight');
     const pair = fighters.length === 2;
-    if (pair) this.log(`Ejection: ${named(fighters[0])} and ${named(fighters[1])} are ejected for fighting.`);
+    // Each man's lineup is rebuilt right after his own line, as before the text changed: the film's lineup change
+    // is recorded against the play log's length, so the order of rebuilds and log entries must not move.
     for (const g of gone) {
-      if (pair && g.why === 'fight') continue;
-      this.log(`Ejection: ${named(g)} is ejected for ${reason[g.why]}.`);
+      if (pair && g.why === 'fight') {
+        if (g === fighters[0])
+          this.log(`Ejection: ${named(fighters[0])} and ${named(fighters[1])} are ejected for fighting.`);
+      } else this.log(`Ejection: ${named(g)} is ejected for ${reason[g.why]}.`);
+      this.rebuildSide(g.side);
     }
-    for (const side of new Set(gone.map((g) => g.side))) this.rebuildSide(side);
     this.ejectPending = [];
   }
 

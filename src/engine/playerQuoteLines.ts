@@ -199,7 +199,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['onField', 'Nobody buys a ticket to watch somebody play nice.'],
       ['onField', "I'm not going to apologize for the way I play, and I'm not going to lie about it either."],
       ['onField', "It's a rough game. Some people can't handle that."],
-      "I'll take what they hand out. I won't complain about it.",
+      "I broke the rule, and the team can decide what happens next. I won't complain about it.",
       "I don't do speeches. I'll take it and get back to work.",
     ],
     suspended: [
@@ -338,7 +338,7 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['rich', 'The richest deal of the whole market, and they could have paid more.'],
     ],
     trouble: [
-      "I don't think anybody in that room had a problem until someone found a camera.",
+      ['minor', "I don't think anybody in that room had a problem until someone found a camera."],
       "I'm a professional, and I was treated like I wasn't. That's all I'll say.",
       "I know who I am, and a headline won't change that.",
       ['minor', "It's a lot of attention for something so small. Then again, I'm used to attention."],
@@ -1019,8 +1019,9 @@ export const VOICES: Record<PersonalityName, Voice> = {
       ['minor', "I'm not going to make a thing of it, and I hope nobody else does."],
       "I wasn't really thinking, and then everybody was looking at me.",
       ['minor', "I figured it would blow over. Turns out it didn't."],
-      "My bad. I'll set an alarm or something.",
+      ['offField', "My bad. I'll set an alarm or something."],
       "It got away from me, and I'll be more careful.",
+      "It happened fast, and I'll be more careful next time.",
     ],
     suspended: [
       "{games} off isn't the worst thing.",

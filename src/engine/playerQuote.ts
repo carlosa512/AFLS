@@ -150,7 +150,8 @@ const COND: Record<Cond, (f: QuoteFacts) => boolean> = {
   community: (f) => f.kind === 'community',
   family: (f) => f.kind === 'family',
   onField: (f) => f.onField === true,
-  offField: (f) => f.onField === false,
+  // A heated story off the field (a public argument) is no missed event: "I overslept" does not fit it.
+  offField: (f) => f.onField === false && f.heated !== true,
   fined: (f) => !!f.fined,
   deed: (f) => f.kind !== undefined && f.kind !== 'family',
   next: (f) => f.next === true,

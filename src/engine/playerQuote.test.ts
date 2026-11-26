@@ -96,6 +96,20 @@ describe('every personality has words for every moment', () => {
         expect(own(name, m, f), `${name} ${label}`).toBeGreaterThanOrEqual(least);
   });
 
+  it('keeps lines about a missed event off a public argument, and still lets a missed curfew have them', () => {
+    const said = (name: Parameters<typeof bankFor>[0], f: Partial<QuoteFacts>) =>
+      bankFor(name, 'trouble')
+        .filter((x) => (x.reads ?? 0) > 0 && (!x.when || x.when({ key: 'k', ...f })))
+        .map((x) => (x.text ? x.text({ key: 'k', ...f }) : ''));
+    const spat = { onField: false, heated: true, minor: true };
+    const curfew = { onField: false, heated: false, minor: true };
+    // Coaster's missed-event lines are tagged offField.
+    for (const line of ["My bad. I'll set an alarm or something.", "I overslept. It's a bad look and I know it."]) {
+      expect(said('Coaster', spat), line).not.toContain(line);
+      expect(said('Coaster', curfew), line).toContain(line);
+    }
+  });
+
   it("is one voice a personality: a Hothead's line is not a Company Man's", () => {
     for (const m of MOMENTS) {
       const [a, b] = [new Set(linesOf('Hothead', m)), linesOf('Company Man', m)];

@@ -7,6 +7,7 @@ import {
   leaveDesk,
   publicConduct,
   reviewWeek,
+  seasonOver,
   serveGames,
   setConductByCoach,
   settleConduct,
@@ -286,6 +287,40 @@ describe('trouble by character', () => {
     l.phase = 'freeAgency';
     troubleWeek(l, 'offseason');
     expect(trouble(out.id)).toBeGreaterThan(0);
+  });
+
+  it("reads a team's season as over after week 18 without a playoff place, and after the final for both finalists", () => {
+    const l = createLeague({ seed: 'cd-season-over' });
+    while (l.phase === 'regular') playWeek(l);
+    expect(l.phase).toBe('playoffs');
+    const seeds = () => new Set(l.conferences.flatMap((_, c) => conferenceSeeds(l, c)));
+    const field = seeds();
+    const out = l.teams.filter((t) => !field.has(t.id));
+    expect(out.length).toBeGreaterThan(0);
+    // The week-18 branch: troubleWeek reads it with the phase still regular and the week just played.
+    l.phase = 'regular';
+    l.week = 18;
+    for (const t of l.teams) expect(seasonOver(l, t.id, seeds), t.abbrev).toBe(!field.has(t.id));
+    // A week earlier nobody's season is over.
+    l.week = 17;
+    for (const t of l.teams)
+      expect(
+        seasonOver(l, t.id, () => new Set()),
+        t.abbrev,
+      ).toBe(false);
+    // The FINAL branch: play the playoffs out, then read the last week as the check sees it, before the phase flips.
+    l.phase = 'playoffs';
+    l.week = 19;
+    while (
+      l.phase === 'playoffs' &&
+      !l.games.some((g) => g.season === l.season && g.playoffRound === 'FINAL' && g.result)
+    )
+      playWeek(l);
+    const final = l.games.find((g) => g.season === l.season && g.playoffRound === 'FINAL' && g.result)!;
+    expect(final).toBeDefined();
+    l.phase = 'playoffs';
+    expect(seasonOver(l, final.homeId, seeds)).toBe(true);
+    expect(seasonOver(l, final.awayId, seeds)).toBe(true);
   });
 
   it('a fight off the field goes to the league as a suspension', () => {
