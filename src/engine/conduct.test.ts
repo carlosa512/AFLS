@@ -25,7 +25,8 @@ import { migrateLeague } from './migrate';
 import { isAvailable, retirePlayer, setTeam, slimRetired, teamPlayers } from './roster';
 import { SAVE_VERSION } from './generate';
 import { outFor } from '../ui/pregame';
-import type { GameResult, League, Player } from './types';
+import { conferenceSeeds } from './season/standings';
+import type { Game, GameResult, League, Player } from './types';
 
 const ban = (p: Player, games = 2, by: 'league' | 'team' = 'league') => {
   p.suspension = { games, by, reason: 'fight' };
@@ -249,6 +250,42 @@ describe('trouble by character', () => {
     }
     troubleWeek(l, 'week');
     expect(entries(l)).toEqual([]);
+  });
+
+  it('draws none for a team whose season is over: out of the playoffs, or beaten in them', () => {
+    const l = createLeague({ seed: 'cd-over' });
+    const all = rostered(l, true);
+    setAll(l, all, 'workEthic', 1);
+    setAll(l, all, 'temperament', 1);
+    setAll(l, all, 'controversy', 20);
+    const seeds = new Set(l.conferences.flatMap((_, c) => conferenceSeeds(l, c)));
+    const others = l.teams.filter((t) => t.id !== l.userTeamId);
+    const out = others.find((t) => !seeds.has(t.id))!;
+    const [beaten, winner, bye] = others.filter((t) => seeds.has(t.id));
+    l.phase = 'playoffs';
+    l.games = l.games.filter((g) => g.season !== l.season || !g.playoffRound);
+    l.games.push({
+      id: 9000,
+      season: l.season,
+      week: 19,
+      homeId: winner.id,
+      awayId: beaten.id,
+      playoffRound: 'WC',
+      result: { homeScore: 24, awayScore: 10 },
+    } as Game);
+    const trouble = (id: number) => teamPlayers(l, id).reduce((n, p) => n + (p.discipline?.entries.length ?? 0), 0);
+    for (let w = 19; w <= 21; w++) {
+      l.week = w;
+      troubleWeek(l, 'week');
+    }
+    // A team out of the playoffs and one beaten in them draw nothing in any playoff week; teams still alive can.
+    expect(trouble(out.id)).toBe(0);
+    expect(trouble(beaten.id)).toBe(0);
+    expect(trouble(winner.id) + trouble(bye.id)).toBeGreaterThan(0);
+    // The offseason's trouble is not touched by it.
+    l.phase = 'freeAgency';
+    troubleWeek(l, 'offseason');
+    expect(trouble(out.id)).toBeGreaterThan(0);
   });
 
   it('a fight off the field goes to the league as a suspension', () => {

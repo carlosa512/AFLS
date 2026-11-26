@@ -260,8 +260,8 @@ const ans = (a: NoteFact['answer'], texts: ((f: NoteFact) => string)[], reads = 
 export const CONDUCT_DONE: readonly Line<NoteFact>[] = [
   ...ans('fine', [
     (f) => `I fined ${f.last} for ${THING[f.kind]}.`,
-    (f) => `${f.last} is fined for ${THING[f.kind]}, and I made it clear that it stops here.`,
-    (f) => `${f.last} gets a fine for ${THING[f.kind]}, and he knows where we stand.`,
+    (f) => `${f.last} is fined for ${THING[f.kind]}, and I made it clear that I will not accept it.`,
+    (f) => `${f.last} gets a fine for ${THING[f.kind]}, and he knows what I expect.`,
   ]),
   ...ans('sat', [
     (f) => `${f.last} sits the next game for ${THING[f.kind]}.`,
@@ -270,14 +270,14 @@ export const CONDUCT_DONE: readonly Line<NoteFact>[] = [
   ]),
   ...ans('letGo', [
     (f) => `I let ${f.last} off for ${THING[f.kind]} this time.`,
-    (f) => `${f.last} gets a pass for ${THING[f.kind]}, and I will watch him closely.`,
+    (f) => `I let ${f.last} off for ${THING[f.kind]}, and I will watch him closely.`,
     (f) => `I did not punish ${f.last} for ${THING[f.kind]}, and he knows I am watching.`,
   ]),
   ...ans(
     'letGo',
     [
       (f) => `I let ${f.last} off for ${THING[f.kind]} again, and that cannot go on.`,
-      (f) => `${f.last} got another pass for ${THING[f.kind]}, and I am running out of reasons.`,
+      (f) => `I let ${f.last} off again for ${THING[f.kind]}, and I have no good reason to do it a third time.`,
     ],
     2,
     (f) => f.times > 0,
@@ -465,6 +465,6 @@ export const LEAGUE_MISSES: readonly Line<LeagueFact>[] = [
 ];
 
 export const LEAGUE_SUBJECT: readonly Line<LeagueFact>[] = [
-  { when: (f) => ruled(f), text: (f) => `${f.full} suspended ${gameWord(f.games)}` },
+  { when: (f) => ruled(f), text: (f) => `${f.full} suspended for ${gameWord(f.games)}` },
   { when: (f) => !ruled(f), text: (f) => `${f.full} fined` },
 ];

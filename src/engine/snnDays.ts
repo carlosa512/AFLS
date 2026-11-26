@@ -736,8 +736,11 @@ export const legacyYear = (l: League, have: Set<string>): boolean =>
     (yearDigests(l).some((id) => have.has(id)) ||
       [...have].some((id) => id.startsWith(`leadership-phase:${l.season}:`))));
 
-/** The last offseason step each day's edition can still tell a ruling from (the re-sign window is 0, camp 7). */
-const BAN_BY: Record<Day, number> = { year: 0, market: 5, draft: 6, cuts: 7, kickoff: 7 };
+/**
+ * The last offseason step each day's edition can still tell a ruling from (the re-sign window is 0, camp 7). Step 8 is
+ * the last one, after cut-down day and before the first game: no game week reads it, so Kickoff tells it.
+ */
+const BAN_BY: Record<Day, number> = { year: 0, market: 5, draft: 6, cuts: 7, kickoff: 8 };
 
 /** A suspension the league handed down in the offseason: told on the first big day built after it was ruled. */
 function banCandidates(l: League, day: Day): DayCandidate[] {

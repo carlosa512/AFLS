@@ -12,7 +12,9 @@ import { addJolt, moraleClock, moraleLevel, moodLean, YEAR } from './morale';
 import { waitFor } from './playerTalks';
 import { hashUnits } from './rng';
 import { suspended, teamPlayers } from './roster';
-import { computeRecords } from './season/standings';
+import { REGULAR_SEASON_WEEKS } from './season/schedule';
+import { winnerOf } from './season/playoffs';
+import { computeRecords, conferenceSeeds } from './season/standings';
 import { temperamentOf, TRAIT_MEAN, workEthicOf } from './traits';
 import type { ConductEntry, ConductKind, GameResult, League, Player, Team } from './types';
 
@@ -203,6 +205,22 @@ function coachAnswer(league: League, p: Player, clock: number): 'fine' | 'sat' |
 const inTrouble = (p: Player) => !!p.suspension || !!disputeOf(p) || onDidNotReport(p);
 
 /**
+ * A team whose year has ended, read after the week's games: the regular season is over with no playoff place, a playoff
+ * game was lost (this week's or an earlier round's) or the final was played. A team with no game left holds no player
+ * out for team rules, so no trouble is drawn for it until the new league year.
+ */
+export function seasonOver(league: League, teamId: number, seeds: () => Set<number>): boolean {
+  if (league.phase === 'playoffs') {
+    const played = league.games.filter(
+      (g) => g.season === league.season && g.playoffRound && g.result && (g.homeId === teamId || g.awayId === teamId),
+    );
+    if (played.some((g) => g.playoffRound === 'FINAL' || winnerOf(g) !== teamId)) return true;
+    return played.length === 0 && !seeds().has(teamId);
+  }
+  return league.phase === 'regular' && league.week >= REGULAR_SEASON_WEEKS && !seeds().has(teamId);
+}
+
+/**
  * Every rostered player's roll for the step, a pure function of the seed, the season, the step, his id and his
  * character (nothing drawn), tilted by his mood, his team's losing and his last answer. Team-rules trouble on your team
  * waits for your answer unless the head coach handles it; elsewhere the head coach answers at once. A fight away from
@@ -212,11 +230,14 @@ export function troubleWeek(league: League, step: 'week' | 'offseason'): void {
   const clock = moraleClock(league, step === 'week');
   const scale = step === 'week' ? 1 : TROUBLE.offseason;
   const records = step === 'week' ? computeRecords(league) : undefined;
+  let field: Set<number> | undefined;
+  const seeds = () => (field ??= new Set(league.conferences.flatMap((_, c) => conferenceSeeds(league, c, records))));
   for (const team of league.teams) {
     const losses = Number(/^L(\d+)$/.exec(records?.get(team.id)?.streak ?? '')?.[1] ?? 0);
     // Your desk is the team you run: a row left on any other team is its head coach's to answer.
     const yours = managesTeam(league, team.id);
     if (!yours) handOver(league, team);
+    if (step === 'week' && seasonOver(league, team.id, seeds)) continue;
     const userHolds = yours && !team.conduct?.byCoach;
     for (const p of teamPlayers(league, team.id)) {
       if (p.retired || inTrouble(p)) continue;

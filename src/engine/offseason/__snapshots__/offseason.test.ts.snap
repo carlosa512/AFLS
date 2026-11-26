@@ -4,14 +4,15 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
 {
   "ARI": {
     "kept": [
-      1485,
+      1536,
       1520,
       1512,
       1527,
+      1537,
       1516,
+      1532,
       1511,
       1533,
-      1526,
       1509,
       1486,
       1496,
@@ -19,7 +20,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1501,
     ],
     "tagged": [
-      1536,
+      1485,
     ],
   },
   "ATL": {
@@ -376,8 +377,7 @@ exports[`the re-sign call > the AI's re-sign window decides as it always has (pi
       1634,
       1610,
       1626,
-      1601,
-      1639,
+      1627,
       1641,
     ],
     "tagged": [],

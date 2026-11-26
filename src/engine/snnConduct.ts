@@ -250,7 +250,7 @@ export function conductCandidates(
 /**
  * A league suspension handed down in the offseason (a fight off the field, ruled at one of the offseason's
  * steps) is a big-day story: served from week 1, so it is told on the first day's edition built after it was ruled.
- * `step` is the morale step it was filed under (the re-sign window 0, free-agency days 1–5, the draft 6, camp 7).
+ * `step` is the morale step it was filed under (the re-sign window 0, free-agency days 1–5, the draft 6, camp 7, the last step before game one 8).
  */
 export function offseasonBans(
   l: League,

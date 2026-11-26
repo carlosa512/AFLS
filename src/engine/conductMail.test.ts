@@ -155,7 +155,7 @@ describe('the league office’s letter', () => {
     ejected(l, p.id, 'fight');
     deliverMail(l);
     expect(mine()).toHaveLength(2);
-    expect(mine()[1].subject).toBe(`${p.firstName} ${p.lastName} suspended one game`);
+    expect(mine()[1].subject).toBe(`${p.firstName} ${p.lastName} suspended for one game`);
     expect(mine()[1].body).toMatch(/second ejection this season and his first suspension/);
     expect(mine()[1].body).toMatch(/He will miss the game at .* and is eligible to return in week \d+\.$/);
     expect(mine()[1].week).toBe(7);

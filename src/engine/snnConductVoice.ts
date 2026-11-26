@@ -242,6 +242,8 @@ const where = (s: Sheet) => (s.home ? `at home against ${c(s.opp)}` : `at ${c(s.
 const nextWhere = (s: Sheet) =>
   !s.next ? '' : s.next.home ? `at home against ${c(s.next.opp)}` : `at ${c(s.next.opp)}`;
 const gw = (s: Sheet) => games(s.games);
+/** The same length as an adjective: "a two-game suspension". */
+const gwAdj = (s: Sheet) => `${s.games === 1 ? 'one' : w(s.games)}-game`;
 const score = (s: Sheet) => `${s.ws}–${s.ls}`;
 const lost = (s: Sheet) => s.won === false;
 const won = (s: Sheet) => s.won === true;
@@ -261,8 +263,8 @@ function L<S = Sheet>(text: (s: S) => string, reads = 0, when?: (s: S) => boolea
  */
 const RULED: readonly ((s: Sheet) => string)[] = [
   (s) => (s.fined ? `The league fined ${M(s.id)}.` : `The league suspended ${M(s.id)} for ${gw(s)}.`),
-  (s) => (s.fined ? `${M(s.id)} was fined by the league.` : `${M(s.id)} was handed ${gw(s)} by the league.`),
-  (s) => (s.fined ? `The league gave ${M(s.id)} a fine.` : `The league gave ${M(s.id)} a suspension of ${gw(s)}.`),
+  (s) => (s.fined ? `${M(s.id)} was fined by the league.` : `${M(s.id)} was suspended by the league for ${gw(s)}.`),
+  (s) => (s.fined ? `The league gave ${M(s.id)} a fine.` : `The league gave ${M(s.id)} a ${gwAdj(s)} suspension.`),
   (s) => (s.fined ? `The league fined ${M(s.id)} for it.` : `The league ruled ${M(s.id)} out for ${gw(s)}.`),
 ];
 
@@ -273,7 +275,7 @@ const FIGHT: Bank = [
   L((s) => `${s.who} will sit out ${gw(s)} after the league ruled on his ejection for fighting ${where(s)}.`),
   L(
     (s) =>
-      `The league handed ${s.who} a suspension of ${gw(s)} for fighting ${qtrIn(s)} ${where(s)}, where he was ejected.`,
+      `The league gave ${s.who} a ${gwAdj(s)} suspension for fighting ${qtrIn(s)} ${where(s)}, where he was ejected.`,
   ),
   // A game his team lost, a game it won, and a name: each its own cell, with several lines.
   L(
@@ -325,7 +327,7 @@ const FIGHT: Bank = [
   ),
   L(
     (s) =>
-      `${s.who} will serve a suspension of ${gw(s)}. He was ejected for fighting ${where(s)}, his ${nth(s.nth)} ejection this season.`,
+      `${s.who} will serve a ${gwAdj(s)} suspension. He was ejected for fighting ${where(s)}, his ${nth(s.nth)} ejection this season.`,
     2,
     (s) => s.nth >= 2,
   ),
@@ -337,13 +339,13 @@ const FIGHT: Bank = [
   ),
   L(
     (s) =>
-      `The league gave ${s.who} a suspension of ${gw(s)}, longer than his last, for fighting ${qtrIn(s)} ${where(s)}. It is his ${nth(s.bans)} suspension in two seasons.`,
+      `The league gave ${s.who} a ${gwAdj(s)} suspension, longer than his last, for fighting ${qtrIn(s)} ${where(s)}. It is his ${nth(s.bans)} suspension in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
   L(
     (s) =>
-      `${s.who} drew ${gw(s)} from the league for fighting ${where(s)}, longer than his last suspension. That makes ${w(s.bans)} suspensions for ${M(s.id)} in two seasons.`,
+      `The league suspended ${s.who} for ${gw(s)} for fighting ${where(s)}, longer than his last suspension. That makes ${w(s.bans)} suspensions for ${M(s.id)} in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
@@ -540,7 +542,7 @@ const FIGHT_OFF: Bank = [
   L((s) => `${s.who} was in a fight off the field, and the league has suspended him for ${gw(s)}.`),
   L((s) => `A fight off the field has cost ${s.who} ${gw(s)}, the league ruled.`),
   L((s) => `The league ruled that ${s.who} will sit out ${gw(s)} for a fight off the field.`),
-  L((s) => `${s.who} drew a suspension of ${gw(s)} from the league for a fight off the field.`),
+  L((s) => `The league gave ${s.who} a ${gwAdj(s)} suspension for a fight off the field.`),
   L(
     (s) =>
       `${c(s.club)} will play without ${s.who} for ${gw(s)}. The league suspended him after a fight off the field.`,
@@ -549,7 +551,7 @@ const FIGHT_OFF: Bank = [
   ),
   L(
     (s) =>
-      `The league gave ${s.who} ${gw(s)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
+      `The league suspended ${s.who} for ${gw(s)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),
@@ -632,10 +634,14 @@ const EVENT: Bank = [
 
 const COMMUNITY: Bank = [
   L((s) => `${s.who} spent an afternoon at ${s.place} this week, and he brought ${w(s.mates)} teammates with him.`),
-  L((s) => `${w(s.mates)} ${N(s.club)} players went to ${s.place} this week, and ${s.who} led the trip.`),
+  L(
+    (s) =>
+      `${s.who} led a trip to ${s.place} this week, and ${w(s.mates)} of his ${N(s.club)} teammates went with him.`,
+  ),
   L((s) => `${s.who} took ${w(s.mates)} of his teammates to ${s.place} this week.`),
   L(
-    (s) => `${s.who} had a game to prepare for and still found the time this week to visit ${s.place}.`,
+    (s) =>
+      `${s.who} had a game to prepare for and still found the time this week to visit ${s.place} with ${w(s.mates)} of his teammates.`,
     1,
     (s) => s.star,
   ),
@@ -651,7 +657,8 @@ const COMMUNITY: Bank = [
     (s) => s.rookie,
   ),
   L(
-    (s) => `${s.who}, one of the three captains the ${N(s.club)} named, led a visit to ${s.place} this week.`,
+    (s) =>
+      `${s.who}, one of the three captains the ${N(s.club)} named, led a visit to ${s.place} this week with ${w(s.mates)} of his teammates.`,
     3,
     (s) => s.captain,
   ),
@@ -927,7 +934,7 @@ interface HeadSheet extends Sheet {
 const HEADS: Record<string, readonly Line<HeadSheet>[]> = {
   ejectFight: [
     { text: (s) => `${s.last} suspended ${gw(s)} after ejection for fighting` },
-    { text: (s) => `${s.last} gets ${gw(s)} for fighting`, reads: 0 },
+    { text: (s) => `${s.last} gets a ${gwAdj(s)} suspension for fighting`, reads: 0 },
     { text: (s) => `${s.last} suspended again after another ejection`, reads: 2, when: (s) => s.nth >= 2 },
     { text: (s) => `${s.club_} ${s.pos} ${s.last} out ${gw(s)} after a fight`, reads: 0 },
   ],
@@ -962,7 +969,7 @@ const HEADS: Record<string, readonly Line<HeadSheet>[]> = {
   ],
   banFight: [
     { text: (s) => `${s.last} suspended ${gw(s)} after a fight` },
-    { text: (s) => `${s.club_} ${s.pos} ${s.last} gets ${gw(s)}`, reads: 0 },
+    { text: (s) => `${s.club_} ${s.pos} ${s.last} gets a ${gwAdj(s)} suspension`, reads: 0 },
     { text: (s) => `${s.last} suspended again`, reads: 2, when: (s) => s.bans >= 2 },
   ],
   sat: [
@@ -1255,7 +1262,7 @@ const OFF_LEDE: Bank<Off> = [
   ),
   L(
     (s) =>
-      `The league gave ${s.who} ${games(s.games)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
+      `The league suspended ${s.who} for ${games(s.games)}, longer than his last suspension, for a fight off the field. It is his ${nth(s.bans)} ruling in two seasons.`,
     3,
     (s) => s.bans >= 2 && s.games > 1,
   ),

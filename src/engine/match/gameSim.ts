@@ -1462,6 +1462,7 @@ export class GameSim {
 
   /** Between plays: the men a fight, a second unsportsmanlike or a flagrant hit threw out leave, and the next steps in. */
   private ejectStoppage() {
+    const gone: { p: Player; side: Side; why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[] = [];
     for (const { p, why } of this.ejectPending) {
       if (this.out.has(p.id)) continue;
       const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
@@ -1469,9 +1470,24 @@ export class GameSim {
       this.out.add(p.id);
       this.ejections.push({ playerId: p.id, teamId: p.teamId!, quarter: this.quarter, clock: this.clock, why });
       this.snapshot = null;
-      this.log(`Ejection: ${this.abbrev(side)} ${p.position} ${short(p)} is ejected.`);
-      this.rebuildSide(side);
+      gone.push({ p, side, why });
     }
+    // The line says why. Two men thrown out of one fight share one line, so the second never reads as having done
+    // nothing. Text only: who goes and what is enforced are decided above.
+    const named = (g: (typeof gone)[number]) => `${this.abbrev(g.side)} ${g.p.position} ${short(g.p)}`;
+    const reason = {
+      fight: 'fighting',
+      twoUnsportsmanlike: 'a second unsportsmanlike conduct foul',
+      flagrant: 'a flagrant hit',
+    };
+    const fighters = gone.filter((g) => g.why === 'fight');
+    const pair = fighters.length === 2;
+    if (pair) this.log(`Ejection: ${named(fighters[0])} and ${named(fighters[1])} are ejected for fighting.`);
+    for (const g of gone) {
+      if (pair && g.why === 'fight') continue;
+      this.log(`Ejection: ${named(g)} is ejected for ${reason[g.why]}.`);
+    }
+    for (const side of new Set(gone.map((g) => g.side))) this.rebuildSide(side);
     this.ejectPending = [];
   }
 

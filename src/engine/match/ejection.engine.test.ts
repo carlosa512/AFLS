@@ -76,7 +76,7 @@ describe('ejections', () => {
     const withIt = rs[games.indexOf(g)];
     EJECT.fight = 0;
     const without = simulateGame(league, g, { keepPlays: true });
-    const at = withIt.plays!.findIndex((p) => /is ejected\./.test(p.text));
+    const at = withIt.plays!.findIndex((p) => /^Ejection: /.test(p.text));
     expect(at).toBeGreaterThan(0);
     expect(withIt.plays!.slice(0, at).map((p) => p.text)).toEqual(without.plays!.slice(0, at).map((p) => p.text));
   });
@@ -133,7 +133,10 @@ describe('ejections', () => {
       const sim = open(g);
       const r = sim.run();
       const lineups = sim.lineups;
-      const lines = r.plays!.flatMap((p, i) => (/is ejected\./.test(p.text) ? [i] : []));
+      // One line a man, or one line for the two men of a fight.
+      const lines = r.plays!.flatMap((p, i) =>
+        /^Ejection: .* ejected for /.test(p.text) ? (/ are ejected /.test(p.text) ? [i, i] : [i]) : [],
+      );
       for (const [n, e] of (r.ejections ?? []).entries()) {
         seen++;
         const at = lines[n];
@@ -143,6 +146,28 @@ describe('ejections', () => {
       }
     }
     expect(seen).toBeGreaterThan(0);
+  });
+
+  it('the ejection line says why, and one line names both men of a fight', () => {
+    const sim = open();
+    const [a, b] = [sim.lineups[0].dt[0], sim.lineups[1].qb];
+    sim.eject(a, 'fight');
+    sim.eject(b, 'fight');
+    sim.ejectStoppage();
+    const logged = () => (sim as unknown as { plays: { text: string }[] }).plays.map((p) => p.text);
+    expect(logged().filter((t) => t.startsWith('Ejection:'))).toEqual([
+      expect.stringMatching(/^Ejection: \w+ DT \S+ and \w+ QB \S+ are ejected for fighting\.$/),
+    ]);
+    const c = sim.lineups[1].dt[0];
+    sim.eject(c, 'twoUnsportsmanlike');
+    sim.ejectStoppage();
+    const d = sim.lineups[0].dt[1];
+    sim.eject(d, 'flagrant');
+    sim.ejectStoppage();
+    const lines = logged().filter((t) => t.startsWith('Ejection:'));
+    expect(lines[1]).toMatch(/ DT \S+ is ejected for a second unsportsmanlike conduct foul\.$/);
+    expect(lines[2]).toMatch(/ DT \S+ is ejected for a flagrant hit\.$/);
+    expect(sim.result().ejections).toHaveLength(4);
   });
 
   it('an ejected kicker is covered as an injured one is, and the game goes on', () => {

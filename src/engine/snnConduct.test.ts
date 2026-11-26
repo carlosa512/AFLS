@@ -267,6 +267,22 @@ describe('a suspension handed down in the offseason', () => {
   });
 });
 
+describe('a suspension handed down at the last offseason step', () => {
+  it('is told once, by the Kickoff edition and no other', () => {
+    const p = troubled(11, { kind: 'fight', outcome: 'suspended', games: 1, public: true }, -5, 15);
+    p.discipline!.entries.at(-1)!.week = 8; // after cut-down day, before game one
+    const told = (day: 'year' | 'market' | 'draft' | 'cuts' | 'kickoff', have = new Set<string>()) =>
+      dayCandidates(l, day, have).filter((c) => c.angle === 'conduct' && c.playerId === p.id);
+    for (const day of ['year', 'market', 'draft', 'cuts'] as const) expect(told(day), day).toHaveLength(0);
+    const kick = told('kickoff');
+    expect(kick).toHaveLength(1);
+    // Filed, it is not told again, and no game week's edition picks it up.
+    expect(told('kickoff', new Set([kick[0].key]))).toHaveLength(0);
+    for (let w = 0; w <= 4; w++)
+      expect(conductCandidates(l, w, new Set()).filter((c) => c.conduct?.playerId === p.id)).toHaveLength(0);
+  });
+});
+
 describe('the depth of the words', () => {
   it('has several whole ledes for each kind of story', () => {
     for (const [angle, bank] of Object.entries(LEDES)) expect(bank.length, angle).toBeGreaterThanOrEqual(4);
