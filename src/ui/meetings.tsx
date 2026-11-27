@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { setConductByCoach } from '../engine/conduct';
 import { answerMeeting, setMeetingsByCoach } from '../engine/meetings';
 import { meetingCard } from '../engine/meetings/mail';
 import type { Approach, Backing, League, MeetingScope, Timing } from '../engine/types';
@@ -66,6 +67,7 @@ export function MeetingChoices({ league, s }: { league: League; s: { clock: numb
           Let the coach handle these himself
         </label>
       )}
+      {!card.gm && <DisciplineByCoach league={league} />}
     </div>
   );
 }
@@ -92,5 +94,19 @@ function Pick<T extends string>({
         ))}
       </div>
     </div>
+  );
+}
+
+/** The head coach rules on team-rules trouble himself, by his own discipline: the setting beside the meetings' one. */
+export function DisciplineByCoach({ league }: { league: League }) {
+  return (
+    <label className="check small">
+      <input
+        type="checkbox"
+        checked={!!league.teams[league.userTeamId].conduct?.byCoach}
+        onChange={(e) => store.mutate((l) => setConductByCoach(l, e.target.checked))}
+      />{' '}
+      Let the head coach handle discipline
+    </label>
   );
 }

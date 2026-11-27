@@ -37,6 +37,7 @@ import { teamCoaches } from './coaching';
 import { playoffSummary } from './records';
 import { recordGameService, serviceRoster } from './personnel/service';
 import { gameTime } from './personnel/calendar';
+import { reviewWeek, serveGames, troubleWeek } from './conduct';
 import { finishPersonnelGame, preparePersonnelGame, syncPersonnel } from './personnel/flow';
 import type { Game, GameResult, League, Player } from './types';
 
@@ -191,10 +192,25 @@ function playWeekControlled(league: League): Game[] {
   freshChemistry(league);
   freshStaff(league);
   const weekPlayed = league.phase;
-  const games = gamesInWeek(league).filter((g) => !g.result);
+  const weekGames = gamesInWeek(league);
+  const games = weekGames.filter((g) => !g.result);
   benchKickoff(league);
   if (league.personnel?.enabled) games.sort((a, b) => gameTime(a) - gameTime(b) || a.id - b.id);
   for (const g of games) playGame(league, g);
+  serveGames(
+    league,
+    // Every game of the week, even one already played live or early: its teams played.
+    weekGames.flatMap((g) => [g.homeId, g.awayId]),
+  );
+  // The league's review of the week, then the week's off-field trouble: after the countdown, so a fresh suspension
+  // isn't counted down the week it is handed down.
+  reviewWeek(
+    league,
+    weekGames.flatMap((g) => (g.result ? [g.result] : [])),
+  );
+  troubleWeek(league, 'week');
+  // The injury week's cover pass (AI clubs sign, promote or call up for a hole) comes last, so it sees this week's
+  // suspensions as the short absences they are: the games just served and the rulings just handed down.
   injuryWeek(league);
   coachQuirksWeek(league);
   if (league.phase === 'regular')

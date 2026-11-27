@@ -44,6 +44,7 @@ import {
 import { departmentFor, type Department } from '../medical';
 import { crewCalls, gameCrew, starLean, type CrewCalls } from '../officials';
 import { enforce, FOULS, type Spot } from '../penalties';
+import { DANGEROUS_FOULS, EJECT, flagrantLean, hotHead } from './ejection';
 import { activeQuirks, FILM_HABITS, formFor, type QuirkId } from '../quirks';
 import { clamp, Rng } from '../rng';
 import { poiseOf, temperamentOf } from '../traits';
@@ -92,11 +93,13 @@ import type {
   OpenField,
   PlayLogEntry,
   Player,
+  Position,
   StatKey,
   StatLine,
   TeamGameStats,
 } from '../types';
 import { MAX_STATS } from '../types';
+import { isAvailable } from '../roster';
 import { approach, fieldStart } from '../field/approach';
 import { MID, HASH_HI, HASH_LO } from '../field/geometry';
 import { momentOf, type FieldFacts, type FieldMoment } from '../field/moment';
@@ -894,7 +897,7 @@ function unitIds(u: FieldUnits): number[] {
   ];
 }
 
-class GameSim {
+export class GameSim {
   private rng: Rng;
   private habitRng: Rng;
   private coachReports: CoachGameReport[] = [];
@@ -1076,6 +1079,12 @@ class GameSim {
   private calls: CrewCalls;
   /** Who drew a flag is bookkeeping, like credit: its own stream, so it never changes the game. */
   private flagRng: Rng;
+  /** Fights and flagrant hits: its own stream, so ejections off leaves every other roll as it was. */
+  private ejectRng: Rng;
+  private dangerousFouls: NonNullable<GameResult['personalFouls']> = [];
+  private ejectPending: { p: Player; why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[] = [];
+  private ejections: NonNullable<GameResult['ejections']> = [];
+  private unsportsCount = new Map<number, number>();
   /** A defender jumped offside at the snap: the play runs, and the offense picks it or the 5 yards. */
   private offsideFlag = false;
   /** The defense fouled on the half's last play: one more snap with no time on the clock. */
@@ -1105,6 +1114,7 @@ class GameSim {
     this.creditRng = new Rng(`${seed}:credit`);
     this.injuryRng = new Rng(`${seed}:injury`);
     this.flagRng = new Rng(`${seed}:flags`);
+    this.ejectRng = new Rng(`${seed}:eject`);
     this.days = options.days ?? [teamDay(seed, game.homeId), teamDay(seed, game.awayId)];
     this.homeEdge = game.neutral ? 0 : HOME_FIELD_EDGE;
     this.weather = options.weather ?? gameWeather(league, game);
@@ -1225,6 +1235,7 @@ class GameSim {
       this.log('Two-minute warning.');
     }
     if (this.hurt.length) this.injuryStoppage();
+    if (this.ejectPending.length) this.ejectStoppage();
     if (++this.steps > MAX_STEPS) {
       this.over = true;
       return;
@@ -1426,6 +1437,99 @@ class GameSim {
     if (roll < contact + soft) this.hurt.push([p, roll < contact ? 'contact' : 'soft']);
   }
 
+  /** A man leaves the game (hurt or thrown out): his side's lineup is rebuilt without him, the next man in. */
+  private rebuildSide(side: Side) {
+    const qb = this.lineups[side].qb;
+    this.lineups[side] = buildLineup(
+      this.league,
+      this.lineups[side].team,
+      this.out,
+      this.game,
+      this.moodMean,
+      this.days[side],
+      this.options.chemistry?.[side],
+      this.options.staff?.[side],
+    );
+    this.syncKnocks();
+    this.fields[side] = units(this.lineups[side]);
+    if (this.fieldRecord) {
+      const u = fieldUnits(this.lineups[side]);
+      this.fieldRecord.changes.push([this.plays.length, side, u]);
+      this.noteJerseys(u);
+    }
+    if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
+  }
+
+  /** Between plays: the men a fight, a second unsportsmanlike or a flagrant hit threw out leave, and the next steps in. */
+  private ejectStoppage() {
+    const gone: { p: Player; side: Side; why: 'fight' | 'twoUnsportsmanlike' | 'flagrant' }[] = [];
+    for (const { p, why } of this.ejectPending) {
+      if (this.out.has(p.id)) continue;
+      const side: Side = this.lineups[0].team.id === p.teamId ? 0 : 1;
+      if (!this.hasCover(p, side)) continue;
+      this.out.add(p.id);
+      this.ejections.push({ playerId: p.id, teamId: p.teamId!, quarter: this.quarter, clock: this.clock, why });
+      this.snapshot = null;
+      gone.push({ p, side, why });
+    }
+    // The line says why. Two men thrown out of one fight share one line, so the second never reads as having done
+    // nothing. Text only: who goes and what is enforced are decided above.
+    const named = (g: (typeof gone)[number]) => `${this.abbrev(g.side)} ${g.p.position} ${short(g.p)}`;
+    const reason = {
+      fight: 'fighting',
+      twoUnsportsmanlike: 'a second unsportsmanlike conduct foul',
+      flagrant: 'a flagrant hit',
+    };
+    const fighters = gone.filter((g) => g.why === 'fight');
+    const pair = fighters.length === 2;
+    // Each man's lineup is rebuilt right after his own line, as before the text changed: the film's lineup change
+    // is recorded against the play log's length, so the order of rebuilds and log entries must not move.
+    for (const g of gone) {
+      if (pair && g.why === 'fight') {
+        if (g === fighters[0])
+          this.log(`Ejection: ${named(fighters[0])} and ${named(fighters[1])} are ejected for fighting.`);
+      } else this.log(`Ejection: ${named(g)} is ejected for ${reason[g.why]}.`);
+      this.rebuildSide(g.side);
+    }
+    this.ejectPending = [];
+  }
+
+  /**
+   * Whether his side can field someone at his job without him. The lineup builder fills a short spot from the roster
+   * (a safety at corner, a punter for a kicker), but a quarterback or a specialist with nobody healthy behind him would
+   * leave it empty: that man stays in the game and nothing is recorded.
+   */
+  private hasCover(p: Player, side: Side): boolean {
+    if (p.position !== 'QB' && p.position !== 'K' && p.position !== 'P') return true;
+    const team = this.lineups[side].team;
+    const spare = (pos: Position) =>
+      team.depthChart[pos].some((id) => id !== p.id && !this.out.has(id) && isAvailable(this.league.players[id]));
+    return spare(p.position) || (p.position !== 'QB' && spare(p.position === 'K' ? 'P' : 'K'));
+  }
+
+  /** Queue a man's ejection once: the first reason he earns is the one on his record. */
+  private eject(p: Player, why: 'fight' | 'twoUnsportsmanlike' | 'flagrant') {
+    if (this.out.has(p.id) || this.ejectPending.some((e) => e.p === p)) return;
+    this.ejectPending.push({ p, why });
+  }
+
+  /**
+   * The after-the-whistle foul the engine already rolls on a sack may have been a fight: a short-tempered rusher threw a
+   * punch at the quarterback (he is out whether or not the flag is taken), and if the quarterback's temper is short too
+   * he swings back (his foul is tallied as offsetting and nothing is enforced for it, but the rusher's 15 yards still
+   * stand: the NFL would offset the two dead-ball fouls, and changing enforcement would move the penalty lines). No new
+   * foul: only the ejection stream is drawn.
+   */
+  private fight(rusher: Player) {
+    if (!EJECT.on || !this.ejectRng.chance(EJECT.fight * hotHead(rusher))) return;
+    this.eject(rusher, 'fight');
+    const qb = this.lineups[this.offense].qb;
+    if (!this.out.has(qb.id) && this.ejectRng.chance(EJECT.fightBack * hotHead(qb))) {
+      this.eject(qb, 'fight');
+      this.flag(this.offense, 'unsportsmanlike', qb, 'offset');
+    }
+  }
+
   /** Between plays: the injured leave for good and the next man steps in. */
   private injuryStoppage() {
     for (const [p, mechanism] of this.hurt) {
@@ -1448,25 +1552,7 @@ class GameSim {
       this.log(
         `Injury: ${this.abbrev(side)} ${p.position} ${short(p)} (${injuryLabel(injury.type).toLowerCase()}) is out for the game.`,
       );
-      const qb = this.lineups[side].qb;
-      this.lineups[side] = buildLineup(
-        this.league,
-        this.lineups[side].team,
-        this.out,
-        this.game,
-        this.moodMean,
-        this.days[side],
-        this.options.chemistry?.[side],
-        this.options.staff?.[side],
-      );
-      this.syncKnocks();
-      this.fields[side] = units(this.lineups[side]);
-      if (this.fieldRecord) {
-        const u = fieldUnits(this.lineups[side]);
-        this.fieldRecord.changes.push([this.plays.length, side, u]);
-        this.noteJerseys(u);
-      }
-      if (this.lineups[side].qb !== qb) this.qbLeans = this.leans();
+      this.rebuildSide(side);
     }
     this.hurt = [];
   }
@@ -5077,6 +5163,7 @@ class GameSim {
       this.rng.chance(UNSPORTSMANLIKE * loose(result.rusher, DL_DISCIPLINE) * all)
     ) {
       fouls.push({ foul: 'unsportsmanlike', by: result.rusher });
+      this.fight(result.rusher);
     }
   }
 
@@ -5280,9 +5367,25 @@ class GameSim {
       qb.roughingDrawn = (qb.roughingDrawn ?? 0) + 1;
     }
     if (!by) return;
+    if (DANGEROUS_FOULS.includes(foul)) this.dangerousFouls.push({ playerId: by.id, foul });
+    this.chargedAccepted(foul, by);
     const line = (this.playerStats[by.id] ??= {});
     line.penalties = (line.penalties ?? 0) + 1;
     line.penaltyYds = (line.penaltyYds ?? 0) + yards;
+  }
+
+  /** An accepted foul against a man: a second unsportsmanlike conduct ends his game, and a personal foul may be flagrant. */
+  private chargedAccepted(foul: Foul, by: Player) {
+    if (!EJECT.on) return;
+    if (foul === 'unsportsmanlike') {
+      const n = (this.unsportsCount.get(by.id) ?? 0) + 1;
+      this.unsportsCount.set(by.id, n);
+      if (n >= 2) this.eject(by, 'twoUnsportsmanlike');
+      return;
+    }
+    const odds = EJECT.flagrant[foul];
+    if (odds && FOULS[foul].personal && !this.out.has(by.id) && this.ejectRng.chance(odds * flagrantLean(by)))
+      this.eject(by, 'flagrant');
   }
 
   private markRedZone() {
@@ -5299,6 +5402,8 @@ class GameSim {
   }
 
   result(): GameResult {
+    // An ejection on the game's last play lands here: no later step would apply it.
+    if (this.over && this.ejectPending.length) this.ejectStoppage();
     const plays = this.plays;
     const playerTeams: Record<number, number> = {};
     for (const l of this.lineups) for (const p of activePlayers(l)) playerTeams[p.id] = l.team.id;
@@ -5394,6 +5499,8 @@ class GameSim {
       plays,
       ...(this.fieldRecord ? { field: this.fieldRecord } : {}),
       ...(this.injuries.length ? { injuries: this.injuries, diagnoses: this.diagnoses } : {}),
+      ...(this.ejections.length ? { ejections: this.ejections } : {}),
+      ...(this.dangerousFouls.length ? { personalFouls: this.dangerousFouls } : {}),
       condition,
       weather: this.weather,
       ...(this.crew ? { crewId: this.crew.id } : {}),

@@ -108,6 +108,7 @@ import {
   useStarScale,
   viewOf,
 } from '../scouting';
+import { ConductTag, DisciplineSection } from '../conductTag';
 import { DisputeTag } from '../disputeTag';
 import { disputeView } from '../../engine/disputes';
 
@@ -1155,6 +1156,14 @@ function ActiveCard({ league, player: p, onClose }: CardProps) {
             </span>
           </span>
         )}
+        {p.suspension && p.suspension.games > 0 && (
+          <span className="fact">
+            <span className="eyebrow">Status</span>
+            <span className="pill-row">
+              <ConductTag p={p} />
+            </span>
+          </span>
+        )}
         {disputeView(league, p) && (
           <span className="fact">
             <span className="eyebrow">Contract</span>
@@ -1277,6 +1286,8 @@ function ActiveCard({ league, player: p, onClose }: CardProps) {
       </div>
 
       {!isProspect(p) && <HealthSection league={league} player={p} />}
+
+      {!isProspect(p) && <DisciplineSection league={league} p={p} />}
 
       <Section id="ratings" title={`Ratings at ${p.position}`}>
         <AttributeList player={p} view={view} />

@@ -4,7 +4,7 @@ import { perceive } from '../scouting';
 import type { League, Player, Position } from '../types';
 import { elevationProblem, nextTeamGame } from './elevations';
 
-/** Back within this many weeks, by the doctor's estimate: a call-up covers it, no signing needed. */
+/** Back within this many weeks, by the doctor's estimate (a suspended man's games left, when he is not hurt): a call-up covers it, no signing needed. */
 const SHORT_WEEKS = 2;
 
 /**
@@ -20,7 +20,7 @@ export function squadCover(league: League, teamId: number, pos: Position, promis
   );
   if (!squad.length) return null;
   const out = activeRoster(league, teamId).filter((p) => slotOf(league, p) === pos && !isAvailable(p));
-  if (out.length && out.every((p) => (p.injury?.estimate[1] ?? Infinity) <= SHORT_WEEKS)) {
+  if (out.length && out.every((p) => (p.injury?.estimate[1] ?? p.suspension?.games ?? Infinity) <= SHORT_WEEKS)) {
     // Only a call-up the planner can file: two a game, his uses, cap room and the re-sign rule (elevationProblem).
     const g = nextTeamGame(league, teamId);
     const fileable = !!g && promised < 2 && squad.some((p) => !elevationProblem(league, p, g));

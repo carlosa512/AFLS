@@ -39,6 +39,7 @@ import { perceivedTeamRatings } from '../../engine/scouting';
 import { Ovr, repsOf, schemeFitOf, seenOvr, Stars, starsOf, TeamUnit, viewOf } from '../scouting';
 import { store } from '../store';
 import { familiarityTone, knockAt, learnLine, lineupText, playAt, playAtLabel, positionChoices } from '../training';
+import { ConductTag } from '../conductTag';
 import { DisputeTag } from '../disputeTag';
 
 export function statSummary(position: Position, s: StatLine | undefined): string {
@@ -742,6 +743,7 @@ function RosterRow({
           </span>
         )}
         <InjuryTag league={league} p={p} sub />
+        <ConductTag p={p} sub />
         <DisputeTag league={league} p={p} sub />
       </td>
       <td className="num">

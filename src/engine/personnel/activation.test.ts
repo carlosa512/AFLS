@@ -6,6 +6,7 @@ import { simToEndOfSeason } from '../league';
 import { beginOffseason, simOffseason } from '../offseason';
 import { payAhead } from '../offseason/ai';
 import { practiceSquad } from '../roster';
+import { squadCategory, squadFormationCost } from './eligibility';
 import { canTurnOnPersonnel, turnOnPersonnel } from './activation';
 
 describe('switching practice squads on', () => {
@@ -58,10 +59,22 @@ describe('switching practice squads on', () => {
     );
     const again = structuredClone(l);
     again.phase = 'preseason';
+    // 2026-11-26: who plays moved (discipline's final words), and one club (NYE) came out of week 1 with $49K more room
+    // than camp's pay-ahead left. The cause is a short veteran count, not discipline: camp reserves the squad's cost
+    // for six veterans (`squadReserve`), so a club that formed with fewer leaves one veteran slot's extra unspent for
+    // each one short, and the second pay-ahead sweeps it. A club may drift only for that, by at most that much. Every
+    // other club's pay-ahead is still a no-op.
+    const perVeteran = squadFormationCost(l, 1, 1) - squadFormationCost(l, 1, 0);
     for (const t of again.teams.filter((x) => !moved.has(x.id))) {
+      const veterans = practiceSquad(l, t.id).filter((p) => squadCategory(l, p) === 'veteran').length;
       const before = capSpace(again, t.id);
       payAhead(again, t);
-      expect(capSpace(again, t.id)).toBeCloseTo(before, 3);
+      const drift = before - capSpace(again, t.id);
+      if (veterans >= 6) expect(capSpace(again, t.id), t.abbrev).toBeCloseTo(before, 3);
+      else {
+        expect(drift, t.abbrev).toBeLessThanOrEqual((6 - veterans) * perVeteran + 0.001);
+        expect(drift, t.abbrev).toBeGreaterThanOrEqual(-0.001);
+      }
     }
     expect(moved.size).toBeLessThan(8);
   }, 300_000);

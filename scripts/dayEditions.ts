@@ -35,7 +35,14 @@ export function runDayEditions(seed: string): void {
   const story = (tag: string, label: string, s: EditionStory): string => {
     for (const b of ruleBreaks(l, s)) breaks.push(`- ${label} · ${s.headline} · ${b}`);
     const numbers = s.numbers.map((n) => `**${n.value}** ${n.label}`).join(' · ');
-    return [`### ${tag} · ${s.kicker}`, `**${s.headline}**`, s.summary, ...(numbers ? [numbers] : []), ...s.paragraphs]
+    return [
+      `### ${tag} · ${s.kicker}`,
+      `**${s.headline}**`,
+      s.summary,
+      ...(numbers ? [numbers] : []),
+      ...s.paragraphs,
+      ...(s.quote ? [`> “${s.quote.text}” — ${s.quote.name}, ${s.quote.role}`] : []),
+    ]
       .filter(Boolean)
       .join('\n\n');
   };

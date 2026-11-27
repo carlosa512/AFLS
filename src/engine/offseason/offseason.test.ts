@@ -496,6 +496,14 @@ describe('the re-sign call', () => {
   // their pay, so who each club keeps moved (332 kept and 7 tagged before, 281 and 12 after).
   // again with a wider camp through the prime (0.4.56, `CAMP.prime`): who starts at 25-28 moved, so who each club keeps
   // moved (257 kept and 4 tagged before, 269 and 4 after).
+  // again with discipline (0.5.0, 2026-11-24): a player thrown out of a game or suspended changes who plays and what a season
+  // holds, so who each club keeps moved (269 kept and 4 tagged before, 261 and 4 after).
+  // again with the final review fixes (0.5.0, 2026-11-25): the league's review, the week's trouble and a suspension's cover now run
+  // before the injury week, and a team's sitting ends with the year, so a season's games and who each club keeps moved
+  // (261 kept and 4 tagged before, 257 and 6 after).
+  // again with discipline's final words (0.5.0, 2026-11-26): no trouble is drawn for a team whose season is over, so who is
+  // suspended or sat late in the year moved who plays; the totals held (257 kept and 6 tagged before and after) and ARI's
+  // tagged man and a handful of keeps moved.
   it("the AI's re-sign window decides as it always has (pinned)", () => {
     const league = fresh();
     beginOffseason(league);

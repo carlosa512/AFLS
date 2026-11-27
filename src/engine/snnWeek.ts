@@ -33,6 +33,7 @@ import type {
   Player,
   StatLine,
 } from './types';
+import { conductCandidates, NO_LEAD, type ConductFacts } from './snnConduct';
 import { seasonSaid, stableHash, toldKeys } from './voice';
 
 /** Something the week made that an edition could tell. */
@@ -62,6 +63,8 @@ export interface Candidate {
   speak?: { playerId: number; teamId: number; kind: SpeakEvent };
   room?: { teamId: number; coachId: number; text: string };
   mentor?: { mentorId: number; discipleId: number; homeId: number; awayId: number };
+  /** A player in trouble or doing good (`snnConduct.ts`). */
+  conduct?: ConductFacts;
   /** One of the reader's club's public storylines: the beat it tells, and the story's men. */
   storyline?: {
     beat: BeatKind;
@@ -502,10 +505,17 @@ export function cutEdition(
   // The reader's own game leads only when it is real news (the top three tiers): a plain week's order is a coin toss,
   // and his game has its own slot anyway.
   const leadYours = !!own && ranked[0] === own && own.tier <= 3;
-  const lead = leadYours ? own! : ranked.find((x) => !mine(x) && x.clubId !== userTeamId);
+  // A team's own business, a spat and the good side fill tiles and never lead.
+  const leads = (x: Candidate) =>
+    !mine(x) && x.clubId !== userTeamId && !(x.kind === 'conduct' && NO_LEAD.has(x.angle));
+  const lead = leadYours ? own! : ranked.find(leads);
   if (!lead) {
     // Only the reader's own club made news (a bye week's lone candidate, a one-game round): it leads.
-    return { lead: ranked[0], leadYours: userTeamId !== null, tiles: [] };
+    return {
+      lead: ranked.find((x) => !(x.kind === 'conduct' && NO_LEAD.has(x.angle))) ?? ranked[0],
+      leadYours: userTeamId !== null,
+      tiles: [],
+    };
   }
   const club = leadYours ? undefined : own;
   // A star of the reader's club lost in its game rides in that game's story, never in a tile of its own.
@@ -517,7 +527,21 @@ export function cutEdition(
   const ownNews =
     userTeamId === null
       ? undefined
-      : ranked.find((x) => x.clubId === userTeamId && x !== lead && x !== club && x !== clubExtra && !mine(x));
+      : ranked.find(
+          (x) =>
+            x.clubId === userTeamId &&
+            x !== lead &&
+            x !== club &&
+            x !== clubExtra &&
+            !mine(x) &&
+            // One story a team: a flag or an ejection in the game the club's own story already tells is not told twice.
+            !(
+              x.kind === 'conduct' &&
+              !!own &&
+              x.conduct?.gameId !== undefined &&
+              own.key === `game:${x.conduct.gameId}`
+            ),
+        );
   // The limit is on tiles: a trade that leads does not use it up.
   let trades = ownNews?.kind === 'trade' ? 1 : 0;
   const picked: Candidate[] = ownNews ? [ownNews] : [];
@@ -726,6 +750,7 @@ export function buildEdition(l: League, week: number): Edition | null {
       ...runCandidates(l, week),
       ...starOutCandidates(l, week),
       ...newsCandidates(l, week, have),
+      ...conductCandidates(l, week, have, stakesIn(l, week)),
       // Not in the playoffs: there is no race or page for them there, and the season's questions are closed.
       ...(week <= 18 ? storylineCandidates(l, week, have) : []),
       ...(bye ? [bye] : []),
@@ -840,7 +865,9 @@ export function editionMail(l: League): Draft[] {
       subject: `${edition.label} · ${short(edition.lead.headline, SUBJECT - edition.label.length - 3)}`,
       body: stories.flatMap((s) => [...s.paragraphs, ...(s.quote ? [s.quote.text] : [])]).join('\n\n'),
       edition,
-      covered: [...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? [])]))],
+      covered: [
+        ...new Set(stories.flatMap((s) => [s.key, ...(s.covers ?? []), ...(s.quote?.line ? [s.quote.line] : [])])),
+      ],
       // Each story carries its own buttons.
       actions: [],
     },

@@ -1,4 +1,4 @@
-import { buildAutoDepthChart, wrSpotsOf, activeRoster, playingHurt } from '../roster';
+import { buildAutoDepthChart, wrSpotsOf, activeRoster, playingHurt, suspended } from '../roster';
 import { teamCoaches } from '../coaching';
 import { STARTERS } from '../positions';
 import { perceive } from '../scouting';
@@ -16,7 +16,8 @@ export function gameDayPool(l: League, g: Game, teamId: number): Player[] {
       .filter((p) => p?.teamId === teamId && p.squad?.kind === 'practiceSquad'),
   ];
 }
-const healthy = (p: Player) => !p.injury || playingHurt(p.injury);
+// A man serving a suspension is out of the game like an injured one (`isAvailable`).
+const healthy = (p: Player) => (!p.injury || playingHurt(p.injury)) && !suspended(p);
 export const dressingLimit = (l: League, ids: readonly number[]) =>
   ids.filter((id) => l.players[id]?.position === 'OL').length >= 8 ? 48 : 47;
 

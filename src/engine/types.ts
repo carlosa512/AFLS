@@ -242,7 +242,44 @@ export interface HelmetDesign {
   mask: string;
 }
 
+/** What a player did wrong, on or off the field (`conduct.ts`). */
+export type ConductKind =
+  | 'curfew'
+  | 'meeting'
+  | 'late'
+  | 'teamEvent'
+  | 'spat'
+  | 'practiceScuffle'
+  | 'fight'
+  | 'ejected'
+  | 'dangerousFouls';
+
+/** One trouble on his record and how it was settled. */
+export interface ConductEntry {
+  season: number;
+  week: number;
+  kind: ConductKind;
+  outcome: 'fine' | 'sat' | 'letGo' | 'leagueFine' | 'suspended';
+  games?: number;
+  public?: true;
+  /** Your head coach answered it for you (`setConductByCoach`), so his letter tells it as a note. */
+  byCoach?: true;
+  /** You answered it yourself, on your desk, while you ran the team: only then does his card say "You". */
+  byYou?: true;
+  /** The club he was with when it happened (SNN reads it through `publicConduct`). */
+  teamId?: number;
+}
+
 export interface Player {
+  /** His trouble record; `lean.by` multiplies his trouble odds until the step clock reaches `until`. Gone when he retires. */
+  discipline?: {
+    entries: ConductEntry[];
+    lean?: { by: number; until: number };
+    /** The clocks of his recent dangerous fouls, for the league's pattern review (`REVIEW`). */
+    fouls?: number[];
+  };
+  /** Games still to miss, served game by game (`serveGames`); `by` says who ruled. Gone when he retires. */
+  suspension?: { games: number; by: 'league' | 'team'; reason: ConductKind };
   id: number;
   firstName: string;
   lastName: string;
@@ -399,7 +436,11 @@ export type MoraleJolt =
   | 'meeting'
   // A job question left open, and a clear word on it (`benching.ts`).
   | 'unsure'
-  | 'settled';
+  | 'settled'
+  // Discipline (`conduct.ts`): a fine, a suspension, a night on the bench.
+  | 'fined'
+  | 'suspended'
+  | 'satDown';
 
 /** A talk gone wrong, escalated (G4, `disputes.ts`): a hold-in, a holdout or a trade request. */
 export type DisputeKind = 'holdIn' | 'holdOut' | 'trade';
@@ -1119,6 +1160,8 @@ export interface JobQuestion {
 }
 
 export interface Team {
+  /** Trouble waiting on your ruling, and whether the head coach rules on it (`conduct.ts`). */
+  conduct?: { pending?: { playerId: number; kind: ConductKind; clock: number }[]; byCoach?: true };
   /**
    * Who holds a starting job at each position, kept by `benching.ts`: set on cut-down day, earned by three starts in a
    * row, cleared at the new league year. At your club, `out`: he was out at a kickoff (his injury count then, which
@@ -1899,6 +1942,8 @@ export interface MailSection {
     bench?: { playerId: number; clock: number };
     /** A starter cleared and not in his spot: Put him back and Leave it (`restoreCard`). */
     restore?: { playerId: number };
+    /** Trouble waiting on your ruling (`conduct.ts`): Fine him, Sit him a game, Let it go, drawn from the team's pending list. */
+    conduct?: { playerId: number; clock: number };
     /** His row speaks for the club's losing: the one answer goes to every man with an open ask (`answerRoomTalk`). */
     talkRoom?: { unit: 'team'; clock: number };
   }[];
@@ -1977,6 +2022,8 @@ export type EditionKind =
   | 'speak'
   | 'room'
   | 'mentor'
+  /** A player in trouble or doing good (`snnConduct.ts`). */
+  | 'conduct'
   /** SNN's opinion piece: a claim and its evidence (`snnColumn.ts`). */
   | 'column'
   /** One of your club's public storylines (`stories.ts`). */
@@ -2035,7 +2082,8 @@ export interface EditionStory {
   brief?: true;
   /** A Column's evidence: a few rows of two values each, the second the one the claim rests on. */
   table?: { head: string[]; rows: string[][] };
-  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string };
+  /** `line`: the key of the player's line, kept in the edition's `covered` so it is said once a league year. */
+  quote?: { coachId?: number; playerId?: number; name: string; role: string; text: string; line?: string };
   links: InboxAction[];
   /** The ids the separate mails of old filed the same news under, for the edition's `covered`. */
   covers?: string[];
@@ -2359,6 +2407,16 @@ export interface PlayActors {
 export type PackedActors = (number | null)[];
 
 export interface GameResult {
+  /** Accepted dangerous personal fouls by man, what the league's pattern review counts (`conduct.ts`). */
+  personalFouls?: { playerId: number; foul: Foul }[];
+  /** Players thrown out of the game (`conduct.ts`). */
+  ejections?: {
+    playerId: number;
+    teamId: number;
+    quarter: number;
+    clock: number;
+    why: 'fight' | 'twoUnsportsmanlike' | 'flagrant';
+  }[];
   /** Event-time coaching evidence; independent of replay retention. */
   coaching?: CoachGameReport[];
   homeScore: number;

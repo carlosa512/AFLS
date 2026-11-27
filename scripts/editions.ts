@@ -7,7 +7,7 @@
  *   npm run editions -- --days [seed]   a played offseason's big-day editions, to `.check/day-editions.md`
  *
  * Builds a league, plays the regular season and writes each week's edition to `.check/editions.md`: every story as its
- * kicker, headline, numbers, paragraphs and quote, marked LEAD, YOUR CLUB or TILE. At the top: every writing rule a
+ * kicker, headline, numbers, paragraphs and quote, marked LEAD, YOUR TEAM or TILE. At the top: every writing rule a
  * story breaks (`storyRules.ts`), and how often each angle led and ran. Read it after changing `snnVoice.ts`,
  * `snnStory.ts` or `snnWeek.ts`.
  */
@@ -98,8 +98,8 @@ for (let week = 1; week <= weeks; week++) {
   led.set(e.lead.angle, (led.get(e.lead.angle) ?? 0) + 1);
   out.push(
     `## ${e.label}`,
-    story(e.lead.yours ? 'LEAD (YOUR CLUB)' : 'LEAD', e.lead, week),
-    ...(e.club ? [story('YOUR CLUB', e.club, week)] : []),
+    story(e.lead.yours ? 'LEAD (YOUR TEAM)' : 'LEAD', e.lead, week),
+    ...(e.club ? [story('YOUR TEAM', e.club, week)] : []),
     ...e.tiles.map((t) => story('TILE', t, week)),
   );
 }
@@ -111,7 +111,7 @@ const tally = (m: Map<string, number>) =>
     .join(', ');
 const head = [
   `# A season of SNN's weekly editions`,
-  `League seed \`${seed}\`, ${league.season}. Your club: the ${user.city} ${user.name}. ${weeks} weeks.`,
+  `League seed \`${seed}\`, ${league.season}. Your team: the ${user.city} ${user.name}. ${weeks} weeks.`,
   `**Led:** ${tally(led)}`,
   `**Ran (lead, your club and tiles):** ${tally(ran)}`,
   breaks.length ? `## Rule breaks (${breaks.length})\n\n${breaks.join('\n')}` : `## Rule breaks\n\nNone.`,

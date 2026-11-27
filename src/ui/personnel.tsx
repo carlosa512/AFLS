@@ -23,7 +23,7 @@ import {
   setGameDayPlan,
 } from '../engine/personnel/gameDay';
 import { POSITIONS } from '../engine/types';
-import { playingHurt } from '../engine/roster';
+import { playingHurt, suspended } from '../engine/roster';
 import type { League, Player } from '../engine/types';
 import { Dialog, Panel, PlayerLink, TeamLink, SortTh, sortRows, useSort } from './components';
 import { liveLock } from './live';
@@ -275,7 +275,10 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
             >
               <option value="">None</option>
               {pool
-                .filter((p) => p.position === 'QB' && !p.squad && !day.dressedIds.includes(p.id) && !p.injury)
+                .filter(
+                  (p) =>
+                    p.position === 'QB' && !p.squad && !day.dressedIds.includes(p.id) && !p.injury && !suspended(p),
+                )
                 .map((p) => (
                   <option key={p.id} value={p.id}>
                     {optionName(p)}
@@ -306,9 +309,11 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
                       : key === 'status'
                         ? p.injury
                           ? 'Injured'
-                          : day.dressedIds.includes(p.id)
-                            ? 'Ready'
-                            : 'Inactive'
+                          : suspended(p)
+                            ? 'Suspended'
+                            : day.dressedIds.includes(p.id)
+                              ? 'Ready'
+                              : 'Inactive'
                         : Number(day.dressedIds.includes(p.id)),
               ).map((p) => (
                 <tr key={p.id}>
@@ -322,11 +327,13 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
                   <td>
                     {p.injury
                       ? 'Injured'
-                      : day.emergencyQbId === p.id
-                        ? 'Emergency QB'
-                        : day.dressedIds.includes(p.id)
-                          ? 'Ready'
-                          : 'Inactive'}
+                      : suspended(p)
+                        ? 'Suspended'
+                        : day.emergencyQbId === p.id
+                          ? 'Emergency QB'
+                          : day.dressedIds.includes(p.id)
+                            ? 'Ready'
+                            : 'Inactive'}
                     {p.squad ? ' · Call-up' : ''}
                   </td>
                   <td>
@@ -334,7 +341,7 @@ export function GameDayPanel({ league, teamId }: { league: League; teamId: numbe
                       type="checkbox"
                       aria-label={`Dress ${p.firstName} ${p.lastName}`}
                       checked={day.dressedIds.includes(p.id)}
-                      disabled={!!lock || (!!p.injury && !playingHurt(p.injury))}
+                      disabled={!!lock || (!!p.injury && !playingHurt(p.injury)) || suspended(p)}
                       onChange={() => toggle(p.id)}
                     />
                   </td>

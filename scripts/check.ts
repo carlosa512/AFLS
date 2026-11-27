@@ -211,6 +211,25 @@ const CHECKS = {
     summary: /\d+ number\(s\) outside target range/,
     detail: /✗/,
   },
+  // Discipline: ejections, the league's suspensions and who gets into trouble, against the NFL's counts
+  // (docs/research/discipline.md). Three leagues, the other two in child processes.
+  conduct: {
+    cmd: ['npm', 'run', 'conduct'],
+    cores: 3,
+    secs: 220,
+    summary: /\d+ number\(s\) outside target range/,
+    detail: /✗|[▲▼]/,
+  },
+  // Players in their own words: no line printed more than 3 times and at least 80% of the quotes distinct, over a
+  // ten-season league (about 7 minutes).
+  quotes: {
+    cmd: ['npm', 'run', 'quotes', '--', '--check'],
+    cores: 1,
+    secs: 420,
+    slow: true,
+    summary: /[✓✗] \d+ player quotes.*/,
+    detail: /✗|times:/,
+  },
 } satisfies Record<string, Check>;
 
 type Name = keyof typeof CHECKS;
@@ -302,6 +321,18 @@ const RULES: [RegExp, Name[]][] = [
   [
     /^src\/engine\/(?!.*\.test\.ts$)(morale|playerTalks|disputes|disputeRead|disputeMail|development|match\/lineup|training|offseason\/negotiation|chemistry|standing|moodScale|staffEdge|belief|relieve|meetings\/[\w/]+)\.ts$|^scripts\/morale\.ts$/,
     ['morale'],
+  ],
+  // Conduct: ejections and the odds, the league's review and trouble, and what builds the leagues and plays the games
+  // (`league.ts` runs the review, `match/lineup.ts` reads roughness, `traits.ts`/`morale.ts` the odds' makeup and mood,
+  // `generate.ts` the leagues).
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(conduct|league|generate|traits|morale|match\/(gameSim|ejection|lineup))\.ts$|^scripts\/conduct[\w-]*\.ts$/,
+    ['conduct'],
+  ],
+  // Player quotes: the lines, where SNN prints them, and the check that counts what was printed.
+  [
+    /^src\/engine\/(?!.*\.test\.ts$)(playerQuote[\w]*|snnVoice|snnDayVoice|snnConduct|snnConductVoice|snnWeek|snnDays|voice|personality)\.ts$|^scripts\/quotes\.ts$/,
+    ['quotes'],
   ],
   // The harness itself, dependencies and compiler settings can break anything.
   [/^scripts\/check\.ts$|^package(-lock)?\.json$|^tsconfig\.json$|^\.github\/workflows\//, NAMES],

@@ -27,7 +27,8 @@ middle number for a finished MVP item, the last number for fixes.
   meetings. At design time, ask what a change does to moods, stories and meetings, and measure them early.
 - **List the lines near their edge on main before starting** (within about 5%): a small push tips them, and it should
   be no surprise. After 0.4.48: win spread 3.58 (fails 3.6), margin spread 13.33 (fails 13.6), meetings a club a
-  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%).
+  season 5.55 (fails 6), young starting QBs 27.6% (floor 22.5%). After 0.5.0: meetings a club a season 5.72 (fails
+  6), ejections a league season 9.2 (warns under 10), and the quotes check's most printed line at 3 (fails above 3).
 - **Settle the tolerance in brainstorming:** how close to the NFL is close enough (the owner: aim for the average,
   not hyper-realism), which lines fail and which only warn, and a tuning step with a stop rule for any guessed number.
 - **One CPU-heavy job at a time:** agents and sims side by side thrash the cores and everything slows.
@@ -91,6 +92,12 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   source of the files that word them (`LETTER_FILES` in `letterRules.ts`), by file and line in `.check/letters.txt`,
   with the lines that break a house rule at the top (`docs/NEWS.md`, "Words in a letter"). Run it after adding or
   changing a letter's words and read the lines you touched; `letterRules.test.ts` fails on a break.
+- `npm run quotes [-- --check]` — players in their own words (`playerQuote.ts`, lines in `playerQuoteLines.ts`): every
+  line each personality can say at each moment (drafted, signed, bigWin, badLoss, trouble, suspended, back, goodSide) to
+  `.check/quotes.md`, for reading straight through; with `--check` it also plays ten seasons (about 7 minutes), collects
+  every player quote SNN printed and fails when one line is printed more than 3 times (whatever team or city is in it)
+  or fewer than 80% of the printed quotes are distinct. Run it after adding or changing a quote line or where a story
+  quotes a player (`snnVoice.ts`, `snnDayVoice.ts`, `snnConductVoice.ts`).
 - `npm run gm-letters` — a preview, not a check: seven AI GMs at each standing with you write a pitch, a bid, an
   enquiry, a counter and a final offer, a table line per band, a refusal and your director's note to `.check/gm-letters.md`
   for reading the words. Run it after changing `gmTalk.ts` or `offerWords`.
@@ -216,6 +223,11 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
   `morale.ts`, `standing.ts`, `chemistry.ts`, `belief.ts`, `staffEdge.ts`, `relieve.ts`, `playerTalks.ts`, `benching.ts`,
   `development.ts`, `match/lineup.ts`, `training.ts`, `meetings/` or `offseason/negotiation.ts`. Nothing may be
   flagged ✗.
+- `npm run conduct [-- --leagues 2 --seasons 4]` — discipline (`docs/research/discipline.md`, "Targets for AFLS"): three leagues for
+  eight seasons, the others in child processes. Judges ejections a league season (and the fight share and flagrant hits),
+  league suspensions and their one-game share, the bottom fifth's share of off-field trouble and a first suspension past one game
+  (never); prints trouble by personality, AI head coaches' answers and the ladder. Run it after changing `conduct.ts`,
+  `match/ejection.ts` or the ejection code in `match/gameSim.ts`. Nothing may be ✗. `npm run quotes -- --check` is its own check too.
 - `npm run build` — web build to `dist/`
 - `npm run build:single` — one self-contained page at `dist-single/afls.html` (for sharing/previews)
 
@@ -374,6 +386,26 @@ all, so a session never runs `npm run check` (quick or full) unless the owner as
     champions' regular season and who they beat; how many titles that makes), a tile for the league's most valuable
     player and the other awards, and two lists (the season's awards, the champions' road). A storyline about your team
     is told the week it happens or the week after and never late (`STORY_FRESH` in `snnWeek.ts`)
+  - `conduct.ts` discipline (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`): the league's weekly review of
+    dangerous fouls and ejections (`reviewWeek`, `REVIEW`: a pattern, not one foul, earns a suspension, `LADDER` 1, 2, 4
+    games over two league years), trouble off the field drawn from character (`troubleWeek`, `TROUBLE`: curfew, meetings,
+    team events, spats, practice scuffles), your three answers (`answerConduct`: fine, sit, let it go; `Team.conduct.pending`)
+    or your head coach's by his discipline trait (`setConductByCoach`), the games a suspension costs (`serveGames`, `Player.suspension`;
+    `isAvailable` reads it through `roster.ts`) and what the public may read (`publicConduct`: only what went public). A
+    sitting or suspension is not a benching: no job question, no job lost. Its draws are on their own streams, and it moves
+    moods through `addJolt` (`fined`, `suspended`, `satDown`). `match/ejection.ts` (`EJECT`) puts a man out only for the NFL's
+    reasons (a fight, a second unsportsmanlike foul, a rare flagrant hit) on the game's own `:eject` stream, so every other
+    roll is untouched; `GameResult.ejections`/`personalFouls` keep it. `conductMail.ts` and `conductVoice.ts` the league
+    office's letter and the head coach's rows and notes (a row in `coachWeek.ts`, no row labelled on the page); `snnConduct.ts`
+    and `snnConductVoice.ts` SNN's trouble and good-side stories from `publicConduct`, mail-side only, nothing in the sim reads them
+  - `playerQuote.ts` the one quote a story may give the player it is about (spec `docs/superpowers/specs/2026-11-23-discipline-design.md`,
+    "Players talk"): `playerQuote`/`speaks` read his personality (`personalityOf(trueCharacter(p))`, never shown) and
+    choose among whole hand-written lines (`playerQuoteLines.ts`, slots for facts only: {team}, {city}, {nth}, {games}…)
+    through `say`: the most specific that fits (a first-round pick, a late one, a return, the richest deal, a kind of
+    good deed, trouble on the field or off it), none said this league year, the plain voice when his own are spent and no
+    quote at all when that is spent too. Moments: drafted and signed (`snnDayVoice.ts`, `withVoice`), a big win or bad
+    loss for the day's best player (`snnVoice.ts`), trouble, a suspension and a good deed (`snnConductVoice.ts`); one
+    quote a story, the player's or his head coach's. Mail-side only: nothing in the sim reads it.
   - `stories.ts` storylines (`docs/NEWS.md`): what happened to one subject of your club (a man's deal, snaps, benching or
     losing, a feud, a room, a coach) kept beat by beat in `League.stories` (open and closed, `MAX_BEATS` each), so a
     letter tells it as one story. Record-keeping only: nothing in the sim reads it, and writing a beat draws nothing

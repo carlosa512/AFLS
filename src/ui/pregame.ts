@@ -5,7 +5,7 @@
  * finished game's save doesn't keep who sat out, so a replay has no list.
  */
 import { injuryLabel } from '../engine/injuries';
-import { isAvailable, teamPlayers } from '../engine/roster';
+import { isAvailable, suspended, teamPlayers } from '../engine/roster';
 import type { Game, League } from '../engine/types';
 
 /** A man who misses the game, and why in the injury report's words. */
@@ -25,9 +25,18 @@ export interface GameOut {
 export function outFor(league: League, teamId: number): OutMan[] {
   const est = (e?: [number, number]) => (e ? e[1] * 100 + e[0] : -1);
   return teamPlayers(league, teamId)
-    .filter((p) => (p.injury || p.ir) && !isAvailable(p))
+    .filter((p) => (p.injury || p.ir || suspended(p)) && !isAvailable(p))
     .sort((a, b) => est(b.injury?.estimate) - est(a.injury?.estimate) || a.id - b.id)
-    .map((p) => ({ id: p.id, what: p.injury ? injuryLabel(p.injury.type).toLowerCase() : 'injured reserve' }));
+    .map((p) => ({
+      id: p.id,
+      what: p.injury
+        ? injuryLabel(p.injury.type).toLowerCase()
+        : p.ir
+          ? 'injured reserve'
+          : p.suspension?.by === 'team'
+            ? 'sat by the team'
+            : 'suspended',
+    }));
 }
 
 export const outAt = (league: League, game: Game): GameOut => ({

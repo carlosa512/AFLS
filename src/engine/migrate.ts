@@ -438,6 +438,9 @@ export function migrateLeague(league: League): League | null {
   // v103: compensatory picks (`League.compOwed`, `offseason/comp.ts`). Nothing to change: a save without any owes none,
   // and the next camp freezes the year's tally.
   if (league.version < 103) league.version = 103;
+  // v104: discipline (`Player.discipline`, `Player.suspension`, `Team.conduct`, `GameResult.ejections`). All optional:
+  // nothing to convert, a save without any has no trouble on record.
+  if (league.version < 104) league.version = 104;
   return league;
 }
 

@@ -17,9 +17,11 @@ import { mentorFacts } from './lockerMail';
 import { freeAgents } from './offseason/negotiation';
 import { draftedHigh, publicRecord, type PublicRecord } from './publicStanding';
 import { activeRoster } from './roster';
+import { YEAR } from './morale';
 import { kickoffLabel, kickoffOrder } from './season/kickoff';
 import { statLine } from './stats';
 import type { Draft } from './senders';
+import { freshGood, offseasonBans } from './snnConduct';
 import { writeDayStory, yourDayStory } from './snnDayVoice';
 import { short, SNN, SUBJECT } from './snnWeek';
 import type { Edition, EditionDay, EditionList, League, Phase, Player } from './types';
@@ -734,6 +736,56 @@ export const legacyYear = (l: League, have: Set<string>): boolean =>
     (yearDigests(l).some((id) => have.has(id)) ||
       [...have].some((id) => id.startsWith(`leadership-phase:${l.season}:`))));
 
+/**
+ * The last offseason step each day's edition can still tell a ruling from (the re-sign window is 0, camp 7). Step 8 is
+ * the last one, after cut-down day and before the first game: no game week reads it, so Kickoff tells it.
+ */
+const BAN_BY: Record<Day, number> = { year: 0, market: 5, draft: 6, cuts: 7, kickoff: 8 };
+
+/** A suspension the league handed down in the offseason: told on the first big day built after it was ruled. */
+function banCandidates(l: League, day: Day): DayCandidate[] {
+  const rec = publicRecord(l);
+  return offseasonBans(l)
+    .filter((b) => b.step <= BAN_BY[day])
+    .map((b) => ({
+      key: `conduct:${l.season}:${b.playerId}:${b.step}:ban`,
+      day,
+      angle: 'conduct',
+      tier: 3 as const,
+      clubId: b.clubId,
+      teams: [b.clubId],
+      stakes: rec.worth(l.players[b.playerId]),
+      playerId: b.playerId,
+      n: b.games,
+    }));
+}
+
+/**
+ * A good deed in a quiet moment (the same roll as the week's, read at the step the day closes on): one a page at most,
+ * a tile, never the lead. `have` keeps a man to one a league year.
+ */
+function goodCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
+  const clock = l.season * YEAR + BAN_BY[day];
+  const g = freshGood(l, clock, have)
+    .filter((x) => l.players[x.playerId].teamId !== null)
+    .sort((a, b) => stableHash(`${dayId(l, day)}:${a.playerId}`) - stableHash(`${dayId(l, day)}:${b.playerId}`))[0];
+  if (!g) return [];
+  const p = l.players[g.playerId];
+  return [
+    {
+      key: `good:${l.season}:${day}:${p.id}:${g.kind}`,
+      day,
+      angle: 'good',
+      tier: 5,
+      clubId: p.teamId!,
+      teams: [p.teamId!],
+      stakes: 0.2,
+      playerId: p.id,
+      got: [g.kind],
+    },
+  ];
+}
+
 /** A day's candidates that no edition has told yet. */
 export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandidate[] {
   const rec = publicRecord(l);
@@ -748,6 +800,8 @@ export function dayCandidates(l: League, day: Day, have: Set<string>): DayCandid
             ? [...cutsCandidates(l, rec), ...campCandidates(l, rec)]
             : [...kickoffCandidates(l), ...openingCandidates(l, have)]),
     ...tradeCandidates(l, day, rec),
+    ...banCandidates(l, day),
+    ...goodCandidates(l, day, have),
   ];
   // A change at the top is news on whichever day it is first told, unless that year's digests told it the old way.
   // By Kickoff a new head coach is told as his first game, so a change no edition found room for rests there.
@@ -775,7 +829,7 @@ const ONCE = new Set(['wait', 'ahead', 'seat', 'pressure', 'mentor']);
  */
 const RESERVED = [new Set(['seat', 'pressure']), new Set(['mentor'])];
 /** Stories that fill a tile and never lead a page. */
-const NO_LEAD = new Set(['mentor', 'comp']);
+const NO_LEAD = new Set(['mentor', 'comp', 'good']);
 const TILES = 3;
 
 /**
@@ -850,7 +904,12 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
       .slice(0, DAY.listRows)
       .map((x) => ({
         teamId: x.teamId,
-        cells: [l.teams[x.teamId].name, x.job === 'coach' ? 'Head coach' : 'General manager', x.outName, x.inName],
+        cells: [
+          l.teams[x.teamId].name,
+          x.job === 'coach' ? 'Head coach' : 'General manager',
+          x.outName || 'Vacant',
+          x.inName || 'Vacant',
+        ],
       }));
     if (rows.length) out.push({ title: 'Changes at the top', head: ['Team', 'Job', 'Out', 'In'], rows });
   }
@@ -863,7 +922,7 @@ export function dayLists(l: League, days: Day[]): EditionList[] {
         teamId: x.to,
         cells: [
           nameOf(x.p),
-          x.from !== undefined && x.from !== x.to ? l.teams[x.from].name : '',
+          x.from === undefined ? 'Free agent' : x.from === x.to ? 'Re-signed' : l.teams[x.from].name,
           l.teams[x.to].name,
           `${x.p.contract!.length} yr, $${Math.round(totalOf(x.p) / 1000)}M`,
         ],
@@ -1005,7 +1064,7 @@ export function dayMail(l: League): Draft[] {
           ...days.slice(0, -1).map((d) => dayId(l, d)),
           // The new league year's edition stands in for the digests of old, whichever of their news it printed.
           ...(day === 'year' ? yearDigests(l) : []),
-          ...stories.flatMap((s) => [s.key, ...(s.covers ?? [])]),
+          ...stories.flatMap((s) => [s.key, ...(s.covers ?? []), ...(s.quote?.line ? [s.quote.line] : [])]),
         ]),
       ],
       // What is known of the new GMs rides under the page, as it did under the front-office digest.

@@ -7,10 +7,12 @@
  * where a weekly story ends on the next fixture.
  */
 import { coachName, teamCoaches } from './coaching';
+import { conductOffseasonStory, goodDayStory } from './snnConductVoice';
 import { yearsLeft } from './finance/contract';
 import { gamesInWeek } from './league';
 import { activeRoster } from './roster';
 import { ordinal } from './opposition';
+import { draw, speaks } from './playerQuote';
 import { statLine } from './stats';
 import { POSITION_NAMES } from './positions';
 import { publicRecord, type StarWhy } from './publicStanding';
@@ -18,6 +20,14 @@ import { cap, possessive, referrer, type Referrer } from './refer';
 import type { Day, DayCandidate } from './snnDays';
 import type { CoachRole, EditionStory, InboxAction, Kickoff, League, Player, Position, StatKey } from './types';
 import { around, sentencesOf, stableHash } from './voice';
+
+const DAY_KICKER: Record<Day, string> = {
+  year: 'The new league year',
+  market: 'Free agency',
+  draft: 'Draft day',
+  cuts: 'Cut-down day',
+  kickoff: 'Kickoff',
+};
 
 interface Wording {
   editionId: string;
@@ -116,6 +126,8 @@ interface Parts {
   picture: EditionStory['picture'];
   links: InboxAction[];
   table?: EditionStory['table'];
+  /** The player the story is about, in his own words (`playerQuote.ts`). */
+  quote?: EditionStory['quote'];
   yours?: true;
 }
 
@@ -138,6 +150,7 @@ const assemble = (
   numbers: x.numbers.slice(0, 3),
   paragraphs: [x.first.filter(Boolean).join(' '), x.second.filter(Boolean).join(' ')],
   ...(x.table ? { table: x.table } : {}),
+  ...(x.quote ? { quote: x.quote } : {}),
   links: x.links,
   ...(c.covers?.length ? { covers: c.covers } : {}),
 });
@@ -216,7 +229,7 @@ function draftStory(l: League, c: DayCandidate, at: Wording): EditionStory {
           ? head(`${Club} trade ${price} to move up for ${p.lastName}`, `${Club} move up for ${p.lastName}`)
           : head(`${Club} move up to No. ${c.pick} for ${tag(p)}`, `${Club} move up for ${p.lastName}`),
       summary:
-        from && c.got?.length ? `The ${from} got ${gotWords(c.got)} for the pick.` : `${Club} traded up for the pick.`,
+        from && c.got?.length ? `The ${from} traded down from No. ${c.pick}.` : `${Club} traded up for the pick.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} traded up to No. ${c.pick} and took ${posWord(p)} ${man}.`,
@@ -558,18 +571,15 @@ function tradeStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   return assemble(c, ref, {
     kicker: 'Trade',
     headline: head(`${Club} trade for ${tag(p)}`, `${Club} trade for ${p.lastName}`),
-    summary: back ? `The ${From} get ${back}.` : `He comes from the ${From}.`,
+    summary: back ? `The ${From} get ${back}.` : `The ${From} traded him away.`,
     first: [
       pick(l, at, slot('lede'), [
-        `${the} have traded for ${posWord(p)} ${man}.`,
-        `${the} acquired ${posWord(p)} ${man} in a trade.`,
+        `${the} have traded for ${posWord(p)} ${man} from the ${From}.`,
+        `${the} acquired ${posWord(p)} ${man} from the ${From} in a trade.`,
       ]),
       whyLine(l, at, p.lastName, publicRecord(l).why(p)),
     ],
-    second: [
-      back ? `The ${From} received ${back} in return.` : `${p.lastName} comes from the ${From}.`,
-      openerLine(l, at, ref, club),
-    ],
+    second: [back ? `The ${From} received ${back} in return.` : '', openerLine(l, at, ref, club)],
     numbers: [{ value: String(p.age), label: 'Age' }],
     picture: { playerId: p.id },
     links: links(p, club),
@@ -671,7 +681,7 @@ function yearStory(l: League, c: DayCandidate, at: Wording): EditionStory {
       ...base,
       kicker: 'Tagged',
       headline: head(`${Club} use the franchise tag on ${tag(p)}`, `${Club} tag ${p.lastName}`),
-      summary: `${p.lastName} stays with the ${Club} for at least one more season.`,
+      summary: `The ${Club} kept ${p.lastName} with the franchise tag.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} used the franchise tag on ${posWord(p)} ${man}.`,
@@ -1086,14 +1096,14 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
         : '';
     const split =
       off && def
-        ? `${cap(count(off))} of them start on offense and ${count(def)} on defense.`
+        ? `${cap(count(off))} of them start on offense, ${count(def)} on defense${n - off - def > 0 ? ` and ${count(n - off - def)} in the kicking game` : ''}.`
         : off || def
           ? `${cap(count(off || def))} of them start on ${off ? 'offense' : 'defense'}.`
           : '';
     return assemble(c, ref, {
       kicker: 'New starters',
       headline: head(`${Club} open the season with ${count(n)} new starters`, `${Club} have ${count(n)} new starters`),
-      summary: `No team has more. The ${Club} open ${game.where}.`,
+      summary: `No team has more. ${City} open ${game.where}.`,
       first: [
         pick(l, at, slot('lede'), [
           `${the} open the season with ${count(n)} starters who were not with the team last season.`,
@@ -1205,12 +1215,36 @@ function kickoffStory(l: League, c: DayCandidate, at: Wording): EditionStory {
 export function writeDayStory(l: League, c: DayCandidate, at: Wording): EditionStory {
   if (c.angle === 'coach' || c.angle === 'gm') return topStory(l, c, at);
   if (c.angle === 'trade') return tradeStory(l, c, at);
+  if (c.angle === 'good') return goodDayStory(l, { ...c, playerId: c.playerId!, kind: c.got![0] }, at);
+  if (c.angle === 'conduct') return conductOffseasonStory(l, { ...c, playerId: c.playerId! }, at, DAY_KICKER[c.day]);
   if (c.angle === 'pressure' || c.angle === 'seat') return pressureStory(l, c, at);
   if (c.day === 'cuts') return cutsStory(l, c, at);
   if (c.day === 'kickoff') return kickoffStory(l, c, at);
   if (c.day === 'year') return yearStory(l, c, at);
-  if (c.day === 'market') return marketStory(l, c, at);
-  return draftStory(l, c, at);
+  if (c.day === 'market') return withVoice(l, c, at, marketStory(l, c, at));
+  return withVoice(l, c, at, draftStory(l, c, at));
+}
+
+/** The stories of the day about one player who signed or was picked: two in three give him the words. */
+const SPEAKS = new Set(['first', 'up', 'qb', 'wait', 'ahead', 'comp', 'haul', 'moved', 'richest', 'home']);
+function withVoice(l: League, c: DayCandidate, at: Wording, story: EditionStory): EditionStory {
+  if (c.playerId === undefined || !SPEAKS.has(c.angle) || draw(`${at.editionId}:${c.key}:says`, 2) === 0) return story;
+  const p = l.players[c.playerId];
+  const draft = c.day === 'draft';
+  const quote = speaks(
+    l,
+    p,
+    draft ? 'drafted' : 'signed',
+    {
+      key: c.key,
+      at,
+      ...(draft
+        ? { pick: c.pick, round: p.draft?.round, slid: c.angle === 'wait' }
+        : { returning: c.angle === 'home', rich: c.angle === 'richest' }),
+    },
+    c.clubId,
+  );
+  return quote ? { ...story, quote } : story;
 }
 
 /** The reader's team in the window before free agency: who it tagged, kept and let reach the market, in public terms. */
@@ -1255,7 +1289,7 @@ function yourYear(l: League, at: Wording): EditionStory | null {
       : '',
   ].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(
       did === 'let' ? `${Club} let ${tag(top)} reach free agency` : `${Club} keep ${tag(top)}`,
@@ -1309,7 +1343,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
   const where = a.draft!.pick === 1 ? 'the first pick' : `the No. ${a.draft!.pick} pick`;
   const c = { pick: a.draft!.pick, rank: a.draft!.rank };
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(
       `${Club} make ${count(n)} pick${n === 1 ? '' : 's'}, starting with ${tag(a)}`,
@@ -1339,6 +1373,7 @@ function yourDraft(l: League, at: Wording): EditionStory | null {
     ],
     picture: { playerId: a.id },
     links: [{ kind: 'draft' }, { kind: 'team', teamId: u }],
+    quote: speaks(l, a, 'drafted', { key, at, pick: a.draft!.pick, round: a.draft!.round }, u),
     table: {
       head: ['Pick', 'Player', 'Consensus'],
       rows: mine
@@ -1382,7 +1417,7 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
     came.length > 1 ? `${cap(count(came.length))} players signed in all.` : '',
   ].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: !lost
       ? head(`${Club} sign ${tag(top)}`, `${Club} sign ${top.lastName}`)
@@ -1401,6 +1436,7 @@ function yourMarket(l: League, at: Wording): EditionStory | null {
     ],
     picture: { playerId: top.id },
     links: [{ kind: 'team', teamId: u }],
+    ...(lost ? {} : { quote: speaks(l, top, 'signed', { key, at }, u) }),
   });
 }
 
@@ -1421,7 +1457,7 @@ function yourCuts(l: League, at: Wording): EditionStory | null {
   const the = cap(ref.club(u));
   const gp = statLine(top, l.season - 1)?.gp ?? 0;
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(`${Club} release ${tag(top)}`, `${Club} release ${top.lastName}`),
     summary: [
@@ -1460,7 +1496,7 @@ function yourKickoff(l: League, at: Wording): EditionStory | null {
   const last = lastRecord(l, u);
   const close = [wentLine(l, at, cap(ref.city(u)), u), wentLine(l, at, `The ${Opp}`, game.opp)].filter(Boolean);
   return assemble({ key, angle: 'yours', tier: 3, clubId: u }, ref, {
-    kicker: 'Your team',
+    kicker: l.teams[u].name,
     yours: true,
     headline: head(`${Club} open ${game.where}`, `${Club} open against the ${Opp}`),
     summary: game.when ? `The game kicks off ${game.when}.` : `The ${Club} open ${game.where}.`,

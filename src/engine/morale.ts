@@ -16,6 +16,7 @@ import { seasonRole } from './scouting';
 import { computeRecords, playoffRace, type TeamRecord } from './season/standings';
 import { cultureRoom } from './coachTraits';
 import { benchWeek } from './benching';
+import { settleConduct } from './conduct';
 import { talkStep } from './playerTalks';
 import { calmOf, friendPull, honouredSince, TONE, toneOf, unitOf, voiceOf, type VoiceRef } from './standing';
 import { disputeStep } from './disputes';
@@ -435,6 +436,9 @@ const FACTOR_WORDS: Record<keyof MoraleFactors, [string, string]> = {
 };
 
 const JOLT_WORDS: Record<MoraleJolt, string> = {
+  fined: 'Still smarting from the fine',
+  suspended: 'Sore about the suspension',
+  satDown: 'Stung by sitting out',
   benched: 'Still stung by the benching',
   snubbed: 'Noticed who got paid',
   friendGone: 'Misses a friend who left',
@@ -700,6 +704,7 @@ export function moraleAdvance(league: League, clock: number): void {
   // Then the week's benchings (their asks first), then they talk: asks, answers, promises (G3); then talks gone wrong
   // escalate (G4).
   if (league.phase === 'regular' || league.phase === 'playoffs') benchWeek(league, ctx, clock);
+  settleConduct(league);
   talkStep(league, ctx, clock, week, newYear);
   disputeStep(league, ctx, clock, week, newYear);
 }

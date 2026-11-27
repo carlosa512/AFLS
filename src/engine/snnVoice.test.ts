@@ -8,7 +8,8 @@ import { teamCoaches } from './coaching';
 import { createLeague } from './generate';
 import { playWeek } from './league';
 import { ruleBreaks } from './storyRules';
-import { buildEdition } from './snnWeek';
+import { buildEdition, gameCandidates } from './snnWeek';
+import { writeStory } from './snnVoice';
 import type { Edition, EditionStory, League } from './types';
 import { sentencesOf } from './voice';
 
@@ -90,20 +91,61 @@ describe('a season of stories', () => {
         }
   });
 
-  it('quotes only the head coach of the club the story is about or told for, at most once a story', () => {
+  it('quotes only the head coach of the club the story is about or told for, or the player it is about, at most once a story', () => {
     let quotes = 0;
+    let players = 0;
     // Judged against the head coaches when each edition was written (2026-11-14: a club changed head coaches in
     // season in this world, and the story before it quoted the man who had the job then).
     for (const [i, e] of editions.entries())
       for (const s of storiesOf(e)) {
         if (!s.quote) continue;
         quotes++;
+        // Or the player the story is about, in his own words (`playerQuote.ts`): one quote either way.
+        if (s.quote.playerId !== undefined) {
+          expect(s.quote.coachId).toBeUndefined();
+          expect(s.cast).toContain(s.quote.playerId);
+          players++;
+          continue;
+        }
         const clubs = [s.clubId, ...(s.yours ? [l.userTeamId] : [])];
         const coaches = clubs.map((id) => headCoachesAt[i].get(id!));
         expect(coaches).toContain(s.quote.coachId);
         expect(s.quote.playerId).toBeUndefined();
       }
     expect(quotes).toBeGreaterThan(0);
+    // The wiring prints player quotes: a season has some.
+    expect(players).toBeGreaterThan(0);
+  });
+
+  it('has no player promise next week after his team’s last game, or before a bye', () => {
+    let checked = 0;
+    let followed = 0;
+    for (let week = 1; week <= 18; week++)
+      for (const c of gameCandidates(l, week).filter((x) => x.angle === 'day'))
+        // The draw on who speaks is by edition id: ask under many ids until the player's turn comes.
+        for (let k = 0; k < 24; k++) {
+          const s = writeStory(l, c, { editionId: `snn:probe:${week}:${k}`, said: [] }, {});
+          if (s.quote?.playerId === undefined) continue;
+          const team = l.players[s.quote.playerId].teamId;
+          const plays = l.games.some(
+            (x) =>
+              x.season === l.season &&
+              !x.playoffRound &&
+              x.week === week + 1 &&
+              (x.homeId === team || x.awayId === team),
+          );
+          if (plays) {
+            followed++;
+            continue;
+          }
+          // The team's last game of the year (week 18), or a bye the week after: no next week.
+          checked++;
+          expect(s.quote.text, `week ${week}`).not.toMatch(
+            /next week|next one|another game|another one|next big|keep going|next time|bounce back/i,
+          );
+        }
+    expect(checked).toBeGreaterThan(0);
+    expect(followed).toBeGreaterThan(0);
   });
 
   it('does not say a sentence twice across the season', () => {

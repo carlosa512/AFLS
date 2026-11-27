@@ -32,7 +32,17 @@ import {
   type OpeningFact,
   type StoryFact,
 } from './coachWeekVoice';
-import { employed } from './employment';
+import { conductFact } from './conductMail';
+import {
+  CONDUCT_BEFORE,
+  CONDUCT_DONE,
+  CONDUCT_HEAD,
+  CONDUCT_LEAD,
+  CONDUCT_READ,
+  CONDUCT_RULED,
+  type NoteFact,
+} from './conductVoice';
+import { employed, managesTeam } from './employment';
 import { reportTellsRooms } from './lockerReport';
 import { dueRows, meetingCard, requestRow, resultRows, suggestionId, resultId } from './meetings/mail';
 import { SCOPE_NOUN, styleOf } from './meetings/facts';
@@ -85,6 +95,8 @@ export interface WeekItem {
   covers?: string[];
   /** What its headline reads. */
   head?: StoryFact;
+  /** A headline already worded (trouble has no story to read one from). */
+  headText?: string;
   /** A room whose row says a man feeds it. */
   link?: NonNullable<OpeningFact['link']>;
   result?: true;
@@ -157,7 +169,7 @@ function waitingLead(league: League, rows: Row[]): string {
     : `${count} players are still waiting on an answer from you.`;
 }
 /** A row with something to press. */
-const asksYou = (r: Row) => !!(r.talk || r.bench || r.meeting || r.negotiate || r.restore);
+const asksYou = (r: Row) => !!(r.talk || r.bench || r.meeting || r.negotiate || r.restore || r.conduct);
 
 /** What goes first when a letter is over `MAX_ROWS`: the notes, then the rest of tier 3, closings, then a result's rows from its men inward. */
 function dropOrder(i: WeekItem): number {
@@ -349,6 +361,41 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       row: { playerId: p.id, cells: [nameOf(p), 'Cleared'], note, restore: { playerId: p.id } },
       born: clock,
       head: { kind: 'benched', beat: 'cleared', man },
+    });
+  }
+
+  // ───── tier 1: trouble on the team, waiting on your ruling ─────
+  // An ask like a man's, with its three answers drawn live from the team's list (`conduct.ts`): it always stays, counts
+  // toward the rows a letter holds and waits through the gap between letters. Left too long it is settled as Let it go.
+  for (const r of league.teams[user].conduct?.pending ?? []) {
+    const p = league.players[r.playerId];
+    const key = `conduct:${r.clock}:${r.playerId}`;
+    if (!p || p.retired || p.teamId !== user || told.has(key)) continue;
+    const fact = conductFact(league, p, r.kind);
+    const wording = (slot: string) => ({ key, slot, ...around(league, said) });
+    const lead = say(CONDUCT_LEAD, fact, wording('lead'));
+    if (!lead) continue;
+    remember(lead);
+    const before = say(CONDUCT_BEFORE, fact, wording('before'));
+    // The history is optional: said already this year, it is left out rather than said again.
+    const keepBefore = before && !wording('before').skip(before) ? before : undefined;
+    remember(keepBefore);
+    const note = say(CONDUCT_READ, fact, wording('read'));
+    remember(note);
+    items.push({
+      tier: 1,
+      key,
+      section: 'asks',
+      row: {
+        playerId: p.id,
+        cells: [nameOf(p), 'Team rules'],
+        lead,
+        ...(keepBefore ? { before: keepBefore } : {}),
+        note,
+        conduct: { playerId: p.id, clock: r.clock },
+      },
+      born: r.clock,
+      headText: say(CONDUCT_HEAD, fact, { key, slot: 'head' }),
     });
   }
 
@@ -566,6 +613,39 @@ function gather(league: League, told: Set<string>, said: string[], have: Set<str
       });
     }
   }
+
+  // ───── tier 4: what the head coach settled for you, and what the league ruled ─────
+  // Notes that ride along: he answers by his own discipline when you let him, and the league's fines and suspensions
+  // reach you in its own letter and again here in a sentence. They never file a letter alone.
+  for (const p of teamPlayers(league, user))
+    for (const [idx, e] of (p.discipline?.entries ?? []).entries()) {
+      const isRuling = e.outcome === 'leagueFine' || e.outcome === 'suspended';
+      if (e.season !== league.season || e.teamId !== user || !(e.byCoach || isRuling)) continue;
+      const born = e.season * YEAR + e.week;
+      const key = `conductnote:${e.season}:${e.week}:${p.id}:${idx}`;
+      if (told.has(key) || clock - born >= STALE || clock < born) continue;
+      const earlier = (p.discipline?.entries ?? []).filter(
+        (x) => x !== e && x.season === e.season && x.week < e.week && x.kind === e.kind,
+      ).length;
+      const fact: NoteFact = {
+        kind: e.kind,
+        last: p.lastName,
+        times: earlier,
+        ...(isRuling
+          ? { ruling: e.outcome as 'leagueFine' | 'suspended', ...(e.games ? { games: e.games } : {}) }
+          : { answer: e.outcome as 'fine' | 'sat' | 'letGo' }),
+      };
+      const note = say(isRuling ? CONDUCT_RULED : CONDUCT_DONE, fact, { key, slot: 'note', ...around(league, said) });
+      if (!note) continue;
+      remember(note);
+      items.push({
+        tier: 4,
+        key,
+        section: 'since',
+        row: { playerId: p.id, cells: [nameOf(p), isRuling ? 'The league' : 'Team rules'], note },
+        born,
+      });
+    }
 
   // ───── tier 4 and 5: the rooms and the staff room ─────
   const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
@@ -829,7 +909,9 @@ export function coachWeekMail(league: League, have: Set<string>): Draft[] {
 
   const ranked = [...items].sort((a, b) => a.tier - b.tier);
   const heads = ranked
-    .flatMap((i, n) => (i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : []))
+    .flatMap((i, n) =>
+      i.head ? [say(HEADLINE, i.head, { key: id, slot: `head:${n}` })] : i.headText ? [i.headText] : [],
+    )
     .filter(Boolean);
   const subject = subjectFor(league, heads.length ? heads : ['From the staff room']);
   const top = ranked.find((i) => i.head)?.head;
@@ -904,6 +986,12 @@ export function newestLosingLetter(league: League): string | undefined {
   return held.at(-1)?.id;
 }
 
+/** His row still waits on your ruling: the team's list holds it. */
+export const conductOpen = (league: League, s: { playerId: number; clock: number }) =>
+  managesTeam(league, league.userTeamId) &&
+  league.players[s.playerId]?.teamId === league.userTeamId &&
+  !!league.teams[league.userTeamId].conduct?.pending?.some((r) => r.playerId === s.playerId && r.clock === s.clock);
+
 /** The letter still asks while any of its rows waits on your answer: a man's ask, or the meeting request. */
 export function coachWeekNeedsYou(league: League, m: InboxMessage): boolean {
   return !!m.sections?.some((sec) =>
@@ -912,6 +1000,7 @@ export function coachWeekNeedsYou(league: League, m: InboxMessage): boolean {
         (r.talk && !r.talkRoom && talkCard(league, r.talk).state === 'open') ||
         (r.bench && benchCard(league, r.bench).state === 'open') ||
         (r.restore && restoreCard(league, r.restore.playerId).state === 'open') ||
+        (r.conduct && conductOpen(league, r.conduct)) ||
         (r.talkRoom && newestLosingLetter(league) === m.id && roomAsks(league, r.talkRoom.unit).length > 0) ||
         (r.meeting && meetingCard(league, r.meeting).state === 'open'),
     ),

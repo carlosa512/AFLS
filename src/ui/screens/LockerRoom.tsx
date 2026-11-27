@@ -36,7 +36,7 @@ import { SCOPE_NOUN } from '../../engine/meetings/facts';
 import { meetingsView, type RoomMeetingView } from '../../engine/meetings/mail';
 import { ROOMS } from '../../engine/meetings/suggest';
 import type { CoachRoom, MeetingScope } from '../../engine/types';
-import { MeetingChoices } from '../meetings';
+import { DisciplineByCoach, MeetingChoices } from '../meetings';
 import { chemistryOf, type ChemRoom } from '../../engine/chemistry';
 import { beliefFact, chemFact } from '../../engine/roomFacts';
 import { BELIEF_LINE, CHEM_REASON } from '../../engine/roomVoice';
@@ -439,6 +439,7 @@ export function LockerRoom({ league }: { league: League }) {
               />{' '}
               Let the coaches handle the mentoring
             </label>
+            <DisciplineByCoach league={league} />
             {meetings && (
               <RoomAsk
                 league={league}

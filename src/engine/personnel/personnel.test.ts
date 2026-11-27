@@ -261,6 +261,9 @@ describe('migration and collection', () => {
     const c = copy(r);
     delete c.home.adv;
     delete c.away.adv;
+    // 2026-11-24 (0.5.0): what the league's weekly review reads (`conduct.ts`) is recorded, never drawn.
+    delete c.personalFouls;
+    delete c.ejections;
     for (const [id, line] of Object.entries(c.playerStats)) {
       for (const key of ['dropbacks', 'epa', 'successes', 'rushSnaps'] as const) delete line[key];
       if (!Object.keys(line).length) delete c.playerStats[Number(id)];
